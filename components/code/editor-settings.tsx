@@ -10,7 +10,6 @@ export type CodeEditorSettings = {
   intellisense: boolean;
 };
 
-const STORAGE_KEY = "hu-code-editor-settings-v1";
 const EVENT_NAME = "hu:code-editor-settings";
 const DEFAULT_SETTINGS: CodeEditorSettings = {
   tabSize: 4,
@@ -28,45 +27,27 @@ function normalize(raw: Partial<CodeEditorSettings> | null | undefined): CodeEdi
   };
 }
 
-export function getCodeEditorSettings(): CodeEditorSettings {
-  if (typeof window === "undefined") return DEFAULT_SETTINGS;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return normalize(raw ? JSON.parse(raw) : null);
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
-}
+// Like the editor layout, these are never saved: a reload always opens the
+// editor at the defaults instead of jumping to a restored font size. They
+// live for this page load, so they carry over as you switch languages.
+let sessionSettings: CodeEditorSettings = DEFAULT_SETTINGS;
 
-export function saveCodeEditorSettings(next: CodeEditorSettings) {
-  if (typeof window === "undefined") return;
-  const settings = normalize(next);
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    /* ignore */
-  }
-  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: settings }));
+function setCodeEditorSettings(next: CodeEditorSettings) {
+  sessionSettings = normalize(next);
+  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: sessionSettings }));
 }
 
 export function useCodeEditorSettings() {
-  const [settings, setSettings] = useState<CodeEditorSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<CodeEditorSettings>(() => sessionSettings);
 
   useEffect(() => {
-    setSettings(getCodeEditorSettings());
+    setSettings(sessionSettings);
     const onSettings = (event: Event) => {
       const custom = event as CustomEvent<CodeEditorSettings>;
       setSettings(normalize(custom.detail));
     };
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === STORAGE_KEY) setSettings(getCodeEditorSettings());
-    };
     window.addEventListener(EVENT_NAME, onSettings);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener(EVENT_NAME, onSettings);
-      window.removeEventListener("storage", onStorage);
-    };
+    return () => window.removeEventListener(EVENT_NAME, onSettings);
   }, []);
 
   return settings;
@@ -91,7 +72,7 @@ export function EditorSettingsButton({
   const panelRef = useRef<HTMLDivElement>(null);
 
   const update = (patch: Partial<CodeEditorSettings>) => {
-    saveCodeEditorSettings(normalize({ ...settings, ...patch }));
+    setCodeEditorSettings(normalize({ ...settings, ...patch }));
   };
 
   function place() {

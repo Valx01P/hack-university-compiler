@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { CodeThemePicker } from "@/components/code/code-theme";
@@ -27,42 +27,50 @@ type RunState =
 
 type Orient = "horizontal" | "vertical";
 
+// The layout is never saved, so every reload renders the default split with
+// nothing to restore and nothing to shift. It only lives for this page load,
+// which keeps it in place while you switch languages.
+const sessionLayout: { orient: Orient; splitPct: number } = {
+  orient: "horizontal",
+  splitPct: 55,
+};
+
+const codeKey = (slug: string) => `hu-compiler-code:${slug}`;
+
+/** Your code per language is the one thing saved across reloads. */
+function savedCode(lang: CompilerLang): string {
+  if (typeof window === "undefined") return lang.starter;
+  try {
+    return localStorage.getItem(codeKey(lang.slug)) ?? lang.starter;
+  } catch {
+    return lang.starter;
+  }
+}
+
 export function CompilerApp({ lang }: { lang: CompilerLang }) {
-  const [code, setCode] = useState(lang.starter);
+  // Read while initializing, not in an effect, so the editor opens straight on
+  // your code: no starter flash, and ⌘Z can't undo back to the starter. The
+  // code never reaches the server markup (CodeMirror mounts client-side), so
+  // hydration is unaffected.
+  const [code, setCode] = useState(() => savedCode(lang));
   const [stdin, setStdin] = useState("");
   const [showStdin, setShowStdin] = useState(false);
   const [run, setRun] = useState<RunState>({ status: "idle" });
   // Reset-to-starter confirm popover.
   const [resetOpen, setResetOpen] = useState(false);
   const resetAnchorRef = useRef<HTMLButtonElement>(null);
-  const [orient, setOrient] = useState<Orient>("horizontal");
-  const [splitPct, setSplitPct] = useState(55);
+  const [orient, setOrient] = useState<Orient>(() => sessionLayout.orient);
+  const [splitPct, setSplitPct] = useState(() => sessionLayout.splitPct);
   const [full, setFull] = useState(false);
 
   const splitRef = useRef<HTMLDivElement>(null);
   const orientRef = useRef(orient);
   orientRef.current = orient;
-  const codeKey = `hu-compiler-code:${lang.slug}`;
-
-  // Restore per-language code + layout prefs.
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(codeKey);
-      if (saved != null) setCode(saved);
-      const o = localStorage.getItem("hu-compiler-orient");
-      if (o === "horizontal" || o === "vertical") setOrient(o);
-      const s = Number(localStorage.getItem("hu-compiler-split-v2"));
-      if (s >= 20 && s <= 80) setSplitPct(s);
-    } catch {
-      /* ignore */
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   function updateCode(next: string) {
     setCode(next);
     try {
-      localStorage.setItem(codeKey, next);
+      localStorage.setItem(codeKey(lang.slug), next);
     } catch {
       /* ignore */
     }
@@ -74,11 +82,13 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
 
   function setOrientation(next: Orient) {
     setOrient(next);
-    try {
-      localStorage.setItem("hu-compiler-orient", next);
-    } catch {
-      /* ignore */
-    }
+    sessionLayout.orient = next;
+  }
+
+  function setSplit(next: number) {
+    const clamped = Math.min(80, Math.max(20, Math.round(next)));
+    setSplitPct(clamped);
+    sessionLayout.splitPct = clamped;
   }
 
   async function execute() {
@@ -132,23 +142,16 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
 
     function move(ev: PointerEvent) {
       const r = container!.getBoundingClientRect();
-      const pct = isH
-        ? ((ev.clientX - r.left) / r.width) * 100
-        : ((ev.clientY - r.top) / r.height) * 100;
-      setSplitPct(Math.min(80, Math.max(20, Math.round(pct))));
+      setSplit(
+        isH
+          ? ((ev.clientX - r.left) / r.width) * 100
+          : ((ev.clientY - r.top) / r.height) * 100
+      );
     }
     function up() {
       document.body.style.userSelect = prevSelect;
       document.body.style.cursor = prevCursor;
       handle.releasePointerCapture?.(e.pointerId);
-      setSplitPct((p) => {
-        try {
-          localStorage.setItem("hu-compiler-split-v2", String(p));
-        } catch {
-          /* ignore */
-        }
-        return p;
-      });
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
@@ -159,15 +162,7 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
   }
 
   function nudgeSplit(delta: number) {
-    setSplitPct((current) => {
-      const next = Math.min(80, Math.max(20, current + delta));
-      try {
-        localStorage.setItem("hu-compiler-split-v2", String(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+    setSplit(splitPct + delta);
   }
 
   const horizontal = orient === "horizontal";
