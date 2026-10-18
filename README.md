@@ -3,15 +3,20 @@
 > The Hack University online compiler, running entirely on your own machine.
 
 Write, compile, and run **Python, JavaScript, C++, Java, and Go** right in the
-browser. Code runs in a local [Piston](https://github.com/engineer-man/piston) sandbox in Docker,
-so nothing leaves localhost and there is no server to pay for. Same editor, same
-themes, same look as the original hackuniversity.dev compiler.
+browser, and query a real **PostgreSQL** database with **SQL**. Code runs in a
+local [Piston](https://github.com/engineer-man/piston) sandbox in Docker, and SQL
+runs on PostgreSQL 18 compiled to WebAssembly inside the page, so nothing leaves
+localhost and there is no server to pay for. Same editor, same themes, same look
+as the original hackuniversity.dev compiler.
 
 ## Requirements
 
 - **Node.js 20.9+**
 - **Docker Desktop** (or any Docker engine that can run privileged containers)
 - About **5 GB** of disk for the five runtimes (the C++ toolchain is 2.8 GB of it)
+
+SQL needs none of that: it runs in the browser, so `/sql` works even with the
+sandbox off.
 
 On Apple Silicon, turn on **Settings → General → "Use Rosetta for x86_64/amd64
 emulation on Apple Silicon"** in Docker Desktop. The sandbox runtimes are x86_64,
@@ -29,7 +34,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). The homepage redirects to
 the Python compiler, and every other language is its own route: `/javascript`,
-`/cpp`, `/java`, and `/go`.
+`/cpp`, `/java`, `/go`, and `/sql`.
 
 Only need some of them? Install just those instead of running `setup`:
 
@@ -50,8 +55,9 @@ npm run piston:install -- python javascript
 | `npm run piston:install` | Install every language, or `-- <ids>` for just some |
 | `npm run piston:status` | Show which languages are installed |
 | `npm run lessons:verify` | Check every Learn lesson in the sandbox (`-- <language> [ids]` for some) |
-| `npm run challenges:verify` | Check every challenge in all five languages (`-- <ids>`, `--lang=<language>`) |
+| `npm run challenges:verify` | Check every challenge in every language (`-- <ids>`, `--lang=<language>`) |
 | `npm run reference:verify` | Lint the cheatsheets (`-- <language> [categories]`) |
+| `npm run sql:try -- <file.sql>` | Run SQL on a fresh PostgreSQL and print what psql would (`--setup <file.sql>`, `--sample` for the playground's tables) |
 
 ## Languages
 
@@ -62,13 +68,35 @@ npm run piston:install -- python javascript
 | `/cpp` | C++ | GCC 10.2.0 |
 | `/java` | Java | Java 15.0.2 |
 | `/go` | Go | Go 1.16.2 |
+| `/sql` | SQL | PostgreSQL 18.3 ([PGlite](https://pglite.dev), in the browser) |
 
-These are the newest versions in Piston's package index. Piston has packages
-for many more languages, see [Adding a language](#adding-a-language).
+The first five are the newest versions in Piston's package index. Piston has
+packages for many more languages, see [Adding a language](#adding-a-language).
 
 The badge in the top right of the compiler shows the runtime serving the
 current language, or what to run if the sandbox is offline or the language
 isn't installed yet.
+
+## SQL
+
+`/sql` is a PostgreSQL playground. Every visit starts from a small sample
+database (departments, employees, customers, products, orders, and
+order_items), and the database keeps every change you make until you reload
+(it carries over while you switch languages), so you can create tables,
+insert, update, join, and drop, and watch the results.
+
+- **Results** shows each statement's output in order: a table for queries and
+  the command tag (`CREATE TABLE`, `INSERT 0 3`, `UPDATE 2`) for everything
+  else. The first error stops the script, like `psql` with `ON_ERROR_STOP`.
+- **Database** lists every table and view with its columns, types, primary
+  keys, and row count. Open one to preview its rows. It updates after every run.
+- The reset button next to the tabs puts the sample database back.
+
+SQL has its own Learn course, cheatsheet, and challenges (below). There, every
+lesson and challenge starts from its own small tables, which show in the
+**setup (runs first)** box under the editor. A check runs your query on a fresh
+database for each test, and the tests change that data, so a query has to work
+for any rows, not just the ones you can see.
 
 ## Learn mode
 
@@ -154,6 +182,12 @@ blocks in lessons, and the output terminal. Pick the theme's own, a dark preset
 editor theme's, and the picker warns you if they'd be hard to read on your
 color.
 
+**Layout lines**, at the bottom of the theme menu, is a slider for the lines
+that divide the page: the panel's outline, the language rail, the lesson list
+and its dividers, the editor and output boxes, the reference panel, and the
+outlined buttons (Reference, Learn, Compiler, and Previous/Next). Slide it to 0
+for a borderless page.
+
 ## How it works
 
 ```
@@ -167,9 +201,13 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
 - Every run is limited by `docker-compose.yml`: no network, 10s to run, 60s to
   compile, 512 MB of memory to run (1 GB to compile), 128 processes, and 1 MB of
   output.
+- SQL never reaches the server. PostgreSQL runs as WebAssembly in the page,
+  loaded the first time you run SQL (about 16 MB, 5 MB gzipped). The playground
+  keeps one in-memory database, and lessons and challenges get a fresh one for
+  every run.
 - Saved in the browser's local storage: your code (per language), editor zoom,
-  tab size, intellisense, theme, editor theme, contrast level, and code
-  background. Everything visual is applied before the page paints, so nothing
+  tab size, intellisense, theme, editor theme, contrast level, code background,
+  and layout lines. Everything visual is applied before the page paints, so nothing
   shifts on reload. The editor/output split isn't saved, so a reload always
   opens on the default layout (it does carry over while you switch languages).
 
@@ -188,22 +226,24 @@ content/learn/               the Learn courses (JSON) and the authoring guide
 content/reference/           the cheatsheets (one Markdown file per topic)
 content/challenges/          the challenges (one JSON file each, all languages)
 lib/compiler.ts              languages, labels, starters, file names
+lib/sql/                     SQL: the PGlite playground, the sample database, and
+                             the psql-style runner shared with the verifiers
 lib/learn.ts                 reads courses and lessons at build time
 lib/runtimes.json            language id to Piston runtime and package
 lib/piston.ts                server-side Piston client
 docker-compose.yml           the sandbox and its limits
 scripts/setup-piston.mjs     runtime installer
 scripts/verify-lessons.mjs   runs every lesson's programs in the sandbox
-scripts/verify-challenges.mjs runs every challenge in all five languages
+scripts/verify-challenges.mjs runs every challenge in every language
 scripts/verify-reference.mjs lints the cheatsheets
+scripts/try-sql.mjs          runs SQL on a fresh PostgreSQL, printed like psql
 ```
 
 ## Adding a language
 
 1. `lib/runtimes.json`: the Piston runtime and package (list them with
    `curl http://127.0.0.1:2000/api/v2/packages`).
-2. `lib/compiler.ts`: label, starter, file name, `COMPILER_SLUGS`, and
-   `COMPILER_GROUPS`.
+2. `lib/compiler.ts`: label, starter, file name, and `COMPILER_SLUGS`.
 3. `components/compiler/lang-icon.tsx`: the rail icon.
 4. `components/code/cm-editor.tsx` and `lib/code-editor-completions.ts`: syntax
    highlighting (install the matching `@codemirror/lang-*` package, or use a
@@ -227,6 +267,8 @@ scripts/verify-reference.mjs lints the cheatsheets
 ## Credits
 
 - Code execution by [Piston](https://github.com/engineer-man/piston) (MIT).
+- SQL by [PGlite](https://github.com/electric-sql/pglite) (Apache 2.0 and the
+  PostgreSQL License).
 - The Java coffee cup icon is from [Devicon](https://github.com/devicons/devicon)
   (MIT). The other language icons are from [Simple Icons](https://simpleicons.org)
   (CC0).
