@@ -1,0 +1,80 @@
+{
+  "id": "linked-rows",
+  "title": "Linked Rows",
+  "section": "Recursive Queries",
+  "summary": "Follow rows that point to the next row, like a linked list.",
+  "intro": "Sometimes rows are ordered by pointers instead of numbers: each row names the one that comes next. You'll find where such a chain starts and ends, then walk it from start to finish with a recursive query.",
+  "setup": "CREATE TABLE playlist (\n    id integer PRIMARY KEY,\n    song text,\n    next_id integer REFERENCES playlist (id)\n);\nINSERT INTO playlist (id, song, next_id) VALUES\n    (1, 'Paper Kites', 6),\n    (2, 'Slow Train', 5),\n    (3, 'Last Light', NULL),\n    (4, 'Blue Morning', 1),\n    (5, 'River Song', 3),\n    (6, 'Neon Rain', 2);\nCREATE TABLE tasks (\n    id integer PRIMARY KEY,\n    title text,\n    next_id integer REFERENCES tasks (id)\n);\nINSERT INTO tasks (id, title, next_id) VALUES\n    (1, 'Deploy', NULL),\n    (2, 'Write code', 4),\n    (3, 'Plan', 2),\n    (4, 'Test', 1);\n",
+  "steps": [
+    {
+      "title": "Head and tail",
+      "body": "Some data has an order that lives in the rows themselves: a playlist, the steps of a recipe, a queue of tasks. Instead of a position number, each row stores `next_id`, the id of the row that comes after it. That is a linked list, and `next_id` is a foreign key to the same table, so it can only name a real row. Inserting a row in the middle changes one existing `next_id` instead of renumbering every row after it.\n\n```sql\nCREATE TABLE playlist (\n    id integer PRIMARY KEY,\n    song text,\n    next_id integer REFERENCES playlist (id)\n);\n-- (1, 'Paper Kites', 6), (2, 'Slow Train', 5), (3, 'Last Light', NULL), ...\n```\n\nThe ids say nothing about the order. Two rows are special:\n\n- The **head** is the first row: no other row's `next_id` points to it. Find it with `NOT EXISTS`.\n- The **tail** is the last row: it points nowhere, so its `next_id` is `NULL`.\n\n```sql\nSELECT song FROM playlist WHERE next_id IS NULL;\n```\n\nA gotcha: `WHERE id NOT IN (SELECT next_id FROM playlist)` looks like it finds the head, but the tail's `NULL` is in that list, so it returns no rows. Use `NOT EXISTS`. In a one-row list, the same row is both head and tail. The lesson also has a `tasks` table with the same shape: `id`, `title`, `next_id`.",
+      "example": {
+        "title": "Ends of the playlist",
+        "prompt": "Show each song next to the song it points to, then find the first and last songs of the playlist.",
+        "code": "-- Each song and the song it points to\nSELECT p.id, p.song, p.next_id, n.song AS next_song\nFROM playlist AS p\nLEFT JOIN playlist AS n ON n.id = p.next_id\nORDER BY p.id;\n\n-- The head: no row points to it\nSELECT p.id, p.song\nFROM playlist AS p\nWHERE NOT EXISTS (SELECT 1 FROM playlist AS x WHERE x.next_id = p.id);\n\n-- The tail: it points nowhere\nSELECT id, song FROM playlist WHERE next_id IS NULL;\n",
+        "output": " id |     song     | next_id |  next_song\n----+--------------+---------+-------------\n  1 | Paper Kites  |       6 | Neon Rain\n  2 | Slow Train   |       5 | River Song\n  3 | Last Light   |         |\n  4 | Blue Morning |       1 | Paper Kites\n  5 | River Song   |       3 | Last Light\n  6 | Neon Rain    |       2 | Slow Train\n(6 rows)\n\n id |     song\n----+--------------\n  4 | Blue Morning\n(1 row)\n\n id |    song\n----+------------\n  3 | Last Light\n(1 row)",
+        "explanation": "The self join matches each row's `next_id` to another row's `id`, so you can see every link. `Last Light` has no next song: it is the tail, so `next_id IS NULL` finds it. For the head, the correlated `NOT EXISTS` keeps a row `p` only when no row `x` has `x.next_id = p.id`. Every song except `Blue Morning` is somebody's next song, so it is the head."
+      },
+      "practice": {
+        "title": "First and last task",
+        "prompt": "Find where the chain of tasks starts and where it ends.\n\n1. Select `title AS first_task` from `tasks AS t` for the task that no other task's `next_id` points to. Use `NOT EXISTS`.\n2. Select `title AS last_task` for the task whose `next_id` is `NULL`.\n\nExpected output:\n\n```text\n first_task\n------------\n Plan\n(1 row)\n\n last_task\n-----------\n Deploy\n(1 row)\n```",
+        "starter": "-- The tasks table: id, title, next_id (the id of the task that comes next)\n\n-- TODO: select title AS first_task for the task no other task points to\n\n-- TODO: select title AS last_task for the task whose next_id is NULL\n",
+        "solution": "-- The first task: no other task points to it\nSELECT t.title AS first_task\nFROM tasks AS t\nWHERE NOT EXISTS (SELECT 1 FROM tasks AS x WHERE x.next_id = t.id);\n\n-- The last task: it points nowhere\nSELECT title AS last_task FROM tasks WHERE next_id IS NULL;\n",
+        "tests": [
+          {
+            "output": " first_task\n------------\n Plan\n(1 row)\n\n last_task\n-----------\n Deploy\n(1 row)"
+          },
+          {
+            "stdin": "INSERT INTO tasks (id, title, next_id) VALUES (5, 'Gather ideas', 3);\n",
+            "output": "  first_task\n--------------\n Gather ideas\n(1 row)\n\n last_task\n-----------\n Deploy\n(1 row)"
+          },
+          {
+            "stdin": "UPDATE tasks SET next_id = NULL WHERE id = 3;\nDELETE FROM tasks WHERE id <> 3;\n",
+            "output": " first_task\n------------\n Plan\n(1 row)\n\n last_task\n-----------\n Plan\n(1 row)"
+          }
+        ],
+        "hints": [
+          "The last task points nowhere. Test its `next_id` with `IS NULL`, because `= NULL` is never true.",
+          "For the first task, the inner query looks for a task `x` whose `next_id` equals the outer task's `id`. Keep `t` only when that query finds nothing."
+        ]
+      }
+    },
+    {
+      "title": "Walking the chain",
+      "body": "To read the list in order, start at the head and keep following `next_id`. That is a job for `WITH RECURSIVE`:\n\n```sql\nWITH RECURSIVE chain AS (\n    SELECT p.id, p.song, p.next_id, 1 AS position   -- the head\n    FROM playlist AS p\n    WHERE NOT EXISTS (SELECT 1 FROM playlist AS x WHERE x.next_id = p.id)\n    UNION ALL\n    SELECT p.id, p.song, p.next_id, c.position + 1  -- the next row\n    FROM chain AS c\n    JOIN playlist AS p ON p.id = c.next_id\n)\nSELECT position, song FROM chain ORDER BY position;\n```\n\n- The starting query finds the head and gives it `position` 1. With no column list after `chain`, the CTE takes its column names from the starting query, so `1 AS position` names the new column.\n- The recursive query joins the row it just found (`c`) to the row its `next_id` names, adding 1 to the position. Carry `next_id` in the CTE so the next round can follow it.\n- At the tail, `next_id` is `NULL`, the join matches nothing, and the recursion stops on its own.\n\nWatch the join direction: `p.id = c.next_id` walks forward. Writing `p.next_id = c.id` walks backward, toward the head. The CTE's rows have no guaranteed order, so always finish with `ORDER BY position`. And if a bad update makes the chain loop back on itself, it never reaches a `NULL`. Add `WHERE c.position < 1000` to the recursive query when you don't trust the data.",
+      "example": {
+        "title": "Songs in play order",
+        "prompt": "List the songs in the order they play, numbering each position from 1.",
+        "code": "WITH RECURSIVE chain AS (\n    -- Start at the head, position 1\n    SELECT p.id, p.song, p.next_id, 1 AS position\n    FROM playlist AS p\n    WHERE NOT EXISTS (SELECT 1 FROM playlist AS x WHERE x.next_id = p.id)\n    UNION ALL\n    -- Follow next_id to the row it points to\n    SELECT p.id, p.song, p.next_id, c.position + 1\n    FROM chain AS c\n    JOIN playlist AS p ON p.id = c.next_id\n)\nSELECT position, song, id\nFROM chain\nORDER BY position;\n",
+        "output": " position |     song     | id\n----------+--------------+----\n        1 | Blue Morning |  4\n        2 | Paper Kites  |  1\n        3 | Neon Rain    |  6\n        4 | Slow Train   |  2\n        5 | River Song   |  5\n        6 | Last Light   |  3\n(6 rows)",
+        "explanation": "The starting query returns `Blue Morning` with position 1 and `next_id` 1. The recursive query then finds the row with `id` 1, `Paper Kites`, at position 2, and so on down the chain. `Last Light` has a `NULL` `next_id`, so the next round joins to nothing and the CTE is done. `ORDER BY position` prints the rows in play order, even though their ids are 4, 1, 6, 2, 5, 3."
+      },
+      "practice": {
+        "title": "Tasks in order",
+        "prompt": "List the tasks in the order the chain links them, numbering each step from 1.\n\n1. Write `WITH RECURSIVE chain AS (...)` whose starting query selects `t.id`, `t.title`, `t.next_id`, and `1 AS step` from `tasks AS t` for the first task (no task points to it).\n2. After `UNION ALL`, select the same columns from `chain AS c` joined to `tasks AS t` on `t.id = c.next_id`, with `c.step + 1` as the step.\n3. Select `step` and `title` from `chain`, sorted by `step`.\n\nExpected output:\n\n```text\n step |   title\n------+------------\n    1 | Plan\n    2 | Write code\n    3 | Test\n    4 | Deploy\n(4 rows)\n```",
+        "starter": "-- The first task: no other task points to it\nSELECT t.id, t.title, t.next_id, 1 AS step\nFROM tasks AS t\nWHERE NOT EXISTS (SELECT 1 FROM tasks AS x WHERE x.next_id = t.id);\n\n-- TODO: wrap the query above in WITH RECURSIVE chain AS (...),\n-- add UNION ALL and a query that follows next_id from chain AS c,\n-- then select step and title, sorted by step\n",
+        "solution": "WITH RECURSIVE chain AS (\n    SELECT t.id, t.title, t.next_id, 1 AS step\n    FROM tasks AS t\n    WHERE NOT EXISTS (SELECT 1 FROM tasks AS x WHERE x.next_id = t.id)\n    UNION ALL\n    SELECT t.id, t.title, t.next_id, c.step + 1\n    FROM chain AS c\n    JOIN tasks AS t ON t.id = c.next_id\n)\nSELECT step, title\nFROM chain\nORDER BY step;\n",
+        "tests": [
+          {
+            "output": " step |   title\n------+------------\n    1 | Plan\n    2 | Write code\n    3 | Test\n    4 | Deploy\n(4 rows)"
+          },
+          {
+            "stdin": "INSERT INTO tasks (id, title, next_id) VALUES (5, 'Review', 1);\nUPDATE tasks SET next_id = 5 WHERE id = 4;\n",
+            "output": " step |   title\n------+------------\n    1 | Plan\n    2 | Write code\n    3 | Test\n    4 | Review\n    5 | Deploy\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO tasks (id, title, next_id) VALUES (5, 'Gather ideas', 3);\nUPDATE tasks SET next_id = 4 WHERE id = 3;\nUPDATE tasks SET next_id = 2 WHERE id = 4;\nUPDATE tasks SET next_id = 1 WHERE id = 2;\n",
+            "output": " step |    title\n------+--------------\n    1 | Gather ideas\n    2 | Plan\n    3 | Test\n    4 | Write code\n    5 | Deploy\n(5 rows)"
+          }
+        ],
+        "hints": [
+          "The starter's query is the starting query: put it inside `WITH RECURSIVE chain AS (...)`, then add `UNION ALL`.",
+          "The recursive part reads `chain AS c` and joins `tasks AS t` where the task's `id` equals the chain row's `next_id`. Its step is one more than `c.step`.",
+          "After the closing parenthesis, select from `chain` like any table and sort by `step`."
+        ]
+      }
+    }
+  ],
+  "recap": "- A `next_id` column links each row to the row after it, so the order lives in the data, not in the ids.\n- The head is the row no `next_id` points to: find it with `NOT EXISTS`, not `NOT IN`, because the tail's `NULL` breaks `NOT IN`.\n- The tail is the row with `next_id IS NULL`.\n- `WITH RECURSIVE` starts at the head and joins `ON p.id = c.next_id` to step forward, adding 1 to the position each time.\n- The walk stops when the tail's `NULL` matches nothing. Finish with `ORDER BY position`."
+}

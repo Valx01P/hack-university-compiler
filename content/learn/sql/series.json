@@ -1,0 +1,88 @@
+{
+  "id": "series",
+  "title": "Loops Without Loops",
+  "section": "Expressions and Functions",
+  "summary": "Think in sets: you write an expression once for every row, and generate_series makes rows to loop over.",
+  "intro": "Other languages repeat work with `for` and `while` loops. SQL has no loop in a plain query: you describe the rows you want, and PostgreSQL works through every one of them. When there is no table to read, `generate_series` makes the rows for you.",
+  "steps": [
+    {
+      "title": "Counting with generate_series",
+      "body": "In SQL you never write code that walks through rows one at a time. You write an expression in the `SELECT` list, like `n * n`, once, and PostgreSQL works it out for every row. So to \"loop\" in SQL, you make one row per pass and let the expression do the work.\n\nThis lesson has no tables. `generate_series(start, stop)` makes the rows: one integer per row, from `start` to `stop`, both ends included. It returns rows, so it goes in `FROM` like a table.\n\n```sql\nSELECT *\nFROM generate_series(1, 3)\nORDER BY generate_series;\n```\n\n```text\n generate_series\n-----------------\n               1\n               2\n               3\n(3 rows)\n```\n\nThe column is called `generate_series`, which is long and clumsy to sort by. Name the function with `AS` and its one column takes that name too, so you can use it in expressions:\n\n```sql\nSELECT n, n + 100 AS bigger\nFROM generate_series(1, 3) AS n\nORDER BY n;\n```\n\nTwo things to watch. If `start` is bigger than `stop` you get zero rows, not an error. And the numbers usually come out in order, but only `ORDER BY` guarantees it.",
+      "example": {
+        "title": "Squares from 1 to 5",
+        "prompt": "List the numbers 1 to 5 next to their squares.",
+        "code": "SELECT n, n * n AS square\nFROM generate_series(1, 5) AS n\nORDER BY n;\n",
+        "output": " n | square\n---+--------\n 1 |      1\n 2 |      4\n 3 |      9\n 4 |     16\n 5 |     25\n(5 rows)",
+        "explanation": "`generate_series(1, 5)` makes five rows, and `AS n` names both the rows and their column. The `SELECT` list says `n * n` once, and PostgreSQL works it out for every row, with no counter or loop body. `ORDER BY n` fixes the order."
+      },
+      "practice": {
+        "title": "Times three table",
+        "prompt": "List the numbers 1 to 6 next to three times their value.\n\n1. Make the numbers 1 to 6 with `generate_series` and name them `n` with `AS`.\n2. Select `n` and `n * 3` as `triple`.\n3. Sort by `n`.\n\nExpected output:\n\n```text\n n | triple\n---+--------\n 1 |      3\n 2 |      6\n 3 |      9\n 4 |     12\n 5 |     15\n 6 |     18\n(6 rows)\n```",
+        "starter": "-- TODO: count from 1 to 6 and add a triple column\nSELECT n\nFROM generate_series(1, 2) AS n\nORDER BY n;\n",
+        "solution": "SELECT n, n * 3 AS triple\nFROM generate_series(1, 6) AS n\nORDER BY n;\n",
+        "tests": [
+          {
+            "output": " n | triple\n---+--------\n 1 |      3\n 2 |      6\n 3 |      9\n 4 |     12\n 5 |     15\n 6 |     18\n(6 rows)"
+          }
+        ],
+        "hints": [
+          "Change the stop value of `generate_series` to 6.",
+          "Add a second column after `n` that multiplies it by 3, and name it with `AS`."
+        ]
+      }
+    },
+    {
+      "title": "Steps and countdowns",
+      "body": "A third argument sets the step, the amount added each time. It plays the role of `i += 5` in a `for` loop.\n\n```sql\nSELECT n\nFROM generate_series(0, 20, 5) AS n\nORDER BY n;\n-- 0, 5, 10, 15, 20\n```\n\n`stop` is a limit, not a promise: the series stops before it would pass it. `generate_series(1, 10, 4)` gives 1, 5, and 9.\n\nA negative step counts down, so `generate_series(5, 1, -1)` gives 5, 4, 3, 2, 1. Forget the minus sign and `generate_series(5, 1)` quietly returns zero rows. To print a countdown in a guaranteed order, sort with `ORDER BY ... DESC`.\n\nA step of zero would never finish, so PostgreSQL refuses it:\n\n```text\nERROR:  step size cannot equal zero\n```\n\nTry `SELECT n FROM generate_series(1, 5, 0) AS n;` in the editor to see it. Steps work with decimals too: `generate_series(0, 1, 0.25)` gives 0, 0.25, 0.50, 0.75, and 1.00.",
+      "example": {
+        "title": "Fives and a countdown",
+        "prompt": "List the multiples of 5 from 0 to 20, then count down from 5 to 1.",
+        "code": "SELECT n\nFROM generate_series(0, 20, 5) AS n\nORDER BY n;\n\nSELECT t\nFROM generate_series(5, 1, -1) AS t\nORDER BY t DESC;\n",
+        "output": " n\n----\n  0\n  5\n 10\n 15\n 20\n(5 rows)\n\n t\n---\n 5\n 4\n 3\n 2\n 1\n(5 rows)",
+        "explanation": "The first query adds 5 each time and stops at 20, which is included because the series lands on it exactly. The second query starts at 5 and adds -1 until it reaches 1. `ORDER BY t DESC` sorts from largest to smallest, so the countdown prints top to bottom. psql puts a blank line between the two results."
+      },
+      "practice": {
+        "title": "Evens and a launch countdown",
+        "prompt": "List the even numbers from 2 to 10, then count down from 10 to 0 in steps of 2.\n\n1. Make the numbers 2 to 10 in steps of 2, named `even`, and sort them from smallest to largest.\n2. In a second query, make the numbers from 10 down to 0 in steps of 2, named `t`.\n3. Sort the countdown from largest to smallest.\n\nExpected output:\n\n```text\n even\n------\n    2\n    4\n    6\n    8\n   10\n(5 rows)\n\n t\n----\n 10\n  8\n  6\n  4\n  2\n  0\n(6 rows)\n```",
+        "starter": "-- TODO: the even numbers from 2 to 10, in a column named even\nSELECT 0 AS even;\n\n-- TODO: count down from 10 to 0 in steps of 2, in a column named t\n",
+        "solution": "SELECT even\nFROM generate_series(2, 10, 2) AS even\nORDER BY even;\n\nSELECT t\nFROM generate_series(10, 0, -2) AS t\nORDER BY t DESC;\n",
+        "tests": [
+          {
+            "output": " even\n------\n    2\n    4\n    6\n    8\n   10\n(5 rows)\n\n t\n----\n 10\n  8\n  6\n  4\n  2\n  0\n(6 rows)"
+          }
+        ],
+        "hints": [
+          "Both queries use `generate_series(start, stop, step)` in `FROM`.",
+          "The countdown starts at 10, stops at 0, and needs a step of -2. Sort it with `ORDER BY t DESC`."
+        ]
+      }
+    },
+    {
+      "title": "FizzBuzz",
+      "body": "A loop with an `if` inside becomes a series with a `CASE` in the `SELECT` list. The series makes the rows, and `CASE` picks a value for each one.\n\nTwo gotchas decide whether it works. First, the first true `WHEN` wins, so put the most specific test first. A number like 15 is a multiple of 3 too, so check `n % 15 = 0` before `n % 3 = 0`.\n\nSecond, as in the CASE lesson, every branch must give one type. `'Fizz'` is text and `n` is an integer, so a plain `ELSE n` makes PostgreSQL try to read `'Fizz'` as an integer:\n\n```sql\nSELECT CASE WHEN n % 3 = 0 THEN 'Fizz' ELSE n END AS word\nFROM generate_series(1, 3) AS n;\n```\n\n```text\nERROR:  invalid input syntax for type integer: \"Fizz\"\n```\n\nTry it in the editor, then fix it by casting the number: `ELSE n::text`. Because the column is now text, psql aligns the numbers to the left.",
+      "example": {
+        "title": "FizzBuzz from 1 to 15",
+        "prompt": "Print FizzBuzz for the numbers 1 to 15: Fizz for multiples of 3, Buzz for multiples of 5, FizzBuzz for both, otherwise the number.",
+        "code": "SELECT\n    CASE\n        WHEN n % 15 = 0 THEN 'FizzBuzz'\n        WHEN n % 3 = 0 THEN 'Fizz'\n        WHEN n % 5 = 0 THEN 'Buzz'\n        ELSE n::text\n    END AS fizzbuzz\nFROM generate_series(1, 15) AS n\nORDER BY n;\n",
+        "output": " fizzbuzz\n----------\n 1\n 2\n Fizz\n 4\n Buzz\n Fizz\n 7\n 8\n Fizz\n Buzz\n 11\n Fizz\n 13\n 14\n FizzBuzz\n(15 rows)",
+        "explanation": "`generate_series(1, 15)` makes one row per number. For each row the `CASE` checks 15 first, then 3, then 5, and the first true `WHEN` wins. `ELSE n::text` turns the remaining numbers into text so every branch has the same type. `ORDER BY n` sorts by the number even though only the word is selected."
+      },
+      "practice": {
+        "title": "BingBong from 1 to 12",
+        "prompt": "Print BingBong for the numbers 1 to 12.\n\n1. Make the numbers 1 to 12, named `n`.\n2. Show `BingBong` for multiples of both 3 and 4, `Bing` for other multiples of 3, `Bong` for other multiples of 4, and otherwise the number as text.\n3. Name the column `bingbong` and sort by `n`.\n\nExpected output:\n\n```text\n bingbong\n----------\n 1\n 2\n Bing\n Bong\n 5\n Bing\n 7\n Bong\n Bing\n 10\n 11\n BingBong\n(12 rows)\n```",
+        "starter": "SELECT\n    -- TODO: replace n::text with a CASE that picks Bing, Bong, or BingBong\n    n::text AS bingbong\nFROM generate_series(1, 12) AS n\nORDER BY n;\n",
+        "solution": "SELECT\n    CASE\n        WHEN n % 12 = 0 THEN 'BingBong'\n        WHEN n % 3 = 0 THEN 'Bing'\n        WHEN n % 4 = 0 THEN 'Bong'\n        ELSE n::text\n    END AS bingbong\nFROM generate_series(1, 12) AS n\nORDER BY n;\n",
+        "tests": [
+          {
+            "output": " bingbong\n----------\n 1\n 2\n Bing\n Bong\n 5\n Bing\n 7\n Bong\n Bing\n 10\n 11\n BingBong\n(12 rows)"
+          }
+        ],
+        "hints": [
+          "A multiple of both 3 and 4 is a multiple of 12, so test `n % 12 = 0` first.",
+          "End the `CASE` with `ELSE n::text END AS bingbong` so every branch is text."
+        ]
+      }
+    }
+  ],
+  "recap": "- A query works on whole sets of rows: you write an expression in `SELECT` once, and it is worked out for every row.\n- `generate_series(start, stop)` makes one row per integer, both ends included, and goes in `FROM`.\n- `AS n` names the function and its column.\n- `generate_series(start, stop, step)` adds `step` each time, and a negative step counts down.\n- A step of 0 is an error, and `start` past `stop` gives zero rows.\n- A series plus `CASE` replaces a loop with an `if` inside. Put the most specific `WHEN` first and keep every branch one type."
+}

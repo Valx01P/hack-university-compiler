@@ -1,0 +1,107 @@
+{
+  "id": "patterns",
+  "title": "Regular Expressions and Splitting Text",
+  "section": "Expressions and Functions",
+  "summary": "Match text with regular expressions and loop over its parts and characters.",
+  "intro": "`LIKE` only knows `%` and `_`. Regular expressions describe text precisely, like \"three digits, a dash, four digits\", so you can find it, pull it out, or replace it. Then you split text into rows, one per word or character.",
+  "setup": "CREATE TABLE messages (id integer, sender text, body text);\nINSERT INTO messages (id, sender, body) VALUES\n    (1, 'ana', 'Call me at 555-0142 about the launch #launch'),\n    (2, 'ben', 'URGENT: server down, ring 555-0199 #ops #oncall'),\n    (3, 'cara', 'Lunch   at  noon?   #food'),\n    (4, 'dev', 'This is urgent, need 3 reviews #review'),\n    (5, 'eli', 'Thanks  for the   help'),\n    (6, 'fay', 'Room 204 is free, not Urgent at all');\n",
+  "steps": [
+    {
+      "title": "Matching with regular expressions",
+      "body": "Every part of this lesson uses one table, `messages (id integer, sender text, body text)`:\n\n```text\n id | sender |                      body\n----+--------+-------------------------------------------------\n  1 | ana    | Call me at 555-0142 about the launch #launch\n  2 | ben    | URGENT: server down, ring 555-0199 #ops #oncall\n  3 | cara   | Lunch   at  noon?   #food\n  4 | dev    | This is urgent, need 3 reviews #review\n  5 | eli    | Thanks  for the   help\n  6 | fay    | Room 204 is free, not Urgent at all\n(6 rows)\n```\n\nA regular expression is a pattern for text, more precise than `LIKE`. Test one with `text ~ pattern`. `~` is case sensitive, `~*` ignores letter case, and `!~` means \"does not match\".\n\n```sql\nSELECT 'Room 204' ~ '[0-9]+';     -- t\nSELECT 'URGENT' ~* 'urgent';      -- t\nSELECT 'no digits' !~ '[0-9]';    -- t\n```\n\n- `[0-9]` is a character class: any one character from the set. `[a-z]` is one lowercase letter.\n- `+` means one or more of the item just before it.\n- `{n}` means exactly n of it, so `[0-9]{3}` is three digits in a row.\n- `^` and `$` pin the match to the start and the end of the text. Inside a pattern, `^` is not power.\n\nUnlike `LIKE`, a pattern matches anywhere in the text, so there is no `%`. Watch the dot: `.` matches any one character, so write `\\.` for a real dot. `substring` from the strings lesson also takes a pattern: `substring(text FROM pattern)` returns the first part that matches, or NULL when nothing does.\n\n```sql\nSELECT substring('ring 555-0199 now' FROM '[0-9]{3}-[0-9]{4}');  -- 555-0199\n```",
+      "example": {
+        "title": "Messages with a phone number",
+        "prompt": "List the messages that hold a phone number like 555-0142, with the first hashtag in each.",
+        "code": "SELECT id, sender, substring(body FROM '#[a-z]+') AS first_tag\nFROM messages\nWHERE body ~ '[0-9]{3}-[0-9]{4}'\nORDER BY id;\n",
+        "output": " id | sender | first_tag\n----+--------+-----------\n  1 | ana    | #launch\n  2 | ben    | #ops\n(2 rows)",
+        "explanation": "`[0-9]{3}-[0-9]{4}` means three digits, a dash, then four digits, so only the bodies of `ana` and `ben` match. `fay` has `204`, but no dash and four more digits after it. In the SELECT list, `#[a-z]+` matches a `#` followed by one or more lowercase letters, and `substring` keeps the first such match: `ben` has two tags, but only `#ops` comes back."
+      },
+      "practice": {
+        "title": "Urgent messages",
+        "prompt": "List the messages that mention urgent in any letter case, with the first number in each body.\n\n1. Select `id` and `sender` from `messages`.\n2. Add `first_number`: the first run of digits in the body, or NULL when it has none.\n3. Keep only the messages whose body contains `urgent` in any letter case.\n4. Sort by `id`.\n\nExpected output:\n\n```text\n id | sender | first_number\n----+--------+--------------\n  2 | ben    | 555\n  4 | dev    | 3\n  6 | fay    | 204\n(3 rows)\n```",
+        "starter": "-- TODO: keep only messages that mention urgent in any letter case,\n-- and add the first number in the body as first_number\nSELECT id, sender\nFROM messages\nORDER BY id;\n",
+        "solution": "SELECT id, sender, substring(body FROM '[0-9]+') AS first_number\nFROM messages\nWHERE body ~* 'urgent'\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": " id | sender | first_number\n----+--------+--------------\n  2 | ben    | 555\n  4 | dev    | 3\n  6 | fay    | 204\n(3 rows)"
+          },
+          {
+            "stdin": "INSERT INTO messages (id, sender, body) VALUES (7, 'gus', 'Urgently need 12 chairs'), (8, 'hal', 'urgent!! call back'), (9, 'ivy', 'Pick up 40 cups, no rush');",
+            "output": " id | sender | first_number\n----+--------+--------------\n  2 | ben    | 555\n  4 | dev    | 3\n  6 | fay    | 204\n  7 | gus    | 12\n  8 | hal    |\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO messages (id, sender, body) VALUES (7, 'jo', 'uRgEnt: dial 911 or 555-0100'), (8, 'kim', 'Not important, 7 days left');",
+            "output": " id | sender | first_number\n----+--------+--------------\n  2 | ben    | 555\n  4 | dev    | 3\n  6 | fay    | 204\n  7 | jo     | 911\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "`~*` works like `~` but ignores letter case, so it finds URGENT, urgent, and Urgent.",
+          "`[0-9]+` matches one or more digits in a row, and `substring` returns the first such run.",
+          "A body with no digits gives NULL, which prints as an empty cell."
+        ]
+      }
+    },
+    {
+      "title": "Replacing with regexp_replace",
+      "body": "`regexp_replace(text, pattern, replacement)` finds a pattern and swaps in new text. It is like `replace`, but the thing you search for is a pattern instead of fixed text.\n\nBy default it replaces only the **first** match. Add the flag `'g'` (global) as a fourth argument to replace every match. Forgetting `'g'` is the classic gotcha:\n\n```sql\nSELECT regexp_replace('555-0142', '[0-9]', '#');       -- #55-0142\nSELECT regexp_replace('555-0142', '[0-9]', '#', 'g');  -- ###-####\n```\n\nA quantifier lets one match cover many characters. `' +'` matches a run of one or more spaces, so replacing it with a single space tidies uneven spacing in one call:\n\n```sql\nSELECT regexp_replace('a   b  c', ' +', ' ', 'g');     -- a b c\n```\n\nA quantifier applies only to the item just before it: `' {2}'` is two spaces, and `'ab+'` is an `a` then one or more `b`. The original column never changes, because `regexp_replace` returns a new value.",
+      "example": {
+        "title": "Masking digits",
+        "prompt": "Show every message with each digit replaced by #.",
+        "code": "SELECT id, regexp_replace(body, '[0-9]', '#', 'g') AS masked\nFROM messages\nORDER BY id;\n",
+        "output": " id |                     masked\n----+-------------------------------------------------\n  1 | Call me at ###-#### about the launch #launch\n  2 | URGENT: server down, ring ###-#### #ops #oncall\n  3 | Lunch   at  noon?   #food\n  4 | This is urgent, need # reviews #review\n  5 | Thanks  for the   help\n  6 | Room ### is free, not Urgent at all\n(6 rows)",
+        "explanation": "`[0-9]` matches one digit, and the `'g'` flag replaces every match, so the whole phone number becomes `###-####`. Rows with no digits come back unchanged. Without `'g'`, only the first digit of each body would turn into `#`."
+      },
+      "practice": {
+        "title": "Tidy spacing",
+        "prompt": "Show the messages that have two spaces in a row, with every run of spaces collapsed to one space.\n\n1. Select `id` and `sender` from `messages`.\n2. Add `tidy`: the body with every run of one or more spaces replaced by a single space.\n3. Keep only the messages whose body has two spaces in a row.\n4. Sort by `id`.\n\nExpected output:\n\n```text\n id | sender |         tidy\n----+--------+----------------------\n  3 | cara   | Lunch at noon? #food\n  5 | eli    | Thanks for the help\n(2 rows)\n```",
+        "starter": "-- TODO: keep messages with two spaces in a row, and add the tidy column\nSELECT id, sender, body\nFROM messages\nORDER BY id;\n",
+        "solution": "SELECT id, sender, regexp_replace(body, ' +', ' ', 'g') AS tidy\nFROM messages\nWHERE body ~ ' {2}'\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": " id | sender |         tidy\n----+--------+----------------------\n  3 | cara   | Lunch at noon? #food\n  5 | eli    | Thanks for the help\n(2 rows)"
+          },
+          {
+            "stdin": "INSERT INTO messages (id, sender, body) VALUES (7, 'gus', 'Meet    at  the     gate'), (8, 'hal', 'One space only here');",
+            "output": " id | sender |         tidy\n----+--------+----------------------\n  3 | cara   | Lunch at noon? #food\n  5 | eli    | Thanks for the help\n  7 | gus    | Meet at the gate\n(3 rows)"
+          },
+          {
+            "stdin": "INSERT INTO messages (id, sender, body) VALUES (7, 'ivy', 'Bring  snacks'); DELETE FROM messages WHERE id = 3;",
+            "output": " id | sender |        tidy\n----+--------+---------------------\n  5 | eli    | Thanks for the help\n  7 | ivy    | Bring snacks\n(2 rows)"
+          }
+        ],
+        "hints": [
+          "Filter with `~` and the pattern `' {2}'`, which means a space repeated exactly two times.",
+          "`' +'` matches one or more spaces, and the `'g'` flag replaces every run, not just the first."
+        ]
+      }
+    },
+    {
+      "title": "Looping over parts and characters",
+      "body": "`string_to_table(text, delimiter)` splits text and returns **one row per part**. Like `generate_series`, it goes in FROM, so you get a loop over the pieces without writing a loop.\n\n```sql\nSELECT * FROM string_to_table('a-b-c', '-');   -- 3 rows: a, b, c\n```\n\nPass `NULL` as the delimiter to get one row per character instead.\n\nResults only have a guaranteed order with ORDER BY, so you need each part's position to sort by. `WITH ORDINALITY` adds it: a column counting the rows 1, 2, 3 in the order the parts appear in the text. Name both columns with `AS t(part, n)`, the part first and the counter last, then sort by the counter:\n\n```sql\nSELECT n, part\nFROM string_to_table('a-b-c', '-') WITH ORDINALITY AS t(part, n)\nORDER BY n;\n```\n\nTwo gotchas. The delimiter is plain text, not a pattern, so `'.'` splits at real dots. Two delimiters in a row give an empty part, so `'a,,b'` splits into three rows. And unlike `split_part`, which returns one piece, this returns all of them as rows you can filter, compute on, and sort.",
+      "example": {
+        "title": "Colors and letters",
+        "prompt": "Split a list of colors into numbered rows, then split the word SQL into its characters.",
+        "code": "SELECT n, word\nFROM string_to_table('red,green,blue', ',') WITH ORDINALITY AS t(word, n)\nORDER BY n;\n\nSELECT n, ch\nFROM string_to_table('SQL', NULL) WITH ORDINALITY AS t(ch, n)\nORDER BY n;\n",
+        "output": " n | word\n---+-------\n 1 | red\n 2 | green\n 3 | blue\n(3 rows)\n\n n | ch\n---+----\n 1 | S\n 2 | Q\n 3 | L\n(3 rows)",
+        "explanation": "The first query splits at each comma and makes one row per color. `WITH ORDINALITY` adds the counter, and `AS t(word, n)` names the part `word` and the counter `n`. The second query passes `NULL` as the delimiter, so every character becomes its own row, and `n` is its position in the text."
+      },
+      "practice": {
+        "title": "Words and lengths",
+        "prompt": "Split a sentence into words, with each word's position and length.\n\n1. Split `'learn sql one step at a time'` at each space with `string_to_table` in `FROM`.\n2. Number the words with `WITH ORDINALITY` and name the columns `word` and `n`.\n3. Select `n`, `word`, and the word's length as `letters`.\n4. Sort by `n`.\n\nExpected output:\n\n```text\n n | word  | letters\n---+-------+---------\n 1 | learn |       5\n 2 | sql   |       3\n 3 | one   |       3\n 4 | step  |       4\n 5 | at    |       2\n 6 | a     |       1\n 7 | time  |       4\n(7 rows)\n```",
+        "starter": "-- TODO: one row per word with n, word, and letters\nSELECT 'learn sql one step at a time' AS sentence;\n",
+        "solution": "SELECT n, word, length(word) AS letters\nFROM string_to_table('learn sql one step at a time', ' ') WITH ORDINALITY AS t(word, n)\nORDER BY n;\n",
+        "tests": [
+          {
+            "output": " n | word  | letters\n---+-------+---------\n 1 | learn |       5\n 2 | sql   |       3\n 3 | one   |       3\n 4 | step  |       4\n 5 | at    |       2\n 6 | a     |       1\n 7 | time  |       4\n(7 rows)"
+          }
+        ],
+        "hints": [
+          "The delimiter is a single space: `' '`.",
+          "Put the function in FROM, then `WITH ORDINALITY AS t(word, n)`.",
+          "`length(word)` works on each row, just like on a column."
+        ]
+      }
+    }
+  ],
+  "recap": "- `~` matches a pattern, `~*` ignores letter case, and `!~` means no match.\n- `[0-9]` is a character class, `+` means one or more, and `{n}` means exactly n.\n- `substring(text FROM pattern)` returns the first match, or NULL.\n- `regexp_replace(text, pattern, replacement)` replaces the first match, and `'g'` replaces them all.\n- `string_to_table(text, delimiter)` makes one row per part, and a `NULL` delimiter makes one row per character.\n- `WITH ORDINALITY AS t(part, n)` numbers the rows so you can sort by position."
+}

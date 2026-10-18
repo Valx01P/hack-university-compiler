@@ -1,0 +1,114 @@
+{
+  "id": "outer-joins",
+  "title": "LEFT, RIGHT, and FULL Joins",
+  "section": "Joining Tables",
+  "summary": "Keep rows that have no match, and find what's missing.",
+  "intro": "A plain `JOIN` hides every row that has no partner: the department with nobody in it, the employee who leads no project. Outer joins keep those rows, so you can list them, label them, and count them as zero.",
+  "setup": "CREATE TABLE departments (\n    id integer,\n    name text\n);\nINSERT INTO departments (id, name) VALUES\n    (1, 'Engineering'),\n    (2, 'Sales'),\n    (3, 'Marketing'),\n    (4, 'Legal'),\n    (5, 'Support');\nCREATE TABLE employees (\n    id integer,\n    name text,\n    department_id integer\n);\nINSERT INTO employees (id, name, department_id) VALUES\n    (1, 'Ava Brooks', 1),\n    (2, 'Ben Carter', 2),\n    (3, 'Cara Diaz', 1),\n    (4, 'Dan Evans', 3),\n    (5, 'Eli Foster', NULL),\n    (6, 'Fay Grant', 5),\n    (7, 'Gil Hayes', 2),\n    (8, 'Ivy Jones', 5);\nCREATE TABLE projects (\n    id integer,\n    name text,\n    lead_id integer\n);\nINSERT INTO projects (id, name, lead_id) VALUES\n    (1, 'Website Redesign', 1),\n    (2, 'Spring Campaign', 4),\n    (3, 'Billing Revamp', 1),\n    (4, 'Help Center', 6);\n",
+  "steps": [
+    {
+      "title": "Keeping every row with LEFT JOIN",
+      "body": "A plain `JOIN` drops rows that have no match. `LEFT JOIN` keeps every row from the left table, the one in `FROM`, and fills the right table's columns with `NULL` where nothing matches. `LEFT OUTER JOIN` means the same thing, because the word `OUTER` is optional. This lesson uses three tables:\n\n```sql\nCREATE TABLE departments (id integer, name text);\nCREATE TABLE employees (id integer, name text, department_id integer);\nCREATE TABLE projects (id integer, name text, lead_id integer);\n```\n\nThere are 5 departments (Legal has nobody), 8 employees (Eli Foster has no department), and 4 projects, each led by an employee through `lead_id`. Here are three of the employees:\n\n```text\n id |    name    | department_id\n----+------------+---------------\n  1 | Ava Brooks |             1\n  5 | Eli Foster |\n  6 | Fay Grant  |             5\n(3 rows)\n```\n\nA `NULL` from a missing match prints as a blank. Wrap the column in `COALESCE(d.name, '(none)')` to show a label instead.\n\n`RIGHT JOIN` is the mirror image: it keeps every row from the right table. `FULL JOIN` keeps the unmatched rows from both sides:\n\n```sql\nSELECT d.name AS department, e.name AS employee\nFROM departments AS d\nFULL JOIN employees AS e ON e.department_id = d.id\nORDER BY d.id, e.id;\n```\n\nLegal appears with a blank employee and Eli Foster with a blank department:\n\n```text\n department  |  employee\n-------------+------------\n Engineering | Ava Brooks\n Engineering | Cara Diaz\n Sales       | Ben Carter\n Sales       | Gil Hayes\n Marketing   | Dan Evans\n Legal       |\n Support     | Fay Grant\n Support     | Ivy Jones\n             | Eli Foster\n(9 rows)\n```\n\nMost people write `LEFT JOIN` with the table they want to keep first, so `RIGHT JOIN` is rare.",
+      "example": {
+        "title": "Employees and their departments",
+        "prompt": "List every employee with their department name, showing `(none)` for an employee with no department.",
+        "code": "SELECT e.name, COALESCE(d.name, '(none)') AS department\nFROM employees AS e\nLEFT JOIN departments AS d ON d.id = e.department_id\nORDER BY e.id;\n",
+        "output": "    name    | department\n------------+-------------\n Ava Brooks | Engineering\n Ben Carter | Sales\n Cara Diaz  | Engineering\n Dan Evans  | Marketing\n Eli Foster | (none)\n Fay Grant  | Support\n Gil Hayes  | Sales\n Ivy Jones  | Support\n(8 rows)",
+        "explanation": "`employees` is the left table, so all 8 employees stay. Eli Foster's `department_id` is `NULL`, which matches no department, so `d.name` is `NULL` for him and `COALESCE` swaps in `(none)`. Legal has no employees, but it is on the right side, so a `LEFT JOIN` leaves it out."
+      },
+      "practice": {
+        "title": "Departments and their people",
+        "prompt": "List every department with the names of its employees, keeping departments that have nobody.\n\n1. Select `d.name AS department` and the employee's name as `employee`.\n2. Start from `departments AS d` and `LEFT JOIN` `employees AS e` where `e.department_id` equals `d.id`.\n3. Show `(nobody)` as the employee for a department with no employees.\n4. Sort by department name, then employee `id`.\n\nExpected output:\n\n```text\n department  |  employee\n-------------+------------\n Engineering | Ava Brooks\n Engineering | Cara Diaz\n Legal       | (nobody)\n Marketing   | Dan Evans\n Sales       | Ben Carter\n Sales       | Gil Hayes\n Support     | Fay Grant\n Support     | Ivy Jones\n(8 rows)\n```",
+        "starter": "SELECT d.name AS department\nFROM departments AS d\n-- TODO: LEFT JOIN employees and add their name as employee, or (nobody)\nORDER BY d.name;\n",
+        "solution": "SELECT d.name AS department, COALESCE(e.name, '(nobody)') AS employee\nFROM departments AS d\nLEFT JOIN employees AS e ON e.department_id = d.id\nORDER BY d.name, e.id;\n",
+        "tests": [
+          {
+            "output": " department  |  employee\n-------------+------------\n Engineering | Ava Brooks\n Engineering | Cara Diaz\n Legal       | (nobody)\n Marketing   | Dan Evans\n Sales       | Ben Carter\n Sales       | Gil Hayes\n Support     | Fay Grant\n Support     | Ivy Jones\n(8 rows)"
+          },
+          {
+            "stdin": "INSERT INTO departments (id, name) VALUES (6, 'Research');\nINSERT INTO employees (id, name, department_id) VALUES\n    (9, 'Jo Kent', 4),\n    (10, 'Kai Lund', NULL),\n    (11, 'Lea Moss', 3);\n",
+            "output": " department  |  employee\n-------------+------------\n Engineering | Ava Brooks\n Engineering | Cara Diaz\n Legal       | Jo Kent\n Marketing   | Dan Evans\n Marketing   | Lea Moss\n Research    | (nobody)\n Sales       | Ben Carter\n Sales       | Gil Hayes\n Support     | Fay Grant\n Support     | Ivy Jones\n(10 rows)"
+          },
+          {
+            "stdin": "DELETE FROM employees WHERE department_id = 5;\nINSERT INTO departments (id, name) VALUES (7, 'Finance');\n",
+            "output": " department  |  employee\n-------------+------------\n Engineering | Ava Brooks\n Engineering | Cara Diaz\n Finance     | (nobody)\n Legal       | (nobody)\n Marketing   | Dan Evans\n Sales       | Ben Carter\n Sales       | Gil Hayes\n Support     | (nobody)\n(8 rows)"
+          }
+        ],
+        "hints": [
+          "Put `departments` in `FROM` so it is the left table, the one that keeps every row.",
+          "A department with nobody gets `NULL` in every `e` column. `COALESCE` can swap that `NULL` for a label.",
+          "Sort by `d.name` first and `e.id` second, so people in the same department stay in a fixed order."
+        ]
+      }
+    },
+    {
+      "title": "Finding rows with no match",
+      "body": "`LEFT JOIN` fills the right side with `NULL` when a row has no match. Keep only those rows with `WHERE` and you get everything that has no partner:\n\n```sql\nSELECT d.name\nFROM departments AS d\nLEFT JOIN employees AS e ON e.department_id = d.id\nWHERE e.id IS NULL\nORDER BY d.name;\n```\n\nTest a column that is never `NULL` in a real match, like the right table's `id` or the column in `ON`. A column that can be `NULL` on its own, such as an employee's optional phone, would also catch matched rows.\n\nThe order matters: the join runs first, then `WHERE` filters the joined rows. That is also the classic gotcha. A condition on the right table in `WHERE`, such as `WHERE e.name LIKE 'A%'`, throws away the `NULL` rows too, and your `LEFT JOIN` quietly acts like a plain `JOIN`. Put such a condition in `ON` instead, as in `ON e.department_id = d.id AND e.name LIKE 'A%'`, to limit the matches while keeping every left row.\n\nYou could also answer this with `EXCEPT` on the ids, but the `LEFT JOIN` version can return any column you like, not just the ids.",
+      "example": {
+        "title": "Empty departments",
+        "prompt": "List the departments that have no employees.",
+        "code": "SELECT d.name AS department\nFROM departments AS d\nLEFT JOIN employees AS e ON e.department_id = d.id\nWHERE e.id IS NULL\nORDER BY d.name;\n",
+        "output": " department\n------------\n Legal\n(1 row)",
+        "explanation": "Every department is kept, and each one with employees gets a row per person. Legal matches nobody, so its `e.id` is `NULL`. `WHERE e.id IS NULL` keeps only that row."
+      },
+      "practice": {
+        "title": "Employees who lead nothing",
+        "prompt": "List the employees who lead no project.\n\n1. Select `e.name` from `employees AS e`.\n2. `LEFT JOIN` `projects AS p` where `p.lead_id` equals `e.id`.\n3. Keep only the employees with no matching project.\n4. Sort by name, then `id`.\n\nExpected output:\n\n```text\n    name\n------------\n Ben Carter\n Cara Diaz\n Eli Foster\n Gil Hayes\n Ivy Jones\n(5 rows)\n```",
+        "starter": "SELECT e.name\nFROM employees AS e\n-- TODO: LEFT JOIN projects and keep only employees with no match\nORDER BY e.name, e.id;\n",
+        "solution": "SELECT e.name\nFROM employees AS e\nLEFT JOIN projects AS p ON p.lead_id = e.id\nWHERE p.id IS NULL\nORDER BY e.name, e.id;\n",
+        "tests": [
+          {
+            "output": "    name\n------------\n Ben Carter\n Cara Diaz\n Eli Foster\n Gil Hayes\n Ivy Jones\n(5 rows)"
+          },
+          {
+            "stdin": "UPDATE projects SET lead_id = 2 WHERE id = 3;\nINSERT INTO projects (id, name, lead_id) VALUES (5, 'Data Cleanup', 8);\nINSERT INTO employees (id, name, department_id) VALUES (9, 'Ben Carter', 1);\n",
+            "output": "    name\n------------\n Ben Carter\n Cara Diaz\n Eli Foster\n Gil Hayes\n(4 rows)"
+          },
+          {
+            "stdin": "INSERT INTO projects (id, name, lead_id) VALUES\n    (5, 'Sales Kickoff', 2),\n    (6, 'Style Guide', 3),\n    (7, 'Hiring Plan', 5),\n    (8, 'Partner Portal', 7),\n    (9, 'Support Bot', 8);\n",
+            "output": " name\n------\n(0 rows)"
+          }
+        ],
+        "hints": [
+          "An employee with no project gets `NULL` in every `p` column.",
+          "Filter the joined rows with `WHERE`, testing a project column that is only `NULL` when nothing matched."
+        ]
+      }
+    },
+    {
+      "title": "Counting with zeros",
+      "body": "`GROUP BY` works on joined rows like on any other rows: join first, then group. To count employees per department, join, group by the department, and count:\n\n```sql\nSELECT d.name, count(e.id) AS people\nFROM departments AS d\nLEFT JOIN employees AS e ON e.department_id = d.id\nGROUP BY d.id, d.name\nORDER BY d.name, d.id;\n```\n\nTwo details make this right:\n\n- `LEFT JOIN` keeps Legal, which has nobody. A plain `JOIN` would drop it, and you would never see its 0.\n- `count(e.id)` skips `NULL`, so Legal's one row with a blank employee counts as 0.\n\nThe gotcha is `count(*)`. It counts rows, and Legal still has one joined row, so it reports 1 person for an empty department. With `count(*)` in place of `count(e.id)` you get:\n\n```text\n    name     | people\n-------------+--------\n Engineering |      2\n Legal       |      1\n Marketing   |      1\n Sales       |      2\n Support     |      2\n(5 rows)\n```\n\nGroup by the `id` as well as the name, so two departments that share a name stay separate. The name is in `GROUP BY` because you select it.",
+      "example": {
+        "title": "Headcount per department",
+        "prompt": "Count the employees in every department, including departments with nobody.",
+        "code": "SELECT d.name, count(e.id) AS people\nFROM departments AS d\nLEFT JOIN employees AS e ON e.department_id = d.id\nGROUP BY d.id, d.name\nORDER BY d.name, d.id;\n",
+        "output": "    name     | people\n-------------+--------\n Engineering |      2\n Legal       |      0\n Marketing   |      1\n Sales       |      2\n Support     |      2\n(5 rows)",
+        "explanation": "The `LEFT JOIN` gives each department one row per employee, or one row with `NULL` employee columns when it has nobody. `GROUP BY d.id, d.name` makes one group per department, and `count(e.id)` counts only the rows with a real employee, so Legal gets 0."
+      },
+      "practice": {
+        "title": "Projects led per employee",
+        "prompt": "Count how many projects each employee leads, showing 0 for those who lead none.\n\n1. Select `e.name` and the count of `p.id` as `projects`.\n2. Start from `employees AS e` and `LEFT JOIN` `projects AS p` where `p.lead_id` equals `e.id`.\n3. Group by `e.id` and `e.name`.\n4. Sort by name, then `id`.\n\nExpected output:\n\n```text\n    name    | projects\n------------+----------\n Ava Brooks |        2\n Ben Carter |        0\n Cara Diaz  |        0\n Dan Evans  |        1\n Eli Foster |        0\n Fay Grant  |        1\n Gil Hayes  |        0\n Ivy Jones  |        0\n(8 rows)\n```",
+        "starter": "SELECT e.name\nFROM employees AS e\n-- TODO: LEFT JOIN projects, GROUP BY the employee, and count project ids as projects\nORDER BY e.name, e.id;\n",
+        "solution": "SELECT e.name, count(p.id) AS projects\nFROM employees AS e\nLEFT JOIN projects AS p ON p.lead_id = e.id\nGROUP BY e.id, e.name\nORDER BY e.name, e.id;\n",
+        "tests": [
+          {
+            "output": "    name    | projects\n------------+----------\n Ava Brooks |        2\n Ben Carter |        0\n Cara Diaz  |        0\n Dan Evans  |        1\n Eli Foster |        0\n Fay Grant  |        1\n Gil Hayes  |        0\n Ivy Jones  |        0\n(8 rows)"
+          },
+          {
+            "stdin": "INSERT INTO employees (id, name, department_id) VALUES (9, 'Ben Carter', 1);\nINSERT INTO projects (id, name, lead_id) VALUES\n    (5, 'Data Cleanup', 9),\n    (6, 'Price Update', 9),\n    (7, 'Launch Party', 4);\nUPDATE projects SET lead_id = 3 WHERE id = 3;\n",
+            "output": "    name    | projects\n------------+----------\n Ava Brooks |        1\n Ben Carter |        0\n Ben Carter |        2\n Cara Diaz  |        1\n Dan Evans  |        2\n Eli Foster |        0\n Fay Grant  |        1\n Gil Hayes  |        0\n Ivy Jones  |        0\n(9 rows)"
+          },
+          {
+            "stdin": "DELETE FROM projects;\n",
+            "output": "    name    | projects\n------------+----------\n Ava Brooks |        0\n Ben Carter |        0\n Cara Diaz  |        0\n Dan Evans  |        0\n Eli Foster |        0\n Fay Grant  |        0\n Gil Hayes  |        0\n Ivy Jones  |        0\n(8 rows)"
+          }
+        ],
+        "hints": [
+          "Join first, then `GROUP BY e.id, e.name`.",
+          "Use `count(p.id)`, not `count(*)`, so an employee with no project counts as 0."
+        ]
+      }
+    }
+  ],
+  "recap": "- `LEFT JOIN` keeps every row from the left table and fills missing matches with `NULL`.\n- `COALESCE(right.column, 'label')` replaces those `NULL` values.\n- `RIGHT JOIN` keeps every row from the right table, and `FULL JOIN` keeps unmatched rows from both.\n- `LEFT JOIN` plus `WHERE right.id IS NULL` finds rows with no match.\n- A condition on the right table in `WHERE` drops the `NULL` rows and undoes the `LEFT JOIN`.\n- `count(right.id)` after a `LEFT JOIN` counts 0 for no match, while `count(*)` counts 1.\n- Group joined rows by the left table's `id` and the columns you select."
+}

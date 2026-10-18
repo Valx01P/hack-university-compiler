@@ -1,0 +1,79 @@
+{
+  "id": "where",
+  "title": "Filtering Rows With WHERE",
+  "section": "Filtering and Sorting",
+  "summary": "Keep only the rows you want with comparisons and AND, OR, and NOT.",
+  "intro": "Most questions about a table are about some of its rows: the long books, the books on the shelf, the ones from before 1950. `WHERE` picks those rows out.",
+  "setup": "CREATE TABLE books (\n    id integer PRIMARY KEY,\n    title text,\n    author text,\n    genre text,\n    pages integer,\n    published integer,\n    available boolean\n);\n\nINSERT INTO books (id, title, author, genre, pages, published, available) VALUES\n    (1, 'The Hobbit', 'J.R.R. Tolkien', 'Fantasy', 310, 1937, true),\n    (2, 'Dune', 'Frank Herbert', 'Science Fiction', 412, 1965, false),\n    (3, 'The Hound of the Baskervilles', 'Arthur Conan Doyle', 'Mystery', 256, 1902, true),\n    (4, 'Neuromancer', 'William Gibson', 'Science Fiction', 271, 1984, true),\n    (5, 'A Wizard of Earthsea', 'Ursula K. Le Guin', 'Fantasy', 183, 1968, false),\n    (6, 'Pride and Prejudice', 'Jane Austen', 'Classic', 432, 1813, true),\n    (7, 'The Name of the Wind', 'Patrick Rothfuss', 'Fantasy', 662, 2007, false),\n    (8, 'Gone Girl', 'Gillian Flynn', 'Mystery', 419, 2012, true);\n",
+  "steps": [
+    {
+      "title": "Comparisons",
+      "body": "`WHERE` keeps only the rows whose condition is true. It goes after `FROM` and before `ORDER BY`. Every program in this lesson uses a `books` table:\n\n```sql\nCREATE TABLE books (\n    id integer PRIMARY KEY,\n    title text,\n    author text,\n    genre text,         -- 'Fantasy', 'Science Fiction', 'Mystery', 'Classic'\n    pages integer,\n    published integer,  -- the year, like 1965\n    available boolean\n);\n```\n\nIt holds 8 books, such as The Hobbit (Fantasy, 310 pages, 1937, available) and Dune (Science Fiction, 412 pages, 1965, not available).\n\nThe comparison operators are `=`, `<>` (not equal, `!=` works too), `<`, `>`, `<=` and `>=`. Equality is a single `=`, not `==`. They work on numbers, text, and booleans:\n\n```sql\nWHERE published >= 2000\nWHERE genre <> 'Mystery'\nWHERE available = false\n```\n\nText compares case sensitively, so `genre = 'fantasy'` matches nothing. `<` and `>` compare text in sort order, so `title < 'M'` keeps titles that sort before M, like Dune. Text goes in single quotes. Double quotes mean a column name, so `genre = \"Fantasy\"` stops with this error:\n\n```text\nERROR:  column \"Fantasy\" does not exist\n```\n\nTry it in the editor to see the error.\n\nWatch the edges: `published < 1950` leaves out a book from 1950, while `<=` keeps it.",
+      "example": {
+        "title": "Long books and fantasy",
+        "prompt": "List the books with more than 300 pages, then the Fantasy books with their authors.",
+        "code": "SELECT title, pages\nFROM books\nWHERE pages > 300\nORDER BY id;\n\nSELECT title, author\nFROM books\nWHERE genre = 'Fantasy'\nORDER BY id;\n",
+        "output": "        title         | pages\n----------------------+-------\n The Hobbit           |   310\n Dune                 |   412\n Pride and Prejudice  |   432\n The Name of the Wind |   662\n Gone Girl            |   419\n(5 rows)\n\n        title         |      author\n----------------------+-------------------\n The Hobbit           | J.R.R. Tolkien\n A Wizard of Earthsea | Ursula K. Le Guin\n The Name of the Wind | Patrick Rothfuss\n(3 rows)",
+        "explanation": "Each query checks its condition on every row and keeps the rows where it is true. `pages > 300` compares numbers, so The Hobbit with 310 pages stays. `genre = 'Fantasy'` compares text exactly. `ORDER BY id` still comes last and sorts only the rows that survived."
+      },
+      "practice": {
+        "title": "Old books and mysteries",
+        "prompt": "List the older books in the library, then its mysteries.\n\n1. Select `title` and `published` from `books` for the books published before 1950. A book from exactly 1950 does not count.\n2. Sort that result by `id`.\n3. Then select `title` and `author` for the books whose genre is `Mystery`, sorted by `id`.\n\nThe table holds the 8 books described in this part: The Hobbit (1937), The Hound of the Baskervilles (1902, Mystery), Pride and Prejudice (1813), Gone Girl (2012, Mystery), and four books published after 1950.\n\nExpected output:\n\n```text\n             title             | published\n-------------------------------+-----------\n The Hobbit                    |      1937\n The Hound of the Baskervilles |      1902\n Pride and Prejudice           |      1813\n(3 rows)\n\n             title             |       author\n-------------------------------+--------------------\n The Hound of the Baskervilles | Arthur Conan Doyle\n Gone Girl                     | Gillian Flynn\n(2 rows)\n```",
+        "starter": "-- TODO: keep only the books published before 1950\nSELECT title, published\nFROM books\nORDER BY id;\n\n-- TODO: keep only the Mystery books\nSELECT title, author\nFROM books\nORDER BY id;\n",
+        "solution": "SELECT title, published\nFROM books\nWHERE published < 1950\nORDER BY id;\n\nSELECT title, author\nFROM books\nWHERE genre = 'Mystery'\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "             title             | published\n-------------------------------+-----------\n The Hobbit                    |      1937\n The Hound of the Baskervilles |      1902\n Pride and Prejudice           |      1813\n(3 rows)\n\n             title             |       author\n-------------------------------+--------------------\n The Hound of the Baskervilles | Arthur Conan Doyle\n Gone Girl                     | Gillian Flynn\n(2 rows)"
+          },
+          {
+            "stdin": "INSERT INTO books (id, title, author, genre, pages, published, available) VALUES\n    (9, 'The Lion, the Witch and the Wardrobe', 'C.S. Lewis', 'Fantasy', 208, 1950, true),\n    (10, 'Nineteen Eighty-Four', 'George Orwell', 'Science Fiction', 328, 1949, true),\n    (11, 'The Big Sleep', 'Raymond Chandler', 'Mystery', 231, 1939, false);\nUPDATE books SET genre = 'Classic' WHERE id = 3;",
+            "output": "             title             | published\n-------------------------------+-----------\n The Hobbit                    |      1937\n The Hound of the Baskervilles |      1902\n Pride and Prejudice           |      1813\n Nineteen Eighty-Four          |      1949\n The Big Sleep                 |      1939\n(5 rows)\n\n     title     |      author\n---------------+------------------\n Gone Girl     | Gillian Flynn\n The Big Sleep | Raymond Chandler\n(2 rows)"
+          },
+          {
+            "stdin": "DELETE FROM books WHERE published < 1950;\nDELETE FROM books WHERE genre = 'Mystery';",
+            "output": " title | published\n-------+-----------\n(0 rows)\n\n title | author\n-------+--------\n(0 rows)"
+          }
+        ],
+        "hints": [
+          "Add a `WHERE` line between `FROM` and `ORDER BY` in each query.",
+          "Use `<` for strictly before, and put the text `'Mystery'` in single quotes."
+        ]
+      }
+    },
+    {
+      "title": "Combining conditions",
+      "body": "Join conditions with `AND` (both must be true) and `OR` (at least one must be true). `NOT` flips a condition.\n\n```sql\nWHERE genre = 'Fantasy' AND pages < 300\nWHERE genre = 'Mystery' OR genre = 'Classic'\nWHERE NOT genre = 'Fantasy'\n```\n\nComparisons are worked out first, so `NOT genre = 'Fantasy'` flips the whole comparison.\n\nA boolean column is already true or false, so it works as a condition on its own. Write `WHERE available` instead of `WHERE available = true`, and `WHERE NOT available` instead of `WHERE available = false`.\n\nAmong the three, `NOT` binds tightest, then `AND`, then `OR`. So without parentheses this condition:\n\n```sql\nWHERE available AND genre = 'Fantasy' OR genre = 'Science Fiction'\n```\n\nmeans `(available AND genre = 'Fantasy') OR genre = 'Science Fiction'`, which lets in every Science Fiction book, available or not. Put parentheses around the `OR` part whenever you mix `AND` and `OR`. They make the grouping you mean explicit, and they cost nothing.",
+      "example": {
+        "title": "Available fantasy or sci-fi",
+        "prompt": "List the available books that are Fantasy or Science Fiction, then run the same query without parentheses to see the difference.",
+        "code": "SELECT title, genre\nFROM books\nWHERE available AND (genre = 'Fantasy' OR genre = 'Science Fiction')\nORDER BY id;\n\nSELECT title, genre\nFROM books\nWHERE available AND genre = 'Fantasy' OR genre = 'Science Fiction'\nORDER BY id;\n",
+        "output": "    title    |      genre\n-------------+-----------------\n The Hobbit  | Fantasy\n Neuromancer | Science Fiction\n(2 rows)\n\n    title    |      genre\n-------------+-----------------\n The Hobbit  | Fantasy\n Dune        | Science Fiction\n Neuromancer | Science Fiction\n(3 rows)",
+        "explanation": "In the first query the parentheses make the genre test one unit, and `available` must hold as well, so only The Hobbit and Neuromancer pass. In the second query `AND` runs first, so Dune gets in through `OR genre = 'Science Fiction'` even though it is not available."
+      },
+      "practice": {
+        "title": "Checked out short or new books",
+        "prompt": "Find the checked out books that are either short or recent.\n\n1. Select `title`, `pages`, and `published` from `books`.\n2. Keep the books that are not available and that have fewer than 200 pages or were published after 2000. A book from exactly 2000 does not count as after 2000.\n3. Use `NOT` on the boolean column and parentheses around the `OR` part.\n4. Sort by `id`.\n\nThe table holds 8 books. Three are not available: Dune (412 pages, 1965), A Wizard of Earthsea (183 pages, 1968), and The Name of the Wind (662 pages, 2007). Gone Girl (2012) is new but available.\n\nExpected output:\n\n```text\n        title         | pages | published\n----------------------+-------+-----------\n A Wizard of Earthsea |   183 |      1968\n The Name of the Wind |   662 |      2007\n(2 rows)\n```",
+        "starter": "-- TODO: keep books that are not available and are short (under 200 pages) or new (after 2000)\nSELECT title, pages, published\nFROM books\nORDER BY id;\n",
+        "solution": "SELECT title, pages, published\nFROM books\nWHERE NOT available AND (pages < 200 OR published > 2000)\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "        title         | pages | published\n----------------------+-------+-----------\n A Wizard of Earthsea |   183 |      1968\n The Name of the Wind |   662 |      2007\n(2 rows)"
+          },
+          {
+            "stdin": "UPDATE books SET available = false WHERE id = 8;\nINSERT INTO books (id, title, author, genre, pages, published, available) VALUES\n    (9, 'Animal Farm', 'George Orwell', 'Classic', 112, 1945, false),\n    (10, 'Coraline', 'Neil Gaiman', 'Fantasy', 162, 2002, true);",
+            "output": "        title         | pages | published\n----------------------+-------+-----------\n A Wizard of Earthsea |   183 |      1968\n The Name of the Wind |   662 |      2007\n Gone Girl            |   419 |      2012\n Animal Farm          |   112 |      1945\n(4 rows)"
+          },
+          {
+            "stdin": "UPDATE books SET available = true WHERE id = 7;\nINSERT INTO books (id, title, author, genre, pages, published, available) VALUES\n    (9, 'Harry Potter and the Goblet of Fire', 'J.K. Rowling', 'Fantasy', 636, 2000, false);",
+            "output": "        title         | pages | published\n----------------------+-------+-----------\n A Wizard of Earthsea |   183 |      1968\n(1 row)"
+          }
+        ],
+        "hints": [
+          "`NOT available` keeps the books that are checked out.",
+          "Without parentheses `AND` runs before `OR`, so wrap the page test and the year test together in parentheses."
+        ]
+      }
+    }
+  ],
+  "recap": "- `WHERE condition` keeps the rows where the condition is true. It goes after `FROM` and before `ORDER BY`.\n- Compare with `=`, `<>` or `!=`, `<`, `>`, `<=`, `>=`. Equality is one `=`.\n- Text goes in single quotes and compares case sensitively.\n- `AND` needs both sides, `OR` needs one, `NOT` flips a condition.\n- A boolean column is a condition on its own: `WHERE available`, `WHERE NOT available`.\n- `AND` runs before `OR`, so wrap the `OR` part in parentheses when you mix them."
+}

@@ -1,0 +1,79 @@
+{
+  "id": "lag-lead",
+  "title": "Comparing Rows With LAG and LEAD",
+  "section": "Window Functions",
+  "summary": "Look at the previous or the next row to measure change.",
+  "intro": "Growth, drops, and streaks all come from comparing a row with its neighbor. `lag()` and `lead()` are window functions that read the previous or the next row, so you can measure change without a self join.",
+  "setup": "CREATE TABLE monthly_revenue (\n    month date,\n    revenue numeric(10, 2)\n);\nINSERT INTO monthly_revenue (month, revenue) VALUES\n    (DATE '2025-01-01', 12000.00),\n    (DATE '2025-02-01', 13500.00),\n    (DATE '2025-03-01', 12800.00),\n    (DATE '2025-04-01', 0.00),\n    (DATE '2025-05-01', 15000.00),\n    (DATE '2025-06-01', 16200.00);\nCREATE TABLE prices (\n    ticker text,\n    day date,\n    close numeric(10, 2)\n);\nINSERT INTO prices (ticker, day, close) VALUES\n    ('ACME', DATE '2025-03-03', 50.00),\n    ('ACME', DATE '2025-03-04', 52.50),\n    ('ACME', DATE '2025-03-05', 51.00),\n    ('ACME', DATE '2025-03-06', 54.00),\n    ('BOLT', DATE '2025-03-03', 20.00),\n    ('BOLT', DATE '2025-03-04', 19.00),\n    ('BOLT', DATE '2025-03-05', 19.00),\n    ('BOLT', DATE '2025-03-06', 21.00);\n",
+  "steps": [
+    {
+      "title": "The previous row with LAG",
+      "body": "`lag(column)` reads a column from the previous row of a window, so you can compare each row with the one before it. This lesson uses two tables:\n\n```sql\nCREATE TABLE monthly_revenue (month date, revenue numeric(10, 2));\nCREATE TABLE prices (ticker text, day date, close numeric(10, 2));\n```\n\n`monthly_revenue` has one row per month from January to June 2025, with April at `0.00` because the shop was closed. `prices` has closing prices for `ACME` and `BOLT` from March 3 to March 6, 2025.\n\n```sql\nSELECT month, revenue, revenue - lag(revenue) OVER (ORDER BY month) AS change\nFROM monthly_revenue\nORDER BY month;\n```\n\n`ORDER BY` inside `OVER` decides which row counts as previous. The first row has none, so `lag` gives `NULL` and its change prints blank. `PARTITION BY ticker` restarts for each group. Previous means the previous row, not the previous day: if a day is missing, `lag` reads whatever row comes before it.\n\nFor a percent change, divide by `NULLIF(prev, 0)`, so a previous value of 0 gives `NULL` instead of a division by zero error. Writing `100.0` keeps the division exact even for integer columns.\n\nAs with `row_number()`, order by columns that never tie, or which row counts as previous can change between runs. And because `WHERE` runs before window functions, filter on `lag` from a CTE.",
+      "example": {
+        "title": "Month over month revenue",
+        "prompt": "Show each month's revenue, its change from the previous month, and the percent change rounded to 1 decimal place.",
+        "code": "-- Each month compared with the month before it\nWITH r AS (\n    SELECT\n        month,\n        revenue,\n        lag(revenue) OVER (ORDER BY month) AS prev_revenue\n    FROM monthly_revenue\n)\nSELECT\n    month,\n    revenue,\n    revenue - prev_revenue AS change,\n    round(100.0 * (revenue - prev_revenue) / NULLIF(prev_revenue, 0), 1) AS pct_change\nFROM r\nORDER BY month;\n",
+        "output": "   month    | revenue  |  change   | pct_change\n------------+----------+-----------+------------\n 2025-01-01 | 12000.00 |           |\n 2025-02-01 | 13500.00 |   1500.00 |       12.5\n 2025-03-01 | 12800.00 |   -700.00 |       -5.2\n 2025-04-01 |     0.00 | -12800.00 |     -100.0\n 2025-05-01 | 15000.00 |  15000.00 |\n 2025-06-01 | 16200.00 |   1200.00 |        8.0\n(6 rows)",
+        "explanation": "The CTE computes `prev_revenue` once, the revenue of the month before in `month` order, so both computed columns can reuse it. January has no earlier month, so both are blank. April fell to `0.00`, which is a -100.0 percent change. May would divide by April's 0, but `NULLIF(prev_revenue, 0)` turns that 0 into `NULL`, so May's `pct_change` is blank instead of an error."
+      },
+      "practice": {
+        "title": "Daily price change",
+        "prompt": "Show each ticker's daily change in closing price, compared with the same ticker's previous day.\n\n1. In a CTE named `p`, select `ticker`, `day`, `close`, and `lag(close)` as `prev_close`, partitioned by `ticker` and ordered by `day`.\n2. From `p`, select `ticker`, `day`, `close`, and `close - prev_close` as `change`.\n3. Add `pct_change`: 100.0 times the change divided by `NULLIF(prev_close, 0)`, rounded to 1 decimal place.\n4. Sort by `ticker`, then `day`.\n\nExpected output:\n\n```text\n ticker |    day     | close | change | pct_change\n--------+------------+-------+--------+------------\n ACME   | 2025-03-03 | 50.00 |        |\n ACME   | 2025-03-04 | 52.50 |   2.50 |        5.0\n ACME   | 2025-03-05 | 51.00 |  -1.50 |       -2.9\n ACME   | 2025-03-06 | 54.00 |   3.00 |        5.9\n BOLT   | 2025-03-03 | 20.00 |        |\n BOLT   | 2025-03-04 | 19.00 |  -1.00 |       -5.0\n BOLT   | 2025-03-05 | 19.00 |   0.00 |        0.0\n BOLT   | 2025-03-06 | 21.00 |   2.00 |       10.5\n(8 rows)\n```",
+        "starter": "-- TODO: compute prev_close in a CTE named p, then add change and pct_change\nSELECT ticker, day, close\nFROM prices\nORDER BY ticker, day;\n",
+        "solution": "WITH p AS (\n    SELECT\n        ticker,\n        day,\n        close,\n        lag(close) OVER (PARTITION BY ticker ORDER BY day) AS prev_close\n    FROM prices\n)\nSELECT\n    ticker,\n    day,\n    close,\n    close - prev_close AS change,\n    round(100.0 * (close - prev_close) / NULLIF(prev_close, 0), 1) AS pct_change\nFROM p\nORDER BY ticker, day;\n",
+        "tests": [
+          {
+            "output": " ticker |    day     | close | change | pct_change\n--------+------------+-------+--------+------------\n ACME   | 2025-03-03 | 50.00 |        |\n ACME   | 2025-03-04 | 52.50 |   2.50 |        5.0\n ACME   | 2025-03-05 | 51.00 |  -1.50 |       -2.9\n ACME   | 2025-03-06 | 54.00 |   3.00 |        5.9\n BOLT   | 2025-03-03 | 20.00 |        |\n BOLT   | 2025-03-04 | 19.00 |  -1.00 |       -5.0\n BOLT   | 2025-03-05 | 19.00 |   0.00 |        0.0\n BOLT   | 2025-03-06 | 21.00 |   2.00 |       10.5\n(8 rows)"
+          },
+          {
+            "stdin": "INSERT INTO prices (ticker, day, close) VALUES\n    ('ACME', DATE '2025-03-07', 54.00),\n    ('BOLT', DATE '2025-03-07', 24.00),\n    ('CORE', DATE '2025-03-07', 80.00);\n",
+            "output": " ticker |    day     | close | change | pct_change\n--------+------------+-------+--------+------------\n ACME   | 2025-03-03 | 50.00 |        |\n ACME   | 2025-03-04 | 52.50 |   2.50 |        5.0\n ACME   | 2025-03-05 | 51.00 |  -1.50 |       -2.9\n ACME   | 2025-03-06 | 54.00 |   3.00 |        5.9\n ACME   | 2025-03-07 | 54.00 |   0.00 |        0.0\n BOLT   | 2025-03-03 | 20.00 |        |\n BOLT   | 2025-03-04 | 19.00 |  -1.00 |       -5.0\n BOLT   | 2025-03-05 | 19.00 |   0.00 |        0.0\n BOLT   | 2025-03-06 | 21.00 |   2.00 |       10.5\n BOLT   | 2025-03-07 | 24.00 |   3.00 |       14.3\n CORE   | 2025-03-07 | 80.00 |        |\n(11 rows)"
+          },
+          {
+            "stdin": "INSERT INTO prices (ticker, day, close) VALUES\n    ('ACME', DATE '2025-02-28', 40.00),\n    ('BOLT', DATE '2025-03-10', 0.00),\n    ('BOLT', DATE '2025-03-11', 5.00);\n",
+            "output": " ticker |    day     | close | change | pct_change\n--------+------------+-------+--------+------------\n ACME   | 2025-02-28 | 40.00 |        |\n ACME   | 2025-03-03 | 50.00 |  10.00 |       25.0\n ACME   | 2025-03-04 | 52.50 |   2.50 |        5.0\n ACME   | 2025-03-05 | 51.00 |  -1.50 |       -2.9\n ACME   | 2025-03-06 | 54.00 |   3.00 |        5.9\n BOLT   | 2025-03-03 | 20.00 |        |\n BOLT   | 2025-03-04 | 19.00 |  -1.00 |       -5.0\n BOLT   | 2025-03-05 | 19.00 |   0.00 |        0.0\n BOLT   | 2025-03-06 | 21.00 |   2.00 |       10.5\n BOLT   | 2025-03-10 |  0.00 | -21.00 |     -100.0\n BOLT   | 2025-03-11 |  5.00 |   5.00 |\n(11 rows)"
+          }
+        ],
+        "hints": [
+          "Copy the example's CTE and add `PARTITION BY ticker` before `ORDER BY day` inside `OVER`, so each ticker starts with a blank change.",
+          "The percent change divides by `NULLIF(prev_close, 0)`, which turns a previous close of 0 into `NULL` instead of an error."
+        ]
+      }
+    },
+    {
+      "title": "The next row and defaults",
+      "body": "`lead(column)` is the mirror of `lag`: it reads the next row in the window's order. The last row has no next row, so it gets `NULL`.\n\nBoth functions take two optional arguments: an offset and a default.\n\n```sql\nlag(revenue, 2)          -- two rows back\nlead(revenue, 1, 0.00)   -- next row, or 0.00 when there is none\n```\n\nThe default replaces the `NULL` only when the offset runs past the start or end of the partition (the whole result when there is no `PARTITION BY`). A row whose value really is `NULL` still gives `NULL`, so use `COALESCE` for that.\n\nThe default can be any expression, even a column of the current row. `lead(close, 1, close)` makes the last day compare with itself, so a difference comes out as 0 instead of blank.\n\nMatch the default to the column's type. `lag(revenue, 2, 0)` works, but the 0 prints as `0` while the other rows print `12000.00`. Write `0.00` to keep the two decimal places.",
+      "example": {
+        "title": "Next month and two months back",
+        "prompt": "Show each month's revenue next to the following month's revenue and the revenue from two months earlier, using 0.00 when there is no such month.",
+        "code": "-- The next month's revenue, and the revenue two months back\nSELECT\n    month,\n    revenue,\n    lead(revenue) OVER (ORDER BY month) AS next_revenue,\n    lag(revenue, 2, 0.00) OVER (ORDER BY month) AS two_back\nFROM monthly_revenue\nORDER BY month;\n",
+        "output": "   month    | revenue  | next_revenue | two_back\n------------+----------+--------------+----------\n 2025-01-01 | 12000.00 |     13500.00 |     0.00\n 2025-02-01 | 13500.00 |     12800.00 |     0.00\n 2025-03-01 | 12800.00 |         0.00 | 12000.00\n 2025-04-01 |     0.00 |     15000.00 | 13500.00\n 2025-05-01 | 15000.00 |     16200.00 | 12800.00\n 2025-06-01 | 16200.00 |              |     0.00\n(6 rows)",
+        "explanation": "`lead(revenue)` looks one row ahead in `month` order, so June, the last month, gets a blank `next_revenue`. `lag(revenue, 2, 0.00)` looks two rows back. January and February have no month two rows earlier, so they get the default `0.00` instead of `NULL`."
+      },
+      "practice": {
+        "title": "Next close for each ticker",
+        "prompt": "Show each ticker's closing price next to the following day's close and how much it moves.\n\n1. Select `ticker`, `day`, and `close`.\n2. Add `next_close`: `lead(close, 1, close)` partitioned by `ticker` and ordered by `day`, so the last day uses its own close.\n3. Add `move`: that same `lead` expression minus `close`.\n4. Sort by `ticker`, then `day`.\n\nExpected output:\n\n```text\n ticker |    day     | close | next_close | move\n--------+------------+-------+------------+-------\n ACME   | 2025-03-03 | 50.00 |      52.50 |  2.50\n ACME   | 2025-03-04 | 52.50 |      51.00 | -1.50\n ACME   | 2025-03-05 | 51.00 |      54.00 |  3.00\n ACME   | 2025-03-06 | 54.00 |      54.00 |  0.00\n BOLT   | 2025-03-03 | 20.00 |      19.00 | -1.00\n BOLT   | 2025-03-04 | 19.00 |      19.00 |  0.00\n BOLT   | 2025-03-05 | 19.00 |      21.00 |  2.00\n BOLT   | 2025-03-06 | 21.00 |      21.00 |  0.00\n(8 rows)\n```",
+        "starter": "SELECT ticker, day, close\n-- TODO: add next_close with lead and move, the next close minus close\nFROM prices\nORDER BY ticker, day;\n",
+        "solution": "SELECT\n    ticker,\n    day,\n    close,\n    lead(close, 1, close) OVER (PARTITION BY ticker ORDER BY day) AS next_close,\n    lead(close, 1, close) OVER (PARTITION BY ticker ORDER BY day) - close AS move\nFROM prices\nORDER BY ticker, day;\n",
+        "tests": [
+          {
+            "output": " ticker |    day     | close | next_close | move\n--------+------------+-------+------------+-------\n ACME   | 2025-03-03 | 50.00 |      52.50 |  2.50\n ACME   | 2025-03-04 | 52.50 |      51.00 | -1.50\n ACME   | 2025-03-05 | 51.00 |      54.00 |  3.00\n ACME   | 2025-03-06 | 54.00 |      54.00 |  0.00\n BOLT   | 2025-03-03 | 20.00 |      19.00 | -1.00\n BOLT   | 2025-03-04 | 19.00 |      19.00 |  0.00\n BOLT   | 2025-03-05 | 19.00 |      21.00 |  2.00\n BOLT   | 2025-03-06 | 21.00 |      21.00 |  0.00\n(8 rows)"
+          },
+          {
+            "stdin": "UPDATE prices SET close = close + 3.00 WHERE ticker = 'BOLT' AND day = DATE '2025-03-05';\nUPDATE prices SET close = 49.25 WHERE ticker = 'ACME' AND day = DATE '2025-03-06';\n",
+            "output": " ticker |    day     | close | next_close | move\n--------+------------+-------+------------+-------\n ACME   | 2025-03-03 | 50.00 |      52.50 |  2.50\n ACME   | 2025-03-04 | 52.50 |      51.00 | -1.50\n ACME   | 2025-03-05 | 51.00 |      49.25 | -1.75\n ACME   | 2025-03-06 | 49.25 |      49.25 |  0.00\n BOLT   | 2025-03-03 | 20.00 |      19.00 | -1.00\n BOLT   | 2025-03-04 | 19.00 |      22.00 |  3.00\n BOLT   | 2025-03-05 | 22.00 |      21.00 | -1.00\n BOLT   | 2025-03-06 | 21.00 |      21.00 |  0.00\n(8 rows)"
+          },
+          {
+            "stdin": "DELETE FROM prices WHERE day = DATE '2025-03-06';\nINSERT INTO prices (ticker, day, close) VALUES\n    ('CORE', DATE '2025-03-03', 80.00),\n    ('CORE', DATE '2025-03-04', 78.40),\n    ('CORE', DATE '2025-03-05', NULL);\n",
+            "output": " ticker |    day     | close | next_close | move\n--------+------------+-------+------------+-------\n ACME   | 2025-03-03 | 50.00 |      52.50 |  2.50\n ACME   | 2025-03-04 | 52.50 |      51.00 | -1.50\n ACME   | 2025-03-05 | 51.00 |      51.00 |  0.00\n BOLT   | 2025-03-03 | 20.00 |      19.00 | -1.00\n BOLT   | 2025-03-04 | 19.00 |      19.00 |  0.00\n BOLT   | 2025-03-05 | 19.00 |      19.00 |  0.00\n CORE   | 2025-03-03 | 80.00 |      78.40 | -1.60\n CORE   | 2025-03-04 | 78.40 |            |\n CORE   | 2025-03-05 |       |            |\n(9 rows)"
+          }
+        ],
+        "hints": [
+          "The third argument of `lead` is the default, and it can be a column: `lead(close, 1, close)`.",
+          "Write `OVER (PARTITION BY ticker ORDER BY day)` after each `lead`, and subtract `close` for `move`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `lag(x) OVER (ORDER BY ...)` reads the previous row, and `lead(x)` reads the next one.\n- The first row of `lag` and the last row of `lead` get `NULL`.\n- `PARTITION BY` restarts the comparison for each group.\n- Change is `x - lag(x)`, and percent change divides by `NULLIF(lag(x), 0)` to avoid dividing by zero.\n- `lag(x, n, default)` looks `n` rows away and uses the default past the edge of the partition.\n- Order by columns that never tie, so the previous row is always the same one.\n- Window functions run after `WHERE`, so filter on them from a CTE."
+}

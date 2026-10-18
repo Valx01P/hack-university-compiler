@@ -1,0 +1,80 @@
+{
+  "id": "normalization",
+  "title": "Normalizing a Table",
+  "section": "Reliable Data",
+  "summary": "Split repeated data into its own table and connect it back with a foreign key.",
+  "intro": "A table that repeats the same facts in many rows is easy to start with and hard to keep correct. In this lesson you split the repeats into their own table, link them back with a foreign key, and rebuild the original rows with a join.",
+  "setup": "CREATE TABLE orders_flat (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    customer_name text,\n    customer_email text,\n    item text,\n    qty integer\n);\n\nINSERT INTO orders_flat (customer_name, customer_email, item, qty) VALUES\n    ('Ana Lopez', 'ana@example.com', 'Notebook', 2),\n    ('Ben Okafor', 'ben@example.com', 'Pen', 10),\n    ('Ana Lopez', 'ana@example.com', 'Pen', 5),\n    ('Carla Diaz', 'carla@example.com', 'Stapler', 1),\n    ('Ben Okafor', 'ben@example.com', 'Notebook', 3),\n    ('Carla Diaz', 'carla@example.com', 'Pen', 4);\n",
+  "steps": [
+    {
+      "title": "Spotting and pulling out repeated data",
+      "body": "This lesson starts from one wide table, `orders_flat`, where every order carries a full copy of its customer:\n\n```text\n id | customer_name |  customer_email   |   item   | qty\n----+---------------+-------------------+----------+-----\n  1 | Ana Lopez     | ana@example.com   | Notebook |   2\n  2 | Ben Okafor    | ben@example.com   | Pen      |  10\n  3 | Ana Lopez     | ana@example.com   | Pen      |   5\n  4 | Carla Diaz    | carla@example.com | Stapler  |   1\n  5 | Ben Okafor    | ben@example.com   | Notebook |   3\n  6 | Carla Diaz    | carla@example.com | Pen      |   4\n(6 rows)\n```\n\nEach customer's name and email appear twice, and copies drift. Change Ana's email in one row but not the other, and the table now holds two Anas:\n\n```sql\nUPDATE orders_flat SET customer_email = 'ana.lopez@example.com' WHERE id = 1;\nSELECT DISTINCT customer_name, customer_email FROM orders_flat ORDER BY customer_name, customer_email;\n```\n\n```text\n customer_name |    customer_email\n---------------+-----------------------\n Ana Lopez     | ana.lopez@example.com\n Ana Lopez     | ana@example.com\n Ben Okafor    | ben@example.com\n Carla Diaz    | carla@example.com\n(4 rows)\n```\n\nNormalizing fixes this. In plain words, the normal forms ask for:\n\n- **One value per cell.** No lists like `'Pen, Notebook'` in one column.\n- **Every column about the whole key, and nothing else.** `qty` is a fact about the order. `customer_email` is a fact about the customer, so it belongs in a customers table.\n\nThe first move is to create that table and fill it with one row per distinct customer. `INSERT ... SELECT DISTINCT` copies each pair once:\n\n```sql\nINSERT INTO customers (name, email)\nSELECT DISTINCT customer_name, customer_email\nFROM orders_flat\nORDER BY customer_email;\n```\n\nThe `ORDER BY` makes the new ids predictable. Watch for near duplicates: `'Ana@example.com'` and `'ana@example.com'` are distinct values, so clean them with `lower()` and `trim()` first. And if one email appears with two spellings of a name, `DISTINCT` keeps both rows and the `UNIQUE` email rejects the insert, so fix the copies before you split them.",
+      "example": {
+        "title": "A customers table",
+        "prompt": "Create a customers table and fill it with one row per distinct customer from orders_flat.",
+        "code": "CREATE TABLE customers (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    name text,\n    email text UNIQUE\n);\n\nINSERT INTO customers (name, email)\nSELECT DISTINCT customer_name, customer_email\nFROM orders_flat\nORDER BY customer_email;\n\nSELECT * FROM customers ORDER BY id;\n",
+        "output": "CREATE TABLE\n\nINSERT 0 3\n\n id |    name    |       email\n----+------------+-------------------\n  1 | Ana Lopez  | ana@example.com\n  2 | Ben Okafor | ben@example.com\n  3 | Carla Diaz | carla@example.com\n(3 rows)",
+        "explanation": "`SELECT DISTINCT` turns six order rows into three customer pairs. `INSERT ... SELECT` writes them into `customers`, and the identity column numbers them in `ORDER BY customer_email` order, so Ana gets id 1. `UNIQUE` on `email` stops the same customer from being added twice later."
+      },
+      "practice": {
+        "title": "An items table",
+        "prompt": "Pull the item names out of `orders_flat` into their own table.\n\n1. Create `items` with `id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY` and `name text UNIQUE`.\n2. Insert one row per distinct `item` from `orders_flat`, ordered by `item`.\n3. Select every column of `items`, sorted by `id`.\n\nExpected output:\n\n```text\nCREATE TABLE\n\nINSERT 0 3\n\n id |   name\n----+----------\n  1 | Notebook\n  2 | Pen\n  3 | Stapler\n(3 rows)\n```",
+        "starter": "-- These are the item names, with repeats\nSELECT item FROM orders_flat ORDER BY id;\n\n-- TODO: create the items table, fill it with one row per distinct item, and list it\n",
+        "solution": "CREATE TABLE items (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    name text UNIQUE\n);\n\nINSERT INTO items (name)\nSELECT DISTINCT item\nFROM orders_flat\nORDER BY item;\n\nSELECT * FROM items ORDER BY id;\n",
+        "tests": [
+          {
+            "output": "CREATE TABLE\n\nINSERT 0 3\n\n id |   name\n----+----------\n  1 | Notebook\n  2 | Pen\n  3 | Stapler\n(3 rows)"
+          },
+          {
+            "stdin": "INSERT INTO orders_flat (customer_name, customer_email, item, qty) VALUES\n    ('Dev Patel', 'dev@example.com', 'Binder', 2),\n    ('Ana Lopez', 'ana@example.com', 'Pen', 1);",
+            "output": "CREATE TABLE\n\nINSERT 0 4\n\n id |   name\n----+----------\n  1 | Binder\n  2 | Notebook\n  3 | Pen\n  4 | Stapler\n(4 rows)"
+          },
+          {
+            "stdin": "DELETE FROM orders_flat WHERE item = 'Stapler';\n\nINSERT INTO orders_flat (customer_name, customer_email, item, qty) VALUES\n    ('Ben Okafor', 'ben@example.com', 'Tape', 6),\n    ('Carla Diaz', 'carla@example.com', 'Tape', 2);",
+            "output": "CREATE TABLE\n\nINSERT 0 3\n\n id |   name\n----+----------\n  1 | Notebook\n  2 | Pen\n  3 | Tape\n(3 rows)"
+          }
+        ],
+        "hints": [
+          "Follow the customers example, with one column instead of two.",
+          "`INSERT INTO items (name)` can take its rows from a `SELECT DISTINCT` on `orders_flat` instead of a `VALUES` list, and `ORDER BY item` fixes the order of the new ids."
+        ]
+      }
+    },
+    {
+      "title": "Connecting it back",
+      "body": "`orders_flat` still holds the customer's name and email in every row. Now point each order at its customer instead, in four moves.\n\n1. Add a foreign key column. It starts as `NULL` in every row.\n2. Fill it with `UPDATE ... FROM`, matching on a column that is unique in the new table, here the email. If two rows matched, the update would pick one unpredictably.\n3. Drop the copied columns. One `ALTER TABLE` can drop several.\n4. Join to get the original rows back. If you read that wide shape often, save the join with `CREATE VIEW`.\n\n```sql\nALTER TABLE orders_flat ADD COLUMN customer_id integer REFERENCES customers (id);\n\nUPDATE orders_flat AS o\nSET customer_id = c.id\nFROM customers AS c\nWHERE c.email = o.customer_email;\n```\n\nBefore you drop anything, check that no row was missed: `SELECT count(*) FROM orders_flat WHERE customer_id IS NULL;` should give 0. `ALTER TABLE orders_flat ALTER COLUMN customer_id SET NOT NULL;` makes the same check for you, fails if a row was missed, and keeps every future order linked. A dropped column is gone for good, so on real data run the whole change inside `BEGIN` and `COMMIT` and roll back if a check fails.\n\nNow each customer's email lives in exactly one row. Changing it is one `UPDATE` on `customers`, and every order sees the new value through the join.",
+      "example": {
+        "title": "Orders point at customers",
+        "prompt": "Replace the customer name and email in orders_flat with a customer_id, then rebuild the original rows with a join.",
+        "code": "-- The customers table from the previous part\nCREATE TABLE customers (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    name text,\n    email text UNIQUE\n);\n\nINSERT INTO customers (name, email)\nSELECT DISTINCT customer_name, customer_email\nFROM orders_flat\nORDER BY customer_email;\n\n-- 1. A column that points at a customer\nALTER TABLE orders_flat ADD COLUMN customer_id integer REFERENCES customers (id);\n\n-- 2. Fill it by matching on email\nUPDATE orders_flat AS o\nSET customer_id = c.id\nFROM customers AS c\nWHERE c.email = o.customer_email;\n\n-- 3. Drop the copies\nALTER TABLE orders_flat DROP COLUMN customer_name, DROP COLUMN customer_email;\n\n-- 4. A join rebuilds the old rows\nSELECT o.id, c.name AS customer_name, c.email AS customer_email, o.item, o.qty\nFROM orders_flat AS o\nJOIN customers AS c ON c.id = o.customer_id\nORDER BY o.id;\n",
+        "output": "CREATE TABLE\n\nINSERT 0 3\n\nALTER TABLE\n\nUPDATE 6\n\nALTER TABLE\n\n id | customer_name |  customer_email   |   item   | qty\n----+---------------+-------------------+----------+-----\n  1 | Ana Lopez     | ana@example.com   | Notebook |   2\n  2 | Ben Okafor    | ben@example.com   | Pen      |  10\n  3 | Ana Lopez     | ana@example.com   | Pen      |   5\n  4 | Carla Diaz    | carla@example.com | Stapler  |   1\n  5 | Ben Okafor    | ben@example.com   | Notebook |   3\n  6 | Carla Diaz    | carla@example.com | Pen      |   4\n(6 rows)",
+        "explanation": "`ADD COLUMN` creates `customer_id` as `NULL` everywhere. `UPDATE ... FROM customers` pairs each order with the customer whose email matches and copies that id, so the tag says `UPDATE 6`. After the copies are dropped, the join looks each customer up by id and prints the same rows the flat table held."
+      },
+      "practice": {
+        "title": "Orders point at items",
+        "prompt": "Replace the item name in `orders_flat` with an `item_id` and join back to show the names. The starter already creates and fills `items`.\n\n1. Add `item_id integer` to `orders_flat`, referencing `items (id)`.\n2. Fill `item_id` with `UPDATE ... FROM items`, matching each item's `name` to the order's `item`.\n3. Drop the `item` column.\n4. Join `orders_flat` to `items` and select the order `id`, `customer_name`, the item name as `item`, and `qty`, sorted by the order `id`.\n\nExpected output:\n\n```text\nCREATE TABLE\n\nINSERT 0 3\n\nALTER TABLE\n\nUPDATE 6\n\nALTER TABLE\n\n id | customer_name |   item   | qty\n----+---------------+----------+-----\n  1 | Ana Lopez     | Notebook |   2\n  2 | Ben Okafor    | Pen      |  10\n  3 | Ana Lopez     | Pen      |   5\n  4 | Carla Diaz    | Stapler  |   1\n  5 | Ben Okafor    | Notebook |   3\n  6 | Carla Diaz    | Pen      |   4\n(6 rows)\n```",
+        "starter": "-- The items table from the previous part\nCREATE TABLE items (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    name text UNIQUE\n);\n\nINSERT INTO items (name)\nSELECT DISTINCT item\nFROM orders_flat\nORDER BY item;\n\n-- TODO: add item_id, fill it from items, drop the item column, and join back\n",
+        "solution": "-- The items table from the previous part\nCREATE TABLE items (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    name text UNIQUE\n);\n\nINSERT INTO items (name)\nSELECT DISTINCT item\nFROM orders_flat\nORDER BY item;\n\nALTER TABLE orders_flat ADD COLUMN item_id integer REFERENCES items (id);\n\nUPDATE orders_flat AS o\nSET item_id = i.id\nFROM items AS i\nWHERE i.name = o.item;\n\nALTER TABLE orders_flat DROP COLUMN item;\n\nSELECT o.id, o.customer_name, i.name AS item, o.qty\nFROM orders_flat AS o\nJOIN items AS i ON i.id = o.item_id\nORDER BY o.id;\n",
+        "tests": [
+          {
+            "output": "CREATE TABLE\n\nINSERT 0 3\n\nALTER TABLE\n\nUPDATE 6\n\nALTER TABLE\n\n id | customer_name |   item   | qty\n----+---------------+----------+-----\n  1 | Ana Lopez     | Notebook |   2\n  2 | Ben Okafor    | Pen      |  10\n  3 | Ana Lopez     | Pen      |   5\n  4 | Carla Diaz    | Stapler  |   1\n  5 | Ben Okafor    | Notebook |   3\n  6 | Carla Diaz    | Pen      |   4\n(6 rows)"
+          },
+          {
+            "stdin": "INSERT INTO orders_flat (customer_name, customer_email, item, qty) VALUES\n    ('Dev Patel', 'dev@example.com', 'Binder', 2),\n    ('Ana Lopez', 'ana@example.com', 'Stapler', 1);",
+            "output": "CREATE TABLE\n\nINSERT 0 4\n\nALTER TABLE\n\nUPDATE 8\n\nALTER TABLE\n\n id | customer_name |   item   | qty\n----+---------------+----------+-----\n  1 | Ana Lopez     | Notebook |   2\n  2 | Ben Okafor    | Pen      |  10\n  3 | Ana Lopez     | Pen      |   5\n  4 | Carla Diaz    | Stapler  |   1\n  5 | Ben Okafor    | Notebook |   3\n  6 | Carla Diaz    | Pen      |   4\n  7 | Dev Patel     | Binder   |   2\n  8 | Ana Lopez     | Stapler  |   1\n(8 rows)"
+          },
+          {
+            "stdin": "UPDATE orders_flat SET qty = 12 WHERE id = 2;\n\nDELETE FROM orders_flat WHERE id = 4;\n\nINSERT INTO orders_flat (customer_name, customer_email, item, qty) VALUES\n    ('Carla Diaz', 'carla@example.com', 'Tape', 3);",
+            "output": "CREATE TABLE\n\nINSERT 0 3\n\nALTER TABLE\n\nUPDATE 6\n\nALTER TABLE\n\n id | customer_name |   item   | qty\n----+---------------+----------+-----\n  1 | Ana Lopez     | Notebook |   2\n  2 | Ben Okafor    | Pen      |  12\n  3 | Ana Lopez     | Pen      |   5\n  5 | Ben Okafor    | Notebook |   3\n  6 | Carla Diaz    | Pen      |   4\n  7 | Carla Diaz    | Tape     |   3\n(6 rows)"
+          }
+        ],
+        "hints": [
+          "Use the same four moves as the customers example: ADD COLUMN, UPDATE ... FROM, DROP COLUMN, then JOIN.",
+          "Alias the tables as in the example: `i.id` is the value to copy, and an order matches the item whose `name` equals its `item`.",
+          "Only one column is copied here, so the drop is `DROP COLUMN item`, and the join selects `i.name AS item`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Repeated copies of the same fact drift out of sync when one copy changes.\n- One value per cell, and every column about the whole key and nothing else.\n- `INSERT INTO new_table (...) SELECT DISTINCT ...` fills a table with one row per repeated value.\n- `ADD COLUMN x_id integer REFERENCES x (id)` adds the link, and `UPDATE ... FROM` fills it by matching a unique column.\n- Check for `NULL` links before you `DROP COLUMN` the copies.\n- A join gives the original wide rows back whenever you need it, and `CREATE VIEW` can save that join under a name."
+}

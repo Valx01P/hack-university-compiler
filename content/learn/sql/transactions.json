@@ -1,0 +1,114 @@
+{
+  "id": "transactions",
+  "title": "Transactions",
+  "section": "Reliable Data",
+  "summary": "Group changes so they all happen or none do.",
+  "intro": "A bank transfer is two updates: take money from one account, add it to another. If only the first one happens, money vanishes. A **transaction** groups statements so they all happen or none do.",
+  "setup": "CREATE TABLE accounts (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    owner text NOT NULL,\n    balance numeric(10, 2) NOT NULL CHECK (balance >= 0)\n);\nINSERT INTO accounts (owner, balance) VALUES\n    ('Ana', 200.00),\n    ('Bo', 75.00),\n    ('Cy', 40.00);\n",
+  "steps": [
+    {
+      "title": "All or nothing",
+      "body": "This lesson uses one table of bank accounts. The CHECK keeps every balance at zero or more.\n\n```sql\nCREATE TABLE accounts (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    owner text NOT NULL,\n    balance numeric(10, 2) NOT NULL CHECK (balance >= 0)\n);\n-- rows: (1, 'Ana', 200.00), (2, 'Bo', 75.00), (3, 'Cy', 40.00)\n```\n\nUntil now every statement committed on its own: the moment an `UPDATE` finished, its change was saved for good. psql calls this autocommit. A transfer needs two updates. If the second one never ran, money would leave one account and never arrive in the other.\n\n`BEGIN` starts a **transaction**. The statements after it are drafts until `COMMIT` saves them all at once. Other sessions do not see the drafts, and a crash or a closed session before the commit throws all of them away, never half. So never forget the `COMMIT`.\n\n```sql\nBEGIN;\nUPDATE accounts SET balance = balance - 10 WHERE owner = 'Cy';\nUPDATE accounts SET balance = balance + 10 WHERE owner = 'Ana';\nCOMMIT;\n```\n\npsql prints a tag for each statement: `BEGIN`, `UPDATE 1`, `UPDATE 1`, `COMMIT`. `START TRANSACTION` is the standard SQL spelling of `BEGIN` and works the same.",
+      "example": {
+        "title": "Ana pays Bo",
+        "prompt": "Move 50 from Ana to Bo in one transaction, then list the accounts.",
+        "code": "BEGIN;\nUPDATE accounts SET balance = balance - 50 WHERE owner = 'Ana';\nUPDATE accounts SET balance = balance + 50 WHERE owner = 'Bo';\nCOMMIT;\nSELECT * FROM accounts ORDER BY id;\n",
+        "output": "BEGIN\n\nUPDATE 1\n\nUPDATE 1\n\nCOMMIT\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  150.00\n  2 | Bo    |  125.00\n  3 | Cy    |   40.00\n(3 rows)",
+        "explanation": "`BEGIN` opens the transaction and both updates change one row each inside it. `COMMIT` saves the two changes together, so the final `SELECT` sees Ana down 50 and Bo up 50. The total across all accounts is still 315.00: a transfer moves money, it never creates or destroys it."
+      },
+      "practice": {
+        "title": "Bo pays Cy",
+        "prompt": "Move 25 from Bo to Cy as one transaction, then list every account.\n\n1. Start a transaction with `BEGIN`.\n2. Take 25 from Bo's balance.\n3. Add 25 to Cy's balance.\n4. Save both changes with `COMMIT`.\n5. Select every column from `accounts`, sorted by `id`.\n\nExpected output:\n\n```text\nBEGIN\n\nUPDATE 1\n\nUPDATE 1\n\nCOMMIT\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  200.00\n  2 | Bo    |   50.00\n  3 | Cy    |   65.00\n(3 rows)\n```",
+        "starter": "BEGIN;\n-- TODO: take 25 from Bo and add 25 to Cy\nCOMMIT;\nSELECT * FROM accounts ORDER BY id;\n",
+        "solution": "BEGIN;\nUPDATE accounts SET balance = balance - 25 WHERE owner = 'Bo';\nUPDATE accounts SET balance = balance + 25 WHERE owner = 'Cy';\nCOMMIT;\nSELECT * FROM accounts ORDER BY id;\n",
+        "tests": [
+          {
+            "output": "BEGIN\n\nUPDATE 1\n\nUPDATE 1\n\nCOMMIT\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  200.00\n  2 | Bo    |   50.00\n  3 | Cy    |   65.00\n(3 rows)"
+          },
+          {
+            "stdin": "UPDATE accounts SET balance = 25.00 WHERE owner = 'Bo';",
+            "output": "BEGIN\n\nUPDATE 1\n\nUPDATE 1\n\nCOMMIT\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  200.00\n  2 | Bo    |    0.00\n  3 | Cy    |   65.00\n(3 rows)"
+          },
+          {
+            "stdin": "UPDATE accounts SET balance = 310.50 WHERE owner = 'Cy';\nINSERT INTO accounts (owner, balance) VALUES ('Dee', 60.00);",
+            "output": "BEGIN\n\nUPDATE 1\n\nUPDATE 1\n\nCOMMIT\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  200.00\n  2 | Bo    |   50.00\n  3 | Cy    |  335.50\n  4 | Dee   |   60.00\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "Write two `UPDATE` statements between `BEGIN` and `COMMIT`, one with `- 25` and one with `+ 25`.",
+          "Use `SET balance = balance - 25 WHERE owner = 'Bo'` so the change works from whatever Bo has now."
+        ]
+      }
+    },
+    {
+      "title": "Undo with ROLLBACK",
+      "body": "`ROLLBACK` throws away every change since `BEGIN` and ends the transaction. The table looks exactly as it did before, as if those statements never ran. Inside the transaction your own queries already see the drafts, so you can check a change before you decide to keep it.\n\n```sql\nBEGIN;\nUPDATE accounts SET balance = 0;\nSELECT sum(balance) FROM accounts;  -- 0.00, only inside the transaction\nROLLBACK;\n```\n\nErrors are where this matters most. If any statement inside a transaction fails, PostgreSQL marks the whole transaction as failed. Say a transfer takes 500 from Ana, who has 200:\n\n```text\nERROR:  new row for relation \"accounts\" violates check constraint \"accounts_balance_check\"\n```\n\nFrom then on every statement is refused until the transaction ends:\n\n```text\nERROR:  current transaction is aborted, commands ignored until end of transaction block\n```\n\nThe only way out is a rollback. Even `COMMIT` cannot keep the earlier updates: on a failed transaction it rolls back and prints `ROLLBACK`. That is the promise of all or nothing: a transfer that fails halfway leaves no trace. Try `BEGIN;` and an update that breaks the CHECK in the editor to see the first error.",
+      "example": {
+        "title": "Delete, look, undo",
+        "prompt": "Delete every account inside a transaction, count the rows, roll back, and count again.",
+        "code": "BEGIN;\nDELETE FROM accounts;\nSELECT count(*) FROM accounts;\nROLLBACK;\nSELECT count(*) FROM accounts;\n",
+        "output": "BEGIN\n\nDELETE 3\n\n count\n-------\n     0\n(1 row)\n\nROLLBACK\n\n count\n-------\n     3\n(1 row)",
+        "explanation": "Inside the transaction the `DELETE 3` is real for your own queries, so the first count is 0. `ROLLBACK` discards it, and the second count, which runs after the transaction ended, sees all 3 accounts again. Nothing was ever saved."
+      },
+      "practice": {
+        "title": "A bonus that never happened",
+        "prompt": "Try a 1000 bonus for every account inside a transaction, look at the total, then undo it.\n\n1. Start a transaction.\n2. Add 1000 to every account's balance.\n3. Select `sum(balance)` with the alias `total`.\n4. Undo everything with `ROLLBACK`.\n5. Select `sum(balance) AS total` again.\n\nExpected output:\n\n```text\nBEGIN\n\nUPDATE 3\n\n  total\n---------\n 3315.00\n(1 row)\n\nROLLBACK\n\n total\n--------\n 315.00\n(1 row)\n```",
+        "starter": "BEGIN;\n-- TODO: add 1000 to every balance\nSELECT sum(balance) AS total FROM accounts;\n-- TODO: undo everything since BEGIN\nSELECT sum(balance) AS total FROM accounts;\n",
+        "solution": "BEGIN;\nUPDATE accounts SET balance = balance + 1000;\nSELECT sum(balance) AS total FROM accounts;\nROLLBACK;\nSELECT sum(balance) AS total FROM accounts;\n",
+        "tests": [
+          {
+            "output": "BEGIN\n\nUPDATE 3\n\n  total\n---------\n 3315.00\n(1 row)\n\nROLLBACK\n\n total\n--------\n 315.00\n(1 row)"
+          },
+          {
+            "stdin": "INSERT INTO accounts (owner, balance) VALUES ('Dee', 60.00);",
+            "output": "BEGIN\n\nUPDATE 4\n\n  total\n---------\n 4375.00\n(1 row)\n\nROLLBACK\n\n total\n--------\n 375.00\n(1 row)"
+          },
+          {
+            "stdin": "DELETE FROM accounts WHERE owner = 'Cy';\nUPDATE accounts SET balance = 0.00 WHERE owner = 'Bo';",
+            "output": "BEGIN\n\nUPDATE 2\n\n  total\n---------\n 2200.00\n(1 row)\n\nROLLBACK\n\n total\n--------\n 200.00\n(1 row)"
+          }
+        ],
+        "hints": [
+          "An `UPDATE` with no `WHERE` changes every row.",
+          "Put `ROLLBACK;` between the two `SELECT` statements."
+        ]
+      }
+    },
+    {
+      "title": "Partial undo with SAVEPOINT",
+      "body": "Sometimes you want to undo only the last part of a transaction. `SAVEPOINT name` marks a spot inside it, and `ROLLBACK TO SAVEPOINT name` undoes everything after that mark while keeping what came before. The transaction stays open, so you still finish it with `COMMIT` or `ROLLBACK`.\n\n```sql\nBEGIN;\nUPDATE accounts SET balance = balance + 20 WHERE owner = 'Bo';\nSAVEPOINT before_fee;\nUPDATE accounts SET balance = balance - 2 WHERE owner = 'Bo';\nROLLBACK TO SAVEPOINT before_fee;  -- only the fee is undone\nCOMMIT;\n```\n\nWatch the tags. `SAVEPOINT` prints `SAVEPOINT`, but `ROLLBACK TO SAVEPOINT` prints plain `ROLLBACK`, even though the transaction is still going. The savepoint survives that rollback, so you can return to it again.\n\n`RELEASE SAVEPOINT name` forgets a savepoint once you are done with it. Changes made since the mark stay in the transaction. It prints `RELEASE` and saves nothing for good: only `COMMIT` does that.\n\nSavepoints also rescue a failed transaction. After an error, `ROLLBACK TO SAVEPOINT` clears the failure and keeps the work done before the mark, so you do not have to start over.",
+      "example": {
+        "title": "Deposit without the fee",
+        "prompt": "Deposit 100 into Cy's account, try a 5 fee, undo only the fee, release the savepoint, commit, and list the accounts.",
+        "code": "BEGIN;\nUPDATE accounts SET balance = balance + 100 WHERE owner = 'Cy';\nSAVEPOINT before_fee;\nUPDATE accounts SET balance = balance - 5 WHERE owner = 'Cy';\nROLLBACK TO SAVEPOINT before_fee;\nRELEASE SAVEPOINT before_fee;\nCOMMIT;\nSELECT * FROM accounts ORDER BY id;\n",
+        "output": "BEGIN\n\nUPDATE 1\n\nSAVEPOINT\n\nUPDATE 1\n\nROLLBACK\n\nRELEASE\n\nCOMMIT\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  200.00\n  2 | Bo    |   75.00\n  3 | Cy    |  140.00\n(3 rows)",
+        "explanation": "The deposit runs before the savepoint, the fee after it. `ROLLBACK TO SAVEPOINT before_fee` undoes only the fee and prints `ROLLBACK`, while the transaction stays open. `RELEASE SAVEPOINT before_fee` drops the mark you no longer need. `COMMIT` then saves the deposit, so Cy ends at 140.00 instead of 135.00."
+      },
+      "practice": {
+        "title": "Withdrawal without the bonus",
+        "prompt": "Withdraw 20 from Ana, try a 10 bonus for everyone, undo only the bonus, and save the withdrawal.\n\n1. Start a transaction.\n2. Take 20 from Ana's balance.\n3. Create a savepoint named `before_bonus`.\n4. Add 10 to every account's balance.\n5. Roll back to `before_bonus`.\n6. Release `before_bonus`.\n7. Save the rest with `COMMIT`.\n8. Select every column from `accounts`, sorted by `id`.\n\nExpected output:\n\n```text\nBEGIN\n\nUPDATE 1\n\nSAVEPOINT\n\nUPDATE 3\n\nROLLBACK\n\nRELEASE\n\nCOMMIT\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  180.00\n  2 | Bo    |   75.00\n  3 | Cy    |   40.00\n(3 rows)\n```",
+        "starter": "BEGIN;\nUPDATE accounts SET balance = balance - 20 WHERE owner = 'Ana';\n-- TODO: savepoint, bonus for everyone, roll back to the savepoint, release it\nCOMMIT;\nSELECT * FROM accounts ORDER BY id;\n",
+        "solution": "BEGIN;\nUPDATE accounts SET balance = balance - 20 WHERE owner = 'Ana';\nSAVEPOINT before_bonus;\nUPDATE accounts SET balance = balance + 10;\nROLLBACK TO SAVEPOINT before_bonus;\nRELEASE SAVEPOINT before_bonus;\nCOMMIT;\nSELECT * FROM accounts ORDER BY id;\n",
+        "tests": [
+          {
+            "output": "BEGIN\n\nUPDATE 1\n\nSAVEPOINT\n\nUPDATE 3\n\nROLLBACK\n\nRELEASE\n\nCOMMIT\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  180.00\n  2 | Bo    |   75.00\n  3 | Cy    |   40.00\n(3 rows)"
+          },
+          {
+            "stdin": "UPDATE accounts SET balance = 20.00 WHERE owner = 'Ana';",
+            "output": "BEGIN\n\nUPDATE 1\n\nSAVEPOINT\n\nUPDATE 3\n\nROLLBACK\n\nRELEASE\n\nCOMMIT\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |    0.00\n  2 | Bo    |   75.00\n  3 | Cy    |   40.00\n(3 rows)"
+          },
+          {
+            "stdin": "INSERT INTO accounts (owner, balance) VALUES ('Dee', 15.00);\nUPDATE accounts SET balance = 99.99 WHERE owner = 'Bo';",
+            "output": "BEGIN\n\nUPDATE 1\n\nSAVEPOINT\n\nUPDATE 4\n\nROLLBACK\n\nRELEASE\n\nCOMMIT\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  180.00\n  2 | Bo    |   99.99\n  3 | Cy    |   40.00\n  4 | Dee   |   15.00\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "Write `SAVEPOINT before_bonus;` right after Ana's update.",
+          "After the bonus update, `ROLLBACK TO SAVEPOINT before_bonus;` keeps Ana's withdrawal and drops the bonus.",
+          "The savepoint still exists after that rollback, so `RELEASE SAVEPOINT before_bonus;` comes next, before `COMMIT`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Without `BEGIN`, every statement commits on its own.\n- `BEGIN` starts a transaction and `COMMIT` saves all of its changes at once.\n- `ROLLBACK` undoes everything since `BEGIN`.\n- After an error the transaction is aborted: roll it back, because even `COMMIT` rolls back.\n- `SAVEPOINT name` marks a spot, `ROLLBACK TO SAVEPOINT name` undoes only what came after it, and `RELEASE SAVEPOINT name` forgets the mark but keeps the changes."
+}

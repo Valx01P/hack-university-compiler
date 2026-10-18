@@ -1,0 +1,75 @@
+{
+  "id": "row-values",
+  "title": "Rows as Tuples",
+  "section": "Arrays, JSON, and Rows",
+  "summary": "Compare several values at once with row values, SQL's tuples.",
+  "intro": "Some facts take two columns to pin down: a season and a week, a price and an id. A row value groups them into one tuple, so you can compare, match, and page through rows by several columns at once.",
+  "setup": "CREATE TABLE scores (\n    id integer,\n    player text,\n    season integer,\n    week integer,\n    points integer\n);\nINSERT INTO scores (id, player, season, week, points) VALUES\n    (1, 'Ana', 2024, 3, 18),\n    (2, 'Bo', 2024, 5, 22),\n    (3, 'Cy', 2024, 8, 15),\n    (4, 'Ana', 2024, 10, 25),\n    (5, 'Bo', 2024, 12, 19),\n    (6, 'Cy', 2024, 14, 21),\n    (7, 'Ana', 2025, 1, 20),\n    (8, 'Bo', 2025, 2, 17),\n    (9, 'Cy', 2025, 4, 24),\n    (10, 'Bo', 2025, 6, 16);\n\nCREATE TABLE products (\n    id integer,\n    name text,\n    price numeric(10, 2)\n);\nINSERT INTO products (id, name, price) VALUES\n    (1, 'Pencil', 1.50),\n    (2, 'Eraser', 0.99),\n    (3, 'Notebook', 4.25),\n    (4, 'Stapler', 9.99),\n    (5, 'Glue', 2.75),\n    (6, 'Ruler', 9.99),\n    (7, 'Marker', 3.10),\n    (8, 'Scissors', 12.50),\n    (9, 'Tape', 9.99);\n",
+  "steps": [
+    {
+      "title": "Comparing pairs",
+      "body": "This lesson uses a `scores` table: one row per player per game, keyed by season and week.\n\n```text\n id | player | season | week | points\n----+--------+--------+------+--------\n  1 | Ana    |   2024 |    3 |     18\n  2 | Bo     |   2024 |    5 |     22\n  3 | Cy     |   2024 |    8 |     15\n  4 | Ana    |   2024 |   10 |     25\n  5 | Bo     |   2024 |   12 |     19\n  6 | Cy     |   2024 |   14 |     21\n  7 | Ana    |   2025 |    1 |     20\n  8 | Bo     |   2025 |    2 |     17\n  9 | Cy     |   2025 |    4 |     24\n 10 | Bo     |   2025 |    6 |     16\n(10 rows)\n```\n\nA **row value** groups values in parentheses, like a tuple: `(season, week)`. You can also write `ROW(season, week)`, and you must for a single field, because `(season)` is just `season`. Two rows of the same length compare field by field:\n\n- `=` is true when every field matches, `<>` when any field differs.\n- `<`, `<=`, `>`, and `>=` compare left to right like dictionary order: the first fields decide, and only a tie moves on to the next field.\n- `(a, b) IN ((1, 2), (3, 4))` matches whole pairs from a list.\n\n```sql\nSELECT (2024, 14) < (2025, 1) AS earlier;  -- t, 2024 decides\nSELECT ROW(2025, 2) = ROW(2025, 2) AS same;  -- t\n```\n\nSo `(season, week) >= (2024, 10)` means \"week 10 of 2024 or later\", including every week of 2025. Writing `season >= 2024 AND week >= 10` instead would drop every 2025 game before week 10.\n\nA `NULL` field makes the comparison `NULL` when the answer depends on it: `(1, NULL) = (1, 2)` is `NULL`, but `(1, NULL) = (2, 2)` is `f`. Comparing rows of different lengths is an error:\n\n```text\nERROR:  unequal number of entries in row expressions\n```",
+      "example": {
+        "title": "Late season scores",
+        "prompt": "List every score from season 2024 week 10 onward, then the scores for Ana in 2024 and Bo in 2025.",
+        "code": "-- Every score from season 2024 week 10 onward\nSELECT id, player, season, week, points\nFROM scores\nWHERE (season, week) >= (2024, 10)\nORDER BY season, week, id;\n\n-- Ana's 2024 scores and Bo's 2025 scores\nSELECT id, player, season, points\nFROM scores\nWHERE (player, season) IN (('Ana', 2024), ('Bo', 2025))\nORDER BY id;\n",
+        "output": " id | player | season | week | points\n----+--------+--------+------+--------\n  4 | Ana    |   2024 |   10 |     25\n  5 | Bo     |   2024 |   12 |     19\n  6 | Cy     |   2024 |   14 |     21\n  7 | Ana    |   2025 |    1 |     20\n  8 | Bo     |   2025 |    2 |     17\n  9 | Cy     |   2025 |    4 |     24\n 10 | Bo     |   2025 |    6 |     16\n(7 rows)\n\n id | player | season | points\n----+--------+--------+--------\n  1 | Ana    |   2024 |     18\n  4 | Ana    |   2024 |     25\n  8 | Bo     |   2025 |     17\n 10 | Bo     |   2025 |     16\n(4 rows)",
+        "explanation": "`(season, week) >= (2024, 10)` compares seasons first. Every 2025 row wins on the season alone, whatever its week, and 2024 rows tie on the season, so their week must be at least 10. The `IN` list matches a row only when both the player and the season match one pair, so Ana's 2025 score and Bo's 2024 scores stay out."
+      },
+      "practice": {
+        "title": "Scores in a window",
+        "prompt": "List the scores inside a window of weeks, then the scores for two player seasons.\n\n1. Select `id`, `player`, `season`, and `week` from `scores` for every game from season 2024 week 5 through season 2025 week 2, both ends included.\n2. Sort that by `season`, `week`, then `id`.\n3. In a second query, select `id`, `player`, `season`, and `points` for Ana in 2025 and Cy in 2024, sorted by `id`.\n\nExpected output:\n\n```text\n id | player | season | week\n----+--------+--------+------\n  2 | Bo     |   2024 |    5\n  3 | Cy     |   2024 |    8\n  4 | Ana    |   2024 |   10\n  5 | Bo     |   2024 |   12\n  6 | Cy     |   2024 |   14\n  7 | Ana    |   2025 |    1\n  8 | Bo     |   2025 |    2\n(7 rows)\n\n id | player | season | points\n----+--------+--------+--------\n  3 | Cy     |   2024 |     15\n  6 | Cy     |   2024 |     21\n  7 | Ana    |   2025 |     20\n(3 rows)\n```",
+        "starter": "-- TODO: keep only the scores from (2024, 5) through (2025, 2)\nSELECT id, player, season, week\nFROM scores\nORDER BY season, week, id;\n\n-- TODO: keep only Ana in 2025 and Cy in 2024\nSELECT id, player, season, points\nFROM scores\nORDER BY id;\n",
+        "solution": "SELECT id, player, season, week\nFROM scores\nWHERE (season, week) >= (2024, 5) AND (season, week) <= (2025, 2)\nORDER BY season, week, id;\n\nSELECT id, player, season, points\nFROM scores\nWHERE (player, season) IN (('Ana', 2025), ('Cy', 2024))\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": " id | player | season | week\n----+--------+--------+------\n  2 | Bo     |   2024 |    5\n  3 | Cy     |   2024 |    8\n  4 | Ana    |   2024 |   10\n  5 | Bo     |   2024 |   12\n  6 | Cy     |   2024 |   14\n  7 | Ana    |   2025 |    1\n  8 | Bo     |   2025 |    2\n(7 rows)\n\n id | player | season | points\n----+--------+--------+--------\n  3 | Cy     |   2024 |     15\n  6 | Cy     |   2024 |     21\n  7 | Ana    |   2025 |     20\n(3 rows)"
+          },
+          {
+            "stdin": "INSERT INTO scores (id, player, season, week, points) VALUES\n    (11, 'Dee', 2024, 4, 30),\n    (12, 'Dee', 2024, 5, 12),\n    (13, 'Ana', 2025, 3, 9),\n    (14, 'Cy', 2025, 2, 11),\n    (15, 'Cy', 2024, 1, 7),\n    (16, 'Ana', 2025, 9, 13),\n    (17, 'Bo', 2024, NULL, 14);",
+            "output": " id | player | season | week\n----+--------+--------+------\n  2 | Bo     |   2024 |    5\n 12 | Dee    |   2024 |    5\n  3 | Cy     |   2024 |    8\n  4 | Ana    |   2024 |   10\n  5 | Bo     |   2024 |   12\n  6 | Cy     |   2024 |   14\n  7 | Ana    |   2025 |    1\n  8 | Bo     |   2025 |    2\n 14 | Cy     |   2025 |    2\n(9 rows)\n\n id | player | season | points\n----+--------+--------+--------\n  3 | Cy     |   2024 |     15\n  6 | Cy     |   2024 |     21\n  7 | Ana    |   2025 |     20\n 13 | Ana    |   2025 |      9\n 15 | Cy     |   2024 |      7\n 16 | Ana    |   2025 |     13\n(6 rows)"
+          }
+        ],
+        "hints": [
+          "Compare the pair `(season, week)` with `>=` against the start and `<=` against the end, joined with `AND`.",
+          "For the second query, use `(player, season) IN (...)` with two pairs."
+        ]
+      }
+    },
+    {
+      "title": "Paging with row comparisons",
+      "body": "The `products (id, name, price)` table holds 9 items, and three of them share a price. Sorted by price, then id:\n\n```text\n id |   name   | price\n----+----------+-------\n  2 | Eraser   |  0.99\n  1 | Pencil   |  1.50\n  5 | Glue     |  2.75\n  7 | Marker   |  3.10\n  3 | Notebook |  4.25\n  4 | Stapler  |  9.99\n  6 | Ruler    |  9.99\n  9 | Tape     |  9.99\n  8 | Scissors | 12.50\n(9 rows)\n```\n\n`LIMIT 3 OFFSET 3` gives the second page, but `OFFSET` still reads and throws away every skipped row, and a row added before the page shifts everything by one. **Keyset pagination** remembers the sort values of the last row shown and starts right after it:\n\n```sql\nWHERE (price, id) > (9.99, 4)\nORDER BY price, id\nLIMIT 3\n```\n\nThe `id` is there because prices tie. `price > 9.99` would skip Ruler and Tape, and `price >= 9.99` would show Stapler again. The row comparison means \"a higher price, or the same price and a higher id\", which is exactly the next row in `ORDER BY price, id`.\n\nKeep the row in `WHERE` and the columns in `ORDER BY` in the same order, with a unique column last. For a descending sort, use `<` and sort both columns `DESC`. One row comparison cannot handle mixed directions like `price DESC, id`, and a row with `NULL` in a sort column compares as `NULL`, so it never shows up on a later page.",
+      "example": {
+        "title": "Next pages by price",
+        "prompt": "Show pages 2 and 3 of the products sorted by price, three per page, starting after the last row of the page before.",
+        "code": "-- Page 2: the rows after Glue, priced 2.75 with id 5\nSELECT id, name, price\nFROM products\nWHERE (price, id) > (2.75, 5)\nORDER BY price, id\nLIMIT 3;\n\n-- Page 3: the rows after Stapler, priced 9.99 with id 4\nSELECT id, name, price\nFROM products\nWHERE (price, id) > (9.99, 4)\nORDER BY price, id\nLIMIT 3;\n",
+        "output": " id |   name   | price\n----+----------+-------\n  7 | Marker   |  3.10\n  3 | Notebook |  4.25\n  4 | Stapler  |  9.99\n(3 rows)\n\n id |   name   | price\n----+----------+-------\n  6 | Ruler    |  9.99\n  9 | Tape     |  9.99\n  8 | Scissors | 12.50\n(3 rows)",
+        "explanation": "Page 1 ended with Glue at 2.75 (id 5), so page 2 starts with the next pair in price and id order. Page 2 ended with Stapler at 9.99 (id 4). Ruler and Tape share that price but have higher ids, so `(price, id) > (9.99, 4)` keeps them and drops Stapler itself."
+      },
+      "practice": {
+        "title": "Next pages by name",
+        "prompt": "Page through the products sorted by name, three per page.\n\n1. Select `id`, `name`, and `price` from `products`, sorted by `name`, then `id`, with at most 3 rows.\n2. Start the first query after the product named Marker with id 7.\n3. Write the same query again, starting after the product named Ruler with id 6.\n\nExpected output:\n\n```text\n id |   name   | price\n----+----------+-------\n  3 | Notebook |  4.25\n  1 | Pencil   |  1.50\n  6 | Ruler    |  9.99\n(3 rows)\n\n id |   name   | price\n----+----------+-------\n  8 | Scissors | 12.50\n  4 | Stapler  |  9.99\n  9 | Tape     |  9.99\n(3 rows)\n```",
+        "starter": "-- TODO: start this page after Marker, id 7\nSELECT id, name, price\nFROM products\nORDER BY name, id\nLIMIT 3;\n\n-- TODO: start this page after Ruler, id 6\nSELECT id, name, price\nFROM products\nORDER BY name, id\nLIMIT 3;\n",
+        "solution": "SELECT id, name, price\nFROM products\nWHERE (name, id) > ('Marker', 7)\nORDER BY name, id\nLIMIT 3;\n\nSELECT id, name, price\nFROM products\nWHERE (name, id) > ('Ruler', 6)\nORDER BY name, id\nLIMIT 3;\n",
+        "tests": [
+          {
+            "output": " id |   name   | price\n----+----------+-------\n  3 | Notebook |  4.25\n  1 | Pencil   |  1.50\n  6 | Ruler    |  9.99\n(3 rows)\n\n id |   name   | price\n----+----------+-------\n  8 | Scissors | 12.50\n  4 | Stapler  |  9.99\n  9 | Tape     |  9.99\n(3 rows)"
+          },
+          {
+            "stdin": "INSERT INTO products (id, name, price) VALUES\n    (10, 'Marker', 3.40),\n    (11, 'Sticky notes', 5.00),\n    (12, 'Mug', 6.00);",
+            "output": " id |   name   | price\n----+----------+-------\n 10 | Marker   |  3.40\n 12 | Mug      |  6.00\n  3 | Notebook |  4.25\n(3 rows)\n\n id |     name     | price\n----+--------------+-------\n  8 | Scissors     | 12.50\n  4 | Stapler      |  9.99\n 11 | Sticky notes |  5.00\n(3 rows)"
+          },
+          {
+            "stdin": "UPDATE products SET name = 'Marker' WHERE id = 2;\nINSERT INTO products (id, name, price) VALUES (10, 'Ruler', 1.00);",
+            "output": " id |   name   | price\n----+----------+-------\n  3 | Notebook |  4.25\n  1 | Pencil   |  1.50\n  6 | Ruler    |  9.99\n(3 rows)\n\n id |   name   | price\n----+----------+-------\n 10 | Ruler    |  1.00\n  8 | Scissors | 12.50\n  4 | Stapler  |  9.99\n(3 rows)"
+          }
+        ],
+        "hints": [
+          "The row in `WHERE` lists the same columns as `ORDER BY`: `(name, id)`.",
+          "Another product named Marker with a higher id belongs on the next page, so compare the pair, not just the name."
+        ]
+      }
+    }
+  ],
+  "recap": "- `(a, b)` or `ROW(a, b)` is a row value, SQL's tuple.\n- `=` needs every field to match, `<>` needs any field to differ.\n- `<` and `>` compare left to right: the first field decides, a tie moves on to the next.\n- `(a, b) IN ((1, 2), (3, 4))` matches whole pairs.\n- Keyset pagination: `WHERE (sort_col, id) > (last values) ORDER BY sort_col, id LIMIT n`.\n- End the sort with a unique column so ties never hide or repeat a row."
+}

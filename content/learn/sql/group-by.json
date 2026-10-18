@@ -1,0 +1,110 @@
+{
+  "id": "group-by",
+  "title": "GROUP BY and HAVING",
+  "section": "Summarizing Data",
+  "summary": "Summarize each group of rows and keep only the groups you want.",
+  "intro": "An aggregate like `count(*)` or `sum(amount)` squeezes a whole table into one row. Most questions are really \"per something\": sales per region, revenue per rep. `GROUP BY` splits the rows into groups and gives you one summary row for each, and `HAVING` keeps only the groups you care about.",
+  "setup": "CREATE TABLE sales (\n    id integer,\n    region text,\n    rep text,\n    product text,\n    amount numeric(10, 2),\n    sold_on date\n);\nINSERT INTO sales (id, region, rep, product, amount, sold_on) VALUES\n    (1, 'East', 'Ana', 'Laptop', 1200.00, DATE '2025-01-06'),\n    (2, 'East', 'Ben', 'Monitor', 250.00, DATE '2025-01-14'),\n    (3, 'West', 'Cara', 'Laptop', 1150.00, DATE '2025-01-20'),\n    (4, 'North', 'Dan', 'Keyboard', 80.00, DATE '2025-01-27'),\n    (5, 'East', 'Ana', 'Monitor', 260.00, DATE '2025-02-03'),\n    (6, 'West', 'Dan', 'Mouse', 40.00, DATE '2025-02-10'),\n    (7, 'North', 'Ben', 'Laptop', 1100.00, DATE '2025-02-12'),\n    (8, 'West', 'Dan', 'Monitor', 240.00, DATE '2025-02-18'),\n    (9, 'North', 'Dan', 'Laptop', 1250.00, DATE '2025-02-25'),\n    (10, 'East', 'Ana', 'Keyboard', 75.00, DATE '2025-03-04'),\n    (11, 'West', 'Cara', 'Laptop', 1180.00, DATE '2025-03-11'),\n    (12, 'East', 'Ben', 'Mouse', 45.00, DATE '2025-03-19');\n",
+  "steps": [
+    {
+      "title": "One row per group",
+      "body": "This lesson uses a `sales` table: 12 sales over 3 regions and 4 reps.\n\n```sql\nCREATE TABLE sales (id integer, region text, rep text, product text,\n    amount numeric(10, 2), sold_on date);\n```\n\n| id | region | rep | product | amount | sold_on |\n| --- | --- | --- | --- | --- | --- |\n| 1 | East | Ana | Laptop | 1200.00 | 2025-01-06 |\n| 2 | East | Ben | Monitor | 250.00 | 2025-01-14 |\n| 3 | West | Cara | Laptop | 1150.00 | 2025-01-20 |\n\n`GROUP BY region` puts rows with the same region into one group, and every aggregate in the `SELECT` list runs once per group. Rows with a `NULL` region form one group of their own. List several columns, as in `GROUP BY region, rep`, to get one row per distinct combination.\n\nEvery column you select must be in `GROUP BY` or inside an aggregate. A group of Ana and Ben rows has no single `rep`, so PostgreSQL refuses. Try this in the editor:\n\n```sql\nSELECT region, rep, count(*)\nFROM sales\nGROUP BY region;\n```\n\n```text\nERROR:  column \"sales.rep\" must appear in the GROUP BY clause or be used in an aggregate function\n```\n\nGroups come out in no set order, so sort them. `ORDER BY` can use an aggregate, like `ORDER BY sum(amount) DESC`, or its alias.",
+      "example": {
+        "title": "Sales per region",
+        "prompt": "Count the sales and total the revenue for each region, then count the sales for each region and rep pair.",
+        "code": "-- One row per region: how many sales and how much money\nSELECT region, count(*) AS sales, sum(amount) AS revenue\nFROM sales\nGROUP BY region\nORDER BY revenue DESC, region;\n\n-- One row per region and rep pair\nSELECT region, rep, count(*) AS sales\nFROM sales\nGROUP BY region, rep\nORDER BY region, rep;\n",
+        "output": " region | sales | revenue\n--------+-------+---------\n West   |     4 | 2610.00\n North  |     3 | 2430.00\n East   |     5 | 1830.00\n(3 rows)\n\n region | rep  | sales\n--------+------+-------\n East   | Ana  |     3\n East   | Ben  |     2\n North  | Ben  |     1\n North  | Dan  |     2\n West   | Cara |     2\n West   | Dan  |     2\n(6 rows)",
+        "explanation": "`GROUP BY region` makes three groups, and `count(*)` and `sum(amount)` run once inside each. `ORDER BY revenue DESC` sorts by the alias of the aggregate, and `region` breaks any tie. The second query groups by two columns, so each region and rep pair is its own group: Ben appears in both East and North."
+      },
+      "practice": {
+        "title": "Sales per rep and per product",
+        "prompt": "Summarize the sales of each rep, then of each product in each region.\n\n1. Select `rep`, the number of sales as `sales`, and the largest `amount` as `largest` from `sales`, grouped by `rep`.\n2. Sort that result by `sales` from most to fewest, then by `rep`.\n3. Select `product`, `region`, and the number of sales as `sales`, grouped by `product` and `region`.\n4. Sort that result by `product`, then `region`.\n\nExpected output:\n\n```text\n rep  | sales | largest\n------+-------+---------\n Dan  |     4 | 1250.00\n Ana  |     3 | 1200.00\n Ben  |     3 | 1100.00\n Cara |     2 | 1180.00\n(4 rows)\n\n product  | region | sales\n----------+--------+-------\n Keyboard | East   |     1\n Keyboard | North  |     1\n Laptop   | East   |     1\n Laptop   | North  |     2\n Laptop   | West   |     2\n Monitor  | East   |     2\n Monitor  | West   |     1\n Mouse    | East   |     1\n Mouse    | West   |     1\n(9 rows)\n```",
+        "starter": "-- TODO: group the rows so you get one row per rep, most sales first\nSELECT count(*) AS sales, max(amount) AS largest\nFROM sales;\n\n-- TODO: one row per product and region pair\nSELECT count(*) AS sales\nFROM sales;\n",
+        "solution": "SELECT rep, count(*) AS sales, max(amount) AS largest\nFROM sales\nGROUP BY rep\nORDER BY sales DESC, rep;\n\nSELECT product, region, count(*) AS sales\nFROM sales\nGROUP BY product, region\nORDER BY product, region;\n",
+        "tests": [
+          {
+            "output": " rep  | sales | largest\n------+-------+---------\n Dan  |     4 | 1250.00\n Ana  |     3 | 1200.00\n Ben  |     3 | 1100.00\n Cara |     2 | 1180.00\n(4 rows)\n\n product  | region | sales\n----------+--------+-------\n Keyboard | East   |     1\n Keyboard | North  |     1\n Laptop   | East   |     1\n Laptop   | North  |     2\n Laptop   | West   |     2\n Monitor  | East   |     2\n Monitor  | West   |     1\n Mouse    | East   |     1\n Mouse    | West   |     1\n(9 rows)"
+          },
+          {
+            "stdin": "INSERT INTO sales (id, region, rep, product, amount, sold_on) VALUES\n    (13, 'North', 'Eve', 'Mouse', 50.00, DATE '2025-03-20'),\n    (14, 'West', 'Cara', 'Laptop', 1300.00, DATE '2025-03-25'),\n    (15, 'North', 'Eve', 'Keyboard', 85.00, DATE '2025-03-27');\n",
+            "output": " rep  | sales | largest\n------+-------+---------\n Dan  |     4 | 1250.00\n Ana  |     3 | 1200.00\n Ben  |     3 | 1100.00\n Cara |     3 | 1300.00\n Eve  |     2 |   85.00\n(5 rows)\n\n product  | region | sales\n----------+--------+-------\n Keyboard | East   |     1\n Keyboard | North  |     2\n Laptop   | East   |     1\n Laptop   | North  |     2\n Laptop   | West   |     3\n Monitor  | East   |     2\n Monitor  | West   |     1\n Mouse    | East   |     1\n Mouse    | North  |     1\n Mouse    | West   |     1\n(10 rows)"
+          },
+          {
+            "stdin": "INSERT INTO sales (id, region, rep, product, amount, sold_on) VALUES\n    (13, 'East', NULL, 'Mouse', 30.00, DATE '2025-03-21'),\n    (14, 'East', 'Ana', 'Laptop', 1200.00, DATE '2025-03-24');\n",
+            "output": " rep  | sales | largest\n------+-------+---------\n Ana  |     4 | 1200.00\n Dan  |     4 | 1250.00\n Ben  |     3 | 1100.00\n Cara |     2 | 1180.00\n      |     1 |   30.00\n(5 rows)\n\n product  | region | sales\n----------+--------+-------\n Keyboard | East   |     1\n Keyboard | North  |     1\n Laptop   | East   |     2\n Laptop   | North  |     2\n Laptop   | West   |     2\n Monitor  | East   |     2\n Monitor  | West   |     1\n Mouse    | East   |     2\n Mouse    | West   |     1\n(9 rows)"
+          }
+        ],
+        "hints": [
+          "Each grouped column must also appear in the `SELECT` list. `GROUP BY` goes after `FROM` and before `ORDER BY`.",
+          "`ORDER BY` can use the alias `sales` with `DESC`. Add `rep` after it to break ties.",
+          "For the second query, list both columns after `GROUP BY`, separated by a comma."
+        ]
+      }
+    },
+    {
+      "title": "Filtering groups with HAVING",
+      "body": "`WHERE` and `HAVING` both filter, at different moments:\n\n1. `WHERE` drops rows before they are grouped.\n2. `GROUP BY` builds the groups and runs the aggregates.\n3. `HAVING` drops whole groups, using their aggregates.\n\n```sql\nSELECT region, sum(amount) AS revenue\nFROM sales\nWHERE product = 'Laptop'\nGROUP BY region\nHAVING count(*) >= 2\nORDER BY region;\n```\n\nThis totals only laptop sales, then keeps regions with at least two of them. Write the aggregate again inside `HAVING`: `HAVING count(*) >= 2`, not the alias, because `HAVING` runs before the `SELECT` list names anything.\n\nAn aggregate inside `WHERE` is an error, since no groups exist yet when it runs:\n\n```text\nERROR:  aggregate functions are not allowed in WHERE\n```\n\nUse `WHERE` for conditions on single rows, like a date range. It is also faster, because fewer rows get grouped.",
+      "example": {
+        "title": "Strong February reps",
+        "prompt": "Find the reps whose February sales total more than 500.",
+        "code": "-- February sales per rep, keeping only reps above 500\nSELECT rep, count(*) AS sales, sum(amount) AS february_total\nFROM sales\nWHERE sold_on >= DATE '2025-02-01' AND sold_on < DATE '2025-03-01'\nGROUP BY rep\nHAVING sum(amount) > 500\nORDER BY rep;\n",
+        "output": " rep | sales | february_total\n-----+-------+----------------\n Ben |     1 |        1100.00\n Dan |     3 |        1530.00\n(2 rows)",
+        "explanation": "`WHERE` keeps only the five February rows. `GROUP BY rep` makes one group per rep from those rows, and `HAVING sum(amount) > 500` drops Ana, whose only February sale is 260.00. A date range with `>=` and `<` catches every day of the month without naming the last one."
+      },
+      "practice": {
+        "title": "Best sellers before March",
+        "prompt": "List the products that were sold at least 3 times before March 2025.\n\n1. Select `product`, the number of sales as `times_sold`, and the sum of `amount` as `total` from `sales`.\n2. Keep only the rows whose `sold_on` is before `2025-03-01`.\n3. Group the rows by `product`.\n4. Keep only groups with at least 3 sales.\n5. Sort by `product`.\n\nExpected output:\n\n```text\n product | times_sold |  total\n---------+------------+---------\n Laptop  |          4 | 4700.00\n Monitor |          3 |  750.00\n(2 rows)\n```",
+        "starter": "-- TODO: count only sales before March, then keep products sold at least 3 times\nSELECT product, count(*) AS times_sold, sum(amount) AS total\nFROM sales\nGROUP BY product\nORDER BY product;\n",
+        "solution": "SELECT product, count(*) AS times_sold, sum(amount) AS total\nFROM sales\nWHERE sold_on < DATE '2025-03-01'\nGROUP BY product\nHAVING count(*) >= 3\nORDER BY product;\n",
+        "tests": [
+          {
+            "output": " product | times_sold |  total\n---------+------------+---------\n Laptop  |          4 | 4700.00\n Monitor |          3 |  750.00\n(2 rows)"
+          },
+          {
+            "stdin": "INSERT INTO sales (id, region, rep, product, amount, sold_on) VALUES\n    (13, 'West', 'Cara', 'Mouse', 35.00, DATE '2025-02-20'),\n    (14, 'East', 'Ben', 'Mouse', 42.00, DATE '2025-02-26'),\n    (15, 'North', 'Dan', 'Monitor', 230.00, DATE '2025-03-21');\n",
+            "output": " product | times_sold |  total\n---------+------------+---------\n Laptop  |          4 | 4700.00\n Monitor |          3 |  750.00\n Mouse   |          3 |  117.00\n(3 rows)"
+          },
+          {
+            "stdin": "DELETE FROM sales WHERE id = 8;\n",
+            "output": " product | times_sold |  total\n---------+------------+---------\n Laptop  |          4 | 4700.00\n(1 row)"
+          }
+        ],
+        "hints": [
+          "\"Before March\" is a condition on single rows, so it belongs in `WHERE`. \"At least 3 sales\" is about whole groups, so it needs `HAVING`.",
+          "At least 3 includes 3, so compare with `>=`. `HAVING` goes after `GROUP BY` and before `ORDER BY`."
+        ]
+      }
+    },
+    {
+      "title": "Lists per group",
+      "body": "`string_agg(value, separator)` is an aggregate that joins a group's text values into one string. Add `ORDER BY` inside the parentheses to fix the order of the list, because without it the order is not guaranteed:\n\n```sql\nstring_agg(product, ', ' ORDER BY sold_on)\n```\n\nAdd `DISTINCT` to list each value once, like `count(DISTINCT rep)` counts each rep once:\n\n```sql\nstring_agg(DISTINCT rep, ', ' ORDER BY rep)\n```\n\nLike other aggregates, `string_agg` skips `NULL` values. It joins text only, so cast numbers first, as in `string_agg(amount::text, ', ')`.\n\nThe gotcha: with `DISTINCT`, the inner `ORDER BY` must sort by the value being listed. Sorting reps by `sold_on` makes no sense once duplicates are merged, so PostgreSQL stops you:\n\n```text\nERROR:  in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list\n```\n\nThe inner `ORDER BY` sorts the list inside each row. You still need an outer `ORDER BY` to sort the rows.",
+      "example": {
+        "title": "Products and reps per region",
+        "prompt": "List the products each region sold in date order, then the reps who sold in each region.",
+        "code": "-- Every product per region, in the order it was sold\nSELECT region, string_agg(product, ', ' ORDER BY sold_on) AS products\nFROM sales\nGROUP BY region\nORDER BY region;\n\n-- Each rep once per region, sorted by name\nSELECT region, string_agg(DISTINCT rep, ', ' ORDER BY rep) AS reps\nFROM sales\nGROUP BY region\nORDER BY region;\n",
+        "output": " region |                 products\n--------+-------------------------------------------\n East   | Laptop, Monitor, Monitor, Keyboard, Mouse\n North  | Keyboard, Laptop, Laptop\n West   | Laptop, Mouse, Monitor, Laptop\n(3 rows)\n\n region |   reps\n--------+-----------\n East   | Ana, Ben\n North  | Ben, Dan\n West   | Cara, Dan\n(3 rows)",
+        "explanation": "The first `string_agg` joins every product in the region, sorted by `sold_on`, so East shows Monitor twice. The second uses `DISTINCT`, so Ana appears once in East even though she made three sales there, and `ORDER BY rep` sorts the names inside each list."
+      },
+      "practice": {
+        "title": "Products per rep",
+        "prompt": "List the different products each rep has sold.\n\n1. Select `rep` and, as `products`, the distinct `product` values joined with `', '` and sorted by `product`.\n2. Group the rows by `rep`.\n3. Sort by `rep`.\n\nExpected output:\n\n```text\n rep  |             products\n------+----------------------------------\n Ana  | Keyboard, Laptop, Monitor\n Ben  | Laptop, Monitor, Mouse\n Cara | Laptop\n Dan  | Keyboard, Laptop, Monitor, Mouse\n(4 rows)\n```",
+        "starter": "-- TODO: list each rep's products once, sorted, separated by ', '\nSELECT rep, count(*) AS products\nFROM sales\nGROUP BY rep\nORDER BY rep;\n",
+        "solution": "SELECT rep, string_agg(DISTINCT product, ', ' ORDER BY product) AS products\nFROM sales\nGROUP BY rep\nORDER BY rep;\n",
+        "tests": [
+          {
+            "output": " rep  |             products\n------+----------------------------------\n Ana  | Keyboard, Laptop, Monitor\n Ben  | Laptop, Monitor, Mouse\n Cara | Laptop\n Dan  | Keyboard, Laptop, Monitor, Mouse\n(4 rows)"
+          },
+          {
+            "stdin": "INSERT INTO sales (id, region, rep, product, amount, sold_on) VALUES\n    (13, 'East', 'Cara', 'Mouse', 35.00, DATE '2025-03-22'),\n    (14, 'West', 'Eve', 'Monitor', 245.00, DATE '2025-03-24'),\n    (15, 'West', 'Eve', 'Monitor', 255.00, DATE '2025-03-28'),\n    (16, 'East', 'Ben', NULL, 20.00, DATE '2025-03-30');\n",
+            "output": " rep  |             products\n------+----------------------------------\n Ana  | Keyboard, Laptop, Monitor\n Ben  | Laptop, Monitor, Mouse\n Cara | Laptop, Mouse\n Dan  | Keyboard, Laptop, Monitor, Mouse\n Eve  | Monitor\n(5 rows)"
+          }
+        ],
+        "hints": [
+          "Replace `count(*)` with `string_agg(...)`, keeping the alias `products`.",
+          "Put `DISTINCT` before `product` so Cara's two laptops list Laptop once, and sort the list by `product` itself."
+        ]
+      }
+    }
+  ],
+  "recap": "- `GROUP BY col` gives one row per distinct value, and aggregates run once per group.\n- `GROUP BY a, b` gives one row per combination.\n- Every selected column is in `GROUP BY` or inside an aggregate.\n- `ORDER BY` can sort by an aggregate or its alias.\n- `WHERE` filters rows before grouping. `HAVING` filters groups after.\n- `string_agg(value, ', ' ORDER BY ...)` joins a group's values into one text.\n- `string_agg(DISTINCT value, ', ' ORDER BY value)` lists each value once."
+}

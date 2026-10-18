@@ -1,0 +1,62 @@
+{
+  "id": "recursive-ctes",
+  "title": "Recursive Queries",
+  "section": "Recursive Queries",
+  "summary": "Build results step by step with WITH RECURSIVE, SQL's recursion.",
+  "intro": "Some results grow from the row before them: count up, double, multiply. `WITH RECURSIVE` lets a CTE read its own rows, so the query keeps making the next row until a condition says stop.",
+  "steps": [
+    {
+      "title": "Counting up with WITH RECURSIVE",
+      "body": "This lesson has no tables. Every row comes from the query itself.\n\n`generate_series` hands you a fixed range. A **recursive CTE** builds rows one round at a time, where each new row is worked out from the row before it. Add `RECURSIVE` after `WITH` and write the CTE in three parts:\n\n```sql\nWITH RECURSIVE n(i) AS (\n    SELECT 1                          -- starting query: the first row\n    UNION ALL\n    SELECT i + 1 FROM n WHERE i < 3   -- uses n itself\n)\nSELECT i FROM n ORDER BY i;\n```\n\nThe column list `n(i)` names the columns. PostgreSQL runs the starting query once. Then it runs the second query on the rows the last round made, adds the new rows, and repeats until a round makes no rows.\n\nThe `WHERE` is what stops it. It is checked on the old row, so `i < 3` still lets `i = 2` produce 3, and the last row is 3. Leave the `WHERE` out and every round makes a new row, so the query runs until a value overflows or you cancel it. Write the stop condition before you run the query.\n\nUse `UNION ALL` here. Plain `UNION` also works, but it compares every new row with all earlier rows to drop duplicates, which is slower.",
+      "example": {
+        "title": "Count to five",
+        "prompt": "Count from 1 to 5 with a recursive CTE and show ten times each number.",
+        "code": "WITH RECURSIVE n(i) AS (\n    SELECT 1\n    UNION ALL\n    SELECT i + 1 FROM n WHERE i < 5\n)\nSELECT i, i * 10 AS tens FROM n ORDER BY i;\n",
+        "output": " i | tens\n---+------\n 1 |   10\n 2 |   20\n 3 |   30\n 4 |   40\n 5 |   50\n(5 rows)",
+        "explanation": "The starting query makes the row `i = 1`. Each round, the recursive query reads the row from the last round and makes `i + 1`, as long as the old `i` is below 5. When `i` is 5 the `WHERE` keeps nothing, the round is empty, and the recursion stops. The final `SELECT` treats `n` like any table, adding the `tens` column and sorting."
+      },
+      "practice": {
+        "title": "Powers of two",
+        "prompt": "List the powers of 2 from 1 up to 1024 with a recursive CTE.\n\n1. Write a recursive CTE named `powers` with one column `p`.\n2. Start with `p` equal to 1.\n3. In the recursive part, double `p` while `p` is less than 1024.\n4. Select `p` from `powers`, sorted by `p`.\n\nExpected output:\n\n```text\n  p\n------\n    1\n    2\n    4\n    8\n   16\n   32\n   64\n  128\n  256\n  512\n 1024\n(11 rows)\n```",
+        "starter": "WITH RECURSIVE powers(p) AS (\n    SELECT 1\n    -- TODO: add UNION ALL and a query that doubles p while p < 1024\n)\nSELECT p FROM powers ORDER BY p;\n",
+        "solution": "WITH RECURSIVE powers(p) AS (\n    SELECT 1\n    UNION ALL\n    SELECT p * 2 FROM powers WHERE p < 1024\n)\nSELECT p FROM powers ORDER BY p;\n",
+        "tests": [
+          {
+            "output": "  p\n------\n    1\n    2\n    4\n    8\n   16\n   32\n   64\n  128\n  256\n  512\n 1024\n(11 rows)"
+          }
+        ],
+        "hints": [
+          "Follow the counting example: `UNION ALL`, then a `SELECT` that reads from `powers` and has a `WHERE`.",
+          "Doubling is `p * 2`. The `WHERE` checks the old row, so a limit of `p < 1024` still lets 512 make 1024."
+        ]
+      }
+    },
+    {
+      "title": "Carrying values along",
+      "body": "A recursive CTE can carry several columns. Each round sees every column of the previous row, so one column can count the rounds while others carry running values. This one adds up 1 to 4:\n\n```sql\nWITH RECURSIVE s(n, total) AS (\n    SELECT 1, 1\n    UNION ALL\n    SELECT n + 1, total + n + 1 FROM s WHERE n < 4\n)\nSELECT n, total FROM s ORDER BY n;\n```\n\nAll the expressions in the recursive `SELECT` read the *old* row. In `SELECT n + 1, total + n + 1`, both uses of `n` see the old value, never the new one. That is what lets you shift values along, like `SELECT b, a + b` for Fibonacci.\n\nThe starting query fixes each column's type. `SELECT 1, 1` makes both columns `integer`, and an integer column stops at about 2.1 billion. Factorials pass that at 13!, and the query fails:\n\n```text\nERROR:  integer out of range\n```\n\nCast the starting value, as in `1::numeric`, and the whole column becomes `numeric`, which has no such limit. The cast belongs in the starting query. Cast only in the recursive part and the two parts disagree on the type:\n\n```text\nERROR:  recursive query \"f\" column 2 has type integer in non-recursive term but type numeric overall\n```",
+      "example": {
+        "title": "Factorials of 1 to 6",
+        "prompt": "Show the factorials of 1 to 6, carrying the running product in a second column.",
+        "code": "WITH RECURSIVE f(n, fact) AS (\n    SELECT 1, 1::numeric\n    UNION ALL\n    SELECT n + 1, fact * (n + 1) FROM f WHERE n < 6\n)\nSELECT n, fact AS factorial FROM f ORDER BY n;\n",
+        "output": " n | factorial\n---+-----------\n 1 |         1\n 2 |         2\n 3 |         6\n 4 |        24\n 5 |       120\n 6 |       720\n(6 rows)",
+        "explanation": "Each row holds a number `n` and its factorial `fact`. The next row multiplies the old `fact` by the next number, `n + 1`. The cast `1::numeric` makes the `fact` column `numeric`, so larger factorials would not overflow. The `WHERE n < 6` stops after the row for 6."
+      },
+      "practice": {
+        "title": "First ten Fibonacci numbers",
+        "prompt": "List the first 10 Fibonacci numbers with a recursive CTE that carries two values.\n\n1. Write a recursive CTE named `fib` with columns `n`, `a`, and `b`.\n2. Start with `n` 1, `a` 0, and `b` 1.\n3. In the recursive part, make `n + 1`, then `b` as the new `a`, then `a + b` as the new `b`, while `n` is less than 10.\n4. Select `n`, `a`, and `b` from `fib`, sorted by `n`.\n\nExpected output:\n\n```text\n n  | a  | b\n----+----+----\n  1 |  0 |  1\n  2 |  1 |  1\n  3 |  1 |  2\n  4 |  2 |  3\n  5 |  3 |  5\n  6 |  5 |  8\n  7 |  8 | 13\n  8 | 13 | 21\n  9 | 21 | 34\n 10 | 34 | 55\n(10 rows)\n```",
+        "starter": "WITH RECURSIVE fib(n, a, b) AS (\n    SELECT 1, 0, 1\n    -- TODO: add UNION ALL and a query that makes the next n, a, and b while n < 10\n)\nSELECT n, a, b FROM fib ORDER BY n;\n",
+        "solution": "WITH RECURSIVE fib(n, a, b) AS (\n    SELECT 1, 0, 1\n    UNION ALL\n    SELECT n + 1, b, a + b FROM fib WHERE n < 10\n)\nSELECT n, a, b FROM fib ORDER BY n;\n",
+        "tests": [
+          {
+            "output": " n  | a  | b\n----+----+----\n  1 |  0 |  1\n  2 |  1 |  1\n  3 |  1 |  2\n  4 |  2 |  3\n  5 |  3 |  5\n  6 |  5 |  8\n  7 |  8 | 13\n  8 | 13 | 21\n  9 | 21 | 34\n 10 | 34 | 55\n(10 rows)"
+          }
+        ],
+        "hints": [
+          "It has the same shape as the factorial example, with three columns instead of two.",
+          "The recursive `SELECT` lists three values in order: the next `n`, the old `b`, and the old `a` plus the old `b`. Every expression reads the old row, so nothing gets overwritten too early."
+        ]
+      }
+    }
+  ],
+  "recap": "- `WITH RECURSIVE name(columns) AS (start UNION ALL recursive_part)` builds rows round by round.\n- The starting query runs once. The recursive part reads only the rows the last round made.\n- A `WHERE` in the recursive part stops it. It checks the old row, and without it the query runs until it fails.\n- Several columns carry values along, and every expression reads the old row.\n- The starting query sets the column types: cast the starting value to `numeric` when values grow past the integer range."
+}

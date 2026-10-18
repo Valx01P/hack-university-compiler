@@ -1,0 +1,147 @@
+{
+  "id": "trees",
+  "title": "Trees and Hierarchies",
+  "section": "Recursive Queries",
+  "summary": "Walk parent and child rows to get depths, paths, and whole subtrees.",
+  "intro": "Categories, folders, and org charts are trees: every row has one parent, except the roots at the top. This lesson stores a tree with a parent_id column, then uses self joins and WITH RECURSIVE to find children, whole subtrees with their depth, full paths, and the ancestors of a row.",
+  "setup": "CREATE TABLE categories (\n    id integer PRIMARY KEY,\n    name text NOT NULL,\n    parent_id integer REFERENCES categories (id)\n);\nINSERT INTO categories (id, name, parent_id) VALUES\n    (1, 'Electronics', NULL),\n    (2, 'Computers', 1),\n    (3, 'Phones', 1),\n    (4, 'Laptops', 2),\n    (5, 'Desktops', 2),\n    (6, 'Home', NULL),\n    (7, 'Kitchen', 6),\n    (8, 'Furniture', 6),\n    (9, 'Cookware', 7);\n",
+  "steps": [
+    {
+      "title": "Roots and children",
+      "body": "A tree fits in one table. Each row stores the id of its parent in `parent_id`, and a row at the top, a **root**, has `parent_id` NULL. `parent_id` is a foreign key to the same table, so it can only name a real row. This lesson uses `categories`:\n\n```sql\nCREATE TABLE categories (\n    id integer PRIMARY KEY,\n    name text NOT NULL,\n    parent_id integer REFERENCES categories (id)\n);\n```\n\n```text\n id |    name     | parent_id\n----+-------------+-----------\n  1 | Electronics |\n  2 | Computers   |         1\n  3 | Phones      |         1\n  4 | Laptops     |         2\n  5 | Desktops    |         2\n  6 | Home        |\n  7 | Kitchen     |         6\n  8 | Furniture   |         6\n  9 | Cookware    |         7\n(9 rows)\n```\n\nElectronics and Home are the roots. Computers points to Electronics (1), and Laptops points to Computers (2). Find roots with `WHERE parent_id IS NULL`, never `= NULL`.\n\nTo show each row next to its parent, join the table to itself: `c` is the child, `p` is the parent. Use `LEFT JOIN` so the roots stay, with an empty parent.\n\nA **leaf** is a row with no children: no other row points to it. Test that with `NOT EXISTS`:\n\n```sql\nWHERE NOT EXISTS (SELECT 1 FROM categories AS k WHERE k.parent_id = c.id)\n```\n\nAvoid `id NOT IN (SELECT parent_id FROM categories)`. It is the same trap as finding the head of a linked list: the roots put NULL in that list, so it returns no rows at all.",
+      "example": {
+        "title": "Roots, then every parent",
+        "prompt": "List the root categories, then every category with its parent's name.",
+        "code": "SELECT id, name\nFROM categories\nWHERE parent_id IS NULL\nORDER BY id;\n\nSELECT c.id, c.name AS category, p.name AS parent\nFROM categories AS c\nLEFT JOIN categories AS p ON p.id = c.parent_id\nORDER BY c.id;\n",
+        "output": " id |    name\n----+-------------\n  1 | Electronics\n  6 | Home\n(2 rows)\n\n id |  category   |   parent\n----+-------------+-------------\n  1 | Electronics |\n  2 | Computers   | Electronics\n  3 | Phones      | Electronics\n  4 | Laptops     | Computers\n  5 | Desktops    | Computers\n  6 | Home        |\n  7 | Kitchen     | Home\n  8 | Furniture   | Home\n  9 | Cookware    | Kitchen\n(9 rows)",
+        "explanation": "The first query keeps the two rows whose `parent_id` is NULL. The second reads `categories` twice: for each row `c`, the `LEFT JOIN` finds the row `p` whose `id` equals `c.parent_id`. Roots match nothing, so their `parent` is NULL and prints as nothing."
+      },
+      "practice": {
+        "title": "Leaf categories",
+        "prompt": "List the categories that have no children, with their parent's name.\n\n1. Select from `categories` as `c` and `LEFT JOIN` it to itself as `p` on `p.id = c.parent_id`.\n2. Keep only rows where `NOT EXISTS` finds a row `k` with `k.parent_id = c.id`.\n3. Select `c.name` as `category` and `p.name` as `parent`.\n4. Sort by `c.name`, then `c.id`.\n\nExpected output:\n\n```text\n category  |   parent\n-----------+-------------\n Cookware  | Kitchen\n Desktops  | Computers\n Furniture | Home\n Laptops   | Computers\n Phones    | Electronics\n(5 rows)\n```",
+        "starter": "-- TODO: join each category to its parent as p\n-- TODO: keep only categories that no row points to\nSELECT c.name AS category\nFROM categories AS c\nORDER BY c.name, c.id;\n",
+        "solution": "SELECT c.name AS category, p.name AS parent\nFROM categories AS c\nLEFT JOIN categories AS p ON p.id = c.parent_id\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM categories AS k\n    WHERE k.parent_id = c.id\n)\nORDER BY c.name, c.id;\n",
+        "tests": [
+          {
+            "output": " category  |   parent\n-----------+-------------\n Cookware  | Kitchen\n Desktops  | Computers\n Furniture | Home\n Laptops   | Computers\n Phones    | Electronics\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO categories (id, name, parent_id) VALUES\n    (10, 'Tablets', 3),\n    (11, 'Garden', NULL);\n",
+            "output": " category  |  parent\n-----------+-----------\n Cookware  | Kitchen\n Desktops  | Computers\n Furniture | Home\n Garden    |\n Laptops   | Computers\n Tablets   | Phones\n(6 rows)"
+          },
+          {
+            "stdin": "DELETE FROM categories WHERE id IN (4, 5, 9);\nINSERT INTO categories (id, name, parent_id) VALUES (12, 'Cookware', 8);\n",
+            "output": " category  |   parent\n-----------+-------------\n Computers | Electronics\n Cookware  | Furniture\n Kitchen   | Home\n Phones    | Electronics\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "Start from the example's self join, then add a `WHERE NOT EXISTS (...)`.",
+          "Inside the subquery, look for a child: `SELECT 1 FROM categories AS k WHERE k.parent_id = c.id`."
+        ]
+      }
+    },
+    {
+      "title": "Every descendant with depth",
+      "body": "A self join reaches one level down. To reach every level, use `WITH RECURSIVE`, the same way you followed `next_id` links, except a row can now have many children.\n\nThe starting query picks the top row and gives it `depth` 0. The recursive query joins `categories` to the rows found so far, matching each child's `parent_id` to a found `id`, and adds 1 to the depth:\n\n```sql\nSELECT c.id, c.name, t.depth + 1\nFROM categories AS c\nJOIN tree AS t ON c.parent_id = t.id\n```\n\nEach round finds the whole next level at once. The walk stops by itself when a round finds no children, so you need no stopping `WHERE`. That only holds for a real tree: if the links ever looped, for example two rows pointing at each other, the query would never end. When you don't trust the data, cap it with `WHERE t.depth < 100` in the recursive query, as with a linked list.\n\nThe result has no built-in order, so sort it. `ORDER BY depth, name, id` lists level by level, alphabetical inside a level, with `id` breaking ties between equal names.",
+      "example": {
+        "title": "Everything under Electronics",
+        "prompt": "List Electronics and every category below it, with how many levels down each one is.",
+        "code": "WITH RECURSIVE tree AS (\n    SELECT id, name, 0 AS depth\n    FROM categories\n    WHERE name = 'Electronics'\n    UNION ALL\n    SELECT c.id, c.name, t.depth + 1\n    FROM categories AS c\n    JOIN tree AS t ON c.parent_id = t.id\n)\nSELECT name, depth\nFROM tree\nORDER BY depth, name, id;\n",
+        "output": "    name     | depth\n-------------+-------\n Electronics |     0\n Computers   |     1\n Phones      |     1\n Desktops    |     2\n Laptops     |     2\n(5 rows)",
+        "explanation": "The starting query finds Electronics at depth 0. Round one finds its children, Computers and Phones, at depth 1. Round two finds the children of those rows, Laptops and Desktops, at depth 2. Round three finds nothing, so the recursion ends and the final `SELECT` sorts all five rows."
+      },
+      "practice": {
+        "title": "Everything under Home",
+        "prompt": "List Home and every category below it, with its id and depth.\n\n1. Start the recursive CTE `tree` at the row named `Home`, with `depth` 0.\n2. Add `UNION ALL` and a query that joins `categories` as `c` to `tree` on `c.parent_id = t.id`, with `t.depth + 1`.\n3. Select `id`, `name`, and `depth` from `tree`.\n4. Sort by `depth`, then `name`, then `id`.\n\nExpected output:\n\n```text\n id |   name    | depth\n----+-----------+-------\n  6 | Home      |     0\n  8 | Furniture |     1\n  7 | Kitchen   |     1\n  9 | Cookware  |     2\n(4 rows)\n```",
+        "starter": "WITH RECURSIVE tree AS (\n    SELECT id, name, 0 AS depth\n    FROM categories\n    WHERE name = 'Home'\n    -- TODO: add UNION ALL and a query that finds the children of rows in tree\n)\nSELECT id, name, depth\nFROM tree\nORDER BY depth, name, id;\n",
+        "solution": "WITH RECURSIVE tree AS (\n    SELECT id, name, 0 AS depth\n    FROM categories\n    WHERE name = 'Home'\n    UNION ALL\n    SELECT c.id, c.name, t.depth + 1\n    FROM categories AS c\n    JOIN tree AS t ON c.parent_id = t.id\n)\nSELECT id, name, depth\nFROM tree\nORDER BY depth, name, id;\n",
+        "tests": [
+          {
+            "output": " id |   name    | depth\n----+-----------+-------\n  6 | Home      |     0\n  8 | Furniture |     1\n  7 | Kitchen   |     1\n  9 | Cookware  |     2\n(4 rows)"
+          },
+          {
+            "stdin": "INSERT INTO categories (id, name, parent_id) VALUES\n    (10, 'Pans', 9),\n    (11, 'Knives', 9),\n    (12, 'Woks', 10),\n    (13, 'Lamps', 8);\n",
+            "output": " id |   name    | depth\n----+-----------+-------\n  6 | Home      |     0\n  8 | Furniture |     1\n  7 | Kitchen   |     1\n  9 | Cookware  |     2\n 13 | Lamps     |     2\n 11 | Knives    |     3\n 10 | Pans      |     3\n 12 | Woks      |     4\n(8 rows)"
+          },
+          {
+            "stdin": "INSERT INTO categories (id, name, parent_id) VALUES\n    (10, 'Storage', 7),\n    (11, 'Storage', 8),\n    (12, 'Cases', 3);\n",
+            "output": " id |   name    | depth\n----+-----------+-------\n  6 | Home      |     0\n  8 | Furniture |     1\n  7 | Kitchen   |     1\n  9 | Cookware  |     2\n 10 | Storage   |     2\n 11 | Storage   |     2\n(6 rows)"
+          }
+        ],
+        "hints": [
+          "The recursive half has the same shape as the example's. Only the starting row is different.",
+          "A child's `parent_id` equals the `id` of a row already in `tree`: `JOIN tree AS t ON c.parent_id = t.id`."
+        ]
+      }
+    },
+    {
+      "title": "Full paths in tree order",
+      "body": "Instead of a depth, a recursive CTE can carry the whole path. The starting query gives every root its own name as its path, `SELECT id, name AS path`. Then each child glues its name onto its parent's path with `||`:\n\n```sql\nSELECT c.id, cp.path || ' > ' || c.name\nFROM categories AS c\nJOIN category_paths AS cp ON c.parent_id = cp.id\n```\n\nEach round reads the finished path of the row above, so Laptops ends up with `Electronics > Computers > Laptops`.\n\nSorting by that text prints the tree in order. A parent's path is the start of its children's paths, so it sorts right before them, and siblings come out alphabetical. One catch: a space then a digit sorts before `>`, so a sibling named `Kitchen 2` lands between `Kitchen` and `Kitchen > Cookware`. When names can start with a sibling's name like that, build an array instead (`ARRAY[name]`, then `cp.path || c.name`) and sort by it, because arrays compare one name at a time.",
+      "example": {
+        "title": "Every full path",
+        "prompt": "Print every category's full path, with the whole tree in order.",
+        "code": "WITH RECURSIVE category_paths AS (\n    SELECT id, name AS path\n    FROM categories\n    WHERE parent_id IS NULL\n    UNION ALL\n    SELECT c.id, cp.path || ' > ' || c.name\n    FROM categories AS c\n    JOIN category_paths AS cp ON c.parent_id = cp.id\n)\nSELECT path\nFROM category_paths\nORDER BY path;\n",
+        "output": "                path\n------------------------------------\n Electronics\n Electronics > Computers\n Electronics > Computers > Desktops\n Electronics > Computers > Laptops\n Electronics > Phones\n Home\n Home > Furniture\n Home > Kitchen\n Home > Kitchen > Cookware\n(9 rows)",
+        "explanation": "The starting query gives the two roots, Electronics and Home, their own names as paths. Each round appends one name, so Computers gets `Electronics > Computers` and Laptops then gets `Electronics > Computers > Laptops`. Sorting the paths puts every parent right above its children, and all of Electronics comes before Home."
+      },
+      "practice": {
+        "title": "Folder paths under Electronics",
+        "prompt": "Print the path of Electronics and of every category below it, with ` / ` between the names, like folders.\n\n1. Write a recursive CTE named `category_paths` whose starting query selects `id` and `name AS path` for the row named `Electronics`.\n2. With `UNION ALL`, add each child of a row already in `category_paths`, with its parent's path, then ` / `, then its own name.\n3. Select `path` from `category_paths`, sorted by `path`.\n\nExpected output:\n\n```text\n                path\n------------------------------------\n Electronics\n Electronics / Computers\n Electronics / Computers / Desktops\n Electronics / Computers / Laptops\n Electronics / Phones\n(5 rows)\n```",
+        "starter": "WITH RECURSIVE category_paths AS (\n    SELECT id, name AS path\n    FROM categories\n    WHERE name = 'Electronics'\n    -- TODO: add UNION ALL and a query that adds ' / ' and each child's name to its parent's path\n)\nSELECT path\nFROM category_paths\nORDER BY path;\n",
+        "solution": "WITH RECURSIVE category_paths AS (\n    SELECT id, name AS path\n    FROM categories\n    WHERE name = 'Electronics'\n    UNION ALL\n    SELECT c.id, cp.path || ' / ' || c.name\n    FROM categories AS c\n    JOIN category_paths AS cp ON c.parent_id = cp.id\n)\nSELECT path\nFROM category_paths\nORDER BY path;\n",
+        "tests": [
+          {
+            "output": "                path\n------------------------------------\n Electronics\n Electronics / Computers\n Electronics / Computers / Desktops\n Electronics / Computers / Laptops\n Electronics / Phones\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO categories (id, name, parent_id) VALUES\n    (10, 'Tablets', 3),\n    (11, 'Garden', 6);\n",
+            "output": "                path\n------------------------------------\n Electronics\n Electronics / Computers\n Electronics / Computers / Desktops\n Electronics / Computers / Laptops\n Electronics / Phones\n Electronics / Phones / Tablets\n(6 rows)"
+          },
+          {
+            "stdin": "UPDATE categories SET parent_id = 3 WHERE name = 'Laptops';\nINSERT INTO categories (id, name, parent_id) VALUES (10, 'Cables', 5);\n",
+            "output": "                    path\n---------------------------------------------\n Electronics\n Electronics / Computers\n Electronics / Computers / Desktops\n Electronics / Computers / Desktops / Cables\n Electronics / Phones\n Electronics / Phones / Laptops\n(6 rows)"
+          }
+        ],
+        "hints": [
+          "The recursive part has the same shape as the example's. Only the starting row and the separator change.",
+          "Join `categories AS c` to `category_paths AS cp` on `c.parent_id = cp.id`, so each child reads the path of the row above it, and glue the pieces with `||`."
+        ]
+      }
+    },
+    {
+      "title": "Walking up to the ancestors",
+      "body": "So far every walk went down, from a parent to its children. You can also walk **up**. Start at one row and flip the join: find the row whose `id` is the current row's `parent_id`.\n\n```sql\nSELECT c.id, c.name, c.parent_id, a.levels_up + 1\nFROM categories AS c\nJOIN ancestors AS a ON c.id = a.parent_id\n```\n\nCarry `parent_id` in the CTE so the next round can follow it, the way a linked list carries `next_id`. Each row has one parent, so the walk is a single line that ends at the root, whose `parent_id` is NULL and matches nothing.\n\nCount `levels_up` as you go, starting at 0 for the row you start from. Sort by it descending to read the chain from the top down, like a breadcrumb: Home, Kitchen, Cookware.",
+      "example": {
+        "title": "Breadcrumb from Cookware",
+        "prompt": "Walk up from Cookware to its root and list the chain from the top down.",
+        "code": "WITH RECURSIVE ancestors AS (\n    SELECT id, name, parent_id, 0 AS levels_up\n    FROM categories\n    WHERE name = 'Cookware'\n    UNION ALL\n    SELECT c.id, c.name, c.parent_id, a.levels_up + 1\n    FROM categories AS c\n    JOIN ancestors AS a ON c.id = a.parent_id\n)\nSELECT name, levels_up\nFROM ancestors\nORDER BY levels_up DESC;\n",
+        "output": "   name   | levels_up\n----------+-----------\n Home     |         2\n Kitchen  |         1\n Cookware |         0\n(3 rows)",
+        "explanation": "The starting query finds Cookware, 0 levels up. The next round finds Kitchen, the row whose `id` is Cookware's `parent_id`, then the round after finds Home. Home's `parent_id` is NULL, so the join matches nothing and the walk stops. `ORDER BY levels_up DESC` reads it from the root down."
+      },
+      "practice": {
+        "title": "Ancestors of Laptops",
+        "prompt": "List every category above Laptops, from the root down, leaving out Laptops itself.\n\n1. Start the recursive CTE `ancestors` at the row named `Laptops`, with its `id`, `name`, `parent_id`, and `levels_up` 0.\n2. Walk up: join `categories` as `c` to `ancestors` as `a` on `c.id = a.parent_id`, with `a.levels_up + 1`.\n3. Select `name` and `levels_up`, keeping only rows where `levels_up > 0`.\n4. Sort by `levels_up` descending.\n\nExpected output:\n\n```text\n    name     | levels_up\n-------------+-----------\n Electronics |         2\n Computers   |         1\n(2 rows)\n```",
+        "starter": "WITH RECURSIVE ancestors AS (\n    SELECT id, name, parent_id, 0 AS levels_up\n    FROM categories\n    WHERE name = 'Laptops'\n    -- TODO: add UNION ALL and a query that finds the parent of each row in ancestors\n)\nSELECT name, levels_up\nFROM ancestors\n-- TODO: leave out Laptops itself\nORDER BY levels_up DESC;\n",
+        "solution": "WITH RECURSIVE ancestors AS (\n    SELECT id, name, parent_id, 0 AS levels_up\n    FROM categories\n    WHERE name = 'Laptops'\n    UNION ALL\n    SELECT c.id, c.name, c.parent_id, a.levels_up + 1\n    FROM categories AS c\n    JOIN ancestors AS a ON c.id = a.parent_id\n)\nSELECT name, levels_up\nFROM ancestors\nWHERE levels_up > 0\nORDER BY levels_up DESC;\n",
+        "tests": [
+          {
+            "output": "    name     | levels_up\n-------------+-----------\n Electronics |         2\n Computers   |         1\n(2 rows)"
+          },
+          {
+            "stdin": "INSERT INTO categories (id, name, parent_id) VALUES (10, 'Office', 6);\nUPDATE categories SET parent_id = 10 WHERE name = 'Computers';\n",
+            "output": "   name    | levels_up\n-----------+-----------\n Home      |         3\n Office    |         2\n Computers |         1\n(3 rows)"
+          },
+          {
+            "stdin": "UPDATE categories SET parent_id = NULL WHERE name = 'Laptops';\n",
+            "output": " name | levels_up\n------+-----------\n(0 rows)"
+          }
+        ],
+        "hints": [
+          "The example already walks up from Cookware. Change where it starts.",
+          "Laptops itself has `levels_up` 0, so a `WHERE` on the final `SELECT` removes it."
+        ]
+      }
+    }
+  ],
+  "recap": "- `parent_id` points to the parent row, and a root has `parent_id` NULL.\n- A self join with `LEFT JOIN categories AS p ON p.id = c.parent_id` shows each row with its parent.\n- `NOT EXISTS` finds leaves. Avoid `NOT IN` over `parent_id`, because the roots' NULL empties the result.\n- Walk down with `JOIN tree AS t ON c.parent_id = t.id`, adding 1 to `depth` each round.\n- Build a path with `parent_path || ' > ' || name`, and `ORDER BY path` prints the tree in order.\n- Walk up with `JOIN ancestors AS a ON c.id = a.parent_id`, and sort by `levels_up DESC` to read from the root down."
+}

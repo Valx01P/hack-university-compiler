@@ -1,0 +1,115 @@
+{
+  "id": "jsonb",
+  "title": "JSON Objects",
+  "section": "Arrays, JSON, and Rows",
+  "summary": "Store key and value data as JSONB, look up keys, and build JSON from rows.",
+  "intro": "A `jsonb` column can hold a whole object of keys and values in one cell, like a dictionary in Python or a map in Go. It fits data whose shape changes from row to row, such as user settings or event details, and PostgreSQL can still look inside it, filter on it, and build it.",
+  "setup": "CREATE TABLE settings (\n    id integer,\n    user_name text,\n    prefs jsonb\n);\n\nCREATE TABLE events (\n    id integer,\n    kind text,\n    payload jsonb\n);\n\nINSERT INTO settings (id, user_name, prefs) VALUES\n    (1, 'ana', '{\"theme\": \"dark\", \"font_size\": 14, \"language\": \"en\"}'),\n    (2, 'ben', '{\"theme\": \"light\"}'),\n    (3, 'carla', '{\"theme\": \"dark\", \"language\": \"es\"}'),\n    (4, 'dev', '{\"font_size\": 16, \"language\": \"en\"}'),\n    (5, 'elena', '{\"theme\": \"dark\", \"font_size\": 18, \"language\": \"pt\", \"beta\": true}');\n\nINSERT INTO events (id, kind, payload) VALUES\n    (1, 'purchase', '{\"user\": {\"name\": \"Ana\", \"country\": \"US\"}, \"amount\": 25, \"status\": \"paid\"}'),\n    (2, 'purchase', '{\"user\": {\"name\": \"Ben\", \"country\": \"CA\"}, \"amount\": 40, \"status\": \"paid\", \"coupon\": \"SPRING10\"}'),\n    (3, 'refund', '{\"user\": {\"name\": \"Ana\", \"country\": \"US\"}, \"amount\": 25, \"status\": \"pending\"}'),\n    (4, 'purchase', '{\"user\": {\"name\": \"Carla\", \"country\": \"MX\"}, \"amount\": 12.50, \"status\": \"pending\", \"coupon\": \"WELCOME\"}'),\n    (5, 'signup', '{\"user\": {\"name\": \"Dev\", \"country\": \"US\"}}');\n",
+  "steps": [
+    {
+      "title": "Looking up keys",
+      "body": "A `jsonb` column holds JSON. In this lesson it is always an object: `\"key\": value` pairs, where a value is a string, a number, `true` or `false`, `null`, an array, or another object. Write it as text in single quotes. This lesson uses two tables with one:\n\n```sql\nCREATE TABLE settings (id integer, user_name text, prefs jsonb);\nCREATE TABLE events (id integer, kind text, payload jsonb);\n```\n\nHere is all of `settings` and one row of `events`:\n\n```text\n id | user_name |                               prefs\n----+-----------+--------------------------------------------------------------------\n  1 | ana       | {\"theme\": \"dark\", \"language\": \"en\", \"font_size\": 14}\n  2 | ben       | {\"theme\": \"light\"}\n  3 | carla     | {\"theme\": \"dark\", \"language\": \"es\"}\n  4 | dev       | {\"language\": \"en\", \"font_size\": 16}\n  5 | elena     | {\"beta\": true, \"theme\": \"dark\", \"language\": \"pt\", \"font_size\": 18}\n(5 rows)\n\n id |   kind   |                                             payload\n----+----------+--------------------------------------------------------------------------------------------------\n  2 | purchase | {\"user\": {\"name\": \"Ben\", \"country\": \"CA\"}, \"amount\": 40, \"coupon\": \"SPRING10\", \"status\": \"paid\"}\n(1 row)\n```\n\n`jsonb` prints keys in its own order (shorter keys first), not the order you typed them. Two operators look up a key:\n\n- `prefs -> 'theme'` returns `jsonb`: `\"dark\"`, quotes included.\n- `prefs ->> 'theme'` returns `text`: `dark`.\n- `payload -> 'user' ->> 'name'` chains them to reach a nested key.\n\nUse `->` for every step but the last. A key that is not there gives `NULL`, not an error, so Ben's font size is `NULL`. A key set to JSON `null` also gives `NULL` with `->>`.\n\n`->>` always gives text, so cast it before doing math: `(prefs ->> 'font_size')::integer + 2`. Keep the parentheses. `::` binds tighter than `->>`, so without them PostgreSQL tries to turn the key name into a number:\n\n```text\nERROR:  invalid input syntax for type integer: \"font_size\"\n```",
+      "example": {
+        "title": "Buyer names and doubled amounts",
+        "prompt": "List each event with the buyer's name from the nested user object and its amount doubled.",
+        "code": "SELECT\n    id,\n    kind,\n    payload -> 'user' ->> 'name' AS user_name,\n    (payload ->> 'amount')::numeric * 2 AS doubled\nFROM events\nORDER BY id;\n",
+        "output": " id |   kind   | user_name | doubled\n----+----------+-----------+---------\n  1 | purchase | Ana       |      50\n  2 | purchase | Ben       |      80\n  3 | refund   | Ana       |      50\n  4 | purchase | Carla     |   25.00\n  5 | signup   | Dev       |\n(5 rows)",
+        "explanation": "`payload -> 'user'` returns the nested object as `jsonb`, and `->> 'name'` pulls the name out of it as text. `payload ->> 'amount'` is text like `'25'`, so `::numeric` turns it into a number before `* 2`. Event 5 has no `amount` key: the lookup gives `NULL`, and `NULL * 2` stays `NULL`, so `doubled` prints as nothing."
+      },
+      "practice": {
+        "title": "Themes and bigger fonts",
+        "prompt": "List each user's theme and a font size two points bigger than the one in their settings.\n\n1. Select `id`, `user_name`, the `theme` key of `prefs` as text named `theme`, and the `font_size` key cast to `integer` plus 2, named `bigger_font`.\n2. Sort by `id`.\n3. A user with no `theme` or `font_size` key gets an empty cell there.\n\nExpected output:\n\n```text\n id | user_name | theme | bigger_font\n----+-----------+-------+-------------\n  1 | ana       | dark  |          16\n  2 | ben       | light |\n  3 | carla     | dark  |\n  4 | dev       |       |          18\n  5 | elena     | dark  |          20\n(5 rows)\n```",
+        "starter": "-- TODO: add theme and bigger_font from the prefs column\nSELECT id, user_name\nFROM settings\nORDER BY id;\n",
+        "solution": "SELECT\n    id,\n    user_name,\n    prefs ->> 'theme' AS theme,\n    (prefs ->> 'font_size')::integer + 2 AS bigger_font\nFROM settings\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": " id | user_name | theme | bigger_font\n----+-----------+-------+-------------\n  1 | ana       | dark  |          16\n  2 | ben       | light |\n  3 | carla     | dark  |\n  4 | dev       |       |          18\n  5 | elena     | dark  |          20\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO settings (id, user_name, prefs) VALUES\n    (6, 'femi', '{\"theme\": \"sepia\", \"font_size\": 20}'),\n    (7, 'gus', '{}');\n\nUPDATE settings SET prefs = '{\"theme\": \"light\", \"font_size\": 11}' WHERE id = 2;",
+            "output": " id | user_name | theme | bigger_font\n----+-----------+-------+-------------\n  1 | ana       | dark  |          16\n  2 | ben       | light |          13\n  3 | carla     | dark  |\n  4 | dev       |       |          18\n  5 | elena     | dark  |          20\n  6 | femi      | sepia |          22\n  7 | gus       |       |\n(7 rows)"
+          },
+          {
+            "stdin": "UPDATE settings SET prefs = '{\"theme\": \"blue\", \"font_size\": 9}' WHERE id = 4;\n\nINSERT INTO settings (id, user_name, prefs) VALUES\n    (6, 'hana', '{\"font_size\": 30, \"language\": \"ja\"}');",
+            "output": " id | user_name | theme | bigger_font\n----+-----------+-------+-------------\n  1 | ana       | dark  |          16\n  2 | ben       | light |\n  3 | carla     | dark  |\n  4 | dev       | blue  |          11\n  5 | elena     | dark  |          20\n  6 | hana      |       |          32\n(6 rows)"
+          }
+        ],
+        "hints": [
+          "`prefs ->> 'theme'` gives the theme as text.",
+          "Wrap the lookup in parentheses before casting: `(prefs ->> 'font_size')::integer`."
+        ]
+      }
+    },
+    {
+      "title": "Filtering and building JSON",
+      "body": "Two operators test a whole object, so they fit right in `WHERE`:\n\n- `payload ? 'coupon'` is true when the object has a top-level `coupon` key.\n- `payload @> '{\"status\": \"paid\"}'` is true when the object contains every key and value on the right, the same *contains* idea as `@>` on arrays.\n\n`@>` works on nested objects too, `payload @> '{\"user\": {\"country\": \"US\"}}'`, and it compares JSON types exactly: `{\"size\": 14}` contains `{\"size\": 14}` but not `{\"size\": \"14\"}`. `?` never looks inside nested objects, so `payload ? 'name'` is false. A key whose value is JSON `null` still exists for `?`. To compare one value, look it up as text: `prefs ->> 'theme' = 'dark'`.\n\nTo go the other way and build JSON from columns, use `jsonb_build_object` with key and value pairs:\n\n```sql\nSELECT jsonb_build_object('id', id, 'kind', kind) FROM events WHERE id = 1;\n```\n\n```text\n      jsonb_build_object\n-------------------------------\n {\"id\": 1, \"kind\": \"purchase\"}\n(1 row)\n```\n\nKeys are text. Values can be any column or expression. Text becomes a JSON string, numbers stay numbers, and `NULL` becomes JSON `null`. It is a quick way to hand a row to an app as one JSON value.",
+      "example": {
+        "title": "Coupon and paid events as JSON",
+        "prompt": "Show the events that used a coupon, then the paid events, each as one JSON object.",
+        "code": "SELECT id, jsonb_build_object('id', id, 'coupon', payload ->> 'coupon') AS summary\nFROM events\nWHERE payload ? 'coupon'\nORDER BY id;\n\nSELECT jsonb_build_object(\n    'id', id,\n    'user', payload -> 'user' ->> 'name',\n    'amount', payload -> 'amount'\n) AS summary\nFROM events\nWHERE payload @> '{\"status\": \"paid\"}'\nORDER BY id;\n",
+        "output": " id |             summary\n----+---------------------------------\n  2 | {\"id\": 2, \"coupon\": \"SPRING10\"}\n  4 | {\"id\": 4, \"coupon\": \"WELCOME\"}\n(2 rows)\n\n                summary\n----------------------------------------\n {\"id\": 1, \"user\": \"Ana\", \"amount\": 25}\n {\"id\": 2, \"user\": \"Ben\", \"amount\": 40}\n(2 rows)",
+        "explanation": "`payload ? 'coupon'` keeps only events 2 and 4, the ones with a `coupon` key. `payload @> '{\"status\": \"paid\"}'` keeps events whose `status` is exactly `\"paid\"`. `jsonb_build_object` then builds a fresh object per row. `payload -> 'amount'` stays `jsonb`, so the amount lands as the number `25`, not the string `\"25\"`."
+      },
+      "practice": {
+        "title": "Dark theme profiles",
+        "prompt": "Build a JSON profile for every user who set a language and uses the dark theme.\n\n1. Keep the rows of `settings` whose `prefs` has a `language` key and contains `{\"theme\": \"dark\"}`.\n2. Select `jsonb_build_object` with the keys `user` (the `user_name`) and `language` (the `language` key as text), named `profile`.\n3. Sort by `id`.\n\nExpected output:\n\n```text\n               profile\n-------------------------------------\n {\"user\": \"ana\", \"language\": \"en\"}\n {\"user\": \"carla\", \"language\": \"es\"}\n {\"user\": \"elena\", \"language\": \"pt\"}\n(3 rows)\n```",
+        "starter": "-- TODO: keep only users with a language key and the dark theme\nSELECT jsonb_build_object('user', user_name) AS profile\nFROM settings\nORDER BY id;\n",
+        "solution": "SELECT jsonb_build_object('user', user_name, 'language', prefs ->> 'language') AS profile\nFROM settings\nWHERE prefs ? 'language' AND prefs @> '{\"theme\": \"dark\"}'\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "               profile\n-------------------------------------\n {\"user\": \"ana\", \"language\": \"en\"}\n {\"user\": \"carla\", \"language\": \"es\"}\n {\"user\": \"elena\", \"language\": \"pt\"}\n(3 rows)"
+          },
+          {
+            "stdin": "INSERT INTO settings (id, user_name, prefs) VALUES\n    (6, 'femi', '{\"theme\": \"dark\", \"font_size\": 13}'),\n    (7, 'gus', '{\"theme\": \"dark\", \"language\": \"fr\"}'),\n    (8, 'hana', '{\"theme\": \"Dark\", \"language\": \"ja\"}');\n\nUPDATE settings SET prefs = '{\"theme\": \"light\", \"language\": \"en\"}' WHERE id = 1;",
+            "output": "               profile\n-------------------------------------\n {\"user\": \"carla\", \"language\": \"es\"}\n {\"user\": \"elena\", \"language\": \"pt\"}\n {\"user\": \"gus\", \"language\": \"fr\"}\n(3 rows)"
+          },
+          {
+            "stdin": "UPDATE settings SET prefs = '{\"theme\": \"light\"}' WHERE id IN (1, 3, 5);",
+            "output": " profile\n---------\n(0 rows)"
+          }
+        ],
+        "hints": [
+          "Put both checks in `WHERE` and join them with `AND`: one uses `?`, the other uses `@>`.",
+          "The right side of `@>` is a JSON object written as text in single quotes.",
+          "For the profile, add a second key and value pair to `jsonb_build_object`, looking up `language` with `->>`."
+        ]
+      }
+    },
+    {
+      "title": "Looping over keys and values",
+      "body": "Sometimes you want an object's pairs as rows, like looping over a dictionary. These functions return one row per key:\n\n- `jsonb_each_text(prefs)` returns columns `key` and `value`, with the value as text.\n- `jsonb_each(prefs)` is the same, but the value stays `jsonb`.\n- `jsonb_object_keys(prefs)` returns just the keys.\n\nTo run one for every row of a table, `CROSS JOIN` it and pass the row's column, the same way `CROSS JOIN unnest(tags)` works for arrays:\n\n```sql\nFROM settings AS s\nCROSS JOIN jsonb_each_text(s.prefs) AS kv\n```\n\nEach user is paired with each of their own pairs, so you can select `s.user_name` next to `kv.key` and `kv.value`. A user with an empty object `{}` gets no rows and drops out. Once the keys are rows, `GROUP BY` and `count` work on them as usual.\n\nThese functions need an object. Calling one on a JSON array or a plain value fails:\n\n```text\nERROR:  cannot call jsonb_each_text on a non-object\n```",
+      "example": {
+        "title": "Every setting as a row",
+        "prompt": "List every user's settings as one row per key and value.",
+        "code": "SELECT s.user_name, kv.key, kv.value\nFROM settings AS s\nCROSS JOIN jsonb_each_text(s.prefs) AS kv\nORDER BY s.user_name, kv.key;\n",
+        "output": " user_name |    key    | value\n-----------+-----------+-------\n ana       | font_size | 14\n ana       | language  | en\n ana       | theme     | dark\n ben       | theme     | light\n carla     | language  | es\n carla     | theme     | dark\n dev       | font_size | 16\n dev       | language  | en\n elena     | beta      | true\n elena     | font_size | 18\n elena     | language  | pt\n elena     | theme     | dark\n(12 rows)",
+        "explanation": "For each row of `settings`, `jsonb_each_text(s.prefs)` turns that row's object into rows of `key` and `value`, and `CROSS JOIN` attaches the user's name to each one. Ana has three keys, so she gets three rows, and Ben gets one. Every value is text, even Elena's `true` and the font sizes. A user never has the same key twice, so sorting by name and key never ties."
+      },
+      "practice": {
+        "title": "How many users set each key",
+        "prompt": "Count how many users set each settings key.\n\n1. `CROSS JOIN` `settings` with `jsonb_object_keys(s.prefs) AS key`, so each key becomes a row named `key`.\n2. Group by `key` and select it with `count(*)` named `users`.\n3. Sort by `users` from most to fewest, then by `key`.\n\nExpected output:\n\n```text\n    key    | users\n-----------+-------\n language  |     4\n theme     |     4\n font_size |     3\n beta      |     1\n(4 rows)\n```",
+        "starter": "-- TODO: turn each user's prefs into key rows and count them per key\nSELECT count(*) AS users\nFROM settings AS s;\n",
+        "solution": "SELECT key, count(*) AS users\nFROM settings AS s\nCROSS JOIN jsonb_object_keys(s.prefs) AS key\nGROUP BY key\nORDER BY users DESC, key;\n",
+        "tests": [
+          {
+            "output": "    key    | users\n-----------+-------\n language  |     4\n theme     |     4\n font_size |     3\n beta      |     1\n(4 rows)"
+          },
+          {
+            "stdin": "INSERT INTO settings (id, user_name, prefs) VALUES\n    (6, 'femi', '{\"beta\": false, \"timezone\": \"UTC\"}'),\n    (7, 'gus', '{\"font_size\": 15, \"timezone\": \"CET\", \"beta\": true}'),\n    (8, 'hana', '{}');",
+            "output": "    key    | users\n-----------+-------\n font_size |     4\n language  |     4\n theme     |     4\n beta      |     3\n timezone  |     2\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO settings (id, user_name, prefs) VALUES\n    (6, 'ivan', '{\"theme\": \"dark\", \"font_size\": 12}'),\n    (7, 'jo', '{\"font_size\": 22}');",
+            "output": "    key    | users\n-----------+-------\n font_size |     5\n theme     |     5\n language  |     4\n beta      |     1\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "`jsonb_object_keys` gives one row per key, so after the `CROSS JOIN` a user with three keys appears in three rows.",
+          "Every row in a group has the same `key` and comes from a different user, so `count(*)` per group counts the users who set that key.",
+          "Sort by the count with `DESC` first, then by the key to break ties."
+        ]
+      }
+    }
+  ],
+  "recap": "- `->` looks up a key and returns `jsonb`, `->>` returns `text`. Chain them for nested keys.\n- Cast `->>` results before math: `(prefs ->> 'font_size')::integer`.\n- A missing key gives `NULL`, not an error.\n- `?` checks that a key exists. `@>` checks that the object contains some keys and values.\n- `jsonb_build_object('key', value, ...)` builds JSON from columns.\n- `CROSS JOIN jsonb_each_text(col)` or `jsonb_object_keys(col)` turns each row's object into rows."
+}

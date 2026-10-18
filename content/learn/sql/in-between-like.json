@@ -1,0 +1,77 @@
+{
+  "id": "in-between-like",
+  "title": "IN, BETWEEN, and LIKE",
+  "section": "Filtering and Sorting",
+  "summary": "Match lists of values, ranges, and text patterns.",
+  "intro": "Long chains of `OR` and `>=` get hard to read. `IN`, `BETWEEN`, and `LIKE` say the same things in a few words: is it one of these, is it in this range, does it look like this.",
+  "setup": "CREATE TABLE customers (\n    id integer PRIMARY KEY,\n    name text,\n    city text,\n    email text,\n    age integer\n);\n\nINSERT INTO customers (id, name, city, email, age) VALUES\n    (1, 'Jana Novak', 'Austin', 'jana.novak@Example.com', 34),\n    (2, 'Marcus Lee', 'Boston', 'marcus@GMAIL.com', 41),\n    (3, 'Priya Shah', 'Denver', 'priya.shah@example.com', 25),\n    (4, 'John Carlson', 'Miami', 'JCarlson@gmail.com', 52),\n    (5, 'Elena Ruiz', 'Austin', 'elena@outlook.com', 22),\n    (6, 'Omar Haddad', 'Seattle', 'omar.h@example.COM', 30),\n    (7, 'Jonah Peterson', 'Denver', 'jonah@gmail.com', 40),\n    (8, 'Grace Kim', 'Seattle', 'GRACE.KIM@Gmail.com', 50),\n    (9, 'Liam Johnson', 'Boston', 'liam.j@example.com', 29);\n",
+  "steps": [
+    {
+      "title": "Lists and ranges",
+      "body": "Every query in this lesson reads one table, `customers`:\n\n```sql\nCREATE TABLE customers (id integer PRIMARY KEY, name text, city text, email text, age integer);\n```\n\n```text\n id |    name    |  city  |         email          | age\n----+------------+--------+------------------------+-----\n  1 | Jana Novak | Austin | jana.novak@Example.com |  34\n  2 | Marcus Lee | Boston | marcus@GMAIL.com       |  41\n```\n\nIt holds 9 customers across Austin, Boston, Denver, Miami, and Seattle.\n\n`IN` checks a value against a list. It is short for a chain of `OR`s:\n\n```sql\nWHERE city IN ('Austin', 'Denver')   -- city = 'Austin' OR city = 'Denver'\nWHERE city NOT IN ('Boston', 'Miami')\n```\n\n`BETWEEN low AND high` checks a range and **includes both ends**, so it means `age >= 25 AND age <= 40`. `NOT BETWEEN` keeps everything outside the range:\n\n```sql\nWHERE age BETWEEN 25 AND 40\nWHERE age NOT BETWEEN 25 AND 40      -- age < 25 OR age > 40\n```\n\nPut the smaller value first. `BETWEEN 40 AND 25` matches nothing, with no error. Both work on text and dates too, like `BETWEEN DATE '2025-01-01' AND DATE '2025-03-31'`.",
+      "example": {
+        "title": "Mid-age customers in two cities",
+        "prompt": "List customers in Austin or Denver who are 25 to 40 years old.",
+        "code": "SELECT id, name, city, age\nFROM customers\nWHERE city IN ('Austin', 'Denver') AND age BETWEEN 25 AND 40\nORDER BY id;\n",
+        "output": " id |      name      |  city  | age\n----+----------------+--------+-----\n  1 | Jana Novak     | Austin |  34\n  3 | Priya Shah     | Denver |  25\n  7 | Jonah Peterson | Denver |  40\n(3 rows)",
+        "explanation": "`IN ('Austin', 'Denver')` keeps rows whose city is either value. `BETWEEN 25 AND 40` keeps ages from 25 through 40, so Priya (exactly 25) and Jonah (exactly 40) both stay, while Elena (22, Austin) drops out. The first `AND` joins the two conditions, and the one inside `BETWEEN 25 AND 40` belongs to the range."
+      },
+      "practice": {
+        "title": "Customers outside two cities",
+        "prompt": "List customers who live outside Boston and Miami and are 30 to 50 years old.\n\n1. Select `id`, `name`, `city`, and `age` from `customers`.\n2. Keep rows whose city is not Boston or Miami, using `NOT IN`.\n3. Keep rows whose age is from 30 through 50, ends included, using `BETWEEN`.\n4. Sort by `id`.\n\nExpected output:\n\n```text\n id |      name      |  city   | age\n----+----------------+---------+-----\n  1 | Jana Novak     | Austin  |  34\n  6 | Omar Haddad    | Seattle |  30\n  7 | Jonah Peterson | Denver  |  40\n  8 | Grace Kim      | Seattle |  50\n(4 rows)\n```",
+        "starter": "-- TODO: add a WHERE clause: not in Boston or Miami, age 30 to 50\nSELECT id, name, city, age\nFROM customers\nORDER BY id;\n",
+        "solution": "SELECT id, name, city, age\nFROM customers\nWHERE city NOT IN ('Boston', 'Miami') AND age BETWEEN 30 AND 50\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": " id |      name      |  city   | age\n----+----------------+---------+-----\n  1 | Jana Novak     | Austin  |  34\n  6 | Omar Haddad    | Seattle |  30\n  7 | Jonah Peterson | Denver  |  40\n  8 | Grace Kim      | Seattle |  50\n(4 rows)"
+          },
+          {
+            "stdin": "INSERT INTO customers (id, name, city, email, age) VALUES\n    (10, 'Ava Brooks', 'Denver', 'ava@example.com', 51),\n    (11, 'Noah Price', 'Miami', 'noah@gmail.com', 35),\n    (12, 'Mia Turner', 'Seattle', 'mia@Example.com', 29);\nUPDATE customers SET age = 30 WHERE id = 5;\n",
+            "output": " id |      name      |  city   | age\n----+----------------+---------+-----\n  1 | Jana Novak     | Austin  |  34\n  5 | Elena Ruiz     | Austin  |  30\n  6 | Omar Haddad    | Seattle |  30\n  7 | Jonah Peterson | Denver  |  40\n  8 | Grace Kim      | Seattle |  50\n(5 rows)"
+          }
+        ],
+        "hints": [
+          "`NOT IN ('Boston', 'Miami')` keeps every other city.",
+          "`BETWEEN 30 AND 50` includes 30 and 50 themselves.",
+          "Join the city test and the age test with `AND` in one `WHERE` clause."
+        ]
+      }
+    },
+    {
+      "title": "Text patterns",
+      "body": "`LIKE` matches text against a pattern. Two characters are wildcards:\n\n- `%` matches any text, including none.\n- `_` matches exactly one character.\n\n```sql\nWHERE name LIKE 'J%'        -- starts with J\nWHERE name LIKE '%son'      -- ends with son\nWHERE name LIKE '%an%'      -- contains an anywhere\nWHERE city LIKE '_enver'    -- one character, then enver\n```\n\nThe pattern must match the *whole* value, so `LIKE 'son'` only matches the exact text `son`. Without `%` at an end, that end is pinned.\n\n`LIKE` is case sensitive: `'J%'` misses `jana`. Real data mixes case, especially emails, so use `ILIKE` to ignore letter case:\n\n```sql\nWHERE email ILIKE '%@example.com'   -- matches @Example.com and @example.COM\n```\n\n`ILIKE` is a PostgreSQL addition, so other databases may not have it.\n\n`NOT LIKE` and `NOT ILIKE` keep the rows that do not match:\n\n```sql\nWHERE email NOT ILIKE '%@gmail.com'\n```\n\nOnly `%` and `_` are special. A `.` is a plain character. To match a real `%` or `_`, put a backslash before it: `LIKE '%\\_%'` finds values that contain an underscore.",
+      "example": {
+        "title": "J names and example.com emails",
+        "prompt": "List customers whose name starts with J, then customers whose email is at example.com in any letter case.",
+        "code": "SELECT id, name\nFROM customers\nWHERE name LIKE 'J%'\nORDER BY id;\n\nSELECT id, email\nFROM customers\nWHERE email ILIKE '%@example.com'\nORDER BY id;\n",
+        "output": " id |      name\n----+----------------\n  1 | Jana Novak\n  4 | John Carlson\n  7 | Jonah Peterson\n(3 rows)\n\n id |         email\n----+------------------------\n  1 | jana.novak@Example.com\n  3 | priya.shah@example.com\n  6 | omar.h@example.COM\n  9 | liam.j@example.com\n(4 rows)",
+        "explanation": "`'J%'` means a capital J followed by anything, so it finds Jana, John, and Jonah. The second query uses `ILIKE`, so `'%@example.com'` also matches `@Example.com` and `@example.COM`. With plain `LIKE` only Priya and Liam would match."
+      },
+      "practice": {
+        "title": "Son names and gmail emails",
+        "prompt": "Write two queries: customers whose name ends in son, then customers with a gmail.com email in any letter case.\n\n1. Select `id` and `name` for customers whose name ends in `son`, using `LIKE`. Sort by `id`.\n2. Select `id` and `email` for customers whose email ends in `@gmail.com`, ignoring letter case with `ILIKE`. Sort by `id`.\n\nExpected output:\n\n```text\n id |      name\n----+----------------\n  4 | John Carlson\n  7 | Jonah Peterson\n  9 | Liam Johnson\n(3 rows)\n\n id |        email\n----+---------------------\n  2 | marcus@GMAIL.com\n  4 | JCarlson@gmail.com\n  7 | jonah@gmail.com\n  8 | GRACE.KIM@Gmail.com\n(4 rows)\n```",
+        "starter": "-- TODO: keep only names that end in son\nSELECT id, name\nFROM customers\nORDER BY id;\n\n-- TODO: keep only emails at gmail.com, in any letter case\nSELECT id, email\nFROM customers\nORDER BY id;\n",
+        "solution": "SELECT id, name\nFROM customers\nWHERE name LIKE '%son'\nORDER BY id;\n\nSELECT id, email\nFROM customers\nWHERE email ILIKE '%@gmail.com'\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": " id |      name\n----+----------------\n  4 | John Carlson\n  7 | Jonah Peterson\n  9 | Liam Johnson\n(3 rows)\n\n id |        email\n----+---------------------\n  2 | marcus@GMAIL.com\n  4 | JCarlson@gmail.com\n  7 | jonah@gmail.com\n  8 | GRACE.KIM@Gmail.com\n(4 rows)"
+          },
+          {
+            "stdin": "INSERT INTO customers (id, name, city, email, age) VALUES\n    (10, 'Samson Ortiz', 'Denver', 'samson@gmail.com.au', 33),\n    (11, 'Ella Mason', 'Austin', 'ELLA@GMAIL.COM', 27),\n    (12, 'Sonya Hart', 'Miami', 'sonya@gmail.org', 45);\n",
+            "output": " id |      name\n----+----------------\n  4 | John Carlson\n  7 | Jonah Peterson\n  9 | Liam Johnson\n 11 | Ella Mason\n(4 rows)\n\n id |        email\n----+---------------------\n  2 | marcus@GMAIL.com\n  4 | JCarlson@gmail.com\n  7 | jonah@gmail.com\n  8 | GRACE.KIM@Gmail.com\n 11 | ELLA@GMAIL.COM\n(5 rows)"
+          },
+          {
+            "stdin": "DELETE FROM customers WHERE id IN (4, 7);\nUPDATE customers SET name = 'Liam Johnsen' WHERE id = 9;\n",
+            "output": " id | name\n----+------\n(0 rows)\n\n id |        email\n----+---------------------\n  2 | marcus@GMAIL.com\n  8 | GRACE.KIM@Gmail.com\n(2 rows)"
+          }
+        ],
+        "hints": [
+          "Put `%` at the start of a pattern so anything can come before the ending you want.",
+          "Names are matched case sensitively with `LIKE`. Emails need `ILIKE` because `GMAIL.com` and `gmail.com` should both count.",
+          "Leave the end of each pattern without `%`, so an email like `@gmail.com.au` does not match."
+        ]
+      }
+    }
+  ],
+  "recap": "- `x IN (a, b)` matches any value in the list. `NOT IN` matches none of them.\n- `BETWEEN low AND high` includes both ends. Put the smaller value first.\n- `NOT BETWEEN` keeps values outside the range.\n- `LIKE` patterns: `%` is any text, `_` is one character, and the pattern must match the whole value.\n- `LIKE` is case sensitive. `ILIKE` ignores letter case.\n- `NOT LIKE` and `NOT ILIKE` keep the rows that do not match."
+}

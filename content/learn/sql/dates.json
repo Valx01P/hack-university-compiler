@@ -1,0 +1,114 @@
+{
+  "id": "dates",
+  "title": "Dates and Times",
+  "section": "Expressions and Functions",
+  "summary": "Do math with dates, pull out their parts, and format them.",
+  "intro": "Due dates, birthdays, and monthly reports all need date math. PostgreSQL can add days and months, measure gaps, pull out parts, and format dates however you like.",
+  "setup": "CREATE TABLE rentals (id integer, title text, rented_on date, due_on date, returned_on date);\nINSERT INTO rentals (id, title, rented_on, due_on, returned_on) VALUES\n    (1, 'The Matrix', '2025-01-03', '2025-01-10', '2025-01-09'),\n    (2, 'Spirited Away', '2025-01-31', '2025-02-07', '2025-02-10'),\n    (3, 'Inception', '2025-02-14', '2025-02-21', '2025-02-21'),\n    (4, 'Up', '2025-03-30', '2025-04-06', '2025-04-12'),\n    (5, 'Arrival', '2025-05-31', '2025-06-07', '2025-06-05'),\n    (6, 'Heat', '2025-08-15', '2025-08-22', '2025-08-29'),\n    (7, 'Coco', '2025-12-22', '2025-12-29', NULL);\nCREATE TABLE members (id integer, name text, born date);\nINSERT INTO members (id, name, born) VALUES\n    (1, 'Ana', '1990-07-01'),\n    (2, 'Ben', '1985-12-15'),\n    (3, 'Chloe', '2001-02-28'),\n    (4, 'Dev', '1978-09-30');\n",
+  "steps": [
+    {
+      "title": "Date math",
+      "body": "This lesson uses two tables. `rentals` tracks movie rentals in 2025, and `returned_on` is NULL for a movie that is still out. `members` holds birthdays.\n\n```sql\nCREATE TABLE rentals (id integer, title text, rented_on date, due_on date, returned_on date);\n-- (1, 'The Matrix', '2025-01-03', '2025-01-10', '2025-01-09'), ...\n-- (7, 'Coco', '2025-12-22', '2025-12-29', NULL)\nCREATE TABLE members (id integer, name text, born date);\n-- (1, 'Ana', '1990-07-01'), (2, 'Ben', '1985-12-15'), ...\n```\n\nA date plus or minus an integer moves by that many days, and one date minus another gives the days between them as an integer:\n\n```sql\nSELECT DATE '2025-03-01' - 1 AS day_before, DATE '2025-03-10' - DATE '2025-03-01' AS days;\n-- 2025-02-28 | 9\n```\n\nFor months, weeks, or years, use an interval such as `INTERVAL '1 month'` or `INTERVAL '2 weeks'`. A date plus an interval gives a timestamp, `2025-04-01 00:00:00`, so cast it back with `::date`. Wrap the sum in parentheses first, because `::` binds tighter than `+`. Months have different lengths, so PostgreSQL clamps to the last day: `DATE '2025-01-31' + INTERVAL '1 month'` is February 28. As always, NULL in gives NULL out.",
+      "example": {
+        "title": "Rental timeline",
+        "prompt": "For each rental, show how many days it was kept, a last chance date one week after it was due, and the same day one month after it was rented.",
+        "code": "SELECT title,\n    returned_on - rented_on AS days_kept,\n    due_on + 7 AS last_chance,\n    (rented_on + INTERVAL '1 month')::date AS next_month\nFROM rentals\nORDER BY id;\n",
+        "output": "     title     | days_kept | last_chance | next_month\n---------------+-----------+-------------+------------\n The Matrix    |         6 | 2025-01-17  | 2025-02-03\n Spirited Away |        10 | 2025-02-14  | 2025-02-28\n Inception     |         7 | 2025-02-28  | 2025-03-14\n Up            |        13 | 2025-04-13  | 2025-04-30\n Arrival       |         5 | 2025-06-14  | 2025-06-30\n Heat          |        14 | 2025-08-29  | 2025-09-15\n Coco          |           | 2026-01-05  | 2026-01-22\n(7 rows)",
+        "explanation": "`returned_on - rented_on` subtracts two dates, so it is a whole number of days, and Coco gets NULL because it has no return date. `due_on + 7` adds days and stays a date. Adding `INTERVAL '1 month'` makes a timestamp, and `::date` turns it back into a date. Look at Spirited Away and Arrival: January 31 and May 31 land on the last day of the shorter next month."
+      },
+      "practice": {
+        "title": "Late returns",
+        "prompt": "Show how late each rental came back and when a two week rental would end.\n\n1. Select `title` from `rentals`.\n2. Add `days_late`: the return date minus the due date. Early returns give a negative number, and a movie still out gives NULL.\n3. Add `two_weeks`: the rental date plus `INTERVAL '2 weeks'`, cast to a date.\n4. Sort by `id`.\n\nExpected output:\n\n```text\n     title     | days_late | two_weeks\n---------------+-----------+------------\n The Matrix    |        -1 | 2025-01-17\n Spirited Away |         3 | 2025-02-14\n Inception     |         0 | 2025-02-28\n Up            |         6 | 2025-04-13\n Arrival       |        -2 | 2025-06-14\n Heat          |         7 | 2025-08-29\n Coco          |           | 2026-01-05\n(7 rows)\n```",
+        "starter": "-- TODO: add the days_late and two_weeks columns\nSELECT title\nFROM rentals\nORDER BY id;\n",
+        "solution": "SELECT title,\n    returned_on - due_on AS days_late,\n    (rented_on + INTERVAL '2 weeks')::date AS two_weeks\nFROM rentals\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "     title     | days_late | two_weeks\n---------------+-----------+------------\n The Matrix    |        -1 | 2025-01-17\n Spirited Away |         3 | 2025-02-14\n Inception     |         0 | 2025-02-28\n Up            |         6 | 2025-04-13\n Arrival       |        -2 | 2025-06-14\n Heat          |         7 | 2025-08-29\n Coco          |           | 2026-01-05\n(7 rows)"
+          },
+          {
+            "stdin": "UPDATE rentals SET returned_on = '2025-01-20' WHERE id = 1;\nUPDATE rentals SET returned_on = NULL WHERE id = 3;\nINSERT INTO rentals (id, title, rented_on, due_on, returned_on) VALUES\n    (8, 'Jaws', '2025-02-20', '2025-02-27', '2025-03-03');",
+            "output": "     title     | days_late | two_weeks\n---------------+-----------+------------\n The Matrix    |        10 | 2025-01-17\n Spirited Away |         3 | 2025-02-14\n Inception     |           | 2025-02-28\n Up            |         6 | 2025-04-13\n Arrival       |        -2 | 2025-06-14\n Heat          |         7 | 2025-08-29\n Coco          |           | 2026-01-05\n Jaws          |         4 | 2025-03-06\n(8 rows)"
+          },
+          {
+            "stdin": "DELETE FROM rentals WHERE id > 2;\nINSERT INTO rentals (id, title, rented_on, due_on, returned_on) VALUES\n    (9, 'Alien', '2024-12-25', '2025-01-01', '2024-12-31'),\n    (10, 'Amelie', '2025-06-20', '2025-06-27', NULL);",
+            "output": "     title     | days_late | two_weeks\n---------------+-----------+------------\n The Matrix    |        -1 | 2025-01-17\n Spirited Away |         3 | 2025-02-14\n Alien         |        -1 | 2025-01-08\n Amelie        |           | 2025-07-04\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "Subtracting one date from another gives a number of days.",
+          "Wrap the sum in parentheses before `::date`. Without them the cast applies to the interval alone, which is an error."
+        ]
+      }
+    },
+    {
+      "title": "Parts of a date",
+      "body": "`extract(field FROM date)` pulls one number out of a date. Common fields are `YEAR`, `MONTH`, `DAY`, `DOW` (day of the week, 0 for Sunday), and `QUARTER`.\n\n```sql\nSELECT extract(YEAR FROM DATE '2025-03-14') AS y, extract(DOW FROM DATE '2025-03-14') AS dow;\n-- 2025 | 5\n```\n\n`to_char(date, pattern)` formats a date as text. `YYYY` is the year, `MM` the month number, `DD` the day, `Mon` a short month name, and `Day` the weekday name. Anything else in the pattern, like `/` or `, `, is copied as is.\n\nThe gotcha: `Day` pads every name to 9 characters, so `'Friday'` comes out as `'Friday   '`. Put `FM` (fill mode) in front, as `FMDay`, to drop the padding.\n\n`date_trunc('month', date)` rounds a date down to the first day of its month, `'year'` gives January 1, and `'week'` goes back to Monday. It returns a timestamp with a time zone, `2025-03-01 00:00:00+00`, so cast it with `::date`. It is the usual way to put dates into monthly buckets.",
+      "example": {
+        "title": "Pretty rental dates",
+        "prompt": "For each rental, show the month number, a friendly date, the weekday, and the first day of the month it was rented in.",
+        "code": "SELECT title,\n    extract(MONTH FROM rented_on) AS month,\n    to_char(rented_on, 'Mon DD, YYYY') AS pretty,\n    to_char(rented_on, 'FMDay') AS weekday,\n    date_trunc('month', rented_on)::date AS month_start\nFROM rentals\nORDER BY id;\n",
+        "output": "     title     | month |    pretty    | weekday  | month_start\n---------------+-------+--------------+----------+-------------\n The Matrix    |     1 | Jan 03, 2025 | Friday   | 2025-01-01\n Spirited Away |     1 | Jan 31, 2025 | Friday   | 2025-01-01\n Inception     |     2 | Feb 14, 2025 | Friday   | 2025-02-01\n Up            |     3 | Mar 30, 2025 | Sunday   | 2025-03-01\n Arrival       |     5 | May 31, 2025 | Saturday | 2025-05-01\n Heat          |     8 | Aug 15, 2025 | Friday   | 2025-08-01\n Coco          |    12 | Dec 22, 2025 | Monday   | 2025-12-01\n(7 rows)",
+        "explanation": "`extract` returns a plain number, so the month is right-aligned. The pattern `'Mon DD, YYYY'` mixes codes with literal text: `Mon` becomes `Jan`, and the comma and spaces stay. `FMDay` gives the weekday with no trailing spaces. `date_trunc` keeps the year and month, sets the day to 1, and `::date` drops the time."
+      },
+      "practice": {
+        "title": "Due date details",
+        "prompt": "Show the parts of each rental's due date.\n\n1. Select `title` from `rentals`.\n2. Add `month`: the month number of `due_on`.\n3. Add `due`: `due_on` formatted as day, month, and year with slashes, like `10/01/2025`.\n4. Add `weekday`: the weekday name of `due_on` with no padding.\n5. Add `month_start`: the first day of the month of `due_on`, as a date.\n6. Sort by `id`.\n\nExpected output:\n\n```text\n     title     | month |    due     | weekday  | month_start\n---------------+-------+------------+----------+-------------\n The Matrix    |     1 | 10/01/2025 | Friday   | 2025-01-01\n Spirited Away |     2 | 07/02/2025 | Friday   | 2025-02-01\n Inception     |     2 | 21/02/2025 | Friday   | 2025-02-01\n Up            |     4 | 06/04/2025 | Sunday   | 2025-04-01\n Arrival       |     6 | 07/06/2025 | Saturday | 2025-06-01\n Heat          |     8 | 22/08/2025 | Friday   | 2025-08-01\n Coco          |    12 | 29/12/2025 | Monday   | 2025-12-01\n(7 rows)\n```",
+        "starter": "-- TODO: add the month, due, weekday, and month_start columns\nSELECT title, due_on\nFROM rentals\nORDER BY id;\n",
+        "solution": "SELECT title,\n    extract(MONTH FROM due_on) AS month,\n    to_char(due_on, 'DD/MM/YYYY') AS due,\n    to_char(due_on, 'FMDay') AS weekday,\n    date_trunc('month', due_on)::date AS month_start\nFROM rentals\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "     title     | month |    due     | weekday  | month_start\n---------------+-------+------------+----------+-------------\n The Matrix    |     1 | 10/01/2025 | Friday   | 2025-01-01\n Spirited Away |     2 | 07/02/2025 | Friday   | 2025-02-01\n Inception     |     2 | 21/02/2025 | Friday   | 2025-02-01\n Up            |     4 | 06/04/2025 | Sunday   | 2025-04-01\n Arrival       |     6 | 07/06/2025 | Saturday | 2025-06-01\n Heat          |     8 | 22/08/2025 | Friday   | 2025-08-01\n Coco          |    12 | 29/12/2025 | Monday   | 2025-12-01\n(7 rows)"
+          },
+          {
+            "stdin": "UPDATE rentals SET due_on = '2025-11-30' WHERE id = 2;\nINSERT INTO rentals (id, title, rented_on, due_on, returned_on) VALUES\n    (8, 'Jaws', '2025-12-28', '2026-01-04', NULL);",
+            "output": "     title     | month |    due     | weekday  | month_start\n---------------+-------+------------+----------+-------------\n The Matrix    |     1 | 10/01/2025 | Friday   | 2025-01-01\n Spirited Away |    11 | 30/11/2025 | Sunday   | 2025-11-01\n Inception     |     2 | 21/02/2025 | Friday   | 2025-02-01\n Up            |     4 | 06/04/2025 | Sunday   | 2025-04-01\n Arrival       |     6 | 07/06/2025 | Saturday | 2025-06-01\n Heat          |     8 | 22/08/2025 | Friday   | 2025-08-01\n Coco          |    12 | 29/12/2025 | Monday   | 2025-12-01\n Jaws          |     1 | 04/01/2026 | Sunday   | 2026-01-01\n(8 rows)"
+          },
+          {
+            "stdin": "DELETE FROM rentals WHERE id <> 4;\nINSERT INTO rentals (id, title, rented_on, due_on, returned_on) VALUES\n    (9, 'Alien', '2024-02-22', '2024-02-29', '2024-02-29');",
+            "output": " title | month |    due     | weekday  | month_start\n-------+-------+------------+----------+-------------\n Up    |     4 | 06/04/2025 | Sunday   | 2025-04-01\n Alien |     2 | 29/02/2024 | Thursday | 2024-02-01\n(2 rows)"
+          }
+        ],
+        "hints": [
+          "Use `MM` for the month number and `DD` for the day.",
+          "Inside a `to_char` pattern, `/` is copied as is, so put it between the codes.",
+          "Fill mode `FM` in front of `Day` removes the padding."
+        ]
+      }
+    },
+    {
+      "title": "Ages and date ranges",
+      "body": "`age(later, earlier)` returns the gap between two dates as an interval in years, months, and days, the way people say ages. Always pass a fixed date as the first argument: `age(born)` alone measures from today, so its answer changes every day.\n\n```sql\nSELECT age(DATE '2025-07-01', DATE '1990-03-01');\n-- 35 years 4 mons\n```\n\nFor whole years, take the `YEAR` field of that interval with `extract`. Dividing a day count by 365 drifts because of leap years, so let `age` do the counting. Someone whose birthday is the reference date has just turned a year older, and someone whose birthday is the next day has not.\n\n`generate_series` from the loops lesson also counts over dates when you give it an interval step: `generate_series(DATE '2025-03-01', DATE '2025-03-07', INTERVAL '1 day')`. Each value is a timestamp with a time zone, so cast it with `::date`. Use a step like `INTERVAL '7 days'` or `INTERVAL '1 month'` to skip ahead. The stop date is included only when a step lands exactly on it.",
+      "example": {
+        "title": "Member ages and one week",
+        "prompt": "Show each member's age on July 1, 2025 and their whole years, then list the first week of March 2025 with weekday names.",
+        "code": "SELECT name,\n    age(DATE '2025-07-01', born) AS age,\n    extract(YEAR FROM age(DATE '2025-07-01', born)) AS years\nFROM members\nORDER BY id;\n\nSELECT d::date AS day, to_char(d, 'FMDay') AS weekday\nFROM generate_series(DATE '2025-03-01', DATE '2025-03-07', INTERVAL '1 day') AS d\nORDER BY day;\n",
+        "output": " name  |           age           | years\n-------+-------------------------+-------\n Ana   | 35 years                |    35\n Ben   | 39 years 6 mons 17 days |    39\n Chloe | 24 years 4 mons 1 day   |    24\n Dev   | 46 years 9 mons 1 day   |    46\n(4 rows)\n\n    day     |  weekday\n------------+-----------\n 2025-03-01 | Saturday\n 2025-03-02 | Sunday\n 2025-03-03 | Monday\n 2025-03-04 | Tuesday\n 2025-03-05 | Wednesday\n 2025-03-06 | Thursday\n 2025-03-07 | Friday\n(7 rows)",
+        "explanation": "Ana was born on July 1, so on the reference date she is exactly 35 years. Ben is 39 years and some months, and `extract(YEAR ...)` keeps only the 39. In the second query `generate_series` makes one timestamp per day, named `d`. The SELECT casts it to a date and formats the weekday."
+      },
+      "practice": {
+        "title": "Year end ages and Mondays",
+        "prompt": "Show each member's whole years at the end of 2025, then list every Monday in March 2025.\n\n1. Select `name` from `members`.\n2. Add `years`: the whole years from `born` to `DATE '2025-12-31'`.\n3. Sort by `id`.\n4. In a second query, list the Mondays as dates in a column named `monday`. March 3, 2025 is the first Monday, so start there and step 7 days until March 31.\n5. Sort the Mondays by `monday`.\n\nExpected output:\n\n```text\n name  | years\n-------+-------\n Ana   |    35\n Ben   |    40\n Chloe |    24\n Dev   |    47\n(4 rows)\n\n   monday\n------------\n 2025-03-03\n 2025-03-10\n 2025-03-17\n 2025-03-24\n 2025-03-31\n(5 rows)\n```",
+        "starter": "-- TODO: add the years column\nSELECT name\nFROM members\nORDER BY id;\n\n-- TODO: list every Monday in March 2025\n",
+        "solution": "SELECT name,\n    extract(YEAR FROM age(DATE '2025-12-31', born)) AS years\nFROM members\nORDER BY id;\n\nSELECT d::date AS monday\nFROM generate_series(DATE '2025-03-03', DATE '2025-03-31', INTERVAL '7 days') AS d\nORDER BY monday;\n",
+        "tests": [
+          {
+            "output": " name  | years\n-------+-------\n Ana   |    35\n Ben   |    40\n Chloe |    24\n Dev   |    47\n(4 rows)\n\n   monday\n------------\n 2025-03-03\n 2025-03-10\n 2025-03-17\n 2025-03-24\n 2025-03-31\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO members (id, name, born) VALUES\n    (5, 'Eli', '2000-12-31'),\n    (6, 'Fay', '2001-01-01');",
+            "output": " name  | years\n-------+-------\n Ana   |    35\n Ben   |    40\n Chloe |    24\n Dev   |    47\n Eli   |    25\n Fay   |    24\n(6 rows)\n\n   monday\n------------\n 2025-03-03\n 2025-03-10\n 2025-03-17\n 2025-03-24\n 2025-03-31\n(5 rows)"
+          },
+          {
+            "stdin": "DELETE FROM members WHERE id <= 2;\nINSERT INTO members (id, name, born) VALUES (7, 'Gus', '2024-12-31');",
+            "output": " name  | years\n-------+-------\n Chloe |    24\n Dev   |    47\n Gus   |     1\n(3 rows)\n\n   monday\n------------\n 2025-03-03\n 2025-03-10\n 2025-03-17\n 2025-03-24\n 2025-03-31\n(5 rows)"
+          }
+        ],
+        "hints": [
+          "Put an `age` call with the fixed date first inside `extract(YEAR FROM ...)`.",
+          "Give `generate_series` an `INTERVAL '7 days'` step, name it in FROM, and cast each value with `::date`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `date + 7` and `date - 7` move by days, and `date - date` gives the days between.\n- `INTERVAL '1 month'` adds months or weeks. Cast the timestamp back with `::date`.\n- Adding a month to the 31st clamps to the last day of a shorter month.\n- `extract(MONTH FROM d)` pulls out one field as a number.\n- `to_char(d, 'Mon DD, YYYY')` formats a date, and `FMDay` drops the padding.\n- `date_trunc('month', d)::date` gives the first day of the month.\n- `extract(YEAR FROM age(later, earlier))` gives whole years. Always give `age` a fixed later date.\n- `generate_series` with an interval step lists dates. Cast each one with `::date`."
+}

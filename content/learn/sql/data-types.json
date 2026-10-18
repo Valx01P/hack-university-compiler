@@ -1,0 +1,63 @@
+{
+  "id": "data-types",
+  "title": "Data Types and Casting",
+  "section": "Basics",
+  "summary": "See the type of every value and convert between types with :: and CAST.",
+  "intro": "Every value in PostgreSQL has a type, and the type decides what you can do with it. Here you meet the everyday types, ask PostgreSQL what type a value is, and convert text into numbers and dates.",
+  "steps": [
+    {
+      "title": "Every value has a type",
+      "body": "PostgreSQL gives every value a type. These are the ones you will use most:\n\n- `integer`: whole numbers like `42`. Use it for counts.\n- `numeric`: exact decimals like `4.2`. Use it for money: it stores every digit exactly, so cents never drift. `numeric(10, 2)` keeps exactly 2 decimal places, so `'19.9'::numeric(10, 2)` prints `19.90`.\n- `text`: any string, written in single quotes.\n- `boolean`: `true` or `false`. `psql` prints them as `t` and `f`.\n- `date`: a calendar day, written `DATE '2025-03-01'` (year, month, day).\n\nTo check a type, wrap the value in `pg_typeof()`. It returns the type's name:\n\n```sql\nSELECT pg_typeof(42) AS whole_type;\n```\n\nOne gotcha: a bare quoted string has no type yet. PostgreSQL waits to see how you use it, so `pg_typeof('hello')` says `unknown`. The next part shows how to give it a type on purpose.\n\nThis lesson needs no tables. Every program works on values you type straight into the `SELECT`.",
+      "example": {
+        "title": "Four types and how they print",
+        "prompt": "Show the type of a whole number, a decimal, a boolean, and a date, then show how a boolean and a date print.",
+        "code": "SELECT pg_typeof(42) AS whole_type, pg_typeof(4.2) AS decimal_type, pg_typeof(true) AS bool_type, pg_typeof(DATE '2025-03-01') AS date_type;\nSELECT true AS yes, false AS no, DATE '2025-03-01' AS day;\n",
+        "output": " whole_type | decimal_type | bool_type | date_type\n------------+--------------+-----------+-----------\n integer    | numeric      | boolean   | date\n(1 row)\n\n yes | no |    day\n-----+----+------------\n t   | f  | 2025-03-01\n(1 row)",
+        "explanation": "`42` has no decimal point, so it is an `integer`. `4.2` has one, so it is `numeric`. The first row shows each type's name. In the second statement the values themselves come back: `psql` prints `true` as `t`, `false` as `f`, and a date as `YYYY-MM-DD`."
+      },
+      "practice": {
+        "title": "Types of an order",
+        "prompt": "Show the types of four values from an order, then show how its flags and deadline print.\n\n1. In one `SELECT`, show `pg_typeof()` of `7` as `count_type`, of `0.5` as `price_type`, of `false` as `flag_type`, and of `DATE '1999-12-31'` as `day_type`.\n2. In a second `SELECT`, show `false` as `paid`, `true` as `shipped`, and `DATE '1999-12-31'` as `deadline`.\n\nExpected output:\n\n```text\n count_type | price_type | flag_type | day_type\n------------+------------+-----------+----------\n integer    | numeric    | boolean   | date\n(1 row)\n\n paid | shipped |  deadline\n------+---------+------------\n f    | t       | 1999-12-31\n(1 row)\n```",
+        "starter": "-- TODO: show the types of 7, 0.5, false, and DATE '1999-12-31'\nSELECT pg_typeof(7) AS count_type;\n\n-- TODO: show false, true, and DATE '1999-12-31' as values\n",
+        "solution": "SELECT pg_typeof(7) AS count_type, pg_typeof(0.5) AS price_type, pg_typeof(false) AS flag_type, pg_typeof(DATE '1999-12-31') AS day_type;\nSELECT false AS paid, true AS shipped, DATE '1999-12-31' AS deadline;\n",
+        "tests": [
+          {
+            "output": " count_type | price_type | flag_type | day_type\n------------+------------+-----------+----------\n integer    | numeric    | boolean   | date\n(1 row)\n\n paid | shipped |  deadline\n------+---------+------------\n f    | t       | 1999-12-31\n(1 row)"
+          }
+        ],
+        "hints": [
+          "Each column is `pg_typeof(value) AS name`, separated by commas.",
+          "Write the date as `DATE '1999-12-31'` in both statements."
+        ]
+      }
+    },
+    {
+      "title": "Converting with :: and CAST",
+      "body": "A cast converts a value to another type. PostgreSQL has two spellings that do the same thing:\n\n```sql\nSELECT '42'::integer AS short_form, CAST('42' AS integer) AS long_form;\n```\n\n`CAST(value AS type)` is standard SQL and works in every database. `value::type` is PostgreSQL's shorter form, and the one you will see most. Casting is how text becomes a number you can add, or a date you can do math on:\n\n- `'19.99'::numeric` gives an exact decimal.\n- `'2025-03-01'::date` gives a date.\n- `date + integer` adds that many days, and `date - integer` subtracts them. The result is still a date.\n\nThe text has to look like the type. A cast that cannot work stops the program with an error:\n\n```text\nERROR:  invalid input syntax for type integer: \"abc\"\n```\n\nEven `'4.5'::integer` fails, because the text `4.5` is not a whole number, and `'2025-02-30'::date` fails because February has no 30th. Casting a number instead of text rounds it: `4.5::integer` gives `5`. Try `SELECT 'abc'::integer;` in the editor to see the error yourself, then remove it.",
+      "example": {
+        "title": "Totals from text",
+        "prompt": "Turn three text values into an integer, a decimal, and a date, and do math on each.",
+        "code": "SELECT '42'::integer + 8 AS total, CAST('19.99' AS numeric) * 2 AS double_price, '2025-03-01'::date + 30 AS due;\n",
+        "output": " total | double_price |    due\n-------+--------------+------------\n    50 |        39.98 | 2025-03-31\n(1 row)",
+        "explanation": "`::` binds tighter than math, so `'42'::integer` turns the text into the number 42 first, and adding 8 gives 50. `CAST('19.99' AS numeric)` is an exact decimal, so doubling it gives exactly 39.98. `'2025-03-01'::date + 30` moves 30 days forward and lands on March 31."
+      },
+      "practice": {
+        "title": "Order math from text",
+        "prompt": "In one `SELECT`, cast three text values and do math on each, giving every column an alias.\n\n1. Cast `'15'` to `integer` with `::` and multiply it by 3, as `tripled`.\n2. Use `CAST` to turn `'4.75'` into `numeric` and add `0.25`, as `total`. It prints as `5.00` because `numeric` keeps the two decimal places of its inputs.\n3. Cast `'2025-12-25'` to `date` with `::` and subtract 7 days, as `week_before`.\n\nExpected output:\n\n```text\n tripled | total | week_before\n---------+-------+-------------\n      45 |  5.00 | 2025-12-18\n(1 row)\n```",
+        "starter": "-- TODO: cast the text '15', '4.75', and '2025-12-25', then do the math\nSELECT '15' AS tripled;\n",
+        "solution": "SELECT '15'::integer * 3 AS tripled, CAST('4.75' AS numeric) + 0.25 AS total, '2025-12-25'::date - 7 AS week_before;\n",
+        "tests": [
+          {
+            "output": " tripled | total | week_before\n---------+-------+-------------\n      45 |  5.00 | 2025-12-18\n(1 row)"
+          }
+        ],
+        "hints": [
+          "Cast first, then do the math: `'7'::integer * 2` turns the text into 7 before multiplying.",
+          "Inside `CAST` the type goes after `AS`, like `CAST('1.50' AS numeric)`.",
+          "Subtracting an integer from a date moves it back that many days."
+        ]
+      }
+    }
+  ],
+  "recap": "- Common types: `integer`, `numeric`, `text`, `boolean` (printed `t` and `f`), and `date` (written `DATE 'YYYY-MM-DD'`).\n- `pg_typeof(value)` names a value's type. A bare quoted string is `unknown` until it is used.\n- `value::type` and `CAST(value AS type)` both convert a value.\n- `date + integer` and `date - integer` move by days.\n- A cast that cannot work, like `'abc'::integer`, is an error."
+}

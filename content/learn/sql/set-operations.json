@@ -1,0 +1,79 @@
+{
+  "id": "set-operations",
+  "title": "UNION, INTERSECT, and EXCEPT",
+  "section": "Summarizing Data",
+  "summary": "Treat results as sets: combine them, find what they share, and subtract one from another.",
+  "intro": "Aggregates and `GROUP BY` summarize the rows of one query. Set operators work one level up: two queries with the same columns can be combined like sets. You can stack their rows, keep what they share, or subtract one from the other, all without changing either table.",
+  "setup": "CREATE TABLE chess_club (\n    name text,\n    joined date\n);\nCREATE TABLE robotics_club (\n    name text,\n    joined date\n);\nINSERT INTO chess_club (name, joined) VALUES\n    ('Ana Lopez', DATE '2023-02-10'),\n    ('Ben Okafor', DATE '2024-01-15'),\n    ('Chloe Kim', DATE '2023-09-01'),\n    ('Dev Patel', DATE '2024-03-20'),\n    ('Eva Novak', DATE '2022-11-05'),\n    ('Femi Adeyemi', DATE '2024-06-12');\nINSERT INTO robotics_club (name, joined) VALUES\n    ('Chloe Kim', DATE '2024-02-01'),\n    ('Eva Novak', DATE '2023-04-18'),\n    ('Femi Adeyemi', DATE '2023-10-30'),\n    ('Gus Moreno', DATE '2024-01-09'),\n    ('Hana Sato', DATE '2022-09-14'),\n    ('Ivy Chen', DATE '2024-05-25');\n",
+  "steps": [
+    {
+      "title": "UNION and UNION ALL",
+      "body": "This lesson uses two club rosters with the same columns, and three people belong to both:\n\n```sql\nCREATE TABLE chess_club (name text, joined date);\nCREATE TABLE robotics_club (name text, joined date);\n```\n\n| table | members |\n| --- | --- |\n| chess_club | Ana Lopez, Ben Okafor, Chloe Kim, Dev Patel, Eva Novak, Femi Adeyemi |\n| robotics_club | Chloe Kim, Eva Novak, Femi Adeyemi, Gus Moreno, Hana Sato, Ivy Chen |\n\n`UNION` stacks the rows of two queries into one result and removes duplicate rows. `UNION ALL` keeps every row. It skips the duplicate check, so it is faster. Use it whenever duplicates are fine or impossible.\n\n```sql\nSELECT name, joined FROM chess_club\nUNION ALL\nSELECT name, joined FROM robotics_club\nORDER BY joined, name;\n```\n\nThe rules: both queries return the same number of columns, matching columns have compatible types, and the column names come from the first query. A text literal such as `'chess' AS club` labels where each row came from. One `ORDER BY` at the very end sorts the whole combined result, and it can name only the result's columns, such as `name`, not an expression like `upper(name)`. Mixing types fails. Try this in the editor:\n\n```sql\nSELECT name FROM chess_club\nUNION\nSELECT joined FROM robotics_club;\n```\n\n```text\nERROR:  UNION types text and date cannot be matched\n```",
+      "example": {
+        "title": "Everyone in a club",
+        "prompt": "List every club member once with UNION, then list them again with UNION ALL to keep the repeats.",
+        "code": "SELECT name FROM chess_club\nUNION\nSELECT name FROM robotics_club\nORDER BY name;\n\nSELECT name FROM chess_club\nUNION ALL\nSELECT name FROM robotics_club\nORDER BY name;\n",
+        "output": "     name\n--------------\n Ana Lopez\n Ben Okafor\n Chloe Kim\n Dev Patel\n Eva Novak\n Femi Adeyemi\n Gus Moreno\n Hana Sato\n Ivy Chen\n(9 rows)\n\n     name\n--------------\n Ana Lopez\n Ben Okafor\n Chloe Kim\n Chloe Kim\n Dev Patel\n Eva Novak\n Eva Novak\n Femi Adeyemi\n Femi Adeyemi\n Gus Moreno\n Hana Sato\n Ivy Chen\n(12 rows)",
+        "explanation": "Both queries return one text column, so they can be combined. `UNION` drops the second copy of Chloe Kim, Eva Novak, and Femi Adeyemi, giving 9 people. `UNION ALL` keeps all 12 rows. The `ORDER BY name` belongs to the combined result, not to the second query."
+      },
+      "practice": {
+        "title": "Roster with club labels",
+        "prompt": "Build one roster of every membership, with a column saying which club it is in.\n\n1. Select `name` and the text `'chess'` as `club` from `chess_club`.\n2. Combine it with `UNION ALL` and a second query that selects `name` and the text `'robotics'` from `robotics_club`.\n3. Sort the whole result by `name`, then `club`.\n\nExpected output:\n\n```text\n     name     |   club\n--------------+----------\n Ana Lopez    | chess\n Ben Okafor   | chess\n Chloe Kim    | chess\n Chloe Kim    | robotics\n Dev Patel    | chess\n Eva Novak    | chess\n Eva Novak    | robotics\n Femi Adeyemi | chess\n Femi Adeyemi | robotics\n Gus Moreno   | robotics\n Hana Sato    | robotics\n Ivy Chen     | robotics\n(12 rows)\n```",
+        "starter": "-- TODO: add a club column and combine with robotics_club using UNION ALL\nSELECT name FROM chess_club ORDER BY name;\n",
+        "solution": "SELECT name, 'chess' AS club FROM chess_club\nUNION ALL\nSELECT name, 'robotics' FROM robotics_club\nORDER BY name, club;\n",
+        "tests": [
+          {
+            "output": "     name     |   club\n--------------+----------\n Ana Lopez    | chess\n Ben Okafor   | chess\n Chloe Kim    | chess\n Chloe Kim    | robotics\n Dev Patel    | chess\n Eva Novak    | chess\n Eva Novak    | robotics\n Femi Adeyemi | chess\n Femi Adeyemi | robotics\n Gus Moreno   | robotics\n Hana Sato    | robotics\n Ivy Chen     | robotics\n(12 rows)"
+          },
+          {
+            "stdin": "INSERT INTO chess_club (name, joined) VALUES ('Zoe Park', DATE '2024-08-01');\nINSERT INTO robotics_club (name, joined) VALUES ('Ana Lopez', DATE '2024-09-02');\n",
+            "output": "     name     |   club\n--------------+----------\n Ana Lopez    | chess\n Ana Lopez    | robotics\n Ben Okafor   | chess\n Chloe Kim    | chess\n Chloe Kim    | robotics\n Dev Patel    | chess\n Eva Novak    | chess\n Eva Novak    | robotics\n Femi Adeyemi | chess\n Femi Adeyemi | robotics\n Gus Moreno   | robotics\n Hana Sato    | robotics\n Ivy Chen     | robotics\n Zoe Park     | chess\n(14 rows)"
+          },
+          {
+            "stdin": "DELETE FROM robotics_club WHERE name <> 'Hana Sato';\nINSERT INTO robotics_club (name, joined) VALUES ('Ben Okafor', DATE '2025-01-20');\n",
+            "output": "     name     |   club\n--------------+----------\n Ana Lopez    | chess\n Ben Okafor   | chess\n Ben Okafor   | robotics\n Chloe Kim    | chess\n Dev Patel    | chess\n Eva Novak    | chess\n Femi Adeyemi | chess\n Hana Sato    | robotics\n(8 rows)"
+          }
+        ],
+        "hints": [
+          "Name the label column with `AS club` in the first query only. The second query takes its column names from the first.",
+          "Put `UNION ALL` between the two queries and one `ORDER BY name, club` after the second."
+        ]
+      }
+    },
+    {
+      "title": "INTERSECT and EXCEPT",
+      "body": "The other two set operators compare the rows of two queries instead of stacking them. They follow the same rules as `UNION`: same number of columns, compatible types, one `ORDER BY` at the end.\n\n- `INTERSECT` keeps the rows that appear in both results.\n- `EXCEPT` keeps the rows of the first result that are not in the second.\n\n```sql\nSELECT name FROM chess_club\nINTERSECT\nSELECT name FROM robotics_club\nORDER BY name;\n```\n\nWith `chess_club` and `robotics_club` (each a `name` and a `joined` date), that finds the people in both clubs. Order matters for `EXCEPT`: chess `EXCEPT` robotics is chess-only members, and robotics `EXCEPT` chess is robotics-only members.\n\nEach query can have its own `WHERE` (or even its own `GROUP BY`), which runs before the comparison:\n\n```sql\nSELECT name\nFROM chess_club\nWHERE joined >= DATE '2024-01-01'\nEXCEPT\nSELECT name FROM robotics_club\nORDER BY name;\n```\n\nThe gotcha: rows match only when every column matches. `SELECT name, joined` on both sides of `INTERSECT` returns 0 rows here, because each person joined the two clubs on different dates. Unlike `=`, these operators treat two `NULL` values as equal, so a `NULL` on each side matches. Like `UNION`, both operators remove duplicates unless you add `ALL`.",
+      "example": {
+        "title": "Shared and chess-only members",
+        "prompt": "Find the members of both clubs, then the chess members who are not in robotics.",
+        "code": "SELECT name FROM chess_club\nINTERSECT\nSELECT name FROM robotics_club\nORDER BY name;\n\nSELECT name FROM chess_club\nEXCEPT\nSELECT name FROM robotics_club\nORDER BY name;\n",
+        "output": "     name\n--------------\n Chloe Kim\n Eva Novak\n Femi Adeyemi\n(3 rows)\n\n    name\n------------\n Ana Lopez\n Ben Okafor\n Dev Patel\n(3 rows)",
+        "explanation": "`INTERSECT` keeps only the names that both queries return. `EXCEPT` starts from every chess name and removes any name the robotics query returns, so Chloe, Eva, and Femi disappear. Only names are compared, so the different join dates do not matter."
+      },
+      "practice": {
+        "title": "Robotics only and early overlap",
+        "prompt": "Find who does robotics without chess, and which shared members joined chess early.\n\n1. Select the `name` of robotics members who are not in `chess_club`, using `EXCEPT`, sorted by `name`.\n2. Select the `name` of chess members who joined before `2024-01-01`, combine it with `INTERSECT` and every `name` in `robotics_club`, and sort by `name`.\n\nExpected output:\n\n```text\n    name\n------------\n Gus Moreno\n Hana Sato\n Ivy Chen\n(3 rows)\n\n   name\n-----------\n Chloe Kim\n Eva Novak\n(2 rows)\n```",
+        "starter": "-- TODO: robotics members who are not in chess\nSELECT name FROM robotics_club ORDER BY name;\n\n-- TODO: members of both clubs who joined chess before 2024\nSELECT name FROM chess_club ORDER BY name;\n",
+        "solution": "SELECT name FROM robotics_club\nEXCEPT\nSELECT name FROM chess_club\nORDER BY name;\n\nSELECT name\nFROM chess_club\nWHERE joined < DATE '2024-01-01'\nINTERSECT\nSELECT name FROM robotics_club\nORDER BY name;\n",
+        "tests": [
+          {
+            "output": "    name\n------------\n Gus Moreno\n Hana Sato\n Ivy Chen\n(3 rows)\n\n   name\n-----------\n Chloe Kim\n Eva Novak\n(2 rows)"
+          },
+          {
+            "stdin": "INSERT INTO chess_club (name, joined) VALUES\n    ('Gus Moreno', DATE '2023-05-05'),\n    ('Hana Sato', NULL);\nINSERT INTO robotics_club (name, joined) VALUES\n    ('Ana Lopez', DATE '2025-01-10'),\n    ('Ivy Chen', DATE '2025-02-02');\n",
+            "output": "   name\n----------\n Ivy Chen\n(1 row)\n\n    name\n------------\n Ana Lopez\n Chloe Kim\n Eva Novak\n Gus Moreno\n(4 rows)"
+          },
+          {
+            "stdin": "DELETE FROM chess_club WHERE joined < DATE '2024-01-01';\nINSERT INTO chess_club (name, joined) VALUES\n    ('Gus Moreno', DATE '2024-02-14'),\n    ('Hana Sato', DATE '2024-07-01'),\n    ('Ivy Chen', DATE '2025-03-03');\n",
+            "output": "   name\n-----------\n Chloe Kim\n Eva Novak\n(2 rows)\n\n name\n------\n(0 rows)"
+          }
+        ],
+        "hints": [
+          "For the first query, put `robotics_club` before `EXCEPT`, since `EXCEPT` keeps rows from the first query.",
+          "In the second query, the `WHERE` goes on the chess query, before `INTERSECT`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `UNION` combines two results and removes duplicate rows. `UNION ALL` keeps every row.\n- Both queries need the same number of columns with compatible types. Column names come from the first query.\n- One `ORDER BY` at the end sorts the whole combined result.\n- `INTERSECT` keeps rows found in both results.\n- `EXCEPT` keeps rows of the first result that are not in the second, so order matters.\n- Rows match only when every column matches, and two `NULL` values count as a match."
+}

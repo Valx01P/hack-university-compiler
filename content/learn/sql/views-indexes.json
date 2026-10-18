@@ -1,0 +1,106 @@
+{
+  "id": "views-indexes",
+  "title": "Views and Indexes",
+  "section": "Reliable Data",
+  "summary": "Save queries as views, keep snapshots with materialized views, and speed up lookups with indexes.",
+  "intro": "Some queries you run again and again: each customer's spending, the orders per city. A view saves such a query under a name, a materialized view saves its result, and an index lets PostgreSQL find rows without reading the whole table.",
+  "setup": "CREATE TABLE customers (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    name text NOT NULL,\n    email text NOT NULL,\n    city text NOT NULL\n);\nINSERT INTO customers (name, email, city) VALUES\n    ('Ana Lopez', 'ana@example.com', 'Austin'),\n    ('Ben Okafor', 'Ben.Okafor@example.com', 'Boston'),\n    ('Cleo Park', 'cleo@example.com', 'Austin'),\n    ('Dev Shah', 'dev@example.com', 'Chicago'),\n    ('Eva Novak', 'eva@example.com', 'Boston');\nCREATE TABLE orders (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    customer_id integer NOT NULL REFERENCES customers (id),\n    total numeric(10, 2) NOT NULL\n);\nINSERT INTO orders (customer_id, total) VALUES\n    (1, 25.00),\n    (1, 40.50),\n    (2, 12.00),\n    (3, 99.99),\n    (3, 15.00),\n    (3, 30.00),\n    (5, 60.00);\n",
+  "steps": [
+    {
+      "title": "Saving a query as a view",
+      "body": "A view is a saved query with a name. `CREATE VIEW name AS query` stores the query, not its rows, and from then on you select from the view as if it were a table. This lesson uses two tables:\n\n```sql\nCREATE TABLE customers (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    name text NOT NULL,\n    email text NOT NULL,\n    city text NOT NULL\n);\nCREATE TABLE orders (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    customer_id integer NOT NULL REFERENCES customers (id),\n    total numeric(10, 2) NOT NULL\n);\n```\n\n| id | name | email | city |\n| --- | --- | --- | --- |\n| 1 | Ana Lopez | ana@example.com | Austin |\n| 2 | Ben Okafor | Ben.Okafor@example.com | Boston |\n| 3 | Cleo Park | cleo@example.com | Austin |\n| 4 | Dev Shah | dev@example.com | Chicago |\n| 5 | Eva Novak | eva@example.com | Boston |\n\nThere are 7 orders: Ana has 2, Ben 1, Cleo 3, Eva 1, and Dev has none.\n\nEvery select from a view runs its query again, so a view always shows the current data. To change a view, write `CREATE OR REPLACE VIEW name AS query`, which also creates it if it does not exist yet. Gotcha: the new query must keep the old columns, with the same names and types in the same order, and may only add columns at the end. Renaming one gives:\n\n```text\nERROR:  cannot change name of view column \"name\" to \"customer\"\n```\n\nThen `DROP VIEW name` and create it again. Sort when you query a view, not inside it: like a table, a view has no guaranteed order.",
+      "example": {
+        "title": "Customer totals",
+        "prompt": "Save each customer's order count and spending as a view, then add an order for Dev and query the view again.",
+        "code": "CREATE VIEW customer_totals AS\nSELECT c.name, count(o.id) AS order_count, COALESCE(sum(o.total), 0.00) AS spent\nFROM customers AS c\nLEFT JOIN orders AS o ON o.customer_id = c.id\nGROUP BY c.id, c.name;\n\nSELECT * FROM customer_totals ORDER BY name;\n\nINSERT INTO orders (customer_id, total) VALUES (4, 18.25);\n\nSELECT * FROM customer_totals ORDER BY name;\n",
+        "output": "CREATE VIEW\n\n    name    | order_count | spent\n------------+-------------+--------\n Ana Lopez  |           2 |  65.50\n Ben Okafor |           1 |  12.00\n Cleo Park  |           3 | 144.99\n Dev Shah   |           0 |   0.00\n Eva Novak  |           1 |  60.00\n(5 rows)\n\nINSERT 0 1\n\n    name    | order_count | spent\n------------+-------------+--------\n Ana Lopez  |           2 |  65.50\n Ben Okafor |           1 |  12.00\n Cleo Park  |           3 | 144.99\n Dev Shah   |           1 |  18.25\n Eva Novak  |           1 |  60.00\n(5 rows)",
+        "explanation": "`CREATE VIEW` stores the join and the grouping under the name `customer_totals`, and each `SELECT * FROM customer_totals` runs that query fresh. The `LEFT JOIN` keeps Dev, who has no orders, and `COALESCE(sum(o.total), 0.00)` turns his missing sum into `0.00`. After the `INSERT`, the second select already sees Dev's new order, with no extra step, because a view holds no rows of its own."
+      },
+      "practice": {
+        "title": "Customers per city",
+        "prompt": "The customers table holds 5 customers in Austin, Boston, and Chicago. Save a count of customers per city as a view and watch it change when a new customer signs up.\n\n1. Create a view named `city_counts` with `CREATE OR REPLACE VIEW`, selecting `city` and `count(*) AS customer_count` from `customers`, grouped by `city`.\n2. Select every column from `city_counts`, sorted by `city`.\n3. Keep the starter's `INSERT`, which adds Finn Berg in Denver.\n4. Select every column from `city_counts` again, sorted by `city`.\n\nExpected output:\n\n```text\nCREATE VIEW\n\n  city   | customer_count\n---------+----------------\n Austin  |              2\n Boston  |              2\n Chicago |              1\n(3 rows)\n\nINSERT 0 1\n\n  city   | customer_count\n---------+----------------\n Austin  |              2\n Boston  |              2\n Chicago |              1\n Denver  |              1\n(4 rows)\n```",
+        "starter": "-- TODO: create the view city_counts with CREATE OR REPLACE VIEW\n\n-- TODO: select every column from city_counts, sorted by city\n\nINSERT INTO customers (name, email, city)\nVALUES ('Finn Berg', 'finn@example.com', 'Denver');\n\n-- TODO: select from city_counts again, sorted by city\n",
+        "solution": "CREATE OR REPLACE VIEW city_counts AS\nSELECT city, count(*) AS customer_count\nFROM customers\nGROUP BY city;\n\nSELECT * FROM city_counts ORDER BY city;\n\nINSERT INTO customers (name, email, city)\nVALUES ('Finn Berg', 'finn@example.com', 'Denver');\n\nSELECT * FROM city_counts ORDER BY city;\n",
+        "tests": [
+          {
+            "output": "CREATE VIEW\n\n  city   | customer_count\n---------+----------------\n Austin  |              2\n Boston  |              2\n Chicago |              1\n(3 rows)\n\nINSERT 0 1\n\n  city   | customer_count\n---------+----------------\n Austin  |              2\n Boston  |              2\n Chicago |              1\n Denver  |              1\n(4 rows)"
+          },
+          {
+            "stdin": "INSERT INTO customers (name, email, city) VALUES\n    ('Gus Hale', 'gus@example.com', 'Chicago'),\n    ('Hana Ito', 'hana@example.com', 'Denver');\n",
+            "output": "CREATE VIEW\n\n  city   | customer_count\n---------+----------------\n Austin  |              2\n Boston  |              2\n Chicago |              2\n Denver  |              1\n(4 rows)\n\nINSERT 0 1\n\n  city   | customer_count\n---------+----------------\n Austin  |              2\n Boston  |              2\n Chicago |              2\n Denver  |              2\n(4 rows)"
+          },
+          {
+            "stdin": "DELETE FROM orders;\nDELETE FROM customers;\n",
+            "output": "CREATE VIEW\n\n city | customer_count\n------+----------------\n(0 rows)\n\nINSERT 0 1\n\n  city  | customer_count\n--------+----------------\n Denver |              1\n(1 row)"
+          }
+        ],
+        "hints": [
+          "`CREATE OR REPLACE VIEW city_counts AS` goes in front of an ordinary `SELECT ... GROUP BY city` query.",
+          "Both selects are the same line: `SELECT * FROM city_counts ORDER BY city;`. The view picks up the new row on its own."
+        ]
+      }
+    },
+    {
+      "title": "Snapshots with materialized views",
+      "body": "A plain view runs its query on every select. When that query is slow, like a report over millions of orders, you pay the cost each time. `CREATE MATERIALIZED VIEW` runs the query once and stores the rows it returns, so reading it costs only as much as reading those stored rows:\n\n```sql\nCREATE MATERIALIZED VIEW city_orders AS\nSELECT c.city, count(o.id) AS order_count\nFROM customers AS c\nLEFT JOIN orders AS o ON o.customer_id = c.id\nGROUP BY c.city;\n```\n\nThe catch is that the stored rows are a snapshot. Inserts, updates, and deletes on `customers` or `orders` do not reach it, so it can be out of date. `REFRESH MATERIALIZED VIEW name` runs the query again and replaces the stored rows:\n\n```sql\nREFRESH MATERIALIZED VIEW city_orders;\n```\n\nA refresh reruns the whole query, so it costs as much as the query itself. Use a materialized view when slightly old numbers are fine, like a dashboard refreshed every hour, and a plain view when every read must see the latest rows. You can't `INSERT` into or `UPDATE` a materialized view: change the tables and refresh.",
+      "example": {
+        "title": "Orders per city",
+        "prompt": "Store the order count per city as a materialized view, add an order for Dev in Chicago, and compare the view before and after a refresh.",
+        "code": "CREATE MATERIALIZED VIEW city_orders AS\nSELECT c.city, count(o.id) AS order_count\nFROM customers AS c\nLEFT JOIN orders AS o ON o.customer_id = c.id\nGROUP BY c.city;\n\nSELECT * FROM city_orders ORDER BY city;\n\nINSERT INTO orders (customer_id, total) VALUES (4, 18.25);\n\nSELECT * FROM city_orders ORDER BY city;\n\nREFRESH MATERIALIZED VIEW city_orders;\n\nSELECT * FROM city_orders ORDER BY city;\n",
+        "output": "CREATE MATERIALIZED VIEW\n\n  city   | order_count\n---------+-------------\n Austin  |           5\n Boston  |           2\n Chicago |           0\n(3 rows)\n\nINSERT 0 1\n\n  city   | order_count\n---------+-------------\n Austin  |           5\n Boston  |           2\n Chicago |           0\n(3 rows)\n\nREFRESH\n\n  city   | order_count\n---------+-------------\n Austin  |           5\n Boston  |           2\n Chicago |           1\n(3 rows)",
+        "explanation": "`CREATE MATERIALIZED VIEW` runs the query and keeps its 3 rows. The new order for Dev Shah lands in `orders`, but the second select still shows Chicago with 0, because it reads the stored snapshot. `REFRESH MATERIALIZED VIEW` runs the query again, and the third select finally shows Chicago with 1."
+      },
+      "practice": {
+        "title": "Order summary snapshot",
+        "prompt": "The orders table holds 7 orders that add up to 282.49. Store an order summary as a materialized view and see it lag behind a price cut until you refresh it.\n\n1. Create a materialized view named `order_summary` that selects `count(*) AS order_count` and `COALESCE(sum(total), 0.00) AS total_spent` from `orders`, so an empty table shows `0.00`.\n2. Select every column from `order_summary`.\n3. Keep the starter's `UPDATE`, which takes 5.00 off every order of 50.00 or more.\n4. Select from `order_summary` again, then refresh it with `REFRESH MATERIALIZED VIEW`, then select from it once more.\n\nExpected output:\n\n```text\nCREATE MATERIALIZED VIEW\n\n order_count | total_spent\n-------------+-------------\n           7 |      282.49\n(1 row)\n\nUPDATE 2\n\n order_count | total_spent\n-------------+-------------\n           7 |      282.49\n(1 row)\n\nREFRESH\n\n order_count | total_spent\n-------------+-------------\n           7 |      272.49\n(1 row)\n```",
+        "starter": "-- TODO: create the materialized view order_summary\n\n-- TODO: select every column from order_summary\n\nUPDATE orders SET total = total - 5.00 WHERE total >= 50.00;\n\n-- TODO: select again, refresh the view, then select once more\n",
+        "solution": "CREATE MATERIALIZED VIEW order_summary AS\nSELECT count(*) AS order_count, COALESCE(sum(total), 0.00) AS total_spent\nFROM orders;\n\nSELECT * FROM order_summary;\n\nUPDATE orders SET total = total - 5.00 WHERE total >= 50.00;\n\nSELECT * FROM order_summary;\n\nREFRESH MATERIALIZED VIEW order_summary;\n\nSELECT * FROM order_summary;\n",
+        "tests": [
+          {
+            "output": "CREATE MATERIALIZED VIEW\n\n order_count | total_spent\n-------------+-------------\n           7 |      282.49\n(1 row)\n\nUPDATE 2\n\n order_count | total_spent\n-------------+-------------\n           7 |      282.49\n(1 row)\n\nREFRESH\n\n order_count | total_spent\n-------------+-------------\n           7 |      272.49\n(1 row)"
+          },
+          {
+            "stdin": "INSERT INTO orders (customer_id, total) VALUES\n    (4, 75.00),\n    (2, 8.50);\n",
+            "output": "CREATE MATERIALIZED VIEW\n\n order_count | total_spent\n-------------+-------------\n           9 |      365.99\n(1 row)\n\nUPDATE 3\n\n order_count | total_spent\n-------------+-------------\n           9 |      365.99\n(1 row)\n\nREFRESH\n\n order_count | total_spent\n-------------+-------------\n           9 |      350.99\n(1 row)"
+          },
+          {
+            "stdin": "DELETE FROM orders;\n",
+            "output": "CREATE MATERIALIZED VIEW\n\n order_count | total_spent\n-------------+-------------\n           0 |        0.00\n(1 row)\n\nUPDATE 0\n\n order_count | total_spent\n-------------+-------------\n           0 |        0.00\n(1 row)\n\nREFRESH\n\n order_count | total_spent\n-------------+-------------\n           0 |        0.00\n(1 row)"
+          }
+        ],
+        "hints": [
+          "The view's query has no `GROUP BY`, so it returns exactly one row.",
+          "The select right after the `UPDATE` should still show the old total. Only the select after `REFRESH MATERIALIZED VIEW order_summary;` shows the new one."
+        ]
+      }
+    },
+    {
+      "title": "Indexes and pg_indexes",
+      "body": "Without an index, PostgreSQL answers `WHERE customer_id = 3` by reading every row of `orders`. An index is a sorted lookup structure that jumps straight to the matching rows:\n\n```sql\nCREATE INDEX orders_customer_idx ON orders (customer_id);\n```\n\n- `CREATE UNIQUE INDEX` also rejects duplicate values, like a `UNIQUE` constraint.\n- An index can be on an expression: a unique index on `lower(email)` makes emails unique whatever their letter case.\n- An index on several columns, `ON customers (city, name)`, also speeds up searches on its first column alone.\n\nPostgreSQL indexes every primary key and `UNIQUE` constraint, but not foreign keys, so an index on `orders (customer_id)` is common. The `pg_indexes` view lists indexes, with the full definition in `indexdef`. A duplicate in a unique index fails like a constraint:\n\n```text\nERROR:  duplicate key value violates unique constraint \"customers_email_idx\"\n```\n\nGotchas: an expression index only helps a query that uses the same expression, like `WHERE lower(email) = 'ana@example.com'`. And every index takes space and slows down writes, so index only the columns you search by.\n\n`EXPLAIN` before a query prints its plan without running it. `Index Scan using customers_email_idx` means the index is used. `Seq Scan on customers` means every row is read. With 5 rows a `Seq Scan` is cheaper, so PostgreSQL picks it anyway. Plans change with table size, so the programs here list indexes instead. Try `EXPLAIN` in the editor.",
+      "example": {
+        "title": "Indexing customers and orders",
+        "prompt": "Index orders by customer, make emails unique ignoring letter case, and list every index on both tables.",
+        "code": "CREATE INDEX orders_customer_idx ON orders (customer_id);\n\nCREATE UNIQUE INDEX customers_email_idx ON customers (lower(email));\n\nSELECT indexname, indexdef\nFROM pg_indexes\nWHERE tablename IN ('customers', 'orders')\nORDER BY indexname;\n",
+        "output": "CREATE INDEX\n\nCREATE INDEX\n\n      indexname      |                                        indexdef\n---------------------+----------------------------------------------------------------------------------------\n customers_email_idx | CREATE UNIQUE INDEX customers_email_idx ON public.customers USING btree (lower(email))\n customers_pkey      | CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (id)\n orders_customer_idx | CREATE INDEX orders_customer_idx ON public.orders USING btree (customer_id)\n orders_pkey         | CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)\n(4 rows)",
+        "explanation": "`orders_customer_idx` speeds up looking up a customer's orders. `customers_email_idx` is unique on `lower(email)`, so `ANA@example.com` could never sit next to `ana@example.com`. `pg_indexes` also shows `customers_pkey` and `orders_pkey`, the indexes PostgreSQL built for the primary keys. Every `indexdef` ends in `USING btree`, the default kind of index, and names the table with its schema, `public`."
+      },
+      "practice": {
+        "title": "Big orders and unique names",
+        "prompt": "Index orders by total and stop two customers in the same city from sharing a name.\n\n1. Create an index named `orders_total_idx` on `orders (total)`.\n2. Create a unique index named `customers_city_name_idx` on `customers (city, lower(name))`, so a name is unique within a city whatever its letter case.\n3. Select `indexname` and `indexdef` from `pg_indexes` for the tables `customers` and `orders`, sorted by `indexname`.\n\nExpected output:\n\n```text\nCREATE INDEX\n\nCREATE INDEX\n\n        indexname        |                                            indexdef\n-------------------------+-------------------------------------------------------------------------------------------------\n customers_city_name_idx | CREATE UNIQUE INDEX customers_city_name_idx ON public.customers USING btree (city, lower(name))\n customers_pkey          | CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (id)\n orders_pkey             | CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)\n orders_total_idx        | CREATE INDEX orders_total_idx ON public.orders USING btree (total)\n(4 rows)\n```",
+        "starter": "-- TODO: create the index orders_total_idx on total\n\n-- TODO: create the unique index customers_city_name_idx on city and lower(name)\n\n-- TODO: list indexname and indexdef for customers and orders, sorted by indexname\n",
+        "solution": "CREATE INDEX orders_total_idx ON orders (total);\n\nCREATE UNIQUE INDEX customers_city_name_idx ON customers (city, lower(name));\n\nSELECT indexname, indexdef\nFROM pg_indexes\nWHERE tablename IN ('customers', 'orders')\nORDER BY indexname;\n",
+        "tests": [
+          {
+            "output": "CREATE INDEX\n\nCREATE INDEX\n\n        indexname        |                                            indexdef\n-------------------------+-------------------------------------------------------------------------------------------------\n customers_city_name_idx | CREATE UNIQUE INDEX customers_city_name_idx ON public.customers USING btree (city, lower(name))\n customers_pkey          | CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (id)\n orders_pkey             | CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)\n orders_total_idx        | CREATE INDEX orders_total_idx ON public.orders USING btree (total)\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "A plain index names the index, the table, and the column: `CREATE INDEX orders_total_idx ON orders (...);`.",
+          "A unique index can list a column and an expression, separated by a comma: `(city, lower(name))`.",
+          "The listing is a `SELECT` from `pg_indexes` with `WHERE tablename IN ('customers', 'orders')`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `CREATE VIEW name AS query` saves a query, and you select from the view like a table.\n- A view runs its query on every select, so it always shows the current data.\n- `CREATE OR REPLACE VIEW` changes a view but must keep its existing columns.\n- `CREATE MATERIALIZED VIEW` stores the result, which stays the same until `REFRESH MATERIALIZED VIEW`.\n- `CREATE INDEX name ON table (column)` speeds up lookups, and `CREATE UNIQUE INDEX` also rejects duplicates.\n- An index on an expression like `lower(email)` helps only queries that use that expression.\n- Primary keys and `UNIQUE` constraints get indexes automatically, but foreign keys do not.\n- `pg_indexes` lists a table's indexes, and `EXPLAIN` shows whether a query uses one."
+}

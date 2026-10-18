@@ -1,0 +1,114 @@
+{
+  "id": "case",
+  "title": "CASE Expressions",
+  "section": "Expressions and Functions",
+  "summary": "Choose a value row by row with CASE, SQL's if, else, and switch.",
+  "intro": "Sometimes a column needs a different value depending on the row: a letter for a score, a plan for a priority. `CASE` is SQL's if and else, and it works anywhere a value does, even in `ORDER BY`.",
+  "setup": "CREATE TABLE students (id integer, name text, score integer);\nINSERT INTO students (id, name, score) VALUES\n    (1, 'Ana', 92),\n    (2, 'Ben', 85),\n    (3, 'Cara', 78),\n    (4, 'Dev', 64),\n    (5, 'Eli', 95),\n    (6, 'Fay', 70),\n    (7, 'Gus', 59);\n\nCREATE TABLE tickets (id integer, title text, priority text, status text);\nINSERT INTO tickets (id, title, priority, status) VALUES\n    (1, 'Login page crashes', 'high', 'open'),\n    (2, 'Typo in footer', 'low', 'done'),\n    (3, 'Slow search', 'medium', 'in progress'),\n    (4, 'Export to CSV', 'medium', 'open'),\n    (5, 'Password reset email', 'high', 'in progress'),\n    (6, 'Dark mode colors', 'low', 'open');\n",
+  "steps": [
+    {
+      "title": "If and else with CASE WHEN",
+      "body": "This lesson uses two small tables: students with a test score, and support tickets.\n\n```sql\nCREATE TABLE students (id integer, name text, score integer);\nCREATE TABLE tickets (id integer, title text, priority text, status text);\n```\n\nA `CASE` expression picks a value for each row, like if, else if, and else. PostgreSQL checks the `WHEN` conditions from top to bottom and returns the `THEN` value of the **first** true one. The rest are skipped, so put the strictest test first: if `score >= 80` came before `score >= 90`, a 95 would get a B.\n\n```sql\nCASE\n    WHEN score >= 90 THEN 'A'\n    WHEN score >= 80 THEN 'B'\n    ELSE 'F'\nEND AS grade\n```\n\n`ELSE` catches every row no branch matched, including a `NULL` score, since a comparison with `NULL` is never true. Leave `ELSE` out and those rows get `NULL`, which prints as nothing. Name the column with `AS`, or psql heads it `case`. All branches must give one type. Mixing a number and text fails, because PostgreSQL tries to read the text as a number:\n\n```sql\nCASE WHEN score >= 60 THEN score ELSE 'none' END\n```\n\n```text\nERROR:  invalid input syntax for type integer: \"none\"\n```",
+      "example": {
+        "title": "Grade letters",
+        "prompt": "Turn each student's score into a letter grade.",
+        "code": "SELECT name, score,\n    CASE\n        WHEN score >= 90 THEN 'A'\n        WHEN score >= 80 THEN 'B'\n        WHEN score >= 70 THEN 'C'\n        ELSE 'F'\n    END AS grade\nFROM students\nORDER BY id;\n",
+        "output": " name | score | grade\n------+-------+-------\n Ana  |    92 | A\n Ben  |    85 | B\n Cara |    78 | C\n Dev  |    64 | F\n Eli  |    95 | A\n Fay  |    70 | C\n Gus  |    59 | F\n(7 rows)",
+        "explanation": "For each row, PostgreSQL tries the `WHEN` conditions from the top. Ana's 92 passes `score >= 90`, so she gets `A` and the rest are skipped. Cara's 78 fails the first two and passes `score >= 70`. Fay's 70 sits exactly on the boundary and `>=` includes it, so she gets `C`. Dev and Gus match nothing, so `ELSE` gives them `F`."
+      },
+      "practice": {
+        "title": "Pass, fail, or distinction",
+        "prompt": "Label each student's result as distinction, pass, or fail.\n\n1. Select `name` and `score` from `students`.\n2. Add a column named `result`: `distinction` for a score of 95 or more, `pass` for 60 or more, and `fail` for anything else, including a missing score.\n3. Sort by `id`.\n\nExpected output:\n\n```text\n name | score |   result\n------+-------+-------------\n Ana  |    92 | pass\n Ben  |    85 | pass\n Cara |    78 | pass\n Dev  |    64 | pass\n Eli  |    95 | distinction\n Fay  |    70 | pass\n Gus  |    59 | fail\n(7 rows)\n```",
+        "starter": "SELECT name, score\n    -- TODO: add a CASE column named result\nFROM students\nORDER BY id;\n",
+        "solution": "SELECT name, score,\n    CASE\n        WHEN score >= 95 THEN 'distinction'\n        WHEN score >= 60 THEN 'pass'\n        ELSE 'fail'\n    END AS result\nFROM students\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": " name | score |   result\n------+-------+-------------\n Ana  |    92 | pass\n Ben  |    85 | pass\n Cara |    78 | pass\n Dev  |    64 | pass\n Eli  |    95 | distinction\n Fay  |    70 | pass\n Gus  |    59 | fail\n(7 rows)"
+          },
+          {
+            "stdin": "INSERT INTO students (id, name, score) VALUES (8, 'Hana', 60), (9, 'Ivo', 94), (10, 'Jun', 100);",
+            "output": " name | score |   result\n------+-------+-------------\n Ana  |    92 | pass\n Ben  |    85 | pass\n Cara |    78 | pass\n Dev  |    64 | pass\n Eli  |    95 | distinction\n Fay  |    70 | pass\n Gus  |    59 | fail\n Hana |    60 | pass\n Ivo  |    94 | pass\n Jun  |   100 | distinction\n(10 rows)"
+          },
+          {
+            "stdin": "DELETE FROM students WHERE id > 2;\nINSERT INTO students (id, name, score) VALUES (3, 'Kai', 59), (4, 'Lea', 96), (5, 'Max', 61), (6, 'Nia', NULL);",
+            "output": " name | score |   result\n------+-------+-------------\n Ana  |    92 | pass\n Ben  |    85 | pass\n Kai  |    59 | fail\n Lea  |    96 | distinction\n Max  |    61 | pass\n Nia  |       | fail\n(6 rows)"
+          }
+        ],
+        "hints": [
+          "Put the strictest condition first. If `score >= 60` came first, a 95 would stop there and get `pass`.",
+          "A missing score fails every comparison, so `ELSE` already gives it `fail`.",
+          "The shape is `CASE WHEN ... THEN 'distinction' WHEN ... THEN 'pass' ELSE 'fail' END AS result`."
+        ]
+      }
+    },
+    {
+      "title": "Matching values like a switch",
+      "body": "The `tickets` table holds six support tickets. Each has a `priority` (`high`, `medium`, or `low`) and a `status` (`open`, `in progress`, or `done`):\n\n```text\n id |       title        | priority |   status\n----+--------------------+----------+-------------\n  1 | Login page crashes | high     | open\n  2 | Typo in footer     | low      | done\n  3 | Slow search        | medium   | in progress\n```\n\nWhen every branch compares one column with a fixed value, use the **simple** form, like a switch statement. Name the value right after `CASE`, then list the matches:\n\n```sql\nCASE priority\n    WHEN 'high' THEN 'fix today'\n    WHEN 'medium' THEN 'this week'\n    ELSE 'someday'\nEND AS plan\n```\n\nIt means the same as `CASE WHEN priority = 'high' THEN ...`, with less typing. The simple form only tests equality, so ranges like `score >= 90` still need `CASE WHEN`. One gotcha: `WHEN NULL` never matches, because `NULL = NULL` is not true. Let `ELSE` catch missing values, or use `CASE WHEN status IS NULL THEN ...`.",
+      "example": {
+        "title": "Plans by priority",
+        "prompt": "Turn each ticket's priority into a plan for when to fix it.",
+        "code": "SELECT title, priority,\n    CASE priority\n        WHEN 'high' THEN 'fix today'\n        WHEN 'medium' THEN 'this week'\n        ELSE 'someday'\n    END AS plan\nFROM tickets\nORDER BY id;\n",
+        "output": "        title         | priority |   plan\n----------------------+----------+-----------\n Login page crashes   | high     | fix today\n Typo in footer       | low      | someday\n Slow search          | medium   | this week\n Export to CSV        | medium   | this week\n Password reset email | high     | fix today\n Dark mode colors     | low      | someday\n(6 rows)",
+        "explanation": "`CASE priority` names the value once, and each `WHEN` lists a value to compare it with using `=`. The two `high` tickets match the first branch and the two `medium` ones the second. Nothing matches `low`, so those rows fall to `ELSE` and get `someday`."
+      },
+      "practice": {
+        "title": "Status labels",
+        "prompt": "Give each ticket a friendly label for its status.\n\n1. Select `title` and `status` from `tickets`.\n2. Add a column named `label` using a simple `CASE` on `status`: `open` becomes `to do`, `in progress` becomes `doing`, `done` becomes `finished`, and anything else, including a missing status, becomes `unknown`.\n3. Sort by `id`.\n\nExpected output:\n\n```text\n        title         |   status    |  label\n----------------------+-------------+----------\n Login page crashes   | open        | to do\n Typo in footer       | done        | finished\n Slow search          | in progress | doing\n Export to CSV        | open        | to do\n Password reset email | in progress | doing\n Dark mode colors     | open        | to do\n(6 rows)\n```",
+        "starter": "SELECT title, status\n    -- TODO: add a simple CASE column named label\nFROM tickets\nORDER BY id;\n",
+        "solution": "SELECT title, status,\n    CASE status\n        WHEN 'open' THEN 'to do'\n        WHEN 'in progress' THEN 'doing'\n        WHEN 'done' THEN 'finished'\n        ELSE 'unknown'\n    END AS label\nFROM tickets\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "        title         |   status    |  label\n----------------------+-------------+----------\n Login page crashes   | open        | to do\n Typo in footer       | done        | finished\n Slow search          | in progress | doing\n Export to CSV        | open        | to do\n Password reset email | in progress | doing\n Dark mode colors     | open        | to do\n(6 rows)"
+          },
+          {
+            "stdin": "INSERT INTO tickets (id, title, priority, status) VALUES (7, 'Broken link', 'low', 'done'), (8, 'Add search filters', 'medium', 'blocked'), (9, 'Crash on upload', 'high', NULL);",
+            "output": "        title         |   status    |  label\n----------------------+-------------+----------\n Login page crashes   | open        | to do\n Typo in footer       | done        | finished\n Slow search          | in progress | doing\n Export to CSV        | open        | to do\n Password reset email | in progress | doing\n Dark mode colors     | open        | to do\n Broken link          | done        | finished\n Add search filters   | blocked     | unknown\n Crash on upload      |             | unknown\n(9 rows)"
+          },
+          {
+            "stdin": "DELETE FROM tickets WHERE status = 'open';\nINSERT INTO tickets (id, title, priority, status) VALUES (10, 'Update logo', 'low', 'open');",
+            "output": "        title         |   status    |  label\n----------------------+-------------+----------\n Typo in footer       | done        | finished\n Slow search          | in progress | doing\n Password reset email | in progress | doing\n Update logo          | open        | to do\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "Write `CASE status` once, then one `WHEN 'value' THEN 'label'` line per status.",
+          "A missing status never matches a `WHEN`, so `ELSE 'unknown'` covers it too."
+        ]
+      }
+    },
+    {
+      "title": "Custom sort orders",
+      "body": "`ORDER BY priority` sorts text alphabetically, so you get `high`, `low`, `medium`. To sort in your own order, map each value to a number with `CASE` and sort by that number:\n\n```sql\nORDER BY\n    CASE priority\n        WHEN 'high' THEN 1\n        WHEN 'medium' THEN 2\n        ELSE 3\n    END,\n    id\n```\n\nThe `CASE` only decides the order, so it does not show up as a column. Values that get the same number tie, so add a unique column like `id` last. Put `DESC` after `END` to flip the order. You can also show the rank as a column, `... END AS rank`, and write `ORDER BY rank, id`. An alias works in `ORDER BY` only on its own, not inside a bigger expression.",
+      "example": {
+        "title": "Most urgent first",
+        "prompt": "List the tickets with high priority first, then medium, then low.",
+        "code": "SELECT id, title, priority\nFROM tickets\nORDER BY\n    CASE priority\n        WHEN 'high' THEN 1\n        WHEN 'medium' THEN 2\n        ELSE 3\n    END,\n    id;\n",
+        "output": " id |        title         | priority\n----+----------------------+----------\n  1 | Login page crashes   | high\n  5 | Password reset email | high\n  3 | Slow search          | medium\n  4 | Export to CSV        | medium\n  2 | Typo in footer       | low\n  6 | Dark mode colors     | low\n(6 rows)",
+        "explanation": "The `CASE` turns each priority into a rank: 1, 2, or 3. Rows sort by that rank, so both `high` tickets come first. Tickets with the same rank tie, and `id` breaks the tie, which keeps 1 before 5 and 3 before 4."
+      },
+      "practice": {
+        "title": "Open tickets first",
+        "prompt": "List the tickets in the order a team would work through them by status.\n\n1. Select `id`, `title`, and `status` from `tickets`.\n2. Sort `open` tickets first, then `in progress`, then `done`, and any other status last.\n3. Break ties by `id`.\n\nExpected output:\n\n```text\n id |        title         |   status\n----+----------------------+-------------\n  1 | Login page crashes   | open\n  4 | Export to CSV        | open\n  6 | Dark mode colors     | open\n  3 | Slow search          | in progress\n  5 | Password reset email | in progress\n  2 | Typo in footer       | done\n(6 rows)\n```",
+        "starter": "SELECT id, title, status\nFROM tickets\nORDER BY id; -- TODO: sort by a CASE rank for status first, then id\n",
+        "solution": "SELECT id, title, status\nFROM tickets\nORDER BY\n    CASE status\n        WHEN 'open' THEN 1\n        WHEN 'in progress' THEN 2\n        WHEN 'done' THEN 3\n        ELSE 4\n    END,\n    id;\n",
+        "tests": [
+          {
+            "output": " id |        title         |   status\n----+----------------------+-------------\n  1 | Login page crashes   | open\n  4 | Export to CSV        | open\n  6 | Dark mode colors     | open\n  3 | Slow search          | in progress\n  5 | Password reset email | in progress\n  2 | Typo in footer       | done\n(6 rows)"
+          },
+          {
+            "stdin": "INSERT INTO tickets (id, title, priority, status) VALUES (7, 'Broken link', 'low', 'done'), (8, 'Add search filters', 'medium', 'open'), (9, 'Crash on upload', 'high', 'blocked');",
+            "output": " id |        title         |   status\n----+----------------------+-------------\n  1 | Login page crashes   | open\n  4 | Export to CSV        | open\n  6 | Dark mode colors     | open\n  8 | Add search filters   | open\n  3 | Slow search          | in progress\n  5 | Password reset email | in progress\n  2 | Typo in footer       | done\n  7 | Broken link          | done\n  9 | Crash on upload      | blocked\n(9 rows)"
+          },
+          {
+            "stdin": "DELETE FROM tickets WHERE status = 'open';\nINSERT INTO tickets (id, title, priority, status) VALUES (10, 'Update logo', 'low', 'in progress');",
+            "output": " id |        title         |   status\n----+----------------------+-------------\n  3 | Slow search          | in progress\n  5 | Password reset email | in progress\n 10 | Update logo          | in progress\n  2 | Typo in footer       | done\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "Give each status a number with `CASE status WHEN 'open' THEN 1 ... END`.",
+          "Put the `CASE` right after `ORDER BY`, then a comma and `id` to break ties."
+        ]
+      }
+    }
+  ],
+  "recap": "- `CASE WHEN condition THEN value ... ELSE value END` picks a value for each row.\n- The first true `WHEN` wins, so put the strictest condition first.\n- Without `ELSE`, a row that matches nothing gets `NULL`.\n- `CASE column WHEN value THEN result ... END` is the simple form for matching exact values. It never matches `NULL`.\n- `ORDER BY CASE ... END, id` sorts rows in any order you choose."
+}

@@ -1,0 +1,105 @@
+{
+  "id": "sorting",
+  "title": "Sorting and Limiting",
+  "section": "Filtering and Sorting",
+  "summary": "Sort by any column in either direction, break ties, take the top rows, and remove duplicates.",
+  "intro": "A table has no order of its own, and real questions often need one: the highest paid, the newest hires, the first page of results. This lesson sorts rows with `ORDER BY`, cuts them down with `LIMIT` and `OFFSET`, and removes repeats with `DISTINCT`.",
+  "setup": "CREATE TABLE employees (\n    id integer PRIMARY KEY,\n    name text,\n    department text,\n    title text,\n    salary integer,\n    hired date\n);\n\nINSERT INTO employees (id, name, department, title, salary, hired) VALUES\n    (1, 'Ana', 'Engineering', 'Developer', 95000, DATE '2021-03-15'),\n    (2, 'Ben', 'Sales', 'Account Manager', 62000, DATE '2019-07-01'),\n    (3, 'Chloe', 'Engineering', 'Developer', 88000, DATE '2022-01-10'),\n    (4, 'Dev', 'Marketing', 'Designer', 58000, DATE '2020-11-23'),\n    (5, 'Ema', 'Sales', 'Account Manager', 62000, DATE '2023-02-06'),\n    (6, 'Farid', 'Engineering', 'Manager', 120000, DATE '2018-05-14'),\n    (7, 'Gina', 'Marketing', 'Manager', 85000, DATE '2019-09-30'),\n    (8, 'Hugo', 'Sales', 'Sales Rep', 54000, DATE '2024-04-01'),\n    (9, 'Iris', 'Engineering', 'Developer', 88000, DATE '2020-06-08'),\n    (10, 'Jon', 'Marketing', 'Designer', 61000, DATE '2022-08-15');\n",
+  "steps": [
+    {
+      "title": "Sorting both ways",
+      "body": "Every program in this lesson uses an `employees` table with 10 rows. Here are the columns and the first few rows:\n\n```sql\nCREATE TABLE employees (id integer PRIMARY KEY, name text, department text,\n    title text, salary integer, hired date);\n```\n\n```text\n id | name  | department  |      title      | salary |   hired\n----+-------+-------------+-----------------+--------+------------\n  1 | Ana   | Engineering | Developer       |  95000 | 2021-03-15\n  2 | Ben   | Sales       | Account Manager |  62000 | 2019-07-01\n  3 | Chloe | Engineering | Developer       |  88000 | 2022-01-10\n  4 | Dev   | Marketing   | Designer        |  58000 | 2020-11-23\n```\n\n`ORDER BY` sorts the result. Each column sorts ascending (`ASC`, the default) unless you write `DESC` right after it. `DESC` applies only to the column it follows:\n\n```sql\nORDER BY salary DESC          -- highest first\nORDER BY department, salary DESC\n```\n\nWith several columns, PostgreSQL sorts by the first, and only rows that tie on it are sorted by the second, and so on. Numbers sort from smallest to largest and dates from earliest to latest. Text sorts by character code in this database, which is A to Z when the case matches, but every capital letter comes before every lowercase one, so `Zoe` sorts before `adam`.\n\nTwo rows can still tie on every column you listed. Their order is then not guaranteed and can change between runs. So end the list with a unique column such as `id` to break any tie that is left.",
+      "example": {
+        "title": "Pay by department",
+        "prompt": "List everyone grouped by department, highest salary first inside each department.",
+        "code": "SELECT name, department, salary\nFROM employees\nORDER BY department, salary DESC, id;\n",
+        "output": " name  | department  | salary\n-------+-------------+--------\n Farid | Engineering | 120000\n Ana   | Engineering |  95000\n Chloe | Engineering |  88000\n Iris  | Engineering |  88000\n Gina  | Marketing   |  85000\n Jon   | Marketing   |  61000\n Dev   | Marketing   |  58000\n Ben   | Sales       |  62000\n Ema   | Sales       |  62000\n Hugo  | Sales       |  54000\n(10 rows)",
+        "explanation": "Rows sort by `department` first, A to Z. Inside each department, `salary DESC` puts the highest pay on top. Chloe and Iris both earn 88000, and so do Ben and Ema, so `id` decides: the smaller id comes first."
+      },
+      "practice": {
+        "title": "Newest hires first",
+        "prompt": "List every employee by hire date, newest first, with fixed tie breakers.\n\n1. Select `name` and `hired` from `employees`.\n2. Sort by `hired`, latest date first.\n3. When two people were hired on the same day, sort them by `name` A to Z.\n4. End the sort with `id` so even two people with the same name and date keep a fixed order.\n\nExpected output:\n\n```text\n name  |   hired\n-------+------------\n Hugo  | 2024-04-01\n Ema   | 2023-02-06\n Jon   | 2022-08-15\n Chloe | 2022-01-10\n Ana   | 2021-03-15\n Dev   | 2020-11-23\n Iris  | 2020-06-08\n Gina  | 2019-09-30\n Ben   | 2019-07-01\n Farid | 2018-05-14\n(10 rows)\n```",
+        "starter": "-- TODO: sort newest hire first, then by name, then by id\nSELECT name, hired\nFROM employees\nORDER BY id;\n",
+        "solution": "SELECT name, hired\nFROM employees\nORDER BY hired DESC, name, id;\n",
+        "tests": [
+          {
+            "output": " name  |   hired\n-------+------------\n Hugo  | 2024-04-01\n Ema   | 2023-02-06\n Jon   | 2022-08-15\n Chloe | 2022-01-10\n Ana   | 2021-03-15\n Dev   | 2020-11-23\n Iris  | 2020-06-08\n Gina  | 2019-09-30\n Ben   | 2019-07-01\n Farid | 2018-05-14\n(10 rows)"
+          },
+          {
+            "stdin": "INSERT INTO employees (id, name, department, title, salary, hired) VALUES\n    (11, 'Bea', 'Sales', 'Sales Rep', 52000, DATE '2022-01-10'),\n    (12, 'Zoe', 'Marketing', 'Designer', 60000, DATE '2024-04-01');",
+            "output": " name  |   hired\n-------+------------\n Hugo  | 2024-04-01\n Zoe   | 2024-04-01\n Ema   | 2023-02-06\n Jon   | 2022-08-15\n Bea   | 2022-01-10\n Chloe | 2022-01-10\n Ana   | 2021-03-15\n Dev   | 2020-11-23\n Iris  | 2020-06-08\n Gina  | 2019-09-30\n Ben   | 2019-07-01\n Farid | 2018-05-14\n(12 rows)"
+          }
+        ],
+        "hints": [
+          "Only `hired` needs `DESC`. `name` and `id` sort ascending, the default.",
+          "List the sort columns in the order they matter: the date, then the name, then the unique column."
+        ]
+      }
+    },
+    {
+      "title": "Top rows and pages",
+      "body": "`LIMIT n` keeps only the first `n` rows of the sorted result. `OFFSET n` skips `n` rows first, which is how you get the next page. The last page can be short, or empty when `OFFSET` skips past every row:\n\n```sql\nLIMIT 3            -- rows 1 to 3\nLIMIT 3 OFFSET 3   -- rows 4 to 6\nLIMIT 3 OFFSET 6   -- rows 7 to 9\n```\n\n`LIMIT` without `ORDER BY` returns some rows, not the top rows, so always sort first. And sort on columns that never tie: if two rows tie at the edge of a page, one could show up on both pages or on neither.\n\n`ORDER BY` runs after the `SELECT` list, so it can use a column alias:\n\n```sql\nSELECT name, salary + 2000 AS with_raise\nFROM employees\nORDER BY with_raise DESC, id;\n```\n\nUse the alias on its own. `WHERE` cannot see it, and neither can an expression like `ORDER BY with_raise + 1`.",
+      "example": {
+        "title": "Pay pages",
+        "prompt": "Show the 3 highest paid employees with a 2000 raise added, then the next page of 3.",
+        "code": "-- The 3 highest paid\nSELECT name, salary, salary + 2000 AS with_raise\nFROM employees\nORDER BY with_raise DESC, id\nLIMIT 3;\n\n-- The next page: rows 4 to 6\nSELECT name, salary, salary + 2000 AS with_raise\nFROM employees\nORDER BY with_raise DESC, id\nLIMIT 3 OFFSET 3;\n",
+        "output": " name  | salary | with_raise\n-------+--------+------------\n Farid | 120000 |     122000\n Ana   |  95000 |      97000\n Chloe |  88000 |      90000\n(3 rows)\n\n name | salary | with_raise\n------+--------+------------\n Iris |  88000 |      90000\n Gina |  85000 |      87000\n Ben  |  62000 |      64000\n(3 rows)",
+        "explanation": "Both queries sort the same way, by the `with_raise` alias from highest to lowest, with `id` as the tie breaker. The first keeps rows 1 to 3. The second skips those 3 with `OFFSET 3` and keeps the next 3. Chloe and Iris tie at 90000, and `id` puts Chloe on page one and Iris on page two every time."
+      },
+      "practice": {
+        "title": "Earliest hires",
+        "prompt": "Show the 2 earliest hires, then the next 2.\n\n1. In both queries, select `name` and `hired` as `start_date` from `employees`.\n2. Sort by the `start_date` alias, earliest first, then by `id`.\n3. The first query keeps 2 rows.\n4. The second query skips 2 rows and keeps the next 2.\n\nExpected output:\n\n```text\n name  | start_date\n-------+------------\n Farid | 2018-05-14\n Ben   | 2019-07-01\n(2 rows)\n\n name | start_date\n------+------------\n Gina | 2019-09-30\n Iris | 2020-06-08\n(2 rows)\n```",
+        "starter": "-- The 2 earliest hires\nSELECT name, hired AS start_date\nFROM employees\nORDER BY id; -- TODO: sort by start_date and keep 2 rows\n\n-- The next 2\nSELECT name, hired AS start_date\nFROM employees\nORDER BY id; -- TODO: sort the same way, skip 2 rows, keep 2\n",
+        "solution": "-- The 2 earliest hires\nSELECT name, hired AS start_date\nFROM employees\nORDER BY start_date, id\nLIMIT 2;\n\n-- The next 2\nSELECT name, hired AS start_date\nFROM employees\nORDER BY start_date, id\nLIMIT 2 OFFSET 2;\n",
+        "tests": [
+          {
+            "output": " name  | start_date\n-------+------------\n Farid | 2018-05-14\n Ben   | 2019-07-01\n(2 rows)\n\n name | start_date\n------+------------\n Gina | 2019-09-30\n Iris | 2020-06-08\n(2 rows)"
+          },
+          {
+            "stdin": "INSERT INTO employees (id, name, department, title, salary, hired) VALUES\n    (11, 'Pia', 'Sales', 'Sales Rep', 51000, DATE '2018-05-14'),\n    (12, 'Omar', 'Marketing', 'Designer', 57000, DATE '2018-05-14');",
+            "output": " name  | start_date\n-------+------------\n Farid | 2018-05-14\n Pia   | 2018-05-14\n(2 rows)\n\n name | start_date\n------+------------\n Omar | 2018-05-14\n Ben  | 2019-07-01\n(2 rows)"
+          },
+          {
+            "stdin": "DELETE FROM employees WHERE id > 3;",
+            "output": " name | start_date\n------+------------\n Ben  | 2019-07-01\n Ana  | 2021-03-15\n(2 rows)\n\n name  | start_date\n-------+------------\n Chloe | 2022-01-10\n(1 row)"
+          }
+        ],
+        "hints": [
+          "Dates sort earliest first by default, so no `DESC` is needed.",
+          "Both queries sort the same way. The second one also skips the first page with `OFFSET`."
+        ]
+      }
+    },
+    {
+      "title": "Removing duplicates",
+      "body": "`SELECT DISTINCT` keeps one copy of each different row in the result:\n\n```sql\nSELECT DISTINCT department\nFROM employees\nORDER BY department;\n```\n\nWith several columns, `DISTINCT` compares the whole row, not just the first column. `SELECT DISTINCT department, title` keeps each different pair once, so a department still shows up once for every title it has. Parentheses do not change that: `SELECT DISTINCT (department), title` still compares both columns.\n\nSince every row left is different, sorting by all the selected columns never ties. One rule to know: with `DISTINCT`, every `ORDER BY` column must be in the `SELECT` list. Sorting distinct departments by `id` fails, because each department has many ids:\n\n```sql\nSELECT DISTINCT department\nFROM employees\nORDER BY id;\n```\n\n```text\nERROR:  for SELECT DISTINCT, ORDER BY expressions must appear in select list\n```\n\nTry it in the editor to see the error.",
+      "example": {
+        "title": "Departments and their titles",
+        "prompt": "List each department once, then each different department and title pair.",
+        "code": "SELECT DISTINCT department\nFROM employees\nORDER BY department;\n\nSELECT DISTINCT department, title\nFROM employees\nORDER BY department, title;\n",
+        "output": " department\n-------------\n Engineering\n Marketing\n Sales\n(3 rows)\n\n department  |      title\n-------------+-----------------\n Engineering | Developer\n Engineering | Manager\n Marketing   | Designer\n Marketing   | Manager\n Sales       | Account Manager\n Sales       | Sales Rep\n(6 rows)",
+        "explanation": "The first query collapses 10 rows into 3 departments. The second keeps one row per different pair: Engineering has three Developers, but `Engineering | Developer` appears once. Sorting by both columns gives a fixed order because no two rows are the same."
+      },
+      "practice": {
+        "title": "Titles and where they work",
+        "prompt": "List each job title once, then each different title and department pair.\n\n1. Select the distinct `title` values from `employees`, sorted A to Z.\n2. Select the distinct `title`, `department` pairs, sorted by `title`, then `department`.\n\nExpected output:\n\n```text\n      title\n-----------------\n Account Manager\n Designer\n Developer\n Manager\n Sales Rep\n(5 rows)\n\n      title      | department\n-----------------+-------------\n Account Manager | Sales\n Designer        | Marketing\n Developer       | Engineering\n Manager         | Engineering\n Manager         | Marketing\n Sales Rep       | Sales\n(6 rows)\n```",
+        "starter": "-- TODO: list each title once\nSELECT title\nFROM employees\nORDER BY id;\n\n-- TODO: list each (title, department) pair once\nSELECT title, department\nFROM employees\nORDER BY id;\n",
+        "solution": "SELECT DISTINCT title\nFROM employees\nORDER BY title;\n\nSELECT DISTINCT title, department\nFROM employees\nORDER BY title, department;\n",
+        "tests": [
+          {
+            "output": "      title\n-----------------\n Account Manager\n Designer\n Developer\n Manager\n Sales Rep\n(5 rows)\n\n      title      | department\n-----------------+-------------\n Account Manager | Sales\n Designer        | Marketing\n Developer       | Engineering\n Manager         | Engineering\n Manager         | Marketing\n Sales Rep       | Sales\n(6 rows)"
+          },
+          {
+            "stdin": "INSERT INTO employees (id, name, department, title, salary, hired) VALUES\n    (11, 'Kai', 'Sales', 'Developer', 70000, DATE '2024-05-02'),\n    (12, 'Lena', 'Engineering', 'Developer', 90000, DATE '2024-06-17'),\n    (13, 'Mo', 'Support', 'Technician', 48000, DATE '2024-07-01');",
+            "output": "      title\n-----------------\n Account Manager\n Designer\n Developer\n Manager\n Sales Rep\n Technician\n(6 rows)\n\n      title      | department\n-----------------+-------------\n Account Manager | Sales\n Designer        | Marketing\n Developer       | Engineering\n Developer       | Sales\n Manager         | Engineering\n Manager         | Marketing\n Sales Rep       | Sales\n Technician      | Support\n(8 rows)"
+          }
+        ],
+        "hints": [
+          "`DISTINCT` goes right after `SELECT` and applies to every column you list.",
+          "With `DISTINCT`, sort only by the columns you select, so `ORDER BY id` has to go."
+        ]
+      }
+    }
+  ],
+  "recap": "- `ORDER BY a, b DESC` sorts by `a` ascending, then ties by `b` descending. `DESC` applies to one column.\n- End the sort with a unique column like `id` so ties always come out the same way.\n- `LIMIT n` keeps the first `n` rows and `OFFSET n` skips `n` rows. Always sort before you limit.\n- `ORDER BY` can use a `SELECT` alias on its own.\n- `SELECT DISTINCT` removes repeated rows, comparing every selected column.\n- With `DISTINCT`, every `ORDER BY` column must be in the `SELECT` list."
+}

@@ -1,0 +1,105 @@
+{
+  "id": "running-totals",
+  "title": "Running Totals and Moving Averages",
+  "section": "Window Functions",
+  "summary": "Add up rows as you go, and average over a sliding window.",
+  "intro": "A window function keeps every row and adds a number computed from other rows. This lesson puts that to work on the questions every sales report asks: how much so far, what is the recent trend, and what share of the total is this row.",
+  "setup": "CREATE TABLE daily_sales (\n    id integer,\n    day date,\n    store text,\n    amount numeric(10, 2)\n);\nINSERT INTO daily_sales (id, day, store, amount) VALUES\n    (1, DATE '2025-03-01', 'North', 120.00),\n    (2, DATE '2025-03-01', 'South', 90.00),\n    (3, DATE '2025-03-02', 'North', 80.00),\n    (4, DATE '2025-03-02', 'South', 110.00),\n    (5, DATE '2025-03-03', 'North', 150.00),\n    (6, DATE '2025-03-03', 'South', 70.00),\n    (7, DATE '2025-03-04', 'North', 100.00),\n    (8, DATE '2025-03-04', 'South', 130.00),\n    (9, DATE '2025-03-05', 'North', 90.00),\n    (10, DATE '2025-03-05', 'South', 100.00);\n",
+  "steps": [
+    {
+      "title": "Running totals",
+      "body": "This lesson uses a `daily_sales` table: two stores, North and South, with one sale total per store per day for five days.\n\n```sql\nCREATE TABLE daily_sales (id integer, day date, store text,\n    amount numeric(10, 2));\n```\n\n| id | day | store | amount |\n| --- | --- | --- | --- |\n| 1 | 2025-03-01 | North | 120.00 |\n| 2 | 2025-03-01 | South | 90.00 |\n| 3 | 2025-03-02 | North | 80.00 |\n\nA running total adds each row to everything before it. Put `ORDER BY` inside `OVER` and `sum` no longer sees every row. It sums from the first row up to the current one:\n\n```sql\nsum(amount) OVER (ORDER BY day) AS running_total\n```\n\n`count(*) OVER (ORDER BY day)` counts rows so far the same way. Add `PARTITION BY store` and the total starts over for each store:\n\n```sql\nsum(amount) OVER (PARTITION BY store ORDER BY day)\n```\n\nTwo gotchas. Rows that tie on the window's `ORDER BY` are added together, so two sales on the same day get the same running total. Add a unique column, as in `ORDER BY day, id`, to count them one at a time. And `sum` skips a `NULL` amount, so the total carries over unchanged, while `count(*)` still counts that row.",
+      "example": {
+        "title": "Running sales per store",
+        "prompt": "Show a running total of North's sales by day, then running totals for both stores that restart for each store.",
+        "code": "-- North only: add each day to the days before it\nSELECT day, amount, sum(amount) OVER (ORDER BY day) AS running_total\nFROM daily_sales\nWHERE store = 'North'\nORDER BY day;\n\n-- Both stores: the total restarts for each store\nSELECT\n    store,\n    day,\n    amount,\n    sum(amount) OVER (PARTITION BY store ORDER BY day) AS running_total\nFROM daily_sales\nORDER BY store, day;\n",
+        "output": "    day     | amount | running_total\n------------+--------+---------------\n 2025-03-01 | 120.00 |        120.00\n 2025-03-02 |  80.00 |        200.00\n 2025-03-03 | 150.00 |        350.00\n 2025-03-04 | 100.00 |        450.00\n 2025-03-05 |  90.00 |        540.00\n(5 rows)\n\n store |    day     | amount | running_total\n-------+------------+--------+---------------\n North | 2025-03-01 | 120.00 |        120.00\n North | 2025-03-02 |  80.00 |        200.00\n North | 2025-03-03 | 150.00 |        350.00\n North | 2025-03-04 | 100.00 |        450.00\n North | 2025-03-05 |  90.00 |        540.00\n South | 2025-03-01 |  90.00 |         90.00\n South | 2025-03-02 | 110.00 |        200.00\n South | 2025-03-03 |  70.00 |        270.00\n South | 2025-03-04 | 130.00 |        400.00\n South | 2025-03-05 | 100.00 |        500.00\n(10 rows)",
+        "explanation": "In the first query `ORDER BY day` inside `OVER` makes `sum` add up from the first day to the current one: 120, then 120 + 80 = 200, and so on. The second query adds `PARTITION BY store`, so South starts again at 90.00 instead of continuing from North's 540.00. The `ORDER BY` at the end only sorts the output. The one inside `OVER` decides what gets added."
+      },
+      "practice": {
+        "title": "Days and totals so far",
+        "prompt": "Show how many sale days each store has had so far and its running total.\n\n1. Select `store` and `day` from `daily_sales`.\n2. Add `days_so_far`: a running `count(*)` that restarts for each store, ordered by `day`.\n3. Add `running_total`: a running `sum(amount)` that restarts for each store, ordered by `day`.\n4. Sort by `store`, then `day`.\n\nExpected output:\n\n```text\n store |    day     | days_so_far | running_total\n-------+------------+-------------+---------------\n North | 2025-03-01 |           1 |        120.00\n North | 2025-03-02 |           2 |        200.00\n North | 2025-03-03 |           3 |        350.00\n North | 2025-03-04 |           4 |        450.00\n North | 2025-03-05 |           5 |        540.00\n South | 2025-03-01 |           1 |         90.00\n South | 2025-03-02 |           2 |        200.00\n South | 2025-03-03 |           3 |        270.00\n South | 2025-03-04 |           4 |        400.00\n South | 2025-03-05 |           5 |        500.00\n(10 rows)\n```",
+        "starter": "SELECT\n    store,\n    day\n    -- TODO: add days_so_far and running_total, both restarting for each store\nFROM daily_sales\nORDER BY store, day;\n",
+        "solution": "SELECT\n    store,\n    day,\n    count(*) OVER (PARTITION BY store ORDER BY day) AS days_so_far,\n    sum(amount) OVER (PARTITION BY store ORDER BY day) AS running_total\nFROM daily_sales\nORDER BY store, day;\n",
+        "tests": [
+          {
+            "output": " store |    day     | days_so_far | running_total\n-------+------------+-------------+---------------\n North | 2025-03-01 |           1 |        120.00\n North | 2025-03-02 |           2 |        200.00\n North | 2025-03-03 |           3 |        350.00\n North | 2025-03-04 |           4 |        450.00\n North | 2025-03-05 |           5 |        540.00\n South | 2025-03-01 |           1 |         90.00\n South | 2025-03-02 |           2 |        200.00\n South | 2025-03-03 |           3 |        270.00\n South | 2025-03-04 |           4 |        400.00\n South | 2025-03-05 |           5 |        500.00\n(10 rows)"
+          },
+          {
+            "stdin": "INSERT INTO daily_sales (id, day, store, amount) VALUES\n    (11, DATE '2025-03-06', 'North', 60.00),\n    (12, DATE '2025-03-06', 'South', 140.00),\n    (13, DATE '2025-03-06', 'East', 75.00);\n",
+            "output": " store |    day     | days_so_far | running_total\n-------+------------+-------------+---------------\n East  | 2025-03-06 |           1 |         75.00\n North | 2025-03-01 |           1 |        120.00\n North | 2025-03-02 |           2 |        200.00\n North | 2025-03-03 |           3 |        350.00\n North | 2025-03-04 |           4 |        450.00\n North | 2025-03-05 |           5 |        540.00\n North | 2025-03-06 |           6 |        600.00\n South | 2025-03-01 |           1 |         90.00\n South | 2025-03-02 |           2 |        200.00\n South | 2025-03-03 |           3 |        270.00\n South | 2025-03-04 |           4 |        400.00\n South | 2025-03-05 |           5 |        500.00\n South | 2025-03-06 |           6 |        640.00\n(13 rows)"
+          },
+          {
+            "stdin": "DELETE FROM daily_sales WHERE id = 3;\nUPDATE daily_sales SET amount = NULL WHERE id = 6;\n",
+            "output": " store |    day     | days_so_far | running_total\n-------+------------+-------------+---------------\n North | 2025-03-01 |           1 |        120.00\n North | 2025-03-03 |           2 |        270.00\n North | 2025-03-04 |           3 |        370.00\n North | 2025-03-05 |           4 |        460.00\n South | 2025-03-01 |           1 |         90.00\n South | 2025-03-02 |           2 |        200.00\n South | 2025-03-03 |           3 |        200.00\n South | 2025-03-04 |           4 |        330.00\n South | 2025-03-05 |           5 |        430.00\n(9 rows)"
+          }
+        ],
+        "hints": [
+          "Both columns restart for each store and grow day by day, so they share one window.",
+          "That window is `OVER (PARTITION BY store ORDER BY day)`. Put `count(*)` in front of it for one column and `sum(amount)` for the other."
+        ]
+      }
+    },
+    {
+      "title": "Moving averages with a frame",
+      "body": "A moving average smooths out bumpy days by averaging only the last few rows. You choose those rows with a frame, written after the window's `ORDER BY`:\n\n```sql\navg(amount) OVER (\n    PARTITION BY store\n    ORDER BY day\n    ROWS BETWEEN 2 PRECEDING AND CURRENT ROW\n)\n```\n\n`ROWS BETWEEN 2 PRECEDING AND CURRENT ROW` means this row and the two before it in the same partition, so three rows at most. Swap in `sum` for a moving sum, or `1 PRECEDING` for a two row window. Wrap the average in `round(..., 2)` so it prints briefly.\n\nThree things to know:\n\n- The first rows of each partition have fewer rows behind them, so the first day averages one row and the second day averages two.\n- `ROWS` counts rows, not days. If a store skipped a day, `2 PRECEDING` still reaches back two rows, which covers more than three calendar days.\n- Rows that tie on `day` have no fixed order inside a `ROWS` frame. If a store can have two rows on one day, order by `day, id`.",
+      "example": {
+        "title": "Three day moving average",
+        "prompt": "For each store, average each day's sales with the two days before it.",
+        "code": "-- Average of this day and the two days before it, per store\nSELECT\n    store,\n    day,\n    amount,\n    round(avg(amount) OVER (\n        PARTITION BY store\n        ORDER BY day\n        ROWS BETWEEN 2 PRECEDING AND CURRENT ROW\n    ), 2) AS avg_3_day\nFROM daily_sales\nORDER BY store, day;\n",
+        "output": " store |    day     | amount | avg_3_day\n-------+------------+--------+-----------\n North | 2025-03-01 | 120.00 |    120.00\n North | 2025-03-02 |  80.00 |    100.00\n North | 2025-03-03 | 150.00 |    116.67\n North | 2025-03-04 | 100.00 |    110.00\n North | 2025-03-05 |  90.00 |    113.33\n South | 2025-03-01 |  90.00 |     90.00\n South | 2025-03-02 | 110.00 |    100.00\n South | 2025-03-03 |  70.00 |     90.00\n South | 2025-03-04 | 130.00 |    103.33\n South | 2025-03-05 | 100.00 |    100.00\n(10 rows)",
+        "explanation": "The frame holds at most three rows of the same store. North's 3rd of March averages 120, 80, and 150, which is 116.67. On the 4th the 120 drops out and 100 comes in: (80 + 150 + 100) / 3 = 110.00. The first day of each store has only itself in the frame, so its average equals its amount."
+      },
+      "practice": {
+        "title": "Two day moving sum",
+        "prompt": "For each store, add each day's sales to the day before it.\n\n1. Select `store`, `day`, and `amount` from `daily_sales`.\n2. Add `sum_2_day`: the `sum(amount)` of this row and the one row before it, per store, ordered by `day`.\n3. Sort by `store`, then `day`.\n\nExpected output:\n\n```text\n store |    day     | amount | sum_2_day\n-------+------------+--------+-----------\n North | 2025-03-01 | 120.00 |    120.00\n North | 2025-03-02 |  80.00 |    200.00\n North | 2025-03-03 | 150.00 |    230.00\n North | 2025-03-04 | 100.00 |    250.00\n North | 2025-03-05 |  90.00 |    190.00\n South | 2025-03-01 |  90.00 |     90.00\n South | 2025-03-02 | 110.00 |    200.00\n South | 2025-03-03 |  70.00 |    180.00\n South | 2025-03-04 | 130.00 |    200.00\n South | 2025-03-05 | 100.00 |    230.00\n(10 rows)\n```",
+        "starter": "SELECT\n    store,\n    day,\n    amount\n    -- TODO: add sum_2_day, the sum of this row and the one before it, per store\nFROM daily_sales\nORDER BY store, day;\n",
+        "solution": "SELECT\n    store,\n    day,\n    amount,\n    sum(amount) OVER (\n        PARTITION BY store\n        ORDER BY day\n        ROWS BETWEEN 1 PRECEDING AND CURRENT ROW\n    ) AS sum_2_day\nFROM daily_sales\nORDER BY store, day;\n",
+        "tests": [
+          {
+            "output": " store |    day     | amount | sum_2_day\n-------+------------+--------+-----------\n North | 2025-03-01 | 120.00 |    120.00\n North | 2025-03-02 |  80.00 |    200.00\n North | 2025-03-03 | 150.00 |    230.00\n North | 2025-03-04 | 100.00 |    250.00\n North | 2025-03-05 |  90.00 |    190.00\n South | 2025-03-01 |  90.00 |     90.00\n South | 2025-03-02 | 110.00 |    200.00\n South | 2025-03-03 |  70.00 |    180.00\n South | 2025-03-04 | 130.00 |    200.00\n South | 2025-03-05 | 100.00 |    230.00\n(10 rows)"
+          },
+          {
+            "stdin": "UPDATE daily_sales SET amount = 200.00 WHERE id = 3;\nUPDATE daily_sales SET amount = 40.00 WHERE id = 8;\nDELETE FROM daily_sales WHERE id = 6;\n",
+            "output": " store |    day     | amount | sum_2_day\n-------+------------+--------+-----------\n North | 2025-03-01 | 120.00 |    120.00\n North | 2025-03-02 | 200.00 |    320.00\n North | 2025-03-03 | 150.00 |    350.00\n North | 2025-03-04 | 100.00 |    250.00\n North | 2025-03-05 |  90.00 |    190.00\n South | 2025-03-01 |  90.00 |     90.00\n South | 2025-03-02 | 110.00 |    200.00\n South | 2025-03-04 |  40.00 |    150.00\n South | 2025-03-05 | 100.00 |    140.00\n(9 rows)"
+          }
+        ],
+        "hints": [
+          "Start from a running total per store, `sum(amount) OVER (PARTITION BY store ORDER BY day)`, then add a frame after the `ORDER BY`.",
+          "The example's frame reaches back 2 rows. Yours reaches back only 1."
+        ]
+      }
+    },
+    {
+      "title": "Share of a total",
+      "body": "As with any window function, an empty `OVER ()` makes the window every row, so `sum(amount) OVER ()` puts the grand total next to each row. `OVER (PARTITION BY store)` puts the store's total there instead. With no `ORDER BY` inside, there is no running part: every row in the partition sees the same total.\n\nThat makes a share of the total one expression:\n\n```sql\nround(100.0 * amount / sum(amount) OVER (PARTITION BY store), 1) AS pct_of_store\n```\n\nWhy `100.0` and not `100`? If both sides were integers, like a `count(*)`, `100 * part / total` would drop the remainder and print 33 instead of 33.3. Multiplying by `100.0` first makes the value numeric before the division happens, so the answer stays exact. Then round to one decimal place.\n\nRounded shares do not always add up to exactly 100. That is normal. A `NULL` amount is skipped by `sum`, and its own share is `NULL`, which prints as nothing. A total of 0 is a division by zero error, so wrap it in `NULLIF(..., 0)` when that can happen.",
+      "example": {
+        "title": "Share of the store total",
+        "prompt": "Show each store's total next to each of its days, and what percent of that total each day made.",
+        "code": "-- Each day's share of its own store's total\nSELECT\n    store,\n    day,\n    amount,\n    sum(amount) OVER (PARTITION BY store) AS store_total,\n    round(100.0 * amount / sum(amount) OVER (PARTITION BY store), 1) AS pct_of_store\nFROM daily_sales\nORDER BY store, day;\n",
+        "output": " store |    day     | amount | store_total | pct_of_store\n-------+------------+--------+-------------+--------------\n North | 2025-03-01 | 120.00 |      540.00 |         22.2\n North | 2025-03-02 |  80.00 |      540.00 |         14.8\n North | 2025-03-03 | 150.00 |      540.00 |         27.8\n North | 2025-03-04 | 100.00 |      540.00 |         18.5\n North | 2025-03-05 |  90.00 |      540.00 |         16.7\n South | 2025-03-01 |  90.00 |      500.00 |         18.0\n South | 2025-03-02 | 110.00 |      500.00 |         22.0\n South | 2025-03-03 |  70.00 |      500.00 |         14.0\n South | 2025-03-04 | 130.00 |      500.00 |         26.0\n South | 2025-03-05 | 100.00 |      500.00 |         20.0\n(10 rows)",
+        "explanation": "`sum(amount) OVER (PARTITION BY store)` has no `ORDER BY`, so every North row sees North's full total of 540.00. Dividing each amount by it and multiplying by `100.0` gives the share: 120 / 540 is 22.2 percent. Each row keeps its own `amount`, which is what a `GROUP BY` could not give you."
+      },
+      "practice": {
+        "title": "Share of all sales",
+        "prompt": "Show what percent of all sales, across both stores, each row made.\n\n1. Select `day`, `store`, and `amount` from `daily_sales`.\n2. Add `pct_of_all`: `100.0 * amount` divided by the total of every row, rounded to 1 decimal place.\n3. Sort by `day`, then `store`.\n\nExpected output:\n\n```text\n    day     | store | amount | pct_of_all\n------------+-------+--------+------------\n 2025-03-01 | North | 120.00 |       11.5\n 2025-03-01 | South |  90.00 |        8.7\n 2025-03-02 | North |  80.00 |        7.7\n 2025-03-02 | South | 110.00 |       10.6\n 2025-03-03 | North | 150.00 |       14.4\n 2025-03-03 | South |  70.00 |        6.7\n 2025-03-04 | North | 100.00 |        9.6\n 2025-03-04 | South | 130.00 |       12.5\n 2025-03-05 | North |  90.00 |        8.7\n 2025-03-05 | South | 100.00 |        9.6\n(10 rows)\n```",
+        "starter": "SELECT\n    day,\n    store,\n    amount\n    -- TODO: add pct_of_all, this row's percent of all sales\nFROM daily_sales\nORDER BY day, store;\n",
+        "solution": "SELECT\n    day,\n    store,\n    amount,\n    round(100.0 * amount / sum(amount) OVER (), 1) AS pct_of_all\nFROM daily_sales\nORDER BY day, store;\n",
+        "tests": [
+          {
+            "output": "    day     | store | amount | pct_of_all\n------------+-------+--------+------------\n 2025-03-01 | North | 120.00 |       11.5\n 2025-03-01 | South |  90.00 |        8.7\n 2025-03-02 | North |  80.00 |        7.7\n 2025-03-02 | South | 110.00 |       10.6\n 2025-03-03 | North | 150.00 |       14.4\n 2025-03-03 | South |  70.00 |        6.7\n 2025-03-04 | North | 100.00 |        9.6\n 2025-03-04 | South | 130.00 |       12.5\n 2025-03-05 | North |  90.00 |        8.7\n 2025-03-05 | South | 100.00 |        9.6\n(10 rows)"
+          },
+          {
+            "stdin": "UPDATE daily_sales SET amount = 500.00 WHERE id = 5;\nUPDATE daily_sales SET amount = NULL WHERE id = 10;\n",
+            "output": "    day     | store | amount | pct_of_all\n------------+-------+--------+------------\n 2025-03-01 | North | 120.00 |        9.3\n 2025-03-01 | South |  90.00 |        7.0\n 2025-03-02 | North |  80.00 |        6.2\n 2025-03-02 | South | 110.00 |        8.5\n 2025-03-03 | North | 500.00 |       38.8\n 2025-03-03 | South |  70.00 |        5.4\n 2025-03-04 | North | 100.00 |        7.8\n 2025-03-04 | South | 130.00 |       10.1\n 2025-03-05 | North |  90.00 |        7.0\n 2025-03-05 | South |        |\n(10 rows)"
+          }
+        ],
+        "hints": [
+          "The total of every row is `sum(amount) OVER ()`, with nothing inside the parentheses.",
+          "Start from the example's `pct_of_store` expression, drop `PARTITION BY store`, and rename the column."
+        ]
+      }
+    }
+  ],
+  "recap": "- `sum(x) OVER (ORDER BY col)` is a running total. `count(*)` the same way is a running count.\n- `PARTITION BY group` restarts the running total for each group.\n- Rows that tie on the window's `ORDER BY` share one total. Add a unique column to separate them.\n- `ROWS BETWEEN n PRECEDING AND CURRENT ROW` limits the frame to the current row and the n rows before it, for moving sums and averages.\n- `ROWS` counts rows, not days, and the first rows have shorter frames.\n- `sum(x) OVER ()` puts the grand total on every row. `OVER (PARTITION BY group)` puts the group total there.\n- `round(100.0 * part / total, 1)` gives a percentage with one decimal place."
+}

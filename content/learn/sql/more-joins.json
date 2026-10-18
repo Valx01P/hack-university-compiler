@@ -1,0 +1,107 @@
+{
+  "id": "more-joins",
+  "title": "Self Joins and Many Tables",
+  "section": "Joining Tables",
+  "summary": "Join three tables in one query, join a table to itself, and build every combination.",
+  "intro": "Real questions often span more than two tables, or link a table to its own rows. This lesson chains joins across four tables, joins a table to itself with two aliases, and builds every combination with CROSS JOIN.",
+  "setup": "CREATE TABLE customers (\n    id integer PRIMARY KEY,\n    name text\n);\nINSERT INTO customers (id, name) VALUES\n    (1, 'Ana'),\n    (2, 'Ben'),\n    (3, 'Cleo');\n\nCREATE TABLE orders (\n    id integer PRIMARY KEY,\n    customer_id integer,\n    ordered_on date\n);\nINSERT INTO orders (id, customer_id, ordered_on) VALUES\n    (1, 1, DATE '2025-03-01'),\n    (2, 2, DATE '2025-03-02'),\n    (3, 1, DATE '2025-03-05'),\n    (4, 3, DATE '2025-03-07');\n\nCREATE TABLE products (\n    id integer PRIMARY KEY,\n    name text,\n    price numeric(10, 2)\n);\nINSERT INTO products (id, name, price) VALUES\n    (1, 'Notebook', 3.50),\n    (2, 'Pen', 1.25),\n    (3, 'Backpack', 24.00),\n    (4, 'Mug', 8.00);\n\nCREATE TABLE order_items (\n    order_id integer,\n    product_id integer,\n    qty integer\n);\nINSERT INTO order_items (order_id, product_id, qty) VALUES\n    (1, 1, 2),\n    (1, 2, 5),\n    (2, 3, 1),\n    (3, 2, 3),\n    (3, 4, 2),\n    (4, 1, 1),\n    (4, 4, 1);\n\nCREATE TABLE staff (\n    id integer PRIMARY KEY,\n    name text,\n    manager_id integer\n);\nINSERT INTO staff (id, name, manager_id) VALUES\n    (1, 'Maya', NULL),\n    (2, 'Omar', 1),\n    (3, 'Priya', 1),\n    (4, 'Liam', 2),\n    (5, 'Nora', 2),\n    (6, 'Theo', 3);\n\nCREATE TABLE sizes (size text);\nINSERT INTO sizes (size) VALUES ('S'), ('M'), ('L');\n\nCREATE TABLE colors (color text);\nINSERT INTO colors (color) VALUES ('Black'), ('Red'), ('White');\n",
+  "steps": [
+    {
+      "title": "Three tables in one query",
+      "body": "This part uses a small shop. `customers (id, name)` holds Ana, Ben, and Cleo. `products (id, name, price)` holds a Notebook at 3.50, a Pen at 1.25, a Backpack at 24.00, and a Mug at 8.00. Orders and their lines live in two more tables:\n\n```text\n id | customer_id | ordered_on\n----+-------------+------------\n  1 |           1 | 2025-03-01\n  2 |           2 | 2025-03-02\n  3 |           1 | 2025-03-05\n  4 |           3 | 2025-03-07\n(4 rows)\n\n order_id | product_id | qty\n----------+------------+-----\n        1 |          1 |   2\n        1 |          2 |   5\n        2 |          3 |   1\n        3 |          2 |   3\n        3 |          4 |   2\n        4 |          1 |   1\n        4 |          4 |   1\n(7 rows)\n```\n\nAn order line holds only ids, so you follow each id to its table. Every `JOIN ... ON` adds one more table, matched to a table already in the query:\n\n```sql\nFROM orders AS o\nJOIN customers AS c ON c.id = o.customer_id\nJOIN order_items AS oi ON oi.order_id = o.id\nJOIN products AS p ON p.id = oi.product_id\n```\n\nRead the joins left to right: orders with customers, that result with order lines, and that with products. The planner may run them in any order with the same result. Each `ON` may use any alias joined before it. Give every table a short alias and name every column with it, because `name` is in both `customers` and `products` and a bare `name` fails with `column reference \"name\" is ambiguous`.\n\nPlain `JOIN` drops rows with no match, at every step. A customer with no orders disappears from the result, just as in a two table join. If you keep such rows with `LEFT JOIN`, make the joins after it `LEFT JOIN` too, or a later plain `JOIN` drops them again.",
+      "example": {
+        "title": "Order lines in words",
+        "prompt": "List every order line with the customer, the product, and the line total.",
+        "code": "SELECT o.id AS order_id, c.name AS customer, p.name AS product, oi.qty * p.price AS line_total\nFROM orders AS o\nJOIN customers AS c ON c.id = o.customer_id\nJOIN order_items AS oi ON oi.order_id = o.id\nJOIN products AS p ON p.id = oi.product_id\nORDER BY o.id, p.name;\n",
+        "output": " order_id | customer | product  | line_total\n----------+----------+----------+------------\n        1 | Ana      | Notebook |       7.00\n        1 | Ana      | Pen      |       6.25\n        2 | Ben      | Backpack |      24.00\n        3 | Ana      | Mug      |      16.00\n        3 | Ana      | Pen      |       3.75\n        4 | Cleo     | Mug      |       8.00\n        4 | Cleo     | Notebook |       3.50\n(7 rows)",
+        "explanation": "Each order joins its customer through `customer_id`, then its lines through `order_id`, then each line's product through `product_id`. One row comes out per order line, and `oi.qty * p.price` mixes columns from two different tables. Sorting by order id, then product name, keeps the result stable because no order has the same product twice."
+      },
+      "practice": {
+        "title": "What each customer bought",
+        "prompt": "List every product each customer ordered, with the quantity and the order date.\n\n1. Start from `customers` as `c` and join `orders` as `o`, `order_items` as `oi`, and `products` as `p`.\n2. Select `c.name` as `customer`, `p.name` as `product`, `oi.qty`, and `o.ordered_on`.\n3. Sort by customer name, then product name, then `o.id`.\n\nExpected output:\n\n```text\n customer | product  | qty | ordered_on\n----------+----------+-----+------------\n Ana      | Mug      |   2 | 2025-03-05\n Ana      | Notebook |   2 | 2025-03-01\n Ana      | Pen      |   5 | 2025-03-01\n Ana      | Pen      |   3 | 2025-03-05\n Ben      | Backpack |   1 | 2025-03-02\n Cleo     | Mug      |   1 | 2025-03-07\n Cleo     | Notebook |   1 | 2025-03-07\n(7 rows)\n```",
+        "starter": "-- TODO: join order_items and products, then show the product and qty\nSELECT c.name AS customer, o.ordered_on\nFROM customers AS c\nJOIN orders AS o ON o.customer_id = c.id\nORDER BY c.name, o.id;\n",
+        "solution": "SELECT c.name AS customer, p.name AS product, oi.qty, o.ordered_on\nFROM customers AS c\nJOIN orders AS o ON o.customer_id = c.id\nJOIN order_items AS oi ON oi.order_id = o.id\nJOIN products AS p ON p.id = oi.product_id\nORDER BY c.name, p.name, o.id;\n",
+        "tests": [
+          {
+            "output": " customer | product  | qty | ordered_on\n----------+----------+-----+------------\n Ana      | Mug      |   2 | 2025-03-05\n Ana      | Notebook |   2 | 2025-03-01\n Ana      | Pen      |   5 | 2025-03-01\n Ana      | Pen      |   3 | 2025-03-05\n Ben      | Backpack |   1 | 2025-03-02\n Cleo     | Mug      |   1 | 2025-03-07\n Cleo     | Notebook |   1 | 2025-03-07\n(7 rows)"
+          },
+          {
+            "stdin": "INSERT INTO customers (id, name) VALUES (4, 'Dana');\nINSERT INTO orders (id, customer_id, ordered_on) VALUES (5, 2, DATE '2025-03-09');\nINSERT INTO order_items (order_id, product_id, qty) VALUES (5, 2, 10), (5, 1, 4);",
+            "output": " customer | product  | qty | ordered_on\n----------+----------+-----+------------\n Ana      | Mug      |   2 | 2025-03-05\n Ana      | Notebook |   2 | 2025-03-01\n Ana      | Pen      |   5 | 2025-03-01\n Ana      | Pen      |   3 | 2025-03-05\n Ben      | Backpack |   1 | 2025-03-02\n Ben      | Notebook |   4 | 2025-03-09\n Ben      | Pen      |  10 | 2025-03-09\n Cleo     | Mug      |   1 | 2025-03-07\n Cleo     | Notebook |   1 | 2025-03-07\n(9 rows)"
+          }
+        ],
+        "hints": [
+          "Each new `JOIN` matches one id: orders by `customer_id`, lines by `order_id`, products by `product_id`.",
+          "Add two `JOIN` lines after the orders join: `order_items` matched on its `order_id`, then `products` matched on the line's `product_id`.",
+          "With `p` and `oi` in the query, add `p.name AS product` and `oi.qty` to the `SELECT` list and `p.name` to the `ORDER BY`."
+        ]
+      }
+    },
+    {
+      "title": "Joining a table to itself",
+      "body": "A column can point at another row of the same table. In `staff`, `manager_id` holds the id of the person's manager, and Maya, at the top, has none:\n\n```text\n id | name  | manager_id\n----+-------+------------\n  1 | Maya  |\n  2 | Omar  |          1\n  3 | Priya |          1\n  4 | Liam  |          2\n  5 | Nora  |          2\n  6 | Theo  |          3\n(6 rows)\n```\n\nTo show the manager's name, join `staff` to itself. List the table twice with two different aliases, then treat them as two tables: `s` is the employee, `m` is the manager.\n\n```sql\nFROM staff AS s\nLEFT JOIN staff AS m ON m.id = s.manager_id\n```\n\nEach copy needs its own name, so give both an alias. Without them `staff.name` could mean either copy, and PostgreSQL refuses the query:\n\n```text\nERROR:  table name \"staff\" specified more than once\n```\n\nTry `SELECT staff.name FROM staff JOIN staff ON staff.id = staff.manager_id;` in the editor to see it.\n\nPick the join for the question. With a plain `JOIN`, Maya drops out, because her `manager_id` is NULL and `m.id = NULL` is never true. A `LEFT JOIN` keeps her with an empty manager. To list managers and their reports instead, flip the sides: an inner join keeps only people who manage someone.",
+      "example": {
+        "title": "Everyone and their manager",
+        "prompt": "List each staff member with their manager's name, keeping the person who has no manager.",
+        "code": "SELECT s.name AS employee, m.name AS manager\nFROM staff AS s\nLEFT JOIN staff AS m ON m.id = s.manager_id\nORDER BY s.id;\n",
+        "output": " employee | manager\n----------+---------\n Maya     |\n Omar     | Maya\n Priya    | Maya\n Liam     | Omar\n Nora     | Omar\n Theo     | Priya\n(6 rows)",
+        "explanation": "Each row of `s` looks for the row of `m` whose `id` equals its `manager_id`. Omar's `manager_id` is 1, so `m` is Maya. Maya's `manager_id` is NULL and matches nothing, so the `LEFT JOIN` keeps her and fills `manager` with NULL, which prints as nothing."
+      },
+      "practice": {
+        "title": "Who reports to whom",
+        "prompt": "List every manager with each person who reports to them.\n\n1. Join `staff` as `m` (the manager) to `staff` as `s` (the report) on `s.manager_id = m.id`, with a plain `JOIN`.\n2. Select `m.name` as `manager` and `s.name` as `report`.\n3. Sort by manager name, then report name, then `s.id`.\n\nExpected output:\n\n```text\n manager | report\n---------+--------\n Maya    | Omar\n Maya    | Priya\n Omar    | Liam\n Omar    | Nora\n Priya   | Theo\n(5 rows)\n```",
+        "starter": "-- TODO: join staff to itself so each row pairs a manager with a report\nSELECT s.name AS report\nFROM staff AS s\nORDER BY s.name, s.id;\n",
+        "solution": "SELECT m.name AS manager, s.name AS report\nFROM staff AS m\nJOIN staff AS s ON s.manager_id = m.id\nORDER BY m.name, s.name, s.id;\n",
+        "tests": [
+          {
+            "output": " manager | report\n---------+--------\n Maya    | Omar\n Maya    | Priya\n Omar    | Liam\n Omar    | Nora\n Priya   | Theo\n(5 rows)"
+          },
+          {
+            "stdin": "UPDATE staff SET manager_id = 3 WHERE id = 5;\nINSERT INTO staff (id, name, manager_id) VALUES (7, 'Iris', 6), (8, 'Ezra', NULL);",
+            "output": " manager | report\n---------+--------\n Maya    | Omar\n Maya    | Priya\n Omar    | Liam\n Priya   | Nora\n Priya   | Theo\n Theo    | Iris\n(6 rows)"
+          }
+        ],
+        "hints": [
+          "Write `staff` twice in the `FROM`, once as `m` and once as `s`.",
+          "The `ON` matches a report to its manager: the report's `manager_id` equals the manager's `id`.",
+          "A plain `JOIN` drops anyone who manages nobody, which is what you want here."
+        ]
+      }
+    },
+    {
+      "title": "Every combination with CROSS JOIN",
+      "body": "`CROSS JOIN` has no `ON`: it pairs every row of one table with every row of the other. Two small tables, `sizes (size)` with S, M, and L and `colors (color)` with Black, Red, and White, give 3 × 3 = 9 rows.\n\n```sql\nSELECT size, color\nFROM sizes\nCROSS JOIN colors\nORDER BY size, color;\n```\n\nUse it on purpose, to build every combination: product variants, a calendar of every day for every room, a grid. The result size multiplies, so two tables of 1,000 rows give a million.\n\nA table can cross join itself too. On `staff (id, name, manager_id)`, with Maya, Omar, Priya, Liam, Nora, and Theo, that pairs every person with every person, including themselves, and each pair shows up twice (Maya with Omar, then Omar with Maya). Keep each pair once with `WHERE a.id < b.id`: it drops the self pairs and the mirrored copies.\n\n```sql\nFROM staff AS a\nCROSS JOIN staff AS b\nWHERE a.id < b.id\n```\n\nThe old comma form `FROM sizes, colors` means the same thing. Watch for it in other people's code: a comma join that forgot its `WHERE` silently becomes a cross join.",
+      "example": {
+        "title": "Every shirt variant",
+        "prompt": "List every size and color pair with a product code for each.",
+        "code": "SELECT size, color, 'TEE-' || size || '-' || upper(left(color, 3)) AS code\nFROM sizes\nCROSS JOIN colors\nORDER BY size, color;\n",
+        "output": " size | color |   code\n------+-------+-----------\n L    | Black | TEE-L-BLA\n L    | Red   | TEE-L-RED\n L    | White | TEE-L-WHI\n M    | Black | TEE-M-BLA\n M    | Red   | TEE-M-RED\n M    | White | TEE-M-WHI\n S    | Black | TEE-S-BLA\n S    | Red   | TEE-S-RED\n S    | White | TEE-S-WHI\n(9 rows)",
+        "explanation": "Each of the 3 sizes meets each of the 3 colors, so 9 rows come out. The columns from both tables are in reach, so the code mixes `size` and `color`. Sizes sort as text, so L comes before M and S. The size and color pair is unique, so the order is stable."
+      },
+      "practice": {
+        "title": "Pairing rota",
+        "prompt": "List every pair of two different staff members, each pair once, for a pairing rota.\n\n1. Cross join `staff` as `a` with `staff` as `b`.\n2. Keep only rows where `a.id < b.id`.\n3. Select `a.name` as `person_a` and `b.name` as `person_b`, sorted by `a.id`, then `b.id`.\n\nExpected output:\n\n```text\n person_a | person_b\n----------+----------\n Maya     | Omar\n Maya     | Priya\n Maya     | Liam\n Maya     | Nora\n Maya     | Theo\n Omar     | Priya\n Omar     | Liam\n Omar     | Nora\n Omar     | Theo\n Priya    | Liam\n Priya    | Nora\n Priya    | Theo\n Liam     | Nora\n Liam     | Theo\n Nora     | Theo\n(15 rows)\n```",
+        "starter": "-- TODO: pair every staff member with every later one\nSELECT a.name AS person_a\nFROM staff AS a\nORDER BY a.id;\n",
+        "solution": "SELECT a.name AS person_a, b.name AS person_b\nFROM staff AS a\nCROSS JOIN staff AS b\nWHERE a.id < b.id\nORDER BY a.id, b.id;\n",
+        "tests": [
+          {
+            "output": " person_a | person_b\n----------+----------\n Maya     | Omar\n Maya     | Priya\n Maya     | Liam\n Maya     | Nora\n Maya     | Theo\n Omar     | Priya\n Omar     | Liam\n Omar     | Nora\n Omar     | Theo\n Priya    | Liam\n Priya    | Nora\n Priya    | Theo\n Liam     | Nora\n Liam     | Theo\n Nora     | Theo\n(15 rows)"
+          },
+          {
+            "stdin": "INSERT INTO staff (id, name, manager_id) VALUES (7, 'Iris', 6);\nDELETE FROM staff WHERE id IN (2, 4);",
+            "output": " person_a | person_b\n----------+----------\n Maya     | Priya\n Maya     | Nora\n Maya     | Theo\n Maya     | Iris\n Priya    | Nora\n Priya    | Theo\n Priya    | Iris\n Nora     | Theo\n Nora     | Iris\n Theo     | Iris\n(10 rows)"
+          },
+          {
+            "stdin": "DELETE FROM staff WHERE id > 1;\n",
+            "output": " person_a | person_b\n----------+----------\n(0 rows)"
+          }
+        ],
+        "hints": [
+          "Write `FROM staff AS a CROSS JOIN staff AS b`, with no `ON`.",
+          "`WHERE a.id < b.id` removes both the self pairs and the mirrored pairs."
+        ]
+      }
+    }
+  ],
+  "recap": "- Chain joins one at a time: each `JOIN ... ON` matches a new table to one already in the query.\n- Alias every table and qualify columns with it, since names like `name` repeat across tables.\n- A self join lists one table twice with two aliases, such as `staff AS s` and `staff AS m`.\n- `LEFT JOIN` keeps rows with no match, like the person with no manager.\n- `CROSS JOIN` pairs every row with every row, so the row count multiplies.\n- On a self cross join, `WHERE a.id < b.id` keeps each pair once."
+}

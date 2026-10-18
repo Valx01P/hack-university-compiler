@@ -1,0 +1,105 @@
+{
+  "id": "error-handling",
+  "title": "Catching Errors",
+  "section": "Reliable Data",
+  "summary": "Catch errors in PL/pgSQL with EXCEPTION blocks, SQL's try and catch.",
+  "intro": "One bad row can stop a whole program with an ERROR. PL/pgSQL functions let you catch an error, decide what it means, and keep going, the way try and catch works in other languages.",
+  "setup": "CREATE TABLE accounts (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    owner text NOT NULL UNIQUE,\n    balance numeric(10, 2) NOT NULL CHECK (balance >= 0)\n);\nINSERT INTO accounts (owner, balance) VALUES\n    ('Ana', 120.00),\n    ('Ben', 45.50),\n    ('Cleo', 0.00);\n\nCREATE TABLE usernames (name text PRIMARY KEY);\nINSERT INTO usernames (name) VALUES ('admin'), ('ana'), ('zed');\n",
+  "steps": [
+    {
+      "title": "A function that catches an error",
+      "body": "This lesson uses two tables. `balance` can never go below zero, and every username is unique:\n\n```sql\nCREATE TABLE accounts (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    owner text NOT NULL UNIQUE,\n    balance numeric(10, 2) NOT NULL CHECK (balance >= 0)\n);\n-- (1, 'Ana', 120.00), (2, 'Ben', 45.50), (3, 'Cleo', 0.00)\nCREATE TABLE usernames (name text PRIMARY KEY);\n-- 'admin', 'ana', 'zed'\n```\n\nPlain SQL has no try and catch. Try `SELECT 1 / 0;` in the editor and the program stops:\n\n```text\nERROR:  division by zero\n```\n\nTo catch an error, write the function in PL/pgSQL, PostgreSQL's procedural language:\n\n```sql\nCREATE FUNCTION safe_divide(a numeric, b numeric) RETURNS numeric\n    LANGUAGE plpgsql\nAS $$\nBEGIN\n    RETURN round(a / b, 2);\nEXCEPTION\n    WHEN division_by_zero THEN\n        RETURN NULL;\nEND\n$$;\n```\n\nThe body sits between `$$` quotes, so it can hold its own semicolons and quotes. `BEGIN ... END` holds the statements, and `RETURN` hands back the answer. This `BEGIN` only opens a block of code: it does not start a transaction like `BEGIN;` on its own line does. If a statement fails, PostgreSQL skips the rest of the statements, jumps to `EXCEPTION`, and runs the first `WHEN` whose error name matches. Other names you will meet: `invalid_text_representation` (a cast like `'abc'::integer` failed) and `numeric_value_out_of_range` (a number too big for its type, like `'99999999999'::integer`). An error with no matching `WHEN` still stops the program.",
+      "example": {
+        "title": "Dividing safely",
+        "prompt": "Create safe_divide, which returns NULL instead of failing on a zero divisor, then use it on literals and on every account's balance.",
+        "code": "CREATE FUNCTION safe_divide(a numeric, b numeric) RETURNS numeric\n    LANGUAGE plpgsql\nAS $$\nBEGIN\n    RETURN round(a / b, 2);\nEXCEPTION\n    WHEN division_by_zero THEN\n        RETURN NULL;\nEND\n$$;\n\nSELECT safe_divide(10, 4) AS ten_by_four, safe_divide(1, 0) AS one_by_zero;\n\nSELECT owner, balance, safe_divide(100, balance) AS times_into_100\nFROM accounts\nORDER BY id;\n",
+        "output": "CREATE FUNCTION\n\n ten_by_four | one_by_zero\n-------------+-------------\n        2.50 |\n(1 row)\n\n owner | balance | times_into_100\n-------+---------+----------------\n Ana   |  120.00 |           0.83\n Ben   |   45.50 |           2.20\n Cleo  |    0.00 |\n(3 rows)",
+        "explanation": "`safe_divide(10, 4)` returns `2.50` normally. `1 / 0` raises `division_by_zero`, so control jumps to the `EXCEPTION` block, which returns NULL, and NULL prints as nothing. Cleo's balance is 0.00, so her row gets NULL too, and the query keeps going instead of stopping at her row."
+      },
+      "practice": {
+        "title": "Safe integer casts",
+        "prompt": "Write a function that casts text to an integer and returns -1 when the text is not a whole number.\n\n1. Create `safe_int(t text)` returning integer, written in `plpgsql`.\n2. In the body, return `t::integer`.\n3. Catch `invalid_text_representation` and return -1.\n4. Select `safe_int('42')` as `a`, `safe_int('abc')` as `b`, `safe_int('3.5')` as `c`, and `safe_int('-7')` as `d`.\n\nExpected output:\n\n```text\nCREATE FUNCTION\n\n a  | b  | c  | d\n----+----+----+----\n 42 | -1 | -1 | -7\n(1 row)\n```",
+        "starter": "CREATE FUNCTION safe_int(t text) RETURNS integer\n    LANGUAGE plpgsql\nAS $$\nBEGIN\n    -- TODO: return t cast to integer, and -1 when the cast fails\n    RETURN NULL;\nEND\n$$;\n\nSELECT safe_int('42') AS a, safe_int('abc') AS b, safe_int('3.5') AS c, safe_int('-7') AS d;\n",
+        "solution": "CREATE FUNCTION safe_int(t text) RETURNS integer\n    LANGUAGE plpgsql\nAS $$\nBEGIN\n    RETURN t::integer;\nEXCEPTION\n    WHEN invalid_text_representation THEN\n        RETURN -1;\nEND\n$$;\n\nSELECT safe_int('42') AS a, safe_int('abc') AS b, safe_int('3.5') AS c, safe_int('-7') AS d;\n",
+        "tests": [
+          {
+            "output": "CREATE FUNCTION\n\n a  | b  | c  | d\n----+----+----+----\n 42 | -1 | -1 | -7\n(1 row)"
+          }
+        ],
+        "hints": [
+          "A failed cast from text raises the error named `invalid_text_representation`.",
+          "The `EXCEPTION` section goes after the `RETURN` and before the final `END`, in the same place as in `safe_divide`."
+        ]
+      }
+    },
+    {
+      "title": "Raising your own errors",
+      "body": "You can raise errors of your own. Declare variables in a `DECLARE` section before `BEGIN`, assign with `:=`, and test with `IF`:\n\n```sql\nDECLARE\n    new_balance numeric;\nBEGIN\n    new_balance := (SELECT balance FROM accounts WHERE owner = who);\n    IF new_balance < 10 THEN\n        RAISE EXCEPTION 'not enough money';\n    END IF;\n```\n\n`RAISE EXCEPTION 'message'` fails just like a built-in error. Uncaught, it stops the program:\n\n```text\nERROR:  not enough money\n```\n\n`WHEN OTHERS` catches any error, and inside the handler `SQLERRM` holds its message, so `RETURN SQLERRM;` reports what went wrong instead of failing.\n\nThe key rule: **an EXCEPTION block undoes its own changes.** PostgreSQL sets a savepoint when the block starts, and when a handler catches an error it rolls back to that savepoint, so every row the block changed is put back. Variables keep their values. So you can update first and check after.\n\nOne gotcha: don't give a variable or parameter a column's name (like `balance`). PostgreSQL stops with `column reference \"balance\" is ambiguous`.",
+      "example": {
+        "title": "Withdrawals with a minimum",
+        "prompt": "Create withdraw, which takes money out but refuses to leave less than 10.00 in an account, then try it on Ana and Ben.",
+        "code": "CREATE FUNCTION withdraw(who text, amount numeric) RETURNS text\n    LANGUAGE plpgsql\nAS $$\nDECLARE\n    new_balance numeric;\nBEGIN\n    UPDATE accounts SET balance = balance - amount WHERE owner = who;\n    new_balance := (SELECT balance FROM accounts WHERE owner = who);\n    IF new_balance < 10 THEN\n        RAISE EXCEPTION 'not enough money';\n    END IF;\n    RETURN 'ok';\nEXCEPTION\n    WHEN OTHERS THEN\n        RETURN SQLERRM;\nEND\n$$;\n\nSELECT withdraw('Ana', 50) AS ana, withdraw('Ben', 40) AS ben;\n\nSELECT * FROM accounts ORDER BY id;\n",
+        "output": "CREATE FUNCTION\n\n ana |       ben\n-----+------------------\n ok  | not enough money\n(1 row)\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |   70.00\n  2 | Ben   |   45.50\n  3 | Cleo  |    0.00\n(3 rows)",
+        "explanation": "Ana goes from 120.00 to 70.00, so `withdraw` returns `ok`. Ben's update really runs and leaves 5.50, then the `IF` raises `not enough money`. The `WHEN OTHERS` handler returns that message through `SQLERRM`, and because the error was caught inside the block, Ben's update is undone: he still has 45.50."
+      },
+      "practice": {
+        "title": "Deposits that must be positive",
+        "prompt": "Write a deposit function that refuses amounts that are zero or negative and otherwise returns the new balance.\n\n1. Create `deposit(who text, amount numeric)` returning text, with a `new_balance numeric` variable.\n2. If `amount <= 0`, raise the error `amount must be positive`.\n3. Otherwise add `amount` to the owner's balance and return `new_balance::text`.\n4. Catch every error with `WHEN OTHERS` and return `SQLERRM`.\n5. Select `deposit('Cleo', 25)` as `cleo`, `deposit('Ana', -5)` as `ana`, and `deposit('Ben', 0)` as `ben`, then list `accounts` sorted by `id`.\n\nExpected output:\n\n```text\nCREATE FUNCTION\n\n cleo  |           ana           |           ben\n-------+-------------------------+-------------------------\n 25.00 | amount must be positive | amount must be positive\n(1 row)\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  120.00\n  2 | Ben   |   45.50\n  3 | Cleo  |   25.00\n(3 rows)\n```",
+        "starter": "CREATE FUNCTION deposit(who text, amount numeric) RETURNS text\n    LANGUAGE plpgsql\nAS $$\nDECLARE\n    new_balance numeric;\nBEGIN\n    -- TODO: raise 'amount must be positive' when amount <= 0\n    UPDATE accounts SET balance = balance + amount WHERE owner = who;\n    new_balance := (SELECT balance FROM accounts WHERE owner = who);\n    RETURN new_balance::text;\n    -- TODO: catch every error and return its message\nEND\n$$;\n\nSELECT deposit('Cleo', 25) AS cleo, deposit('Ana', -5) AS ana, deposit('Ben', 0) AS ben;\n\nSELECT * FROM accounts ORDER BY id;\n",
+        "solution": "CREATE FUNCTION deposit(who text, amount numeric) RETURNS text\n    LANGUAGE plpgsql\nAS $$\nDECLARE\n    new_balance numeric;\nBEGIN\n    IF amount <= 0 THEN\n        RAISE EXCEPTION 'amount must be positive';\n    END IF;\n    UPDATE accounts SET balance = balance + amount WHERE owner = who;\n    new_balance := (SELECT balance FROM accounts WHERE owner = who);\n    RETURN new_balance::text;\nEXCEPTION\n    WHEN OTHERS THEN\n        RETURN SQLERRM;\nEND\n$$;\n\nSELECT deposit('Cleo', 25) AS cleo, deposit('Ana', -5) AS ana, deposit('Ben', 0) AS ben;\n\nSELECT * FROM accounts ORDER BY id;\n",
+        "tests": [
+          {
+            "output": "CREATE FUNCTION\n\n cleo  |           ana           |           ben\n-------+-------------------------+-------------------------\n 25.00 | amount must be positive | amount must be positive\n(1 row)\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  120.00\n  2 | Ben   |   45.50\n  3 | Cleo  |   25.00\n(3 rows)"
+          },
+          {
+            "stdin": "UPDATE accounts SET balance = 80.25 WHERE owner = 'Cleo';\nUPDATE accounts SET balance = 300.00 WHERE owner = 'Ana';",
+            "output": "CREATE FUNCTION\n\n  cleo  |           ana           |           ben\n--------+-------------------------+-------------------------\n 105.25 | amount must be positive | amount must be positive\n(1 row)\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  300.00\n  2 | Ben   |   45.50\n  3 | Cleo  |  105.25\n(3 rows)"
+          },
+          {
+            "stdin": "UPDATE accounts SET balance = 9.99 WHERE owner = 'Ben';\nINSERT INTO accounts (owner, balance) VALUES ('Dev', 15.00);",
+            "output": "CREATE FUNCTION\n\n cleo  |           ana           |           ben\n-------+-------------------------+-------------------------\n 25.00 | amount must be positive | amount must be positive\n(1 row)\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  120.00\n  2 | Ben   |    9.99\n  3 | Cleo  |   25.00\n  4 | Dev   |   15.00\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "Check `amount` with an `IF` before the UPDATE, and raise the message inside it.",
+          "Add an `EXCEPTION` section before the final `END`, with a `WHEN OTHERS` handler that returns the message."
+        ]
+      }
+    },
+    {
+      "title": "Catching constraint errors",
+      "body": "Constraint errors have names too, so a function can catch exactly the one it expects:\n\n| Error name | Raised when |\n| --- | --- |\n| `unique_violation` | a UNIQUE or PRIMARY KEY value already exists |\n| `check_violation` | a CHECK condition is false |\n| `not_null_violation` | a NOT NULL column gets NULL |\n| `foreign_key_violation` | a REFERENCES id has no match, or a delete would orphan rows |\n\nUncaught, inserting a name that exists stops the program:\n\n```text\nERROR:  duplicate key value violates unique constraint \"usernames_pkey\"\n```\n\nPut the INSERT inside a function and catch that one error:\n\n```sql\nBEGIN\n    INSERT INTO usernames (name) VALUES (wanted);\n    RETURN 'claimed';\nEXCEPTION\n    WHEN unique_violation THEN\n        RETURN 'taken';\nEND\n```\n\nA block can list several handlers, `WHEN unique_violation THEN ... WHEN check_violation THEN ...`, and the first match wins. Catch the specific name rather than `OTHERS` when you can, so a real bug still shows up as an error.\n\nFor duplicates alone, `ON CONFLICT DO NOTHING` is simpler and cheaper, because every `EXCEPTION` block costs a savepoint. Reach for `EXCEPTION` when you need to react to other constraints too, like a CHECK, which ON CONFLICT can't catch.",
+      "example": {
+        "title": "Claiming usernames",
+        "prompt": "Create claim, which inserts a username and reports taken instead of failing when it already exists, then claim one free and one taken name.",
+        "code": "CREATE FUNCTION claim(wanted text) RETURNS text\n    LANGUAGE plpgsql\nAS $$\nBEGIN\n    INSERT INTO usernames (name) VALUES (wanted);\n    RETURN 'claimed';\nEXCEPTION\n    WHEN unique_violation THEN\n        RETURN 'taken';\nEND\n$$;\n\nSELECT claim('mia') AS mia, claim('ana') AS ana;\n\nSELECT * FROM usernames ORDER BY name;\n",
+        "output": "CREATE FUNCTION\n\n   mia   |  ana\n---------+-------\n claimed | taken\n(1 row)\n\n name\n-------\n admin\n ana\n mia\n zed\n(4 rows)",
+        "explanation": "`mia` is new, so the INSERT works and `claim` returns `claimed`. `ana` is already a primary key value, so the INSERT raises `unique_violation` and the handler returns `taken`. The table ends with four names: only `mia` was added."
+      },
+      "practice": {
+        "title": "Opening accounts safely",
+        "prompt": "Write a function that opens an account and says why when a constraint refuses it.\n\n1. Create `open_account(who text, amount numeric)` returning text, written in `plpgsql`.\n2. Insert a row into `accounts` with `owner` set to `who` and `balance` set to `amount`, then return `opened`.\n3. Catch `unique_violation` and return `name taken`.\n4. Catch `check_violation` and return `negative balance`.\n5. Select `open_account('Dev', 30)` as `dev`, `open_account('Ana', 10)` as `ana`, and `open_account('Eve', -5)` as `eve`, then list `accounts` sorted by `id`.\n\nExpected output:\n\n```text\nCREATE FUNCTION\n\n  dev   |    ana     |       eve\n--------+------------+------------------\n opened | name taken | negative balance\n(1 row)\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  120.00\n  2 | Ben   |   45.50\n  3 | Cleo  |    0.00\n  4 | Dev   |   30.00\n(4 rows)\n```",
+        "starter": "CREATE FUNCTION open_account(who text, amount numeric) RETURNS text\n    LANGUAGE plpgsql\nAS $$\nBEGIN\n    -- TODO: insert the account and return 'opened',\n    -- return 'name taken' on a unique_violation,\n    -- and return 'negative balance' on a check_violation\n    RETURN NULL;\nEND\n$$;\n\nSELECT open_account('Dev', 30) AS dev, open_account('Ana', 10) AS ana, open_account('Eve', -5) AS eve;\n\nSELECT * FROM accounts ORDER BY id;\n",
+        "solution": "CREATE FUNCTION open_account(who text, amount numeric) RETURNS text\n    LANGUAGE plpgsql\nAS $$\nBEGIN\n    INSERT INTO accounts (owner, balance) VALUES (who, amount);\n    RETURN 'opened';\nEXCEPTION\n    WHEN unique_violation THEN\n        RETURN 'name taken';\n    WHEN check_violation THEN\n        RETURN 'negative balance';\nEND\n$$;\n\nSELECT open_account('Dev', 30) AS dev, open_account('Ana', 10) AS ana, open_account('Eve', -5) AS eve;\n\nSELECT * FROM accounts ORDER BY id;\n",
+        "tests": [
+          {
+            "output": "CREATE FUNCTION\n\n  dev   |    ana     |       eve\n--------+------------+------------------\n opened | name taken | negative balance\n(1 row)\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  120.00\n  2 | Ben   |   45.50\n  3 | Cleo  |    0.00\n  4 | Dev   |   30.00\n(4 rows)"
+          },
+          {
+            "stdin": "INSERT INTO accounts (owner, balance) VALUES ('Dev', 5.00);",
+            "output": "CREATE FUNCTION\n\n    dev     |    ana     |       eve\n------------+------------+------------------\n name taken | name taken | negative balance\n(1 row)\n\n id | owner | balance\n----+-------+---------\n  1 | Ana   |  120.00\n  2 | Ben   |   45.50\n  3 | Cleo  |    0.00\n  4 | Dev   |    5.00\n(4 rows)"
+          },
+          {
+            "stdin": "DELETE FROM accounts WHERE owner = 'Ana';\nUPDATE accounts SET balance = 80.25 WHERE owner = 'Cleo';",
+            "output": "CREATE FUNCTION\n\n  dev   |  ana   |       eve\n--------+--------+------------------\n opened | opened | negative balance\n(1 row)\n\n id | owner | balance\n----+-------+---------\n  2 | Ben   |   45.50\n  3 | Cleo  |   80.25\n  4 | Dev   |   30.00\n  5 | Ana   |   10.00\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "The INSERT names two columns, `(owner, balance)`, and passes the two parameters as its values.",
+          "One `EXCEPTION` section can hold two `WHEN` lines, one for each error name."
+        ]
+      }
+    }
+  ],
+  "recap": "- `LANGUAGE plpgsql AS $$ BEGIN ... END $$` writes a function with statements, and `RETURN` gives its answer.\n- `EXCEPTION WHEN error_name THEN` catches one kind of error: `division_by_zero`, `invalid_text_representation`, `unique_violation`, `check_violation`.\n- One `EXCEPTION` section can list several `WHEN` lines, and the first match wins.\n- `DECLARE` makes variables, `:=` assigns, and `IF ... THEN ... END IF` branches.\n- `RAISE EXCEPTION 'message'` raises your own error, and `WHEN OTHERS` with `SQLERRM` catches any error and reads its message.\n- A caught error rolls the block back like a savepoint, undoing every change it made.\n- An error with no matching handler still stops the program."
+}

@@ -1,0 +1,115 @@
+{
+  "id": "aggregates",
+  "title": "Counting and Totals",
+  "section": "Summarizing Data",
+  "summary": "Summarize many rows into one with count, sum, avg, min, and max.",
+  "intro": "How many orders came in, and how much were they worth? Aggregate functions answer questions like these by turning many rows into a single row of totals.",
+  "setup": "CREATE TABLE orders (\n    id integer,\n    customer text,\n    status text,\n    total numeric(10, 2),\n    coupon text,\n    ordered_on date\n);\nINSERT INTO orders (id, customer, status, total, coupon, ordered_on) VALUES\n    (1, 'Ana', 'pending', 42.50, 'SAVE10', DATE '2025-03-01'),\n    (2, 'Ben', 'shipped', 18.00, NULL, DATE '2025-03-02'),\n    (3, 'Ana', 'delivered', 65.25, NULL, DATE '2025-03-03'),\n    (4, 'Chloe', 'delivered', 120.00, 'SPRING', DATE '2025-03-05'),\n    (5, 'Dev', 'cancelled', 30.00, NULL, DATE '2025-03-06'),\n    (6, 'Ben', 'delivered', 9.99, 'SAVE10', DATE '2025-03-08'),\n    (7, 'Eva', 'pending', 75.00, NULL, DATE '2025-03-09'),\n    (8, 'Chloe', 'shipped', 54.40, NULL, DATE '2025-03-10'),\n    (9, 'Ana', 'cancelled', 22.10, 'SPRING', DATE '2025-03-12'),\n    (10, 'Femi', 'delivered', 47.80, NULL, DATE '2025-03-14');\n",
+  "steps": [
+    {
+      "title": "Counting rows",
+      "body": "An aggregate function reads many rows and returns one value. This lesson uses an `orders` table:\n\n```sql\nCREATE TABLE orders (id integer, customer text, status text,\n    total numeric(10, 2), coupon text, ordered_on date);\n```\n\n| id | customer | status | total | coupon | ordered_on |\n| --- | --- | --- | --- | --- | --- |\n| 1 | Ana | pending | 42.50 | SAVE10 | 2025-03-01 |\n| 2 | Ben | shipped | 18.00 | NULL | 2025-03-02 |\n| 3 | Ana | delivered | 65.25 | NULL | 2025-03-03 |\n\nIt has 10 orders with the statuses pending, shipped, delivered, and cancelled. Some coupons are `NULL`.\n\n`count` comes in three forms, and each answers a different question:\n\n```sql\ncount(*)                  -- how many rows\ncount(coupon)             -- how many rows where coupon is not NULL\ncount(DISTINCT customer)  -- how many different customers, NULL not included\n```\n\nThe query returns one row no matter how many rows it read. On an empty table every `count` is `0`, never `NULL`.",
+      "example": {
+        "title": "Order counts",
+        "prompt": "Count the orders, the orders that used a coupon, and the different customers.",
+        "code": "SELECT\n    count(*) AS orders,\n    count(coupon) AS with_coupon,\n    count(DISTINCT customer) AS customers\nFROM orders;\n",
+        "output": " orders | with_coupon | customers\n--------+-------------+-----------\n     10 |           4 |         6\n(1 row)",
+        "explanation": "`count(*)` counts all 10 rows. `count(coupon)` skips the 6 rows where `coupon` is `NULL`, leaving 4. `count(DISTINCT customer)` counts Ana, Ben, Chloe, Dev, Eva, and Femi once each, even though Ana has three orders."
+      },
+      "practice": {
+        "title": "Statuses and coupon codes",
+        "prompt": "Count the orders, how many different statuses they have, and how many different coupon codes were used.\n\n1. Select from `orders` and return one row.\n2. Name the row count `orders`.\n3. Name the number of different `status` values `statuses`.\n4. Name the number of different `coupon` values `coupon_codes`. Missing coupons must not count.\n\nExpected output:\n\n```text\n orders | statuses | coupon_codes\n--------+----------+--------------\n     10 |        4 |            2\n(1 row)\n```",
+        "starter": "SELECT\n    count(*) AS orders\n    -- TODO: add the statuses and coupon_codes counts\nFROM orders;\n",
+        "solution": "SELECT\n    count(*) AS orders,\n    count(DISTINCT status) AS statuses,\n    count(DISTINCT coupon) AS coupon_codes\nFROM orders;\n",
+        "tests": [
+          {
+            "output": " orders | statuses | coupon_codes\n--------+----------+--------------\n     10 |        4 |            2\n(1 row)"
+          },
+          {
+            "stdin": "INSERT INTO orders (id, customer, status, total, coupon, ordered_on) VALUES\n    (11, 'Gus', 'returned', 15.00, 'WELCOME', DATE '2025-03-15'),\n    (12, 'Ana', 'pending', 33.00, 'SAVE10', DATE '2025-03-16'),\n    (13, 'Hana', 'pending', 12.75, NULL, DATE '2025-03-17');\n",
+            "output": " orders | statuses | coupon_codes\n--------+----------+--------------\n     13 |        5 |            3\n(1 row)"
+          },
+          {
+            "stdin": "DELETE FROM orders;\n",
+            "output": " orders | statuses | coupon_codes\n--------+----------+--------------\n      0 |        0 |            0\n(1 row)"
+          }
+        ],
+        "hints": [
+          "Add each count as its own column, separated by a comma.",
+          "To count different values, put `DISTINCT` inside the parentheses, right before the column name.",
+          "Counting distinct coupons already skips `NULL`, so no `WHERE` is needed."
+        ]
+      }
+    },
+    {
+      "title": "Sum, average, smallest, largest",
+      "body": "`sum`, `avg`, `min`, and `max` work like `count`: many rows in, one value out. All of them skip `NULL` values.\n\n```sql\nSELECT sum(total), round(avg(total), 2), min(total), max(total) FROM orders;\n```\n\n`avg` of a numeric column prints many digits, so wrap it in `round(x, 2)`. `min` and `max` work on numbers, text, and dates. `max(ordered_on)` is the latest date.\n\nAdd `WHERE` and the aggregates only see the rows it keeps. The filter runs first, then the summary. That order is why an aggregate cannot go inside `WHERE`.\n\nA plain column next to an aggregate is an error too, because one summary row cannot show every customer. Getting one row per customer takes `GROUP BY`, which comes next. Try this in the editor:\n\n```sql\nSELECT customer, count(*) FROM orders;\n```\n\n```text\nERROR:  column \"orders.customer\" must appear in the GROUP BY clause or be used in an aggregate function\n```\n\nThe gotcha: when no rows are left, `count(*)` is `0` but `sum`, `avg`, `min`, and `max` are `NULL`, which prints as a blank:\n\n```sql\nSELECT count(*), sum(total)\nFROM orders\nWHERE status = 'returned';\n```\n\n```text\n count | sum\n-------+-----\n     0 |\n(1 row)\n```\n\nIf you want `0` instead, write `coalesce(sum(total), 0)`.",
+      "example": {
+        "title": "Revenue from orders not cancelled",
+        "prompt": "Total, average, smallest total, and latest order date over every order that was not cancelled.",
+        "code": "SELECT\n    sum(total) AS revenue,\n    round(avg(total), 2) AS average,\n    min(total) AS smallest,\n    max(ordered_on) AS latest\nFROM orders\nWHERE status <> 'cancelled';\n",
+        "output": " revenue | average | smallest |   latest\n---------+---------+----------+------------\n  432.94 |   54.12 |     9.99 | 2025-03-14\n(1 row)",
+        "explanation": "`WHERE` drops the 2 cancelled orders first, so every aggregate reads the other 8. `sum` adds their totals, `avg` divides that by 8 and `round` keeps 2 decimals, `min` picks the smallest total, and `max` on a date column picks the latest date."
+      },
+      "practice": {
+        "title": "Delivered order summary",
+        "prompt": "Summarize the delivered orders in one row.\n\n1. Keep only orders whose `status` is `'delivered'`.\n2. Name the sum of `total` `revenue`.\n3. Name the average `total`, rounded to 2 decimal places, `average`.\n4. Name the largest `total` `largest`.\n5. Name the earliest `ordered_on` date `earliest`.\n\nExpected output:\n\n```text\n revenue | average | largest |  earliest\n---------+---------+---------+------------\n  243.04 |   60.76 |  120.00 | 2025-03-03\n(1 row)\n```",
+        "starter": "SELECT\n    sum(total) AS revenue\n    -- TODO: add average, largest, and earliest\nFROM orders\n-- TODO: add a WHERE that keeps only delivered orders\n;\n",
+        "solution": "SELECT\n    sum(total) AS revenue,\n    round(avg(total), 2) AS average,\n    max(total) AS largest,\n    min(ordered_on) AS earliest\nFROM orders\nWHERE status = 'delivered';\n",
+        "tests": [
+          {
+            "output": " revenue | average | largest |  earliest\n---------+---------+---------+------------\n  243.04 |   60.76 |  120.00 | 2025-03-03\n(1 row)"
+          },
+          {
+            "stdin": "UPDATE orders SET status = 'delivered' WHERE id = 2;\nINSERT INTO orders (id, customer, status, total, coupon, ordered_on) VALUES\n    (11, 'Gus', 'delivered', 210.40, NULL, DATE '2025-02-27');\n",
+            "output": " revenue | average | largest |  earliest\n---------+---------+---------+------------\n  471.44 |   78.57 |  210.40 | 2025-02-27\n(1 row)"
+          },
+          {
+            "stdin": "UPDATE orders SET status = 'shipped' WHERE status = 'delivered';\n",
+            "output": " revenue | average | largest | earliest\n---------+---------+---------+----------\n         |         |         |\n(1 row)"
+          }
+        ],
+        "hints": [
+          "Start from the example's query and change the `WHERE` condition.",
+          "Largest means the biggest value and earliest means the smallest date. `min` and `max` work on dates too.",
+          "With no delivered orders, every value is `NULL` and prints as a blank. That is correct."
+        ]
+      }
+    },
+    {
+      "title": "Several counts at once with FILTER",
+      "body": "`WHERE` filters rows for the whole query, so it can only give one count. To count several groups in a single row, attach a filter to each aggregate with `FILTER (WHERE condition)`:\n\n```sql\ncount(*) FILTER (WHERE status = 'pending') AS pending\n```\n\nEach aggregate sees only the rows its own filter keeps. Aggregates without a filter still see every row, or every row `WHERE` keeps if the query has one. You can mix filtered and plain aggregates in one `SELECT`, and use `FILTER` with any aggregate, like `sum` or `avg`.\n\nThe same rules hold inside a filter: when no rows match, `count` gives `0` and `sum` gives `NULL`.\n\nOlder code often writes `sum(CASE WHEN status = 'pending' THEN 1 ELSE 0 END)` for the same count. It works, but `FILTER` is shorter and says what it means.",
+      "example": {
+        "title": "Order board",
+        "prompt": "Count pending and shipped orders, and add up the totals of orders that used a coupon, all in one row.",
+        "code": "SELECT\n    count(*) AS all_orders,\n    count(*) FILTER (WHERE status = 'pending') AS pending,\n    count(*) FILTER (WHERE status = 'shipped') AS shipped,\n    sum(total) FILTER (WHERE coupon IS NOT NULL) AS coupon_revenue\nFROM orders;\n",
+        "output": " all_orders | pending | shipped | coupon_revenue\n------------+---------+---------+----------------\n         10 |       2 |       2 |         194.59\n(1 row)",
+        "explanation": "`all_orders` has no filter, so it counts all 10 rows. Each `FILTER` narrows only its own aggregate: 2 orders are pending, 2 are shipped, and the 4 orders with a coupon add up to 194.59."
+      },
+      "practice": {
+        "title": "Delivered versus cancelled",
+        "prompt": "Report delivered and cancelled orders side by side in one row.\n\n1. Select from `orders` with no `WHERE`.\n2. Name the count of orders with `status` `'delivered'` `delivered`.\n3. Name the count of orders with `status` `'cancelled'` `cancelled`.\n4. Name the sum of `total` over delivered orders `delivered_revenue`.\n\nExpected output:\n\n```text\n delivered | cancelled | delivered_revenue\n-----------+-----------+-------------------\n         4 |         2 |            243.04\n(1 row)\n```",
+        "starter": "SELECT\n    count(*) AS orders\n    -- TODO: replace with the delivered, cancelled, and delivered_revenue columns\nFROM orders;\n",
+        "solution": "SELECT\n    count(*) FILTER (WHERE status = 'delivered') AS delivered,\n    count(*) FILTER (WHERE status = 'cancelled') AS cancelled,\n    sum(total) FILTER (WHERE status = 'delivered') AS delivered_revenue\nFROM orders;\n",
+        "tests": [
+          {
+            "output": " delivered | cancelled | delivered_revenue\n-----------+-----------+-------------------\n         4 |         2 |            243.04\n(1 row)"
+          },
+          {
+            "stdin": "UPDATE orders SET status = 'cancelled' WHERE id IN (7, 8);\nUPDATE orders SET status = 'delivered' WHERE id = 1;\n",
+            "output": " delivered | cancelled | delivered_revenue\n-----------+-----------+-------------------\n         5 |         4 |            285.54\n(1 row)"
+          },
+          {
+            "stdin": "UPDATE orders SET status = 'pending' WHERE status IN ('delivered', 'cancelled');\n",
+            "output": " delivered | cancelled | delivered_revenue\n-----------+-----------+-------------------\n         0 |         0 |\n(1 row)"
+          }
+        ],
+        "hints": [
+          "Write `FILTER (WHERE ...)` right after each aggregate's closing parenthesis.",
+          "`FILTER` works on `sum` the same way it works on `count`. Only the condition decides which totals get added."
+        ]
+      }
+    }
+  ],
+  "recap": "- An aggregate reads many rows and returns one value.\n- `count(*)` counts rows, `count(column)` skips `NULL`, and `count(DISTINCT column)` counts different values.\n- `sum`, `avg`, `min`, and `max` skip `NULL`. Round averages with `round(avg(x), 2)`.\n- `min` and `max` work on numbers, text, and dates.\n- `WHERE` runs first, so aggregates only see the rows it keeps, and an aggregate cannot go inside `WHERE`.\n- With no rows, `count` is `0` but `sum`, `avg`, `min`, and `max` are `NULL`.\n- `aggregate FILTER (WHERE condition)` gives each aggregate its own filter, so one row can hold several counts."
+}

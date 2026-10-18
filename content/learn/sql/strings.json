@@ -1,0 +1,103 @@
+{
+  "id": "strings",
+  "title": "String Functions",
+  "section": "Expressions and Functions",
+  "summary": "Measure, clean up, cut, and build text with PostgreSQL's string functions.",
+  "intro": "Real text is messy: stray spaces, shouting capitals, emails and phone numbers packed into one value. PostgreSQL has a function for each cleanup job, and you nest them to clean, cut, and rebuild text right inside a SELECT.",
+  "setup": "CREATE TABLE people (id integer, first_name text, last_name text, email text, phone text);\nINSERT INTO people (id, first_name, last_name, email, phone) VALUES\n    (1, ' ada', 'Lovelace', 'Ada@Example.com', '555-0101'),\n    (2, 'ALAN', 'Turing', 'Alan.Turing@Bletchley.org', '555-0102'),\n    (3, 'grace ', 'hopper', 'grace.hopper@navy.mil', '555-0103'),\n    (4, 'Linus', 'TORVALDS', 'linus@kernel.org', '555-0104'),\n    (5, 'Margaret', ' Hamilton ', 'M.Hamilton@NASA.gov', '555-0105'),\n    (6, 'tim', 'berners-lee', 'tim@w3.org', '555-0106');\n",
+  "steps": [
+    {
+      "title": "Case and length",
+      "body": "Every query in this lesson reads one table of people. Some names were typed carelessly, with stray spaces and odd letter case:\n\n```sql\nCREATE TABLE people (id integer, first_name text, last_name text, email text, phone text);\n-- (1, ' ada', 'Lovelace', 'Ada@Example.com', '555-0101')\n-- (2, 'ALAN', 'Turing', 'Alan.Turing@Bletchley.org', '555-0102')\n-- (3, 'grace ', 'hopper', 'grace.hopper@navy.mil', '555-0103')\n-- ... 6 rows in all, phones run up to '555-0106'\n```\n\nString functions take text and return new text, so you can nest them. The table itself never changes.\n\n- `length(s)` counts characters, spaces included.\n- `upper(s)` and `lower(s)` change every letter.\n- `initcap(s)` capitalizes the first letter of each word and lowercases the rest.\n- `trim(s)` removes spaces from both ends, never from the middle. `ltrim` and `rtrim` do one end.\n\n```sql\nSELECT initcap(trim('  grace HOPPER ')), length('  hi  ');\n-- Grace Hopper | 6\n```\n\nClean first, then measure: `length(trim(name))` counts only the real letters. Two gotchas: `initcap` turns `McDonald` into `Mcdonald`, and any of these functions given NULL returns NULL.",
+      "example": {
+        "title": "Tidy name list",
+        "prompt": "Print each person's first name tidied up, the last name in capitals, and the first name's length before and after trimming.",
+        "code": "SELECT initcap(trim(first_name)) AS first,\n    upper(trim(last_name)) AS last,\n    length(first_name) AS raw_length,\n    length(trim(first_name)) AS letters\nFROM people\nORDER BY id;\n",
+        "output": "  first   |    last     | raw_length | letters\n----------+-------------+------------+---------\n Ada      | LOVELACE    |          4 |       3\n Alan     | TURING      |          4 |       4\n Grace    | HOPPER      |          6 |       5\n Linus    | TORVALDS    |          5 |       5\n Margaret | HAMILTON    |          8 |       8\n Tim      | BERNERS-LEE |          3 |       3\n(6 rows)",
+        "explanation": "`trim` runs first and removes the stray spaces, then `initcap` fixes the case. Compare `raw_length` with `letters`: ` ada` has 4 characters but only 3 letters, and `grace ` has a trailing space. Wrapping `last_name` in `trim` before `upper` matters for ` Hamilton `."
+      },
+      "practice": {
+        "title": "Clean contact list",
+        "prompt": "Print a cleaned up contact list from the people table, one row per person.\n\n1. Select the email in lowercase as `email`.\n2. Select the number of characters in the email as `email_length`.\n3. Select the last name with its spaces trimmed and each word capitalized as `last`.\n4. Sort by `id`.\n\nExpected output:\n\n```text\n           email           | email_length |    last\n---------------------------+--------------+-------------\n ada@example.com           |           15 | Lovelace\n alan.turing@bletchley.org |           25 | Turing\n grace.hopper@navy.mil     |           21 | Hopper\n linus@kernel.org          |           16 | Torvalds\n m.hamilton@nasa.gov       |           19 | Hamilton\n tim@w3.org                |           10 | Berners-Lee\n(6 rows)\n```",
+        "starter": "-- TODO: select the lowercase email, its length, and the cleaned last name\nSELECT email\nFROM people\nORDER BY id;\n",
+        "solution": "SELECT lower(email) AS email,\n    length(email) AS email_length,\n    initcap(trim(last_name)) AS last\nFROM people\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "           email           | email_length |    last\n---------------------------+--------------+-------------\n ada@example.com           |           15 | Lovelace\n alan.turing@bletchley.org |           25 | Turing\n grace.hopper@navy.mil     |           21 | Hopper\n linus@kernel.org          |           16 | Torvalds\n m.hamilton@nasa.gov       |           19 | Hamilton\n tim@w3.org                |           10 | Berners-Lee\n(6 rows)"
+          },
+          {
+            "stdin": "INSERT INTO people (id, first_name, last_name, email, phone) VALUES\n    (7, 'katherine', '  JOHNSON  ', 'K.Johnson@NASA.gov', '555-0107'),\n    (8, 'Dennis', 'ritchie', 'DMR@Bell-Labs.com', '555-0108'),\n    (9, 'Barbara', 'liskov', NULL, '555-0109');\n",
+            "output": "           email           | email_length |    last\n---------------------------+--------------+-------------\n ada@example.com           |           15 | Lovelace\n alan.turing@bletchley.org |           25 | Turing\n grace.hopper@navy.mil     |           21 | Hopper\n linus@kernel.org          |           16 | Torvalds\n m.hamilton@nasa.gov       |           19 | Hamilton\n tim@w3.org                |           10 | Berners-Lee\n k.johnson@nasa.gov        |           18 | Johnson\n dmr@bell-labs.com         |           17 | Ritchie\n                           |              | Liskov\n(9 rows)"
+          }
+        ],
+        "hints": [
+          "`lower(email)` and `length(email)` each take the email column.",
+          "Nest the calls for the last name: the inner call runs first, so trim inside and capitalize outside."
+        ]
+      }
+    },
+    {
+      "title": "Cutting text apart",
+      "body": "To pull out a piece of text, pick the function that matches how you find the piece. Positions count from 1, not 0.\n\n- `left(s, n)` and `right(s, n)` take the first or last `n` characters.\n- `substring(s FROM start FOR count)` takes `count` characters starting at position `start`.\n- `position(part IN s)` gives where `part` first appears, or 0 when it is missing.\n- `split_part(s, delimiter, n)` splits on the delimiter and returns field `n`.\n\n```sql\nSELECT left('555-0101', 3), right('555-0101', 4),\n    substring('Lovelace' FROM 2 FOR 3),\n    position('@' IN 'ada@example.com'),\n    split_part('ada@example.com', '@', 2);\n-- 555 | 0101 | ove | 4 | example.com\n```\n\n`left(s, n)` is the same as `substring(s FROM 1 FOR n)`, but only `substring` can start in the middle. Use `split_part` when a separator marks the piece, like the `@` in an email. When the separator is missing, field 1 is the whole text and later fields are empty text. A negative field number counts from the end, so `split_part('a.b.c', '.', -1)` is `c`. A negative count in `left` or `right` drops characters instead: `left('hello', -2)` is `hel`. Trim first if the text may start with spaces, or `left` hands you a space.",
+      "example": {
+        "title": "Contact pieces",
+        "prompt": "Print each person's initials, their email domain in lowercase, the first three digits of the phone, its last four digits, and where a dash appears in the last name.",
+        "code": "SELECT upper(left(trim(first_name), 1) || left(trim(last_name), 1)) AS initials,\n    lower(split_part(email, '@', 2)) AS domain,\n    substring(phone FROM 1 FOR 3) AS prefix,\n    right(phone, 4) AS last_four,\n    position('-' IN last_name) AS dash_at\nFROM people\nORDER BY id;\n",
+        "output": " initials |    domain     | prefix | last_four | dash_at\n----------+---------------+--------+-----------+---------\n AL       | example.com   | 555    | 0101      |       0\n AT       | bletchley.org | 555    | 0102      |       0\n GH       | navy.mil      | 555    | 0103      |       0\n LT       | kernel.org    | 555    | 0104      |       0\n MH       | nasa.gov      | 555    | 0105      |       0\n TB       | w3.org        | 555    | 0106      |       8\n(6 rows)",
+        "explanation": "`left(trim(...), 1)` takes the first real letter of each name, `||` joins the two, and `upper` capitalizes both. `split_part(email, '@', 2)` is everything after the `@`. The phone pieces sit at fixed positions, so `substring` and `right` cut them out directly. Only `berners-lee` has a dash, at position 8, so every other row gets 0."
+      },
+      "practice": {
+        "title": "Email pieces",
+        "prompt": "Print pieces of each person's email and last name from the people table.\n\n1. Select the part of the email before the `@` as `username`.\n2. Select the first 3 letters of the trimmed last name as `short_last`, using `substring`.\n3. Select the position of the `@` in the email as `at_pos`.\n4. Sort by `id`.\n\nExpected output:\n\n```text\n   username   | short_last | at_pos\n--------------+------------+--------\n Ada          | Lov        |      4\n Alan.Turing  | Tur        |     12\n grace.hopper | hop        |     13\n linus        | TOR        |      6\n M.Hamilton   | Ham        |     11\n tim          | ber        |      4\n(6 rows)\n```",
+        "starter": "-- TODO: select username, short_last, and at_pos\nSELECT email, last_name\nFROM people\nORDER BY id;\n",
+        "solution": "SELECT split_part(email, '@', 1) AS username,\n    substring(trim(last_name) FROM 1 FOR 3) AS short_last,\n    position('@' IN email) AS at_pos\nFROM people\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "   username   | short_last | at_pos\n--------------+------------+--------\n Ada          | Lov        |      4\n Alan.Turing  | Tur        |     12\n grace.hopper | hop        |     13\n linus        | TOR        |      6\n M.Hamilton   | Ham        |     11\n tim          | ber        |      4\n(6 rows)"
+          },
+          {
+            "stdin": "UPDATE people SET email = 'countess.lovelace@analytical.engine' WHERE id = 1;\nINSERT INTO people (id, first_name, last_name, email, phone) VALUES\n    (7, 'Dennis', 'Ritchie', 'dmr', '555-0107');\n",
+            "output": "     username      | short_last | at_pos\n-------------------+------------+--------\n countess.lovelace | Lov        |     18\n Alan.Turing       | Tur        |     12\n grace.hopper      | hop        |     13\n linus             | TOR        |      6\n M.Hamilton        | Ham        |     11\n tim               | ber        |      4\n dmr               | Rit        |      0\n(7 rows)"
+          }
+        ],
+        "hints": [
+          "The username is field 1 of the email split on `'@'`.",
+          "Trim the last name before cutting, or ` Hamilton ` starts with a space. Then take 3 characters starting at position 1.",
+          "`position('@' IN email)` gives 0 for an email with no `@`."
+        ]
+      }
+    },
+    {
+      "title": "Building text",
+      "body": "These functions build new text out of pieces:\n\n- `replace(s, from, to)` swaps every `from` for `to`.\n- `lpad(s, n, fill)` and `rpad(s, n, fill)` pad on the left or right until the text is `n` characters long.\n- `concat_ws(sep, a, b, ...)` joins values with a separator between them.\n- `repeat(s, n)` writes `s` out `n` times.\n\n```sql\nSELECT replace('555-0101', '-', '.'), lpad('7', 3, '0'),\n    concat_ws(', ', 'Turing', 'Alan'), repeat('ab', 3);\n-- 555.0101 | 007 | Turing, Alan | ababab\n```\n\n`lpad` takes text, so cast numbers first: `lpad(id::text, 5, '0')`. Watch out: when the text is already longer than `n`, both pads cut it down to `n` characters, so `rpad('Bartholomew', 8, '.')` is `Bartholo`.\n\n`concat_ws` differs from `||` on NULL. `'a' || NULL` is NULL, but `concat_ws` skips NULL values, so `concat_ws(' ', 'Ada', NULL, 'King')` is `Ada King`.",
+      "example": {
+        "title": "Directory listing",
+        "prompt": "Print each person's full name, the phone with dots, a five digit code made from the id, and the phone masked except its last four digits.",
+        "code": "SELECT initcap(concat_ws(' ', trim(first_name), trim(last_name))) AS full_name,\n    replace(phone, '-', '.') AS dotted,\n    lpad(id::text, 5, '0') AS code,\n    repeat('*', 4) || right(phone, 4) AS masked\nFROM people\nORDER BY id;\n",
+        "output": "     full_name     |  dotted  | code  |  masked\n-------------------+----------+-------+----------\n Ada Lovelace      | 555.0101 | 00001 | ****0101\n Alan Turing       | 555.0102 | 00002 | ****0102\n Grace Hopper      | 555.0103 | 00003 | ****0103\n Linus Torvalds    | 555.0104 | 00004 | ****0104\n Margaret Hamilton | 555.0105 | 00005 | ****0105\n Tim Berners-Lee   | 555.0106 | 00006 | ****0106\n(6 rows)",
+        "explanation": "`concat_ws` puts one space between the trimmed names, then `initcap` fixes the case of the whole name. `replace` swaps the dash, `lpad` fills the id out to 5 characters with zeros, and `repeat('*', 4)` makes the mask that `||` joins to the last four digits."
+      },
+      "practice": {
+        "title": "Name badges",
+        "prompt": "Print a name badge line for each person in the people table.\n\n1. Select the trimmed last name in capitals, then a comma and a space, then the trimmed first name with each word capitalized, as `badge` (for example `LOVELACE, Ada`).\n2. Select the phone with every `-` replaced by a space as `spaced`.\n3. Select the trimmed, capitalized first name padded on the right with dots to 8 characters as `padded`.\n4. Sort by `id`.\n\nExpected output:\n\n```text\n       badge        |  spaced  |  padded\n--------------------+----------+----------\n LOVELACE, Ada      | 555 0101 | Ada.....\n TURING, Alan       | 555 0102 | Alan....\n HOPPER, Grace      | 555 0103 | Grace...\n TORVALDS, Linus    | 555 0104 | Linus...\n HAMILTON, Margaret | 555 0105 | Margaret\n BERNERS-LEE, Tim   | 555 0106 | Tim.....\n(6 rows)\n```",
+        "starter": "-- TODO: select badge, spaced, and padded\nSELECT first_name, last_name, phone\nFROM people\nORDER BY id;\n",
+        "solution": "SELECT concat_ws(', ', upper(trim(last_name)), initcap(trim(first_name))) AS badge,\n    replace(phone, '-', ' ') AS spaced,\n    rpad(initcap(trim(first_name)), 8, '.') AS padded\nFROM people\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "       badge        |  spaced  |  padded\n--------------------+----------+----------\n LOVELACE, Ada      | 555 0101 | Ada.....\n TURING, Alan       | 555 0102 | Alan....\n HOPPER, Grace      | 555 0103 | Grace...\n TORVALDS, Linus    | 555 0104 | Linus...\n HAMILTON, Margaret | 555 0105 | Margaret\n BERNERS-LEE, Tim   | 555 0106 | Tim.....\n(6 rows)"
+          },
+          {
+            "stdin": "INSERT INTO people (id, first_name, last_name, email, phone) VALUES\n    (7, 'BARTHOLOMEW', ' roberts', 'bart@sea.org', NULL),\n    (8, 'Jo', 'March', 'jo@little.org', '555-0108');\n",
+            "output": "        badge         |  spaced  |  padded\n----------------------+----------+----------\n LOVELACE, Ada        | 555 0101 | Ada.....\n TURING, Alan         | 555 0102 | Alan....\n HOPPER, Grace        | 555 0103 | Grace...\n TORVALDS, Linus      | 555 0104 | Linus...\n HAMILTON, Margaret   | 555 0105 | Margaret\n BERNERS-LEE, Tim     | 555 0106 | Tim.....\n ROBERTS, Bartholomew |          | Bartholo\n MARCH, Jo            | 555 0108 | Jo......\n(8 rows)"
+          }
+        ],
+        "hints": [
+          "Build the badge with `concat_ws(', ', ...)` and two arguments: the last name in capitals, then the capitalized first name.",
+          "`replace(phone, '-', ' ')` swaps each dash for a space.",
+          "Pad the same cleaned first name as in the badge. `rpad` adds dots to short names and cuts long ones to 8."
+        ]
+      }
+    }
+  ],
+  "recap": "- `length`, `upper`, `lower`, `initcap`, and `trim` measure and clean text. Trim before you measure or cut.\n- `left`, `right`, and `substring(s FROM start FOR count)` cut by position, counting from 1.\n- `position(part IN s)` finds text and gives 0 when it is missing.\n- `split_part(s, sep, n)` returns one field of text split on a separator.\n- `replace`, `lpad`, `rpad`, `concat_ws`, and `repeat` build new text. Pads cut text that is too long.\n- `concat_ws` skips NULL values, while `||` with NULL gives NULL."
+}

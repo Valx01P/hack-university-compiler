@@ -1,0 +1,79 @@
+{
+  "id": "select-columns",
+  "title": "Choosing Columns",
+  "section": "Basics",
+  "setup": "CREATE TABLE products (id integer, name text, category text, price numeric(10, 2), stock integer);\nINSERT INTO products (id, name, category, price, stock) VALUES\n    (1, 'Stapler', 'Desk', 12.50, 14),\n    (2, 'Ballpoint pens', 'Writing', 4.25, 120),\n    (3, 'Sticky notes', 'Paper', 3.80, 85),\n    (4, 'Desk lamp', 'Desk', 29.99, 6),\n    (5, 'Printer paper', 'Paper', 8.75, 40),\n    (6, 'Highlighters', 'Writing', 5.60, 32);\n",
+  "summary": "Select just the columns you need, compute new ones, and build text from them.",
+  "intro": "Real tables have more columns than any one question needs. This lesson shows how to pick the columns you want, compute new ones from them, and turn them into readable text.",
+  "steps": [
+    {
+      "title": "Pick and compute columns",
+      "body": "Every program in this lesson reads one table of office supplies:\n\n```sql\nCREATE TABLE products (id integer, name text, category text, price numeric(10, 2), stock integer);\n```\n\n```text\n id |      name      | category | price | stock\n----+----------------+----------+-------+-------\n  1 | Stapler        | Desk     | 12.50 |    14\n  2 | Ballpoint pens | Writing  |  4.25 |   120\n  3 | Sticky notes   | Paper    |  3.80 |    85\n  4 | Desk lamp      | Desk     | 29.99 |     6\n  5 | Printer paper  | Paper    |  8.75 |    40\n  6 | Highlighters   | Writing  |  5.60 |    32\n(6 rows)\n```\n\nThe lesson creates and fills this table before your program runs, so your program only reads it. `price` is `numeric(10, 2)`, an exact decimal that always shows 2 decimal places.\n\n`SELECT *` returns every column, but most queries name only the columns they need, in the order you want them shown. A column can also be an expression: arithmetic on the values of each row. Give a computed column a name with `AS`. Without one, a column like `stock + 10` gets the header `?column?`.\n\n```sql\nSELECT name, stock, stock + 10 AS restocked\nFROM products\nORDER BY id;\n```\n\nThe expression runs once per row. Multiplying `numeric(10, 2)` by an integer gives a `numeric` that keeps the two decimal places, so prices stay readable.\n\nAn alias only names the output column. You cannot use it elsewhere in the same SELECT list. This fails:\n\n```sql\nSELECT price * stock AS stock_value, stock_value * 2 FROM products;\n```\n\n```text\nERROR:  column \"stock_value\" does not exist\n```\n\nTry it in the editor to see the error. Repeat the expression instead (`price * stock * 2`).",
+      "example": {
+        "title": "Stock value",
+        "prompt": "List each product's name, price, and stock, plus the value of its stock (price times stock).",
+        "code": "SELECT name, price, stock, price * stock AS stock_value\nFROM products\nORDER BY id;\n",
+        "output": "      name      | price | stock | stock_value\n----------------+-------+-------+-------------\n Stapler        | 12.50 |    14 |      175.00\n Ballpoint pens |  4.25 |   120 |      510.00\n Sticky notes   |  3.80 |    85 |      323.00\n Desk lamp      | 29.99 |     6 |      179.94\n Printer paper  |  8.75 |    40 |      350.00\n Highlighters   |  5.60 |    32 |      179.20\n(6 rows)",
+        "explanation": "The SELECT list names three real columns and one expression. `price * stock` runs for every row, and `AS stock_value` names the result. `ORDER BY id` keeps the rows in a guaranteed order."
+      },
+      "practice": {
+        "title": "Price for three",
+        "prompt": "List what three of each product would cost.\n\n1. Select `name` and `price` from `products`.\n2. Add a column `price_for_three` that is the price times 3.\n3. Sort by `id`.\n\nExpected output:\n\n```text\n      name      | price | price_for_three\n----------------+-------+-----------------\n Stapler        | 12.50 |           37.50\n Ballpoint pens |  4.25 |           12.75\n Sticky notes   |  3.80 |           11.40\n Desk lamp      | 29.99 |           89.97\n Printer paper  |  8.75 |           26.25\n Highlighters   |  5.60 |           16.80\n(6 rows)\n```",
+        "starter": "-- TODO: add a price_for_three column that is price * 3\nSELECT name, price\nFROM products\nORDER BY id;\n",
+        "solution": "SELECT name, price, price * 3 AS price_for_three\nFROM products\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "      name      | price | price_for_three\n----------------+-------+-----------------\n Stapler        | 12.50 |           37.50\n Ballpoint pens |  4.25 |           12.75\n Sticky notes   |  3.80 |           11.40\n Desk lamp      | 29.99 |           89.97\n Printer paper  |  8.75 |           26.25\n Highlighters   |  5.60 |           16.80\n(6 rows)"
+          },
+          {
+            "stdin": "INSERT INTO products (id, name, category, price, stock) VALUES (7, 'Scissors', 'Desk', 7.15, 22);\nUPDATE products SET price = 13.00 WHERE id = 1;",
+            "output": "      name      | price | price_for_three\n----------------+-------+-----------------\n Stapler        | 13.00 |           39.00\n Ballpoint pens |  4.25 |           12.75\n Sticky notes   |  3.80 |           11.40\n Desk lamp      | 29.99 |           89.97\n Printer paper  |  8.75 |           26.25\n Highlighters   |  5.60 |           16.80\n Scissors       |  7.15 |           21.45\n(7 rows)"
+          },
+          {
+            "stdin": "DELETE FROM products WHERE id IN (2, 3, 4);\nUPDATE products SET price = 0.99 WHERE id = 6;",
+            "output": "     name      | price | price_for_three\n---------------+-------+-----------------\n Stapler       | 12.50 |           37.50\n Printer paper |  8.75 |           26.25\n Highlighters  |  0.99 |            2.97\n(3 rows)"
+          }
+        ],
+        "hints": [
+          "A computed column goes in the SELECT list like any other, separated by a comma.",
+          "Follow `price * stock AS stock_value` from the example, with a number in place of `stock`."
+        ]
+      }
+    },
+    {
+      "title": "Build text from columns",
+      "body": "The `products` table has `id`, `name`, `category`, `price` (`numeric(10, 2)`) and `stock` (`integer`). To turn those columns into a sentence, join text with the `||` operator:\n\n```sql\nSELECT name || ' (' || category || ')' AS label\nFROM products\nORDER BY id;\n```\n\nA number joins text too, as long as one side of `||` is text: `'Stock: ' || stock` gives `Stock: 14`. Two numbers do not join, and `+` never joins text:\n\n```sql\nSELECT stock || price FROM products;\n```\n\n```text\nERROR:  operator does not exist: integer || numeric\n```\n\nTry it in the editor, then cast one side with `::text` if you really need that. For longer sentences, `format()` is easier to read. Write the whole template once and put `%s` where each value goes. The values fill the placeholders from left to right, numbers included:\n\n```sql\nSELECT format('%s is in %s', name, category) AS info\nFROM products\nORDER BY id;\n```\n\nUse `%%` for a literal percent sign in a template.",
+      "example": {
+        "title": "Shelf labels",
+        "prompt": "Make a label with each product's name and category, and a note with its stock and price.",
+        "code": "SELECT\n    name || ' (' || category || ')' AS label,\n    format('%s left at $%s', stock, price) AS note\nFROM products\nORDER BY id;\n",
+        "output": "          label           |       note\n--------------------------+-------------------\n Stapler (Desk)           | 14 left at $12.50\n Ballpoint pens (Writing) | 120 left at $4.25\n Sticky notes (Paper)     | 85 left at $3.80\n Desk lamp (Desk)         | 6 left at $29.99\n Printer paper (Paper)    | 40 left at $8.75\n Highlighters (Writing)   | 32 left at $5.60\n(6 rows)",
+        "explanation": "The first column chains four pieces of text with `||`. The second fills the two `%s` placeholders with `stock` and `price` in order. Both are numbers, and `format()` turns them into text for you. The `$` is plain text in the template."
+      },
+      "practice": {
+        "title": "Price and stock lines",
+        "prompt": "Write two readable lines for each product.\n\n1. Build `price_line` with `||`, like `Stapler costs 12.50`.\n2. Build `stock_line` with `format()`, like `Stapler: 14 in stock`.\n3. Select only those two columns and sort by `id`.\n\nExpected output:\n\n```text\n        price_line         |          stock_line\n---------------------------+------------------------------\n Stapler costs 12.50       | Stapler: 14 in stock\n Ballpoint pens costs 4.25 | Ballpoint pens: 120 in stock\n Sticky notes costs 3.80   | Sticky notes: 85 in stock\n Desk lamp costs 29.99     | Desk lamp: 6 in stock\n Printer paper costs 8.75  | Printer paper: 40 in stock\n Highlighters costs 5.60   | Highlighters: 32 in stock\n(6 rows)\n```",
+        "starter": "SELECT\n    -- TODO: build price_line with || and stock_line with format()\n    name\nFROM products\nORDER BY id;\n",
+        "solution": "SELECT\n    name || ' costs ' || price AS price_line,\n    format('%s: %s in stock', name, stock) AS stock_line\nFROM products\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "        price_line         |          stock_line\n---------------------------+------------------------------\n Stapler costs 12.50       | Stapler: 14 in stock\n Ballpoint pens costs 4.25 | Ballpoint pens: 120 in stock\n Sticky notes costs 3.80   | Sticky notes: 85 in stock\n Desk lamp costs 29.99     | Desk lamp: 6 in stock\n Printer paper costs 8.75  | Printer paper: 40 in stock\n Highlighters costs 5.60   | Highlighters: 32 in stock\n(6 rows)"
+          },
+          {
+            "stdin": "INSERT INTO products (id, name, category, price, stock) VALUES (7, 'Paper clips', 'Desk', 1.99, 300);\nUPDATE products SET stock = 0 WHERE id = 1;",
+            "output": "        price_line         |          stock_line\n---------------------------+------------------------------\n Stapler costs 12.50       | Stapler: 0 in stock\n Ballpoint pens costs 4.25 | Ballpoint pens: 120 in stock\n Sticky notes costs 3.80   | Sticky notes: 85 in stock\n Desk lamp costs 29.99     | Desk lamp: 6 in stock\n Printer paper costs 8.75  | Printer paper: 40 in stock\n Highlighters costs 5.60   | Highlighters: 32 in stock\n Paper clips costs 1.99    | Paper clips: 300 in stock\n(7 rows)"
+          },
+          {
+            "stdin": "DELETE FROM products WHERE id > 2;\nUPDATE products SET name = 'Gel pens', price = 6.00 WHERE id = 2;",
+            "output": "     price_line      |       stock_line\n---------------------+------------------------\n Stapler costs 12.50 | Stapler: 14 in stock\n Gel pens costs 6.00 | Gel pens: 120 in stock\n(2 rows)"
+          }
+        ],
+        "hints": [
+          "Keep the spaces inside the quotes, so the words do not run together.",
+          "In `format()`, write the whole line once with a `%s` for each value, like `'%s left at $%s'` in the example."
+        ]
+      }
+    }
+  ],
+  "recap": "- List the columns you want after SELECT, in the order to show them.\n- Expressions like `price * stock` compute a new value for every row.\n- Name computed columns with `AS`. An alias cannot be reused in the same SELECT list.\n- `||` joins text, and a number joins too when the other side is text.\n- `format('%s and %s', a, b)` fills placeholders from left to right."
+}

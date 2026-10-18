@@ -1,0 +1,105 @@
+{
+  "id": "arrays",
+  "title": "Arrays",
+  "section": "Arrays, JSON, and Rows",
+  "summary": "Store lists in a column, search them, and turn them into rows and back.",
+  "intro": "Sometimes a row needs a short list: the tags on a post, the ingredients in a recipe. PostgreSQL can store that list in one column as an array, read items by position, search inside it, and turn it into rows when you need to group or count.",
+  "setup": "CREATE TABLE posts (\n    id integer,\n    title text,\n    tags text[]\n);\nINSERT INTO posts (id, title, tags) VALUES\n    (1, 'Intro to SQL', ARRAY['sql', 'beginner']),\n    (2, 'Postgres arrays', ARRAY['sql', 'postgres', 'arrays']),\n    (3, 'Faster indexes', ARRAY['postgres', 'performance']),\n    (4, 'Python for data', ARRAY['python', 'data']),\n    (5, 'Joins explained', ARRAY['sql', 'beginner', 'joins']),\n    (6, 'Tuning queries', ARRAY['sql', 'postgres', 'performance']);\nCREATE TABLE recipes (\n    id integer,\n    name text,\n    ingredients text[]\n);\nINSERT INTO recipes (id, name, ingredients) VALUES\n    (1, 'Pancakes', '{flour,egg,milk,sugar}'),\n    (2, 'Omelette', '{egg,milk,cheese}'),\n    (3, 'Shortbread', '{flour,butter,sugar}'),\n    (4, 'Tomato soup', '{tomato,onion,garlic}'),\n    (5, 'Garlic bread', '{bread,butter,garlic}');\n",
+  "steps": [
+    {
+      "title": "Array values",
+      "body": "An array holds a list of values of one type in a single column. Add `[]` to a type to get its array type: `text[]`, `integer[]`. This lesson uses two tables:\n\n```sql\nCREATE TABLE posts (id integer, title text, tags text[]);\n-- (1, 'Intro to SQL', {sql,beginner}) ... 6 posts\nCREATE TABLE recipes (id integer, name text, ingredients text[]);\n-- (1, 'Pancakes', {flour,egg,milk,sugar}) ... 5 recipes\n```\n\nWrite an array as `ARRAY['sql', 'beginner']` or as the text literal `'{sql,beginner}'`. The literal is plain text until PostgreSQL knows its type, so in a bare `SELECT` cast it: `'{1,2,3}'::integer[]`. psql prints arrays in braces and quotes items with spaces: `{\"olive oil\",salt}`.\n\n- `tags[1]` is the first item. Indexes start at 1, and an index past the end gives NULL, not an error.\n- `tags[1:2]` is a slice, a new array of items 1 through 2. A slice past the end is shorter or empty.\n- `cardinality(tags)` counts the items. An empty array `'{}'` has 0.\n- `array_append(tags, 'new')` adds one item at the end. `tags || ARRAY['a', 'b']` joins two arrays.\n\nWatch out: `tags || 'new'` fails with `ERROR:  malformed array literal: \"new\"`, because PostgreSQL reads the quoted text as an array literal. Use `array_append` or `ARRAY['new']` instead.\n\nThese return new arrays. The table stays the same.",
+      "example": {
+        "title": "Post tag summary",
+        "prompt": "Print each post's title, its first tag, how many tags it has, and its tags with 'blog' added at the end.",
+        "code": "SELECT title,\n    tags[1] AS first_tag,\n    cardinality(tags) AS tag_count,\n    array_append(tags, 'blog') AS more_tags\nFROM posts\nORDER BY id;\n",
+        "output": "      title      | first_tag | tag_count |            more_tags\n-----------------+-----------+-----------+---------------------------------\n Intro to SQL    | sql       |         2 | {sql,beginner,blog}\n Postgres arrays | sql       |         3 | {sql,postgres,arrays,blog}\n Faster indexes  | postgres  |         2 | {postgres,performance,blog}\n Python for data | python    |         2 | {python,data,blog}\n Joins explained | sql       |         3 | {sql,beginner,joins,blog}\n Tuning queries  | sql       |         3 | {sql,postgres,performance,blog}\n(6 rows)",
+        "explanation": "`tags[1]` reads position 1, the first tag. `cardinality(tags)` counts every item in the array. `array_append(tags, 'blog')` returns a copy of the array with one more item, so the stored tags stay the same."
+      },
+      "practice": {
+        "title": "Recipe ingredient summary",
+        "prompt": "Print a short summary of every recipe's ingredient list.\n\n1. Select the recipe `name`.\n2. Select the first two ingredients, as a slice, as `first_two`.\n3. Select how many ingredients the recipe has as `ingredient_count`.\n4. Select the ingredients with `ARRAY['salt']` joined on the end using `||`, as `with_salt`.\n5. Sort by `id`.\n\nExpected output:\n\n```text\n     name     |   first_two    | ingredient_count |          with_salt\n--------------+----------------+------------------+-----------------------------\n Pancakes     | {flour,egg}    |                4 | {flour,egg,milk,sugar,salt}\n Omelette     | {egg,milk}     |                3 | {egg,milk,cheese,salt}\n Shortbread   | {flour,butter} |                3 | {flour,butter,sugar,salt}\n Tomato soup  | {tomato,onion} |                3 | {tomato,onion,garlic,salt}\n Garlic bread | {bread,butter} |                3 | {bread,butter,garlic,salt}\n(5 rows)\n```",
+        "starter": "-- TODO: add first_two, ingredient_count, and with_salt\nSELECT name\nFROM recipes\nORDER BY id;\n",
+        "solution": "SELECT name,\n    ingredients[1:2] AS first_two,\n    cardinality(ingredients) AS ingredient_count,\n    ingredients || ARRAY['salt'] AS with_salt\nFROM recipes\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "     name     |   first_two    | ingredient_count |          with_salt\n--------------+----------------+------------------+-----------------------------\n Pancakes     | {flour,egg}    |                4 | {flour,egg,milk,sugar,salt}\n Omelette     | {egg,milk}     |                3 | {egg,milk,cheese,salt}\n Shortbread   | {flour,butter} |                3 | {flour,butter,sugar,salt}\n Tomato soup  | {tomato,onion} |                3 | {tomato,onion,garlic,salt}\n Garlic bread | {bread,butter} |                3 | {bread,butter,garlic,salt}\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO recipes (id, name, ingredients) VALUES\n    (6, 'Boiled egg', '{egg}'),\n    (7, 'Ice water', '{}');\n",
+            "output": "     name     |   first_two    | ingredient_count |          with_salt\n--------------+----------------+------------------+-----------------------------\n Pancakes     | {flour,egg}    |                4 | {flour,egg,milk,sugar,salt}\n Omelette     | {egg,milk}     |                3 | {egg,milk,cheese,salt}\n Shortbread   | {flour,butter} |                3 | {flour,butter,sugar,salt}\n Tomato soup  | {tomato,onion} |                3 | {tomato,onion,garlic,salt}\n Garlic bread | {bread,butter} |                3 | {bread,butter,garlic,salt}\n Boiled egg   | {egg}          |                1 | {egg,salt}\n Ice water    | {}             |                0 | {salt}\n(7 rows)"
+          }
+        ],
+        "hints": [
+          "A slice puts the first and last position in the brackets with a colon between them.",
+          "`||` needs an array on both sides, so build the right side with `ARRAY[...]`."
+        ]
+      }
+    },
+    {
+      "title": "Searching arrays",
+      "body": "Three conditions cover most searches in an array column. Each one is a condition, so it goes in `WHERE`.\n\n- `'sql' = ANY(tags)` is true when any item equals `'sql'`. The single value goes on the left.\n- `tags @> ARRAY['sql', 'postgres']` means *contains*: every item on the right is somewhere in `tags`, in any order.\n- `tags && ARRAY['python', 'data']` means *overlaps*: the arrays share at least one item.\n\n```sql\nSELECT ARRAY['a', 'b', 'c'] @> ARRAY['c', 'a'];  -- t\nSELECT ARRAY['a', 'b'] && ARRAY['x', 'b'];        -- t\n```\n\nSo `@>` works like AND across the items you list, and `&&` works like OR. `<@` is the same test as `@>` turned around: `ARRAY['sql'] <@ tags`.\n\nSome gotchas. `@>` and `&&` need both sides to be arrays of the same type, so write `ARRAY['sql']`, not `'sql'`. And a NULL array gives NULL for all three, so `WHERE` drops that row. Plain `=` is different: `ARRAY['a', 'b'] = ARRAY['b', 'a']` is false, because it compares the items in order.",
+      "example": {
+        "title": "Find posts by tag",
+        "prompt": "List the posts tagged sql, then the posts tagged both sql and postgres, then the posts tagged python or performance.",
+        "code": "SELECT id, title\nFROM posts\nWHERE 'sql' = ANY(tags)\nORDER BY id;\n\nSELECT id, title\nFROM posts\nWHERE tags @> ARRAY['sql', 'postgres']\nORDER BY id;\n\nSELECT id, title\nFROM posts\nWHERE tags && ARRAY['python', 'performance']\nORDER BY id;\n",
+        "output": " id |      title\n----+-----------------\n  1 | Intro to SQL\n  2 | Postgres arrays\n  5 | Joins explained\n  6 | Tuning queries\n(4 rows)\n\n id |      title\n----+-----------------\n  2 | Postgres arrays\n  6 | Tuning queries\n(2 rows)\n\n id |      title\n----+-----------------\n  3 | Faster indexes\n  4 | Python for data\n  6 | Tuning queries\n(3 rows)",
+        "explanation": "`= ANY` checks one tag against each item of the array. `@>` keeps posts whose tags include both `sql` and `postgres`, so `Intro to SQL` is left out. `&&` keeps posts that share at least one tag with the list on the right."
+      },
+      "practice": {
+        "title": "Find recipes by ingredient",
+        "prompt": "Search the recipes by their ingredients, with three queries.\n\n1. Select `id` and `name` of the recipes that use `egg`, using `= ANY`.\n2. Select `id` and `name` of the recipes that use both `flour` and `sugar`, using `@>`.\n3. Select `id` and `name` of the recipes that use `butter` or `cheese` or both, using `&&`.\n4. Sort each result by `id`.\n\nExpected output:\n\n```text\n id |   name\n----+----------\n  1 | Pancakes\n  2 | Omelette\n(2 rows)\n\n id |    name\n----+------------\n  1 | Pancakes\n  3 | Shortbread\n(2 rows)\n\n id |     name\n----+--------------\n  2 | Omelette\n  3 | Shortbread\n  5 | Garlic bread\n(3 rows)\n```",
+        "starter": "-- TODO: recipes that use egg\nSELECT id, name\nFROM recipes\nORDER BY id;\n\n-- TODO: recipes that use both flour and sugar\n\n-- TODO: recipes that use butter or cheese\n",
+        "solution": "SELECT id, name\nFROM recipes\nWHERE 'egg' = ANY(ingredients)\nORDER BY id;\n\nSELECT id, name\nFROM recipes\nWHERE ingredients @> ARRAY['flour', 'sugar']\nORDER BY id;\n\nSELECT id, name\nFROM recipes\nWHERE ingredients && ARRAY['butter', 'cheese']\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": " id |   name\n----+----------\n  1 | Pancakes\n  2 | Omelette\n(2 rows)\n\n id |    name\n----+------------\n  1 | Pancakes\n  3 | Shortbread\n(2 rows)\n\n id |     name\n----+--------------\n  2 | Omelette\n  3 | Shortbread\n  5 | Garlic bread\n(3 rows)"
+          },
+          {
+            "stdin": "INSERT INTO recipes (id, name, ingredients) VALUES\n    (6, 'Sugar cookies', '{sugar,butter,flour,egg}'),\n    (7, 'Cheese toast', '{bread,cheese}');\n",
+            "output": " id |     name\n----+---------------\n  1 | Pancakes\n  2 | Omelette\n  6 | Sugar cookies\n(3 rows)\n\n id |     name\n----+---------------\n  1 | Pancakes\n  3 | Shortbread\n  6 | Sugar cookies\n(3 rows)\n\n id |     name\n----+---------------\n  2 | Omelette\n  3 | Shortbread\n  5 | Garlic bread\n  6 | Sugar cookies\n  7 | Cheese toast\n(5 rows)"
+          },
+          {
+            "stdin": "DELETE FROM recipes WHERE id IN (1, 2);\nINSERT INTO recipes (id, name, ingredients) VALUES\n    (6, 'Mystery stew', NULL);\n",
+            "output": " id | name\n----+------\n(0 rows)\n\n id |    name\n----+------------\n  3 | Shortbread\n(1 row)\n\n id |     name\n----+--------------\n  3 | Shortbread\n  5 | Garlic bread\n(2 rows)"
+          }
+        ],
+        "hints": [
+          "Put the single value on the left of `= ANY(...)` and the array column inside the parentheses.",
+          "The right side of `@>` and `&&` must be an array too, built with `ARRAY[...]`."
+        ]
+      }
+    },
+    {
+      "title": "Arrays to rows and back",
+      "body": "`unnest(array)` turns an array into rows, one per item. It returns rows, so it goes in `FROM`:\n\n```sql\nSELECT tag FROM unnest(ARRAY['sql', 'joins']) AS tag;  -- 2 rows\n```\n\nTo unnest a column, join each row to its own items. `CROSS JOIN unnest(tags) AS tag` pairs every post with each of its tags, so a post with 3 tags becomes 3 rows that keep `title` and `id`. Now `GROUP BY tag` counts posts per tag, like any column. A row whose array is empty or NULL makes no rows at all, so it drops out.\n\n`array_agg(value ORDER BY ...)` goes the other way: it collects a group's values into one array. Without `ORDER BY` inside, the item order is not guaranteed.\n\n`array_to_string(array, ', ')` joins the items into text with a separator and skips NULL items. It works on any array, like a stored column: `array_to_string(tags, ' / ')`. On an aggregate, `array_to_string(array_agg(x ORDER BY x), ', ')` gives the same text as `string_agg(x, ', ' ORDER BY x)`.",
+      "example": {
+        "title": "Posts per tag",
+        "prompt": "Count how many posts use each tag, most used first, then list each tag with an array of its post titles.",
+        "code": "SELECT tag, count(*) AS post_count\nFROM posts\nCROSS JOIN unnest(tags) AS tag\nGROUP BY tag\nORDER BY post_count DESC, tag;\n\nSELECT tag, array_agg(title ORDER BY title) AS titles\nFROM posts\nCROSS JOIN unnest(tags) AS tag\nGROUP BY tag\nORDER BY tag;\n",
+        "output": "     tag     | post_count\n-------------+------------\n sql         |          4\n postgres    |          3\n beginner    |          2\n performance |          2\n arrays      |          1\n data        |          1\n joins       |          1\n python      |          1\n(8 rows)\n\n     tag     |                                titles\n-------------+-----------------------------------------------------------------------\n arrays      | {\"Postgres arrays\"}\n beginner    | {\"Intro to SQL\",\"Joins explained\"}\n data        | {\"Python for data\"}\n joins       | {\"Joins explained\"}\n performance | {\"Faster indexes\",\"Tuning queries\"}\n postgres    | {\"Faster indexes\",\"Postgres arrays\",\"Tuning queries\"}\n python      | {\"Python for data\"}\n sql         | {\"Intro to SQL\",\"Joins explained\",\"Postgres arrays\",\"Tuning queries\"}\n(8 rows)",
+        "explanation": "`CROSS JOIN unnest(tags)` makes one row per post and tag, so grouping by `tag` counts posts. Ties in `post_count` are broken by `tag`. In the second query `array_agg` collects the titles of each group in alphabetical order. Titles with spaces print in double quotes because that is how psql shows array items."
+      },
+      "practice": {
+        "title": "Recipes per ingredient",
+        "prompt": "List every ingredient with the recipes that use it as one line of text.\n\n1. Turn each recipe's ingredients into rows with `CROSS JOIN unnest(ingredients) AS ingredient`.\n2. Group by `ingredient` and select it.\n3. Collect the recipe names in alphabetical order with `array_agg`, and join them with `', '` using `array_to_string`, as `recipes`.\n4. Sort by `ingredient`.\n\nExpected output:\n\n```text\n ingredient |          recipes\n------------+---------------------------\n bread      | Garlic bread\n butter     | Garlic bread, Shortbread\n cheese     | Omelette\n egg        | Omelette, Pancakes\n flour      | Pancakes, Shortbread\n garlic     | Garlic bread, Tomato soup\n milk       | Omelette, Pancakes\n onion      | Tomato soup\n sugar      | Pancakes, Shortbread\n tomato     | Tomato soup\n(10 rows)\n```",
+        "starter": "-- TODO: one row per ingredient with its recipe names as text\nSELECT name, ingredients\nFROM recipes\nORDER BY id;\n",
+        "solution": "SELECT ingredient,\n    array_to_string(array_agg(name ORDER BY name), ', ') AS recipes\nFROM recipes\nCROSS JOIN unnest(ingredients) AS ingredient\nGROUP BY ingredient\nORDER BY ingredient;\n",
+        "tests": [
+          {
+            "output": " ingredient |          recipes\n------------+---------------------------\n bread      | Garlic bread\n butter     | Garlic bread, Shortbread\n cheese     | Omelette\n egg        | Omelette, Pancakes\n flour      | Pancakes, Shortbread\n garlic     | Garlic bread, Tomato soup\n milk       | Omelette, Pancakes\n onion      | Tomato soup\n sugar      | Pancakes, Shortbread\n tomato     | Tomato soup\n(10 rows)"
+          },
+          {
+            "stdin": "INSERT INTO recipes (id, name, ingredients) VALUES\n    (6, 'Bruschetta', '{bread,tomato,garlic}'),\n    (7, 'Plain water', '{}');\n",
+            "output": " ingredient |                recipes\n------------+---------------------------------------\n bread      | Bruschetta, Garlic bread\n butter     | Garlic bread, Shortbread\n cheese     | Omelette\n egg        | Omelette, Pancakes\n flour      | Pancakes, Shortbread\n garlic     | Bruschetta, Garlic bread, Tomato soup\n milk       | Omelette, Pancakes\n onion      | Tomato soup\n sugar      | Pancakes, Shortbread\n tomato     | Bruschetta, Tomato soup\n(10 rows)"
+          }
+        ],
+        "hints": [
+          "Start from the rows that `CROSS JOIN unnest(ingredients) AS ingredient` makes, then `GROUP BY ingredient`.",
+          "Put `ORDER BY name` inside the `array_agg` call. `array_to_string` takes the array first and the separator second."
+        ]
+      }
+    }
+  ],
+  "recap": "- Write arrays as `ARRAY['a', 'b']` or `'{a,b}'`, in `text[]` or `integer[]` columns.\n- `tags[1]` is the first item, `tags[1:2]` a slice, and `cardinality(tags)` the count.\n- `array_append(tags, x)` and `||` add items.\n- `x = ANY(tags)` tests one value, `@>` means contains all, and `&&` means shares any.\n- `CROSS JOIN unnest(tags) AS tag` makes one row per item, and `array_agg(x ORDER BY x)` collects rows back into an array.\n- `array_to_string(array, ', ')` turns an array into text."
+}

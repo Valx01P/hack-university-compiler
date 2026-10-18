@@ -1,0 +1,79 @@
+{
+  "id": "math",
+  "title": "Math Operators and Functions",
+  "section": "Expressions and Functions",
+  "summary": "Do arithmetic, avoid the integer division trap, and round results.",
+  "intro": "Prices, splits, and unit conversions all need math. PostgreSQL does it right in the SELECT list, as long as you know which types you are dividing and how to round the answer.",
+  "setup": "CREATE TABLE bills (id integer, description text, total_cents integer, people integer);\nINSERT INTO bills (id, description, total_cents, people) VALUES\n    (1, 'Pizza night', 4750, 4),\n    (2, 'Taxi home', 2300, 3),\n    (3, 'Concert tickets', 12000, 5),\n    (4, 'Groceries', 8615, 2),\n    (5, 'Coffee run', 1099, 6);\nCREATE TABLE products (id integer, name text, price numeric(10, 2), weight_g integer);\nINSERT INTO products (id, name, price, weight_g) VALUES\n    (1, 'Desk lamp', 34.99, 1450),\n    (2, 'Notebook', 4.50, 320),\n    (3, 'Backpack', 59.95, 980),\n    (4, 'Water bottle', 18.00, 2000),\n    (5, 'Headphones', 129.99, 255);\n",
+  "steps": [
+    {
+      "title": "Operators and integer division",
+      "body": "This lesson uses two tables. `bills` holds amounts in whole cents, split between some people:\n\n```sql\nCREATE TABLE bills (id integer, description text, total_cents integer, people integer);\n-- (1, 'Pizza night', 4750, 4), (2, 'Taxi home', 2300, 3), ...\n```\n\nSQL has `+`, `-`, `*`, `/`, `%` (remainder), and `^` (power). The trap is `/`: when both sides are integers, the answer is an integer and the remainder is dropped, toward zero. Put a numeric on either side, with a cast or a decimal literal, to get the exact answer.\n\n```sql\nSELECT 7 / 2 AS int_div, 7 % 2 AS remainder, 7.0 / 2 AS exact, 2 ^ 10 AS power;\n-- 3 | 1 | 3.5000000000000000 | 1024\n```\n\nSo `total_cents / people` is each person's share in whole cents, and `total_cents % people` is the cents left over. With negatives, `/` cuts toward zero and `%` keeps the sign of the left side: `-7 / 2` is `-3`, not `-4`, and `-7 % 2` is `-1`.\n\nDividing by zero stops the program with an error. Try it in the editor:\n\n```text\nERROR:  division by zero\n```\n\nIf a divisor might be zero, `x / NULLIF(people, 0)` gives NULL instead of an error.",
+      "example": {
+        "title": "Splitting bills",
+        "prompt": "For each bill, show each person's share in whole cents, the cents left over, and the exact share.",
+        "code": "SELECT description,\n    total_cents / people AS each_cents,\n    total_cents % people AS left_over,\n    total_cents::numeric / people AS exact\nFROM bills\nORDER BY id;\n",
+        "output": "   description   | each_cents | left_over |         exact\n-----------------+------------+-----------+-----------------------\n Pizza night     |       1187 |         2 | 1187.5000000000000000\n Taxi home       |        766 |         2 |  766.6666666666666667\n Concert tickets |       2400 |         0 | 2400.0000000000000000\n Groceries       |       4307 |         1 | 4307.5000000000000000\n Coffee run      |        183 |         1 |  183.1666666666666667\n(5 rows)",
+        "explanation": "Both `total_cents` and `people` are integers, so `/` gives whole cents and `%` gives what is left: Pizza night is 4750 = 1187 × 4 + 2. Casting `total_cents` to numeric makes the last column exact, with many decimal places. Rounding fixes that in the next part."
+      },
+      "practice": {
+        "title": "Dollars and cents",
+        "prompt": "Split each bill's total into whole dollars and the cents left over.\n\n1. Select `description` from `bills`.\n2. Add `dollars`: the total in cents divided by 100, as a whole number.\n3. Add `cents`: the remainder of the total divided by 100.\n4. Sort by `id`.\n\nExpected output:\n\n```text\n   description   | dollars | cents\n-----------------+---------+-------\n Pizza night     |      47 |    50\n Taxi home       |      23 |     0\n Concert tickets |     120 |     0\n Groceries       |      86 |    15\n Coffee run      |      10 |    99\n(5 rows)\n```",
+        "starter": "-- TODO: add the dollars and cents columns\nSELECT description\nFROM bills\nORDER BY id;\n",
+        "solution": "SELECT description,\n    total_cents / 100 AS dollars,\n    total_cents % 100 AS cents\nFROM bills\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "   description   | dollars | cents\n-----------------+---------+-------\n Pizza night     |      47 |    50\n Taxi home       |      23 |     0\n Concert tickets |     120 |     0\n Groceries       |      86 |    15\n Coffee run      |      10 |    99\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO bills (id, description, total_cents, people) VALUES\n    (6, 'Parking', 805, 1),\n    (7, 'Gum', 99, 3);\nDELETE FROM bills WHERE id = 3;",
+            "output": " description | dollars | cents\n-------------+---------+-------\n Pizza night |      47 |    50\n Taxi home   |      23 |     0\n Groceries   |      86 |    15\n Coffee run  |      10 |    99\n Parking     |       8 |     5\n Gum         |       0 |    99\n(6 rows)"
+          },
+          {
+            "stdin": "DELETE FROM bills WHERE id > 2;\nINSERT INTO bills (id, description, total_cents, people) VALUES (8, 'Hotel', 100000, 4);",
+            "output": " description | dollars | cents\n-------------+---------+-------\n Pizza night |      47 |    50\n Taxi home   |      23 |     0\n Hotel       |    1000 |     0\n(3 rows)"
+          }
+        ],
+        "hints": [
+          "Integer division by 100 drops the cents, and `%` gives them back.",
+          "`total_cents` and `100` are both integers, so the division already gives a whole number. No cast is needed."
+        ]
+      }
+    },
+    {
+      "title": "Rounding",
+      "body": "The second table is `products`, with prices in numeric and weights in grams:\n\n```sql\nCREATE TABLE products (id integer, name text, price numeric(10, 2), weight_g integer);\n-- (1, 'Desk lamp', 34.99, 1450), (2, 'Notebook', 4.50, 320), ...\n```\n\nLong decimals are hard to read, so round them. `round(x)` rounds to a whole number and `round(x, 2)` keeps 2 decimal places. The others always go one way: `ceil` rounds up, `floor` rounds down, and `trunc` cuts off the decimals, toward zero. `abs` drops the sign and `sqrt` is the square root.\n\n```sql\nSELECT round(2.567, 1), ceil(2.1), floor(2.9), trunc(-2.7), floor(-2.7), abs(-4), sqrt(16);\n-- 2.6 | 3 | 2 | -2 | -3 | 4 | 4\n```\n\nTwo gotchas. First, make the division numeric before you round: `ceil(weight_g / 1000)` does integer division first and throws away the part you wanted to round up, so write `1000.0`. Second, `round(2.5)` is `3` for a numeric, but `^` and `sqrt` of integers return double precision, a floating point type, and `round` of a double precision half goes to the even neighbor: `round(2.5::double precision)` is `2`.",
+      "example": {
+        "title": "Tax and shipping",
+        "prompt": "For each product, show the price with 8.25% tax rounded to cents, and the shipping weight in kilograms rounded up.",
+        "code": "SELECT name,\n    round(price * 1.0825, 2) AS with_tax,\n    ceil(weight_g / 1000.0) AS shipping_kg\nFROM products\nORDER BY id;\n",
+        "output": "     name     | with_tax | shipping_kg\n--------------+----------+-------------\n Desk lamp    |    37.88 |           2\n Notebook     |     4.87 |           1\n Backpack     |    64.90 |           1\n Water bottle |    19.49 |           2\n Headphones   |   140.71 |           1\n(5 rows)",
+        "explanation": "`price * 1.0825` has 6 decimal places, and `round(..., 2)` cuts it back to cents. `weight_g / 1000.0` is a numeric division, so the Desk lamp's 1.45 kg survives and `ceil` rounds it up to 2."
+      },
+      "practice": {
+        "title": "Euro prices and kilograms",
+        "prompt": "Show each product's price in euros and its weight in whole kilograms.\n\n1. Select `name` from `products`.\n2. Add `price_eur`: the price times 0.92, rounded to 2 decimal places.\n3. Add `weight_kg`: the weight in kilograms, rounded down with `floor`.\n4. Sort by `id`.\n\nExpected output:\n\n```text\n     name     | price_eur | weight_kg\n--------------+-----------+-----------\n Desk lamp    |     32.19 |         1\n Notebook     |      4.14 |         0\n Backpack     |     55.15 |         0\n Water bottle |     16.56 |         2\n Headphones   |    119.59 |         0\n(5 rows)\n```",
+        "starter": "-- TODO: add the price_eur and weight_kg columns\nSELECT name\nFROM products\nORDER BY id;\n",
+        "solution": "SELECT name,\n    round(price * 0.92, 2) AS price_eur,\n    floor(weight_g / 1000.0) AS weight_kg\nFROM products\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "     name     | price_eur | weight_kg\n--------------+-----------+-----------\n Desk lamp    |     32.19 |         1\n Notebook     |      4.14 |         0\n Backpack     |     55.15 |         0\n Water bottle |     16.56 |         2\n Headphones   |    119.59 |         0\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO products (id, name, price, weight_g) VALUES\n    (6, 'Sticker', 0.01, 5),\n    (7, 'Kettle', 24.50, 3000);\nDELETE FROM products WHERE id = 1;",
+            "output": "     name     | price_eur | weight_kg\n--------------+-----------+-----------\n Notebook     |      4.14 |         0\n Backpack     |     55.15 |         0\n Water bottle |     16.56 |         2\n Headphones   |    119.59 |         0\n Sticker      |      0.01 |         0\n Kettle       |     22.54 |         3\n(6 rows)"
+          },
+          {
+            "stdin": "DELETE FROM products WHERE id <> 4;\nINSERT INTO products (id, name, price, weight_g) VALUES\n    (8, 'Bike', 449.00, 12999),\n    (9, 'Gift card', 25.00, NULL);",
+            "output": "     name     | price_eur | weight_kg\n--------------+-----------+-----------\n Water bottle |     16.56 |         2\n Bike         |    413.08 |        12\n Gift card    |     23.00 |\n(3 rows)"
+          }
+        ],
+        "hints": [
+          "Use `round(x, 2)` for the price and `floor` for the weight.",
+          "Divide by `1000.0`, not `1000`, so the division is numeric before `floor` runs."
+        ]
+      }
+    }
+  ],
+  "recap": "- `+ - * / % ^` work on columns and literals.\n- Integer `/` integer drops the remainder, and `%` gives it.\n- A numeric on either side, like `::numeric` or `1000.0`, gives an exact answer.\n- Dividing by zero is an error. `NULLIF(x, 0)` turns it into NULL.\n- `round(x, 2)` rounds, `ceil` goes up, `floor` goes down, and `trunc` cuts toward zero.\n- `abs` drops the sign and `sqrt` takes a square root."
+}

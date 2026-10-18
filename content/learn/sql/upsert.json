@@ -1,0 +1,114 @@
+{
+  "id": "upsert",
+  "title": "Copying Rows and Upserts",
+  "section": "Designing Tables",
+  "summary": "Insert rows from a query, skip duplicates, and update rows that already exist.",
+  "intro": "Real data rarely arrives one row at a time. A delivery, an import, or a nightly sync brings a whole batch, and some of it is new while some of it is already in your table. This lesson copies rows with a query and decides what happens when a key already exists.",
+  "setup": "CREATE TABLE inventory (\n    sku text PRIMARY KEY,\n    name text,\n    qty integer\n);\nINSERT INTO inventory (sku, name, qty) VALUES\n    ('A100', 'Desk lamp', 12),\n    ('B200', 'Office chair', 5),\n    ('C300', 'Notebook', 40),\n    ('D400', 'Stapler', 8);\nCREATE TABLE shipment (\n    sku text,\n    name text,\n    qty integer\n);\nINSERT INTO shipment (sku, name, qty) VALUES\n    ('B200', 'Office chair', 3),\n    ('D400', 'Heavy stapler', 15),\n    ('E500', 'Monitor stand', 6),\n    ('F600', 'Desk mat', 20);\n",
+  "steps": [
+    {
+      "title": "Copying rows with INSERT SELECT",
+      "body": "This lesson uses two tables. `inventory` holds what a shop has in stock, one row per `sku` (stock code). `shipment` is a delivery that just arrived:\n\n```sql\nCREATE TABLE inventory (sku text PRIMARY KEY, name text, qty integer);\nCREATE TABLE shipment (sku text, name text, qty integer);\n```\n\n| table | rows (sku, name, qty) |\n| --- | --- |\n| inventory | A100 Desk lamp 12, B200 Office chair 5, C300 Notebook 40, D400 Stapler 8 |\n| shipment | B200 Office chair 3, D400 Heavy stapler 15, E500 Monitor stand 6, F600 Desk mat 20 |\n\nSo far `INSERT` took rows from `VALUES`. Put a `SELECT` in its place and every row the query returns is inserted:\n\n```sql\nINSERT INTO inventory (sku, name, qty)\nSELECT sku, name, qty FROM shipment WHERE qty > 5;\n```\n\nThe query can use `WHERE`, joins, expressions, anything a normal `SELECT` can. Its columns fill the listed columns **by position**, not by name, so keep both lists in the same order. The tag `INSERT 0 n` tells you how many rows were copied, and it is `INSERT 0 0` when the query finds nothing.",
+      "example": {
+        "title": "Stocking the new items",
+        "prompt": "Copy only the shipment rows whose sku is not in inventory yet, then list inventory.",
+        "code": "-- Copy only the shipment rows whose sku is not in inventory yet\nINSERT INTO inventory (sku, name, qty)\nSELECT sku, name, qty\nFROM shipment\nWHERE sku NOT IN (SELECT sku FROM inventory);\n\nSELECT * FROM inventory ORDER BY sku;\n",
+        "output": "INSERT 0 2\n\n sku  |     name      | qty\n------+---------------+-----\n A100 | Desk lamp     |  12\n B200 | Office chair  |   5\n C300 | Notebook      |  40\n D400 | Stapler       |   8\n E500 | Monitor stand |   6\n F600 | Desk mat      |  20\n(6 rows)",
+        "explanation": "`SELECT sku FROM inventory` lists the four skus already in stock, so `NOT IN` keeps only E500 and F600 from the shipment. Those two rows go into `inventory`, and the tag says `INSERT 0 2`. B200 and D400 are skipped, so their quantities stay 5 and 8. `NOT IN` is safe here because `sku` is the primary key, so the list never holds a NULL."
+      },
+      "practice": {
+        "title": "Copying the big deliveries",
+        "prompt": "Copy the large lines of the shipment into a new table.\n\n1. Create a table `big_items` with columns `sku text PRIMARY KEY`, `name text`, and `qty integer`.\n2. Insert into `big_items` the `sku`, `name`, and `qty` of every `shipment` row with `qty` over 10, using `INSERT ... SELECT`.\n3. List every column of `big_items`, sorted by `sku`.\n\nExpected output:\n\n```text\nCREATE TABLE\n\nINSERT 0 2\n\n sku  |     name      | qty\n------+---------------+-----\n D400 | Heavy stapler |  15\n F600 | Desk mat      |  20\n(2 rows)\n```",
+        "starter": "-- TODO: create big_items (sku text PRIMARY KEY, name text, qty integer),\n-- copy the shipment rows with qty over 10 into it,\n-- then change this query to list big_items\nSELECT * FROM shipment ORDER BY sku;\n",
+        "solution": "CREATE TABLE big_items (\n    sku text PRIMARY KEY,\n    name text,\n    qty integer\n);\n\nINSERT INTO big_items (sku, name, qty)\nSELECT sku, name, qty\nFROM shipment\nWHERE qty > 10;\n\nSELECT * FROM big_items ORDER BY sku;\n",
+        "tests": [
+          {
+            "output": "CREATE TABLE\n\nINSERT 0 2\n\n sku  |     name      | qty\n------+---------------+-----\n D400 | Heavy stapler |  15\n F600 | Desk mat      |  20\n(2 rows)"
+          },
+          {
+            "stdin": "UPDATE shipment SET qty = 11 WHERE sku = 'B200';\nINSERT INTO shipment (sku, name, qty) VALUES ('G700', 'Pen pack', 10);\n",
+            "output": "CREATE TABLE\n\nINSERT 0 3\n\n sku  |     name      | qty\n------+---------------+-----\n B200 | Office chair  |  11\n D400 | Heavy stapler |  15\n F600 | Desk mat      |  20\n(3 rows)"
+          },
+          {
+            "stdin": "UPDATE shipment SET qty = 4;\n",
+            "output": "CREATE TABLE\n\nINSERT 0 0\n\n sku | name | qty\n-----+------+-----\n(0 rows)"
+          }
+        ],
+        "hints": [
+          "Write `CREATE TABLE big_items (...)` first, so the insert has somewhere to go.",
+          "Use `INSERT INTO big_items (sku, name, qty)` followed by a `SELECT ... FROM shipment WHERE qty > 10`.",
+          "When no row matches, the tag is `INSERT 0 0` and the list shows `(0 rows)`."
+        ]
+      }
+    },
+    {
+      "title": "Skipping duplicates with DO NOTHING",
+      "body": "`inventory.sku` is the primary key, so copying the whole `shipment` (which has B200 and D400 again) stops at the first repeat:\n\n```text\nERROR:  duplicate key value violates unique constraint \"inventory_pkey\"\n```\n\nThe whole statement fails, so not even the new rows are added. Add `ON CONFLICT (column) DO NOTHING` and each row that would break the key is skipped quietly while the rest go in:\n\n```sql\nINSERT INTO inventory (sku, name, qty)\nVALUES ('B200', 'Office chair', 1)\nON CONFLICT (sku) DO NOTHING;\n```\n\nThe column in parentheses must have a `UNIQUE` or `PRIMARY KEY` constraint, because that is how PostgreSQL finds the clash. On a plain column you get:\n\n```text\nERROR:  there is no unique or exclusion constraint matching the ON CONFLICT specification\n```\n\nAn identity id never clashes, because PostgreSQL picks a new one each time. So upserts match on a natural key, like `sku` or an email. Leave out `(sku)` and `ON CONFLICT DO NOTHING` skips a clash on any unique column. The tag counts only rows actually written: the statement above prints `INSERT 0 0`. Try both errors in the editor: remove the `ON CONFLICT` line, or insert into `shipment` instead, which has no key.",
+      "example": {
+        "title": "Adding the shipment once",
+        "prompt": "Insert every shipment row into inventory, skipping skus it already has, then list inventory.",
+        "code": "-- Try every shipment row, skip the skus inventory already has\nINSERT INTO inventory (sku, name, qty)\nSELECT sku, name, qty\nFROM shipment\nON CONFLICT (sku) DO NOTHING;\n\nSELECT * FROM inventory ORDER BY sku;\n",
+        "output": "INSERT 0 2\n\n sku  |     name      | qty\n------+---------------+-----\n A100 | Desk lamp     |  12\n B200 | Office chair  |   5\n C300 | Notebook      |  40\n D400 | Stapler       |   8\n E500 | Monitor stand |   6\n F600 | Desk mat      |  20\n(6 rows)",
+        "explanation": "All four shipment rows are tried. B200 and D400 clash with the primary key, so `DO NOTHING` skips them and the tag reads `INSERT 0 2`, not 4. The skipped rows change nothing: D400 keeps the name Stapler and qty 8. Unlike `NOT IN`, the check happens inside the insert, so you do not need a subquery."
+      },
+      "practice": {
+        "title": "Adding three new lines",
+        "prompt": "Add three items to inventory, skipping any sku it already has.\n\n1. Insert these rows into `inventory` with one `VALUES` list: `C300`, `Notebook`, 10, then `G700`, `Pen pack`, 30, then `H800`, `Whiteboard`, 2.\n2. Add `ON CONFLICT (sku) DO NOTHING` so existing skus are skipped.\n3. List every column of `inventory`, sorted by `sku`.\n\nExpected output:\n\n```text\nINSERT 0 2\n\n sku  |     name     | qty\n------+--------------+-----\n A100 | Desk lamp    |  12\n B200 | Office chair |   5\n C300 | Notebook     |  40\n D400 | Stapler      |   8\n G700 | Pen pack     |  30\n H800 | Whiteboard   |   2\n(6 rows)\n```",
+        "starter": "-- TODO: skip any sku that inventory already has\nINSERT INTO inventory (sku, name, qty) VALUES\n    ('G700', 'Pen pack', 30);\n\nSELECT * FROM inventory ORDER BY sku;\n",
+        "solution": "INSERT INTO inventory (sku, name, qty) VALUES\n    ('C300', 'Notebook', 10),\n    ('G700', 'Pen pack', 30),\n    ('H800', 'Whiteboard', 2)\nON CONFLICT (sku) DO NOTHING;\n\nSELECT * FROM inventory ORDER BY sku;\n",
+        "tests": [
+          {
+            "output": "INSERT 0 2\n\n sku  |     name     | qty\n------+--------------+-----\n A100 | Desk lamp    |  12\n B200 | Office chair |   5\n C300 | Notebook     |  40\n D400 | Stapler      |   8\n G700 | Pen pack     |  30\n H800 | Whiteboard   |   2\n(6 rows)"
+          },
+          {
+            "stdin": "INSERT INTO inventory (sku, name, qty) VALUES ('G700', 'Gel pens', 4);\n",
+            "output": "INSERT 0 1\n\n sku  |     name     | qty\n------+--------------+-----\n A100 | Desk lamp    |  12\n B200 | Office chair |   5\n C300 | Notebook     |  40\n D400 | Stapler      |   8\n G700 | Gel pens     |   4\n H800 | Whiteboard   |   2\n(6 rows)"
+          },
+          {
+            "stdin": "DELETE FROM inventory WHERE sku = 'C300';\n",
+            "output": "INSERT 0 3\n\n sku  |     name     | qty\n------+--------------+-----\n A100 | Desk lamp    |  12\n B200 | Office chair |   5\n C300 | Notebook     |  10\n D400 | Stapler      |   8\n G700 | Pen pack     |  30\n H800 | Whiteboard   |   2\n(6 rows)"
+          }
+        ],
+        "hints": [
+          "Put the three rows in one `VALUES` list, separated by commas.",
+          "The conflict clause goes after the last row and before the semicolon: `ON CONFLICT (sku) DO NOTHING;`."
+        ]
+      }
+    },
+    {
+      "title": "Upserts with DO UPDATE",
+      "body": "An **upsert** inserts a row, or updates it if the key already exists. Swap `DO NOTHING` for `DO UPDATE SET`:\n\n```sql\nINSERT INTO inventory (sku, name, qty)\nVALUES ('B200', 'Office chair', 3)\nON CONFLICT (sku) DO UPDATE SET qty = inventory.qty + EXCLUDED.qty;\n```\n\nInside `SET` you can see two rows:\n\n- `inventory.qty` is the row already in the table.\n- `EXCLUDED.qty` is the row you tried to insert.\n\nWrite the table name on the existing value. A bare `qty` fails with `column reference \"qty\" is ambiguous`, because both rows have it. `SET` takes several columns separated by commas, just like `UPDATE`. Unlike `DO NOTHING`, `DO UPDATE` always needs the `(sku)` part, so PostgreSQL knows which key to match.\n\nThe tag counts inserted and updated rows together, so the statement above prints `INSERT 0 1`. One gotcha: if the same sku appears twice in one insert, PostgreSQL refuses to update a row twice:\n\n```text\nERROR:  ON CONFLICT DO UPDATE command cannot affect row a second time\n```\n\nWhy upsert at all? It replaces a check, then an insert or update, with one statement that cannot be split by another session in between.",
+      "example": {
+        "title": "Adding stock to the shelves",
+        "prompt": "Add the whole shipment to inventory: insert new skus and add the quantity to skus already in stock.",
+        "code": "-- New skus are inserted, existing skus get the shipment added on\nINSERT INTO inventory (sku, name, qty)\nSELECT sku, name, qty\nFROM shipment\nON CONFLICT (sku) DO UPDATE SET qty = inventory.qty + EXCLUDED.qty;\n\nSELECT * FROM inventory ORDER BY sku;\n",
+        "output": "INSERT 0 4\n\n sku  |     name      | qty\n------+---------------+-----\n A100 | Desk lamp     |  12\n B200 | Office chair  |   8\n C300 | Notebook      |  40\n D400 | Stapler       |  23\n E500 | Monitor stand |   6\n F600 | Desk mat      |  20\n(6 rows)",
+        "explanation": "E500 and F600 are new, so they are inserted as they are. B200 and D400 clash, so their existing rows are updated: `inventory.qty + EXCLUDED.qty` gives 5 + 3 = 8 and 8 + 15 = 23. Only `qty` is in `SET`, so D400 keeps its old name. Two inserts and two updates make `INSERT 0 4`."
+      },
+      "practice": {
+        "title": "Replacing stock with the shipment",
+        "prompt": "Load the shipment into inventory so that existing skus take on the shipment's values.\n\n1. Insert every `shipment` row into `inventory` with `INSERT ... SELECT`.\n2. On a `sku` conflict, set `name` to the shipment's name and `qty` to the shipment's qty, using `EXCLUDED`.\n3. List every column of `inventory`, sorted by `sku`.\n\nExpected output:\n\n```text\nINSERT 0 4\n\n sku  |     name      | qty\n------+---------------+-----\n A100 | Desk lamp     |  12\n B200 | Office chair  |   3\n C300 | Notebook      |  40\n D400 | Heavy stapler |  15\n E500 | Monitor stand |   6\n F600 | Desk mat      |  20\n(6 rows)\n```",
+        "starter": "INSERT INTO inventory (sku, name, qty)\nSELECT sku, name, qty\nFROM shipment\n-- TODO: for existing skus, replace name and qty with the shipment's values\nON CONFLICT (sku) DO NOTHING;\n\nSELECT * FROM inventory ORDER BY sku;\n",
+        "solution": "INSERT INTO inventory (sku, name, qty)\nSELECT sku, name, qty\nFROM shipment\nON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name, qty = EXCLUDED.qty;\n\nSELECT * FROM inventory ORDER BY sku;\n",
+        "tests": [
+          {
+            "output": "INSERT 0 4\n\n sku  |     name      | qty\n------+---------------+-----\n A100 | Desk lamp     |  12\n B200 | Office chair  |   3\n C300 | Notebook      |  40\n D400 | Heavy stapler |  15\n E500 | Monitor stand |   6\n F600 | Desk mat      |  20\n(6 rows)"
+          },
+          {
+            "stdin": "UPDATE shipment SET qty = 0 WHERE sku = 'B200';\nINSERT INTO shipment (sku, name, qty) VALUES ('A100', 'LED desk lamp', 9);\n",
+            "output": "INSERT 0 5\n\n sku  |     name      | qty\n------+---------------+-----\n A100 | LED desk lamp |   9\n B200 | Office chair  |   0\n C300 | Notebook      |  40\n D400 | Heavy stapler |  15\n E500 | Monitor stand |   6\n F600 | Desk mat      |  20\n(6 rows)"
+          },
+          {
+            "stdin": "DELETE FROM shipment WHERE sku IN ('E500', 'F600');\n",
+            "output": "INSERT 0 2\n\n sku  |     name      | qty\n------+---------------+-----\n A100 | Desk lamp     |  12\n B200 | Office chair  |   3\n C300 | Notebook      |  40\n D400 | Heavy stapler |  15\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "Replace `DO NOTHING` with `DO UPDATE SET ...`.",
+          "Set two columns with a comma: `SET name = EXCLUDED.name, qty = EXCLUDED.qty`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `INSERT INTO t (cols) SELECT ...` inserts every row the query returns, matching columns by position.\n- `ON CONFLICT (col) DO NOTHING` skips rows whose key already exists.\n- The conflict column needs a `UNIQUE` or `PRIMARY KEY` constraint.\n- `INSERT 0 n` counts only rows written, inserted or updated.\n- `ON CONFLICT (col) DO UPDATE SET ...` turns a clash into an update.\n- `EXCLUDED.col` is the value you tried to insert, `table.col` is the value already there."
+}

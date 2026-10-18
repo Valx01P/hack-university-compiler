@@ -1,0 +1,105 @@
+{
+  "id": "window-functions",
+  "title": "Window Functions",
+  "section": "Window Functions",
+  "summary": "Compute across related rows without collapsing them, and rank rows.",
+  "intro": "`GROUP BY` answers \"per department\" questions, but it squeezes each group into one row, so you lose the people in it. A window function computes across a set of related rows and keeps every row: each employee next to their department's average, a rank inside their team, or just the top earners of each group.",
+  "setup": "CREATE TABLE employees (\n    id integer,\n    name text,\n    department text,\n    salary integer,\n    hired date\n);\nINSERT INTO employees (id, name, department, salary, hired) VALUES\n    (1, 'Ana', 'Engineering', 95000, DATE '2019-03-04'),\n    (2, 'Ben', 'Engineering', 88000, DATE '2021-06-14'),\n    (3, 'Cara', 'Engineering', 88000, DATE '2022-01-10'),\n    (4, 'Dev', 'Engineering', 72000, DATE '2024-02-05'),\n    (5, 'Eli', 'Sales', 70000, DATE '2018-09-17'),\n    (6, 'Fay', 'Sales', 64000, DATE '2020-11-02'),\n    (7, 'Gus', 'Sales', 64000, DATE '2023-05-22'),\n    (8, 'Hana', 'Support', 52000, DATE '2020-02-03'),\n    (9, 'Ivan', 'Support', 48000, DATE '2022-08-29'),\n    (10, 'Jo', 'Support', 48000, DATE '2024-07-15');\n",
+  "steps": [
+    {
+      "title": "Aggregates that keep every row",
+      "body": "This lesson uses an `employees` table: 10 people in 3 departments, with a few equal salaries. `salary` is an integer and `hired` is a date. Here are some of its rows:\n\n| id | name | department | salary | hired |\n| --- | --- | --- | --- | --- |\n| 1 | Ana | Engineering | 95000 | 2019-03-04 |\n| 2 | Ben | Engineering | 88000 | 2021-06-14 |\n| 3 | Cara | Engineering | 88000 | 2022-01-10 |\n| 5 | Eli | Sales | 70000 | 2018-09-17 |\n| 8 | Hana | Support | 52000 | 2020-02-03 |\n\nAdd `OVER (...)` after an aggregate and it becomes a window function. It still computes across many rows, but every row stays in the result and gets the answer next to it.\n\n```sql\nsum(salary) OVER ()                         -- across every row\nmax(salary) OVER (PARTITION BY department)  -- across the row's department\n```\n\nEmpty parentheses mean the window is the whole result. `PARTITION BY department` splits the rows into groups, called partitions, like `GROUP BY` does, but without collapsing them: each row sees only its own partition. So you can mix plain columns and window values in one `SELECT` with no grouping error.\n\nWindow functions run after `WHERE`, so they only see the rows `WHERE` keeps.",
+      "example": {
+        "title": "Salary versus department average",
+        "prompt": "Show every employee with their department's average salary and how far their salary is from it.",
+        "code": "-- Each salary next to its department's average\nSELECT\n    name,\n    department,\n    salary,\n    round(avg(salary) OVER (PARTITION BY department)) AS dept_avg,\n    salary - round(avg(salary) OVER (PARTITION BY department)) AS diff\nFROM employees\nORDER BY department, id;\n",
+        "output": " name | department  | salary | dept_avg |  diff\n------+-------------+--------+----------+--------\n Ana  | Engineering |  95000 |    85750 |   9250\n Ben  | Engineering |  88000 |    85750 |   2250\n Cara | Engineering |  88000 |    85750 |   2250\n Dev  | Engineering |  72000 |    85750 | -13750\n Eli  | Sales       |  70000 |    66000 |   4000\n Fay  | Sales       |  64000 |    66000 |  -2000\n Gus  | Sales       |  64000 |    66000 |  -2000\n Hana | Support     |  52000 |    49333 |   2667\n Ivan | Support     |  48000 |    49333 |  -1333\n Jo   | Support     |  48000 |    49333 |  -1333\n(10 rows)",
+        "explanation": "`avg(salary) OVER (PARTITION BY department)` averages each department and writes that average on every row of it, so all four Engineering rows show 85750. `round()` drops the decimals. Because each row keeps its own `salary`, you can subtract the average right there to get `diff`. A `GROUP BY department` would have returned only 3 rows."
+      },
+      "practice": {
+        "title": "Top salary and payroll",
+        "prompt": "List every employee with the top salary in their department and the company's total payroll.\n\n1. Select `name`, `department`, and `salary` from `employees`.\n2. Add the highest salary in the row's department as `dept_top`, using `max` with `PARTITION BY department`.\n3. Add the sum of every salary in the company as `payroll`, using `sum` with `OVER ()`.\n4. Sort by `department`, then `id`.\n\nExpected output:\n\n```text\n name | department  | salary | dept_top | payroll\n------+-------------+--------+----------+---------\n Ana  | Engineering |  95000 |    95000 |  689000\n Ben  | Engineering |  88000 |    95000 |  689000\n Cara | Engineering |  88000 |    95000 |  689000\n Dev  | Engineering |  72000 |    95000 |  689000\n Eli  | Sales       |  70000 |    70000 |  689000\n Fay  | Sales       |  64000 |    70000 |  689000\n Gus  | Sales       |  64000 |    70000 |  689000\n Hana | Support     |  52000 |    52000 |  689000\n Ivan | Support     |  48000 |    52000 |  689000\n Jo   | Support     |  48000 |    52000 |  689000\n(10 rows)\n```",
+        "starter": "-- TODO: add dept_top (per department) and payroll (whole company) as window functions\nSELECT name, department, salary\nFROM employees\nORDER BY department, id;\n",
+        "solution": "SELECT\n    name,\n    department,\n    salary,\n    max(salary) OVER (PARTITION BY department) AS dept_top,\n    sum(salary) OVER () AS payroll\nFROM employees\nORDER BY department, id;\n",
+        "tests": [
+          {
+            "output": " name | department  | salary | dept_top | payroll\n------+-------------+--------+----------+---------\n Ana  | Engineering |  95000 |    95000 |  689000\n Ben  | Engineering |  88000 |    95000 |  689000\n Cara | Engineering |  88000 |    95000 |  689000\n Dev  | Engineering |  72000 |    95000 |  689000\n Eli  | Sales       |  70000 |    70000 |  689000\n Fay  | Sales       |  64000 |    70000 |  689000\n Gus  | Sales       |  64000 |    70000 |  689000\n Hana | Support     |  52000 |    52000 |  689000\n Ivan | Support     |  48000 |    52000 |  689000\n Jo   | Support     |  48000 |    52000 |  689000\n(10 rows)"
+          },
+          {
+            "stdin": "UPDATE employees SET salary = 99000 WHERE id = 3;\nINSERT INTO employees (id, name, department, salary, hired) VALUES\n    (11, 'Kim', 'Support', 61000, DATE '2025-01-13');\n",
+            "output": " name | department  | salary | dept_top | payroll\n------+-------------+--------+----------+---------\n Ana  | Engineering |  95000 |    99000 |  761000\n Ben  | Engineering |  88000 |    99000 |  761000\n Cara | Engineering |  99000 |    99000 |  761000\n Dev  | Engineering |  72000 |    99000 |  761000\n Eli  | Sales       |  70000 |    70000 |  761000\n Fay  | Sales       |  64000 |    70000 |  761000\n Gus  | Sales       |  64000 |    70000 |  761000\n Hana | Support     |  52000 |    61000 |  761000\n Ivan | Support     |  48000 |    61000 |  761000\n Jo   | Support     |  48000 |    61000 |  761000\n Kim  | Support     |  61000 |    61000 |  761000\n(11 rows)"
+          }
+        ],
+        "hints": [
+          "A window function is an aggregate followed by `OVER (...)`. Put `PARTITION BY department` inside the parentheses for the per department value.",
+          "For the whole company, leave the parentheses after `OVER` empty."
+        ]
+      }
+    },
+    {
+      "title": "Ranking rows",
+      "body": "Put `ORDER BY` inside `OVER` to number rows in an order. Three functions do it, and they only differ on ties:\n\n- `row_number()` gives 1, 2, 3, 4 with no repeats, even for equal salaries.\n- `rank()` gives tied rows the same number, then skips: 1, 2, 2, 4.\n- `dense_rank()` gives ties the same number with no gap: 1, 2, 2, 3.\n\n```sql\nrank() OVER (PARTITION BY department ORDER BY salary DESC)\n```\n\nAdd `PARTITION BY` and the numbering restarts at 1 in each group.\n\nThe `ORDER BY` inside `OVER` only decides the numbering. The rows of the result still need their own `ORDER BY` at the end of the query.\n\nGotcha: when two rows tie, `row_number()` may number them in either order, and that can change between runs. Add a unique column to the window's `ORDER BY`, like `ORDER BY salary DESC, id`, to make it stable. `rank()` and `dense_rank()` need no tiebreaker, because tied rows get the same number anyway.\n\nKeep `ORDER BY` out of an aggregate's `OVER` for now: `sum(salary) OVER (ORDER BY id)` becomes a running total, which a later lesson covers.",
+      "example": {
+        "title": "Three rankings side by side",
+        "prompt": "Number every employee by salary, highest first, with row_number(), rank(), and dense_rank().",
+        "code": "-- Three ways to number the company by salary, highest first\nSELECT\n    name,\n    salary,\n    row_number() OVER (ORDER BY salary DESC, id) AS row_num,\n    rank() OVER (ORDER BY salary DESC) AS rank,\n    dense_rank() OVER (ORDER BY salary DESC) AS dense_rank\nFROM employees\nORDER BY salary DESC, id;\n",
+        "output": " name | salary | row_num | rank | dense_rank\n------+--------+---------+------+------------\n Ana  |  95000 |       1 |    1 |          1\n Ben  |  88000 |       2 |    2 |          2\n Cara |  88000 |       3 |    2 |          2\n Dev  |  72000 |       4 |    4 |          3\n Eli  |  70000 |       5 |    5 |          4\n Fay  |  64000 |       6 |    6 |          5\n Gus  |  64000 |       7 |    6 |          5\n Hana |  52000 |       8 |    8 |          6\n Ivan |  48000 |       9 |    9 |          7\n Jo   |  48000 |      10 |    9 |          7\n(10 rows)",
+        "explanation": "Ben and Cara both earn 88000. `row_number()` still gives them 2 and 3, and `id` in its window decides who is first. `rank()` gives both 2 and skips 3, so Dev is 4th. `dense_rank()` gives both 2 and Dev 3. The same happens for the 64000 and 48000 pairs, so by the end `rank()` reaches 9 while `dense_rank()` stops at 7."
+      },
+      "practice": {
+        "title": "Rank and dense rank per department",
+        "prompt": "Rank the employees of each department by salary two ways, so equal salaries share a rank.\n\n1. Select `department`, `name`, and `salary` from `employees`.\n2. Add `dept_rank`, using `rank()` with `PARTITION BY department` and salaries from highest to lowest.\n3. Add `dept_dense_rank`, using `dense_rank()` over the same window.\n4. Sort by `department`, then `dept_rank`, then `id`.\n\nExpected output:\n\n```text\n department  | name | salary | dept_rank | dept_dense_rank\n-------------+------+--------+-----------+-----------------\n Engineering | Ana  |  95000 |         1 |               1\n Engineering | Ben  |  88000 |         2 |               2\n Engineering | Cara |  88000 |         2 |               2\n Engineering | Dev  |  72000 |         4 |               3\n Sales       | Eli  |  70000 |         1 |               1\n Sales       | Fay  |  64000 |         2 |               2\n Sales       | Gus  |  64000 |         2 |               2\n Support     | Hana |  52000 |         1 |               1\n Support     | Ivan |  48000 |         2 |               2\n Support     | Jo   |  48000 |         2 |               2\n(10 rows)\n```",
+        "starter": "SELECT\n    department,\n    name,\n    salary\n    -- TODO: add dept_rank and dept_dense_rank, ranking salaries inside each department\nFROM employees\nORDER BY department, id;\n",
+        "solution": "SELECT\n    department,\n    name,\n    salary,\n    rank() OVER (PARTITION BY department ORDER BY salary DESC) AS dept_rank,\n    dense_rank() OVER (PARTITION BY department ORDER BY salary DESC) AS dept_dense_rank\nFROM employees\nORDER BY department, dept_rank, id;\n",
+        "tests": [
+          {
+            "output": " department  | name | salary | dept_rank | dept_dense_rank\n-------------+------+--------+-----------+-----------------\n Engineering | Ana  |  95000 |         1 |               1\n Engineering | Ben  |  88000 |         2 |               2\n Engineering | Cara |  88000 |         2 |               2\n Engineering | Dev  |  72000 |         4 |               3\n Sales       | Eli  |  70000 |         1 |               1\n Sales       | Fay  |  64000 |         2 |               2\n Sales       | Gus  |  64000 |         2 |               2\n Support     | Hana |  52000 |         1 |               1\n Support     | Ivan |  48000 |         2 |               2\n Support     | Jo   |  48000 |         2 |               2\n(10 rows)"
+          },
+          {
+            "stdin": "INSERT INTO employees (id, name, department, salary, hired) VALUES\n    (11, 'Lee', 'Sales', 70000, DATE '2025-02-03'),\n    (12, 'Kim', 'Support', 52000, DATE '2025-03-10');\n",
+            "output": " department  | name | salary | dept_rank | dept_dense_rank\n-------------+------+--------+-----------+-----------------\n Engineering | Ana  |  95000 |         1 |               1\n Engineering | Ben  |  88000 |         2 |               2\n Engineering | Cara |  88000 |         2 |               2\n Engineering | Dev  |  72000 |         4 |               3\n Sales       | Eli  |  70000 |         1 |               1\n Sales       | Lee  |  70000 |         1 |               1\n Sales       | Fay  |  64000 |         3 |               2\n Sales       | Gus  |  64000 |         3 |               2\n Support     | Hana |  52000 |         1 |               1\n Support     | Kim  |  52000 |         1 |               1\n Support     | Ivan |  48000 |         3 |               2\n Support     | Jo   |  48000 |         3 |               2\n(12 rows)"
+          }
+        ],
+        "hints": [
+          "Inside `OVER`, `PARTITION BY` comes first, then `ORDER BY salary DESC`. Both columns use that same window.",
+          "You can sort by the alias: `ORDER BY department, dept_rank, id`, where `id` breaks ties between equal ranks."
+        ]
+      }
+    },
+    {
+      "title": "Top N per group",
+      "body": "To keep the top 2 of each department, number the rows, then filter on the number. You cannot filter in the same query, because `WHERE` runs before window functions:\n\n```text\nERROR:  window functions are not allowed in WHERE\n```\n\nSo compute the number in a CTE, then filter in the outer query:\n\n```sql\nWITH ranked AS (\n    SELECT\n        name,\n        department,\n        row_number() OVER (PARTITION BY department ORDER BY salary DESC, id) AS rn\n    FROM employees\n)\nSELECT department, rn, name\nFROM ranked\nWHERE rn <= 2\nORDER BY department, rn;\n```\n\nUse `row_number()` for exactly N rows per group. With `rank()`, ties can let in more.\n\nFor just the first row of each group, PostgreSQL has a shortcut: `DISTINCT ON (department)` keeps the first row of each department, and the query's `ORDER BY` decides which row is first. End it with a unique column like `id` so a tie always picks the same row. That `ORDER BY` must start with the `DISTINCT ON` columns, or you get this error:\n\n```text\nERROR:  SELECT DISTINCT ON expressions must match initial ORDER BY expressions\n```",
+      "example": {
+        "title": "Best paid per department",
+        "prompt": "Find the two best paid employees in each department, then the single best paid one with DISTINCT ON.",
+        "code": "-- The two best paid in each department\nWITH ranked AS (\n    SELECT\n        department,\n        name,\n        salary,\n        row_number() OVER (PARTITION BY department ORDER BY salary DESC, id) AS rn\n    FROM employees\n)\nSELECT department, rn, name, salary\nFROM ranked\nWHERE rn <= 2\nORDER BY department, rn;\n\n-- The best paid in each department\nSELECT DISTINCT ON (department) department, name, salary\nFROM employees\nORDER BY department, salary DESC, id;\n",
+        "output": " department  | rn | name | salary\n-------------+----+------+--------\n Engineering |  1 | Ana  |  95000\n Engineering |  2 | Ben  |  88000\n Sales       |  1 | Eli  |  70000\n Sales       |  2 | Fay  |  64000\n Support     |  1 | Hana |  52000\n Support     |  2 | Ivan |  48000\n(6 rows)\n\n department  | name | salary\n-------------+------+--------\n Engineering | Ana  |  95000\n Sales       | Eli  |  70000\n Support     | Hana |  52000\n(3 rows)",
+        "explanation": "The CTE numbers each department's rows from the highest salary, and `id` decides between Ben and Cara, who tie at 88000. The outer query keeps rows numbered 1 and 2. In the second query, `ORDER BY department, salary DESC, id` puts each department's best paid person first, and `DISTINCT ON (department)` keeps only that row."
+      },
+      "practice": {
+        "title": "Newest hire per department",
+        "prompt": "Find the most recently hired employee in each department, two ways.\n\n1. In the CTE `numbered`, add `rn` with `row_number()`, partitioned by `department` and ordered by `hired` newest first, then `id` largest first.\n2. Keep only the rows where `rn` is 1, select `department`, `name`, and `hired`, and sort by `department`.\n3. Write a second query that returns the same thing with `DISTINCT ON (department)` and `ORDER BY department, hired DESC, id DESC`.\n\nExpected output:\n\n```text\n department  | name |   hired\n-------------+------+------------\n Engineering | Dev  | 2024-02-05\n Sales       | Gus  | 2023-05-22\n Support     | Jo   | 2024-07-15\n(3 rows)\n\n department  | name |   hired\n-------------+------+------------\n Engineering | Dev  | 2024-02-05\n Sales       | Gus  | 2023-05-22\n Support     | Jo   | 2024-07-15\n(3 rows)\n```",
+        "starter": "-- Way 1: TODO number each department's rows, newest hire first, and keep rn = 1\nWITH numbered AS (\n    SELECT department, name, hired\n    FROM employees\n)\nSELECT department, name, hired\nFROM numbered\nORDER BY department, name;\n\n-- Way 2: TODO the same answer with DISTINCT ON\n",
+        "solution": "WITH numbered AS (\n    SELECT\n        department,\n        name,\n        hired,\n        row_number() OVER (PARTITION BY department ORDER BY hired DESC, id DESC) AS rn\n    FROM employees\n)\nSELECT department, name, hired\nFROM numbered\nWHERE rn = 1\nORDER BY department;\n\nSELECT DISTINCT ON (department) department, name, hired\nFROM employees\nORDER BY department, hired DESC, id DESC;\n",
+        "tests": [
+          {
+            "output": " department  | name |   hired\n-------------+------+------------\n Engineering | Dev  | 2024-02-05\n Sales       | Gus  | 2023-05-22\n Support     | Jo   | 2024-07-15\n(3 rows)\n\n department  | name |   hired\n-------------+------+------------\n Engineering | Dev  | 2024-02-05\n Sales       | Gus  | 2023-05-22\n Support     | Jo   | 2024-07-15\n(3 rows)"
+          },
+          {
+            "stdin": "INSERT INTO employees (id, name, department, salary, hired) VALUES\n    (11, 'Kim', 'Support', 50000, DATE '2025-01-13'),\n    (12, 'Max', 'Marketing', 60000, DATE '2025-03-03');\n",
+            "output": " department  | name |   hired\n-------------+------+------------\n Engineering | Dev  | 2024-02-05\n Marketing   | Max  | 2025-03-03\n Sales       | Gus  | 2023-05-22\n Support     | Kim  | 2025-01-13\n(4 rows)\n\n department  | name |   hired\n-------------+------+------------\n Engineering | Dev  | 2024-02-05\n Marketing   | Max  | 2025-03-03\n Sales       | Gus  | 2023-05-22\n Support     | Kim  | 2025-01-13\n(4 rows)"
+          },
+          {
+            "stdin": "INSERT INTO employees (id, name, department, salary, hired) VALUES\n    (11, 'Lee', 'Sales', 66000, DATE '2023-05-22'),\n    (12, 'Ola', 'Engineering', 81000, DATE '2025-06-02');\n",
+            "output": " department  | name |   hired\n-------------+------+------------\n Engineering | Ola  | 2025-06-02\n Sales       | Lee  | 2023-05-22\n Support     | Jo   | 2024-07-15\n(3 rows)\n\n department  | name |   hired\n-------------+------+------------\n Engineering | Ola  | 2025-06-02\n Sales       | Lee  | 2023-05-22\n Support     | Jo   | 2024-07-15\n(3 rows)"
+          }
+        ],
+        "hints": [
+          "Newest first means `hired DESC`. Add the `row_number()` column to the CTE's `SELECT` list, then filter on `rn` in the outer query.",
+          "`DISTINCT ON (department)` goes right after `SELECT`, before the column list."
+        ]
+      }
+    }
+  ],
+  "recap": "- `aggregate(...) OVER ()` computes across all rows and keeps every row.\n- `PARTITION BY column` computes per group without collapsing it.\n- `ORDER BY` inside `OVER` sets the order for ranking: `row_number()` never repeats, `rank()` skips after ties, `dense_rank()` does not.\n- Add a unique column to the window's `ORDER BY` so `row_number()` is stable.\n- For top N per group, number rows in a CTE, then filter with `WHERE rn <= n`.\n- `DISTINCT ON (column)` keeps the first row of each group, by the query's `ORDER BY`."
+}

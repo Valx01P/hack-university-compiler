@@ -1,0 +1,79 @@
+{
+  "id": "functions",
+  "title": "Writing Your Own Functions",
+  "section": "Expressions and Functions",
+  "summary": "Turn an expression you use often into your own SQL function.",
+  "intro": "You have already used dozens of built-in functions. When the same expression keeps showing up in your queries, give it a name once with CREATE FUNCTION and call it like any built-in.",
+  "setup": "CREATE TABLE products (id integer, name text, price numeric(10, 2), category text);\nINSERT INTO products (id, name, price, category) VALUES\n    (1, 'Stapler', 12.50, 'Office'),\n    (2, 'Desk lamp', 34.99, 'Home'),\n    (3, 'Notebook', 4.25, 'Office'),\n    (4, 'Coffee mug', 9.00, 'Kitchen'),\n    (5, 'Water bottle', 18.75, 'Kitchen');\n",
+  "steps": [
+    {
+      "title": "A function for an expression",
+      "body": "This lesson uses one table, `products`:\n\n```sql\nCREATE TABLE products (id integer, name text, price numeric(10, 2), category text);\n-- (1, 'Stapler', 12.50, 'Office'), (2, 'Desk lamp', 34.99, 'Home'), ...\n```\n\nYou already know three families of built-in functions: math (`round`, `ceil`, `abs`), text (`upper`, `trim`, `replace`), and dates (`extract`, `to_char`, `age`). When you keep writing the same expression, name it with your own function:\n\n```sql\nCREATE FUNCTION with_tax(price numeric) RETURNS numeric\n    LANGUAGE sql\n    RETURN round(price * 1.08, 2);\n```\n\nThe parentheses list each parameter with its type, `RETURNS` gives the type of the answer, `LANGUAGE sql` says the body is SQL, and `RETURN` is the expression to compute. Call it like a built-in: `SELECT with_tax(10);` gives `10.80`. Like most built-ins, a NULL argument gives NULL.\n\nThe function is saved in the database, so creating it again fails:\n\n```text\nERROR:  function \"with_tax\" already exists with same argument types\n```\n\nEvery run in the editor starts from a fresh database, so this only happens when one program creates the same function twice.",
+      "example": {
+        "title": "Prices with tax",
+        "prompt": "Create a with_tax function that adds 8% tax and rounds to cents, then show each product's price with tax.",
+        "code": "CREATE FUNCTION with_tax(price numeric) RETURNS numeric\n    LANGUAGE sql\n    RETURN round(price * 1.08, 2);\n\nSELECT name, price, with_tax(price) AS with_tax\nFROM products\nORDER BY id;\n",
+        "output": "CREATE FUNCTION\n\n     name     | price | with_tax\n--------------+-------+----------\n Stapler      | 12.50 |    13.50\n Desk lamp    | 34.99 |    37.79\n Notebook     |  4.25 |     4.59\n Coffee mug   |  9.00 |     9.72\n Water bottle | 18.75 |    20.25\n(5 rows)",
+        "explanation": "`CREATE FUNCTION` prints its command tag and saves `with_tax`. The SELECT then calls it once per row, passing that row's `price` as the parameter. Inside the function, `price` means the parameter, so `round(price * 1.08, 2)` turns 34.99 into 37.79."
+      },
+      "practice": {
+        "title": "Sale prices",
+        "prompt": "Write a function that takes a percentage off a price, then use it for a 15% sale on every product.\n\n1. Create `discounted(price numeric, percent integer)` returning numeric: the price with `percent` percent taken off, rounded to 2 decimal places.\n2. Select `name`, `price`, and `discounted(price, 15)` as `sale_price` from `products`.\n3. Sort by `id`.\n\nExpected output:\n\n```text\nCREATE FUNCTION\n\n     name     | price | sale_price\n--------------+-------+------------\n Stapler      | 12.50 |      10.63\n Desk lamp    | 34.99 |      29.74\n Notebook     |  4.25 |       3.61\n Coffee mug   |  9.00 |       7.65\n Water bottle | 18.75 |      15.94\n(5 rows)\n```",
+        "starter": "-- TODO: create the discounted(price numeric, percent integer) function\n\n-- TODO: add a sale_price column that calls discounted(price, 15)\nSELECT name, price\nFROM products\nORDER BY id;\n",
+        "solution": "CREATE FUNCTION discounted(price numeric, percent integer) RETURNS numeric\n    LANGUAGE sql\n    RETURN round(price * (100 - percent) / 100, 2);\n\nSELECT name, price, discounted(price, 15) AS sale_price\nFROM products\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "CREATE FUNCTION\n\n     name     | price | sale_price\n--------------+-------+------------\n Stapler      | 12.50 |      10.63\n Desk lamp    | 34.99 |      29.74\n Notebook     |  4.25 |       3.61\n Coffee mug   |  9.00 |       7.65\n Water bottle | 18.75 |      15.94\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO products (id, name, price, category) VALUES\n    (6, 'Desk chair', 149.99, 'Home'),\n    (7, 'Gift card', NULL, 'Office');\nDELETE FROM products WHERE id = 2;",
+            "output": "CREATE FUNCTION\n\n     name     | price  | sale_price\n--------------+--------+------------\n Stapler      |  12.50 |      10.63\n Notebook     |   4.25 |       3.61\n Coffee mug   |   9.00 |       7.65\n Water bottle |  18.75 |      15.94\n Desk chair   | 149.99 |     127.49\n Gift card    |        |\n(6 rows)"
+          },
+          {
+            "stdin": "DELETE FROM products WHERE id > 1;\nINSERT INTO products (id, name, price, category) VALUES (8, 'Printer', 200.00, 'Office');",
+            "output": "CREATE FUNCTION\n\n  name   | price  | sale_price\n---------+--------+------------\n Stapler |  12.50 |      10.63\n Printer | 200.00 |     170.00\n(2 rows)"
+          }
+        ],
+        "hints": [
+          "Taking 15% off leaves 85% of the price, so multiply `price` by `(100 - percent)` and then divide by 100.",
+          "Multiply by `price` before you divide. `(100 - percent) / 100` on its own is integer division and gives 0. Wrap the whole expression in `round(..., 2)`."
+        ]
+      }
+    },
+    {
+      "title": "Text functions and defaults",
+      "body": "A function can return text too. Declare `RETURNS text` and build the answer with `||` or `format()`:\n\n```sql\nCREATE FUNCTION label(name text, price numeric, currency text) RETURNS text\n    LANGUAGE sql\n    RETURN name || ' (' || currency || price || ')';\n```\n\n`DEFAULT` gives a parameter a value to use when a call leaves it out: with `currency text DEFAULT '$'`, `label('Mug', 9.00)` means `label('Mug', 9.00, '$')`. Parameters with defaults go last.\n\nTo change a function that exists, use `CREATE OR REPLACE FUNCTION` with the same name and parameter types. You can change the body or add defaults, but not the return type or the parameter names. The gotcha: a different list of parameter types, even one extra parameter, makes a second function with the same name instead of replacing the first. A call that fits both then fails:\n\n```text\nERROR:  function label(text, numeric) is not unique\n```\n\nSo settle the parameter list first, and use defaults to keep calls short.",
+      "example": {
+        "title": "Price labels",
+        "prompt": "Create a label function, replace it with a version where currency defaults to '$', and call it with and without a currency.",
+        "code": "CREATE FUNCTION label(name text, price numeric, currency text) RETURNS text\n    LANGUAGE sql\n    RETURN name || ' (' || currency || price || ')';\n\nCREATE OR REPLACE FUNCTION label(name text, price numeric, currency text DEFAULT '$') RETURNS text\n    LANGUAGE sql\n    RETURN format('%s (%s%s)', name, currency, price);\n\nSELECT label(name, price) AS us_label, label(name, price, 'EUR ') AS eu_label\nFROM products\nORDER BY id;\n",
+        "output": "CREATE FUNCTION\n\nCREATE FUNCTION\n\n       us_label        |         eu_label\n-----------------------+--------------------------\n Stapler ($12.50)      | Stapler (EUR 12.50)\n Desk lamp ($34.99)    | Desk lamp (EUR 34.99)\n Notebook ($4.25)      | Notebook (EUR 4.25)\n Coffee mug ($9.00)    | Coffee mug (EUR 9.00)\n Water bottle ($18.75) | Water bottle (EUR 18.75)\n(5 rows)",
+        "explanation": "The first version needs all three arguments. `CREATE OR REPLACE` keeps the same parameter types, so it replaces the body and adds the default instead of making a second `label` (its tag is still `CREATE FUNCTION`). `label(name, price)` fills in `'$'`, while `label(name, price, 'EUR ')` passes its own currency."
+      },
+      "practice": {
+        "title": "URL slugs",
+        "prompt": "Fix a slug function so it turns product names into clean URL names, then call it with and without a separator.\n\n1. Keep the first version of `slug` from the starter.\n2. Use `CREATE OR REPLACE FUNCTION` to redefine `slug(title text, sep text DEFAULT '-')` returning text: trim the title, replace each space with `sep`, and lowercase the result.\n3. Select `name`, `slug(name)` as `slug`, and `slug(name, '_')` as `file_name` from `products`.\n4. Sort by `id`.\n\nExpected output:\n\n```text\nCREATE FUNCTION\n\nCREATE FUNCTION\n\n     name     |     slug     |  file_name\n--------------+--------------+--------------\n Stapler      | stapler      | stapler\n Desk lamp    | desk-lamp    | desk_lamp\n Notebook     | notebook     | notebook\n Coffee mug   | coffee-mug   | coffee_mug\n Water bottle | water-bottle | water_bottle\n(5 rows)\n```",
+        "starter": "-- First version: no trimming, no lowercasing, and sep is required\nCREATE FUNCTION slug(title text, sep text) RETURNS text\n    LANGUAGE sql\n    RETURN replace(title, ' ', sep);\n\n-- TODO: replace slug so it trims and lowercases, with sep defaulting to '-'\n\n-- TODO: select name, slug(name) AS slug, and slug(name, '_') AS file_name\nSELECT name, slug(name, '-') AS slug\nFROM products\nORDER BY id;\n",
+        "solution": "-- First version: no trimming, no lowercasing, and sep is required\nCREATE FUNCTION slug(title text, sep text) RETURNS text\n    LANGUAGE sql\n    RETURN replace(title, ' ', sep);\n\nCREATE OR REPLACE FUNCTION slug(title text, sep text DEFAULT '-') RETURNS text\n    LANGUAGE sql\n    RETURN lower(replace(trim(title), ' ', sep));\n\nSELECT name, slug(name) AS slug, slug(name, '_') AS file_name\nFROM products\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "CREATE FUNCTION\n\nCREATE FUNCTION\n\n     name     |     slug     |  file_name\n--------------+--------------+--------------\n Stapler      | stapler      | stapler\n Desk lamp    | desk-lamp    | desk_lamp\n Notebook     | notebook     | notebook\n Coffee mug   | coffee-mug   | coffee_mug\n Water bottle | water-bottle | water_bottle\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO products (id, name, price, category) VALUES\n    (6, '  Phone Stand ', 15.00, 'Office'),\n    (7, 'USB C Cable', 7.99, 'Office');\nDELETE FROM products WHERE id = 4;",
+            "output": "CREATE FUNCTION\n\nCREATE FUNCTION\n\n      name      |     slug     |  file_name\n----------------+--------------+--------------\n Stapler        | stapler      | stapler\n Desk lamp      | desk-lamp    | desk_lamp\n Notebook       | notebook     | notebook\n Water bottle   | water-bottle | water_bottle\n   Phone Stand  | phone-stand  | phone_stand\n USB C Cable    | usb-c-cable  | usb_c_cable\n(6 rows)"
+          },
+          {
+            "stdin": "DELETE FROM products WHERE id <> 2;\nINSERT INTO products (id, name, price, category) VALUES (8, 'Big Blue Mug ', 11.00, 'Kitchen');",
+            "output": "CREATE FUNCTION\n\nCREATE FUNCTION\n\n     name      |     slug     |  file_name\n---------------+--------------+--------------\n Desk lamp     | desk-lamp    | desk_lamp\n Big Blue Mug  | big-blue-mug | big_blue_mug\n(2 rows)"
+          }
+        ],
+        "hints": [
+          "Nest the built-ins from the inside out: `trim` the title first, then `replace` the spaces, then `lower` the result.",
+          "Put the default in the parameter list of the new version, like `sep text DEFAULT '-'`, and keep the parameter names `title` and `sep` the same as the first version."
+        ]
+      }
+    }
+  ],
+  "recap": "- `CREATE FUNCTION name(param type) RETURNS type LANGUAGE sql RETURN expression;` names an expression.\n- Call your function in SELECT like a built-in, once per row.\n- `RETURNS text` makes a function that builds text.\n- `DEFAULT` fills in a parameter the call leaves out. Defaults go last.\n- `CREATE OR REPLACE FUNCTION` changes a function with the same parameter types. Different types make a second function."
+}

@@ -1,0 +1,113 @@
+{
+  "id": "update-delete",
+  "title": "Changing Rows With UPDATE and DELETE",
+  "section": "Designing Tables",
+  "summary": "Change and remove rows safely, and see exactly what changed.",
+  "intro": "Tables change: prices go up, stock runs out, products get retired. `UPDATE` changes rows in place, `DELETE` removes them, and `RETURNING` shows you exactly which rows were touched.",
+  "setup": "CREATE TABLE products (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    name text NOT NULL,\n    price numeric(10, 2) NOT NULL,\n    stock integer NOT NULL,\n    discontinued boolean NOT NULL DEFAULT false\n);\nINSERT INTO products (name, price, stock, discontinued) VALUES\n    ('Desk Lamp', 24.00, 12, false),\n    ('Office Chair', 149.00, 3, false),\n    ('Notebook', 4.50, 0, false),\n    ('Monitor Stand', 39.99, 8, false),\n    ('Fax Machine', 89.00, 0, true),\n    ('Standing Desk', 329.00, 2, false);\nCREATE TABLE price_changes (\n    product_id integer NOT NULL,\n    new_price numeric(10, 2) NOT NULL\n);\nINSERT INTO price_changes (product_id, new_price) VALUES\n    (2, 129.00),\n    (4, 44.99),\n    (6, 299.00);\n",
+  "steps": [
+    {
+      "title": "Changing rows with UPDATE",
+      "body": "`UPDATE` changes values in rows that already exist. This lesson works on a small shop:\n\n```sql\nCREATE TABLE products (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    name text NOT NULL,\n    price numeric(10, 2) NOT NULL,\n    stock integer NOT NULL,\n    discontinued boolean NOT NULL DEFAULT false\n);\n```\n\n| id | name | price | stock | discontinued |\n| --- | --- | --- | --- | --- |\n| 1 | Desk Lamp | 24.00 | 12 | f |\n| 2 | Office Chair | 149.00 | 3 | f |\n| 3 | Notebook | 4.50 | 0 | f |\n| 4 | Monitor Stand | 39.99 | 8 | f |\n| 5 | Fax Machine | 89.00 | 0 | t |\n| 6 | Standing Desk | 329.00 | 2 | f |\n\n`SET` names the column and its new value, and `WHERE` picks the rows. The value can be an expression on the old row, and commas separate several columns:\n\n```sql\nUPDATE products SET stock = 50 WHERE id = 3;\nUPDATE products SET price = price - 5, stock = stock + 1 WHERE id = 1;\n```\n\nEvery expression in `SET` sees the row as it was before the update. The statement prints the tag `UPDATE n`, where n counts the rows `WHERE` matched.\n\nTwo gotchas. Without `WHERE`, every row changes, so write the `WHERE` first. And separate columns with commas, not `AND`. `SET price = 0 AND discontinued = true` fails with:\n\n```text\nERROR:  argument of AND must be type boolean, not type integer\n```\n\nThe other order is worse: `SET discontinued = true AND price = 0` runs with no error, sets `discontinued` to the result of `true AND price = 0`, and never changes `price`.",
+      "example": {
+        "title": "Raise prices on low stock",
+        "prompt": "Raise the price of every product with fewer than 10 in stock by 10 percent, then list all products.",
+        "code": "UPDATE products SET price = round(price * 1.10, 2) WHERE stock < 10;\nSELECT name, price, stock FROM products ORDER BY id;\n",
+        "output": "UPDATE 5\n\n     name      | price  | stock\n---------------+--------+-------\n Desk Lamp     |  24.00 |    12\n Office Chair  | 163.90 |     3\n Notebook      |   4.95 |     0\n Monitor Stand |  43.99 |     8\n Fax Machine   |  97.90 |     0\n Standing Desk | 361.90 |     2\n(6 rows)",
+        "explanation": "Five products have `stock < 10`, so the tag says `UPDATE 5`. For each of them `price * 1.10` uses the old price, and `round(..., 2)` keeps two decimals (`39.99 * 1.10` is `43.989`, stored as `43.99`). Desk Lamp has 12 in stock, so `WHERE` skips it and its price stays `24.00`."
+      },
+      "practice": {
+        "title": "Retire empty products",
+        "prompt": "Retire every product that is out of stock, then list the retired products.\n\n1. In one `UPDATE`, set `discontinued` to `true` and `price` to `0` for every product whose `stock` is `0`.\n2. Select `name`, `price`, and `stock` of the products that are `discontinued`.\n3. Sort by `id`.\n\nExpected output:\n\n```text\nUPDATE 2\n\n    name     | price | stock\n-------------+-------+-------\n Notebook    |  0.00 |     0\n Fax Machine |  0.00 |     0\n(2 rows)\n```",
+        "starter": "-- TODO: retire the products with no stock in one UPDATE\nSELECT name, price, stock\nFROM products\nWHERE discontinued\nORDER BY id;\n",
+        "solution": "UPDATE products SET discontinued = true, price = 0 WHERE stock = 0;\nSELECT name, price, stock\nFROM products\nWHERE discontinued\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "UPDATE 2\n\n    name     | price | stock\n-------------+-------+-------\n Notebook    |  0.00 |     0\n Fax Machine |  0.00 |     0\n(2 rows)"
+          },
+          {
+            "stdin": "UPDATE products SET stock = 0 WHERE name IN ('Desk Lamp', 'Standing Desk');\nUPDATE products SET stock = 6 WHERE name = 'Notebook';\n",
+            "output": "UPDATE 3\n\n     name      | price | stock\n---------------+-------+-------\n Desk Lamp     |  0.00 |     0\n Fax Machine   |  0.00 |     0\n Standing Desk |  0.00 |     0\n(3 rows)"
+          },
+          {
+            "stdin": "UPDATE products SET stock = stock + 1;\n",
+            "output": "UPDATE 0\n\n    name     | price | stock\n-------------+-------+-------\n Fax Machine | 89.00 |     1\n(1 row)"
+          }
+        ],
+        "hints": [
+          "Separate the two assignments in `SET` with a comma, not `AND`.",
+          "Pick the rows with `WHERE stock = 0`, and put the `UPDATE` before the `SELECT` so the list shows the new values."
+        ]
+      }
+    },
+    {
+      "title": "DELETE and RETURNING",
+      "body": "`DELETE FROM` removes whole rows. `WHERE` picks which ones, and the tag `DELETE n` says how many went:\n\n```sql\nDELETE FROM products WHERE stock = 0 AND discontinued;\n```\n\nLike `UPDATE`, a `DELETE` with no `WHERE` removes every row in the table, and there is no undo. A safe habit: run the same `WHERE` in a `SELECT` first and check which rows it finds.\n\nAdd `RETURNING` to an `UPDATE` or `DELETE` to see the rows it changed. It works like a `SELECT` list over those rows: `UPDATE` returns the new values, `DELETE` returns the rows as they were before they went. New in PostgreSQL 18, an `UPDATE` can return both: `RETURNING name, old.price, new.price`.\n\n```sql\nUPDATE products SET stock = stock - 1 WHERE id = 1 RETURNING name, stock;\n```\n\nIn the editor, a statement with `RETURNING` prints its rows and a row count in place of the `UPDATE n` or `DELETE n` tag. `RETURNING` takes no `ORDER BY`. Rows come back in the order PostgreSQL meets them in the table, which is usually but not always `id` order.",
+      "example": {
+        "title": "Remove discontinued products",
+        "prompt": "Delete the discontinued products, showing which ones went, then list what is left.",
+        "code": "DELETE FROM products WHERE discontinued RETURNING id, name;\nSELECT id, name, stock FROM products ORDER BY id;\n",
+        "output": " id |    name\n----+-------------\n  5 | Fax Machine\n(1 row)\n\n id |     name      | stock\n----+---------------+-------\n  1 | Desk Lamp     |    12\n  2 | Office Chair  |     3\n  3 | Notebook      |     0\n  4 | Monitor Stand |     8\n  6 | Standing Desk |     2\n(5 rows)",
+        "explanation": "`discontinued` is a boolean column, so it works as the whole condition. Only Fax Machine is discontinued, so `RETURNING id, name` prints that one deleted row. The `SELECT` after it shows five products, with no row 5. Ids are never reused, so the gap stays."
+      },
+      "practice": {
+        "title": "Restock, then clear out",
+        "prompt": "Restock the products that are running low, then delete the expensive ones, showing the rows each statement changed.\n\n1. Add `20` to `stock` for every product with `stock` under `5`, returning `name` and `stock`.\n2. Delete every product with a `price` over `100`, returning `name`.\n\nExpected output:\n\n```text\n     name      | stock\n---------------+-------\n Office Chair  |    23\n Notebook      |    20\n Fax Machine   |    20\n Standing Desk |    22\n(4 rows)\n\n     name\n---------------\n Office Chair\n Standing Desk\n(2 rows)\n```",
+        "starter": "-- TODO: restock products with stock under 5, RETURNING name, stock\n\n-- TODO: delete products priced over 100, RETURNING name\n",
+        "solution": "UPDATE products SET stock = stock + 20 WHERE stock < 5 RETURNING name, stock;\nDELETE FROM products WHERE price > 100 RETURNING name;\n",
+        "tests": [
+          {
+            "output": "     name      | stock\n---------------+-------\n Office Chair  |    23\n Notebook      |    20\n Fax Machine   |    20\n Standing Desk |    22\n(4 rows)\n\n     name\n---------------\n Office Chair\n Standing Desk\n(2 rows)"
+          },
+          {
+            "stdin": "DELETE FROM products WHERE name = 'Notebook';\nINSERT INTO products (name, price, stock) VALUES\n    ('Desk Fan', 19.99, 1),\n    ('Gaming Chair', 249.00, 3);\n",
+            "output": "     name      | stock\n---------------+-------\n Office Chair  |    23\n Fax Machine   |    20\n Standing Desk |    22\n Desk Fan      |    21\n Gaming Chair  |    23\n(5 rows)\n\n     name\n---------------\n Office Chair\n Standing Desk\n Gaming Chair\n(3 rows)"
+          },
+          {
+            "stdin": "DELETE FROM products WHERE price > 100;\nINSERT INTO products (name, price, stock) VALUES ('Pencil Case', 7.25, 4);\n",
+            "output": "    name     | stock\n-------------+-------\n Notebook    |    20\n Fax Machine |    20\n Pencil Case |    24\n(3 rows)\n\n name\n------\n(0 rows)"
+          }
+        ],
+        "hints": [
+          "`stock = stock + 20` adds to the old value. Put `RETURNING name, stock` at the end of the `UPDATE`.",
+          "The `DELETE` has the same shape: a `WHERE` on `price`, then `RETURNING` with the one column you want."
+        ]
+      }
+    },
+    {
+      "title": "Updating from another table",
+      "body": "Sometimes the new values live in another table. Here `price_changes` holds new prices for some products:\n\n```sql\nCREATE TABLE price_changes (product_id integer NOT NULL, new_price numeric(10, 2) NOT NULL);\n```\n\n| product_id | new_price |\n| --- | --- |\n| 2 | 129.00 |\n| 4 | 44.99 |\n| 6 | 299.00 |\n\n`UPDATE ... FROM` joins the target table to another table, and `WHERE` matches the rows, like the `ON` of a join:\n\n```sql\nUPDATE products AS p\nSET price = c.new_price\nFROM price_changes AS c\nWHERE c.product_id = p.id;\n```\n\nEach product with a matching row gets updated, and products with no match stay as they are. Any extra condition goes in the same `WHERE` with `AND`.\n\nGotchas. Write `SET price`, not `SET p.price`: the column after `SET` always belongs to the target table, and `p.price` there is an error. Do not list `products` again in `FROM`, or it joins to itself. And if two rows in `price_changes` match the same product, only one of them is used and you cannot tell which, so keep one change per product.",
+      "example": {
+        "title": "Apply the price list",
+        "prompt": "Set each product's price from the matching row in price_changes, then list all products.",
+        "code": "UPDATE products AS p\nSET price = c.new_price\nFROM price_changes AS c\nWHERE c.product_id = p.id;\nSELECT id, name, price FROM products ORDER BY id;\n",
+        "output": "UPDATE 3\n\n id |     name      | price\n----+---------------+--------\n  1 | Desk Lamp     |  24.00\n  2 | Office Chair  | 129.00\n  3 | Notebook      |   4.50\n  4 | Monitor Stand |  44.99\n  5 | Fax Machine   |  89.00\n  6 | Standing Desk | 299.00\n(6 rows)",
+        "explanation": "The `WHERE` pairs each change with the product whose `id` equals `product_id`. Products 2, 4, and 6 have a match, so `UPDATE 3`, and each takes its `new_price`. Even Monitor Stand goes up from `39.99` to `44.99`, because every match applies. Products 1, 3, and 5 have no row in `price_changes` and keep their prices."
+      },
+      "practice": {
+        "title": "Apply only price cuts",
+        "prompt": "Apply the price changes that lower a price and skip the ones that raise it, then list every product.\n\n1. Update `products AS p` from `price_changes AS c`, matching `c.product_id` to `p.id`.\n2. Only apply a change when `c.new_price` is lower than `p.price`.\n3. Select `name` and `price` from `products`, sorted by `id`.\n\nExpected output:\n\n```text\nUPDATE 2\n\n     name      | price\n---------------+--------\n Desk Lamp     |  24.00\n Office Chair  | 129.00\n Notebook      |   4.50\n Monitor Stand |  39.99\n Fax Machine   |  89.00\n Standing Desk | 299.00\n(6 rows)\n```",
+        "starter": "-- TODO: UPDATE products FROM price_changes, only where the new price is lower\nSELECT name, price FROM products ORDER BY id;\n",
+        "solution": "UPDATE products AS p\nSET price = c.new_price\nFROM price_changes AS c\nWHERE c.product_id = p.id\n    AND c.new_price < p.price;\nSELECT name, price FROM products ORDER BY id;\n",
+        "tests": [
+          {
+            "output": "UPDATE 2\n\n     name      | price\n---------------+--------\n Desk Lamp     |  24.00\n Office Chair  | 129.00\n Notebook      |   4.50\n Monitor Stand |  39.99\n Fax Machine   |  89.00\n Standing Desk | 299.00\n(6 rows)"
+          },
+          {
+            "stdin": "INSERT INTO price_changes (product_id, new_price) VALUES\n    (1, 19.99),\n    (3, 5.00),\n    (5, 89.00);\n",
+            "output": "UPDATE 3\n\n     name      | price\n---------------+--------\n Desk Lamp     |  19.99\n Office Chair  | 129.00\n Notebook      |   4.50\n Monitor Stand |  39.99\n Fax Machine   |  89.00\n Standing Desk | 299.00\n(6 rows)"
+          },
+          {
+            "stdin": "UPDATE price_changes SET new_price = new_price + 200;\n",
+            "output": "UPDATE 0\n\n     name      | price\n---------------+--------\n Desk Lamp     |  24.00\n Office Chair  | 149.00\n Notebook      |   4.50\n Monitor Stand |  39.99\n Fax Machine   |  89.00\n Standing Desk | 329.00\n(6 rows)"
+          }
+        ],
+        "hints": [
+          "Start from the `UPDATE ... FROM` with `WHERE c.product_id = p.id`.",
+          "Join a second condition with `AND` that compares the new price to the current one."
+        ]
+      }
+    }
+  ],
+  "recap": "- `UPDATE table SET column = value WHERE condition` changes the rows `WHERE` picks.\n- `SET` takes expressions on the old row, like `price = price * 1.10`, and commas separate several columns.\n- Without `WHERE`, `UPDATE` and `DELETE` touch every row.\n- `DELETE FROM table WHERE condition` removes rows. The tags `UPDATE n` and `DELETE n` count them.\n- `RETURNING` shows the changed rows: new values for `UPDATE`, the removed rows for `DELETE`. In PostgreSQL 18, `old.column` and `new.column` show both sides of an `UPDATE`.\n- `UPDATE target AS t SET column = o.value FROM other AS o WHERE o.key = t.id` takes new values from another table."
+}

@@ -1,0 +1,113 @@
+{
+  "id": "graphs",
+  "title": "Graphs: Reachability and Fewest Hops",
+  "section": "Recursive Queries",
+  "summary": "Store a graph as an edges table and explore it breadth first with recursive queries.",
+  "intro": "A graph is a set of points joined by links: airports and flights, people and friendships, pages and links. Store each link as a row, and a recursive query can walk them to find where you can go, by which route, and in how few steps.",
+  "setup": "CREATE TABLE flights (origin text, destination text);\nINSERT INTO flights (origin, destination) VALUES\n    ('SFO', 'SEA'),\n    ('SFO', 'DEN'),\n    ('SEA', 'DEN'),\n    ('DEN', 'ORD'),\n    ('DEN', 'JFK'),\n    ('ORD', 'JFK'),\n    ('JFK', 'MIA'),\n    ('MIA', 'ATL'),\n    ('ATL', 'DEN');\n",
+  "steps": [
+    {
+      "title": "Neighbors and reachability",
+      "body": "This lesson uses one table of one-way flights. Each row is an **edge** from `origin` to `destination`, and the airports are the **nodes**. That is all a graph needs:\n\n```sql\nCREATE TABLE flights (origin text, destination text);\n-- 9 rows: SFO->SEA, SFO->DEN, SEA->DEN, DEN->ORD, DEN->JFK,\n--         ORD->JFK, JFK->MIA, MIA->ATL, ATL->DEN\n```\n\nA node's **neighbors** are one `WHERE` away: `SELECT destination FROM flights WHERE origin = 'SFO'`.\n\nTo find every airport you can reach, start from the neighbors and join the CTE back to `flights`, so each round flies one more leg:\n\n```sql\nWITH RECURSIVE reach(airport) AS (\n    SELECT destination FROM flights WHERE origin = 'SFO'\n    UNION\n    SELECT f.destination\n    FROM reach AS r\n    JOIN flights AS f ON f.origin = r.airport\n)\nSELECT airport FROM reach ORDER BY airport;\n```\n\nUse `UNION` here, not `UNION ALL`. The flights DEN -> JFK -> MIA -> ATL -> DEN form a **cycle**, so with `UNION ALL` the query would fly around that loop forever. `UNION` drops every row it has already produced. Once a round finds only airports it already knows, it adds nothing and the recursion stops.",
+      "example": {
+        "title": "Where SFO can fly",
+        "prompt": "List the direct flights out of SFO, then every airport you can reach from SFO with any number of flights.",
+        "code": "SELECT destination FROM flights WHERE origin = 'SFO' ORDER BY destination;\n\nWITH RECURSIVE reach(airport) AS (\n    SELECT destination FROM flights WHERE origin = 'SFO'\n    UNION\n    SELECT f.destination\n    FROM reach AS r\n    JOIN flights AS f ON f.origin = r.airport\n)\nSELECT airport FROM reach ORDER BY airport;\n",
+        "output": " destination\n-------------\n DEN\n SEA\n(2 rows)\n\n airport\n---------\n ATL\n DEN\n JFK\n MIA\n ORD\n SEA\n(6 rows)",
+        "explanation": "The first query lists SFO's neighbors: DEN and SEA. The recursive CTE starts from those two. Each round joins the airports it found to `flights` on `f.origin = r.airport` and keeps the destinations. DEN leads to JFK and ORD, JFK leads to MIA, and MIA to ATL. ATL flies back to DEN, which `UNION` already has, so that round is empty and the query ends. SFO itself is missing because no flight goes back to it."
+      },
+      "practice": {
+        "title": "Who can reach JFK",
+        "prompt": "List the airports with a direct flight into JFK, then every airport that can reach JFK with any number of flights, by following the flights backwards.\n\n1. Select `origin` from `flights` where `destination` is `'JFK'`, sorted by `origin`.\n2. Write a recursive CTE named `sources` with one column `airport` that starts from those same origins.\n3. With `UNION`, add the `origin` of every flight whose `destination` is already in `sources`.\n4. Select `airport` from `sources`, sorted by `airport`. JFK is in the list too, because the loop through MIA and ATL leads back to it.\n\nExpected output:\n\n```text\n origin\n--------\n DEN\n ORD\n(2 rows)\n\n airport\n---------\n ATL\n DEN\n JFK\n MIA\n ORD\n SEA\n SFO\n(7 rows)\n```",
+        "starter": "-- TODO: list the origins of the direct flights into JFK, sorted by origin\n\nWITH RECURSIVE sources(airport) AS (\n    SELECT origin FROM flights WHERE destination = 'JFK'\n    -- TODO: add UNION and a query that finds the airports flying into sources\n)\nSELECT airport FROM sources ORDER BY airport;\n",
+        "solution": "SELECT origin FROM flights WHERE destination = 'JFK' ORDER BY origin;\n\nWITH RECURSIVE sources(airport) AS (\n    SELECT origin FROM flights WHERE destination = 'JFK'\n    UNION\n    SELECT f.origin\n    FROM sources AS s\n    JOIN flights AS f ON f.destination = s.airport\n)\nSELECT airport FROM sources ORDER BY airport;\n",
+        "tests": [
+          {
+            "output": " origin\n--------\n DEN\n ORD\n(2 rows)\n\n airport\n---------\n ATL\n DEN\n JFK\n MIA\n ORD\n SEA\n SFO\n(7 rows)"
+          },
+          {
+            "stdin": "INSERT INTO flights (origin, destination) VALUES\n    ('BOS', 'JFK'),\n    ('LAX', 'SFO');",
+            "output": " origin\n--------\n BOS\n DEN\n ORD\n(3 rows)\n\n airport\n---------\n ATL\n BOS\n DEN\n JFK\n LAX\n MIA\n ORD\n SEA\n SFO\n(9 rows)"
+          },
+          {
+            "stdin": "DELETE FROM flights WHERE origin = 'ATL';",
+            "output": " origin\n--------\n DEN\n ORD\n(2 rows)\n\n airport\n---------\n DEN\n ORD\n SEA\n SFO\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "It is the example turned around: follow flights into an airport instead of out of it.",
+          "In the recursive part, join `flights` to `sources` on the flight's `destination` and select the flight's `origin`."
+        ]
+      }
+    },
+    {
+      "title": "Paths without cycles",
+      "body": "`UNION` tells you *which* airports you can reach, but not *how*. To keep the route, carry it in an array column. Start with both ends of the first flight and append one airport per round with `||`:\n\n```sql\nSELECT destination, ARRAY['SFO', destination] ...  -- starting rows\nSELECT f.destination, r.path || f.destination ...   -- one more stop\n```\n\nNow every row is new, because each path is longer than the one it came from, so `UNION` can no longer end a cycle. End it yourself: only fly on when the next airport is not already in the path.\n\n```sql\nWHERE NOT (f.destination = ANY(r.path))\n```\n\n`x = ANY(array)` is true when `x` matches any item, and the parentheses make `NOT` cover the whole test. No path can visit an airport twice, so every path ends and so does the recursion. Rows can't repeat now, so use `UNION ALL` and skip the duplicate check.\n\nTo print a path, `array_to_string(path, ' -> ')` joins the items with the separator you give. PostgreSQL also has a `CYCLE` clause that tracks visited rows for you, but an array of airport codes is simpler and gives you a route to print.",
+      "example": {
+        "title": "Every route from SFO",
+        "prompt": "List every route out of SFO, stop by stop, without visiting an airport twice.",
+        "code": "WITH RECURSIVE routes(airport, path) AS (\n    SELECT destination, ARRAY['SFO', destination]\n    FROM flights\n    WHERE origin = 'SFO'\n    UNION ALL\n    SELECT f.destination, r.path || f.destination\n    FROM routes AS r\n    JOIN flights AS f ON f.origin = r.airport\n    WHERE NOT (f.destination = ANY(r.path))\n)\nSELECT array_to_string(path, ' -> ') AS route\nFROM routes\nORDER BY path;\n",
+        "output": "                     route\n-----------------------------------------------\n SFO -> DEN\n SFO -> DEN -> JFK\n SFO -> DEN -> JFK -> MIA\n SFO -> DEN -> JFK -> MIA -> ATL\n SFO -> DEN -> ORD\n SFO -> DEN -> ORD -> JFK\n SFO -> DEN -> ORD -> JFK -> MIA\n SFO -> DEN -> ORD -> JFK -> MIA -> ATL\n SFO -> SEA\n SFO -> SEA -> DEN\n SFO -> SEA -> DEN -> JFK\n SFO -> SEA -> DEN -> JFK -> MIA\n SFO -> SEA -> DEN -> JFK -> MIA -> ATL\n SFO -> SEA -> DEN -> ORD\n SFO -> SEA -> DEN -> ORD -> JFK\n SFO -> SEA -> DEN -> ORD -> JFK -> MIA\n SFO -> SEA -> DEN -> ORD -> JFK -> MIA -> ATL\n(17 rows)",
+        "explanation": "Each starting row is one flight out of SFO, with a path like `{SFO,DEN}`. Every round joins the last airport to its flights and appends the destination with `r.path || f.destination`. The `WHERE NOT (f.destination = ANY(r.path))` blocks ATL -> DEN, because DEN is already on every path that reaches ATL. That is what stops the loop. `ORDER BY path` sorts the arrays item by item, so each route comes right before the longer routes that extend it."
+      },
+      "practice": {
+        "title": "Routes from SEA to MIA",
+        "prompt": "List every route from SEA that ends at MIA, stop by stop, without visiting an airport twice.\n\n1. Write a recursive CTE named `routes` with columns `airport` and `path`, starting from the flights out of `'SEA'` with the path `ARRAY['SEA', destination]`.\n2. With `UNION ALL`, fly on from `airport`, append the destination to `path`, and skip airports already in `path`.\n3. Select `array_to_string(path, ' -> ')` AS `route` for the rows whose `airport` is `'MIA'`, sorted by `path`.\n\nExpected output:\n\n```text\n              route\n---------------------------------\n SEA -> DEN -> JFK -> MIA\n SEA -> DEN -> ORD -> JFK -> MIA\n(2 rows)\n```",
+        "starter": "WITH RECURSIVE routes(airport, path) AS (\n    SELECT destination, ARRAY['SEA', destination]\n    FROM flights\n    WHERE origin = 'SEA'\n    -- TODO: add UNION ALL and a query that flies on to airports not already in path\n)\nSELECT array_to_string(path, ' -> ') AS route\nFROM routes\n-- TODO: keep only the routes that end at MIA\nORDER BY path;\n",
+        "solution": "WITH RECURSIVE routes(airport, path) AS (\n    SELECT destination, ARRAY['SEA', destination]\n    FROM flights\n    WHERE origin = 'SEA'\n    UNION ALL\n    SELECT f.destination, r.path || f.destination\n    FROM routes AS r\n    JOIN flights AS f ON f.origin = r.airport\n    WHERE NOT (f.destination = ANY(r.path))\n)\nSELECT array_to_string(path, ' -> ') AS route\nFROM routes\nWHERE airport = 'MIA'\nORDER BY path;\n",
+        "tests": [
+          {
+            "output": "              route\n---------------------------------\n SEA -> DEN -> JFK -> MIA\n SEA -> DEN -> ORD -> JFK -> MIA\n(2 rows)"
+          },
+          {
+            "stdin": "INSERT INTO flights (origin, destination) VALUES\n    ('SEA', 'JFK'),\n    ('DEN', 'MIA');",
+            "output": "              route\n---------------------------------\n SEA -> DEN -> JFK -> MIA\n SEA -> DEN -> MIA\n SEA -> DEN -> ORD -> JFK -> MIA\n SEA -> JFK -> MIA\n(4 rows)"
+          },
+          {
+            "stdin": "DELETE FROM flights WHERE origin = 'JFK';",
+            "output": " route\n-------\n(0 rows)"
+          }
+        ],
+        "hints": [
+          "The recursive part is the same as the SFO example. Only the starting airport changes.",
+          "Filter in the final query with `WHERE airport = 'MIA'`. Every row of `routes` is a route that ends at its `airport`."
+        ]
+      }
+    },
+    {
+      "title": "Fewest hops",
+      "body": "Add a `hops` column that starts at 1 and grows by 1 each round, and every row records how many flights its path took:\n\n```sql\nSELECT destination, 1, ARRAY['SFO', destination] ...  -- 1 flight\nSELECT f.destination, t.hops + 1, t.path || f.destination ...\n```\n\nAn airport can show up on several paths with different counts. SFO reaches DEN in 1 flight, and again in 2 through SEA. To keep the fewest, group by the airport and take the smallest count:\n\n```sql\nSELECT airport, min(hops) AS fewest_hops FROM trips GROUP BY airport;\n```\n\nThe CTE lists every path that never revisits an airport, and a shortest route never needs to revisit one, so `min(hops)` is the true fewest. It also matches how a recursive CTE runs: **breadth first**. Round 1 makes every 1-flight path, round 2 every 2-flight path, and so on, so the first round that reaches an airport is its fewest hops. An airport you can't reach never appears, so it gets no row at all.\n\nKeep the path check from the previous part. The `hops` column makes every row new, so `UNION` alone would not end a cycle. On big graphs the number of paths grows fast, so a cap like `AND t.hops < 6` limits the search.",
+      "example": {
+        "title": "Fewest flights from SFO",
+        "prompt": "Find the fewest flights it takes to get from SFO to every airport it can reach.",
+        "code": "WITH RECURSIVE trips(airport, hops, path) AS (\n    SELECT destination, 1, ARRAY['SFO', destination]\n    FROM flights\n    WHERE origin = 'SFO'\n    UNION ALL\n    SELECT f.destination, t.hops + 1, t.path || f.destination\n    FROM trips AS t\n    JOIN flights AS f ON f.origin = t.airport\n    WHERE NOT (f.destination = ANY(t.path))\n)\nSELECT airport, min(hops) AS fewest_hops\nFROM trips\nGROUP BY airport\nORDER BY fewest_hops, airport;\n",
+        "output": " airport | fewest_hops\n---------+-------------\n DEN     |           1\n SEA     |           1\n JFK     |           2\n ORD     |           2\n MIA     |           3\n ATL     |           4\n(6 rows)",
+        "explanation": "The CTE lists every path out of SFO, as in the previous part, plus a `hops` count that starts at 1 and adds 1 per flight. DEN appears with 1 hop (direct) and 2 hops (through SEA), and `min(hops)` keeps 1. ORD and JFK first appear in round 2, MIA in round 3, and ATL in round 4. Grouping by `airport` gives one row per reachable airport."
+      },
+      "practice": {
+        "title": "Fewest flights from SEA to MIA",
+        "prompt": "Find the fewest flights from SEA to MIA, with no row at all when MIA can't be reached.\n\n1. Write a recursive CTE named `trips` with columns `airport`, `hops`, and `path`, starting from the flights out of `'SEA'` with `hops` 1.\n2. With `UNION ALL`, fly on to airports not already in `path`, adding 1 to `hops` and appending the destination to `path`.\n3. Select `airport` and `min(hops)` AS `fewest_hops` from `trips` where `airport` is `'MIA'`, grouped by `airport`.\n\nExpected output:\n\n```text\n airport | fewest_hops\n---------+-------------\n MIA     |           3\n(1 row)\n```",
+        "starter": "WITH RECURSIVE trips(airport, hops, path) AS (\n    SELECT destination, 1, ARRAY['SEA', destination]\n    FROM flights\n    WHERE origin = 'SEA'\n    -- TODO: add UNION ALL and a query that flies on, adding 1 to hops\n)\n-- TODO: keep only MIA and take its fewest hops with min() and GROUP BY\nSELECT airport, hops AS fewest_hops\nFROM trips\nORDER BY path;\n",
+        "solution": "WITH RECURSIVE trips(airport, hops, path) AS (\n    SELECT destination, 1, ARRAY['SEA', destination]\n    FROM flights\n    WHERE origin = 'SEA'\n    UNION ALL\n    SELECT f.destination, t.hops + 1, t.path || f.destination\n    FROM trips AS t\n    JOIN flights AS f ON f.origin = t.airport\n    WHERE NOT (f.destination = ANY(t.path))\n)\nSELECT airport, min(hops) AS fewest_hops\nFROM trips\nWHERE airport = 'MIA'\nGROUP BY airport;\n",
+        "tests": [
+          {
+            "output": " airport | fewest_hops\n---------+-------------\n MIA     |           3\n(1 row)"
+          },
+          {
+            "stdin": "INSERT INTO flights (origin, destination) VALUES ('SEA', 'JFK');",
+            "output": " airport | fewest_hops\n---------+-------------\n MIA     |           2\n(1 row)"
+          },
+          {
+            "stdin": "DELETE FROM flights WHERE destination = 'MIA';",
+            "output": " airport | fewest_hops\n---------+-------------\n(0 rows)"
+          }
+        ],
+        "hints": [
+          "The CTE is the SFO example with `'SEA'` as the start.",
+          "Filter with `WHERE airport = 'MIA'` before `GROUP BY airport`. When MIA is never reached, there is no group, so no row."
+        ]
+      }
+    }
+  ],
+  "recap": "- An edges table, one row per link, stores a graph. `WHERE origin = x` gives a node's neighbors.\n- `WITH RECURSIVE` with `UNION` finds every reachable node. `UNION` drops repeats, which also ends cycles.\n- Carry the route in an array with `path || next` and stop at `NOT (next = ANY(path))`.\n- `array_to_string(path, ' -> ')` prints a path.\n- A `hops` column counts edges, and `min(hops)` with `GROUP BY` gives the fewest hops. Rounds run breadth first, so the first round that reaches a node is its shortest distance."
+}

@@ -1,0 +1,99 @@
+{
+  "id": "alter-drop",
+  "title": "Changing Tables With ALTER and DROP",
+  "section": "Designing Tables",
+  "summary": "Add, rename, retype, and remove columns, and drop tables.",
+  "intro": "Real tables change after they are created: a new feature needs a column, an old one goes away, a name turns out wrong. `ALTER TABLE` changes a table in place and keeps its rows, and `DROP TABLE` removes a table you no longer need.",
+  "setup": "CREATE TABLE customers (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    full_name text,\n    phone text,\n    signed_up text\n);\nINSERT INTO customers (full_name, phone, signed_up) VALUES\n    ('Ana Lopez', '555-0101', '2025-03-01'),\n    ('Ben Carter', '555-0102', '2025-03-14'),\n    ('Chloe Kim', '555-0103', '2025-04-02'),\n    ('Dev Patel', '555-0104', '2025-04-20');\nCREATE TABLE old_customers (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    full_name text\n);\nINSERT INTO old_customers (full_name) VALUES\n    ('Ana Lopez'),\n    ('Gus Moreno');\n",
+  "steps": [
+    {
+      "title": "Adding and removing columns",
+      "body": "This lesson changes a `customers` table whose sign-up dates were stored as text by mistake. There is also an unused `old_customers` table:\n\n```sql\nCREATE TABLE customers (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    full_name text,\n    phone text,\n    signed_up text\n);\n-- ('Ana Lopez', '555-0101', '2025-03-01'), ('Ben Carter', '555-0102', '2025-03-14'), ...\nCREATE TABLE old_customers (id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY, full_name text);\n```\n\n`ALTER TABLE` changes a table and keeps its rows. Each change prints `ALTER TABLE`:\n\n```sql\nALTER TABLE customers ADD COLUMN email text;\nALTER TABLE customers DROP COLUMN phone;\n```\n\nA new column goes at the end and is NULL in every existing row. Add a `DEFAULT` and the existing rows get that value too. That matters for `NOT NULL`: `ADD COLUMN points integer NOT NULL` fails on a table with rows, because they would all be NULL:\n\n```text\nERROR:  column \"points\" of relation \"customers\" contains null values\n```\n\n`ADD COLUMN points integer NOT NULL DEFAULT 0` works.\n\n`DROP COLUMN` deletes the column and its data for good, with no undo.\n\nTo see a table's columns, query `information_schema.columns`, a built-in table with one row per column. `ordinal_position` is the column's place in the table:\n\n```sql\nSELECT column_name, data_type\nFROM information_schema.columns\nWHERE table_name = 'customers'\nORDER BY ordinal_position;\n```",
+      "example": {
+        "title": "Loyalty points instead of phones",
+        "prompt": "Add a loyalty_points column that starts at 0, drop the phone column, then list the columns and the rows.",
+        "code": "ALTER TABLE customers ADD COLUMN loyalty_points integer NOT NULL DEFAULT 0;\nALTER TABLE customers DROP COLUMN phone;\n\nSELECT column_name, data_type\nFROM information_schema.columns\nWHERE table_name = 'customers'\nORDER BY ordinal_position;\n\nSELECT * FROM customers ORDER BY id;\n",
+        "output": "ALTER TABLE\n\nALTER TABLE\n\n  column_name   | data_type\n----------------+-----------\n id             | integer\n full_name      | text\n signed_up      | text\n loyalty_points | integer\n(4 rows)\n\n id | full_name  | signed_up  | loyalty_points\n----+------------+------------+----------------\n  1 | Ana Lopez  | 2025-03-01 |              0\n  2 | Ben Carter | 2025-03-14 |              0\n  3 | Chloe Kim  | 2025-04-02 |              0\n  4 | Dev Patel  | 2025-04-20 |              0\n(4 rows)",
+        "explanation": "The `DEFAULT 0` fills `loyalty_points` for the four existing rows, which is what lets `NOT NULL` pass. Dropping `phone` removes it from every row. The column list shows the new column last, because `ADD COLUMN` always appends, and `SELECT *` follows that same order."
+      },
+      "practice": {
+        "title": "VIP flags and notes",
+        "prompt": "Add two columns to customers, then show the new shape and the rows.\n\n1. Add a `vip` column of type boolean with the default `false`.\n2. Add a `notes` column of type text with no default.\n3. Select `column_name` and `data_type` from `information_schema.columns` for the `customers` table, sorted by `ordinal_position`.\n4. Select every column from `customers`, sorted by `id`.\n\nExpected output:\n\n```text\nALTER TABLE\n\nALTER TABLE\n\n column_name | data_type\n-------------+-----------\n id          | integer\n full_name   | text\n phone       | text\n signed_up   | text\n vip         | boolean\n notes       | text\n(6 rows)\n\n id | full_name  |  phone   | signed_up  | vip | notes\n----+------------+----------+------------+-----+-------\n  1 | Ana Lopez  | 555-0101 | 2025-03-01 | f   |\n  2 | Ben Carter | 555-0102 | 2025-03-14 | f   |\n  3 | Chloe Kim  | 555-0103 | 2025-04-02 | f   |\n  4 | Dev Patel  | 555-0104 | 2025-04-20 | f   |\n(4 rows)\n```",
+        "starter": "-- TODO: add a vip column (boolean, default false) and a notes column (text)\n\nSELECT column_name, data_type\nFROM information_schema.columns\nWHERE table_name = 'customers'\nORDER BY ordinal_position;\n\nSELECT * FROM customers ORDER BY id;\n",
+        "solution": "ALTER TABLE customers ADD COLUMN vip boolean DEFAULT false;\nALTER TABLE customers ADD COLUMN notes text;\n\nSELECT column_name, data_type\nFROM information_schema.columns\nWHERE table_name = 'customers'\nORDER BY ordinal_position;\n\nSELECT * FROM customers ORDER BY id;\n",
+        "tests": [
+          {
+            "output": "ALTER TABLE\n\nALTER TABLE\n\n column_name | data_type\n-------------+-----------\n id          | integer\n full_name   | text\n phone       | text\n signed_up   | text\n vip         | boolean\n notes       | text\n(6 rows)\n\n id | full_name  |  phone   | signed_up  | vip | notes\n----+------------+----------+------------+-----+-------\n  1 | Ana Lopez  | 555-0101 | 2025-03-01 | f   |\n  2 | Ben Carter | 555-0102 | 2025-03-14 | f   |\n  3 | Chloe Kim  | 555-0103 | 2025-04-02 | f   |\n  4 | Dev Patel  | 555-0104 | 2025-04-20 | f   |\n(4 rows)"
+          },
+          {
+            "stdin": "INSERT INTO customers (full_name, phone, signed_up) VALUES\n    ('Eve Park', '555-0105', '2025-05-09');",
+            "output": "ALTER TABLE\n\nALTER TABLE\n\n column_name | data_type\n-------------+-----------\n id          | integer\n full_name   | text\n phone       | text\n signed_up   | text\n vip         | boolean\n notes       | text\n(6 rows)\n\n id | full_name  |  phone   | signed_up  | vip | notes\n----+------------+----------+------------+-----+-------\n  1 | Ana Lopez  | 555-0101 | 2025-03-01 | f   |\n  2 | Ben Carter | 555-0102 | 2025-03-14 | f   |\n  3 | Chloe Kim  | 555-0103 | 2025-04-02 | f   |\n  4 | Dev Patel  | 555-0104 | 2025-04-20 | f   |\n  5 | Eve Park   | 555-0105 | 2025-05-09 | f   |\n(5 rows)"
+          },
+          {
+            "stdin": "INSERT INTO customers (full_name, phone, signed_up) VALUES\n    ('Finn Walsh', NULL, '2025-05-11'),\n    ('Gia Russo', '555-0106', '2025-05-30');\nDELETE FROM customers WHERE full_name = 'Ana Lopez';",
+            "output": "ALTER TABLE\n\nALTER TABLE\n\n column_name | data_type\n-------------+-----------\n id          | integer\n full_name   | text\n phone       | text\n signed_up   | text\n vip         | boolean\n notes       | text\n(6 rows)\n\n id | full_name  |  phone   | signed_up  | vip | notes\n----+------------+----------+------------+-----+-------\n  2 | Ben Carter | 555-0102 | 2025-03-14 | f   |\n  3 | Chloe Kim  | 555-0103 | 2025-04-02 | f   |\n  4 | Dev Patel  | 555-0104 | 2025-04-20 | f   |\n  5 | Finn Walsh |          | 2025-05-11 | f   |\n  6 | Gia Russo  | 555-0106 | 2025-05-30 | f   |\n(5 rows)"
+          }
+        ],
+        "hints": [
+          "Each new column is one `ALTER TABLE customers ADD COLUMN name type` statement.",
+          "Put `DEFAULT false` after the type of `vip`. `notes` needs no default, so its rows stay NULL and print as nothing."
+        ]
+      }
+    },
+    {
+      "title": "Renaming and changing types",
+      "body": "Renames keep every row and only change the name:\n\n```sql\nALTER TABLE customers RENAME COLUMN full_name TO name;\nALTER TABLE customers RENAME TO clients;\n```\n\nAfter a rename, queries that use the old name fail, so update them too.\n\n`ALTER COLUMN ... TYPE` changes a column's type. Text to date has no automatic cast, so add `USING` with the expression that converts each row's old value:\n\n```sql\nALTER TABLE customers ALTER COLUMN signed_up TYPE date USING signed_up::date;\n```\n\nWithout `USING` you get this error:\n\n```text\nERROR:  column \"signed_up\" cannot be cast automatically to type date\n```\n\nWith `USING`, one row that cannot convert (like `'soon'`) fails the whole statement and nothing changes.\n\n`SET NOT NULL` adds a rule to an existing column, and fails if any row is already NULL there. `SET DEFAULT` sets the value later inserts get when they leave the column out. Unlike `ADD COLUMN ... DEFAULT`, it does not touch existing rows. `DROP NOT NULL` and `DROP DEFAULT` undo them:\n\n```sql\nALTER TABLE customers ALTER COLUMN full_name SET NOT NULL;\nALTER TABLE orders ALTER COLUMN status SET DEFAULT 'new';\n```\n\nIn `information_schema.columns`, the `is_nullable` column shows `YES` or `NO`.",
+      "example": {
+        "title": "Real sign-up dates",
+        "prompt": "Rename full_name to name, turn signed_up into a real date that is required, list the columns, and show when each 30 day trial ends.",
+        "code": "ALTER TABLE customers RENAME COLUMN full_name TO name;\nALTER TABLE customers ALTER COLUMN signed_up TYPE date USING signed_up::date;\nALTER TABLE customers ALTER COLUMN signed_up SET NOT NULL;\n\nSELECT column_name, data_type, is_nullable\nFROM information_schema.columns\nWHERE table_name = 'customers'\nORDER BY ordinal_position;\n\nSELECT name, signed_up, signed_up + 30 AS trial_ends\nFROM customers\nORDER BY id;\n",
+        "output": "ALTER TABLE\n\nALTER TABLE\n\nALTER TABLE\n\n column_name | data_type | is_nullable\n-------------+-----------+-------------\n id          | integer   | NO\n name        | text      | YES\n phone       | text      | YES\n signed_up   | date      | NO\n(4 rows)\n\n    name    | signed_up  | trial_ends\n------------+------------+------------\n Ana Lopez  | 2025-03-01 | 2025-03-31\n Ben Carter | 2025-03-14 | 2025-04-13\n Chloe Kim  | 2025-04-02 | 2025-05-02\n Dev Patel  | 2025-04-20 | 2025-05-20\n(4 rows)",
+        "explanation": "`USING signed_up::date` casts each row's text, so `signed_up` becomes a date and the data stays. The column list now shows `name`, the `date` type, and `NO` under `is_nullable` for `signed_up` and the primary key `id`. Because `signed_up` is a date, `signed_up + 30` adds 30 days. On the old text column it would have been an error."
+      },
+      "practice": {
+        "title": "Customers become clients",
+        "prompt": "Rename the customers table and its phone column, store sign-up dates as real dates, require a phone number, and list the columns.\n\n1. Rename the table `customers` to `clients`.\n2. Rename the column `phone` to `phone_number`.\n3. Change `signed_up` to type `date`, converting each value with `USING`.\n4. Make `phone_number` NOT NULL.\n5. Select `column_name`, `data_type`, and `is_nullable` from `information_schema.columns` for the `clients` table, sorted by `ordinal_position`.\n\nExpected output:\n\n```text\nALTER TABLE\n\nALTER TABLE\n\nALTER TABLE\n\nALTER TABLE\n\n column_name  | data_type | is_nullable\n--------------+-----------+-------------\n id           | integer   | NO\n full_name    | text      | YES\n phone_number | text      | NO\n signed_up    | date      | YES\n(4 rows)\n```",
+        "starter": "-- TODO: rename the table to clients, rename phone to phone_number,\n-- change signed_up to date with USING, and make phone_number NOT NULL\n\nSELECT column_name, data_type, is_nullable\nFROM information_schema.columns\nWHERE table_name = 'clients'\nORDER BY ordinal_position;\n",
+        "solution": "ALTER TABLE customers RENAME TO clients;\nALTER TABLE clients RENAME COLUMN phone TO phone_number;\nALTER TABLE clients ALTER COLUMN signed_up TYPE date USING signed_up::date;\nALTER TABLE clients ALTER COLUMN phone_number SET NOT NULL;\n\nSELECT column_name, data_type, is_nullable\nFROM information_schema.columns\nWHERE table_name = 'clients'\nORDER BY ordinal_position;\n",
+        "tests": [
+          {
+            "output": "ALTER TABLE\n\nALTER TABLE\n\nALTER TABLE\n\nALTER TABLE\n\n column_name  | data_type | is_nullable\n--------------+-----------+-------------\n id           | integer   | NO\n full_name    | text      | YES\n phone_number | text      | NO\n signed_up    | date      | YES\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "Rename the table first, then use the new name `clients` in every later statement.",
+          "The type change needs `USING` with a cast of the old text value, just like `signed_up::date`.",
+          "`SET NOT NULL` goes after `ALTER COLUMN` and the column's new name."
+        ]
+      }
+    },
+    {
+      "title": "Dropping tables safely",
+      "body": "`DROP TABLE` deletes a table, its rows and all, and prints `DROP TABLE`. There is no undo, so check the name first:\n\n```sql\nDROP TABLE old_customers;\n```\n\nDropping a table that does not exist is an error:\n\n```text\nERROR:  table \"archive\" does not exist\n```\n\nAdd `IF EXISTS` and the statement does nothing when the table is missing, which makes cleanup scripts safe to run twice. `DROP COLUMN IF EXISTS` works the same way for columns:\n\n```sql\nDROP TABLE IF EXISTS archive;\nALTER TABLE customers DROP COLUMN IF EXISTS fax;\n```\n\nA table that another table's foreign key points at cannot be dropped while that link exists:\n\n```text\nERROR:  cannot drop table customers because other objects depend on it\n```\n\nDrop the child table first, then the parent.\n\nTo list your tables, query `information_schema.tables`. Your tables live in the `public` schema, while PostgreSQL's own tables live in other schemas, so filter on `table_schema`:\n\n```sql\nSELECT table_name\nFROM information_schema.tables\nWHERE table_schema = 'public'\nORDER BY table_name;\n```",
+      "example": {
+        "title": "Clearing out old tables",
+        "prompt": "Drop old_customers, safely drop an archive table and a fax column that may not exist, then list the tables.",
+        "code": "DROP TABLE old_customers;\nDROP TABLE IF EXISTS archive;\nALTER TABLE customers DROP COLUMN IF EXISTS fax;\n\nSELECT table_name\nFROM information_schema.tables\nWHERE table_schema = 'public'\nORDER BY table_name;\n",
+        "output": "DROP TABLE\n\nDROP TABLE\n\nALTER TABLE\n\n table_name\n------------\n customers\n(1 row)",
+        "explanation": "`old_customers` exists, so it is dropped. `archive` and the `fax` column never existed, but `IF EXISTS` turns those statements into no-ops that still print their tags. The table list shows only `customers` left in `public`."
+      },
+      "practice": {
+        "title": "A scratch table",
+        "prompt": "Create a scratch table, clean up with DROP, and list the tables that are left.\n\n1. Create a table `import_rows` with columns `line_number` (integer) and `raw_line` (text).\n2. Drop `import_rows`.\n3. Drop the table `backups` with `IF EXISTS`. It does not exist.\n4. Drop the column `email` from `customers` with `IF EXISTS`. It does not exist.\n5. Select `table_name` from `information_schema.tables` where `table_schema` is `'public'`, sorted by `table_name`.\n\nExpected output:\n\n```text\nCREATE TABLE\n\nDROP TABLE\n\nDROP TABLE\n\nALTER TABLE\n\n  table_name\n---------------\n customers\n old_customers\n(2 rows)\n```",
+        "starter": "-- TODO: create import_rows and drop it,\n-- then drop the backups table and the email column of customers with IF EXISTS\n\nSELECT table_name\nFROM information_schema.tables\nWHERE table_schema = 'public'\nORDER BY table_name;\n",
+        "solution": "CREATE TABLE import_rows (line_number integer, raw_line text);\nDROP TABLE import_rows;\nDROP TABLE IF EXISTS backups;\nALTER TABLE customers DROP COLUMN IF EXISTS email;\n\nSELECT table_name\nFROM information_schema.tables\nWHERE table_schema = 'public'\nORDER BY table_name;\n",
+        "tests": [
+          {
+            "output": "CREATE TABLE\n\nDROP TABLE\n\nDROP TABLE\n\nALTER TABLE\n\n  table_name\n---------------\n customers\n old_customers\n(2 rows)"
+          }
+        ],
+        "hints": [
+          "A plain `DROP TABLE` works on `import_rows`, because it exists by then.",
+          "`IF EXISTS` goes right after `DROP TABLE` or `DROP COLUMN`, before the name.",
+          "Dropping a column is a change to its table, so it starts with `ALTER TABLE customers`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `ALTER TABLE t ADD COLUMN c type DEFAULT v` adds a column, and the default fills existing rows.\n- `DROP COLUMN c` and `DROP TABLE t` delete data for good. `IF EXISTS` skips what is missing.\n- `RENAME COLUMN a TO b` and `RENAME TO new_name` keep the rows.\n- `ALTER COLUMN c TYPE type USING expression` converts each row's value.\n- `ALTER COLUMN c SET NOT NULL` and `SET DEFAULT v` change a column's rules. `SET DEFAULT` only affects later inserts.\n- `information_schema.columns` and `information_schema.tables` describe your tables."
+}

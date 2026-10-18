@@ -1,0 +1,63 @@
+{
+  "id": "create-tables",
+  "title": "Designing a Table",
+  "section": "Designing Tables",
+  "summary": "Create tables with identity ids, fitting types, and default values.",
+  "intro": "Until now you typed every id by hand. Well designed tables number their own rows and fill in sensible values for anything you leave out. In this lesson you build tables like that and see what PostgreSQL filled in.",
+  "steps": [
+    {
+      "title": "Identity ids and defaults",
+      "body": "A table works like a class. The columns are its fields, each with a type, and every row is one object built from them. Pick the type that fits the data: `text` for names, `numeric(10, 2)` for money (up to 10 digits, 2 of them after the point, rounded to cents), `integer` for counts, `boolean` for yes or no, and `date` for days.\n\n```sql\nCREATE TABLE tasks (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    title text,\n    done boolean DEFAULT false\n);\n```\n\n`GENERATED ALWAYS AS IDENTITY` makes PostgreSQL number the rows for you: 1, 2, 3, and so on. `PRIMARY KEY` marks `id` as the column that identifies a row, so no two rows share it and it is never NULL.\n\n`DEFAULT` gives a column its value when an `INSERT` leaves it out, so you name only the columns you have:\n\n```sql\nINSERT INTO tasks (title) VALUES ('Write the outline');\n```\n\nThat row gets the next id and `done` set to `false`. A column you leave out that has no `DEFAULT` gets NULL. The default only fills a column you leave out: writing `NULL` yourself stores NULL.\n\n`ALWAYS` means you never pick the id yourself. Giving `id` a value in an insert is an error. Try it in the editor:\n\n```text\nERROR:  cannot insert a non-DEFAULT value into column \"id\"\n```",
+      "example": {
+        "title": "Task list",
+        "prompt": "Create a tasks table that numbers its own rows and fills in defaults, add three tasks, and read them back.",
+        "code": "CREATE TABLE tasks (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    title text,\n    done boolean DEFAULT false,\n    priority integer DEFAULT 3,\n    due date\n);\n\nINSERT INTO tasks (title) VALUES ('Write the outline'), ('Review the draft');\n\nINSERT INTO tasks (title, priority, due) VALUES ('Fix the login bug', 1, DATE '2025-03-14');\n\nSELECT * FROM tasks ORDER BY id;\n",
+        "output": "CREATE TABLE\n\nINSERT 0 2\n\nINSERT 0 1\n\n id |       title       | done | priority |    due\n----+-------------------+------+----------+------------\n  1 | Write the outline | f    |        3 |\n  2 | Review the draft  | f    |        3 |\n  3 | Fix the login bug | f    |        1 | 2025-03-14\n(3 rows)",
+        "explanation": "The first `INSERT` names only `title`, so both rows get the next ids, `done` becomes `false` (printed `f`), and `priority` becomes 3. The second `INSERT` also names `priority` and `due`, so its priority of 1 replaces the default and its row gets a due date. `due` has no `DEFAULT`, so the first two rows hold NULL there, which prints as nothing."
+      },
+      "practice": {
+        "title": "Product catalog",
+        "prompt": "Create a products table where ids and stock status fill themselves in, then add three products.\n\n1. Create a table named `products` with the columns `id` (an identity primary key), `name` (text), `price` (numeric(10, 2)), and `in_stock` (boolean, default `true`), in that order.\n2. In one `INSERT` that names only `name` and `price`, add Desk lamp at 24.5 and Notebook at 3.99.\n3. In a second `INSERT`, add Standing desk at 349 with `in_stock` set to `false`.\n4. Select every column of every product, sorted by `id`.\n\nExpected output:\n\n```text\nCREATE TABLE\n\nINSERT 0 2\n\nINSERT 0 1\n\n id |     name      | price  | in_stock\n----+---------------+--------+----------\n  1 | Desk lamp     |  24.50 | t\n  2 | Notebook      |   3.99 | t\n  3 | Standing desk | 349.00 | f\n(3 rows)\n```",
+        "starter": "-- TODO: create the products table: id, name, price, in_stock\n\n-- TODO: insert Desk lamp and Notebook, naming only name and price\n\n-- TODO: insert Standing desk, which is out of stock\n\n-- TODO: select every product, sorted by id\n",
+        "solution": "CREATE TABLE products (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    name text,\n    price numeric(10, 2),\n    in_stock boolean DEFAULT true\n);\n\nINSERT INTO products (name, price) VALUES ('Desk lamp', 24.5), ('Notebook', 3.99);\n\nINSERT INTO products (name, price, in_stock) VALUES ('Standing desk', 349, false);\n\nSELECT * FROM products ORDER BY id;\n",
+        "tests": [
+          {
+            "output": "CREATE TABLE\n\nINSERT 0 2\n\nINSERT 0 1\n\n id |     name      | price  | in_stock\n----+---------------+--------+----------\n  1 | Desk lamp     |  24.50 | t\n  2 | Notebook      |   3.99 | t\n  3 | Standing desk | 349.00 | f\n(3 rows)"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the tasks table: `id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY` first, then the other columns.",
+          "Write the default right after the type: `in_stock boolean DEFAULT true`.",
+          "Leave `id` out of both inserts. PostgreSQL picks it, and `numeric(10, 2)` turns 24.5 into 24.50 for you."
+        ]
+      }
+    },
+    {
+      "title": "Seeing what you inserted with RETURNING",
+      "body": "When PostgreSQL picks the ids, which ones did your rows get? Add `RETURNING` to the end of an `INSERT` and it prints the new rows as a result table, just like a `SELECT`.\n\n```sql\nINSERT INTO tasks (title) VALUES ('Ship it') RETURNING id, title;\n```\n\nThe list after `RETURNING` works like a `SELECT` list: name columns, use `*` for all of them, or add expressions with `AS`. It shows the values actually stored, so generated ids and defaults come back filled in.\n\n```sql\nINSERT INTO tasks (title) VALUES ('Celebrate') RETURNING *;\n```\n\nUse `RETURNING` instead of looking up `max(id)` afterwards. An identity hands out each number once and never takes it back, so an insert that fails still uses one up and leaves a gap. The next id is not always the one you expect, and `RETURNING` tells you the real one.",
+      "example": {
+        "title": "Launch tasks",
+        "prompt": "Create a tasks table, add two tasks while printing the ids they got, then read the whole table.",
+        "code": "CREATE TABLE tasks (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    title text,\n    done boolean DEFAULT false,\n    priority integer DEFAULT 3\n);\n\nINSERT INTO tasks (title) VALUES ('Ship it'), ('Celebrate') RETURNING id, title;\n\nSELECT * FROM tasks ORDER BY id;\n",
+        "output": "CREATE TABLE\n\n id |   title\n----+-----------\n  1 | Ship it\n  2 | Celebrate\n(2 rows)\n\n id |   title   | done | priority\n----+-----------+------+----------\n  1 | Ship it   | f    |        3\n  2 | Celebrate | f    |        3\n(2 rows)",
+        "explanation": "The `INSERT` names only `title`, and `RETURNING id, title` prints the two new rows with the ids PostgreSQL generated, 1 and 2. The final `SELECT *` shows that the same rows also got the defaults: `done` is `f` and `priority` is 3."
+      },
+      "practice": {
+        "title": "Sticky notes",
+        "prompt": "Create a notes table, add two notes, and print the ids and pinned values they were given.\n\n1. Create a table named `notes` with the columns `id` (an identity primary key), `body` (text), and `pinned` (boolean, default `false`), in that order.\n2. In one `INSERT` that names only `body`, add the notes `Buy milk` and `Call the bank`, returning `id` and `pinned`.\n3. Select every column of every note, sorted by `id`.\n\nExpected output:\n\n```text\nCREATE TABLE\n\n id | pinned\n----+--------\n  1 | f\n  2 | f\n(2 rows)\n\n id |     body      | pinned\n----+---------------+--------\n  1 | Buy milk      | f\n  2 | Call the bank | f\n(2 rows)\n```",
+        "starter": "-- TODO: create the notes table: id, body, pinned\n\n-- TODO: insert both notes, returning id and pinned\n\n-- TODO: select every note, sorted by id\n",
+        "solution": "CREATE TABLE notes (\n    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    body text,\n    pinned boolean DEFAULT false\n);\n\nINSERT INTO notes (body) VALUES ('Buy milk'), ('Call the bank') RETURNING id, pinned;\n\nSELECT * FROM notes ORDER BY id;\n",
+        "tests": [
+          {
+            "output": "CREATE TABLE\n\n id | pinned\n----+--------\n  1 | f\n  2 | f\n(2 rows)\n\n id |     body      | pinned\n----+---------------+--------\n  1 | Buy milk      | f\n  2 | Call the bank | f\n(2 rows)"
+          }
+        ],
+        "hints": [
+          "Put `RETURNING id, pinned` after the `VALUES` list, before the semicolon.",
+          "Name only `body` in the insert, so `pinned` takes its default of `false`."
+        ]
+      }
+    }
+  ],
+  "recap": "- A table is like a class: columns are fields with types, rows are objects.\n- `id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY` numbers rows for you and marks `id` as the column that identifies each row.\n- Use `numeric(10, 2)` for money, `text` for names, `integer` for counts, `boolean` for yes or no, and `date` for days.\n- `DEFAULT value` fills a column that an `INSERT` leaves out. Without a default, it gets NULL, and an explicit `NULL` stays NULL.\n- Name only the columns you have in `INSERT`, and never give the identity `id` a value.\n- `RETURNING` prints the stored rows, generated ids and defaults included."
+}

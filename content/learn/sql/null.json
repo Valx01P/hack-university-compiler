@@ -1,0 +1,113 @@
+{
+  "id": "null",
+  "title": "NULL and Missing Values",
+  "section": "Filtering and Sorting",
+  "summary": "Find and fill in missing values, and see how NULL changes math, logic, and sorting.",
+  "intro": "Real data has gaps: a member with no email, a score nobody entered. SQL marks a missing value as `NULL`, and it behaves differently from every other value. Learn to find it, replace it, and sort around it.",
+  "setup": "CREATE TABLE members (\n    id integer PRIMARY KEY,\n    name text,\n    email text,\n    phone text,\n    nickname text,\n    points integer,\n    expires date\n);\n\nINSERT INTO members (id, name, email, phone, nickname, points, expires) VALUES\n    (1, 'Ana Lopez', 'ana@example.com', '555-0101', 'Annie', 120, DATE '2026-06-30'),\n    (2, 'Ben Okafor', NULL, '555-0102', NULL, 45, DATE '2025-12-31'),\n    (3, 'Chloe Kim', 'chloe@example.com', NULL, 'Clo', NULL, 'infinity'),\n    (4, 'Dev Patel', NULL, NULL, NULL, 0, DATE '2026-03-15'),\n    (5, 'Eva Novak', 'eva@example.com', '555-0105', NULL, 300, 'infinity'),\n    (6, 'Femi Adeyemi', NULL, '555-0106', 'Fem', NULL, DATE '2027-01-31'),\n    (7, 'Gus Moreno', 'gus@example.com', NULL, NULL, 80, DATE '2031-05-01'),\n    (8, 'Hana Sato', 'hana@example.com', '555-0108', NULL, 15, '-infinity');\n",
+  "steps": [
+    {
+      "title": "Finding missing values",
+      "body": "`NULL` means a value is unknown or missing. It is not zero and not empty text. It is no value at all. This lesson uses a `members` table where some details are missing:\n\n```sql\nCREATE TABLE members (id integer PRIMARY KEY, name text, email text, phone text,\n    nickname text, points integer, expires date);\n```\n\n| id | name | email | phone | points |\n| --- | --- | --- | --- | --- |\n| 1 | Ana Lopez | ana@example.com | 555-0101 | 120 |\n| 2 | Ben Okafor | NULL | 555-0102 | 45 |\n| 3 | Chloe Kim | chloe@example.com | NULL | NULL |\n\npsql prints `NULL` as nothing, so a missing value looks like a blank cell. To find missing values, use `IS NULL`, and `IS NOT NULL` for the opposite:\n\n```sql\nWHERE phone IS NULL       -- no phone on file\nWHERE phone IS NOT NULL   -- has a phone\n```\n\nThe gotcha: `WHERE email = NULL` returns no rows, ever. Comparing anything with `NULL` asks \"is it equal to an unknown value?\", and the answer is unknown, not true. The same goes for `<>`, `<`, and the rest, and even `NULL = NULL` is unknown.\n\n```sql\nSELECT name\nFROM members\nWHERE email = NULL;\n```\n\n```text\n name\n------\n(0 rows)\n```",
+      "example": {
+        "title": "Members missing contact details",
+        "prompt": "List the members with no email, then the members missing an email or a phone.",
+        "code": "-- Who has no email on file?\nSELECT name\nFROM members\nWHERE email IS NULL\nORDER BY id;\n\n-- Who is missing an email or a phone? Missing values print as blanks.\nSELECT name, email, phone\nFROM members\nWHERE email IS NULL OR phone IS NULL\nORDER BY id;\n",
+        "output": "     name\n--------------\n Ben Okafor\n Dev Patel\n Femi Adeyemi\n(3 rows)\n\n     name     |       email       |  phone\n--------------+-------------------+----------\n Ben Okafor   |                   | 555-0102\n Chloe Kim    | chloe@example.com |\n Dev Patel    |                   |\n Femi Adeyemi |                   | 555-0106\n Gus Moreno   | gus@example.com   |\n(5 rows)",
+        "explanation": "`email IS NULL` is true exactly when the email is missing, so the first query finds Ben, Dev, and Femi. The second joins two `IS NULL` checks with `OR`, and the blank cells in its result are the `NULL` values. Writing `email = NULL` instead would match nobody."
+      },
+      "practice": {
+        "title": "Phone but no email",
+        "prompt": "List the members who can be called but not emailed.\n\n1. Select `name` and `phone` from `members`.\n2. Keep only rows where `phone` is not `NULL` and `email` is `NULL`.\n3. Sort by `id`.\n\nExpected output:\n\n```text\n     name     |  phone\n--------------+----------\n Ben Okafor   | 555-0102\n Femi Adeyemi | 555-0106\n(2 rows)\n```",
+        "starter": "-- TODO: keep only members with a phone and no email\nSELECT name, phone\nFROM members\nORDER BY id;\n",
+        "solution": "SELECT name, phone\nFROM members\nWHERE phone IS NOT NULL AND email IS NULL\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "     name     |  phone\n--------------+----------\n Ben Okafor   | 555-0102\n Femi Adeyemi | 555-0106\n(2 rows)"
+          },
+          {
+            "stdin": "UPDATE members SET email = 'ben@example.com' WHERE id = 2;\nUPDATE members SET phone = '555-0104' WHERE id = 4;\nINSERT INTO members (id, name, email, phone, nickname, points, expires) VALUES\n    (9, 'Ivy Chen', NULL, '555-0109', NULL, 10, DATE '2026-09-01'),\n    (10, 'Jon Berg', NULL, NULL, 'JB', 5, DATE '2026-02-01');\n",
+            "output": "     name     |  phone\n--------------+----------\n Dev Patel    | 555-0104\n Femi Adeyemi | 555-0106\n Ivy Chen     | 555-0109\n(3 rows)"
+          },
+          {
+            "stdin": "UPDATE members SET email = 'ben@example.com' WHERE id = 2;\nUPDATE members SET phone = NULL WHERE id = 6;\n",
+            "output": " name | phone\n------+-------\n(0 rows)"
+          }
+        ],
+        "hints": [
+          "You need two conditions in `WHERE`, joined with `AND`.",
+          "`= NULL` never matches. Test for a missing value with `IS NULL` and for a present one with `IS NOT NULL`."
+        ]
+      }
+    },
+    {
+      "title": "Filling in NULL",
+      "body": "`NULL` spreads. Any arithmetic or `||` with a `NULL` gives `NULL`, because \"unknown plus 10\" is still unknown:\n\n```sql\nSELECT NULL + 10 AS a, 'Hi ' || NULL AS b;  -- both print blank\n```\n\n`COALESCE(a, b, ...)` returns the first argument that is not `NULL`. Use it to fill in a default before you do math or show a value:\n\n```sql\nCOALESCE(points, 0)            -- 0 when points is missing\nCOALESCE(phone, email, 'none') -- phone, else email, else 'none'\n```\n\n`NULLIF(a, b)` does the reverse: it returns `NULL` when `a` equals `b`, and `a` otherwise. It is handy when a placeholder like `0` or `''` really means \"missing\":\n\n```sql\nNULLIF(points, 0)  -- NULL when points is 0\nNULLIF(email, '')  -- NULL when email is empty text\n```\n\n`COALESCE` returns one type for all its arguments. With the integer `points`, `COALESCE(points, 'none')` tries to read `'none'` as an integer and fails:\n\n```text\nERROR:  invalid input syntax for type integer: \"none\"\n```\n\nTry it in the editor to see the error. Cast first when you want text: `COALESCE(points::text, 'none')`.",
+      "example": {
+        "title": "Display names and bonus points",
+        "prompt": "Show each member's display name (nickname, or name if there is none), their points plus a 10 point bonus with and without a default, and their points with 0 turned into NULL.",
+        "code": "SELECT\n    name,\n    COALESCE(nickname, name) AS display_name,\n    points + 10 AS plain_bonus,\n    COALESCE(points, 0) + 10 AS with_bonus,\n    NULLIF(points, 0) AS nonzero_points\nFROM members\nORDER BY id;\n",
+        "output": "     name     | display_name | plain_bonus | with_bonus | nonzero_points\n--------------+--------------+-------------+------------+----------------\n Ana Lopez    | Annie        |         130 |        130 |            120\n Ben Okafor   | Ben Okafor   |          55 |         55 |             45\n Chloe Kim    | Clo          |             |         10 |\n Dev Patel    | Dev Patel    |          10 |         10 |\n Eva Novak    | Eva Novak    |         310 |        310 |            300\n Femi Adeyemi | Fem          |             |         10 |\n Gus Moreno   | Gus Moreno   |          90 |         90 |             80\n Hana Sato    | Hana Sato    |          25 |         25 |             15\n(8 rows)",
+        "explanation": "`COALESCE(nickname, name)` picks the nickname when there is one and falls back to the name. `points + 10` stays blank for Chloe and Femi because their points are `NULL`, while `COALESCE(points, 0) + 10` treats missing points as 0 first, so everyone gets a number. `NULLIF(points, 0)` blanks out Dev's 0 and leaves every other value alone."
+      },
+      "practice": {
+        "title": "Contact and nonzero points",
+        "prompt": "Show the best way to reach each member and hide zero point balances.\n\n1. Select `name` from `members`.\n2. Add `contact`: the phone, else the email, else the text `no contact`.\n3. Add `points_or_null`: the points, but `NULL` when the points are 0.\n4. Sort by `id`.\n\nExpected output:\n\n```text\n     name     |      contact      | points_or_null\n--------------+-------------------+----------------\n Ana Lopez    | 555-0101          |            120\n Ben Okafor   | 555-0102          |             45\n Chloe Kim    | chloe@example.com |\n Dev Patel    | no contact        |\n Eva Novak    | 555-0105          |            300\n Femi Adeyemi | 555-0106          |\n Gus Moreno   | gus@example.com   |             80\n Hana Sato    | 555-0108          |             15\n(8 rows)\n```",
+        "starter": "SELECT\n    name,\n    phone AS contact,          -- TODO: fall back to email, then 'no contact'\n    points AS points_or_null   -- TODO: turn 0 into NULL\nFROM members\nORDER BY id;\n",
+        "solution": "SELECT\n    name,\n    COALESCE(phone, email, 'no contact') AS contact,\n    NULLIF(points, 0) AS points_or_null\nFROM members\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "     name     |      contact      | points_or_null\n--------------+-------------------+----------------\n Ana Lopez    | 555-0101          |            120\n Ben Okafor   | 555-0102          |             45\n Chloe Kim    | chloe@example.com |\n Dev Patel    | no contact        |\n Eva Novak    | 555-0105          |            300\n Femi Adeyemi | 555-0106          |\n Gus Moreno   | gus@example.com   |             80\n Hana Sato    | 555-0108          |             15\n(8 rows)"
+          },
+          {
+            "stdin": "UPDATE members SET points = 0 WHERE id = 1;\nUPDATE members SET phone = NULL WHERE id = 5;\nUPDATE members SET email = NULL WHERE id = 7;\n",
+            "output": "     name     |      contact      | points_or_null\n--------------+-------------------+----------------\n Ana Lopez    | 555-0101          |\n Ben Okafor   | 555-0102          |             45\n Chloe Kim    | chloe@example.com |\n Dev Patel    | no contact        |\n Eva Novak    | eva@example.com   |            300\n Femi Adeyemi | 555-0106          |\n Gus Moreno   | no contact        |             80\n Hana Sato    | 555-0108          |             15\n(8 rows)"
+          },
+          {
+            "stdin": "DELETE FROM members WHERE id > 3;\nINSERT INTO members (id, name, email, phone, nickname, points, expires) VALUES\n    (9, 'Ivy Chen', NULL, NULL, NULL, NULL, DATE '2026-09-01'),\n    (10, 'Jon Berg', 'jon@example.com', NULL, NULL, 0, DATE '2026-02-01');\n",
+            "output": "    name    |      contact      | points_or_null\n------------+-------------------+----------------\n Ana Lopez  | 555-0101          |            120\n Ben Okafor | 555-0102          |             45\n Chloe Kim  | chloe@example.com |\n Ivy Chen   | no contact        |\n Jon Berg   | jon@example.com   |\n(5 rows)"
+          }
+        ],
+        "hints": [
+          "`COALESCE` takes as many arguments as you like and returns the first one that is not `NULL`. Put the text default last.",
+          "`NULLIF(a, b)` gives `NULL` when `a` equals `b`. Compare the points with the value you want to hide."
+        ]
+      }
+    },
+    {
+      "title": "Logic, sorting, and infinity",
+      "body": "With `NULL`, a condition has three possible results: true, false, or `NULL` (unknown). `points > 50` is `NULL` when points is missing, and so is `NOT (points > 50)`. `AND` and `OR` only stay certain when the known side decides: `NULL OR true` is true, `NULL AND false` is false, and `NULL AND true` is `NULL`.\n\n`WHERE` keeps only rows where the condition is true. Rows where it is `NULL` are dropped, so `WHERE points > 50` and `WHERE points <= 50` together still miss members with no points. Add `OR points IS NULL` when you want them. The same trap hides in `NOT IN`: `id NOT IN (1, NULL)` is never true, so it returns no rows.\n\nWhen sorting, `NULL` counts as larger than every value: it comes last with `ASC` and first with `DESC`. Choose for yourself with `NULLS FIRST` or `NULLS LAST` after the direction:\n\n```sql\nORDER BY points DESC NULLS LAST, id\n```\n\nDates also have two special values: `'infinity'` is later than every date and `'-infinity'` is earlier than every date. They are real values, not `NULL`, so they compare and sort normally. In this table lifetime members have `expires = 'infinity'`, and Hana's closed account has `'-infinity'`.",
+      "example": {
+        "title": "Top points and long memberships",
+        "prompt": "Rank members by points with missing points at the bottom, then list memberships that end after 2030.",
+        "code": "-- Highest points first, members with no points at the end\nSELECT name, points\nFROM members\nORDER BY points DESC NULLS LAST, id;\n\n-- Memberships that run past 2030, including those that never end\nSELECT name, expires\nFROM members\nWHERE expires > DATE '2030-01-01'\nORDER BY id;\n",
+        "output": "     name     | points\n--------------+--------\n Eva Novak    |    300\n Ana Lopez    |    120\n Gus Moreno   |     80\n Ben Okafor   |     45\n Hana Sato    |     15\n Dev Patel    |      0\n Chloe Kim    |\n Femi Adeyemi |\n(8 rows)\n\n    name    |  expires\n------------+------------\n Chloe Kim  | infinity\n Eva Novak  | infinity\n Gus Moreno | 2031-05-01\n(3 rows)",
+        "explanation": "With `DESC` alone, the `NULL` points would come first. `NULLS LAST` moves Chloe and Femi to the bottom, and `id` breaks the tie between them. In the second query `'infinity'` is later than 2030, so both lifetime members match along with Gus."
+      },
+      "practice": {
+        "title": "Missing points and lifetime members",
+        "prompt": "Show who has no points yet, then list the lifetime members.\n\n1. Select `name` and `points` from `members`, sorted by `points` from lowest to highest with `NULL` points first, then by `id`.\n2. Then select `name` of the members whose `expires` is `'infinity'`, sorted by `id`.\n\nExpected output:\n\n```text\n     name     | points\n--------------+--------\n Chloe Kim    |\n Femi Adeyemi |\n Dev Patel    |      0\n Hana Sato    |     15\n Ben Okafor   |     45\n Gus Moreno   |     80\n Ana Lopez    |    120\n Eva Novak    |    300\n(8 rows)\n\n   name\n-----------\n Chloe Kim\n Eva Novak\n(2 rows)\n```",
+        "starter": "SELECT name, points\nFROM members\nORDER BY points, id;  -- TODO: put missing points first\n\nSELECT name\nFROM members\nORDER BY id;  -- TODO: keep only lifetime members\n",
+        "solution": "SELECT name, points\nFROM members\nORDER BY points NULLS FIRST, id;\n\nSELECT name\nFROM members\nWHERE expires = 'infinity'\nORDER BY id;\n",
+        "tests": [
+          {
+            "output": "     name     | points\n--------------+--------\n Chloe Kim    |\n Femi Adeyemi |\n Dev Patel    |      0\n Hana Sato    |     15\n Ben Okafor   |     45\n Gus Moreno   |     80\n Ana Lopez    |    120\n Eva Novak    |    300\n(8 rows)\n\n   name\n-----------\n Chloe Kim\n Eva Novak\n(2 rows)"
+          },
+          {
+            "stdin": "UPDATE members SET points = NULL WHERE id = 1;\nUPDATE members SET points = 45 WHERE id = 7;\nUPDATE members SET expires = 'infinity' WHERE id = 7;\nUPDATE members SET expires = DATE '2026-12-31' WHERE id = 3;\n",
+            "output": "     name     | points\n--------------+--------\n Ana Lopez    |\n Chloe Kim    |\n Femi Adeyemi |\n Dev Patel    |      0\n Hana Sato    |     15\n Ben Okafor   |     45\n Gus Moreno   |     45\n Eva Novak    |    300\n(8 rows)\n\n    name\n------------\n Eva Novak\n Gus Moreno\n(2 rows)"
+          },
+          {
+            "stdin": "UPDATE members SET expires = DATE '2026-01-01' WHERE id IN (3, 5);\nUPDATE members SET points = 0 WHERE id = 6;\n",
+            "output": "     name     | points\n--------------+--------\n Chloe Kim    |\n Dev Patel    |      0\n Femi Adeyemi |      0\n Hana Sato    |     15\n Ben Okafor   |     45\n Gus Moreno   |     80\n Ana Lopez    |    120\n Eva Novak    |    300\n(8 rows)\n\n name\n------\n(0 rows)"
+          }
+        ],
+        "hints": [
+          "Ascending order puts `NULL` last by default. A `NULLS` option after the sort column changes that.",
+          "`'infinity'` is an ordinary date value, so you can compare `expires` with it using `=`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `NULL` means missing or unknown, and psql prints it as a blank.\n- Test for it with `IS NULL` and `IS NOT NULL`. `= NULL` is never true.\n- Math and `||` with `NULL` give `NULL`.\n- `COALESCE(a, b, ...)` returns the first value that is not `NULL`.\n- `NULLIF(a, b)` returns `NULL` when `a` equals `b`.\n- `WHERE` keeps only rows where the condition is true, not `NULL`.\n- `NULLS FIRST` and `NULLS LAST` choose where `NULL` sorts.\n- `'infinity'` and `'-infinity'` are dates later and earlier than all others."
+}

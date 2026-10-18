@@ -1,0 +1,62 @@
+{
+  "id": "first-table",
+  "title": "Your First Table",
+  "section": "Basics",
+  "summary": "Create a table, insert rows, and read them back in order.",
+  "intro": "So far every value you selected was typed into the query itself. Real data lives in tables. In this lesson you create a table, fill it with rows, and read them back.",
+  "steps": [
+    {
+      "title": "CREATE TABLE and INSERT",
+      "body": "A table holds rows, and every row has the same named columns. `CREATE TABLE` names the table and lists each column with its type, using the types you already know.\n\n```sql\nCREATE TABLE pets (id integer, name text, species text, born date);\n```\n\n`INSERT INTO` adds a row. List the columns, then give one value per column, in the same order, inside `VALUES`. Text goes in single quotes and dates use `DATE 'YYYY-MM-DD'`. PostgreSQL lets you leave the column list out, but naming the columns keeps each value in the right column even if you misremember the table's order.\n\n```sql\nINSERT INTO pets (id, name, species, born) VALUES (1, 'Biscuit', 'dog', DATE '2021-04-12');\n```\n\n`SELECT * FROM pets;` reads every row. The `*` means all columns, in the order the table defines them.\n\nStatements that change things print a command tag instead of a table. `CREATE TABLE` prints `CREATE TABLE`. An insert prints `INSERT 0 1`: the `0` is a leftover from older versions and is always 0, and the last number counts the rows added.\n\nEvery run starts from an empty database, so your program creates its own table. Creating a table that already exists is an error. Run the `CREATE TABLE` line twice in the editor to see it:\n\n```text\nERROR:  relation \"pets\" already exists\n```",
+      "example": {
+        "title": "One pet",
+        "prompt": "Create a pets table, add one pet, and read the table back.",
+        "code": "CREATE TABLE pets (id integer, name text, species text, born date);\n\nINSERT INTO pets (id, name, species, born) VALUES (1, 'Biscuit', 'dog', DATE '2021-04-12');\n\nSELECT * FROM pets;\n",
+        "output": "CREATE TABLE\n\nINSERT 0 1\n\n id |  name   | species |    born\n----+---------+---------+------------\n  1 | Biscuit | dog     | 2021-04-12\n(1 row)",
+        "explanation": "`CREATE TABLE` defines four columns and prints its tag. The `INSERT` lists the same four columns and matching values, so it adds one row and prints `INSERT 0 1`. `SELECT *` then prints the whole table: a header with every column name, the dashed line, the one row, and `(1 row)`."
+      },
+      "practice": {
+        "title": "One book",
+        "prompt": "Create a books table, add one book, and read it back.\n\n1. Create a table named `books` with the columns `id` (integer), `title` (text), `author` (text), and `pages` (integer), in that order.\n2. Insert one book: id 1, title `Dune`, author `Frank Herbert`, 412 pages.\n3. Select every column of every row from `books`.\n\nExpected output:\n\n```text\nCREATE TABLE\n\nINSERT 0 1\n\n id | title |    author     | pages\n----+-------+---------------+-------\n  1 | Dune  | Frank Herbert |   412\n(1 row)\n```",
+        "starter": "-- TODO: create the books table with columns id, title, author, pages\n\n-- TODO: insert the book Dune\n\n-- TODO: select every column of every book\n",
+        "solution": "CREATE TABLE books (id integer, title text, author text, pages integer);\n\nINSERT INTO books (id, title, author, pages) VALUES (1, 'Dune', 'Frank Herbert', 412);\n\nSELECT * FROM books;\n",
+        "tests": [
+          {
+            "output": "CREATE TABLE\n\nINSERT 0 1\n\n id | title |    author     | pages\n----+-------+---------------+-------\n  1 | Dune  | Frank Herbert |   412\n(1 row)"
+          }
+        ],
+        "hints": [
+          "Follow the pets example: one `CREATE TABLE`, one `INSERT`, one `SELECT *`, each ending with a semicolon.",
+          "Text values need single quotes, like `'Dune'`. Numbers like `412` do not."
+        ]
+      }
+    },
+    {
+      "title": "Many rows at once",
+      "body": "One `INSERT` can add many rows. Put each row in its own parentheses and separate the rows with commas. The tag counts them, so four rows print `INSERT 0 4`. A statement can span several lines, because only the semicolon ends it.\n\n```sql\nINSERT INTO scores (id, player, points)\nVALUES\n    (1, 'Mara', 980),\n    (2, 'Theo', 760);\n```\n\nEvery row needs one value per listed column. If one row is short, PostgreSQL rejects the whole statement and adds nothing. Delete a value from one row in the editor to see the error:\n\n```text\nERROR:  VALUES lists must all be the same length\n```\n\nA table has no built-in order. `SELECT * FROM scores;` often returns rows in the order you inserted them, but PostgreSQL does not promise that, and the order can change once rows are updated or deleted. Add `ORDER BY id` to sort by the `id` column, smallest first, so the order is guaranteed:\n\n```sql\nSELECT * FROM scores ORDER BY id;\n```\n\nFrom here on, every query that returns more than one row ends with `ORDER BY` on a column whose values never repeat, such as `id`.",
+      "example": {
+        "title": "Game scores",
+        "prompt": "Create a scores table, add four players in one statement, and read them back sorted by id.",
+        "code": "CREATE TABLE scores (id integer, player text, points integer);\n\nINSERT INTO scores (id, player, points)\nVALUES\n    (3, 'Kai', 1250),\n    (1, 'Mara', 980),\n    (4, 'Ines', 1430),\n    (2, 'Theo', 760);\n\nSELECT * FROM scores ORDER BY id;\n",
+        "output": "CREATE TABLE\n\nINSERT 0 4\n\n id | player | points\n----+--------+--------\n  1 | Mara   |    980\n  2 | Theo   |    760\n  3 | Kai    |   1250\n  4 | Ines   |   1430\n(4 rows)",
+        "explanation": "The four rows go in with a single `INSERT`, so the tag is `INSERT 0 4`. They were inserted out of order (3, 1, 4, 2), and `ORDER BY id` sorts them to 1, 2, 3, 4 no matter how PostgreSQL stored them. Notice how `psql` right-aligns the numbers in `points` and left-aligns the text in `player`."
+      },
+      "practice": {
+        "title": "City table",
+        "prompt": "Create a cities table, add four cities in one statement, and read them back sorted by id.\n\n1. Create a table named `cities` with the columns `id` (integer), `name` (text), `country` (text), and `population` (integer), in that order.\n2. In one `INSERT`, add these cities in this order: Nairobi (id 3, Kenya, 4397073), Lisbon (id 1, Portugal, 545923), Lima (id 4, Peru, 9751717), and Oslo (id 2, Norway, 709037).\n3. Select every column of every city, sorted by `id`.\n\nExpected output:\n\n```text\nCREATE TABLE\n\nINSERT 0 4\n\n id |  name   | country  | population\n----+---------+----------+------------\n  1 | Lisbon  | Portugal |     545923\n  2 | Oslo    | Norway   |     709037\n  3 | Nairobi | Kenya    |    4397073\n  4 | Lima    | Peru     |    9751717\n(4 rows)\n```",
+        "starter": "-- TODO: create the cities table with columns id, name, country, population\n\n-- TODO: insert all four cities with one INSERT statement\n\n-- TODO: select every city, sorted by id\n",
+        "solution": "CREATE TABLE cities (id integer, name text, country text, population integer);\n\nINSERT INTO cities (id, name, country, population)\nVALUES\n    (3, 'Nairobi', 'Kenya', 4397073),\n    (1, 'Lisbon', 'Portugal', 545923),\n    (4, 'Lima', 'Peru', 9751717),\n    (2, 'Oslo', 'Norway', 709037);\n\nSELECT * FROM cities ORDER BY id;\n",
+        "tests": [
+          {
+            "output": "CREATE TABLE\n\nINSERT 0 4\n\n id |  name   | country  | population\n----+---------+----------+------------\n  1 | Lisbon  | Portugal |     545923\n  2 | Oslo    | Norway   |     709037\n  3 | Nairobi | Kenya    |    4397073\n  4 | Lima    | Peru     |    9751717\n(4 rows)"
+          }
+        ],
+        "hints": [
+          "Write `VALUES` once, then four rows in parentheses separated by commas.",
+          "End the query with `ORDER BY id` so the rows come out as 1, 2, 3, 4."
+        ]
+      }
+    }
+  ],
+  "recap": "- `CREATE TABLE name (column type, ...);` makes a table and prints `CREATE TABLE`.\n- `INSERT INTO name (columns) VALUES (...);` adds a row. List several rows separated by commas to add them all at once.\n- The insert tag `INSERT 0 n` reports how many rows were added.\n- `SELECT * FROM name;` reads every column of every row.\n- A table has no built-in order, so sort with `ORDER BY id` whenever a result has more than one row."
+}

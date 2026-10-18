@@ -1,0 +1,81 @@
+{
+  "id": "ctes",
+  "title": "WITH Queries",
+  "section": "Joining Tables",
+  "summary": "Name the steps of a long query with WITH, so it reads top to bottom.",
+  "intro": "Long queries pile subquery inside subquery until nobody can follow them. `WITH` lets you name each step first, then use the names below, so the query reads top to bottom like a recipe.",
+  "setup": "CREATE TABLE customers (id integer, name text);\nINSERT INTO customers (id, name) VALUES\n    (1, 'Ana'),\n    (2, 'Ben'),\n    (3, 'Cara'),\n    (4, 'Dev');\n\nCREATE TABLE orders (id integer, customer_id integer, ordered_on date);\nINSERT INTO orders (id, customer_id, ordered_on) VALUES\n    (1, 1, DATE '2025-03-01'),\n    (2, 2, DATE '2025-03-02'),\n    (3, 1, DATE '2025-03-05'),\n    (4, 3, DATE '2025-03-07'),\n    (5, 2, DATE '2025-03-09'),\n    (6, 1, DATE '2025-03-12');\n\nCREATE TABLE order_items (order_id integer, product text, qty integer, price numeric(10, 2));\nINSERT INTO order_items (order_id, product, qty, price) VALUES\n    (1, 'Notebook', 3, 4.50),\n    (1, 'Pen', 10, 1.20),\n    (2, 'Backpack', 1, 39.00),\n    (2, 'Notebook', 2, 4.50),\n    (3, 'Desk lamp', 1, 24.00),\n    (3, 'Bulb', 2, 3.50),\n    (4, 'Stapler', 1, 8.25),\n    (4, 'Staples', 4, 2.00),\n    (5, 'Marker', 6, 1.75),\n    (5, 'Eraser', 5, 0.80),\n    (6, 'Monitor stand', 1, 29.90),\n    (6, 'Cable', 2, 6.50);\n",
+  "steps": [
+    {
+      "title": "Naming a step with WITH",
+      "body": "This lesson uses a small shop: four customers, six orders, and twelve order items. Dev has no orders yet.\n\n```sql\nCREATE TABLE customers (id integer, name text);\nCREATE TABLE orders (id integer, customer_id integer, ordered_on date);\nCREATE TABLE order_items (order_id integer, product text, qty integer, price numeric(10, 2));\n```\n\nA **common table expression** (CTE) names a query so the rest of the statement can use it like a table. Write `WITH name AS (query)` in front of your `SELECT`:\n\n```sql\nWITH order_totals AS (\n    SELECT order_id, sum(qty * price) AS total\n    FROM order_items\n    GROUP BY order_id\n)\nSELECT * FROM order_totals ORDER BY order_id;\n```\n\nIt does the same job as a subquery in `FROM`, but the step gets a name up front and you can use it more than once, for example in the main query and again in a scalar subquery. The name only lives for that one statement. After the semicolon it is gone, so a later `SELECT * FROM order_totals;` fails. Add it after the example in the editor and you get:\n\n```text\nERROR:  relation \"order_totals\" does not exist\n```\n\nPostgreSQL folds a CTE you use once into the main query, and computes a CTE you use twice just once, so naming a step costs little or nothing.",
+      "example": {
+        "title": "Orders above average",
+        "prompt": "Find the orders whose total is above the average order total, biggest first.",
+        "code": "WITH order_totals AS (\n    SELECT order_id, sum(qty * price) AS total\n    FROM order_items\n    GROUP BY order_id\n)\nSELECT order_id, total\nFROM order_totals\nWHERE total > (SELECT avg(total) FROM order_totals)\nORDER BY total DESC, order_id;\n",
+        "output": " order_id | total\n----------+-------\n        2 | 48.00\n        6 | 42.90\n        3 | 31.00\n(3 rows)",
+        "explanation": "The CTE `order_totals` sums `qty * price` per order, giving six rows. The main query reads from it like a table, and the scalar subquery reads from it a second time to get the average, 29.69. Only orders 2, 6, and 3 beat it. Without the CTE you would write the grouping query twice."
+      },
+      "practice": {
+        "title": "Big orders by item count",
+        "prompt": "Find the orders that hold more items than the average order.\n\n1. Write a CTE named `order_sizes` with `order_id` and `items`, the sum of `qty` for each order in `order_items`.\n2. Select `order_id` and `items` from it, keeping only rows where `items` is strictly greater than the average `items` from the same CTE.\n3. Sort by `order_id`.\n\nExpected output:\n\n```text\n order_id | items\n----------+-------\n        1 |    13\n        5 |    11\n(2 rows)\n```",
+        "starter": "WITH order_sizes AS (\n    -- TODO: make items the total qty of each order\n    SELECT order_id, 0 AS items\n    FROM order_items\n    GROUP BY order_id\n)\nSELECT order_id, items\nFROM order_sizes\n-- TODO: keep only orders with more items than the average\nORDER BY order_id;\n",
+        "solution": "WITH order_sizes AS (\n    SELECT order_id, sum(qty) AS items\n    FROM order_items\n    GROUP BY order_id\n)\nSELECT order_id, items\nFROM order_sizes\nWHERE items > (SELECT avg(items) FROM order_sizes)\nORDER BY order_id;\n",
+        "tests": [
+          {
+            "output": " order_id | items\n----------+-------\n        1 |    13\n        5 |    11\n(2 rows)"
+          },
+          {
+            "stdin": "INSERT INTO order_items (order_id, product, qty, price) VALUES\n    (4, 'Folder', 3, 1.50),\n    (6, 'Cable tie', 7, 0.40);",
+            "output": " order_id | items\n----------+-------\n        1 |    13\n        5 |    11\n        6 |    10\n(3 rows)"
+          },
+          {
+            "stdin": "INSERT INTO orders (id, customer_id, ordered_on) VALUES (7, 4, DATE '2025-03-14');\nINSERT INTO order_items (order_id, product, qty, price) VALUES (7, 'Sticky notes', 24, 0.90);",
+            "output": " order_id | items\n----------+-------\n        1 |    13\n        5 |    11\n        7 |    24\n(3 rows)"
+          }
+        ],
+        "hints": [
+          "In the CTE, replace the placeholder `0` with `sum(qty)` so each order's row holds its total quantity.",
+          "For the average, use a scalar subquery that reads `order_sizes` a second time, the way the example reads `order_totals`.",
+          "Use `>`, not `>=`: an order that exactly matches the average is not above it."
+        ]
+      }
+    },
+    {
+      "title": "Chaining steps",
+      "body": "One `WITH` can hold several CTEs. Separate them with commas and write `WITH` only once. Each CTE can read the ones defined above it, so a long query becomes a list of small named steps:\n\n```sql\nWITH order_totals AS (\n    SELECT order_id, sum(qty * price) AS total\n    FROM order_items\n    GROUP BY order_id\n),\ncustomer_totals AS (\n    SELECT o.customer_id, sum(t.total) AS spent\n    FROM orders AS o\n    JOIN order_totals AS t ON t.order_id = o.id\n    GROUP BY o.customer_id\n)\nSELECT ...\n```\n\nA CTE joins like any table: give it an alias and match its columns with `ON`. The order matters, because a CTE cannot use one defined below it. A common slip is a missing comma between CTEs, or an extra comma after the last one, which is a syntax error.\n\nJoins keep their usual rules. A plain `JOIN` drops customers with no rows in the CTE, so Dev, who has no orders, is left out. Use `LEFT JOIN` and `COALESCE` when every customer must appear.",
+      "example": {
+        "title": "What each customer spent",
+        "prompt": "Total what each customer spent, using one CTE for order totals and a second for customer totals.",
+        "code": "WITH order_totals AS (\n    SELECT order_id, sum(qty * price) AS total\n    FROM order_items\n    GROUP BY order_id\n),\ncustomer_totals AS (\n    SELECT o.customer_id, sum(t.total) AS spent\n    FROM orders AS o\n    JOIN order_totals AS t ON t.order_id = o.id\n    GROUP BY o.customer_id\n)\nSELECT c.name, ct.spent\nFROM customer_totals AS ct\nJOIN customers AS c ON c.id = ct.customer_id\nORDER BY ct.spent DESC, c.name;\n",
+        "output": " name | spent\n------+-------\n Ana  | 99.40\n Ben  | 62.50\n Cara | 16.25\n(3 rows)",
+        "explanation": "`order_totals` makes one row per order. `customer_totals` joins `orders` to it and sums per customer, so it builds on the first step. The main query joins that result to `customers` to swap ids for names. Dev has no orders, so the plain `JOIN` leaves him out."
+      },
+      "practice": {
+        "title": "Orders and items per customer",
+        "prompt": "Show every customer with how many orders they placed and how many items they bought.\n\n1. Keep the CTE `order_sizes`, which has `order_id` and `items`, the sum of `qty` per order.\n2. Add a second CTE named `customer_sizes` that joins `orders` to `order_sizes` and gives `customer_id`, `order_count` (the number of orders), and `item_count` (the sum of `items`) per customer.\n3. Select `name`, `order_count`, and `item_count` for every customer by LEFT JOINing `customers` to `customer_sizes`, showing 0 for a customer with no orders.\n4. Sort by `name`, then `id`.\n\nExpected output:\n\n```text\n name | order_count | item_count\n------+-------------+------------\n Ana  |           3 |         19\n Ben  |           2 |         14\n Cara |           1 |          5\n Dev  |           0 |          0\n(4 rows)\n```",
+        "starter": "WITH order_sizes AS (\n    SELECT order_id, sum(qty) AS items\n    FROM order_items\n    GROUP BY order_id\n)\n-- TODO: add a second CTE, customer_sizes, that joins orders to order_sizes\nSELECT c.name\nFROM customers AS c\n-- TODO: LEFT JOIN customer_sizes and add order_count and item_count\nORDER BY c.name, c.id;\n",
+        "solution": "WITH order_sizes AS (\n    SELECT order_id, sum(qty) AS items\n    FROM order_items\n    GROUP BY order_id\n),\ncustomer_sizes AS (\n    SELECT o.customer_id, count(*) AS order_count, sum(s.items) AS item_count\n    FROM orders AS o\n    JOIN order_sizes AS s ON s.order_id = o.id\n    GROUP BY o.customer_id\n)\nSELECT c.name,\n    COALESCE(cs.order_count, 0) AS order_count,\n    COALESCE(cs.item_count, 0) AS item_count\nFROM customers AS c\nLEFT JOIN customer_sizes AS cs ON cs.customer_id = c.id\nORDER BY c.name, c.id;\n",
+        "tests": [
+          {
+            "output": " name | order_count | item_count\n------+-------------+------------\n Ana  |           3 |         19\n Ben  |           2 |         14\n Cara |           1 |          5\n Dev  |           0 |          0\n(4 rows)"
+          },
+          {
+            "stdin": "INSERT INTO customers (id, name) VALUES (5, 'Eli');\nINSERT INTO orders (id, customer_id, ordered_on) VALUES (7, 4, DATE '2025-03-14'), (8, 3, DATE '2025-03-15');\nINSERT INTO order_items (order_id, product, qty, price) VALUES\n    (7, 'Sticky notes', 24, 0.90),\n    (8, 'Ruler', 2, 1.10),\n    (8, 'Glue', 3, 2.40);",
+            "output": " name | order_count | item_count\n------+-------------+------------\n Ana  |           3 |         19\n Ben  |           2 |         14\n Cara |           2 |         10\n Dev  |           1 |         24\n Eli  |           0 |          0\n(5 rows)"
+          },
+          {
+            "stdin": "DELETE FROM order_items WHERE order_id = 6;\nDELETE FROM orders WHERE id = 6;\nINSERT INTO customers (id, name) VALUES (5, 'Bea');\nINSERT INTO orders (id, customer_id, ordered_on) VALUES (7, 5, DATE '2025-03-20');\nINSERT INTO order_items (order_id, product, qty, price) VALUES (7, 'Tape', 4, 1.80);",
+            "output": " name | order_count | item_count\n------+-------------+------------\n Ana  |           2 |         16\n Bea  |           1 |          4\n Ben  |           2 |         14\n Cara |           1 |          5\n Dev  |           0 |          0\n(5 rows)"
+          }
+        ],
+        "hints": [
+          "Put a comma after the first CTE's closing parenthesis, then write `customer_sizes AS (...)` that joins `orders` to `order_sizes` on the order id.",
+          "Inside `customer_sizes`, count the orders with `count(*)` and add up the `items` column with `sum`, grouped by customer.",
+          "Dev has no row in `customer_sizes`, so the LEFT JOIN gives him NULLs. Wrap each count in `COALESCE(..., 0)`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `WITH name AS (query) SELECT ...` names a step that the statement uses like a table.\n- A CTE lives for one statement only, and you can read it more than once in that statement.\n- Separate several CTEs with commas, and write `WITH` once.\n- A later CTE can use an earlier one, never one below it.\n- Join a CTE to a table with an alias and `ON`, and use `LEFT JOIN` to keep rows with no match."
+}
