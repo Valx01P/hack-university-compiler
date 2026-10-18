@@ -140,8 +140,11 @@ sure every practice starter runs but doesn't already pass.
 ## Cheatsheets and challenges
 
 **Cheatsheet** and **Challenges**, next to **Learn** above the output panel,
-open a panel beside your code (the output moves under the editor). Press the
-other one to switch, or the same one again to close it.
+open a panel beside your code (the output moves under the editor). While it's
+open the three buttons sit at the top of the panel: press the other one to
+switch, or the same one again to close it. Each keeps your place, even after
+you close the panel: the cheatsheet's search and scroll, the challenge list's
+filters and scroll, and the challenge you're on with its hints.
 
 - **Cheatsheet**: a direct reference for the language, one section per topic
   from printing to OOP: the syntax, what to import, the methods people use, a
