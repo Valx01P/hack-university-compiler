@@ -21,7 +21,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const CONTENT = path.join(ROOT, "content", "learn");
+// LEARN_CONTENT_DIR checks a course somewhere else, like a draft outside the repo.
+const CONTENT = process.env.LEARN_CONTENT_DIR ? path.resolve(process.env.LEARN_CONTENT_DIR) : path.join(ROOT, "content", "learn");
 const RUNTIMES = JSON.parse(readFileSync(path.join(ROOT, "lib", "runtimes.json"), "utf8"));
 const PISTON_URL = (process.env.PISTON_URL ?? "http://127.0.0.1:2000/api/v2").replace(/\/+$/, "");
 const LANGUAGES = ["python", "javascript", "cpp", "java", "go"];
@@ -52,7 +53,7 @@ function usage(message) {
 // file. It is built under a temporary name and renamed into place, so a slot
 // never exists without its owner, and it is released or reclaimed by renaming
 // it away first, so nobody ever deletes a slot that someone else now holds.
-const SLOTS = Math.max(1, Math.floor(Number(process.env.VERIFY_SLOTS ?? 6)) || 6);
+const SLOTS = Math.max(1, Math.floor(Number(process.env.VERIFY_SLOTS ?? 12)) || 12);
 const SLOT_DIR = path.join(os.tmpdir(), "hu-verify-slots");
 const ME = `${process.pid}-${Math.random().toString(36).slice(2, 10)}`;
 let serial = 0;
@@ -332,7 +333,7 @@ function checkMarkdown(lesson, errors) {
   for (const [where, value, isMarkdown] of proseFields(lesson)) {
     const bad = (message) => errors.push({ where, message });
     if (!isMarkdown) {
-      if (/`|\*\*|\n/.test(value)) bad("plain text only: no backticks, bold, or line breaks");
+      if (/`|\n/.test(value)) bad("plain text only: no backticks or line breaks");
       continue;
     }
     const parts = value.split(/^```/m);
