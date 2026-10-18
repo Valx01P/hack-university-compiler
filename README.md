@@ -70,10 +70,16 @@ isn't installed yet.
 ## Themes
 
 Pick Light, Dark, Dracula, Monokai, Nord, or Solarized from the header. The
-**High contrast** switch at the bottom of that menu deepens whichever theme is
-active, both the page and the editor: darker backgrounds, brighter text, firmer
-borders, and every syntax color at 7:1 contrast or better. Until you flip it, it
-follows your OS "increase contrast" setting.
+**Contrast** picker at the bottom of that menu deepens whichever theme is
+active, both the page and the editor:
+
+- **Normal**: the original palettes.
+- **High**: darker backgrounds, brighter text, firmer borders, and every syntax
+  color at 7:1 contrast or better.
+- **Super**: near-black (or pure white) backgrounds, the brightest text,
+  borders you can't miss, syntax at 11:1 or better, and a thicker focus ring.
+
+Until you pick, it follows your OS "increase contrast" setting (as High).
 
 ## How it works
 

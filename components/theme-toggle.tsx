@@ -3,25 +3,27 @@
 import { useEffect, useRef, useState } from "react";
 import {
   APP_THEMES,
-  setHighContrast,
+  CONTRAST_LEVELS,
+  setContrast,
   setTheme,
-  useHighContrast,
+  useContrast,
   useTheme,
 } from "@/lib/theme";
 
 /**
  * Header theme picker. The trigger shows the CURRENT theme's icon (sun for
  * Light, moon for Dark, snowflake for Nord, …); clicking it drops a small menu
- * of every theme, each with its own glyph, plus a High contrast switch that
- * deepens whichever theme is active. Goes through setTheme() so the
- * `data-dark` flag and the editor's code theme stay in sync. The icon starts
- * as the Light sun on first paint (SSR) and corrects after hydration — same
- * pattern as the rest of the theme bootstrap, so there's no markup mismatch.
+ * of every theme, each with its own glyph, plus a Normal / High / Super
+ * contrast picker that deepens whichever theme is active. Goes through
+ * setTheme() so the `data-dark` flag and the editor's code theme stay in sync.
+ * The icon starts as the Light sun on first paint (SSR) and corrects after
+ * hydration — same pattern as the rest of the theme bootstrap, so there's no
+ * markup mismatch.
  */
 export function ThemeToggle() {
   const [open, setOpen] = useState(false);
   const theme = useTheme();
-  const highContrast = useHighContrast();
+  const contrast = useContrast();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -97,44 +99,44 @@ export function ThemeToggle() {
             );
           })}
 
-          {/* A modifier, not a theme: stays open so you can see it apply,
-              and sticks as you switch themes. */}
+          {/* A modifier, not a theme: picking a level keeps the menu open so
+              you can see it apply, and it sticks as you switch themes. */}
           <div role="separator" className="my-1 h-px bg-edge" />
-          <button
-            type="button"
-            role="menuitemcheckbox"
-            aria-checked={highContrast}
-            onClick={() => setHighContrast(!highContrast)}
-            className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
-              highContrast
-                ? "text-ink dark:text-gold"
-                : "text-ink-muted hover:bg-raised hover:text-ink"
-            }`}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="size-4 shrink-0"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <circle cx="12" cy="12" r="8.5" />
-              <path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none" />
-            </svg>
-            <span className="flex-1 text-left">High contrast</span>
-            <span
-              aria-hidden
-              className={`inline-flex h-4 w-7 shrink-0 items-center rounded-full border px-0.5 transition-colors ${
-                highContrast ? "border-ink bg-ink" : "border-edge-strong"
-              }`}
-            >
-              <span
-                className={`size-2.5 rounded-full transition-transform ${
-                  highContrast ? "translate-x-3 bg-canvas" : "bg-edge-strong"
-                }`}
-              />
-            </span>
-          </button>
+          <div role="group" aria-label="Contrast" className="px-3 pb-2 pt-1.5">
+            <p className="flex items-center gap-2.5 text-sm text-ink-muted">
+              <svg
+                viewBox="0 0 24 24"
+                className="size-4 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.5}
+                aria-hidden
+              >
+                <circle cx="12" cy="12" r="8.5" />
+                <path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none" />
+              </svg>
+              Contrast
+            </p>
+            <div className="mt-2 flex rounded-btn border border-edge-strong p-0.5">
+              {CONTRAST_LEVELS.map((c) => {
+                const active = c.id === contrast;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={active}
+                    onClick={() => setContrast(c.id)}
+                    className={`flex-1 rounded-[5px] px-1 py-1 text-xs font-medium transition-colors ${
+                      active ? "bg-ink text-canvas" : "text-ink-muted hover:text-ink"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>

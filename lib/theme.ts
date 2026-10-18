@@ -105,26 +105,38 @@ export function useTheme(): string {
 }
 
 /**
- * High contrast is a modifier on top of whichever theme is active: every page
- * theme and editor theme has a deeper, higher-contrast variant in globals.css,
- * keyed off <html data-contrast="high">. Stored as "high" | "normal". Until
- * the user picks, the pre-paint bootstrap in app/layout.tsx follows the OS
- * "increase contrast" setting.
+ * Contrast is a modifier on top of whichever theme is active: every page theme
+ * and editor theme has a deeper High variant and an even stronger Super
+ * variant in globals.css, keyed off <html data-contrast="high" | "super">
+ * (no attribute = Normal). Until the user picks, the pre-paint bootstrap in
+ * app/layout.tsx follows the OS "increase contrast" setting (High).
  */
+export type ContrastLevel = "normal" | "high" | "super";
+
+export const CONTRAST_LEVELS: { id: ContrastLevel; label: string }[] = [
+  { id: "normal", label: "Normal" },
+  { id: "high", label: "High" },
+  { id: "super", label: "Super" },
+];
+
 export const CONTRAST_KEY = "hu-contrast";
 export const CONTRAST_EVENT = "hu:contrast-changed";
 
-function applyHighContrast(on: boolean) {
-  const d = document.documentElement;
-  if (on) d.setAttribute("data-contrast", "high");
-  else d.removeAttribute("data-contrast");
+function toLevel(value: string | null): ContrastLevel {
+  return value === "high" || value === "super" ? value : "normal";
 }
 
-/** Turn high contrast on or off, persist it, and broadcast to every toggle. */
-export function setHighContrast(on: boolean) {
-  applyHighContrast(on);
+function applyContrast(level: ContrastLevel) {
+  const d = document.documentElement;
+  if (level === "normal") d.removeAttribute("data-contrast");
+  else d.setAttribute("data-contrast", level);
+}
+
+/** Set the contrast level, persist it, and broadcast to every picker. */
+export function setContrast(level: ContrastLevel) {
+  applyContrast(level);
   try {
-    localStorage.setItem(CONTRAST_KEY, on ? "high" : "normal");
+    localStorage.setItem(CONTRAST_KEY, level);
   } catch {
     /* ignore */
   }
@@ -135,17 +147,17 @@ export function setHighContrast(on: boolean) {
   }
 }
 
-/** Subscribe to the high-contrast flag (re-renders on change, any tab). */
-export function useHighContrast(): boolean {
-  const [on, set] = useState(false);
+/** Subscribe to the contrast level (re-renders on change, any tab). */
+export function useContrast(): ContrastLevel {
+  const [level, set] = useState<ContrastLevel>("normal");
   useEffect(() => {
     const refresh = () =>
-      set(document.documentElement.getAttribute("data-contrast") === "high");
+      set(toLevel(document.documentElement.getAttribute("data-contrast")));
     refresh();
-    // Another tab flipped it: mirror the stored choice onto this page too.
+    // Another tab changed it: mirror the stored choice onto this page too.
     const onStorage = (e: StorageEvent) => {
       if (e.key !== CONTRAST_KEY) return;
-      applyHighContrast(e.newValue === "high");
+      applyContrast(toLevel(e.newValue));
       refresh();
     };
     window.addEventListener(CONTRAST_EVENT, refresh);
@@ -155,5 +167,5 @@ export function useHighContrast(): boolean {
       window.removeEventListener("storage", onStorage);
     };
   }, []);
-  return on;
+  return level;
 }
