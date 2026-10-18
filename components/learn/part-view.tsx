@@ -35,9 +35,9 @@ type Panel = { mode: "run"; run: RunState } | { mode: "check"; check: CheckState
 
 const TABS: TabKind[] = ["example", "practice"];
 const CODE_BLOCK =
-  "code-dark slim-scroll overflow-x-auto rounded-card border border-code-edge bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink";
+  "code-dark slim-scroll overflow-x-auto rounded-card border border-code-content-line bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink";
 const PLAIN_BLOCK =
-  "code-terminal slim-scroll mt-1.5 overflow-x-auto rounded-card border border-edge bg-raised px-4 py-3 font-mono text-[13px] leading-6 text-ink";
+  "code-terminal slim-scroll mt-1.5 overflow-x-auto rounded-card border border-content-line bg-raised px-4 py-3 font-mono text-[13px] leading-6 text-ink";
 
 // How much of the width the lesson gets next to the editor. Like the
 // compiler's split it lasts for the session but isn't saved, so a reload
@@ -348,7 +348,7 @@ export function PartView({
           />
 
           {lastPart && lesson.recap && (
-            <section className="mt-12 border-t border-edge pt-6">
+            <section className="mt-12 border-t border-content-line pt-6">
               <p className="eyebrow">Lesson recap</p>
               <Prose md={lesson.recap} className="mt-3" />
             </section>
@@ -532,7 +532,7 @@ export function PartView({
                 readOnly={showingAnswer}
               />
             </div>
-            <div className="shrink-0 border-t border-code-edge bg-code-bg">
+            <div className="shrink-0 border-t border-code-content-line bg-code-bg">
               {/* The code box clips anything outside it, so this focus ring
                   sits inside the button (rounded like the box's corners when
                   it's the last row), in the code text color. */}
@@ -557,7 +557,7 @@ export function PartView({
                   onChange={(e) => setStdins((s) => ({ ...s, [active]: e.target.value }))}
                   rows={2}
                   placeholder="Input passed to your program on stdin..."
-                  className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-edge bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
+                  className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-content-line bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
                 />
               )}
             </div>
@@ -646,7 +646,7 @@ function PartSection({
       <h2 className="font-display text-title">{step.title}</h2>
       <Prose md={step.body} className="mt-3" />
 
-      <div className="mt-7 border-l-2 border-edge pl-5">
+      <div className="mt-7 border-l-2 border-content-line pl-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="eyebrow">Example</p>
           <button
@@ -678,7 +678,7 @@ function PartSection({
         <Prose md={example.explanation} className="mt-1 text-ink-muted" />
       </div>
 
-      <div className="mt-8 border-l-2 border-edge-strong pl-5">
+      <div className="mt-8 border-l-2 border-content-line-strong pl-5">
         <p className="eyebrow">
           Your turn{" "}
           {/* Always laid out, shown once solved, so it never moves the page. */}

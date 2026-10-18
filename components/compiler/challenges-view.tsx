@@ -45,7 +45,7 @@ export function ChallengeList({
 
   return (
     <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-edge px-3 py-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-content-line px-3 py-2">
         <p className="mr-auto text-xs text-ink-muted">
           {solved} of {challenges.length} solved
         </p>
@@ -133,7 +133,7 @@ export function ChallengeDetail({
 
   return (
     <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-edge px-3 py-1.5">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-content-line px-3 py-1.5">
         <button
           type="button"
           onClick={onBack}

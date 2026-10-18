@@ -133,7 +133,7 @@ export function CheckResults({
       )}
 
       {results.map((r, i) => (
-        <div key={i} data-anim="row" className="border-t border-edge px-4 py-3">
+        <div key={i} data-anim="row" className="border-t border-content-line px-4 py-3">
           <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-ink-muted">
             {r.passed ? <CompleteIcon className="size-3.5" /> : <span aria-hidden className="text-danger">✗</span>}
             Test {i + 1} {r.passed ? "passed" : "failed"}
@@ -170,7 +170,7 @@ function OutputBlock({
       <p className="mb-1 text-xs text-ink-faint">{label}</p>
       <ScrollPre
         label={`Test ${test}: ${label}`}
-        className={`slim-scroll max-h-48 overflow-auto rounded-btn border border-edge bg-raised px-3 py-2 font-mono text-xs leading-5 ${
+        className={`slim-scroll max-h-48 overflow-auto rounded-btn border border-content-line bg-raised px-3 py-2 font-mono text-xs leading-5 ${
           danger ? "text-danger" : "text-ink"
         }`}
       >

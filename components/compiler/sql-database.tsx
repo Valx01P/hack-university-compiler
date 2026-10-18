@@ -48,7 +48,7 @@ export function SqlDatabase({ version }: { version: number }) {
   if (!tables.length) return <p className="p-4 text-sm text-ink-muted">The database has no tables. Create one with CREATE TABLE.</p>;
 
   return (
-    <ul className="divide-y divide-edge">
+    <ul className="divide-y divide-content-line">
       {tables.map((t) => {
         const expanded = open === t.name;
         // Kept while it folds shut, so the fold starts from the full height.
@@ -93,10 +93,10 @@ export function SqlDatabase({ version }: { version: number }) {
                   </tbody>
                 </table>
                 {result?.kind === "rows" && (
-                  <div className="rounded-btn border border-edge">
+                  <div className="rounded-btn border border-content-line">
                     <ResultTable columns={result.columns} rows={result.rows} />
                     {t.rows !== null && t.rows > result.rows.length && (
-                      <p className="border-t border-edge px-3 py-1 text-xs text-ink-faint">First {result.rows.length} of {t.rows} rows</p>
+                      <p className="border-t border-content-line px-3 py-1 text-xs text-ink-faint">First {result.rows.length} of {t.rows} rows</p>
                     )}
                   </div>
                 )}

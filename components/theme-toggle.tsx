@@ -6,11 +6,11 @@ import {
   CONTRAST_LEVELS,
   setContrast,
   setLayoutLines,
-  setTableLines,
+  setContentLines,
   setTheme,
   useContrast,
   useLayoutLines,
-  useTableLines,
+  useContentLines,
   useTheme,
 } from "@/lib/theme";
 import { CodeBackgroundPicker } from "@/components/code/code-background";
@@ -32,7 +32,7 @@ export function ThemeToggle() {
   const theme = useTheme();
   const contrast = useContrast();
   const lines = useLayoutLines();
-  const tableLines = useTableLines();
+  const contentLines = useContentLines();
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuShown = usePresence(open, menuRef, POP);
@@ -177,11 +177,12 @@ export function ThemeToggle() {
           </div>
 
           {/* How visible the layout's big lines are, and, separately, the
-              lines of tables in lessons and cheatsheets, down to none. */}
+              lines inside the content, each down to none. */}
           <div role="separator" className="my-1 h-px bg-edge" />
           <LineSlider
             id="layout-lines"
             label="Layout lines"
+            hint="Panels, sidebars, outlined buttons"
             value={lines}
             onChange={setLayoutLines}
             icon={
@@ -192,10 +193,11 @@ export function ThemeToggle() {
             }
           />
           <LineSlider
-            id="table-lines"
-            label="Table lines"
-            value={tableLines}
-            onChange={setTableLines}
+            id="content-lines"
+            label="Content lines"
+            hint="Tables, code, search boxes, dividers"
+            value={contentLines}
+            onChange={setContentLines}
             icon={
               <>
                 <rect x="3" y="4.5" width="18" height="15" rx="2" />
@@ -213,12 +215,15 @@ export function ThemeToggle() {
 function LineSlider({
   id,
   label,
+  hint,
   value,
   onChange,
   icon,
 }: {
   id: string;
   label: string;
+  /** What it covers, under the label. */
+  hint?: string;
   value: number;
   onChange: (value: number) => void;
   icon: React.ReactNode;
@@ -240,6 +245,7 @@ function LineSlider({
         <span className="flex-1">{label}</span>
         <span className="font-mono text-xs text-ink-faint">{value === 0 ? "off" : `${value}%`}</span>
       </label>
+      {hint && <p className="mt-0.5 pl-[1.625rem] text-xs text-ink-faint">{hint}</p>}
       <input
         id={id}
         type="range"

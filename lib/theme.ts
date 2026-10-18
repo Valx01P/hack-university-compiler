@@ -259,12 +259,14 @@ export function useCodeBackground(): string | null {
  *
  * - Layout lines (--layout-lines): the big structural lines, like the
  *   panel's outline and bars, the language rail, sidebars and dividers, the
- *   editor, output, and reference boxes, and the outlined bar buttons.
- * - Table lines (--table-lines): the lines of tables in lessons and
- *   cheatsheets.
+ *   editor, output, and cheatsheet and challenges boxes, and the outlined
+ *   bar buttons.
+ * - Content lines (--content-lines): the lines inside the content: tables,
+ *   code blocks and inline code, search boxes and dropdowns, and the
+ *   dividers in lessons, cheatsheets, challenges, and results.
  */
 export const LAYOUT_LINES_KEY = "hu-layout-lines";
-export const TABLE_LINES_KEY = "hu-table-lines";
+export const CONTENT_LINES_KEY = "hu-content-lines";
 
 const toLines = (value: unknown): number => {
   const n = Math.round(Number(value));
@@ -324,6 +326,6 @@ const layoutLines = lineSetting(LAYOUT_LINES_KEY, "--layout-lines");
 export const setLayoutLines = layoutLines.set;
 export const useLayoutLines = layoutLines.use;
 
-const tableLines = lineSetting(TABLE_LINES_KEY, "--table-lines");
-export const setTableLines = tableLines.set;
-export const useTableLines = tableLines.use;
+const contentLines = lineSetting(CONTENT_LINES_KEY, "--content-lines");
+export const setContentLines = contentLines.set;
+export const useContentLines = contentLines.use;

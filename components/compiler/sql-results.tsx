@@ -16,7 +16,7 @@ export function ResultTable({ columns, rows }: { columns: SqlColumn[]; rows: (st
               <th
                 key={i}
                 scope="col"
-                className={`border-b border-edge px-3 py-1.5 font-semibold text-ink ${NUMERIC.has(c.type) ? "text-right" : "text-left"}`}
+                className={`border-b border-content-line px-3 py-1.5 font-semibold text-ink ${NUMERIC.has(c.type) ? "text-right" : "text-left"}`}
               >
                 {c.name}
               </th>
@@ -25,7 +25,7 @@ export function ResultTable({ columns, rows }: { columns: SqlColumn[]; rows: (st
         </thead>
         <tbody>
           {rows.map((r, ri) => (
-            <tr key={ri} className="border-b border-edge last:border-0">
+            <tr key={ri} className="border-b border-content-line last:border-0">
               {r.map((v, ci) => (
                 <td
                   key={ci}
@@ -57,9 +57,9 @@ export function SqlResults({ run }: { run: SqlRun }) {
     <div className="space-y-3 p-3">
       {run.results.map((r, i) =>
         r.kind === "rows" ? (
-          <section key={i} className="rounded-btn border border-edge">
+          <section key={i} className="rounded-btn border border-content-line">
             <ResultTable columns={r.columns} rows={r.rows} />
-            <p className="border-t border-edge px-3 py-1 font-mono text-xs text-ink-faint">
+            <p className="border-t border-content-line px-3 py-1 font-mono text-xs text-ink-faint">
               ({r.rows.length} row{r.rows.length === 1 ? "" : "s"})
             </p>
           </section>

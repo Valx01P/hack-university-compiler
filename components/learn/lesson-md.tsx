@@ -52,7 +52,7 @@ function inline(text: string, keyBase: string): React.ReactNode[] {
       out.push(
         <code
           key={key}
-          className="rounded border border-edge bg-raised px-1.5 py-0.5 font-mono text-[0.85em] font-medium text-ink"
+          className="rounded border border-content-line bg-raised px-1.5 py-0.5 font-mono text-[0.85em] font-medium text-ink"
         >
           {tok.slice(1, -1)}
         </code>
@@ -99,14 +99,14 @@ function renderTable(lines: string[], key: string): React.ReactNode {
   });
   const rows = lines.slice(2).map(tableCells);
   return (
-    <div key={key} className="slim-scroll my-5 overflow-x-auto rounded-card border border-table-line">
+    <div key={key} className="slim-scroll my-5 overflow-x-auto rounded-card border border-content-line-strong">
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="bg-raised">
             {headers.map((h, ci) => (
               <th
                 key={ci}
-                className={`border-b border-table-line px-3 py-2 font-medium text-ink ${alignClass[aligns[ci] ?? "left"]}`}
+                className={`border-b border-content-line-strong px-3 py-2 font-medium text-ink ${alignClass[aligns[ci] ?? "left"]}`}
               >
                 {inline(h, `${key}-h${ci}`)}
               </th>
@@ -115,7 +115,7 @@ function renderTable(lines: string[], key: string): React.ReactNode {
         </thead>
         <tbody>
           {rows.map((cells, ri) => (
-            <tr key={ri} className="border-b border-table-line last:border-0">
+            <tr key={ri} className="border-b border-content-line-strong last:border-0">
               {cells.map((c, ci) => (
                 <td
                   key={ci}
@@ -199,7 +199,7 @@ function renderLines(text: string, keyBase: string): React.ReactNode[] {
     // Horizontal rule: a standalone line of --- / *** / ___ (3+). Checked before
     // the table branch (which needs a `|`), so it never collides with tables.
     if (lines.length === 1 && /^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(first)) {
-      nodes.push(<hr key={key} className="my-8 h-px border-0 bg-edge" />);
+      nodes.push(<hr key={key} className="my-8 h-px border-0 bg-content-line" />);
       return;
     }
 
@@ -265,7 +265,7 @@ export function LessonMarkdown({ md }: { md: string }) {
             key={i}
             code={seg.content}
             className="my-5"
-            preClassName="code-dark slim-scroll overflow-x-auto rounded-card border border-code-edge bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink"
+            preClassName="code-dark slim-scroll overflow-x-auto rounded-card border border-code-content-line bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink"
           >
             <Highlight code={seg.content} language={seg.language ?? "text"} />
           </CopyableCodeBlock>

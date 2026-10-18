@@ -52,7 +52,7 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-edge px-3 py-2">
+      <div className="flex shrink-0 items-center gap-2 border-b border-content-line px-3 py-2">
         <label className="relative flex min-w-0 flex-1 items-center">
           <span className="sr-only">Search the {langLabel} reference</span>
           <Search className="pointer-events-none absolute left-2.5 size-3.5 text-ink-faint" aria-hidden />
@@ -94,7 +94,7 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
           <p className="pt-6 text-sm text-ink-muted">Nothing in the {langLabel} reference mentions “{query}”.</p>
         ) : (
           shown.map((s) => (
-            <section key={s.id} id={`ref-${s.id}`} className="border-b border-edge pb-6 pt-5 last:border-0">
+            <section key={s.id} id={`ref-${s.id}`} className="border-b border-content-line pb-6 pt-5 last:border-0">
               <h3 className="font-display text-xl font-medium text-ink">{s.title}</h3>
               <div className="text-[0.92rem] leading-relaxed [&>*:first-child]:mt-2">
                 <LessonMarkdown md={s.md} />

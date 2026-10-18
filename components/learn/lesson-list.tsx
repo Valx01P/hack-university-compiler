@@ -178,7 +178,7 @@ export function LessonList({
                     )}
                   </div>
                   <Collapse open={open} id={partsId} className="pb-1 pt-0.5">
-                    <ol className="ml-[1.15rem] border-l border-edge pl-2">
+                    <ol className="ml-[1.15rem] border-l border-content-line pl-2">
                       {l.parts.map((title, i) => {
                         const here = current && i === currentPart;
                         const partSolved = solved.has(problemId(l.id, i));

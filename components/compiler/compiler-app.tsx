@@ -603,7 +603,7 @@ export function CompilerApp({
                 />
               </div>
               {/* SQL's playground has no input: the database is the input. */}
-              <div className={`shrink-0 border-t border-code-edge bg-code-bg ${playground ? "hidden" : ""}`}>
+              <div className={`shrink-0 border-t border-code-content-line bg-code-bg ${playground ? "hidden" : ""}`}>
                 {/* The code box clips anything outside it, so this focus ring
                     sits inside the button (rounded like the box's corners
                     when it's the last row), in the code text color. */}
@@ -629,7 +629,7 @@ export function CompilerApp({
                     onChange={(e) => setCurrentStdin(e.target.value)}
                     rows={2}
                     placeholder="Input passed to your program on stdin..."
-                    className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-edge bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
+                    className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-content-line bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
                   />
                 )}
               </div>
