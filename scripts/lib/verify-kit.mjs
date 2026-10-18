@@ -151,7 +151,7 @@ async function runSqlHere(code, setup) {
   const core = await import("../../lib/sql/core.mjs");
   const db = new PGlite();
   try {
-    await db.waitReady;
+    await core.prepareDatabase(db);
     if (setup && setup.trim()) {
       const prepared = await core.runSql(db, setup);
       if (prepared.error) return { compileError: `The setup failed. ${core.formatError(prepared.error)}`, stdout: "", stderr: "", code: 1, status: null };

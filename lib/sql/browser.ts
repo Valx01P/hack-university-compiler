@@ -1,5 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
-import { formatError, formatRun, runSql, type SqlRun } from "@/lib/sql/core.mjs";
+import { formatError, formatRun, prepareDatabase, runSql, type SqlRun } from "@/lib/sql/core.mjs";
 import { SAMPLE_DB_SQL } from "@/lib/sql/sample-db";
 
 /**
@@ -14,9 +14,7 @@ let pglite: Promise<typeof import("@electric-sql/pglite")> | null = null;
 async function newDatabase(): Promise<PGlite> {
   pglite ??= import("@electric-sql/pglite");
   const { PGlite } = await pglite;
-  const db = new PGlite();
-  await db.waitReady;
-  return db;
+  return prepareDatabase(new PGlite());
 }
 
 /** Runs a script on a fresh database after its setup, and reports it like a

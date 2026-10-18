@@ -19,6 +19,7 @@ export interface SqlRun {
 export function splitSql(sql: string): string[];
 export function formatTable(columns: SqlColumn[], rows: (string | null)[][]): string;
 export function commandTag(statement: string, affected?: number): string;
+export function prepareDatabase<T extends PGliteInterface>(db: T): Promise<T>;
 export function runSql(db: PGliteInterface, script: string): Promise<SqlRun>;
 export function formatRun(run: { results: SqlResult[] }): string;
 export function formatError(error: { message: string }): string;

@@ -8,7 +8,7 @@
 //   node scripts/try-sql.mjs --sample query.sql     # on the playground's sample database
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
-import { formatError, formatRun, runSql } from "../lib/sql/core.mjs";
+import { formatError, formatRun, prepareDatabase, runSql } from "../lib/sql/core.mjs";
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -23,8 +23,7 @@ const sample = args.includes("--sample");
 const file = args.find((a) => !a.startsWith("--"));
 const code = file ? readFileSync(file, "utf8") : readFileSync(0, "utf8");
 
-const db = new PGlite();
-await db.waitReady;
+const db = await prepareDatabase(new PGlite());
 if (sample) {
   const src = readFileSync(new URL("../lib/sql/sample-db.ts", import.meta.url), "utf8");
   await db.exec(src.slice(src.indexOf("`") + 1, src.lastIndexOf("`")));
