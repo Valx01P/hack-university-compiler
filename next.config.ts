@@ -23,7 +23,7 @@ const csp = [
 
 const nextConfig: NextConfig = {
   // The compiler is the whole app: the homepage drops you into Python, and
-  // every other language is just a route change (/java, /cpp, /sql, …).
+  // every other language is just a route change (/javascript, /cpp, /java, /go).
   async redirects() {
     return [{ source: "/", destination: "/python", permanent: false }];
   },

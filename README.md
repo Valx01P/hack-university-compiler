@@ -49,6 +49,7 @@ npm run piston:install -- python javascript
 | `npm run piston:down` | Stop the sandbox (installed languages are kept) |
 | `npm run piston:install` | Install every language, or `-- <ids>` for just some |
 | `npm run piston:status` | Show which languages are installed |
+| `npm run lessons:verify` | Check every Learn lesson in the sandbox (`-- <language> [ids]` for some) |
 
 ## Languages
 
@@ -66,6 +67,33 @@ for many more languages, see [Adding a language](#adding-a-language).
 The badge in the top right of the compiler shows the runtime serving the
 current language, or what to run if the sandbox is offline or the language
 isn't installed yet.
+
+## Learn mode
+
+Press **Learn** above the output panel to learn the current language step by
+step, from print statements through OOP, error handling, and recursion, BFS,
+linked lists, trees, and graphs. Each language has its own course at
+`/<language>/learn`, written for that language's idioms (memory for C++ and
+Go, kwargs and decorators for Python, and so on). Each course has 44 lessons,
+about 150 worked examples, and as many practice problems.
+
+- The lesson is on the left and the editor on the right. Each step explains one
+  idea, walks through a worked example, then gives you a practice problem with
+  the same shape.
+- The editor has a tab per example and per practice problem (**Your code**).
+  Examples run and can be edited and reset. **Check** runs your practice code
+  against its tests in the sandbox.
+- A lesson gets a green check once every practice problem in it passes.
+- The lesson list sits on the left on wide screens, or behind the **Lessons**
+  menu otherwise. It also switches languages and leads back to the compiler.
+- Progress, your code in every tab, and the lesson you were on are saved in the
+  browser's local storage.
+
+Lessons live in `content/learn/<language>/` as JSON, one file per lesson.
+[`content/learn/AUTHORING.md`](content/learn/AUTHORING.md) is the guide for
+writing them, and `npm run lessons:verify` (Piston must be running) checks every
+lesson: it runs each example and reference solution in the sandbox and makes
+sure every practice starter compiles but doesn't already pass.
 
 ## Themes
 
@@ -109,16 +137,21 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
 
 ```
 app/[lang]/page.tsx          one prerendered page per language
+app/[lang]/learn/            Learn mode: the course shell and one page per lesson
 app/api/execute/route.ts     runs code in the sandbox
 app/api/runtimes/route.ts    sandbox health and installed runtimes
 components/compiler/         the compiler: language rail, toolbar, editor, output
+components/learn/            Learn mode: lesson list, lesson view, practice checks
 components/chrome/           header, panel shell, language menu, status badge
 components/code/             CodeMirror editor and its settings
+content/learn/               the Learn courses (JSON) and the authoring guide
 lib/compiler.ts              languages, labels, starters, file names
+lib/learn.ts                 reads courses and lessons at build time
 lib/runtimes.json            language id to Piston runtime and package
 lib/piston.ts                server-side Piston client
 docker-compose.yml           the sandbox and its limits
 scripts/setup-piston.mjs     runtime installer
+scripts/verify-lessons.mjs   runs every lesson's programs in the sandbox
 ```
 
 ## Adding a language
