@@ -263,7 +263,9 @@ function checkSchema(lesson, id, sectionTitle, errors, warnings) {
       if (isStr(pr.prompt) && Array.isArray(pr.tests) && pr.tests[0] && isStr(pr.tests[0].output)) checkPrompt(pr, `${at}.practice.prompt`, errors);
     }
     for (const [k, v] of [["example.code", ex?.code], ["practice.starter", pr?.starter], ["practice.solution", pr?.solution]]) {
-      if (isStr(v) && v.split("\n").length > 80) warnings.push({ where: `${at}.${k}`, message: `${v.split("\n").length} lines, keep programs under 80` });
+      // A final newline ends the last line, it doesn't start another one.
+      const lines = isStr(v) ? v.replace(/\n$/, "").split("\n").length : 0;
+      if (lines >= 80) warnings.push({ where: `${at}.${k}`, message: `${lines} lines, keep programs under 80` });
       if (isStr(v) && /\t/.test(v) && !/^go$/.test(String(lesson.__lang))) warnings.push({ where: `${at}.${k}`, message: "contains tab characters, indent with spaces" });
     }
   }
