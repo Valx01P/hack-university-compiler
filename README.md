@@ -70,8 +70,9 @@ isn't installed yet.
 ## Themes
 
 Pick Light, Dark, Dracula, Monokai, Nord, or Solarized from the header. The
-**Contrast** picker at the bottom of that menu deepens whichever theme is
-active, both the page and the editor:
+**Contrast** picker at the bottom of that menu (also in the editor's settings
+gear, the two stay in sync) deepens whichever theme is active, both the page
+and the editor:
 
 - **Normal**: the original palettes.
 - **High**: darker backgrounds, brighter text, firmer borders, and every syntax

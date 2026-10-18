@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Minus, Plus, Settings } from "lucide-react";
+import { CONTRAST_LEVELS, setContrast, useContrast } from "@/lib/theme";
 
 export type CodeEditorSettings = {
   tabSize: 2 | 4;
@@ -99,6 +100,8 @@ export function EditorSettingsButton({
   tools?: ReactNode;
 }) {
   const settings = useCodeEditorSettings();
+  // The same contrast level the header theme menu sets (they stay in sync).
+  const contrast = useContrast();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -182,6 +185,27 @@ export function EditorSettingsButton({
             )}
 
             <div className="mt-4 space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-ink-muted">Contrast</span>
+                <div className="flex rounded-btn border border-edge-strong p-0.5">
+                  {CONTRAST_LEVELS.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setContrast(c.id)}
+                      aria-pressed={contrast === c.id}
+                      className={`rounded-[5px] px-2 py-1 text-xs font-medium transition-colors ${
+                        contrast === c.id
+                          ? "bg-ink text-canvas"
+                          : "text-ink-muted hover:text-ink"
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex items-center justify-between gap-4">
                 <span className="text-ink-muted">Tab size</span>
                 <div className="flex rounded-btn border border-edge-strong p-0.5">
