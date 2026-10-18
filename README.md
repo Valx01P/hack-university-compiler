@@ -121,10 +121,10 @@ practice problems for each programming language, and 114 for SQL.
   a page it asks first: click once, and again within 3 seconds while it glows.
 - A part gets a green check once its practice passes, and a lesson once all its
   parts do.
-- The lesson list sits on the left on wide screens, or behind the **Lessons**
-  menu otherwise. Each lesson's parts fold out under it (the lesson you're on
-  opens by itself). The list also switches languages and leads back to the
-  compiler.
+- The panel button at the top left shows and hides the lesson list: docked on
+  the left on wide screens, sliding in as a drawer on narrower ones. Each
+  lesson's parts fold out under it (the lesson you're on opens by itself). The
+  list also switches languages and leads back to the compiler.
 - Drag the borders to resize the lesson list, the lesson, and the editor.
   Drag the lesson list's border all the way left to fold it away, and bring it
   back with the panel button or the border.
@@ -208,6 +208,10 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
   loaded the first time you run SQL (about 16 MB, 5 MB gzipped). The playground
   keeps one in-memory database, and lessons and challenges get a fresh one for
   every run.
+- Animations run on [GSAP](https://gsap.com): the lesson list folding, the
+  drawer, menus and popups, the reference panel, check results, and moving
+  between parts. They only answer what you do, never a page load, and the
+  system's "reduce motion" setting turns them off.
 - Saved in the browser's local storage: your code (per language), editor zoom,
   tab size, intellisense, theme, editor theme, contrast level, code background,
   and layout lines. Everything visual is applied before the page paints, so nothing
@@ -272,6 +276,8 @@ scripts/try-sql.mjs          runs SQL on a fresh PostgreSQL, printed like psql
 - Code execution by [Piston](https://github.com/engineer-man/piston) (MIT).
 - SQL by [PGlite](https://github.com/electric-sql/pglite) (Apache 2.0 and the
   PostgreSQL License).
+- Animations by [GSAP](https://gsap.com) (free under its standard "no charge"
+  license).
 - The Java coffee cup icon is from [Devicon](https://github.com/devicons/devicon)
   (MIT). The other language icons are from [Simple Icons](https://simpleicons.org)
   (CC0).
