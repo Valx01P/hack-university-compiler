@@ -7,8 +7,9 @@ import type { SqlRun } from "@/lib/sql/core.mjs";
 import type { TableInfo } from "@/lib/sql/browser";
 
 /**
- * The playground database as it is right now: every table and view with its
- * columns, keys, and row count, and a preview of its rows. It reloads after
+ * The playground database as it is right now: every table, view, and
+ * materialized view with its columns, keys, and row count, and a preview of
+ * its rows. It reloads after
  * every run (`version`), so you can watch CREATE, INSERT, and DROP land.
  */
 export function SqlDatabase({ version }: { version: number }) {
@@ -59,8 +60,13 @@ export function SqlDatabase({ version }: { version: number }) {
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-raised"
             >
               <ChevronRight className={`size-3.5 shrink-0 text-ink-faint transition-transform ${expanded ? "rotate-90" : ""}`} aria-hidden />
-              {t.kind === "view" ? <Eye className="size-3.5 shrink-0 text-ink-faint" aria-hidden /> : <Table2 className="size-3.5 shrink-0 text-ink-faint" aria-hidden />}
+              {t.kind === "table" ? (
+                <Table2 className="size-3.5 shrink-0 text-ink-faint" aria-hidden />
+              ) : (
+                <Eye className="size-3.5 shrink-0 text-ink-faint" aria-hidden />
+              )}
               <span className="font-mono font-medium text-ink">{t.name}</span>
+              {t.kind !== "table" && <span className="shrink-0 text-xs text-ink-faint">{t.kind}</span>}
               <span className="truncate font-mono text-xs text-ink-faint">({t.columns.map((c) => c.name).join(", ")})</span>
               <span className="ms-auto shrink-0 text-xs text-ink-faint">
                 {t.rows === null ? "" : `${t.rows} row${t.rows === 1 ? "" : "s"}`}

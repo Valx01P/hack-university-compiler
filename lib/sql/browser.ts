@@ -58,29 +58,39 @@ export async function resetPlayground(): Promise<void> {
 
 export interface TableInfo {
   name: string;
-  kind: "table" | "view";
+  kind: "table" | "view" | "materialized view";
   rows: number | null;
   columns: { name: string; type: string; nullable: boolean; key: boolean }[];
 }
 
 const quoteIdent = (name: string) => `"${name.replace(/"/g, '""')}"`;
 
-/** The playground's tables and views, their columns, and row counts. */
+const KINDS: Record<string, TableInfo["kind"]> = { r: "table", p: "table", v: "view", m: "materialized view" };
+
+/** The playground's tables, views, and materialized views, with their columns
+    (types written out in full, like numeric(10,2) and text[]), primary keys,
+    and row counts. Read from pg_catalog, since information_schema leaves out
+    materialized views. */
 export async function describePlayground(): Promise<TableInfo[]> {
   const db = await playgroundDb();
   const tables = await db.query<{ name: string; kind: string }>(
-    `SELECT table_name AS name, table_type AS kind FROM information_schema.tables
-     WHERE table_schema = 'public' ORDER BY table_name`
+    `SELECT c.relname AS name, c.relkind AS kind
+     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm')
+     ORDER BY c.relname`
   );
-  const columns = await db.query<{ table: string; name: string; type: string; nullable: string; key: boolean }>(
-    `SELECT c.table_name AS table, c.column_name AS name, c.data_type AS type, c.is_nullable AS nullable,
+  const columns = await db.query<{ table: string; name: string; type: string; nullable: boolean; key: boolean }>(
+    `SELECT c.relname AS table, a.attname AS name, format_type(a.atttypid, a.atttypmod) AS type,
+            NOT a.attnotnull AS nullable,
             EXISTS (
-              SELECT 1 FROM information_schema.key_column_usage k
-              JOIN information_schema.table_constraints t ON t.constraint_name = k.constraint_name AND t.table_name = k.table_name
-              WHERE t.constraint_type = 'PRIMARY KEY' AND k.table_name = c.table_name AND k.column_name = c.column_name
+              SELECT 1 FROM pg_index i
+              WHERE i.indrelid = c.oid AND i.indisprimary AND a.attnum = ANY (i.indkey)
             ) AS key
-     FROM information_schema.columns c
-     WHERE c.table_schema = 'public' ORDER BY c.table_name, c.ordinal_position`
+     FROM pg_class c
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+     WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm')
+     ORDER BY c.relname, a.attnum`
   );
   return Promise.all(
     tables.rows.map(async (t) => {
@@ -88,15 +98,16 @@ export async function describePlayground(): Promise<TableInfo[]> {
       try {
         rows = Number((await db.query<{ n: string }>(`SELECT count(*) AS n FROM ${quoteIdent(t.name)}`)).rows[0]?.n ?? 0);
       } catch {
+        // A view whose tables are gone, or a materialized view not filled yet.
         rows = null;
       }
       return {
         name: t.name,
-        kind: t.kind === "VIEW" ? ("view" as const) : ("table" as const),
+        kind: KINDS[t.kind] ?? "table",
         rows,
         columns: columns.rows
           .filter((c) => c.table === t.name)
-          .map((c) => ({ name: c.name, type: c.type, nullable: c.nullable === "YES", key: c.key })),
+          .map((c) => ({ name: c.name, type: c.type, nullable: Boolean(c.nullable), key: Boolean(c.key) })),
       };
     })
   );
