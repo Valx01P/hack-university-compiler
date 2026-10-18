@@ -8,9 +8,8 @@ import type { Course, LessonRef } from "@/lib/learn-types";
 
 /**
  * The lesson plan behind a hamburger, for screens too narrow for the sidebar.
- * Hover opens it like the compiler's language menu; click, Enter, Space and
- * ArrowDown toggle it, and from the keyboard focus moves to the current
- * lesson. The panel comes right after the button in the DOM, so Tab walks
+ * Hover opens it, and click, Enter, Space and ArrowDown toggle it. From the
+ * keyboard, focus moves to the current lesson. The panel comes right after the button in the DOM, so Tab walks
  * into it, and it's fixed under the button so no overflow clips it. It closes
  * on Escape (focus goes back to the button), on a click, focus or page scroll
  * outside it, and on resize or navigation.
@@ -156,7 +155,7 @@ export function LessonMenu({
       </button>
 
       {open && pos && (
-        // Invisible hover buffer around the panel, like the language menu.
+        // Invisible hover buffer around the panel.
         <div
           style={{ top: pos.top, left: pos.left - 20 }}
           onMouseEnter={openMenu}

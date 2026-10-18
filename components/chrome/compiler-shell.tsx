@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import { LanguageMenu } from "@/components/chrome/language-menu";
 import { SandboxStatus } from "@/components/chrome/sandbox-status";
 
 /**
  * The app shell around the compiler: one bordered panel under the header with
- * the language menu and browser-style history arrows on top, the compiler
+ * browser-style history arrows and the sandbox status on top, the compiler
  * filling the rest edge-to-edge. On desktop it's exactly one viewport tall.
+ * Languages switch from the rail beside the editor.
  */
 export function CompilerShell({
   lang,
@@ -39,8 +39,7 @@ export function CompilerShell({
       <section className="flex min-h-0 flex-col rounded-card border border-edge bg-surface lg:h-full lg:overflow-hidden">
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-edge px-3 py-1.5">
           <span className="flex items-center gap-0.5">
-            <LanguageMenu active={lang} />
-            <span className="ml-1 flex items-center">
+            <span className="-ml-1 flex items-center">
               <button
                 type="button"
                 onClick={() => router.back()}
