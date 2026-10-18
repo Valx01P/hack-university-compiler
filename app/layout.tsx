@@ -15,12 +15,14 @@ export const metadata: Metadata = {
 };
 
 /**
- * Applies the saved theme and contrast before first paint so there is no
- * light/dark flash. See the "Preventing Flash" guide. Keep the dark list in
- * sync with lib/theme. Contrast follows the OS "increase contrast" setting
- * (as High) until the user picks a level in the theme menu.
+ * Applies the saved theme, contrast, and editor zoom before first paint so
+ * nothing flashes or shifts on load. See the "Preventing Flash" guide. Keep
+ * the dark list in sync with lib/theme and the zoom key/range in sync with
+ * components/code/editor-settings. Contrast follows the OS "increase contrast"
+ * setting (as High) until the user picks a level. The zoom comes last: a
+ * malformed saved value can only skip itself.
  */
-const themeBootstrap = `(function(){try{var d=document.documentElement;var t=localStorage.getItem("hu-theme")||"light";d.setAttribute("data-theme",t);if(t==="dark"||t==="dracula"||t==="monokai"||t==="nord"||t==="solarized")d.setAttribute("data-dark","");else d.removeAttribute("data-dark");d.setAttribute("data-code-theme",localStorage.getItem("hu-code-theme")||"midnight");var c=localStorage.getItem("hu-contrast");if(c===null&&window.matchMedia&&matchMedia("(prefers-contrast: more)").matches)c="high";if(c==="high"||c==="super")d.setAttribute("data-contrast",c);else d.removeAttribute("data-contrast");window.addEventListener("blur",function(){d.setAttribute("data-window-blurred","")});window.addEventListener("focus",function(){d.removeAttribute("data-window-blurred")})}catch(e){}})()`;
+const themeBootstrap = `(function(){try{var d=document.documentElement;var t=localStorage.getItem("hu-theme")||"light";d.setAttribute("data-theme",t);if(t==="dark"||t==="dracula"||t==="monokai"||t==="nord"||t==="solarized")d.setAttribute("data-dark","");else d.removeAttribute("data-dark");d.setAttribute("data-code-theme",localStorage.getItem("hu-code-theme")||"midnight");var c=localStorage.getItem("hu-contrast");if(c===null&&window.matchMedia&&matchMedia("(prefers-contrast: more)").matches)c="high";if(c==="high"||c==="super")d.setAttribute("data-contrast",c);else d.removeAttribute("data-contrast");window.addEventListener("blur",function(){d.setAttribute("data-window-blurred","")});window.addEventListener("focus",function(){d.removeAttribute("data-window-blurred")});var s=JSON.parse(localStorage.getItem("hu-code-editor-settings-v1")||"null");if(s&&s.fontSize)d.style.setProperty("--code-user-fs",Math.min(22,Math.max(11,Number(s.fontSize)||13))+"px")}catch(e){}})()`;
 
 export default function RootLayout({
   children,

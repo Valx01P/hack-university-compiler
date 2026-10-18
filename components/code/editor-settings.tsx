@@ -10,6 +10,9 @@ export type CodeEditorSettings = {
   intellisense: boolean;
 };
 
+// Keep the key and the 11-22px zoom range in sync with the pre-paint
+// bootstrap in app/layout.tsx, which applies the saved zoom before first paint.
+const STORAGE_KEY = "hu-code-editor-settings-v1";
 const EVENT_NAME = "hu:code-editor-settings";
 const DEFAULT_SETTINGS: CodeEditorSettings = {
   tabSize: 4,
@@ -27,27 +30,58 @@ function normalize(raw: Partial<CodeEditorSettings> | null | undefined): CodeEdi
   };
 }
 
-// Like the editor layout, these are never saved: a reload always opens the
-// editor at the defaults instead of jumping to a restored font size. They
-// live for this page load, so they carry over as you switch languages.
-let sessionSettings: CodeEditorSettings = DEFAULT_SETTINGS;
+/** The editor reads its zoom from <html> (--code-user-fs) instead of React
+    state, so the bootstrap can set it before first paint and a reload opens
+    at your zoom with nothing shifting. */
+function applyFontSize(px: number) {
+  document.documentElement.style.setProperty("--code-user-fs", `${px}px`);
+}
 
-function setCodeEditorSettings(next: CodeEditorSettings) {
-  sessionSettings = normalize(next);
-  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: sessionSettings }));
+export function getCodeEditorSettings(): CodeEditorSettings {
+  if (typeof window === "undefined") return DEFAULT_SETTINGS;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return normalize(raw ? JSON.parse(raw) : null);
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+function saveCodeEditorSettings(next: CodeEditorSettings) {
+  const settings = normalize(next);
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    /* ignore */
+  }
+  applyFontSize(settings.fontSize);
+  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: settings }));
 }
 
 export function useCodeEditorSettings() {
-  const [settings, setSettings] = useState<CodeEditorSettings>(() => sessionSettings);
+  // Read while initializing so the editor is created with your saved tab size
+  // and completions from the start, never reconfigured after mount. No server
+  // markup depends on these, so hydration is unaffected.
+  const [settings, setSettings] = useState<CodeEditorSettings>(getCodeEditorSettings);
 
   useEffect(() => {
-    setSettings(sessionSettings);
     const onSettings = (event: Event) => {
       const custom = event as CustomEvent<CodeEditorSettings>;
       setSettings(normalize(custom.detail));
     };
+    // Another tab changed them: follow along, zoom included.
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY) return;
+      const next = getCodeEditorSettings();
+      applyFontSize(next.fontSize);
+      setSettings(next);
+    };
     window.addEventListener(EVENT_NAME, onSettings);
-    return () => window.removeEventListener(EVENT_NAME, onSettings);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(EVENT_NAME, onSettings);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   return settings;
@@ -72,7 +106,7 @@ export function EditorSettingsButton({
   const panelRef = useRef<HTMLDivElement>(null);
 
   const update = (patch: Partial<CodeEditorSettings>) => {
-    setCodeEditorSettings(normalize({ ...settings, ...patch }));
+    saveCodeEditorSettings(normalize({ ...settings, ...patch }));
   };
 
   function place() {

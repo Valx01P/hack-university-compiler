@@ -94,10 +94,11 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
 - Every run is limited by `docker-compose.yml`: no network, 10s to run, 60s to
   compile, 512 MB of memory to run (1 GB to compile), 128 processes, and 1 MB of
   output.
-- Your code is saved per language in the browser's local storage. The editor
-  layout and zoom are not saved, so a reload always opens on the default layout
-  with nothing shifting (they do carry over while you switch languages). Your
-  theme choices are remembered and applied before the page paints.
+- Saved in the browser's local storage: your code (per language), editor zoom,
+  tab size, intellisense, theme, editor theme, and contrast level. Everything
+  visual is applied before the page paints, so nothing shifts on reload. The
+  editor/output split isn't saved, so a reload always opens on the default
+  layout (it does carry over while you switch languages).
 
 ## Project layout
 

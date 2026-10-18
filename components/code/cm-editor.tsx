@@ -132,9 +132,19 @@ export function CmEditor({
   // Create the editor once. Each language is its own page, so the grammar is
   // fixed for the editor's lifetime.
   useEffect(() => {
-    if (!hostRef.current || viewRef.current) return;
+    const host = hostRef.current;
+    if (!host || viewRef.current) return;
+    // Until its first measure (next frame), CodeMirror lays the line numbers
+    // out with a 14px line-height guess. Keep the editor invisible until that
+    // measure lands so a load can never show the gutter jumping into place.
+    // The fallback reveals it anyway if a measure never comes.
+    host.style.visibility = "hidden";
+    const reveal = () => {
+      host.style.visibility = "";
+    };
+    const fallback = window.setTimeout(reveal, 300);
     const view = new EditorView({
-      parent: hostRef.current,
+      parent: host,
       state: EditorState.create({
         doc: value,
         extensions: [
@@ -176,7 +186,9 @@ export function CmEditor({
       }),
     });
     viewRef.current = view;
+    view.requestMeasure({ read: () => null, write: reveal });
     return () => {
+      window.clearTimeout(fallback);
       view.destroy();
       viewRef.current = null;
     };
@@ -211,9 +223,10 @@ export function CmEditor({
 
   return (
     <div className="relative h-full min-h-0">
+      {/* Zoom comes from --code-user-fs on <html> (set before first paint
+          from your saved settings), never from state, so it can't jump. */}
       <div
         ref={hostRef}
-        style={{ "--code-user-fs": `${settings.fontSize}px` } as React.CSSProperties}
         className="code-dark slim-scroll h-full min-h-0 overflow-hidden bg-code-bg [--code-fs:max(16px,var(--code-user-fs))] sm:[--code-fs:var(--code-user-fs)]"
       />
     </div>
