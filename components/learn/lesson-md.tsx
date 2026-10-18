@@ -99,14 +99,14 @@ function renderTable(lines: string[], key: string): React.ReactNode {
   });
   const rows = lines.slice(2).map(tableCells);
   return (
-    <div key={key} className="slim-scroll my-5 overflow-x-auto rounded-card border border-edge-strong">
+    <div key={key} className="slim-scroll my-5 overflow-x-auto rounded-card border border-table-line">
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="bg-raised">
             {headers.map((h, ci) => (
               <th
                 key={ci}
-                className={`border-b border-edge-strong px-3 py-2 font-medium text-ink ${alignClass[aligns[ci] ?? "left"]}`}
+                className={`border-b border-table-line px-3 py-2 font-medium text-ink ${alignClass[aligns[ci] ?? "left"]}`}
               >
                 {inline(h, `${key}-h${ci}`)}
               </th>
@@ -115,7 +115,7 @@ function renderTable(lines: string[], key: string): React.ReactNode {
         </thead>
         <tbody>
           {rows.map((cells, ri) => (
-            <tr key={ri} className="border-b border-edge-strong last:border-0">
+            <tr key={ri} className="border-b border-table-line last:border-0">
               {cells.map((c, ci) => (
                 <td
                   key={ci}

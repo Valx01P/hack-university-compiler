@@ -6,9 +6,11 @@ import {
   CONTRAST_LEVELS,
   setContrast,
   setLayoutLines,
+  setTableLines,
   setTheme,
   useContrast,
   useLayoutLines,
+  useTableLines,
   useTheme,
 } from "@/lib/theme";
 import { CodeBackgroundPicker } from "@/components/code/code-background";
@@ -30,6 +32,7 @@ export function ThemeToggle() {
   const theme = useTheme();
   const contrast = useContrast();
   const lines = useLayoutLines();
+  const tableLines = useTableLines();
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuShown = usePresence(open, menuRef, POP);
@@ -70,7 +73,7 @@ export function ThemeToggle() {
           role="menu"
           aria-label="Theme"
           style={{ transformOrigin: "top right" }}
-          className="absolute right-0 top-[calc(100%+0.4rem)] z-[60] w-60 overflow-hidden rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card)"
+          className="slim-scroll absolute right-0 top-[calc(100%+0.4rem)] z-[60] max-h-[calc(100dvh-4.5rem)] w-60 overflow-y-auto rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card)"
         >
           {APP_THEMES.map((t) => {
             const active = t.id === theme;
@@ -173,38 +176,80 @@ export function ThemeToggle() {
             </div>
           </div>
 
-          {/* How visible the layout's big lines are, down to none at all. */}
+          {/* How visible the layout's big lines are, and, separately, the
+              lines of tables in lessons and cheatsheets, down to none. */}
           <div role="separator" className="my-1 h-px bg-edge" />
-          <div role="group" aria-label="Layout lines" className="px-3 pb-3 pt-1.5">
-            <label className="flex items-center gap-2.5 text-sm text-ink-muted" htmlFor="layout-lines">
-              <svg
-                viewBox="0 0 24 24"
-                className="size-4 shrink-0"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.5}
-                strokeLinecap="round"
-                aria-hidden
-              >
+          <LineSlider
+            id="layout-lines"
+            label="Layout lines"
+            value={lines}
+            onChange={setLayoutLines}
+            icon={
+              <>
                 <rect x="3" y="4.5" width="18" height="15" rx="2.5" strokeDasharray="3 2.5" />
                 <path d="M9 4.5v15" />
-              </svg>
-              <span className="flex-1">Layout lines</span>
-              <span className="font-mono text-xs text-ink-faint">{lines === 0 ? "off" : `${lines}%`}</span>
-            </label>
-            <input
-              id="layout-lines"
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={lines}
-              onChange={(e) => setLayoutLines(Number(e.target.value))}
-              className="mt-2.5 w-full accent-ink"
-            />
-          </div>
+              </>
+            }
+          />
+          <LineSlider
+            id="table-lines"
+            label="Table lines"
+            value={tableLines}
+            onChange={setTableLines}
+            icon={
+              <>
+                <rect x="3" y="4.5" width="18" height="15" rx="2" />
+                <path d="M3 9.5h18M3 14.5h18M10 4.5v15" />
+              </>
+            }
+          />
         </div>
       )}
+    </div>
+  );
+}
+
+/** A 0 to 100 slider for how visible a kind of line is ("off" at 0). */
+function LineSlider({
+  id,
+  label,
+  value,
+  onChange,
+  icon,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div role="group" aria-label={label} className="px-3 pb-3 pt-1.5">
+      <label className="flex items-center gap-2.5 text-sm text-ink-muted" htmlFor={id}>
+        <svg
+          viewBox="0 0 24 24"
+          className="size-4 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          aria-hidden
+        >
+          {icon}
+        </svg>
+        <span className="flex-1">{label}</span>
+        <span className="font-mono text-xs text-ink-faint">{value === 0 ? "off" : `${value}%`}</span>
+      </label>
+      <input
+        id={id}
+        type="range"
+        min={0}
+        max={100}
+        step={5}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="mt-2.5 w-full accent-ink"
+      />
     </div>
   );
 }

@@ -253,60 +253,77 @@ export function useCodeBackground(): string | null {
 }
 
 /**
- * Layout lines: how visible the big structural lines are (the panel's
- * outline and bars, the language rail, sidebars and dividers, and the editor,
- * output, and reference boxes), from 0 (hidden) to 100 (the theme's own).
- * Stored as a number and applied before first paint by the bootstrap in
- * app/layout.tsx, as --layout-lines on <html>.
+ * Line visibility settings, from 0 (hidden) to 100 (the theme's own), each
+ * stored as a number and applied before first paint by the bootstrap in
+ * app/layout.tsx as a percentage variable on <html>:
+ *
+ * - Layout lines (--layout-lines): the big structural lines, like the
+ *   panel's outline and bars, the language rail, sidebars and dividers, the
+ *   editor, output, and reference boxes, and the outlined bar buttons.
+ * - Table lines (--table-lines): the lines of tables in lessons and
+ *   cheatsheets.
  */
 export const LAYOUT_LINES_KEY = "hu-layout-lines";
-export const LAYOUT_LINES_EVENT = "hu:layout-lines-changed";
+export const TABLE_LINES_KEY = "hu-table-lines";
 
 const toLines = (value: unknown): number => {
   const n = Math.round(Number(value));
   return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 100;
 };
 
-/** Set the layout lines' visibility (0 to 100), persist it, and broadcast. */
-export function setLayoutLines(value: number) {
-  const pct = toLines(value);
-  document.documentElement.style.setProperty("--layout-lines", `${pct}%`);
-  try {
-    if (pct === 100) localStorage.removeItem(LAYOUT_LINES_KEY);
-    else localStorage.setItem(LAYOUT_LINES_KEY, String(pct));
-  } catch {
-    /* ignore */
-  }
-  try {
-    window.dispatchEvent(new Event(LAYOUT_LINES_EVENT));
-  } catch {
-    /* ignore */
-  }
-}
+function lineSetting(key: string, cssVar: string) {
+  const event = `hu:${key}-changed`;
+  const current = () => {
+    const v = document.documentElement.style.getPropertyValue(cssVar).trim();
+    return v ? toLines(v.replace("%", "")) : 100;
+  };
 
-function currentLayoutLines(): number {
-  const v = document.documentElement.style.getPropertyValue("--layout-lines").trim();
-  return v ? toLines(v.replace("%", "")) : 100;
-}
+  /** Set the visibility (0 to 100), persist it, and broadcast. */
+  function set(value: number) {
+    const pct = toLines(value);
+    document.documentElement.style.setProperty(cssVar, `${pct}%`);
+    try {
+      if (pct === 100) localStorage.removeItem(key);
+      else localStorage.setItem(key, String(pct));
+    } catch {
+      /* ignore */
+    }
+    try {
+      window.dispatchEvent(new Event(event));
+    } catch {
+      /* ignore */
+    }
+  }
 
-/** Subscribe to the layout lines' visibility (0 to 100), any tab. */
-export function useLayoutLines(): number {
-  const [value, set] = useState(100);
-  useEffect(() => {
-    const refresh = () => set(currentLayoutLines());
-    refresh();
-    // Another tab changed it: mirror the stored choice onto this page too.
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== LAYOUT_LINES_KEY) return;
-      document.documentElement.style.setProperty("--layout-lines", `${toLines(e.newValue ?? 100)}%`);
+  /** Subscribe to the visibility (0 to 100), any tab. */
+  function use(): number {
+    const [value, setValue] = useState(100);
+    useEffect(() => {
+      const refresh = () => setValue(current());
       refresh();
-    };
-    window.addEventListener(LAYOUT_LINES_EVENT, refresh);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener(LAYOUT_LINES_EVENT, refresh);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
-  return value;
+      // Another tab changed it: mirror the stored choice onto this page too.
+      const onStorage = (e: StorageEvent) => {
+        if (e.key !== key) return;
+        document.documentElement.style.setProperty(cssVar, `${toLines(e.newValue ?? 100)}%`);
+        refresh();
+      };
+      window.addEventListener(event, refresh);
+      window.addEventListener("storage", onStorage);
+      return () => {
+        window.removeEventListener(event, refresh);
+        window.removeEventListener("storage", onStorage);
+      };
+    }, []);
+    return value;
+  }
+
+  return { set, use };
 }
+
+const layoutLines = lineSetting(LAYOUT_LINES_KEY, "--layout-lines");
+export const setLayoutLines = layoutLines.set;
+export const useLayoutLines = layoutLines.use;
+
+const tableLines = lineSetting(TABLE_LINES_KEY, "--table-lines");
+export const setTableLines = tableLines.set;
+export const useTableLines = tableLines.use;
