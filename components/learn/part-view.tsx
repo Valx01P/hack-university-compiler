@@ -21,6 +21,7 @@ import { isSql, type CompilerLang } from "@/lib/compiler";
 import { partHref, problemId, type Lesson, type LessonStep } from "@/lib/learn-types";
 import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolvedState } from "@/lib/learn-progress";
 import { normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
+import { useEnter } from "@/lib/motion";
 
 /** Where Previous or Next goes: another part of this lesson, or a lesson. */
 export interface PartLink {
@@ -127,6 +128,9 @@ export function PartView({
   const outputRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Partial<Record<TabKind, HTMLButtonElement | null>>>({});
   const gridRef = useRef<HTMLDivElement>(null);
+  // Moving to another part fades the new one in (never on first paint).
+  const articleRef = useRef<HTMLElement>(null);
+  useEnter(articleRef);
 
   const [split, setSplitPct] = useState(session.split);
   const setSplit = (pct: number) => {
@@ -281,6 +285,7 @@ export function PartView({
           nav. */}
       <div className={`slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto ${hasNav ? "lg:scroll-pb-24" : ""}`}>
         <article
+          ref={articleRef}
           className={`mx-auto w-full max-w-[46rem] flex-1 px-5 pb-10 pt-6 sm:px-7 ${
             hasNav ? "max-lg:[&_:is(a,button,pre,[tabindex])]:scroll-mb-24" : ""
           }`}

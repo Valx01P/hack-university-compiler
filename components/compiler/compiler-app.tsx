@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { BookOpenText, GraduationCap, RotateCcw } from "lucide-react";
 import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
@@ -29,6 +29,7 @@ import {
 import { useResumeHref } from "@/lib/learn-progress";
 import type { LessonRef } from "@/lib/learn-types";
 import { normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
+import { EASE, dur, gsap } from "@/lib/motion";
 
 type Orient = "horizontal" | "vertical";
 
@@ -226,6 +227,43 @@ export function CompilerApp({
     setRefOpenState(open);
     if (!open) leaveChallenge();
   }
+
+  // The panel slides in from the right when you open it, and back out before
+  // the layout returns to side by side.
+  const refPanelRef = useRef<HTMLElement>(null);
+  const refSlideIn = useRef(false);
+  const refClosing = useRef(false);
+  function openReference() {
+    refSlideIn.current = true;
+    setRefOpen(true);
+  }
+  function closeReference() {
+    const panel = refPanelRef.current;
+    if (!panel) return setRefOpen(false);
+    if (refClosing.current) return;
+    refClosing.current = true;
+    gsap.to(panel, {
+      opacity: 0,
+      x: 24,
+      duration: dur(0.18),
+      ease: EASE.in,
+      overwrite: true,
+      onComplete: () => {
+        refClosing.current = false;
+        setRefOpen(false);
+      },
+    });
+  }
+  useLayoutEffect(() => {
+    const panel = refPanelRef.current;
+    if (!refOpen || !refSlideIn.current || !panel) return;
+    refSlideIn.current = false;
+    gsap.fromTo(
+      panel,
+      { opacity: 0, x: 24 },
+      { opacity: 1, x: 0, duration: dur(0.3), ease: EASE.slide, overwrite: true, clearProps: "opacity,transform" }
+    );
+  }, [refOpen]);
 
   async function execute() {
     setRun({ status: "running" });
@@ -642,7 +680,7 @@ export function CompilerApp({
                 )}
                 <button
                   type="button"
-                  onClick={() => setRefOpen(!refOpen)}
+                  onClick={() => (refOpen ? closeReference() : openReference())}
                   aria-pressed={refOpen}
                   title={refOpen ? "Close the reference" : `${lang.label} cheatsheet and challenges`}
                   className={`${headerBtn} ${refOpen ? "bg-raised" : ""}`}
@@ -721,6 +759,7 @@ export function CompilerApp({
               className="hidden lg:flex"
             />
             <ReferencePanel
+              ref={refPanelRef}
               lang={lang.slug}
               langLabel={lang.label}
               data={refData}
@@ -732,7 +771,7 @@ export function CompilerApp({
               progress={progress}
               onOpenChallenge={openChallenge}
               onLeaveChallenge={leaveChallenge}
-              onClose={() => setRefOpen(false)}
+              onClose={closeReference}
             />
           </>
         )}

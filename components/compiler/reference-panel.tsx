@@ -50,6 +50,7 @@ export function useReferenceData(lang: string, enabled: boolean) {
  * to the list.
  */
 export function ReferencePanel({
+  ref,
   lang,
   langLabel,
   data,
@@ -63,6 +64,7 @@ export function ReferencePanel({
   onLeaveChallenge,
   onClose,
 }: {
+  ref?: React.Ref<HTMLElement>;
   lang: string;
   langLabel: string;
   data: ReferenceData | null;
@@ -92,7 +94,7 @@ export function ReferencePanel({
   );
 
   return (
-    <section aria-label={`${langLabel} reference`} className="flex h-[80dvh] min-h-0 min-w-0 flex-col p-2 lg:h-auto">
+    <section ref={ref} aria-label={`${langLabel} reference`} className="flex h-[80dvh] min-h-0 min-w-0 flex-col p-2 lg:h-auto">
       <div className="flex shrink-0 items-center gap-1 pb-2">
         <div role="tablist" aria-label="Reference" className="flex min-w-0 items-center gap-1">
           {tabBtn("cheatsheet", "Cheatsheet")}

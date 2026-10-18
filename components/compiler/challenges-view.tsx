@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Eye } from "lucide-react";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import type { ChallengeProgress } from "@/lib/challenge-progress";
 import { DIFFICULTY_LABEL, type Challenge, type ChallengeDifficulty, type ReferenceCategory } from "@/lib/reference-types";
+import { useEnter } from "@/lib/motion";
 
 type StatusFilter = "all" | "todo" | "solved";
 
@@ -31,6 +32,8 @@ export function ChallengeList({
   progress: ChallengeProgress;
   onOpen: (id: string) => void;
 }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEnter(rootRef);
   const [difficulty, setDifficulty] = useState<ChallengeDifficulty | "all">("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const solved = challenges.filter((c) => progress.solved.has(c.id)).length;
@@ -41,7 +44,7 @@ export function ChallengeList({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-edge px-3 py-2">
         <p className="mr-auto text-xs text-ink-muted">
           {solved} of {challenges.length} solved
@@ -123,11 +126,13 @@ export function ChallengeDetail({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEnter(rootRef);
   const [hints, setHints] = useState(0);
   const solved = progress.solved.has(challenge.id);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-edge px-3 py-1.5">
         <button
           type="button"

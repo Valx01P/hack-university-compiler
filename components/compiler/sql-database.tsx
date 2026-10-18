@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronRight, KeyRound, Table2, Eye } from "lucide-react";
 import { ResultTable } from "@/components/compiler/sql-results";
+import { Collapse } from "@/components/ui/collapse";
 import type { SqlRun } from "@/lib/sql/core.mjs";
 import type { TableInfo } from "@/lib/sql/browser";
 
@@ -50,7 +51,8 @@ export function SqlDatabase({ version }: { version: number }) {
     <ul className="divide-y divide-edge">
       {tables.map((t) => {
         const expanded = open === t.name;
-        const result = expanded && preview?.name === t.name ? preview.run.results[0] : null;
+        // Kept while it folds shut, so the fold starts from the full height.
+        const result = preview?.name === t.name ? preview.run.results[0] : null;
         return (
           <li key={t.name}>
             <button
@@ -72,8 +74,8 @@ export function SqlDatabase({ version }: { version: number }) {
                 {t.rows === null ? "" : `${t.rows} row${t.rows === 1 ? "" : "s"}`}
               </span>
             </button>
-            {expanded && (
-              <div className="space-y-2 px-3 pb-3">
+            <Collapse open={expanded} className="px-3 pb-3">
+              <div className="space-y-2">
                 <table className="font-mono text-xs">
                   <tbody>
                     {t.columns.map((c) => (
@@ -99,7 +101,7 @@ export function SqlDatabase({ version }: { version: number }) {
                   </div>
                 )}
               </div>
-            )}
+            </Collapse>
           </li>
         );
       })}

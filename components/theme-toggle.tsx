@@ -12,6 +12,7 @@ import {
   useTheme,
 } from "@/lib/theme";
 import { CodeBackgroundPicker } from "@/components/code/code-background";
+import { POP, usePresence } from "@/lib/motion";
 
 /**
  * Header theme picker. The trigger shows the CURRENT theme's icon (sun for
@@ -30,6 +31,8 @@ export function ThemeToggle() {
   const contrast = useContrast();
   const lines = useLayoutLines();
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuShown = usePresence(open, menuRef, POP);
 
   useEffect(() => {
     if (!open) return;
@@ -61,10 +64,12 @@ export function ThemeToggle() {
         <ThemeIcon id={theme} className="size-5" />
       </button>
 
-      {open && (
+      {menuShown && (
         <div
+          ref={menuRef}
           role="menu"
           aria-label="Theme"
+          style={{ transformOrigin: "top right" }}
           className="absolute right-0 top-[calc(100%+0.4rem)] z-[60] w-60 overflow-hidden rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card)"
         >
           {APP_THEMES.map((t) => {

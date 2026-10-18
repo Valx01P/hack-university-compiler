@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
 import type { ReferenceSection } from "@/lib/reference-types";
+import { EASE, dur, gsap } from "@/lib/motion";
 
 /** What each language's search box suggests looking for. */
 const SEARCH_HINTS: Record<string, string> = {
@@ -44,7 +45,9 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
 
   function jump(id: string) {
     const el = scrollRef.current?.querySelector<HTMLElement>(`#ref-${id}`);
-    if (el && scrollRef.current) scrollRef.current.scrollTop = el.offsetTop - 8;
+    if (el && scrollRef.current) {
+      gsap.to(scrollRef.current, { scrollTo: { y: el.offsetTop - 8 }, duration: dur(0.5), ease: EASE.inOut, overwrite: true });
+    }
   }
 
   return (

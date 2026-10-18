@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { POP, usePresence } from "@/lib/motion";
 
 /* A dropdown/popover panel portaled to <body> and pinned (position:fixed) under
    its trigger. Portaling lets a toolbar scroll horizontally (overflow-x) without
@@ -24,6 +25,7 @@ export function AnchoredPanel({
   children: React.ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const shown = usePresence(open, panelRef, POP);
   const [mounted, setMounted] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
@@ -63,7 +65,7 @@ export function AnchoredPanel({
     };
   }, [open, onClose, align, anchorRef]);
 
-  if (!open || !mounted) return null;
+  if (!shown || !mounted) return null;
   return createPortal(
     <div
       ref={panelRef}
@@ -73,6 +75,7 @@ export function AnchoredPanel({
         top: pos?.top ?? -9999,
         left: pos?.left ?? -9999,
         visibility: pos ? "visible" : "hidden",
+        transformOrigin: align === "right" ? "top right" : "top left",
       }}
       className={className}
     >

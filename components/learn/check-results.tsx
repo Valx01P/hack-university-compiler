@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRef } from "react";
 import { CompleteIcon } from "@/components/learn/complete-icon";
 import { ScrollPre } from "@/components/ui/scroll-pre";
+import { EASE, dur, gsap, hasPainted, useGSAP } from "@/lib/motion";
 
 export interface TestResult {
   stdin: string;
@@ -43,7 +45,8 @@ export function checkSummary(check: CheckState): string {
 
 /** The verdict of a practice check: every test, and what differed. Once it
     passes it points the way on: the next part, or the next lesson after the
-    last part. */
+    last part. Each new verdict slides in line by line, and a pass pops its
+    check mark. */
 export function CheckResults({
   check,
   next,
@@ -52,6 +55,25 @@ export function CheckResults({
   /** Where to go after solving: a page (`href`) or an action (`onClick`). */
   next: { href?: string; onClick?: () => void; label: string } | null;
 }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  useGSAP(
+    () => {
+      const root = rootRef.current;
+      if (check.status !== "done" || !root || !hasPainted()) return;
+      gsap.from(root.querySelectorAll("[data-anim=row]"), {
+        opacity: 0,
+        y: 6,
+        duration: dur(0.22),
+        ease: EASE.out,
+        stagger: dur(0.045),
+        clearProps: "opacity,transform",
+      });
+      const mark = root.querySelector("[data-anim=pop]");
+      if (mark) gsap.from(mark, { scale: 0.4, rotate: -25, opacity: 0, duration: dur(0.45), ease: EASE.pop, clearProps: "opacity,transform" });
+    },
+    { scope: rootRef, dependencies: [check] }
+  );
+
   if (check.status === "checking") {
     return (
       <p className="p-4 text-sm text-ink-faint">
@@ -75,10 +97,12 @@ export function CheckResults({
   const passed = results.filter((r) => r.passed).length;
   const allPassed = passed === results.length;
   return (
-    <div>
+    <div ref={rootRef}>
       {allPassed ? (
-        <div className="flex items-start gap-3 p-4">
-          <CompleteIcon className="mt-0.5 size-5" />
+        <div data-anim="row" className="flex items-start gap-3 p-4">
+          <span data-anim="pop" className="mt-0.5 inline-flex shrink-0">
+            <CompleteIcon className="size-5" />
+          </span>
           <div className="min-w-0">
             <p className="font-medium text-ink">
               Solved! {results.length === 1 ? "The test passed." : `All ${results.length} tests passed.`}
@@ -102,14 +126,14 @@ export function CheckResults({
           </div>
         </div>
       ) : (
-        <p className="p-4 text-sm font-medium text-ink">
+        <p data-anim="row" className="p-4 text-sm font-medium text-ink">
           {passed} of {results.length} test{results.length === 1 ? "" : "s"} passed. Compare your
           output with the expected output below.
         </p>
       )}
 
       {results.map((r, i) => (
-        <div key={i} className="border-t border-edge px-4 py-3">
+        <div key={i} data-anim="row" className="border-t border-edge px-4 py-3">
           <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-ink-muted">
             {r.passed ? <CompleteIcon className="size-3.5" /> : <span aria-hidden className="text-danger">✗</span>}
             Test {i + 1} {r.passed ? "passed" : "failed"}

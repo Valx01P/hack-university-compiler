@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ArrowLeft, ChevronRight } from "lucide-react";
 import { LangIcon } from "@/components/compiler/lang-icon";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
+import { Collapse } from "@/components/ui/collapse";
 import { COMPILER_LANGS } from "@/lib/compiler";
 import { partHref, problemId, type Course, type LessonRef } from "@/lib/learn-types";
 import { useResumeHref, useSolvedState } from "@/lib/learn-progress";
@@ -20,7 +21,7 @@ export function isLessonComplete(solved: Set<string>, id: string, problems: numb
  * compiler, and every lesson by section with its completion mark. Each
  * lesson's parts fold out under it: collapsed by default so the list stays
  * short, with the lesson you're on opened for you. Shown as the sidebar on
- * wide screens and inside the hamburger menu otherwise.
+ * wide screens and in the drawer otherwise.
  */
 export function LessonList({
   lang,
@@ -170,8 +171,8 @@ export function LessonList({
                       </button>
                     )}
                   </div>
-                  {open && (
-                    <ol id={partsId} className="mb-1 ml-[1.15rem] mt-0.5 border-l border-edge pl-2">
+                  <Collapse open={open} id={partsId} className="pb-1 pt-0.5">
+                    <ol className="ml-[1.15rem] border-l border-edge pl-2">
                       {l.parts.map((title, i) => {
                         const here = current && i === currentPart;
                         const partSolved = solved.has(problemId(l.id, i));
@@ -200,7 +201,7 @@ export function LessonList({
                         );
                       })}
                     </ol>
-                  )}
+                  </Collapse>
                 </div>
               );
             })}

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Minus, Plus, Settings } from "lucide-react";
 import { CONTRAST_LEVELS, setContrast, useContrast } from "@/lib/theme";
 import { CodeBackgroundPicker } from "@/components/code/code-background";
+import { POP, usePresence } from "@/lib/motion";
 
 export type CodeEditorSettings = {
   tabSize: 2 | 4;
@@ -108,6 +109,7 @@ export function EditorSettingsButton({
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const shown = usePresence(open, panelRef, POP);
 
   const update = (patch: Partial<CodeEditorSettings>) => {
     saveCodeEditorSettings(normalize({ ...settings, ...patch }));
@@ -161,11 +163,11 @@ export function EditorSettingsButton({
   }, [open]);
 
   const panel =
-    open && mounted && pos
+    shown && mounted && pos
       ? createPortal(
           <div
             ref={panelRef}
-            style={{ position: "fixed", top: pos.top, left: pos.left }}
+            style={{ position: "fixed", top: pos.top, left: pos.left, transformOrigin: "top right" }}
             className="z-[120] w-64 rounded-card border border-edge bg-surface p-3 text-sm shadow-[var(--shadow-card)]"
           >
             <div className="flex items-center justify-between gap-3">
