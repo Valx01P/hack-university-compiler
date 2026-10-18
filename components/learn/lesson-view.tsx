@@ -1,21 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { CodeThemePicker } from "@/components/code/code-theme";
+import { ResetCodeButton } from "@/components/code/reset-code-button";
 import { OutputPanel } from "@/components/compiler/output-panel";
-import { AnchoredPanel } from "@/components/ui/anchored-panel";
+import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
+import { ScrollPre } from "@/components/ui/scroll-pre";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
-import { CompleteIcon } from "@/components/learn/complete-icon";
-import { CheckResults, type CheckState } from "@/components/learn/check-results";
+import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
+import { CheckResults, checkSummary, type CheckState } from "@/components/learn/check-results";
 import { Highlight } from "@/lib/highlight";
 import type { CompilerLang } from "@/lib/compiler";
 import { problemId, type Lesson, type LessonMeta } from "@/lib/learn-types";
-import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolved } from "@/lib/learn-progress";
+import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolvedState } from "@/lib/learn-progress";
 import { normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
 
 type Tab = { kind: "example" | "practice"; step: number };
@@ -55,7 +57,11 @@ export function LessonView({
   prev: LessonMeta | null;
   next: LessonMeta | null;
 }) {
-  const solved = useSolved(lang.slug);
+  // Empty in the server markup and the hydration render (the server can't
+  // see your progress), so everything that shows progress keeps the same size
+  // either way: a reload never shifts. A lesson reached by a client-side
+  // navigation renders your progress from its first frame.
+  const { solved } = useSolvedState(lang.slug);
   const isSolved = (step: number) => solved.has(problemId(lesson.id, step));
   const complete = lesson.steps.every((_, i) => isSolved(i));
   const tabs: Tab[] = lesson.steps.flatMap((_, step) => [
@@ -63,6 +69,7 @@ export function LessonView({
     { kind: "practice" as const, step },
   ]);
   const many = lesson.steps.length > 1;
+  const hasNav = Boolean(prev || next);
 
   const defaultCode = (t: Tab) =>
     t.kind === "example" ? lesson.steps[t.step].example.code : lesson.steps[t.step].practice.starter;
@@ -80,10 +87,24 @@ export function LessonView({
   );
   const [showStdin, setShowStdin] = useState(() => defaultStdin(active) !== "");
   const [panels, setPanels] = useState<Record<string, Panel>>({});
-  const [busy, setBusy] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
-  const resetAnchorRef = useRef<HTMLButtonElement>(null);
+  // The tab whose run or check is in flight. Runs go one at a time, but only
+  // that tab's buttons say "Running…" or "Checking…".
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const busy = busyKey !== null;
+  // What a screen reader hears when a run or check ends.
+  const [announcement, setAnnouncement] = useState("");
+  // Hands keyboard focus back to Run or Check once the run is over.
+  const rememberRunButton = useReturnFocus(busy);
   const editorRef = useRef<HTMLDivElement>(null);
+  const outputRef = useRef<HTMLDivElement>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  const uid = useId();
+  const tabId = (t: Tab) => `${uid}-tab-${tabKey(t)}`;
+  const panelId = `${uid}-panel`;
+  const stdinId = `${uid}-stdin`;
+  const outputId = `${uid}-output`;
 
   const key = tabKey(active);
   const code = codes[key];
@@ -94,16 +115,53 @@ export function LessonView({
     setLastLesson(lang.slug, lesson.id);
   }, [lang.slug, lesson.id]);
 
-  function openTab(t: Tab) {
+  // Keep the selected tab in view inside the scrolling tab strip (scrollLeft
+  // only: scrollIntoView could also scroll the page).
+  useEffect(() => {
+    const strip = stripRef.current;
+    const tab = tabRefs.current[key];
+    if (!strip || !tab) return;
+    const room = parseFloat(getComputedStyle(strip).paddingLeft) || 0;
+    const s = strip.getBoundingClientRect();
+    const r = tab.getBoundingClientRect();
+    if (r.left < s.left + room) strip.scrollLeft -= s.left + room - r.left;
+    else if (r.right > s.right - room) strip.scrollLeft += r.right - (s.right - room);
+  }, [key]);
+
+  function openTab(t: Tab, { scroll = true }: { scroll?: boolean } = {}) {
     setActive(t);
     setShowStdin(stdins[tabKey(t)] !== "");
-    // On narrow screens the editor sits below the lesson: bring it into view.
-    if (window.innerWidth < 1024) editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // On narrow screens the editor sits below the lesson: bring it into view,
+    // below the sticky header (the column's scroll margin).
+    if (scroll && window.innerWidth < 1024) {
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      editorRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    }
+  }
+
+  // Arrow keys, Home and End move between tabs (and open them), so the strip
+  // is a single tab stop.
+  function onTabKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, i: number) {
+    const last = tabs.length - 1;
+    const to =
+      e.key === "ArrowRight" ? (i === last ? 0 : i + 1)
+      : e.key === "ArrowLeft" ? (i === 0 ? last : i - 1)
+      : e.key === "Home" ? 0
+      : e.key === "End" ? last
+      : -1;
+    if (to < 0) return;
+    e.preventDefault();
+    openTab(tabs[to], { scroll: false });
+    tabRefs.current[tabKey(tabs[to])]?.focus();
   }
 
   function updateCode(next: string) {
     setCodes((c) => ({ ...c, [key]: next }));
-    saveCode(lang.slug, lesson.id, key, next);
+    // Code that matches the original isn't saved, so a reset (whose new value
+    // comes back through here) really clears the tab, and a later fix to the
+    // example or starter still reaches you.
+    if (next === defaultCode(active)) clearCode(lang.slug, lesson.id, key);
+    else saveCode(lang.slug, lesson.id, key, next);
   }
 
   function resetTab() {
@@ -115,33 +173,55 @@ export function LessonView({
 
   const setPanel = (k: string, p: Panel) => setPanels((all) => ({ ...all, [k]: p }));
 
-  async function run() {
-    const k = key;
-    setBusy(true);
-    setPanel(k, { mode: "run", run: { status: "running" } });
-    const result = await runInSandbox(lang.slug, code, stdin);
-    setPanel(k, { mode: "run", run: result.ok ? { status: "done", ...result.run } : { status: "error", error: result.error } });
-    setBusy(false);
+  /** Start a run or check from its button. */
+  function begin(k: string, e: React.MouseEvent<HTMLButtonElement>) {
+    rememberRunButton(e);
+    setBusyKey(k);
+    setAnnouncement("");
+    // Below lg the output can sit under the fold (a phone in landscape, where
+    // the editor keeps its minimum height): bring it into view so the run
+    // shows up.
+    if (window.innerWidth < 1024) {
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      outputRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" });
+    }
   }
 
-  async function check() {
+  async function run(e: React.MouseEvent<HTMLButtonElement>) {
+    if (busy) return;
+    const k = key;
+    begin(k, e);
+    setPanel(k, { mode: "run", run: { status: "running" } });
+    const result = await runInSandbox(lang.slug, code, stdin);
+    const done: RunState = result.ok ? { status: "done", ...result.run } : { status: "error", error: result.error };
+    setPanel(k, { mode: "run", run: done });
+    setAnnouncement(runSummary(done));
+    setBusyKey(null);
+  }
+
+  async function check(e: React.MouseEvent<HTMLButtonElement>) {
+    if (busy) return;
     const k = key;
     const step = active.step;
     const { tests } = lesson.steps[step].practice;
-    setBusy(true);
+    begin(k, e);
     setPanel(k, { mode: "check", check: { status: "checking", total: tests.length } });
     const outcomes = await Promise.all(
       tests.map((t) => runInSandbox(lang.slug, code, t.stdin ?? "", { refreshStatus: false }))
     );
     refreshSandboxStatus();
-    setBusy(false);
 
+    const finish = (result: CheckState) => {
+      setPanel(k, { mode: "check", check: result });
+      setAnnouncement(checkSummary(result));
+      setBusyKey(null);
+    };
     const failed = outcomes.find((o) => !o.ok);
-    if (failed && !failed.ok) return setPanel(k, { mode: "check", check: { status: "error", error: failed.error } });
+    if (failed && !failed.ok) return finish({ status: "error", error: failed.error });
     const runs = outcomes.map((o) => (o.ok ? o.run : null)).filter((r) => r !== null);
     const compileError = runs.find((r) => r.compileCode != null && r.compileCode !== 0);
     if (compileError) {
-      return setPanel(k, { mode: "check", check: { status: "compile-error", output: compileError.compileOutput || "Compilation failed." } });
+      return finish({ status: "compile-error", output: compileError.compileOutput || "Compilation failed." });
     }
     const results = runs.map((r, i) => {
       const timedOut = r.verdict === "TO";
@@ -157,7 +237,7 @@ export function LessonView({
     const allPassed = results.every((r) => r.passed);
     if (allPassed) markSolved(lang.slug, problemId(lesson.id, step));
     const lessonComplete = allPassed && lesson.steps.every((_, i) => i === step || isSolved(i));
-    setPanel(k, { mode: "check", check: { status: "done", results, lessonComplete } });
+    finish({ status: "done", results, lessonComplete });
   }
 
   const tabLabel = (t: Tab) =>
@@ -168,18 +248,33 @@ export function LessonView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      {/* Left: the lesson */}
-      <div className="slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto lg:border-r lg:border-edge">
-        <article className="mx-auto w-full max-w-[46rem] flex-1 px-5 pb-10 pt-6 sm:px-7">
+      {/* Left: the lesson. Its scroll padding (and, on narrow screens, the
+          focusables' scroll margin) keeps keyboard focus clear of the
+          floating lesson nav. */}
+      <div
+        className={`slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto lg:border-r lg:border-edge ${
+          hasNav ? "lg:scroll-pb-24" : ""
+        }`}
+      >
+        <article
+          className={`mx-auto w-full max-w-[46rem] flex-1 px-5 pb-10 pt-6 sm:px-7 ${
+            hasNav ? "max-lg:[&_:is(a,button,pre,[tabindex])]:scroll-mb-24" : ""
+          }`}
+        >
           <p className="eyebrow">
-            {lesson.section} · Lesson {position.index + 1} of {position.total}
+            {lesson.section} ·{" "}
+            {/* The complete mark is always laid out (shown once complete), so it
+                never moves the page, and it can't wrap onto a line of its own:
+                a long eyebrow wraps before "Lesson". */}
+            <span className="whitespace-nowrap">
+              Lesson {position.index + 1} of {position.total}
+              <span className={`ml-1.5 inline-flex h-4 items-center align-top ${complete ? "" : "invisible"}`}>
+                <CompleteIcon className="size-3.5" />
+              </span>
+            </span>
+            {complete && <span className="sr-only"> · Complete</span>}
           </p>
           <h1 className="font-display mt-2 text-headline">{lesson.title}</h1>
-          {complete && (
-            <p className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-ink">
-              <CompleteIcon /> Lesson complete
-            </p>
-          )}
           <Prose md={lesson.intro} className="mt-3 text-ink-muted" />
 
           {lesson.steps.map((step, i) => (
@@ -203,208 +298,221 @@ export function LessonView({
           )}
         </article>
 
-        {/* Floating lesson nav: only Next on the first lesson, only Prev on the last. */}
-        <div className="pointer-events-none sticky bottom-0 z-10 flex justify-center bg-gradient-to-t from-surface from-40% to-transparent px-4 pb-4 pt-8">
-          <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-card border border-edge bg-surface p-1.5 shadow-(--shadow-card)">
-            {prev && (
-              <Link
-                href={`/${lang.slug}/learn/${prev.id}`}
-                aria-label={`Previous lesson: ${prev.title}`}
-                title={prev.title}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
-              >
-                <ArrowLeft className="size-4" aria-hidden />
-                Previous
-              </Link>
-            )}
-            {next && (
-              <Link
-                href={`/${lang.slug}/learn/${next.id}`}
-                aria-label={`Next lesson: ${next.title}`}
-                className={`inline-flex min-w-0 items-center gap-1.5 rounded-btn border px-3 py-1.5 text-sm font-medium ${
-                  complete ? "border-edge-strong btn-grad" : "border-edge-strong text-ink transition-colors hover:bg-raised"
-                }`}
-              >
-                <span className="min-w-0 truncate">Next: {next.title}</span>
-                <ArrowRight className="size-4 shrink-0" aria-hidden />
-              </Link>
-            )}
+        {/* Floating lesson nav: only Next on the first lesson, only Prev on the
+            last, and none at all in a one-lesson course. */}
+        {hasNav && (
+          <div className="pointer-events-none sticky bottom-0 z-10 flex justify-center bg-gradient-to-t from-surface from-40% to-transparent px-4 pb-4 pt-8">
+            <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-card border border-edge bg-surface p-1.5 shadow-(--shadow-card)">
+              {prev && (
+                <Link
+                  href={`/${lang.slug}/learn/${prev.id}`}
+                  aria-label={`Previous lesson: ${prev.title}`}
+                  title={prev.title}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+                >
+                  <ArrowLeft className="size-4" aria-hidden />
+                  Previous
+                </Link>
+              )}
+              {next && (
+                <Link
+                  href={`/${lang.slug}/learn/${next.id}`}
+                  aria-label={`Next lesson: ${next.title}`}
+                  title={next.title}
+                  className={`inline-flex min-w-0 items-center gap-1.5 rounded-btn border px-3 py-1.5 text-sm font-medium ${
+                    complete ? "border-edge-strong btn-grad" : "border-edge-strong text-ink transition-colors hover:bg-raised"
+                  }`}
+                >
+                  <span className="min-w-0 truncate">Next: {next.title}</span>
+                  <ArrowRight className="size-4 shrink-0" aria-hidden />
+                </Link>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Right: the editor */}
-      <div ref={editorRef} className="flex h-[88dvh] min-h-0 min-w-0 flex-col p-2 lg:h-auto">
-        <div role="tablist" aria-label="Editor tabs" className="slim-scroll flex shrink-0 items-center gap-1 overflow-x-auto pb-2">
-          {tabs.map((t) => {
-            const selected = tabKey(t) === key;
+      {/* Right: the editor. Below lg it has a floor, so a short screen (a phone
+          in landscape) scrolls the page instead of squeezing out the code. */}
+      <div
+        ref={editorRef}
+        className="flex h-[88dvh] min-h-[30rem] min-w-0 scroll-mt-[calc(4rem+1px)] flex-col p-2 lg:h-auto lg:min-h-0"
+      >
+        {/* The padding (offset by the negative margins) leaves room for focus
+            rings inside these scrolling rows, the thicker super-contrast ring
+            included. */}
+        <div
+          ref={stripRef}
+          role="tablist"
+          aria-label="Editor tabs"
+          className="slim-scroll -mx-1.5 -mb-0.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pb-1.5 pt-1.5"
+        >
+          {tabs.map((t, i) => {
+            const k = tabKey(t);
+            const selected = k === key;
             return (
               <button
-                key={tabKey(t)}
+                key={k}
+                ref={(el) => {
+                  tabRefs.current[k] = el;
+                }}
+                id={tabId(t)}
                 type="button"
                 role="tab"
                 aria-selected={selected}
+                aria-controls={panelId}
+                tabIndex={selected ? 0 : -1}
                 onClick={() => openTab(t)}
+                onKeyDown={(e) => onTabKeyDown(e, i)}
                 className={`inline-flex shrink-0 items-center gap-1.5 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider transition-colors ${
                   selected ? "bg-raised text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
                 }`}
               >
                 {tabLabel(t)}
-                {t.kind === "practice" && isSolved(t.step) && <CompleteIcon className="size-3" />}
+                {/* Same-size marks either way, so tabs never move when progress loads. */}
+                {t.kind === "practice" &&
+                  (isSolved(t.step) ? (
+                    <>
+                      <CompleteIcon className="size-3" />
+                      <span className="sr-only">(solved)</span>
+                    </>
+                  ) : (
+                    <PendingIcon className="size-3" current={selected} />
+                  ))}
               </button>
             );
           })}
         </div>
 
-        <div className="slim-scroll flex shrink-0 items-center gap-2 overflow-x-auto pb-2">
-          <span className="shrink-0 font-mono text-sm font-medium">{lang.fileName}</span>
-          <span className="hidden truncate text-xs text-ink-faint sm:inline">
-            {active.kind === "example"
-              ? lesson.steps[active.step].example.title
-              : lesson.steps[active.step].practice.title}
-          </span>
-          <div className="ms-auto flex shrink-0 items-center gap-1">
-            <button
-              ref={resetAnchorRef}
-              type="button"
-              onClick={() => setResetOpen((v) => !v)}
-              aria-label={active.kind === "example" ? "Reset to the original example" : "Reset to the starter code"}
-              title={active.kind === "example" ? "Reset to the original example" : "Reset to the starter code"}
-              aria-pressed={resetOpen}
-              className={iconBtn}
-            >
-              <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 3c-2 0-3 1-3 3v3c0 1-1 2-2 2 1 0 2 1 2 2v3c0 2 1 3 3 3" />
-                <path d="M16 3c2 0 3 1 3 3v3c0 1 1 2 2 2-1 0-2 1-2 2v3c0 2-1 3-3 3" />
-              </svg>
-            </button>
-            <AnchoredPanel
-              anchorRef={resetAnchorRef}
-              open={resetOpen}
-              onClose={() => setResetOpen(false)}
-              align="right"
-              className="z-[130] w-60 rounded-card border border-edge bg-surface p-3 text-sm shadow-[var(--shadow-card)]"
-            >
-              <p className="font-medium text-ink">
-                {active.kind === "example" ? "Reset this example?" : "Reset to the starter code?"}
-              </p>
-              <p className="mt-1 text-xs text-ink-muted">
-                This replaces what&apos;s in this tab with the original code.
-              </p>
-              <div className="mt-3 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setResetOpen(false)}
-                  className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetTab();
-                    setResetOpen(false);
-                  }}
-                  className="rounded-btn border border-edge-strong px-3 py-1.5 text-xs font-medium btn-grad"
-                >
-                  Reset
-                </button>
-              </div>
-            </AnchoredPanel>
-            <EditorSettingsButton
-              buttonClassName={`${iconBtn} shrink-0`}
-              className="shrink-0"
-              tools={<CodeThemePicker className="field w-full rounded-btn px-2 py-1.5 text-xs font-medium text-ink" />}
-            />
-            {active.kind === "practice" ? (
-              <>
+        <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className="flex min-h-0 flex-1 flex-col">
+          <div className="slim-scroll -mx-1.5 -mt-0.5 flex shrink-0 items-center gap-2 overflow-x-auto px-1.5 pb-2 pt-1.5">
+            <span className="shrink-0 font-mono text-sm font-medium">{lang.fileName}</span>
+            <span className="hidden truncate text-xs text-ink-faint sm:inline">
+              {active.kind === "example"
+                ? lesson.steps[active.step].example.title
+                : lesson.steps[active.step].practice.title}
+            </span>
+            <div className="ms-auto flex shrink-0 items-center gap-1">
+              <ResetCodeButton
+                label={active.kind === "example" ? "Reset to the original example" : "Reset to the starter code"}
+                title={active.kind === "example" ? "Reset this example?" : "Reset to the starter code?"}
+                description="This replaces what's in this tab with the original code."
+                onReset={resetTab}
+                className={iconBtn}
+              />
+              <EditorSettingsButton
+                buttonClassName={`${iconBtn} shrink-0`}
+                className="shrink-0"
+                tools={<CodeThemePicker className="field w-full rounded-btn px-2 py-1.5 text-xs font-medium text-ink" />}
+              />
+              {active.kind === "practice" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={run}
+                    disabled={busy}
+                    className="shrink-0 rounded-btn border border-edge-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-raised disabled:opacity-50"
+                  >
+                    ▶ Run
+                  </button>
+                  <button
+                    type="button"
+                    onClick={check}
+                    disabled={busy}
+                    className="shrink-0 rounded-btn border border-edge-strong px-4 py-1.5 text-sm font-medium btn-grad disabled:opacity-50"
+                  >
+                    {busyKey === key && panel.mode === "check" ? "Checking…" : "Check"}
+                  </button>
+                </>
+              ) : (
                 <button
                   type="button"
                   onClick={run}
                   disabled={busy}
-                  className="shrink-0 rounded-btn border border-edge-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-raised disabled:opacity-50"
-                >
-                  ▶ Run
-                </button>
-                <button
-                  type="button"
-                  onClick={check}
-                  disabled={busy}
                   className="shrink-0 rounded-btn border border-edge-strong px-4 py-1.5 text-sm font-medium btn-grad disabled:opacity-50"
                 >
-                  {busy && panel.mode === "check" ? "Checking…" : "Check"}
+                  {busyKey === key ? "Running…" : "▶ Run"}
                 </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={run}
-                disabled={busy}
-                className="shrink-0 rounded-btn border border-edge-strong px-4 py-1.5 text-sm font-medium btn-grad disabled:opacity-50"
-              >
-                {busy ? "Running…" : "▶ Run"}
-              </button>
-            )}
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="code-dark flex min-h-0 flex-[3] flex-col overflow-hidden rounded-card border border-code-edge bg-code-bg">
-          <div className="min-h-0 flex-1">
-            <CmEditor
-              key={`${lesson.id}:${key}`}
-              value={code}
-              language={lang.slug}
-              onChange={updateCode}
-              ariaLabel={`${tabLabel(active)} editor`}
-            />
-          </div>
-          <div className="shrink-0 border-t border-code-edge bg-code-bg">
-            <button
-              type="button"
-              onClick={() => setShowStdin((v) => !v)}
-              className="code-stdin-toggle flex w-full items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors"
-            >
-              <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
-              <span>stdin</span>
-              {!showStdin && stdin ? <span className="truncate text-code-gutter">· {stdin.split("\n")[0]}</span> : null}
-            </button>
-            {showStdin && (
-              <textarea
-                value={stdin}
-                onChange={(e) => setStdins((s) => ({ ...s, [key]: e.target.value }))}
-                rows={2}
-                placeholder="Input passed to your program on stdin..."
-                className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-edge bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
+          <div className="code-dark flex min-h-[12rem] flex-[3] flex-col overflow-hidden rounded-card border border-code-edge bg-code-bg lg:min-h-0">
+            <div className="min-h-0 flex-1">
+              <CmEditor
+                key={`${lesson.id}:${key}`}
+                value={code}
+                language={lang.slug}
+                onChange={updateCode}
+                ariaLabel={`${tabLabel(active)} editor`}
               />
-            )}
-          </div>
-        </div>
-
-        <div className="mt-2 flex min-h-[9rem] flex-[2] flex-col">
-          <div className="flex shrink-0 items-center gap-1 pb-2">
-            <h2 className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
-              {panel.mode === "check" ? "Results" : "Output"}
-            </h2>
-            {active.kind === "practice" && panel.mode === "run" && panel.run.status === "idle" && (
-              <span className="truncate text-xs text-ink-faint">
-                Run tries your code. Check runs it against {lesson.steps[active.step].practice.tests.length} test
-                {lesson.steps[active.step].practice.tests.length === 1 ? "" : "s"}.
-              </span>
-            )}
-            {((panel.mode === "run" && panel.run.status === "done") || (panel.mode === "check" && panel.check.status === "done")) && (
+            </div>
+            <div className="shrink-0 border-t border-code-edge bg-code-bg">
+              {/* The code box clips anything outside it, so this focus ring
+                  sits inside the button (rounded like the box's corners when
+                  it's the last row), in the code text color. */}
               <button
                 type="button"
-                onClick={() => setPanel(key, { mode: "run", run: { status: "idle" } })}
-                className="ms-auto rounded-btn px-2.5 py-1 text-xs font-medium text-ink-faint transition-colors hover:text-ink"
+                onClick={() => setShowStdin((v) => !v)}
+                aria-expanded={showStdin}
+                aria-controls={showStdin ? stdinId : undefined}
+                className={`code-stdin-toggle flex w-full items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${
+                  showStdin ? "" : "rounded-b-[calc(var(--radius-card)-1px)]"
+                }`}
               >
-                Clear
+                <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
+                <span>stdin</span>
+                {!showStdin && stdin ? <span className="truncate text-code-gutter">· {stdin.split("\n")[0]}</span> : null}
               </button>
-            )}
+              {showStdin && (
+                <textarea
+                  id={stdinId}
+                  aria-label="Program input (stdin)"
+                  value={stdin}
+                  onChange={(e) => setStdins((s) => ({ ...s, [key]: e.target.value }))}
+                  rows={2}
+                  placeholder="Input passed to your program on stdin..."
+                  className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-edge bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
+                />
+              )}
+            </div>
           </div>
-          <div className="slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface">
-            {panel.mode === "check" ? <CheckResults check={panel.check} next={nextLink} /> : <OutputPanel run={panel.run} />}
+
+          <div ref={outputRef} className="mt-2 flex min-h-[9rem] flex-[2] scroll-mb-2 scroll-mt-[calc(4rem+1px)] flex-col">
+            <div className="flex shrink-0 items-center gap-1 pb-2">
+              <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
+                {panel.mode === "check" ? "Results" : "Output"}
+              </h2>
+              {active.kind === "practice" && panel.mode === "run" && panel.run.status === "idle" && (
+                <span className="truncate text-xs text-ink-faint">
+                  Run tries your code. Check runs it against {lesson.steps[active.step].practice.tests.length} test
+                  {lesson.steps[active.step].practice.tests.length === 1 ? "" : "s"}.
+                </span>
+              )}
+              {((panel.mode === "run" && panel.run.status === "done") || (panel.mode === "check" && panel.check.status === "done")) && (
+                <button
+                  type="button"
+                  onClick={() => setPanel(key, { mode: "run", run: { status: "idle" } })}
+                  className="ms-auto rounded-btn px-2.5 py-1 text-xs font-medium text-ink-faint transition-colors hover:text-ink"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            {/* Focusable, so long results can be scrolled from the keyboard. */}
+            <div
+              role="region"
+              aria-labelledby={outputId}
+              tabIndex={0}
+              className="slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface"
+            >
+              {panel.mode === "check" ? <CheckResults check={panel.check} next={nextLink} /> : <OutputPanel run={panel.run} />}
+            </div>
           </div>
         </div>
+        <p role="status" className="sr-only">
+          {announcement}
+        </p>
       </div>
     </div>
   );
@@ -432,6 +540,21 @@ function StepSection({
   const [hintsShown, setHintsShown] = useState(0);
   // Two clicks to reveal the solution, so it is never shown by accident.
   const [solution, setSolution] = useState<"hidden" | "armed" | "shown">("hidden");
+  const hintRef = useRef<HTMLLIElement>(null);
+  const solutionRef = useRef<HTMLDivElement>(null);
+  // What was just revealed, and whether to scroll to it (a pointer click
+  // leaves the page where it is).
+  const revealed = useRef<{ target: "hint" | "solution"; scroll: boolean } | null>(null);
+
+  // Focus moves to what you revealed: it is read out, and focus isn't lost
+  // when the button that revealed it goes away.
+  useEffect(() => {
+    const r = revealed.current;
+    revealed.current = null;
+    if (!r) return;
+    const el = r.target === "hint" ? hintRef.current : solutionRef.current;
+    el?.focus({ preventScroll: !r.scroll });
+  }, [hintsShown, solution]);
 
   return (
     <section id={`step-${index + 1}`} className="mt-12 scroll-mt-4">
@@ -452,25 +575,36 @@ function StepSection({
         </div>
         <h3 className="mt-1.5 font-medium text-ink">{example.title}</h3>
         <Prose md={example.prompt} className="mt-1.5 text-ink-muted" />
-        <CopyableCodeBlock code={example.code} className="mt-3" preClassName={CODE_BLOCK}>
+        <CopyableCodeBlock code={example.code} label="Example code" className="mt-3" preClassName={CODE_BLOCK}>
           <Highlight code={example.code} language={language} />
         </CopyableCodeBlock>
         {example.stdin ? (
           <>
             <p className="mt-4 text-xs font-medium text-ink-faint">Input</p>
-            <pre className={PLAIN_BLOCK}>{example.stdin}</pre>
+            <ScrollPre label="Example input" className={PLAIN_BLOCK}>
+              {example.stdin}
+            </ScrollPre>
           </>
         ) : null}
         <p className="mt-4 text-xs font-medium text-ink-faint">Output</p>
-        <pre className={PLAIN_BLOCK}>{example.output}</pre>
+        <ScrollPre label="Example output" className={PLAIN_BLOCK}>
+          {example.output}
+        </ScrollPre>
         <p className="mt-4 text-sm font-medium text-ink">How it works</p>
         <Prose md={example.explanation} className="mt-1 text-ink-muted" />
       </div>
 
       <div className="mt-8 border-l-2 border-edge-strong pl-5">
-        <p className="eyebrow flex items-center gap-1.5">
-          {solved && <CompleteIcon className="size-3.5" />}
-          {solved ? "Your turn · solved" : "Your turn"}
+        <p className="eyebrow">
+          Your turn{" "}
+          {/* Always laid out, shown once solved, so it never moves the page. */}
+          <span className={`whitespace-nowrap ${solved ? "" : "invisible"}`}>
+            ·{" "}
+            <span className="inline-flex items-center gap-1.5 align-top">
+              <CompleteIcon className="size-3.5" />
+              Solved
+            </span>
+          </span>
         </p>
         <h3 className="mt-1.5 font-medium text-ink">{practice.title}</h3>
         <Prose md={practice.prompt} className="mt-1.5" />
@@ -478,15 +612,26 @@ function StepSection({
           <button
             type="button"
             onClick={onOpenPractice}
-            className="inline-flex items-center gap-1.5 rounded-btn border border-edge-strong px-3 py-1.5 text-xs font-medium btn-grad"
+            className="inline-grid rounded-btn border border-edge-strong px-3 py-1.5 text-xs font-medium btn-grad"
           >
-            {solved ? "Open your code" : "Start coding"}
-            <ArrowRight className="size-3.5" aria-hidden />
+            {/* Both labels share one cell, so the button is the same width
+                solved or not and nothing beside it moves when progress loads. */}
+            <span className={`col-start-1 row-start-1 inline-flex items-center justify-center gap-1.5 ${solved ? "invisible" : ""}`}>
+              Start coding
+              <ArrowRight className="size-3.5" aria-hidden />
+            </span>
+            <span className={`col-start-1 row-start-1 inline-flex items-center justify-center gap-1.5 ${solved ? "" : "invisible"}`}>
+              Open your code
+              <ArrowRight className="size-3.5" aria-hidden />
+            </span>
           </button>
           {hints.length > 0 && hintsShown < hints.length && (
             <button
               type="button"
-              onClick={() => setHintsShown((n) => n + 1)}
+              onClick={(e) => {
+                revealed.current = { target: "hint", scroll: e.detail === 0 };
+                setHintsShown((n) => n + 1);
+              }}
               className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
             >
               {hintsShown === 0 ? "Show a hint" : `Another hint (${hintsShown}/${hints.length})`}
@@ -495,7 +640,10 @@ function StepSection({
           {solution !== "shown" && (
             <button
               type="button"
-              onClick={() => setSolution(solution === "armed" ? "shown" : "armed")}
+              onClick={(e) => {
+                if (solution === "armed") revealed.current = { target: "solution", scroll: e.detail === 0 };
+                setSolution(solution === "armed" ? "shown" : "armed");
+              }}
               onBlur={() => solution === "armed" && setSolution("hidden")}
               className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
             >
@@ -506,16 +654,16 @@ function StepSection({
         {hintsShown > 0 && (
           <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-ink-muted">
             {hints.slice(0, hintsShown).map((h, i) => (
-              <li key={i}>
+              <li key={i} ref={i === hintsShown - 1 ? hintRef : undefined} tabIndex={-1} className="rounded-btn">
                 <Prose md={h} />
               </li>
             ))}
           </ol>
         )}
         {solution === "shown" && (
-          <div className="mt-4">
+          <div ref={solutionRef} tabIndex={-1} className="mt-4 rounded-card">
             <p className="text-xs font-medium text-ink-faint">One solution</p>
-            <CopyableCodeBlock code={practice.solution} className="mt-1.5" preClassName={CODE_BLOCK}>
+            <CopyableCodeBlock code={practice.solution} label="Solution code" className="mt-1.5" preClassName={CODE_BLOCK}>
               <Highlight code={practice.solution} language={language} />
             </CopyableCodeBlock>
           </div>

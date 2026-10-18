@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { EditorState, Compartment } from "@codemirror/state";
 import {
   EditorView,
@@ -128,6 +128,7 @@ export function CmEditor({
   const onChangeRef = useRef(onChange);
   const settings = useCodeEditorSettings();
   onChangeRef.current = onChange;
+  const exitHintId = useId();
 
   // Create the editor once. Each language is its own page, so the grammar is
   // fixed for the editor's lifetime.
@@ -181,7 +182,7 @@ export function CmEditor({
           EditorView.updateListener.of((u) => {
             if (u.docChanged) onChangeRef.current(u.state.doc.toString());
           }),
-          EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
+          EditorView.contentAttributes.of({ "aria-label": ariaLabel, "aria-describedby": exitHintId }),
         ],
       }),
     });
@@ -229,6 +230,11 @@ export function CmEditor({
         ref={hostRef}
         className="code-dark slim-scroll h-full min-h-0 overflow-hidden bg-code-bg [--code-fs:max(16px,var(--code-user-fs))] sm:[--code-fs:var(--code-user-fs)]"
       />
+      {/* Tab indents code, so screen readers hear the way out (CodeMirror's
+          Escape, then Tab). */}
+      <p id={exitHintId} className="sr-only">
+        Press Escape, then Tab, to move focus out of the editor.
+      </p>
     </div>
   );
 }

@@ -71,6 +71,15 @@ export async function getLessonOrder(lang: string): Promise<LessonMeta[]> {
   return course ? course.sections.flatMap((s) => s.lessons) : [];
 }
 
+/** Lesson ids in course order for every language that has a Learn mode (a
+    course with at least one lesson), keyed by language in rail order. */
+export async function getLessonIdsByLang(): Promise<Record<string, string[]>> {
+  const all = await Promise.all(
+    COMPILER_SLUGS.map(async (lang) => [lang, (await getLessonOrder(lang)).map((l) => l.id)] as const)
+  );
+  return Object.fromEntries(all.filter(([, ids]) => ids.length > 0));
+}
+
 /** Route params for every prerendered lesson page. */
 export async function getAllLessonParams(): Promise<{ lang: string; lesson: string }[]> {
   const all = await Promise.all(

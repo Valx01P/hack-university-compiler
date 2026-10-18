@@ -1,16 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { GraduationCap } from "lucide-react";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { CodeThemePicker } from "@/components/code/code-theme";
-import { AnchoredPanel } from "@/components/ui/anchored-panel";
+import { ResetCodeButton } from "@/components/code/reset-code-button";
 import { LangIcon } from "@/components/compiler/lang-icon";
 import { OutputPanel } from "@/components/compiler/output-panel";
+import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { COMPILER_LANGS, type CompilerLang } from "@/lib/compiler";
-import { lastLesson } from "@/lib/learn-progress";
+import { useResumeLesson } from "@/lib/learn-progress";
 import { runInSandbox, type RunState } from "@/lib/run-code";
 
 type Orient = "horizontal" | "vertical";
@@ -37,11 +38,11 @@ function savedCode(lang: CompilerLang): string {
 
 export function CompilerApp({
   lang,
-  firstLesson,
+  lessons,
 }: {
   lang: CompilerLang;
-  /** First Learn lesson for this language, or null when it has no course. */
-  firstLesson: string | null;
+  /** Learn lesson ids in course order; empty when this language has no course. */
+  lessons: string[];
 }) {
   // Read while initializing, not in an effect, so the editor opens straight on
   // your code: no starter flash, and ⌘Z can't undo back to the starter. The
@@ -50,10 +51,14 @@ export function CompilerApp({
   const [code, setCode] = useState(() => savedCode(lang));
   const [stdin, setStdin] = useState("");
   const [showStdin, setShowStdin] = useState(false);
+  const stdinId = useId();
   const [run, setRun] = useState<RunState>({ status: "idle" });
-  // Reset-to-starter confirm popover.
-  const [resetOpen, setResetOpen] = useState(false);
-  const resetAnchorRef = useRef<HTMLButtonElement>(null);
+  const running = run.status === "running";
+  // Run is disabled while it runs: from the keyboard, focus comes back to it
+  // after, and a screen reader hears how the run ended.
+  const rememberRunButton = useReturnFocus(running);
+  const [announcement, setAnnouncement] = useState("");
+  const outputId = useId();
   const [orient, setOrient] = useState<Orient>(() => sessionLayout.orient);
   const [splitPct, setSplitPct] = useState(() => sessionLayout.splitPct);
   const [full, setFull] = useState(false);
@@ -62,12 +67,10 @@ export function CompilerApp({
   const orientRef = useRef(orient);
   orientRef.current = orient;
 
-  // Learn picks up where you left off: the last lesson you opened, else the
-  // first. The button keeps its size either way, so nothing shifts.
-  const [learnLesson, setLearnLesson] = useState(firstLesson);
-  useEffect(() => {
-    if (firstLesson) setLearnLesson(lastLesson(lang.slug) ?? firstLesson);
-  }, [lang.slug, firstLesson]);
+  // Learn picks up where you left off: the last lesson you opened while it's
+  // still in the course, else the first. The button keeps its size either
+  // way, so nothing shifts.
+  const learnLesson = useResumeLesson(lang.slug, lessons);
 
   function updateCode(next: string) {
     setCode(next);
@@ -95,8 +98,11 @@ export function CompilerApp({
 
   async function execute() {
     setRun({ status: "running" });
+    setAnnouncement("");
     const result = await runInSandbox(lang.slug, code, stdin);
-    setRun(result.ok ? { status: "done", ...result.run } : { status: "error", error: result.error });
+    const done: RunState = result.ok ? { status: "done", ...result.run } : { status: "error", error: result.error };
+    setRun(done);
+    setAnnouncement(runSummary(done));
   }
 
   // Drag the divider between editor and output. Pointer capture keeps move
@@ -198,8 +204,10 @@ export function CompilerApp({
           {/* Editor pane */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2 lg:flex-none">
 
-            {/* Toolbar, right above the editor so Run is always close. */}
-            <div className="slim-scroll flex shrink-0 items-center gap-2 overflow-x-auto pb-3">
+            {/* Toolbar, right above the editor so Run is always close. A
+                scroller clips what overflows it, so it gets padding (offset
+                by negative margins) to keep the focus rings whole. */}
+            <div className="slim-scroll -mx-1.5 -mt-1.5 flex shrink-0 items-center gap-2 overflow-x-auto px-1.5 pt-1.5 pb-3">
               <span className="shrink-0 font-mono text-sm font-medium">{lang.fileName}</span>
               <div className="ms-auto flex shrink-0 items-center gap-1">
                 <button
@@ -225,53 +233,13 @@ export function CompilerApp({
                     <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
                   </svg>
                 </button>
-                <button
-                  ref={resetAnchorRef}
-                  type="button"
-                  onClick={() => setResetOpen((v) => !v)}
-                  aria-label="Reset to the starter code"
-                  title="Reset to the starter code"
-                  aria-pressed={resetOpen}
+                <ResetCodeButton
+                  label="Reset to the starter code"
+                  title="Reset to starter code?"
+                  description="This replaces what's in the editor with the original starter code."
+                  onReset={resetCode}
                   className={`${iconBtn} shrink-0`}
-                >
-                  {/* Curly braces: reset to the starter definition. */}
-                  <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M8 3c-2 0-3 1-3 3v3c0 1-1 2-2 2 1 0 2 1 2 2v3c0 2 1 3 3 3" />
-                    <path d="M16 3c2 0 3 1 3 3v3c0 1 1 2 2 2-1 0-2 1-2 2v3c0 2-1 3-3 3" />
-                  </svg>
-                </button>
-                <AnchoredPanel
-                  anchorRef={resetAnchorRef}
-                  open={resetOpen}
-                  onClose={() => setResetOpen(false)}
-                  align="right"
-                  className="z-[130] w-60 rounded-card border border-edge bg-surface p-3 text-sm shadow-[var(--shadow-card)]"
-                >
-                  <p className="font-medium text-ink">Reset to starter code?</p>
-                  <p className="mt-1 text-xs text-ink-muted">
-                    This replaces what&apos;s in the editor with the original
-                    starter code.
-                  </p>
-                  <div className="mt-3 flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setResetOpen(false)}
-                      className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        resetCode();
-                        setResetOpen(false);
-                      }}
-                      className="rounded-btn border border-edge-strong px-3 py-1.5 text-xs font-medium btn-grad"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </AnchoredPanel>
+                />
                 <EditorSettingsButton
                   buttonClassName={`${iconBtn} shrink-0`}
                   className="shrink-0"
@@ -281,11 +249,14 @@ export function CompilerApp({
                 />
                 <button
                   type="button"
-                  onClick={execute}
-                  disabled={run.status === "running"}
+                  onClick={(e) => {
+                    rememberRunButton(e);
+                    execute();
+                  }}
+                  disabled={running}
                   className="shrink-0 rounded-btn border border-edge-strong px-4 py-1.5 text-sm font-medium btn-grad disabled:opacity-50"
                 >
-                  {run.status === "running" ? "Running…" : "▶ Run"}
+                  {running ? "Running…" : "▶ Run"}
                 </button>
               </div>
             </div>
@@ -299,10 +270,17 @@ export function CompilerApp({
                 />
               </div>
               <div className="shrink-0 border-t border-code-edge bg-code-bg">
+                {/* The code box clips anything outside it, so this focus ring
+                    sits inside the button (rounded like the box's corners
+                    when it's the last row), in the code text color. */}
                 <button
                   type="button"
                   onClick={() => setShowStdin((v) => !v)}
-                  className="code-stdin-toggle flex w-full items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors"
+                  aria-expanded={showStdin}
+                  aria-controls={showStdin ? stdinId : undefined}
+                  className={`code-stdin-toggle flex w-full items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${
+                    showStdin ? "" : "rounded-b-[calc(var(--radius-card)-1px)]"
+                  }`}
                 >
                   <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
                   <span>stdin</span>
@@ -312,6 +290,7 @@ export function CompilerApp({
                 </button>
                 {showStdin && (
                   <textarea
+                    id={stdinId}
                     value={stdin}
                     onChange={(e) => setStdin(e.target.value)}
                     rows={2}
@@ -372,8 +351,9 @@ export function CompilerApp({
 
           {/* Right pane: output */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
-            <div className="slim-scroll flex shrink-0 items-center gap-1 overflow-x-auto pb-3">
-              <h2 className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
+            {/* Padded for whole focus rings, like the toolbar. */}
+            <div className="slim-scroll -mx-1.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pt-1.5 pb-3">
+              <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
                 Output
               </h2>
               <div className="ms-auto flex shrink-0 items-center gap-1">
@@ -399,9 +379,18 @@ export function CompilerApp({
               </div>
             </div>
 
-            <div className="slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface">
+            {/* Focusable, so long output can be scrolled from the keyboard. */}
+            <div
+              role="region"
+              aria-labelledby={outputId}
+              tabIndex={0}
+              className="slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface"
+            >
               <OutputPanel run={run} />
             </div>
+            <p role="status" className="sr-only">
+              {announcement}
+            </p>
           </div>
         </div>
       </div>

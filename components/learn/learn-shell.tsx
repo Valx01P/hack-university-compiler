@@ -19,11 +19,14 @@ export function LearnShell({
   lang,
   langLabel,
   course,
+  lessonIds,
   children,
 }: {
   lang: string;
   langLabel: string;
   course: Course;
+  /** Lesson ids in course order for every language that has a course. */
+  lessonIds: Record<string, string[]>;
   children: React.ReactNode;
 }) {
   const pathname = usePathname() ?? "";
@@ -49,7 +52,7 @@ export function LearnShell({
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-edge px-3 py-1.5">
           <span className="flex min-w-0 items-center gap-0.5">
             <span className="xl:hidden">
-              <LessonMenu lang={lang} langLabel={langLabel} course={course} currentId={currentId} />
+              <LessonMenu lang={lang} langLabel={langLabel} course={course} currentId={currentId} lessonIds={lessonIds} />
             </span>
             <span className="flex items-center xl:-ml-1">
               <button type="button" onClick={() => router.back()} disabled={!hist.back} aria-label="Go back" title="Go back" className={arrow}>
@@ -66,8 +69,11 @@ export function LearnShell({
             )}
           </span>
           <span className="flex shrink-0 items-center gap-2">
-            {/* No room on phones; a run still reports sandbox problems. */}
-            <span className="hidden sm:contents">
+            {/* No room on phones; a run still reports sandbox problems. The
+                badge shows up once the sandbox answers, so it gets a slot as
+                wide as its longest label ("sandbox offline") in the server
+                markup, and nothing moves when it appears. */}
+            <span className="hidden min-w-32 justify-end sm:flex">
               <SandboxStatus lang={lang} />
             </span>
             <Link
@@ -83,7 +89,7 @@ export function LearnShell({
 
         <div className="flex min-h-0 flex-1">
           <aside className="hidden w-64 shrink-0 border-r border-edge xl:flex xl:flex-col">
-            <LessonList lang={lang} langLabel={langLabel} course={course} currentId={currentId} />
+            <LessonList lang={lang} langLabel={langLabel} course={course} currentId={currentId} lessonIds={lessonIds} />
           </aside>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
         </div>

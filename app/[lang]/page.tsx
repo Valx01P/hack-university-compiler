@@ -24,11 +24,11 @@ export default async function CompilerLangPage(props: PageProps<"/[lang]">) {
   const { lang: slug } = await props.params;
   const lang = getCompilerLang(slug);
   if (!lang) notFound();
-  const [firstLesson] = await getLessonOrder(lang.slug);
+  const lessons = (await getLessonOrder(lang.slug)).map((l) => l.id);
 
   return (
     <CompilerShell lang={lang.slug}>
-      <CompilerApp lang={lang} firstLesson={firstLesson?.id ?? null} />
+      <CompilerApp lang={lang} lessons={lessons} />
     </CompilerShell>
   );
 }

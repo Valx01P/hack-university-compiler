@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { CompleteIcon } from "@/components/learn/complete-icon";
+import { ScrollPre } from "@/components/ui/scroll-pre";
 
 export interface TestResult {
   stdin: string;
@@ -14,6 +17,26 @@ export type CheckState =
   | { status: "error"; error: string }
   | { status: "compile-error"; output: string }
   | { status: "done"; results: TestResult[]; lessonComplete: boolean };
+
+/** The verdict of a check in one line, for screen readers. */
+export function checkSummary(check: CheckState): string {
+  switch (check.status) {
+    case "checking":
+      return "";
+    case "error":
+      return check.error;
+    case "compile-error":
+      return "Your code didn't compile.";
+    case "done": {
+      const total = check.results.length;
+      const passed = check.results.filter((r) => r.passed).length;
+      if (passed < total) return `${passed} of ${total} test${total === 1 ? "" : "s"} passed.`;
+      return `Solved! ${total === 1 ? "The test passed." : `All ${total} tests passed.`}${
+        check.lessonComplete ? " Lesson complete." : ""
+      }`;
+    }
+  }
+}
 
 /** The verdict of a practice check: every test, and what differed. */
 export function CheckResults({
@@ -83,10 +106,10 @@ export function CheckResults({
           </p>
           {!r.passed && (
             <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
-              {r.stdin && <OutputBlock label="Input" text={r.stdin} className="sm:col-span-2" />}
-              <OutputBlock label="Expected" text={r.expected} />
-              <OutputBlock label="Your output" text={r.actual || "(no output)"} />
-              {r.stderr && <OutputBlock label="Errors" text={r.stderr} className="sm:col-span-2" danger />}
+              {r.stdin && <OutputBlock test={i + 1} label="Input" text={r.stdin} className="sm:col-span-2" />}
+              <OutputBlock test={i + 1} label="Expected" text={r.expected} />
+              <OutputBlock test={i + 1} label="Your output" text={r.actual || "(no output)"} />
+              {r.stderr && <OutputBlock test={i + 1} label="Errors" text={r.stderr} className="sm:col-span-2" danger />}
             </div>
           )}
         </div>
@@ -96,11 +119,13 @@ export function CheckResults({
 }
 
 function OutputBlock({
+  test,
   label,
   text,
   className = "",
   danger = false,
 }: {
+  test: number;
   label: string;
   text: string;
   className?: string;
@@ -109,13 +134,14 @@ function OutputBlock({
   return (
     <div className={`min-w-0 ${className}`}>
       <p className="mb-1 text-xs text-ink-faint">{label}</p>
-      <pre
+      <ScrollPre
+        label={`Test ${test}: ${label}`}
         className={`slim-scroll max-h-48 overflow-auto rounded-btn border border-edge bg-raised px-3 py-2 font-mono text-xs leading-5 ${
           danger ? "text-danger" : "text-ink"
         }`}
       >
         {text}
-      </pre>
+      </ScrollPre>
     </div>
   );
 }

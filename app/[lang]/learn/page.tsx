@@ -1,15 +1,11 @@
 import { notFound, redirect } from "next/navigation";
-import { COMPILER_SLUGS } from "@/lib/compiler";
-import { getCourse, getLessonOrder } from "@/lib/learn";
+import { getLessonIdsByLang, getLessonOrder } from "@/lib/learn";
 
 // Only languages with a course have a Learn mode.
 export const dynamicParams = false;
 
 export async function generateStaticParams() {
-  const withCourse = await Promise.all(
-    COMPILER_SLUGS.map(async (lang) => ((await getCourse(lang)) ? { lang } : null))
-  );
-  return withCourse.filter((p) => p !== null);
+  return Object.keys(await getLessonIdsByLang()).map((lang) => ({ lang }));
 }
 
 /** /<lang>/learn starts the course at its first lesson. */
