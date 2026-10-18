@@ -193,8 +193,11 @@ color.
 that divide the page: the panel's outline, the language rail, the lesson list
 and its dividers, the editor and output boxes, the cheatsheet and challenges
 panel, and the outlined buttons (Cheatsheet, Challenges, Learn, Compiler, and
-Previous/Next). Slide it to 0 for a borderless page. **Table lines**, under it,
-does the same for the tables in lessons and cheatsheets, separately.
+Previous/Next). Slide it to 0 for a borderless page. **Content lines**, under
+it, does the same for the lines inside the content, separately: tables, code
+blocks and `inline code`, search boxes and dropdowns, and the dividers in
+lessons, cheatsheets, challenges, and results. A focused field always shows its
+border.
 
 ## How it works
 
@@ -219,7 +222,7 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
   and the system's "reduce motion" setting turns them off.
 - Saved in the browser's local storage: your code (per language), editor zoom,
   tab size, intellisense, theme, editor theme, contrast level, code background,
-  layout lines, and table lines. Everything visual is applied before the page
+  layout lines, and content lines. Everything visual is applied before the page
   paints, so nothing shifts on reload. The editor/output split isn't saved, so
   a reload always opens on the default layout (it does carry over while you
   switch languages).
