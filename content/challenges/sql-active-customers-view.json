@@ -1,0 +1,39 @@
+{
+  "id": "sql-active-customers-view",
+  "title": "Active Customers View",
+  "category": "views",
+  "difficulty": "medium",
+  "statement": "A shop keeps its customers and their orders in two tables:\n\n- `customers`: `id` (integer key), `name` (text, unique), and `city` (text).\n- `orders`: `id` (integer key), `customer_id` (the customer who placed it), `total` (numeric), and `ordered_on` (date).\n\nCreate a view named `active_customers` with one row for each customer who has at least one order. It has two columns: `name` and `order_count`, the number of orders that customer placed. Customers with no orders are left out.\n\nThen select `name` and `order_count` from the view, ordered by `name`. Creating the view prints the `CREATE VIEW` tag before the result.\n\nExpected output:\n\n```text\nCREATE VIEW\n\n     name     | order_count\n--------------+-------------\n Amara Okafor |           3\n Chen Wei     |           2\n Elif Kaya    |           1\n Felix Wagner |           1\n(4 rows)\n```",
+  "setup": "CREATE TABLE customers (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL UNIQUE,\n  city TEXT NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  customer_id INTEGER NOT NULL REFERENCES customers (id),\n  total NUMERIC(8, 2) NOT NULL,\n  ordered_on DATE NOT NULL\n);\n\nINSERT INTO customers (id, name, city) VALUES\n  (1, 'Amara Okafor', 'Lagos'),\n  (2, 'Bruno Silva', 'Porto'),\n  (3, 'Chen Wei', 'Taipei'),\n  (4, 'Dana Levi', 'Haifa'),\n  (5, 'Elif Kaya', 'Izmir'),\n  (6, 'Felix Wagner', 'Graz');\n\nINSERT INTO orders (id, customer_id, total, ordered_on) VALUES\n  (101, 1, 42.50, '2026-05-02'),\n  (102, 3, 18.00, '2026-05-03'),\n  (103, 1, 75.20, '2026-05-07'),\n  (104, 5, 12.99, '2026-05-08'),\n  (105, 3, 64.00, '2026-05-11'),\n  (106, 1, 9.75, '2026-05-12'),\n  (107, 6, 120.00, '2026-05-15');\n",
+  "tests": [
+    {
+      "output": "CREATE VIEW\n\n     name     | order_count\n--------------+-------------\n Amara Okafor |           3\n Chen Wei     |           2\n Elif Kaya    |           1\n Felix Wagner |           1\n(4 rows)"
+    },
+    {
+      "stdin": "INSERT INTO orders (id, customer_id, total, ordered_on) VALUES\n  (108, 2, 33.10, '2026-05-16'),\n  (109, 4, 15.00, '2026-05-17'),\n  (110, 4, 27.45, '2026-05-18');\n",
+      "output": "CREATE VIEW\n\n     name     | order_count\n--------------+-------------\n Amara Okafor |           3\n Bruno Silva  |           1\n Chen Wei     |           2\n Dana Levi    |           2\n Elif Kaya    |           1\n Felix Wagner |           1\n(6 rows)"
+    },
+    {
+      "stdin": "DELETE FROM orders WHERE customer_id IN (1, 6);\n",
+      "output": "CREATE VIEW\n\n   name    | order_count\n-----------+-------------\n Chen Wei  |           2\n Elif Kaya |           1\n(2 rows)"
+    },
+    {
+      "stdin": "INSERT INTO customers (id, name, city) VALUES (7, 'Aaron Brooks', 'Leeds');\nINSERT INTO orders (id, customer_id, total, ordered_on) VALUES\n  (108, 7, 58.00, '2026-05-20'),\n  (109, 5, 21.30, '2026-05-21');\nDELETE FROM orders WHERE id = 102;\n",
+      "output": "CREATE VIEW\n\n     name     | order_count\n--------------+-------------\n Aaron Brooks |           1\n Amara Okafor |           3\n Chen Wei     |           1\n Elif Kaya    |           2\n Felix Wagner |           1\n(5 rows)"
+    },
+    {
+      "stdin": "DELETE FROM orders;\n",
+      "output": "CREATE VIEW\n\n name | order_count\n------+-------------\n(0 rows)"
+    }
+  ],
+  "hints": [
+    "A view is a saved query: `CREATE VIEW name AS SELECT ...`.",
+    "Joining customers to orders keeps only customers who have a matching order. Then group by customer and count."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: count each customer's orders and keep only customers who have one\nCREATE VIEW active_customers AS\nSELECT c.name, 0 AS order_count\nFROM customers AS c;\n\nSELECT name, order_count\nFROM active_customers\nORDER BY name;\n",
+      "solution": "CREATE VIEW active_customers AS\nSELECT c.name, COUNT(*) AS order_count\nFROM customers AS c\nJOIN orders AS o ON o.customer_id = c.id\nGROUP BY c.id, c.name;\n\nSELECT name, order_count\nFROM active_customers\nORDER BY name;\n"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "id": "sql-above-average-salary",
+  "title": "Above Average Salary",
+  "category": "subqueries",
+  "difficulty": "easy",
+  "statement": "Find the employees who are paid more than the company average.\n\nThe `employees` table has one row per employee:\n\n- `id`: the employee's id\n- `name`: their full name, unique\n- `department`: the department they work in\n- `salary`: their yearly salary in dollars\n\nReturn two columns, `name` and `salary`, for every employee whose salary is greater than the average salary of all employees. An employee paid exactly the average is not included. Order the rows by `salary` from highest to lowest, then by `name` alphabetically.\n\nExpected output:\n\n```text\n     name     | salary\n--------------+--------\n Chloe Martin | 112000\n Ana Torres   |  98000\n Grace Kim    |  98000\n(3 rows)\n```",
+  "setup": "CREATE TABLE employees (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL UNIQUE,\n  department TEXT NOT NULL,\n  salary INTEGER NOT NULL\n);\n\nINSERT INTO employees (id, name, department, salary) VALUES\n  (1, 'Ana Torres', 'Engineering', 98000),\n  (2, 'Ben Okafor', 'Sales', 61000),\n  (3, 'Chloe Martin', 'Engineering', 112000),\n  (4, 'Dev Patel', 'Support', 48000),\n  (5, 'Emma Larsen', 'Marketing', 72000),\n  (6, 'Felix Wagner', 'Sales', 67000),\n  (7, 'Grace Kim', 'Engineering', 98000),\n  (8, 'Hiro Tanaka', 'Support', 52000);\n",
+  "tests": [
+    {
+      "output": "     name     | salary\n--------------+--------\n Chloe Martin | 112000\n Ana Torres   |  98000\n Grace Kim    |  98000\n(3 rows)"
+    },
+    {
+      "stdin": "INSERT INTO employees (id, name, department, salary) VALUES (9, 'Iris Novak', 'Engineering', 190000);\n",
+      "output": "     name     | salary\n--------------+--------\n Iris Novak   | 190000\n Chloe Martin | 112000\n Ana Torres   |  98000\n Grace Kim    |  98000\n(4 rows)"
+    },
+    {
+      "stdin": "UPDATE employees SET salary = 80000 WHERE name = 'Ben Okafor';\nUPDATE employees SET salary = 50000 WHERE name = 'Grace Kim';\n",
+      "output": "     name     | salary\n--------------+--------\n Chloe Martin | 112000\n Ana Torres   |  98000\n Ben Okafor   |  80000\n(3 rows)"
+    },
+    {
+      "stdin": "DELETE FROM employees WHERE department = 'Engineering';\n",
+      "output": "     name     | salary\n--------------+--------\n Emma Larsen  |  72000\n Felix Wagner |  67000\n Ben Okafor   |  61000\n(3 rows)"
+    },
+    {
+      "stdin": "UPDATE employees SET salary = 84000 WHERE name = 'Dev Patel';\nINSERT INTO employees (id, name, department, salary) VALUES (9, 'Iris Novak', 'Marketing', 80500);\n",
+      "output": "     name     | salary\n--------------+--------\n Chloe Martin | 112000\n Ana Torres   |  98000\n Grace Kim    |  98000\n Dev Patel    |  84000\n(4 rows)"
+    }
+  ],
+  "hints": [
+    "A subquery in parentheses that returns a single value can stand anywhere a number can, for example on the right of `>`.",
+    "`AVG(salary)` over the whole `employees` table gives the company average."
+  ],
+  "code": {
+    "sql": {
+      "starter": "SELECT name, salary\nFROM employees\n-- TODO: keep only employees paid more than the company average\nORDER BY salary DESC, name;\n",
+      "solution": "SELECT name, salary\nFROM employees\nWHERE salary > (SELECT AVG(salary) FROM employees)\nORDER BY salary DESC, name;\n"
+    }
+  }
+}

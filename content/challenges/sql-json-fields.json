@@ -1,0 +1,39 @@
+{
+  "id": "sql-json-fields",
+  "title": "Fields From JSON",
+  "category": "arrays-json",
+  "difficulty": "easy",
+  "statement": "An app logs what happens in an `events` table: `id` (integer key), `event_type` (text), and `payload` (JSONB). A payload looks like this, and anonymous events have no `user` key:\n\n```text\n{\"user\": {\"id\": 7, \"name\": \"Maya\"}, \"page\": \"/pricing\"}\n```\n\nReturn three columns: `id`, `event_type`, and `user_name`, the `name` inside the payload's `user` object as text. It is empty when there is no user or when the name is JSON `null`. Order by `id`.\n\nExpected output:\n\n```text\n id | event_type | user_name\n----+------------+-----------\n  1 | page_view  | Maya\n  2 | signup     | Tomas\n  3 | page_view  |\n  4 | purchase   | Maya\n  5 | logout     | Priya\n(5 rows)\n```",
+  "setup": "CREATE TABLE events (\n  id INTEGER PRIMARY KEY,\n  event_type TEXT NOT NULL,\n  payload JSONB NOT NULL\n);\n\nINSERT INTO events (id, event_type, payload) VALUES\n  (1, 'page_view', '{\"user\": {\"id\": 7, \"name\": \"Maya\"}, \"page\": \"/pricing\"}'),\n  (2, 'signup', '{\"user\": {\"id\": 12, \"name\": \"Tomas\"}, \"plan\": \"free\"}'),\n  (3, 'page_view', '{\"page\": \"/docs\"}'),\n  (4, 'purchase', '{\"user\": {\"id\": 7, \"name\": \"Maya\"}, \"amount\": 49}'),\n  (5, 'logout', '{\"user\": {\"id\": 3, \"name\": \"Priya\"}}');\n",
+  "tests": [
+    {
+      "output": " id | event_type | user_name\n----+------------+-----------\n  1 | page_view  | Maya\n  2 | signup     | Tomas\n  3 | page_view  |\n  4 | purchase   | Maya\n  5 | logout     | Priya\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO events (id, event_type, payload) VALUES\n  (6, 'signup', '{\"user\": {\"id\": 20, \"name\": \"Kwame\"}, \"plan\": \"pro\"}'),\n  (7, 'page_view', '{\"page\": \"/blog\"}');\n",
+      "output": " id | event_type | user_name\n----+------------+-----------\n  1 | page_view  | Maya\n  2 | signup     | Tomas\n  3 | page_view  |\n  4 | purchase   | Maya\n  5 | logout     | Priya\n  6 | signup     | Kwame\n  7 | page_view  |\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE events SET payload = '{\"user\": {\"id\": 3, \"name\": \"Priya S.\"}}' WHERE id = 5;\nDELETE FROM events WHERE id = 1;\n",
+      "output": " id | event_type | user_name\n----+------------+-----------\n  2 | signup     | Tomas\n  3 | page_view  |\n  4 | purchase   | Maya\n  5 | logout     | Priya S.\n(4 rows)"
+    },
+    {
+      "stdin": "UPDATE events SET payload = '{\"user\": {\"id\": 30, \"name\": \"Lena\"}, \"page\": \"/docs\"}' WHERE id = 3;\nINSERT INTO events (id, event_type, payload) VALUES (8, 'logout', '{\"user\": {\"id\": 12, \"name\": \"Tomas\"}}');\n",
+      "output": " id | event_type | user_name\n----+------------+-----------\n  1 | page_view  | Maya\n  2 | signup     | Tomas\n  3 | page_view  | Lena\n  4 | purchase   | Maya\n  5 | logout     | Priya\n  8 | logout     | Tomas\n(6 rows)"
+    },
+    {
+      "stdin": "INSERT INTO events (id, event_type, payload) VALUES (9, 'checkout', '{\"user\": {\"id\": 41, \"name\": null}, \"page\": \"/cart\"}');\n",
+      "output": " id | event_type | user_name\n----+------------+-----------\n  1 | page_view  | Maya\n  2 | signup     | Tomas\n  3 | page_view  |\n  4 | purchase   | Maya\n  5 | logout     | Priya\n  9 | checkout   |\n(6 rows)"
+    }
+  ],
+  "hints": [
+    "`->` reads a key and keeps it as JSON, `->>` reads a key and returns text.",
+    "Chain them: step into `user` with `->`, then read `name` with `->>`."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: read the user's name out of the payload as text\nSELECT id, event_type, payload AS user_name\nFROM events\nORDER BY id;\n",
+      "solution": "SELECT id, event_type, payload -> 'user' ->> 'name' AS user_name\nFROM events\nORDER BY id;\n"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "sql-username-from-email",
+  "title": "Username From Email",
+  "category": "strings",
+  "difficulty": "easy",
+  "statement": "Suggest a username for every account, taken from its email address.\n\nThe `users` table has one row per account:\n\n- `id`: the account's id, unique\n- `email`: the account's email address, with exactly one `@`\n\nSome addresses were typed with capital letters. Return each account's `id` and a `username` column, ordered by `id`. The username is the part of the email before the `@`, in lowercase.\n\nExpected output:\n\n```text\n id |   username\n----+--------------\n  1 | maria.lopez\n  2 | jsmith\n  3 | dev_kim42\n  4 | olivia.brown\n  5 | sam\n(5 rows)\n```",
+  "setup": "CREATE TABLE users (\n  id integer PRIMARY KEY,\n  email text NOT NULL\n);\n\nINSERT INTO users (id, email) VALUES\n  (1, 'maria.lopez@example.com'),\n  (2, 'JSmith@mail.org'),\n  (3, 'dev_kim42@hackuniversity.io'),\n  (4, 'Olivia.Brown@Example.com'),\n  (5, 'sam@studio.co');\n",
+  "tests": [
+    {
+      "output": " id |   username\n----+--------------\n  1 | maria.lopez\n  2 | jsmith\n  3 | dev_kim42\n  4 | olivia.brown\n  5 | sam\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO users (id, email) VALUES (6, 'NOAH.WILLIAMS@COMPANY.NET'), (7, 'a@b.io');\n",
+      "output": " id |   username\n----+---------------\n  1 | maria.lopez\n  2 | jsmith\n  3 | dev_kim42\n  4 | olivia.brown\n  5 | sam\n  6 | noah.williams\n  7 | a\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE users SET email = 'Maria.Garcia+news@example.com' WHERE id = 1;\n",
+      "output": " id |     username\n----+-------------------\n  1 | maria.garcia+news\n  2 | jsmith\n  3 | dev_kim42\n  4 | olivia.brown\n  5 | sam\n(5 rows)"
+    },
+    {
+      "stdin": "DELETE FROM users WHERE id > 2;\nINSERT INTO users (id, email) VALUES (3, 'Team-Lead@office.dev');\n",
+      "output": " id |  username\n----+-------------\n  1 | maria.lopez\n  2 | jsmith\n  3 | team-lead\n(3 rows)"
+    }
+  ],
+  "hints": [
+    "`split_part(text, delimiter, n)` splits a string on a delimiter and returns piece number `n`, counting from 1.",
+    "`lower` turns every letter of a string into lowercase."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: keep only the part before the @, in lowercase\nSELECT id, email AS username\nFROM users\nORDER BY id;\n",
+      "solution": "SELECT\n  id,\n  lower(split_part(email, '@', 1)) AS username\nFROM users\nORDER BY id;\n"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "id": "sql-never-ordered-products",
+  "title": "Products Never Ordered",
+  "category": "subqueries",
+  "difficulty": "medium",
+  "statement": "A shop wants to know which products nobody has ordered yet.\n\nThere are three tables:\n\n- `products`: `id`, `name` (unique), and `price`, one row per product\n- `orders`: `id`, `customer`, and `placed_on`, one row per order\n- `order_items`: `order_id`, `product_id`, and `quantity`, one row for each product in an order\n\nReturn two columns, `id` and `name`, for every product that appears in no row of `order_items`. Use `NOT EXISTS` with a subquery that looks for the product's order items. Order the rows by `name` alphabetically.\n\nExpected output:\n\n```text\n id |    name\n----+-------------\n  6 | Cable Tray\n  7 | Footrest\n  5 | Monitor Arm\n(3 rows)\n```",
+  "setup": "CREATE TABLE products (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL UNIQUE,\n  price NUMERIC(8, 2) NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  customer TEXT NOT NULL,\n  placed_on DATE NOT NULL\n);\n\nCREATE TABLE order_items (\n  order_id INTEGER NOT NULL REFERENCES orders (id),\n  product_id INTEGER NOT NULL REFERENCES products (id),\n  quantity INTEGER NOT NULL,\n  PRIMARY KEY (order_id, product_id)\n);\n\nINSERT INTO products (id, name, price) VALUES\n  (1, 'Desk Lamp', 34.99),\n  (2, 'Notebook', 4.50),\n  (3, 'Standing Desk', 429.00),\n  (4, 'Fountain Pen', 24.00),\n  (5, 'Monitor Arm', 89.95),\n  (6, 'Cable Tray', 19.99),\n  (7, 'Footrest', 39.00);\n\nINSERT INTO orders (id, customer, placed_on) VALUES\n  (101, 'Lena Fischer', '2026-03-02'),\n  (102, 'Marco Rossi', '2026-03-05'),\n  (103, 'Lena Fischer', '2026-03-11'),\n  (104, 'Sara Ahmed', '2026-03-14');\n\nINSERT INTO order_items (order_id, product_id, quantity) VALUES\n  (101, 2, 3),\n  (101, 4, 1),\n  (102, 3, 1),\n  (102, 1, 2),\n  (103, 2, 5),\n  (104, 1, 1);\n",
+  "tests": [
+    {
+      "output": " id |    name\n----+-------------\n  6 | Cable Tray\n  7 | Footrest\n  5 | Monitor Arm\n(3 rows)"
+    },
+    {
+      "stdin": "INSERT INTO products (id, name, price) VALUES (8, 'Ergonomic Chair', 249.00), (9, 'Bookend Set', 15.50);\n",
+      "output": " id |      name\n----+-----------------\n  9 | Bookend Set\n  6 | Cable Tray\n  8 | Ergonomic Chair\n  7 | Footrest\n  5 | Monitor Arm\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO order_items (order_id, product_id, quantity) VALUES (104, 5, 1), (103, 7, 2);\n",
+      "output": " id |    name\n----+------------\n  6 | Cable Tray\n(1 row)"
+    },
+    {
+      "stdin": "DELETE FROM order_items WHERE product_id = 1;\n",
+      "output": " id |    name\n----+-------------\n  6 | Cable Tray\n  1 | Desk Lamp\n  7 | Footrest\n  5 | Monitor Arm\n(4 rows)"
+    },
+    {
+      "stdin": "INSERT INTO order_items (order_id, product_id, quantity) VALUES (104, 5, 1), (104, 6, 2), (102, 7, 1);\n",
+      "output": " id | name\n----+------\n(0 rows)"
+    }
+  ],
+  "hints": [
+    "`NOT EXISTS (subquery)` is true when the subquery returns no rows at all.",
+    "Make the subquery look for order items of the outer product, by comparing `order_items.product_id` with the outer product's `id`."
+  ],
+  "code": {
+    "sql": {
+      "starter": "SELECT p.id, p.name\nFROM products AS p\n-- TODO: keep only products that appear in no order item\nORDER BY p.name;\n",
+      "solution": "SELECT p.id, p.name\nFROM products AS p\nWHERE NOT EXISTS (\n  SELECT 1\n  FROM order_items AS oi\n  WHERE oi.product_id = p.id\n)\nORDER BY p.name;\n"
+    }
+  }
+}

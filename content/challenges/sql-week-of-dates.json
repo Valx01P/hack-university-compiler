@@ -1,0 +1,35 @@
+{
+  "id": "sql-week-of-dates",
+  "title": "A Week of Dates",
+  "category": "functions",
+  "difficulty": "easy",
+  "statement": "A travel planner keeps trips in a `trips` table: `id` (integer key), `destination` (text, unique), and `starts_on` (the trip's first day, a date).\n\nBuild a day by day plan for the first week of the trip to Lisbon: the seven dates starting on its `starts_on`. Return two columns: `day` (a date) and `weekday`, the weekday's full English name with no padding, such as `Monday`. Order by `day`.\n\nExpected output:\n\n```text\n    day     |  weekday\n------------+-----------\n 2026-06-11 | Thursday\n 2026-06-12 | Friday\n 2026-06-13 | Saturday\n 2026-06-14 | Sunday\n 2026-06-15 | Monday\n 2026-06-16 | Tuesday\n 2026-06-17 | Wednesday\n(7 rows)\n```",
+  "setup": "CREATE TABLE trips (\n  id INTEGER PRIMARY KEY,\n  destination TEXT NOT NULL UNIQUE,\n  starts_on DATE NOT NULL\n);\n\nINSERT INTO trips (id, destination, starts_on) VALUES\n  (1, 'Kyoto', '2026-04-04'),\n  (2, 'Lisbon', '2026-06-11'),\n  (3, 'Reykjavik', '2026-09-20'),\n  (4, 'Cusco', '2026-11-02');\n",
+  "tests": [
+    {
+      "output": "    day     |  weekday\n------------+-----------\n 2026-06-11 | Thursday\n 2026-06-12 | Friday\n 2026-06-13 | Saturday\n 2026-06-14 | Sunday\n 2026-06-15 | Monday\n 2026-06-16 | Tuesday\n 2026-06-17 | Wednesday\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE trips SET starts_on = '2026-12-28' WHERE destination = 'Lisbon';\n",
+      "output": "    day     |  weekday\n------------+-----------\n 2026-12-28 | Monday\n 2026-12-29 | Tuesday\n 2026-12-30 | Wednesday\n 2026-12-31 | Thursday\n 2027-01-01 | Friday\n 2027-01-02 | Saturday\n 2027-01-03 | Sunday\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE trips SET starts_on = '2028-02-26' WHERE destination = 'Lisbon';\n",
+      "output": "    day     |  weekday\n------------+-----------\n 2028-02-26 | Saturday\n 2028-02-27 | Sunday\n 2028-02-28 | Monday\n 2028-02-29 | Tuesday\n 2028-03-01 | Wednesday\n 2028-03-02 | Thursday\n 2028-03-03 | Friday\n(7 rows)"
+    },
+    {
+      "stdin": "DELETE FROM trips WHERE destination = 'Lisbon';\nINSERT INTO trips (id, destination, starts_on) VALUES (5, 'Lisbon', '2027-03-01');\n",
+      "output": "    day     |  weekday\n------------+-----------\n 2027-03-01 | Monday\n 2027-03-02 | Tuesday\n 2027-03-03 | Wednesday\n 2027-03-04 | Thursday\n 2027-03-05 | Friday\n 2027-03-06 | Saturday\n 2027-03-07 | Sunday\n(7 rows)"
+    }
+  ],
+  "hints": [
+    "`generate_series(0, 6)` makes seven rows, and adding an integer to a date moves it that many days.",
+    "`to_char(day, 'FMDay')` gives the weekday name. `FM` drops the padding spaces."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: make seven rows, one per day, and name each day's weekday\nSELECT starts_on AS day, '' AS weekday\nFROM trips\nWHERE destination = 'Lisbon'\nORDER BY day;\n",
+      "solution": "SELECT t.starts_on + n AS day,\n       to_char(t.starts_on + n, 'FMDay') AS weekday\nFROM trips AS t\nCROSS JOIN generate_series(0, 6) AS n\nWHERE t.destination = 'Lisbon'\nORDER BY day;\n"
+    }
+  }
+}

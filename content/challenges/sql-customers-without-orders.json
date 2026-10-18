@@ -1,0 +1,35 @@
+{
+  "id": "sql-customers-without-orders",
+  "title": "Customers Without Orders",
+  "category": "joins",
+  "difficulty": "medium",
+  "statement": "Find the customers who have never placed an order.\n\nThe `customers` table has one row per customer:\n\n- `id`: the customer's id\n- `name`: the customer's name (no two customers share one)\n- `signed_up`: the date they created their account\n\nThe `orders` table has one row per order:\n\n- `id`: the order's id\n- `customer_id`: the `id` of the customer who placed it\n- `amount`: what the order cost\n\nReturn one column, `name`, with the name of every customer who has no row in `orders`, sorted by `name`. If every customer has ordered, the result is empty.\n\nExpected output:\n\n```text\n    name\n-------------\n Carlos Vega\n Leo Martins\n Tom Becker\n(3 rows)\n```",
+  "setup": "CREATE TABLE customers (\n  id integer PRIMARY KEY,\n  name text NOT NULL,\n  signed_up date NOT NULL\n);\n\nCREATE TABLE orders (\n  id integer PRIMARY KEY,\n  customer_id integer NOT NULL REFERENCES customers (id),\n  amount numeric(8, 2) NOT NULL\n);\n\nINSERT INTO customers (id, name, signed_up) VALUES\n  (1, 'Priya Shah', '2026-01-05'),\n  (2, 'Tom Becker', '2026-01-12'),\n  (3, 'Aisha Bello', '2026-02-01'),\n  (4, 'Leo Martins', '2026-02-14'),\n  (5, 'Hana Sato', '2026-03-03'),\n  (6, 'Carlos Vega', '2026-03-20');\n\nINSERT INTO orders (id, customer_id, amount) VALUES\n  (501, 1, 34.00),\n  (502, 3, 12.50),\n  (503, 1, 80.00),\n  (504, 5, 22.75),\n  (505, 3, 9.99);\n",
+  "tests": [
+    {
+      "output": "    name\n-------------\n Carlos Vega\n Leo Martins\n Tom Becker\n(3 rows)"
+    },
+    {
+      "stdin": "INSERT INTO orders (id, customer_id, amount) VALUES\n  (506, 2, 45.00);\nINSERT INTO customers (id, name, signed_up) VALUES\n  (7, 'Zoe Adams', '2026-04-02');\n",
+      "output": "    name\n-------------\n Carlos Vega\n Leo Martins\n Zoe Adams\n(3 rows)"
+    },
+    {
+      "stdin": "DELETE FROM orders WHERE customer_id = 1;\n",
+      "output": "    name\n-------------\n Carlos Vega\n Leo Martins\n Priya Shah\n Tom Becker\n(4 rows)"
+    },
+    {
+      "stdin": "INSERT INTO orders (id, customer_id, amount) VALUES\n  (506, 2, 45.00),\n  (507, 4, 15.00),\n  (508, 6, 60.00);\n",
+      "output": " name\n------\n(0 rows)"
+    }
+  ],
+  "hints": [
+    "A `LEFT JOIN` keeps every customer, even one with no matching order.",
+    "When a customer has no order, every column that comes from `orders` is NULL in that row. Test it with `IS NULL`."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: keep only the customers who have no orders\nSELECT c.name\nFROM customers AS c\nORDER BY c.name;\n",
+      "solution": "SELECT c.name\nFROM customers AS c\nLEFT JOIN orders AS o ON o.customer_id = c.id\nWHERE o.id IS NULL\nORDER BY c.name;\n"
+    }
+  }
+}

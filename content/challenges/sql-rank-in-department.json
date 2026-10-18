@@ -1,0 +1,36 @@
+{
+  "id": "sql-rank-in-department",
+  "title": "Rank in Department",
+  "category": "window-functions",
+  "difficulty": "medium",
+  "statement": "Rank every employee by salary within their own department.\n\nThe `employees` table has one row per employee: `id` (a unique number), `name`, `department`, and `salary` (a whole number of dollars per year).\n\nReturn `department`, `name`, `salary`, and `salary_rank`. The highest salary in a department has rank 1. Employees with the same salary in the same department share a rank, and the next rank skips ahead, so two people tied at 1 are followed by rank 3. Order the rows by `department`, then `salary_rank`, then `name`.\n\nExpected output:\n\n```text\n department  |     name     | salary | salary_rank\n-------------+--------------+--------+-------------\n Engineering | Ben Okafor   | 112000 |           1\n Engineering | Ana Torres   |  98000 |           2\n Engineering | Chloe Martin |  98000 |           2\n Engineering | Dev Patel    |  85000 |           4\n Marketing   | Jonas Weber  |  76000 |           1\n Marketing   | Hiro Tanaka  |  70000 |           2\n Marketing   | Isla Murphy  |  70000 |           2\n Sales       | Farid Haddad |  81000 |           1\n Sales       | Elena Rossi  |  72000 |           2\n Sales       | Grace Kim    |  64000 |           3\n(10 rows)\n```",
+  "setup": "CREATE TABLE employees (\n  id integer PRIMARY KEY,\n  name text NOT NULL,\n  department text NOT NULL,\n  salary integer NOT NULL\n);\n\nINSERT INTO employees (id, name, department, salary) VALUES\n  (1, 'Ana Torres', 'Engineering', 98000),\n  (2, 'Ben Okafor', 'Engineering', 112000),\n  (3, 'Chloe Martin', 'Engineering', 98000),\n  (4, 'Dev Patel', 'Engineering', 85000),\n  (5, 'Elena Rossi', 'Sales', 72000),\n  (6, 'Farid Haddad', 'Sales', 81000),\n  (7, 'Grace Kim', 'Sales', 64000),\n  (8, 'Hiro Tanaka', 'Marketing', 70000),\n  (9, 'Isla Murphy', 'Marketing', 70000),\n  (10, 'Jonas Weber', 'Marketing', 76000);\n",
+  "tests": [
+    {
+      "output": " department  |     name     | salary | salary_rank\n-------------+--------------+--------+-------------\n Engineering | Ben Okafor   | 112000 |           1\n Engineering | Ana Torres   |  98000 |           2\n Engineering | Chloe Martin |  98000 |           2\n Engineering | Dev Patel    |  85000 |           4\n Marketing   | Jonas Weber  |  76000 |           1\n Marketing   | Hiro Tanaka  |  70000 |           2\n Marketing   | Isla Murphy  |  70000 |           2\n Sales       | Farid Haddad |  81000 |           1\n Sales       | Elena Rossi  |  72000 |           2\n Sales       | Grace Kim    |  64000 |           3\n(10 rows)"
+    },
+    {
+      "stdin": "INSERT INTO employees (id, name, department, salary) VALUES\n  (11, 'Kara Singh', 'Sales', 81000),\n  (12, 'Leo Duarte', 'Support', 58000);\n",
+      "output": " department  |     name     | salary | salary_rank\n-------------+--------------+--------+-------------\n Engineering | Ben Okafor   | 112000 |           1\n Engineering | Ana Torres   |  98000 |           2\n Engineering | Chloe Martin |  98000 |           2\n Engineering | Dev Patel    |  85000 |           4\n Marketing   | Jonas Weber  |  76000 |           1\n Marketing   | Hiro Tanaka  |  70000 |           2\n Marketing   | Isla Murphy  |  70000 |           2\n Sales       | Farid Haddad |  81000 |           1\n Sales       | Kara Singh   |  81000 |           1\n Sales       | Elena Rossi  |  72000 |           3\n Sales       | Grace Kim    |  64000 |           4\n Support     | Leo Duarte   |  58000 |           1\n(12 rows)"
+    },
+    {
+      "stdin": "UPDATE employees SET salary = 120000 WHERE name = 'Dev Patel';\nDELETE FROM employees WHERE name = 'Isla Murphy';\n",
+      "output": " department  |     name     | salary | salary_rank\n-------------+--------------+--------+-------------\n Engineering | Dev Patel    | 120000 |           1\n Engineering | Ben Okafor   | 112000 |           2\n Engineering | Ana Torres   |  98000 |           3\n Engineering | Chloe Martin |  98000 |           3\n Marketing   | Jonas Weber  |  76000 |           1\n Marketing   | Hiro Tanaka  |  70000 |           2\n Sales       | Farid Haddad |  81000 |           1\n Sales       | Elena Rossi  |  72000 |           2\n Sales       | Grace Kim    |  64000 |           3\n(9 rows)"
+    },
+    {
+      "stdin": "UPDATE employees SET salary = 70000 WHERE department = 'Marketing';\nUPDATE employees SET salary = 64000 WHERE name = 'Elena Rossi';\n",
+      "output": " department  |     name     | salary | salary_rank\n-------------+--------------+--------+-------------\n Engineering | Ben Okafor   | 112000 |           1\n Engineering | Ana Torres   |  98000 |           2\n Engineering | Chloe Martin |  98000 |           2\n Engineering | Dev Patel    |  85000 |           4\n Marketing   | Hiro Tanaka  |  70000 |           1\n Marketing   | Isla Murphy  |  70000 |           1\n Marketing   | Jonas Weber  |  70000 |           1\n Sales       | Farid Haddad |  81000 |           1\n Sales       | Elena Rossi  |  64000 |           2\n Sales       | Grace Kim    |  64000 |           2\n(10 rows)"
+    }
+  ],
+  "hints": [
+    "A window function computes a value for each row from a group of related rows, without collapsing them like `GROUP BY` does.",
+    "`PARTITION BY department` restarts the ranking for each department, and the window's `ORDER BY` decides who comes first.",
+    "`RANK()` gives tied rows the same rank and leaves a gap after them."
+  ],
+  "code": {
+    "sql": {
+      "starter": "SELECT department,\n       name,\n       salary,\n       1 AS salary_rank  -- TODO: rank the salary within its department\nFROM employees\nORDER BY department, salary_rank, name;\n",
+      "solution": "SELECT department,\n       name,\n       salary,\n       RANK() OVER (PARTITION BY department ORDER BY salary DESC) AS salary_rank\nFROM employees\nORDER BY department, salary_rank, name;\n"
+    }
+  }
+}

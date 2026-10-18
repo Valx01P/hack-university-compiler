@@ -1,0 +1,35 @@
+{
+  "id": "sql-add-a-column",
+  "title": "Add a Column",
+  "category": "alter-drop",
+  "difficulty": "easy",
+  "statement": "A bakery is starting a loyalty program, so its customers table needs a place to keep points. While you are at it, give one awkward column a shorter name.\n\nThe `customers` table has these columns:\n\n- `id`: the customer id, the primary key\n- `full_name`: the customer's name\n- `email`: the customer's email address\n- `city`: the city they live in\n\nChange the table in two steps:\n\n1. Add a `loyalty_points` column of type `integer` that is never null and starts at 0 for every customer, existing ones included.\n2. Rename the `full_name` column to `name`.\n\nThen return every column of `customers` with `SELECT *`, ordered by `id`. Last, check the new shape of the table: return `column_name`, `data_type`, `is_nullable`, and `column_default` from `information_schema.columns` for the `customers` table, ordered by `ordinal_position`. The starter already has both queries.\n\nExpected output:\n\n```text\nALTER TABLE\n\nALTER TABLE\n\n id |     name     |        email        |   city   | loyalty_points\n----+--------------+---------------------+----------+----------------\n  1 | Rosa Delgado | rosa@example.com    | Austin   |              0\n  2 | James Park   | jpark@example.com   | Denver   |              0\n  3 | Nadia Haddad | nadia.h@example.com | Austin   |              0\n  4 | Oliver Grant | ogrant@example.com  | Portland |              0\n(4 rows)\n\n  column_name   | data_type | is_nullable | column_default\n----------------+-----------+-------------+----------------\n id             | integer   | NO          |\n name           | text      | NO          |\n email          | text      | NO          |\n city           | text      | NO          |\n loyalty_points | integer   | NO          | 0\n(5 rows)\n```",
+  "setup": "CREATE TABLE customers (\n  id INTEGER PRIMARY KEY,\n  full_name TEXT NOT NULL,\n  email TEXT NOT NULL,\n  city TEXT NOT NULL\n);\n\nINSERT INTO customers (id, full_name, email, city) VALUES\n  (1, 'Rosa Delgado', 'rosa@example.com', 'Austin'),\n  (2, 'James Park', 'jpark@example.com', 'Denver'),\n  (3, 'Nadia Haddad', 'nadia.h@example.com', 'Austin'),\n  (4, 'Oliver Grant', 'ogrant@example.com', 'Portland');\n",
+  "tests": [
+    {
+      "output": "ALTER TABLE\n\nALTER TABLE\n\n id |     name     |        email        |   city   | loyalty_points\n----+--------------+---------------------+----------+----------------\n  1 | Rosa Delgado | rosa@example.com    | Austin   |              0\n  2 | James Park   | jpark@example.com   | Denver   |              0\n  3 | Nadia Haddad | nadia.h@example.com | Austin   |              0\n  4 | Oliver Grant | ogrant@example.com  | Portland |              0\n(4 rows)\n\n  column_name   | data_type | is_nullable | column_default\n----------------+-----------+-------------+----------------\n id             | integer   | NO          |\n name           | text      | NO          |\n email          | text      | NO          |\n city           | text      | NO          |\n loyalty_points | integer   | NO          | 0\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO customers (id, full_name, email, city) VALUES (5, 'Yuki Tanaka', 'yuki@example.com', 'Seattle'), (6, 'Marco Bianchi', 'marco.b@example.com', 'Denver');\n",
+      "output": "ALTER TABLE\n\nALTER TABLE\n\n id |     name      |        email        |   city   | loyalty_points\n----+---------------+---------------------+----------+----------------\n  1 | Rosa Delgado  | rosa@example.com    | Austin   |              0\n  2 | James Park    | jpark@example.com   | Denver   |              0\n  3 | Nadia Haddad  | nadia.h@example.com | Austin   |              0\n  4 | Oliver Grant  | ogrant@example.com  | Portland |              0\n  5 | Yuki Tanaka   | yuki@example.com    | Seattle  |              0\n  6 | Marco Bianchi | marco.b@example.com | Denver   |              0\n(6 rows)\n\n  column_name   | data_type | is_nullable | column_default\n----------------+-----------+-------------+----------------\n id             | integer   | NO          |\n name           | text      | NO          |\n email          | text      | NO          |\n city           | text      | NO          |\n loyalty_points | integer   | NO          | 0\n(5 rows)"
+    },
+    {
+      "stdin": "DELETE FROM customers WHERE city = 'Austin';\nUPDATE customers SET city = 'Boulder' WHERE id = 2;\n",
+      "output": "ALTER TABLE\n\nALTER TABLE\n\n id |     name     |       email        |   city   | loyalty_points\n----+--------------+--------------------+----------+----------------\n  2 | James Park   | jpark@example.com  | Boulder  |              0\n  4 | Oliver Grant | ogrant@example.com | Portland |              0\n(2 rows)\n\n  column_name   | data_type | is_nullable | column_default\n----------------+-----------+-------------+----------------\n id             | integer   | NO          |\n name           | text      | NO          |\n email          | text      | NO          |\n city           | text      | NO          |\n loyalty_points | integer   | NO          | 0\n(5 rows)"
+    },
+    {
+      "stdin": "DELETE FROM customers;\n",
+      "output": "ALTER TABLE\n\nALTER TABLE\n\n id | name | email | city | loyalty_points\n----+------+-------+------+----------------\n(0 rows)\n\n  column_name   | data_type | is_nullable | column_default\n----------------+-----------+-------------+----------------\n id             | integer   | NO          |\n name           | text      | NO          |\n email          | text      | NO          |\n city           | text      | NO          |\n loyalty_points | integer   | NO          | 0\n(5 rows)"
+    }
+  ],
+  "hints": [
+    "`ALTER TABLE ... ADD COLUMN` takes a type, constraints, and a `DEFAULT`, just like a column in `CREATE TABLE`.",
+    "Renaming is its own statement: `ALTER TABLE ... RENAME COLUMN old TO new`."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: add loyalty_points and rename full_name to name\n\nSELECT *\nFROM customers\nORDER BY id;\n\nSELECT column_name, data_type, is_nullable, column_default\nFROM information_schema.columns\nWHERE table_name = 'customers'\nORDER BY ordinal_position;\n",
+      "solution": "ALTER TABLE customers\nADD COLUMN loyalty_points INTEGER NOT NULL DEFAULT 0;\n\nALTER TABLE customers\nRENAME COLUMN full_name TO name;\n\nSELECT *\nFROM customers\nORDER BY id;\n\nSELECT column_name, data_type, is_nullable, column_default\nFROM information_schema.columns\nWHERE table_name = 'customers'\nORDER BY ordinal_position;\n"
+    }
+  }
+}

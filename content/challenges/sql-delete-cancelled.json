@@ -1,0 +1,34 @@
+{
+  "id": "sql-delete-cancelled",
+  "title": "Delete Cancelled Orders",
+  "category": "update-delete",
+  "difficulty": "very-easy",
+  "statement": "An online shop is cleaning up its orders table. Cancelled orders will never ship, so remove them, then list the orders that are left.\n\nThe `orders` table has these columns:\n\n- `id`: the order number, the primary key\n- `customer`: the customer's name\n- `status`: one of `pending`, `shipped`, `delivered`, or `cancelled`\n- `total`: the order total in dollars\n\nDelete every order whose status is `cancelled`. Then return `id`, `customer`, `status`, and `total` for every remaining order, ordered by `id`.\n\nExpected output:\n\n```text\nDELETE 3\n\n  id  |   customer    |  status   | total\n------+---------------+-----------+--------\n 1001 | Laura Mendes  | delivered |  54.90\n 1003 | Mia Johansson | shipped   |  18.75\n 1005 | Laura Mendes  | pending   | 230.40\n 1006 | Tom Becker    | delivered |  75.00\n(4 rows)\n```",
+  "setup": "CREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  customer TEXT NOT NULL,\n  status TEXT NOT NULL,\n  total NUMERIC(8, 2) NOT NULL\n);\n\nINSERT INTO orders (id, customer, status, total) VALUES\n  (1001, 'Laura Mendes', 'delivered', 54.90),\n  (1002, 'Kofi Asante', 'cancelled', 120.00),\n  (1003, 'Mia Johansson', 'shipped', 18.75),\n  (1004, 'Raj Malhotra', 'cancelled', 9.99),\n  (1005, 'Laura Mendes', 'pending', 230.40),\n  (1006, 'Tom Becker', 'delivered', 75.00),\n  (1007, 'Kofi Asante', 'cancelled', 42.50);\n",
+  "tests": [
+    {
+      "output": "DELETE 3\n\n  id  |   customer    |  status   | total\n------+---------------+-----------+--------\n 1001 | Laura Mendes  | delivered |  54.90\n 1003 | Mia Johansson | shipped   |  18.75\n 1005 | Laura Mendes  | pending   | 230.40\n 1006 | Tom Becker    | delivered |  75.00\n(4 rows)"
+    },
+    {
+      "stdin": "INSERT INTO orders (id, customer, status, total) VALUES (1008, 'Sara Haddad', 'cancelled', 64.00), (1009, 'Ivan Petrov', 'pending', 12.30);\n",
+      "output": "DELETE 4\n\n  id  |   customer    |  status   | total\n------+---------------+-----------+--------\n 1001 | Laura Mendes  | delivered |  54.90\n 1003 | Mia Johansson | shipped   |  18.75\n 1005 | Laura Mendes  | pending   | 230.40\n 1006 | Tom Becker    | delivered |  75.00\n 1009 | Ivan Petrov   | pending   |  12.30\n(5 rows)"
+    },
+    {
+      "stdin": "UPDATE orders SET status = 'cancelled' WHERE id IN (1001, 1005);\nUPDATE orders SET status = 'pending' WHERE id = 1002;\n",
+      "output": "DELETE 4\n\n  id  |   customer    |  status   | total\n------+---------------+-----------+--------\n 1002 | Kofi Asante   | pending   | 120.00\n 1003 | Mia Johansson | shipped   |  18.75\n 1006 | Tom Becker    | delivered |  75.00\n(3 rows)"
+    },
+    {
+      "stdin": "DELETE FROM orders WHERE status = 'cancelled';\n",
+      "output": "DELETE 0\n\n  id  |   customer    |  status   | total\n------+---------------+-----------+--------\n 1001 | Laura Mendes  | delivered |  54.90\n 1003 | Mia Johansson | shipped   |  18.75\n 1005 | Laura Mendes  | pending   | 230.40\n 1006 | Tom Becker    | delivered |  75.00\n(4 rows)"
+    }
+  ],
+  "hints": [
+    "`DELETE FROM` removes the rows its `WHERE` clause matches. Without a `WHERE`, it removes every row."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: delete the cancelled orders\n\nSELECT id, customer, status, total\nFROM orders\nORDER BY id;\n",
+      "solution": "DELETE FROM orders\nWHERE status = 'cancelled';\n\nSELECT id, customer, status, total\nFROM orders\nORDER BY id;\n"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "sql-years-employed",
+  "title": "Years Employed",
+  "category": "dates",
+  "difficulty": "easy",
+  "statement": "Work out how many full years each employee has worked, as of July 1, 2025.\n\nThe `employees` table has `id` (integer), `name` (text), and `hired_on` (date, their first day). A year only counts once its anniversary has arrived, so someone hired on 2020-07-02 has worked 4 full years on 2025-07-01, not 5. Someone hired on 2020-07-01 has worked exactly 5.\n\nUse the fixed date `2025-07-01`, never today's date, so the answer stays the same. Return `id`, `name`, and `years` (the number of full years) for every employee, ordered by `id`.\n\nExpected output:\n\n```text\n id |      name       | years\n----+-----------------+-------\n  1 | Priya Natarajan |    10\n  2 | Marcus Webb     |     5\n  3 | Elena Petrova   |     4\n  4 | Tomás Herrera   |     6\n  5 | Aisha Bello     |     0\n(5 rows)\n```",
+  "setup": "CREATE TABLE employees (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL,\n  hired_on DATE NOT NULL\n);\n\nINSERT INTO employees (id, name, hired_on) VALUES\n  (1, 'Priya Natarajan', '2015-03-16'),\n  (2, 'Marcus Webb', '2020-07-01'),\n  (3, 'Elena Petrova', '2020-07-02'),\n  (4, 'Tomás Herrera', '2018-12-31'),\n  (5, 'Aisha Bello', '2024-09-10');\n",
+  "tests": [
+    {
+      "output": " id |      name       | years\n----+-----------------+-------\n  1 | Priya Natarajan |    10\n  2 | Marcus Webb     |     5\n  3 | Elena Petrova   |     4\n  4 | Tomás Herrera   |     6\n  5 | Aisha Bello     |     0\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO employees (id, name, hired_on) VALUES\n  (6, 'Kenji Mori', '2025-07-01'),\n  (7, 'Lucy Grant', '2024-07-01');\n",
+      "output": " id |      name       | years\n----+-----------------+-------\n  1 | Priya Natarajan |    10\n  2 | Marcus Webb     |     5\n  3 | Elena Petrova   |     4\n  4 | Tomás Herrera   |     6\n  5 | Aisha Bello     |     0\n  6 | Kenji Mori      |     0\n  7 | Lucy Grant      |     1\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE employees SET hired_on = '1999-07-02' WHERE id = 1;\nINSERT INTO employees (id, name, hired_on) VALUES\n  (6, 'Omar Haddad', '2000-02-29');\n",
+      "output": " id |      name       | years\n----+-----------------+-------\n  1 | Priya Natarajan |    25\n  2 | Marcus Webb     |     5\n  3 | Elena Petrova   |     4\n  4 | Tomás Herrera   |     6\n  5 | Aisha Bello     |     0\n  6 | Omar Haddad     |    25\n(6 rows)"
+    },
+    {
+      "stdin": "DELETE FROM employees WHERE id IN (2, 3);\nINSERT INTO employees (id, name, hired_on) VALUES\n  (6, 'Sofia Rossi', '2010-07-04');\n",
+      "output": " id |      name       | years\n----+-----------------+-------\n  1 | Priya Natarajan |    10\n  4 | Tomás Herrera   |     6\n  5 | Aisha Bello     |     0\n  6 | Sofia Rossi     |    14\n(4 rows)"
+    }
+  ],
+  "hints": [
+    "`age(later, earlier)` returns the time between two dates as an interval in years, months, and days.",
+    "Take only the years part of that interval with `EXTRACT(YEAR FROM ...)`."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: count the full years between hired_on and 2025-07-01\nSELECT id,\n       name,\n       0 AS years\nFROM employees\nORDER BY id;\n",
+      "solution": "SELECT id,\n       name,\n       EXTRACT(YEAR FROM age(DATE '2025-07-01', hired_on)) AS years\nFROM employees\nORDER BY id;\n"
+    }
+  }
+}

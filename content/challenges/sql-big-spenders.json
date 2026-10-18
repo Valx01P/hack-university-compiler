@@ -1,0 +1,35 @@
+{
+  "id": "sql-big-spenders",
+  "title": "Big Spenders",
+  "category": "grouping",
+  "difficulty": "medium",
+  "statement": "Find the customers who have spent more than 500 in total.\n\nThe `customers` table has one row per customer:\n\n- `id`: the customer's id\n- `name`: the customer's name (no two customers share one)\n- `city`: where they live\n\nThe `orders` table has one row per order:\n\n- `id`: the order's id\n- `customer_id`: the `id` of the customer who placed it\n- `amount`: what the order cost\n- `ordered_on`: the date it was placed\n\nReturn two columns, `name` and `total` (the sum of that customer's order amounts), for every customer whose total is more than 500. A total of exactly 500 does not count. Sort by `total` from highest to lowest, and break ties by `name` in alphabetical order. If nobody qualifies, the result is empty.\n\nExpected output:\n\n```text\n     name      | total\n---------------+--------\n Elena Petrova | 640.00\n Ana Ruiz      | 560.00\n Ben Carter    | 535.75\n(3 rows)\n```",
+  "setup": "CREATE TABLE customers (\n  id integer PRIMARY KEY,\n  name text NOT NULL,\n  city text NOT NULL\n);\n\nCREATE TABLE orders (\n  id integer PRIMARY KEY,\n  customer_id integer NOT NULL REFERENCES customers (id),\n  amount numeric(8, 2) NOT NULL,\n  ordered_on date NOT NULL\n);\n\nINSERT INTO customers (id, name, city) VALUES\n  (1, 'Ana Ruiz', 'Austin'),\n  (2, 'Ben Carter', 'Denver'),\n  (3, 'Chloe Nguyen', 'Seattle'),\n  (4, 'David Okafor', 'Boston'),\n  (5, 'Elena Petrova', 'Miami');\n\nINSERT INTO orders (id, customer_id, amount, ordered_on) VALUES\n  (101, 1, 250.00, '2026-03-02'),\n  (102, 2, 120.50, '2026-03-04'),\n  (103, 1, 310.00, '2026-03-09'),\n  (104, 3, 488.00, '2026-03-11'),\n  (105, 4, 80.00, '2026-03-15'),\n  (106, 2, 415.25, '2026-03-18'),\n  (107, 4, 95.00, '2026-03-21'),\n  (108, 5, 640.00, '2026-03-25'),\n  (109, 3, 12.00, '2026-03-28');\n",
+  "tests": [
+    {
+      "output": "     name      | total\n---------------+--------\n Elena Petrova | 640.00\n Ana Ruiz      | 560.00\n Ben Carter    | 535.75\n(3 rows)"
+    },
+    {
+      "stdin": "INSERT INTO orders (id, customer_id, amount, ordered_on) VALUES\n  (110, 4, 400.00, '2026-04-01'),\n  (111, 2, 24.75, '2026-04-02'),\n  (112, 1, 0.50, '2026-04-03');\n",
+      "output": "     name      | total\n---------------+--------\n Elena Petrova | 640.00\n David Okafor  | 575.00\n Ana Ruiz      | 560.50\n Ben Carter    | 560.50\n(4 rows)"
+    },
+    {
+      "stdin": "DELETE FROM orders WHERE id IN (103, 108);\nUPDATE orders SET amount = 12.01 WHERE id = 109;\n",
+      "output": "     name     | total\n--------------+--------\n Ben Carter   | 535.75\n Chloe Nguyen | 500.01\n(2 rows)"
+    },
+    {
+      "stdin": "UPDATE orders SET amount = 100.00;\n",
+      "output": " name | total\n------+-------\n(0 rows)"
+    }
+  ],
+  "hints": [
+    "Join `orders` to `customers` so each order carries its customer's name, then `GROUP BY` the customer.",
+    "`WHERE` filters rows before grouping. To keep only some groups, filter on `SUM(amount)` with `HAVING`."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: add up each customer's orders and keep only totals above 500\nSELECT c.name, o.amount AS total\nFROM customers AS c\nJOIN orders AS o ON o.customer_id = c.id\nORDER BY total DESC, c.name;\n",
+      "solution": "SELECT c.name, SUM(o.amount) AS total\nFROM customers AS c\nJOIN orders AS o ON o.customer_id = c.id\nGROUP BY c.id, c.name\nHAVING SUM(o.amount) > 500\nORDER BY total DESC, c.name;\n"
+    }
+  }
+}

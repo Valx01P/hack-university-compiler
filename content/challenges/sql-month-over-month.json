@@ -1,0 +1,35 @@
+{
+  "id": "sql-month-over-month",
+  "title": "Month Over Month",
+  "category": "window-functions",
+  "difficulty": "medium",
+  "statement": "Show how a shop's revenue changed from one month to the next.\n\nThe `monthly_revenue` table has one row per month: `month` (the first day of the month, never repeated) and `revenue` (that month's revenue in dollars, with cents).\n\nReturn `month`, `revenue`, and `change`, which is this month's revenue minus the revenue of the closest earlier month in the table. Months can be missing, and then you compare with the latest month before the gap. The first month has nothing before it, so its `change` is `NULL`. Order the rows by `month`.\n\nExpected output:\n\n```text\n   month    | revenue  |  change\n------------+----------+----------\n 2026-01-01 | 18250.00 |\n 2026-02-01 | 19400.50 |  1150.50\n 2026-03-01 | 17980.25 | -1420.25\n 2026-04-01 | 21300.00 |  3319.75\n 2026-05-01 | 21300.00 |     0.00\n 2026-06-01 | 24115.75 |  2815.75\n(6 rows)\n```",
+  "setup": "CREATE TABLE monthly_revenue (\n  month date PRIMARY KEY,\n  revenue numeric(10, 2) NOT NULL\n);\n\nINSERT INTO monthly_revenue (month, revenue) VALUES\n  ('2026-01-01', 18250.00),\n  ('2026-02-01', 19400.50),\n  ('2026-03-01', 17980.25),\n  ('2026-04-01', 21300.00),\n  ('2026-05-01', 21300.00),\n  ('2026-06-01', 24115.75);\n",
+  "tests": [
+    {
+      "output": "   month    | revenue  |  change\n------------+----------+----------\n 2026-01-01 | 18250.00 |\n 2026-02-01 | 19400.50 |  1150.50\n 2026-03-01 | 17980.25 | -1420.25\n 2026-04-01 | 21300.00 |  3319.75\n 2026-05-01 | 21300.00 |     0.00\n 2026-06-01 | 24115.75 |  2815.75\n(6 rows)"
+    },
+    {
+      "stdin": "INSERT INTO monthly_revenue (month, revenue) VALUES ('2025-12-01', 16800.00);\n",
+      "output": "   month    | revenue  |  change\n------------+----------+----------\n 2025-12-01 | 16800.00 |\n 2026-01-01 | 18250.00 |  1450.00\n 2026-02-01 | 19400.50 |  1150.50\n 2026-03-01 | 17980.25 | -1420.25\n 2026-04-01 | 21300.00 |  3319.75\n 2026-05-01 | 21300.00 |     0.00\n 2026-06-01 | 24115.75 |  2815.75\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE monthly_revenue SET revenue = 15000.00 WHERE month = '2026-03-01';\nDELETE FROM monthly_revenue WHERE month = '2026-05-01';\n",
+      "output": "   month    | revenue  |  change\n------------+----------+----------\n 2026-01-01 | 18250.00 |\n 2026-02-01 | 19400.50 |  1150.50\n 2026-03-01 | 15000.00 | -4400.50\n 2026-04-01 | 21300.00 |  6300.00\n 2026-06-01 | 24115.75 |  2815.75\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO monthly_revenue (month, revenue) VALUES ('2026-07-01', 20990.25);\nDELETE FROM monthly_revenue WHERE month = '2026-01-01';\n",
+      "output": "   month    | revenue  |  change\n------------+----------+----------\n 2026-02-01 | 19400.50 |\n 2026-03-01 | 17980.25 | -1420.25\n 2026-04-01 | 21300.00 |  3319.75\n 2026-05-01 | 21300.00 |     0.00\n 2026-06-01 | 24115.75 |  2815.75\n 2026-07-01 | 20990.25 | -3125.50\n(6 rows)"
+    }
+  ],
+  "hints": [
+    "`LAG(column)` reads a value from the row before the current one in the window.",
+    "Order the window by `month` so the row before is the previous month. On the first row `LAG` returns `NULL`, and anything minus `NULL` is `NULL`."
+  ],
+  "code": {
+    "sql": {
+      "starter": "SELECT month,\n       revenue,\n       NULL AS change  -- TODO: subtract the previous month's revenue\nFROM monthly_revenue\nORDER BY month;\n",
+      "solution": "SELECT month,\n       revenue,\n       revenue - LAG(revenue) OVER (ORDER BY month) AS change\nFROM monthly_revenue\nORDER BY month;\n"
+    }
+  }
+}

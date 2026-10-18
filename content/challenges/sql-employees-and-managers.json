@@ -1,0 +1,35 @@
+{
+  "id": "sql-employees-and-managers",
+  "title": "Employees and Managers",
+  "category": "joins",
+  "difficulty": "medium",
+  "statement": "Show every employee next to the name of their manager.\n\nThe `employees` table has one row per employee:\n\n- `id`: the employee's id\n- `name`: the employee's name\n- `job_title`: their job title\n- `manager_id`: the `id` of their manager, who is another row in this same table. It is NULL for someone with no manager, like the CEO.\n\nReturn one row per employee with three columns: `id`, `employee` (their `name`), and `manager` (their manager's `name`, or NULL when they have no manager). Sort by `id`. Every employee appears, including those with no manager.\n\nExpected output:\n\n```text\n id |   employee   |   manager\n----+--------------+--------------\n  1 | Sofia Reyes  |\n  2 | James Park   | Sofia Reyes\n  3 | Fatima Noor  | Sofia Reyes\n  4 | Ethan Brooks | James Park\n  5 | Mei Chen     | Ethan Brooks\n  6 | Ravi Kumar   | Ethan Brooks\n  7 | Olivia Grant | Fatima Noor\n(7 rows)\n```",
+  "setup": "CREATE TABLE employees (\n  id integer PRIMARY KEY,\n  name text NOT NULL,\n  job_title text NOT NULL,\n  manager_id integer REFERENCES employees (id)\n);\n\nINSERT INTO employees (id, name, job_title, manager_id) VALUES\n  (1, 'Sofia Reyes', 'CEO', NULL),\n  (2, 'James Park', 'CTO', 1),\n  (3, 'Fatima Noor', 'CFO', 1),\n  (4, 'Ethan Brooks', 'Engineering Manager', 2),\n  (5, 'Mei Chen', 'Software Engineer', 4),\n  (6, 'Ravi Kumar', 'Software Engineer', 4),\n  (7, 'Olivia Grant', 'Accountant', 3);\n",
+  "tests": [
+    {
+      "output": " id |   employee   |   manager\n----+--------------+--------------\n  1 | Sofia Reyes  |\n  2 | James Park   | Sofia Reyes\n  3 | Fatima Noor  | Sofia Reyes\n  4 | Ethan Brooks | James Park\n  5 | Mei Chen     | Ethan Brooks\n  6 | Ravi Kumar   | Ethan Brooks\n  7 | Olivia Grant | Fatima Noor\n(7 rows)"
+    },
+    {
+      "stdin": "INSERT INTO employees (id, name, job_title, manager_id) VALUES\n  (8, 'Noah Fischer', 'Data Analyst', 3),\n  (9, 'Lena Weber', 'Intern', 5);\n",
+      "output": " id |   employee   |   manager\n----+--------------+--------------\n  1 | Sofia Reyes  |\n  2 | James Park   | Sofia Reyes\n  3 | Fatima Noor  | Sofia Reyes\n  4 | Ethan Brooks | James Park\n  5 | Mei Chen     | Ethan Brooks\n  6 | Ravi Kumar   | Ethan Brooks\n  7 | Olivia Grant | Fatima Noor\n  8 | Noah Fischer | Fatima Noor\n  9 | Lena Weber   | Mei Chen\n(9 rows)"
+    },
+    {
+      "stdin": "UPDATE employees SET manager_id = 2 WHERE id IN (5, 6);\nDELETE FROM employees WHERE id = 4;\nUPDATE employees SET name = 'Sofia R. Reyes' WHERE id = 1;\n",
+      "output": " id |    employee    |    manager\n----+----------------+----------------\n  1 | Sofia R. Reyes |\n  2 | James Park     | Sofia R. Reyes\n  3 | Fatima Noor    | Sofia R. Reyes\n  5 | Mei Chen       | James Park\n  6 | Ravi Kumar     | James Park\n  7 | Olivia Grant   | Fatima Noor\n(6 rows)"
+    },
+    {
+      "stdin": "UPDATE employees SET manager_id = NULL WHERE id = 3;\n",
+      "output": " id |   employee   |   manager\n----+--------------+--------------\n  1 | Sofia Reyes  |\n  2 | James Park   | Sofia Reyes\n  3 | Fatima Noor  |\n  4 | Ethan Brooks | James Park\n  5 | Mei Chen     | Ethan Brooks\n  6 | Ravi Kumar   | Ethan Brooks\n  7 | Olivia Grant | Fatima Noor\n(7 rows)"
+    }
+  ],
+  "hints": [
+    "Join `employees` to itself with two aliases, one for the employee and one for the manager.",
+    "An inner join drops the CEO, who has no manager. Which join keeps rows that have no match?"
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: join employees to itself to show the manager's name\nSELECT id, name AS employee, manager_id AS manager\nFROM employees\nORDER BY id;\n",
+      "solution": "SELECT e.id, e.name AS employee, m.name AS manager\nFROM employees AS e\nLEFT JOIN employees AS m ON m.id = e.manager_id\nORDER BY e.id;\n"
+    }
+  }
+}

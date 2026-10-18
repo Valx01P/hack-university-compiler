@@ -1,0 +1,35 @@
+{
+  "id": "sql-upsert-inventory",
+  "title": "Upsert Inventory",
+  "category": "insert",
+  "difficulty": "medium",
+  "statement": "A shipment just arrived at the warehouse. Some of its products are already in stock and some are new. Add the whole shipment to the inventory with one `INSERT` statement, then list the inventory.\n\nThe `inventory` table has one row per product:\n\n- `sku`: the product code, the primary key\n- `name`: the product name\n- `quantity`: how many are in stock\n\nThe `shipment` table has the same three columns, with each `sku` at most once.\n\nFor every shipment row, add a new inventory row when its `sku` is not in stock yet. When it is, add the shipment's `quantity` to the quantity already in stock and keep the inventory's name. Then return `sku`, `name`, and `quantity` for every inventory row, ordered by `sku`.\n\nExpected output:\n\n```text\nINSERT 0 3\n\n  sku   |        name        | quantity\n--------+--------------------+----------\n BK-101 | Hardcover notebook |       40\n BK-205 | Spiral notebook    |       45\n MK-020 | Highlighter set    |       25\n PN-310 | Gel pen, black     |      120\n PN-315 | Gel pen, blue      |      100\n ST-500 | Stapler            |        8\n(6 rows)\n```",
+  "setup": "CREATE TABLE inventory (\n  sku TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  quantity INTEGER NOT NULL\n);\n\nCREATE TABLE shipment (\n  sku TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  quantity INTEGER NOT NULL\n);\n\nINSERT INTO inventory (sku, name, quantity) VALUES\n  ('BK-101', 'Hardcover notebook', 40),\n  ('BK-205', 'Spiral notebook', 15),\n  ('PN-310', 'Gel pen, black', 120),\n  ('PN-315', 'Gel pen, blue', 0),\n  ('ST-500', 'Stapler', 8);\n\nINSERT INTO shipment (sku, name, quantity) VALUES\n  ('BK-205', 'Spiral notebook', 30),\n  ('PN-315', 'Gel pen, blue', 100),\n  ('MK-020', 'Highlighter set', 25);\n",
+  "tests": [
+    {
+      "output": "INSERT 0 3\n\n  sku   |        name        | quantity\n--------+--------------------+----------\n BK-101 | Hardcover notebook |       40\n BK-205 | Spiral notebook    |       45\n MK-020 | Highlighter set    |       25\n PN-310 | Gel pen, black     |      120\n PN-315 | Gel pen, blue      |      100\n ST-500 | Stapler            |        8\n(6 rows)"
+    },
+    {
+      "stdin": "INSERT INTO shipment (sku, name, quantity) VALUES ('ST-500', 'Stapler, heavy duty', 12), ('TP-700', 'Packing tape', 60);\nUPDATE shipment SET name = 'Spiral notebook, A5' WHERE sku = 'BK-205';\nUPDATE inventory SET quantity = 5 WHERE sku = 'BK-205';\n",
+      "output": "INSERT 0 5\n\n  sku   |        name        | quantity\n--------+--------------------+----------\n BK-101 | Hardcover notebook |       40\n BK-205 | Spiral notebook    |       35\n MK-020 | Highlighter set    |       25\n PN-310 | Gel pen, black     |      120\n PN-315 | Gel pen, blue      |      100\n ST-500 | Stapler            |       20\n TP-700 | Packing tape       |       60\n(7 rows)"
+    },
+    {
+      "stdin": "DELETE FROM shipment;\nINSERT INTO shipment (sku, name, quantity) VALUES ('BK-101', 'Hardcover notebook', 10), ('PN-310', 'Gel pen, black', 80);\n",
+      "output": "INSERT 0 2\n\n  sku   |        name        | quantity\n--------+--------------------+----------\n BK-101 | Hardcover notebook |       50\n BK-205 | Spiral notebook    |       15\n PN-310 | Gel pen, black     |      200\n PN-315 | Gel pen, blue      |        0\n ST-500 | Stapler            |        8\n(5 rows)"
+    },
+    {
+      "stdin": "DELETE FROM shipment;\n",
+      "output": "INSERT 0 0\n\n  sku   |        name        | quantity\n--------+--------------------+----------\n BK-101 | Hardcover notebook |       40\n BK-205 | Spiral notebook    |       15\n PN-310 | Gel pen, black     |      120\n PN-315 | Gel pen, blue      |        0\n ST-500 | Stapler            |        8\n(5 rows)"
+    }
+  ],
+  "hints": [
+    "Insert from a `SELECT` on the shipment table, then decide what happens when a `sku` already exists.",
+    "`ON CONFLICT (sku) DO UPDATE` runs instead of the insert for an existing `sku`. Inside it, `EXCLUDED` is the row you tried to insert."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: add every shipment row to inventory, adding to the quantity\n-- when the sku is already in stock\n\nSELECT sku, name, quantity\nFROM inventory\nORDER BY sku;\n",
+      "solution": "INSERT INTO inventory (sku, name, quantity)\nSELECT sku, name, quantity\nFROM shipment\nON CONFLICT (sku) DO UPDATE\nSET quantity = inventory.quantity + EXCLUDED.quantity;\n\nSELECT sku, name, quantity\nFROM inventory\nORDER BY sku;\n"
+    }
+  }
+}

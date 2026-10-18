@@ -1,0 +1,35 @@
+{
+  "id": "sql-running-total",
+  "title": "Running Total",
+  "category": "window-functions",
+  "difficulty": "medium",
+  "statement": "Show a bakery's sales for each day next to the total so far.\n\nThe `daily_sales` table has one row per day: `day` (a date, never repeated) and `amount` (that day's sales in dollars, with cents).\n\nReturn `day`, `amount`, and `running_total`, the sum of `amount` over that day and every earlier day. Order the rows by `day`.\n\nExpected output:\n\n```text\n    day     | amount | running_total\n------------+--------+---------------\n 2026-03-02 | 412.50 |        412.50\n 2026-03-03 | 388.00 |        800.50\n 2026-03-04 | 455.25 |       1255.75\n 2026-03-05 | 301.75 |       1557.50\n 2026-03-06 | 520.00 |       2077.50\n 2026-03-07 | 610.40 |       2687.90\n 2026-03-08 | 274.10 |       2962.00\n(7 rows)\n```",
+  "setup": "CREATE TABLE daily_sales (\n  day date PRIMARY KEY,\n  amount numeric(10, 2) NOT NULL\n);\n\nINSERT INTO daily_sales (day, amount) VALUES\n  ('2026-03-02', 412.50),\n  ('2026-03-03', 388.00),\n  ('2026-03-04', 455.25),\n  ('2026-03-05', 301.75),\n  ('2026-03-06', 520.00),\n  ('2026-03-07', 610.40),\n  ('2026-03-08', 274.10);\n",
+  "tests": [
+    {
+      "output": "    day     | amount | running_total\n------------+--------+---------------\n 2026-03-02 | 412.50 |        412.50\n 2026-03-03 | 388.00 |        800.50\n 2026-03-04 | 455.25 |       1255.75\n 2026-03-05 | 301.75 |       1557.50\n 2026-03-06 | 520.00 |       2077.50\n 2026-03-07 | 610.40 |       2687.90\n 2026-03-08 | 274.10 |       2962.00\n(7 rows)"
+    },
+    {
+      "stdin": "INSERT INTO daily_sales (day, amount) VALUES\n  ('2026-03-01', 150.00),\n  ('2026-03-09', 330.00);\n",
+      "output": "    day     | amount | running_total\n------------+--------+---------------\n 2026-03-01 | 150.00 |        150.00\n 2026-03-02 | 412.50 |        562.50\n 2026-03-03 | 388.00 |        950.50\n 2026-03-04 | 455.25 |       1405.75\n 2026-03-05 | 301.75 |       1707.50\n 2026-03-06 | 520.00 |       2227.50\n 2026-03-07 | 610.40 |       2837.90\n 2026-03-08 | 274.10 |       3112.00\n 2026-03-09 | 330.00 |       3442.00\n(9 rows)"
+    },
+    {
+      "stdin": "UPDATE daily_sales SET amount = 0 WHERE day = '2026-03-05';\nDELETE FROM daily_sales WHERE day = '2026-03-08';\n",
+      "output": "    day     | amount | running_total\n------------+--------+---------------\n 2026-03-02 | 412.50 |        412.50\n 2026-03-03 | 388.00 |        800.50\n 2026-03-04 | 455.25 |       1255.75\n 2026-03-05 |   0.00 |       1255.75\n 2026-03-06 | 520.00 |       1775.75\n 2026-03-07 | 610.40 |       2386.15\n(6 rows)"
+    },
+    {
+      "stdin": "DELETE FROM daily_sales WHERE day > '2026-03-02';\n",
+      "output": "    day     | amount | running_total\n------------+--------+---------------\n 2026-03-02 | 412.50 |        412.50\n(1 row)"
+    }
+  ],
+  "hints": [
+    "`SUM()` with `OVER (...)` adds up a window of rows and keeps every row in the result.",
+    "With `ORDER BY day` inside `OVER`, the window for each row runs from the first day up to that row."
+  ],
+  "code": {
+    "sql": {
+      "starter": "SELECT day,\n       amount,\n       amount AS running_total  -- TODO: add up every day so far\nFROM daily_sales\nORDER BY day;\n",
+      "solution": "SELECT day,\n       amount,\n       SUM(amount) OVER (ORDER BY day) AS running_total\nFROM daily_sales\nORDER BY day;\n"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "sql-email-domain",
+  "title": "Emails at a Domain",
+  "category": "pattern-matching",
+  "difficulty": "easy",
+  "statement": "Find the users whose email address is at the `example.com` domain. People type their emails in all sorts of letter cases, so `Lee@Example.COM` counts too.\n\nThe `users` table has these columns:\n\n- `id`: the user's id, a whole number\n- `name`: the user's name\n- `email`: the user's email address\n\nReturn the columns `id`, `name`, and `email` for every user whose email ends with `@example.com`, ignoring letter case. Addresses at other domains, such as `mail.example.com` or `example.com.au`, do not count. Order the rows by `id`.\n\nExpected output:\n\n```text\n id |    name    |        email\n----+------------+----------------------\n  1 | Priya Shah | priya@example.com\n  3 | Lee Morgan | Lee@Example.COM\n  6 | Yuki Ito   | YUKI.ITO@EXAMPLE.COM\n(3 rows)\n```",
+  "setup": "CREATE TABLE users (\n  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n  name TEXT NOT NULL,\n  email TEXT NOT NULL\n);\n\nINSERT INTO users (name, email) VALUES\n  ('Priya Shah', 'priya@example.com'),\n  ('Tom Becker', 'tom.becker@gmail.com'),\n  ('Lee Morgan', 'Lee@Example.COM'),\n  ('Ines Duarte', 'ines@mail.example.com'),\n  ('Kofi Mensah', 'kofi@example.com.au'),\n  ('Yuki Ito', 'YUKI.ITO@EXAMPLE.COM'),\n  ('Dana Novak', 'dana@notexample.com');\n",
+  "tests": [
+    {
+      "output": " id |    name    |        email\n----+------------+----------------------\n  1 | Priya Shah | priya@example.com\n  3 | Lee Morgan | Lee@Example.COM\n  6 | Yuki Ito   | YUKI.ITO@EXAMPLE.COM\n(3 rows)"
+    },
+    {
+      "stdin": "INSERT INTO users (name, email) VALUES ('Marco Bianchi', 'marco@eXample.com'), ('Ruth Cohen', 'ruth@example.org');\n",
+      "output": " id |     name      |        email\n----+---------------+----------------------\n  1 | Priya Shah    | priya@example.com\n  3 | Lee Morgan    | Lee@Example.COM\n  6 | Yuki Ito      | YUKI.ITO@EXAMPLE.COM\n  8 | Marco Bianchi | marco@eXample.com\n(4 rows)"
+    },
+    {
+      "stdin": "UPDATE users SET email = 'tom@example.com' WHERE name = 'Tom Becker';\nUPDATE users SET email = 'priya@outlook.com' WHERE name = 'Priya Shah';\nUPDATE users SET email = 'kofi@example-com' WHERE name = 'Kofi Mensah';\n",
+      "output": " id |    name    |        email\n----+------------+----------------------\n  2 | Tom Becker | tom@example.com\n  3 | Lee Morgan | Lee@Example.COM\n  6 | Yuki Ito   | YUKI.ITO@EXAMPLE.COM\n(3 rows)"
+    },
+    {
+      "stdin": "DELETE FROM users WHERE email ILIKE '%example.com';\n",
+      "output": " id | name | email\n----+------+-------\n(0 rows)"
+    }
+  ],
+  "hints": [
+    "`%` at the start of a pattern lets anything come before the part you name.",
+    "`ILIKE` works like `LIKE` but ignores letter case."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: keep only emails at example.com, in any letter case\nSELECT id, name, email\nFROM users\nORDER BY id;\n",
+      "solution": "SELECT id, name, email\nFROM users\nWHERE email ILIKE '%@example.com'\nORDER BY id;\n"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "sql-nickname-or-name",
+  "title": "Nickname or Name",
+  "category": "nulls",
+  "difficulty": "easy",
+  "statement": "A chat app greets each user by their nickname, or by their name when they never picked one.\n\nThe `users` table has these columns:\n\n- `id`: the user's id, a whole number\n- `name`: the user's name, never `NULL`\n- `nickname`: the nickname they picked, or `NULL` when they have none\n\nReturn two columns: `id`, and `display_name`, which is the user's `nickname`, or their `name` when the nickname is `NULL`. Return one row per user, ordered by `id`.\n\nExpected output:\n\n```text\n id | display_name\n----+--------------\n  1 | pri\n  2 | Tom Becker\n  3 | leemo\n  4 | Ines Duarte\n  5 | kofi_codes\n(5 rows)\n```",
+  "setup": "CREATE TABLE users (\n  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n  name TEXT NOT NULL,\n  nickname TEXT\n);\n\nINSERT INTO users (name, nickname) VALUES\n  ('Priya Shah', 'pri'),\n  ('Tom Becker', NULL),\n  ('Lee Morgan', 'leemo'),\n  ('Ines Duarte', NULL),\n  ('Kofi Mensah', 'kofi_codes');\n",
+  "tests": [
+    {
+      "output": " id | display_name\n----+--------------\n  1 | pri\n  2 | Tom Becker\n  3 | leemo\n  4 | Ines Duarte\n  5 | kofi_codes\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO users (name, nickname) VALUES ('Yuki Ito', NULL), ('Marco Bianchi', 'marcob');\n",
+      "output": " id | display_name\n----+--------------\n  1 | pri\n  2 | Tom Becker\n  3 | leemo\n  4 | Ines Duarte\n  5 | kofi_codes\n  6 | Yuki Ito\n  7 | marcob\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE users SET nickname = NULL;\n",
+      "output": " id | display_name\n----+--------------\n  1 | Priya Shah\n  2 | Tom Becker\n  3 | Lee Morgan\n  4 | Ines Duarte\n  5 | Kofi Mensah\n(5 rows)"
+    },
+    {
+      "stdin": "UPDATE users SET nickname = 'tommy' WHERE name = 'Tom Becker';\nUPDATE users SET nickname = 'ines.d' WHERE name = 'Ines Duarte';\n",
+      "output": " id | display_name\n----+--------------\n  1 | pri\n  2 | tommy\n  3 | leemo\n  4 | ines.d\n  5 | kofi_codes\n(5 rows)"
+    }
+  ],
+  "hints": [
+    "`COALESCE(a, b)` gives back `a`, or `b` when `a` is `NULL`.",
+    "Name the result column with `AS display_name`."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: fall back to name when nickname is NULL\nSELECT id, nickname AS display_name\nFROM users\nORDER BY id;\n",
+      "solution": "SELECT id, COALESCE(nickname, name) AS display_name\nFROM users\nORDER BY id;\n"
+    }
+  }
+}

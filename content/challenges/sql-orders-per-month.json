@@ -1,0 +1,35 @@
+{
+  "id": "sql-orders-per-month",
+  "title": "Orders per Month",
+  "category": "dates",
+  "difficulty": "medium",
+  "statement": "Count how many orders a shop received in each calendar month.\n\nThe `orders` table has one row per order: `id` (integer), `customer` (text), `ordered_at` (timestamp, when the order was placed), and `total` (numeric, the order amount). The orders can span more than one year.\n\nReturn one row per month that has at least one order, with two columns:\n\n- `month`: the month as text in the form `YYYY-MM`, like `2024-11`\n- `order_count`: the number of orders placed in that month\n\nOrder the rows by `month`, oldest first.\n\nExpected output:\n\n```text\n  month  | order_count\n---------+-------------\n 2024-11 |           2\n 2024-12 |           3\n 2025-01 |           2\n 2025-03 |           1\n(4 rows)\n```",
+  "setup": "CREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  customer TEXT NOT NULL,\n  ordered_at TIMESTAMP NOT NULL,\n  total NUMERIC(8, 2) NOT NULL\n);\n\nINSERT INTO orders (id, customer, ordered_at, total) VALUES\n  (1, 'Ada Lovelace', '2024-11-03 09:15:00', 42.50),\n  (2, 'Grace Hopper', '2024-11-18 14:02:00', 18.00),\n  (3, 'Alan Turing', '2024-12-01 00:05:00', 75.25),\n  (4, 'Ada Lovelace', '2024-12-24 19:40:00', 12.99),\n  (5, 'Edsger Dijkstra', '2024-12-31 23:59:00', 30.00),\n  (6, 'Grace Hopper', '2025-01-02 08:30:00', 55.10),\n  (7, 'Barbara Liskov', '2025-01-15 12:00:00', 21.75),\n  (8, 'Alan Turing', '2025-03-09 16:45:00', 99.00);\n",
+  "tests": [
+    {
+      "output": "  month  | order_count\n---------+-------------\n 2024-11 |           2\n 2024-12 |           3\n 2025-01 |           2\n 2025-03 |           1\n(4 rows)"
+    },
+    {
+      "stdin": "INSERT INTO orders (id, customer, ordered_at, total) VALUES\n  (9, 'Ken Thompson', '2025-02-28 23:59:59', 14.00),\n  (10, 'Ken Thompson', '2025-03-01 00:00:00', 8.50);\n",
+      "output": "  month  | order_count\n---------+-------------\n 2024-11 |           2\n 2024-12 |           3\n 2025-01 |           2\n 2025-02 |           1\n 2025-03 |           2\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO orders (id, customer, ordered_at, total) VALUES\n  (9, 'Margaret Hamilton', '2025-11-20 10:00:00', 64.00),\n  (10, 'Margaret Hamilton', '2025-12-05 11:30:00', 27.40);\n",
+      "output": "  month  | order_count\n---------+-------------\n 2024-11 |           2\n 2024-12 |           3\n 2025-01 |           2\n 2025-03 |           1\n 2025-11 |           1\n 2025-12 |           1\n(6 rows)"
+    },
+    {
+      "stdin": "DELETE FROM orders WHERE ordered_at < '2025-01-01';\n",
+      "output": "  month  | order_count\n---------+-------------\n 2025-01 |           2\n 2025-03 |           1\n(2 rows)"
+    }
+  ],
+  "hints": [
+    "`to_char` can format a timestamp with a pattern like `'YYYY-MM'`.",
+    "Group by the formatted month, so every order in the same month lands in one group."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: format ordered_at as YYYY-MM and count the orders in each month\nSELECT ordered_at AS month,\n       1 AS order_count\nFROM orders\nORDER BY ordered_at, id;\n",
+      "solution": "SELECT to_char(ordered_at, 'YYYY-MM') AS month,\n       COUNT(*) AS order_count\nFROM orders\nGROUP BY month\nORDER BY month;\n"
+    }
+  }
+}

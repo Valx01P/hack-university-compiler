@@ -1,0 +1,35 @@
+{
+  "id": "sql-total-from-text",
+  "title": "Total From Text",
+  "category": "types-casting",
+  "difficulty": "easy",
+  "statement": "An old import stored payment amounts as text. Add them up per account.\n\nThe `payments` table has `id` (integer), `account` (text, the account code), and `amount` (text, a decimal amount with two places like `'120.50'`, negative for refunds).\n\nCast `amount` to `numeric` so the cents stay exact, and return one row per account with `account` and `total` (the sum of its amounts), ordered by `account`.\n\nExpected output:\n\n```text\n account |  total\n---------+---------\n ACME-01 |  120.80\n BLUE-07 |   74.99\n CORE-12 | 1250.25\n(3 rows)\n```",
+  "setup": "CREATE TABLE payments (\n  id INTEGER PRIMARY KEY,\n  account TEXT NOT NULL,\n  amount TEXT NOT NULL\n);\n\nINSERT INTO payments (id, account, amount) VALUES\n  (1, 'ACME-01', '120.50'),\n  (2, 'ACME-01', '0.10'),\n  (3, 'ACME-01', '0.20'),\n  (4, 'BLUE-07', '89.99'),\n  (5, 'BLUE-07', '-15.00'),\n  (6, 'CORE-12', '1000.00'),\n  (7, 'CORE-12', '250.25');\n",
+  "tests": [
+    {
+      "output": " account |  total\n---------+---------\n ACME-01 |  120.80\n BLUE-07 |   74.99\n CORE-12 | 1250.25\n(3 rows)"
+    },
+    {
+      "stdin": "INSERT INTO payments (id, account, amount) VALUES\n  (8, 'ACME-01', '9.20'),\n  (9, 'DUNE-03', '42.00');\n",
+      "output": " account |  total\n---------+---------\n ACME-01 |  130.00\n BLUE-07 |   74.99\n CORE-12 | 1250.25\n DUNE-03 |   42.00\n(4 rows)"
+    },
+    {
+      "stdin": "UPDATE payments SET amount = '-89.99' WHERE id = 4;\nINSERT INTO payments (id, account, amount) VALUES\n  (8, 'BLUE-07', '15.00');\n",
+      "output": " account |  total\n---------+---------\n ACME-01 |  120.80\n BLUE-07 |  -89.99\n CORE-12 | 1250.25\n(3 rows)"
+    },
+    {
+      "stdin": "DELETE FROM payments WHERE account = 'CORE-12';\nINSERT INTO payments (id, account, amount) VALUES\n  (8, 'ACME-01', '0.30'),\n  (9, 'ACME-01', '0.40');\n",
+      "output": " account | total\n---------+--------\n ACME-01 | 121.50\n BLUE-07 |  74.99\n(2 rows)"
+    }
+  ],
+  "hints": [
+    "You cannot add up text. Turn each amount into a number first.",
+    "`numeric` keeps cents exact, while a floating point type can add tiny rounding errors."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: cast amount to a number and add it up\nSELECT account,\n       COUNT(amount) AS total\nFROM payments\nGROUP BY account\nORDER BY account;\n",
+      "solution": "SELECT account,\n       SUM(amount::numeric) AS total\nFROM payments\nGROUP BY account\nORDER BY account;\n"
+    }
+  }
+}

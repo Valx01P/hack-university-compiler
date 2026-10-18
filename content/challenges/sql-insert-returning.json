@@ -1,0 +1,35 @@
+{
+  "id": "sql-insert-returning",
+  "title": "Insert and Return",
+  "category": "insert",
+  "difficulty": "very-easy",
+  "statement": "A gym keeps its members in a table, and the database numbers each new member for you. Add two new members and get their numbers back in the same statement.\n\nThe `members` table has these columns:\n\n- `id`: the member number, an identity column that Postgres fills in\n- `name`: the member's name\n- `plan`: the membership plan, `basic` or `pro`\n\nInsert these two members, in this order:\n\n- Priya Nair on the `pro` plan\n- Owen Brooks on the `basic` plan\n\nLet Postgres choose the ids, and return the new rows' `id` and `name` columns from the insert itself. The rows come back in the order you inserted them.\n\nExpected output:\n\n```text\n id |    name\n----+-------------\n  5 | Priya Nair\n  6 | Owen Brooks\n(2 rows)\n```",
+  "setup": "CREATE TABLE members (\n  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n  name TEXT NOT NULL,\n  plan TEXT NOT NULL\n);\n\nINSERT INTO members (name, plan) VALUES\n  ('Maya Chen', 'pro'),\n  ('Lucas Ferreira', 'basic'),\n  ('Hannah Okafor', 'basic'),\n  ('Daniel Kim', 'pro');\n",
+  "tests": [
+    {
+      "output": " id |    name\n----+-------------\n  5 | Priya Nair\n  6 | Owen Brooks\n(2 rows)"
+    },
+    {
+      "stdin": "INSERT INTO members (name, plan) VALUES ('Sofia Rossi', 'pro'), ('Ethan Walsh', 'basic'), ('Amara Diallo', 'pro');\n",
+      "output": " id |    name\n----+-------------\n  8 | Priya Nair\n  9 | Owen Brooks\n(2 rows)"
+    },
+    {
+      "stdin": "INSERT INTO members (name, plan) VALUES ('Leo Martin', 'basic');\nDELETE FROM members WHERE name = 'Leo Martin';\n",
+      "output": " id |    name\n----+-------------\n  6 | Priya Nair\n  7 | Owen Brooks\n(2 rows)"
+    },
+    {
+      "stdin": "DELETE FROM members WHERE plan = 'basic';\nINSERT INTO members (name, plan) VALUES ('Grace Liu', 'pro'), ('Noah Schmidt', 'basic'), ('Isla Murphy', 'basic'), ('Ravi Patel', 'pro'), ('Chloe Dubois', 'pro');\n",
+      "output": " id |    name\n----+-------------\n 10 | Priya Nair\n 11 | Owen Brooks\n(2 rows)"
+    }
+  ],
+  "hints": [
+    "Leave `id` out of the column list so the identity column fills it in.",
+    "End the `INSERT` with a `RETURNING` clause that names the columns you want back."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: also return the new rows' id and name\nINSERT INTO members (name, plan)\nVALUES\n  ('Priya Nair', 'pro'),\n  ('Owen Brooks', 'basic');\n",
+      "solution": "INSERT INTO members (name, plan)\nVALUES\n  ('Priya Nair', 'pro'),\n  ('Owen Brooks', 'basic')\nRETURNING id, name;\n"
+    }
+  }
+}

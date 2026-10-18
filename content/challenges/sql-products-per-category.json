@@ -1,0 +1,35 @@
+{
+  "id": "sql-products-per-category",
+  "title": "Products per Category",
+  "category": "grouping",
+  "difficulty": "easy",
+  "statement": "Count how many products each category has.\n\nThe `products` table has one row per product:\n\n- `id`: the product's id\n- `name`: the product's name\n- `category`: the category it belongs to, like `outdoor` or `home`\n- `price`: its price\n\nReturn one row per category with two columns, `category` and `product_count` (the number of products in it). Put the categories with the most products first, and break ties by category name in alphabetical order.\n\nExpected output:\n\n```text\n  category   | product_count\n-------------+---------------\n outdoor     |             4\n electronics |             3\n home        |             2\n fitness     |             1\n(4 rows)\n```",
+  "setup": "CREATE TABLE products (\n  id integer PRIMARY KEY,\n  name text NOT NULL,\n  category text NOT NULL,\n  price numeric(8, 2) NOT NULL\n);\n\nINSERT INTO products (id, name, category, price) VALUES\n  (1, 'Trail Backpack', 'outdoor', 89.00),\n  (2, 'Camping Stove', 'outdoor', 54.50),\n  (3, 'Desk Lamp', 'home', 32.00),\n  (4, 'Wireless Mouse', 'electronics', 24.99),\n  (5, 'Headlamp', 'outdoor', 19.95),\n  (6, 'USB-C Charger', 'electronics', 29.00),\n  (7, 'Throw Pillow', 'home', 18.00),\n  (8, 'Water Filter', 'outdoor', 39.90),\n  (9, 'Bluetooth Speaker', 'electronics', 59.00),\n  (10, 'Yoga Mat', 'fitness', 25.00);\n",
+  "tests": [
+    {
+      "output": "  category   | product_count\n-------------+---------------\n outdoor     |             4\n electronics |             3\n home        |             2\n fitness     |             1\n(4 rows)"
+    },
+    {
+      "stdin": "INSERT INTO products (id, name, category, price) VALUES\n  (11, 'Kettlebell', 'fitness', 45.00),\n  (12, 'Jump Rope', 'fitness', 12.00);\n",
+      "output": "  category   | product_count\n-------------+---------------\n outdoor     |             4\n electronics |             3\n fitness     |             3\n home        |             2\n(4 rows)"
+    },
+    {
+      "stdin": "DELETE FROM products WHERE category = 'outdoor';\nINSERT INTO products (id, name, category, price) VALUES\n  (11, 'Graphic Novel', 'books', 22.00);\n",
+      "output": "  category   | product_count\n-------------+---------------\n electronics |             3\n home        |             2\n books       |             1\n fitness     |             1\n(4 rows)"
+    },
+    {
+      "stdin": "UPDATE products SET category = 'home' WHERE id IN (4, 6, 9);\n",
+      "output": " category | product_count\n----------+---------------\n home     |             5\n outdoor  |             4\n fitness  |             1\n(3 rows)"
+    }
+  ],
+  "hints": [
+    "`GROUP BY category` turns all the rows of one category into a single row.",
+    "`COUNT(*)` counts the rows in each group, and you can sort by it in `ORDER BY`."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: group the products by category and count them\nSELECT category\nFROM products\nORDER BY category;\n",
+      "solution": "SELECT category, COUNT(*) AS product_count\nFROM products\nGROUP BY category\nORDER BY product_count DESC, category;\n"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "sql-price-bands",
+  "title": "Price Bands",
+  "category": "case",
+  "difficulty": "easy",
+  "statement": "Label every product with a price band so shoppers can filter the catalog.\n\nThe `products` table has one row per product:\n\n- `id`: the product's id, unique\n- `name`: the product's name\n- `price`: its price in dollars, with cents\n\nReturn each product's `id`, `name`, `price`, and a `band` column, ordered by `id`. The band is:\n\n- `cheap` when the price is under 20\n- `standard` when the price is at least 20 and under 100\n- `premium` when the price is 100 or more\n\nExpected output:\n\n```text\n id |        name         | price  |   band\n----+---------------------+--------+----------\n  1 | USB Cable           |   9.99 | cheap\n  2 | Wireless Mouse      |  24.50 | standard\n  3 | Mechanical Keyboard | 119.00 | premium\n  4 | Laptop Stand        |  45.00 | standard\n  5 | Phone Case          |  19.99 | cheap\n  6 | Monitor             | 249.99 | premium\n  7 | Webcam              |  79.00 | standard\n(7 rows)\n```",
+  "setup": "CREATE TABLE products (\n  id integer PRIMARY KEY,\n  name text NOT NULL,\n  price numeric(8, 2) NOT NULL\n);\n\nINSERT INTO products (id, name, price) VALUES\n  (1, 'USB Cable', 9.99),\n  (2, 'Wireless Mouse', 24.50),\n  (3, 'Mechanical Keyboard', 119.00),\n  (4, 'Laptop Stand', 45.00),\n  (5, 'Phone Case', 19.99),\n  (6, 'Monitor', 249.99),\n  (7, 'Webcam', 79.00);\n",
+  "tests": [
+    {
+      "output": " id |        name         | price  |   band\n----+---------------------+--------+----------\n  1 | USB Cable           |   9.99 | cheap\n  2 | Wireless Mouse      |  24.50 | standard\n  3 | Mechanical Keyboard | 119.00 | premium\n  4 | Laptop Stand        |  45.00 | standard\n  5 | Phone Case          |  19.99 | cheap\n  6 | Monitor             | 249.99 | premium\n  7 | Webcam              |  79.00 | standard\n(7 rows)"
+    },
+    {
+      "stdin": "INSERT INTO products (id, name, price) VALUES (8, 'Sticker Pack', 20.00), (9, 'Desk Mat', 99.99), (10, 'Headphones', 100.00);\n",
+      "output": " id |        name         | price  |   band\n----+---------------------+--------+----------\n  1 | USB Cable           |   9.99 | cheap\n  2 | Wireless Mouse      |  24.50 | standard\n  3 | Mechanical Keyboard | 119.00 | premium\n  4 | Laptop Stand        |  45.00 | standard\n  5 | Phone Case          |  19.99 | cheap\n  6 | Monitor             | 249.99 | premium\n  7 | Webcam              |  79.00 | standard\n  8 | Sticker Pack        |  20.00 | standard\n  9 | Desk Mat            |  99.99 | standard\n 10 | Headphones          | 100.00 | premium\n(10 rows)"
+    },
+    {
+      "stdin": "UPDATE products SET price = price * 2;\n",
+      "output": " id |        name         | price  |   band\n----+---------------------+--------+----------\n  1 | USB Cable           |  19.98 | cheap\n  2 | Wireless Mouse      |  49.00 | standard\n  3 | Mechanical Keyboard | 238.00 | premium\n  4 | Laptop Stand        |  90.00 | standard\n  5 | Phone Case          |  39.98 | standard\n  6 | Monitor             | 499.98 | premium\n  7 | Webcam              | 158.00 | premium\n(7 rows)"
+    },
+    {
+      "stdin": "DELETE FROM products WHERE price < 20 OR price > 200;\nINSERT INTO products (id, name, price) VALUES (8, 'Gift Card', 0.00), (9, 'Charger', 100.00);\n",
+      "output": " id |        name         | price  |   band\n----+---------------------+--------+----------\n  2 | Wireless Mouse      |  24.50 | standard\n  3 | Mechanical Keyboard | 119.00 | premium\n  4 | Laptop Stand        |  45.00 | standard\n  7 | Webcam              |  79.00 | standard\n  8 | Gift Card           |   0.00 | cheap\n  9 | Charger             | 100.00 | premium\n(6 rows)"
+    }
+  ],
+  "hints": [
+    "`CASE WHEN condition THEN value ... ELSE value END` checks its branches from top to bottom and uses the first one that matches.",
+    "Because the branches run in order, a later branch only needs the lower bound of its band."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: replace the fixed band with a CASE expression on price\nSELECT id, name, price, 'cheap' AS band\nFROM products\nORDER BY id;\n",
+      "solution": "SELECT\n  id,\n  name,\n  price,\n  CASE\n    WHEN price < 20 THEN 'cheap'\n    WHEN price < 100 THEN 'standard'\n    ELSE 'premium'\n  END AS band\nFROM products\nORDER BY id;\n"
+    }
+  }
+}

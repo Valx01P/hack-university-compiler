@@ -1,0 +1,39 @@
+{
+  "id": "sql-undo-a-mistake",
+  "title": "Undo a Mistake",
+  "category": "transactions",
+  "difficulty": "very-easy",
+  "statement": "A team tracks its work in a `tasks` table: `id` (integer key), `title` (text), and `done` (boolean, true once the task is finished).\n\nSomeone meant to clear out the finished tasks but wrote the condition backwards. Luckily they ran it inside a transaction. Run exactly these steps:\n\n1. Start a transaction with `BEGIN`.\n2. Delete the tasks that are not done: `DELETE FROM tasks WHERE NOT done`.\n3. Undo the delete so nothing is lost.\n4. Select `id`, `title`, and `done` from `tasks`, ordered by `id`, to show every task is still there.\n\nEach statement prints its command tag (`BEGIN`, `DELETE` with the number of rows, and so on) before the final table.\n\nExpected output:\n\n```text\nBEGIN\n\nDELETE 3\n\nROLLBACK\n\n id |        title         | done\n----+----------------------+------\n  1 | Write release notes  | t\n  2 | Fix login timeout    | f\n  3 | Update dependencies  | t\n  4 | Review pull requests | f\n  5 | Plan sprint demo     | f\n  6 | Rotate API keys      | t\n(6 rows)\n```",
+  "setup": "CREATE TABLE tasks (\n  id INTEGER PRIMARY KEY,\n  title TEXT NOT NULL,\n  done BOOLEAN NOT NULL DEFAULT false\n);\n\nINSERT INTO tasks (id, title, done) VALUES\n  (1, 'Write release notes', true),\n  (2, 'Fix login timeout', false),\n  (3, 'Update dependencies', true),\n  (4, 'Review pull requests', false),\n  (5, 'Plan sprint demo', false),\n  (6, 'Rotate API keys', true);\n",
+  "tests": [
+    {
+      "output": "BEGIN\n\nDELETE 3\n\nROLLBACK\n\n id |        title         | done\n----+----------------------+------\n  1 | Write release notes  | t\n  2 | Fix login timeout    | f\n  3 | Update dependencies  | t\n  4 | Review pull requests | f\n  5 | Plan sprint demo     | f\n  6 | Rotate API keys      | t\n(6 rows)"
+    },
+    {
+      "stdin": "INSERT INTO tasks (id, title, done) VALUES\n  (7, 'Archive old tickets', false),\n  (8, 'Back up the database', true);\n",
+      "output": "BEGIN\n\nDELETE 4\n\nROLLBACK\n\n id |        title         | done\n----+----------------------+------\n  1 | Write release notes  | t\n  2 | Fix login timeout    | f\n  3 | Update dependencies  | t\n  4 | Review pull requests | f\n  5 | Plan sprint demo     | f\n  6 | Rotate API keys      | t\n  7 | Archive old tickets  | f\n  8 | Back up the database | t\n(8 rows)"
+    },
+    {
+      "stdin": "UPDATE tasks SET done = true WHERE id IN (2, 4);\n",
+      "output": "BEGIN\n\nDELETE 1\n\nROLLBACK\n\n id |        title         | done\n----+----------------------+------\n  1 | Write release notes  | t\n  2 | Fix login timeout    | t\n  3 | Update dependencies  | t\n  4 | Review pull requests | t\n  5 | Plan sprint demo     | f\n  6 | Rotate API keys      | t\n(6 rows)"
+    },
+    {
+      "stdin": "DELETE FROM tasks WHERE id > 3;\nINSERT INTO tasks (id, title, done) VALUES (9, 'Translate help pages', false);\n",
+      "output": "BEGIN\n\nDELETE 2\n\nROLLBACK\n\n id |        title         | done\n----+----------------------+------\n  1 | Write release notes  | t\n  2 | Fix login timeout    | f\n  3 | Update dependencies  | t\n  9 | Translate help pages | f\n(4 rows)"
+    },
+    {
+      "stdin": "UPDATE tasks SET done = true;\n",
+      "output": "BEGIN\n\nDELETE 0\n\nROLLBACK\n\n id |        title         | done\n----+----------------------+------\n  1 | Write release notes  | t\n  2 | Fix login timeout    | t\n  3 | Update dependencies  | t\n  4 | Review pull requests | t\n  5 | Plan sprint demo     | t\n  6 | Rotate API keys      | t\n(6 rows)"
+    }
+  ],
+  "hints": [
+    "Inside a transaction, nothing is permanent until you `COMMIT`.",
+    "`ROLLBACK` throws away every change made since `BEGIN`."
+  ],
+  "code": {
+    "sql": {
+      "starter": "BEGIN;\n\nDELETE FROM tasks WHERE NOT done;\n\n-- TODO: undo the delete instead of making it permanent\nCOMMIT;\n\nSELECT id, title, done\nFROM tasks\nORDER BY id;\n",
+      "solution": "BEGIN;\n\nDELETE FROM tasks WHERE NOT done;\n\nROLLBACK;\n\nSELECT id, title, done\nFROM tasks\nORDER BY id;\n"
+    }
+  }
+}

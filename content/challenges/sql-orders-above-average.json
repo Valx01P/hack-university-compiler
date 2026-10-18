@@ -1,0 +1,39 @@
+{
+  "id": "sql-orders-above-average",
+  "title": "Orders Above Average",
+  "category": "ctes",
+  "difficulty": "medium",
+  "statement": "Find the orders that are bigger than a typical order.\n\nThere are two tables:\n\n- `orders`: `id`, `customer`, and `placed_on`, one row per order\n- `order_items`: `order_id`, `product`, `quantity`, and `unit_price`, one row for each product in an order\n\nAn order's total is the sum of `quantity * unit_price` over its items. Compute every order's total in a CTE named `order_totals`, then return the orders whose total is greater than the average of all order totals. An order with no items yet is still open, so leave it out of the totals, the average, and the result. Return three columns, `id`, `customer`, and `total`. Order the rows by `total` from highest to lowest, then by `id`.\n\nExpected output:\n\n```text\n id |   customer    | total\n----+---------------+--------\n  1 | Hannah Wright | 118.00\n  4 | Zoe Adler     | 103.49\n(2 rows)\n```",
+  "setup": "CREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  customer TEXT NOT NULL,\n  placed_on DATE NOT NULL\n);\n\nCREATE TABLE order_items (\n  order_id INTEGER NOT NULL REFERENCES orders (id),\n  product TEXT NOT NULL,\n  quantity INTEGER NOT NULL,\n  unit_price NUMERIC(8, 2) NOT NULL,\n  PRIMARY KEY (order_id, product)\n);\n\nINSERT INTO orders (id, customer, placed_on) VALUES\n  (1, 'Hannah Wright', '2026-05-01'),\n  (2, 'Luis Ortega', '2026-05-02'),\n  (3, 'Hannah Wright', '2026-05-04'),\n  (4, 'Zoe Adler', '2026-05-06'),\n  (5, 'Samir Khan', '2026-05-07');\n\nINSERT INTO order_items (order_id, product, quantity, unit_price) VALUES\n  (1, 'Coffee Beans', 2, 14.50),\n  (1, 'Grinder', 1, 89.00),\n  (2, 'Coffee Beans', 1, 14.50),\n  (2, 'Paper Filters', 3, 4.25),\n  (3, 'Espresso Cups', 4, 7.75),\n  (4, 'Kettle', 1, 59.99),\n  (4, 'Coffee Beans', 3, 14.50),\n  (5, 'Paper Filters', 2, 4.25),\n  (5, 'Milk Frother', 1, 24.00);\n",
+  "tests": [
+    {
+      "output": " id |   customer    | total\n----+---------------+--------\n  1 | Hannah Wright | 118.00\n  4 | Zoe Adler     | 103.49\n(2 rows)"
+    },
+    {
+      "stdin": "INSERT INTO orders (id, customer, placed_on) VALUES (6, 'Luis Ortega', '2026-05-09');\nINSERT INTO order_items (order_id, product, quantity, unit_price) VALUES (6, 'Espresso Machine', 1, 349.00);\n",
+      "output": " id |   customer    | total\n----+---------------+--------\n  6 | Luis Ortega   | 349.00\n  1 | Hannah Wright | 118.00\n(2 rows)"
+    },
+    {
+      "stdin": "UPDATE order_items SET quantity = 10 WHERE order_id = 3;\n",
+      "output": " id |   customer    | total\n----+---------------+--------\n  1 | Hannah Wright | 118.00\n  4 | Zoe Adler     | 103.49\n  3 | Hannah Wright |  77.50\n(3 rows)"
+    },
+    {
+      "stdin": "DELETE FROM order_items WHERE product = 'Grinder';\nINSERT INTO order_items (order_id, product, quantity, unit_price) VALUES (5, 'Coffee Beans', 4, 14.50);\n",
+      "output": " id |  customer  | total\n----+------------+--------\n  4 | Zoe Adler  | 103.49\n  5 | Samir Khan |  90.50\n(2 rows)"
+    },
+    {
+      "stdin": "INSERT INTO orders (id, customer, placed_on) VALUES (6, 'Nadia Petrov', '2026-05-09'), (7, 'Zoe Adler', '2026-05-10'), (8, 'Luis Ortega', '2026-05-11');\nINSERT INTO order_items (order_id, product, quantity, unit_price) VALUES (7, 'Burr Grinder', 1, 90.00), (8, 'Milk Jug', 4, 15.00);\n",
+      "output": " id |   customer    | total\n----+---------------+--------\n  1 | Hannah Wright | 118.00\n  4 | Zoe Adler     | 103.49\n  7 | Zoe Adler     |  90.00\n(3 rows)"
+    }
+  ],
+  "hints": [
+    "Start with `WITH order_totals AS (...)` and compute `SUM(quantity * unit_price)` for each order with `GROUP BY`.",
+    "After the CTE, you can query `order_totals` like a table, even inside a subquery that finds the average total."
+  ],
+  "code": {
+    "sql": {
+      "starter": "WITH order_totals AS (\n  -- TODO: compute each order's total from order_items\n  SELECT id, customer, 0 AS total\n  FROM orders\n)\nSELECT id, customer, total\nFROM order_totals\n-- TODO: keep only orders whose total beats the average order total\nORDER BY total DESC, id;\n",
+      "solution": "WITH order_totals AS (\n  SELECT o.id, o.customer, SUM(oi.quantity * oi.unit_price) AS total\n  FROM orders AS o\n  JOIN order_items AS oi ON oi.order_id = o.id\n  GROUP BY o.id, o.customer\n)\nSELECT id, customer, total\nFROM order_totals\nWHERE total > (SELECT AVG(total) FROM order_totals)\nORDER BY total DESC, id;\n"
+    }
+  }
+}

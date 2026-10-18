@@ -1,0 +1,35 @@
+{
+  "id": "sql-split-the-bill",
+  "title": "Split the Bill",
+  "category": "math",
+  "difficulty": "easy",
+  "statement": "Split each restaurant bill evenly in whole cents and see what is left over.\n\nThe `bills` table has one row per bill:\n\n- `id`: the bill's id, unique\n- `restaurant`: where the group ate\n- `total_cents`: the bill's total in cents, a whole number\n- `people`: how many people share it, at least 1\n\nReturn each bill's `id`, `restaurant`, a `share_cents` column with what each person pays in whole cents (rounded down), and a `leftover_cents` column with the cents that are left after everyone pays their share, ordered by `id`.\n\nExpected output:\n\n```text\n id |    restaurant     | share_cents | leftover_cents\n----+-------------------+-------------+----------------\n  1 | Luigi's Trattoria |        2112 |              2\n  2 | Sakura Sushi      |        4000 |              0\n  3 | Taco Libre        |        1862 |              1\n  4 | The Burger Joint  |        1666 |              5\n  5 | Green Bowl        |        1599 |              0\n(5 rows)\n```",
+  "setup": "CREATE TABLE bills (\n  id integer PRIMARY KEY,\n  restaurant text NOT NULL,\n  total_cents integer NOT NULL,\n  people integer NOT NULL CHECK (people >= 1)\n);\n\nINSERT INTO bills (id, restaurant, total_cents, people) VALUES\n  (1, 'Luigi''s Trattoria', 8450, 4),\n  (2, 'Sakura Sushi', 12000, 3),\n  (3, 'Taco Libre', 3725, 2),\n  (4, 'The Burger Joint', 10001, 6),\n  (5, 'Green Bowl', 1599, 1);\n",
+  "tests": [
+    {
+      "output": " id |    restaurant     | share_cents | leftover_cents\n----+-------------------+-------------+----------------\n  1 | Luigi's Trattoria |        2112 |              2\n  2 | Sakura Sushi      |        4000 |              0\n  3 | Taco Libre        |        1862 |              1\n  4 | The Burger Joint  |        1666 |              5\n  5 | Green Bowl        |        1599 |              0\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO bills (id, restaurant, total_cents, people) VALUES (6, 'Corner Cafe', 5, 7), (7, 'Pho House', 9999, 9);\n",
+      "output": " id |    restaurant     | share_cents | leftover_cents\n----+-------------------+-------------+----------------\n  1 | Luigi's Trattoria |        2112 |              2\n  2 | Sakura Sushi      |        4000 |              0\n  3 | Taco Libre        |        1862 |              1\n  4 | The Burger Joint  |        1666 |              5\n  5 | Green Bowl        |        1599 |              0\n  6 | Corner Cafe       |           0 |              5\n  7 | Pho House         |        1111 |              0\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE bills SET people = people + 1;\n",
+      "output": " id |    restaurant     | share_cents | leftover_cents\n----+-------------------+-------------+----------------\n  1 | Luigi's Trattoria |        1690 |              0\n  2 | Sakura Sushi      |        3000 |              0\n  3 | Taco Libre        |        1241 |              2\n  4 | The Burger Joint  |        1428 |              5\n  5 | Green Bowl        |         799 |              1\n(5 rows)"
+    },
+    {
+      "stdin": "UPDATE bills SET total_cents = total_cents + 333 WHERE id IN (2, 4);\nDELETE FROM bills WHERE id = 5;\n",
+      "output": " id |    restaurant     | share_cents | leftover_cents\n----+-------------------+-------------+----------------\n  1 | Luigi's Trattoria |        2112 |              2\n  2 | Sakura Sushi      |        4111 |              0\n  3 | Taco Libre        |        1862 |              1\n  4 | The Burger Joint  |        1722 |              2\n(4 rows)"
+    }
+  ],
+  "hints": [
+    "Dividing one integer by another in PostgreSQL drops the fraction, which is exactly a share rounded down.",
+    "The `%` operator gives the remainder of a division."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: compute each person's share and the cents left over\nSELECT id, restaurant, 0 AS share_cents, 0 AS leftover_cents\nFROM bills\nORDER BY id;\n",
+      "solution": "SELECT\n  id,\n  restaurant,\n  total_cents / people AS share_cents,\n  total_cents % people AS leftover_cents\nFROM bills\nORDER BY id;\n"
+    }
+  }
+}

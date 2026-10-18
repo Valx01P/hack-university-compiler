@@ -1,0 +1,39 @@
+{
+  "id": "sql-reporting-chain",
+  "title": "Reporting Chain",
+  "category": "ctes",
+  "difficulty": "medium",
+  "statement": "Find everyone in Elena Park's part of the company, however far down they are.\n\nThe `employees` table has one row per employee:\n\n- `id`: the employee's id\n- `name`: their full name, unique\n- `title`: their job title\n- `manager_id`: the `id` of the person they report to, `NULL` for the CEO\n\nReturn everyone who reports to `'Elena Park'` directly or indirectly, with two columns, `name` and `depth`. Elena's direct reports have depth 1, their reports have depth 2, and so on. Elena herself is not in the result. Use a recursive CTE. Order the rows by `depth`, then by `name`.\n\nExpected output:\n\n```text\n    name     | depth\n-------------+-------\n Daniel Cho  |     1\n Priya Shah  |     1\n Liam Byrne  |     2\n Sofia Russo |     2\n Ava Nguyen  |     3\n(5 rows)\n```",
+  "setup": "CREATE TABLE employees (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL UNIQUE,\n  title TEXT NOT NULL,\n  manager_id INTEGER REFERENCES employees (id)\n);\n\nINSERT INTO employees (id, name, title, manager_id) VALUES\n  (1, 'Victor Hale', 'CEO', NULL),\n  (2, 'Elena Park', 'VP Engineering', 1),\n  (3, 'Marcus Reid', 'VP Sales', 1),\n  (4, 'Priya Shah', 'Engineering Manager', 2),\n  (5, 'Daniel Cho', 'Staff Engineer', 2),\n  (6, 'Sofia Russo', 'Software Engineer', 4),\n  (7, 'Liam Byrne', 'Software Engineer', 4),\n  (8, 'Ava Nguyen', 'Intern', 6),\n  (9, 'Jonas Berg', 'Account Executive', 3),\n  (10, 'Keisha Moore', 'Sales Associate', 9);\n",
+  "tests": [
+    {
+      "output": "    name     | depth\n-------------+-------\n Daniel Cho  |     1\n Priya Shah  |     1\n Liam Byrne  |     2\n Sofia Russo |     2\n Ava Nguyen  |     3\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO employees (id, name, title, manager_id) VALUES (11, 'Tariq Aziz', 'Software Engineer', 5), (12, 'Bea Lindqvist', 'Intern', 7);\n",
+      "output": "     name      | depth\n---------------+-------\n Daniel Cho    |     1\n Priya Shah    |     1\n Liam Byrne    |     2\n Sofia Russo   |     2\n Tariq Aziz    |     2\n Ava Nguyen    |     3\n Bea Lindqvist |     3\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE employees SET manager_id = 2 WHERE name = 'Jonas Berg';\n",
+      "output": "     name     | depth\n--------------+-------\n Daniel Cho   |     1\n Jonas Berg   |     1\n Priya Shah   |     1\n Keisha Moore |     2\n Liam Byrne   |     2\n Sofia Russo  |     2\n Ava Nguyen   |     3\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE employees SET manager_id = 3 WHERE name = 'Priya Shah';\n",
+      "output": "    name    | depth\n------------+-------\n Daniel Cho |     1\n(1 row)"
+    },
+    {
+      "stdin": "UPDATE employees SET manager_id = 3 WHERE manager_id = 2;\n",
+      "output": " name | depth\n------+-------\n(0 rows)"
+    }
+  ],
+  "hints": [
+    "A recursive CTE has two parts joined by `UNION ALL`: a starting query for Elena's direct reports, and a query that joins `employees` back to the CTE itself.",
+    "In the recursive part, an employee belongs in the chain when their `manager_id` is the `id` of someone already in it, one level deeper."
+  ],
+  "code": {
+    "sql": {
+      "starter": "WITH RECURSIVE reports AS (\n  SELECT e.id, e.name, 1 AS depth\n  FROM employees AS e\n  JOIN employees AS m ON e.manager_id = m.id\n  WHERE m.name = 'Elena Park'\n  -- TODO: add everyone who reports to someone already in reports\n)\nSELECT name, depth\nFROM reports\nORDER BY depth, name;\n",
+      "solution": "WITH RECURSIVE reports AS (\n  SELECT e.id, e.name, 1 AS depth\n  FROM employees AS e\n  JOIN employees AS m ON e.manager_id = m.id\n  WHERE m.name = 'Elena Park'\n  UNION ALL\n  SELECT e.id, e.name, r.depth + 1\n  FROM employees AS e\n  JOIN reports AS r ON e.manager_id = r.id\n)\nSELECT name, depth\nFROM reports\nORDER BY depth, name;\n"
+    }
+  }
+}

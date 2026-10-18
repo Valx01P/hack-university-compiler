@@ -1,0 +1,39 @@
+{
+  "id": "sql-tag-counts",
+  "title": "Tag Counts",
+  "category": "arrays-json",
+  "difficulty": "medium",
+  "statement": "A blog stores its posts in a `posts` table: `id` (integer key), `title` (text), and `tags` (a `text[]` array of tag names, each tag at most once per post, possibly empty).\n\nCount how many posts use each tag. Return two columns: `tag` and `post_count`. Order by `post_count` from most to fewest, then by `tag` alphabetically. Tags that no post uses do not appear.\n\nExpected output:\n\n```text\n     tag     | post_count\n-------------+------------\n sql         |          3\n beginner    |          2\n performance |          2\n postgres    |          2\n web         |          2\n css         |          1\n go          |          1\n(7 rows)\n```",
+  "setup": "CREATE TABLE posts (\n  id INTEGER PRIMARY KEY,\n  title TEXT NOT NULL,\n  tags TEXT[] NOT NULL\n);\n\nINSERT INTO posts (id, title, tags) VALUES\n  (1, 'Getting started with Postgres', ARRAY['sql', 'postgres', 'beginner']),\n  (2, 'Indexes explained', ARRAY['sql', 'performance']),\n  (3, 'Your first Go web server', ARRAY['go', 'beginner', 'web']),\n  (4, 'Tuning slow queries', ARRAY['postgres', 'performance', 'sql']),\n  (5, 'CSS grid in practice', ARRAY['web', 'css']),\n  (6, 'Release notes for May', ARRAY[]::TEXT[]);\n",
+  "tests": [
+    {
+      "output": "     tag     | post_count\n-------------+------------\n sql         |          3\n beginner    |          2\n performance |          2\n postgres    |          2\n web         |          2\n css         |          1\n go          |          1\n(7 rows)"
+    },
+    {
+      "stdin": "INSERT INTO posts (id, title, tags) VALUES\n  (7, 'Go concurrency patterns', ARRAY['go', 'concurrency']),\n  (8, 'Styling forms', ARRAY['css', 'web', 'beginner']);\n",
+      "output": "     tag     | post_count\n-------------+------------\n beginner    |          3\n sql         |          3\n web         |          3\n css         |          2\n go          |          2\n performance |          2\n postgres    |          2\n concurrency |          1\n(8 rows)"
+    },
+    {
+      "stdin": "UPDATE posts SET tags = ARRAY['postgres'] WHERE id = 1;\nDELETE FROM posts WHERE id = 3;\n",
+      "output": "     tag     | post_count\n-------------+------------\n performance |          2\n postgres    |          2\n sql         |          2\n css         |          1\n web         |          1\n(5 rows)"
+    },
+    {
+      "stdin": "UPDATE posts SET tags = ARRAY['news', 'sql'] WHERE id = 6;\nUPDATE posts SET tags = ARRAY[]::TEXT[] WHERE id = 5;\n",
+      "output": "     tag     | post_count\n-------------+------------\n sql         |          4\n beginner    |          2\n performance |          2\n postgres    |          2\n go          |          1\n news        |          1\n web         |          1\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE posts SET tags = ARRAY[]::TEXT[];\n",
+      "output": " tag | post_count\n-----+------------\n(0 rows)"
+    }
+  ],
+  "hints": [
+    "`unnest(tags)` turns one array into one row per element.",
+    "Put `unnest` in the `FROM` clause next to `posts`, then group by the tag it produces."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: turn each post's tags into rows, then count posts per tag\nSELECT tags AS tag, COUNT(*) AS post_count\nFROM posts\nGROUP BY tags\nORDER BY post_count DESC, tag;\n",
+      "solution": "SELECT tag, COUNT(*) AS post_count\nFROM posts\nCROSS JOIN unnest(tags) AS tag\nGROUP BY tag\nORDER BY post_count DESC, tag;\n"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "sql-orders-with-names",
+  "title": "Orders With Names",
+  "category": "joins",
+  "difficulty": "easy",
+  "statement": "List every order together with the name of the customer who placed it.\n\nThe `customers` table has one row per customer:\n\n- `id`: the customer's id\n- `name`: the customer's name\n- `email`: their email address\n\nThe `orders` table has one row per order:\n\n- `id`: the order's id\n- `customer_id`: the `id` of the customer who placed it\n- `amount`: what the order cost\n\nReturn one row per order with two columns, `order_id` (the order's `id`) and `customer` (the customer's `name`), sorted by `order_id`.\n\nExpected output:\n\n```text\n order_id |  customer\n----------+-------------\n     1001 | Omar Haddad\n     1002 | Maya Lopez\n     1003 | Grace Kim\n     1004 | Omar Haddad\n     1005 | Lucas Silva\n     1006 | Maya Lopez\n(6 rows)\n```",
+  "setup": "CREATE TABLE customers (\n  id integer PRIMARY KEY,\n  name text NOT NULL,\n  email text NOT NULL\n);\n\nCREATE TABLE orders (\n  id integer PRIMARY KEY,\n  customer_id integer NOT NULL REFERENCES customers (id),\n  amount numeric(8, 2) NOT NULL\n);\n\nINSERT INTO customers (id, name, email) VALUES\n  (1, 'Maya Lopez', 'maya@example.com'),\n  (2, 'Omar Haddad', 'omar@example.com'),\n  (3, 'Grace Kim', 'grace@example.com'),\n  (4, 'Lucas Silva', 'lucas@example.com');\n\nINSERT INTO orders (id, customer_id, amount) VALUES\n  (1001, 2, 42.00),\n  (1002, 1, 18.50),\n  (1003, 3, 99.99),\n  (1004, 2, 7.25),\n  (1005, 4, 63.10),\n  (1006, 1, 25.00);\n",
+  "tests": [
+    {
+      "output": " order_id |  customer\n----------+-------------\n     1001 | Omar Haddad\n     1002 | Maya Lopez\n     1003 | Grace Kim\n     1004 | Omar Haddad\n     1005 | Lucas Silva\n     1006 | Maya Lopez\n(6 rows)"
+    },
+    {
+      "stdin": "INSERT INTO customers (id, name, email) VALUES\n  (5, 'Nina Patel', 'nina@example.com');\nINSERT INTO orders (id, customer_id, amount) VALUES\n  (1007, 5, 15.00),\n  (1000, 3, 54.00);\n",
+      "output": " order_id |  customer\n----------+-------------\n     1000 | Grace Kim\n     1001 | Omar Haddad\n     1002 | Maya Lopez\n     1003 | Grace Kim\n     1004 | Omar Haddad\n     1005 | Lucas Silva\n     1006 | Maya Lopez\n     1007 | Nina Patel\n(8 rows)"
+    },
+    {
+      "stdin": "UPDATE customers SET name = 'Omar H. Haddad' WHERE id = 2;\nDELETE FROM orders WHERE id IN (1003, 1005);\n",
+      "output": " order_id |    customer\n----------+----------------\n     1001 | Omar H. Haddad\n     1002 | Maya Lopez\n     1004 | Omar H. Haddad\n     1006 | Maya Lopez\n(4 rows)"
+    },
+    {
+      "stdin": "DELETE FROM orders;\nINSERT INTO orders (id, customer_id, amount) VALUES\n  (2001, 4, 12.00);\n",
+      "output": " order_id |  customer\n----------+-------------\n     2001 | Lucas Silva\n(1 row)"
+    }
+  ],
+  "hints": [
+    "Each order has a `customer_id`. Match it to the `id` in `customers` with `JOIN ... ON`.",
+    "Give the tables short aliases, like `orders AS o` and `customers AS c`, so you can say which `id` you mean."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: join customers so each order shows its customer's name\nSELECT id AS order_id, customer_id AS customer\nFROM orders\nORDER BY id;\n",
+      "solution": "SELECT o.id AS order_id, c.name AS customer\nFROM orders AS o\nJOIN customers AS c ON c.id = o.customer_id\nORDER BY o.id;\n"
+    }
+  }
+}

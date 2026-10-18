@@ -1,0 +1,31 @@
+{
+  "id": "sql-create-indexes",
+  "title": "Create Indexes",
+  "category": "indexes",
+  "difficulty": "easy",
+  "statement": "A web app looks users up by email on every login, and no two users may share a username. Add an index for each job, then check what indexes the table has.\n\nThe `users` table has these columns:\n\n- `id`: the user id, the primary key\n- `username`: the name the user picked\n- `email`: the user's email address\n- `created_at`: the day the account was created\n\nCreate two indexes:\n\n1. A regular index named `users_email_idx` on `email`.\n2. A unique index named `users_username_idx` on `username`.\n\nThen list the table's indexes from the `pg_indexes` view: return `indexname` and `indexdef` for the rows whose `tablename` is `users`, ordered by `indexname`.\n\nExpected output:\n\n```text\nCREATE INDEX\n\nCREATE INDEX\n\n     indexname      |                                   indexdef\n--------------------+-------------------------------------------------------------------------------\n users_email_idx    | CREATE INDEX users_email_idx ON public.users USING btree (email)\n users_pkey         | CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)\n users_username_idx | CREATE UNIQUE INDEX users_username_idx ON public.users USING btree (username)\n(3 rows)\n```",
+  "setup": "CREATE TABLE users (\n  id INTEGER PRIMARY KEY,\n  username TEXT NOT NULL,\n  email TEXT NOT NULL,\n  created_at DATE NOT NULL\n);\n\nINSERT INTO users (id, username, email, created_at) VALUES\n  (1, 'skyler', 'skyler@example.com', '2024-02-11'),\n  (2, 'mo_khan', 'mo.khan@example.com', '2024-03-02'),\n  (3, 'jdoe', 'jane.doe@example.com', '2024-03-19'),\n  (4, 'pixelfox', 'fox@example.com', '2024-05-07'),\n  (5, 'rivera88', 'ana.rivera@example.com', '2024-06-23');\n",
+  "tests": [
+    {
+      "output": "CREATE INDEX\n\nCREATE INDEX\n\n     indexname      |                                   indexdef\n--------------------+-------------------------------------------------------------------------------\n users_email_idx    | CREATE INDEX users_email_idx ON public.users USING btree (email)\n users_pkey         | CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)\n users_username_idx | CREATE UNIQUE INDEX users_username_idx ON public.users USING btree (username)\n(3 rows)"
+    },
+    {
+      "stdin": "CREATE INDEX users_created_at_idx ON users (created_at);\n",
+      "output": "CREATE INDEX\n\nCREATE INDEX\n\n      indexname       |                                   indexdef\n----------------------+-------------------------------------------------------------------------------\n users_created_at_idx | CREATE INDEX users_created_at_idx ON public.users USING btree (created_at)\n users_email_idx      | CREATE INDEX users_email_idx ON public.users USING btree (email)\n users_pkey           | CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)\n users_username_idx   | CREATE UNIQUE INDEX users_username_idx ON public.users USING btree (username)\n(4 rows)"
+    },
+    {
+      "stdin": "CREATE TABLE posts (\n  id INTEGER PRIMARY KEY,\n  user_id INTEGER NOT NULL REFERENCES users (id)\n);\nCREATE INDEX posts_user_id_idx ON posts (user_id);\nINSERT INTO users (id, username, email, created_at) VALUES (6, 'nova', 'nova@example.com', '2024-07-01');\n",
+      "output": "CREATE INDEX\n\nCREATE INDEX\n\n     indexname      |                                   indexdef\n--------------------+-------------------------------------------------------------------------------\n users_email_idx    | CREATE INDEX users_email_idx ON public.users USING btree (email)\n users_pkey         | CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)\n users_username_idx | CREATE UNIQUE INDEX users_username_idx ON public.users USING btree (username)\n(3 rows)"
+    }
+  ],
+  "hints": [
+    "`CREATE INDEX name ON table (column)` makes a regular index. Put `UNIQUE` after `CREATE` for a unique one.",
+    "The primary key already has an index of its own, so it shows up in the list too."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: create users_email_idx and the unique users_username_idx\n\nSELECT indexname, indexdef\nFROM pg_indexes\nWHERE tablename = 'users'\nORDER BY indexname;\n",
+      "solution": "CREATE INDEX users_email_idx ON users (email);\n\nCREATE UNIQUE INDEX users_username_idx ON users (username);\n\nSELECT indexname, indexdef\nFROM pg_indexes\nWHERE tablename = 'users'\nORDER BY indexname;\n"
+    }
+  }
+}

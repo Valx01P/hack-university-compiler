@@ -1,0 +1,39 @@
+{
+  "id": "sql-second-page",
+  "title": "Second Page of Results",
+  "category": "sorting-limiting",
+  "difficulty": "easy",
+  "statement": "An online shop lists its products five to a page, sorted by name. Show the second page.\n\nThe `products` table has one row per product:\n\n- `id`: the product's id, unique\n- `name`: the product's name, unique\n- `price`: its price in dollars\n\nReturn the `name` and `price` of the products in positions 6 to 10 when they are sorted by `name` alphabetically. Skip the first five rows and keep at most the next five. When there are fewer than ten products, the page just has fewer rows, and with five or fewer products it is empty.\n\nExpected output:\n\n```text\n     name     | price\n--------------+--------\n Hiking Boots | 142.00\n Notebook     |   6.75\n Rain Poncho  |  12.40\n Sleeping Bag | 129.00\n Tent         | 189.00\n(5 rows)\n```",
+  "setup": "CREATE TABLE products (\n  id integer PRIMARY KEY,\n  name text NOT NULL UNIQUE,\n  price numeric(8, 2) NOT NULL\n);\n\nINSERT INTO products (id, name, price) VALUES\n  (1, 'Tent', 189.00),\n  (2, 'Backpack', 74.50),\n  (3, 'Water Bottle', 18.99),\n  (4, 'Sleeping Bag', 129.00),\n  (5, 'Desk Lamp', 34.25),\n  (6, 'Hiking Boots', 142.00),\n  (7, 'Notebook', 6.75),\n  (8, 'Camp Stove', 59.90),\n  (9, 'Yoga Mat', 29.00),\n  (10, 'Rain Poncho', 12.40),\n  (11, 'Fleece Jacket', 88.00),\n  (12, 'Bike Lock', 24.99);\n",
+  "tests": [
+    {
+      "output": "     name     | price\n--------------+--------\n Hiking Boots | 142.00\n Notebook     |   6.75\n Rain Poncho  |  12.40\n Sleeping Bag | 129.00\n Tent         | 189.00\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO products (id, name, price) VALUES (13, 'Apron', 15.00), (14, 'Compass', 21.50);\n",
+      "output": "     name      | price\n---------------+--------\n Desk Lamp     |  34.25\n Fleece Jacket |  88.00\n Hiking Boots  | 142.00\n Notebook      |   6.75\n Rain Poncho   |  12.40\n(5 rows)"
+    },
+    {
+      "stdin": "DELETE FROM products WHERE name IN ('Tent', 'Water Bottle', 'Yoga Mat', 'Sleeping Bag');\n",
+      "output": "     name     | price\n--------------+--------\n Hiking Boots | 142.00\n Notebook     |   6.75\n Rain Poncho  |  12.40\n(3 rows)"
+    },
+    {
+      "stdin": "UPDATE products SET name = 'Trail Backpack' WHERE name = 'Backpack';\nUPDATE products SET price = 99.00 WHERE name = 'Notebook';\n",
+      "output": "      name      | price\n----------------+--------\n Notebook       |  99.00\n Rain Poncho    |  12.40\n Sleeping Bag   | 129.00\n Tent           | 189.00\n Trail Backpack |  74.50\n(5 rows)"
+    },
+    {
+      "stdin": "DELETE FROM products WHERE id > 4;\n",
+      "output": " name | price\n------+-------\n(0 rows)"
+    }
+  ],
+  "hints": [
+    "`OFFSET` skips rows from the start of the sorted result, and `LIMIT` caps how many come after that.",
+    "Page 2 with five rows per page starts after the first page, so it skips 5 rows."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: skip the first page and keep only the second page of five rows\nSELECT name, price\nFROM products\nORDER BY name;\n",
+      "solution": "SELECT name, price\nFROM products\nORDER BY name\nLIMIT 5 OFFSET 5;\n"
+    }
+  }
+}

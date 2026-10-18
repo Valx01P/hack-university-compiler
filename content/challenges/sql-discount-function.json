@@ -1,0 +1,35 @@
+{
+  "id": "sql-discount-function",
+  "title": "Discount Function",
+  "category": "functions",
+  "difficulty": "medium",
+  "statement": "A store keeps its catalog in a `products` table: `id` (integer key), `name` (text), `price` (numeric with 2 decimals), and `discount_percent` (an integer from 0 to 100).\n\nCreate a SQL function `discounted(price numeric, percent integer)` that returns the price after taking off `percent` percent, rounded to 2 decimal places, with a half cent rounding up. For example, `discounted(80.00, 25)` returns `60.00`.\n\nThen use it to list every product with four columns: `id`, `name`, `price`, and `sale_price` (the discounted price). Order by `id`. Creating the function prints the `CREATE FUNCTION` tag before the result.\n\nExpected output:\n\n```text\nCREATE FUNCTION\n\n id |        name         | price  | sale_price\n----+---------------------+--------+------------\n  1 | Trail running shoes | 129.99 |     103.99\n  2 | Water bottle        |  18.50 |      18.50\n  3 | Rain jacket         |  89.00 |      75.65\n  4 | Headlamp            |  34.95 |      31.46\n  5 | Wool socks          |  14.99 |      10.04\n(5 rows)\n```",
+  "setup": "CREATE TABLE products (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL,\n  price NUMERIC(8, 2) NOT NULL,\n  discount_percent INTEGER NOT NULL CHECK (discount_percent BETWEEN 0 AND 100)\n);\n\nINSERT INTO products (id, name, price, discount_percent) VALUES\n  (1, 'Trail running shoes', 129.99, 20),\n  (2, 'Water bottle', 18.50, 0),\n  (3, 'Rain jacket', 89.00, 15),\n  (4, 'Headlamp', 34.95, 10),\n  (5, 'Wool socks', 14.99, 33);\n",
+  "tests": [
+    {
+      "output": "CREATE FUNCTION\n\n id |        name         | price  | sale_price\n----+---------------------+--------+------------\n  1 | Trail running shoes | 129.99 |     103.99\n  2 | Water bottle        |  18.50 |      18.50\n  3 | Rain jacket         |  89.00 |      75.65\n  4 | Headlamp            |  34.95 |      31.46\n  5 | Wool socks          |  14.99 |      10.04\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO products (id, name, price, discount_percent) VALUES\n  (6, 'Camping stove', 59.90, 50),\n  (7, 'Demo tent', 249.00, 100);\n",
+      "output": "CREATE FUNCTION\n\n id |        name         | price  | sale_price\n----+---------------------+--------+------------\n  1 | Trail running shoes | 129.99 |     103.99\n  2 | Water bottle        |  18.50 |      18.50\n  3 | Rain jacket         |  89.00 |      75.65\n  4 | Headlamp            |  34.95 |      31.46\n  5 | Wool socks          |  14.99 |      10.04\n  6 | Camping stove       |  59.90 |      29.95\n  7 | Demo tent           | 249.00 |       0.00\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE products SET discount_percent = 5 WHERE id = 2;\nUPDATE products SET price = 99.99 WHERE id = 1;\n",
+      "output": "CREATE FUNCTION\n\n id |        name         | price | sale_price\n----+---------------------+-------+------------\n  1 | Trail running shoes | 99.99 |      79.99\n  2 | Water bottle        | 18.50 |      17.58\n  3 | Rain jacket         | 89.00 |      75.65\n  4 | Headlamp            | 34.95 |      31.46\n  5 | Wool socks          | 14.99 |      10.04\n(5 rows)"
+    },
+    {
+      "stdin": "DELETE FROM products WHERE id < 3;\nINSERT INTO products (id, name, price, discount_percent) VALUES (8, 'Trekking poles', 75.25, 7);\n",
+      "output": "CREATE FUNCTION\n\n id |      name      | price | sale_price\n----+----------------+-------+------------\n  3 | Rain jacket    | 89.00 |      75.65\n  4 | Headlamp       | 34.95 |      31.46\n  5 | Wool socks     | 14.99 |      10.04\n  8 | Trekking poles | 75.25 |      69.98\n(4 rows)"
+    }
+  ],
+  "hints": [
+    "A SQL function can be a single expression: `CREATE FUNCTION f(x numeric) RETURNS numeric LANGUAGE sql RETURN ...`.",
+    "The share you pay is `100 - percent` out of 100. `round(value, 2)` keeps 2 decimals."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: return the price after taking off percent, rounded to 2 decimals\nCREATE FUNCTION discounted(price numeric, percent integer)\nRETURNS numeric\nLANGUAGE sql\nIMMUTABLE\nRETURN price;\n\nSELECT id, name, price, discounted(price, discount_percent) AS sale_price\nFROM products\nORDER BY id;\n",
+      "solution": "CREATE FUNCTION discounted(price numeric, percent integer)\nRETURNS numeric\nLANGUAGE sql\nIMMUTABLE\nRETURN round(price * (100 - percent) / 100, 2);\n\nSELECT id, name, price, discounted(price, discount_percent) AS sale_price\nFROM products\nORDER BY id;\n"
+    }
+  }
+}

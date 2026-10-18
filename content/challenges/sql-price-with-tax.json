@@ -1,0 +1,35 @@
+{
+  "id": "sql-price-with-tax",
+  "title": "Price With Tax",
+  "category": "select-basics",
+  "difficulty": "easy",
+  "statement": "Show what each product costs at the register once 8% sales tax is added.\n\nThe `products` table has these columns:\n\n- `id`: the product's id, a whole number\n- `name`: the product's name\n- `price`: the price before tax in dollars, with 2 decimals\n\nReturn two columns: `name`, and `price_with_tax`, which is the price plus 8% tax, rounded to 2 decimals. Return one row per product, ordered by `id`.\n\nExpected output:\n\n```text\n      name      | price_with_tax\n----------------+----------------\n Desk Lamp      |          37.79\n Wireless Mouse |          26.46\n Coffee Mug     |          10.75\n Yoga Mat       |          31.32\n Notebook       |           4.59\n(5 rows)\n```",
+  "setup": "CREATE TABLE products (\n  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n  name TEXT NOT NULL,\n  price NUMERIC(8, 2) NOT NULL\n);\n\nINSERT INTO products (name, price) VALUES\n  ('Desk Lamp', 34.99),\n  ('Wireless Mouse', 24.50),\n  ('Coffee Mug', 9.95),\n  ('Yoga Mat', 29.00),\n  ('Notebook', 4.25);\n",
+  "tests": [
+    {
+      "output": "      name      | price_with_tax\n----------------+----------------\n Desk Lamp      |          37.79\n Wireless Mouse |          26.46\n Coffee Mug     |          10.75\n Yoga Mat       |          31.32\n Notebook       |           4.59\n(5 rows)"
+    },
+    {
+      "stdin": "INSERT INTO products (name, price) VALUES ('Gift Card', 0.00), ('Standing Desk', 499.99);\n",
+      "output": "      name      | price_with_tax\n----------------+----------------\n Desk Lamp      |          37.79\n Wireless Mouse |          26.46\n Coffee Mug     |          10.75\n Yoga Mat       |          31.32\n Notebook       |           4.59\n Gift Card      |           0.00\n Standing Desk  |         539.99\n(7 rows)"
+    },
+    {
+      "stdin": "UPDATE products SET price = 0.10 WHERE name = 'Notebook';\nUPDATE products SET price = 100.00 WHERE name = 'Desk Lamp';\n",
+      "output": "      name      | price_with_tax\n----------------+----------------\n Desk Lamp      |         108.00\n Wireless Mouse |          26.46\n Coffee Mug     |          10.75\n Yoga Mat       |          31.32\n Notebook       |           0.11\n(5 rows)"
+    },
+    {
+      "stdin": "DELETE FROM products WHERE name <> 'Coffee Mug';\nINSERT INTO products (name, price) VALUES ('Phone Case', 12.49);\n",
+      "output": "    name    | price_with_tax\n------------+----------------\n Coffee Mug |          10.75\n Phone Case |          13.49\n(2 rows)"
+    }
+  ],
+  "hints": [
+    "Adding 8% tax is the same as multiplying the price by 1.08.",
+    "`ROUND(value, 2)` keeps 2 decimals. Name the new column with `AS`."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: add 8% tax to the price and round it to 2 decimals\nSELECT name, price AS price_with_tax\nFROM products\nORDER BY id;\n",
+      "solution": "SELECT name, ROUND(price * 1.08, 2) AS price_with_tax\nFROM products\nORDER BY id;\n"
+    }
+  }
+}

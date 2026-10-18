@@ -1,0 +1,35 @@
+{
+  "id": "sql-cheap-in-stock",
+  "title": "Cheap and In Stock",
+  "category": "filtering",
+  "difficulty": "very-easy",
+  "statement": "Find the bargains a shopper can buy today: products that cost less than 50 dollars and still have stock left.\n\nThe `products` table has these columns:\n\n- `id`: the product's id, a whole number\n- `name`: the product's name, unique\n- `price`: the price in dollars, with 2 decimals\n- `stock`: how many are on the shelf, 0 when sold out\n\nReturn two columns, `name` then `price`, for every product priced under 50 (exactly 50 does not count) with a `stock` above 0. Order the rows by `name` alphabetically.\n\nExpected output:\n\n```text\n      name      | price\n----------------+-------\n Desk Lamp      | 34.99\n Notebook       |  4.25\n Wireless Mouse | 24.50\n Yoga Mat       | 29.00\n(4 rows)\n```",
+  "setup": "CREATE TABLE products (\n  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n  name TEXT NOT NULL UNIQUE,\n  price NUMERIC(8, 2) NOT NULL,\n  stock INTEGER NOT NULL\n);\n\nINSERT INTO products (name, price, stock) VALUES\n  ('Wireless Mouse', 24.50, 40),\n  ('Desk Lamp', 34.99, 12),\n  ('Coffee Mug', 9.95, 0),\n  ('Backpack', 59.90, 5),\n  ('Yoga Mat', 29.00, 7),\n  ('Water Bottle', 50.00, 18),\n  ('Notebook', 4.25, 120),\n  ('Headphones', 89.00, 0);\n",
+  "tests": [
+    {
+      "output": "      name      | price\n----------------+-------\n Desk Lamp      | 34.99\n Notebook       |  4.25\n Wireless Mouse | 24.50\n Yoga Mat       | 29.00\n(4 rows)"
+    },
+    {
+      "stdin": "INSERT INTO products (name, price, stock) VALUES ('Bookend', 49.99, 1), ('Tea Kettle', 45.00, 0);\n",
+      "output": "      name      | price\n----------------+-------\n Bookend        | 49.99\n Desk Lamp      | 34.99\n Notebook       |  4.25\n Wireless Mouse | 24.50\n Yoga Mat       | 29.00\n(5 rows)"
+    },
+    {
+      "stdin": "UPDATE products SET stock = 0 WHERE name IN ('Notebook', 'Yoga Mat');\nUPDATE products SET stock = 3 WHERE name = 'Coffee Mug';\n",
+      "output": "      name      | price\n----------------+-------\n Coffee Mug     |  9.95\n Desk Lamp      | 34.99\n Wireless Mouse | 24.50\n(3 rows)"
+    },
+    {
+      "stdin": "UPDATE products SET price = price + 50;\n",
+      "output": " name | price\n------+-------\n(0 rows)"
+    }
+  ],
+  "hints": [
+    "Both conditions must hold, so join them with `AND`.",
+    "Under 50 means `<`, not `<=`."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: keep only products under 50 dollars that have stock left\nSELECT name, price\nFROM products\nORDER BY name;\n",
+      "solution": "SELECT name, price\nFROM products\nWHERE price < 50 AND stock > 0\nORDER BY name;\n"
+    }
+  }
+}

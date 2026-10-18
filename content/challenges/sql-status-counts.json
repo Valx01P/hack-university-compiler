@@ -1,0 +1,39 @@
+{
+  "id": "sql-status-counts",
+  "title": "Counts by Status",
+  "category": "aggregates",
+  "difficulty": "easy",
+  "statement": "Show how many orders are at each stage of delivery, side by side in one row.\n\nThe `orders` table has `id` (integer), `customer` (text), and `status` (text, one of `pending`, `shipped`, `delivered`, or `cancelled`).\n\nReturn one row with three columns: `pending`, `shipped`, and `delivered`, each holding the number of orders with that status. Cancelled orders are not counted anywhere. A status with no orders shows `0`, even when the table is empty.\n\nExpected output:\n\n```text\n pending | shipped | delivered\n---------+---------+-----------\n       3 |       2 |         3\n(1 row)\n```",
+  "setup": "CREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  customer TEXT NOT NULL,\n  status TEXT NOT NULL\n);\n\nINSERT INTO orders (id, customer, status) VALUES\n  (1, 'Hana Sato', 'delivered'),\n  (2, 'Raj Mehta', 'pending'),\n  (3, 'Clara Diaz', 'shipped'),\n  (4, 'Hana Sato', 'pending'),\n  (5, 'Felix Wagner', 'cancelled'),\n  (6, 'Raj Mehta', 'delivered'),\n  (7, 'Zoe Adams', 'delivered'),\n  (8, 'Clara Diaz', 'pending'),\n  (9, 'Felix Wagner', 'shipped');\n",
+  "tests": [
+    {
+      "output": " pending | shipped | delivered\n---------+---------+-----------\n       3 |       2 |         3\n(1 row)"
+    },
+    {
+      "stdin": "UPDATE orders SET status = 'delivered' WHERE status = 'shipped';\n",
+      "output": " pending | shipped | delivered\n---------+---------+-----------\n       3 |       0 |         5\n(1 row)"
+    },
+    {
+      "stdin": "INSERT INTO orders (id, customer, status) VALUES\n  (10, 'Zoe Adams', 'cancelled'),\n  (11, 'Omar Khan', 'shipped'),\n  (12, 'Omar Khan', 'shipped');\n",
+      "output": " pending | shipped | delivered\n---------+---------+-----------\n       3 |       4 |         3\n(1 row)"
+    },
+    {
+      "stdin": "DELETE FROM orders WHERE status = 'pending';\n",
+      "output": " pending | shipped | delivered\n---------+---------+-----------\n       0 |       2 |         3\n(1 row)"
+    },
+    {
+      "stdin": "DELETE FROM orders;\n",
+      "output": " pending | shipped | delivered\n---------+---------+-----------\n       0 |       0 |         0\n(1 row)"
+    }
+  ],
+  "hints": [
+    "`COUNT(*) FILTER (WHERE ...)` counts only the rows that match the condition.",
+    "Write one filtered count per status, each with its own column name."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: count only the orders with each status\nSELECT COUNT(*) AS pending,\n       COUNT(*) AS shipped,\n       COUNT(*) AS delivered\nFROM orders;\n",
+      "solution": "SELECT COUNT(*) FILTER (WHERE status = 'pending') AS pending,\n       COUNT(*) FILTER (WHERE status = 'shipped') AS shipped,\n       COUNT(*) FILTER (WHERE status = 'delivered') AS delivered\nFROM orders;\n"
+    }
+  }
+}

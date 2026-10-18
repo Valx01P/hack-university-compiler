@@ -1,0 +1,39 @@
+{
+  "id": "sql-orders-in-range",
+  "title": "Orders in a Date Range",
+  "category": "filtering",
+  "difficulty": "easy",
+  "statement": "The shop wants a report of the March 2026 orders that actually went out the door.\n\nThe `orders` table has these columns:\n\n- `id`: the order's id, a whole number\n- `customer`: who placed the order\n- `placed_on`: the date the order was placed\n- `status`: one of `pending`, `shipped`, `delivered`, or `cancelled`\n- `total`: the order total in dollars\n\nReturn the columns `id`, `customer`, `placed_on`, and `status` for every order placed from 2026-03-01 through 2026-03-31, both days included, whose status is `shipped` or `delivered`. Order the rows by `id`.\n\nExpected output:\n\n```text\n id |   customer   | placed_on  |  status\n----+--------------+------------+-----------\n  2 | Leo Martins  | 2026-03-01 | shipped\n  4 | Omar Haddad  | 2026-03-12 | delivered\n  6 | Ethan Brooks | 2026-03-22 | delivered\n  7 | Hana Sato    | 2026-03-31 | shipped\n(4 rows)\n```",
+  "setup": "CREATE TABLE orders (\n  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n  customer TEXT NOT NULL,\n  placed_on DATE NOT NULL,\n  status TEXT NOT NULL,\n  total NUMERIC(8, 2) NOT NULL\n);\n\nINSERT INTO orders (customer, placed_on, status, total) VALUES\n  ('Maya Patel', '2026-02-28', 'delivered', 42.10),\n  ('Leo Martins', '2026-03-01', 'shipped', 18.75),\n  ('Grace Kim', '2026-03-04', 'pending', 63.00),\n  ('Omar Haddad', '2026-03-12', 'delivered', 120.40),\n  ('Sofia Rossi', '2026-03-15', 'cancelled', 35.99),\n  ('Ethan Brooks', '2026-03-22', 'delivered', 9.50),\n  ('Hana Sato', '2026-03-31', 'shipped', 77.25),\n  ('Lucas Weber', '2026-04-01', 'shipped', 54.00);\n",
+  "tests": [
+    {
+      "output": " id |   customer   | placed_on  |  status\n----+--------------+------------+-----------\n  2 | Leo Martins  | 2026-03-01 | shipped\n  4 | Omar Haddad  | 2026-03-12 | delivered\n  6 | Ethan Brooks | 2026-03-22 | delivered\n  7 | Hana Sato    | 2026-03-31 | shipped\n(4 rows)"
+    },
+    {
+      "stdin": "INSERT INTO orders (customer, placed_on, status, total) VALUES ('Nina Johansson', '2026-03-18', 'shipped', 29.90), ('Ravi Kumar', '2026-03-18', 'pending', 15.00), ('Ava Lindqvist', '2025-03-18', 'delivered', 40.00);\n",
+      "output": " id |    customer    | placed_on  |  status\n----+----------------+------------+-----------\n  2 | Leo Martins    | 2026-03-01 | shipped\n  4 | Omar Haddad    | 2026-03-12 | delivered\n  6 | Ethan Brooks   | 2026-03-22 | delivered\n  7 | Hana Sato      | 2026-03-31 | shipped\n  9 | Nina Johansson | 2026-03-18 | shipped\n(5 rows)"
+    },
+    {
+      "stdin": "UPDATE orders SET status = 'delivered' WHERE customer IN ('Grace Kim', 'Lucas Weber');\nUPDATE orders SET status = 'cancelled' WHERE customer = 'Hana Sato';\n",
+      "output": " id |   customer   | placed_on  |  status\n----+--------------+------------+-----------\n  2 | Leo Martins  | 2026-03-01 | shipped\n  3 | Grace Kim    | 2026-03-04 | delivered\n  4 | Omar Haddad  | 2026-03-12 | delivered\n  6 | Ethan Brooks | 2026-03-22 | delivered\n(4 rows)"
+    },
+    {
+      "stdin": "UPDATE orders SET placed_on = placed_on + 1;\n",
+      "output": " id |   customer   | placed_on  |  status\n----+--------------+------------+-----------\n  1 | Maya Patel   | 2026-03-01 | delivered\n  2 | Leo Martins  | 2026-03-02 | shipped\n  4 | Omar Haddad  | 2026-03-13 | delivered\n  6 | Ethan Brooks | 2026-03-23 | delivered\n(4 rows)"
+    },
+    {
+      "stdin": "DELETE FROM orders WHERE status IN ('shipped', 'delivered');\n",
+      "output": " id | customer | placed_on | status\n----+----------+-----------+--------\n(0 rows)"
+    }
+  ],
+  "hints": [
+    "`BETWEEN low AND high` includes both ends.",
+    "`IN (...)` checks a value against a list."
+  ],
+  "code": {
+    "sql": {
+      "starter": "-- TODO: keep March 2026 orders that are shipped or delivered\nSELECT id, customer, placed_on, status\nFROM orders\nORDER BY id;\n",
+      "solution": "SELECT id, customer, placed_on, status\nFROM orders\nWHERE placed_on BETWEEN '2026-03-01' AND '2026-03-31'\n  AND status IN ('shipped', 'delivered')\nORDER BY id;\n"
+    }
+  }
+}
