@@ -71,6 +71,7 @@ function checkSchema(lesson, id, sectionTitle, errors, warnings) {
   need(nonEmpty(lesson.summary) && lesson.summary.length <= 160, "summary", "summary is required, at most 160 characters");
   need(nonEmpty(lesson.intro), "intro", "intro is required");
   need(lesson.recap === undefined || isStr(lesson.recap), "recap", "recap must be a string when present");
+  need(lesson.setup === undefined || isStr(lesson.setup), "setup", "setup must be a string of SQL when present");
   need(Array.isArray(lesson.steps) && lesson.steps.length >= 1 && lesson.steps.length <= 4, "steps", "steps must have 1 to 4 entries");
   for (const [i, step] of (Array.isArray(lesson.steps) ? lesson.steps : []).entries()) {
     const at = `steps[${i}]`;
@@ -95,7 +96,7 @@ function checkSchema(lesson, id, sectionTitle, errors, warnings) {
       if (isStr(pr.starter) && isStr(pr.solution) && normalizeOutput(pr.starter) === normalizeOutput(pr.solution)) {
         errors.push({ where: `${at}.practice.starter`, message: "starter is identical to the solution" });
       }
-      if (isStr(pr.prompt) && Array.isArray(pr.tests) && pr.tests[0] && isStr(pr.tests[0].output)) checkPrompt(pr, `${at}.practice.prompt`, errors);
+      if (isStr(pr.prompt) && Array.isArray(pr.tests) && pr.tests[0] && isStr(pr.tests[0].output)) checkPrompt(pr, `${at}.practice.prompt`, errors, lesson.__lang);
     }
     for (const [k, v] of [["example.code", ex?.code], ["practice.starter", pr?.starter], ["practice.solution", pr?.solution]]) {
       // A final newline ends the last line, it doesn't start another one.
@@ -107,9 +108,11 @@ function checkSchema(lesson, id, sectionTitle, errors, warnings) {
 }
 
 
-/** A practice prompt shows test 1 exactly. */
-function checkPrompt(pr, where, errors) {
-  checkShownTest(pr.prompt, pr.tests[0], where, errors);
+/** A practice prompt shows test 1 exactly. A SQL test's "stdin" is setup SQL
+    (extra rows), which the prompt describes in words instead of showing. */
+function checkPrompt(pr, where, errors, lang) {
+  const test = pr.tests[0];
+  checkShownTest(pr.prompt, lang === "sql" ? { output: test.output } : test, where, errors);
 }
 
 /** Prose fields, and whether each is rendered as Markdown. */
@@ -149,12 +152,15 @@ function checkMarkdown(lesson, errors) {
 async function verifyLesson(lang, lesson) {
   const errors = [];
   const jobs = [];
+  // SQL programs run on a fresh database: the lesson's setup, then the
+  // example's or test's own setup ("stdin"), then the program.
+  const input = (stdin) => (lang === "sql" ? [lesson.setup, stdin].filter((x) => isStr(x) && x.trim()).join("\n") : stdin);
   for (const [i, step] of lesson.steps.entries()) {
     const at = `steps[${i}]`;
     const ex = step.example;
     jobs.push(
       (async () => {
-        const [a, b] = await Promise.all([run(lang, ex.code, ex.stdin), run(lang, ex.code, ex.stdin)]);
+        const [a, b] = await Promise.all([run(lang, ex.code, input(ex.stdin)), run(lang, ex.code, input(ex.stdin))]);
         for (const r of [a, b]) {
           const why = failure(r);
           if (why) return errors.push({ where: `${at}.example.code`, message: why, actual: clip(r.compileError || r.stderr || r.stdout) });
@@ -170,7 +176,7 @@ async function verifyLesson(lang, lesson) {
     jobs.push(
       (async () => {
         // Every test runs twice, so a solution that only sometimes passes is caught.
-        const pairs = await Promise.all(pr.tests.map((t) => Promise.all([run(lang, pr.solution, t.stdin), run(lang, pr.solution, t.stdin)])));
+        const pairs = await Promise.all(pr.tests.map((t) => Promise.all([run(lang, pr.solution, input(t.stdin)), run(lang, pr.solution, input(t.stdin))])));
         for (const [t, [r, again]] of pairs.entries()) {
           const where = `${at}.practice.tests[${t}]`;
           if (r.compileError) return errors.push({ where: `${at}.practice.solution`, message: "does not compile", actual: clip(r.compileError) });
@@ -189,10 +195,10 @@ async function verifyLesson(lang, lesson) {
     );
     jobs.push(
       (async () => {
-        const r = await run(lang, pr.starter, pr.tests[0].stdin);
+        const r = await run(lang, pr.starter, input(pr.tests[0].stdin));
         if (r.compileError) return errors.push({ where: `${at}.practice.starter`, message: "starter must compile so learners begin from working code", actual: clip(r.compileError) });
         if (r.code !== 0) return errors.push({ where: `${at}.practice.starter`, message: `starter must run cleanly, exited with ${r.code ?? r.status}`, actual: clip(r.stderr || r.stdout) });
-        const passesAll = (await Promise.all(pr.tests.map((t, i) => (i === 0 ? r : run(lang, pr.starter, t.stdin)))))
+        const passesAll = (await Promise.all(pr.tests.map((t, i) => (i === 0 ? r : run(lang, pr.starter, input(t.stdin))))))
           .every((x, i) => normalizeOutput(x.stdout) === normalizeOutput(pr.tests[i].output));
         if (passesAll) errors.push({ where: `${at}.practice.starter`, message: "starter already passes every test, so there is nothing to solve" });
       })()

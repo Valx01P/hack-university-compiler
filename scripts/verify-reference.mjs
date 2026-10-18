@@ -12,7 +12,11 @@ import path from "node:path";
 import { LANGUAGES, ROOT, lintMarkdown, lintProse, printResult } from "./lib/verify-kit.mjs";
 
 const DIR = path.join(ROOT, "content", "reference");
-const CATEGORIES = JSON.parse(readFileSync(path.join(DIR, "categories.json"), "utf8")).categories.map((c) => c.id);
+// A language can have its own topics (SQL does) in <lang>/categories.json.
+const categoriesFor = (lang) => {
+  const own = path.join(DIR, lang, "categories.json");
+  return JSON.parse(readFileSync(existsSync(own) ? own : path.join(DIR, "categories.json"), "utf8")).categories.map((c) => c.id);
+};
 
 const args = process.argv.slice(2);
 if (args.length && !LANGUAGES.includes(args[0])) {
@@ -22,8 +26,8 @@ if (args.length && !LANGUAGES.includes(args[0])) {
 const langs = args.length ? [args[0]] : LANGUAGES;
 const only = args.slice(1);
 for (const id of only) {
-  if (!CATEGORIES.includes(id)) {
-    console.error(`verify-reference: "${id}" is not a category (${CATEGORIES.join(", ")})`);
+  if (!categoriesFor(langs[0]).includes(id)) {
+    console.error(`verify-reference: "${id}" is not a ${langs[0]} category (${categoriesFor(langs[0]).join(", ")})`);
     process.exit(2);
   }
 }
@@ -39,6 +43,7 @@ for (const lang of langs) {
     }
     continue;
   }
+  const CATEGORIES = categoriesFor(lang);
   for (const f of readdirSync(dir).filter((x) => x.endsWith(".md"))) {
     if (!CATEGORIES.includes(f.slice(0, -3))) {
       ok = false;

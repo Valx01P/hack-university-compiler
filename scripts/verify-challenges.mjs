@@ -34,8 +34,17 @@ import {
 } from "./lib/verify-kit.mjs";
 
 const DIR = path.join(ROOT, "content", "challenges");
-const CATEGORIES = JSON.parse(readFileSync(path.join(ROOT, "content", "reference", "categories.json"), "utf8")).categories.map((c) => c.id);
 const DIFFICULTIES = ["very-easy", "easy", "medium"];
+// Programming challenges come in the five general languages. SQL challenges
+// are their own set, with only SQL code, SQL's categories, and setup data.
+const GENERAL = LANGUAGES.filter((l) => l !== "sql");
+const readCategories = (file) => JSON.parse(readFileSync(file, "utf8")).categories.map((c) => c.id);
+const CATEGORIES = readCategories(path.join(ROOT, "content", "reference", "categories.json"));
+const SQL_CATEGORIES = existsSync(path.join(ROOT, "content", "reference", "sql", "categories.json"))
+  ? readCategories(path.join(ROOT, "content", "reference", "sql", "categories.json"))
+  : [];
+const isSqlChallenge = (c) => Boolean(c?.code && typeof c.code === "object" && Object.keys(c.code).join() === "sql");
+const languagesOf = (c) => (isSqlChallenge(c) ? ["sql"] : GENERAL);
 
 const args = process.argv.slice(2);
 const asJson = args.includes("--json");
@@ -61,7 +70,9 @@ function checkSchema(c, id, errors, warnings) {
   if (!c || typeof c !== "object" || Array.isArray(c)) return;
   need(c.id === id, "id", `id must be "${id}" (the file name)`);
   need(nonEmpty(c.title) && c.title.length <= 60, "title", "title is required, at most 60 characters");
-  need(CATEGORIES.includes(c.category), "category", `category must be one of ${CATEGORIES.join(", ")}`);
+  const categories = isSqlChallenge(c) ? SQL_CATEGORIES : CATEGORIES;
+  need(categories.includes(c.category), "category", `category must be one of ${categories.join(", ")}`);
+  need(c.setup === undefined || (isSqlChallenge(c) && isStr(c.setup)), "setup", "setup is SQL for a SQL challenge (code.sql only)");
   need(DIFFICULTIES.includes(c.difficulty), "difficulty", `difficulty must be one of ${DIFFICULTIES.join(", ")}`);
   need(nonEmpty(c.statement), "statement", "required");
   // A program that reads input needs several inputs to prove it. One that
@@ -77,8 +88,8 @@ function checkSchema(c, id, errors, warnings) {
     need(test?.stdin === undefined || isStr(test.stdin), `tests[${t}].stdin`, "must be a string when present");
   }
   need(c.hints === undefined || (Array.isArray(c.hints) && c.hints.length <= 3 && c.hints.every(nonEmpty)), "hints", "up to 3 non-empty strings");
-  need(c.code && typeof c.code === "object", "code", "required: one { starter, solution } per language");
-  for (const lang of LANGUAGES) {
+  need(c.code && typeof c.code === "object", "code", "required: one { starter, solution } per language (or only code.sql)");
+  for (const lang of languagesOf(c)) {
     const code = c.code?.[lang];
     need(code && nonEmpty(code.starter) && nonEmpty(code.solution), `code.${lang}`, "needs a starter and a solution");
     if (!code) continue;
@@ -93,7 +104,10 @@ function checkSchema(c, id, errors, warnings) {
       if (/\t/.test(v) && lang !== "go") warnings.push({ where: `code.${lang}.${k}`, message: "contains tab characters, indent with spaces" });
     }
   }
-  if (nonEmpty(c.statement) && Array.isArray(c.tests) && c.tests[0] && isStr(c.tests[0].output)) checkShownTest(c.statement, c.tests[0], "statement", errors);
+  // A SQL test's "stdin" is setup SQL (extra rows), described in words.
+  if (nonEmpty(c.statement) && Array.isArray(c.tests) && c.tests[0] && isStr(c.tests[0].output)) {
+    checkShownTest(c.statement, isSqlChallenge(c) ? { output: c.tests[0].output } : c.tests[0], "statement", errors);
+  }
 }
 
 function checkText(c, errors) {
@@ -111,11 +125,12 @@ function checkText(c, errors) {
 
 async function verifyChallenge(c) {
   const errors = [];
+  const input = (lang, stdin) => (lang === "sql" ? [c.setup, stdin].filter((x) => isStr(x) && x.trim()).join("\n") : stdin);
   await Promise.all(
-    langs.map(async (lang) => {
+    languagesOf(c).filter((l) => langs.includes(l)).map(async (lang) => {
       const { starter, solution } = c.code[lang];
       const at = `code.${lang}`;
-      const pairs = await Promise.all(c.tests.map((t) => Promise.all([run(lang, solution, t.stdin), run(lang, solution, t.stdin)])));
+      const pairs = await Promise.all(c.tests.map((t) => Promise.all([run(lang, solution, input(lang, t.stdin)), run(lang, solution, input(lang, t.stdin))])));
       for (const [t, [r, again]] of pairs.entries()) {
         const where = `${at} tests[${t}]`;
         if (r.compileError) {
@@ -133,7 +148,7 @@ async function verifyChallenge(c) {
         if (out !== want) errors.push({ where, message: `solution output does not match (${firstDiff(want, out)})`, expected: clip(want), actual: clip(out) });
         else if (normalizeOutput(again.stdout) !== out) errors.push({ where, message: "solution output differs between two runs (nondeterministic)" });
       }
-      const s = await Promise.all(c.tests.map((t) => run(lang, starter, t.stdin)));
+      const s = await Promise.all(c.tests.map((t) => run(lang, starter, input(lang, t.stdin))));
       if (s[0].compileError) {
         errors.push({ where: `${at}.starter`, message: "starter must compile so you begin from working code", actual: clip(s[0].compileError) });
         return;

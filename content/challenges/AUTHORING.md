@@ -101,6 +101,19 @@ Follow each language's runtime facts and conventions in
 - Go 1.16: gofmt formatting (tabs), no generics, read with `bufio` or
   `fmt.Scan`.
 
+## SQL challenges
+
+SQL has its own challenge set: query problems on small datasets, using SQL's
+categories (`content/reference/sql/categories.json`). A SQL challenge has only
+`code.sql`, and a `setup` field with the SQL that creates and fills its tables.
+Each test's `stdin` is more setup SQL on top (extra rows, changed values), so a
+query that hardcodes the answer fails. The statement describes the tables and
+what to return, then shows test 1's result after `Expected output:` (no
+`Input:` block). Output is what `psql` prints (see the SQL notes in
+`content/learn/AUTHORING.md`), so order every multi-row result with
+`ORDER BY` on columns that never tie. The starter is a query skeleton with a
+`-- TODO` comment that runs but returns the wrong result.
+
 ## Writing style
 
 The statement and hints follow the lesson style: second person, plain words,

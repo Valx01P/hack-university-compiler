@@ -42,6 +42,9 @@ export interface Lesson {
   intro: string;
   steps: LessonStep[];
   recap?: string;
+  /** SQL lessons: the tables and rows every program in the lesson starts
+      from. An example's or test's `stdin` is more setup SQL on top. */
+  setup?: string;
 }
 
 /** A lesson as the lesson list sees it: no bodies, just what it shows. */

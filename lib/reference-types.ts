@@ -25,6 +25,9 @@ export interface Challenge {
   statement: string;
   tests: { stdin?: string; output: string }[];
   hints: string[];
+  /** SQL challenges: the tables and rows every run starts from. A test's
+      stdin is more setup SQL on top. Empty for other languages. */
+  setup: string;
   starter: string;
   solution: string;
 }

@@ -50,6 +50,20 @@ const KEYWORDS: Record<string, string[]> = {
     "var", "nil", "true", "false", "iota", "make", "new", "len", "cap",
     "append", "string", "int", "int64", "bool", "error", "byte", "rune", "float64",
   ],
+  sql: [
+    "SELECT", "FROM", "WHERE", "AND", "OR", "NOT", "NULL", "IS", "IN", "BETWEEN", "LIKE", "ILIKE",
+    "ORDER", "BY", "GROUP", "HAVING", "LIMIT", "OFFSET", "DISTINCT", "AS", "ASC", "DESC", "NULLS",
+    "FIRST", "LAST", "CASE", "WHEN", "THEN", "ELSE", "END", "JOIN", "INNER", "LEFT", "RIGHT", "FULL",
+    "OUTER", "CROSS", "ON", "USING", "UNION", "ALL", "INTERSECT", "EXCEPT", "WITH", "RECURSIVE", "OVER",
+    "PARTITION", "WINDOW", "ROWS", "RANGE", "PRECEDING", "FOLLOWING", "CURRENT", "ROW", "UNBOUNDED",
+    "EXISTS", "ANY", "SOME", "INSERT", "INTO", "VALUES", "RETURNING", "UPDATE", "SET", "DELETE",
+    "CONFLICT", "DO", "NOTHING", "CREATE", "TABLE", "VIEW", "INDEX", "PRIMARY", "KEY", "FOREIGN",
+    "REFERENCES", "UNIQUE", "CHECK", "DEFAULT", "CONSTRAINT", "ALTER", "ADD", "COLUMN", "DROP",
+    "RENAME", "TO", "TRUNCATE", "CASCADE", "IF", "BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT",
+    "TRUE", "FALSE", "CAST", "INTEGER", "INT", "BIGINT", "SMALLINT", "SERIAL", "NUMERIC", "DECIMAL",
+    "REAL", "TEXT", "VARCHAR", "CHAR", "BOOLEAN", "DATE", "TIME", "TIMESTAMP", "TIMESTAMPTZ",
+    "INTERVAL", "JSON", "JSONB", "FUNCTION", "RETURNS", "LANGUAGE", "EXPLAIN", "ANALYZE", "FILTER",
+  ],
   bash: [
     "if", "then", "elif", "else", "fi", "for", "in", "do", "done", "while",
     "until", "case", "esac", "function", "return", "local", "export",
@@ -60,6 +74,8 @@ const KEYWORDS: Record<string, string[]> = {
 interface Rule {
   type: string;
   re: string;
+  /** Extra regex flags, like "i" for SQL's case-insensitive keywords. */
+  flags?: string;
 }
 
 const ALIASES: Record<string, string> = {
@@ -69,6 +85,9 @@ const ALIASES: Record<string, string> = {
   node: "javascript",
   "c++": "cpp",
   golang: "go",
+  postgres: "sql",
+  postgresql: "sql",
+  psql: "sql",
   sh: "bash",
   shell: "bash",
   zsh: "bash",
@@ -80,6 +99,15 @@ function rulesFor(language: string): Rule[] {
   const lang = ALIASES[language] ?? language;
   const kw = KEYWORDS[lang];
   if (!kw) return [];
+  if (lang === "sql") {
+    return [
+      { type: "comment", re: "--[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/" },
+      { type: "string", re: "'(?:''|[^'])*'" },
+      { type: "number", re: "\\b\\d+(?:\\.\\d+)?\\b" },
+      { type: "keyword", re: `\\b(?:${kw.join("|")})\\b`, flags: "i" },
+      { type: "fn", re: "[A-Za-z_]\\w*(?=\\s*\\()" },
+    ];
+  }
   const comment =
     lang === "python" || lang === "bash" ? "#[^\\n]*" : "\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/";
   return [
@@ -101,7 +129,7 @@ export function tokenize(code: string, language: string): Token[] {
   // Sticky regexes, tried in priority order at each position
   const rules = rulesFor(language).map((r) => ({
     type: r.type,
-    re: new RegExp(r.re, "y"),
+    re: new RegExp(r.re, "y" + (r.flags ?? "")),
   }));
   if (!rules.length) return [{ type: null, text: code }];
   // Consume whole identifiers so keywords never match inside other words

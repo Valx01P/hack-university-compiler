@@ -13,8 +13,9 @@ content/reference/categories.json        the categories, in roadmap order
 content/reference/<lang>/<category>.md   one section per category
 ```
 
-`<lang>` is `python`, `javascript`, `cpp`, `java`, or `go`. Every language has
-one file per category id in `categories.json`.
+`<lang>` is `python`, `javascript`, `cpp`, `java`, `go`, or `sql`. Every
+language has one file per category id in `categories.json`, except SQL, which
+has its own topics in `content/reference/sql/categories.json`.
 
 The first line is the section's title, `# Title`, at most 40 characters. Use
 the language's own name for the idea when it has one (`# Lists` in Python,
@@ -47,14 +48,16 @@ no "in this section we will".
 
 - Write for the exact runtime versions in `content/learn/AUTHORING.md`
   ("Runtime facts"): Python 3.12, Node 20 as CommonJS, C++17 on g++ 10.2,
-  Java 15, Go 1.16. Never show a feature newer than that (no `std::format`,
-  records, generics in Go, `Object.groupBy`). If a newer feature is the
-  modern way, you may mention it in one line as "not available here".
+  Java 15, Go 1.16, and PostgreSQL 18 for SQL. Never show a feature newer
+  than that (no `std::format`, records, generics in Go, `Object.groupBy`). If
+  a newer feature is the modern way, you may mention it in one line as "not
+  available here".
 - Snippets may be fragments, but every line must be valid in context. Before
   you write a snippet, wrap it in a complete program and run it in the sandbox:
   `curl -s http://127.0.0.1:2000/api/v2/execute -H 'content-type: application/json'
   -d '{"language":"<runtime>","version":"*","files":[{"content":"..."}]}'`
-  (runtimes: `python`, `javascript`, `c++`, `java`, `go`).
+  (runtimes: `python`, `javascript`, `c++`, `java`, `go`). Test SQL with
+  `node scripts/try-sql.mjs file.sql`, which runs it on a fresh PostgreSQL.
 - House style per language: C++ qualifies `std::` and never writes
   `using namespace std`. Java uses explicit single-type imports and interface
   types (`List<String> names = new ArrayList<>()`). Go is gofmt-formatted (tabs).

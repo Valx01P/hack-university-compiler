@@ -21,17 +21,25 @@ interface ChallengeFile {
   statement: string;
   tests: { stdin?: string; output: string }[];
   hints?: string[];
+  setup?: string;
   code: Record<string, { starter: string; solution: string }>;
 }
 
-export const getCategories = cache(async (): Promise<ReferenceCategory[]> => {
-  const raw = JSON.parse(await fs.readFile(path.join(ROOT, "reference", "categories.json"), "utf8"));
+/** The topics, in order: a language's own list when it has one (SQL does),
+    else the shared one. */
+export const getCategories = cache(async (lang: string): Promise<ReferenceCategory[]> => {
+  const own = path.join(ROOT, "reference", ID_RE.test(lang) ? lang : "_", "categories.json");
+  const file = await fs
+    .access(own)
+    .then(() => own)
+    .catch(() => path.join(ROOT, "reference", "categories.json"));
+  const raw = JSON.parse(await fs.readFile(file, "utf8"));
   return (raw.categories as ReferenceCategory[]).map(({ id, title }) => ({ id, title }));
 });
 
 export const getCheatsheet = cache(async (lang: string): Promise<ReferenceSection[]> => {
   if (!ID_RE.test(lang)) return [];
-  const categories = await getCategories();
+  const categories = await getCategories(lang);
   const sections = await Promise.all(
     categories.map(async (c): Promise<ReferenceSection | null> => {
       try {
@@ -68,7 +76,7 @@ const readChallengeFiles = cache(async (): Promise<ChallengeFile[]> => {
 
 /** One language's challenges, in category order, easiest first. */
 export const getChallenges = cache(async (lang: string): Promise<Challenge[]> => {
-  const order = (await getCategories()).map((c) => c.id);
+  const order = (await getCategories(lang)).map((c) => c.id);
   return (await readChallengeFiles())
     .filter((c) => c.code?.[lang] && order.includes(c.category))
     .sort(
@@ -85,12 +93,13 @@ export const getChallenges = cache(async (lang: string): Promise<Challenge[]> =>
       statement: c.statement,
       tests: c.tests,
       hints: c.hints ?? [],
+      setup: c.setup ?? "",
       starter: c.code[lang].starter,
       solution: c.code[lang].solution,
     }));
 });
 
 export async function getReferenceData(lang: string): Promise<ReferenceData> {
-  const [categories, cheatsheet, challenges] = await Promise.all([getCategories(), getCheatsheet(lang), getChallenges(lang)]);
+  const [categories, cheatsheet, challenges] = await Promise.all([getCategories(lang), getCheatsheet(lang), getChallenges(lang)]);
   return { categories, cheatsheet, challenges };
 }

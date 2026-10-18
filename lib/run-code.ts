@@ -1,4 +1,4 @@
-import { SANDBOX_REFRESH_EVENT } from "@/lib/compiler";
+import { SANDBOX_REFRESH_EVENT, isSql } from "@/lib/compiler";
 
 /** One finished run, as /api/execute reports it. */
 export interface RunResult {
@@ -31,6 +31,9 @@ export async function runInSandbox(
   stdin: string,
   { refreshStatus = true }: { refreshStatus?: boolean } = {}
 ): Promise<RunOutcome> {
+  // SQL runs on PostgreSQL right in the browser, and its "stdin" is the setup
+  // SQL that runs first (the tables and rows the script works on).
+  if (isSql(language)) return runSqlInBrowser(code, stdin);
   try {
     const res = await fetch("/api/execute", {
       method: "POST",
@@ -59,6 +62,19 @@ export async function runInSandbox(
     };
   } finally {
     if (refreshStatus) refreshSandboxStatus();
+  }
+}
+
+async function runSqlInBrowser(code: string, setup: string): Promise<RunOutcome> {
+  try {
+    const { runSqlScript } = await import("@/lib/sql/browser");
+    const r = await runSqlScript(code, setup);
+    return {
+      ok: true,
+      run: { stdout: r.stdout, stderr: r.stderr, code: r.failed ? 1 : 0, signal: null, verdict: null, compileCode: null, compileOutput: "" },
+    };
+  } catch (err) {
+    return { ok: false, error: `Couldn't start the SQL database: ${err instanceof Error ? err.message : String(err)}` };
   }
 }
 

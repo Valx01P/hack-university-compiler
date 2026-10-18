@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ROOT = fileURLToPath(new URL("../..", import.meta.url));
-export const LANGUAGES = ["python", "javascript", "cpp", "java", "go"];
+export const LANGUAGES = ["python", "javascript", "cpp", "java", "go", "sql"];
 const RUNTIMES = JSON.parse(readFileSync(path.join(ROOT, "lib", "runtimes.json"), "utf8"));
 const PISTON_URL = (process.env.PISTON_URL ?? "http://127.0.0.1:2000/api/v2").replace(/\/+$/, "");
 
@@ -139,8 +139,37 @@ async function piston(language, code, stdin) {
   }
 }
 
+// SQL runs on PGlite (PostgreSQL in WebAssembly) right here, a fresh
+// database per run, with the same core the app uses. Its "stdin" is the setup
+// SQL that runs first. A few at a time, since each database holds real memory.
+let sqlRunning = 0;
+const sqlWaiting = [];
+async function runSqlHere(code, setup) {
+  if (sqlRunning >= 4) await new Promise((resolve) => sqlWaiting.push(resolve));
+  sqlRunning++;
+  const { PGlite } = await import("@electric-sql/pglite");
+  const core = await import("../../lib/sql/core.mjs");
+  const db = new PGlite();
+  try {
+    await db.waitReady;
+    if (setup && setup.trim()) {
+      const prepared = await core.runSql(db, setup);
+      if (prepared.error) return { compileError: `The setup failed. ${core.formatError(prepared.error)}`, stdout: "", stderr: "", code: 1, status: null };
+    }
+    const result = await core.runSql(db, code);
+    return { compileError: "", stdout: core.formatRun(result), stderr: result.error ? core.formatError(result.error) : "", code: result.error ? 1 : 0, status: null };
+  } catch (err) {
+    return { compileError: "", stdout: "", stderr: `sandbox error: ${err.message}`, code: null, status: "XX" };
+  } finally {
+    await db.close().catch(() => {});
+    sqlRunning--;
+    sqlWaiting.shift()?.();
+  }
+}
+
 /** Run with retries: a timeout under heavy load is retried before it counts. */
 export async function run(language, code, stdin) {
+  if (language === "sql") return runSqlHere(code, stdin);
   let last;
   for (let i = 0; i < 3; i++) {
     try {
@@ -186,7 +215,7 @@ export function failure(r) {
 // ---------------------------------------------------------------- prose
 
 export const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-export const FENCE_LANGS = new Set(["python", "javascript", "cpp", "java", "go", "text"]);
+export const FENCE_LANGS = new Set(["python", "javascript", "cpp", "java", "go", "sql", "text"]);
 export const isStr = (v) => typeof v === "string";
 export const nonEmpty = (v) => isStr(v) && v.trim().length > 0;
 

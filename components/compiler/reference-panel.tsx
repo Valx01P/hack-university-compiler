@@ -50,6 +50,7 @@ export function useReferenceData(lang: string, enabled: boolean) {
  * to the list.
  */
 export function ReferencePanel({
+  lang,
   langLabel,
   data,
   error,
@@ -62,6 +63,7 @@ export function ReferencePanel({
   onLeaveChallenge,
   onClose,
 }: {
+  lang: string;
   langLabel: string;
   data: ReferenceData | null;
   error: string | null;
@@ -113,7 +115,7 @@ export function ReferencePanel({
           <p className="p-4 text-sm text-ink-faint">Loading the {langLabel} reference…</p>
         ) : tab === "cheatsheet" ? (
           data.cheatsheet.length ? (
-            <CheatsheetView sections={data.cheatsheet} langLabel={langLabel} />
+            <CheatsheetView lang={lang} sections={data.cheatsheet} langLabel={langLabel} />
           ) : (
             <p className="p-4 text-sm text-ink-muted">The {langLabel} cheatsheet isn&apos;t written yet.</p>
           )

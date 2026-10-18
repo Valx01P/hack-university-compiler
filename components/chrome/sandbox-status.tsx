@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { SANDBOX_REFRESH_EVENT } from "@/lib/compiler";
+import { SANDBOX_REFRESH_EVENT, isSql } from "@/lib/compiler";
 
 type Status = {
   online: boolean;
@@ -15,6 +15,24 @@ type Status = {
  * as soon as you come back to the tab, and after every run.
  */
 export function SandboxStatus({ lang }: { lang: string }) {
+  if (isSql(lang)) return <SqlStatus />;
+  return <PistonStatus lang={lang} />;
+}
+
+/** SQL runs on PostgreSQL inside the browser, so there's nothing to check. */
+function SqlStatus() {
+  return (
+    <span
+      title="Runs on PostgreSQL 18 (PGlite) right in your browser"
+      className="inline-flex shrink-0 items-center gap-1.5 px-1 font-mono text-xs text-ink-faint"
+    >
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-gold" />
+      postgres 18
+    </span>
+  );
+}
+
+function PistonStatus({ lang }: { lang: string }) {
   const [status, setStatus] = useState<Status | null>(null);
 
   const refresh = useCallback(() => {

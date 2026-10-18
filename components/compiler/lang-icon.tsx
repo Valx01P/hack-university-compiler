@@ -1,4 +1,4 @@
-import { siPython, siJavascript, siCplusplus, siGo } from "simple-icons";
+import { siPython, siJavascript, siCplusplus, siGo, siPostgresql } from "simple-icons";
 
 // Java's steaming coffee cup. simple-icons dropped Java's mark at Oracle's
 // request, so this one-color path comes from Devicon's java-plain icon
@@ -15,6 +15,7 @@ const ICONS: Record<string, { path: string; viewBox?: string }> = {
   cpp: siCplusplus,
   java: JAVA_CUP,
   go: siGo,
+  sql: siPostgresql,
 };
 
 export function LangIcon({

@@ -61,7 +61,7 @@ export default async function PartPage(props: PageProps<"/[lang]/learn/[lesson]/
     <PartView
       key={`${lesson.id}/${part}`}
       lang={lang}
-      lesson={{ id: lesson.id, title: lesson.title, section: lesson.section, intro: lesson.intro, recap: lesson.recap }}
+      lesson={{ id: lesson.id, title: lesson.title, section: lesson.section, intro: lesson.intro, recap: lesson.recap, setup: lesson.setup }}
       parts={lesson.steps.map((s) => s.title)}
       part={part}
       step={lesson.steps[part]}

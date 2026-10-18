@@ -5,6 +5,16 @@ import { Search, X } from "lucide-react";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
 import type { ReferenceSection } from "@/lib/reference-types";
 
+/** What each language's search box suggests looking for. */
+const SEARCH_HINTS: Record<string, string> = {
+  python: "list, import, split",
+  javascript: "map, import, split",
+  cpp: "vector, include, sort",
+  java: "ArrayList, import, split",
+  go: "slice, import, Split",
+  sql: "join, group by, coalesce",
+};
+
 /** A section's own "###" blocks, so a search can show just the part that
     matches instead of the whole section. */
 function blocks(md: string): string[] {
@@ -16,7 +26,7 @@ function blocks(md: string): string[] {
  * narrows it to the sections (or the parts of sections) that mention what you
  * typed, and a jump menu.
  */
-export function CheatsheetView({ sections, langLabel }: { sections: ReferenceSection[]; langLabel: string }) {
+export function CheatsheetView({ lang, sections, langLabel }: { lang: string; sections: ReferenceSection[]; langLabel: string }) {
   const [query, setQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const q = query.trim().toLowerCase();
@@ -47,7 +57,7 @@ export function CheatsheetView({ sections, langLabel }: { sections: ReferenceSec
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search ${langLabel}: list, import, split…`}
+            placeholder={`Search ${langLabel}: ${SEARCH_HINTS[lang] ?? "loops, strings, functions"}…`}
             className="field w-full rounded-btn py-1.5 pl-8 pr-7 text-sm text-ink"
           />
           {query && (

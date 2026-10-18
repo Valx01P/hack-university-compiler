@@ -12,7 +12,7 @@ content/learn/<lang>/index.json    the course: sections and lesson order
 content/learn/<lang>/<id>.json     one lesson (file name == lesson id)
 ```
 
-`<lang>` is one of `python`, `javascript`, `cpp`, `java`, `go`.
+`<lang>` is one of `python`, `javascript`, `cpp`, `java`, `go`, `sql`.
 
 `index.json`:
 
@@ -134,6 +134,26 @@ not contain any. `for range` over a map is randomized: sort the keys
 sorted, so that is deterministic. Indent Go with tabs (gofmt style). Read input
 with `bufio.NewScanner(os.Stdin)` or `fmt.Scan`.
 
+**SQL, PostgreSQL 18 (PGlite).** The course for `sql` runs on a real
+PostgreSQL 18 compiled to WebAssembly, a fresh empty database for every run,
+in the browser and in the verifier alike. How SQL lessons differ:
+
+- A lesson's `setup` (SQL) creates the tables and rows every program in the
+  lesson starts from. An example's or test's `stdin` is more setup SQL that
+  runs after it, so tests can add or change rows and a hardcoded answer fails.
+  Prompts describe that data in words, with no `Input:` block.
+- A program's output is what `psql` prints for each statement, separated by a
+  blank line: an aligned table and a row count (`(2 rows)`) for statements
+  that return rows, and a command tag for the rest (`CREATE TABLE`,
+  `INSERT 0 3`, `UPDATE 1`, `DELETE 0`). Numbers are right-aligned, `NULL`
+  prints as nothing, booleans as `t` and `f`. Run your SQL with the verifier
+  (or the sandbox) and copy its output, never type a table by hand.
+- The first statement that fails stops the program with `ERROR:  <message>`.
+- Order every result that has more than one row with `ORDER BY` on columns
+  that never tie, or the order is not guaranteed.
+- Write keywords in uppercase and names in `snake_case`. End every statement
+  with a semicolon.
+
 ## Lesson file
 
 ```json
@@ -220,7 +240,7 @@ that, each on its own line. The verifier checks that the blocks match test 1's
   colon instead. (Code is code: semicolons in code are fine.)
 - Markdown the renderer supports: `##` and `###` headings, paragraphs,
   `**bold**`, `*italic*`, `` `code` ``, fenced code blocks with a language
-  (`python`, `javascript`, `cpp`, `java`, `go`, `text`), `[links](https://...)`,
+  (`python`, `javascript`, `cpp`, `java`, `go`, `sql`, `text`), `[links](https://...)`,
   `-` bullet lists, `1.` numbered lists, `>` quotes, and pipe tables. Separate
   blocks with a blank line. Every line of a list block must start with `- ` or
   `N. `: list items are one line each, and a list, heading, or quote never

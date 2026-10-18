@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import { BookOpenText, GraduationCap } from "lucide-react";
+import { BookOpenText, GraduationCap, RotateCcw } from "lucide-react";
 import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
@@ -14,8 +14,11 @@ import { LangIcon } from "@/components/compiler/lang-icon";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { ReferencePanel, useReferenceData, type ReferenceTab } from "@/components/compiler/reference-panel";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
+import { SqlDatabase } from "@/components/compiler/sql-database";
+import { SqlResults } from "@/components/compiler/sql-results";
 import { CheckResults, checkSummary, type CheckState } from "@/components/learn/check-results";
-import { COMPILER_LANGS, type CompilerLang } from "@/lib/compiler";
+import { COMPILER_LANGS, isSql, type CompilerLang } from "@/lib/compiler";
+import type { SqlRun } from "@/lib/sql/core.mjs";
 import {
   loadChallengeCode,
   markChallengeSolved,
@@ -106,6 +109,14 @@ export function CompilerApp({
   const [unlockedFor, setUnlockedFor] = useState<string | null>(null);
   const [checkFor, setCheckFor] = useState<{ id: string; state: CheckState } | null>(null);
 
+  // SQL's playground: one PostgreSQL database for the visit, results shown
+  // as tables, and a view of the database itself.
+  const sqlMode = isSql(lang.slug);
+  const [sqlRun, setSqlRun] = useState<SqlRun | null>(null);
+  const [sqlError, setSqlError] = useState<string | null>(null);
+  const [sqlView, setSqlView] = useState<"results" | "database">("results");
+  const [dbVersion, setDbVersion] = useState(0);
+
   const running = run.status === "running";
   const checking = checkFor?.state.status === "checking";
   const busy = running || checking;
@@ -136,7 +147,11 @@ export function CompilerApp({
     ? challengeCodes[challenge.id] ?? loadChallengeCode(lang.slug, challenge.id, challenge.starter)
     : "";
   const editorCode = challenge ? (showingAnswer ? challenge.solution : challengeCode) : code;
-  const currentStdin = challenge ? challengeStdins[challenge.id] ?? challenge.tests[0]?.stdin ?? "" : stdin;
+  // A SQL challenge's input is its setup SQL plus the test's own setup.
+  const challengeInput = (stdin: string | undefined) =>
+    challenge && sqlMode ? [challenge.setup, stdin].filter((x) => x && x.trim()).join("\n") : stdin ?? "";
+  const currentStdin = challenge ? challengeStdins[challenge.id] ?? challengeInput(challenge.tests[0]?.stdin) : stdin;
+  const playground = sqlMode && !challenge;
   const checkState = challenge && checkFor?.id === challenge.id ? checkFor.state : null;
 
   function updateCode(next: string) {
@@ -216,6 +231,21 @@ export function CompilerApp({
     setRun({ status: "running" });
     setCheckFor(null);
     setAnnouncement("");
+    if (playground) {
+      try {
+        const { runPlayground } = await import("@/lib/sql/browser");
+        const result = await runPlayground(editorCode);
+        setSqlRun(result);
+        setSqlError(null);
+        setSqlView("results");
+        setAnnouncement(result.error ? `Error: ${result.error.message}` : `Ran ${result.results.length} statement${result.results.length === 1 ? "" : "s"}.`);
+      } catch (err) {
+        setSqlError(`Couldn't start PostgreSQL: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      setRun({ status: "idle" });
+      setDbVersion((v) => v + 1);
+      return;
+    }
     const result = await runInSandbox(lang.slug, editorCode, currentStdin);
     const done: RunState = result.ok ? { status: "done", ...result.run } : { status: "error", error: result.error };
     setRun(done);
@@ -229,7 +259,7 @@ export function CompilerApp({
     setRun({ status: "idle" });
     setAnnouncement("");
     setCheckFor({ id, state: { status: "checking", total: tests.length } });
-    const outcomes = await Promise.all(tests.map((t) => runInSandbox(lang.slug, code, t.stdin ?? "", { refreshStatus: false })));
+    const outcomes = await Promise.all(tests.map((t) => runInSandbox(lang.slug, code, challengeInput(t.stdin), { refreshStatus: false })));
     refreshSandboxStatus();
     const finish = (state: CheckState) => {
       setCheckFor({ id, state });
@@ -469,7 +499,8 @@ export function CompilerApp({
                   readOnly={showingAnswer}
                 />
               </div>
-              <div className="shrink-0 border-t border-code-edge bg-code-bg">
+              {/* SQL's playground has no input: the database is the input. */}
+              <div className={`shrink-0 border-t border-code-edge bg-code-bg ${playground ? "hidden" : ""}`}>
                 {/* The code box clips anything outside it, so this focus ring
                     sits inside the button (rounded like the box's corners
                     when it's the last row), in the code text color. */}
@@ -483,7 +514,7 @@ export function CompilerApp({
                   }`}
                 >
                   <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
-                  <span>stdin</span>
+                  <span>{sqlMode ? "setup (runs first)" : "stdin"}</span>
                   {!showStdin && currentStdin ? (
                     <span className="truncate text-code-gutter">· {currentStdin.split("\n")[0]}</span>
                   ) : null}
@@ -553,16 +584,56 @@ export function CompilerApp({
           <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
             {/* Padded for whole focus rings, like the toolbar. */}
             <div className="slim-scroll -mx-1.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pt-1.5 pb-3">
-              <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
-                {checkState ? "Results" : "Output"}
-              </h2>
+              {playground ? (
+                <div role="tablist" aria-label="Output" className="flex shrink-0 items-center gap-1">
+                  {(["results", "database"] as const).map((v) => (
+                    <button
+                      key={v}
+                      id={v === "results" ? outputId : undefined}
+                      type="button"
+                      role="tab"
+                      aria-selected={sqlView === v}
+                      onClick={() => setSqlView(v)}
+                      className={`shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider transition-colors ${
+                        sqlView === v ? "bg-raised text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
+                      }`}
+                    >
+                      {v === "results" ? "Results" : "Database"}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
+                  {checkState ? "Results" : "Output"}
+                </h2>
+              )}
               <div className="ms-auto flex shrink-0 items-center gap-1">
-                {(run.status === "done" || checkState?.status === "done") && (
+                {playground && (
+                  <ConfirmButton
+                    label="Reset the database"
+                    title="Reset the database?"
+                    description="This puts the sample tables and rows back and drops anything you created."
+                    confirmLabel="Reset"
+                    onConfirm={() => {
+                      void import("@/lib/sql/browser")
+                        .then((m) => m.resetPlayground())
+                        .then(() => {
+                          setSqlRun(null);
+                          setDbVersion((v) => v + 1);
+                        });
+                    }}
+                    className={`${iconBtn} size-7`}
+                  >
+                    <RotateCcw className="size-3.5" aria-hidden />
+                  </ConfirmButton>
+                )}
+                {(run.status === "done" || checkState?.status === "done" || (playground && sqlRun && sqlView === "results")) && (
                   <button
                     type="button"
                     onClick={() => {
                       setRun({ status: "idle" });
                       setCheckFor(null);
+                      setSqlRun(null);
                     }}
                     className="rounded-btn px-2.5 py-1 text-xs font-medium text-ink-faint transition-colors hover:text-ink"
                   >
@@ -603,7 +674,21 @@ export function CompilerApp({
               tabIndex={0}
               className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface"
             >
-              {checkState ? (
+              {playground ? (
+                sqlView === "database" ? (
+                  <SqlDatabase version={dbVersion} />
+                ) : running ? (
+                  <p className="p-4 text-sm text-ink-faint">Running…</p>
+                ) : sqlError ? (
+                  <p className="p-4 font-mono text-sm text-danger">⚠ {sqlError}</p>
+                ) : sqlRun ? (
+                  <SqlResults run={sqlRun} />
+                ) : (
+                  <p className="p-4 text-sm text-ink-faint">
+                    Press ▶ Run to query the sample database. The Database tab shows its tables.
+                  </p>
+                )
+              ) : checkState ? (
                 <CheckResults
                   check={checkState}
                   next={nextChallenge ? { onClick: () => openChallenge(nextChallenge.id), label: `Next challenge: ${nextChallenge.title}` } : null}
@@ -636,6 +721,7 @@ export function CompilerApp({
               className="hidden lg:flex"
             />
             <ReferencePanel
+              lang={lang.slug}
               langLabel={lang.label}
               data={refData}
               error={refError}

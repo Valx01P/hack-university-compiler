@@ -28,6 +28,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { cpp } from "@codemirror/lang-cpp";
 import { java } from "@codemirror/lang-java";
 import { go } from "@codemirror/lang-go";
+import { PostgreSQL, sql } from "@codemirror/lang-sql";
 import { useCodeEditorSettings } from "@/components/code/editor-settings";
 import { completionFor } from "@/lib/code-editor-completions";
 
@@ -44,6 +45,8 @@ function langExt(language: string) {
       return java();
     case "go":
       return go();
+    case "sql":
+      return sql({ dialect: PostgreSQL });
     default:
       return [];
   }

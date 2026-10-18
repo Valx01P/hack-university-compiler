@@ -17,7 +17,7 @@ import { LessonMarkdown } from "@/components/learn/lesson-md";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { CheckResults, checkSummary, type CheckState } from "@/components/learn/check-results";
 import { Highlight } from "@/lib/highlight";
-import type { CompilerLang } from "@/lib/compiler";
+import { isSql, type CompilerLang } from "@/lib/compiler";
 import { partHref, problemId, type Lesson, type LessonStep } from "@/lib/learn-types";
 import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolvedState } from "@/lib/learn-progress";
 import { normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
@@ -71,7 +71,7 @@ export function PartView({
   next,
 }: {
   lang: CompilerLang;
-  lesson: Pick<Lesson, "id" | "title" | "section" | "intro" | "recap">;
+  lesson: Pick<Lesson, "id" | "title" | "section" | "intro" | "recap" | "setup">;
   /** Every part's title, in order. */
   parts: string[];
   /** This part, counting from 0. */
@@ -94,8 +94,13 @@ export function PartView({
 
   const tabKey = (kind: TabKind) => `${kind}-${part}`;
   const defaultCode = (kind: TabKind) => (kind === "example" ? step.example.code : step.practice.starter);
+  // SQL programs start from the lesson's tables (its setup), plus the example's
+  // or test's own setup. That is SQL's stdin.
+  const sql = isSql(lang.slug);
+  const inputFor = (stdin: string | undefined) =>
+    sql ? [lesson.setup, stdin].filter((x) => x && x.trim()).join("\n") : stdin ?? "";
   const defaultStdin = (kind: TabKind) =>
-    kind === "example" ? step.example.stdin ?? "" : step.practice.tests[0]?.stdin ?? "";
+    inputFor(kind === "example" ? step.example.stdin : step.practice.tests[0]?.stdin);
 
   const [active, setActive] = useState<TabKind>("example");
   // Your code per tab, read while initializing (CodeMirror mounts client-side,
@@ -227,7 +232,7 @@ export function PartView({
     begin("practice", e);
     setPanel("practice", { mode: "check", check: { status: "checking", total: tests.length } });
     const outcomes = await Promise.all(
-      tests.map((t) => runInSandbox(lang.slug, code, t.stdin ?? "", { refreshStatus: false }))
+      tests.map((t) => runInSandbox(lang.slug, code, inputFor(t.stdin), { refreshStatus: false }))
     );
     refreshSandboxStatus();
 
@@ -536,7 +541,7 @@ export function PartView({
                 }`}
               >
                 <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
-                <span>stdin</span>
+                <span>{sql ? "setup (runs first)" : "stdin"}</span>
                 {!showStdin && stdin ? <span className="truncate text-code-gutter">· {stdin.split("\n")[0]}</span> : null}
               </button>
               {showStdin && (
