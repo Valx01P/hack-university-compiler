@@ -18,6 +18,9 @@ export type CheckState =
   | { status: "compile-error"; output: string }
   | { status: "done"; results: TestResult[]; lessonComplete: boolean };
 
+const NEXT_LINK =
+  "font-medium text-ink underline decoration-edge-strong underline-offset-2 transition-colors hover:decoration-ink dark:hover:text-gold";
+
 /** The verdict of a check in one line, for screen readers. */
 export function checkSummary(check: CheckState): string {
   switch (check.status) {
@@ -46,7 +49,8 @@ export function CheckResults({
   next,
 }: {
   check: CheckState;
-  next: { href: string; label: string } | null;
+  /** Where to go after solving: a page (`href`) or an action (`onClick`). */
+  next: { href?: string; onClick?: () => void; label: string } | null;
 }) {
   if (check.status === "checking") {
     return (
@@ -82,10 +86,14 @@ export function CheckResults({
             {(lessonComplete || next) && (
               <p className="mt-1 text-sm text-ink-muted">
                 {lessonComplete && "Lesson complete. "}
-                {next ? (
-                  <Link href={next.href} className="font-medium text-ink underline decoration-edge-strong underline-offset-2 transition-colors hover:decoration-ink dark:hover:text-gold">
+                {next?.href ? (
+                  <Link href={next.href} className={NEXT_LINK}>
                     {next.label} →
                   </Link>
+                ) : next?.onClick ? (
+                  <button type="button" onClick={next.onClick} className={NEXT_LINK}>
+                    {next.label} →
+                  </button>
                 ) : (
                   "That was the last lesson in the course."
                 )}

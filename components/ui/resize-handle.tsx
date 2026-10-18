@@ -16,6 +16,7 @@ export function ResizeHandle({
   onChange,
   onDrag,
   onReset,
+  quiet = false,
   className = "",
 }: {
   label: string;
@@ -28,6 +29,8 @@ export function ResizeHandle({
   /** The pointer's x while dragging. */
   onDrag: (clientX: number) => void;
   onReset: () => void;
+  /** No line until hovered or focused, for a border at the panel's edge. */
+  quiet?: boolean;
   className?: string;
 }) {
   // Pointer capture keeps move events coming over the code editor, and no text
@@ -83,7 +86,11 @@ export function ResizeHandle({
       title="Drag to resize. Double-click to reset."
       className={`group w-[9px] shrink-0 cursor-col-resize touch-none select-none items-stretch justify-center outline-none ${className}`}
     >
-      <div className="pointer-events-none w-px bg-edge transition-colors group-hover:w-[2px] group-hover:bg-accent-strong group-focus-visible:bg-accent-strong group-active:bg-accent-strong" />
+      <div
+        className={`pointer-events-none w-px transition-colors group-hover:w-[2px] group-hover:bg-accent-strong group-focus-visible:bg-accent-strong group-active:bg-accent-strong ${
+          quiet ? "bg-transparent" : "bg-edge"
+        }`}
+      />
     </div>
   );
 }

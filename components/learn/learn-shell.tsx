@@ -3,24 +3,27 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, SquareTerminal } from "lucide-react";
+import { ArrowLeft, ArrowRight, PanelLeftClose, PanelLeftOpen, SquareTerminal } from "lucide-react";
 import { LessonList } from "@/components/learn/lesson-list";
 import { LessonMenu } from "@/components/learn/lesson-menu";
 import { SandboxStatus } from "@/components/chrome/sandbox-status";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import type { Course, LessonRef } from "@/lib/learn-types";
 
-// The lesson list's width. Like the compiler's split it lasts for the session
-// (moving between lessons keeps it) but isn't saved, so a reload never shifts.
-const SIDEBAR = { min: 208, max: 440, initial: 256 };
+// The lesson list's width (0 when collapsed). Like the compiler's split it
+// lasts for the session (moving between lessons keeps it) but isn't saved, so
+// a reload never shifts. Dragging it narrower than `collapseBelow` folds it
+// away completely.
+const SIDEBAR = { min: 208, max: 440, initial: 256, collapseBelow: 150 };
 const session = { sidebar: SIDEBAR.initial };
 
 /**
  * Learn mode's frame: the same bordered panel as the compiler, with the lesson
  * plan as a sidebar when the screen is wide enough (a hamburger menu
- * otherwise). Drag the border to widen or narrow the list. It lives in the
- * learn layout, so it stays put, scroll and all, while you move between
- * lessons.
+ * otherwise). Drag the border to widen or narrow the list, or all the way
+ * left to fold it away (the panel button or the border brings it back). It
+ * lives in the learn layout, so it stays put, scroll and all, while you move
+ * between lessons.
  */
 export function LearnShell({
   lang,
@@ -49,10 +52,11 @@ export function LearnShell({
   const rowRef = useRef<HTMLDivElement>(null);
   const [sidebar, setSidebarWidth] = useState(session.sidebar);
   const setSidebar = (width: number) => {
-    const clamped = Math.min(SIDEBAR.max, Math.max(SIDEBAR.min, Math.round(width)));
-    session.sidebar = clamped;
-    setSidebarWidth(clamped);
+    const next = width < SIDEBAR.collapseBelow ? 0 : Math.min(SIDEBAR.max, Math.max(SIDEBAR.min, Math.round(width)));
+    session.sidebar = next;
+    setSidebarWidth(next);
   };
+  const collapsed = sidebar === 0;
 
   // Whether a back/forward history entry exists (Navigation API, Chromium).
   const [hist, setHist] = useState({ back: true, fwd: true });
@@ -69,10 +73,19 @@ export function LearnShell({
       <section className="flex min-h-0 flex-col rounded-card border border-edge bg-surface lg:h-full lg:overflow-hidden">
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-edge px-3 py-1.5">
           <span className="flex min-w-0 items-center gap-0.5">
-            <span className="xl:hidden">
+            <button
+              type="button"
+              onClick={() => setSidebar(collapsed ? SIDEBAR.initial : 0)}
+              aria-label={collapsed ? "Show the lesson list" : "Hide the lesson list"}
+              title={collapsed ? "Show the lesson list" : "Hide the lesson list"}
+              className={`${arrow} -ml-1 hidden xl:inline-flex`}
+            >
+              {collapsed ? <PanelLeftOpen className="size-4" aria-hidden /> : <PanelLeftClose className="size-4" aria-hidden />}
+            </button>
+            <span className={collapsed ? "" : "xl:hidden"}>
               <LessonMenu lang={lang} langLabel={langLabel} course={course} currentId={currentId} currentPart={currentPart} courses={courses} />
             </span>
-            <span className="flex items-center xl:-ml-1">
+            <span className="flex items-center">
               <button type="button" onClick={() => router.back()} disabled={!hist.back} aria-label="Go back" title="Go back" className={arrow}>
                 <ArrowLeft className="size-4" aria-hidden />
               </button>
@@ -107,20 +120,24 @@ export function LearnShell({
         </div>
 
         <div ref={rowRef} className="flex min-h-0 flex-1">
-          <aside style={{ width: sidebar }} className="hidden shrink-0 xl:flex xl:flex-col">
-            <LessonList lang={lang} langLabel={langLabel} course={course} currentId={currentId} currentPart={currentPart} courses={courses} />
-          </aside>
+          {!collapsed && (
+            <aside style={{ width: sidebar }} className="hidden shrink-0 xl:flex xl:flex-col">
+              <LessonList lang={lang} langLabel={langLabel} course={course} currentId={currentId} currentPart={currentPart} courses={courses} />
+            </aside>
+          )}
           <ResizeHandle
             label="Resize the lesson list"
             value={sidebar}
-            min={SIDEBAR.min}
+            min={0}
             max={SIDEBAR.max}
             step={16}
             bigStep={48}
-            onChange={setSidebar}
+            // From folded away, any step out opens it at its narrowest.
+            onChange={(next) => setSidebar(collapsed && next > 0 ? SIDEBAR.min : next)}
             onDrag={(x) => setSidebar(x - (rowRef.current?.getBoundingClientRect().left ?? 0) - 4)}
             onReset={() => setSidebar(SIDEBAR.initial)}
-            className="hidden xl:flex"
+            quiet={collapsed}
+            className={`hidden xl:flex ${collapsed ? "-mr-[9px] relative z-10" : ""}`}
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
         </div>

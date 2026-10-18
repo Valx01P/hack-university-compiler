@@ -114,11 +114,15 @@ export function CmEditor({
   language,
   onChange,
   ariaLabel,
+  readOnly = false,
 }: {
   value: string;
   language: string;
   onChange: (next: string) => void;
   ariaLabel: string;
+  /** Show the code without letting it be edited (fixed when the editor is
+      created, so give the editor a new key to switch). */
+  readOnly?: boolean;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -179,6 +183,7 @@ export function CmEditor({
           ),
           keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
           cmTheme,
+          EditorState.readOnly.of(readOnly),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) onChangeRef.current(u.state.doc.toString());
           }),

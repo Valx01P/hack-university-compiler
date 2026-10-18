@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
+import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { CodeThemePicker } from "@/components/code/code-theme";
@@ -135,7 +136,13 @@ export function PartView({
   const stdinId = `${uid}-stdin`;
   const outputId = `${uid}-output`;
 
-  const code = codes[active];
+  // The eye on Your code shows the solution in place of your code, read only,
+  // without touching what you wrote. It asks first once per visit.
+  const [answer, setAnswer] = useState(false);
+  const [answerUnlocked, setAnswerUnlocked] = useState(false);
+  const showingAnswer = active === "practice" && answer;
+
+  const code = showingAnswer ? step.practice.solution : codes[active];
   const stdin = stdins[active];
   const panel: Panel = panels[active] ?? { mode: "run", run: { status: "idle" } };
 
@@ -442,16 +449,30 @@ export function PartView({
           <div className="slim-scroll -mx-1.5 -mt-0.5 flex shrink-0 items-center gap-2 overflow-x-auto px-1.5 pb-2 pt-1.5">
             <span className="shrink-0 font-mono text-sm font-medium">{lang.fileName}</span>
             <span className="hidden truncate text-xs text-ink-faint sm:inline">
-              {active === "example" ? step.example.title : step.practice.title}
+              {active === "example" ? step.example.title : showingAnswer ? "The answer (read only, your code is kept)" : step.practice.title}
             </span>
             <div className="ms-auto flex shrink-0 items-center gap-1">
-              <ResetCodeButton
-                label={active === "example" ? "Reset to the original example" : "Reset to the starter code"}
-                title={active === "example" ? "Reset this example?" : "Reset to the starter code?"}
-                description="This replaces what's in this tab with the original code."
-                onReset={resetTab}
-                className={iconBtn}
-              />
+              {active === "practice" && (
+                <AnswerToggle
+                  shown={answer}
+                  unlocked={answerUnlocked}
+                  onShow={() => {
+                    setAnswer(true);
+                    setAnswerUnlocked(true);
+                  }}
+                  onHide={() => setAnswer(false)}
+                  className={iconBtn}
+                />
+              )}
+              {!showingAnswer && (
+                <ResetCodeButton
+                  label={active === "example" ? "Reset to the original example" : "Reset to the starter code"}
+                  title={active === "example" ? "Reset this example?" : "Reset to the starter code?"}
+                  description="This replaces what's in this tab with the original code."
+                  onReset={resetTab}
+                  className={iconBtn}
+                />
+              )}
               <EditorSettingsButton
                 buttonClassName={`${iconBtn} shrink-0`}
                 className="shrink-0"
@@ -470,7 +491,8 @@ export function PartView({
                   <button
                     type="button"
                     onClick={check}
-                    disabled={busy}
+                    disabled={busy || showingAnswer}
+                    title={showingAnswer ? "Close the answer to check your own code" : undefined}
                     className="shrink-0 rounded-btn border border-edge-strong px-4 py-1.5 text-sm font-medium btn-grad disabled:opacity-50"
                   >
                     {busyTab === "practice" && panel.mode === "check" ? "Checking…" : "Check"}
@@ -492,11 +514,12 @@ export function PartView({
           <div className="code-dark flex min-h-[12rem] flex-[3] flex-col overflow-hidden rounded-card border border-code-edge bg-code-bg lg:min-h-0">
             <div className="min-h-0 flex-1">
               <CmEditor
-                key={`${lesson.id}:${tabKey(active)}`}
+                key={`${lesson.id}:${tabKey(active)}:${showingAnswer ? "answer" : "code"}`}
                 value={code}
                 language={lang.slug}
-                onChange={updateCode}
-                ariaLabel={`${tabLabel(active)} editor`}
+                onChange={showingAnswer ? () => {} : updateCode}
+                ariaLabel={showingAnswer ? "The answer, read only" : `${tabLabel(active)} editor`}
+                readOnly={showingAnswer}
               />
             </div>
             <div className="shrink-0 border-t border-code-edge bg-code-bg">
