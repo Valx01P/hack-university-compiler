@@ -137,10 +137,11 @@ writing them, and `npm run lessons:verify` checks every lesson (Piston must be
 running, except for SQL): it runs each example and reference solution and makes
 sure every practice starter runs but doesn't already pass.
 
-## Reference and challenges
+## Cheatsheets and challenges
 
-Press **Reference** above the output panel to open a panel beside your code
-(the output moves under the editor). It has two tabs:
+**Cheatsheet** and **Challenges**, next to **Learn** above the output panel,
+open a panel beside your code (the output moves under the editor). Press the
+other one to switch, or the same one again to close it.
 
 - **Cheatsheet**: a direct reference for the language, one section per topic
   from printing to OOP: the syntax, what to import, the methods people use, a
@@ -187,9 +188,10 @@ color.
 
 **Layout lines**, at the bottom of the theme menu, is a slider for the lines
 that divide the page: the panel's outline, the language rail, the lesson list
-and its dividers, the editor and output boxes, the reference panel, and the
-outlined buttons (Reference, Learn, Compiler, and Previous/Next). Slide it to 0
-for a borderless page.
+and its dividers, the editor and output boxes, the cheatsheet and challenges
+panel, and the outlined buttons (Cheatsheet, Challenges, Learn, Compiler, and
+Previous/Next). Slide it to 0 for a borderless page. **Table lines**, under it,
+does the same for the tables in lessons and cheatsheets, separately.
 
 ## How it works
 
@@ -208,15 +210,16 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
   loaded the first time you run SQL (about 16 MB, 5 MB gzipped). The playground
   keeps one in-memory database, and lessons and challenges get a fresh one for
   every run.
-- Animations run on [GSAP](https://gsap.com): the lesson list folding, the
-  drawer, menus and popups, the reference panel, check results, and moving
-  between parts. They only answer what you do, never a page load, and the
-  system's "reduce motion" setting turns them off.
+- Animations run on [GSAP](https://gsap.com): the lesson list sliding, the
+  drawer, menus and popups, the cheatsheet and challenges panel, check results,
+  and moving between parts. They only answer what you do, never a page load,
+  and the system's "reduce motion" setting turns them off.
 - Saved in the browser's local storage: your code (per language), editor zoom,
   tab size, intellisense, theme, editor theme, contrast level, code background,
-  and layout lines. Everything visual is applied before the page paints, so nothing
-  shifts on reload. The editor/output split isn't saved, so a reload always
-  opens on the default layout (it does carry over while you switch languages).
+  layout lines, and table lines. Everything visual is applied before the page
+  paints, so nothing shifts on reload. The editor/output split isn't saved, so
+  a reload always opens on the default layout (it does carry over while you
+  switch languages).
 
 ## Project layout
 
