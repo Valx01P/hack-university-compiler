@@ -169,3 +169,85 @@ export function useContrast(): ContrastLevel {
   }, []);
   return level;
 }
+
+/**
+ * Code background: one background for every code surface (the editor, code
+ * blocks, and the output terminal) on top of whichever editor theme and
+ * contrast level is active. Their text and syntax colors stay the editor
+ * theme's. Stored as a #rrggbb color (no key = the theme's own background)
+ * and applied before first paint by the bootstrap in app/layout.tsx, as
+ * <html data-code-bg> plus the --code-bg-override variable.
+ */
+export const CODE_BG_PRESETS: { value: string; label: string }[] = [
+  { value: "#2e2f34", label: "Graphite" },
+  { value: "#1c2030", label: "Navy" },
+  { value: "#0d1117", label: "Ink" },
+  { value: "#1e1e1e", label: "Charcoal" },
+  { value: "#282c34", label: "Slate" },
+  { value: "#000000", label: "Black" },
+];
+
+export const CODE_BG_KEY = "hu-code-bg";
+export const CODE_BG_EVENT = "hu:code-bg-changed";
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/** A valid #rrggbb color, lowercased, or null. */
+export function toCodeBg(value: string | null | undefined): string | null {
+  return value && HEX_COLOR.test(value) ? value.toLowerCase() : null;
+}
+
+function applyCodeBg(value: string | null) {
+  const d = document.documentElement;
+  if (value) {
+    d.setAttribute("data-code-bg", "");
+    d.style.setProperty("--code-bg-override", value);
+  } else {
+    d.removeAttribute("data-code-bg");
+    d.style.removeProperty("--code-bg-override");
+  }
+}
+
+/** Set the code background (null = the theme's own), persist it, and
+    broadcast to every picker. */
+export function setCodeBackground(value: string | null) {
+  const color = toCodeBg(value);
+  applyCodeBg(color);
+  try {
+    if (color) localStorage.setItem(CODE_BG_KEY, color);
+    else localStorage.removeItem(CODE_BG_KEY);
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.dispatchEvent(new Event(CODE_BG_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+function currentCodeBg(): string | null {
+  const d = document.documentElement;
+  return d.hasAttribute("data-code-bg") ? toCodeBg(d.style.getPropertyValue("--code-bg-override").trim()) : null;
+}
+
+/** Subscribe to the code background (null = the theme's own), any tab. */
+export function useCodeBackground(): string | null {
+  const [value, set] = useState<string | null>(null);
+  useEffect(() => {
+    const refresh = () => set(currentCodeBg());
+    refresh();
+    // Another tab changed it: mirror the stored choice onto this page too.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== CODE_BG_KEY) return;
+      applyCodeBg(toCodeBg(e.newValue));
+      refresh();
+    };
+    window.addEventListener(CODE_BG_EVENT, refresh);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(CODE_BG_EVENT, refresh);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+  return value;
+}

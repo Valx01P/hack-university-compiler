@@ -35,7 +35,7 @@ const TABS: TabKind[] = ["example", "practice"];
 const CODE_BLOCK =
   "code-dark slim-scroll overflow-x-auto rounded-card border border-code-edge bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink";
 const PLAIN_BLOCK =
-  "slim-scroll mt-1.5 overflow-x-auto rounded-card border border-edge bg-raised px-4 py-3 font-mono text-[13px] leading-6 text-ink";
+  "code-terminal slim-scroll mt-1.5 overflow-x-auto rounded-card border border-edge bg-raised px-4 py-3 font-mono text-[13px] leading-6 text-ink";
 
 // How much of the width the lesson gets next to the editor. Like the
 // compiler's split it lasts for the session but isn't saved, so a reload
@@ -556,7 +556,7 @@ export function PartView({
               role="region"
               aria-labelledby={outputId}
               tabIndex={0}
-              className="slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface"
+              className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface"
             >
               {panel.mode === "check" ? (
                 <CheckResults check={panel.check} next={next ? { href: next.href, label: nextLabel(next) } : null} />

@@ -9,12 +9,14 @@ import {
   useContrast,
   useTheme,
 } from "@/lib/theme";
+import { CodeBackgroundPicker } from "@/components/code/code-background";
 
 /**
  * Header theme picker. The trigger shows the CURRENT theme's icon (sun for
  * Light, moon for Dark, snowflake for Nord, …); clicking it drops a small menu
  * of every theme, each with its own glyph, plus a Normal / High / Super
- * contrast picker that deepens whichever theme is active. Goes through
+ * contrast picker that deepens whichever theme is active, and a code
+ * background for every editor, code block, and terminal. Goes through
  * setTheme() so the `data-dark` flag and the editor's code theme stay in sync.
  * The icon starts as the Light sun on first paint (SSR) and corrects after
  * hydration — same pattern as the rest of the theme bootstrap, so there's no
@@ -60,7 +62,7 @@ export function ThemeToggle() {
         <div
           role="menu"
           aria-label="Theme"
-          className="absolute right-0 top-[calc(100%+0.4rem)] z-[60] w-48 overflow-hidden rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card)"
+          className="absolute right-0 top-[calc(100%+0.4rem)] z-[60] w-60 overflow-hidden rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card)"
         >
           {APP_THEMES.map((t) => {
             const active = t.id === theme;
@@ -135,6 +137,31 @@ export function ThemeToggle() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Also a modifier: one background for every editor, code block,
+              and terminal, the syntax colors unchanged. */}
+          <div role="separator" className="my-1 h-px bg-edge" />
+          <div role="group" aria-label="Code background" className="px-3 pb-2.5 pt-1.5">
+            <p className="flex items-center gap-2.5 text-sm text-ink-muted">
+              <svg
+                viewBox="0 0 24 24"
+                className="size-4 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+                <path d="M7.5 10l2.5 2-2.5 2M12.5 14.5h4" />
+              </svg>
+              Code background
+            </p>
+            <div className="mt-2.5">
+              <CodeBackgroundPicker compact />
             </div>
           </div>
         </div>

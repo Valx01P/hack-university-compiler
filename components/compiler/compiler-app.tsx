@@ -390,7 +390,7 @@ export function CompilerApp({
               role="region"
               aria-labelledby={outputId}
               tabIndex={0}
-              className="slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface"
+              className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface"
             >
               <OutputPanel run={run} />
             </div>

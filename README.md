@@ -118,6 +118,14 @@ Every code color stays at 4.5:1 contrast or better at every level.
 
 Until you pick, it follows your OS "increase contrast" setting (as High).
 
+**Code background**, below Contrast in the same menu (and in the editor's
+settings gear), gives every code surface one background: the editor, the code
+blocks in lessons, and the output terminal. Pick the theme's own, a dark preset
+(Graphite `#2e2f34`, Navy `#1c2030`, Ink `#0d1117`, Charcoal `#1e1e1e`, Slate
+`#282c34`, Black), or any custom color. The text and syntax colors stay the
+editor theme's, and the picker warns you if they'd be hard to read on your
+color.
+
 ## How it works
 
 ```
@@ -132,10 +140,10 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
   compile, 512 MB of memory to run (1 GB to compile), 128 processes, and 1 MB of
   output.
 - Saved in the browser's local storage: your code (per language), editor zoom,
-  tab size, intellisense, theme, editor theme, and contrast level. Everything
-  visual is applied before the page paints, so nothing shifts on reload. The
-  editor/output split isn't saved, so a reload always opens on the default
-  layout (it does carry over while you switch languages).
+  tab size, intellisense, theme, editor theme, contrast level, and code
+  background. Everything visual is applied before the page paints, so nothing
+  shifts on reload. The editor/output split isn't saved, so a reload always
+  opens on the default layout (it does carry over while you switch languages).
 
 ## Project layout
 
@@ -146,7 +154,7 @@ app/api/execute/route.ts     runs code in the sandbox
 app/api/runtimes/route.ts    sandbox health and installed runtimes
 components/compiler/         the compiler: language rail, toolbar, editor, output
 components/learn/            Learn mode: lesson list, lesson view, practice checks
-components/chrome/           header, panel shell, language menu, status badge
+components/chrome/           header, panel shell, status badge
 components/code/             CodeMirror editor and its settings
 content/learn/               the Learn courses (JSON) and the authoring guide
 lib/compiler.ts              languages, labels, starters, file names
