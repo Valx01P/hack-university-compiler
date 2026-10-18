@@ -77,16 +77,20 @@ linked lists, trees, and graphs. Each language has its own course at
 Go, kwargs and decorators for Python, and so on). Each course has 44 lessons,
 about 150 worked examples, and as many practice problems.
 
-- The lesson is on the left and the editor on the right. Each step explains one
-  idea, walks through a worked example, then gives you a practice problem with
-  the same shape.
-- The editor has a tab per example and per practice problem (**Your code**).
-  Examples run and can be edited and reset. **Check** runs your practice code
-  against its tests in the sandbox.
-- A lesson gets a green check once every practice problem in it passes.
+- Every lesson is split into parts, small sub-lessons that each explain one
+  idea, walk through a worked example, and give you a practice problem with the
+  same shape.
+- The part is on the left and the editor on the right, with two tabs: the
+  example and **Your code**. The example runs and can be edited and reset.
+  **Check** runs your practice code against its tests in the sandbox.
+- A part gets a green check once its practice passes, and a lesson once all its
+  parts do.
 - The lesson list sits on the left on wide screens, or behind the **Lessons**
-  menu otherwise. It also switches languages and leads back to the compiler.
-- Progress, your code in every tab, and the lesson you were on are saved in the
+  menu otherwise. Each lesson's parts fold out under it (the lesson you're on
+  opens by itself). The list also switches languages and leads back to the
+  compiler.
+- Drag the borders to resize the lesson list, the lesson, and the editor.
+- Progress, your code in every tab, and the part you were on are saved in the
   browser's local storage.
 
 Lessons live in `content/learn/<language>/` as JSON, one file per lesson.
@@ -137,7 +141,7 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
 
 ```
 app/[lang]/page.tsx          one prerendered page per language
-app/[lang]/learn/            Learn mode: the course shell and one page per lesson
+app/[lang]/learn/            Learn mode: the course shell and one page per lesson part
 app/api/execute/route.ts     runs code in the sandbox
 app/api/runtimes/route.ts    sandbox health and installed runtimes
 components/compiler/         the compiler: language rail, toolbar, editor, output

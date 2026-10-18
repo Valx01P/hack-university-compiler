@@ -58,6 +58,25 @@ if it verifies.
    test. From the input lesson on, practices may read stdin and should have 2 to
    3 tests with different inputs.
 
+## Parts: every step is its own page
+
+Learn mode shows each step as a **part**, a small sub-lesson with its own page:
+its title, body, worked example, and practice problem. Parts are listed under
+their lesson in the lesson list (collapsed until you open the lesson), and the
+editor next to a part has two tabs: the example and your code. The lesson's
+`intro` appears at the top of part 1, and its `recap` at the end of the last part.
+
+So write every step to stand on its own:
+
+- Don't point at another step's content as if it were on the same page
+  ("the last step", "step 2", "the list above" when it means an earlier step's
+  example). Restate the one fact you need in a short clause, or say "the
+  previous part" when the reference really helps.
+- If a step needs something an earlier step introduced (a variable, data, or a
+  definition), give it the sentence or snippet it needs.
+- A step's `title` is its label in the lesson list: specific, distinct within
+  the lesson, plain text, at most 60 characters and ideally under 40.
+
 ## Programs are checked by their output
 
 Learners press Check and their program runs once per test with that test's
