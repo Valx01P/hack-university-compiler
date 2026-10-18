@@ -1,29 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { GraduationCap } from "lucide-react";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { CodeThemePicker } from "@/components/code/code-theme";
 import { AnchoredPanel } from "@/components/ui/anchored-panel";
 import { LangIcon } from "@/components/compiler/lang-icon";
-import { COMPILER_LANGS, SANDBOX_REFRESH_EVENT, type CompilerLang } from "@/lib/compiler";
-
-type RunState =
-  | { status: "idle" }
-  | { status: "running" }
-  | { status: "error"; error: string }
-  | {
-      status: "done";
-      stdout: string;
-      stderr: string;
-      code: number | null;
-      signal: string | null;
-      /** The sandbox's verdict: "TO" timed out, "OL"/"EL" output too large. */
-      verdict: string | null;
-      compileCode: number | null;
-      compileOutput: string;
-    };
+import { OutputPanel } from "@/components/compiler/output-panel";
+import { COMPILER_LANGS, type CompilerLang } from "@/lib/compiler";
+import { lastLesson } from "@/lib/learn-progress";
+import { runInSandbox, type RunState } from "@/lib/run-code";
 
 type Orient = "horizontal" | "vertical";
 
@@ -47,7 +35,14 @@ function savedCode(lang: CompilerLang): string {
   }
 }
 
-export function CompilerApp({ lang }: { lang: CompilerLang }) {
+export function CompilerApp({
+  lang,
+  firstLesson,
+}: {
+  lang: CompilerLang;
+  /** First Learn lesson for this language, or null when it has no course. */
+  firstLesson: string | null;
+}) {
   // Read while initializing, not in an effect, so the editor opens straight on
   // your code: no starter flash, and ⌘Z can't undo back to the starter. The
   // code never reaches the server markup (CodeMirror mounts client-side), so
@@ -66,6 +61,13 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
   const splitRef = useRef<HTMLDivElement>(null);
   const orientRef = useRef(orient);
   orientRef.current = orient;
+
+  // Learn picks up where you left off: the last lesson you opened, else the
+  // first. The button keeps its size either way, so nothing shifts.
+  const [learnLesson, setLearnLesson] = useState(firstLesson);
+  useEffect(() => {
+    if (firstLesson) setLearnLesson(lastLesson(lang.slug) ?? firstLesson);
+  }, [lang.slug, firstLesson]);
 
   function updateCode(next: string) {
     setCode(next);
@@ -93,36 +95,8 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
 
   async function execute() {
     setRun({ status: "running" });
-    try {
-      const res = await fetch("/api/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ language: lang.slug, code, stdin }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setRun({ status: "error", error: data?.error ?? "The run failed. Try again." });
-        return;
-      }
-      const r = data.run ?? {};
-      setRun({
-        status: "done",
-        stdout: r.stdout ?? "",
-        stderr: r.stderr ?? "",
-        code: r.code ?? null,
-        signal: r.signal ?? null,
-        verdict: r.status ?? null,
-        compileCode: r.compileCode ?? null,
-        compileOutput: r.compileOutput ?? "",
-      });
-    } catch {
-      setRun({
-        status: "error",
-        error: "Couldn't reach the compiler server. Make sure npm run dev is still running.",
-      });
-    } finally {
-      window.dispatchEvent(new Event(SANDBOX_REFRESH_EVENT));
-    }
+    const result = await runInSandbox(lang.slug, code, stdin);
+    setRun(result.ok ? { status: "done", ...result.run } : { status: "error", error: result.error });
   }
 
   // Drag the divider between editor and output. Pointer capture keeps move
@@ -402,15 +376,27 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
               <h2 className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
                 Output
               </h2>
-              {run.status === "done" && (
-                <button
-                  type="button"
-                  onClick={() => setRun({ status: "idle" })}
-                  className="ms-auto rounded-btn px-2.5 py-1 text-xs font-medium text-ink-faint transition-colors hover:text-ink"
-                >
-                  Clear
-                </button>
-              )}
+              <div className="ms-auto flex shrink-0 items-center gap-1">
+                {run.status === "done" && (
+                  <button
+                    type="button"
+                    onClick={() => setRun({ status: "idle" })}
+                    className="rounded-btn px-2.5 py-1 text-xs font-medium text-ink-faint transition-colors hover:text-ink"
+                  >
+                    Clear
+                  </button>
+                )}
+                {learnLesson && (
+                  <Link
+                    href={`/${lang.slug}/learn/${learnLesson}`}
+                    title={`Learn ${lang.label} step by step`}
+                    className="inline-flex items-center gap-1.5 rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised dark:hover:text-gold"
+                  >
+                    <GraduationCap className="size-3.5" aria-hidden />
+                    Learn
+                  </Link>
+                )}
+              </div>
             </div>
 
             <div className="slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface">
@@ -419,59 +405,6 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function OutputPanel({ run }: { run: RunState }) {
-  if (run.status === "idle") {
-    return (
-      <p className="p-4 text-sm text-ink-faint">
-        Press ▶ Run to execute your code. Output appears here.
-      </p>
-    );
-  }
-  if (run.status === "running") {
-    return <p className="p-4 text-sm text-ink-faint">Running…</p>;
-  }
-  if (run.status === "error") {
-    return <p className="p-4 font-mono text-sm text-danger">⚠ {run.error}</p>;
-  }
-  const compileFailed = run.compileCode != null && run.compileCode !== 0;
-  const timedOut = run.verdict === "TO";
-  const outputCapped = run.verdict === "OL" || run.verdict === "EL";
-  const stopped = timedOut || outputCapped;
-  return (
-    <div className="space-y-2 p-4 font-mono text-sm">
-      {compileFailed ? (
-        <pre className="whitespace-pre-wrap text-danger">
-          {run.compileOutput || "Compilation failed."}
-        </pre>
-      ) : (
-        <>
-          {run.stdout && <pre className="whitespace-pre-wrap text-ink">{run.stdout}</pre>}
-          {run.stderr && <pre className="whitespace-pre-wrap text-danger">{run.stderr}</pre>}
-          {timedOut && (
-            <pre className="whitespace-pre-wrap text-danger">
-              Timed out. Your code ran too long (usually an infinite loop, or far too
-              slow). It was stopped.
-            </pre>
-          )}
-          {outputCapped && (
-            <pre className="whitespace-pre-wrap text-danger">
-              Output limit reached. Your program printed too much, so it was stopped.
-            </pre>
-          )}
-          {!run.stdout && !run.stderr && !stopped && (
-            <p className="text-ink-faint">(no output)</p>
-          )}
-        </>
-      )}
-      {!compileFailed && !stopped && (
-        <p className="text-xs text-ink-faint">
-          {run.signal ? `killed by ${run.signal}` : `exit code ${run.code ?? "?"}`}
-        </p>
-      )}
     </div>
   );
 }
