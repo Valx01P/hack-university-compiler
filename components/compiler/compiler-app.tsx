@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { BookOpenText, GraduationCap, RotateCcw } from "lucide-react";
+import { BookOpenText, GraduationCap, ListChecks, RotateCcw } from "lucide-react";
 import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
@@ -36,8 +36,8 @@ type Orient = "horizontal" | "vertical";
 // The layout is never saved, so every reload renders the default split with
 // nothing to restore and nothing to shift. It only lives for this page load,
 // which keeps it in place while you switch languages: the split, the
-// Reference panel and its tab, and the challenge you're on (every challenge
-// exists in every language).
+// cheatsheet or challenges panel, and the challenge you're on (every
+// challenge exists in every language).
 const sessionLayout: {
   orient: Orient;
   splitPct: number;
@@ -90,8 +90,8 @@ export function CompilerApp({
   const [splitPct, setSplitPct] = useState(() => sessionLayout.splitPct);
   const [full, setFull] = useState(false);
 
-  // Reference: the cheatsheet and the challenges, in a panel on the right
-  // with the output tucked under the editor.
+  // The cheatsheet or the challenges, in a panel on the right with the
+  // output tucked under the editor (refTab says which).
   const [refOpen, setRefOpenState] = useState(() => sessionLayout.refOpen);
   const [refTab, setRefTabState] = useState<ReferenceTab>(() => sessionLayout.refTab);
   const [refPct, setRefPctState] = useState(() => sessionLayout.refPct);
@@ -127,7 +127,7 @@ export function CompilerApp({
 
   const splitRef = useRef<HTMLDivElement>(null);
   const refGridRef = useRef<HTMLDivElement>(null);
-  // With Reference open the output always sits under the editor.
+  // With the panel open the output always sits under the editor.
   const effectiveOrient: Orient = refOpen ? "vertical" : orient;
   const orientRef = useRef(effectiveOrient);
   orientRef.current = effectiveOrient;
@@ -236,6 +236,13 @@ export function CompilerApp({
   function openReference() {
     refSlideIn.current = true;
     setRefOpen(true);
+  }
+  // Cheatsheet and Challenges each open the panel on themselves, switch it
+  // over when it shows the other, and close it when they're already showing.
+  function toggleReference(tab: ReferenceTab) {
+    if (refOpen && refTab === tab) return closeReference();
+    setRefTab(tab);
+    if (!refOpen) openReference();
   }
   function closeReference() {
     const panel = refPanelRef.current;
@@ -403,7 +410,7 @@ export function CompilerApp({
         })}
       </nav>
 
-      {/* Main: the editor and output, plus the Reference panel when it's open */}
+      {/* Main: the editor and output, plus the cheatsheet or challenges panel when it's open */}
       <div
         ref={refGridRef}
         className={`flex min-w-0 flex-1 flex-col ${
@@ -678,16 +685,27 @@ export function CompilerApp({
                     Clear
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => (refOpen ? closeReference() : openReference())}
-                  aria-pressed={refOpen}
-                  title={refOpen ? "Close the reference" : `${lang.label} cheatsheet and challenges`}
-                  className={`${headerBtn} ${refOpen ? "bg-raised" : ""}`}
-                >
-                  <BookOpenText className="size-3.5" aria-hidden />
-                  Reference
-                </button>
+                {(
+                  [
+                    ["cheatsheet", "Cheatsheet", BookOpenText],
+                    ["challenges", "Challenges", ListChecks],
+                  ] as const
+                ).map(([tab, label, Icon]) => {
+                  const active = refOpen && refTab === tab;
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => toggleReference(tab)}
+                      aria-pressed={active}
+                      title={active ? `Close the ${label.toLowerCase()}` : `${lang.label} ${label.toLowerCase()}`}
+                      className={`${headerBtn} ${active ? "bg-raised" : ""}`}
+                    >
+                      <Icon className="size-3.5" aria-hidden />
+                      {label}
+                    </button>
+                  );
+                })}
                 {learnHref && (
                   // Asks first, so a stray click doesn't leave the compiler.
                   <ConfirmButton
@@ -765,7 +783,6 @@ export function CompilerApp({
               data={refData}
               error={refError}
               tab={refTab}
-              onTab={setRefTab}
               challenge={challenge}
               next={nextChallenge}
               progress={progress}

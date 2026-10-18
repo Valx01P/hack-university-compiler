@@ -44,10 +44,10 @@ export function useReferenceData(lang: string, enabled: boolean) {
 }
 
 /**
- * The compiler's right-hand panel when Reference is on: the language's
- * cheatsheet and its challenges. Opening a challenge loads it into the
- * editor, and switching to the cheatsheet keeps you on it until you go back
- * to the list.
+ * The compiler's right-hand panel: the language's cheatsheet or its
+ * challenges, picked by the Cheatsheet and Challenges buttons above the
+ * output. Opening a challenge loads it into the editor, and switching to the
+ * cheatsheet keeps you on it until you go back to the list.
  */
 export function ReferencePanel({
   ref,
@@ -56,7 +56,6 @@ export function ReferencePanel({
   data,
   error,
   tab,
-  onTab,
   challenge,
   next,
   progress,
@@ -70,7 +69,6 @@ export function ReferencePanel({
   data: ReferenceData | null;
   error: string | null;
   tab: ReferenceTab;
-  onTab: (tab: ReferenceTab) => void;
   challenge: Challenge | null;
   next: Challenge | null;
   progress: ChallengeProgress;
@@ -78,33 +76,17 @@ export function ReferencePanel({
   onLeaveChallenge: () => void;
   onClose: () => void;
 }) {
-  const tabBtn = (id: ReferenceTab, label: string) => (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={tab === id}
-      onClick={() => onTab(id)}
-      className={`rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider transition-colors ${
-        tab === id ? "bg-raised text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
-      }`}
-    >
-      {label}
-      {id === "challenges" && challenge && tab !== "challenges" && <span className="ml-1.5 normal-case tracking-normal text-ink-faint">· {challenge.title}</span>}
-    </button>
-  );
-
   return (
     <section ref={ref} aria-label={`${langLabel} reference`} className="flex h-[80dvh] min-h-0 min-w-0 flex-col p-2 lg:h-auto">
       <div className="flex shrink-0 items-center gap-1 pb-2">
-        <div role="tablist" aria-label="Reference" className="flex min-w-0 items-center gap-1">
-          {tabBtn("cheatsheet", "Cheatsheet")}
-          {tabBtn("challenges", "Challenges")}
-        </div>
+        <h2 className="min-w-0 truncate px-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
+          {langLabel} {tab}
+        </h2>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close the reference"
-          title="Close the reference"
+          aria-label={`Close the ${tab}`}
+          title={`Close the ${tab}`}
           className="ms-auto inline-flex size-7 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink"
         >
           <X className="size-4" aria-hidden />
