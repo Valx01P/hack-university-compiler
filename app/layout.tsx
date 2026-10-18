@@ -15,10 +15,12 @@ export const metadata: Metadata = {
 };
 
 /**
- * Applies the saved theme before first paint so there is no light/dark flash.
- * See the "Preventing Flash" guide. Keep the dark list in sync with lib/theme.
+ * Applies the saved theme and contrast before first paint so there is no
+ * light/dark flash. See the "Preventing Flash" guide. Keep the dark list in
+ * sync with lib/theme. High contrast follows the OS "increase contrast"
+ * setting until the user picks in the theme menu.
  */
-const themeBootstrap = `(function(){try{var d=document.documentElement;var t=localStorage.getItem("hu-theme")||"light";d.setAttribute("data-theme",t);if(t==="dark"||t==="dracula"||t==="monokai"||t==="nord"||t==="solarized")d.setAttribute("data-dark","");else d.removeAttribute("data-dark");d.setAttribute("data-code-theme",localStorage.getItem("hu-code-theme")||"midnight");window.addEventListener("blur",function(){d.setAttribute("data-window-blurred","")});window.addEventListener("focus",function(){d.removeAttribute("data-window-blurred")})}catch(e){}})()`;
+const themeBootstrap = `(function(){try{var d=document.documentElement;var t=localStorage.getItem("hu-theme")||"light";d.setAttribute("data-theme",t);if(t==="dark"||t==="dracula"||t==="monokai"||t==="nord"||t==="solarized")d.setAttribute("data-dark","");else d.removeAttribute("data-dark");d.setAttribute("data-code-theme",localStorage.getItem("hu-code-theme")||"midnight");var c=localStorage.getItem("hu-contrast");if(c==="high"||(c===null&&window.matchMedia&&matchMedia("(prefers-contrast: more)").matches))d.setAttribute("data-contrast","high");else d.removeAttribute("data-contrast");window.addEventListener("blur",function(){d.setAttribute("data-window-blurred","")});window.addEventListener("focus",function(){d.removeAttribute("data-window-blurred")})}catch(e){}})()`;
 
 export default function RootLayout({
   children,

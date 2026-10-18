@@ -67,6 +67,14 @@ The badge in the top right of the compiler shows the runtime serving the
 current language, or what to run if the sandbox is offline or the language
 isn't installed yet.
 
+## Themes
+
+Pick Light, Dark, Dracula, Monokai, Nord, or Solarized from the header. The
+**High contrast** switch at the bottom of that menu deepens whichever theme is
+active, both the page and the editor: darker backgrounds, brighter text, firmer
+borders, and every syntax color at 7:1 contrast or better. Until you flip it, it
+follows your OS "increase contrast" setting.
+
 ## How it works
 
 ```

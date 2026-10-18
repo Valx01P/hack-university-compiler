@@ -103,3 +103,57 @@ export function useTheme(): string {
   }, []);
   return theme;
 }
+
+/**
+ * High contrast is a modifier on top of whichever theme is active: every page
+ * theme and editor theme has a deeper, higher-contrast variant in globals.css,
+ * keyed off <html data-contrast="high">. Stored as "high" | "normal". Until
+ * the user picks, the pre-paint bootstrap in app/layout.tsx follows the OS
+ * "increase contrast" setting.
+ */
+export const CONTRAST_KEY = "hu-contrast";
+export const CONTRAST_EVENT = "hu:contrast-changed";
+
+function applyHighContrast(on: boolean) {
+  const d = document.documentElement;
+  if (on) d.setAttribute("data-contrast", "high");
+  else d.removeAttribute("data-contrast");
+}
+
+/** Turn high contrast on or off, persist it, and broadcast to every toggle. */
+export function setHighContrast(on: boolean) {
+  applyHighContrast(on);
+  try {
+    localStorage.setItem(CONTRAST_KEY, on ? "high" : "normal");
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.dispatchEvent(new Event(CONTRAST_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Subscribe to the high-contrast flag (re-renders on change, any tab). */
+export function useHighContrast(): boolean {
+  const [on, set] = useState(false);
+  useEffect(() => {
+    const refresh = () =>
+      set(document.documentElement.getAttribute("data-contrast") === "high");
+    refresh();
+    // Another tab flipped it: mirror the stored choice onto this page too.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== CONTRAST_KEY) return;
+      applyHighContrast(e.newValue === "high");
+      refresh();
+    };
+    window.addEventListener(CONTRAST_EVENT, refresh);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(CONTRAST_EVENT, refresh);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+  return on;
+}

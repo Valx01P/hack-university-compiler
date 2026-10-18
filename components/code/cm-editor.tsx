@@ -80,12 +80,13 @@ const cmTheme = EditorView.theme(
       border: "none",
     },
     ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "transparent" },
-    // Neutral light-gray selection, not CodeMirror's default editor-blue. The
-    // focused selector must match CM's own deep selector (…cm-selectionLayer…),
-    // which outranks a plain `.cm-selectionBackground`, hence the full path +
+    // Neutral light-gray selection (the --code-selection token, stronger in
+    // high contrast), not CodeMirror's default editor-blue. The focused
+    // selector must match CM's own deep selector (…cm-selectionLayer…), which
+    // outranks a plain `.cm-selectionBackground`, hence the full path +
     // !important so the gray wins whether or not the editor is focused.
     "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
-      { background: "rgba(190, 190, 190, 0.32) !important" },
+      { background: "var(--code-selection) !important" },
     ".cm-foldPlaceholder": {
       backgroundColor: "var(--code-edge)",
       color: "var(--code-ink)",

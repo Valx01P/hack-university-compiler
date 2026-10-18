@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { APP_THEMES, setTheme, useTheme } from "@/lib/theme";
+import {
+  APP_THEMES,
+  setHighContrast,
+  setTheme,
+  useHighContrast,
+  useTheme,
+} from "@/lib/theme";
 
 /**
  * Header theme picker. The trigger shows the CURRENT theme's icon (sun for
  * Light, moon for Dark, snowflake for Nord, …); clicking it drops a small menu
- * of every theme, each with its own glyph. Goes through setTheme() so the
+ * of every theme, each with its own glyph, plus a High contrast switch that
+ * deepens whichever theme is active. Goes through setTheme() so the
  * `data-dark` flag and the editor's code theme stay in sync. The icon starts
  * as the Light sun on first paint (SSR) and corrects after hydration — same
  * pattern as the rest of the theme bootstrap, so there's no markup mismatch.
@@ -14,6 +21,7 @@ import { APP_THEMES, setTheme, useTheme } from "@/lib/theme";
 export function ThemeToggle() {
   const [open, setOpen] = useState(false);
   const theme = useTheme();
+  const highContrast = useHighContrast();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,7 +58,7 @@ export function ThemeToggle() {
         <div
           role="menu"
           aria-label="Theme"
-          className="absolute right-0 top-[calc(100%+0.4rem)] z-[60] w-44 overflow-hidden rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card)"
+          className="absolute right-0 top-[calc(100%+0.4rem)] z-[60] w-48 overflow-hidden rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card)"
         >
           {APP_THEMES.map((t) => {
             const active = t.id === theme;
@@ -88,6 +96,45 @@ export function ThemeToggle() {
               </button>
             );
           })}
+
+          {/* A modifier, not a theme: stays open so you can see it apply,
+              and sticks as you switch themes. */}
+          <div role="separator" className="my-1 h-px bg-edge" />
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={highContrast}
+            onClick={() => setHighContrast(!highContrast)}
+            className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+              highContrast
+                ? "text-ink dark:text-gold"
+                : "text-ink-muted hover:bg-raised hover:text-ink"
+            }`}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="size-4 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <circle cx="12" cy="12" r="8.5" />
+              <path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none" />
+            </svg>
+            <span className="flex-1 text-left">High contrast</span>
+            <span
+              aria-hidden
+              className={`inline-flex h-4 w-7 shrink-0 items-center rounded-full border px-0.5 transition-colors ${
+                highContrast ? "border-ink bg-ink" : "border-edge-strong"
+              }`}
+            >
+              <span
+                className={`size-2.5 rounded-full transition-transform ${
+                  highContrast ? "translate-x-3 bg-canvas" : "bg-edge-strong"
+                }`}
+              />
+            </span>
+          </button>
         </div>
       )}
     </div>
