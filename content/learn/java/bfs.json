@@ -44,7 +44,7 @@
     },
     {
       "title": "Shortest path",
-      "body": "Swap `visited` for an `int[][] dist` that stores how many steps each cell is from the start. Fill it with `-1` to mean \"not reached yet\", one row at a time:\n\n```java\nint[][] dist = new int[rows][cols];\nfor (int[] row : dist) {\n    Arrays.fill(row, -1);\n}\ndist[sr][sc] = 0;\n```\n\n`Arrays.fill(dist, -1)` compiles, but `dist` holds row arrays, not ints, so it throws `ArrayStoreException` at run time. Fill each row instead.\n\nWhen you enqueue a neighbor, it is one step farther than the cell you polled:\n\n```java\ndist[nr][nc] = dist[cur[0]][cur[1]] + 1;\n```\n\n`dist[nr][nc] != -1` now doubles as the visited check. Because BFS reaches cells in order of distance, the first time it touches the target is the shortest path, so you can return as soon as you poll it. If the queue empties first, the target was walled off: return `-1`. This works because every move costs 1. With weighted moves you need a different algorithm.",
+      "body": "To measure distance, replace the `boolean[][] visited` grid of a plain BFS with an `int[][] dist` that stores how many steps each cell is from the start. Fill it with `-1` to mean \"not reached yet\", one row at a time:\n\n```java\nint[][] dist = new int[rows][cols];\nfor (int[] row : dist) {\n    Arrays.fill(row, -1);\n}\ndist[sr][sc] = 0;\n```\n\n`Arrays.fill(dist, -1)` compiles, but `dist` holds row arrays, not ints, so it throws `ArrayStoreException` at run time. Fill each row instead.\n\nWhen you enqueue a neighbor `(nr, nc)` of the polled cell `cur`, it is one step farther than `cur`:\n\n```java\ndist[nr][nc] = dist[cur[0]][cur[1]] + 1;\n```\n\n`dist[nr][nc] != -1` now doubles as the visited check. Because BFS reaches cells in order of distance, the first time it touches the target is the shortest path, so you can return as soon as you poll it. If the queue empties first, the target was walled off: return `-1`. This works because every move costs 1. With weighted moves you need a different algorithm.",
       "example": {
         "title": "From S to E",
         "prompt": "Read a maze with `#` walls, a start `S`, and an end `E`, then print the fewest steps from S to E, or -1 if E cannot be reached.",
@@ -80,7 +80,7 @@
       }
     },
     {
-      "title": "Level by level",
+      "title": "Spreading level by level",
       "body": "Some problems ask how many rounds something takes to spread, not how far one cell is. Process the queue one level at a time, and count the levels.\n\n```java\nint minutes = 0;\nwhile (!queue.isEmpty() && fresh > 0) {\n    int size = queue.size();\n    for (int i = 0; i < size; i++) {\n        int[] cur = queue.poll();\n        // spread to neighbors and offer them\n    }\n    minutes++;\n}\n```\n\nSave `int size = queue.size();` before the inner loop. The queue grows as you offer neighbors, so `i < queue.size()` would keep going into the next level.\n\nWhen the spread starts from several cells at once, offer **all** of them before the loop. That is multi-source BFS: every start is level 0, and each cell is reached by the nearest one. Change a cell's character when you enqueue it (`.` to `F`) so it is never added twice, and keep a count of the cells still waiting (`fresh` above). Stopping when that count hits 0 keeps the last minute from counting an empty round. If the queue empties while some remain, they can never be reached: return `-1`.",
       "example": {
         "title": "Grass fire",

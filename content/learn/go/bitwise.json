@@ -43,7 +43,7 @@
     },
     {
       "title": "Shifts and single bits",
-      "body": "Shifts slide every bit left or right. `x << n` multiplies by 2 to the n, and `x >> n` divides by 2 to the n, rounding down, for non-negative `x`. Bits pushed past either end are lost, so in a `uint8`, `200 << 1` is 144, not 400. Gotcha: shifting a negative `int` right keeps the sign, so `-7 >> 1` is -4, not -3.\n\n`1 << i` is a mask with only bit i on (bits count from 0 at the right). Combine it with the operators you know to work on one bit:\n\n```go\non := x>>i&1 == 1 // check bit i\nx |= 1 << i       // set bit i\nx &^= 1 << i      // clear bit i\nx ^= 1 << i       // toggle bit i\n```\n\nIn Go, `<<`, `>>`, and `&` bind tighter than `==`, so `x>>i&1 == 1` needs no parentheses. Unary `^x` flips every bit (NOT). Go has no `~` operator. If `x` is a `uint8` holding 5, `^x` is 250. If `x` is an `int` holding 5, `^x` is -6, because the flipped top bit is the sign bit.",
+      "body": "Shifts slide every bit left or right. `x << n` multiplies by 2 to the n, and `x >> n` divides by 2 to the n, rounding down, for non-negative `x`. Bits pushed past either end are lost, so in a `uint8`, `200 << 1` is 144, not 400. Gotcha: shifting a negative `int` right keeps the sign, so `-7 >> 1` is -4, not -3.\n\n`1 << i` is a mask with only bit i on (bits count from 0 at the right). Combine it with `&`, `|`, `^`, and `&^` (AND, OR, XOR, and AND NOT) to work on one bit:\n\n```go\non := x>>i&1 == 1 // check bit i\nx |= 1 << i       // set bit i\nx &^= 1 << i      // clear bit i\nx ^= 1 << i       // toggle bit i\n```\n\nIn Go, `<<`, `>>`, and `&` bind tighter than `==`, so `x>>i&1 == 1` needs no parentheses. Unary `^x` flips every bit (NOT). Go has no `~` operator. If `x` is a `uint8` holding 5, `^x` is 250. If `x` is an `int` holding 5, `^x` is -6, because the flipped top bit is the sign bit.",
       "example": {
         "title": "Flipping single bits",
         "prompt": "Shift a byte, then set, check, toggle, clear, and flip its bits.",
@@ -116,7 +116,7 @@
       }
     },
     {
-      "title": "Bit tricks",
+      "title": "Bit tricks and math/bits",
       "body": "XOR has a handy property: `x ^ x` is 0 and `x ^ 0` is `x`. XOR every value of a list together, and any value that appears twice cancels itself out, in any order. What is left is the value without a pair.\n\nTwo more classic tricks use `n - 1`, which flips the lowest set bit and every zero below it:\n\n- `n & (n-1)` clears the lowest set bit (12 `1100` becomes 8 `1000`).\n- `n > 0 && n&(n-1) == 0` tests for a power of two, since those have exactly one bit set. The `n > 0` part rules out 0.\n\nThe `math/bits` package counts bits for you. Its functions take a `uint`, so convert first:\n\n```go\nimport \"math/bits\"\n\nbits.OnesCount(uint(12)) // 2 set bits\nbits.Len(uint(12))       // 4 bits needed to write 1100\n```\n\n`bits.Len(0)` is 0. Convert only non-negative values: `uint(-1)` wraps to the largest `uint`, with all 64 bits set. The compiler turns both functions into one or two CPU instructions on most machines, so they beat a loop over the bits.",
       "example": {
         "title": "The lonely number",

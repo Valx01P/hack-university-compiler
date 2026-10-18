@@ -33,7 +33,7 @@
       }
     },
     {
-      "title": "min and max",
+      "title": "Integer min, max, and clamp",
       "body": "`math.Max(a, b)` and `math.Min(a, b)` exist, but only for `float64`. Go 1.16 has no built-in `min` or `max` for ints (those arrived in Go 1.21), so you write small helpers. They are a few lines each and the compiler inlines them.\n\n```go\nfunc maxInt(a, b int) int {\n\tif a > b {\n\t\treturn a\n\t}\n\treturn b\n}\n```\n\n`minInt` is the same with `<`, and `absInt` returns `-n` when `n < 0`. One edge case: `-math.MinInt64` wraps around to itself, so `absInt` of that value stays negative. Converting ints through `math.Max(float64(a), float64(b))` works but is clumsy and loses precision for values above 2 to the power 53, so the helper is the idiom.\n\nTo **clamp** a value into a range, push it up to the low end, then down to the high end: `minInt(maxInt(v, lo), hi)`.\n\nTo track a running maximum, start from `math.MinInt64` so any real value wins, then `best = maxInt(best, v)` in a loop. For a running minimum, start from `math.MaxInt64`.",
       "example": {
         "title": "Volume knob",
@@ -87,7 +87,7 @@
       }
     },
     {
-      "title": "Helpers Go leaves to you",
+      "title": "Contains and indexOf helpers",
       "body": "Go 1.16 has no `contains` or `indexOf` for slices, and no generics to write one helper for every type. The idiom is a short loop per element type you need. When a program needs the same helper for two types, put the type in the name: `containsString`, `containsInt`. (Strings already have `strings.Contains` and `strings.Index`.)\n\n```go\nfunc indexOf(nums []int, x int) int {\n\tfor i, v := range nums {\n\t\tif v == x {\n\t\t\treturn i\n\t\t}\n\t}\n\treturn -1\n}\n```\n\n- Return as soon as you find a match. That gives the **first** index and skips the rest of the slice.\n- Return `-1` when the value is missing, the same convention as `strings.Index`. Valid indexes start at 0, so -1 can never be confused with a real position.\n- A `contains` helper returns `true` on a match and `false` after the loop.\n- To find the **last** match, loop backward from `len(s) - 1`.\n\nEach search walks the slice, so it costs time proportional to its length. Later lessons show faster lookups.",
       "example": {
         "title": "Fruit and number search",
