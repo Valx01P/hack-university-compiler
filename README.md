@@ -104,8 +104,11 @@ Press **Learn** above the output panel to learn the current language step by
 step, from print statements through OOP, error handling, and recursion, BFS,
 linked lists, trees, and graphs. Each language has its own course at
 `/<language>/learn`, written for that language's idioms (memory for C++ and
-Go, kwargs and decorators for Python, and so on). Each course has 44 lessons,
-about 150 worked examples, and as many practice problems.
+Go, kwargs and decorators for Python, and so on). SQL's course goes from your
+first SELECT through filtering, functions, joins, window functions, table
+design, transactions, and recursive queries over linked rows, trees, and
+graphs. Every course has 44 lessons: about 150 worked examples and as many
+practice problems for each programming language, and 114 for SQL.
 
 - Every lesson is split into parts, small sub-lessons that each explain one
   idea, walk through a worked example, and give you a practice problem with the
@@ -130,9 +133,9 @@ about 150 worked examples, and as many practice problems.
 
 Lessons live in `content/learn/<language>/` as JSON, one file per lesson.
 [`content/learn/AUTHORING.md`](content/learn/AUTHORING.md) is the guide for
-writing them, and `npm run lessons:verify` (Piston must be running) checks every
-lesson: it runs each example and reference solution in the sandbox and makes
-sure every practice starter compiles but doesn't already pass.
+writing them, and `npm run lessons:verify` checks every lesson (Piston must be
+running, except for SQL): it runs each example and reference solution and makes
+sure every practice starter runs but doesn't already pass.
 
 ## Reference and challenges
 
