@@ -50,6 +50,8 @@ npm run piston:install -- python javascript
 | `npm run piston:install` | Install every language, or `-- <ids>` for just some |
 | `npm run piston:status` | Show which languages are installed |
 | `npm run lessons:verify` | Check every Learn lesson in the sandbox (`-- <language> [ids]` for some) |
+| `npm run challenges:verify` | Check every challenge in all five languages (`-- <ids>`, `--lang=<language>`) |
+| `npm run reference:verify` | Lint the cheatsheets (`-- <language> [categories]`) |
 
 ## Languages
 
@@ -83,6 +85,9 @@ about 150 worked examples, and as many practice problems.
 - The part is on the left and the editor on the right, with two tabs: the
   example and **Your code**. The example runs and can be edited and reset.
   **Check** runs your practice code against its tests in the sandbox.
+- Stuck? The eye next to the editor's `{}` shows the answer in place of your
+  code (your code is kept, and the eye closes back onto it). The first time on
+  a page it asks first: click once, and again within 3 seconds while it glows.
 - A part gets a green check once its practice passes, and a lesson once all its
   parts do.
 - The lesson list sits on the left on wide screens, or behind the **Lessons**
@@ -90,6 +95,8 @@ about 150 worked examples, and as many practice problems.
   opens by itself). The list also switches languages and leads back to the
   compiler.
 - Drag the borders to resize the lesson list, the lesson, and the editor.
+  Drag the lesson list's border all the way left to fold it away, and bring it
+  back with the panel button or the border.
 - Progress, your code in every tab, and the part you were on are saved in the
   browser's local storage.
 
@@ -98,6 +105,27 @@ Lessons live in `content/learn/<language>/` as JSON, one file per lesson.
 writing them, and `npm run lessons:verify` (Piston must be running) checks every
 lesson: it runs each example and reference solution in the sandbox and makes
 sure every practice starter compiles but doesn't already pass.
+
+## Reference and challenges
+
+Press **Reference** above the output panel to open a panel beside your code
+(the output moves under the editor). It has two tabs:
+
+- **Cheatsheet**: a direct reference for the language, one section per topic
+  from printing to OOP: the syntax, what to import, the methods people use, a
+  loop example, and the gotchas. Search it ("append", "import", "split") or
+  jump to a topic.
+- **Challenges**: 81 short problems grouped by topic, very easy to medium, the
+  same set in every language. Open one and the editor fills with its starter
+  (your own code comes back when you leave it). **Check** runs it against the
+  tests, and **Next** takes you on. Opened challenges get an eye, solved ones a
+  green check. The eye next to `{}` reveals the answer, the same way as in
+  Learn mode.
+
+Content lives in `content/reference/<language>/<topic>.md` and
+`content/challenges/<id>.json`, each with an `AUTHORING.md` guide, and
+`npm run challenges:verify` runs every challenge's solution and starter in the
+sandbox.
 
 ## Themes
 
@@ -157,6 +185,8 @@ components/learn/            Learn mode: lesson list, lesson view, practice chec
 components/chrome/           header, panel shell, status badge
 components/code/             CodeMirror editor and its settings
 content/learn/               the Learn courses (JSON) and the authoring guide
+content/reference/           the cheatsheets (one Markdown file per topic)
+content/challenges/          the challenges (one JSON file each, all languages)
 lib/compiler.ts              languages, labels, starters, file names
 lib/learn.ts                 reads courses and lessons at build time
 lib/runtimes.json            language id to Piston runtime and package
@@ -164,6 +194,8 @@ lib/piston.ts                server-side Piston client
 docker-compose.yml           the sandbox and its limits
 scripts/setup-piston.mjs     runtime installer
 scripts/verify-lessons.mjs   runs every lesson's programs in the sandbox
+scripts/verify-challenges.mjs runs every challenge in all five languages
+scripts/verify-reference.mjs lints the cheatsheets
 ```
 
 ## Adding a language
