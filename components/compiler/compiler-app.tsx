@@ -93,6 +93,7 @@ export function CompilerApp({
   // The cheatsheet or the challenges, in a panel on the right with the
   // output tucked under the editor (refTab says which).
   const [refOpen, setRefOpenState] = useState(() => sessionLayout.refOpen);
+  const [refMounted, setRefMounted] = useState(() => sessionLayout.refOpen);
   const [refTab, setRefTabState] = useState<ReferenceTab>(() => sessionLayout.refTab);
   const [refPct, setRefPctState] = useState(() => sessionLayout.refPct);
   const { data: refData, error: refError } = useReferenceData(lang.slug, refOpen);
@@ -225,6 +226,7 @@ export function CompilerApp({
   function setRefOpen(open: boolean) {
     sessionLayout.refOpen = open;
     setRefOpenState(open);
+    if (open) setRefMounted(true);
     if (!open) leaveChallenge();
   }
 
@@ -239,12 +241,24 @@ export function CompilerApp({
   }
   // Cheatsheet and Challenges each open the panel on themselves, switch it
   // over when it shows the other, and close it when they're already showing.
+  // The buttons move between the output and the panel as it opens and
+  // closes. When one of them (or the panel's close button) had keyboard
+  // focus, focus follows to the same button in its new place.
+  const refocusButton = useRef<ReferenceTab | null>(null);
+  useLayoutEffect(() => {
+    const tab = refocusButton.current;
+    if (!tab) return;
+    refocusButton.current = null;
+    document.querySelector<HTMLElement>(`[data-panel-button="${tab}"]`)?.focus({ preventScroll: true });
+  });
   function toggleReference(tab: ReferenceTab) {
-    if (refOpen && refTab === tab) return closeReference();
+    const keepFocus = document.activeElement instanceof HTMLElement && Boolean(document.activeElement.dataset.panelButton);
+    if (refOpen && refTab === tab) return closeReference(keepFocus ? tab : null);
+    if (keepFocus && !refOpen) refocusButton.current = tab;
     setRefTab(tab);
     if (!refOpen) openReference();
   }
-  function closeReference() {
+  function closeReference(refocus: ReferenceTab | null = null) {
     const panel = refPanelRef.current;
     if (!panel) return setRefOpen(false);
     if (refClosing.current) return;
@@ -257,6 +271,7 @@ export function CompilerApp({
       overwrite: true,
       onComplete: () => {
         refClosing.current = false;
+        refocusButton.current = refocus;
         setRefOpen(false);
       },
     });
@@ -374,6 +389,49 @@ export function CompilerApp({
     "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink";
   const headerBtn =
     "inline-flex items-center gap-1.5 rounded-btn border border-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised";
+
+  // Cheatsheet, Challenges, and Learn: above the output, or in the panel's
+  // header while it's open, so they stay put and switching is one click.
+  const panelButtons = (
+    <>
+      {(
+        [
+          ["cheatsheet", "Cheatsheet", BookOpenText],
+          ["challenges", "Challenges", ListChecks],
+        ] as const
+      ).map(([tab, label, Icon]) => {
+        const active = refOpen && refTab === tab;
+        return (
+          <button
+            key={tab}
+            type="button"
+            data-panel-button={tab}
+            onClick={() => toggleReference(tab)}
+            aria-pressed={active}
+            title={active ? `Close the ${label.toLowerCase()}` : `${lang.label} ${label.toLowerCase()}`}
+            className={`${headerBtn} ${active ? "bg-raised" : ""}`}
+          >
+            <Icon className="size-3.5" aria-hidden />
+            {label}
+          </button>
+        );
+      })}
+      {learnHref && (
+        // Asks first, so a stray click doesn't leave the compiler.
+        <ConfirmButton
+          tooltip={`Learn ${lang.label} step by step`}
+          title="Open Learn mode?"
+          description={`Short lessons and practice problems for ${lang.label}. Your code here stays saved.`}
+          confirmLabel="Open Learn"
+          href={learnHref}
+          className={headerBtn}
+        >
+          <GraduationCap className="size-3.5" aria-hidden />
+          Learn
+        </ConfirmButton>
+      )}
+    </>
+  );
 
   return (
     <div
@@ -685,41 +743,7 @@ export function CompilerApp({
                     Clear
                   </button>
                 )}
-                {(
-                  [
-                    ["cheatsheet", "Cheatsheet", BookOpenText],
-                    ["challenges", "Challenges", ListChecks],
-                  ] as const
-                ).map(([tab, label, Icon]) => {
-                  const active = refOpen && refTab === tab;
-                  return (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => toggleReference(tab)}
-                      aria-pressed={active}
-                      title={active ? `Close the ${label.toLowerCase()}` : `${lang.label} ${label.toLowerCase()}`}
-                      className={`${headerBtn} ${active ? "bg-raised" : ""}`}
-                    >
-                      <Icon className="size-3.5" aria-hidden />
-                      {label}
-                    </button>
-                  );
-                })}
-                {learnHref && (
-                  // Asks first, so a stray click doesn't leave the compiler.
-                  <ConfirmButton
-                    tooltip={`Learn ${lang.label} step by step`}
-                    title="Open Learn mode?"
-                    description={`Short lessons and practice problems for ${lang.label}. Your code here stays saved.`}
-                    confirmLabel="Open Learn"
-                    href={learnHref}
-                    className={headerBtn}
-                  >
-                    <GraduationCap className="size-3.5" aria-hidden />
-                    Learn
-                  </ConfirmButton>
-                )}
+                {!refOpen && panelButtons}
               </div>
             </div>
 
@@ -760,37 +784,41 @@ export function CompilerApp({
         </div>
 
         {refOpen && (
-          <>
-            <ResizeHandle
-              label="Resize the code and the reference"
-              value={refPct}
-              min={30}
-              max={75}
-              step={5}
-              bigStep={10}
-              onChange={setRefPct}
-              onDrag={(x) => {
-                const r = refGridRef.current?.getBoundingClientRect();
-                if (r && r.width > 0) setRefPct(((x - r.left) / r.width) * 100);
-              }}
-              onReset={() => setRefPct(55)}
-              className="hidden lg:flex"
-            />
-            <ReferencePanel
-              ref={refPanelRef}
-              lang={lang.slug}
-              langLabel={lang.label}
-              data={refData}
-              error={refError}
-              tab={refTab}
-              challenge={challenge}
-              next={nextChallenge}
-              progress={progress}
-              onOpenChallenge={openChallenge}
-              onLeaveChallenge={leaveChallenge}
-              onClose={closeReference}
-            />
-          </>
+          <ResizeHandle
+            label="Resize the code and the panel"
+            value={refPct}
+            min={30}
+            max={75}
+            step={5}
+            bigStep={10}
+            onChange={setRefPct}
+            onDrag={(x) => {
+              const r = refGridRef.current?.getBoundingClientRect();
+              if (r && r.width > 0) setRefPct(((x - r.left) / r.width) * 100);
+            }}
+            onReset={() => setRefPct(55)}
+            className="hidden lg:flex"
+          />
+        )}
+        {/* Mounted from the first time it opens, then only hidden when closed,
+            so it reopens exactly as you left it. */}
+        {refMounted && (
+          <ReferencePanel
+            ref={refPanelRef}
+            hidden={!refOpen}
+            lang={lang.slug}
+            langLabel={lang.label}
+            data={refData}
+            error={refError}
+            tab={refTab}
+            buttons={refOpen ? panelButtons : null}
+            challenge={challenge}
+            next={nextChallenge}
+            progress={progress}
+            onOpenChallenge={openChallenge}
+            onLeaveChallenge={leaveChallenge}
+            onClose={() => closeReference(refPanelRef.current?.contains(document.activeElement) ? refTab : null)}
+          />
         )}
       </div>
     </div>

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { CheatsheetView } from "@/components/compiler/cheatsheet-view";
 import { ChallengeDetail, ChallengeList } from "@/components/compiler/challenges-view";
 import type { ChallengeProgress } from "@/lib/challenge-progress";
 import type { Challenge, ReferenceData } from "@/lib/reference-types";
+import { EASE, dur, gsap } from "@/lib/motion";
 
 export type ReferenceTab = "cheatsheet" | "challenges";
 
@@ -45,17 +46,26 @@ export function useReferenceData(lang: string, enabled: boolean) {
 
 /**
  * The compiler's right-hand panel: the language's cheatsheet or its
- * challenges, picked by the Cheatsheet and Challenges buttons above the
- * output. Opening a challenge loads it into the editor, and switching to the
- * cheatsheet keeps you on it until you go back to the list.
+ * challenges. Its header carries the Cheatsheet, Challenges, and Learn
+ * buttons while it's open (they sit above the output otherwise), so they stay
+ * in the same place and switching is one click.
+ *
+ * Both views stay mounted and only the one you picked shows, so each keeps
+ * exactly where you left it: the cheatsheet's search and scroll, the list's
+ * filters and scroll, and an open challenge with its hints. The list stays
+ * under an open challenge too, so going back lands where you were. Opening a
+ * challenge loads it into the editor, and switching to the cheatsheet keeps
+ * you on it until you go back to the list.
  */
 export function ReferencePanel({
   ref,
+  hidden,
   lang,
   langLabel,
   data,
   error,
   tab,
+  buttons,
   challenge,
   next,
   progress,
@@ -64,11 +74,15 @@ export function ReferencePanel({
   onClose,
 }: {
   ref?: React.Ref<HTMLElement>;
+  /** Closed: kept mounted, so everything is as you left it when it reopens. */
+  hidden: boolean;
   lang: string;
   langLabel: string;
   data: ReferenceData | null;
   error: string | null;
   tab: ReferenceTab;
+  /** The Cheatsheet, Challenges, and Learn buttons. */
+  buttons: React.ReactNode;
   challenge: Challenge | null;
   next: Challenge | null;
   progress: ChallengeProgress;
@@ -76,18 +90,53 @@ export function ReferencePanel({
   onLeaveChallenge: () => void;
   onClose: () => void;
 }) {
+  // Switching views fades the new one in.
+  const cheatRef = useRef<HTMLDivElement>(null);
+  const challengesRef = useRef<HTMLDivElement>(null);
+  const shownTab = useRef(tab);
+  useLayoutEffect(() => {
+    if (shownTab.current === tab) return;
+    shownTab.current = tab;
+    const view = tab === "cheatsheet" ? cheatRef.current : challengesRef.current;
+    if (view) gsap.fromTo(view, { opacity: 0 }, { opacity: 1, duration: dur(0.18), ease: EASE.out, clearProps: "opacity" });
+  }, [tab]);
+
+  // Closing hides the whole panel (display: none), which browsers don't
+  // always come back from at the same scroll. Remember each scroll position
+  // as you scroll, and put them back when it reopens.
+  const scrolled = useRef(new Map<Element, number>());
+  useLayoutEffect(() => {
+    if (hidden) return;
+    for (const [el, top] of scrolled.current) {
+      if (el.isConnected && el.scrollTop !== top) el.scrollTop = top;
+    }
+  }, [hidden]);
+
+  // Every view stays laid out, stacked in the same spot, and the ones you
+  // aren't on are invisible and inert. Nothing is ever display: none, so
+  // each keeps its scroll position too.
+  const layer = (shown: boolean) => `absolute inset-0 flex flex-col ${shown ? "" : "invisible"}`;
+
   return (
-    <section ref={ref} aria-label={`${langLabel} reference`} className="flex h-[80dvh] min-h-0 min-w-0 flex-col p-2 lg:h-auto">
-      <div className="flex shrink-0 items-center gap-1 pb-2">
-        <h2 className="min-w-0 truncate px-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
+    <section
+      ref={ref}
+      onScrollCapture={(e) => {
+        if (!hidden) scrolled.current.set(e.target as Element, (e.target as Element).scrollTop);
+      }}
+      aria-label={`${langLabel} cheatsheet and challenges`}
+      className={`${hidden ? "hidden" : "flex"} h-[80dvh] min-h-0 min-w-0 flex-col p-2 lg:h-auto`}
+    >
+      <div className="slim-scroll -mx-1.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pt-1.5 pb-2">
+        <h2 className="sr-only">
           {langLabel} {tab}
         </h2>
+        <div className="ms-auto flex shrink-0 items-center gap-1">{buttons}</div>
         <button
           type="button"
           onClick={onClose}
           aria-label={`Close the ${tab}`}
           title={`Close the ${tab}`}
-          className="ms-auto inline-flex size-7 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink"
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink"
         >
           <X className="size-4" aria-hidden />
         </button>
@@ -96,27 +145,39 @@ export function ReferencePanel({
         {error ? (
           <p className="p-4 text-sm text-ink-muted">{error}</p>
         ) : !data ? (
-          <p className="p-4 text-sm text-ink-faint">Loading the {langLabel} reference…</p>
-        ) : tab === "cheatsheet" ? (
-          data.cheatsheet.length ? (
-            <CheatsheetView lang={lang} sections={data.cheatsheet} langLabel={langLabel} />
-          ) : (
-            <p className="p-4 text-sm text-ink-muted">The {langLabel} cheatsheet isn&apos;t written yet.</p>
-          )
-        ) : challenge ? (
-          <ChallengeDetail
-            key={challenge.id}
-            challenge={challenge}
-            category={data.categories.find((c) => c.id === challenge.category)?.title ?? challenge.category}
-            progress={progress}
-            next={next}
-            onBack={onLeaveChallenge}
-            onNext={() => next && onOpenChallenge(next.id)}
-          />
-        ) : data.challenges.length ? (
-          <ChallengeList challenges={data.challenges} categories={data.categories} progress={progress} onOpen={onOpenChallenge} />
+          <p className="p-4 text-sm text-ink-faint">Loading the {langLabel} {tab}…</p>
         ) : (
-          <p className="p-4 text-sm text-ink-muted">No {langLabel} challenges yet.</p>
+          <div className="relative min-h-0 flex-1">
+            <div ref={cheatRef} className={layer(tab === "cheatsheet")} inert={tab !== "cheatsheet"}>
+              {data.cheatsheet.length ? (
+                <CheatsheetView lang={lang} sections={data.cheatsheet} langLabel={langLabel} />
+              ) : (
+                <p className="p-4 text-sm text-ink-muted">The {langLabel} cheatsheet isn&apos;t written yet.</p>
+              )}
+            </div>
+            <div ref={challengesRef} className={layer(tab === "challenges")} inert={tab !== "challenges"}>
+              {challenge && (
+                <div className={layer(true)}>
+                  <ChallengeDetail
+                    key={challenge.id}
+                    challenge={challenge}
+                    category={data.categories.find((c) => c.id === challenge.category)?.title ?? challenge.category}
+                    progress={progress}
+                    next={next}
+                    onBack={onLeaveChallenge}
+                    onNext={() => next && onOpenChallenge(next.id)}
+                  />
+                </div>
+              )}
+              <div className={layer(!challenge)} inert={Boolean(challenge)}>
+                {data.challenges.length ? (
+                  <ChallengeList challenges={data.challenges} categories={data.categories} progress={progress} onOpen={onOpenChallenge} />
+                ) : (
+                  <p className="p-4 text-sm text-ink-muted">No {langLabel} challenges yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </section>
