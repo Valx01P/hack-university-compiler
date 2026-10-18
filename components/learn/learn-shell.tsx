@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, PanelLeftClose, PanelLeftOpen, SquareTerminal } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { PanelLeftClose, PanelLeftOpen, SquareTerminal } from "lucide-react";
+import { HistoryArrows } from "@/components/chrome/history-arrows";
+import { SandboxStatus } from "@/components/chrome/sandbox-status";
 import { LessonDrawer } from "@/components/learn/lesson-drawer";
 import { LessonList } from "@/components/learn/lesson-list";
-import { SandboxStatus } from "@/components/chrome/sandbox-status";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { EASE, dur, gsap } from "@/lib/motion";
 import type { Course, LessonRef } from "@/lib/learn-types";
@@ -39,10 +40,10 @@ const clampWidth = (width: number) =>
 /**
  * Learn mode's frame: the same bordered panel as the compiler, with the lesson
  * plan beside the lesson. The panel button shows and hides it: on wide screens
- * it folds the docked sidebar, on narrower ones it slides the list in as a
- * drawer. Drag the sidebar's border to widen or narrow it, or all the way
- * left to fold it away. It lives in the learn layout, so it stays put, scroll
- * and all, while you move between lessons.
+ * it slides the docked sidebar out from the left edge (and back), on narrower
+ * ones it opens the list as a drawer. Drag the sidebar's border to widen or
+ * narrow it, or all the way left to fold it away. It lives in the learn
+ * layout, so it stays put, scroll and all, while you move between lessons.
  */
 export function LearnShell({
   lang,
@@ -59,7 +60,6 @@ export function LearnShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname() ?? "";
-  const router = useRouter();
   const segments = pathname.split("/");
   const currentId = segments[3] ?? null;
   // The part you're on, counting from 0.
@@ -71,62 +71,95 @@ export function LearnShell({
 
   const rowRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const panelButtonRef = useRef<HTMLButtonElement>(null);
   const [sidebar, setSidebarWidth] = useState(session.sidebar);
   const collapsed = sidebar === 0;
-  // Set just before the width changes, to grow the sidebar from this width
-  // in the layout effect below instead of jumping.
-  const growFrom = useRef<number | null>(null);
-  const folding = useRef(false);
 
   const commit = (width: number) => {
     session.sidebar = width;
     if (width) session.open = width;
     setSidebarWidth(width);
   };
-  // Folds the sidebar away smoothly, then drops it.
-  const fold = () => {
+
+  // Lays the sidebar out `w` wide on its way from one width to another.
+  // Folding and unfolding keep the list at its open width (`open`) and move
+  // it with the border, so it slides out from the left edge and back.
+  // Between two open widths the list simply matches the sidebar.
+  const layOut = (w: number, from: number, to: number, open: number) => {
     const aside = asideRef.current;
-    if (!aside || folding.current) return;
-    folding.current = true;
-    gsap.to(aside, {
-      width: 0,
-      duration: dur(0.28),
+    const list = listRef.current;
+    if (!aside || !list) return;
+    aside.style.width = `${w}px`;
+    if (from === 0 || to === 0) {
+      list.style.width = `${open}px`;
+      list.style.transform = `translateX(${w - open}px)`;
+    } else {
+      list.style.width = `${w}px`;
+      list.style.transform = "";
+    }
+  };
+  const tween = useRef<gsap.core.Tween | null>(null);
+  const folding = useRef(false);
+  const slide = (from: number, to: number, open: number, done?: () => void) => {
+    tween.current?.kill();
+    const state = { w: from };
+    layOut(from, from, to, open);
+    tween.current = gsap.to(state, {
+      w: to,
+      duration: dur(to === 0 ? 0.28 : 0.32),
       ease: EASE.inOut,
-      overwrite: true,
+      onUpdate: () => layOut(state.w, from, to, open),
       onComplete: () => {
-        folding.current = false;
-        commit(0);
+        tween.current = null;
+        if (listRef.current) listRef.current.style.transform = "";
+        done?.();
       },
     });
   };
-  // Animates to a new width: folds for 0, otherwise grows or shrinks to it.
+
+  // Set just before the width changes, so the layout effect below slides
+  // from here instead of jumping.
+  const slideFrom = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const from = slideFrom.current;
+    slideFrom.current = null;
+    if (from !== null && from !== sidebar) slide(from, sidebar, sidebar);
+    // slide only touches refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidebar]);
+
+  const fold = () => {
+    if (folding.current || !asideRef.current) return;
+    folding.current = true;
+    slide(asideRef.current.offsetWidth, 0, sidebar, () => {
+      folding.current = false;
+      commit(0);
+    });
+  };
+  // Animates to a new width: folds away for 0, otherwise slides to it.
   const animateTo = (width: number) => {
     const next = clampWidth(width);
     if (next === 0) return fold();
-    growFrom.current = collapsed ? 0 : (asideRef.current?.offsetWidth ?? sidebar);
+    if (folding.current) {
+      tween.current?.kill();
+      folding.current = false;
+    }
+    slideFrom.current = collapsed ? 0 : (asideRef.current?.offsetWidth ?? sidebar);
     commit(next);
   };
   // Dragging follows the pointer exactly, except that folding away animates.
   const dragTo = (width: number) => {
     const next = clampWidth(width);
     if (next === 0) return collapsed ? undefined : fold();
-    const aside = asideRef.current;
-    if (aside && folding.current) {
-      gsap.killTweensOf(aside);
+    if (tween.current) {
+      tween.current.kill();
+      tween.current = null;
       folding.current = false;
-      gsap.set(aside, { width: next });
     }
+    layOut(next, next, next, next);
     commit(next);
   };
-
-  useLayoutEffect(() => {
-    const from = growFrom.current;
-    growFrom.current = null;
-    const aside = asideRef.current;
-    if (from === null || !aside || from === sidebar) return;
-    gsap.fromTo(aside, { width: from }, { width: sidebar, duration: dur(0.3), ease: EASE.inOut, overwrite: true });
-  }, [sidebar]);
 
   // Below the docking width the list is a drawer, closed on every move.
   const [drawer, setDrawer] = useState(false);
@@ -142,15 +175,6 @@ export function LearnShell({
     else setDrawer((open) => !open);
   };
 
-  // Whether a back/forward history entry exists (Navigation API, Chromium).
-  const [hist, setHist] = useState({ back: true, fwd: true });
-  useEffect(() => {
-    const nav = (window as unknown as { navigation?: { canGoBack: boolean; canGoForward: boolean } }).navigation;
-    if (nav) setHist({ back: nav.canGoBack, fwd: nav.canGoForward });
-  }, [pathname]);
-
-  const arrow =
-    "inline-flex size-7 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-faint";
   const listProps = { lang, langLabel, course, currentId, currentPart, courses };
 
   return (
@@ -165,7 +189,7 @@ export function LearnShell({
               aria-expanded={shown}
               aria-label={shown ? "Hide the lesson list" : "Show the lesson list"}
               title={shown ? "Hide the lesson list" : "Show the lesson list"}
-              className={`${arrow} -ml-1`}
+              className="-ml-1 inline-flex size-7 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink"
             >
               {/* Which icon depends on the screen: the docked sidebar starts
                   open, the drawer starts closed. CSS picks, so the first
@@ -177,14 +201,7 @@ export function LearnShell({
                 {drawer ? <PanelLeftClose className="size-4" aria-hidden /> : <PanelLeftOpen className="size-4" aria-hidden />}
               </span>
             </button>
-            <span className="flex items-center">
-              <button type="button" onClick={() => router.back()} disabled={!hist.back} aria-label="Go back" title="Go back" className={arrow}>
-                <ArrowLeft className="size-4" aria-hidden />
-              </button>
-              <button type="button" onClick={() => router.forward()} disabled={!hist.fwd} aria-label="Go forward" title="Go forward" className={arrow}>
-                <ArrowRight className="size-4" aria-hidden />
-              </button>
-            </span>
+            <HistoryArrows />
             {current && (
               <span className="ml-2 hidden min-w-0 truncate text-xs text-ink-faint sm:inline">
                 {course.title} · {current.section} · Lesson {index + 1} of {lessons.length}
@@ -200,23 +217,27 @@ export function LearnShell({
             <span className="hidden min-w-32 justify-end sm:flex">
               <SandboxStatus lang={lang} />
             </span>
-            <Link
+            {/* Asks first, like the compiler's Learn button. */}
+            <ConfirmButton
+              tooltip={`Back to the ${langLabel} compiler`}
+              title="Back to the compiler?"
+              description="Your lesson progress and the code in each part stay saved."
+              confirmLabel="Open compiler"
               href={`/${lang}`}
-              title={`Back to the ${langLabel} compiler`}
               className="inline-flex items-center gap-1.5 rounded-btn border border-line px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
             >
               <SquareTerminal className="size-3.5" aria-hidden />
               Compiler
-            </Link>
+            </ConfirmButton>
           </span>
         </div>
 
         <div ref={rowRef} className="flex min-h-0 flex-1">
           {!collapsed && (
-            // The list keeps its width while the sidebar folds, so it slides
-            // under the border instead of squeezing.
-            <aside ref={asideRef} style={{ width: sidebar }} className="hidden shrink-0 overflow-hidden xl:flex">
-              <div style={{ width: sidebar }} className="flex min-h-0 shrink-0 flex-col">
+            // Clipped, not scrollable: nothing (like scrolling the current
+            // lesson into view) can shift the list sideways while it slides.
+            <aside ref={asideRef} style={{ width: sidebar }} className="hidden shrink-0 overflow-clip xl:flex">
+              <div ref={listRef} style={{ width: sidebar }} className="flex min-h-0 shrink-0 flex-col">
                 <LessonList {...listProps} />
               </div>
             </aside>

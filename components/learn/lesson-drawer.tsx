@@ -65,7 +65,11 @@ export function LessonDrawer({
   // While it's open: Escape closes it, and the page behind doesn't scroll.
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    // Escape in a popup opened from the drawer (like a confirm) closes just
+    // that popup.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !(e.target instanceof Element && e.target.closest("[data-editor-overlay]"))) onClose();
+    };
     const root = document.documentElement;
     const overflow = root.style.overflow;
     root.style.overflow = "hidden";

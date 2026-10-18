@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ArrowLeft, ChevronRight } from "lucide-react";
 import { LangIcon } from "@/components/compiler/lang-icon";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Collapse } from "@/components/ui/collapse";
 import { COMPILER_LANGS } from "@/lib/compiler";
 import { partHref, problemId, type Course, type LessonRef } from "@/lib/learn-types";
@@ -109,14 +110,19 @@ export function LessonList({
             ))}
           </div>
         )}
-        <Link
+        {/* Asks first, like the compiler's Learn button. */}
+        <ConfirmButton
+          title="Back to the compiler?"
+          description="Your lesson progress and the code in each part stay saved."
+          confirmLabel="Open compiler"
           href={`/${lang}`}
-          onClick={onNavigate}
-          className={`${langs.length > 1 ? "mt-2" : "mt-3"} inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink dark:hover:text-gold`}
+          onConfirm={onNavigate}
+          align="left"
+          className={`${langs.length > 1 ? "mt-2" : "mt-3"} inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink`}
         >
           <ArrowLeft className="size-3.5" aria-hidden />
           Back to the {langLabel} compiler
-        </Link>
+        </ConfirmButton>
       </div>
 
       <div className="slim-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-3">

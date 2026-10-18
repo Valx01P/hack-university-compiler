@@ -22,6 +22,7 @@ export function ConfirmButton({
   href,
   label,
   tooltip,
+  align = "right",
   className,
   children,
 }: {
@@ -38,6 +39,8 @@ export function ConfirmButton({
   label?: string;
   /** Tooltip, when it should differ from `label`. */
   tooltip?: string;
+  /** Which edge of the button the confirm lines up with. */
+  align?: "left" | "right";
   className: string;
   children: React.ReactNode;
 }) {
@@ -111,8 +114,8 @@ export function ConfirmButton({
         anchorRef={anchorRef}
         open={open}
         onClose={dismiss}
-        align="right"
-        className="z-[130] w-60 rounded-card border border-edge bg-surface p-3 text-sm shadow-[var(--shadow-card)]"
+        align={align}
+        className="z-[150] w-60 rounded-card border border-edge bg-surface p-3 text-sm shadow-[var(--shadow-card)]"
       >
         <div id={id} role="dialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-desc`} onKeyDown={onKeyDown}>
           <p id={`${id}-title`} className="font-medium text-ink">
