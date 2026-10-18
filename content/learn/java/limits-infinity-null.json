@@ -1,0 +1,89 @@
+{
+  "id": "limits-infinity-null",
+  "title": "Overflow, Infinity, and null",
+  "section": "Basics",
+  "summary": "Know the limits of int and long, how overflow wraps, what Infinity and NaN are, and what null means.",
+  "intro": "Numbers in Java have hard edges. An `int` that grows too big wraps around without warning, a `double` can hold `Infinity` and `NaN`, and a `String` can hold nothing at all: `null`. Knowing these edges saves you from quiet, wrong answers.",
+  "steps": [
+    {
+      "title": "Integer limits and overflow",
+      "body": "An `int` holds 32 bits, so it has fixed limits: `Integer.MAX_VALUE` is 2147483647 and `Integer.MIN_VALUE` is -2147483648. A `long` goes much further, up to `Long.MAX_VALUE` (about 9.2 quintillion).\n\nGo past the limit and the value **wraps around silently**. No error, just a wrong number:\n\n```java\nint big = Integer.MAX_VALUE;\nSystem.out.println(big + 1); // -2147483648\n```\n\nA `long` wraps the same way at its own, much larger limit. Compare this with the Variables lesson: a literal that does not fit, like `byte b = 200;`, is a compile error, but math that goes past the limit compiles and wraps when it runs.\n\nThe classic trap: storing an `int * int` in a `long` does not help. Java multiplies two `int`s as `int`, overflows, and only then widens the broken result. Cast one operand first so the math happens in `long`:\n\n```java\nint n = 50000;\nlong bad = n * n;         // overflowed before the store\nlong good = (long) n * n; // long math, correct\n```\n\n`(long) (n * n)` casts too late, for the same reason. When you would rather crash than get a wrong answer, `Math.addExact` and `Math.multiplyExact` throw an `ArithmeticException` on overflow instead of wrapping.",
+      "example": {
+        "title": "Wrapping past the limit",
+        "prompt": "Print the int and long limits, show Integer.MAX_VALUE + 1 wrapping, then compute 50000 * 50000 the wrong way and the right way.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        int max = Integer.MAX_VALUE;\n        System.out.println(\"int max: \" + max);\n        System.out.println(\"int min: \" + Integer.MIN_VALUE);\n        System.out.println(\"max + 1: \" + (max + 1));\n        System.out.println(\"long max: \" + Long.MAX_VALUE);\n\n        int side = 50000;\n        long wrong = side * side;\n        long right = (long) side * side;\n        System.out.println(\"wrong area: \" + wrong);\n        System.out.println(\"right area: \" + right);\n    }\n}\n",
+        "output": "int max: 2147483647\nint min: -2147483648\nmax + 1: -2147483648\nlong max: 9223372036854775807\nwrong area: -1794967296\nright area: 2500000000",
+        "explanation": "`max + 1` wraps to the smallest `int`. `side * side` is computed as an `int`, overflows to a negative number, and only then is widened into `wrong`. In `(long) side * side` the cast applies to the first `side` before the multiply, so Java does the multiplication in `long` and gets 2500000000."
+      },
+      "practice": {
+        "title": "A century in seconds",
+        "prompt": "Compute the seconds in 100 years of 365 days, first with int math (wrong) and then with long math (right).\n\n1. Keep the given `years` and `secondsPerYear` variables and the first print.\n2. Store `years * secondsPerYear` with no cast in a `long` named `wrong` and print `Int math: ` followed by it.\n3. Cast to `long` before multiplying, store the result in a `long` named `right`, and print `Long math: ` followed by it.\n4. Print `Most years in an int: ` followed by `Integer.MAX_VALUE / secondsPerYear`.\n\nExpected output:\n\n```text\nSeconds per year: 31536000\nInt math: -1141367296\nLong math: 3153600000\nMost years in an int: 68\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        int years = 100;\n        int secondsPerYear = 365 * 24 * 60 * 60;\n        System.out.println(\"Seconds per year: \" + secondsPerYear);\n\n        // TODO: compute years * secondsPerYear the wrong way and the right way, then print the last three lines\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        int years = 100;\n        int secondsPerYear = 365 * 24 * 60 * 60;\n        System.out.println(\"Seconds per year: \" + secondsPerYear);\n\n        long wrong = years * secondsPerYear;\n        long right = (long) years * secondsPerYear;\n        System.out.println(\"Int math: \" + wrong);\n        System.out.println(\"Long math: \" + right);\n        System.out.println(\"Most years in an int: \" + Integer.MAX_VALUE / secondsPerYear);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Seconds per year: 31536000\nInt math: -1141367296\nLong math: 3153600000\nMost years in an int: 68"
+          }
+        ],
+        "hints": [
+          "A single year fits in an `int`. One hundred of them do not, and storing the product in a `long` does not save it.",
+          "The cast has to touch one operand before the multiply happens, not the finished product.",
+          "Integer division drops the remainder, so the last line is a whole number of years."
+        ]
+      }
+    },
+    {
+      "title": "Infinity and NaN",
+      "body": "A `double` has special values that integers lack. `Double.POSITIVE_INFINITY` and `Double.NEGATIVE_INFINITY` print as `Infinity` and `-Infinity`. Dividing a nonzero `double` by zero gives an infinity instead of throwing: `1.0 / 0` is `Infinity` and `-1.0 / 0` is `-Infinity`. Integer division by zero still throws, so `1 / 0` crashes. An undefined result such as `0.0 / 0` or `Infinity - Infinity` is `NaN`, short for \"not a number\".\n\nTest for them with `Double.isInfinite(x)` and `Double.isNaN(x)`, which return `true` or `false`.\n\nInfinity makes a great starting value. Start a running minimum at `Double.POSITIVE_INFINITY` so any real value beats it, and a running maximum at `Double.NEGATIVE_INFINITY`.\n\nGotcha: `Double.MIN_VALUE` is **not** the most negative `double`. It is the smallest positive one, `4.9E-324`. Never start a max there, or every negative value loses.\n\n`int` and `long` have no infinity. Use `Integer.MAX_VALUE` (or `Integer.MIN_VALUE`) as a sentinel instead. Never add to it, because `Integer.MAX_VALUE + 1` wraps to a negative number:\n\n```java\ndouble lowest = Double.POSITIVE_INFINITY;\nint fewest = Integer.MAX_VALUE; // stands in for infinity\n```",
+      "example": {
+        "title": "Special double values",
+        "prompt": "Print both infinities, an int sentinel, 1.0 / 0, 0.0 / 0, a few checks with Double.isInfinite and Double.isNaN, and Double.MIN_VALUE.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        double up = Double.POSITIVE_INFINITY;\n        double down = Double.NEGATIVE_INFINITY;\n        System.out.println(\"up: \" + up);\n        System.out.println(\"down: \" + down);\n        int fewest = Integer.MAX_VALUE;\n        System.out.println(\"fewest: \" + fewest);\n\n        double ratio = 1.0 / 0;\n        double unknown = 0.0 / 0;\n        System.out.println(\"1.0 / 0 = \" + ratio);\n        System.out.println(\"0.0 / 0 = \" + unknown);\n        System.out.println(\"ratio infinite? \" + Double.isInfinite(ratio));\n        System.out.println(\"unknown NaN? \" + Double.isNaN(unknown));\n        System.out.println(\"unknown infinite? \" + Double.isInfinite(unknown));\n        System.out.println(\"tiny: \" + Double.MIN_VALUE);\n    }\n}\n",
+        "output": "up: Infinity\ndown: -Infinity\nfewest: 2147483647\n1.0 / 0 = Infinity\n0.0 / 0 = NaN\nratio infinite? true\nunknown NaN? true\nunknown infinite? false\ntiny: 4.9E-324",
+        "explanation": "`fewest` uses `Integer.MAX_VALUE` because an `int` has no infinity. The `0` in `1.0 / 0` is promoted to `0.0`, so this is `double` division and gives `Infinity` rather than an exception. `0.0 / 0` has no sensible answer, so it is `NaN`. `NaN` is not infinite, which is why the last check prints `false`. `Double.MIN_VALUE` prints as a tiny positive number in E notation."
+      },
+      "practice": {
+        "title": "Starting values",
+        "prompt": "Set up three starting values for a tracker and show what happens when infinity meets infinity.\n\n1. Declare a `double bestTime` set to `Double.POSITIVE_INFINITY`, a `double highestReading` set to `Double.NEGATIVE_INFINITY`, and an `int smallestCount` set to `Integer.MAX_VALUE`.\n2. Print each one with the labels shown below.\n3. Store `bestTime - bestTime` in a `double` named `gap` and print `Infinity - Infinity = ` followed by it.\n4. Print `Is NaN: ` with `Double.isNaN(gap)`, then `Is infinite: ` with `Double.isInfinite(bestTime)`.\n\nExpected output:\n\n```text\nBest time: Infinity\nHighest reading: -Infinity\nSmallest count: 2147483647\nInfinity - Infinity = NaN\nIs NaN: true\nIs infinite: true\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        // TODO: declare bestTime, highestReading, and smallestCount with their starting values\n        // TODO: print them, then compute bestTime - bestTime and check it\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        double bestTime = Double.POSITIVE_INFINITY;\n        double highestReading = Double.NEGATIVE_INFINITY;\n        int smallestCount = Integer.MAX_VALUE;\n        System.out.println(\"Best time: \" + bestTime);\n        System.out.println(\"Highest reading: \" + highestReading);\n        System.out.println(\"Smallest count: \" + smallestCount);\n\n        double gap = bestTime - bestTime;\n        System.out.println(\"Infinity - Infinity = \" + gap);\n        System.out.println(\"Is NaN: \" + Double.isNaN(gap));\n        System.out.println(\"Is infinite: \" + Double.isInfinite(bestTime));\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Best time: Infinity\nHighest reading: -Infinity\nSmallest count: 2147483647\nInfinity - Infinity = NaN\nIs NaN: true\nIs infinite: true"
+          }
+        ],
+        "hints": [
+          "The constants live on `Double` and `Integer`: `Double.POSITIVE_INFINITY`, `Double.NEGATIVE_INFINITY`, `Integer.MAX_VALUE`.",
+          "Infinity minus infinity has no defined answer, so it is `NaN`."
+        ]
+      }
+    },
+    {
+      "title": "null",
+      "body": "A variable of a reference type, such as `String`, can hold `null`, which means \"no object here\". It is how you say a value is missing.\n\n```java\nString nickname = null; // no string yet\n```\n\nPrimitives can never be `null`: `int count = null;` is a compile error. An `int` always holds a number.\n\nPrinting a `null` `String` prints the text `null`, and concatenating one adds the word `null` to the string. That is legal but rarely what you want on screen, so watch for it in output.\n\nThe real danger is calling a method on `null`. Something like `nickname.length()` throws a `NullPointerException` and stops the program, because there is no object to ask. A later lesson shows how to check for `null` with `if` first.",
+      "example": {
+        "title": "A missing nickname",
+        "prompt": "Declare a nickname as null, print it alone and in a sentence, then give it a value and print it again.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        String nickname = null;\n        System.out.println(nickname);\n        System.out.println(\"Nickname: \" + nickname);\n\n        nickname = \"Ace\";\n        System.out.println(nickname);\n        System.out.println(\"Nickname: \" + nickname);\n        System.out.printf(\"Hi, %s!%n\", nickname);\n    }\n}\n",
+        "output": "null\nNickname: null\nAce\nNickname: Ace\nHi, Ace!",
+        "explanation": "While `nickname` is `null`, `println` prints `null` and `+` turns it into the text `null`. After the assignment the same lines print `Ace`. `%s` in `printf` also prints `null` for a missing value, so the last line would work either way."
+      },
+      "practice": {
+        "title": "Full name with a middle",
+        "prompt": "Print a full name before and after the middle name is known.\n\n1. Declare a `String middleName` set to `null`.\n2. Print `firstName`, `middleName`, and `lastName` joined with single spaces.\n3. Set `middleName` to `Brewster` and print the full name again the same way.\n4. Print `Middle: ` followed by `middleName` using `printf` with `%s`.\n\nExpected output:\n\n```text\nGrace null Hopper\nGrace Brewster Hopper\nMiddle: Brewster\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        String firstName = \"Grace\";\n        String lastName = \"Hopper\";\n        // TODO: declare middleName as null, print the full name, then set it and print two more lines\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        String firstName = \"Grace\";\n        String lastName = \"Hopper\";\n        String middleName = null;\n        System.out.println(firstName + \" \" + middleName + \" \" + lastName);\n\n        middleName = \"Brewster\";\n        System.out.println(firstName + \" \" + middleName + \" \" + lastName);\n        System.out.printf(\"Middle: %s%n\", middleName);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Grace null Hopper\nGrace Brewster Hopper\nMiddle: Brewster"
+          }
+        ],
+        "hints": [
+          "Concatenating `null` adds the word `null`, so the first line shows it in the middle.",
+          "Build both full-name lines the same way, with `+` and a `\" \"` between each pair of names."
+        ]
+      }
+    }
+  ],
+  "recap": "- `Integer.MAX_VALUE` is 2147483647, `Integer.MIN_VALUE` is -2147483648, and `Long.MAX_VALUE` is about 9.2 quintillion.\n- Overflow wraps around silently. `Math.addExact` and `Math.multiplyExact` throw instead.\n- Cast before multiplying: `(long) a * b`, not `(long) (a * b)`.\n- `1.0 / 0` is `Infinity` and `0.0 / 0` is `NaN`, but the int division `1 / 0` throws. Check with `Double.isInfinite` and `Double.isNaN`.\n- Start a max at `Double.NEGATIVE_INFINITY`, never `Double.MIN_VALUE` (the smallest positive double).\n- Use `Integer.MAX_VALUE` as infinity for `int`.\n- Reference types can be `null`, primitives cannot. Printing or concatenating `null` shows `null`. Calling a method on it throws."
+}

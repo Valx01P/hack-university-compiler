@@ -1,0 +1,90 @@
+{
+  "id": "lambdas",
+  "title": "Lambdas and Higher-Order Functions",
+  "section": "Functions",
+  "summary": "Pass functions as values: sort with key=, transform with map(), and select with filter().",
+  "intro": "Functions are values in Python. You can hand one to another function, which is how `sorted()` learns a custom order and how `map()` and `filter()` transform and select items. A `lambda` writes a small function right where you need it.",
+  "steps": [
+    {
+      "title": "Functions as values and lambda",
+      "body": "In Python a function is a value, just like a number or a list. Write its name without parentheses and you can store it or pass it to another function, which then calls it. Here `shout()`, the function you wrote in the Functions lesson, goes into `run()`:\n\n```python\ndef shout(text):\n    return text.upper() + \"!\"\n\n\ndef run(f, value):\n    return f(value)\n\n\nprint(run(shout, \"hi\"))  # HI!\n```\n\nFor a short one-off function, write a `lambda` right where you need it. `lambda params: expression` makes a function that returns the expression:\n\n```python\nprint(run(lambda s: s * 2, \"ab\"))  # abab\n```\n\nA lambda body is one expression, so it cannot hold statements such as `return`, an `if` block, or a `for` loop. A conditional expression still works: `lambda n: \"even\" if n % 2 == 0 else \"odd\"`. When the logic needs more than one expression, or a name worth reusing, write a `def` instead. Do not write `double = lambda x: x * 2` either. PEP 8 asks for a `def` there.\n\nPrinting a function shows its memory address, which changes every run. Call it to see a result:\n\n```python\n# print(shout)  # <function shout at 0x7f3a...>\nprint(shout(\"ok\"))  # OK!\n```",
+      "example": {
+        "title": "Apply twice",
+        "prompt": "Write apply_twice(f, x) that calls f two times, then use it with a named function and with lambdas.",
+        "code": "def apply_twice(f, x):\n    \"\"\"Call f on x, then call f again on that result.\"\"\"\n    return f(f(x))\n\n\ndef add_three(n: int) -> int:\n    \"\"\"Return n plus 3.\"\"\"\n    return n + 3\n\n\nprint(apply_twice(add_three, 10))\nprint(apply_twice(lambda x: x * 2, 5))\nprint(apply_twice(lambda s: s + \"!\", \"go\"))\n",
+        "output": "16\n20\ngo!!",
+        "explanation": "`apply_twice` receives a function as `f` and calls it on its own result. `add_three` is passed by name, without parentheses, so 10 becomes 13, then 16. The lambda `lambda x: x * 2` doubles 5 twice to get 20. The last call shows `f` can be any function that fits the value, here one that adds `!` to a string."
+      },
+      "practice": {
+        "title": "Apply to all",
+        "prompt": "Write a function that applies another function to every number in a list.\n\n1. Make `apply_to_all(f, nums)` return a new list with `f(n)` for each `n` in `nums`.\n2. Print `apply_to_all` called with a lambda that squares a number.\n3. Print `apply_to_all` called with a lambda that negates a number.\n4. Keep the last line, which prints `nums` to show it did not change.\n\nExpected output:\n\n```text\n[1, 4, 9, 16]\n[-1, -2, -3, -4]\n[1, 2, 3, 4]\n```",
+        "starter": "def apply_to_all(f, nums: list[int]) -> list[int]:\n    \"\"\"Return a new list with f called on each number.\"\"\"\n    # TODO: build the new list with a comprehension\n    return []\n\n\nnums = [1, 2, 3, 4]\n# TODO: print apply_to_all with a lambda that squares\n# TODO: print apply_to_all with a lambda that negates\nprint(nums)\n",
+        "solution": "def apply_to_all(f, nums: list[int]) -> list[int]:\n    \"\"\"Return a new list with f called on each number.\"\"\"\n    return [f(n) for n in nums]\n\n\nnums = [1, 2, 3, 4]\nprint(apply_to_all(lambda n: n * n, nums))\nprint(apply_to_all(lambda n: -n, nums))\nprint(nums)\n",
+        "tests": [
+          {
+            "output": "[1, 4, 9, 16]\n[-1, -2, -3, -4]\n[1, 2, 3, 4]"
+          }
+        ],
+        "hints": [
+          "Build the new list with a comprehension that calls `f` on each number.",
+          "A squaring lambda returns `n * n`, and a negating one returns `-n`."
+        ]
+      }
+    },
+    {
+      "title": "Key functions",
+      "body": "`sorted()`, `max()`, and `min()` take a `key=` function. Python calls it on every item and compares the results instead of the items:\n\n```python\nwords = [\"pear\", \"Fig\", \"apple\"]\nprint(sorted(words, key=len))        # ['Fig', 'pear', 'apple']\nprint(sorted(words, key=str.lower))  # ['apple', 'Fig', 'pear']\nprint(max(words, key=len))           # apple\n```\n\nPass the function itself: `key=len`, never `key=len()`. `str.lower` is the string method used as a plain function, the usual trick for case-insensitive order. Without it, every uppercase letter sorts before every lowercase one. For any other rule, write a lambda such as `key=lambda w: w[-1]`. The same `key=` works with `lst.sort()` and combines with `reverse=True`.\n\nTwo tie rules matter:\n\n- Sorting is stable: items with equal keys keep their original order.\n- `max()` and `min()` return the first of tied items.",
+      "example": {
+        "title": "Ordering words",
+        "prompt": "Sort words and numbers by different keys, then find the longest and shortest word.",
+        "code": "words = [\"kiwi\", \"Banana\", \"fig\", \"apple\", \"Cherry\", \"plum\"]\nscores = [7, 3, 9, 4, 6]\n\nprint(\"By length:\", \", \".join(sorted(words, key=len)))\nprint(\"Plain:\", \", \".join(sorted(words)))\nprint(\"No case:\", \", \".join(sorted(words, key=str.lower)))\nprint(\"Last letter:\", \", \".join(sorted(words, key=lambda w: w[-1])))\nprint(\"Near 5:\", *sorted(scores, key=lambda n: abs(n - 5)))\nprint(\"Longest:\", max(words, key=len))\nprint(\"Shortest:\", min(words, key=len))\n",
+        "output": "By length: fig, kiwi, plum, apple, Banana, Cherry\nPlain: Banana, Cherry, apple, fig, kiwi, plum\nNo case: apple, Banana, Cherry, fig, kiwi, plum\nLast letter: Banana, apple, fig, kiwi, plum, Cherry\nNear 5: 4 6 7 3 9\nLongest: Banana\nShortest: fig",
+        "explanation": "`kiwi` and `plum` both have length 4 and stay in their input order because sorting is stable. A plain sort puts `Banana` and `Cherry` first since uppercase letters come before lowercase, and `key=str.lower` fixes that. The lambda `abs(n - 5)` gives 4 and 6 a key of 1 and 7 and 3 a key of 2, and each tie keeps the input order. `Banana` and `Cherry` tie for longest, and `max()` returns the first one."
+      },
+      "practice": {
+        "title": "Ordering names",
+        "prompt": "Sort a list of names, some typed in lowercase, and a list of numbers with key functions, then pick out the extremes.\n\n1. Print `By last letter:` and the names sorted by their last letter with a lambda, joined with `, `. Names with the same last letter keep their input order.\n2. Print `No case:` and the names sorted alphabetically while ignoring case, joined with `, `.\n3. Print `By distance:` and the numbers sorted by distance from 10 with `key=lambda n: abs(n - 10)`, separated by spaces. Ties keep their input order.\n4. Print `Farthest:` and the number farthest from 10 using `max()` with the same key. On a tie, take the first.\n5. Print `Shortest:` and the shortest name using `min(names, key=len)`. On a tie, take the first.\n\nExpected output:\n\n```text\nBy last letter: Maya, Ava, leo, Bruno, omar, Iris\nNo case: Ava, Bruno, Iris, leo, Maya, omar\nBy distance: 10 12 8 15 5\nFarthest: 15\nShortest: leo\n```",
+        "starter": "names = [\"Maya\", \"leo\", \"Iris\", \"omar\", \"Ava\", \"Bruno\"]\nnums = [12, 8, 15, 5, 10]\n\n# TODO: print the names sorted by their last letter\n# TODO: print the names sorted while ignoring case\n# TODO: print the numbers sorted by distance from 10\n# TODO: print the number farthest from 10\n# TODO: print the shortest name\n",
+        "solution": "names = [\"Maya\", \"leo\", \"Iris\", \"omar\", \"Ava\", \"Bruno\"]\nnums = [12, 8, 15, 5, 10]\n\nprint(\"By last letter:\", \", \".join(sorted(names, key=lambda s: s[-1])))\nprint(\"No case:\", \", \".join(sorted(names, key=str.lower)))\nprint(\"By distance:\", *sorted(nums, key=lambda n: abs(n - 10)))\nprint(\"Farthest:\", max(nums, key=lambda n: abs(n - 10)))\nprint(\"Shortest:\", min(names, key=len))\n",
+        "tests": [
+          {
+            "output": "By last letter: Maya, Ava, leo, Bruno, omar, Iris\nNo case: Ava, Bruno, Iris, leo, Maya, omar\nBy distance: 10 12 8 15 5\nFarthest: 15\nShortest: leo"
+          }
+        ],
+        "hints": [
+          "Each key function takes one item and returns what to compare: `s[-1]` for the last letter, `abs(n - 10)` for the distance.",
+          "A plain sort puts `Maya` before `leo`. Pass the lowercase method itself as the key, without parentheses.",
+          "15 and 5 are both 5 away from 10, and `max()` returns whichever comes first in `nums`."
+        ]
+      }
+    },
+    {
+      "title": "map() and filter()",
+      "body": "`map(func, iterable)` calls `func` on every item. `filter(predicate, iterable)` keeps the items where the predicate returns a truthy value.\n\n```python\nstrings = [\"5\", \"2\", \"8\"]\nnums = list(map(int, strings))                # [5, 2, 8]\nbig = list(filter(lambda n: n > 4, nums))     # [5, 8]\nprint(\", \".join(map(str, nums)))              # 5, 2, 8\n# \", \".join(nums)  # TypeError: sequence item 0: expected str instance, int found\n```\n\nLike `zip()` and `reversed()`, both return lazy iterators, not lists. They compute items only when something asks, so wrap them in `list()` before printing. An iterator is also used up after one pass:\n\n```python\nevens = filter(lambda n: n % 2 == 0, nums)\n# print(evens)  # <filter object at 0x7f3a...>\nprint(list(evens))  # [2, 8]\nprint(list(evens))  # [] because it is used up\n```\n\n`list(map(int, strings))` is the standard way to turn text into numbers. `join()` only accepts strings, so `\", \".join(map(str, nums))` converts the numbers first. With a lambda, a comprehension is usually clearer: `[n * n for n in nums]` reads better than `list(map(lambda n: n * n, nums))`. Use `map` and `filter` when you already have a named function such as `int`, `str`, or `str.upper`.",
+      "example": {
+        "title": "Parse and pick",
+        "prompt": "Convert strings to ints with map, keep the odd ones with filter, compare with comprehensions, and join words and numbers.",
+        "code": "strings = [\"3\", \"1\", \"2\"]\ntags = [\"ana\", \"bo\", \"cy\"]\n\nnums = list(map(int, strings))\nodds = list(filter(lambda n: n % 2 == 1, nums))\nprint(\"Ints:\", nums)\nprint(\"Odds:\", odds)\nprint(\"Same ints:\", [int(s) for s in strings])\nprint(\"Same odds:\", [n for n in nums if n % 2 == 1])\nprint(\"Titled:\", \", \".join(map(str.title, tags)))\nprint(\"Joined:\", \", \".join(map(str, sorted(nums))))\n",
+        "output": "Ints: [3, 1, 2]\nOdds: [3, 1]\nSame ints: [3, 1, 2]\nSame odds: [3, 1]\nTitled: Ana, Bo, Cy\nJoined: 1, 2, 3",
+        "explanation": "`map(int, strings)` calls `int` on each string, and `list()` collects the results. `filter` keeps the numbers where the lambda returns `True`. The two comprehensions print the same lists, which shows they are an alternative. `map(str.title, tags)` capitalizes each tag, and `map(str, ...)` turns the sorted numbers into strings so `join()` accepts them."
+      },
+      "practice": {
+        "title": "Parse and sum",
+        "prompt": "Convert, filter, and join lists with map and filter.\n\n1. Convert `strings` to a list of ints with `map` and print it after `Ints:`.\n2. Keep the ints greater than 5 with `filter` and a lambda, and print the list after `Over 5:`.\n3. Print `Codes:` and the codes in uppercase with `map(str.upper, codes)`, joined with `, `.\n4. Print `Sum:`, the ints joined with ` + ` using `map(str, ...)`, then `=` and their total.\n\nExpected output:\n\n```text\nInts: [4, 9, 16]\nOver 5: [9, 16]\nCodes: NYC, LAX, SFO\nSum: 4 + 9 + 16 = 29\n```",
+        "starter": "strings = [\"4\", \"9\", \"16\"]\ncodes = [\"nyc\", \"lax\", \"sfo\"]\n\n# TODO: convert strings to a list of ints with map\n# TODO: keep the ints over 5 with filter\n# TODO: print the four lines\n",
+        "solution": "strings = [\"4\", \"9\", \"16\"]\ncodes = [\"nyc\", \"lax\", \"sfo\"]\n\nnums = list(map(int, strings))\nbig = list(filter(lambda n: n > 5, nums))\nprint(\"Ints:\", nums)\nprint(\"Over 5:\", big)\nprint(\"Codes:\", \", \".join(map(str.upper, codes)))\nprint(\"Sum:\", \" + \".join(map(str, nums)), \"=\", sum(nums))\n",
+        "tests": [
+          {
+            "output": "Ints: [4, 9, 16]\nOver 5: [9, 16]\nCodes: NYC, LAX, SFO\nSum: 4 + 9 + 16 = 29"
+          }
+        ],
+        "hints": [
+          "`map()` and `filter()` return lazy iterators, so wrap each one in `list()` before you print it.",
+          "The filter predicate is a lambda that returns `n > 5`.",
+          "`print()` puts a space between its arguments, so pass the joined text, `\"=\"`, and `sum(nums)` as separate values after `\"Sum:\"`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Functions are values: pass one by name, without parentheses.\n- `lambda params: expression` makes a small one-expression function. Use `def` for anything longer.\n- Printing a function shows a memory address, so call it instead.\n- `key=` changes how `sorted()`, `max()`, and `min()` compare: `key=len`, `key=str.lower`, `key=lambda x: ...`.\n- Sorting is stable, and `max()` and `min()` return the first of tied items.\n- `map()` transforms and `filter()` selects. Both return lazy iterators, so wrap them in `list()`.\n- `list(map(int, strings))` parses numbers and `\", \".join(map(str, nums))` joins them.\n- With a lambda, a comprehension is usually clearer than `map` or `filter`."
+}

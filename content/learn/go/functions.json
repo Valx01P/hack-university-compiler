@@ -1,0 +1,90 @@
+{
+  "id": "functions",
+  "title": "Functions",
+  "section": "Functions",
+  "summary": "Write functions with parameters and results, return several values at once, and use named results and guard clauses.",
+  "intro": "So far every program has lived inside `main`. A function gives a piece of work a name, takes inputs, and hands back results, so you can call it again instead of copying code. Go functions are simple and strict: every parameter has a type, every result has a type, and every argument is passed as a copy.",
+  "steps": [
+    {
+      "title": "Define and call",
+      "body": "Declare a function with `func`, its name, the parameters with their types, and the result type. `return` hands the result back to the caller. When neighboring parameters share a type, write the type once.\n\n```go\nfunc area(w, h int) int {\n\treturn w * h\n}\n```\n\nA function with no result type just does its work, like printing, and needs no `return`. Functions are declared at package level, outside `main` (you cannot declare a named function inside another one), and their order in the file does not matter: `main` can call a function written below it. This course still puts `main` last.\n\n**Every argument is copied.** The parameter is a new variable holding a copy of the caller's value, so assigning to it inside the function leaves the caller's variable alone.\n\nGo keeps calls plain: no default arguments, no overloading, and no keyword arguments. Each function has one name and one parameter list, so two shapes get two names, such as `rectArea` and `circleArea`.",
+      "example": {
+        "title": "Area, greeting, and a copy",
+        "prompt": "Define three functions, call them from main, and show that a parameter is only a copy.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc area(w, h int) int {\n\treturn w * h\n}\n\nfunc greet(name string) {\n\tfmt.Printf(\"Hello, %s!\\n\", name)\n}\n\nfunc reset(n int) {\n\tn = 0 // changes only the copy\n}\n\nfunc main() {\n\tfmt.Printf(\"Area: %d\\n\", area(3, 4))\n\tgreet(\"Ada\")\n\tlives := 3\n\treset(lives)\n\tfmt.Printf(\"Lives: %d\\n\", lives)\n}\n",
+        "output": "Area: 12\nHello, Ada!\nLives: 3",
+        "explanation": "`area(3, 4)` returns 12, which `Printf` prints. `greet` has no result, it prints by itself. `reset(lives)` copies 3 into its own `n` and sets that copy to 0, so `lives` in `main` is still 3 when it is printed."
+      },
+      "practice": {
+        "title": "Perimeter, shout, and fuel",
+        "prompt": "Write three functions and call them from main, then show that the caller's fuel did not change.\n\n1. Add `\"strings\"` to the imports, using a parenthesized import block.\n2. Write `perimeter(w, h int) int` that returns `2 * (w + h)`.\n3. Write `shout(word string)` that prints the word upper-cased with `strings.ToUpper`, followed by `!`.\n4. Write `drain(level int)` that sets `level` to 0.\n5. In `main`, print `perimeter(5, 2)` as `Perimeter: 14`, call `shout(\"go\")`, then call `drain(fuel)` before the given `Fuel` line.\n\nExpected output:\n\n```text\nPerimeter: 14\nGO!\nFuel: 40\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// TODO: write perimeter, shout, and drain here\n\nfunc main() {\n\tfuel := 40\n\t// TODO: print the perimeter, call shout, and call drain(fuel)\n\tfmt.Printf(\"Fuel: %d\\n\", fuel)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc perimeter(w, h int) int {\n\treturn 2 * (w + h)\n}\n\nfunc shout(word string) {\n\tfmt.Println(strings.ToUpper(word) + \"!\")\n}\n\nfunc drain(level int) {\n\tlevel = 0\n}\n\nfunc main() {\n\tfuel := 40\n\tfmt.Printf(\"Perimeter: %d\\n\", perimeter(5, 2))\n\tshout(\"go\")\n\tdrain(fuel)\n\tfmt.Printf(\"Fuel: %d\\n\", fuel)\n}\n",
+        "tests": [
+          {
+            "output": "Perimeter: 14\nGO!\nFuel: 40"
+          }
+        ],
+        "hints": [
+          "Write each function above `main`, starting with `func name(params) result {`.",
+          "`shout` has no result type, so it prints by itself: build the text with `strings.ToUpper` and `+`.",
+          "`drain` changes its own copy, so the given line still prints 40."
+        ]
+      }
+    },
+    {
+      "title": "Multiple results and slice parameters",
+      "body": "A Go function can return several values. List the result types in parentheses, return the values separated by commas, and receive them with as many variables:\n\n```go\nfunc divmod(a, b int) (int, int) {\n\treturn a / b, a % b\n}\n\nq, r := divmod(17, 5)\n```\n\nWhen you assign the results, you need one variable per result. If you only need some, put the blank identifier `_` in the other places: `_, r := divmod(17, 5)`.\n\nA slice parameter is written like any other: `nums []int`. Changing `nums[i]` inside the function changes the caller's slice too.\n\n### Memory\n\nA slice value is a small header: a pointer to the elements, a length, and a capacity (the Slices Under the Hood lesson covers capacity). Passing a slice copies only that header, and the copy still points at the same elements. So `s[i] = v` reaches the caller, while the elements themselves are never copied. One gotcha: `append` inside the function changes only the copied header, so the caller does not see the new length. Return the new slice when a function grows it.",
+      "example": {
+        "title": "Min, max, remainder, and scale",
+        "prompt": "Return two values from a function, discard one with the blank identifier, and scale a slice in place.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc minMax(nums []int) (int, int) {\n\tlo, hi := nums[0], nums[0]\n\tfor _, n := range nums {\n\t\tif n < lo {\n\t\t\tlo = n\n\t\t}\n\t\tif n > hi {\n\t\t\thi = n\n\t\t}\n\t}\n\treturn lo, hi\n}\n\nfunc divmod(a, b int) (int, int) {\n\treturn a / b, a % b\n}\n\nfunc scale(nums []int, k int) {\n\tfor i := range nums {\n\t\tnums[i] *= k\n\t}\n}\n\nfunc main() {\n\tlo, hi := minMax([]int{17, 3, 42, 8})\n\tfmt.Printf(\"Min: %d, Max: %d\\n\", lo, hi)\n\t_, rem := divmod(17, 5)\n\tfmt.Printf(\"Remainder: %d\\n\", rem)\n\ts := []int{1, 2, 3}\n\tscale(s, 10)\n\tfmt.Println(s)\n}\n",
+        "output": "Min: 3, Max: 42\nRemainder: 2\n[10 20 30]",
+        "explanation": "`minMax` starts both trackers at `nums[0]` and returns the pair, which `lo, hi :=` receives in order. `divmod(17, 5)` returns 3 and 2, and `_` throws away the 3. `scale` gets a copy of the header of `s`, but it points at the same three elements, so `nums[i] *= k` changes what `main` prints."
+      },
+      "practice": {
+        "title": "Prices and words",
+        "prompt": "Write three functions that return two results or change a slice in place, and use them on the given data.\n\n1. Add `\"strings\"` to the imports, and remove the `_ = prices` line once you use `prices`.\n2. Write `sumAndAverage(nums []float64) (float64, float64)` that returns the sum and the average, then print them as `Sum: %.2f, Average: %.2f`.\n3. Write `firstAndLast(words []string) (string, string)` that returns the first and last word. Keep only the last word with `_` and print it as `Last: go`.\n4. Write `shoutAll(words []string)` that replaces each element with its upper-case version, and call it before the given `fmt.Println(words)`.\n\nExpected output:\n\n```text\nSum: 10.50, Average: 3.50\nLast: go\n[READY SET GO]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// TODO: write sumAndAverage, firstAndLast, and shoutAll here\n\nfunc main() {\n\tprices := []float64{2.5, 4.25, 3.75}\n\twords := []string{\"ready\", \"set\", \"go\"}\n\t_ = prices\n\t// TODO: print the sum and average of prices\n\t// TODO: print only the last word\n\t// TODO: upper-case words in place\n\tfmt.Println(words)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc sumAndAverage(nums []float64) (float64, float64) {\n\tsum := 0.0\n\tfor _, n := range nums {\n\t\tsum += n\n\t}\n\treturn sum, sum / float64(len(nums))\n}\n\nfunc firstAndLast(words []string) (string, string) {\n\treturn words[0], words[len(words)-1]\n}\n\nfunc shoutAll(words []string) {\n\tfor i := range words {\n\t\twords[i] = strings.ToUpper(words[i])\n\t}\n}\n\nfunc main() {\n\tprices := []float64{2.5, 4.25, 3.75}\n\twords := []string{\"ready\", \"set\", \"go\"}\n\tsum, avg := sumAndAverage(prices)\n\tfmt.Printf(\"Sum: %.2f, Average: %.2f\\n\", sum, avg)\n\t_, last := firstAndLast(words)\n\tfmt.Printf(\"Last: %s\\n\", last)\n\tshoutAll(words)\n\tfmt.Println(words)\n}\n",
+        "tests": [
+          {
+            "output": "Sum: 10.50, Average: 3.50\nLast: go\n[READY SET GO]"
+          }
+        ],
+        "hints": [
+          "Start the sum at `0.0` and divide by `float64(len(nums))` for the average.",
+          "The last word is `words[len(words)-1]`, and `_, last := firstAndLast(words)` keeps only it.",
+          "Loop with `for i := range words` and assign `words[i] = strings.ToUpper(words[i])`."
+        ]
+      }
+    },
+    {
+      "title": "Named results and guard clauses",
+      "body": "You can name the results in the signature. Named results are local variables that start at their zero values, and a bare `return` returns whatever they hold at that moment.\n\n```go\nfunc mean(nums []int) (avg float64, ok bool) {\n\tif len(nums) == 0 {\n\t\treturn // 0, false\n\t}\n\t// ...\n}\n```\n\nThe names also document what each result means. Use bare returns only in short functions, because in a long one the reader has to hunt for the values. You can still write `return avg, true` explicitly.\n\nA **guard clause** is an early `return` at the top that rejects input the rest of the function cannot handle. Without one, `nums[0]` of an empty slice panics with index out of range, and an `int` divided by a zero length panics too. Float division does not panic: `float64(sum) / float64(len(nums))` with both at zero quietly gives NaN. Returning `ok` as `false` tells the caller the result means nothing.\n\nAssign named results with `=`. Inside an `if` or a loop, `:=` would create a new variable that shadows the result, so the result itself never changes.",
+      "example": {
+        "title": "Safe mean",
+        "prompt": "Average a slice, returning early with ok set to false when the slice is empty.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc mean(nums []int) (avg float64, ok bool) {\n\tif len(nums) == 0 {\n\t\treturn // avg is 0, ok is false\n\t}\n\tsum := 0\n\tfor _, n := range nums {\n\t\tsum += n\n\t}\n\tavg = float64(sum) / float64(len(nums))\n\tok = true\n\treturn\n}\n\nfunc main() {\n\tavg, ok := mean([]int{4, 8, 6})\n\tfmt.Printf(\"%.2f %t\\n\", avg, ok)\n\tavg, ok = mean([]int{})\n\tfmt.Printf(\"%.2f %t\\n\", avg, ok)\n}\n",
+        "output": "6.00 true\n0.00 false",
+        "explanation": "For `[]int{4, 8, 6}` the guard is skipped, the loop sums 18, and `avg` becomes 18 / 3 = 6 before the bare `return`. For the empty slice the guard returns right away, so `avg` and `ok` keep their zero values, 0 and false, and the 0 / 0 division that would give NaN never happens."
+      },
+      "practice": {
+        "title": "Safe bounds",
+        "prompt": "Finish `bounds` so it returns the smallest and largest values and never reads past an empty slice.\n\n1. Keep the named results `(lo, hi int, ok bool)`.\n2. Add a guard clause: if the slice is empty, use a bare `return`.\n3. Otherwise set `lo` and `hi` to `nums[0]`, loop to update them, set `ok` to `true`, and use a bare `return`.\n4. Keep the given `main`.\n\nExpected output:\n\n```text\n2 9 true\n0 0 false\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc bounds(nums []int) (lo, hi int, ok bool) {\n\t// TODO: return early for an empty slice, then find the smallest and largest\n\treturn\n}\n\nfunc main() {\n\tlo, hi, ok := bounds([]int{7, 2, 9, 4})\n\tfmt.Printf(\"%d %d %t\\n\", lo, hi, ok)\n\tlo, hi, ok = bounds([]int{})\n\tfmt.Printf(\"%d %d %t\\n\", lo, hi, ok)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc bounds(nums []int) (lo, hi int, ok bool) {\n\tif len(nums) == 0 {\n\t\treturn\n\t}\n\tlo, hi = nums[0], nums[0]\n\tfor _, n := range nums {\n\t\tif n < lo {\n\t\t\tlo = n\n\t\t}\n\t\tif n > hi {\n\t\t\thi = n\n\t\t}\n\t}\n\tok = true\n\treturn\n}\n\nfunc main() {\n\tlo, hi, ok := bounds([]int{7, 2, 9, 4})\n\tfmt.Printf(\"%d %d %t\\n\", lo, hi, ok)\n\tlo, hi, ok = bounds([]int{})\n\tfmt.Printf(\"%d %d %t\\n\", lo, hi, ok)\n}\n",
+        "tests": [
+          {
+            "output": "2 9 true\n0 0 false"
+          }
+        ],
+        "hints": [
+          "The guard is `if len(nums) == 0 { return }`, and it must come before `nums[0]`.",
+          "Assign with `=`, not `:=`, so you set the named results instead of shadowing them."
+        ]
+      }
+    }
+  ],
+  "recap": "- `func name(a, b int) int { return a + b }` declares a function, and neighboring parameters of one type share the type.\n- A function with no result type just does its work.\n- Every argument is copied, so assigning to a parameter never changes the caller's variable.\n- Go has no default arguments, overloading, or keyword arguments: use distinct names.\n- `func f() (int, int)` returns two values, `q, r := f()` receives them, and `_` discards one.\n- A slice parameter copies only the header, so `s[i] = v` changes the caller's elements.\n- Named results start at zero values, and a bare `return` returns them.\n- A guard clause returns early before an empty slice or a zero divisor can cause a panic or a NaN."
+}

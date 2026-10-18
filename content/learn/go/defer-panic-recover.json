@@ -1,0 +1,100 @@
+{
+  "id": "defer-panic-recover",
+  "title": "Defer, Panic and Recover",
+  "section": "Bits and Errors",
+  "summary": "Schedule cleanup with defer, see what a panic does, and recover from panics to turn crashes into errors.",
+  "intro": "The last lesson handled expected failures as plain `error` values. For cleanup and for real crashes, Go gives you three more tools: `defer` schedules work for when a function ends, `panic` aborts the current flow, and `recover` catches a panic so the program can keep going.",
+  "steps": [
+    {
+      "title": "Defer",
+      "body": "`defer f()` schedules a call to run when the surrounding function returns, whether it returns normally, early, or because of a panic. It is how Go does cleanup.\n\n```go\nacquire(\"log\")\ndefer release(\"log\") // runs when this function ends\n```\n\nThree rules cover almost every use:\n\n- Several defers run **last in, first out**, like a stack. The last one deferred runs first.\n- The arguments are evaluated **at the defer statement**, not later. `defer fmt.Println(x)` prints the value `x` had on that line.\n- Defer the cleanup **right after** you acquire the resource, so every return path below it releases the resource, and opens and closes sit side by side.\n\nTo read a variable's latest value instead, defer a closure: `defer func() { fmt.Println(x) }()` reads `x` when it runs. In a Go 1.16 loop that means every closure sees the one shared loop variable at its final value, so pass the value as an argument, as the example below does.\n\n> Defers in a loop all wait until the **function** returns, not the loop iteration. Each pending call keeps its arguments in memory until then, so a loop that opens thousands of files should move the body into its own function.",
+      "example": {
+        "title": "Deferred order",
+        "prompt": "Defer prints in a loop and before changing a variable, showing the reverse order and when arguments are evaluated.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc run() {\n\tfmt.Println(\"start\")\n\tfor i := 0; i < 3; i++ {\n\t\tdefer fmt.Println(\"deferred\", i)\n\t}\n\tx := 1\n\tdefer fmt.Println(\"x at defer:\", x)\n\tx = 99\n\tfmt.Println(\"x now:\", x)\n\tfmt.Println(\"end\")\n}\n\nfunc main() {\n\trun()\n\tfmt.Println(\"back in main\")\n}\n",
+        "output": "start\nx now: 99\nend\nx at defer: 1\ndeferred 2\ndeferred 1\ndeferred 0\nback in main",
+        "explanation": "`run` prints `start`, then the loop defers three calls with `i` already copied in as 0, 1, and 2. The next defer copies `x` while it is still 1, so changing `x` to 99 afterwards does not affect it. When `run` reaches its end, the four deferred calls run in reverse order: the `x` print was deferred last, so it runs first, then `deferred 2`, `1`, `0`. Only then does control return to `main`."
+      },
+      "practice": {
+        "title": "Close in reverse",
+        "prompt": "Open three resources and release them in reverse order with defer.\n\n1. In `process`, set `opened := 0` and defer a print of `opened at start:` followed by `opened`.\n2. Call `acquire` for `A`, `B`, and `C`, deferring `release` with the same name right after each one, and add 1 to `opened` after each.\n3. After the third resource, print `working with`, `opened`, and `resources` with `fmt.Println`.\n\nExpected output:\n\n```text\nopen A\nopen B\nopen C\nworking with 3 resources\nclose C\nclose B\nclose A\nopened at start: 0\ndone\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc acquire(name string) {\n\tfmt.Println(\"open\", name)\n}\n\nfunc release(name string) {\n\tfmt.Println(\"close\", name)\n}\n\nfunc process() {\n\t// TODO: track opened and defer its print, then open A, B, and C, deferring each release right after its acquire\n}\n\nfunc main() {\n\tprocess()\n\tfmt.Println(\"done\")\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc acquire(name string) {\n\tfmt.Println(\"open\", name)\n}\n\nfunc release(name string) {\n\tfmt.Println(\"close\", name)\n}\n\nfunc process() {\n\topened := 0\n\tdefer fmt.Println(\"opened at start:\", opened)\n\tacquire(\"A\")\n\tdefer release(\"A\")\n\topened++\n\tacquire(\"B\")\n\tdefer release(\"B\")\n\topened++\n\tacquire(\"C\")\n\tdefer release(\"C\")\n\topened++\n\tfmt.Println(\"working with\", opened, \"resources\")\n}\n\nfunc main() {\n\tprocess()\n\tfmt.Println(\"done\")\n}\n",
+        "tests": [
+          {
+            "output": "open A\nopen B\nopen C\nworking with 3 resources\nclose C\nclose B\nclose A\nopened at start: 0\ndone"
+          }
+        ],
+        "hints": [
+          "Write each `defer release(...)` on the line right after its `acquire(...)`.",
+          "Deferred calls run in reverse, so the defer you write first runs last. Its argument is copied on the line where you write it."
+        ]
+      }
+    },
+    {
+      "title": "Panic and recover",
+      "body": "`panic(value)` stops the normal flow at once. The function runs its deferred calls, then its caller does the same, up the stack. If nothing stops it, the program prints `panic:` and a stack trace to stderr and exits with code 2.\n\nThe runtime panics on its own for these bugs:\n\n| Bug | Message |\n| --- | --- |\n| `s[5]` on a slice of length 3 | `runtime error: index out of range [5] with length 3` |\n| `m[\"k\"] = 1` on a nil map | `assignment to entry in nil map` |\n| `*p` on a nil pointer | `runtime error: invalid memory address or nil pointer dereference` |\n| `a / b` with an int `b` of 0 | `runtime error: integer divide by zero` |\n\n`recover()` stops a panic, but only when the deferred function calls it directly. Anywhere else it just returns `nil`.\n\n```go\ndefer func() {\n\tif r := recover(); r != nil {\n\t\tfmt.Println(\"recovered:\", r)\n\t}\n}()\n```\n\nIt returns the value passed to `panic`, or `nil` when nothing is panicking, so the `if` skips the normal case. The function that recovered then returns normally and its caller carries on.\n\nUse errors for expected failures such as bad input. Save panic for bugs and impossible states, and use recover as a safety net.",
+      "example": {
+        "title": "Safe index",
+        "prompt": "Read indexes from the input and print each element of a slice, recovering from bad indexes.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc show(nums []int, i int) {\n\tdefer func() {\n\t\tif r := recover(); r != nil {\n\t\t\tfmt.Println(\"recovered:\", r)\n\t\t}\n\t}()\n\tif i < 0 {\n\t\tpanic(\"negative index\")\n\t}\n\tfmt.Println(nums[i])\n}\n\nfunc main() {\n\tnums := []int{10, 20, 30}\n\tfor {\n\t\tvar i int\n\t\tif _, err := fmt.Scan(&i); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tshow(nums, i)\n\t}\n\tfmt.Println(\"done\")\n}\n",
+        "stdin": "1 5 -2 2",
+        "output": "20\nrecovered: runtime error: index out of range [5] with length 3\nrecovered: negative index\n30\ndone",
+        "explanation": "Each call to `show` defers a closure before doing anything risky. For index 1 nothing panics, so `recover()` returns `nil` and prints nothing. Index 5 makes the runtime panic, and `-2` hits our own `panic(\"negative index\")`. In both cases the deferred closure catches the value and prints it. A runtime panic value is an error, so `Println` shows its message. `show` then returns normally, which is why the loop keeps reading and `done` still prints."
+      },
+      "practice": {
+        "title": "Safe divide",
+        "prompt": "Divide pairs of numbers from the input and recover when a division fails.\n\n1. Each input line holds two integers `a b`. The starter already reads them and calls `safeDivide(a, b)`.\n2. In `safeDivide`, defer a closure that recovers and prints `recovered:` followed by the panic value.\n3. If `b` is negative, call `panic(\"negative divisor\")`.\n4. Otherwise print the division in the form `10 / 2 = 5` using integer division, and let a zero `b` panic on its own.\n\nInput:\n\n```text\n10 2\n7 0\n9 -3\n12 4\n```\n\nExpected output:\n\n```text\n10 / 2 = 5\nrecovered: runtime error: integer divide by zero\nrecovered: negative divisor\n12 / 4 = 3\ndone\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc safeDivide(a, b int) {\n\t// TODO: defer a recover that prints \"recovered: ...\", panic on a negative b, then print the quotient\n}\n\nfunc main() {\n\tfor {\n\t\tvar a, b int\n\t\tif _, err := fmt.Scan(&a, &b); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tsafeDivide(a, b)\n\t}\n\tfmt.Println(\"done\")\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc safeDivide(a, b int) {\n\tdefer func() {\n\t\tif r := recover(); r != nil {\n\t\t\tfmt.Println(\"recovered:\", r)\n\t\t}\n\t}()\n\tif b < 0 {\n\t\tpanic(\"negative divisor\")\n\t}\n\tfmt.Printf(\"%d / %d = %d\\n\", a, b, a/b)\n}\n\nfunc main() {\n\tfor {\n\t\tvar a, b int\n\t\tif _, err := fmt.Scan(&a, &b); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tsafeDivide(a, b)\n\t}\n\tfmt.Println(\"done\")\n}\n",
+        "tests": [
+          {
+            "stdin": "10 2\n7 0\n9 -3\n12 4",
+            "output": "10 / 2 = 5\nrecovered: runtime error: integer divide by zero\nrecovered: negative divisor\n12 / 4 = 3\ndone"
+          },
+          {
+            "stdin": "0 5\n5 0",
+            "output": "0 / 5 = 0\nrecovered: runtime error: integer divide by zero\ndone"
+          },
+          {
+            "stdin": "-7 2\n8 -1",
+            "output": "-7 / 2 = -3\nrecovered: negative divisor\ndone"
+          }
+        ],
+        "hints": [
+          "Copy the deferred closure from the example and put it at the top of `safeDivide`.",
+          "You do not need to check for zero yourself. `a/b` panics when `b` is 0, and your deferred closure catches it.",
+          "Format the line with `fmt.Printf`, using `%d` for `a`, `b`, and `a/b`."
+        ]
+      }
+    },
+    {
+      "title": "Turning panics into errors",
+      "body": "A recovered panic is most useful as an ordinary `error` that the caller can handle. The trick is a **named result**. Deferred calls run after a `return` statement has set the results, so a deferred closure can still change a named one.\n\n```go\nfunc safeRun(name string, task func()) (err error) {\n\tdefer func() {\n\t\tif r := recover(); r != nil {\n\t\t\terr = fmt.Errorf(\"%s failed: %v\", name, r)\n\t\t}\n\t}()\n\ttask()\n\treturn nil\n}\n```\n\nWhen `task` runs fine, `return nil` sets `err` to `nil`, the defer finds no panic, and `nil` is returned. When `task` panics, the closure runs, turns the panic value into an error with `fmt.Errorf`, and stores it in `err`. Use `%v` here, not `%w`: `r` is an `interface{}` that may hold a string, an error, or anything else, and `%w` accepts only an error. The function then returns that error as if nothing crashed.\n\nThe caller just writes `if err != nil` as usual. It never sees the panic. This only works with named results: a deferred closure cannot change an unnamed return value.",
+      "example": {
+        "title": "Safe task runner",
+        "prompt": "Run four tasks, three of which panic, and report each one as ok or as an error.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc safeRun(name string, task func()) (err error) {\n\tdefer func() {\n\t\tif r := recover(); r != nil {\n\t\t\terr = fmt.Errorf(\"%s failed: %v\", name, r)\n\t\t}\n\t}()\n\ttask()\n\treturn nil\n}\n\nfunc main() {\n\tnums := []int{1, 2, 3}\n\tidx := 3\n\tvar ages map[string]int\n\ttasks := []struct {\n\t\tname string\n\t\trun  func()\n\t}{\n\t\t{\"sum\", func() { fmt.Println(\"total\", nums[0]+nums[1]+nums[2]) }},\n\t\t{\"lookup\", func() { fmt.Println(nums[idx]) }},\n\t\t{\"save\", func() { ages[\"ana\"] = 30 }},\n\t\t{\"config\", func() { panic(\"bad config\") }},\n\t}\n\tfor _, t := range tasks {\n\t\tif err := safeRun(t.name, t.run); err != nil {\n\t\t\tfmt.Println(\"error:\", err)\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Printf(\"%s: ok\\n\", t.name)\n\t}\n}\n",
+        "output": "total 6\nsum: ok\nerror: lookup failed: runtime error: index out of range [3] with length 3\nerror: save failed: assignment to entry in nil map\nerror: config failed: bad config",
+        "explanation": "Each task is a function value in a slice of anonymous structs. `safeRun` calls it with a deferred safety net in place. The `sum` task works, so `err` stays `nil` and the loop prints `sum: ok`. The `lookup`, `save`, and `config` tasks panic with an index error, a nil map write, and a custom string. Each time the closure wraps the value with the task name and assigns it to `err`, and `main` handles it like any other error, then moves on to the next task."
+      },
+      "practice": {
+        "title": "Safe job results",
+        "prompt": "Run three jobs that return a number, turning any panic into an error.\n\n1. Write `safeJob` with the named results `(result int, err error)`. Defer a closure that recovers and sets `err` to `fmt.Errorf(\"%s failed: %v\", name, r)`.\n2. Return `job(), nil` from `safeJob`.\n3. In the loop, call `safeJob(j.name, j.run)`. Print `error:` and the error when it is not nil, otherwise print the name, a colon, and the result, like `average: 6`.\n\nExpected output:\n\n```text\naverage: 6\nerror: split failed: runtime error: integer divide by zero\nerror: best failed: runtime error: invalid memory address or nil pointer dereference\nall jobs ran\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc safeJob(name string, job func() int) (result int, err error) {\n\t// TODO: defer a closure that turns a panic into an error, then run job\n\treturn 0, nil\n}\n\nfunc main() {\n\tscores := []int{4, 6, 8}\n\tzero := 0\n\tvar best *int\n\tjobs := []struct {\n\t\tname string\n\t\trun  func() int\n\t}{\n\t\t{\"average\", func() int {\n\t\t\ttotal := 0\n\t\t\tfor _, s := range scores {\n\t\t\t\ttotal += s\n\t\t\t}\n\t\t\treturn total / len(scores)\n\t\t}},\n\t\t{\"split\", func() int { return 12 / zero }},\n\t\t{\"best\", func() int { return *best }},\n\t}\n\tfor _, j := range jobs {\n\t\t// TODO: call safeJob, then print the error or the result\n\t\t_ = j\n\t}\n\tfmt.Println(\"all jobs ran\")\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc safeJob(name string, job func() int) (result int, err error) {\n\tdefer func() {\n\t\tif r := recover(); r != nil {\n\t\t\terr = fmt.Errorf(\"%s failed: %v\", name, r)\n\t\t}\n\t}()\n\treturn job(), nil\n}\n\nfunc main() {\n\tscores := []int{4, 6, 8}\n\tzero := 0\n\tvar best *int\n\tjobs := []struct {\n\t\tname string\n\t\trun  func() int\n\t}{\n\t\t{\"average\", func() int {\n\t\t\ttotal := 0\n\t\t\tfor _, s := range scores {\n\t\t\t\ttotal += s\n\t\t\t}\n\t\t\treturn total / len(scores)\n\t\t}},\n\t\t{\"split\", func() int { return 12 / zero }},\n\t\t{\"best\", func() int { return *best }},\n\t}\n\tfor _, j := range jobs {\n\t\tresult, err := safeJob(j.name, j.run)\n\t\tif err != nil {\n\t\t\tfmt.Println(\"error:\", err)\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Printf(\"%s: %d\\n\", j.name, result)\n\t}\n\tfmt.Println(\"all jobs ran\")\n}\n",
+        "tests": [
+          {
+            "output": "average: 6\nerror: split failed: runtime error: integer divide by zero\nerror: best failed: runtime error: invalid memory address or nil pointer dereference\nall jobs ran"
+          }
+        ],
+        "hints": [
+          "The deferred closure looks just like the one in `safeRun`. It assigns to the named result `err`.",
+          "When `job()` panics, `result` keeps its zero value and the closure sets `err`.",
+          "Print the success line with `fmt.Printf`, using `%s` for the name and `%d` for the result."
+        ]
+      }
+    }
+  ],
+  "recap": "- `defer f(x)` runs `f` when the surrounding function returns, with `x` evaluated at the defer line.\n- Several defers run last in, first out. Defer cleanup right after acquiring a resource.\n- `panic(v)` stops the function, runs its defers, and climbs the call stack. Unrecovered, it crashes the program.\n- The runtime panics on bad indexes, nil map writes, nil pointer dereferences, and integer division by zero.\n- `recover()` stops a panic only when a deferred function calls it directly. It returns the panic value, or `nil` when nothing is panicking.\n- The function that recovered returns normally, so its caller keeps going.\n- With a named `err` result, a deferred closure can turn a panic into `fmt.Errorf(\"...: %v\", r)`.\n- Return errors for expected failures. Keep panic for bugs and impossible states."
+}

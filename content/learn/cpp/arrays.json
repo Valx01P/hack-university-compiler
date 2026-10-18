@@ -1,0 +1,115 @@
+{
+  "id": "arrays",
+  "title": "Arrays, std::array, and std::vector",
+  "section": "Arrays and Vectors",
+  "summary": "Store sequences in fixed C arrays, std::array, and growable std::vector, and see how each one sits in memory.",
+  "intro": "Most programs work with many values at once: scores, prices, names. C++ gives you three ways to store a sequence. A C-style array and `std::array` have a fixed size and live inline, and `std::vector` grows on the heap and is the one you will use most.",
+  "steps": [
+    {
+      "title": "C-style arrays",
+      "body": "A C-style array stores a fixed number of values of one type side by side. Write the type, a name, and the count in brackets, then list the values in braces. Indexes start at 0, so the last element of `int a[5]` is `a[4]`.\n\n```cpp\nint a[5] = {3, 1, 4, 1, 5};\na[2] = 9;          // change the third element\nint b[4] = {7, 8}; // missing values become 0: 7 8 0 0\nint zeros[4] = {}; // every element is 0\n```\n\nThe elements are contiguous: one block of memory with each `int` right after the one before. The size must be a compile-time constant, such as `5` or a `const int` set from a literal, because the compiler works out how much space the array needs while it compiles. A local array lives on the stack. g++ also accepts `int a[n]` with a variable `n`, but that is a compiler extension, not standard C++, so avoid it. Without an initializer, `int a[5];` holds garbage.\n\n`sizeof(a)` gives the total bytes, count times element size: 5 times 4 is 20. `std::size(a)` from `<iterator>` gives the count, 5.\n\n> Gotcha: C++ never checks the index. Reading `a[5]` goes past the end, which is undefined behavior: the program may print garbage, crash, or seem fine. Keep every index between 0 and the size minus 1.",
+      "example": {
+        "title": "Daily step counts",
+        "prompt": "Store five daily step counts, read and change elements, and print the array's count and size in bytes.",
+        "code": "#include <iostream>\n#include <iterator>\n\nint main() {\n    int steps[5] = {4200, 8100, 6500, 9900, 7300};\n    std::cout << \"First: \" << steps[0] << '\\n';\n    std::cout << \"Last: \" << steps[4] << '\\n';\n\n    steps[2] = 7000;\n    std::cout << \"Third: \" << steps[2] << '\\n';\n\n    std::cout << \"Count: \" << std::size(steps) << '\\n';\n    std::cout << \"Bytes: \" << sizeof(steps) << '\\n';\n\n    const int empty[3] = {};\n    std::cout << \"Middle of empty: \" << empty[1] << '\\n';\n    return 0;\n}\n",
+        "output": "First: 4200\nLast: 7300\nThird: 7000\nCount: 5\nBytes: 20\nMiddle of empty: 0",
+        "explanation": "The last element is `steps[4]` because counting starts at 0. Assigning to `steps[2]` overwrites the third value in place. `std::size` returns 5 elements, and `sizeof` returns 20 because five 4-byte ints sit back to back in memory. The `= {}` initializer sets all three elements of `empty` to 0."
+      },
+      "practice": {
+        "title": "Price list",
+        "prompt": "Store four prices in a C-style array and inspect it the same way.\n\n1. Declare `double prices[4] = {2.50, 4.75, 3.00, 1.25};` (the starter already prints doubles with 2 decimals).\n2. Print `First: ` and `Last: ` followed by the first and last prices.\n3. Set the second price to 5.25 and print `Second: ` followed by it.\n4. Print `Count: ` with `std::size(prices)` and `Bytes: ` with `sizeof(prices)`.\n5. Declare `const int counts[4] = {};` and print `Last count: ` followed by its last element.\n\nExpected output:\n\n```text\nFirst: 2.50\nLast: 1.25\nSecond: 5.25\nCount: 4\nBytes: 32\nLast count: 0\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n#include <iterator>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    // TODO: declare prices, print first and last, update the second price\n    // TODO: print the count and bytes, then the last element of counts\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n#include <iterator>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    double prices[4] = {2.50, 4.75, 3.00, 1.25};\n    std::cout << \"First: \" << prices[0] << '\\n';\n    std::cout << \"Last: \" << prices[3] << '\\n';\n\n    prices[1] = 5.25;\n    std::cout << \"Second: \" << prices[1] << '\\n';\n\n    std::cout << \"Count: \" << std::size(prices) << '\\n';\n    std::cout << \"Bytes: \" << sizeof(prices) << '\\n';\n\n    const int counts[4] = {};\n    std::cout << \"Last count: \" << counts[3] << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "First: 2.50\nLast: 1.25\nSecond: 5.25\nCount: 4\nBytes: 32\nLast count: 0"
+          }
+        ],
+        "hints": [
+          "With four elements the valid indexes are 0 to 3, so the last price is `prices[3]` and the second is `prices[1]`.",
+          "A `double` is 8 bytes, so `sizeof(prices)` is 4 times 8."
+        ]
+      }
+    },
+    {
+      "title": "std::array, a fixed array that knows its size",
+      "body": "`std::array<T, N>` from `<array>` wraps a C array. The elements sit inline in the same contiguous block with no extra cost, but the array knows its size and behaves like a normal value. `N` must be a compile-time constant, and it is part of the type: `std::array<int, 3>` and `std::array<int, 4>` are different types.\n\n```cpp\nstd::array<int, 3> a = {4, 8, 15};\na.size();  // 3\na.front(); // 4, same as a[0]\na.back();  // 15, same as a[2]\na.at(1);   // 8, checks the index first\na.fill(0); // every element becomes 0\n```\n\n`a[i]` is still unchecked. `a.at(i)` checks the index and throws an exception when it is out of range. Nothing catches it yet, so the program stops with an error message instead of quietly reading other memory. Catching it comes in the Exceptions lesson.\n\nUnlike a C array, a `std::array` copies with `=`. Writing `std::array<int, 3> b = a;` copies every element into storage that belongs to `b`, so changing `a` later leaves `b` alone. `a == b` compares the elements one by one. Two C arrays cannot be assigned with `=` at all, and `==` on them compares addresses, not contents.",
+      "example": {
+        "title": "Score backup",
+        "prompt": "Inspect a std::array of scores, copy it, change the original, and compare the two.",
+        "code": "#include <array>\n#include <iostream>\n\nint main() {\n    std::array<int, 4> scores = {70, 85, 90, 60};\n    std::cout << \"Size: \" << scores.size() << '\\n';\n    std::cout << \"Front: \" << scores.front() << '\\n';\n    std::cout << \"Back: \" << scores.back() << '\\n';\n    std::cout << \"At 2: \" << scores.at(2) << '\\n';\n\n    const std::array<int, 4> backup = scores;\n    scores[0] = 100;\n    std::cout << \"scores front: \" << scores.front() << '\\n';\n    std::cout << \"backup front: \" << backup.front() << '\\n';\n    std::cout << std::boolalpha << \"Equal: \" << (scores == backup) << '\\n';\n    return 0;\n}\n",
+        "output": "Size: 4\nFront: 70\nBack: 60\nAt 2: 90\nscores front: 100\nbackup front: 70\nEqual: false",
+        "explanation": "`size()` returns 4, the `N` from the type. `front()` and `back()` read the first and last elements, and `at(2)` reads index 2 after checking it. `backup = scores` copies all four ints, so setting `scores[0]` to 100 does not touch `backup`. The arrays now differ in one element, so `==` gives false."
+      },
+      "practice": {
+        "title": "Temperature reset",
+        "prompt": "Inspect a std::array of temperatures, copy it, and clear the copy with fill.\n\n1. Declare `std::array<double, 3> temps = {21.5, 19.0, 23.5};` (the starter already prints doubles with 1 decimal).\n2. Print `Size: `, `Front: `, `Back: `, and `At 1: ` with `size()`, `front()`, `back()`, and `at(1)`.\n3. Copy `temps` into a new array named `cleared` and call `cleared.fill(0.0)`.\n4. Print `temps front: ` and `cleared front: ` followed by each array's first element.\n5. Print `Equal: ` followed by `(temps == cleared)` as true or false.\n\nExpected output:\n\n```text\nSize: 3\nFront: 21.5\nBack: 23.5\nAt 1: 19.0\ntemps front: 21.5\ncleared front: 0.0\nEqual: false\n```",
+        "starter": "#include <array>\n#include <iomanip>\n#include <iostream>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(1);\n    // TODO: declare temps and print its size, front, back, and at(1)\n    // TODO: copy it into cleared, fill the copy, then print both fronts and Equal\n    return 0;\n}\n",
+        "solution": "#include <array>\n#include <iomanip>\n#include <iostream>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(1);\n    std::array<double, 3> temps = {21.5, 19.0, 23.5};\n    std::cout << \"Size: \" << temps.size() << '\\n';\n    std::cout << \"Front: \" << temps.front() << '\\n';\n    std::cout << \"Back: \" << temps.back() << '\\n';\n    std::cout << \"At 1: \" << temps.at(1) << '\\n';\n\n    std::array<double, 3> cleared = temps;\n    cleared.fill(0.0);\n    std::cout << \"temps front: \" << temps.front() << '\\n';\n    std::cout << \"cleared front: \" << cleared.front() << '\\n';\n    std::cout << std::boolalpha << \"Equal: \" << (temps == cleared) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Size: 3\nFront: 21.5\nBack: 23.5\nAt 1: 19.0\ntemps front: 21.5\ncleared front: 0.0\nEqual: false"
+          }
+        ],
+        "hints": [
+          "`std::array<double, 3> cleared = temps;` makes an independent copy.",
+          "`fill` changes only `cleared`, so `temps` keeps 21.5 at the front.",
+          "Set `std::boolalpha` before printing the comparison to get `false` instead of `0`."
+        ]
+      }
+    },
+    {
+      "title": "std::vector, an array that grows",
+      "body": "`std::vector<T>` from `<vector>` is the sequence you reach for by default in C++. It can grow and shrink while the program runs.\n\n```cpp\nstd::vector<int> v = {5, 10};\nv.push_back(15); // add to the end: 5 10 15\nv.pop_back();    // remove the last: 5 10\nv.size();        // 2\nv.empty();       // false\nv.front();       // 5\nv.back();        // 10\nv.clear();       // remove everything, size 0\n```\n\nRead elements with `v[i]`, which is unchecked, or `v.at(i)`, which checks the index, just like `std::array`.\n\nIn memory, a local vector is a small header on the stack, 24 bytes here, that tracks where the elements are, how many there are (the size), and how many fit before it must grow (the capacity). The elements live in one contiguous block on the heap. When `push_back` runs out of room, the vector allocates a bigger block, moves the elements into it, and frees the old block, so adding to the end stays fast on average.\n\n> Gotcha: `pop_back`, `front`, and `back` on an empty vector are undefined behavior. Check `empty()` first whenever the vector might be empty.",
+      "example": {
+        "title": "To-do list",
+        "prompt": "Start a to-do list from a brace list, add a task with push_back, read it, remove the last task, then clear it.",
+        "code": "#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    std::vector<std::string> tasks = {\"Buy milk\", \"Write report\"};\n    tasks.push_back(\"Call Sam\");\n    std::cout << \"Size: \" << tasks.size() << '\\n';\n    std::cout << \"Last: \" << tasks.back() << '\\n';\n    std::cout << \"tasks[0]: \" << tasks[0] << '\\n';\n    std::cout << \"tasks.at(1): \" << tasks.at(1) << '\\n';\n\n    tasks.pop_back();\n    std::cout << \"Size: \" << tasks.size() << '\\n';\n    std::cout << \"First: \" << tasks.front() << '\\n';\n\n    tasks.clear();\n    std::cout << std::boolalpha << \"Empty: \" << tasks.empty() << '\\n';\n    return 0;\n}\n",
+        "output": "Size: 3\nLast: Call Sam\ntasks[0]: Buy milk\ntasks.at(1): Write report\nSize: 2\nFirst: Buy milk\nEmpty: true",
+        "explanation": "The vector starts with the two tasks in the braces and `push_back` appends a third, so the size is 3 and `back()` is the last one added. `pop_back` removes `Call Sam`, leaving 2 tasks with `Buy milk` still at the front. `clear` removes every element, so `empty()` returns true."
+      },
+      "practice": {
+        "title": "Playlist",
+        "prompt": "Build a playlist vector, add two songs, read it, remove two songs, then clear it.\n\n1. Create `std::vector<std::string> songs = {\"Intro\", \"Skyline\"}`, then push_back `Echoes` and `Finale` in that order.\n2. Print `Size: ` and `Last: ` followed by the size and the last song.\n3. Print `songs[1]: ` followed by `songs[1]` and `songs.at(2): ` followed by `songs.at(2)`.\n4. Call pop_back twice, then print `Size: ` and `First: ` followed by the size and the first song.\n5. Clear the vector and print `Empty: ` followed by `empty()` as true or false.\n\nExpected output:\n\n```text\nSize: 4\nLast: Finale\nsongs[1]: Skyline\nsongs.at(2): Echoes\nSize: 2\nFirst: Intro\nEmpty: true\n```",
+        "starter": "#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    // TODO: create songs from a brace list and push_back two more\n    // TODO: print the size, last song, songs[1], and songs.at(2)\n    // TODO: pop_back twice, print the size and first song, then clear and print Empty\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    std::vector<std::string> songs = {\"Intro\", \"Skyline\"};\n    songs.push_back(\"Echoes\");\n    songs.push_back(\"Finale\");\n    std::cout << \"Size: \" << songs.size() << '\\n';\n    std::cout << \"Last: \" << songs.back() << '\\n';\n    std::cout << \"songs[1]: \" << songs[1] << '\\n';\n    std::cout << \"songs.at(2): \" << songs.at(2) << '\\n';\n\n    songs.pop_back();\n    songs.pop_back();\n    std::cout << \"Size: \" << songs.size() << '\\n';\n    std::cout << \"First: \" << songs.front() << '\\n';\n\n    songs.clear();\n    std::cout << std::boolalpha << \"Empty: \" << songs.empty() << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Size: 4\nLast: Finale\nsongs[1]: Skyline\nsongs.at(2): Echoes\nSize: 2\nFirst: Intro\nEmpty: true"
+          }
+        ],
+        "hints": [
+          "Each `push_back` adds one song to the end, so `Finale` ends up as the back.",
+          "After two `pop_back` calls only `Intro` and `Skyline` remain."
+        ]
+      }
+    },
+    {
+      "title": "Creating vectors with a size",
+      "body": "You can create a vector with a starting size instead of a list of values. The size can even be a variable computed while the program runs, because the elements live on the heap.\n\n```cpp\nstd::vector<int> zeros(4);     // 0 0 0 0\nstd::vector<int> sevens(3, 7); // 7 7 7\nstd::vector<int> two{3, 7};    // 3 7\n```\n\nWatch the brackets. Parentheses give a size: `(3, 7)` means three copies of 7. Braces give a list: `{3, 7}` means exactly two elements, 3 and 7. The same trap hits one number: `v(5)` is five zeros, but `v{5}` is one element, 5. With `v(n)` every `int` or `double` starts at 0, and every `std::string` starts empty.\n\n`resize(n)` changes the size. Growing adds zeros at the end, or copies of a value you pass as `v.resize(n, value)`. Shrinking drops elements from the end. Elements that stay keep their values.\n\n```cpp\nstd::vector<int> v(2); // 0 0\nv[0] = 5;              // 5 0\nv.resize(4);           // 5 0 0 0\nv.resize(1);           // 5\n```",
+      "example": {
+        "title": "Sized vectors",
+        "prompt": "Compare parentheses and braces when creating a vector, then grow a zero-filled vector with resize.",
+        "code": "#include <iostream>\n#include <vector>\n\nint main() {\n    const std::vector<int> a(3, 7);\n    const std::vector<int> b{3, 7};\n    std::cout << \"a size: \" << a.size() << '\\n';\n    std::cout << \"b size: \" << b.size() << '\\n';\n    std::cout << \"a[2]: \" << a[2] << '\\n';\n    std::cout << \"b[0]: \" << b[0] << '\\n';\n\n    std::vector<int> counts(5);\n    counts[2] = 9;\n    counts.resize(7);\n    std::cout << \"counts size: \" << counts.size() << '\\n';\n    std::cout << \"counts[2]: \" << counts[2] << '\\n';\n    std::cout << \"counts[6]: \" << counts[6] << '\\n';\n    return 0;\n}\n",
+        "output": "a size: 3\nb size: 2\na[2]: 7\nb[0]: 3\ncounts size: 7\ncounts[2]: 9\ncounts[6]: 0",
+        "explanation": "`a(3, 7)` builds three 7s, while `b{3, 7}` holds the two values 3 and 7. `counts(5)` starts as five zeros. After `counts[2] = 9`, `resize(7)` adds two more zeros at the end and keeps the 9 where it was."
+      },
+      "practice": {
+        "title": "Weights and votes",
+        "prompt": "Compare parentheses and braces with double vectors, then grow a vote counter with resize.\n\n1. Create `const std::vector<double> weights(4, 1.5)` and `const std::vector<double> twoItems{4, 1.5}` (the starter already prints doubles with 1 decimal).\n2. Print `weights size: ` and `twoItems size: ` followed by each size.\n3. Print `weights[3]: ` followed by `weights[3]` and `twoItems[0]: ` followed by `twoItems[0]`.\n4. Create `std::vector<int> votes(3)`, set `votes[0]` to 12, and resize it to 5.\n5. Print `votes size: `, `votes[0]: `, and `votes[4]: ` followed by those values.\n\nExpected output:\n\n```text\nweights size: 4\ntwoItems size: 2\nweights[3]: 1.5\ntwoItems[0]: 4.0\nvotes size: 5\nvotes[0]: 12\nvotes[4]: 0\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n#include <vector>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(1);\n    // TODO: create weights and twoItems, then print both sizes, weights[3], and twoItems[0]\n    // TODO: create votes, set votes[0], resize it, then print its size, votes[0], and votes[4]\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n#include <vector>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(1);\n    const std::vector<double> weights(4, 1.5);\n    const std::vector<double> twoItems{4, 1.5};\n    std::cout << \"weights size: \" << weights.size() << '\\n';\n    std::cout << \"twoItems size: \" << twoItems.size() << '\\n';\n    std::cout << \"weights[3]: \" << weights[3] << '\\n';\n    std::cout << \"twoItems[0]: \" << twoItems[0] << '\\n';\n\n    std::vector<int> votes(3);\n    votes[0] = 12;\n    votes.resize(5);\n    std::cout << \"votes size: \" << votes.size() << '\\n';\n    std::cout << \"votes[0]: \" << votes[0] << '\\n';\n    std::cout << \"votes[4]: \" << votes[4] << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "weights size: 4\ntwoItems size: 2\nweights[3]: 1.5\ntwoItems[0]: 4.0\nvotes size: 5\nvotes[0]: 12\nvotes[4]: 0"
+          }
+        ],
+        "hints": [
+          "Parentheses mean count and value, braces mean a list of elements.",
+          "`resize(5)` keeps the 12 at index 0 and adds zeros at indexes 3 and 4."
+        ]
+      }
+    }
+  ],
+  "recap": "- `int a[5] = {...};` is a fixed, contiguous block. The size must be a compile-time constant, and `= {}` zero-initializes it.\n- Indexes run from 0 to size minus 1. `a[i]` is never bounds-checked, so going past the end is undefined behavior.\n- `sizeof(a)` is count times element size, and `std::size(a)` from `<iterator>` is the count.\n- `std::array<T, N>` adds `size`, `front`, `back`, `at`, and `fill`, copies with `=`, and compares with `==`.\n- `std::vector<T>` keeps its elements on the heap and grows with `push_back`, shrinks with `pop_back` and `clear`, and reports `size` and `empty`.\n- `v(3, 7)` is three 7s, `v{3, 7}` is two elements, and `resize` grows with zeros or shrinks from the end."
+}

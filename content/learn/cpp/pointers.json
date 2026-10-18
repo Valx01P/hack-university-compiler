@@ -1,0 +1,118 @@
+{
+  "id": "pointers",
+  "title": "Pointers",
+  "section": "Memory",
+  "summary": "Store addresses in pointers, check for nullptr, pass by pointer, and walk arrays and C strings with pointer arithmetic.",
+  "intro": "A reference is another name for a variable. A pointer is a variable of its own that holds an address. It can point somewhere else later, or at nothing at all. Pointers are how C++ talks about memory directly, and they show up wherever you walk arrays or text the C way.",
+  "steps": [
+    {
+      "title": "Addresses and dereferencing",
+      "body": "A pointer is a variable that holds the address of another variable. `&x` gives the address of `x`, and `int* p = &x` stores it. Putting `*` in front of a pointer *dereferences* it: `*p` reads or writes the `int` it points at.\n\nBoth symbols mean something else in a declaration. After a type, `int&` declares a reference (the last lesson) and `int*` declares a pointer. In an expression, `&x` takes an address and `*p` follows one.\n\n```cpp\nint x = 4;\nint* p = &x;   // p holds x's address\n*p = 7;        // writes x through p, x is now 7\n```\n\nUnlike a reference, a pointer can be re-pointed later with `p = &y`, and two pointers compare equal with `==` when they hold the same address. A pointer is just an address, so `sizeof(int*)` is 8 on this 64-bit machine, whatever type it points to.\n\nTwo gotchas:\n\n- Never print a pointer itself (`std::cout << p`). Addresses change every run. Compare pointers or print `*p`.\n- `int* a, b` makes `a` a pointer but `b` a plain `int`, because the `*` binds to the name. Declare one pointer per line.",
+      "example": {
+        "title": "Level and bonus",
+        "prompt": "Change a variable through a pointer, then re-point the pointer at another variable and compare addresses.",
+        "code": "#include <iostream>\n\nint main() {\n    int level = 3;\n    int bonus = 9;\n    int* p = &level;\n    std::cout << *p << '\\n';\n\n    *p = 5;\n    std::cout << level << '\\n';\n\n    p = &bonus;\n    std::cout << std::boolalpha;\n    std::cout << *p << ' ' << (p == &bonus) << ' ' << (p == &level) << '\\n';\n    std::cout << sizeof(p) << '\\n';\n    return 0;\n}\n",
+        "output": "3\n5\n9 true false\n8",
+        "explanation": "`p` starts with the address of `level`, so `*p` reads 3. Writing `*p = 5` changes `level` itself, because `p` points at its memory. Then `p = &bonus` re-points the pointer: `*p` now reads 9, and `p` compares equal to `&bonus` but not to `&level`. `sizeof(p)` is 8, the size of an address, not of the `int`."
+      },
+      "practice": {
+        "title": "Price pointer",
+        "prompt": "Use one pointer to update a price, then re-point it at a second price.\n\n1. Point `double* p` at `price`.\n2. Add 1.5 to the price through the pointer with `*p += 1.5`, then print `price`.\n3. Re-point `p` at `salePrice`.\n4. Print `*p` and `(p == &price)` on one line, separated by a space.\n5. Print `sizeof(p)`.\n\nThe starter already sets 2 decimal places and `std::boolalpha`.\n\nExpected output:\n\n```text\n11.50\n7.25 false\n8\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    double price = 10.0;\n    double salePrice = 7.25;\n    std::cout << std::fixed << std::setprecision(2) << std::boolalpha;\n    // TODO: point a double* at price, add 1.5 through it, print price\n    // TODO: re-point it at salePrice, print *p, (p == &price), and sizeof(p)\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    double price = 10.0;\n    double salePrice = 7.25;\n    std::cout << std::fixed << std::setprecision(2) << std::boolalpha;\n\n    double* p = &price;\n    *p += 1.5;\n    std::cout << price << '\\n';\n\n    p = &salePrice;\n    std::cout << *p << ' ' << (p == &price) << '\\n';\n    std::cout << sizeof(p) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "11.50\n7.25 false\n8"
+          }
+        ],
+        "hints": [
+          "Declare the pointer with `double* p = &price`.",
+          "`*p += 1.5` changes `price`, because `p` holds its address.",
+          "Re-point with `p = &salePrice`, no `*` this time."
+        ]
+      }
+    },
+    {
+      "title": "nullptr and safe dereferencing",
+      "body": "`nullptr` is the null pointer: a pointer that points at nothing. It makes a good \"not found yet\" value. Before you dereference a pointer that might be null, check it:\n\n```cpp\nint* found = nullptr;\nif (found != nullptr) {   // or simply: if (found)\n    std::cout << *found << '\\n';\n}\n```\n\nDereferencing `nullptr` is undefined behavior. On this machine it usually crashes the program. A crash also throws away any output still waiting in `std::cout`'s buffer, so lines you printed just before it may never appear. Missing output does not mean the crash happened earlier.\n\nTo point at an array element while scanning, loop by reference with `for (int& x : nums)`, so `&x` is the address of the real element. With `for (int x : nums)`, `x` is a copy that disappears each iteration, and a pointer to it dangles. A pointer to an element also lets you change that element in the array.",
+      "example": {
+        "title": "First even, first negative",
+        "prompt": "Scan an array for the first even and the first negative number, keeping a pointer that stays null when nothing matches.",
+        "code": "#include <iostream>\n\nint main() {\n    int nums[5] = {7, 3, 10, 5, 8};\n\n    int* firstEven = nullptr;\n    for (int& x : nums) {\n        if (x % 2 == 0) {\n            firstEven = &x;\n            break;\n        }\n    }\n    if (firstEven != nullptr) {\n        std::cout << *firstEven << '\\n';\n        *firstEven = 0;\n        std::cout << nums[2] << '\\n';\n    } else {\n        std::cout << \"none\\n\";\n    }\n\n    int* firstNegative = nullptr;\n    for (int& x : nums) {\n        if (x < 0) {\n            firstNegative = &x;\n            break;\n        }\n    }\n    if (firstNegative) {\n        std::cout << *firstNegative << '\\n';\n    } else {\n        std::cout << \"none\\n\";\n    }\n    return 0;\n}\n",
+        "output": "10\n0\nnone",
+        "explanation": "Both pointers start as `nullptr`. The first loop stops at 10 and stores `&x`, the address of `nums[2]`, so `*firstEven` prints 10 and `*firstEven = 0` changes `nums[2]` itself. No element is negative, so `firstNegative` stays `nullptr`. The `if (firstNegative)` check sends the program to the `else` branch instead of dereferencing null."
+      },
+      "practice": {
+        "title": "Cold and hot days",
+        "prompt": "Find temperatures in an array with pointers that may stay null.\n\n1. Scan `temps` with `for (double& t : temps)` and point `double* firstBelow` at the first value below 0, starting from `nullptr`.\n2. If it was found, print it, set it to 0.0 through the pointer, and print `temps[1]`. Otherwise print `none`.\n3. Scan again with a second pointer for the first value above 30.\n4. Print that value, or `none` if the pointer is still `nullptr`.\n\nThe starter already sets 1 decimal place.\n\nExpected output:\n\n```text\n-1.5\n0.0\nnone\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    double temps[4] = {3.5, -1.5, 2.0, -4.0};\n    std::cout << std::fixed << std::setprecision(1);\n    // TODO: find the first value below 0 with a pointer\n    // TODO: if found, print it, set it to 0.0 through the pointer, print temps[1], otherwise print none\n    // TODO: find the first value above 30 with a pointer, print it or none\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    double temps[4] = {3.5, -1.5, 2.0, -4.0};\n    std::cout << std::fixed << std::setprecision(1);\n\n    double* firstBelow = nullptr;\n    for (double& t : temps) {\n        if (t < 0) {\n            firstBelow = &t;\n            break;\n        }\n    }\n    if (firstBelow != nullptr) {\n        std::cout << *firstBelow << '\\n';\n        *firstBelow = 0.0;\n        std::cout << temps[1] << '\\n';\n    } else {\n        std::cout << \"none\\n\";\n    }\n\n    double* firstHot = nullptr;\n    for (double& t : temps) {\n        if (t > 30) {\n            firstHot = &t;\n            break;\n        }\n    }\n    if (firstHot) {\n        std::cout << *firstHot << '\\n';\n    } else {\n        std::cout << \"none\\n\";\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "-1.5\n0.0\nnone"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the example: a pointer set to `nullptr`, a loop with `double&`, and `break` on the first match.",
+          "Inside the loop, store the address with `firstBelow = &t`.",
+          "Check `if (firstHot)` before printing `*firstHot`."
+        ]
+      }
+    },
+    {
+      "title": "Value, reference, or pointer?",
+      "body": "A function can take a pointer and change the caller's variable through it. The caller passes an address:\n\n```cpp\nvoid addOne(int* p) {\n    if (p != nullptr) {\n        ++*p;     // not *p++, which moves the pointer instead\n    }\n}\naddOne(&count);\n```\n\nCompare the three ways to pass:\n\n| Parameter | Call | Changes caller? | Can be \"nothing\"? |\n| --- | --- | --- | --- |\n| `int n` | `f(x)` | no, it is a copy | no |\n| `int& n` | `f(x)` | yes | no |\n| `int* p` | `f(&x)` | yes | yes, `nullptr` |\n\nPrefer references. Use a pointer when \"no object\" is a valid argument, and check for `nullptr` inside.\n\n`const` reads right to left:\n\n```cpp\nconst int* a = &x;  // pointer to const int: *a = 1 does not compile\nint* const b = &x;  // const pointer: b = &y does not compile\n```\n\nTake `const int*` when a function only reads through the pointer.",
+      "example": {
+        "title": "Three ways to increment",
+        "prompt": "Increment a counter by value, by reference, and by pointer, then read a pointer that may be null with a fallback.",
+        "code": "#include <iostream>\n\nvoid incByValue(int n) {\n    ++n;\n}\n\nvoid incByRef(int& n) {\n    ++n;\n}\n\nvoid incByPtr(int* p) {\n    if (p == nullptr) {\n        return;\n    }\n    ++*p;\n}\n\nint valueOr(const int* p, int fallback) {\n    if (p) {\n        return *p;\n    }\n    return fallback;\n}\n\nint main() {\n    int count = 0;\n    incByValue(count);\n    std::cout << count << ' ';\n    incByRef(count);\n    std::cout << count << ' ';\n    incByPtr(&count);\n    std::cout << count << ' ';\n    incByPtr(nullptr);\n    std::cout << count << '\\n';\n\n    std::cout << valueOr(&count, -1) << ' ' << valueOr(nullptr, -1) << '\\n';\n    return 0;\n}\n",
+        "output": "0 1 2 2\n2 -1",
+        "explanation": "`incByValue` adds 1 to its own copy, so `count` stays 0. `incByRef` and `incByPtr(&count)` both reach the caller's memory, bringing it to 2. `incByPtr(nullptr)` returns early, so nothing changes and nothing crashes. `valueOr` takes `const int*` because it only reads: it returns `*p` when the pointer is set and the fallback when it is null."
+      },
+      "practice": {
+        "title": "Three ways to reset",
+        "prompt": "Compare resetting by value, by reference, and by pointer.\n\n1. Write `void resetValue(int n)`, `void resetRef(int& n)`, and `void resetPtr(int* p)`, each setting its target to 0. `resetPtr` does nothing when `p` is `nullptr`.\n2. Write `int readOr(const int* p, int fallback)` that returns `*p`, or `fallback` when `p` is null.\n3. Call `resetValue(lives)`, `resetRef(coins)`, `resetPtr(&gems)`, and `resetPtr(nullptr)`. After each call print the variable it targeted (`gems` for the last one) on one line, separated by spaces.\n4. On the next line print `readOr(&lives, -1)` and `readOr(nullptr, -1)`.\n\nExpected output:\n\n```text\n3 0 0 0\n3 -1\n```",
+        "starter": "#include <iostream>\n\nvoid resetValue(int n) {\n    // TODO: set n to 0\n}\n\nvoid resetRef(int& n) {\n    // TODO: set n to 0\n}\n\nvoid resetPtr(int* p) {\n    // TODO: set the pointed-to value to 0, unless p is nullptr\n}\n\nint readOr(const int* p, int fallback) {\n    // TODO: return *p, or fallback when p is nullptr\n    return 0;\n}\n\nint main() {\n    int lives = 3;\n    int coins = 7;\n    int gems = 4;\n    // TODO: call each function and print as described\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nvoid resetValue(int n) {\n    n = 0;\n}\n\nvoid resetRef(int& n) {\n    n = 0;\n}\n\nvoid resetPtr(int* p) {\n    if (p == nullptr) {\n        return;\n    }\n    *p = 0;\n}\n\nint readOr(const int* p, int fallback) {\n    if (p) {\n        return *p;\n    }\n    return fallback;\n}\n\nint main() {\n    int lives = 3;\n    int coins = 7;\n    int gems = 4;\n\n    resetValue(lives);\n    std::cout << lives << ' ';\n    resetRef(coins);\n    std::cout << coins << ' ';\n    resetPtr(&gems);\n    std::cout << gems << ' ';\n    resetPtr(nullptr);\n    std::cout << gems << '\\n';\n\n    std::cout << readOr(&lives, -1) << ' ' << readOr(nullptr, -1) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "3 0 0 0\n3 -1"
+          }
+        ],
+        "hints": [
+          "`resetValue` only changes its copy, so `lives` still prints 3.",
+          "Call the pointer version with an address: `resetPtr(&gems)`.",
+          "In `resetPtr`, return early when `p == nullptr`, then write `*p = 0`."
+        ]
+      }
+    },
+    {
+      "title": "Pointers, arrays, and C strings",
+      "body": "An array name *decays* to a pointer to its first element, so `int* p = data` works with no `&`. Pointer arithmetic moves by whole elements: `p + 1` is the next `int`, `sizeof(int)` (4) bytes further on, and on a `double*` it would be 8 bytes. `*(p + i)` is exactly `p[i]`. To walk an array, go from `data` to one past the end, `data + n`, which you may compare against but never dereference.\n\n```cpp\nfor (const int* p = data; p != data + 5; ++p) {\n    std::cout << *p << '\\n';\n}\n```\n\nA function parameter that looks like an array, such as `const int arr[]`, is really a pointer, so the size is lost (`sizeof` inside gives 8). Pass the count too: `int sum(const int* arr, int n)`.\n\nA string literal such as `\"memory\"` is a `const char` array with a hidden `'\\0'` at the end. That terminator is how code finds the end: walk until `*c == '\\0'`.\n\n`std::cout << c` on a `char*` prints text from `c` up to the next `'\\0'`, not one character. So print `*c` when walking, and never print a `char` array that lacks a `'\\0'`, because output would run past its end.",
+      "example": {
+        "title": "Walking data and a word",
+        "prompt": "Walk an int array with a pointer, sum it through a pointer parameter, and measure a C string by walking to its terminator.",
+        "code": "#include <iostream>\n\nint sum(const int* arr, int n) {\n    int total = 0;\n    for (int i = 0; i < n; ++i) {\n        total += arr[i];\n    }\n    return total;\n}\n\nint main() {\n    int data[5] = {2, 4, 6, 8, 10};\n    for (const int* p = data; p != data + 5; ++p) {\n        if (p != data) {\n            std::cout << ' ';\n        }\n        std::cout << *p;\n    }\n    std::cout << '\\n';\n\n    const int* first = data;\n    std::cout << *(first + 2) << ' ' << first[2] << '\\n';\n    std::cout << sum(data, 5) << '\\n';\n\n    const char* word = \"memory\";\n    int length = 0;\n    for (const char* c = word; *c != '\\0'; ++c) {\n        ++length;\n    }\n    std::cout << word << ' ' << (word + 3) << ' ' << length << '\\n';\n    return 0;\n}\n",
+        "output": "2 4 6 8 10\n6 6\n30\nmemory ory 6",
+        "explanation": "`data` decays to a pointer to `data[0]`, and `++p` steps one `int` at a time until it reaches `data + 5`. `*(first + 2)` and `first[2]` are the same element, 6. `sum` receives only a pointer, so the count 5 travels as its own argument. The `char` loop counts until it meets the hidden `'\\0'`, giving 6. Printing `word + 3` starts the text 3 characters in, so it prints `ory`."
+      },
+      "practice": {
+        "title": "Scores and vowels",
+        "prompt": "Walk an array and a C string with pointers.\n\n1. Walk `scores` with a pointer from `scores` to `scores + 4` and print the values on one line, separated by spaces.\n2. Print `*(scores + 1)` and `scores[1]` on the next line, separated by a space.\n3. Complete `int countAbove(const int* arr, int n, int limit)` so it counts values greater than `limit`, then print `countAbove(scores, 4, 80)`.\n4. Walk `word` with a `const char*` until `'\\0'` and count its vowels (`a`, `e`, `i`, `o`, `u`). Print `word`, a space, and the count.\n\nExpected output:\n\n```text\n70 95 82 61\n95 95\n2\npointer 3\n```",
+        "starter": "#include <iostream>\n\nint countAbove(const int* arr, int n, int limit) {\n    // TODO: count the values in arr[0] .. arr[n - 1] greater than limit\n    return 0;\n}\n\nint main() {\n    int scores[4] = {70, 95, 82, 61};\n    const char* word = \"pointer\";\n    // TODO: walk scores with a pointer and print each value\n    // TODO: print *(scores + 1) and scores[1]\n    // TODO: print countAbove(scores, 4, 80)\n    // TODO: count the vowels in word by walking to '\\0', then print word and the count\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint countAbove(const int* arr, int n, int limit) {\n    int count = 0;\n    for (const int* p = arr; p != arr + n; ++p) {\n        if (*p > limit) {\n            ++count;\n        }\n    }\n    return count;\n}\n\nint main() {\n    int scores[4] = {70, 95, 82, 61};\n    const char* word = \"pointer\";\n\n    for (const int* p = scores; p != scores + 4; ++p) {\n        if (p != scores) {\n            std::cout << ' ';\n        }\n        std::cout << *p;\n    }\n    std::cout << '\\n';\n\n    std::cout << *(scores + 1) << ' ' << scores[1] << '\\n';\n    std::cout << countAbove(scores, 4, 80) << '\\n';\n\n    int vowels = 0;\n    for (const char* c = word; *c != '\\0'; ++c) {\n        if (*c == 'a' || *c == 'e' || *c == 'i' || *c == 'o' || *c == 'u') {\n            ++vowels;\n        }\n    }\n    std::cout << word << ' ' << vowels << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "70 95 82 61\n95 95\n2\npointer 3"
+          }
+        ],
+        "hints": [
+          "The array walk is the same loop as the example: `for (const int* p = scores; p != scores + 4; ++p)`.",
+          "In `countAbove`, walk from `arr` to `arr + n` or index with `arr[i]`, both work.",
+          "In the vowel loop, compare `*c` with each vowel, not `c`, which is an address."
+        ]
+      }
+    }
+  ],
+  "recap": "- `&x` is the address of `x`, `int* p = &x` stores it, and `*p` reads or writes `x`.\n- Pointers can be re-pointed and compared with `==`. Never print a pointer's value.\n- Declare one pointer per line: `int* a, b` makes `b` a plain `int`.\n- `nullptr` points at nothing. Check `if (p)` before `*p`, because dereferencing null is undefined behavior.\n- A crash discards output still in the buffer.\n- Pass `&x` to an `int*` parameter when \"no object\" must be allowed, otherwise prefer a reference.\n- `const int*` cannot write through the pointer, `int* const` cannot be re-pointed.\n- An array decays to a pointer to its first element, `*(p + i)` equals `p[i]`, and array parameters need their size passed.\n- C strings end in `'\\0'`: walk to it and print `*c`, not `c`."
+}

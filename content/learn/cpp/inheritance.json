@@ -1,0 +1,154 @@
+{
+  "id": "inheritance",
+  "title": "Inheritance and Virtual Functions",
+  "section": "More Object-Oriented Programming",
+  "summary": "Build class hierarchies, override behavior with virtual functions, and store different types behind base class pointers.",
+  "intro": "Inheritance lets one class build on another, and virtual functions let code written for the base class run the right behavior for each derived class. You will derive classes, override methods, store mixed objects in one vector of `std::unique_ptr`, and see exactly when each constructor and destructor runs.",
+  "steps": [
+    {
+      "title": "Base and derived classes",
+      "body": "Inheritance builds a new class on top of an existing one. `class Dog : public Animal` makes Dog a kind of Animal: every Dog contains all of Animal's members, outside code can call Animal's public methods on it, and Dog can add its own.\n\n```cpp\nclass Dog : public Animal {\npublic:\n    Dog(const std::string& name, const std::string& toy)\n        : Animal(name), toy_(toy) {} // base constructor first\n    void fetch() const;              // new member\nprivate:\n    std::string toy_;\n};\n```\n\n- Write `public`. With `class`, leaving it out means private inheritance, and outside code can no longer call Animal's methods on a Dog.\n- `private` members of the base still exist inside every Dog, but Dog's own methods cannot touch them. Mark them `protected` when derived classes need them.\n- Call the base constructor in the initializer list, as `Animal(name)`. If you leave it out, the compiler calls Animal's default constructor, which Animal does not have, so it will not compile. The base part is always built first, then the derived members, then the derived constructor body runs.\n\nIn memory, a Dog is one object: with g++ the Animal part comes first, followed by `toy_`. This is also the `class MyError : public std::runtime_error` recipe from Exceptions: MyError inherits `what()` and passes the message to the base constructor.",
+      "example": {
+        "title": "A dog is an animal",
+        "prompt": "Derive Dog from Animal, then call an inherited method and a new one.",
+        "code": "#include <iostream>\n#include <string>\n\nclass Animal {\npublic:\n    explicit Animal(const std::string& name) : name_(name) {\n        std::cout << \"Animal \" << name_ << \" created\\n\";\n    }\n    void describe() const {\n        std::cout << name_ << \" is an animal\\n\";\n    }\n\nprotected:\n    std::string name_;\n};\n\nclass Dog : public Animal {\npublic:\n    Dog(const std::string& name, const std::string& toy) : Animal(name), toy_(toy) {\n        std::cout << \"Dog \" << name_ << \" created\\n\";\n    }\n    void fetch() const {\n        std::cout << name_ << \" fetches the \" << toy_ << '\\n';\n    }\n\nprivate:\n    std::string toy_;\n};\n\nint main() {\n    const Dog rex(\"Rex\", \"ball\");\n    rex.describe();\n    rex.fetch();\n    return 0;\n}\n",
+        "output": "Animal Rex created\nDog Rex created\nRex is an animal\nRex fetches the ball",
+        "explanation": "Building `rex` runs `Animal(name)` from the initializer list first, so `Animal Rex created` prints before the Dog constructor body. `describe()` is inherited: Dog never declares it, but a Dog can call it because it is public in Animal. `fetch()` is new in Dog and reads `name_` directly, which works because `name_` is protected. If it were private, only Animal's own methods could use it."
+      },
+      "practice": {
+        "title": "A bike is a vehicle",
+        "prompt": "Build a Bike on top of a Vehicle, then call an inherited method and a new one.\n\n1. Read a bike name and a bell count.\n2. Write `class Bike : public Vehicle` with a private `int bells_`.\n3. Its constructor calls `Vehicle(name, 2)` in the initializer list, stores the bell count, then prints `Bike <name> created`.\n4. Add a public `void ringBell() const`, which prints `<name> (<wheels> wheels):` followed by ` ring` once per bell, using the protected `name_` and `wheels_`.\n5. In `main`, create the Bike, then call `info()` and `ringBell()`.\n\nInput:\n\n```text\nComet 3\n```\n\nExpected output:\n\n```text\nVehicle Comet created\nBike Comet created\nComet has 2 wheels\nComet (2 wheels): ring ring ring\n```",
+        "starter": "#include <iostream>\n#include <string>\n\nclass Vehicle {\npublic:\n    Vehicle(const std::string& name, int wheels) : name_(name), wheels_(wheels) {\n        std::cout << \"Vehicle \" << name_ << \" created\\n\";\n    }\n    void info() const {\n        std::cout << name_ << \" has \" << wheels_ << \" wheels\\n\";\n    }\n\nprotected:\n    std::string name_;\n    int wheels_;\n};\n\n// TODO: write class Bike : public Vehicle with a bells_ member and ringBell()\n\nint main() {\n    std::string name = \"\";\n    int bells = 0;\n    std::cin >> name >> bells;\n    // TODO: create a Bike, then call info() and ringBell()\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n\nclass Vehicle {\npublic:\n    Vehicle(const std::string& name, int wheels) : name_(name), wheels_(wheels) {\n        std::cout << \"Vehicle \" << name_ << \" created\\n\";\n    }\n    void info() const {\n        std::cout << name_ << \" has \" << wheels_ << \" wheels\\n\";\n    }\n\nprotected:\n    std::string name_;\n    int wheels_;\n};\n\nclass Bike : public Vehicle {\npublic:\n    Bike(const std::string& name, int bells) : Vehicle(name, 2), bells_(bells) {\n        std::cout << \"Bike \" << name_ << \" created\\n\";\n    }\n    void ringBell() const {\n        std::cout << name_ << \" (\" << wheels_ << \" wheels):\";\n        for (int i = 0; i < bells_; ++i) {\n            std::cout << \" ring\";\n        }\n        std::cout << '\\n';\n    }\n\nprivate:\n    int bells_;\n};\n\nint main() {\n    std::string name = \"\";\n    int bells = 0;\n    std::cin >> name >> bells;\n    const Bike bike(name, bells);\n    bike.info();\n    bike.ringBell();\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "Comet 3\n",
+            "output": "Vehicle Comet created\nBike Comet created\nComet has 2 wheels\nComet (2 wheels): ring ring ring"
+          },
+          {
+            "stdin": "Zip 1\n",
+            "output": "Vehicle Zip created\nBike Zip created\nZip has 2 wheels\nZip (2 wheels): ring"
+          },
+          {
+            "stdin": "Bolt 0\n",
+            "output": "Vehicle Bolt created\nBike Bolt created\nBolt has 2 wheels\nBolt (2 wheels):"
+          }
+        ],
+        "hints": [
+          "Start the class with `class Bike : public Vehicle {` and put the constructor under `public:`.",
+          "The initializer list is `: Vehicle(name, 2), bells_(bells)`. The base must come first.",
+          "Print the prefix once, then loop `bells_` times printing `\" ring\"`, then print `'\\n'`."
+        ]
+      }
+    },
+    {
+      "title": "Virtual functions and override",
+      "body": "Mark a member function `virtual` in the base when derived classes should replace it. Each derived class then writes its own version and tags it `override`.\n\n```cpp\nclass Shape {\npublic:\n    virtual ~Shape() = default;\n    virtual double area() const { return 0.0; }\n};\nclass Square : public Shape {\npublic:\n    double area() const override { return side_ * side_; }\nprivate:\n    double side_ = 1.0;\n};\n```\n\nNow a call through a `const Shape&` or a `Shape*` picks the version of the real object at run time. This is *dynamic dispatch*. With g++, each object carries a hidden 8 byte pointer to its class's table of virtual functions, and the call goes through that table.\n\n- Without `virtual`, the call is chosen by the declared type, so the base version runs even for a Square.\n- Always write `override`. If the signature does not match, for example a missing `const`, the compiler reports an error instead of silently adding a new function.\n- Copying a Square into a plain `Shape` by value *slices* it: Shape's copy constructor copies only the Shape part, and calls run the base version. Pass by reference or pointer.\n- Give every class with virtual functions `virtual ~Shape() = default;`. `= default` asks for the destructor the compiler would generate, now virtual. Step 4 shows why.",
+      "example": {
+        "title": "Reporting shapes",
+        "prompt": "Override virtual functions in Circle and Square and print each shape through a base class reference.",
+        "code": "#include <iomanip>\n#include <iostream>\n#include <string>\n\nconst double PI = 3.14159265358979;\n\nclass Shape {\npublic:\n    virtual ~Shape() = default;\n    virtual double area() const { return 0.0; }\n    virtual std::string name() const { return \"shape\"; }\n};\n\nclass Circle : public Shape {\npublic:\n    explicit Circle(double radius) : radius_(radius) {}\n    double area() const override { return PI * radius_ * radius_; }\n    std::string name() const override { return \"circle\"; }\n\nprivate:\n    double radius_;\n};\n\nclass Square : public Shape {\npublic:\n    explicit Square(double side) : side_(side) {}\n    double area() const override { return side_ * side_; }\n    std::string name() const override { return \"square\"; }\n\nprivate:\n    double side_;\n};\n\nvoid report(const Shape& s) {\n    std::cout << s.name() << ' ' << s.area() << '\\n';\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    const Circle circle(2.0);\n    const Square square(3.0);\n    report(circle);\n    report(square);\n    const Shape* p = &square;\n    std::cout << \"pointer: \" << p->name() << '\\n';\n    const Shape copy = circle; // slices: only the Shape part is copied\n    report(copy);\n    return 0;\n}\n",
+        "output": "circle 12.57\nsquare 9.00\npointer: square\nshape 0.00",
+        "explanation": "`report` only knows it has a `const Shape&`, yet each call runs the right `name()` and `area()` because both are virtual and the derived classes override them. The `Shape*` pointing at the square dispatches the same way. `copy` is a real Shape object built from only the Shape part of the circle, so the radius is gone and the base versions print `shape 0.00`. That is slicing, and it is why polymorphic objects are passed by reference or pointer."
+      },
+      "practice": {
+        "title": "Payroll",
+        "prompt": "Compute pay for two kinds of employees through one base class reference.\n\n1. Read an hourly employee as `name hours rate`, then a salaried employee as `name salary`.\n2. In `Hourly`, override `pay()` to return hours times rate and `role()` to return `hourly`.\n3. In `Salaried`, override `pay()` to return the salary and `role()` to return `salaried`.\n4. Create both employees and call the given `printPay` on the hourly one, then the salaried one. It prints the name, the role, and the pay with 2 decimals, separated by spaces.\n5. Point a `const Employee*` at the salaried employee and print `pointer: ` followed by its `role()`.\n\nInput:\n\n```text\nAna 40 15.50\nBen 3000\n```\n\nExpected output:\n\n```text\nAna hourly 620.00\nBen salaried 3000.00\npointer: salaried\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n#include <string>\n\nclass Employee {\npublic:\n    explicit Employee(const std::string& name) : name_(name) {}\n    virtual ~Employee() = default;\n    virtual double pay() const { return 0.0; }\n    virtual std::string role() const { return \"employee\"; }\n    std::string name() const { return name_; }\n\nprivate:\n    std::string name_;\n};\n\nclass Hourly : public Employee {\npublic:\n    Hourly(const std::string& name, double hours, double rate)\n        : Employee(name), hours_(hours), rate_(rate) {}\n    // TODO: override pay() and role()\n\nprivate:\n    double hours_;\n    double rate_;\n};\n\nclass Salaried : public Employee {\npublic:\n    Salaried(const std::string& name, double salary) : Employee(name), salary_(salary) {}\n    // TODO: override pay() and role()\n\nprivate:\n    double salary_;\n};\n\nvoid printPay(const Employee& e) {\n    std::cout << e.name() << ' ' << e.role() << ' ' << e.pay() << '\\n';\n}\n\nint main() {\n    std::string hourlyName = \"\";\n    double hours = 0.0;\n    double rate = 0.0;\n    std::string salariedName = \"\";\n    double salary = 0.0;\n    std::cin >> hourlyName >> hours >> rate >> salariedName >> salary;\n    std::cout << std::fixed << std::setprecision(2);\n    // TODO: create both employees, call printPay on each, then print through a pointer\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n#include <string>\n\nclass Employee {\npublic:\n    explicit Employee(const std::string& name) : name_(name) {}\n    virtual ~Employee() = default;\n    virtual double pay() const { return 0.0; }\n    virtual std::string role() const { return \"employee\"; }\n    std::string name() const { return name_; }\n\nprivate:\n    std::string name_;\n};\n\nclass Hourly : public Employee {\npublic:\n    Hourly(const std::string& name, double hours, double rate)\n        : Employee(name), hours_(hours), rate_(rate) {}\n    double pay() const override { return hours_ * rate_; }\n    std::string role() const override { return \"hourly\"; }\n\nprivate:\n    double hours_;\n    double rate_;\n};\n\nclass Salaried : public Employee {\npublic:\n    Salaried(const std::string& name, double salary) : Employee(name), salary_(salary) {}\n    double pay() const override { return salary_; }\n    std::string role() const override { return \"salaried\"; }\n\nprivate:\n    double salary_;\n};\n\nvoid printPay(const Employee& e) {\n    std::cout << e.name() << ' ' << e.role() << ' ' << e.pay() << '\\n';\n}\n\nint main() {\n    std::string hourlyName = \"\";\n    double hours = 0.0;\n    double rate = 0.0;\n    std::string salariedName = \"\";\n    double salary = 0.0;\n    std::cin >> hourlyName >> hours >> rate >> salariedName >> salary;\n    std::cout << std::fixed << std::setprecision(2);\n    const Hourly hourly(hourlyName, hours, rate);\n    const Salaried salaried(salariedName, salary);\n    printPay(hourly);\n    printPay(salaried);\n    const Employee* p = &salaried;\n    std::cout << \"pointer: \" << p->role() << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "Ana 40 15.50\nBen 3000\n",
+            "output": "Ana hourly 620.00\nBen salaried 3000.00\npointer: salaried"
+          },
+          {
+            "stdin": "Cy 12.5 18.2\nDee 2750.75\n",
+            "output": "Cy hourly 227.50\nDee salaried 2750.75\npointer: salaried"
+          },
+          {
+            "stdin": "Eve 0 20\nFin 1500\n",
+            "output": "Eve hourly 0.00\nFin salaried 1500.00\npointer: salaried"
+          }
+        ],
+        "hints": [
+          "Copy the base signature exactly and add `override`: `double pay() const override { ... }`.",
+          "If a line prints `employee 0.00`, your override is missing or its signature does not match.",
+          "Point the `const Employee*` at the salaried object with `&`, then call `role()` through `->`, just like `p` in the example."
+        ]
+      }
+    },
+    {
+      "title": "Abstract classes and polymorphic containers",
+      "body": "Often the base class has no sensible default. Write `= 0` to make a function *pure virtual*:\n\n```cpp\nvirtual double area() const = 0;\n```\n\nA class with at least one pure virtual function is *abstract*. `Shape s;` does not compile, because a Shape alone has no area. A derived class becomes concrete once it overrides every pure virtual function.\n\nTo hold different shapes in one container, store pointers, since a `std::vector<Shape>` would slice (and cannot even hold an abstract type). Use `std::unique_ptr` so the vector owns each object:\n\n```cpp\nstd::vector<std::unique_ptr<Shape>> shapes;\nshapes.push_back(std::make_unique<Circle>(1.0));\n```\n\n`std::make_unique<Circle>` returns a `std::unique_ptr<Circle>`, which converts automatically to `std::unique_ptr<Shape>`. Each object lives on the heap and the vector holds 8 byte pointers to them. Loop with `for (const auto& s : shapes)` and call through `s->`. A `const auto&` matters here: copying a unique_ptr does not compile.\n\n`push_back` moves the temporary unique_ptr into the vector, so only a pointer changes hands. That is also why the declared virtual destructor, which turns off the implicit moves from the copy and move lesson, costs nothing here: the objects themselves stay put on the heap.",
+      "example": {
+        "title": "Total area",
+        "prompt": "Store circles and rectangles behind an abstract Shape and print each area and the total.",
+        "code": "#include <iomanip>\n#include <iostream>\n#include <memory>\n#include <string>\n#include <vector>\n\nconst double PI = 3.14159265358979;\n\nclass Shape {\npublic:\n    virtual ~Shape() = default;\n    virtual double area() const = 0;\n    virtual std::string name() const = 0;\n};\n\nclass Circle : public Shape {\npublic:\n    explicit Circle(double radius) : radius_(radius) {}\n    double area() const override { return PI * radius_ * radius_; }\n    std::string name() const override { return \"circle\"; }\n\nprivate:\n    double radius_;\n};\n\nclass Rectangle : public Shape {\npublic:\n    Rectangle(double width, double height) : width_(width), height_(height) {}\n    double area() const override { return width_ * height_; }\n    std::string name() const override { return \"rectangle\"; }\n\nprivate:\n    double width_;\n    double height_;\n};\n\nint main() {\n    std::vector<std::unique_ptr<Shape>> shapes;\n    shapes.push_back(std::make_unique<Circle>(1.0));\n    shapes.push_back(std::make_unique<Rectangle>(2.0, 3.5));\n    shapes.push_back(std::make_unique<Circle>(0.5));\n    std::cout << std::fixed << std::setprecision(2);\n    double total = 0.0;\n    for (const auto& s : shapes) {\n        std::cout << s->name() << ' ' << s->area() << '\\n';\n        total += s->area();\n    }\n    std::cout << \"total \" << total << '\\n';\n    return 0;\n}\n",
+        "output": "circle 3.14\nrectangle 7.00\ncircle 0.79\ntotal 10.93",
+        "explanation": "Shape is abstract, so the program can only create Circles and Rectangles. Each `std::make_unique` result converts to `std::unique_ptr<Shape>` as it is pushed. The loop sees only Shape pointers, and `s->area()` dispatches to the real class of each object. When `main` returns, the vector is destroyed, each unique_ptr deletes its shape, and the virtual destructor makes sure the derived part is cleaned up too."
+      },
+      "practice": {
+        "title": "Monthly fees",
+        "prompt": "Store different account types in one vector and add up their monthly fees.\n\n1. In `Basic`, override `monthlyFee()` to return 2.00 plus 0.50 per transaction and `kind()` to return `basic`.\n2. In `Premium`, override `monthlyFee()` to return 12.00 and `kind()` to return `premium`.\n3. Read `n`, then `n` lines of `type owner transactions`, and push a `Basic` or `Premium` into `accounts` with `std::make_unique`.\n4. For each account print the owner, the kind, and the fee, separated by spaces.\n5. Print `total ` followed by the sum of all fees. Every number has 2 decimals.\n\nInput:\n\n```text\n3\nbasic Ana 6\npremium Ben 40\nbasic Cy 0\n```\n\nExpected output:\n\n```text\nAna basic 5.00\nBen premium 12.00\nCy basic 2.00\ntotal 19.00\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n#include <memory>\n#include <string>\n#include <vector>\n\nclass Account {\npublic:\n    Account(const std::string& owner, int transactions)\n        : owner_(owner), transactions_(transactions) {}\n    virtual ~Account() = default;\n    virtual double monthlyFee() const = 0;\n    virtual std::string kind() const = 0;\n    std::string owner() const { return owner_; }\n\nprotected:\n    std::string owner_;\n    int transactions_;\n};\n\nclass Basic : public Account {\npublic:\n    Basic(const std::string& owner, int transactions) : Account(owner, transactions) {}\n    // TODO: override monthlyFee() and kind()\n};\n\nclass Premium : public Account {\npublic:\n    Premium(const std::string& owner, int transactions) : Account(owner, transactions) {}\n    // TODO: override monthlyFee() and kind()\n};\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<std::unique_ptr<Account>> accounts;\n    for (int i = 0; i < n; ++i) {\n        std::string type = \"\";\n        std::string owner = \"\";\n        int transactions = 0;\n        std::cin >> type >> owner >> transactions;\n        // TODO: push a Basic or a Premium into accounts\n    }\n    std::cout << std::fixed << std::setprecision(2);\n    // TODO: print each account and the total\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n#include <memory>\n#include <string>\n#include <vector>\n\nclass Account {\npublic:\n    Account(const std::string& owner, int transactions)\n        : owner_(owner), transactions_(transactions) {}\n    virtual ~Account() = default;\n    virtual double monthlyFee() const = 0;\n    virtual std::string kind() const = 0;\n    std::string owner() const { return owner_; }\n\nprotected:\n    std::string owner_;\n    int transactions_;\n};\n\nclass Basic : public Account {\npublic:\n    Basic(const std::string& owner, int transactions) : Account(owner, transactions) {}\n    double monthlyFee() const override { return 2.0 + 0.5 * transactions_; }\n    std::string kind() const override { return \"basic\"; }\n};\n\nclass Premium : public Account {\npublic:\n    Premium(const std::string& owner, int transactions) : Account(owner, transactions) {}\n    double monthlyFee() const override { return 12.0; }\n    std::string kind() const override { return \"premium\"; }\n};\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<std::unique_ptr<Account>> accounts;\n    for (int i = 0; i < n; ++i) {\n        std::string type = \"\";\n        std::string owner = \"\";\n        int transactions = 0;\n        std::cin >> type >> owner >> transactions;\n        if (type == \"basic\") {\n            accounts.push_back(std::make_unique<Basic>(owner, transactions));\n        } else {\n            accounts.push_back(std::make_unique<Premium>(owner, transactions));\n        }\n    }\n    std::cout << std::fixed << std::setprecision(2);\n    double total = 0.0;\n    for (const auto& a : accounts) {\n        std::cout << a->owner() << ' ' << a->kind() << ' ' << a->monthlyFee() << '\\n';\n        total += a->monthlyFee();\n    }\n    std::cout << \"total \" << total << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "3\nbasic Ana 6\npremium Ben 40\nbasic Cy 0\n",
+            "output": "Ana basic 5.00\nBen premium 12.00\nCy basic 2.00\ntotal 19.00"
+          },
+          {
+            "stdin": "1\npremium Dee 3\n",
+            "output": "Dee premium 12.00\ntotal 12.00"
+          },
+          {
+            "stdin": "0\n",
+            "output": "total 0.00"
+          }
+        ],
+        "hints": [
+          "Copy each signature from Account, drop the `= 0`, and add `override`.",
+          "`transactions_` is protected, so `Basic::monthlyFee()` can read it directly. Choose the class to create with `if (type == \"basic\")`.",
+          "Fill the vector with `std::make_unique<Basic>(...)` or `std::make_unique<Premium>(...)`, then loop with `for (const auto& a : accounts)` as in the example. With zero accounts only the total line prints."
+        ]
+      }
+    },
+    {
+      "title": "Virtual destructors and destruction order",
+      "body": "Destruction runs in the reverse order of construction: the derived destructor body runs first, then the base destructor. That only works if the right destructor is found.\n\n```cpp\nstd::unique_ptr<Base> p = std::make_unique<Derived>(1);\n// p is destroyed: ~Derived runs, then ~Base\n```\n\nA unique_ptr deletes through the type it holds, here `Base*`. With `virtual ~Base()`, that delete dispatches like any virtual call and runs `~Derived` first. Without `virtual`, it is undefined behavior and in practice skips `~Derived`, so whatever the derived part owns leaks. That is why every class with virtual functions gets a virtual destructor, even an empty `= default` one. A destructor that prints, as below, is written out instead and still marked `virtual`. Derived destructors are virtual automatically, and you mark them `override`. One more gotcha: inside a constructor or destructor, a virtual call runs the version of the class being built or destroyed, never a more derived one.\n\nWhen a `std::vector` is destroyed, libstdc++ destroys its elements front to back, but the standard leaves that order unspecified. When the order matters, empty the vector yourself:\n\n```cpp\nwhile (!items.empty()) {\n    items.pop_back(); // destroys the last element now\n}\n```\n\nEach `pop_back` destroys the back element, so objects die last in, first out.",
+      "example": {
+        "title": "Watching objects die",
+        "prompt": "Store two Derived objects as base class pointers and print every constructor and destructor call.",
+        "code": "#include <iostream>\n#include <memory>\n#include <vector>\n\nclass Base {\npublic:\n    explicit Base(int id) : id_(id) {\n        std::cout << \"Base \" << id_ << '\\n';\n    }\n    virtual ~Base() {\n        std::cout << \"~Base \" << id_ << '\\n';\n    }\n\nprotected:\n    int id_;\n};\n\nclass Derived : public Base {\npublic:\n    explicit Derived(int id) : Base(id) {\n        std::cout << \"Derived \" << id_ << '\\n';\n    }\n    ~Derived() override {\n        std::cout << \"~Derived \" << id_ << '\\n';\n    }\n};\n\nint main() {\n    std::vector<std::unique_ptr<Base>> items;\n    items.push_back(std::make_unique<Derived>(1));\n    items.push_back(std::make_unique<Derived>(2));\n    while (!items.empty()) {\n        items.pop_back();\n    }\n    std::cout << \"done\\n\";\n    return 0;\n}\n",
+        "output": "Base 1\nDerived 1\nBase 2\nDerived 2\n~Derived 2\n~Base 2\n~Derived 1\n~Base 1\ndone",
+        "explanation": "Each `std::make_unique<Derived>` builds the Base part first, then the Derived part. The loop pops the back element, so Derived 2 dies before Derived 1. Each pop destroys a `std::unique_ptr<Base>`, which deletes through a `Base*`. Because `~Base` is virtual, `~Derived` runs first and `~Base` follows. The vector is empty before `done`, so nothing is left for its destructor and the order is fully under your control."
+      },
+      "practice": {
+        "title": "Buttons on a panel",
+        "prompt": "Create a row of buttons and show the full construction and destruction order.\n\n1. Read `n`, the number of buttons.\n2. Write `class Button : public Widget`. Its constructor calls `Widget(id)` and prints `Button <id>`. Its destructor prints `~Button <id>` and is marked `override`.\n3. Push buttons with ids 1 to `n` into `widgets` as `std::unique_ptr<Widget>`.\n4. Empty `widgets` with a `pop_back` loop, then print `done`.\n\nInput:\n\n```text\n3\n```\n\nExpected output:\n\n```text\nWidget 1\nButton 1\nWidget 2\nButton 2\nWidget 3\nButton 3\n~Button 3\n~Widget 3\n~Button 2\n~Widget 2\n~Button 1\n~Widget 1\ndone\n```",
+        "starter": "#include <iostream>\n#include <memory>\n#include <vector>\n\nclass Widget {\npublic:\n    explicit Widget(int id) : id_(id) {\n        std::cout << \"Widget \" << id_ << '\\n';\n    }\n    virtual ~Widget() {\n        std::cout << \"~Widget \" << id_ << '\\n';\n    }\n\nprotected:\n    int id_;\n};\n\n// TODO: write class Button : public Widget with a printing constructor and destructor\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<std::unique_ptr<Widget>> widgets;\n    // TODO: push buttons 1 to n, then empty widgets with a pop_back loop\n    std::cout << \"done\\n\";\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <memory>\n#include <vector>\n\nclass Widget {\npublic:\n    explicit Widget(int id) : id_(id) {\n        std::cout << \"Widget \" << id_ << '\\n';\n    }\n    virtual ~Widget() {\n        std::cout << \"~Widget \" << id_ << '\\n';\n    }\n\nprotected:\n    int id_;\n};\n\nclass Button : public Widget {\npublic:\n    explicit Button(int id) : Widget(id) {\n        std::cout << \"Button \" << id_ << '\\n';\n    }\n    ~Button() override {\n        std::cout << \"~Button \" << id_ << '\\n';\n    }\n};\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<std::unique_ptr<Widget>> widgets;\n    for (int id = 1; id <= n; ++id) {\n        widgets.push_back(std::make_unique<Button>(id));\n    }\n    while (!widgets.empty()) {\n        widgets.pop_back();\n    }\n    std::cout << \"done\\n\";\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "3\n",
+            "output": "Widget 1\nButton 1\nWidget 2\nButton 2\nWidget 3\nButton 3\n~Button 3\n~Widget 3\n~Button 2\n~Widget 2\n~Button 1\n~Widget 1\ndone"
+          },
+          {
+            "stdin": "1\n",
+            "output": "Widget 1\nButton 1\n~Button 1\n~Widget 1\ndone"
+          },
+          {
+            "stdin": "0\n",
+            "output": "done"
+          }
+        ],
+        "hints": [
+          "The constructor is `explicit Button(int id) : Widget(id) { ... }`, and `id_` is protected, so Button can print it.",
+          "Write the destructor as `~Button() override { ... }`. It runs before `~Widget` automatically.",
+          "Push with `std::make_unique<Button>(id)` in a loop from 1 to `n`, then reuse the example's `while (!...empty())` loop."
+        ]
+      }
+    }
+  ],
+  "recap": "- `class Derived : public Base` makes Derived a kind of Base. Base's public members stay public, and `protected` members are the ones Derived can use but outside code cannot.\n- Call the base constructor in the initializer list. The base is built first and destroyed last.\n- `virtual` plus `override` lets a call through `Base&` or `Base*` run the derived version. Without `virtual`, the base version runs.\n- Copying a derived object into a `Base` by value slices it, so pass by reference or pointer.\n- `= 0` makes a function pure virtual and the class abstract, so it cannot be created on its own.\n- `std::vector<std::unique_ptr<Base>>` holds mixed objects, filled with `std::make_unique<Derived>(...)`.\n- Every class with virtual functions needs a virtual destructor so deleting through a base pointer runs `~Derived` then `~Base`.\n- A `pop_back` loop destroys elements last in, first out. The vector's own destruction order is unspecified."
+}

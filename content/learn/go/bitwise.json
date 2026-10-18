@@ -1,0 +1,157 @@
+{
+  "id": "bitwise",
+  "title": "Bitwise Operations",
+  "section": "Bits and Errors",
+  "summary": "Work with binary directly: AND, OR, XOR, AND NOT, shifts, single-bit tricks, and flags built with iota.",
+  "intro": "Every integer is a row of bits, and Go lets you work on them directly. Bit operations pack many yes or no values into one number, power flags and permissions, and solve some classic puzzles in a single pass. Go spells two of them its own way: `^x` is NOT and `&^` is AND NOT.",
+  "steps": [
+    {
+      "title": "AND, OR, XOR, AND NOT",
+      "body": "Bitwise operators work on the single bits of an integer. Use `uint8` (the same type as `byte`) when you want exactly 8 bits, and print it with `%08b`: binary, padded with zeros to 8 digits, so every bit shows.\n\n```go\nvar a, b uint8 = 12, 10   // 00001100 and 00001010\nfmt.Printf(\"%08b\\n\", a&b) // 00001000\n```\n\nEach operator compares the two values bit by bit:\n\n- `a & b` (AND) keeps the bits set in both.\n- `a | b` (OR) keeps the bits set in either.\n- `a ^ b` (XOR) keeps the bits set in exactly one.\n- `a &^ b` (AND NOT) keeps the bits of `a` that are not set in `b`. It clears the bits of `b` out of `a`.\n\n`&^` is one operator, special to Go. Write binary literals with `0b`, so `0b1010` is 10. Use unsigned types for bit masks: a negative `int` prints with `%b` as a minus sign followed by the bits of its absolute value (`-101` for -5), not as the raw bits in memory.",
+      "example": {
+        "title": "Comparing 12 and 10",
+        "prompt": "Read two bytes and print each bitwise combination in binary and decimal.",
+        "stdin": "12 10\n",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar a, b uint8\n\tfmt.Scan(&a, &b)\n\tfmt.Printf(\"and: %08b %d\\n\", a&b, a&b)\n\tfmt.Printf(\"or: %08b %d\\n\", a|b, a|b)\n\tfmt.Printf(\"xor: %08b %d\\n\", a^b, a^b)\n\tfmt.Printf(\"and not: %08b %d\\n\", a&^b, a&^b)\n\tfmt.Println(0b1010)\n}\n",
+        "output": "and: 00001000 8\nor: 00001110 14\nxor: 00000110 6\nand not: 00000100 4\n10",
+        "explanation": "`fmt.Scan` reads 12 and 10 straight into the `uint8` variables. Lined up, 12 is `00001100` and 10 is `00001010`. Only bit 3 is on in both, so AND gives 8. OR collects bits 1, 2, and 3 for 14. XOR drops bit 3, which both share, and keeps 6. AND NOT starts from `a` and removes every bit that `b` has, leaving bit 2, which is 4. The last line shows that the literal `0b1010` is just the number 10."
+      },
+      "practice": {
+        "title": "Permission masks",
+        "prompt": "Compare two permission masks bit by bit.\n\n1. Read two numbers into `uint8` variables `a` and `b` with `fmt.Scan`.\n2. Print `both:`, then `a & b` with `%08b`, then its decimal value.\n3. Print `either:` the same way for `a | b`.\n4. Print `first only:` for `a &^ b`.\n5. Print `second only:` for `b &^ a`.\n\nInput:\n\n```text\n240 170\n```\n\nExpected output:\n\n```text\nboth: 10100000 160\neither: 11111010 250\nfirst only: 01010000 80\nsecond only: 00001010 10\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar a, b uint8\n\tfmt.Scan(&a, &b)\n\t// TODO: print a&b, a|b, a&^b, and b&^a with %08b and their decimal values\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar a, b uint8\n\tfmt.Scan(&a, &b)\n\tfmt.Printf(\"both: %08b %d\\n\", a&b, a&b)\n\tfmt.Printf(\"either: %08b %d\\n\", a|b, a|b)\n\tfmt.Printf(\"first only: %08b %d\\n\", a&^b, a&^b)\n\tfmt.Printf(\"second only: %08b %d\\n\", b&^a, b&^a)\n}\n",
+        "tests": [
+          {
+            "stdin": "240 170\n",
+            "output": "both: 10100000 160\neither: 11111010 250\nfirst only: 01010000 80\nsecond only: 00001010 10"
+          },
+          {
+            "stdin": "5 3\n",
+            "output": "both: 00000001 1\neither: 00000111 7\nfirst only: 00000100 4\nsecond only: 00000010 2"
+          },
+          {
+            "stdin": "0 255\n",
+            "output": "both: 00000000 0\neither: 11111111 255\nfirst only: 00000000 0\nsecond only: 11111111 255"
+          }
+        ],
+        "hints": [
+          "Pass the same expression twice: `fmt.Printf(\"both: %08b %d\\n\", a&b, a&b)`.",
+          "`a &^ b` and `b &^ a` are different: each keeps the bits of its left side that the right side lacks."
+        ]
+      }
+    },
+    {
+      "title": "Shifts and single bits",
+      "body": "Shifts slide every bit left or right. `x << n` multiplies by 2 to the n, and `x >> n` divides by 2 to the n, rounding down, for non-negative `x`. Bits pushed past either end are lost, so in a `uint8`, `200 << 1` is 144, not 400. Gotcha: shifting a negative `int` right keeps the sign, so `-7 >> 1` is -4, not -3.\n\n`1 << i` is a mask with only bit i on (bits count from 0 at the right). Combine it with the operators you know to work on one bit:\n\n```go\non := x>>i&1 == 1 // check bit i\nx |= 1 << i       // set bit i\nx &^= 1 << i      // clear bit i\nx ^= 1 << i       // toggle bit i\n```\n\nIn Go, `<<`, `>>`, and `&` bind tighter than `==`, so `x>>i&1 == 1` needs no parentheses. Unary `^x` flips every bit (NOT). Go has no `~` operator. If `x` is a `uint8` holding 5, `^x` is 250. If `x` is an `int` holding 5, `^x` is -6, because the flipped top bit is the sign bit.",
+      "example": {
+        "title": "Flipping single bits",
+        "prompt": "Shift a byte, then set, check, toggle, clear, and flip its bits.",
+        "stdin": "5 3\n",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar x, i uint8\n\tfmt.Scan(&x, &i)\n\tfmt.Println(x<<2, x>>1)\n\tx |= 1 << i\n\tfmt.Printf(\"%08b\\n\", x)\n\tfmt.Println(x>>0&1 == 1)\n\tx ^= 1 << 1\n\tfmt.Printf(\"%08b\\n\", x)\n\tx &^= 1 << i\n\tfmt.Printf(\"%08b\\n\", x)\n\tfmt.Printf(\"%08b\\n\", ^x)\n}\n",
+        "output": "20 2\n00001101\ntrue\n00001111\n00000111\n11111000",
+        "explanation": "With x = 5 (`00000101`), `x<<2` is 5 times 4 and `x>>1` is 5 divided by 2, truncated. Setting bit 3 ORs in `00001000`. Bit 0 is on, so the check prints `true`. Toggling bit 1 turns it on because it was off. Clearing bit 3 with `&^=` removes it again. `^x` returns a new value with all 8 bits flipped and leaves `x` itself unchanged. The untyped constant `1` in `1 << i` takes the type of `x`, so every mask here is a `uint8` too."
+      },
+      "practice": {
+        "title": "Light switches",
+        "prompt": "Control a row of 8 lights stored in one byte.\n\n1. Read the light pattern and a light number into `uint8` variables with `fmt.Scan`.\n2. Print the pattern shifted left by 1 and shifted right by 2, as decimals on one line separated by a space.\n3. Turn the chosen light on and print the pattern with `%08b`.\n4. Print whether light 7 is on (`true` or `false`).\n5. Toggle light 0 and print the pattern.\n6. Turn the chosen light off and print the pattern.\n7. Print every light flipped with `^`, as `%08b`.\n\nInput:\n\n```text\n6 4\n```\n\nExpected output:\n\n```text\n12 1\n00010110\nfalse\n00010111\n00000111\n11111000\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar lights, n uint8\n\tfmt.Scan(&lights, &n)\n\t// TODO: print the shifts, set light n, check light 7, toggle light 0, clear light n, then flip all\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar lights, n uint8\n\tfmt.Scan(&lights, &n)\n\tfmt.Println(lights<<1, lights>>2)\n\tlights |= 1 << n\n\tfmt.Printf(\"%08b\\n\", lights)\n\tfmt.Println(lights>>7&1 == 1)\n\tlights ^= 1 << 0\n\tfmt.Printf(\"%08b\\n\", lights)\n\tlights &^= 1 << n\n\tfmt.Printf(\"%08b\\n\", lights)\n\tfmt.Printf(\"%08b\\n\", ^lights)\n}\n",
+        "tests": [
+          {
+            "stdin": "6 4\n",
+            "output": "12 1\n00010110\nfalse\n00010111\n00000111\n11111000"
+          },
+          {
+            "stdin": "200 3\n",
+            "output": "144 50\n11001000\ntrue\n11001001\n11000001\n00111110"
+          },
+          {
+            "stdin": "0 7\n",
+            "output": "0 0\n10000000\ntrue\n10000001\n00000001\n11111110"
+          }
+        ],
+        "hints": [
+          "The shifts work like in the example. In a `uint8`, bits pushed past the left end are lost.",
+          "Build a mask with only light n on as `1 << n`, then combine it with `|=`, `^=`, or `&^=`.",
+          "To check light 7, shift it down to bit 0 and keep only that bit with `& 1`, then compare with 1."
+        ]
+      }
+    },
+    {
+      "title": "Flags with iota",
+      "body": "A set of yes or no options fits in one number: give each option its own bit. `1 << iota` in a `const` block makes the powers of two for you, because each line repeats the expression with the next `iota`.\n\n```go\nconst (\n\tRead  = 1 << iota // 1 (001)\n\tWrite             // 2 (010)\n\tExec              // 4 (100)\n)\n```\n\nThen the bit operators become flag operations:\n\n- `perm := Read | Write` combines flags.\n- `perm&Write != 0` tests a flag.\n- `perm |= Exec` adds a flag.\n- `perm &^= Write` removes a flag.\n\nUnlike C, Go gives `&` higher precedence than `!=`, so `perm&Write != 0` needs no parentheses. Removing with `&^=` is safe even when the flag is already off, while subtracting would break the mask. In memory, a `uint8` mask holds 8 flags in one byte, where 8 `bool` variables take 8 bytes. That is why file modes and option sets are passed around as masks.",
+      "example": {
+        "title": "File permissions",
+        "prompt": "Read a permission mask, report each flag, then add Write and remove Exec.",
+        "stdin": "5\n",
+        "code": "package main\n\nimport \"fmt\"\n\nconst (\n\tRead = 1 << iota\n\tWrite\n\tExec\n)\n\nfunc main() {\n\tvar perm uint8\n\tfmt.Scan(&perm)\n\tfmt.Println(\"Read:\", perm&Read != 0)\n\tfmt.Println(\"Write:\", perm&Write != 0)\n\tfmt.Println(\"Exec:\", perm&Exec != 0)\n\tperm |= Write\n\tperm &^= Exec\n\tfmt.Printf(\"%03b\\n\", perm)\n}\n",
+        "output": "Read: true\nWrite: false\nExec: true\n011",
+        "explanation": "The constants are 1, 2, and 4, one bit each. The mask 5 is `101`, so Read and Exec are on and Write is off. `perm |= Write` adds bit 1 to make `111`, and `perm &^= Exec` clears bit 2, leaving `011`. `%03b` pads the binary to 3 digits, one per flag. The constants are untyped, so they work with the `uint8` mask without any conversion."
+      },
+      "practice": {
+        "title": "Pizza toppings",
+        "prompt": "Edit a pizza order stored as a topping mask.\n\n1. Declare `Cheese`, `Ham`, `Olives`, and `Peppers`, in that order, with `1 << iota`.\n2. Read the mask into a `uint8` variable with `fmt.Scan`.\n3. Print the name of each topping that is on, one per line, in declaration order.\n4. Add Olives with `|=` and remove Ham with `&^=`.\n5. Print the final mask with `%04b`.\n\nInput:\n\n```text\n3\n```\n\nExpected output:\n\n```text\nCheese\nHam\n0101\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// TODO: declare Cheese, Ham, Olives, and Peppers with 1 << iota\n\nfunc main() {\n\tvar mask uint8\n\tfmt.Scan(&mask)\n\t// TODO: print each topping that is on, add Olives, remove Ham, then print the mask with %04b\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nconst (\n\tCheese = 1 << iota\n\tHam\n\tOlives\n\tPeppers\n)\n\nfunc main() {\n\tvar mask uint8\n\tfmt.Scan(&mask)\n\tif mask&Cheese != 0 {\n\t\tfmt.Println(\"Cheese\")\n\t}\n\tif mask&Ham != 0 {\n\t\tfmt.Println(\"Ham\")\n\t}\n\tif mask&Olives != 0 {\n\t\tfmt.Println(\"Olives\")\n\t}\n\tif mask&Peppers != 0 {\n\t\tfmt.Println(\"Peppers\")\n\t}\n\tmask |= Olives\n\tmask &^= Ham\n\tfmt.Printf(\"%04b\\n\", mask)\n}\n",
+        "tests": [
+          {
+            "stdin": "3\n",
+            "output": "Cheese\nHam\n0101"
+          },
+          {
+            "stdin": "12\n",
+            "output": "Olives\nPeppers\n1100"
+          },
+          {
+            "stdin": "0\n",
+            "output": "0100"
+          }
+        ],
+        "hints": [
+          "Only the first constant needs `= 1 << iota`. The lines after it repeat the expression.",
+          "Use one `if mask&Flag != 0` per topping, in order.",
+          "With mask 0 no topping prints, and only the final mask line appears."
+        ]
+      }
+    },
+    {
+      "title": "Bit tricks",
+      "body": "XOR has a handy property: `x ^ x` is 0 and `x ^ 0` is `x`. XOR every value of a list together, and any value that appears twice cancels itself out, in any order. What is left is the value without a pair.\n\nTwo more classic tricks use `n - 1`, which flips the lowest set bit and every zero below it:\n\n- `n & (n-1)` clears the lowest set bit (12 `1100` becomes 8 `1000`).\n- `n > 0 && n&(n-1) == 0` tests for a power of two, since those have exactly one bit set. The `n > 0` part rules out 0.\n\nThe `math/bits` package counts bits for you. Its functions take a `uint`, so convert first:\n\n```go\nimport \"math/bits\"\n\nbits.OnesCount(uint(12)) // 2 set bits\nbits.Len(uint(12))       // 4 bits needed to write 1100\n```\n\n`bits.Len(0)` is 0. Convert only non-negative values: `uint(-1)` wraps to the largest `uint`, with all 64 bits set. The compiler turns both functions into one or two CPU instructions on most machines, so they beat a loop over the bits.",
+      "example": {
+        "title": "The lonely number",
+        "prompt": "Find the one value without a pair, then report its bit count, bit length, and whether it is a power of two.",
+        "stdin": "7 3 5 3 7\n",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"math/bits\"\n)\n\nfunc main() {\n\tsingle := 0\n\tfor {\n\t\tvar n int\n\t\tif _, err := fmt.Scan(&n); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tsingle ^= n\n\t}\n\tisPow := single > 0 && single&(single-1) == 0\n\tfmt.Println(single, bits.OnesCount(uint(single)), bits.Len(uint(single)), isPow)\n}\n",
+        "output": "5 2 3 false",
+        "explanation": "The loop XORs each number into `single` until `fmt.Scan` returns an error at the end of input. The two 7s and the two 3s cancel, so 5 is left. 5 is `101`: two set bits, and 3 bits long. `5 & 4` is 4, not 0, so 5 is not a power of two. `uint(single)` converts the `int` because the `bits` functions take a `uint`."
+      },
+      "practice": {
+        "title": "Unpaired sock",
+        "prompt": "Find the unpaired number and describe its bits.\n\n1. Read numbers until the input ends, where every value appears twice except one.\n2. XOR them all together to find the unpaired value.\n3. Add `\"math/bits\"` to the imports.\n4. Print, on one line separated by spaces: the value, its set-bit count, its bit length, the value with its lowest set bit cleared (`n & (n-1)`), and whether it is a power of two (`true` or `false`).\n\nInput:\n\n```text\n4 1 2 1 2\n```\n\nExpected output:\n\n```text\n4 1 3 0 true\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tsingle := 0\n\tfor {\n\t\tvar n int\n\t\tif _, err := fmt.Scan(&n); err != nil {\n\t\t\tbreak\n\t\t}\n\t\t// TODO: XOR n into single\n\t}\n\t// TODO: also print the set-bit count, the bit length, and single&(single-1), and whether single is a power of two\n\tfmt.Println(single)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"math/bits\"\n)\n\nfunc main() {\n\tsingle := 0\n\tfor {\n\t\tvar n int\n\t\tif _, err := fmt.Scan(&n); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tsingle ^= n\n\t}\n\tisPow := single > 0 && single&(single-1) == 0\n\tfmt.Println(single, bits.OnesCount(uint(single)), bits.Len(uint(single)), single&(single-1), isPow)\n}\n",
+        "tests": [
+          {
+            "stdin": "4 1 2 1 2\n",
+            "output": "4 1 3 0 true"
+          },
+          {
+            "stdin": "9 9 12 7 7\n",
+            "output": "12 2 4 8 false"
+          },
+          {
+            "stdin": "3 0 3\n",
+            "output": "0 0 0 0 false"
+          }
+        ],
+        "hints": [
+          "Inside the loop, XOR each number into `single` with `^=`.",
+          "Convert before calling the `bits` functions: `bits.OnesCount(uint(single))`.",
+          "Test for a power of two like the example does. Without the `single > 0` check, 0 would wrongly count as a power of two."
+        ]
+      }
+    }
+  ],
+  "recap": "- Use `uint8` for 8-bit values and print them with `%08b` to see every bit.\n- `&` keeps bits set in both, `|` in either, `^` in exactly one, and `&^` keeps the left bits the right lacks.\n- `x << n` multiplies by 2 to the n and `x >> n` divides by it for non-negative `x`. Bits shifted off the end are lost.\n- Check bit i with `x>>i&1 == 1`, set it with `x |= 1 << i`, clear it with `x &^= 1 << i`, and toggle it with `x ^= 1 << i`.\n- Unary `^x` flips every bit. Go has no `~`.\n- `1 << iota` makes flag constants. Combine with `|`, test with `perm&Flag != 0`, remove with `&^=`.\n- `bits.OnesCount(uint(n))` counts set bits and `bits.Len(uint(n))` gives the bits needed.\n- `x ^ x` is 0, `n & (n-1)` clears the lowest set bit, and `n > 0 && n&(n-1) == 0` tests for a power of two."
+}

@@ -1,0 +1,91 @@
+{
+  "id": "strconv",
+  "title": "Converting with strconv",
+  "section": "Standard Library",
+  "summary": "Turn strings into numbers and back with strconv, check the error it returns, and convert between number bases.",
+  "intro": "Go never converts between text and numbers for you: `int(\"42\")` does not compile, and `string(42)` gives a character, not digits. The `strconv` package does these conversions. Its parse functions also introduce Go's most common pattern: a result plus an `error` that you check right away.",
+  "steps": [
+    {
+      "title": "Atoi and Itoa",
+      "body": "Text and numbers are different types, and Go will not mix them. `strconv` converts between them. `strconv.Itoa(n)` turns an int into its decimal text, and `strconv.Atoi(s)` goes the other way. Parsing can fail, so `Atoi` returns two values: the number and an `error`.\n\n```go\nn, err := strconv.Atoi(\"42\")\nif err != nil {\n\tfmt.Println(err)\n\treturn\n}\nfmt.Println(n + 1) // 43\n```\n\nCheck `err` right after the call, before you use `n`. It is `nil` on success. When it fails, do not trust `n` (it is 0 for bad syntax), and printing `err` shows a readable message such as `strconv.Atoi: parsing \"x9\": invalid syntax`.\n\nAtoi is strict. `\" 5\"` and `\"5.0\"` both fail, so clean input first with `strings.TrimSpace` when it may have spaces. A number too big for an int gives a `value out of range` error.\n\nGotcha: `string(rune(65))` is `\"A\"`, the character with code 65, not the text `\"65\"`. Use `strconv.Itoa(65)` for that.",
+      "example": {
+        "title": "Points from text",
+        "prompt": "Parse a list of scores, report the bad entry, and print the total as text.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n)\n\nfunc main() {\n\tinputs := []string{\"12\", \"7\", \"x9\", \"30\"}\n\tsum := 0\n\tfor _, s := range inputs {\n\t\tn, err := strconv.Atoi(s)\n\t\tif err != nil {\n\t\t\tfmt.Println(\"skip:\", err)\n\t\t\tcontinue\n\t\t}\n\t\tsum += n\n\t}\n\tfmt.Println(strconv.Itoa(sum) + \" points\")\n\tfmt.Println(string(rune(65)), strconv.Itoa(65))\n}\n",
+        "output": "skip: strconv.Atoi: parsing \"x9\": invalid syntax\n49 points\nA 65",
+        "explanation": "`Atoi` parses each string. For `\"x9\"` it returns a non-nil `err`, so the loop prints the message and moves on with `continue`. The valid numbers add up to 49. `strconv.Itoa(sum)` turns the int into a string so `+` can join it with `\" points\"`, since `sum + \" points\"` would not compile. The last line shows the gotcha: `string(rune(65))` is the letter A, while `strconv.Itoa(65)` is the text 65."
+      },
+      "practice": {
+        "title": "Average age",
+        "prompt": "Parse a list of ages and report the valid ones.\n\n1. Import `fmt` and `strconv` in one import block, remove the `_ = ages` line, and loop over `ages`.\n2. Convert each entry with `strconv.Atoi`. When `err != nil`, print `error:` followed by `err` and skip the entry.\n3. Count the valid ages and add them up.\n4. Print the count as `strconv.Itoa(count) + \" valid ages\"`.\n5. Print `average:` followed by the mean of the valid ages with `%.1f`.\n\nExpected output:\n\n```text\nerror: strconv.Atoi: parsing \"abc\": invalid syntax\nerror: strconv.Atoi: parsing \"\": invalid syntax\n2 valid ages\naverage: 28.0\n```",
+        "starter": "package main\n\nfunc main() {\n\tages := []string{\"21\", \"abc\", \"35\", \"\"}\n\t_ = ages\n\t// TODO: parse each age with strconv.Atoi, print the errors, then the count and average\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n)\n\nfunc main() {\n\tages := []string{\"21\", \"abc\", \"35\", \"\"}\n\tcount, sum := 0, 0\n\tfor _, s := range ages {\n\t\tage, err := strconv.Atoi(s)\n\t\tif err != nil {\n\t\t\tfmt.Println(\"error:\", err)\n\t\t\tcontinue\n\t\t}\n\t\tcount++\n\t\tsum += age\n\t}\n\tfmt.Println(strconv.Itoa(count) + \" valid ages\")\n\tfmt.Printf(\"average: %.1f\\n\", float64(sum)/float64(count))\n}\n",
+        "tests": [
+          {
+            "output": "error: strconv.Atoi: parsing \"abc\": invalid syntax\nerror: strconv.Atoi: parsing \"\": invalid syntax\n2 valid ages\naverage: 28.0"
+          }
+        ],
+        "hints": [
+          "Write `age, err := strconv.Atoi(s)`, then `if err != nil { ... continue }`.",
+          "An empty string is not a number, so `Atoi(\"\")` fails too.",
+          "Convert before dividing: `float64(sum)/float64(count)`."
+        ]
+      }
+    },
+    {
+      "title": "Floats and bools",
+      "body": "`strconv.ParseFloat(s, 64)` parses decimal text into a `float64`. The 64 is the bit size, so always pass 64 for a `float64`. `strconv.ParseBool(s)` accepts only `1`, `t`, `T`, `true`, `TRUE`, `True` and the matching false forms. Anything else, such as `\"yes\"`, is an error. ParseFloat also accepts forms like `\"1e3\"` and `\"Inf\"`, but not spaces. Both return `(value, error)` and get the same `if err != nil` check as Atoi.\n\n```go\nprice, err := strconv.ParseFloat(\"4.50\", 64)\nif err != nil {\n\tfmt.Println(err)\n\treturn\n}\nfmt.Println(price) // 4.5\n```\n\nTo turn a float back into text, `strconv.FormatFloat(f, 'f', 2, 64)` uses plain notation (`'f'`) with 2 decimals. It is like `%.2f`, but returns a string you can join with `+`. Precision `-1` gives the fewest digits that still round-trip.\n\n`strconv.Quote(s)` wraps a string in double quotes and escapes special characters, the same text `%q` prints. In messages it makes odd input visible: an empty string shows as `\"\"` and a tab as `\\t`.\n\nGotcha: decimal fractions like 0.1 are not exact in binary, so format floats with a fixed precision before printing them.",
+      "example": {
+        "title": "Price total",
+        "prompt": "Add up the prices that parse, quote the bad one, and parse two bool strings.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n)\n\nfunc main() {\n\tprices := []string{\"4.50\", \"12.25\", \"abc\"}\n\tvar total float64\n\tfor _, s := range prices {\n\t\tp, err := strconv.ParseFloat(s, 64)\n\t\tif err != nil {\n\t\t\tfmt.Println(\"bad price:\", strconv.Quote(s))\n\t\t\tcontinue\n\t\t}\n\t\ttotal += p\n\t}\n\tfmt.Println(\"total: \" + strconv.FormatFloat(total, 'f', 2, 64))\n\n\tfor _, s := range []string{\"true\", \"yes\"} {\n\t\tb, err := strconv.ParseBool(s)\n\t\tif err != nil {\n\t\t\tfmt.Println(err)\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Println(s, \"->\", b)\n\t}\n}\n",
+        "output": "bad price: \"abc\"\ntotal: 16.75\ntrue -> true\nstrconv.ParseBool: parsing \"yes\": invalid syntax",
+        "explanation": "`ParseFloat` turns `\"4.50\"` and `\"12.25\"` into floats. `\"abc\"` fails, and `strconv.Quote` prints it with quotes so the bad value stands out. `FormatFloat(total, 'f', 2, 64)` returns `\"16.75\"`, which joins onto `\"total: \"` with `+`. `ParseBool` accepts `\"true\"`, but `\"yes\"` is not one of its accepted words, so printing `err` shows why."
+      },
+      "practice": {
+        "title": "Temperature readings",
+        "prompt": "Average a set of temperature readings and parse two flags.\n\n1. Import `fmt` and `strconv` in one import block, remove the `_, _ =` line, and loop over `readings`.\n2. Parse each one with `strconv.ParseFloat(s, 64)`. When it fails, print `bad reading:` followed by `strconv.Quote(s)` and skip it.\n3. Print `average: ` joined with the mean of the valid readings formatted by `strconv.FormatFloat` to 1 decimal place.\n4. Loop over `flags`, parse each with `strconv.ParseBool`, and print the text, `->`, and the value (or the error when it fails).\n\nExpected output:\n\n```text\nbad reading: \"n/a\"\naverage: 12.1\nfalse -> false\n1 -> true\n```",
+        "starter": "package main\n\nfunc main() {\n\treadings := []string{\"21.5\", \"-3.25\", \"n/a\", \"18\"}\n\tflags := []string{\"false\", \"1\"}\n\t_, _ = readings, flags\n\t// TODO: parse the readings and print their average, then parse the flags\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n)\n\nfunc main() {\n\treadings := []string{\"21.5\", \"-3.25\", \"n/a\", \"18\"}\n\tflags := []string{\"false\", \"1\"}\n\tvar total float64\n\tcount := 0\n\tfor _, s := range readings {\n\t\tr, err := strconv.ParseFloat(s, 64)\n\t\tif err != nil {\n\t\t\tfmt.Println(\"bad reading:\", strconv.Quote(s))\n\t\t\tcontinue\n\t\t}\n\t\ttotal += r\n\t\tcount++\n\t}\n\tavg := total / float64(count)\n\tfmt.Println(\"average: \" + strconv.FormatFloat(avg, 'f', 1, 64))\n\n\tfor _, s := range flags {\n\t\tb, err := strconv.ParseBool(s)\n\t\tif err != nil {\n\t\t\tfmt.Println(err)\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Println(s, \"->\", b)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "bad reading: \"n/a\"\naverage: 12.1\nfalse -> false\n1 -> true"
+          }
+        ],
+        "hints": [
+          "Count the valid readings as you go so you can divide by that count.",
+          "`strconv.FormatFloat(avg, 'f', 1, 64)` gives one decimal place.",
+          "`ParseBool(\"1\")` is `true` and `ParseBool(\"false\")` is `false`."
+        ]
+      }
+    },
+    {
+      "title": "Other number bases",
+      "body": "A number has no base. The base only matters when you write it as text. `strconv.FormatInt(int64(n), base)` returns the digits in any base from 2 to 36. It takes an `int64`, so convert an `int` first. `strconv.ParseInt(s, base, 64)` reads digits back and returns `(int64, error)`. Use `int(v)` when you need a plain int.\n\n```go\nn := 200\nhex := strconv.FormatInt(int64(n), 16) // \"c8\"\nv, err := strconv.ParseInt(hex, 16, 64) // 200, nil\n```\n\n`fmt` has verbs for the common bases: `%b` binary, `%o` octal, `%x` lowercase hex, and `%X` uppercase hex. Width flags still work, so `%08b` pads to 8 digits.\n\nIn source code a prefix picks the base of a literal: `0b101` is 5, `0o17` is 15, and `0x1F` is 31. They are ordinary ints and print in decimal. Gotcha: a plain leading zero also means octal, so `017` is 15, not 17. With base 16, `ParseInt(\"0xff\", 16, 64)` fails because the prefix is not a hex digit. Only base 0 reads these prefixes from the string itself.",
+      "example": {
+        "title": "Forty two in every base",
+        "prompt": "Print 42 in binary, octal, and hex, parse it back from two bases, and write it as literals.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n)\n\nfunc main() {\n\tn := 42\n\tfmt.Println(strconv.FormatInt(int64(n), 2), strconv.FormatInt(int64(n), 8), strconv.FormatInt(int64(n), 16))\n\tfmt.Printf(\"%b %o %x %X\\n\", n, n, n, n)\n\n\ta, err := strconv.ParseInt(\"101010\", 2, 64)\n\tif err != nil {\n\t\tfmt.Println(err)\n\t\treturn\n\t}\n\tb, err := strconv.ParseInt(\"2a\", 16, 64)\n\tif err != nil {\n\t\tfmt.Println(err)\n\t\treturn\n\t}\n\tfmt.Println(a, b)\n\tfmt.Println(0b101010, 0o52, 0x2a)\n}\n",
+        "output": "101010 52 2a\n101010 52 2a 2A\n42 42\n42 42 42",
+        "explanation": "`FormatInt` and the `%b %o %x` verbs produce the same digits, and `%X` gives uppercase hex. `ParseInt` reads `\"101010\"` as binary and `\"2a\"` as hex, and both are 42. The second call can use `:=` because `b` is new, while `err` is simply reassigned. Each error is checked right away. The three literals are just 42 written in different bases, so they print in decimal."
+      },
+      "practice": {
+        "title": "Bases of 255",
+        "prompt": "Show 255 in other bases and read two numbers back.\n\n1. Import `fmt` and `strconv` in one import block, and remove the `_ = n` line.\n2. Print `n` in binary and lowercase hex with `strconv.FormatInt`, on one line.\n3. Print `n` in binary and uppercase hex with `Printf`, on one line.\n4. Parse `\"ff\"` as base 16 and `\"777\"` as base 8 with `strconv.ParseInt`, check each error, and print both values on one line.\n5. Print the literals `0b11111111`, `0o377`, and `0xFF` on one line.\n\nExpected output:\n\n```text\n11111111 ff\n11111111 FF\n255 511\n255 255 255\n```",
+        "starter": "package main\n\nfunc main() {\n\tn := 255\n\t_ = n\n\t// TODO: print n in binary and hex both ways, parse \"ff\" and \"777\", then print the literals\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n)\n\nfunc main() {\n\tn := 255\n\tfmt.Println(strconv.FormatInt(int64(n), 2), strconv.FormatInt(int64(n), 16))\n\tfmt.Printf(\"%b %X\\n\", n, n)\n\n\thex, err := strconv.ParseInt(\"ff\", 16, 64)\n\tif err != nil {\n\t\tfmt.Println(err)\n\t\treturn\n\t}\n\toct, err := strconv.ParseInt(\"777\", 8, 64)\n\tif err != nil {\n\t\tfmt.Println(err)\n\t\treturn\n\t}\n\tfmt.Println(hex, oct)\n\tfmt.Println(0b11111111, 0o377, 0xFF)\n}\n",
+        "tests": [
+          {
+            "output": "11111111 ff\n11111111 FF\n255 511\n255 255 255"
+          }
+        ],
+        "hints": [
+          "`FormatInt` needs an `int64`, so pass `int64(n)` and the base.",
+          "`%X` prints uppercase hex digits.",
+          "`strconv.ParseInt(\"777\", 8, 64)` reads octal digits."
+        ]
+      }
+    }
+  ],
+  "recap": "- `strconv.Itoa(n)` turns an int into text. `strconv.Atoi(s)` returns `(int, error)`.\n- Check `if err != nil` right after every parse. `err` is `nil` on success, and printing it shows the message.\n- Atoi does not trim spaces or accept decimals. `string(rune(65))` is `\"A\"`, so use `Itoa` for `\"65\"`.\n- `ParseFloat(s, 64)` and `ParseBool(s)` follow the same `(value, error)` pattern.\n- `FormatFloat(f, 'f', 2, 64)` returns a float as text with 2 decimals.\n- `strconv.Quote(s)` shows a string with quotes and escapes, like `%q`.\n- `FormatInt(int64(n), base)` and `ParseInt(s, base, 64)` work in bases 2 to 36.\n- `%b`, `%o`, `%x`, and `%X` print other bases, and `0b`, `0o`, and `0x` write literals in them."
+}

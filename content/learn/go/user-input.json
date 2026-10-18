@@ -1,0 +1,158 @@
+{
+  "id": "user-input",
+  "title": "Reading User Input",
+  "section": "Input",
+  "summary": "Read lines and numbers from standard input, then load them into slices, maps, sets, and structs with methods.",
+  "intro": "From this lesson on, programs get their data from standard input instead of the code. You will read whole lines with `bufio.Scanner`, read values with `fmt.Scan`, keep going until the input ends, and turn lines into structs you can sort and print.",
+  "steps": [
+    {
+      "title": "Reading lines with bufio.Scanner",
+      "body": "Until now every program had its data written in the code. Real programs read it from **standard input** (stdin). The usual tool for reading lines is a `bufio.Scanner`, so import `bufio` and `os`.\n\n```go\nscanner := bufio.NewScanner(os.Stdin)\nscanner.Scan()                            // read the next line\nname := strings.TrimSpace(scanner.Text()) // the line, without its newline\n```\n\n`scanner.Scan()` reads one line and returns `true`, or `false` when the input has ended. `scanner.Text()` then returns that line as a new string, with its line ending (`\\n` or Windows `\\r\\n`) removed. Call `Scan` once per line you expect. If a line is missing, `Scan` returns `false` and `Text()` gives `\"\"`.\n\nLines can still carry stray spaces, so wrap them in `strings.TrimSpace` before you use them. This matters most before `strconv.Atoi`, which rejects `\" 3\"`.\n\nPrint **no prompts** such as `Enter your name:`. The checker compares your output exactly, and a prompt would be an extra line. A scanner handles lines up to 64 KB, which is plenty for these programs.",
+      "example": {
+        "title": "Hello from a city",
+        "prompt": "Read a name line and a city line, then greet the person.",
+        "code": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tscanner.Scan()\n\tname := strings.TrimSpace(scanner.Text())\n\tscanner.Scan()\n\tcity := strings.TrimSpace(scanner.Text())\n\tfmt.Printf(\"Hello, %s from %s!\\n\", name, city)\n}\n",
+        "stdin": "Ada\nLondon\n",
+        "output": "Hello, Ada from London!",
+        "explanation": "The first `Scan` reads `Ada` and the second reads `London`. Each `Text()` call returns the current line, and `TrimSpace` removes any spaces around it. The program prints only the greeting, never a prompt, so its output matches exactly."
+      },
+      "practice": {
+        "title": "Echo a word",
+        "prompt": "Read a word and a count, then print the word that many times.\n\n1. Add `fmt`, `strconv`, and `strings` to the import block.\n2. Read the first line with the scanner and trim it. That is the word.\n3. Read the second line, trim it, and convert it with `strconv.Atoi`. Print the error and return if it fails.\n4. Print the word that many times on one line, separated by single spaces.\n\nInput:\n\n```text\ngo\n3\n```\n\nExpected output:\n\n```text\ngo go go\n```",
+        "starter": "package main\n\nimport (\n\t\"bufio\"\n\t\"os\"\n)\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\t_ = scanner\n\t// TODO: read the word line and the count line, trimming both\n\t// TODO: convert the count with strconv.Atoi, then print the word that many times\n}\n",
+        "solution": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strconv\"\n\t\"strings\"\n)\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tscanner.Scan()\n\tword := strings.TrimSpace(scanner.Text())\n\tscanner.Scan()\n\tcount, err := strconv.Atoi(strings.TrimSpace(scanner.Text()))\n\tif err != nil {\n\t\tfmt.Println(err)\n\t\treturn\n\t}\n\twords := make([]string, count)\n\tfor i := range words {\n\t\twords[i] = word\n\t}\n\tfmt.Println(strings.Join(words, \" \"))\n}\n",
+        "tests": [
+          {
+            "stdin": "go\n3\n",
+            "output": "go go go"
+          },
+          {
+            "stdin": "hi\n1\n",
+            "output": "hi"
+          },
+          {
+            "stdin": "ok\n  4  \n",
+            "output": "ok ok ok ok"
+          }
+        ],
+        "hints": [
+          "Call `scanner.Scan()` before each `scanner.Text()`.",
+          "Trim the count line before you pass it to `strconv.Atoi`, or spaces around the number make it fail.",
+          "One way to print: fill a slice of length `count` with the word, then join it with `strings.Join`."
+        ]
+      }
+    },
+    {
+      "title": "Reading numbers with fmt.Scan",
+      "body": "When input is numbers separated by spaces or newlines, `fmt.Scan` is simpler than splitting lines yourself. It reads the next whitespace-separated value and converts it to the type of the variable you point it at. Pass a pointer so it can fill your variable.\n\n```go\nvar n int\nfmt.Scan(&n) // reads one int\nvar w, h float64\nfmt.Scan(&w, &h) // reads two values in order\n```\n\nNewlines count as spaces, so `4 9 1` on one line and on three lines read the same way. A common input shape is a count, then that many values. Make the slice with that length and scan straight into each element with `&nums[i]`, which is the address of the element inside the slice's backing array.\n\n```go\nnums := make([]int, n)\nfor i := range nums {\n\tfmt.Scan(&nums[i])\n}\n```\n\n`fmt.Scan` returns how many values it read and an error. When a count tells you how much to read, you can ignore them, but know that a token that is not a valid number makes `Scan` fail and leaves the variable unchanged. For very large inputs, `in := bufio.NewReader(os.Stdin)` with `fmt.Fscan(in, &x)` is much faster, because plain `fmt.Scan` reads stdin with no buffering.",
+      "example": {
+        "title": "Sum, min, and max",
+        "prompt": "Read a count and that many integers, then print their sum, minimum, and maximum.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tnums := make([]int, n)\n\tfor i := range nums {\n\t\tfmt.Scan(&nums[i])\n\t}\n\tsum, lo, hi := 0, nums[0], nums[0]\n\tfor _, v := range nums {\n\t\tsum += v\n\t\tif v < lo {\n\t\t\tlo = v\n\t\t}\n\t\tif v > hi {\n\t\t\thi = v\n\t\t}\n\t}\n\tfmt.Println(\"Sum:\", sum)\n\tfmt.Println(\"Min:\", lo)\n\tfmt.Println(\"Max:\", hi)\n}\n",
+        "stdin": "5\n4 9 1 7 3\n",
+        "output": "Sum: 24\nMin: 1\nMax: 9",
+        "explanation": "The first `Scan` reads `5`, so `make` builds a slice of five zeros. The loop scans each number into its slot through `&nums[i]`, skipping the newline after the count automatically. Then one pass over the slice keeps a running sum, minimum, and maximum, starting both extremes at the first element."
+      },
+      "practice": {
+        "title": "Prices above average",
+        "prompt": "Read a count and that many prices, then report the average and how many prices are above it.\n\n1. Make a `[]float64` with the count as its length and fill it with `fmt.Scan(&prices[i])`.\n2. Add up the prices and divide by the count, converting the count with `float64(n)`.\n3. Print `Average:` and the average with `%.2f`.\n4. Print `Above average:` and how many prices are strictly greater than the average.\n\nInput:\n\n```text\n4\n2.50 4.00 1.50 8.00\n```\n\nExpected output:\n\n```text\nAverage: 4.00\nAbove average: 1\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\t// TODO: make a []float64 of length n and fill it with fmt.Scan(&prices[i])\n\t// TODO: print the average with %.2f, then how many prices are above it\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tprices := make([]float64, n)\n\tfor i := range prices {\n\t\tfmt.Scan(&prices[i])\n\t}\n\tsum := 0.0\n\tfor _, p := range prices {\n\t\tsum += p\n\t}\n\tavg := sum / float64(n)\n\tabove := 0\n\tfor _, p := range prices {\n\t\tif p > avg {\n\t\t\tabove++\n\t\t}\n\t}\n\tfmt.Printf(\"Average: %.2f\\n\", avg)\n\tfmt.Println(\"Above average:\", above)\n}\n",
+        "tests": [
+          {
+            "stdin": "4\n2.50 4.00 1.50 8.00\n",
+            "output": "Average: 4.00\nAbove average: 1"
+          },
+          {
+            "stdin": "3\n7.5\n2.25\n9\n",
+            "output": "Average: 6.25\nAbove average: 2"
+          },
+          {
+            "stdin": "1\n3.10\n",
+            "output": "Average: 3.10\nAbove average: 0"
+          }
+        ],
+        "hints": [
+          "`fmt.Scan` reads a float64 the same way it reads an int, as long as the variable is a float64.",
+          "Compute the average first, then loop again to count the prices with `p > avg`.",
+          "A price equal to the average does not count."
+        ]
+      }
+    },
+    {
+      "title": "Reading until the input ends",
+      "body": "Often you do not know how many values are coming. Keep calling `fmt.Scan` until it fails: at the end of input it returns the error `io.EOF`.\n\n```go\nfor {\n\tvar word string\n\tif _, err := fmt.Scan(&word); err != nil {\n\t\tbreak // no more input\n\t}\n\t// use word\n}\n```\n\nScanning into a `string` reads one word: everything up to the next space or newline. So words spread over several lines arrive one at a time.\n\nThe same loop reads records of several values. `fmt.Scan(&name, &score)` fills both variables in order, each converted to its own type, and returns an error once the input runs out.\n\nWatch out: when you scan into an int, a token that is not a number also returns an error, and this loop stops early. Do not mix `fmt.Scan` and a `bufio.Scanner` in one program either. The scanner reads ahead into its buffer, so `fmt.Scan` would miss that input.\n\nInput is a natural fit for maps and sets. Count with `counts[w]++` or collect with `seen[w] = struct{}{}`. Map order is random, so collect the keys, `sort.Strings` them, and print in that order.",
+      "example": {
+        "title": "Word counts",
+        "prompt": "Read words until the input ends, count each word ignoring case, and print the counts in sorted order.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n\t\"strings\"\n)\n\nfunc main() {\n\tcounts := make(map[string]int)\n\tfor {\n\t\tvar word string\n\t\tif _, err := fmt.Scan(&word); err != nil {\n\t\t\tbreak // io.EOF: no more words\n\t\t}\n\t\tcounts[strings.ToLower(word)]++\n\t}\n\twords := make([]string, 0, len(counts))\n\tfor w := range counts {\n\t\twords = append(words, w)\n\t}\n\tsort.Strings(words)\n\tfor _, w := range words {\n\t\tfmt.Println(w, counts[w])\n\t}\n}\n",
+        "stdin": "the cat saw\nThe dog\n",
+        "output": "cat 1\ndog 1\nsaw 1\nthe 2",
+        "explanation": "Each `Scan` fills `word` with the next word, crossing the line break without any extra code. `strings.ToLower` makes `The` and `the` the same key, so `the` reaches 2. When the input runs out, `Scan` returns an error and the loop breaks. The keys go into a slice that `sort.Strings` orders before printing, so the output never depends on map order."
+      },
+      "practice": {
+        "title": "Distinct tags",
+        "prompt": "Read tags until the input ends and print each distinct tag once.\n\n1. Add `sort` to the imports.\n2. Read tags with `fmt.Scan` in a loop and stop when it returns an error. Add each tag to the `tags` set.\n3. Collect the set's keys into a slice and sort it with `sort.Strings`.\n4. Print each tag on its own line, then print `Total:` and the number of distinct tags.\n\nInput:\n\n```text\ngo web api go\nweb cli\n```\n\nExpected output:\n\n```text\napi\ncli\ngo\nweb\nTotal: 4\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttags := make(map[string]struct{})\n\t// TODO: read tags with fmt.Scan until it returns an error, adding each one to the set\n\t// TODO: print the distinct tags in sorted order, one per line\n\tfmt.Println(\"Total:\", len(tags))\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\ttags := make(map[string]struct{})\n\tfor {\n\t\tvar tag string\n\t\tif _, err := fmt.Scan(&tag); err != nil {\n\t\t\tbreak\n\t\t}\n\t\ttags[tag] = struct{}{}\n\t}\n\tsorted := make([]string, 0, len(tags))\n\tfor t := range tags {\n\t\tsorted = append(sorted, t)\n\t}\n\tsort.Strings(sorted)\n\tfor _, t := range sorted {\n\t\tfmt.Println(t)\n\t}\n\tfmt.Println(\"Total:\", len(tags))\n}\n",
+        "tests": [
+          {
+            "stdin": "go web api go\nweb cli\n",
+            "output": "api\ncli\ngo\nweb\nTotal: 4"
+          },
+          {
+            "stdin": "rust\n",
+            "output": "rust\nTotal: 1"
+          },
+          {
+            "stdin": "b a\nc\na b c\n",
+            "output": "a\nb\nc\nTotal: 3"
+          }
+        ],
+        "hints": [
+          "Use the same loop as the example: declare the string inside it and `break` when `fmt.Scan` returns an error.",
+          "Adding a tag that is already in the set changes nothing, so duplicates disappear on their own.",
+          "Maps have no order, so copy the keys into a slice and sort that slice before printing."
+        ]
+      }
+    },
+    {
+      "title": "Parsing records into structs",
+      "body": "For line-based records, loop with `for scanner.Scan() { }`. It runs once per line and stops when the input ends. Split each line with `strings.Fields`, which ignores extra spaces and returns an empty slice for a blank line, then convert the parts with `strconv`.\n\n```go\nfor scanner.Scan() {\n\tfields := strings.Fields(scanner.Text())\n\tif len(fields) != 2 {\n\t\tcontinue // blank or malformed line\n\t}\n\tscore, err := strconv.Atoi(fields[1])\n\tif err != nil {\n\t\tfmt.Println(err)\n\t\treturn\n\t}\n\tstudents = append(students, Student{Name: fields[0], Score: score})\n}\n```\n\nChecking `len(fields)` first prevents an index out of range panic on a short line. Each record goes into a `[]Student` with `append`, which copies the struct into the slice's backing array. After the loop, check `scanner.Err()`. It is `nil` when the input simply ended, and an error when reading failed, such as on a line longer than 64 KB.\n\nOnce the data is in structs, the rest is what you already know: call methods on each record and sort with `sort.Slice`. Give the sort a tie-breaker, such as the name, so equal keys always print in the same order.",
+      "example": {
+        "title": "Ranked students",
+        "prompt": "Read name and score lines, rank the students by score with ties by name, and mark each one pass or fail.",
+        "code": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"sort\"\n\t\"strconv\"\n\t\"strings\"\n)\n\ntype Student struct {\n\tName  string\n\tScore int\n}\n\nfunc (s Student) Passed() bool { return s.Score >= 60 }\n\nfunc main() {\n\tvar students []Student\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tfields := strings.Fields(scanner.Text())\n\t\tif len(fields) != 2 {\n\t\t\tcontinue // skip blank or malformed lines\n\t\t}\n\t\tscore, err := strconv.Atoi(fields[1])\n\t\tif err != nil {\n\t\t\tfmt.Println(err)\n\t\t\treturn\n\t\t}\n\t\tstudents = append(students, Student{Name: fields[0], Score: score})\n\t}\n\tif err := scanner.Err(); err != nil {\n\t\tfmt.Println(err)\n\t\treturn\n\t}\n\tsort.Slice(students, func(i, j int) bool {\n\t\tif students[i].Score != students[j].Score {\n\t\t\treturn students[i].Score > students[j].Score\n\t\t}\n\t\treturn students[i].Name < students[j].Name\n\t})\n\tfor i, s := range students {\n\t\tresult := \"fail\"\n\t\tif s.Passed() {\n\t\t\tresult = \"pass\"\n\t\t}\n\t\tfmt.Printf(\"%d. %s %d %s\\n\", i+1, s.Name, s.Score, result)\n\t}\n}\n",
+        "stdin": "Ana 95\nBen 58\nCleo 72\nDev 95\nEli 60\n",
+        "output": "1. Ana 95 pass\n2. Dev 95 pass\n3. Cleo 72 pass\n4. Eli 60 pass\n5. Ben 58 fail",
+        "explanation": "The scanner loop turns each line into a `Student` and appends it, and `scanner.Err()` confirms the loop stopped at the end of input. The less function compares scores first, highest first, and falls back to the name when scores are equal, so Ana comes before Dev. The print loop calls `Passed()` on each record to choose `pass` or `fail`, and `i+1` gives the rank."
+      },
+      "practice": {
+        "title": "Order totals",
+        "prompt": "Read order lines of item, quantity, and price, then print each item's total and the grand total.\n\n1. Make `Total()` return the quantity times the price.\n2. Add `sort`, `strconv`, and `strings` to the imports.\n3. Read every line, skip lines that do not have exactly 3 fields, parse the quantity with `strconv.Atoi` and the price with `strconv.ParseFloat`, and append each record to `lines`. Check `scanner.Err()` after the loop.\n4. Sort by total from largest to smallest, ties by item name.\n5. Print each item and its total with `%.2f`, then `Grand total:` and the sum of all totals with `%.2f`.\n\nInput:\n\n```text\npen 3 1.50\nbook 1 12.00\nmug 2 4.50\nink 4 2.25\n```\n\nExpected output:\n\n```text\nbook 12.00\nink 9.00\nmug 9.00\npen 4.50\nGrand total: 34.50\n```",
+        "starter": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n)\n\ntype Line struct {\n\tItem  string\n\tQty   int\n\tPrice float64\n}\n\nfunc (l Line) Total() float64 {\n\t// TODO: return Qty times Price\n\treturn 0\n}\n\nfunc main() {\n\tvar lines []Line\n\tscanner := bufio.NewScanner(os.Stdin)\n\t_ = scanner\n\t// TODO: read every line, skip lines without exactly 3 fields, and parse item qty price into a Line\n\t// TODO: sort by total from largest to smallest, ties by item name, then print each line\n\t// TODO: print the real grand total instead of 0.0\n\tfmt.Printf(\"Grand total: %.2f\\n\", 0.0)\n\t_ = lines\n}\n",
+        "solution": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"sort\"\n\t\"strconv\"\n\t\"strings\"\n)\n\ntype Line struct {\n\tItem  string\n\tQty   int\n\tPrice float64\n}\n\nfunc (l Line) Total() float64 { return float64(l.Qty) * l.Price }\n\nfunc main() {\n\tvar lines []Line\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tfields := strings.Fields(scanner.Text())\n\t\tif len(fields) != 3 {\n\t\t\tcontinue\n\t\t}\n\t\tqty, err := strconv.Atoi(fields[1])\n\t\tif err != nil {\n\t\t\tfmt.Println(err)\n\t\t\treturn\n\t\t}\n\t\tprice, err := strconv.ParseFloat(fields[2], 64)\n\t\tif err != nil {\n\t\t\tfmt.Println(err)\n\t\t\treturn\n\t\t}\n\t\tlines = append(lines, Line{Item: fields[0], Qty: qty, Price: price})\n\t}\n\tif err := scanner.Err(); err != nil {\n\t\tfmt.Println(err)\n\t\treturn\n\t}\n\tsort.Slice(lines, func(i, j int) bool {\n\t\tif lines[i].Total() != lines[j].Total() {\n\t\t\treturn lines[i].Total() > lines[j].Total()\n\t\t}\n\t\treturn lines[i].Item < lines[j].Item\n\t})\n\tgrand := 0.0\n\tfor _, l := range lines {\n\t\tfmt.Printf(\"%s %.2f\\n\", l.Item, l.Total())\n\t\tgrand += l.Total()\n\t}\n\tfmt.Printf(\"Grand total: %.2f\\n\", grand)\n}\n",
+        "tests": [
+          {
+            "stdin": "pen 3 1.50\nbook 1 12.00\nmug 2 4.50\nink 4 2.25\n",
+            "output": "book 12.00\nink 9.00\nmug 9.00\npen 4.50\nGrand total: 34.50"
+          },
+          {
+            "stdin": "tea 2 3.25\nsugar 1 0.99\n",
+            "output": "tea 6.50\nsugar 0.99\nGrand total: 7.49"
+          },
+          {
+            "stdin": "cup 5 2.00\n\nlid 10 0.10\n",
+            "output": "cup 10.00\nlid 1.00\nGrand total: 11.00"
+          }
+        ],
+        "hints": [
+          "`Qty` is an `int` and `Price` is a `float64`, so convert the quantity before you multiply.",
+          "`strconv.ParseFloat(fields[2], 64)` returns a float64 and an error, just like `Atoi`.",
+          "In the less function, compare `Total()` values first and the `Item` names only when the totals are equal."
+        ]
+      }
+    }
+  ],
+  "recap": "- `scanner := bufio.NewScanner(os.Stdin)` reads lines. `scanner.Scan()` returns `false` at the end, and `scanner.Text()` is the line without its newline.\n- Trim lines with `strings.TrimSpace` before `strconv.Atoi`, which rejects spaces.\n- Print no prompts. Output is checked exactly.\n- `fmt.Scan(&x)` reads the next whitespace-separated value, and `fmt.Scan(&a, &b)` reads several. Scanning into a string reads one word.\n- Read a count, `make` a slice of that length, and fill it with `fmt.Scan(&nums[i])`.\n- `fmt.Scan` returns an error at the end of input, so `if _, err := fmt.Scan(&x); err != nil { break }` reads everything that is left. The loop works the same for records such as `fmt.Scan(&name, &score)`.\n- `for scanner.Scan() { }` visits every line. Split with `strings.Fields`, check the field count, then parse with `strconv`. Check `scanner.Err()` after the loop.\n- Never mix `fmt.Scan` and a `bufio.Scanner` in one program, and sort map keys or records (with a tie-breaker) before printing."
+}

@@ -1,0 +1,117 @@
+{
+  "id": "sets",
+  "title": "Sets: std::set and std::unordered_set",
+  "section": "Collections",
+  "summary": "Keep unique values with std::set, query them in order, combine sets, and know when to use unordered_set and multiset.",
+  "intro": "A map stores a value for every key. Sometimes you only need the keys: which IDs visited, which tags exist, which skills match. A set stores each value once, keeps it sorted, and answers \"is it here?\" in O(log n).",
+  "steps": [
+    {
+      "title": "Unique, sorted values",
+      "body": "A `std::set<T>` from `<set>` holds unique values and keeps them sorted. Inserting a value that is already there does nothing, so a set is the natural tool for removing duplicates.\n\n```cpp\nstd::vector<int> v = {5, 1, 5, 3};\nstd::set<int> s(v.begin(), v.end());  // {1, 3, 5}\ns.insert(3);                          // already there, ignored\ns.size();                             // 3\ns.count(5);                           // 1 if present, 0 if not\ns.erase(1);                           // removes 1, returns how many it removed\n```\n\nThe range constructor `s(v.begin(), v.end())` copies every element of the vector and drops the repeats. A range-for walks the set in ascending order, and strings come out alphabetically. A set has no index for the `if (i > 0)` separator trick, so keep a `bool first` flag instead. Like map insert, `s.insert(x)` returns `{iterator, bool}`, so `s.insert(x).second` tells you whether the value was new.\n\nIn memory a set is a map with keys only, built on the same sorted tree (a red-black tree in g++): every element lives in its own heap node with pointers to its parent and children. That makes insert, count, and erase O(log n), but a set uses more memory than a vector of the same values.\n\n> Gotcha: set elements are const, because changing one in place would break the sorted order. To change a value, erase the old one and insert the new one.",
+      "example": {
+        "title": "Unique visitors",
+        "prompt": "Count the unique visitor IDs, check one ID, remove another, and print the rest in order.",
+        "code": "#include <iostream>\n#include <set>\n#include <vector>\n\nint main() {\n    const std::vector<int> visits = {42, 7, 42, 19, 7, 3};\n    std::set<int> ids(visits.begin(), visits.end());\n    ids.insert(5);\n    ids.insert(42);  // already in the set, ignored\n\n    std::cout << ids.size() << '\\n';\n    std::cout << std::boolalpha << \"19 visited: \" << (ids.count(19) == 1) << '\\n';\n\n    ids.erase(7);\n    bool first = true;\n    for (int id : ids) {\n        if (!first) {\n            std::cout << ' ';\n        }\n        std::cout << id;\n        first = false;\n    }\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "output": "5\n19 visited: true\n3 5 19 42",
+        "explanation": "The range constructor turns six IDs into the set {3, 7, 19, 42}. Inserting 5 adds a fifth value, while inserting 42 again changes nothing, so `size()` is 5. `count(19)` is 1 because 19 is present. After `erase(7)` the range-for visits the IDs smallest first, and the `first` flag puts a space only between values."
+      },
+      "practice": {
+        "title": "Blog tags",
+        "prompt": "Collect the unique tags from a list of blog posts and print them alphabetically.\n\n1. Build a `std::set<std::string>` named `tags` from `posts` with the range constructor.\n2. Insert `\"rust\"` (new) and `\"web\"` (a duplicate).\n3. Print the number of unique tags.\n4. Use `count` to print `has cpp: ` followed by `true` or `false` (use `std::boolalpha`).\n5. Erase `\"games\"`, then print the remaining tags on one line, separated by single spaces.\n\nExpected output:\n\n```text\n5\nhas cpp: true\nai cpp rust web\n```",
+        "starter": "#include <iostream>\n#include <set>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::vector<std::string> posts = {\"web\", \"cpp\", \"games\", \"web\", \"cpp\", \"ai\"};\n    // TODO: build a std::set<std::string> named tags from posts\n    // TODO: insert \"rust\" and \"web\", print the size, then check for \"cpp\"\n    // TODO: erase \"games\" and print the tags separated by spaces\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <set>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::vector<std::string> posts = {\"web\", \"cpp\", \"games\", \"web\", \"cpp\", \"ai\"};\n    std::set<std::string> tags(posts.begin(), posts.end());\n    tags.insert(\"rust\");\n    tags.insert(\"web\");\n\n    std::cout << tags.size() << '\\n';\n    std::cout << std::boolalpha << \"has cpp: \" << (tags.count(\"cpp\") == 1) << '\\n';\n\n    tags.erase(\"games\");\n    bool first = true;\n    for (const auto& tag : tags) {\n        if (!first) {\n            std::cout << ' ';\n        }\n        std::cout << tag;\n        first = false;\n    }\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "5\nhas cpp: true\nai cpp rust web"
+          }
+        ],
+        "hints": [
+          "Pass `posts.begin()` and `posts.end()` to the set when you declare it, and it drops the repeated tags for you.",
+          "Inserting `\"web\"` again leaves the size unchanged. Print `(tags.count(\"cpp\") == 1)` after `std::boolalpha`.",
+          "Iterate with `for (const auto& tag : tags)` and use a `bool first` flag to print a space before every tag except the first."
+        ]
+      }
+    },
+    {
+      "title": "Smallest, largest, and bounds",
+      "body": "Because a set is sorted, its ends and its neighbors are cheap to reach.\n\n```cpp\n*s.begin();         // smallest element\n*s.rbegin();        // largest element\ns.find(x);          // iterator to x, or s.end()\ns.lower_bound(x);   // first element >= x, or s.end()\ns.upper_bound(x);   // first element > x, or s.end()\n```\n\nEvery search returns an iterator, and `s.end()` means \"no such element\". Always compare with `end()` before you dereference, because `*s.end()` is undefined behavior. The if with an initializer keeps the iterator local:\n\n```cpp\nif (auto it = s.lower_bound(10); it != s.end()) {\n    std::cout << *it << '\\n';\n}\n```\n\nThe same rule applies to the ends: `*s.begin()` on an empty set is undefined behavior, so check `!s.empty()` first when the set might be empty.\n\n`lower_bound` and `upper_bound` differ only when `x` itself is in the set: lower_bound stops on it, upper_bound skips past it.\n\n> Gotcha: call the member `s.lower_bound(x)`, which walks the tree in O(log n). The free `std::lower_bound(s.begin(), s.end(), x)` also compiles, but set iterators can only step one node at a time, so it takes O(n) steps.",
+      "example": {
+        "title": "Free seats",
+        "prompt": "Answer questions about a set of free seat numbers: the ends, one membership check, and the next free seat from a few starting points.",
+        "code": "#include <iostream>\n#include <set>\n\nint main() {\n    const std::set<int> freeSeats = {3, 8, 15, 21, 30};\n    std::cout << *freeSeats.begin() << ' ' << *freeSeats.rbegin() << '\\n';\n    std::cout << std::boolalpha << (freeSeats.find(8) != freeSeats.end()) << '\\n';\n\n    if (auto it = freeSeats.lower_bound(16); it != freeSeats.end()) {\n        std::cout << *it << '\\n';\n    } else {\n        std::cout << \"none\\n\";\n    }\n    if (auto it = freeSeats.upper_bound(15); it != freeSeats.end()) {\n        std::cout << *it << '\\n';\n    } else {\n        std::cout << \"none\\n\";\n    }\n    if (auto it = freeSeats.lower_bound(31); it != freeSeats.end()) {\n        std::cout << *it << '\\n';\n    } else {\n        std::cout << \"none\\n\";\n    }\n    return 0;\n}\n",
+        "output": "3 30\ntrue\n21\n21\nnone",
+        "explanation": "`begin()` points at the smallest seat and `rbegin()` at the largest. `find(8)` returns an iterator to 8, which is not `end()`, so the comparison prints `true`. No seat is 16, so `lower_bound(16)` lands on the next one, 21. `upper_bound(15)` skips the 15 itself and also lands on 21. Nothing is at or after 31, so `lower_bound(31)` returns `end()` and the else branch prints `none`."
+      },
+      "practice": {
+        "title": "Meeting starts",
+        "prompt": "Answer questions about a set of meeting start hours.\n\n1. Print the earliest and latest start on one line, separated by a space.\n2. Use `find` to print whether a meeting starts at 11, as `true` or `false`.\n3. Print the first start at or after 13 with `lower_bound`.\n4. Print the first start after 13 with `upper_bound`.\n5. Print the first start at or after 17 with `lower_bound`, or `none` when there is none.\n\nCheck every search result against `starts.end()` before you dereference it, and print `none` when it is `end()`.\n\nExpected output:\n\n```text\n9 16\ntrue\n13\n16\nnone\n```",
+        "starter": "#include <iostream>\n#include <set>\n\nint main() {\n    const std::set<int> starts = {9, 11, 13, 16};\n    // TODO: print the earliest and latest start, then whether 11 is a start\n    // TODO: print lower_bound(13), upper_bound(13), and lower_bound(17), or none\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <set>\n\nint main() {\n    const std::set<int> starts = {9, 11, 13, 16};\n    std::cout << *starts.begin() << ' ' << *starts.rbegin() << '\\n';\n    std::cout << std::boolalpha << (starts.find(11) != starts.end()) << '\\n';\n\n    if (auto it = starts.lower_bound(13); it != starts.end()) {\n        std::cout << *it << '\\n';\n    } else {\n        std::cout << \"none\\n\";\n    }\n    if (auto it = starts.upper_bound(13); it != starts.end()) {\n        std::cout << *it << '\\n';\n    } else {\n        std::cout << \"none\\n\";\n    }\n    if (auto it = starts.lower_bound(17); it != starts.end()) {\n        std::cout << *it << '\\n';\n    } else {\n        std::cout << \"none\\n\";\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "9 16\ntrue\n13\n16\nnone"
+          }
+        ],
+        "hints": [
+          "`*starts.begin()` is the earliest and `*starts.rbegin()` the latest.",
+          "13 is in the set, so `lower_bound(13)` stops on it while `upper_bound(13)` moves on to 16.",
+          "Keep each search in an if with initializer, compare the iterator with `starts.end()`, and print `none` in the else branch."
+        ]
+      }
+    },
+    {
+      "title": "Union, intersection, difference",
+      "body": "`<algorithm>` has three functions that combine two sorted ranges in one linear pass:\n\n- `std::set_intersection`: values in both\n- `std::set_union`: values in either\n- `std::set_difference`: values in the first but not the second\n\nEach takes two ranges and an output iterator. To write into a set, use `std::inserter` from `<iterator>`, which calls `insert` for every value it receives:\n\n```cpp\nstd::set<int> both;\nstd::set_intersection(a.begin(), a.end(), b.begin(), b.end(),\n                      std::inserter(both, both.begin()));\n```\n\nA plain `both.begin()` does not work. An iterator only points at elements that already exist and cannot add new ones. `std::inserter` turns each write into an insert.\n\nOrder matters for the difference: `a` minus `b` keeps what only `a` has, and swapping the ranges gives what only `b` has.\n\n> Gotcha: the inputs must be sorted. A set always is, so sets just work. If you start from vectors, `std::sort` them first, or the result is silently wrong.",
+      "example": {
+        "title": "Class rosters",
+        "prompt": "Compare the students in Math and Art: who takes both, who takes either, and who takes only Math.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <iterator>\n#include <set>\n#include <string>\n\nvoid printLine(const std::string& label, const std::set<std::string>& names) {\n    std::cout << label << ':';\n    for (const auto& name : names) {\n        std::cout << ' ' << name;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    const std::set<std::string> math = {\"ana\", \"ben\", \"cy\"};\n    const std::set<std::string> art = {\"ben\", \"cy\", \"dee\"};\n\n    std::set<std::string> both;\n    std::set_intersection(math.begin(), math.end(), art.begin(), art.end(),\n                          std::inserter(both, both.begin()));\n    std::set<std::string> either;\n    std::set_union(math.begin(), math.end(), art.begin(), art.end(),\n                   std::inserter(either, either.begin()));\n    std::set<std::string> onlyMath;\n    std::set_difference(math.begin(), math.end(), art.begin(), art.end(),\n                        std::inserter(onlyMath, onlyMath.begin()));\n\n    printLine(\"both\", both);\n    printLine(\"either\", either);\n    printLine(\"only math\", onlyMath);\n    return 0;\n}\n",
+        "output": "both: ben cy\neither: ana ben cy dee\nonly math: ana",
+        "explanation": "Both rosters are sets, so they are already sorted, which the three algorithms require. Each call reads the two ranges once and hands every matching name to `std::inserter`, which inserts it into the result set. `set_difference(math, art)` keeps only `ana`, the one name that Math has and Art does not. `printLine` prints a space before each name, so there is no trailing space."
+      },
+      "practice": {
+        "title": "Skill match",
+        "prompt": "Compare the skills a job requires with the skills a candidate has.\n\n1. Put the skills in both sets into `matched` with `std::set_intersection`.\n2. Put the required skills the candidate lacks into `missing` with `std::set_difference`.\n3. Put every skill from either set into `combined` with `std::set_union`.\n4. Write each result with `std::inserter`, then print the three sets with `printLine` using the labels `matched`, `missing`, and `all`.\n\nExpected output:\n\n```text\nmatched: git sql\nmissing: cpp linux\nall: cpp git linux python sql\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <iterator>\n#include <set>\n#include <string>\n\nvoid printLine(const std::string& label, const std::set<std::string>& skills) {\n    std::cout << label << ':';\n    for (const auto& skill : skills) {\n        std::cout << ' ' << skill;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    const std::set<std::string> required = {\"cpp\", \"git\", \"linux\", \"sql\"};\n    const std::set<std::string> candidate = {\"git\", \"python\", \"sql\"};\n    // TODO: build matched, missing, and combined with the set algorithms\n    // TODO: print them with printLine(\"matched\", ...), \"missing\", and \"all\"\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <iterator>\n#include <set>\n#include <string>\n\nvoid printLine(const std::string& label, const std::set<std::string>& skills) {\n    std::cout << label << ':';\n    for (const auto& skill : skills) {\n        std::cout << ' ' << skill;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    const std::set<std::string> required = {\"cpp\", \"git\", \"linux\", \"sql\"};\n    const std::set<std::string> candidate = {\"git\", \"python\", \"sql\"};\n\n    std::set<std::string> matched;\n    std::set_intersection(required.begin(), required.end(), candidate.begin(), candidate.end(),\n                          std::inserter(matched, matched.begin()));\n    std::set<std::string> missing;\n    std::set_difference(required.begin(), required.end(), candidate.begin(), candidate.end(),\n                        std::inserter(missing, missing.begin()));\n    std::set<std::string> combined;\n    std::set_union(required.begin(), required.end(), candidate.begin(), candidate.end(),\n                   std::inserter(combined, combined.begin()));\n\n    printLine(\"matched\", matched);\n    printLine(\"missing\", missing);\n    printLine(\"all\", combined);\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "matched: git sql\nmissing: cpp linux\nall: cpp git linux python sql"
+          }
+        ],
+        "hints": [
+          "Each call takes `required.begin(), required.end(), candidate.begin(), candidate.end()` and then `std::inserter(result, result.begin())`.",
+          "For `missing`, pass `required` first: the difference keeps what the first range has and the second does not."
+        ]
+      }
+    },
+    {
+      "title": "unordered_set and multiset",
+      "body": "`std::unordered_set` from `<unordered_set>` is a hash set. It has the same `insert`, `count`, `find`, and `erase`, but they run in O(1) on average instead of O(log n) (O(n) in the rare worst case when many values share a bucket). The price: there is no order, so no `lower_bound`, no smallest or largest, no set algorithms from step 3, and iteration order is unspecified. Use it for fast membership checks and never print it in iteration order.\n\n`std::multiset` (also in `<set>`) is a sorted set that keeps duplicates. `ms.count(x)` tells you how many copies there are. Erasing needs care:\n\n```cpp\nms.erase(x);                   // removes EVERY copy of x\nif (auto it = ms.find(x); it != ms.end()) {\n    ms.erase(it);              // removes exactly one copy\n}\n```\n\n> Gotcha: always check `find` before erasing through it. When `x` is missing, `find` returns `end()`, and `ms.erase(ms.end())` is undefined behavior.\n\nIn memory an unordered_set keeps a heap array of buckets, and each element sits in a node in the bucket its hash picks. As it grows it rehashes into a bigger bucket array, which is another reason its iteration order is not something to rely on.",
+      "example": {
+        "title": "Repeats and scores",
+        "prompt": "Find the first repeated number with an unordered_set, then remove one and then all copies of a score from a multiset.",
+        "code": "#include <iostream>\n#include <set>\n#include <unordered_set>\n#include <vector>\n\nvoid printScores(const std::multiset<int>& scores) {\n    bool first = true;\n    for (int score : scores) {\n        if (!first) {\n            std::cout << ' ';\n        }\n        std::cout << score;\n        first = false;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    const std::vector<int> nums = {4, 9, 2, 9, 4};\n    std::unordered_set<int> seen;\n    for (int n : nums) {\n        if (seen.count(n) == 1) {\n            std::cout << \"first repeat: \" << n << '\\n';\n            break;\n        }\n        seen.insert(n);\n    }\n\n    std::multiset<int> scores = {90, 75, 90, 82, 90};\n    std::cout << scores.count(90) << '\\n';\n    if (auto it = scores.find(90); it != scores.end()) {\n        scores.erase(it);\n    }\n    printScores(scores);\n    scores.erase(90);\n    printScores(scores);\n    return 0;\n}\n",
+        "output": "first repeat: 9\n3\n75 82 90 90\n75 82",
+        "explanation": "The loop checks each number against `seen` before adding it. 4, 9, and 2 are new, and the second 9 is the first one already present, so the loop prints it and stops. The order of `seen` never matters because it is never printed. The multiset keeps all three 90s in sorted order. Erasing through the checked `find` removes one copy, and `erase(90)` then removes the remaining two."
+      },
+      "practice": {
+        "title": "Repeats and ages",
+        "prompt": "Find the first repeated word, then remove copies of an age from a multiset.\n\n1. Walk `words` with a `std::unordered_set<std::string>` named `seen` and print `first repeat: ` followed by the first word that is already in `seen`, then stop.\n2. Build a `std::multiset<int>` holding 30, 25, 30, 41, 30 and print `count(30)`.\n3. Erase a single 30 through `find`, after checking the result against `end()`, and print the ages with `printAges`.\n4. Remove the remaining 30s with `erase(30)` and print the ages again.\n\nExpected output:\n\n```text\nfirst repeat: blue\n3\n25 30 30 41\n25 41\n```",
+        "starter": "#include <iostream>\n#include <set>\n#include <string>\n#include <unordered_set>\n#include <vector>\n\nvoid printAges(const std::multiset<int>& ages) {\n    bool first = true;\n    for (int age : ages) {\n        if (!first) {\n            std::cout << ' ';\n        }\n        std::cout << age;\n        first = false;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    const std::vector<std::string> words = {\"red\", \"blue\", \"green\", \"blue\", \"red\"};\n    // TODO: use a std::unordered_set<std::string> to print the first repeated word\n    // TODO: build a std::multiset<int> of 30, 25, 30, 41, 30 and print count(30)\n    // TODO: erase one 30 through a checked find, print, then erase(30) and print\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <set>\n#include <string>\n#include <unordered_set>\n#include <vector>\n\nvoid printAges(const std::multiset<int>& ages) {\n    bool first = true;\n    for (int age : ages) {\n        if (!first) {\n            std::cout << ' ';\n        }\n        std::cout << age;\n        first = false;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    const std::vector<std::string> words = {\"red\", \"blue\", \"green\", \"blue\", \"red\"};\n    std::unordered_set<std::string> seen;\n    for (const auto& word : words) {\n        if (seen.count(word) == 1) {\n            std::cout << \"first repeat: \" << word << '\\n';\n            break;\n        }\n        seen.insert(word);\n    }\n\n    std::multiset<int> ages = {30, 25, 30, 41, 30};\n    std::cout << ages.count(30) << '\\n';\n    if (auto it = ages.find(30); it != ages.end()) {\n        ages.erase(it);\n    }\n    printAges(ages);\n    ages.erase(30);\n    printAges(ages);\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "first repeat: blue\n3\n25 30 30 41\n25 41"
+          }
+        ],
+        "hints": [
+          "Check `seen.count(word) == 1` before inserting the word, and `break` as soon as it is true.",
+          "Erasing the iterator that `find` returns removes just one copy. Compare it with `ages.end()` first.",
+          "`ages.erase(30)` with a value removes every remaining copy."
+        ]
+      }
+    }
+  ],
+  "recap": "- `std::set<T>` from `<set>` stores unique values in ascending order. `insert` ignores duplicates, `count` checks membership, and `erase` removes a value.\n- `std::set<int> s(v.begin(), v.end())` builds a set from a vector and drops the repeats.\n- A set is a sorted tree of heap nodes, like a map without values: O(log n) operations, and elements are const, so change one by erasing and inserting.\n- `*s.begin()` is the smallest and `*s.rbegin()` the largest, on a non-empty set.\n- `find`, `lower_bound` (first >= x), and `upper_bound` (first > x) return `end()` when nothing matches, so check before dereferencing.\n- Use the member `s.lower_bound(x)` (O(log n)), not `std::lower_bound` on a set (O(n)).\n- `std::set_union`, `std::set_intersection`, and `std::set_difference` need sorted inputs and write through `std::inserter(result, result.begin())` from `<iterator>`.\n- `std::unordered_set` is a hash set: O(1) average, no order, so never print it in iteration order.\n- `std::multiset` keeps duplicates sorted. `erase(x)` removes every copy, `erase(s.find(x))` removes one after you check `find` against `end()`."
+}

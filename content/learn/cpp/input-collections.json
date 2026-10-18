@@ -1,0 +1,158 @@
+{
+  "id": "input-collections",
+  "title": "Using Input with Strings, Maps, Sets, and Structs",
+  "section": "Input",
+  "summary": "Parse input lines with string streams and load the data into maps, sets, and vectors of structs.",
+  "intro": "Reading values is only half the job. Real programs split lines into fields, count what they read, answer questions about it, and keep records together. This lesson connects `std::cin` to the containers you already know.",
+  "steps": [
+    {
+      "title": "Parsing lines with std::istringstream",
+      "body": "Real input often packs several values into one line, like `alice,90,85,77`. Read the whole line with `std::getline(std::cin, line)` as in the last lesson, then wrap it in a `std::istringstream` from `<sstream>`. That turns the string into a stream you can read from, just like `std::cin`.\n\n```cpp\nstd::istringstream iss(line);\nstd::string name;\nstd::getline(iss, name, ',');  // reads up to the next comma\n```\n\nThe third argument to `std::getline` is the delimiter. It reads up to that character and drops it. Like `std::getline(std::cin, line)`, it returns the stream, which turns `false` once nothing is left to read. So the first call takes the label and a loop takes the rest:\n\n```cpp\nstd::string part;\nwhile (std::getline(iss, part, ',')) {\n    total += std::stoi(part);\n}\n```\n\nEvery part is a `std::string`, so convert numbers with `std::stoi` (or `std::stod` for decimals). `std::stoi` skips leading spaces, but an empty part such as the one in `a,,3` makes it throw an error that stops the program. Assume the input matches the format.\n\nWhen the values are separated by spaces instead, you do not need a delimiter: `iss >> token` reads one word at a time, exactly like `std::cin >> token`. The stream keeps its own copy of the line, so changing `line` later does not affect it.",
+      "example": {
+        "title": "Score lines",
+        "prompt": "Read lines of comma-separated scores and print each name with its total and count.",
+        "code": "#include <iostream>\n#include <sstream>\n#include <string>\n\nint main() {\n    std::string line;\n    while (std::getline(std::cin, line)) {\n        std::istringstream iss(line);\n        std::string name;\n        std::getline(iss, name, ',');  // the label before the first comma\n        int total = 0;\n        int count = 0;\n        std::string part;\n        while (std::getline(iss, part, ',')) {\n            total += std::stoi(part);\n            ++count;\n        }\n        std::cout << name << ' ' << total << \" (\" << count\n                  << (count == 1 ? \" score)\" : \" scores)\") << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "alice,90,85,77\nbob,70,80\ncara,100\n",
+        "output": "alice 252 (3 scores)\nbob 150 (2 scores)\ncara 100 (1 score)",
+        "explanation": "The outer loop reads one whole line per pass until the input ends. A fresh `std::istringstream` is built from each line, so every line starts reading from its beginning. The first `getline` with `','` takes the name. The inner loop takes each remaining part, converts it with `std::stoi`, and adds it to `total`. When the line runs out, the next `getline` fails, the stream turns `false`, and the loop stops. The ternary picks `score` or `scores` for the count."
+      },
+      "practice": {
+        "title": "Rainfall lines",
+        "prompt": "Read rainfall lines until the input ends and print a summary for each day.\n\n1. Read each line with `std::getline(std::cin, line)`. A line looks like `mon,3,4,5`: a day, then any number of readings, possibly none.\n2. Wrap the line in a `std::istringstream` and read the day up to the first comma.\n3. Read every remaining part with `std::getline(iss, part, ',')`, convert it with `std::stoi`, and add it to a total while counting the parts.\n4. Print the day, the total, and the count as `mon 12 (3 readings)`. Write `reading` when the count is exactly 1.\n\nInput:\n\n```text\nmon,3,4,5\ntue,0,2\nwed,7\n```\n\nExpected output:\n\n```text\nmon 12 (3 readings)\ntue 2 (2 readings)\nwed 7 (1 reading)\n```",
+        "starter": "#include <iostream>\n#include <sstream>\n#include <string>\n\nint main() {\n    std::string line;\n    while (std::getline(std::cin, line)) {\n        // TODO: wrap line in a std::istringstream and read the day up to the first comma\n        // TODO: read each reading with std::getline(iss, part, ','), add it, and count it\n        // TODO: print the day, the total, and the count\n    }\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <sstream>\n#include <string>\n\nint main() {\n    std::string line;\n    while (std::getline(std::cin, line)) {\n        std::istringstream iss(line);\n        std::string day;\n        std::getline(iss, day, ',');\n        int total = 0;\n        int count = 0;\n        std::string part;\n        while (std::getline(iss, part, ',')) {\n            total += std::stoi(part);\n            ++count;\n        }\n        std::cout << day << ' ' << total << \" (\" << count\n                  << (count == 1 ? \" reading)\" : \" readings)\") << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "mon,3,4,5\ntue,0,2\nwed,7\n",
+            "output": "mon 12 (3 readings)\ntue 2 (2 readings)\nwed 7 (1 reading)"
+          },
+          {
+            "stdin": "fri,10,20,30,40\n",
+            "output": "fri 100 (4 readings)"
+          },
+          {
+            "stdin": "sat\nsun,5,5\n",
+            "output": "sat 0 (0 readings)\nsun 10 (2 readings)"
+          }
+        ],
+        "hints": [
+          "Build `std::istringstream iss(line);` inside the line loop so each line starts fresh.",
+          "Call `std::getline(iss, day, ',')` once for the day, then loop `while (std::getline(iss, part, ','))` for the readings.",
+          "A ternary on `count == 1` can choose between the singular and plural word."
+        ]
+      }
+    },
+    {
+      "title": "Counting input with a map",
+      "body": "`++counts[word]` counts anything while you read it. A missing key is inserted with 0 and then incremented, so you never check first.\n\n```cpp\nstd::map<std::string, int> counts;\nstd::string word;\nwhile (std::cin >> word) {\n    ++counts[word];\n}\n```\n\nA `std::map` keeps its keys sorted, so a range-for prints the counts in alphabetical order with no extra sorting. Each map node lives on the heap, and the map owns them all.\n\nTo find the most frequent key, walk the map once and replace the best only when a count is **strictly greater**:\n\n```cpp\nif (count > bestCount) {\n    best = w;\n    bestCount = count;\n}\n```\n\nBecause the map visits keys in order, the first key with the top count wins, and a later key with the same count does not replace it. Ties go to the alphabetically first key with no extra code. Using `>=` would hand ties to the last key instead.\n\n> Gotcha: `>>` keeps case and punctuation, so `The`, `the`, and `the.` are three different keys.",
+      "example": {
+        "title": "Word counts",
+        "prompt": "Count every word in the input, print the counts alphabetically, and name the most frequent word.",
+        "code": "#include <iostream>\n#include <map>\n#include <string>\n\nint main() {\n    std::map<std::string, int> counts;\n    std::string word;\n    while (std::cin >> word) {\n        ++counts[word];  // a new word starts at 0, then becomes 1\n    }\n\n    std::string best;\n    int bestCount = 0;\n    for (const auto& [w, count] : counts) {\n        std::cout << w << ' ' << count << '\\n';\n        if (count > bestCount) {  // strictly greater: ties keep the earlier word\n            best = w;\n            bestCount = count;\n        }\n    }\n    std::cout << \"most: \" << best << \" (\" << bestCount << \")\\n\";\n    return 0;\n}\n",
+        "stdin": "red blue red\ngreen blue\n",
+        "output": "blue 2\ngreen 1\nred 2\nmost: blue (2)",
+        "explanation": "`std::cin >> word` skips spaces and newlines, so the two input lines read as five words. `++counts[word]` creates each new word with 0 and then adds 1. The range-for visits blue, green, red in sorted order. blue reaches 2 first and becomes the best. red also has 2, but 2 is not strictly greater than 2, so blue keeps the lead."
+      },
+      "practice": {
+        "title": "Vote counter",
+        "prompt": "Count votes from the input and announce the winner.\n\n1. Read names with `while (std::cin >> name)` until the input ends and count them with `++votes[name]`.\n2. Loop over the map and print each candidate and their votes as `ana 3`, one per line.\n3. In the same loop, keep the candidate with the most votes, replacing them only on a strictly greater count.\n4. Print `winner: NAME` with the winner's name. On a tie the alphabetically first name wins.\n\nInput:\n\n```text\nana ben ana\ncy ben ana\n```\n\nExpected output:\n\n```text\nana 3\nben 2\ncy 1\nwinner: ana\n```",
+        "starter": "#include <iostream>\n#include <map>\n#include <string>\n\nint main() {\n    std::map<std::string, int> votes;\n    std::string name;\n    // TODO: read every name and count it in votes\n\n    // TODO: print each candidate and their votes, tracking the winner\n    // TODO: print winner: NAME\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <map>\n#include <string>\n\nint main() {\n    std::map<std::string, int> votes;\n    std::string name;\n    while (std::cin >> name) {\n        ++votes[name];\n    }\n\n    std::string winner;\n    int winnerVotes = 0;\n    for (const auto& [candidate, count] : votes) {\n        std::cout << candidate << ' ' << count << '\\n';\n        if (count > winnerVotes) {\n            winner = candidate;\n            winnerVotes = count;\n        }\n    }\n    std::cout << \"winner: \" << winner << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "ana ben ana\ncy ben ana\n",
+            "output": "ana 3\nben 2\ncy 1\nwinner: ana"
+          },
+          {
+            "stdin": "zoe max zoe max lee\n",
+            "output": "lee 1\nmax 2\nzoe 2\nwinner: max"
+          },
+          {
+            "stdin": "solo\n",
+            "output": "solo 1\nwinner: solo"
+          }
+        ],
+        "hints": [
+          "`++votes[name]` inside the read loop does all the counting.",
+          "Loop with `for (const auto& [candidate, count] : votes)`.",
+          "Start `winnerVotes` at 0 and replace the winner only when `count > winnerVotes`."
+        ]
+      }
+    },
+    {
+      "title": "Sets from input",
+      "body": "Many problems give you a list and then questions about it. The input comes in two sections: a count `n` and `n` items, then a count `q` and `q` queries. Read each section with its own counted loop.\n\nLoad the items into a `std::set`. `insert` ignores duplicates, and the set stays sorted, so one container removes repeats and orders the data:\n\n```cpp\nstd::set<int> numbers;\nfor (int i = 0; i < n; ++i) {\n    int x = 0;\n    std::cin >> x;\n    numbers.insert(x);\n}\n```\n\nThen answer each query with `count`, which returns 1 when the value is in the set and 0 when it is not. Each lookup is O(log n) because a set is a balanced tree, so thousands of queries stay fast. A `std::vector` with `std::find` would scan every item for every query.\n\n```cpp\nstd::cout << (numbers.count(query) == 1 ? \"yes\" : \"no\") << '\\n';\n```\n\nWrap the ternary in parentheses inside `std::cout`. A range-for over the set prints the distinct values in ascending order.",
+      "example": {
+        "title": "Number lookup",
+        "prompt": "Read n numbers into a set, answer q membership queries, then print the distinct numbers in order.",
+        "code": "#include <iostream>\n#include <set>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::set<int> numbers;\n    for (int i = 0; i < n; ++i) {\n        int x = 0;\n        std::cin >> x;\n        numbers.insert(x);  // duplicates are ignored\n    }\n\n    int q = 0;\n    std::cin >> q;\n    for (int i = 0; i < q; ++i) {\n        int query = 0;\n        std::cin >> query;\n        std::cout << (numbers.count(query) == 1 ? \"yes\" : \"no\") << '\\n';\n    }\n\n    bool first = true;\n    for (int x : numbers) {\n        if (!first) {\n            std::cout << ' ';\n        }\n        std::cout << x;\n        first = false;\n    }\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "stdin": "6\n5 3 9 3 5 1\n3\n3 4 9\n",
+        "output": "yes\nno\nyes\n1 3 5 9",
+        "explanation": "The first loop reads six numbers, but the set keeps only 1, 3, 5, and 9 because repeated inserts do nothing. The second section starts with `q`, the number of queries. Each query is answered with `count`. The final loop prints the set in ascending order, with `first` making sure a space goes only between values."
+      },
+      "practice": {
+        "title": "Login check",
+        "prompt": "Check login attempts against a list of registered users.\n\n1. Read `n`, then `n` usernames into a `std::set<std::string>` called `registered`.\n2. Read `q`, then `q` login attempts one at a time.\n3. For each attempt, print `welcome NAME` when `registered` contains it and `unknown NAME` when it does not.\n4. Insert every successful name into a second set, `loggedIn`, so repeat logins count once.\n5. Finally print `logged in: COUNT`, where COUNT is the size of `loggedIn`.\n\nInput:\n\n```text\n4\nana ben cy ben\n5\nben dan ana ben eve\n```\n\nExpected output:\n\n```text\nwelcome ben\nunknown dan\nwelcome ana\nwelcome ben\nunknown eve\nlogged in: 2\n```",
+        "starter": "#include <iostream>\n#include <set>\n#include <string>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::set<std::string> registered;\n    // TODO: read n usernames into registered\n\n    // TODO: read q, then answer each login attempt with welcome or unknown\n    // TODO: print logged in: followed by the number of distinct users who logged in\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <set>\n#include <string>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::set<std::string> registered;\n    for (int i = 0; i < n; ++i) {\n        std::string user;\n        std::cin >> user;\n        registered.insert(user);\n    }\n\n    int q = 0;\n    std::cin >> q;\n    std::set<std::string> loggedIn;\n    for (int i = 0; i < q; ++i) {\n        std::string attempt;\n        std::cin >> attempt;\n        if (registered.count(attempt) == 1) {\n            std::cout << \"welcome \" << attempt << '\\n';\n            loggedIn.insert(attempt);\n        } else {\n            std::cout << \"unknown \" << attempt << '\\n';\n        }\n    }\n    std::cout << \"logged in: \" << loggedIn.size() << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "4\nana ben cy ben\n5\nben dan ana ben eve\n",
+            "output": "welcome ben\nunknown dan\nwelcome ana\nwelcome ben\nunknown eve\nlogged in: 2"
+          },
+          {
+            "stdin": "1\nsam\n2\nbob tom\n",
+            "output": "unknown bob\nunknown tom\nlogged in: 0"
+          },
+          {
+            "stdin": "1\nsam\n3\nsam sam sam\n",
+            "output": "welcome sam\nwelcome sam\nwelcome sam\nlogged in: 1"
+          }
+        ],
+        "hints": [
+          "Use one counted loop for the usernames and a second counted loop for the attempts.",
+          "`registered.count(attempt) == 1` is true when the user exists.",
+          "A set ignores repeated inserts, so `loggedIn.size()` counts each user once."
+        ]
+      }
+    },
+    {
+      "title": "Records into a vector of structs",
+      "body": "When each input line is a record, give it a struct and read straight into its fields. `>>` works on members just like on plain variables:\n\n```cpp\nPlayer p;\nstd::cin >> p.name >> p.age >> p.score;\nplayers.push_back(p);\n```\n\nThe default member initializers (`int age = 0;`) mean `p` never holds garbage before the read. `push_back` copies the struct into the vector, which stores all its elements in one heap buffer. Each `std::string` inside keeps its own text.\n\nSort with a comparator lambda that compares the main key and falls back to a second key on ties, so the order never depends on input order:\n\n```cpp\nstd::sort(players.begin(), players.end(), [](const Player& a, const Player& b) {\n    if (a.score != b.score) {\n        return a.score > b.score;\n    }\n    return a.name < b.name;\n});\n```\n\nTake the parameters by `const&` so sorting does not copy every record on each comparison. Put the printing in a `const` member function such as `void print() const`. It promises not to change the object and works on `const` elements.\n\nFields read with `>>` are single words. A title with spaces would need `std::getline` and a delimiter instead.",
+      "example": {
+        "title": "Player ranking",
+        "prompt": "Read player records, rank them by score with ties broken by name, and print the ranking.",
+        "code": "#include <algorithm>\n#include <cstddef>\n#include <iostream>\n#include <string>\n#include <vector>\n\nstruct Player {\n    std::string name;\n    int age = 0;\n    int score = 0;\n\n    void print() const {\n        std::cout << name << ' ' << score << '\\n';\n    }\n};\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<Player> players;\n    for (int i = 0; i < n; ++i) {\n        Player p;\n        std::cin >> p.name >> p.age >> p.score;\n        players.push_back(p);\n    }\n\n    std::sort(players.begin(), players.end(), [](const Player& a, const Player& b) {\n        if (a.score != b.score) {\n            return a.score > b.score;  // higher score first\n        }\n        return a.name < b.name;  // ties: alphabetical\n    });\n\n    for (std::size_t i = 0; i < players.size(); ++i) {\n        std::cout << i + 1 << \". \";\n        players[i].print();\n    }\n    return 0;\n}\n",
+        "stdin": "4\nmia 24 88\nleo 31 95\nava 19 88\nzed 27 70\n",
+        "output": "1. leo 95\n2. ava 88\n3. mia 88\n4. zed 70",
+        "explanation": "Each pass reads three fields straight into a `Player` and pushes a copy into the vector. Age is read because it is part of each line, even though the ranking does not print it. The comparator puts higher scores first. ava and mia both have 88, so the second rule puts ava first. The index loop prints the rank as `i + 1` and lets `print()` write the rest."
+      },
+      "practice": {
+        "title": "Movie list",
+        "prompt": "Read movies into a vector of structs and list them in release order.\n\n1. Read `n`, then `n` lines of `title year rating` straight into the fields of a `Movie`, and `push_back` each one.\n2. Sort with a comparator lambda: earlier year first, and alphabetical title when the years match.\n3. Finish the `const` member function `print()` so it prints `year title rating` with the rating to 1 decimal.\n4. Call `print()` on every movie in sorted order.\n\nInput:\n\n```text\n4\nup 2009 8.3\nalien 1979 8.5\nheat 1995 8.3\ncasino 1995 8.2\n```\n\nExpected output:\n\n```text\n1979 alien 8.5\n1995 casino 8.2\n1995 heat 8.3\n2009 up 8.3\n```",
+        "starter": "#include <algorithm>\n#include <iomanip>\n#include <iostream>\n#include <string>\n#include <vector>\n\nstruct Movie {\n    std::string title;\n    int year = 0;\n    double rating = 0.0;\n\n    void print() const {\n        // TODO: print year, title, and rating separated by spaces\n    }\n};\n\nint main() {\n    std::cout << std::fixed << std::setprecision(1);\n    int n = 0;\n    std::cin >> n;\n    std::vector<Movie> movies;\n    // TODO: read n movies into the vector\n    // TODO: sort by year, then by title\n    // TODO: print each movie with print()\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iomanip>\n#include <iostream>\n#include <string>\n#include <vector>\n\nstruct Movie {\n    std::string title;\n    int year = 0;\n    double rating = 0.0;\n\n    void print() const {\n        std::cout << year << ' ' << title << ' ' << rating << '\\n';\n    }\n};\n\nint main() {\n    std::cout << std::fixed << std::setprecision(1);\n    int n = 0;\n    std::cin >> n;\n    std::vector<Movie> movies;\n    for (int i = 0; i < n; ++i) {\n        Movie m;\n        std::cin >> m.title >> m.year >> m.rating;\n        movies.push_back(m);\n    }\n\n    std::sort(movies.begin(), movies.end(), [](const Movie& a, const Movie& b) {\n        if (a.year != b.year) {\n            return a.year < b.year;\n        }\n        return a.title < b.title;\n    });\n\n    for (const auto& m : movies) {\n        m.print();\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "4\nup 2009 8.3\nalien 1979 8.5\nheat 1995 8.3\ncasino 1995 8.2\n",
+            "output": "1979 alien 8.5\n1995 casino 8.2\n1995 heat 8.3\n2009 up 8.3"
+          },
+          {
+            "stdin": "1\nsolo 2018 7\n",
+            "output": "2018 solo 7.0"
+          },
+          {
+            "stdin": "3\nzoo 2000 6.5\nant 2000 9\nmid 2000 7.4\n",
+            "output": "2000 ant 9.0\n2000 mid 7.4\n2000 zoo 6.5"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the Player loop: declare a `Movie`, read its three fields with one chained `>>`, then `push_back` it.",
+          "In the comparator, compare years first and only compare titles when the years are equal.",
+          "`std::fixed << std::setprecision(1)` is already set at the top of `main`, so `print()` can stream `rating` directly."
+        ]
+      }
+    }
+  ],
+  "recap": "- `std::istringstream iss(line)` from `<sstream>` turns a line into a stream.\n- `std::getline(iss, part, ',')` splits on a delimiter: read the label first, then loop over the rest and convert with `std::stoi`.\n- `iss >> token` reads space-separated words, like `std::cin`.\n- `++counts[key]` counts while reading, and a `std::map` prints the counts in sorted key order.\n- Replace the best only on a strictly greater count so ties go to the alphabetically first key.\n- A `std::set` removes duplicates and sorts, and `count` answers membership queries in O(log n).\n- Read two sections with two counted loops: `n` items, then `q` queries.\n- Read fields straight into struct members, store the structs in a `std::vector`, and sort with a lambda that breaks ties.\n- Print records with a `const` member function."
+}

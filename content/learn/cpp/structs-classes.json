@@ -1,0 +1,118 @@
+{
+  "id": "structs-classes",
+  "title": "Structs and Classes",
+  "section": "Object-Oriented Programming",
+  "summary": "Group data into structs, see how they are laid out in memory, add member functions, and protect rules with private data in classes.",
+  "intro": "So far your data has lived in loose variables, pairs, and tuples. A struct gives a group of values one name and one type, so a `Book` travels through your program as a single thing. Add member functions and private data, and it becomes a class that guards its own rules.",
+  "steps": [
+    {
+      "title": "Grouping data with struct",
+      "body": "A `struct` groups related values into one new type. Each value is a *field* (also called a member). Note the semicolon after the closing brace: forgetting it gives a confusing error on the next line.\n\n```cpp\nstruct Point {\n    int x = 0;   // default member initializer\n    int y = 0;\n};\n\nPoint p{3, 4};       // aggregate initialization, in field order\nstd::cout << p.x;    // member access with .\np.y = 10;\nPoint origin;        // x and y use their defaults: 0 and 0\n```\n\nBraces fill the fields in declaration order, and any field you leave out takes its default. Without a default, an `int` or `double` field of a plain `Point origin;` would hold garbage, so give those fields one. A `std::string` field starts empty on its own.\n\nA struct works like any other type. `std::vector<Point>` holds many of them, and `pts.push_back({1, 2})` builds a temporary `Point` from the braces and stores it. `pts.emplace_back(1, 2)` does not compile here, because in C++17 `emplace_back` needs a constructor and `Point` has none. Structs can be large, so pass them to functions by `const Point&` to read them without a copy.",
+      "example": {
+        "title": "A shelf of books",
+        "prompt": "Store three books in a vector of structs, print each one with a helper, and print the total page count.",
+        "code": "#include <iomanip>\n#include <iostream>\n#include <string>\n#include <vector>\n\nstruct Book {\n    std::string title;\n    int pages = 0;\n    double price = 0.0;\n};\n\nvoid printBook(const Book& b) {\n    std::cout << b.title << \": \" << b.pages << \" pages, $\" << b.price << '\\n';\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    Book dune{\"Dune\", 412, 9.99};\n    dune.price = 8.99;\n\n    std::vector<Book> shelf;\n    shelf.push_back(dune);\n    shelf.push_back({\"Emma\", 474, 7.50});\n    shelf.push_back({\"Hamlet\", 104});\n\n    int totalPages = 0;\n    for (const auto& b : shelf) {\n        printBook(b);\n        totalPages += b.pages;\n    }\n    std::cout << \"Total pages: \" << totalPages << '\\n';\n    return 0;\n}\n",
+        "output": "Dune: 412 pages, $8.99\nEmma: 474 pages, $7.50\nHamlet: 104 pages, $0.00\nTotal pages: 990",
+        "explanation": "`Book dune{...}` fills `title`, `pages`, and `price` in order, and `dune.price = 8.99` changes one field. `shelf.push_back(dune)` stores a *copy* of `dune` in the vector, while `push_back({...})` builds each new `Book` from the braces and stores it. Hamlet gives only two values, so its `price` keeps the default `0.0`. The loop reads each book through `const auto&`, hands it to `printBook` by `const Book&` (no copies), and adds up `b.pages`."
+      },
+      "practice": {
+        "title": "Planet catalog",
+        "prompt": "Store three planets in a vector of structs, print each one, and find the planet with the most moons.\n\n1. Define `struct Planet` with `std::string name`, `double radius = 0.0`, and `int moons = 0`.\n2. Write `void printPlanet(const Planet& p)` that prints `NAME: radius RADIUS km, moons MOONS` (the starter already sets 1 decimal place).\n3. Add three planets with `push_back({...})` in this order: Mars (3389.5, 2 moons), Jupiter (69911.0, 95 moons), Earth (6371.0, 1 moon).\n4. Print every planet in that order with `printPlanet`.\n5. Print `Most moons: ` followed by the name of the planet with the most moons.\n\nExpected output:\n\n```text\nMars: radius 3389.5 km, moons 2\nJupiter: radius 69911.0 km, moons 95\nEarth: radius 6371.0 km, moons 1\nMost moons: Jupiter\n```",
+        "starter": "#include <cstddef>\n#include <iomanip>\n#include <iostream>\n#include <string>\n#include <vector>\n\n// TODO: define struct Planet with name, radius = 0.0, and moons = 0\n\n// TODO: write void printPlanet(const Planet& p)\n\nint main() {\n    std::cout << std::fixed << std::setprecision(1);\n    // TODO: store Mars, Jupiter, and Earth in a std::vector<Planet>\n    // TODO: print each planet, then the one with the most moons\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <iomanip>\n#include <iostream>\n#include <string>\n#include <vector>\n\nstruct Planet {\n    std::string name;\n    double radius = 0.0;\n    int moons = 0;\n};\n\nvoid printPlanet(const Planet& p) {\n    std::cout << p.name << \": radius \" << p.radius << \" km, moons \" << p.moons << '\\n';\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(1);\n    std::vector<Planet> planets;\n    planets.push_back({\"Mars\", 3389.5, 2});\n    planets.push_back({\"Jupiter\", 69911.0, 95});\n    planets.push_back({\"Earth\", 6371.0, 1});\n\n    std::size_t best = 0;\n    for (std::size_t i = 0; i < planets.size(); ++i) {\n        printPlanet(planets[i]);\n        if (planets[i].moons > planets[best].moons) {\n            best = i;\n        }\n    }\n    std::cout << \"Most moons: \" << planets[best].name << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Mars: radius 3389.5 km, moons 2\nJupiter: radius 69911.0 km, moons 95\nEarth: radius 6371.0 km, moons 1\nMost moons: Jupiter"
+          }
+        ],
+        "hints": [
+          "Copy the shape of `struct Book`, and remember the semicolon after the closing brace.",
+          "Track the index of the best planet so far, starting at 0, and compare `planets[i].moons` with `planets[best].moons`.",
+          "Print the winner after the loop with `planets[best].name`."
+        ]
+      }
+    },
+    {
+      "title": "Structs in memory",
+      "body": "A struct's fields are stored together in one block, in the order you declare them. But `sizeof` a struct is often more than the sum of its fields. The CPU reads a value fastest when its address is a multiple of its *alignment*: 1 for `char`, 4 for `int`, 8 for `double`. So the compiler inserts unused *padding* bytes before a field that would be misaligned, and rounds the total up to a multiple of the largest alignment, so every element of an array of structs stays aligned too.\n\n```text\nstruct Loose { char a; int b; char c; }   a . . . b b b b c . . .   12 bytes\nstruct Tight { int b; char a; char c; }   b b b b a c . .           8 bytes\n```\n\nSame three fields, different order. Listing fields from largest to smallest removes most padding, which matters when you store millions of structs.\n\n`std::string` is a fixed-size object, 32 bytes here, whatever its text. Short text (up to 15 characters) fits inside those 32 bytes. Longer text lives on the heap and the string holds a pointer to it. So `sizeof(Book)` counts the string object, not the characters. These sizes are for this x86-64 Linux machine. Other platforms can differ, so never hard-code them.",
+      "example": {
+        "title": "Measuring padding",
+        "prompt": "Print the size of two structs that hold the same fields in a different order, then the size of Book.",
+        "code": "#include <iostream>\n#include <string>\n\nstruct Loose {\n    char a;\n    int b;\n    char c;\n};\n\nstruct Tight {\n    int b;\n    char a;\n    char c;\n};\n\nstruct Book {\n    std::string title;\n    int pages = 0;\n    double price = 0.0;\n};\n\nint main() {\n    std::cout << \"Fields: \" << sizeof(char) + sizeof(int) + sizeof(char) << '\\n';\n    std::cout << \"Loose: \" << sizeof(Loose) << '\\n';\n    std::cout << \"Tight: \" << sizeof(Tight) << '\\n';\n    std::cout << \"std::string: \" << sizeof(std::string) << '\\n';\n    std::cout << \"Book: \" << sizeof(Book) << '\\n';\n    return 0;\n}\n",
+        "output": "Fields: 6\nLoose: 12\nTight: 8\nstd::string: 32\nBook: 48",
+        "explanation": "The fields add up to 6 bytes. In `Loose`, `b` must start at a multiple of 4, so 3 padding bytes follow `a`, and 3 more after `c` round the size up to 12. In `Tight`, `b` starts at 0, the two chars sit at 4 and 5, and 2 bytes of padding make 8. `Book` is 32 for the string, 4 for `pages`, then 4 bytes of padding so `price` starts at 40, then 8 for `price`: 48 in total. The structs here are never created, because `sizeof` only needs the type."
+      },
+      "practice": {
+        "title": "Packing pixels",
+        "prompt": "Measure how field order changes the size of a pixel struct.\n\n1. Define `struct PixelLoose` with fields `char r`, `double x`, `char g` in that order.\n2. Define `struct PixelTight` with fields `double x`, `char r`, `char g` in that order.\n3. Print `Fields: ` and the sum `sizeof(char) + sizeof(double) + sizeof(char)`.\n4. Print `PixelLoose: `, `PixelTight: `, and `Planet: ` each followed by that struct's `sizeof`, one per line.\n\nExpected output:\n\n```text\nFields: 10\nPixelLoose: 24\nPixelTight: 16\nPlanet: 48\n```",
+        "starter": "#include <iostream>\n#include <string>\n\nstruct Planet {\n    std::string name;\n    double radius = 0.0;\n    int moons = 0;\n};\n\n// TODO: define PixelLoose { char r; double x; char g; } and PixelTight { double x; char r; char g; }\n\nint main() {\n    // TODO: print the field total, sizeof(PixelLoose), sizeof(PixelTight), and sizeof(Planet)\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n\nstruct Planet {\n    std::string name;\n    double radius = 0.0;\n    int moons = 0;\n};\n\nstruct PixelLoose {\n    char r;\n    double x;\n    char g;\n};\n\nstruct PixelTight {\n    double x;\n    char r;\n    char g;\n};\n\nint main() {\n    std::cout << \"Fields: \" << sizeof(char) + sizeof(double) + sizeof(char) << '\\n';\n    std::cout << \"PixelLoose: \" << sizeof(PixelLoose) << '\\n';\n    std::cout << \"PixelTight: \" << sizeof(PixelTight) << '\\n';\n    std::cout << \"Planet: \" << sizeof(Planet) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Fields: 10\nPixelLoose: 24\nPixelTight: 16\nPlanet: 48"
+          }
+        ],
+        "hints": [
+          "Write each field on its own line inside the struct, in the order given.",
+          "A `double` must start at a multiple of 8, so in `PixelLoose` 7 padding bytes follow `r`.",
+          "`Planet` is 32 for the string, 8 for `radius`, 4 for `moons`, and 4 bytes of padding at the end."
+        ]
+      }
+    },
+    {
+      "title": "Member functions and const methods",
+      "body": "A struct can hold functions too. A *member function* (method) is defined inside the struct and called on an object with `obj.method()`. Inside it, the fields are used directly by name: they belong to whichever object the call was made on.\n\n```cpp\nstruct Rectangle {\n    double width = 0.0;\n    double height = 0.0;\n\n    double area() const {\n        return width * height;\n    }\n    void scale(double factor) {\n        width *= factor;\n        height *= factor;\n    }\n};\n```\n\n`const` after the parameter list promises the method does not change the object. The compiler enforces it, and only const methods can be called through a `const Rectangle&`. So mark every method that only reads.\n\nEvery method receives a hidden pointer named `this` that points at the object. `width` inside a method is shorthand for `this->width`. The `->` operator reaches a member through a pointer: `p->area()` means `(*p).area()`.\n\n```cpp\nRectangle* p = &r;\np->scale(2.0);   // changes r itself\n```",
+      "example": {
+        "title": "Rectangle methods",
+        "prompt": "Give a Rectangle struct area, perimeter, and scale methods, then call them directly and through a pointer.",
+        "code": "#include <iomanip>\n#include <iostream>\n\nstruct Rectangle {\n    double width = 0.0;\n    double height = 0.0;\n\n    double area() const {\n        return width * height;\n    }\n    double perimeter() const {\n        return 2 * (width + height);\n    }\n    void scale(double factor) {\n        width *= factor;\n        this->height *= factor;\n    }\n};\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    Rectangle r{3.0, 4.0};\n    std::cout << r.area() << ' ' << r.perimeter() << '\\n';\n\n    r.scale(2.0);\n    std::cout << r.width << ' ' << r.height << ' ' << r.area() << '\\n';\n\n    Rectangle* p = &r;\n    p->scale(1.5);\n    std::cout << p->width << ' ' << p->area() << ' ' << r.perimeter() << '\\n';\n    return 0;\n}\n",
+        "output": "12.00 14.00\n6.00 8.00 48.00\n9.00 108.00 42.00",
+        "explanation": "`r.area()` runs `area` with `this` pointing at `r`, so `width * height` reads `r`'s fields: 3 times 4 is 12. `scale` is not const because it changes the fields. Writing `this->height` is the same as plain `height`, shown once here. `p` holds the address of `r`, so `p->scale(1.5)` scales `r` itself to 9 by 12, and `r.perimeter()` sees the change: 2 times 21 is 42. No copy was made."
+      },
+      "practice": {
+        "title": "Circle methods",
+        "prompt": "Give a Circle struct its own methods and call them directly and through a pointer.\n\n1. Add `double area() const` that returns `3.14159 * radius * radius`.\n2. Add `double diameter() const` that returns twice the radius.\n3. Add `void grow(double amount)` that adds `amount` to the radius.\n4. Print `c.area()` and `c.diameter()` on one line, separated by a space.\n5. Call `c.grow(1.0)`, then print the radius and the area on one line, separated by a space.\n6. Point a `Circle* p` at `c`, call `p->grow(0.5)`, then print `p->radius`, `p->area()`, and `c.diameter()` on one line, separated by spaces.\n\nExpected output:\n\n```text\n12.57 4.00\n3.00 28.27\n3.50 38.48 7.00\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n\nstruct Circle {\n    double radius = 0.0;\n\n    // TODO: add area() const, diameter() const, and grow(double amount)\n};\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    Circle c{2.0};\n    // TODO: print the area and diameter, grow by 1.0, then use a Circle* with ->\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\nstruct Circle {\n    double radius = 0.0;\n\n    double area() const {\n        return 3.14159 * radius * radius;\n    }\n    double diameter() const {\n        return 2 * radius;\n    }\n    void grow(double amount) {\n        radius += amount;\n    }\n};\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    Circle c{2.0};\n    std::cout << c.area() << ' ' << c.diameter() << '\\n';\n\n    c.grow(1.0);\n    std::cout << c.radius << ' ' << c.area() << '\\n';\n\n    Circle* p = &c;\n    p->grow(0.5);\n    std::cout << p->radius << ' ' << p->area() << ' ' << c.diameter() << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "12.57 4.00\n3.00 28.27\n3.50 38.48 7.00"
+          }
+        ],
+        "hints": [
+          "Define each method inside the braces of `struct Circle`, and use `radius` directly.",
+          "Put `const` after the parameter list of the two methods that only read: `double area() const { ... }`.",
+          "`Circle* p = &c;` then `p->grow(0.5);` changes `c` itself."
+        ]
+      }
+    },
+    {
+      "title": "Classes with private data",
+      "body": "A struct lets anyone change any field, which is fine for plain data. When the data has a rule to protect (an *invariant*, such as \"a balance never goes below zero\"), use a `class` and hide the data behind methods.\n\n```cpp\nclass Counter {\npublic:\n    void add(int n) {\n        if (n > 0) {\n            count_ += n;   // the method enforces the rule\n        }\n    }\n    int count() const {    // a getter: read-only access\n        return count_;\n    }\n\nprivate:\n    int count_ = 0;\n};\n```\n\nMembers under `public:` can be used by any code. Members under `private:` can only be used inside the class's own methods, so `c.count_ = -5;` outside the class does not compile. Every change has to go through a method that checks the rule. The trailing underscore marks private data and frees the plain name for the getter.\n\n`struct` and `class` are the same thing in C++, except for the default: a `struct` starts public and a `class` starts private. This course uses `struct` for plain data and `class` when there are rules to protect.",
+      "example": {
+        "title": "A guarded bank account",
+        "prompt": "Write a BankAccount class whose balance can only change through methods that refuse overdrafts and negative deposits.",
+        "code": "#include <iomanip>\n#include <iostream>\n\nclass BankAccount {\npublic:\n    void deposit(double amount) {\n        if (amount > 0) {\n            balance_ += amount;\n        }\n    }\n    bool withdraw(double amount) {\n        if (amount <= 0 || amount > balance_) {\n            return false;\n        }\n        balance_ -= amount;\n        return true;\n    }\n    double balance() const {\n        return balance_;\n    }\n\nprivate:\n    double balance_ = 0.0;\n};\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2) << std::boolalpha;\n    BankAccount account;\n    account.deposit(100.0);\n    std::cout << \"Deposit 100: \" << account.balance() << '\\n';\n\n    bool ok = account.withdraw(30.0);\n    std::cout << \"Withdraw 30: \" << ok << ' ' << account.balance() << '\\n';\n\n    ok = account.withdraw(500.0);\n    std::cout << \"Withdraw 500: \" << ok << ' ' << account.balance() << '\\n';\n\n    account.deposit(-20.0);\n    std::cout << \"Deposit -20: \" << account.balance() << '\\n';\n    return 0;\n}\n",
+        "output": "Deposit 100: 100.00\nWithdraw 30: true 70.00\nWithdraw 500: false 70.00\nDeposit -20: 70.00",
+        "explanation": "`balance_` is private, so `main` can only read it through the getter `balance()` and change it through `deposit` and `withdraw`. Both refuse bad requests: withdrawing 500 from 70 returns `false` and changes nothing, and a negative deposit is ignored. No code outside the class can break the rule that the balance never drops below zero. The object itself is still just a `double` in memory: private is a compile-time check, not extra storage."
+      },
+      "practice": {
+        "title": "Thermostat limits",
+        "prompt": "Finish a Thermostat class whose target temperature always stays between 10 and 30.\n\n1. Add `void raise(int amount)` and `void lower(int amount)` that change `target_` but keep it between 10 and 30.\n2. Make the getter `target()` return `target_`.\n3. In `main`, raise by 5, raise by 8, lower by 12, then lower by 15.\n4. The starter already prints `Start: 20`. After each change, print `Raise` or `Lower`, a space, the amount, a colon, a space, and the new target, as in `Raise 5: 25`.\n\nExpected output:\n\n```text\nStart: 20\nRaise 5: 25\nRaise 8: 30\nLower 12: 18\nLower 15: 10\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n\nclass Thermostat {\npublic:\n    // TODO: add raise(int amount) and lower(int amount) that keep the target between 10 and 30\n    int target() const {\n        return 0;  // TODO: return target_\n    }\n\nprivate:\n    int target_ = 20;\n};\n\nint main() {\n    Thermostat t;\n    std::cout << \"Start: \" << t.target() << '\\n';\n    // TODO: raise by 5, raise by 8, lower by 12, lower by 15, printing the target after each\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n\nclass Thermostat {\npublic:\n    void raise(int amount) {\n        target_ = std::clamp(target_ + amount, 10, 30);\n    }\n    void lower(int amount) {\n        target_ = std::clamp(target_ - amount, 10, 30);\n    }\n    int target() const {\n        return target_;\n    }\n\nprivate:\n    int target_ = 20;\n};\n\nint main() {\n    Thermostat t;\n    std::cout << \"Start: \" << t.target() << '\\n';\n    t.raise(5);\n    std::cout << \"Raise 5: \" << t.target() << '\\n';\n    t.raise(8);\n    std::cout << \"Raise 8: \" << t.target() << '\\n';\n    t.lower(12);\n    std::cout << \"Lower 12: \" << t.target() << '\\n';\n    t.lower(15);\n    std::cout << \"Lower 15: \" << t.target() << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Start: 20\nRaise 5: 25\nRaise 8: 30\nLower 12: 18\nLower 15: 10"
+          }
+        ],
+        "hints": [
+          "Raising 8 from 25 would give 33, so the method must cap it at 30.",
+          "`std::clamp(value, 10, 30)` from `<algorithm>` keeps a value inside the range.",
+          "Print each line like `std::cout << \"Raise 5: \" << t.target() << '\\n';`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `struct Name { fields };` defines a type. Do not forget the semicolon.\n- `Point p{3, 4};` fills fields in order, and default member initializers cover the rest.\n- `v.push_back({...})` adds an aggregate struct to a vector. Pass structs by `const&` to read them.\n- Fields sit in declaration order with padding for alignment, so order them from largest to smallest.\n- `sizeof(std::string)` is 32 here, whatever the text length.\n- Methods use fields directly. Mark the ones that only read `const`.\n- `this` points at the current object, and `p->m` means `(*p).m`.\n- `class` members are private by default, `struct` members public. Keep data private with a trailing underscore and expose getters and methods that enforce the rules."
+}

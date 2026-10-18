@@ -1,0 +1,154 @@
+{
+  "id": "bfs",
+  "title": "Breadth-First Search",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Explore level by level with a deque to find shortest paths in unweighted graphs and grids.",
+  "intro": "Depth-first search dives down one path before trying another. Breadth-first search (BFS) does the opposite: it explores everything one step away, then two steps, then three. That order is what makes BFS find the shortest path whenever every step costs the same, in mazes, maps, and networks. All it needs is a `deque` and a way to remember which nodes it has already seen.",
+  "steps": [
+    {
+      "title": "BFS with a queue",
+      "body": "Breadth-first search (BFS) explores outward in rings: first the start, then everything one step away, then everything two steps away. A queue drives it. Take the oldest node from the front, then add its new neighbors to the back. The graph here is a dict that maps each node to a list of its neighbors, called an *adjacency list*.\n\n```python\nfrom collections import deque\n\nqueue = deque([\"A\"])\nvisited = {\"A\"}\nnode = queue.popleft()   # O(1), while list.pop(0) is O(n)\n```\n\nA `deque` is the FIFO queue: `append()` adds to the back and `popleft()` takes from the front, both in O(1). The `visited` set remembers every node already seen, so a cycle cannot loop forever, and `in` on a set is O(1) on average.\n\nMark a node visited **when you enqueue it**, not when you pop it. If you wait until the pop, two neighbors can both add the same node before it comes out, so it sits in the queue twice and gets processed twice.\n\nBecause the queue is first in, first out, nodes come out in order of distance from the start: every node one step away before any node two steps away.",
+      "example": {
+        "title": "Visit order from A",
+        "prompt": "Run BFS over a hardcoded adjacency dict from A, then from D, and print each visit order.",
+        "code": "from collections import deque\n\n\ndef bfs(graph, start):\n    visited = {start}\n    queue = deque([start])\n    order = []\n    while queue:\n        node = queue.popleft()\n        order.append(node)\n        for nbr in graph[node]:\n            if nbr not in visited:\n                visited.add(nbr)\n                queue.append(nbr)\n    return order\n\n\ngraph = {\n    \"A\": [\"B\", \"C\"],\n    \"B\": [\"A\", \"D\", \"E\"],\n    \"C\": [\"A\", \"F\"],\n    \"D\": [\"B\"],\n    \"E\": [\"B\", \"F\"],\n    \"F\": [\"C\", \"E\"],\n}\nprint(\" \".join(bfs(graph, \"A\")))\nprint(\" \".join(bfs(graph, \"D\")))\n",
+        "output": "A B C D E F\nD B A E C F",
+        "explanation": "The queue starts with only the start node, already marked visited. Each pass pops the oldest node, records it, and enqueues every neighbor not seen yet, marking it at once. From A, B and C (one step) come out before D, E, and F (two steps). F is a neighbor of both C and E, but it is enqueued only once because C marks it first. The edges back to A are skipped because A is in `visited`."
+      },
+      "practice": {
+        "title": "BFS order from input",
+        "prompt": "Read a graph and a start node, then print the order BFS visits the nodes.\n\n1. The starter reads `n`, then `n` lines like `A B C` (a node followed by its neighbors) into `graph`, then the start node. Every node has its own line, even one with no neighbors.\n2. Finish `bfs(graph, start)`: use a `deque` as the queue and a `visited` set, and mark each node visited when you enqueue it.\n3. Visit neighbors in the order they are listed and return the list of nodes in visit order.\n4. Nodes that cannot be reached from the start are not printed. The starter prints the result separated by spaces.\n\nInput:\n\n```text\n6\nS A B\nA S C\nB S C D\nC A B E\nD B E\nE C D\nS\n```\n\nExpected output:\n\n```text\nS A B C D E\n```",
+        "starter": "from collections import deque\n\n\ndef bfs(graph, start):\n    # TODO: BFS from start with a deque and a visited set, return the visit order\n    return []\n\n\nn = int(input())\ngraph = {}\nfor _ in range(n):\n    node, *neighbors = input().split()\n    graph[node] = neighbors\nstart = input().strip()\nprint(\" \".join(bfs(graph, start)))\n",
+        "solution": "from collections import deque\n\n\ndef bfs(graph, start):\n    visited = {start}\n    queue = deque([start])\n    order = []\n    while queue:\n        node = queue.popleft()\n        order.append(node)\n        for nbr in graph[node]:\n            if nbr not in visited:\n                visited.add(nbr)\n                queue.append(nbr)\n    return order\n\n\nn = int(input())\ngraph = {}\nfor _ in range(n):\n    node, *neighbors = input().split()\n    graph[node] = neighbors\nstart = input().strip()\nprint(\" \".join(bfs(graph, start)))\n",
+        "tests": [
+          {
+            "stdin": "6\nS A B\nA S C\nB S C D\nC A B E\nD B E\nE C D\nS\n",
+            "output": "S A B C D E"
+          },
+          {
+            "stdin": "4\nP Q\nQ R\nR\nT P\nQ\n",
+            "output": "Q R"
+          },
+          {
+            "stdin": "1\nX\nX\n",
+            "output": "X"
+          }
+        ],
+        "hints": [
+          "Set up like the example: before the loop, the start goes into both `visited` and the queue.",
+          "Each pass of `while queue:` takes the oldest node with `popleft()` and appends it to `order`.",
+          "Add a neighbor to `visited` in the same step that you append it to the queue, never later."
+        ]
+      }
+    },
+    {
+      "title": "Shortest path on a grid",
+      "body": "On a grid, each cell is a node and its neighbors are the cells up, down, left, and right. Put the distance in the queue item itself, as a `(row, col, dist)` tuple:\n\n```python\nqueue = deque([(start_r, start_c, 0)])\nr, c, dist = queue.popleft()\nqueue.append((nr, nc, dist + 1))\n```\n\nBFS pops cells in order of distance, so **the first time it pops the target, `dist` is the shortest path**. Return right away.\n\nBefore enqueuing a neighbor, check three things: it is inside the grid, it is not a wall, and it is not visited yet. Do the bounds check first, because `maze[-1]` does not fail in Python: it quietly reads the last row.\n\n```python\nif not (0 <= nr < rows and 0 <= nc < cols):\n    continue   # off the grid\nif maze[nr][nc] != \"#\" and (nr, nc) not in visited:\n```\n\nStore visited cells as `(row, col)` tuples in a set. If the queue runs empty without reaching the target, there is no path, so return -1.\n\nWhen every step costs the same, BFS is the tool for shortest paths. The DFS flood fill from the recursion lesson also reaches E, but not necessarily by the shortest route.",
+      "example": {
+        "title": "Steps through a maze",
+        "prompt": "Find the fewest steps from S to E in one maze, then print -1 for a maze where E is walled off.",
+        "code": "from collections import deque\n\nDIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]\n\n\ndef find(maze, ch):\n    for r, row in enumerate(maze):\n        if ch in row:\n            return r, row.index(ch)\n    return None\n\n\ndef shortest_steps(maze):\n    rows, cols = len(maze), len(maze[0])\n    sr, sc = find(maze, \"S\")\n    queue = deque([(sr, sc, 0)])\n    visited = {(sr, sc)}\n    while queue:\n        r, c, dist = queue.popleft()\n        if maze[r][c] == \"E\":\n            return dist\n        for dr, dc in DIRECTIONS:\n            nr, nc = r + dr, c + dc\n            if not (0 <= nr < rows and 0 <= nc < cols):\n                continue\n            if maze[nr][nc] != \"#\" and (nr, nc) not in visited:\n                visited.add((nr, nc))\n                queue.append((nr, nc, dist + 1))\n    return -1\n\n\nopen_maze = [\n    \"S.#.....\",\n    \".##.###.\",\n    \"....#E..\",\n    \".##...#.\",\n]\nwalled_maze = [\n    \"S..#E\",\n    \".#.#.\",\n    \"...##\",\n]\nprint(\"Open maze:\", shortest_steps(open_maze))\nprint(\"Walled maze:\", shortest_steps(walled_maze))\n",
+        "output": "Open maze: 9\nWalled maze: -1",
+        "explanation": "`find` locates S. The queue holds `(row, col, dist)` tuples and starts at S with distance 0. Each pop checks for E first. Since cells leave the queue in order of distance, the first E popped is the closest one: 9 steps. Neighbors outside the grid are skipped with `continue` before `maze[nr][nc]` is read, and walls and visited cells are never enqueued. In the walled maze every reachable cell is used up without touching E, so the loop ends and the function returns -1."
+      },
+      "practice": {
+        "title": "Maze from input",
+        "prompt": "Read a maze and print the fewest steps from S to E, or -1 when E cannot be reached.\n\n1. The starter reads `n`, then `n` rows of the maze. `.` is open, `#` is a wall, and `S` and `E` are the start and the exit.\n2. Finish `shortest_steps(maze)`: BFS from S with `(row, col, dist)` queue items and a set of visited `(row, col)` tuples.\n3. Move up, down, left, or right. Skip cells outside the grid, walls, and visited cells.\n4. Return `dist` the first time you pop E, and -1 if the queue runs empty.\n\nInput:\n\n```text\n5\nS...#\n.##.#\n.#..E\n.#.##\n...#.\n```\n\nExpected output:\n\n```text\n6\n```",
+        "starter": "from collections import deque\n\nDIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]\n\n\ndef find(maze, ch):\n    for r, row in enumerate(maze):\n        if ch in row:\n            return r, row.index(ch)\n    return None\n\n\ndef shortest_steps(maze):\n    rows, cols = len(maze), len(maze[0])\n    sr, sc = find(maze, \"S\")\n    # TODO: BFS with (row, col, dist) items, return dist at E or -1\n    return 0\n\n\nn = int(input())\nmaze = [input().strip() for _ in range(n)]\nprint(shortest_steps(maze))\n",
+        "solution": "from collections import deque\n\nDIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]\n\n\ndef find(maze, ch):\n    for r, row in enumerate(maze):\n        if ch in row:\n            return r, row.index(ch)\n    return None\n\n\ndef shortest_steps(maze):\n    rows, cols = len(maze), len(maze[0])\n    sr, sc = find(maze, \"S\")\n    queue = deque([(sr, sc, 0)])\n    visited = {(sr, sc)}\n    while queue:\n        r, c, dist = queue.popleft()\n        if maze[r][c] == \"E\":\n            return dist\n        for dr, dc in DIRECTIONS:\n            nr, nc = r + dr, c + dc\n            if not (0 <= nr < rows and 0 <= nc < cols):\n                continue\n            if maze[nr][nc] != \"#\" and (nr, nc) not in visited:\n                visited.add((nr, nc))\n                queue.append((nr, nc, dist + 1))\n    return -1\n\n\nn = int(input())\nmaze = [input().strip() for _ in range(n)]\nprint(shortest_steps(maze))\n",
+        "tests": [
+          {
+            "stdin": "5\nS...#\n.##.#\n.#..E\n.#.##\n...#.\n",
+            "output": "6"
+          },
+          {
+            "stdin": "3\nS.#\n.##\n#.E\n",
+            "output": "-1"
+          },
+          {
+            "stdin": "1\nSE\n",
+            "output": "1"
+          }
+        ],
+        "hints": [
+          "Start with `queue = deque([(sr, sc, 0)])` and `visited = {(sr, sc)}`.",
+          "After `r, c, dist = queue.popleft()`, return `dist` if `maze[r][c] == \"E\"`.",
+          "For each `(dr, dc)`, `continue` when the new cell is off the grid. Otherwise enqueue it with `dist + 1` only if it is open and not visited."
+        ]
+      }
+    },
+    {
+      "title": "Rebuilding the path",
+      "body": "A distance tells you how far the target is. To show the route itself, record where each node was first reached from in a `parent` dict, at the moment you enqueue it:\n\n```python\nparent = {start: None}\n...\nif nbr not in parent:\n    parent[nbr] = node\n    queue.append(nbr)\n```\n\nThe keys of `parent` are exactly the nodes already seen, so the dict doubles as the visited set. The start maps to `None` because nothing came before it.\n\nAfter the search, walk back from the target through the parents until you hit `None`. That gives the path backwards, so reverse it:\n\n```python\npath = []\nnode = end\nwhile node is not None:\n    path.append(node)\n    node = parent[node]\npath.reverse()\nprint(\" -> \".join(path))   # A -> C -> F\n```\n\nIf the target never made it into `parent`, it is unreachable. Check `end not in parent` before walking back, or `parent[end]` raises KeyError. Because each node keeps its *first* parent, the path BFS rebuilds is a shortest one.",
+      "example": {
+        "title": "Route from A",
+        "prompt": "Run BFS from A, store each node's parent when enqueuing, and print the shortest path to F, to D, and to the unreachable G.",
+        "code": "from collections import deque\n\n\ndef shortest_path(graph, start, end):\n    parent = {start: None}\n    queue = deque([start])\n    while queue:\n        node = queue.popleft()\n        if node == end:\n            break\n        for nbr in graph[node]:\n            if nbr not in parent:\n                parent[nbr] = node\n                queue.append(nbr)\n    if end not in parent:\n        return []\n    path = []\n    node = end\n    while node is not None:\n        path.append(node)\n        node = parent[node]\n    path.reverse()\n    return path\n\n\ngraph = {\n    \"A\": [\"B\", \"C\"],\n    \"B\": [\"A\", \"D\"],\n    \"C\": [\"A\", \"E\", \"F\"],\n    \"D\": [\"B\", \"F\"],\n    \"E\": [\"C\"],\n    \"F\": [\"C\", \"D\"],\n    \"G\": [],\n}\nfor end in [\"F\", \"D\", \"G\"]:\n    path = shortest_path(graph, \"A\", end)\n    print(\" -> \".join(path) if path else \"no path\")\n",
+        "output": "A -> C -> F\nA -> B -> D\nno path",
+        "explanation": "`parent` starts as `{\"A\": None}` and gains `parent[nbr] = node` for every new neighbor, so it also acts as the visited set. The loop stops early once the target is popped. To rebuild the path to F, the walk goes F, C, A and stops at `None`, then `reverse()` turns it into A, C, F. D is reached through B. G has no edges, so it never enters `parent`, the function returns `[]`, and the empty list is falsy, which prints `no path`."
+      },
+      "practice": {
+        "title": "Shortest route from input",
+        "prompt": "Read an undirected graph and print the shortest path between two nodes, or no path.\n\n1. The starter reads `m`, then `m` edges like `home park`, and builds `graph` with both directions. The last line holds the start and the end node.\n2. Finish `shortest_path(graph, start, end)`: BFS from `start` with `parent = {start: None}`, setting `parent[nbr] = node` when you enqueue a neighbor.\n3. Visit each node's neighbors in sorted order with `sorted(graph.get(node, []))`, so when several shortest paths exist you get the one that is alphabetically first, compared node by node from the start. The `get` handles a start node with no edges.\n4. Return `[]` if `end` is not in `parent`. Otherwise walk back from `end` to `None`, reverse, and return the path. The starter prints it with ` -> ` or prints `no path`.\n\nInput:\n\n```text\n7\nhome park\nhome cafe\npark library\ncafe library\nlibrary gym\ncafe market\nmarket gym\nhome gym\n```\n\nExpected output:\n\n```text\nhome -> cafe -> library -> gym\n```",
+        "starter": "from collections import deque\n\n\ndef shortest_path(graph, start, end):\n    # TODO: BFS from start with a parent dict, visiting neighbors in sorted order\n    # TODO: return [] if end was never reached, else walk back and reverse\n    return []\n\n\nm = int(input())\ngraph = {}\nfor _ in range(m):\n    u, v = input().split()\n    graph.setdefault(u, []).append(v)\n    graph.setdefault(v, []).append(u)\nstart, end = input().split()\npath = shortest_path(graph, start, end)\nprint(\" -> \".join(path) if path else \"no path\")\n",
+        "solution": "from collections import deque\n\n\ndef shortest_path(graph, start, end):\n    parent = {start: None}\n    queue = deque([start])\n    while queue:\n        node = queue.popleft()\n        if node == end:\n            break\n        for nbr in sorted(graph.get(node, [])):\n            if nbr not in parent:\n                parent[nbr] = node\n                queue.append(nbr)\n    if end not in parent:\n        return []\n    path = []\n    node = end\n    while node is not None:\n        path.append(node)\n        node = parent[node]\n    path.reverse()\n    return path\n\n\nm = int(input())\ngraph = {}\nfor _ in range(m):\n    u, v = input().split()\n    graph.setdefault(u, []).append(v)\n    graph.setdefault(v, []).append(u)\nstart, end = input().split()\npath = shortest_path(graph, start, end)\nprint(\" -> \".join(path) if path else \"no path\")\n",
+        "tests": [
+          {
+            "stdin": "7\nhome park\nhome cafe\npark library\ncafe library\nlibrary gym\ncafe market\nmarket gym\nhome gym\n",
+            "output": "home -> cafe -> library -> gym"
+          },
+          {
+            "stdin": "3\nA B\nB C\nD E\nA E\n",
+            "output": "no path"
+          },
+          {
+            "stdin": "4\nx y\ny z\nz w\nx w\nz x\n",
+            "output": "z -> w -> x"
+          }
+        ],
+        "hints": [
+          "The loop is the one from the example. Only the neighbor loop changes: `for nbr in sorted(graph.get(node, [])):`.",
+          "Break out of `while queue:` as soon as `node == end`, then check `if end not in parent: return []`.",
+          "To rebuild the route, start at `end` and keep following `parent` until you reach `None`, then reverse the list."
+        ]
+      }
+    },
+    {
+      "title": "Level by level and multi-source BFS",
+      "body": "Sometimes you need to know when each ring of BFS ends, for example to count minutes as something spreads. Freeze the queue's length at the start of a level and pop exactly that many items:\n\n```python\nwhile queue:\n    for _ in range(len(queue)):\n        r, c = queue.popleft()\n        ...   # neighbors go to the back, into the next level\n    if queue:\n        minutes += 1\n```\n\n`range(len(queue))` is computed once, so the cells added during the loop wait for the next level. Count a level only when it actually added new cells.\n\nTo spread from **many sources at once**, put every source in the queue before the loop starts. They all sit at distance 0, so BFS grows from all of them together. That single search does the work of a separate BFS from each source, in one pass.\n\nOn a grid you can mark visited cells by changing them in a copy of the grid, such as turning `.` into `*`. Strings cannot change, so copy each row with `[list(row) for row in grid]` first. Count the target cells before the search and subtract as they change. Any left at the end were unreachable, so return -1.",
+      "example": {
+        "title": "Spreading fire",
+        "prompt": "Spread fire from every * cell at once, one cell per minute, and print how many minutes it takes to burn every . cell, or -1 if some grass is cut off by # rocks.",
+        "code": "from collections import deque\n\nDIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]\n\n\ndef minutes_to_burn(grid):\n    grid = [list(row) for row in grid]\n    rows, cols = len(grid), len(grid[0])\n    queue = deque()\n    grass = 0\n    for r in range(rows):\n        for c in range(cols):\n            if grid[r][c] == \"*\":\n                queue.append((r, c))\n            elif grid[r][c] == \".\":\n                grass += 1\n    minutes = 0\n    while queue:\n        for _ in range(len(queue)):\n            r, c = queue.popleft()\n            for dr, dc in DIRECTIONS:\n                nr, nc = r + dr, c + dc\n                if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == \".\":\n                    grid[nr][nc] = \"*\"\n                    grass -= 1\n                    queue.append((nr, nc))\n        if queue:\n            minutes += 1\n    return minutes if grass == 0 else -1\n\n\nfield = [\n    \"*...#\",\n    \"..#..\",\n    \"#...*\",\n]\nsealed = [\n    \"*.#..\",\n    \"..#..\",\n]\nprint(\"Field:\", minutes_to_burn(field))\nprint(\"Sealed:\", minutes_to_burn(sealed))\n",
+        "output": "Field: 3\nSealed: -1",
+        "explanation": "Both fires start in the queue together, and `grass` counts the 10 grass cells in the field. Each pass of `while queue:` handles one minute: `range(len(queue))` pops only the cells burning now, and the cells they light go to the back for the next minute. Burning a cell turns it into `*`, which also marks it visited. The field is fully burned after 3 minutes. In the sealed grid the rock column keeps 4 grass cells from ever burning, so `grass` is not 0 and the function returns -1."
+      },
+      "practice": {
+        "title": "Rotting oranges",
+        "prompt": "Read a grid of oranges and print how many minutes pass until none is fresh, or -1 if some never rot.\n\n1. The starter reads `n`, then `n` rows of numbers into `grid`: `2` is a rotten orange, `1` a fresh one, and `0` an empty cell. The grid is already a list of lists, so you can change it in place.\n2. Finish `minutes_to_rot(grid)`: put every rotten orange in the queue as `(row, col)` and count the fresh ones.\n3. Each minute, every rotten orange rots the fresh oranges up, down, left, and right of it. Process one level with `for _ in range(len(queue)):` and add 1 to the minutes only when the level rotted something.\n4. Return the minutes when no fresh orange is left, otherwise -1. A grid with no fresh oranges takes 0 minutes.\n\nInput:\n\n```text\n3\n2 1 1\n1 1 0\n0 1 1\n```\n\nExpected output:\n\n```text\n4\n```",
+        "starter": "from collections import deque\n\nDIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]\n\n\ndef minutes_to_rot(grid):\n    rows, cols = len(grid), len(grid[0])\n    # TODO: queue every rotten orange (2) and count the fresh ones (1)\n    # TODO: rot one level per minute, return the minutes or -1 if any stay fresh\n    return 0\n\n\nn = int(input())\ngrid = [list(map(int, input().split())) for _ in range(n)]\nprint(minutes_to_rot(grid))\n",
+        "solution": "from collections import deque\n\nDIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]\n\n\ndef minutes_to_rot(grid):\n    rows, cols = len(grid), len(grid[0])\n    queue = deque()\n    fresh = 0\n    for r in range(rows):\n        for c in range(cols):\n            if grid[r][c] == 2:\n                queue.append((r, c))\n            elif grid[r][c] == 1:\n                fresh += 1\n    minutes = 0\n    while queue:\n        for _ in range(len(queue)):\n            r, c = queue.popleft()\n            for dr, dc in DIRECTIONS:\n                nr, nc = r + dr, c + dc\n                if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 1:\n                    grid[nr][nc] = 2\n                    fresh -= 1\n                    queue.append((nr, nc))\n        if queue:\n            minutes += 1\n    return minutes if fresh == 0 else -1\n\n\nn = int(input())\ngrid = [list(map(int, input().split())) for _ in range(n)]\nprint(minutes_to_rot(grid))\n",
+        "tests": [
+          {
+            "stdin": "3\n2 1 1\n1 1 0\n0 1 1\n",
+            "output": "4"
+          },
+          {
+            "stdin": "3\n2 1 1\n0 1 1\n1 0 1\n",
+            "output": "-1"
+          },
+          {
+            "stdin": "2\n0 2\n2 0\n",
+            "output": "0"
+          }
+        ],
+        "hints": [
+          "Loop over every cell once before the search: append `(r, c)` when it is 2, and add 1 to `fresh` when it is 1.",
+          "Copy the example's `while queue:` loop, checking `grid[nr][nc] == 1` and setting it to 2 when it rots.",
+          "When the queue is empty, any orange still counted in `fresh` was never reached, so that is the -1 case."
+        ]
+      }
+    }
+  ],
+  "recap": "- BFS uses a `deque` as a FIFO queue: `append()` to the back, `popleft()` from the front, both O(1).\n- Mark a node visited when you enqueue it, so it is never queued twice.\n- BFS visits nodes in order of distance, so the first time it reaches the target is a shortest path.\n- On a grid, queue `(row, col, dist)` items, check bounds before reading a cell, skip walls, and return -1 when the queue runs empty.\n- A `parent` dict filled when enqueuing records where each node came from. Walk back from the target to `None`, reverse, and print with `\" -> \".join(path)`.\n- `for _ in range(len(queue)):` processes exactly one level, which is how you count steps or minutes.\n- Put every source in the queue before the loop to spread from all of them at once."
+}

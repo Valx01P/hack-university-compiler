@@ -1,0 +1,118 @@
+{
+  "id": "two-d-lists",
+  "title": "2D Lists (Grids)",
+  "section": "Lists",
+  "summary": "Store rows and columns as a list of lists and loop over them by row, by column, and along diagonals.",
+  "intro": "Boards, seat maps, spreadsheets, and images are all grids. In Python a grid is a list of lists: one inner list per row. This lesson builds grids, loops over them every common way, and avoids the copying traps that catch almost everyone once.",
+  "steps": [
+    {
+      "title": "Creating and indexing a grid",
+      "body": "A grid is a list whose items are lists. Each inner list is one row, so `grid[r]` is a whole row and `grid[r][c]` is the cell in row `r`, column `c`. Read it as \"pick the row, then pick the column\".\n\n```python\ngrid = [\n    [1, 2, 3],\n    [4, 5, 6],\n]\nprint(grid[1][0])  # 4\ngrid[0][2] = 30    # change one cell\n```\n\n`len(grid)` counts the rows. `len(grid[0])` counts the columns of the first row, which is every row's width when the grid is rectangular. Negative indexes work at both levels: `grid[-1][-1]` is the bottom-right cell.\n\n`print(grid)` shows the nested brackets, which is handy for debugging. To print a grid neatly, loop over the rows and unpack each one with `print(*row)`.\n\nIndexing past the edge fails just like a flat list:\n\n```python\n# print(grid[2][0])  # IndexError: list index out of range\n```",
+      "example": {
+        "title": "Tic-tac-toe board",
+        "prompt": "Create a 3 by 3 board, print its size and center cell, place two moves, and print the rows.",
+        "code": "board = [\n    [\".\", \".\", \".\"],\n    [\".\", \".\", \".\"],\n    [\".\", \".\", \".\"],\n]\nrows = len(board)\ncols = len(board[0])\nprint(f\"Rows: {rows}\")\nprint(f\"Cols: {cols}\")\nprint(f\"Center: {board[1][1]}\")\nboard[1][1] = \"X\"\nboard[0][2] = \"O\"\nfor row in board:\n    print(*row)\n",
+        "output": "Rows: 3\nCols: 3\nCenter: .\n. . O\n. X .\n. . .",
+        "explanation": "The board is three lists inside one list. `len(board)` gives 3 rows and `len(board[0])` gives 3 columns. `board[1][1]` picks the middle row, then its middle cell. Assigning to `board[1][1]` and `board[0][2]` changes only those two cells. The final loop hands each row to `print(*row)`, which prints its cells separated by spaces."
+      },
+      "practice": {
+        "title": "Seat map",
+        "prompt": "Book one seat in a 3 by 4 seat map, where 1 means taken.\n\n1. Print `Rows: ` followed by the number of rows, then `Cols: ` followed by the number of columns.\n2. Print `Seat 1,2: ` followed by the value at row 1, column 2.\n3. Book that seat by setting it to 1.\n4. Print each row with its cells separated by spaces.\n\nExpected output:\n\n```text\nRows: 3\nCols: 4\nSeat 1,2: 0\n0 1 0 0\n1 0 1 1\n0 0 1 1\n```",
+        "starter": "seats = [\n    [0, 1, 0, 0],\n    [1, 0, 0, 1],\n    [0, 0, 1, 1],\n]\n# TODO: print the row and column counts\n# TODO: print the seat at row 1, column 2, then book it\n# TODO: print each row\n",
+        "solution": "seats = [\n    [0, 1, 0, 0],\n    [1, 0, 0, 1],\n    [0, 0, 1, 1],\n]\nrows = len(seats)\ncols = len(seats[0])\nprint(f\"Rows: {rows}\")\nprint(f\"Cols: {cols}\")\nprint(f\"Seat 1,2: {seats[1][2]}\")\nseats[1][2] = 1\nfor row in seats:\n    print(*row)\n",
+        "tests": [
+          {
+            "output": "Rows: 3\nCols: 4\nSeat 1,2: 0\n0 1 0 0\n1 0 1 1\n0 0 1 1"
+          }
+        ],
+        "hints": [
+          "`len(seats)` is the row count and `len(seats[0])` is the column count.",
+          "Read and change the seat with `seats[1][2]`.",
+          "Loop with `for row in seats:` and call `print(*row)`."
+        ]
+      }
+    },
+    {
+      "title": "Three ways to loop over a grid",
+      "body": "There are three common ways to visit every cell. Use the one that fits what you need.\n\n**By value.** When you only need the cells, loop over rows, then over cells. A row total resets before each row:\n\n```python\nfor row in grid:\n    total = 0\n    for cell in row:\n        total += cell\n```\n\n**By index.** When you need the position (to compare neighbors or change a cell), loop over `range(rows)` and `range(cols)` and read `grid[r][c]`.\n\n**With while loops.** Two counters do the same walk by hand. Reset `c = 0` inside the outer loop, or `c` is still equal to `cols` when the second row starts and every row after the first gets skipped:\n\n```python\nr = 0\nwhile r < rows:\n    c = 0\n    while c < cols:\n        print(grid[r][c])\n        c += 1\n    r += 1\n```\n\nA grand total is one running total that lives outside both loops. `sum(row)` also gives a row total in one call.\n\n**Flattening.** A comprehension with two `for` clauses reads like the nested loops, outer first: `[x for row in grid for x in row]` lists every cell, row by row.",
+      "example": {
+        "title": "Grid summary",
+        "prompt": "Print row sums, count cells above 5, add every cell, and flatten a 3 by 3 grid.",
+        "code": "grid = [\n    [3, 8, 1],\n    [9, 4, 6],\n    [2, 7, 5],\n]\nrows = len(grid)\ncols = len(grid[0])\n\nfor row in grid:\n    total = 0\n    for cell in row:\n        total += cell\n    print(f\"Row sum: {total}\")\n\nabove = 0\nfor r in range(rows):\n    for c in range(cols):\n        if grid[r][c] > 5:\n            above += 1\nprint(f\"Above 5: {above}\")\n\ngrand = 0\nr = 0\nwhile r < rows:\n    c = 0\n    while c < cols:\n        grand += grid[r][c]\n        c += 1\n    r += 1\nprint(f\"Total: {grand}\")\n\nflat = [x for row in grid for x in row]\nprint(*flat)\n",
+        "output": "Row sum: 12\nRow sum: 19\nRow sum: 14\nAbove 5: 4\nTotal: 45\n3 8 1 9 4 6 2 7 5",
+        "explanation": "The first loop resets `total` for each row, adds its cells, and prints it. The index loops visit every `(r, c)` pair and count the 4 cells above 5 (8, 9, 6, 7). The while loops walk the same cells with `r` and `c`, resetting `c` for each row, and add all nine into `grand`. The comprehension lists the cells row by row, and `print(*flat)` prints them on one line."
+      },
+      "practice": {
+        "title": "Score summary",
+        "prompt": "Summarize a 3 by 4 grid of scores with three kinds of loops.\n\n1. With `for row in grid`, find each row's largest value by tracking it in a variable that starts at `-math.inf`, and print `Row max: ` followed by it.\n2. With index loops over `range(rows)` and `range(cols)`, count the cells above 50 and print `Above 50: ` followed by the count.\n3. With nested while loops, add up every cell and print `Total: ` followed by the sum.\n4. Flatten the grid with a comprehension and print its items separated by spaces.\n\nExpected output:\n\n```text\nRow max: 75\nRow max: 90\nRow max: 70\nAbove 50: 6\nTotal: 547\n12 75 40 58 90 33 51 8 27 64 19 70\n```",
+        "starter": "import math\n\ngrid = [\n    [12, 75, 40, 58],\n    [90, 33, 51, 8],\n    [27, 64, 19, 70],\n]\nrows = len(grid)\ncols = len(grid[0])\n\n# TODO: print each row's largest value with for row in grid\n# TODO: count the cells above 50 with index loops\n# TODO: total every cell with nested while loops\n# TODO: flatten the grid and print it\n",
+        "solution": "import math\n\ngrid = [\n    [12, 75, 40, 58],\n    [90, 33, 51, 8],\n    [27, 64, 19, 70],\n]\nrows = len(grid)\ncols = len(grid[0])\n\nfor row in grid:\n    largest = -math.inf\n    for cell in row:\n        if cell > largest:\n            largest = cell\n    print(f\"Row max: {largest}\")\n\nabove = 0\nfor r in range(rows):\n    for c in range(cols):\n        if grid[r][c] > 50:\n            above += 1\nprint(f\"Above 50: {above}\")\n\ngrand = 0\nr = 0\nwhile r < rows:\n    c = 0\n    while c < cols:\n        grand += grid[r][c]\n        c += 1\n    r += 1\nprint(f\"Total: {grand}\")\n\nflat = [x for row in grid for x in row]\nprint(*flat)\n",
+        "tests": [
+          {
+            "output": "Row max: 75\nRow max: 90\nRow max: 70\nAbove 50: 6\nTotal: 547\n12 75 40 58 90 33 51 8 27 64 19 70"
+          }
+        ],
+        "hints": [
+          "Set `largest = -math.inf` at the top of each row, then replace it when a cell is bigger, like the running maximum in Looping Over Lists.",
+          "Set `grand = 0` and `r = 0` before the outer while loop, and `c = 0` at the top of its body.",
+          "A comprehension with two `for` clauses reads like the nested loops, outer loop first."
+        ]
+      }
+    },
+    {
+      "title": "Building and copying grids safely",
+      "body": "To build an empty grid, make a new row on every pass of a comprehension. The name `_` says \"I never use this loop variable\":\n\n```python\ngrid = [[0] * cols for _ in range(rows)]\n```\n\nDo not write `[[0] * cols] * rows`. Multiplying the outer list repeats a *reference* to one row instead of copying it, so every row is the same list and changing one cell changes the whole column:\n\n```python\nbad = [[0] * 3] * 2\nbad[0][0] = 9\nprint(bad)  # [[9, 0, 0], [9, 0, 0]]\n```\n\n`[0] * cols` is fine on its own because ints cannot be changed in place.\n\nCopying has the same trap. `grid.copy()` (and `grid[:]`) makes a new outer list that still holds the *same* row lists, so editing a cell of the copy edits the original. Copy each row instead:\n\n```python\nsafe = [row[:] for row in grid]\n```\n\nOr `import copy` and use `copy.deepcopy(grid)`, which copies every level of nesting. The row-slice version is quicker and enough for a grid of numbers or strings.",
+      "example": {
+        "title": "Multiplication table copies",
+        "prompt": "Show the shared-row gotcha, build a 3 by 3 times table correctly, and compare a shallow copy with two safe copies.",
+        "code": "import copy\n\nbad = [[0] * 3] * 3\nbad[0][0] = 9\nprint(bad)\n\ntable = [[0] * 3 for _ in range(3)]\nfor r in range(3):\n    for c in range(3):\n        table[r][c] = (r + 1) * (c + 1)\nfor row in table:\n    print(*row)\n\nshallow = table.copy()\nprint(shallow is table, shallow[0] is table[0])\nshallow[2][2] = 99\nprint(f\"Original after shallow edit: {table[2][2]}\")\n\nsliced = [row[:] for row in table]\ndeep = copy.deepcopy(table)\nsliced[0][0] = -1\ndeep[0][0] = -2\nprint(f\"Corners: {table[0][0]} {sliced[0][0]} {deep[0][0]}\")\n",
+        "output": "[[9, 0, 0], [9, 0, 0], [9, 0, 0]]\n1 2 3\n2 4 6\n3 6 9\nFalse True\nOriginal after shallow edit: 99\nCorners: 1 -1 -2",
+        "explanation": "`bad` holds one row three times, so one assignment shows up in every row. The comprehension builds three separate rows, and the nested loops fill them with a multiplication table. `table.copy()` is a new outer list (`shallow is table` is `False`) whose rows are the original rows (`shallow[0] is table[0]` is `True`), so setting `shallow[2][2]` also sets `table[2][2]`. The row-slice copy and the deep copy own their rows, so their edits leave the original corner at 1."
+      },
+      "practice": {
+        "title": "Addition grid copies",
+        "prompt": "Build a 4 by 5 grid safely, fill it, and prove two copies are independent.\n\n1. Build a grid of zeros with `ROWS` rows and `COLS` columns using a comprehension.\n2. Set every cell to `r + c` and print each row with its cells separated by spaces.\n3. Copy the grid once with `[row[:] for row in grid]` and once with `copy.deepcopy()`.\n4. Set the bottom-right corner of the row-slice copy to 70 and of the deep copy to 80.\n5. Print `Corners: ` followed by the bottom-right cell of the original, the row-slice copy, and the deep copy, separated by spaces.\n\nExpected output:\n\n```text\n0 1 2 3 4\n1 2 3 4 5\n2 3 4 5 6\n3 4 5 6 7\nCorners: 7 70 80\n```",
+        "starter": "import copy\n\nROWS = 4\nCOLS = 5\n\n# TODO: build a ROWS by COLS grid of zeros, fill each cell with r + c,\n# and print each row\n# TODO: make a row-slice copy and a deep copy, change their corners,\n# and print the three corners\n",
+        "solution": "import copy\n\nROWS = 4\nCOLS = 5\n\ngrid = [[0] * COLS for _ in range(ROWS)]\nfor r in range(ROWS):\n    for c in range(COLS):\n        grid[r][c] = r + c\nfor row in grid:\n    print(*row)\n\nsliced = [row[:] for row in grid]\ndeep = copy.deepcopy(grid)\nsliced[-1][-1] = 70\ndeep[-1][-1] = 80\nprint(f\"Corners: {grid[-1][-1]} {sliced[-1][-1]} {deep[-1][-1]}\")\n",
+        "tests": [
+          {
+            "output": "0 1 2 3 4\n1 2 3 4 5\n2 3 4 5 6\n3 4 5 6 7\nCorners: 7 70 80"
+          }
+        ],
+        "hints": [
+          "Build the rows with `[[0] * COLS for _ in range(ROWS)]`, not `[[0] * COLS] * ROWS`.",
+          "The bottom-right cell is `grid[-1][-1]` (or `grid[ROWS - 1][COLS - 1]`).",
+          "Change the copies only. The original corner should still be 7."
+        ]
+      }
+    },
+    {
+      "title": "Columns, diagonals, and transposing",
+      "body": "To walk down a column, swap the loops: the column goes outside and the row inside. Each pass of the outer loop then covers one full column.\n\n```python\nfor c in range(cols):\n    total = 0\n    for r in range(rows):\n        total += grid[r][c]\n```\n\nDiagonals need a square grid of size `n`, and only one loop. The main diagonal runs top-left to bottom-right, where the row and column are equal: `grid[i][i]`. The anti-diagonal runs top-right to bottom-left, so the column counts down as the row counts up: `grid[i][n - 1 - i]`. Writing `grid[i][n - i]` is off by one and fails on the first row.\n\nTransposing turns rows into columns. A nested comprehension builds one new row per old column:\n\n```python\nflipped = [[grid[r][c] for r in range(rows)] for c in range(cols)]\n```\n\nRead it from the outside in: for each column `c`, collect that column's cells top to bottom. A `rows` by `cols` grid becomes a `cols` by `rows` grid, so a 2 by 3 grid turns into 3 by 2.",
+      "example": {
+        "title": "Square grid lines",
+        "prompt": "Print the column sums and both diagonal sums of a 3 by 3 grid, then print its transpose.",
+        "code": "grid = [\n    [4, 1, 7],\n    [2, 8, 3],\n    [5, 6, 9],\n]\nrows = len(grid)\ncols = len(grid[0])\n\nfor c in range(cols):\n    total = 0\n    for r in range(rows):\n        total += grid[r][c]\n    print(f\"Column {c} sum: {total}\")\n\nn = rows\nmain = 0\nanti = 0\nfor i in range(n):\n    main += grid[i][i]\n    anti += grid[i][n - 1 - i]\nprint(f\"Main diagonal: {main}\")\nprint(f\"Anti-diagonal: {anti}\")\n\nflipped = [[grid[r][c] for r in range(rows)] for c in range(cols)]\nfor row in flipped:\n    print(*row)\n",
+        "output": "Column 0 sum: 11\nColumn 1 sum: 15\nColumn 2 sum: 19\nMain diagonal: 21\nAnti-diagonal: 20\n4 2 5\n1 8 6\n7 3 9",
+        "explanation": "The outer loop picks a column and the inner loop walks down it, so column 0 adds 4 + 2 + 5. One loop over `i` covers both diagonals: 4, 8, 9 on the main one and 7, 8, 5 on the anti-diagonal. The transpose builds each new row from one old column, so the first column `4 2 5` becomes the first row."
+      },
+      "practice": {
+        "title": "Tall grid and square",
+        "prompt": "Sum the columns of a 4 by 3 grid, transpose it, and sum the diagonals of a 3 by 3 square.\n\n1. For each column of `grid`, print `Column c sum: ` followed by its total, where `c` is the column index.\n2. Transpose `grid` with a comprehension and print each row of the result with its cells separated by spaces.\n3. Print `Main diagonal: ` followed by the main diagonal sum of `square`.\n4. Print `Anti-diagonal: ` followed by the anti-diagonal sum of `square`.\n\nExpected output:\n\n```text\nColumn 0 sum: 9\nColumn 1 sum: 17\nColumn 2 sum: 26\n3 1 2 3\n1 5 6 5\n4 9 5 8\nMain diagonal: 13\nAnti-diagonal: 21\n```",
+        "starter": "grid = [\n    [3, 1, 4],\n    [1, 5, 9],\n    [2, 6, 5],\n    [3, 5, 8],\n]\nsquare = [\n    [2, 0, 7],\n    [1, 6, 4],\n    [8, 3, 5],\n]\nrows = len(grid)\ncols = len(grid[0])\n\n# TODO: print each column sum of grid\n# TODO: transpose grid and print its rows\n# TODO: print both diagonal sums of square\n",
+        "solution": "grid = [\n    [3, 1, 4],\n    [1, 5, 9],\n    [2, 6, 5],\n    [3, 5, 8],\n]\nsquare = [\n    [2, 0, 7],\n    [1, 6, 4],\n    [8, 3, 5],\n]\nrows = len(grid)\ncols = len(grid[0])\n\nfor c in range(cols):\n    total = 0\n    for r in range(rows):\n        total += grid[r][c]\n    print(f\"Column {c} sum: {total}\")\n\nflipped = [[grid[r][c] for r in range(rows)] for c in range(cols)]\nfor row in flipped:\n    print(*row)\n\nn = len(square)\nmain = 0\nanti = 0\nfor i in range(n):\n    main += square[i][i]\n    anti += square[i][n - 1 - i]\nprint(f\"Main diagonal: {main}\")\nprint(f\"Anti-diagonal: {anti}\")\n",
+        "tests": [
+          {
+            "output": "Column 0 sum: 9\nColumn 1 sum: 17\nColumn 2 sum: 26\n3 1 2 3\n1 5 6 5\n4 9 5 8\nMain diagonal: 13\nAnti-diagonal: 21"
+          }
+        ],
+        "hints": [
+          "Put `for c in range(cols):` outside and `for r in range(rows):` inside.",
+          "The transpose of a 4 by 3 grid has 3 rows of 4 cells.",
+          "Use `n = len(square)` and read `square[i][i]` and `square[i][n - 1 - i]`."
+        ]
+      }
+    }
+  ],
+  "recap": "- A grid is a list of lists: `grid[r][c]` picks the row, then the column.\n- `len(grid)` is the row count and `len(grid[0])` is the column count.\n- Print a grid neatly with `for row in grid: print(*row)`.\n- Loop by value with `for row in grid: for cell in row:`, by index with `range(rows)` and `range(cols)`, or with two while counters (reset `c` for each row).\n- `[x for row in grid for x in row]` flattens a grid row by row.\n- Build grids with `[[0] * cols for _ in range(rows)]`. `[[0] * cols] * rows` repeats one shared row.\n- `grid.copy()` shares the rows. Copy with `[row[:] for row in grid]` or `copy.deepcopy(grid)`.\n- Columns: put `c` in the outer loop. Diagonals: `grid[i][i]` and `grid[i][n - 1 - i]`.\n- Transpose with `[[grid[r][c] for r in range(rows)] for c in range(cols)]`."
+}

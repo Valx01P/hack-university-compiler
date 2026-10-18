@@ -1,0 +1,88 @@
+{
+  "id": "print-variables",
+  "title": "Printing Variables and Formatting Numbers",
+  "section": "Basics",
+  "summary": "Mix text and variables in one line of output and control decimals and column widths with iomanip.",
+  "intro": "Real output mixes words with values and needs tidy numbers: a fixed count of decimals, columns that line up, IDs padded with zeros. This lesson covers chaining variables into `std::cout` and the `<iomanip>` tools that format them.",
+  "steps": [
+    {
+      "title": "Mixing text and variables",
+      "body": "You already chain `<<` to print literals. Variables chain the same way: each `<<` hands the next piece to `std::cout`, and the pieces print back to back in order.\n\n```cpp\nstd::string city = \"Oslo\";\nint temp = 12;\nstd::cout << city << \" is \" << temp << \" degrees\\n\";\n```\n\nThat prints `Oslo is 12 degrees`. `std::cout` never adds spaces for you, so put them inside the string pieces. Forget them and you get `Oslois12degrees`.\n\nOne statement can mix every type you know: a `std::string`, an `int`, a `double`, and a `char` each print in their natural form. A `char` such as `'$'` prints as the character itself, so it is a handy way to glue a symbol right onto a number with no gap.\n\n```cpp\nchar unit = 'C';\nstd::cout << temp << unit << '\\n';  // 12C\n```\n\nA `double` such as `1.68` prints as `1.68` here because its default form is short. The next step shows what happens with longer numbers.",
+      "example": {
+        "title": "Introducing Ada",
+        "prompt": "Print a sentence about a person from three variables in one statement.",
+        "code": "#include <iostream>\n#include <string>\n\nint main() {\n    std::string name = \"Ada\";\n    int age = 36;\n    double height = 1.68;\n\n    std::cout << name << \" is \" << age << \" years old and \" << height << \" m tall.\\n\";\n    return 0;\n}\n",
+        "output": "Ada is 36 years old and 1.68 m tall.",
+        "explanation": "The statement alternates variables and string pieces. Every space between words lives inside a string piece such as `\" is \"`, and the final piece ends with the period and `\\n`. The three variables print as text, a whole number, and a decimal without any conversion on your part."
+      },
+      "practice": {
+        "title": "Order line",
+        "prompt": "Print one order line built from four variables in a single statement.\n\n1. Use the variables `product`, `quantity`, `price`, and `currency` that the starter declares.\n2. Print the quantity, then ` x `, then the product name, then ` at `.\n3. Print the currency character directly before the price with no space, then ` each` and a newline.\n\nExpected output:\n\n```text\n3 x Notebook at $4.75 each\n```",
+        "starter": "#include <iostream>\n#include <string>\n\nint main() {\n    std::string product = \"Notebook\";\n    int quantity = 3;\n    double price = 4.75;\n    char currency = '$';\n\n    // TODO: print the order line in one statement\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n\nint main() {\n    std::string product = \"Notebook\";\n    int quantity = 3;\n    double price = 4.75;\n    char currency = '$';\n\n    std::cout << quantity << \" x \" << product << \" at \" << currency << price << \" each\\n\";\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "3 x Notebook at $4.75 each"
+          }
+        ],
+        "hints": [
+          "Chain all four variables with `<<` and put the spaces inside the string pieces.",
+          "Write `<< currency << price` with nothing between them so the `$` touches the number."
+        ]
+      }
+    },
+    {
+      "title": "Fixed decimals with setprecision",
+      "body": "By default `std::cout` prints a `double` with 6 *significant digits*, not 6 decimals, and drops trailing zeros. So `2.50` prints as `2.5` and `123456.7` rounds to `123457`. From about a million up, values switch to scientific notation: `1234567.891` prints as `1.23457e+06`, which means 1.23457 times 10 to the 6th. Very tiny values do the same.\n\nTo control decimals, include `<iomanip>` and send two manipulators to the stream:\n\n```cpp\nstd::cout << std::fixed << std::setprecision(2);\nstd::cout << 1234567.891 << '\\n';  // 1234567.89\nstd::cout << 0.5 << '\\n';          // 0.50\n```\n\n`std::fixed` means always use plain decimal notation, and `std::setprecision(n)` then means exactly `n` digits after the point, rounding the last one and padding with zeros. Without `std::fixed`, `setprecision` counts significant digits instead. Neither one changes how an `int` prints.\n\nBoth settings are *sticky*: they stay in effect for every later number on `std::cout` until you change them. That is why you usually set them once near the top of `main`. It also means you should print any default-formatted value first, before switching to fixed. Changing just the precision later, such as `std::setprecision(4)`, keeps fixed mode on.\n\n> Rounding uses the stored binary value, so a value like 2.675 can print as 2.67. Pick values that are not exact halfway points.",
+      "example": {
+        "title": "Big totals and pi",
+        "prompt": "Print a large total with default formatting and with 2 decimals, then print pi with 4 decimals.",
+        "code": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    double total = 1234567.891;\n    double pi = 3.14159265;\n\n    std::cout << total << '\\n';\n    std::cout << std::fixed << std::setprecision(2) << total << '\\n';\n    std::cout << std::setprecision(4) << pi << '\\n';\n    return 0;\n}\n",
+        "output": "1.23457e+06\n1234567.89\n3.1416",
+        "explanation": "The first line uses the default 6 significant digits, so the seven-digit whole part forces scientific notation. The second line turns on fixed mode with 2 decimals and the `.891` rounds to `.89`. Fixed mode is still on for the third line, so only the precision changes, and `3.14159265` rounds up to `3.1416`."
+      },
+      "practice": {
+        "title": "Distances",
+        "prompt": "Print a long distance twice and a marathon length once, with different formatting.\n\n1. Print `distance` with default formatting.\n2. Turn on `std::fixed` with 2 decimals and print `distance` again.\n3. Change the precision to 1 and print `marathon`.\n\nExpected output:\n\n```text\n9.87654e+06\n9876543.21\n42.2\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    double distance = 9876543.21;\n    double marathon = 42.195;\n\n    // TODO: print distance by default, then with 2 decimals, then marathon with 1 decimal\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    double distance = 9876543.21;\n    double marathon = 42.195;\n\n    std::cout << distance << '\\n';\n    std::cout << std::fixed << std::setprecision(2) << distance << '\\n';\n    std::cout << std::setprecision(1) << marathon << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "9.87654e+06\n9876543.21\n42.2"
+          }
+        ],
+        "hints": [
+          "Print the default line first, because `std::fixed` stays on once you send it.",
+          "Fixed mode is still active for the last line, so `std::setprecision(1)` alone is enough."
+        ]
+      }
+    },
+    {
+      "title": "Aligned columns with setw",
+      "body": "`std::setw(n)` from `<iomanip>` makes the *next* item take at least `n` characters, padding with spaces. It applies to that one item only, so repeat it before each value you want padded. A value longer than `n` is never cut. It just prints in full.\n\n```cpp\nstd::cout << std::setw(6) << 42 << '|' << 7 << '\\n';  // \"    42|7\"\n```\n\nBy default the padding goes before the value, so text and numbers alike line up on the right. `std::left` puts the padding after the value, which suits text columns, and `std::right` puts it before, which lines up numbers by their last digit. Unlike `setw`, both are sticky.\n\n`std::setfill(c)` changes the padding character, and it is sticky too. The common use is zero-padding:\n\n```cpp\nstd::cout << std::right << std::setfill('0') << std::setw(3) << 7 << '\\n';  // 007\n```\n\nTwo gotchas follow from stickiness. If `std::left` is still on, `std::setfill('0') << std::setw(5) << 42` prints `42000`, so switch back to `std::right` first. And once you zero-pad, later `setw` calls also pad with zeros until you send `std::setfill(' ')`. Keep zero-padded values non-negative, since `-42` would print as `00-42`.",
+      "example": {
+        "title": "Price table and order number",
+        "prompt": "Print a three row price table with aligned columns, then an order number padded to 5 digits.",
+        "code": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    int orderNumber = 42;\n\n    std::cout << std::fixed << std::setprecision(2);\n    std::cout << std::left << std::setw(10) << \"Apple\" << std::right << std::setw(8) << 0.5 << '\\n';\n    std::cout << std::left << std::setw(10) << \"Bread\" << std::right << std::setw(8) << 2.25 << '\\n';\n    std::cout << std::left << std::setw(10) << \"Cheese\" << std::right << std::setw(8) << 12.8 << '\\n';\n    std::cout << \"Order #\" << std::right << std::setfill('0') << std::setw(5) << orderNumber << '\\n';\n    return 0;\n}\n",
+        "output": "Apple         0.50\nBread         2.25\nCheese       12.80\nOrder #00042",
+        "explanation": "Each row sets `std::left` for the name and `std::right` for the price, and repeats `std::setw` because it only covers the next item. The name fills 10 characters and the price fills 8, so the decimal points line up. On the last line `std::setfill('0')` pads `42` with zeros to 5 digits, while `\"Order #\"` prints plainly because no `setw` comes before it. `orderNumber` is an `int`, so the earlier `std::fixed` and `std::setprecision(2)` do not change it."
+      },
+      "practice": {
+        "title": "Scoreboard and clock",
+        "prompt": "Print a three row scoreboard with aligned columns, then a clock time with two-digit parts.\n\n1. Print each player name left-aligned in width 8, followed by the score right-aligned in width 5: `Mia` 120, `Leo` 95, `Zoe` 7.\n2. Print the time from `hours` and `minutes` as `07:05`, using `std::right`, `std::setfill('0')`, and `std::setw(2)` before each number.\n\nExpected output:\n\n```text\nMia       120\nLeo        95\nZoe         7\n07:05\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    int hours = 7;\n    int minutes = 5;\n\n    // TODO: print the three scoreboard rows, then the time as 07:05\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    int hours = 7;\n    int minutes = 5;\n\n    std::cout << std::left << std::setw(8) << \"Mia\" << std::right << std::setw(5) << 120 << '\\n';\n    std::cout << std::left << std::setw(8) << \"Leo\" << std::right << std::setw(5) << 95 << '\\n';\n    std::cout << std::left << std::setw(8) << \"Zoe\" << std::right << std::setw(5) << 7 << '\\n';\n    std::cout << std::right << std::setfill('0') << std::setw(2) << hours << ':' << std::setw(2) << minutes << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Mia       120\nLeo        95\nZoe         7\n07:05"
+          }
+        ],
+        "hints": [
+          "Follow the price table pattern with widths 8 and 5. The scores are whole numbers, so you need no `std::fixed` here.",
+          "`std::setw` covers only the next item, so write `std::setw(2)` again before `minutes`. The `':'` is not padded."
+        ]
+      }
+    }
+  ],
+  "recap": "- Chain text and variables with `<<` and put every space inside a string piece.\n- A `char` prints as its character, handy for symbols like `'$'`.\n- Doubles print with 6 significant digits by default, so big values show as `1.23457e+06`.\n- `std::fixed << std::setprecision(n)` from `<iomanip>` prints exactly `n` decimals, and both stay in effect.\n- `std::setw(n)` pads only the next item. `std::left`, `std::right`, and `std::setfill(c)` stay in effect.\n- Zero-pad with `std::right << std::setfill('0') << std::setw(n)`, and reset with `std::setfill(' ')` when you are done."
+}

@@ -1,0 +1,90 @@
+{
+  "id": "maps",
+  "title": "Map, and Objects vs Map",
+  "section": "Collections",
+  "summary": "Use Map for dynamic key-value data with keys of any type, count with it, and know when to pick it over a plain object.",
+  "intro": "Objects work as dictionaries, but they turn every key into a string and come with inherited names like `toString`. `Map` is the built-in made for dynamic keys: any key type, a real `size`, and keys kept in the exact order you added them.",
+  "steps": [
+    {
+      "title": "Map basics",
+      "body": "A `Map` stores key-value pairs, like an object, but it is built for data whose keys change while the program runs. Create one empty, or from an array of `[key, value]` pairs:\n\n```javascript\nconst ages = new Map([\n  [\"ada\", 36],\n  [\"alan\", 41],\n]);\n```\n\nThe core methods:\n\n- `map.set(key, value)` adds or replaces an entry and returns the map, so calls chain: `m.set(\"a\", 1).set(\"b\", 2);`\n- `map.get(key)` returns the value, or `undefined` when the key is missing.\n- `map.has(key)` returns `true` or `false`.\n- `map.delete(key)` removes an entry and returns whether it existed.\n- `map.size` is the entry count. It is a property, so no parentheses.\n- `map.clear()` removes every entry.\n\nTo change a value, read it and set it back: `m.set(\"a\", m.get(\"a\") + 1);`\n\n**The gotcha:** never use brackets on a Map. `m[\"a\"] = 1` adds a plain property to the Map object, not an entry, so `get`, `has`, and `size` never see it.",
+      "example": {
+        "title": "World capitals",
+        "prompt": "Build a map of capitals from pairs, look one up, update one, add and delete entries, then check what is left.",
+        "code": "const capitals = new Map([\n  [\"France\", \"Paris\"],\n  [\"Peru\", \"Lima\"],\n  [\"Kenya\", \"Nairobi\"],\n]);\n\nconsole.log(`France: ${capitals.get(\"France\")}`);\n\ncapitals.set(\"Japan\", \"Tokyo\").set(\"Chile\", \"Santiago\");\ncapitals.set(\"Kenya\", capitals.get(\"Kenya\").toUpperCase());\nconst removed = capitals.delete(\"Peru\");\n\nconsole.log(`Kenya: ${capitals.get(\"Kenya\")}`);\nconsole.log(`Deleted Peru: ${removed}`);\nconsole.log(`Has Peru: ${capitals.has(\"Peru\")}`);\nconsole.log(`Spain: ${capitals.get(\"Spain\")}`);\nconsole.log(`Size: ${capitals.size}`);\n\ncapitals.clear();\nconsole.log(`After clear: ${capitals.size}`);\n",
+        "output": "France: Paris\nKenya: NAIROBI\nDeleted Peru: true\nHas Peru: false\nSpain: undefined\nSize: 4\nAfter clear: 0",
+        "explanation": "`new Map([...])` takes an array of `[key, value]` pairs. Each `set` returns the map, so one line adds Japan and Chile. To change Kenya, the program reads the old value with `get` and stores the new one with `set`. `delete` removes Peru and returns `true` because Peru was there. After that, `has(\"Peru\")` is `false` and `get(\"Spain\")` is `undefined` because Spain was never added. Four capitals remain, so `size` is 4. `clear()` empties the map."
+      },
+      "practice": {
+        "title": "Supply closet",
+        "prompt": "Track a supply closet with a Map.\n\n1. Add `pens` 12, `rulers` 4, and `erasers` 9 to `stock` with one chain of `set` calls.\n2. Add 5 to `pens` using `get` and `set`.\n3. Delete `rulers`.\n4. Clear the map at the last TODO, before the final line prints.\n\nExpected output:\n\n```text\nPens: 17\nHas rulers: false\nSize: 2\nAfter clear: 0\n```",
+        "starter": "const stock = new Map();\n\n// TODO: add pens 12, rulers 4, and erasers 9 with one chain of set calls\n\n// TODO: add 5 to pens with get and set\n\n// TODO: delete rulers\n\nconsole.log(`Pens: ${stock.get(\"pens\")}`);\nconsole.log(`Has rulers: ${stock.has(\"rulers\")}`);\nconsole.log(`Size: ${stock.size}`);\n\n// TODO: clear the map\n\nconsole.log(`After clear: ${stock.size}`);\n",
+        "solution": "const stock = new Map();\n\nstock.set(\"pens\", 12).set(\"rulers\", 4).set(\"erasers\", 9);\n\nstock.set(\"pens\", stock.get(\"pens\") + 5);\n\nstock.delete(\"rulers\");\n\nconsole.log(`Pens: ${stock.get(\"pens\")}`);\nconsole.log(`Has rulers: ${stock.has(\"rulers\")}`);\nconsole.log(`Size: ${stock.size}`);\n\nstock.clear();\n\nconsole.log(`After clear: ${stock.size}`);\n",
+        "tests": [
+          {
+            "output": "Pens: 17\nHas rulers: false\nSize: 2\nAfter clear: 0"
+          }
+        ],
+        "hints": [
+          "`set` returns the map, so you can call `.set(...)` again right after it.",
+          "Read the current number with `stock.get(\"pens\")`, add 5, and pass the result to `set`."
+        ]
+      }
+    },
+    {
+      "title": "Iterating and counting",
+      "body": "A Map remembers insertion order, so loops visit entries in the order keys were first added. Updating a value keeps its key in place, but deleting a key and setting it again moves it to the end. Loop with `for...of` and unpack each `[key, value]` pair, or use `forEach`, whose callback gets the **value first**, then the key:\n\n```javascript\nfor (const [name, age] of ages) {\n  console.log(`${name} is ${age}`);\n}\nages.forEach((age, name) => console.log(`${name}: ${age}`));\n```\n\n`map.keys()`, `map.values()`, and `map.entries()` return iterators, not arrays. In Node 20 they have no `length`, `map`, or `join`, so `ages.keys().join(\", \")` throws a TypeError. Spread them into an array first: `[...ages.keys()].join(\", \")`. `[...map]` gives an array of `[key, value]` pairs and `Array.from(ages.keys())` works too.\n\nCounting is the classic Map job. Start a missing key at 0 with `??`:\n\n```javascript\ncounts.set(word, (counts.get(word) ?? 0) + 1);\n```\n\nTo sort, spread the entries and compare `[key, value]` pairs: by count descending, ties broken by key.\n\n```javascript\n[...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));\n```",
+      "example": {
+        "title": "Word counts",
+        "prompt": "Count the words of a sentence, print them in first-seen order, list the distinct words, then print them sorted by count.",
+        "code": "const sentence = \"the cat and the hat and the bat\";\n\nconst counts = new Map();\nfor (const word of sentence.split(\" \")) {\n  counts.set(word, (counts.get(word) ?? 0) + 1);\n}\n\ncounts.forEach((count, word) => console.log(`${word}: ${count}`));\n\nconsole.log(`Words: ${[...counts.keys()].join(\", \")}`);\n\nconst sorted = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));\nconsole.log(\"Sorted:\");\nfor (const [word, count] of sorted) {\n  console.log(`${word}: ${count}`);\n}\n",
+        "output": "the: 3\ncat: 1\nand: 2\nhat: 1\nbat: 1\nWords: the, cat, and, hat, bat\nSorted:\nthe: 3\nand: 2\nbat: 1\ncat: 1\nhat: 1",
+        "explanation": "Each word starts at `counts.get(word) ?? 0`, so the first sighting stores 1. `forEach` gets `(count, word)`, value first, and walks in insertion order. `counts.keys()` is an iterator, so it is spread into an array before `join`. `[...counts]` makes an array of `[word, count]` pairs. The comparator sorts by count descending and uses `localeCompare` when counts tie, which puts `bat`, `cat`, `hat` in order."
+      },
+      "practice": {
+        "title": "Letter counts",
+        "prompt": "Count the letters of `\"mississippi\"` with a Map.\n\n1. Loop over `word` and count each letter in `counts`.\n2. Print each letter as `letter: count` in first-seen order.\n3. Print `Letters: ` followed by the distinct letters joined with `\", \"`.\n4. Print `Sorted:`, then each `letter: count` sorted by count descending, ties broken by letter in alphabetical order.\n\nExpected output:\n\n```text\nm: 1\ni: 4\ns: 4\np: 2\nLetters: m, i, s, p\nSorted:\ni: 4\ns: 4\np: 2\nm: 1\n```",
+        "starter": "const word = \"mississippi\";\n\nconst counts = new Map();\n\n// TODO: count each letter of word in counts\n\n// TODO: print each letter: count in first-seen order\n\n// TODO: print the distinct letters joined with \", \"\n\n// TODO: print \"Sorted:\", then the letters by count descending, ties by letter\n",
+        "solution": "const word = \"mississippi\";\n\nconst counts = new Map();\n\nfor (const ch of word) {\n  counts.set(ch, (counts.get(ch) ?? 0) + 1);\n}\n\ncounts.forEach((count, ch) => console.log(`${ch}: ${count}`));\n\nconsole.log(`Letters: ${[...counts.keys()].join(\", \")}`);\n\nconst sorted = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));\nconsole.log(\"Sorted:\");\nfor (const [ch, count] of sorted) {\n  console.log(`${ch}: ${count}`);\n}\n",
+        "tests": [
+          {
+            "output": "m: 1\ni: 4\ns: 4\np: 2\nLetters: m, i, s, p\nSorted:\ni: 4\ns: 4\np: 2\nm: 1"
+          }
+        ],
+        "hints": [
+          "`for (const ch of word)` visits each letter. Start a missing letter at 0 with `?? 0`, then add 1.",
+          "`counts.keys()` is an iterator with no `join`, so spread it into an array first.",
+          "Sort a spread copy of `counts`. Compare counts with `b[1] - a[1]` and break ties with `||` and `localeCompare`."
+        ]
+      }
+    },
+    {
+      "title": "Objects vs Map",
+      "body": "Objects and Maps both store key-value pairs, but they behave differently:\n\n| | Plain object | Map |\n| --- | --- | --- |\n| Key types | Strings: `obj[1]` and `obj[\"1\"]` are the same key | Any value: `1` and `\"1\"` are different keys |\n| Objects as keys | All become `\"[object Object]\"` | Compared by reference |\n| Count | `Object.keys(obj).length` | `map.size` |\n| Order | Integer-like keys first | Exact insertion order |\n| Inherited names | `\"toString\" in {}` is `true` | Starts truly empty |\n| JSON | `JSON.stringify(obj)` works | `JSON.stringify(map)` gives `{}` |\n\nInherited names break counting: `counts[\"constructor\"]` already holds a function, so adding 1 to it gives text, not 1.\n\n`JSON.stringify(map)` is a silent bug: JSON ignores Map entries. Convert first with `Object.fromEntries(map)`, which makes an object from the pairs (its keys become strings). Going the other way, `new Map(Object.entries(obj))` turns an object into a Map.\n\n```javascript\nconst prices = new Map(Object.entries({ tea: 2 }));\nJSON.stringify(Object.fromEntries(prices)); // '{\"tea\":2}'\n```\n\n**Rule of thumb:** use an object for fixed-shape records (`{ name, age }`) and for JSON. Use a Map when keys arrive at runtime, when you count or group arbitrary values, or when keys are not strings.",
+      "example": {
+        "title": "Keys that stay distinct",
+        "prompt": "Compare how an object and a Map store the keys 1 and \"1\", check inherited names and object keys, and print a Map as JSON.",
+        "code": "const obj = {};\nobj[1] = \"number\";\nobj[\"1\"] = \"string\";\n\nconst map = new Map();\nmap.set(1, \"number\").set(\"1\", \"string\");\n\nconsole.log(`Object size: ${Object.keys(obj).length}`);\nconsole.log(`Map size: ${map.size}`);\nconsole.log(`obj[1]: ${obj[1]}`);\nconsole.log(`map.get(1): ${map.get(1)}`);\nconsole.log(`toString in {}: ${\"toString\" in {}}`);\nconsole.log(`Map has toString: ${new Map().has(\"toString\")}`);\n\nconst ada = { name: \"Ada\" };\nconst visits = new Map([[ada, 2]]);\nconsole.log(`Same object: ${visits.get(ada)}`);\nconsole.log(`Lookalike: ${visits.get({ name: \"Ada\" })}`);\n\nconst scores = new Map([[\"ada\", 3], [\"linus\", 5]]);\nconsole.log(`Wrong JSON: ${JSON.stringify(scores)}`);\nconsole.log(`Right JSON: ${JSON.stringify(Object.fromEntries(scores))}`);\n",
+        "output": "Object size: 1\nMap size: 2\nobj[1]: string\nmap.get(1): number\ntoString in {}: true\nMap has toString: false\nSame object: 2\nLookalike: undefined\nWrong JSON: {}\nRight JSON: {\"ada\":3,\"linus\":5}",
+        "explanation": "The object turns `1` into `\"1\"`, so the second assignment overwrites the first and it has one key holding `\"string\"`. The Map keeps the number and the string apart. Every plain object inherits `toString`, while a new Map has no entries. The Map finds `ada` by reference, so a lookalike object is a different key. `JSON.stringify` sees no entries in a Map and prints `{}`, while `Object.fromEntries` turns it into a real object first."
+      },
+      "practice": {
+        "title": "Flags and prices",
+        "prompt": "Compare object and Map keys, then convert a price list between the two.\n\n1. Store `true` with the value `\"boolean\"`, then `\"true\"` with the value `\"string\"`, in both `flags` and `flagMap`.\n2. Build `priceMap` from `prices` with `Object.entries`.\n3. Add `milk` at `2.75` to `priceMap`.\n4. Print `JSON: ` followed by `priceMap` converted to JSON with `Object.fromEntries`.\n\nExpected output:\n\n```text\nObject size: 1\nMap size: 2\nflags[true]: string\nflagMap.get(true): boolean\nPrice count: 3\nJSON: {\"apple\":1.25,\"bread\":3.5,\"milk\":2.75}\n```",
+        "starter": "const flags = {};\nconst flagMap = new Map();\n\n// TODO: store true -> \"boolean\", then \"true\" -> \"string\", in flags and in flagMap\n\nconst prices = { apple: 1.25, bread: 3.5 };\n\n// TODO: build this Map from prices with Object.entries\nconst priceMap = new Map();\n\n// TODO: add milk at 2.75 to priceMap\n\nconsole.log(`Object size: ${Object.keys(flags).length}`);\nconsole.log(`Map size: ${flagMap.size}`);\nconsole.log(`flags[true]: ${flags[true]}`);\nconsole.log(`flagMap.get(true): ${flagMap.get(true)}`);\nconsole.log(`Price count: ${priceMap.size}`);\n\n// TODO: print \"JSON: \" followed by priceMap as JSON\n",
+        "solution": "const flags = {};\nconst flagMap = new Map();\n\nflags[true] = \"boolean\";\nflags[\"true\"] = \"string\";\nflagMap.set(true, \"boolean\").set(\"true\", \"string\");\n\nconst prices = { apple: 1.25, bread: 3.5 };\n\nconst priceMap = new Map(Object.entries(prices));\n\npriceMap.set(\"milk\", 2.75);\n\nconsole.log(`Object size: ${Object.keys(flags).length}`);\nconsole.log(`Map size: ${flagMap.size}`);\nconsole.log(`flags[true]: ${flags[true]}`);\nconsole.log(`flagMap.get(true): ${flagMap.get(true)}`);\nconsole.log(`Price count: ${priceMap.size}`);\n\nconsole.log(`JSON: ${JSON.stringify(Object.fromEntries(priceMap))}`);\n",
+        "tests": [
+          {
+            "output": "Object size: 1\nMap size: 2\nflags[true]: string\nflagMap.get(true): boolean\nPrice count: 3\nJSON: {\"apple\":1.25,\"bread\":3.5,\"milk\":2.75}"
+          }
+        ],
+        "hints": [
+          "On the object, write each key in brackets, as in `flags[true]`. On the Map, chain two `set` calls.",
+          "`Object.entries(prices)` gives the `[key, value]` pairs that `new Map(...)` accepts.",
+          "`JSON.stringify` on a Map prints `{}`. Turn the Map into a plain object with `Object.fromEntries` first."
+        ]
+      }
+    }
+  ],
+  "recap": "- `new Map()` or `new Map([[key, value], ...])` creates a map.\n- `set` returns the map so calls chain. `get` gives `undefined` for a missing key. Use `has`, `delete`, `size`, and `clear()`.\n- Never use brackets on a Map: `m[\"a\"] = 1` is not an entry.\n- Maps iterate in insertion order, and a deleted key that is set again moves to the end. Use `for (const [key, value] of map)` or `map.forEach((value, key) => ...)`.\n- `keys()`, `values()`, and `entries()` are iterators in Node 20: spread them before `join` or `map`.\n- Count with `map.set(k, (map.get(k) ?? 0) + 1)` and sort `[...map]` by value, then by key.\n- Map keys keep their type and objects are compared by reference. Object keys become strings and inherit names like `toString`.\n- `JSON.stringify(map)` gives `{}`: use `Object.fromEntries(map)`. Go back with `new Map(Object.entries(obj))`.\n- Objects for fixed records and JSON, Map for dynamic keys and counting."
+}

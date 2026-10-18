@@ -1,0 +1,158 @@
+{
+  "id": "graphs",
+  "title": "Graphs",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Represent graphs as adjacency lists and solve traversal, connected component, shortest path, and topological ordering problems.",
+  "intro": "A graph is anything made of things and the connections between them: friends, roads, flights, and course prerequisites. This lesson stores a graph as an adjacency list in a Map, then reuses the DFS and BFS you already know to find groups, shortest paths, and a valid order for dependencies.",
+  "steps": [
+    {
+      "title": "Adjacency lists",
+      "body": "A **graph** is a set of nodes joined by edges: people and friendships, towns and roads, courses and prerequisites. The usual way to store one is an **adjacency list**, a Map from each node to an array of its neighbors.\n\n```javascript\nfunction addEdge(graph, a, b) {\n  if (!graph.has(a)) {\n    graph.set(a, []);\n  }\n  if (!graph.has(b)) {\n    graph.set(b, []);\n  }\n  graph.get(a).push(b);\n  graph.get(b).push(a);\n}\n```\n\nIn an **undirected** graph every edge works both ways, so you push it in both directions. Create a missing entry before pushing: for a new node `graph.get(a)` is `undefined`, and calling `push` on it throws a TypeError. A node's **degree** is its number of neighbors, `graph.get(a).length`.\n\nA Map remembers insertion order and neighbors arrive in input order, so sort before printing: `[...graph.keys()].sort((a, b) => a.localeCompare(b))` for the nodes and `toSorted` for each neighbor list. Prefer a Map over a plain object, so a node named `constructor` cannot clash with inherited keys.",
+      "example": {
+        "title": "Friend network",
+        "prompt": "Read friendships, one pair per line, and print each person with their degree and sorted friends, then the most connected person (ties go to the alphabetically first name).",
+        "stdin": "ana bo\nbo cy\ndan bo\ncy dan\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst edges = input.trim().split(\"\\n\").map((line) => line.trim().split(/\\s+/));\n\nfunction addEdge(graph, a, b) {\n  if (!graph.has(a)) {\n    graph.set(a, []);\n  }\n  if (!graph.has(b)) {\n    graph.set(b, []);\n  }\n  graph.get(a).push(b);\n  graph.get(b).push(a);\n}\n\nconst graph = new Map();\nfor (const [a, b] of edges) {\n  addEdge(graph, a, b);\n}\n\nconst people = [...graph.keys()].sort((a, b) => a.localeCompare(b));\nlet best = people[0];\nfor (const person of people) {\n  const friends = graph.get(person).toSorted((a, b) => a.localeCompare(b));\n  console.log(`${person} (${friends.length}): ${friends.join(\", \")}`);\n  if (friends.length > graph.get(best).length) {\n    best = person;\n  }\n}\nconsole.log(`Most connected: ${best}`);\n",
+        "output": "ana (1): bo\nbo (3): ana, cy, dan\ncy (2): bo, dan\ndan (2): bo, cy\nMost connected: bo",
+        "explanation": "Each line becomes a pair like `[\"ana\", \"bo\"]`, and `addEdge` stores it in both directions, creating an empty array for a name the first time it appears. The names are sorted once, and each friend list is sorted with `toSorted` so the stored graph keeps its input order. The degree is just `friends.length`. Because people are visited alphabetically and `best` only changes on a strictly larger degree, a tie keeps the earlier name."
+      },
+      "practice": {
+        "title": "Road map",
+        "prompt": "Read roads between towns and print the road map with its dead ends.\n\n1. Each input line is one two-way road, such as `oak elm`. Finish `addEdge` so it creates missing entries and adds the road in both directions.\n2. For each town in alphabetical order, print `town (degree): neighbors`, with the neighbors sorted alphabetically and joined with `, `.\n3. Print `Dead ends: ` followed by the towns with exactly one road, in alphabetical order and joined with `, `, or `none` if there are none.\n\nInput:\n\n```text\noak elm\nelm pine\npine oak\npine ash\nelm fir\n```\n\nExpected output:\n\n```text\nash (1): pine\nelm (3): fir, oak, pine\nfir (1): elm\noak (2): elm, pine\npine (3): ash, elm, oak\nDead ends: ash, fir\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst roads = input.trim().split(\"\\n\").map((line) => line.trim().split(/\\s+/));\n\nfunction addEdge(graph, a, b) {\n  // TODO: create missing entries for a and b, then add the road in both directions\n}\n\nconst graph = new Map();\nfor (const [a, b] of roads) {\n  addEdge(graph, a, b);\n}\n\n// TODO: print each town in alphabetical order with its degree and sorted neighbors\n// TODO: print the dead ends (towns with exactly one road), or none\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst roads = input.trim().split(\"\\n\").map((line) => line.trim().split(/\\s+/));\n\nfunction addEdge(graph, a, b) {\n  if (!graph.has(a)) {\n    graph.set(a, []);\n  }\n  if (!graph.has(b)) {\n    graph.set(b, []);\n  }\n  graph.get(a).push(b);\n  graph.get(b).push(a);\n}\n\nconst graph = new Map();\nfor (const [a, b] of roads) {\n  addEdge(graph, a, b);\n}\n\nconst towns = [...graph.keys()].sort((a, b) => a.localeCompare(b));\nfor (const town of towns) {\n  const neighbors = graph.get(town).toSorted((a, b) => a.localeCompare(b));\n  console.log(`${town} (${neighbors.length}): ${neighbors.join(\", \")}`);\n}\nconst deadEnds = towns.filter((town) => graph.get(town).length === 1);\nconsole.log(`Dead ends: ${deadEnds.length > 0 ? deadEnds.join(\", \") : \"none\"}`);\n",
+        "tests": [
+          {
+            "stdin": "oak elm\nelm pine\npine oak\npine ash\nelm fir\n",
+            "output": "ash (1): pine\nelm (3): fir, oak, pine\nfir (1): elm\noak (2): elm, pine\npine (3): ash, elm, oak\nDead ends: ash, fir"
+          },
+          {
+            "stdin": "cove bay\nbay dune\ndune cove\n",
+            "output": "bay (2): cove, dune\ncove (2): bay, dune\ndune (2): bay, cove\nDead ends: none"
+          },
+          {
+            "stdin": "north south\n",
+            "output": "north (1): south\nsouth (1): north\nDead ends: north, south"
+          }
+        ],
+        "hints": [
+          "In `addEdge`, use `if (!graph.has(a)) { graph.set(a, []); }` for both towns before pushing.",
+          "Sort the towns with `[...graph.keys()].sort((a, b) => a.localeCompare(b))` and each neighbor list with `toSorted`.",
+          "Filter the sorted towns for the ones whose neighbor list has length 1, and fall back to `none` when that list is empty."
+        ]
+      }
+    },
+    {
+      "title": "Traversal and connected components",
+      "body": "To find everything reachable from a node, run a traversal with a **visited** Set. Mark a node when you push it, so it is never added twice:\n\n```javascript\nfunction explore(graph, start, visited) {\n  const members = [];\n  const stack = [start];\n  visited.add(start);\n  while (stack.length > 0) {\n    const node = stack.pop();\n    members.push(node);\n    for (const next of graph.get(node)) {\n      if (!visited.has(next)) {\n        visited.add(next);\n        stack.push(next);\n      }\n    }\n  }\n  return members;\n}\n```\n\nThis is the iterative DFS from the Depth-First Search lesson, with `graph.get(node)` in place of the four directions. A queue instead of a stack (BFS) finds the same members.\n\nA **connected component** is a group of nodes that can all reach each other. Loop over every node and start `explore` from each one that is still unvisited, sharing one visited Set: every fresh start is a new component, and `explore` returns its members. Two nodes are connected when a traversal from one reaches the other: `explore(graph, a, new Set()).includes(b)`.\n\n**The gotcha:** without the visited Set, a cycle such as a, b, c, a sends the loop around forever.",
+      "example": {
+        "title": "Friend groups",
+        "prompt": "Read an edge count, the friendships, and a query pair, then print the number of friend groups, each group's sorted members, and whether the pair is connected.",
+        "stdin": "4\nana bo\nbo cy\ndan eve\neve fay\nana cy\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst edgeCount = Number(lines[0]);\nconst edges = lines.slice(1, edgeCount + 1).map((line) => line.trim().split(/\\s+/));\nconst [from, to] = lines[edgeCount + 1].trim().split(/\\s+/);\n\nfunction addEdge(graph, a, b) {\n  if (!graph.has(a)) {\n    graph.set(a, []);\n  }\n  if (!graph.has(b)) {\n    graph.set(b, []);\n  }\n  graph.get(a).push(b);\n  graph.get(b).push(a);\n}\n\nfunction explore(graph, start, visited) {\n  const members = [];\n  const stack = [start];\n  visited.add(start);\n  while (stack.length > 0) {\n    const node = stack.pop();\n    members.push(node);\n    for (const next of graph.get(node)) {\n      if (!visited.has(next)) {\n        visited.add(next);\n        stack.push(next);\n      }\n    }\n  }\n  return members;\n}\n\nconst graph = new Map();\nfor (const [a, b] of edges) {\n  addEdge(graph, a, b);\n}\n\nconst visited = new Set();\nconst components = [];\nfor (const node of [...graph.keys()].sort((a, b) => a.localeCompare(b))) {\n  if (!visited.has(node)) {\n    components.push(explore(graph, node, visited).sort((a, b) => a.localeCompare(b)));\n  }\n}\n\nconsole.log(`Components: ${components.length}`);\nfor (const members of components) {\n  console.log(members.join(\" \"));\n}\nconst connected = explore(graph, from, new Set()).includes(to);\nconsole.log(`${from} and ${to} connected: ${connected ? \"yes\" : \"no\"}`);\n",
+        "output": "Components: 2\nana bo cy\ndan eve fay\nana and cy connected: yes",
+        "explanation": "The first line says how many edge lines follow, so `slice(1, edgeCount + 1)` takes the edges and the next line is the query. The loop visits names alphabetically and calls `explore` only for names no earlier search reached, so `ana` starts the first group and `dan` the second. Every call shares the same `visited` Set, which is what keeps one group from being counted twice. For the query, a fresh Set runs a separate search from `ana`, and `includes` checks whether it reached `cy`."
+      },
+      "practice": {
+        "title": "Server clusters",
+        "prompt": "Read network links between servers and report how the network splits into clusters.\n\n1. The first line is the number of links, then one link per line, then a line with two server names to check.\n2. Finish `explore` so it walks the graph with a stack and a visited Set and returns the members it reached.\n3. Print `Components: ` followed by the number of connected components.\n4. Print `Largest: ` followed by the number of servers in the biggest component.\n5. Print `from and to connected: yes` or `from and to connected: no`, with the two query names in place of `from` and `to`.\n\nInput:\n\n```text\n6\napi db\nweb api\ncache db\nmail spam\nlog mail\ncdn dns\nweb spam\n```\n\nExpected output:\n\n```text\nComponents: 3\nLargest: 4\nweb and spam connected: no\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst edgeCount = Number(lines[0]);\nconst edges = lines.slice(1, edgeCount + 1).map((line) => line.trim().split(/\\s+/));\nconst [from, to] = lines[edgeCount + 1].trim().split(/\\s+/);\n\nfunction addEdge(graph, a, b) {\n  if (!graph.has(a)) {\n    graph.set(a, []);\n  }\n  if (!graph.has(b)) {\n    graph.set(b, []);\n  }\n  graph.get(a).push(b);\n  graph.get(b).push(a);\n}\n\nfunction explore(graph, start, visited) {\n  // TODO: walk from start with a stack, mark nodes in visited, and return the members\n  return [];\n}\n\nconst graph = new Map();\nfor (const [a, b] of edges) {\n  addEdge(graph, a, b);\n}\n\n// TODO: start explore from every unvisited node to count components and find the largest\nlet componentCount = 0;\nlet largest = 0;\n// TODO: check whether from and to are connected\nlet connected = false;\n\nconsole.log(`Components: ${componentCount}`);\nconsole.log(`Largest: ${largest}`);\nconsole.log(`${from} and ${to} connected: ${connected ? \"yes\" : \"no\"}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst edgeCount = Number(lines[0]);\nconst edges = lines.slice(1, edgeCount + 1).map((line) => line.trim().split(/\\s+/));\nconst [from, to] = lines[edgeCount + 1].trim().split(/\\s+/);\n\nfunction addEdge(graph, a, b) {\n  if (!graph.has(a)) {\n    graph.set(a, []);\n  }\n  if (!graph.has(b)) {\n    graph.set(b, []);\n  }\n  graph.get(a).push(b);\n  graph.get(b).push(a);\n}\n\nfunction explore(graph, start, visited) {\n  const members = [];\n  const stack = [start];\n  visited.add(start);\n  while (stack.length > 0) {\n    const node = stack.pop();\n    members.push(node);\n    for (const next of graph.get(node)) {\n      if (!visited.has(next)) {\n        visited.add(next);\n        stack.push(next);\n      }\n    }\n  }\n  return members;\n}\n\nconst graph = new Map();\nfor (const [a, b] of edges) {\n  addEdge(graph, a, b);\n}\n\nconst visited = new Set();\nlet componentCount = 0;\nlet largest = 0;\nfor (const node of graph.keys()) {\n  if (!visited.has(node)) {\n    componentCount++;\n    largest = Math.max(largest, explore(graph, node, visited).length);\n  }\n}\nconst connected = explore(graph, from, new Set()).includes(to);\n\nconsole.log(`Components: ${componentCount}`);\nconsole.log(`Largest: ${largest}`);\nconsole.log(`${from} and ${to} connected: ${connected ? \"yes\" : \"no\"}`);\n",
+        "tests": [
+          {
+            "stdin": "6\napi db\nweb api\ncache db\nmail spam\nlog mail\ncdn dns\nweb spam\n",
+            "output": "Components: 3\nLargest: 4\nweb and spam connected: no"
+          },
+          {
+            "stdin": "3\nred blue\nblue green\ngreen red\nred green\n",
+            "output": "Components: 1\nLargest: 3\nred and green connected: yes"
+          },
+          {
+            "stdin": "2\nsun moon\nstar comet\nmoon sun\n",
+            "output": "Components: 2\nLargest: 2\nmoon and sun connected: yes"
+          }
+        ],
+        "hints": [
+          "Inside `explore`, pop a node, add it to `members`, and push each neighbor that is not yet in `visited`, adding it to `visited` as you push.",
+          "Share one `visited` Set across the component loop: every node that is still unvisited starts a new component.",
+          "`explore(graph, from, new Set()).includes(to)` tells you whether the pair is connected."
+        ]
+      }
+    },
+    {
+      "title": "Shortest paths with BFS",
+      "body": "In an unweighted graph, BFS from a source reaches nodes in order of distance, so the first time it discovers a node it has found a path with the fewest edges. To rebuild that path, record each node's **parent** when it is first discovered. The parent Map doubles as the visited set: `parent.has(next)` means already seen.\n\n```javascript\nconst parent = new Map([[start, null]]);\n// in the BFS loop, for each neighbor:\nif (!parent.has(next)) {\n  parent.set(next, node);\n  queue.push(next);\n}\n```\n\nAfter BFS, walk back from the target to the start and reverse:\n\n```javascript\nconst path = [];\nfor (let node = target; node !== null; node = parent.get(node)) {\n  path.push(node);\n}\npath.reverse();\n```\n\nThe distance is `path.length - 1` edges. A target with no parent entry is unreachable.\n\nSeveral shortest paths can tie, and BFS takes neighbors in list order. Sort every neighbor list once before searching, and BFS always reports the same path: the one that comes first alphabetically when you compare nodes from the start. Keep the head-index queue (`queue[head++]`), since `shift()` is O(n).\n\nFor weighted edges, such as distances in miles, BFS is not enough. Dijkstra's algorithm is the next step: a simple version repeatedly scans a Map for the closest unvisited node.",
+      "example": {
+        "title": "Fewest flights",
+        "prompt": "Read an edge count, two-way flight routes, and then route queries, and print the route with the fewest flights for each query, or that there is no route. Ties go to the route that comes first alphabetically when you compare airports from the start.",
+        "stdin": "6\nSFO LAX\nSFO DEN\nLAX JFK\nDEN JFK\nJFK BOS\nSEA PDX\nSFO JFK\nSFO BOS\nSFO SEA\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst edgeCount = Number(lines[0]);\nconst routes = lines.slice(1, edgeCount + 1).map((line) => line.trim().split(/\\s+/));\nconst queries = lines.slice(edgeCount + 1).map((line) => line.trim().split(/\\s+/));\n\nfunction addEdge(graph, a, b) {\n  if (!graph.has(a)) {\n    graph.set(a, []);\n  }\n  if (!graph.has(b)) {\n    graph.set(b, []);\n  }\n  graph.get(a).push(b);\n  graph.get(b).push(a);\n}\n\nfunction shortestPath(graph, start, target) {\n  const parent = new Map([[start, null]]);\n  const queue = [start];\n  let head = 0;\n  while (head < queue.length) {\n    const node = queue[head++];\n    if (node === target) {\n      break;\n    }\n    for (const next of graph.get(node)) {\n      if (!parent.has(next)) {\n        parent.set(next, node);\n        queue.push(next);\n      }\n    }\n  }\n  if (!parent.has(target)) {\n    return null;\n  }\n  const path = [];\n  for (let node = target; node !== null; node = parent.get(node)) {\n    path.push(node);\n  }\n  return path.reverse();\n}\n\nconst graph = new Map();\nfor (const [a, b] of routes) {\n  addEdge(graph, a, b);\n}\nfor (const neighbors of graph.values()) {\n  neighbors.sort((a, b) => a.localeCompare(b));\n}\n\nfor (const [from, to] of queries) {\n  const path = shortestPath(graph, from, to);\n  if (path === null) {\n    console.log(`${from} to ${to}: no route`);\n  } else {\n    const flights = path.length - 1;\n    console.log(`${path.join(\" -> \")} (${flights} ${flights === 1 ? \"flight\" : \"flights\"})`);\n  }\n}\n",
+        "output": "SFO -> DEN -> JFK (2 flights)\nSFO -> DEN -> JFK -> BOS (3 flights)\nSFO to SEA: no route",
+        "explanation": "Both `SFO -> LAX -> JFK` and `SFO -> DEN -> JFK` take 2 flights. Sorting the neighbor lists puts `DEN` before `LAX`, so BFS discovers `JFK` from `DEN` first and records `DEN` as its parent. `parent.has(next)` skips airports that already have a parent, so that first discovery is never overwritten. Walking parents back from `BOS` gives `BOS, JFK, DEN, SFO`, and `reverse` turns it around. `SEA` is in a separate component, so it never gets a parent and `shortestPath` returns `null`."
+      },
+      "practice": {
+        "title": "Degrees of separation",
+        "prompt": "Read friendships and print the shortest chain of friends between each pair of names.\n\n1. The first line is the number of friendships, then one friendship per line, then one query pair per line.\n2. Sort every neighbor list alphabetically, so a tie goes to the chain that comes first alphabetically when you compare names from the start.\n3. Finish `shortestPath` with BFS, a parent Map, and a walk back from the target.\n4. For each query print the chain joined with ` -> ` followed by the number of steps in parentheses, such as `ana -> bo -> cy (2)`. A name paired with itself prints just the name and `(0)`.\n5. If there is no chain, print `from and to: not connected`, with the two query names in place of `from` and `to`.\n\nInput:\n\n```text\n6\nana dee\ndee cy\nana bo\nbo cy\ncy eli\nfay gus\nana cy\nana eli\neli fay\n```\n\nExpected output:\n\n```text\nana -> bo -> cy (2)\nana -> bo -> cy -> eli (3)\neli and fay: not connected\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst edgeCount = Number(lines[0]);\nconst friendships = lines.slice(1, edgeCount + 1).map((line) => line.trim().split(/\\s+/));\nconst queries = lines.slice(edgeCount + 1).map((line) => line.trim().split(/\\s+/));\n\nfunction addEdge(graph, a, b) {\n  if (!graph.has(a)) {\n    graph.set(a, []);\n  }\n  if (!graph.has(b)) {\n    graph.set(b, []);\n  }\n  graph.get(a).push(b);\n  graph.get(b).push(a);\n}\n\nfunction shortestPath(graph, start, target) {\n  // TODO: BFS from start with a parent Map, then walk back from target and reverse\n  return null;\n}\n\nconst graph = new Map();\nfor (const [a, b] of friendships) {\n  addEdge(graph, a, b);\n}\n// TODO: sort every neighbor list alphabetically\n\nfor (const [from, to] of queries) {\n  const path = shortestPath(graph, from, to);\n  if (path === null) {\n    console.log(`${from} and ${to}: not connected`);\n  } else {\n    // TODO: print the chain joined with \" -> \" and the degrees of separation in parentheses\n  }\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst edgeCount = Number(lines[0]);\nconst friendships = lines.slice(1, edgeCount + 1).map((line) => line.trim().split(/\\s+/));\nconst queries = lines.slice(edgeCount + 1).map((line) => line.trim().split(/\\s+/));\n\nfunction addEdge(graph, a, b) {\n  if (!graph.has(a)) {\n    graph.set(a, []);\n  }\n  if (!graph.has(b)) {\n    graph.set(b, []);\n  }\n  graph.get(a).push(b);\n  graph.get(b).push(a);\n}\n\nfunction shortestPath(graph, start, target) {\n  const parent = new Map([[start, null]]);\n  const queue = [start];\n  let head = 0;\n  while (head < queue.length) {\n    const node = queue[head++];\n    if (node === target) {\n      break;\n    }\n    for (const next of graph.get(node)) {\n      if (!parent.has(next)) {\n        parent.set(next, node);\n        queue.push(next);\n      }\n    }\n  }\n  if (!parent.has(target)) {\n    return null;\n  }\n  const path = [];\n  for (let node = target; node !== null; node = parent.get(node)) {\n    path.push(node);\n  }\n  return path.reverse();\n}\n\nconst graph = new Map();\nfor (const [a, b] of friendships) {\n  addEdge(graph, a, b);\n}\nfor (const neighbors of graph.values()) {\n  neighbors.sort((a, b) => a.localeCompare(b));\n}\n\nfor (const [from, to] of queries) {\n  const path = shortestPath(graph, from, to);\n  if (path === null) {\n    console.log(`${from} and ${to}: not connected`);\n  } else {\n    console.log(`${path.join(\" -> \")} (${path.length - 1})`);\n  }\n}\n",
+        "tests": [
+          {
+            "stdin": "6\nana dee\ndee cy\nana bo\nbo cy\ncy eli\nfay gus\nana cy\nana eli\neli fay\n",
+            "output": "ana -> bo -> cy (2)\nana -> bo -> cy -> eli (3)\neli and fay: not connected"
+          },
+          {
+            "stdin": "3\nmax ned\nned ola\nmax ola\nola max\nned ned\n",
+            "output": "ola -> max (1)\nned (0)"
+          },
+          {
+            "stdin": "4\nzed yan\nzed amy\nyan kim\namy kim\nzed kim\nkim zed\n",
+            "output": "zed -> amy -> kim (2)\nkim -> amy -> zed (2)"
+          }
+        ],
+        "hints": [
+          "Start with `const parent = new Map([[start, null]]);` and a queue read with `queue[head++]`. Set a neighbor's parent only when `parent.has(next)` is false.",
+          "If `parent.has(target)` is false after BFS, return `null`. Otherwise follow `parent.get(node)` from the target until `null`, then reverse.",
+          "Loop over `graph.values()` and sort each neighbor list in place with `localeCompare` before any query runs."
+        ]
+      }
+    },
+    {
+      "title": "Topological sort",
+      "body": "In a **directed** graph each edge points one way. A directed graph with no cycles (a DAG) models dependencies: `intro data` means intro comes before data. Add each edge in one direction only, `graph.get(before).push(after)`.\n\nA **topological order** lists every node after all of its prerequisites. Kahn's algorithm builds one:\n\n1. Count each node's **in-degree**, the number of edges pointing into it. Create entries for both ends of every edge, so starting nodes get 0.\n2. Every node with in-degree 0 is ready.\n3. Take a ready node, append it to the order, and decrement its neighbors' in-degrees. A neighbor that drops to 0 becomes ready.\n4. Repeat until nothing is ready.\n\n```javascript\ninDegree.set(next, inDegree.get(next) - 1);\nif (inDegree.get(next) === 0) {\n  ready.push(next);\n}\n```\n\nMany orders can be valid, so pick the alphabetically smallest ready node each time: sort `ready` and `shift()` the first one. That makes the output unique. The sort already costs more than `shift()`, so the head-index trick from BFS would not help here.\n\nNodes on a cycle wait on each other, and so does everything after them, so none of them ever reaches in-degree 0. If fewer nodes come out than went in (`order.length < graph.size`), no valid order exists.",
+      "example": {
+        "title": "Course plan",
+        "prompt": "Read prerequisite pairs such as `intro data` (intro before data) and print a valid course order, taking the alphabetically smallest ready course each time, or `impossible` if a cycle blocks some courses.",
+        "stdin": "intro data\nintro math\ndata algo\nmath algo\nmath web\nweb algo\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst pairs = input.trim().split(\"\\n\").map((line) => line.trim().split(/\\s+/));\n\nfunction courseOrder(pairs) {\n  const graph = new Map();\n  const inDegree = new Map();\n  for (const [before, after] of pairs) {\n    for (const node of [before, after]) {\n      if (!graph.has(node)) {\n        graph.set(node, []);\n        inDegree.set(node, 0);\n      }\n    }\n    graph.get(before).push(after);\n    inDegree.set(after, inDegree.get(after) + 1);\n  }\n\n  const ready = [...graph.keys()].filter((node) => inDegree.get(node) === 0);\n  const order = [];\n  while (ready.length > 0) {\n    ready.sort((a, b) => a.localeCompare(b));\n    const node = ready.shift();\n    order.push(node);\n    for (const next of graph.get(node)) {\n      inDegree.set(next, inDegree.get(next) - 1);\n      if (inDegree.get(next) === 0) {\n        ready.push(next);\n      }\n    }\n  }\n  return order.length === graph.size ? order : null;\n}\n\nconst order = courseOrder(pairs);\nconsole.log(order === null ? \"impossible\" : order.join(\" -> \"));\n",
+        "output": "intro -> data -> math -> web -> algo",
+        "explanation": "Each pair adds one directed edge and raises the in-degree of the second course. Only `intro` starts at 0. Taking it frees `data` and `math`, and sorting `ready` picks `data`. Taking `math` drops `web` to 0 and `algo` to 1, so `web` comes next and only then `algo`, which needed three prerequisites. All 5 courses came out, so the order is returned. With an extra pair `algo intro`, `intro` would never reach 0, nothing would come out, and the program would print `impossible`."
+      },
+      "practice": {
+        "title": "Build order",
+        "prompt": "Read task dependencies and print a build order, or report a cycle.\n\n1. Each input line is `before after`, meaning task `before` must run before task `after`.\n2. Finish `buildOrder` with Kahn's algorithm: count in-degrees, start from the tasks with in-degree 0, and decrement the neighbors of each task you take.\n3. When several tasks are ready, take the alphabetically smallest one first.\n4. Return the tasks in order, or `null` if fewer tasks come out than went in. The given code prints the order joined with ` -> `, or `cycle detected`.\n\nInput:\n\n```text\nfetch build\nbuild test\nlint test\ntest deploy\nbuild package\npackage deploy\n```\n\nExpected output:\n\n```text\nfetch -> build -> lint -> package -> test -> deploy\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst pairs = input.trim().split(\"\\n\").map((line) => line.trim().split(/\\s+/));\n\nfunction buildOrder(pairs) {\n  // TODO: build the directed graph and in-degree counts, then run Kahn's algorithm\n  // TODO: take the alphabetically smallest ready task each time\n  // TODO: return the order, or null when a cycle leaves tasks behind\n  return null;\n}\n\nconst order = buildOrder(pairs);\nconsole.log(order === null ? \"cycle detected\" : order.join(\" -> \"));\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst pairs = input.trim().split(\"\\n\").map((line) => line.trim().split(/\\s+/));\n\nfunction buildOrder(pairs) {\n  const graph = new Map();\n  const inDegree = new Map();\n  for (const [before, after] of pairs) {\n    for (const node of [before, after]) {\n      if (!graph.has(node)) {\n        graph.set(node, []);\n        inDegree.set(node, 0);\n      }\n    }\n    graph.get(before).push(after);\n    inDegree.set(after, inDegree.get(after) + 1);\n  }\n\n  const ready = [...graph.keys()].filter((node) => inDegree.get(node) === 0);\n  const order = [];\n  while (ready.length > 0) {\n    ready.sort((a, b) => a.localeCompare(b));\n    const node = ready.shift();\n    order.push(node);\n    for (const next of graph.get(node)) {\n      inDegree.set(next, inDegree.get(next) - 1);\n      if (inDegree.get(next) === 0) {\n        ready.push(next);\n      }\n    }\n  }\n  return order.length === graph.size ? order : null;\n}\n\nconst order = buildOrder(pairs);\nconsole.log(order === null ? \"cycle detected\" : order.join(\" -> \"));\n",
+        "tests": [
+          {
+            "stdin": "fetch build\nbuild test\nlint test\ntest deploy\nbuild package\npackage deploy\n",
+            "output": "fetch -> build -> lint -> package -> test -> deploy"
+          },
+          {
+            "stdin": "design code\ncode review\nreview code\n",
+            "output": "cycle detected"
+          },
+          {
+            "stdin": "docs publish\nassets publish\n",
+            "output": "assets -> docs -> publish"
+          }
+        ],
+        "hints": [
+          "When a task first appears, give it both `graph.set(task, [])` and `inDegree.set(task, 0)`. Then push `after` onto `before`'s list and add 1 to the in-degree of `after`.",
+          "Start `ready` with every task whose in-degree is 0. In the loop, sort `ready`, `shift()` the first task, and push neighbors whose in-degree drops to 0.",
+          "After the loop, compare `order.length` with `graph.size` to decide between the order and `null`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Store a graph as a Map from each node to an array of neighbors, creating the entry with `if (!graph.has(a)) { graph.set(a, []); }` before pushing.\n- An undirected edge is pushed both ways. A directed edge is pushed one way only.\n- A node's degree is `graph.get(node).length`. Sort nodes and neighbor lists whenever output order depends on them.\n- DFS or BFS with a visited Set finds everything reachable. Starting from every unvisited node counts connected components.\n- BFS gives fewest-edge paths in an unweighted graph. A parent Map is the visited set and rebuilds the path when you walk back and reverse.\n- Kahn's algorithm takes nodes with in-degree 0 and decrements their neighbors. Fewer nodes out than in means a cycle.\n- Next step: Dijkstra's algorithm for weighted shortest paths."
+}

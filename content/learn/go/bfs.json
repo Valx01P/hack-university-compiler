@@ -1,0 +1,158 @@
+{
+  "id": "bfs",
+  "title": "Breadth-First Search",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Use a slice as a queue, turn edge lists into adjacency lists, explore graphs level by level, and find shortest paths in grids.",
+  "intro": "Depth-first search dives down one path as far as it goes. Breadth-first search (BFS) spreads out evenly, one step at a time, so it finds the fewest steps in unweighted graphs and grids. This lesson builds a queue from a slice, runs BFS on an adjacency list, finds the shortest way through a maze, and counts levels while something spreads from many places at once.",
+  "steps": [
+    {
+      "title": "Queues with slices",
+      "body": "A queue hands items out in the order they arrived: first in, first out. Go has no built-in queue type, and a slice does the job well.\n\n```go\nq = append(q, x) // enqueue at the back\nx := q[0]        // read the front\nq = q[1:]        // dequeue: drop the front\n```\n\nLoop with `for len(q) > 0` until the queue is empty. Reading `q[0]` on an empty slice panics with index out of range, so the length check always comes first.\n\nA queue of structs keeps each item's data together, such as `[]Customer`. The dequeued value is a copy, so change it, then append it again to send it to the back of the line.\n\nIn memory, `q[1:]` makes a new slice header that starts one element later, with a length and capacity one smaller. No element is copied. The old front stays in the backing array until `append` runs out of capacity and copies only the live part into a new array, and then the garbage collector frees the old one. So this queue is cheap and fine at these sizes.",
+      "example": {
+        "title": "Checkout line",
+        "prompt": "Read `name items` lines and serve the customers in a line where the cashier scans up to 3 items per turn. A customer with items left goes to the back. Print each name as that customer finishes.",
+        "code": "package main\n\nimport \"fmt\"\n\nconst PerTurn = 3\n\ntype Customer struct {\n\tName  string\n\tItems int\n}\n\nfunc main() {\n\tvar q []Customer\n\tfor {\n\t\tvar c Customer\n\t\tif _, err := fmt.Scan(&c.Name, &c.Items); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tq = append(q, c) // enqueue at the back\n\t}\n\n\tfor len(q) > 0 {\n\t\tc := q[0] // dequeue from the front\n\t\tq = q[1:]\n\t\tif c.Items > PerTurn {\n\t\t\tc.Items -= PerTurn\n\t\t\tq = append(q, c) // not done yet: back of the line\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Println(c.Name)\n\t}\n}\n",
+        "stdin": "ana 5\nbo 2\ncy 4\n",
+        "output": "bo\nana\ncy",
+        "explanation": "The first loop reads `name items` pairs until `fmt.Scan` returns an error at the end of input, and enqueues each `Customer`. The second loop dequeues the front customer. Ana has 5 items, more than `PerTurn`, so she drops to 2 and goes to the back. Bo finishes in his first turn and prints first. Cy drops to 1. In the next round Ana and Cy finish, in that order."
+      },
+      "practice": {
+        "title": "Round-robin scheduler",
+        "prompt": "Read `name time` lines and run the tasks in turns of up to 2 time units, printing each task with the time it finishes.\n\n1. Keep the reading loop from the starter. It enqueues every `Task`.\n2. While the queue is not empty, dequeue the front task.\n3. Run it for `PerTurn` units, or for its remaining time if that is smaller, and add that amount to `clock`.\n4. If the task still has time left, enqueue it again. Otherwise print `name clock` with `fmt.Printf`.\n\nInput:\n\n```text\nbuild 3\ntest 1\ndeploy 4\n```\n\nExpected output:\n\n```text\ntest 3\nbuild 6\ndeploy 8\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nconst PerTurn = 2\n\ntype Task struct {\n\tName string\n\tLeft int\n}\n\nfunc main() {\n\tvar q []Task\n\tfor {\n\t\tvar t Task\n\t\tif _, err := fmt.Scan(&t.Name, &t.Left); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tq = append(q, t)\n\t}\n\n\tclock := 0\n\t// TODO: while the queue is not empty, dequeue a task, run it for up to PerTurn units,\n\t// add that time to clock, and either put it back or print \"name clock\"\n\t_ = clock\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nconst PerTurn = 2\n\ntype Task struct {\n\tName string\n\tLeft int\n}\n\nfunc main() {\n\tvar q []Task\n\tfor {\n\t\tvar t Task\n\t\tif _, err := fmt.Scan(&t.Name, &t.Left); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tq = append(q, t)\n\t}\n\n\tclock := 0\n\tfor len(q) > 0 {\n\t\tt := q[0]\n\t\tq = q[1:]\n\t\trun := t.Left\n\t\tif run > PerTurn {\n\t\t\trun = PerTurn\n\t\t}\n\t\tclock += run\n\t\tt.Left -= run\n\t\tif t.Left > 0 {\n\t\t\tq = append(q, t)\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Printf(\"%s %d\\n\", t.Name, clock)\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "build 3\ntest 1\ndeploy 4\n",
+            "output": "test 3\nbuild 6\ndeploy 8"
+          },
+          {
+            "stdin": "solo 5\n",
+            "output": "solo 5"
+          },
+          {
+            "stdin": "a 2\nb 2\nc 1\n",
+            "output": "a 2\nb 4\nc 5"
+          }
+        ],
+        "hints": [
+          "Start with `t := q[0]` and `q = q[1:]` inside `for len(q) > 0`.",
+          "Use `run := t.Left`, then lower it to `PerTurn` with an if when it is bigger.",
+          "Subtract `run` from `t.Left`. When something is left, `q = append(q, t)` and `continue`."
+        ]
+      }
+    },
+    {
+      "title": "BFS on a graph",
+      "body": "A graph is a set of nodes joined by edges. Input usually lists the edges as `u v` pairs. Turn them into an adjacency list, a `[][]int` where `adj[u]` holds every neighbor of `u`:\n\n```go\nadj := make([][]int, n)\nadj[u] = append(adj[u], v)\nadj[v] = append(adj[v], u) // undirected: both directions\n```\n\nEach `adj[u]` starts as a nil slice, and `append` works on nil. Neighbors stay in input order, so the visiting order is the same on every run.\n\nBFS puts the start node in the queue and explores outward. `visited []bool` stops it from going in circles, and `dist []int` counts edges from the start: a new node is one more than the node that found it. BFS reaches every node at distance 1 before any node at distance 2, so the first time it reaches a node is along the fewest edges. That makes BFS the shortest path tool for unweighted graphs.\n\nThe gotcha: mark a node visited when you enqueue it, not when you dequeue it. Otherwise two neighbors can both queue the same node, which wastes work and can overwrite its distance with a larger one.",
+      "example": {
+        "title": "Degrees of separation",
+        "prompt": "Read a friendship graph as `n m`, then m lines `u v`, then the start person. Print how many hops each person is from the start, or -1 when nobody connects them.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]int, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v int\n\t\tfmt.Scan(&u, &v)\n\t\tadj[u] = append(adj[u], v) // friendship goes both ways\n\t\tadj[v] = append(adj[v], u)\n\t}\n\tvar start int\n\tfmt.Scan(&start)\n\n\tvisited := make([]bool, n)\n\tdist := make([]int, n)\n\tvisited[start] = true\n\tq := []int{start}\n\tfor len(q) > 0 {\n\t\tu := q[0]\n\t\tq = q[1:]\n\t\tfor _, v := range adj[u] {\n\t\t\tif !visited[v] {\n\t\t\t\tvisited[v] = true // mark when enqueued, so v is queued once\n\t\t\t\tdist[v] = dist[u] + 1\n\t\t\t\tq = append(q, v)\n\t\t\t}\n\t\t}\n\t}\n\n\tfor p := 0; p < n; p++ {\n\t\tif !visited[p] {\n\t\t\tdist[p] = -1\n\t\t}\n\t\tfmt.Printf(\"%d: %d\\n\", p, dist[p])\n\t}\n}\n",
+        "stdin": "6 5\n0 1\n0 2\n1 3\n2 3\n3 4\n0\n",
+        "output": "0: 0\n1: 1\n2: 1\n3: 2\n4: 3\n5: -1",
+        "explanation": "Each edge is appended in both directions because friendship goes both ways. BFS dequeues 0 and queues 1 and 2 at distance 1. Dequeuing 1 queues 3 at distance 2. When 2 is dequeued, 3 is already visited, so it is not queued again. Then 3 queues 4 at distance 3. Person 5 has no edges, so it is never visited and prints -1."
+      },
+      "practice": {
+        "title": "Hops between two nodes",
+        "prompt": "Read a graph in the same format, ending with a line `s t`, then print the fewest hops from s to t and how many nodes s can reach.\n\n1. Append each edge to `adj` in both directions.\n2. Run BFS from `s` with `visited` and `dist`, marking each node when you enqueue it.\n3. Count the reachable nodes, including `s` itself.\n4. Print `hops: N`, where N is `dist[t]`, or -1 when `t` was never visited.\n5. Print `reachable: N`.\n\nInput:\n\n```text\n7 6\n0 1\n1 2\n2 3\n0 4\n4 3\n5 6\n0 3\n```\n\nExpected output:\n\n```text\nhops: 2\nreachable: 5\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]int, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v int\n\t\tfmt.Scan(&u, &v)\n\t\t// TODO: add the edge to adj in both directions\n\t\t_, _ = u, v\n\t}\n\tvar s, t int\n\tfmt.Scan(&s, &t)\n\n\t// TODO: run BFS from s with visited and dist, then print \"hops: N\" and \"reachable: N\"\n\t_ = adj\n\t_, _ = s, t\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]int, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v int\n\t\tfmt.Scan(&u, &v)\n\t\tadj[u] = append(adj[u], v)\n\t\tadj[v] = append(adj[v], u)\n\t}\n\tvar s, t int\n\tfmt.Scan(&s, &t)\n\n\tvisited := make([]bool, n)\n\tdist := make([]int, n)\n\tvisited[s] = true\n\treachable := 1\n\tq := []int{s}\n\tfor len(q) > 0 {\n\t\tu := q[0]\n\t\tq = q[1:]\n\t\tfor _, v := range adj[u] {\n\t\t\tif !visited[v] {\n\t\t\t\tvisited[v] = true\n\t\t\t\tdist[v] = dist[u] + 1\n\t\t\t\treachable++\n\t\t\t\tq = append(q, v)\n\t\t\t}\n\t\t}\n\t}\n\n\thops := -1\n\tif visited[t] {\n\t\thops = dist[t]\n\t}\n\tfmt.Printf(\"hops: %d\\n\", hops)\n\tfmt.Printf(\"reachable: %d\\n\", reachable)\n}\n",
+        "tests": [
+          {
+            "stdin": "7 6\n0 1\n1 2\n2 3\n0 4\n4 3\n5 6\n0 3\n",
+            "output": "hops: 2\nreachable: 5"
+          },
+          {
+            "stdin": "7 6\n0 1\n1 2\n2 3\n0 4\n4 3\n5 6\n0 6\n",
+            "output": "hops: -1\nreachable: 5"
+          },
+          {
+            "stdin": "7 6\n0 1\n1 2\n2 3\n0 4\n4 3\n5 6\n5 5\n",
+            "output": "hops: 0\nreachable: 2"
+          }
+        ],
+        "hints": [
+          "Replace the `_, _ = u, v` line with the two `append` lines, then remove the other placeholder lines once you use those variables.",
+          "Start a counter at 1 for `s` and add 1 every time you mark a new node visited.",
+          "When `s` and `t` are the same node, the answer is 0 hops."
+        ]
+      }
+    },
+    {
+      "title": "Shortest path in a grid",
+      "body": "A grid is a graph too: each open cell is a node, and its four neighbors are its edges. There is no adjacency list to build. Compute the neighbors on the fly with the same direction slices as the grid DFS in the recursion lesson:\n\n```go\ndr := []int{-1, 1, 0, 0}\ndc := []int{0, 0, -1, 1}\n```\n\nStore positions in the queue as `[2]int{r, c}`. An array is a value, so it is copied into the queue, and two positions compare with `==`.\n\nUse a `dist [][]int` filled with -1. It does two jobs: -1 means not visited yet, and any other value is the number of steps from the start. Before you queue a neighbor, check bounds first, then walls, then `dist[nr][nc] != -1`. Checking bounds first matters, because indexing outside the grid panics.\n\nBFS dequeues cells in order of distance, so the first time the target comes out of the queue its distance is final. Return right there instead of exploring the rest of the grid.",
+      "example": {
+        "title": "Maze runner",
+        "prompt": "Read a maze of `.` and `#` rows with one `S` and one `E` until the input ends, then print the fewest steps from S to E, or -1 when E cannot be reached.",
+        "code": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nfunc shortest(grid []string) int {\n\trows, cols := len(grid), len(grid[0])\n\tdist := make([][]int, rows)\n\tvar q [][2]int\n\tvar target [2]int\n\tfor r := 0; r < rows; r++ {\n\t\tdist[r] = make([]int, cols)\n\t\tfor c := 0; c < cols; c++ {\n\t\t\tdist[r][c] = -1\n\t\t\tswitch grid[r][c] {\n\t\t\tcase 'S':\n\t\t\t\tdist[r][c] = 0\n\t\t\t\tq = append(q, [2]int{r, c})\n\t\t\tcase 'E':\n\t\t\t\ttarget = [2]int{r, c}\n\t\t\t}\n\t\t}\n\t}\n\n\tdr := []int{-1, 1, 0, 0}\n\tdc := []int{0, 0, -1, 1}\n\tfor len(q) > 0 {\n\t\tp := q[0]\n\t\tq = q[1:]\n\t\tif p == target {\n\t\t\treturn dist[p[0]][p[1]] // the first time E comes out is the shortest\n\t\t}\n\t\tfor d := 0; d < 4; d++ {\n\t\t\tnr, nc := p[0]+dr[d], p[1]+dc[d]\n\t\t\tif nr < 0 || nr >= rows || nc < 0 || nc >= cols {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tif grid[nr][nc] == '#' || dist[nr][nc] != -1 {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tdist[nr][nc] = dist[p[0]][p[1]] + 1\n\t\t\tq = append(q, [2]int{nr, nc})\n\t\t}\n\t}\n\treturn -1\n}\n\nfunc main() {\n\tvar grid []string\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tif line := strings.TrimSpace(scanner.Text()); line != \"\" {\n\t\t\tgrid = append(grid, line)\n\t\t}\n\t}\n\tfmt.Println(shortest(grid))\n}\n",
+        "stdin": "S..#....\n.#.#.##.\n.#...#..\n.####.#.\n......#E\n",
+        "output": "15",
+        "explanation": "The setup loop fills `dist` with -1, queues S at distance 0, and remembers where E is in `target`. Each dequeued position `p` is compared with `target` using `==`, which works on arrays. Neighbors outside the grid, walls, and cells that already have a distance are skipped. The bottom row is cut off by a wall next to E, so the shortest route winds through the middle and down the right edge in 15 steps."
+      },
+      "practice": {
+        "title": "Nearest exit",
+        "prompt": "Read a maze with one `S` and several exits marked `E`, then print the fewest steps from S to the nearest exit, or -1 when no exit can be reached.\n\n1. In `nearestExit`, make `dist` with one row per grid row, fill every cell with -1, and queue S at distance 0.\n2. Run BFS with a queue of `[2]int` and the four direction slices.\n3. Instead of comparing with one target position, return the distance of the first dequeued cell whose character is `E`.\n4. Return -1 when the queue runs out.\n\nInput:\n\n```text\nE..#...\n.#.#.#.\n.#.S.#E\n.#####.\n.......\n```\n\nExpected output:\n\n```text\n5\n```",
+        "starter": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nfunc nearestExit(grid []string) int {\n\t// TODO: BFS from S with dist filled with -1 and a queue of [2]int,\n\t// and return the distance of the first E you dequeue (or -1)\n\treturn 0\n}\n\nfunc main() {\n\tvar grid []string\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tif line := strings.TrimSpace(scanner.Text()); line != \"\" {\n\t\t\tgrid = append(grid, line)\n\t\t}\n\t}\n\tfmt.Println(nearestExit(grid))\n}\n",
+        "solution": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nfunc nearestExit(grid []string) int {\n\trows, cols := len(grid), len(grid[0])\n\tdist := make([][]int, rows)\n\tvar q [][2]int\n\tfor r := 0; r < rows; r++ {\n\t\tdist[r] = make([]int, cols)\n\t\tfor c := 0; c < cols; c++ {\n\t\t\tdist[r][c] = -1\n\t\t\tif grid[r][c] == 'S' {\n\t\t\t\tdist[r][c] = 0\n\t\t\t\tq = append(q, [2]int{r, c})\n\t\t\t}\n\t\t}\n\t}\n\n\tdr := []int{-1, 1, 0, 0}\n\tdc := []int{0, 0, -1, 1}\n\tfor len(q) > 0 {\n\t\tp := q[0]\n\t\tq = q[1:]\n\t\tif grid[p[0]][p[1]] == 'E' {\n\t\t\treturn dist[p[0]][p[1]]\n\t\t}\n\t\tfor d := 0; d < 4; d++ {\n\t\t\tnr, nc := p[0]+dr[d], p[1]+dc[d]\n\t\t\tif nr < 0 || nr >= rows || nc < 0 || nc >= cols {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tif grid[nr][nc] == '#' || dist[nr][nc] != -1 {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tdist[nr][nc] = dist[p[0]][p[1]] + 1\n\t\t\tq = append(q, [2]int{nr, nc})\n\t\t}\n\t}\n\treturn -1\n}\n\nfunc main() {\n\tvar grid []string\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tif line := strings.TrimSpace(scanner.Text()); line != \"\" {\n\t\t\tgrid = append(grid, line)\n\t\t}\n\t}\n\tfmt.Println(nearestExit(grid))\n}\n",
+        "tests": [
+          {
+            "stdin": "E..#...\n.#.#.#.\n.#.S.#E\n.#####.\n.......\n",
+            "output": "5"
+          },
+          {
+            "stdin": "S.#E\n..#.\n###E\n",
+            "output": "-1"
+          },
+          {
+            "stdin": "#E#\n.S.\nE..\n",
+            "output": "1"
+          }
+        ],
+        "hints": [
+          "The structure is the example's `shortest` function without `target`.",
+          "Check `grid[p[0]][p[1]] == 'E'` right after you dequeue `p`.",
+          "BFS meets the closest exit first, so you never compare the exits with each other."
+        ]
+      }
+    },
+    {
+      "title": "Level by level",
+      "body": "Sometimes you need to know where each level ends, such as counting the minutes while something spreads. Process the queue in rounds: save `len(q)`, dequeue exactly that many cells, then count one round.\n\n```go\nfor len(q) > 0 {\n\tsize := len(q)\n\tfor i := 0; i < size; i++ {\n\t\tp := q[0]\n\t\tq = q[1:]\n\t\t// queue p's neighbors for the next round\n\t}\n\tminutes++\n}\n```\n\nSave the size first. The inner loop dequeues and appends while it runs, so `len(q)` keeps changing and `i < len(q)` would cut this level short or mix in the next one.\n\nWhen the spread starts from several places at once, put every source in the queue before the loop. That is multi-source BFS: all sources are level 0, and each cell is reached by its nearest source.\n\nMark a cell by changing it in the grid, so it is never queued twice. Strings are immutable, so store the rows as `[]byte(line)`.",
+      "example": {
+        "title": "Rotting oranges",
+        "prompt": "Read a grid of rotten oranges `R`, fresh oranges `F`, and empty cells `.`. Each minute every rotten orange rots its four neighbors. Print the minutes until no fresh orange is left, or -1 if some never rot.",
+        "code": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nfunc rotMinutes(grid [][]byte) int {\n\tvar q [][2]int\n\tfresh := 0\n\tfor r := range grid {\n\t\tfor c := range grid[r] {\n\t\t\tswitch grid[r][c] {\n\t\t\tcase 'R':\n\t\t\t\tq = append(q, [2]int{r, c}) // every rotten orange starts in the queue\n\t\t\tcase 'F':\n\t\t\t\tfresh++\n\t\t\t}\n\t\t}\n\t}\n\n\tdr := []int{-1, 1, 0, 0}\n\tdc := []int{0, 0, -1, 1}\n\tminutes := 0\n\tfor len(q) > 0 && fresh > 0 {\n\t\tsize := len(q) // this minute's oranges, before any new ones join\n\t\tfor i := 0; i < size; i++ {\n\t\t\tp := q[0]\n\t\t\tq = q[1:]\n\t\t\tfor d := 0; d < 4; d++ {\n\t\t\t\tnr, nc := p[0]+dr[d], p[1]+dc[d]\n\t\t\t\tif nr < 0 || nr >= len(grid) || nc < 0 || nc >= len(grid[nr]) {\n\t\t\t\t\tcontinue\n\t\t\t\t}\n\t\t\t\tif grid[nr][nc] == 'F' {\n\t\t\t\t\tgrid[nr][nc] = 'R'\n\t\t\t\t\tfresh--\n\t\t\t\t\tq = append(q, [2]int{nr, nc})\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tminutes++\n\t}\n\tif fresh > 0 {\n\t\treturn -1\n\t}\n\treturn minutes\n}\n\nfunc main() {\n\tvar grid [][]byte\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tif line := strings.TrimSpace(scanner.Text()); line != \"\" {\n\t\t\tgrid = append(grid, []byte(line))\n\t\t}\n\t}\n\tfmt.Println(rotMinutes(grid))\n}\n",
+        "stdin": "RF.F\nFF.F\n.FFF\n",
+        "output": "7",
+        "explanation": "The first scan queues every `R` and counts the fresh oranges. Each pass of the outer loop is one minute: it rots the fresh neighbors of this minute's oranges and queues them for the next. The loop also stops when `fresh` reaches 0, otherwise the last batch would add one more minute with nothing left to rot. If fresh oranges remain once the queue is empty, nothing can reach them, so the answer is -1. Here the rot crawls around the empty column and needs 7 minutes."
+      },
+      "practice": {
+        "title": "Grass fire",
+        "prompt": "Read a grid of fire `F`, grass `.`, and walls `#`, then print how many minutes the fire keeps spreading.\n\n1. In `burnMinutes`, queue every `F` cell before the loop.\n2. Each round, dequeue the `len(q)` cells saved before the round, and set every grass neighbor to `F` and queue it.\n3. Count a minute only when the round lit new grass, which means the queue is not empty after the round.\n4. Grass that walls cut off never burns and does not change the answer.\n\nInput:\n\n```text\nF...#\n.##.#\n....#\n#.#..\n```\n\nExpected output:\n\n```text\n7\n```",
+        "starter": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nfunc burnMinutes(grid [][]byte) int {\n\t// TODO: put every F in the queue, then spread one level per minute\n\t// and count only the minutes in which new grass catches fire\n\treturn 0\n}\n\nfunc main() {\n\tvar grid [][]byte\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tif line := strings.TrimSpace(scanner.Text()); line != \"\" {\n\t\t\tgrid = append(grid, []byte(line))\n\t\t}\n\t}\n\tfmt.Println(burnMinutes(grid))\n}\n",
+        "solution": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nfunc burnMinutes(grid [][]byte) int {\n\tvar q [][2]int\n\tfor r := range grid {\n\t\tfor c := range grid[r] {\n\t\t\tif grid[r][c] == 'F' {\n\t\t\t\tq = append(q, [2]int{r, c})\n\t\t\t}\n\t\t}\n\t}\n\n\tdr := []int{-1, 1, 0, 0}\n\tdc := []int{0, 0, -1, 1}\n\tminutes := 0\n\tfor len(q) > 0 {\n\t\tsize := len(q)\n\t\tfor i := 0; i < size; i++ {\n\t\t\tp := q[0]\n\t\t\tq = q[1:]\n\t\t\tfor d := 0; d < 4; d++ {\n\t\t\t\tnr, nc := p[0]+dr[d], p[1]+dc[d]\n\t\t\t\tif nr < 0 || nr >= len(grid) || nc < 0 || nc >= len(grid[nr]) {\n\t\t\t\t\tcontinue\n\t\t\t\t}\n\t\t\t\tif grid[nr][nc] == '.' {\n\t\t\t\t\tgrid[nr][nc] = 'F'\n\t\t\t\t\tq = append(q, [2]int{nr, nc})\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif len(q) > 0 {\n\t\t\tminutes++ // the fire reached new grass this minute\n\t\t}\n\t}\n\treturn minutes\n}\n\nfunc main() {\n\tvar grid [][]byte\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tif line := strings.TrimSpace(scanner.Text()); line != \"\" {\n\t\t\tgrid = append(grid, []byte(line))\n\t\t}\n\t}\n\tfmt.Println(burnMinutes(grid))\n}\n",
+        "tests": [
+          {
+            "stdin": "F...#\n.##.#\n....#\n#.#..\n",
+            "output": "7"
+          },
+          {
+            "stdin": "F#.\n##.\n...\n",
+            "output": "0"
+          },
+          {
+            "stdin": "F..F\n.##.\nF..F\n",
+            "output": "1"
+          }
+        ],
+        "hints": [
+          "Copy the round loop from the example and drop the `fresh` counter.",
+          "After the inner loop, `if len(q) > 0 { minutes++ }`.",
+          "A fire with no grass next to it never lights anything, so the answer is 0."
+        ]
+      }
+    }
+  ],
+  "recap": "- A slice is a queue: enqueue with `q = append(q, x)`, dequeue with `x := q[0]` then `q = q[1:]`, and loop while `len(q) > 0`.\n- Build an adjacency list with `adj[u] = append(adj[u], v)`, and add undirected edges in both directions.\n- Mark a node visited when you enqueue it, so nothing is queued twice.\n- `dist[v] = dist[u] + 1` counts edges, and BFS finds the fewest edges in an unweighted graph.\n- In a grid, queue `[2]int` positions, fill `dist` with -1, check bounds before anything else, and stop when the target is dequeued.\n- Save `len(q)` before each round to process one level at a time, and start multi-source BFS with every source in the queue."
+}

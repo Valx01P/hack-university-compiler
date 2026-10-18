@@ -1,0 +1,154 @@
+{
+  "id": "operator-overloading",
+  "title": "Operator Overloading",
+  "section": "More Object-Oriented Programming",
+  "summary": "Give your own types natural operators like +, ==, <, <<, and () so they work with arithmetic, sorting, sets, maps, and std::cout.",
+  "intro": "Built-in types work with `+`, `==`, `<`, and `std::cout`. Your own types can too. An overloaded operator is a function with a special name, and once you write it, sorting, sets, maps, and printing all just work.",
+  "steps": [
+    {
+      "title": "Arithmetic and equality operators",
+      "body": "An operator is just a function with a special name. Write `operator+` inside your type and `a + b` calls `a.operator+(b)`.\n\n```cpp\nVec2 operator+(const Vec2& other) const {\n    return {x + other.x, y + other.y};\n}\n```\n\nTake the right side by `const&` and mark the operator `const`, because `+` builds a new value and changes neither side. `operator-` looks the same. `operator+=` is different: it changes the left object, so it is not `const`, and it returns `*this` by reference (`Vec2&`). That avoids a copy and lets `a += b` behave like the built-in one.\n\nA member operator always has your object on the **left**. `v * 2` can be a member, but `2 * v` cannot, because `int` has no members. Write it as a non-member function after the struct:\n\n```cpp\nVec2 operator*(int k, const Vec2& v) {\n    return {k * v.x, k * v.y};\n}\n```\n\nFor equality, write `bool operator==(const Vec2& other) const`. C++17 does **not** generate `!=` from `==`, so `a != b` will not compile until you define `operator!=` too. Write it as `return !(*this == other);` so the two can never disagree.\n\nOverload an operator only when its meaning is obvious. `+` on a money type is clear, `+` on a database connection is not.",
+      "example": {
+        "title": "Adding 2D vectors",
+        "prompt": "Give a 2D vector type arithmetic and equality operators, then add, subtract, scale, accumulate, and compare vectors.",
+        "code": "#include <iostream>\n\nstruct Vec2 {\n    int x;\n    int y;\n\n    Vec2 operator+(const Vec2& other) const {\n        return {x + other.x, y + other.y};\n    }\n    Vec2 operator-(const Vec2& other) const {\n        return {x - other.x, y - other.y};\n    }\n    Vec2& operator+=(const Vec2& other) {\n        x += other.x;\n        y += other.y;\n        return *this;\n    }\n    bool operator==(const Vec2& other) const {\n        return x == other.x && y == other.y;\n    }\n    bool operator!=(const Vec2& other) const {\n        return !(*this == other);\n    }\n    void print() const {\n        std::cout << '(' << x << \", \" << y << \")\\n\";\n    }\n};\n\nVec2 operator*(int k, const Vec2& v) {\n    return {k * v.x, k * v.y};\n}\n\nint main() {\n    const Vec2 a{3, 4};\n    const Vec2 b{1, 2};\n    (a + b).print();\n    (a - b).print();\n    (2 * a).print();\n\n    Vec2 pos{0, 0};\n    pos += a;\n    pos += b;\n    pos.print();\n\n    std::cout << std::boolalpha;\n    std::cout << (pos == a + b) << '\\n';\n    std::cout << (a != b) << '\\n';\n    return 0;\n}\n",
+        "output": "(4, 6)\n(2, 2)\n(6, 8)\n(4, 6)\ntrue\ntrue",
+        "explanation": "`a + b` calls `a.operator+(b)`, which returns a brand new `Vec2` by value, a small object built on the stack. `2 * a` cannot be a member call because `2` is an `int`, so the compiler finds the non-member function `operator*(int, const Vec2&)`. `pos += a` changes `pos` in place and returns a reference to it. `pos == a + b` evaluates `a + b` first, because `+` binds tighter than `==`, then compares field by field. `a != b` works only because `operator!=` is written out."
+      },
+      "practice": {
+        "title": "Money arithmetic",
+        "prompt": "Give a money type that stores cents its own operators, then use them on two amounts read from input.\n\n1. In `Money`, write member `operator+`, `operator-`, `operator==`, and `operator!=`, each taking `const Money&` and marked `const`.\n2. Write member `operator+=` that adds to `cents` and returns `*this` as `Money&`.\n3. Write a non-member `Money operator*(int k, const Money& m)`.\n4. Print `sum: `, `difference: `, and `triple: ` followed by the `cents` of `a + b`, `a - b`, and `3 * a`.\n5. Print `equal: ` and `different: ` followed by `a == b` and `a != b` (the starter already sets `std::boolalpha`).\n6. Apply `a += b` twice, then print `after: ` followed by `a.cents`.\n\nInput:\n\n```text\n1250 500\n```\n\nExpected output:\n\n```text\nsum: 1750\ndifference: 750\ntriple: 3750\nequal: false\ndifferent: true\nafter: 2250\n```",
+        "starter": "#include <iostream>\n\nstruct Money {\n    long long cents;\n\n    // TODO: member operator+, operator-, operator+=, operator==, operator!=\n};\n\n// TODO: non-member operator* so 3 * a works\n\nint main() {\n    long long first = 0;\n    long long second = 0;\n    std::cin >> first >> second;\n    Money a{first};\n    const Money b{second};\n\n    std::cout << std::boolalpha;\n    // TODO: print sum, difference, triple, equal, different\n    // TODO: apply a += b twice, then print after\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nstruct Money {\n    long long cents;\n\n    Money operator+(const Money& other) const {\n        return {cents + other.cents};\n    }\n    Money operator-(const Money& other) const {\n        return {cents - other.cents};\n    }\n    Money& operator+=(const Money& other) {\n        cents += other.cents;\n        return *this;\n    }\n    bool operator==(const Money& other) const {\n        return cents == other.cents;\n    }\n    bool operator!=(const Money& other) const {\n        return !(*this == other);\n    }\n};\n\nMoney operator*(int k, const Money& m) {\n    return {k * m.cents};\n}\n\nint main() {\n    long long first = 0;\n    long long second = 0;\n    std::cin >> first >> second;\n    Money a{first};\n    const Money b{second};\n\n    std::cout << std::boolalpha;\n    std::cout << \"sum: \" << (a + b).cents << '\\n';\n    std::cout << \"difference: \" << (a - b).cents << '\\n';\n    std::cout << \"triple: \" << (3 * a).cents << '\\n';\n    std::cout << \"equal: \" << (a == b) << '\\n';\n    std::cout << \"different: \" << (a != b) << '\\n';\n    a += b;\n    a += b;\n    std::cout << \"after: \" << a.cents << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "1250 500\n",
+            "output": "sum: 1750\ndifference: 750\ntriple: 3750\nequal: false\ndifferent: true\nafter: 2250"
+          },
+          {
+            "stdin": "300 800\n",
+            "output": "sum: 1100\ndifference: -500\ntriple: 900\nequal: false\ndifferent: true\nafter: 1900"
+          },
+          {
+            "stdin": "500 500\n",
+            "output": "sum: 1000\ndifference: 0\ntriple: 1500\nequal: true\ndifferent: false\nafter: 1500"
+          }
+        ],
+        "hints": [
+          "Each arithmetic operator builds and returns a new `Money`, exactly like `Vec2::operator+` in the example.",
+          "`operator+=` changes `cents`, then ends with `return *this;`. Define `operator!=` by negating `operator==`.",
+          "The non-member goes after the struct with the `int` parameter first, because the left side of `3 * a` is an `int`."
+        ]
+      }
+    },
+    {
+      "title": "Printing with operator<<",
+      "body": "To write `std::cout << date`, overload `operator<<`. The stream is on the left, so it must be a non-member. It takes the stream by reference, your object by `const&`, and returns the same stream:\n\n```cpp\nstd::ostream& operator<<(std::ostream& os, const Date& d) {\n    os << d.year_ << '-' << d.month_;\n    return os;\n}\n```\n\nReturning `os` is what makes chaining work. `std::cout << a << \" to \" << b` runs as `(std::cout << a) << \" to \"`, so each call must hand the stream to the next.\n\nA non-member cannot see private fields. Declare it a **friend** inside the class with `friend std::ostream& operator<<(std::ostream& os, const Date& d);`. A friend is not a member, it is a function the class trusts with its private data.\n\nFor zero padding, use `std::setw(2)` from `<iomanip>` with a fill of `'0'`. `os << std::setfill('0')` sets the fill, and `os.fill('0')` does the same but also returns the old fill character. The gotcha: `std::setfill` and `os.fill` are sticky, so a later `std::cout << std::setw(6) << 42` would print `000042`. Save the old fill and put it back:\n\n```cpp\nconst char oldFill = os.fill('0');  // set '0', remember the old one\nos << std::setw(2) << d.month_;\nos.fill(oldFill);                   // restore\n```\n\n`setw` only affects the next item, so it needs no cleanup.",
+      "example": {
+        "title": "Printing dates",
+        "prompt": "Print two dates as zero-padded YYYY-MM-DD in one chained statement, then show the stream's fill is back to spaces.",
+        "code": "#include <iomanip>\n#include <iostream>\n\nclass Date {\npublic:\n    Date(int year, int month, int day) : year_(year), month_(month), day_(day) {}\n\n    friend std::ostream& operator<<(std::ostream& os, const Date& d);\n\nprivate:\n    int year_;\n    int month_;\n    int day_;\n};\n\nstd::ostream& operator<<(std::ostream& os, const Date& d) {\n    const char oldFill = os.fill('0');\n    os << d.year_ << '-' << std::setw(2) << d.month_ << '-' << std::setw(2) << d.day_;\n    os.fill(oldFill);\n    return os;\n}\n\nint main() {\n    const Date start(2024, 3, 7);\n    const Date end(2024, 12, 25);\n    std::cout << start << \" to \" << end << '\\n';\n    std::cout << std::setw(4) << 7 << '\\n';\n    return 0;\n}\n",
+        "output": "2024-03-07 to 2024-12-25\n   7",
+        "explanation": "The friend declaration lets the free `operator<<` read `year_`, `month_`, and `day_`. `os.fill('0')` sets the fill and returns the previous one (a space), so `std::setw(2) << 3` prints `03`. Before returning, the operator restores the fill. Each call returns `os`, so `start << \" to \" << end` keeps writing to `std::cout`. The last line, `std::setw(4) << 7`, prints `   7` with spaces, which proves the fill was restored. Without the restore it would print `0007`."
+      },
+      "practice": {
+        "title": "Clock times",
+        "prompt": "Make a time class printable as zero-padded HH:MM, then print a time read from input and the time one hour later.\n\n1. Inside `Time`, declare `friend std::ostream& operator<<(std::ostream& os, const Time& t);`.\n2. Define it after the class: save the old fill with `os.fill('0')`, print the hours and minutes with `std::setw(2)` and a `:` between them, restore the fill, and return `os`.\n3. In `main`, print `now`, a space, and `now.plusOneHour()` in one chained statement, then a newline. `plusOneHour` already wraps the hour with `% 24`.\n4. Keep the starter's last line, which prints the minutes with `std::setw(3)` and only looks right if the fill is restored.\n\nInput:\n\n```text\n7 5\n```\n\nExpected output:\n\n```text\n07:05 08:05\n  5\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n\nclass Time {\npublic:\n    Time(int hours, int minutes) : hours_(hours), minutes_(minutes) {}\n\n    Time plusOneHour() const {\n        return Time((hours_ + 1) % 24, minutes_);\n    }\n\n    // TODO: declare operator<< as a friend\n\nprivate:\n    int hours_;\n    int minutes_;\n};\n\n// TODO: define operator<< that prints HH:MM and restores the fill\n\nint main() {\n    int hours = 0;\n    int minutes = 0;\n    std::cin >> hours >> minutes;\n    const Time now(hours, minutes);\n    // TODO: print now and now.plusOneHour() on one line\n    std::cout << std::setw(3) << minutes << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\nclass Time {\npublic:\n    Time(int hours, int minutes) : hours_(hours), minutes_(minutes) {}\n\n    Time plusOneHour() const {\n        return Time((hours_ + 1) % 24, minutes_);\n    }\n\n    friend std::ostream& operator<<(std::ostream& os, const Time& t);\n\nprivate:\n    int hours_;\n    int minutes_;\n};\n\nstd::ostream& operator<<(std::ostream& os, const Time& t) {\n    const char oldFill = os.fill('0');\n    os << std::setw(2) << t.hours_ << ':' << std::setw(2) << t.minutes_;\n    os.fill(oldFill);\n    return os;\n}\n\nint main() {\n    int hours = 0;\n    int minutes = 0;\n    std::cin >> hours >> minutes;\n    const Time now(hours, minutes);\n    std::cout << now << ' ' << now.plusOneHour() << '\\n';\n    std::cout << std::setw(3) << minutes << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "7 5\n",
+            "output": "07:05 08:05\n  5"
+          },
+          {
+            "stdin": "23 30\n",
+            "output": "23:30 00:30\n 30"
+          },
+          {
+            "stdin": "12 0\n",
+            "output": "12:00 13:00\n  0"
+          }
+        ],
+        "hints": [
+          "The friend declaration goes in the public section, exactly as in the `Date` example.",
+          "Start the operator with `const char oldFill = os.fill('0');` and finish with `os.fill(oldFill);` then `return os;`.",
+          "If the last line prints `005` instead of `  5`, the fill was not restored."
+        ]
+      }
+    },
+    {
+      "title": "Ordering with operator<",
+      "body": "Give your type `bool operator<(const Type& other) const` and the standard library knows how to order it. `std::sort(v.begin(), v.end())` uses `<` when you pass no comparator, and `std::set<T>` and `std::map<K, V>` keys need it too. Without it, those lines fail to compile with a long template error.\n\nComparing several fields by hand is easy to get wrong. `std::tie` from `<tuple>` packs references to fields into a tuple, and tuples compare field by field, left to right:\n\n```cpp\nbool operator<(const Version& other) const {\n    return std::tie(major, minor, patch) <\n           std::tie(other.major, other.minor, other.patch);\n}\n```\n\n`std::tie` makes no copies, it just refers to the fields. List them in priority order.\n\nA set or map never calls `==`. It treats two keys as the same when neither is less than the other: `!(a < b) && !(b < a)`. So your `<` must compare every field that makes two objects different, or the set will silently drop values it thinks are duplicates.\n\nComparing as numbers matters: version `1.10.0` is newer than `1.2.3`, even though the string `\"1.10.0\"` sorts first.",
+      "example": {
+        "title": "Sorting versions",
+        "prompt": "Sort version numbers, count the distinct ones with a set, and use versions as map keys.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <map>\n#include <set>\n#include <string>\n#include <tuple>\n#include <vector>\n\nstruct Version {\n    int major;\n    int minor;\n    int patch;\n\n    bool operator<(const Version& other) const {\n        return std::tie(major, minor, patch) < std::tie(other.major, other.minor, other.patch);\n    }\n};\n\nstd::ostream& operator<<(std::ostream& os, const Version& v) {\n    return os << v.major << '.' << v.minor << '.' << v.patch;\n}\n\ntemplate <typename C>\nvoid printLine(const C& items) {\n    bool first = true;\n    for (const auto& item : items) {\n        if (!first) {\n            std::cout << ' ';\n        }\n        std::cout << item;\n        first = false;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    std::vector<Version> versions = {{1, 10, 0}, {1, 2, 3}, {0, 9, 9}, {1, 2, 3}, {1, 2, 0}};\n    std::sort(versions.begin(), versions.end());\n    printLine(versions);\n\n    const std::set<Version> distinct(versions.begin(), versions.end());\n    std::cout << distinct.size() << \" unique, newest \" << *distinct.rbegin() << '\\n';\n\n    const std::map<Version, std::string> names = {{{1, 10, 0}, \"Gold\"}, {{0, 9, 9}, \"Alpha\"}, {{1, 2, 0}, \"Beta\"}};\n    for (const auto& [version, name] : names) {\n        std::cout << version << ' ' << name << '\\n';\n    }\n    return 0;\n}\n",
+        "output": "0.9.9 1.2.0 1.2.3 1.2.3 1.10.0\n4 unique, newest 1.10.0\n0.9.9 Alpha\n1.2.0 Beta\n1.10.0 Gold",
+        "explanation": "`std::sort` with no comparator calls `Version::operator<`, which compares `major`, then `minor`, then `patch` through `std::tie`, so `1.2.0` comes before `1.2.3` and `1.10.0` comes last. The set drops the second `1.2.3` because neither copy is less than the other, and `*distinct.rbegin()` is the largest. The map keeps its keys sorted with the same operator. `operator<<` is a plain non-member here because a struct's fields are public, so no friend is needed. It uses the short form `return os << ...;`, which works because the whole chain evaluates to `os`."
+      },
+      "practice": {
+        "title": "Sorting cards",
+        "prompt": "Give a playing card type an ordering, then print a hand sorted and its distinct cards.\n\n1. In `Card`, write `bool operator<(const Card& other) const` that compares `rank`, then `suit`, using `std::tie`.\n2. Sort `cards` with `std::sort` and no comparator, then print them with `printLine`.\n3. Build a `std::set<Card>` from `cards` and print it with `printLine`.\n\nInput:\n\n```text\n5\n12 H\n3 S\n12 H\n3 D\n7 C\n```\n\nExpected output:\n\n```text\n3D 3S 7C 12H 12H\n3D 3S 7C 12H\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <set>\n#include <tuple>\n#include <vector>\n\nstruct Card {\n    int rank;\n    char suit;\n\n    // TODO: operator< that compares rank, then suit, with std::tie\n};\n\nstd::ostream& operator<<(std::ostream& os, const Card& c) {\n    return os << c.rank << c.suit;\n}\n\ntemplate <typename C>\nvoid printLine(const C& items) {\n    bool first = true;\n    for (const auto& item : items) {\n        if (!first) {\n            std::cout << ' ';\n        }\n        std::cout << item;\n        first = false;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<Card> cards;\n    for (int i = 0; i < n; ++i) {\n        int rank = 0;\n        char suit = ' ';\n        std::cin >> rank >> suit;\n        cards.push_back({rank, suit});\n    }\n\n    // TODO: sort cards and print them on one line\n    // TODO: build a std::set<Card> and print the distinct cards on one line\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <set>\n#include <tuple>\n#include <vector>\n\nstruct Card {\n    int rank;\n    char suit;\n\n    bool operator<(const Card& other) const {\n        return std::tie(rank, suit) < std::tie(other.rank, other.suit);\n    }\n};\n\nstd::ostream& operator<<(std::ostream& os, const Card& c) {\n    return os << c.rank << c.suit;\n}\n\ntemplate <typename C>\nvoid printLine(const C& items) {\n    bool first = true;\n    for (const auto& item : items) {\n        if (!first) {\n            std::cout << ' ';\n        }\n        std::cout << item;\n        first = false;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<Card> cards;\n    for (int i = 0; i < n; ++i) {\n        int rank = 0;\n        char suit = ' ';\n        std::cin >> rank >> suit;\n        cards.push_back({rank, suit});\n    }\n\n    std::sort(cards.begin(), cards.end());\n    printLine(cards);\n\n    const std::set<Card> distinct(cards.begin(), cards.end());\n    printLine(distinct);\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "5\n12 H\n3 S\n12 H\n3 D\n7 C\n",
+            "output": "3D 3S 7C 12H 12H\n3D 3S 7C 12H"
+          },
+          {
+            "stdin": "1\n5 H\n",
+            "output": "5H\n5H"
+          },
+          {
+            "stdin": "3\n9 S\n9 S\n9 S\n",
+            "output": "9S 9S 9S\n9S"
+          }
+        ],
+        "hints": [
+          "Mirror the `Version` example with two fields: put `rank` and `suit` in a `std::tie` on each side of `<`.",
+          "Once `operator<` exists, `std::sort` needs only `cards.begin()` and `cards.end()`.",
+          "Build the set from the sorted vector's iterators, the same way the example builds `distinct`, then pass it to `printLine`."
+        ]
+      }
+    },
+    {
+      "title": "Function objects with operator()",
+      "body": "Overload `operator()` and objects of your struct can be called like functions. Such a struct is a **function object** (a functor):\n\n```cpp\nstruct ByLength {\n    bool operator()(const std::string& a, const std::string& b) const {\n        if (a.size() != b.size()) {\n            return a.size() < b.size();\n        }\n        return a < b;\n    }\n};\n```\n\n`ByLength{}` creates one, and you can pass it wherever a lambda goes: `std::sort(v.begin(), v.end(), ByLength{})`. The same comparator rules apply: return true when `a` goes before `b`, use `<` never `<=`, and break ties.\n\nThe big advantage over a lambda is that a function object has a named **type**. A set or map takes its comparator as a template argument, so you can write:\n\n```cpp\nstd::set<std::string, ByLength> words;\nstd::map<std::string, int, ByLength> counts;\n```\n\nand every insert and lookup uses your ordering. Equality follows the comparator too: with a comparator that only looked at length, `\"fig\"` and `\"cat\"` would count as the same key. That is why `ByLength` breaks ties alphabetically.\n\n`std::greater<int>` from `<functional>` is a standard function object that returns `a > b`, so `std::set<int, std::greater<int>>` iterates from largest to smallest.",
+      "example": {
+        "title": "Words by length",
+        "prompt": "Sort words by length then alphabetically with a function object, keep the distinct ones in a set ordered the same way, and list the word lengths in descending order.",
+        "code": "#include <algorithm>\n#include <functional>\n#include <iostream>\n#include <set>\n#include <string>\n#include <vector>\n\nstruct ByLength {\n    bool operator()(const std::string& a, const std::string& b) const {\n        if (a.size() != b.size()) {\n            return a.size() < b.size();\n        }\n        return a < b;\n    }\n};\n\ntemplate <typename C>\nvoid printLine(const C& items) {\n    bool first = true;\n    for (const auto& item : items) {\n        if (!first) {\n            std::cout << ' ';\n        }\n        std::cout << item;\n        first = false;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    std::vector<std::string> words = {\"pear\", \"fig\", \"apple\", \"kiwi\", \"fig\"};\n    std::sort(words.begin(), words.end(), ByLength{});\n    printLine(words);\n\n    const std::set<std::string, ByLength> distinct(words.begin(), words.end());\n    printLine(distinct);\n\n    std::set<int, std::greater<int>> lengths;\n    for (const auto& w : words) {\n        lengths.insert(static_cast<int>(w.size()));\n    }\n    printLine(lengths);\n    return 0;\n}\n",
+        "output": "fig fig kiwi pear apple\nfig kiwi pear apple\n5 4 3",
+        "explanation": "`std::sort` calls `ByLength{}(a, b)` for every comparison, exactly as it would call a lambda. `std::set<std::string, ByLength>` stores a `ByLength` inside and uses it for ordering, so the duplicate `fig` is dropped and the order is shortest first. `std::set<int, std::greater<int>>` keeps the lengths unique and in descending order. `printLine` works for all three because each element type already has `operator<<`."
+      },
+      "practice": {
+        "title": "Numbers by last digit",
+        "prompt": "Order non-negative numbers by their last digit with a function object, then print them sorted, distinct, and grouped by digit.\n\n1. Write `struct ByLastDigit` with `bool operator()(int a, int b) const` that compares `a % 10` with `b % 10`, then breaks ties by value.\n2. Sort `nums` with `ByLastDigit{}` and print them with `printLine`.\n3. Build a `std::set<int, ByLastDigit>` from `nums` and print it with `printLine`.\n4. Insert every number's last digit into a `std::set<int, std::greater<int>>` and print it with `printLine`.\n\nInput:\n\n```text\n6\n23 7 13 40 7 5\n```\n\nExpected output:\n\n```text\n40 13 23 5 7 7\n40 13 23 5 7\n7 5 3 0\n```",
+        "starter": "#include <algorithm>\n#include <functional>\n#include <iostream>\n#include <set>\n#include <vector>\n\n// TODO: struct ByLastDigit with bool operator()(int a, int b) const\n\ntemplate <typename C>\nvoid printLine(const C& items) {\n    bool first = true;\n    for (const auto& item : items) {\n        if (!first) {\n            std::cout << ' ';\n        }\n        std::cout << item;\n        first = false;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> nums(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> nums[i];\n    }\n\n    // TODO: sort nums with ByLastDigit{} and print them on one line\n    // TODO: print the distinct numbers from a std::set<int, ByLastDigit>\n    // TODO: print the distinct last digits from a std::set<int, std::greater<int>>\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <functional>\n#include <iostream>\n#include <set>\n#include <vector>\n\nstruct ByLastDigit {\n    bool operator()(int a, int b) const {\n        if (a % 10 != b % 10) {\n            return a % 10 < b % 10;\n        }\n        return a < b;\n    }\n};\n\ntemplate <typename C>\nvoid printLine(const C& items) {\n    bool first = true;\n    for (const auto& item : items) {\n        if (!first) {\n            std::cout << ' ';\n        }\n        std::cout << item;\n        first = false;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> nums(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> nums[i];\n    }\n\n    std::sort(nums.begin(), nums.end(), ByLastDigit{});\n    printLine(nums);\n\n    const std::set<int, ByLastDigit> distinct(nums.begin(), nums.end());\n    printLine(distinct);\n\n    std::set<int, std::greater<int>> digits;\n    for (int x : nums) {\n        digits.insert(x % 10);\n    }\n    printLine(digits);\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n23 7 13 40 7 5\n",
+            "output": "40 13 23 5 7 7\n40 13 23 5 7\n7 5 3 0"
+          },
+          {
+            "stdin": "1\n9\n",
+            "output": "9\n9\n9"
+          },
+          {
+            "stdin": "5\n21 11 21 30 2\n",
+            "output": "30 11 21 21 2\n30 11 21 2\n2 1 0"
+          }
+        ],
+        "hints": [
+          "Copy the shape of `ByLength`: if the last digits differ, compare them, otherwise compare the numbers themselves.",
+          "Pass `ByLastDigit{}` as the third argument of `std::sort`, and name `ByLastDigit` as the second template argument of the set.",
+          "The `std::greater<int>` set orders from largest to smallest on its own, so just insert `x % 10` for each number."
+        ]
+      }
+    }
+  ],
+  "recap": "- An operator is a function named `operator+`, `operator==`, and so on. Take `const&` parameters and mark non-modifying operators `const`.\n- A member operator has your object on the left, so `2 * v` and `std::cout << v` need non-member functions.\n- `operator+=` changes the object and returns `*this` by reference.\n- C++17 does not generate `!=` from `==`. Define `operator!=` as `!(*this == other)`.\n- `std::ostream& operator<<(std::ostream& os, const T& t)` returns `os` so `<<` chains. Make it a `friend` to read private fields.\n- Fill is sticky: save it with `char oldFill = os.fill('0');` and restore it with `os.fill(oldFill);`.\n- `operator<` built from `std::tie` lets `std::sort`, `std::set`, and `std::map` use your type. Two keys are equal when neither is less.\n- A struct with `operator()` is a function object. Pass it like a lambda, or name it as the comparator type of a set or map, as with `std::greater<int>`."
+}

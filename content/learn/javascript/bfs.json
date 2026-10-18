@@ -1,0 +1,121 @@
+{
+  "id": "bfs",
+  "title": "Breadth-First Search",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Explore level by level with a queue to find shortest paths in grids and to simulate things that spread over time.",
+  "intro": "Depth-first search dives down one path at a time. Breadth-first search fans out evenly with a queue, one step at a time, so it finds the shortest path and can model anything that spreads minute by minute.",
+  "steps": [
+    {
+      "title": "Queues in JavaScript",
+      "body": "A queue is first in, first out: items leave in the order they arrived, like a line at a counter. JavaScript has no queue type, so you build one from an array.\n\nThe obvious version uses `push` to add and `shift()` to remove. It works, but `shift()` has to move every remaining element down one slot, so each removal costs O(n). Node hides this cost for small arrays, but on a queue of tens of thousands of items a search that should take milliseconds can take seconds.\n\nThe fast version never removes anything. Keep a `head` index that points at the next item to read:\n\n```javascript\nconst queue = [\"ada\", \"bo\"];\nlet head = 0;\nconst first = queue[head++]; // \"ada\", head is now 1\nqueue.push(\"cy\"); // joins the back\n```\n\n`queue[head++]` reads the item at `head`, then moves `head` forward. The queue still has items while `head < queue.length`, so that is your loop condition. Items behind `head` stay in the array. That costs a little memory but makes every step O(1), constant time no matter how long the queue gets.\n\nTo send an unfinished item to the back of the line, `push` it again.",
+      "example": {
+        "title": "Print queue",
+        "prompt": "Read print jobs as `name pages`, print at most 5 pages per turn from a head-index queue, and send unfinished jobs to the back.",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst jobs = input.trim().split(\"\\n\").map((line) => {\n  const [name, pagesText] = line.trim().split(/\\s+/);\n  return { name, pages: Number(pagesText) };\n});\n\nfunction runPrinter(jobs, perTurn) {\n  const queue = [...jobs];\n  let head = 0;\n  let turns = 0;\n  while (head < queue.length) {\n    const job = queue[head++];\n    const printed = Math.min(job.pages, perTurn);\n    job.pages -= printed;\n    turns++;\n    console.log(`${job.name} prints ${printed} (${job.pages} left)`);\n    if (job.pages > 0) {\n      queue.push(job);\n    }\n  }\n  return turns;\n}\n\nconsole.log(`done after ${runPrinter(jobs, 5)} turns`);\n",
+        "stdin": "ada 7\nbo 3\ncy 12\n",
+        "output": "ada prints 5 (2 left)\nbo prints 3 (0 left)\ncy prints 5 (7 left)\nada prints 2 (0 left)\ncy prints 5 (2 left)\ncy prints 2 (0 left)\ndone after 6 turns",
+        "explanation": "`runPrinter` copies the jobs into `queue` and reads them with `queue[head++]`. Each turn prints up to `perTurn` pages with `Math.min`. A job with pages left is pushed again, so it waits behind everyone already in line. The loop stops when `head` catches up with `queue.length`, and `turns` counts how many times a job was read."
+      },
+      "practice": {
+        "title": "Coffee line",
+        "prompt": "Read customers as `name visits` and print the order they are served in when each turn serves one visit.\n\n1. Complete `serveOrder(customers)` using a queue with a `head` index (no `shift()`).\n2. Each turn, read the next customer, push their name onto `order`, and subtract one from `visits`.\n3. If the customer still needs visits, push them to the back of the queue.\n4. Return `order`. The program prints it joined with `, `.\n\nInput:\n\n```text\nana 2\nben 1\ncal 3\n```\n\nExpected output:\n\n```text\nana, ben, cal, ana, cal, cal\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst customers = input.trim().split(\"\\n\").map((line) => {\n  const [name, visitsText] = line.trim().split(/\\s+/);\n  return { name, visits: Number(visitsText) };\n});\n\nfunction serveOrder(customers) {\n  const order = [];\n  // TODO: serve one visit per turn from a head-index queue\n  // TODO: push a customer who still needs visits to the back\n  return order;\n}\n\nconsole.log(serveOrder(customers).join(\", \"));\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst customers = input.trim().split(\"\\n\").map((line) => {\n  const [name, visitsText] = line.trim().split(/\\s+/);\n  return { name, visits: Number(visitsText) };\n});\n\nfunction serveOrder(customers) {\n  const order = [];\n  const queue = [...customers];\n  let head = 0;\n  while (head < queue.length) {\n    const customer = queue[head++];\n    order.push(customer.name);\n    customer.visits--;\n    if (customer.visits > 0) {\n      queue.push(customer);\n    }\n  }\n  return order;\n}\n\nconsole.log(serveOrder(customers).join(\", \"));\n",
+        "tests": [
+          {
+            "stdin": "ana 2\nben 1\ncal 3\n",
+            "output": "ana, ben, cal, ana, cal, cal"
+          },
+          {
+            "stdin": "zoe 3\n",
+            "output": "zoe, zoe, zoe"
+          },
+          {
+            "stdin": "max 1\nivy 2\nleo 1\nkim 2\n",
+            "output": "max, ivy, leo, kim, ivy, kim"
+          }
+        ],
+        "hints": [
+          "Copy the customers with `[...customers]` and start with `let head = 0`.",
+          "Loop with `while (head < queue.length)` and read with `const customer = queue[head++]`.",
+          "After `customer.visits--`, push the customer again only if `customer.visits > 0`."
+        ]
+      }
+    },
+    {
+      "title": "Shortest path in a grid",
+      "body": "Breadth-first search (BFS) explores a grid in rings. It visits the start, then every cell 1 step away, then every cell 2 steps away, and so on. Cells come out of the queue in order of distance, so the first time BFS reaches the target, the distance it carries is the shortest path. DFS finds *a* path. BFS finds the *shortest* one.\n\nStore each cell with its distance as a small tuple:\n\n```javascript\nconst queue = [[startRow, startCol, 0]];\nconst [r, c, dist] = queue[head++];\nqueue.push([nr, nc, dist + 1]);\n```\n\nMark a cell visited **when you enqueue it**, not when you dequeue it. Otherwise two neighbors can both push the same cell before either is processed, and the queue fills with duplicates. Keep visited in a boolean grid. A `Set` of `[r, c]` arrays never matches because arrays compare by reference.\n\nIf the queue runs dry before reaching the target, the target is walled off, so return -1.",
+      "example": {
+        "title": "Maze exit",
+        "prompt": "Read a maze of `.` and `#` with one `S` and one `E` and print the length of the shortest path, or -1 when E cannot be reached.",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst grid = input.trim().split(\"\\n\").map((line) => line.trim().split(\"\"));\nconst directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];\n\nfunction findCell(grid, mark) {\n  for (let r = 0; r < grid.length; r++) {\n    const c = grid[r].indexOf(mark);\n    if (c !== -1) {\n      return [r, c];\n    }\n  }\n  return [-1, -1];\n}\n\nfunction shortestPath(grid) {\n  const rows = grid.length;\n  const cols = grid[0].length;\n  const [startRow, startCol] = findCell(grid, \"S\");\n  const visited = Array.from({ length: rows }, () => new Array(cols).fill(false));\n  const queue = [[startRow, startCol, 0]];\n  visited[startRow][startCol] = true;\n  let head = 0;\n  while (head < queue.length) {\n    const [r, c, dist] = queue[head++];\n    if (grid[r][c] === \"E\") {\n      return dist;\n    }\n    for (const [dr, dc] of directions) {\n      const nr = r + dr;\n      const nc = c + dc;\n      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) {\n        continue;\n      }\n      if (visited[nr][nc] || grid[nr][nc] === \"#\") {\n        continue;\n      }\n      visited[nr][nc] = true;\n      queue.push([nr, nc, dist + 1]);\n    }\n  }\n  return -1;\n}\n\nconsole.log(`Shortest path: ${shortestPath(grid)}`);\n",
+        "stdin": "S..#....\n.#.#.##.\n.#...#..\n.####.#E\n........\n",
+        "output": "Shortest path: 12",
+        "explanation": "The queue starts with `[startRow, startCol, 0]`, and S is marked visited right away. Each dequeued cell checks for E, then pushes every open, unvisited neighbor with `dist + 1`, marking it visited as it goes in. Cells leave the queue in order of distance, so the first time E comes out its `dist` is the shortest path. If the loop ends without finding E, the function returns -1."
+      },
+      "practice": {
+        "title": "From A to B",
+        "prompt": "Read a maze with `A` and `B` and print the fewest steps from A to B, or -1 when B cannot be reached.\n\n1. Complete `fewestSteps(grid)`. Use `findCell(grid, \"A\")` to get the start.\n2. BFS with `[row, col, dist]` items in a head-index queue, moving up, down, left, and right through any cell that is not `#`.\n3. Mark each cell visited in a boolean grid when you enqueue it.\n4. Return `dist` when you dequeue `B`, or -1 if the queue runs out.\n\nInput:\n\n```text\nA.#...\n.##.#.\n...#..\n#.....\n.#.#.B\n```\n\nExpected output:\n\n```text\nFewest steps: 9\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst grid = input.trim().split(\"\\n\").map((line) => line.trim().split(\"\"));\nconst directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];\n\nfunction findCell(grid, mark) {\n  for (let r = 0; r < grid.length; r++) {\n    const c = grid[r].indexOf(mark);\n    if (c !== -1) {\n      return [r, c];\n    }\n  }\n  return [-1, -1];\n}\n\nfunction fewestSteps(grid) {\n  // TODO: BFS from A with [row, col, dist] in a head-index queue\n  // TODO: return dist when you reach B, or -1 if the queue runs dry\n  return 0;\n}\n\nconsole.log(`Fewest steps: ${fewestSteps(grid)}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst grid = input.trim().split(\"\\n\").map((line) => line.trim().split(\"\"));\nconst directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];\n\nfunction findCell(grid, mark) {\n  for (let r = 0; r < grid.length; r++) {\n    const c = grid[r].indexOf(mark);\n    if (c !== -1) {\n      return [r, c];\n    }\n  }\n  return [-1, -1];\n}\n\nfunction fewestSteps(grid) {\n  const rows = grid.length;\n  const cols = grid[0].length;\n  const [startRow, startCol] = findCell(grid, \"A\");\n  const visited = Array.from({ length: rows }, () => new Array(cols).fill(false));\n  const queue = [[startRow, startCol, 0]];\n  visited[startRow][startCol] = true;\n  let head = 0;\n  while (head < queue.length) {\n    const [r, c, dist] = queue[head++];\n    if (grid[r][c] === \"B\") {\n      return dist;\n    }\n    for (const [dr, dc] of directions) {\n      const nr = r + dr;\n      const nc = c + dc;\n      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) {\n        continue;\n      }\n      if (visited[nr][nc] || grid[nr][nc] === \"#\") {\n        continue;\n      }\n      visited[nr][nc] = true;\n      queue.push([nr, nc, dist + 1]);\n    }\n  }\n  return -1;\n}\n\nconsole.log(`Fewest steps: ${fewestSteps(grid)}`);\n",
+        "tests": [
+          {
+            "stdin": "A.#...\n.##.#.\n...#..\n#.....\n.#.#.B\n",
+            "output": "Fewest steps: 9"
+          },
+          {
+            "stdin": "A.#.\n..#.\n###.\n...B\n",
+            "output": "Fewest steps: -1"
+          },
+          {
+            "stdin": "AB\n",
+            "output": "Fewest steps: 1"
+          }
+        ],
+        "hints": [
+          "Build `visited` with `Array.from({ length: rows }, () => new Array(cols).fill(false))`.",
+          "Start with `const queue = [[startRow, startCol, 0]]` and mark the start visited before the loop.",
+          "Skip a neighbor that is out of bounds, already visited, or `#`. Otherwise mark it and push `[nr, nc, dist + 1]`."
+        ]
+      }
+    },
+    {
+      "title": "Level by level and multi-source BFS",
+      "body": "Sometimes you need to know which *round* reached a cell, such as the minute a fire got there. Process the queue one level at a time: before each round, record how many items are waiting, then handle exactly that many.\n\n```javascript\nwhile (head < queue.length) {\n  const size = queue.length - head;\n  for (let i = 0; i < size; i++) {\n    const [r, c] = queue[head++];\n    // push neighbors for the next round\n  }\n}\n```\n\nCells pushed during a round land after those `size` items, so they wait for the next round. Each round is one minute.\n\n**Multi-source BFS** starts from every source at once: push all of them before the loop. They spread together, and each cell is reached from its nearest source.\n\nCount a minute only when a round added new cells (`head < queue.length` after the round). Otherwise the final round, which spreads nothing, counts one too many. You can mark visited by changing the grid itself (`grid[nr][nc] = \"F\"`). When BFS finishes, scan the grid: any cell still unmarked was never reached. `grid.flat()` joins the rows into one array, so `grid.flat().filter((cell) => cell === \".\").length` counts them.",
+      "example": {
+        "title": "Spreading fire",
+        "prompt": "Read a grid where fire spreads each minute from every `F` to neighboring `.` cells, and print how many minutes it spreads and how many floor cells never burn.",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst grid = input.trim().split(\"\\n\").map((line) => line.trim().split(\"\"));\nconst directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];\n\nfunction spreadFire(grid) {\n  const rows = grid.length;\n  const cols = grid[0].length;\n  const queue = [];\n  for (let r = 0; r < rows; r++) {\n    for (let c = 0; c < cols; c++) {\n      if (grid[r][c] === \"F\") {\n        queue.push([r, c]);\n      }\n    }\n  }\n  let head = 0;\n  let minutes = 0;\n  while (head < queue.length) {\n    const size = queue.length - head;\n    for (let i = 0; i < size; i++) {\n      const [r, c] = queue[head++];\n      for (const [dr, dc] of directions) {\n        const nr = r + dr;\n        const nc = c + dc;\n        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] === \".\") {\n          grid[nr][nc] = \"F\";\n          queue.push([nr, nc]);\n        }\n      }\n    }\n    if (head < queue.length) {\n      minutes++;\n    }\n  }\n  const unburned = grid.flat().filter((cell) => cell === \".\").length;\n  return [minutes, unburned];\n}\n\nconst [minutes, unburned] = spreadFire(grid);\nconsole.log(`Minutes: ${minutes}`);\nconsole.log(`Unburned: ${unburned}`);\n",
+        "stdin": "F....#..\n.###.#.#\n.###.###\n.###....\n.......F\n",
+        "output": "Minutes: 5\nUnburned: 3",
+        "explanation": "Every `F` goes into the queue before the loop, so both fires spread at the same time. Each pass of the `while` loop handles exactly `size` cells, one minute of spreading, and turns their `.` neighbors into `F`, which also marks them visited. `minutes` grows only when that round queued new cells. Afterwards, `grid.flat()` lists every cell and the `.` cells left over are the ones walls sealed off."
+      },
+      "practice": {
+        "title": "Rotting oranges",
+        "prompt": "Read a grid of oranges as rows of digits (0 empty, 1 fresh, 2 rotten) and print the minutes until every fresh orange rots, or -1 if some never do.\n\n1. Complete `rotMinutes(grid)`. Push every rotten orange into a head-index queue before the loop.\n2. Process one level per minute with `const size = queue.length - head`. A rotten orange rots its fresh neighbors up, down, left, and right: set them to 2 and push them.\n3. Count a minute only when a round rotted at least one orange.\n4. Return -1 if any 1 is left in the grid, otherwise the minutes. The program prints the result.\n\nInput:\n\n```text\n211\n110\n011\n```\n\nExpected output:\n\n```text\n4\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst grid = input.trim().split(\"\\n\").map((line) => line.trim().split(\"\").map(Number));\nconst directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];\n\nfunction rotMinutes(grid) {\n  // TODO: push every rotten orange (2) into a head-index queue\n  // TODO: spread one level per minute to fresh neighbors (1), marking them 2\n  // TODO: return -1 if any fresh orange is left, otherwise the minutes\n  return 0;\n}\n\nconsole.log(rotMinutes(grid));\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst grid = input.trim().split(\"\\n\").map((line) => line.trim().split(\"\").map(Number));\nconst directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];\n\nfunction rotMinutes(grid) {\n  const rows = grid.length;\n  const cols = grid[0].length;\n  const queue = [];\n  for (let r = 0; r < rows; r++) {\n    for (let c = 0; c < cols; c++) {\n      if (grid[r][c] === 2) {\n        queue.push([r, c]);\n      }\n    }\n  }\n  let head = 0;\n  let minutes = 0;\n  while (head < queue.length) {\n    const size = queue.length - head;\n    for (let i = 0; i < size; i++) {\n      const [r, c] = queue[head++];\n      for (const [dr, dc] of directions) {\n        const nr = r + dr;\n        const nc = c + dc;\n        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] === 1) {\n          grid[nr][nc] = 2;\n          queue.push([nr, nc]);\n        }\n      }\n    }\n    if (head < queue.length) {\n      minutes++;\n    }\n  }\n  return grid.flat().includes(1) ? -1 : minutes;\n}\n\nconsole.log(rotMinutes(grid));\n",
+        "tests": [
+          {
+            "stdin": "211\n110\n011\n",
+            "output": "4"
+          },
+          {
+            "stdin": "211\n011\n101\n",
+            "output": "-1"
+          },
+          {
+            "stdin": "21112\n",
+            "output": "2"
+          }
+        ],
+        "hints": [
+          "The structure matches `spreadFire`: swap `\"F\"` for 2 and `\".\"` for 1.",
+          "After each round, `if (head < queue.length) { minutes++; }` counts only rounds that rotted something.",
+          "`grid.flat().includes(1)` tells you whether a fresh orange survived."
+        ]
+      }
+    }
+  ],
+  "recap": "- A queue is first in, first out. Build it with `push` plus a `head` index and read with `queue[head++]`.\n- `shift()` is O(n) because it moves every remaining element, so avoid it for big queues.\n- `while (head < queue.length)` runs until the queue is empty.\n- BFS reaches cells in order of distance, so the first time it reaches the target is a shortest path. Return -1 if it never does.\n- Store `[row, col, dist]` in the queue and mark cells visited when you enqueue them, in a boolean grid or the grid itself.\n- `const size = queue.length - head` processes one level per round, which is how you count minutes.\n- Multi-source BFS pushes every source before the loop. Scan the grid afterwards to count cells it never reached."
+}

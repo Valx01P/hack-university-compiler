@@ -1,0 +1,90 @@
+{
+  "id": "integer-overflow",
+  "title": "Integer Types, sizeof, and Overflow",
+  "section": "Basics",
+  "summary": "See how many bytes each type takes in memory, what happens past the largest int, and when to use long long or unsigned.",
+  "intro": "Every number in C++ lives in a fixed number of bytes, so every type has a largest value. Knowing those limits is how you avoid answers that silently come out wrong.",
+  "steps": [
+    {
+      "title": "Bytes in memory with sizeof",
+      "body": "Every variable takes a fixed number of bytes in memory, and one byte is 8 bits. `sizeof` tells you how many bytes: write `sizeof(type)` or `sizeof(variable)`. The sizes in this sandbox (x86-64 Linux) are:\n\n| Type | Bytes |\n| --- | --- |\n| `char`, `bool` | 1 |\n| `short` | 2 |\n| `int`, `float` | 4 |\n| `long long`, `double` | 8 |\n\nAn `int` has 4 bytes, so 32 bits, which holds about plus or minus 2.1 billion. `short` is smaller, `long long` holds far bigger numbers, and `float` is a 4 byte decimal with less precision than `double`, so prefer `double`.\n\nSome sizes, like `long`, differ between platforms. When you need an exact width, `#include <cstdint>` and use `std::int32_t` (4 bytes), `std::int64_t` (8 bytes), or `std::uint8_t` (1 byte, 0 to 255).\n\nGotcha: `std::int8_t` and `std::uint8_t` are aliases for `signed char` and `unsigned char`, so `std::cout` prints them as characters. Cast to see the number:\n\n```cpp\nstd::uint8_t level = 65;\nstd::cout << level << '\\n';                   // A\nstd::cout << static_cast<int>(level) << '\\n'; // 65\n```",
+      "example": {
+        "title": "Type sizes and a byte that prints as a letter",
+        "prompt": "Print the sizes of char, int, long long, and double on one line, the size of an int variable, then a `std::uint8_t` as a character and as a number.",
+        "code": "#include <cstdint>\n#include <iostream>\n\nint main() {\n    const int score = 9001;\n    std::cout << sizeof(char) << ' ' << sizeof(int) << ' ' << sizeof(long long) << ' ' << sizeof(double) << '\\n';\n    std::cout << sizeof(score) << '\\n';\n\n    const std::uint8_t level = 65;\n    std::cout << level << '\\n';\n    std::cout << static_cast<int>(level) << '\\n';\n    return 0;\n}\n",
+        "output": "1 4 8 8\n4\nA\n65",
+        "explanation": "`sizeof` is worked out by the compiler, so it costs nothing at run time. `sizeof(score)` gives 4 because `score` is an `int`. The value 65 stored in a `std::uint8_t` is the character code for `A`, so `std::cout` prints a letter until `static_cast<int>` turns it into an ordinary number."
+      },
+      "practice": {
+        "title": "More type sizes",
+        "prompt": "Print the sizes of a few more types, then show a one byte value both ways.\n\n1. Print `sizeof(bool)`, `sizeof(short)`, `sizeof(float)`, and `sizeof(population)` on one line, separated by single spaces.\n2. Print `sizeof(std::int32_t)` on its own line.\n3. Print `grade` directly, then print it again with `static_cast<int>`.\n\nExpected output:\n\n```text\n1 2 4 8\n4\nC\n67\n```",
+        "starter": "#include <cstdint>\n#include <iostream>\n\nint main() {\n    const long long population = 1400000000;\n    const std::uint8_t grade = 67;\n\n    // TODO: print the sizes of bool, short, float, and population on one line\n    // TODO: print the size of std::int32_t\n    // TODO: print grade as a character, then as a number\n\n    return 0;\n}\n",
+        "solution": "#include <cstdint>\n#include <iostream>\n\nint main() {\n    const long long population = 1400000000;\n    const std::uint8_t grade = 67;\n\n    std::cout << sizeof(bool) << ' ' << sizeof(short) << ' ' << sizeof(float) << ' ' << sizeof(population) << '\\n';\n    std::cout << sizeof(std::int32_t) << '\\n';\n    std::cout << grade << '\\n';\n    std::cout << static_cast<int>(grade) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "1 2 4 8\n4\nC\n67"
+          }
+        ],
+        "hints": [
+          "Chain the four `sizeof` results with `' '` between them, like the example.",
+          "`sizeof` works on a type name or a variable name: `sizeof(population)`.",
+          "Printing `grade` directly shows a character. Cast it to `int`, like the example, to see the number."
+        ]
+      }
+    },
+    {
+      "title": "Ranges and long long",
+      "body": "`#include <limits>` gives you `std::numeric_limits<T>`, which reports the range of any number type `T`:\n\n```cpp\nstd::numeric_limits<int>::max()  // 2147483647\nstd::numeric_limits<int>::min()  // -2147483648\n```\n\nGoing past the range of a signed type is **signed overflow**, and it is undefined behavior. The compiler assumes it never happens, so the program may print garbage or misbehave in stranger ways. When a value can pass about 2 billion, use `long long`, which reaches about 9.2 quintillion.\n\nThe big gotcha: the type on the left does not widen the arithmetic on the right. This line multiplies ints, overflows, and only then stores the broken result. g++ only warns about it, so the program still compiles:\n\n```cpp\nlong long ms = 30 * 24 * 60 * 60 * 1000;   // int math: overflow\nlong long ok = 30LL * 24 * 60 * 60 * 1000; // long long math\n```\n\nThe `LL` suffix makes `30LL` a `long long`. Multiplication groups left to right, and an int combined with a `long long` becomes `long long`, so every step is safe. With int variables, start with `1LL * a * b`. Digit separators such as `1'000'000` make big literals readable without changing the value.",
+      "example": {
+        "title": "Milliseconds in a month",
+        "prompt": "Print the int range, the milliseconds in 30 days, and the product of two ints, without any overflow.",
+        "code": "#include <iostream>\n#include <limits>\n\nint main() {\n    std::cout << std::numeric_limits<int>::min() << ' ' << std::numeric_limits<int>::max() << '\\n';\n\n    // long long bad = 30 * 24 * 60 * 60 * 1000; // overflows in int: undefined behavior\n    const long long msIn30Days = 30LL * 24 * 60 * 60 * 1000;\n    std::cout << msIn30Days << '\\n';\n\n    const int a = 50'000;\n    const int b = 70'000;\n    const long long product = 1LL * a * b;\n    std::cout << product << '\\n';\n    return 0;\n}\n",
+        "output": "-2147483648 2147483647\n2592000000\n3500000000",
+        "explanation": "The answer 2592000000 is bigger than the largest int, 2147483647, so the math must happen in `long long`. `30LL` makes the first operand a `long long`, and each later `*` stays in `long long`. In `1LL * a * b`, the `1LL * a` step converts `a` first, so multiplying by `b` cannot overflow. The commented line shows the trap: it is all int math, and the result is only widened after the damage is done."
+      },
+      "practice": {
+        "title": "Bytes in 5 GiB",
+        "prompt": "Work with numbers too big for an int.\n\n1. Print `std::numeric_limits<long long>::max()`.\n2. Compute the bytes in 5 GiB as `5LL * 1024 * 1024 * 1024`, store it in a `long long`, and print it.\n3. Multiply the ints `a` and `b` safely with `1LL` and print the product.\n\nExpected output:\n\n```text\n9223372036854775807\n5368709120\n12193131840\n```",
+        "starter": "#include <iostream>\n#include <limits>\n\nint main() {\n    const int a = 123'456;\n    const int b = 98'765;\n\n    // TODO: print the largest long long\n    // TODO: compute and print the bytes in 5 GiB with long long math\n    // TODO: multiply a and b safely and print the product\n\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <limits>\n\nint main() {\n    const int a = 123'456;\n    const int b = 98'765;\n\n    std::cout << std::numeric_limits<long long>::max() << '\\n';\n    const long long bytesIn5GiB = 5LL * 1024 * 1024 * 1024;\n    std::cout << bytesIn5GiB << '\\n';\n    const long long product = 1LL * a * b;\n    std::cout << product << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "9223372036854775807\n5368709120\n12193131840"
+          }
+        ],
+        "hints": [
+          "Replace `int` with `long long` inside the angle brackets of `std::numeric_limits`.",
+          "Without the `LL`, `5 * 1024 * 1024 * 1024` is int math and overflows.",
+          "Start the product with `1LL` so `a` becomes a `long long` before it meets `b`."
+        ]
+      }
+    },
+    {
+      "title": "Unsigned types and wraparound",
+      "body": "`unsigned int` has no negative values. Its 4 bytes hold 0 to 4294967295, which is `std::numeric_limits<unsigned int>::max()`. The `u` suffix makes a literal unsigned: `5u`.\n\nUnlike signed overflow, unsigned arithmetic is well defined: it wraps around modulo 2 to the 32. Going below 0 lands on the max, and going past the max lands on 0, like a car odometer rolling over.\n\n```cpp\nunsigned int n = 0u;\nn -= 1;  // 4294967295\nn += 1;  // 0\n```\n\nThat makes unsigned risky for values that can go negative, such as differences, because a small mistake turns into a huge number. Mixing types spreads the problem: when an `int` meets an `unsigned int` in one expression, the `int` is converted to unsigned, so `5u - 10` wraps too. Use `int` for ordinary counts and math.\n\nYou still meet one unsigned type everywhere: `std::size_t` from `<cstddef>`. It is the type that `sizeof` and a container's `.size()` return, 8 bytes here, so it can count anything that fits in memory. Its wraparound matters later, when loops count down.",
+      "example": {
+        "title": "A counter that wraps",
+        "prompt": "Subtract 1 from an unsigned 0 and print it next to the largest unsigned int, add 1 back, then print the size of `std::size_t`.",
+        "code": "#include <cstddef>\n#include <iostream>\n#include <limits>\n\nint main() {\n    const unsigned int biggest = std::numeric_limits<unsigned int>::max();\n    unsigned int counter = 0u;\n\n    counter -= 1u; // wraps around to the largest value\n    std::cout << counter << ' ' << biggest << '\\n';\n    counter += 1u; // wraps back to 0\n    std::cout << counter << '\\n';\n\n    std::cout << sizeof(std::size_t) << '\\n';\n    return 0;\n}\n",
+        "output": "4294967295 4294967295\n0\n8",
+        "explanation": "An unsigned int cannot hold -1, so `0u - 1u` wraps to the largest value, which matches `std::numeric_limits<unsigned int>::max()`. Adding 1 to the max wraps back to 0. This is guaranteed for unsigned types, so it is safe to run and print. `std::size_t` takes 8 bytes on this 64 bit system."
+      },
+      "practice": {
+        "title": "Wrapping both ways",
+        "prompt": "Watch unsigned values wrap past both ends of their range.\n\n1. Start `unsigned int u` at `std::numeric_limits<unsigned int>::max()`, add 2, and print it.\n2. Start `unsigned int low` at `5u`, subtract 10, and print it.\n\nExpected output:\n\n```text\n1\n4294967291\n```",
+        "starter": "#include <iostream>\n#include <limits>\n\nint main() {\n    // TODO: start u at the largest unsigned int, add 2, and print it\n    // TODO: start low at 5u, subtract 10, and print it\n\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <limits>\n\nint main() {\n    unsigned int u = std::numeric_limits<unsigned int>::max();\n    u += 2u;\n    std::cout << u << '\\n';\n\n    unsigned int low = 5u;\n    low -= 10u;\n    std::cout << low << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "1\n4294967291"
+          }
+        ],
+        "hints": [
+          "Adding 1 to the max gives 0, so adding 2 gives 1.",
+          "Going 1 below 0 gives 4294967295, so going 5 below 0 lands 4 lower than that."
+        ]
+      }
+    }
+  ],
+  "recap": "- `sizeof(type)` and `sizeof(variable)` give bytes: `int` is 4, `long long` and `double` are 8, and 1 byte is 8 bits.\n- `<cstdint>` has exact widths: `std::int32_t`, `std::int64_t`, `std::uint8_t`. Cast `std::uint8_t` to `int` to print a number.\n- `std::numeric_limits<T>::max()` and `min()` from `<limits>` give a type's range.\n- Signed overflow is undefined behavior. Use `long long` past about 2 billion, and write big literals as `1'000'000`.\n- Widen before the math: `30LL * ...` or `1LL * a * b`, because the type on the left does not widen the right side.\n- Unsigned math, such as `5u - 10`, wraps around safely. `std::size_t` from `<cstddef>` is the unsigned type of `sizeof` and `.size()`."
+}

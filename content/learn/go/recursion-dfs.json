@@ -1,0 +1,158 @@
+{
+  "id": "recursion-dfs",
+  "title": "Recursion and Depth-First Search",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Solve problems with recursion, cache results with memoization, backtrack through choices, and explore grids depth first.",
+  "intro": "A recursive function solves a problem by calling itself on a smaller piece of it. That one idea powers memoized math, backtracking searches that try every choice, and depth-first search through grids. This lesson builds all four, each as a short top-level Go function.",
+  "steps": [
+    {
+      "title": "Base case and recursive case",
+      "body": "A recursive function calls itself on a smaller version of the same problem. Every recursive function needs two parts: a **base case** that answers directly and stops, and a **recursive case** that shrinks the input and calls itself.\n\n```go\nfunc factorial(n int) int {\n\tif n <= 1 {\n\t\treturn 1 // base case\n\t}\n\treturn n * factorial(n-1) // recursive case\n}\n```\n\nEach call gets its own **stack frame** with its own copy of `n`, so `factorial(5)` waits while `factorial(4)` runs, and so on down to `factorial(1)`. Then the frames return one by one and the products multiply on the way back up.\n\n**Gotcha:** forget the base case and the calls never stop. A Go stack starts small and grows on demand, so the program keeps allocating frames. On your own machine it stops at Go's 1 GB stack limit with `fatal error: stack overflow`. Here the sandbox's 512 MB memory cap kills it first, and the run just shows `signal: killed`. If you see that, check your base case first.\n\nShrinking by digits works the same way: `n % 10` is the last digit and `n / 10` is the rest of the number.",
+      "example": {
+        "title": "Factorial and digit sum",
+        "prompt": "Read `n m` from one line (`5 4825`), then print `factorial(n)` and the sum of the digits of `m`, both computed recursively.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc factorial(n int) int {\n\tif n <= 1 {\n\t\treturn 1\n\t}\n\treturn n * factorial(n-1)\n}\n\nfunc sumDigits(n int) int {\n\tif n < 10 {\n\t\treturn n\n\t}\n\treturn n%10 + sumDigits(n/10)\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tfmt.Printf(\"factorial(%d) = %d\\n\", n, factorial(n))\n\tfmt.Printf(\"sumDigits(%d) = %d\\n\", m, sumDigits(m))\n}\n",
+        "stdin": "5 4825\n",
+        "output": "factorial(5) = 120\nsumDigits(4825) = 19",
+        "explanation": "`factorial(5)` becomes `5 * factorial(4)`, which keeps going until `factorial(1)` hits the base case and returns 1. The waiting frames then multiply back up to 120. `sumDigits(4825)` peels off the last digit each time: `5 + sumDigits(482)`, then `2 + sumDigits(48)`, then `8 + sumDigits(4)`. The base case returns 4, so the total is 19. Both functions shrink their input on every call, which guarantees they reach the base case."
+      },
+      "practice": {
+        "title": "Power and digit count",
+        "prompt": "Read `base exp n` from one line and print a power and a digit count, both computed recursively.\n\n1. Write `power(base, exp int) int`: when `exp` is 0 return 1, otherwise return `base * power(base, exp-1)`.\n2. Write `countDigits(n int) int`: a number below 10 has 1 digit, otherwise it has 1 more digit than `n / 10`.\n3. Keep the given `main`, which reads the input and prints `power(base, exp) = result` and `countDigits(n) = result`.\n\nInput:\n\n```text\n2 10 90210\n```\n\nExpected output:\n\n```text\npower(2, 10) = 1024\ncountDigits(90210) = 5\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc power(base, exp int) int {\n\t// TODO: base case exp == 0, otherwise base times power(base, exp-1)\n\treturn 0\n}\n\nfunc countDigits(n int) int {\n\t// TODO: base case n < 10, otherwise 1 plus the digits of n/10\n\treturn 0\n}\n\nfunc main() {\n\tvar base, exp, n int\n\tfmt.Scan(&base, &exp, &n)\n\tfmt.Printf(\"power(%d, %d) = %d\\n\", base, exp, power(base, exp))\n\tfmt.Printf(\"countDigits(%d) = %d\\n\", n, countDigits(n))\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc power(base, exp int) int {\n\tif exp == 0 {\n\t\treturn 1\n\t}\n\treturn base * power(base, exp-1)\n}\n\nfunc countDigits(n int) int {\n\tif n < 10 {\n\t\treturn 1\n\t}\n\treturn 1 + countDigits(n/10)\n}\n\nfunc main() {\n\tvar base, exp, n int\n\tfmt.Scan(&base, &exp, &n)\n\tfmt.Printf(\"power(%d, %d) = %d\\n\", base, exp, power(base, exp))\n\tfmt.Printf(\"countDigits(%d) = %d\\n\", n, countDigits(n))\n}\n",
+        "tests": [
+          {
+            "stdin": "2 10 90210\n",
+            "output": "power(2, 10) = 1024\ncountDigits(90210) = 5"
+          },
+          {
+            "stdin": "7 0 4\n",
+            "output": "power(7, 0) = 1\ncountDigits(4) = 1"
+          },
+          {
+            "stdin": "3 4 1000000\n",
+            "output": "power(3, 4) = 81\ncountDigits(1000000) = 7"
+          }
+        ],
+        "hints": [
+          "Each function needs an if for the base case and one return that calls the function itself with a smaller value.",
+          "`power(base, exp)` is `base * power(base, exp-1)`, and `power(base, 0)` is 1.",
+          "`countDigits(n)` is `1 + countDigits(n/10)` until `n < 10`, where it returns 1."
+        ]
+      }
+    },
+    {
+      "title": "Memoization",
+      "body": "Plain recursion can repeat the same work over and over. `fib(n) = fib(n-1) + fib(n-2)` computes `fib(n-2)` twice, and the repeats multiply at every level: the naive `fib(40)` makes over 300 million calls.\n\n**Memoization** fixes this by caching each answer the first time you compute it. Use a `map[int]int` from input to result and pass it to every call. Check the cache before doing any work, and store the result before returning.\n\n```go\nfunc fib(n int, memo map[int]int) int {\n\tif n <= 1 {\n\t\treturn n\n\t}\n\tif v, ok := memo[n]; ok {\n\t\treturn v // already computed\n\t}\n\tmemo[n] = fib(n-1, memo) + fib(n-2, memo)\n\treturn memo[n]\n}\n```\n\nPassing the map is cheap: a map value is a small pointer to one shared table on the heap, so every call reads and writes the same cache. Now each `n` is computed once, so `fib(50)` makes about 100 calls instead of tens of billions.\n\nRemember to create the map with `make` before the first call. Writing to a nil map panics.",
+      "example": {
+        "title": "Fast Fibonacci",
+        "prompt": "Read n (`50`) and print `fib(n)`, computed with a memo map passed into every recursive call, then print how many values the cache holds.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc fib(n int, memo map[int]int) int {\n\tif n <= 1 {\n\t\treturn n\n\t}\n\tif v, ok := memo[n]; ok {\n\t\treturn v\n\t}\n\tmemo[n] = fib(n-1, memo) + fib(n-2, memo)\n\treturn memo[n]\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tmemo := make(map[int]int)\n\tfmt.Printf(\"fib(%d) = %d\\n\", n, fib(n, memo))\n\tfmt.Println(\"cached values:\", len(memo))\n}\n",
+        "stdin": "50\n",
+        "output": "fib(50) = 12586269025\ncached values: 49",
+        "explanation": "The first call runs down the `fib(n-1)` side to the base cases, storing `memo[2]`, `memo[3]`, and so on as each frame returns. By the time any call asks for `fib(n-2)`, it is already in the map, so the cache check returns it immediately. The map holds one entry for each n from 2 to 50, which is 49 values, and the answer fits easily in a 64-bit `int`."
+      },
+      "practice": {
+        "title": "Climbing stairs",
+        "prompt": "Read n and count the ways to climb n stairs when you take 1 or 2 steps at a time, using a memo map.\n\n1. In `climb(n int, memo map[int]int) int`, return 1 when `n <= 1` (there is one way to climb zero or one stair).\n2. Return `memo[n]` when it is already cached.\n3. Otherwise the last move was 1 or 2 steps, so store `climb(n-1, memo) + climb(n-2, memo)` in `memo[n]` and return it.\n4. Keep the given `main`, which prints `climb(n) = ways`. It must stay fast for n = 80, where plain recursion would run for years.\n\nInput:\n\n```text\n5\n```\n\nExpected output:\n\n```text\nclimb(5) = 8\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc climb(n int, memo map[int]int) int {\n\t// TODO: return 1 when n <= 1\n\t// TODO: return the cached value when memo has n\n\t// TODO: store climb(n-1) + climb(n-2) in memo, then return it\n\treturn 0\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tmemo := make(map[int]int)\n\tfmt.Printf(\"climb(%d) = %d\\n\", n, climb(n, memo))\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc climb(n int, memo map[int]int) int {\n\tif n <= 1 {\n\t\treturn 1\n\t}\n\tif v, ok := memo[n]; ok {\n\t\treturn v\n\t}\n\tmemo[n] = climb(n-1, memo) + climb(n-2, memo)\n\treturn memo[n]\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tmemo := make(map[int]int)\n\tfmt.Printf(\"climb(%d) = %d\\n\", n, climb(n, memo))\n}\n",
+        "tests": [
+          {
+            "stdin": "5\n",
+            "output": "climb(5) = 8"
+          },
+          {
+            "stdin": "1\n",
+            "output": "climb(1) = 1"
+          },
+          {
+            "stdin": "80\n",
+            "output": "climb(80) = 37889062373143906"
+          }
+        ],
+        "hints": [
+          "The shape is exactly the same as `fib`. Only the base case value changes.",
+          "Check the cache with `if v, ok := memo[n]; ok { return v }` before recursing.",
+          "Compute the answer from the two smaller climbs, store it in `memo[n]`, and only then return it."
+        ]
+      }
+    },
+    {
+      "title": "Backtracking",
+      "body": "**Backtracking** explores every set of choices with one pattern: choose, explore, then undo the choice. Keep the current choices in a `path` slice. Append before the recursive call and remove the last element after it, so the next branch starts clean.\n\n```go\npath = append(path, next)           // choose\nchoose(next+1, n, k, path, results) // explore\npath = path[:len(path)-1]           // undo\nchoose(next+1, n, k, path, results) // skip next\n```\n\nThis is **include-or-skip** recursion: every number is either in the subset or not. Stop a branch as soon as the path holds k items, and stop when you run out of numbers. Check for a full path first, or choices that end with the last number are lost.\n\n**Gotcha:** never save `path` itself. Every branch appends into the same backing array, so a saved slice would be overwritten by later appends. Save a copy instead:\n\n```go\nsaved := make([]int, len(path))\ncopy(saved, path)\n*results = append(*results, saved)\n```\n\nCollect the copies in a `[][]int` and print them after the recursion. The function takes `*[][]int` because an append inside a function is not visible to the caller otherwise.",
+      "example": {
+        "title": "Choose k numbers",
+        "prompt": "Read `n k` (`4 2`), choose k of the numbers 1 to n by including each number first and then skipping it, save a copy of every finished path, and print the choices after the recursion.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc choose(next, n, k int, path []int, results *[][]int) {\n\tif len(path) == k {\n\t\tsaved := make([]int, len(path))\n\t\tcopy(saved, path)\n\t\t*results = append(*results, saved)\n\t\treturn\n\t}\n\tif next > n {\n\t\treturn\n\t}\n\tpath = append(path, next)\n\tchoose(next+1, n, k, path, results)\n\tpath = path[:len(path)-1]\n\tchoose(next+1, n, k, path, results)\n}\n\nfunc main() {\n\tvar n, k int\n\tfmt.Scan(&n, &k)\n\tvar results [][]int\n\tchoose(1, n, k, []int{}, &results)\n\tfor _, r := range results {\n\t\tfmt.Println(r)\n\t}\n\tfmt.Println(\"total:\", len(results))\n}\n",
+        "stdin": "4 2\n",
+        "output": "[1 2]\n[1 3]\n[1 4]\n[2 3]\n[2 4]\n[3 4]\ntotal: 6",
+        "explanation": "The first branch includes 1, then includes 2, and the path `[1 2]` is full, so a copy is saved. Back in the caller, 2 is removed and skipped, so the path tries `[1 3]`, then `[1 4]`. Once every branch with 1 is done, 1 is removed and the search continues from `[2 ...]`. Including before skipping is what makes the results come out in this sorted order. Without `copy`, saved slices that share a backing array get overwritten by later branches, so the six lines would read `[1 4]`, `[1 4]`, `[1 4]`, `[2 4]`, `[2 4]`, `[3 4]`."
+      },
+      "practice": {
+        "title": "Choose k letters",
+        "prompt": "Read a word and k, then print every way to choose k of its letters, keeping them in the word's order.\n\n1. In `choose`, when `path` holds k letters, append `string(path)` to `*results` and return. Converting to a string copies the bytes, so no `make` and `copy` are needed.\n2. Return when `next` reaches `len(word)`.\n3. Include `word[next]` in the path and recurse, remove it, then recurse again to skip it.\n4. Keep the given `main`, which prints the choices one per line after the recursion.\n\nInput:\n\n```text\nabcd 2\n```\n\nExpected output:\n\n```text\nab\nac\nad\nbc\nbd\ncd\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc choose(word string, next, k int, path []byte, results *[]string) {\n\t// TODO: when path holds k letters, save string(path) into *results and return\n\t// TODO: return when next reaches len(word)\n\t// TODO: include word[next], recurse, undo, then recurse again to skip it\n}\n\nfunc main() {\n\tvar word string\n\tvar k int\n\tfmt.Scan(&word, &k)\n\tvar results []string\n\tchoose(word, 0, k, []byte{}, &results)\n\tfor _, r := range results {\n\t\tfmt.Println(r)\n\t}\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc choose(word string, next, k int, path []byte, results *[]string) {\n\tif len(path) == k {\n\t\t*results = append(*results, string(path)) // string(path) copies the bytes\n\t\treturn\n\t}\n\tif next == len(word) {\n\t\treturn\n\t}\n\tpath = append(path, word[next])\n\tchoose(word, next+1, k, path, results)\n\tpath = path[:len(path)-1]\n\tchoose(word, next+1, k, path, results)\n}\n\nfunc main() {\n\tvar word string\n\tvar k int\n\tfmt.Scan(&word, &k)\n\tvar results []string\n\tchoose(word, 0, k, []byte{}, &results)\n\tfor _, r := range results {\n\t\tfmt.Println(r)\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "abcd 2\n",
+            "output": "ab\nac\nad\nbc\nbd\ncd"
+          },
+          {
+            "stdin": "xyz 3\n",
+            "output": "xyz"
+          },
+          {
+            "stdin": "hello 1\n",
+            "output": "h\ne\nl\nl\no"
+          }
+        ],
+        "hints": [
+          "Follow the example: two base cases first, then choose, explore, undo, explore.",
+          "`word[next]` is a byte, so `path = append(path, word[next])` adds it to the `[]byte` path.",
+          "Undo with `path = path[:len(path)-1]` between the two recursive calls."
+        ]
+      }
+    },
+    {
+      "title": "Depth-first search on a grid",
+      "body": "**Depth-first search** (DFS) goes as deep as possible along one path before backing up to try another. Recursion does the backing up for you. On a grid stored as a `[]string` of `#` (land) and `.` (water), a DFS from one land cell floods its whole island.\n\n```go\nvar dr = []int{-1, 1, 0, 0}\nvar dc = []int{0, 0, -1, 1}\n\nfunc dfs(grid []string, visited [][]bool, r, c int) {\n\tif r < 0 || r >= len(grid) || c < 0 || c >= len(grid[r]) {\n\t\treturn // off the grid\n\t}\n\tif grid[r][c] != '#' || visited[r][c] {\n\t\treturn\n\t}\n\tvisited[r][c] = true\n\tfor i := 0; i < 4; i++ {\n\t\tdfs(grid, visited, r+dr[i], c+dc[i])\n\t}\n}\n```\n\n- Check bounds **before** indexing, or `grid[r][c]` panics with index out of range.\n- Mark a cell visited before recursing, or two neighbors keep calling each other forever.\n- `dr` and `dc` list the four moves (up, down, left, right), so one loop replaces four calls.\n\nMake `dfs` a top-level function that takes the grid and `visited` as parameters. A function literal cannot call itself unless you declare it first with `var dfs func(r, c int)`. To **count regions**, loop over every cell and start a new DFS at each unvisited land cell.",
+      "example": {
+        "title": "Count the islands",
+        "prompt": "Read grid rows until the input ends and count the islands of `#` by flood-filling each unvisited land cell with a recursive DFS.",
+        "code": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nvar dr = []int{-1, 1, 0, 0}\nvar dc = []int{0, 0, -1, 1}\n\nfunc dfs(grid []string, visited [][]bool, r, c int) {\n\tif r < 0 || r >= len(grid) || c < 0 || c >= len(grid[r]) {\n\t\treturn\n\t}\n\tif grid[r][c] != '#' || visited[r][c] {\n\t\treturn\n\t}\n\tvisited[r][c] = true\n\tfor i := 0; i < 4; i++ {\n\t\tdfs(grid, visited, r+dr[i], c+dc[i])\n\t}\n}\n\nfunc main() {\n\tvar grid []string\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tif line := strings.TrimSpace(scanner.Text()); line != \"\" {\n\t\t\tgrid = append(grid, line)\n\t\t}\n\t}\n\tvisited := make([][]bool, len(grid))\n\tfor r := range grid {\n\t\tvisited[r] = make([]bool, len(grid[r]))\n\t}\n\tislands := 0\n\tfor r := range grid {\n\t\tfor c := 0; c < len(grid[r]); c++ {\n\t\t\tif grid[r][c] == '#' && !visited[r][c] {\n\t\t\t\tdfs(grid, visited, r, c)\n\t\t\t\tislands++\n\t\t\t}\n\t\t}\n\t}\n\tfmt.Println(\"Islands:\", islands)\n}\n",
+        "stdin": "##..#\n#...#\n..#..\n..##.\n",
+        "output": "Islands: 3",
+        "explanation": "`main` reads every nonblank line into `grid` and builds a matching `visited` grid of `false` values. The scan meets the top left `#` first and starts a DFS that dives through its neighbors, marking all three cells of that island before it returns. Those cells are now visited, so the scan skips them and only starts new searches at `(0, 4)` and `(2, 2)`. Each DFS start is one island, so the count is 3. `visited` is shared, not copied: a `[][]bool` passed to a function still points at the same rows."
+      },
+      "practice": {
+        "title": "Largest island",
+        "prompt": "Read a grid of `#` and `.` rows until the input ends and print the size of its largest island.\n\n1. Make `dfs` return 0 for a cell that is off the grid, water, or already visited.\n2. Otherwise mark the cell visited and return 1 plus the sizes returned by its four neighbors.\n3. In `main`, start a DFS at every unvisited `#` cell and keep the largest size. A grid with no land prints 0.\n4. Print `Largest island: ` followed by the size.\n\nInput:\n\n```text\n#..##\n##..#\n....#\n.###.\n```\n\nExpected output:\n\n```text\nLargest island: 4\n```",
+        "starter": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nvar dr = []int{-1, 1, 0, 0}\nvar dc = []int{0, 0, -1, 1}\n\nfunc dfs(grid []string, visited [][]bool, r, c int) int {\n\t// TODO: return 0 when (r, c) is off the grid, water, or already visited\n\t// TODO: mark it visited, then return 1 plus the sizes from the four neighbors\n\treturn 0\n}\n\nfunc main() {\n\tvar grid []string\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tif line := strings.TrimSpace(scanner.Text()); line != \"\" {\n\t\t\tgrid = append(grid, line)\n\t\t}\n\t}\n\tvisited := make([][]bool, len(grid))\n\tfor r := range grid {\n\t\tvisited[r] = make([]bool, len(grid[r]))\n\t}\n\tlargest := 0\n\t// TODO: start dfs at every unvisited land cell and keep the largest size\n\tfmt.Println(\"Largest island:\", largest)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nvar dr = []int{-1, 1, 0, 0}\nvar dc = []int{0, 0, -1, 1}\n\nfunc dfs(grid []string, visited [][]bool, r, c int) int {\n\tif r < 0 || r >= len(grid) || c < 0 || c >= len(grid[r]) {\n\t\treturn 0\n\t}\n\tif grid[r][c] != '#' || visited[r][c] {\n\t\treturn 0\n\t}\n\tvisited[r][c] = true\n\tsize := 1\n\tfor i := 0; i < 4; i++ {\n\t\tsize += dfs(grid, visited, r+dr[i], c+dc[i])\n\t}\n\treturn size\n}\n\nfunc main() {\n\tvar grid []string\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tif line := strings.TrimSpace(scanner.Text()); line != \"\" {\n\t\t\tgrid = append(grid, line)\n\t\t}\n\t}\n\tvisited := make([][]bool, len(grid))\n\tfor r := range grid {\n\t\tvisited[r] = make([]bool, len(grid[r]))\n\t}\n\tlargest := 0\n\tfor r := range grid {\n\t\tfor c := 0; c < len(grid[r]); c++ {\n\t\t\tif grid[r][c] == '#' && !visited[r][c] {\n\t\t\t\tif size := dfs(grid, visited, r, c); size > largest {\n\t\t\t\t\tlargest = size\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n\tfmt.Println(\"Largest island:\", largest)\n}\n",
+        "tests": [
+          {
+            "stdin": "#..##\n##..#\n....#\n.###.\n",
+            "output": "Largest island: 4"
+          },
+          {
+            "stdin": "###\n#.#\n###\n",
+            "output": "Largest island: 8"
+          },
+          {
+            "stdin": "...\n...\n",
+            "output": "Largest island: 0"
+          }
+        ],
+        "hints": [
+          "Keep the same checks as the example `dfs`, but return 0 instead of a bare return.",
+          "Start with `size := 1`, then add `dfs(...)` for each of the four directions.",
+          "In `main`, compare each DFS result with `largest` and keep the bigger one."
+        ]
+      }
+    }
+  ],
+  "recap": "- A recursive function needs a base case that stops and a recursive case that shrinks the input.\n- Every call has its own stack frame. A missing base case grows the stack until the run shows `signal: killed`.\n- Memoize with a `map[int]int` passed to every call: check the cache first, store the result before returning.\n- Backtracking: append to `path`, recurse, then `path = path[:len(path)-1]`. Save a copy with `make` and `copy` (or `string(path)`).\n- Grid DFS: check bounds, skip water and visited cells, mark visited, then recurse in the four `dr`/`dc` directions.\n- Count regions by starting a DFS at every unvisited land cell."
+}

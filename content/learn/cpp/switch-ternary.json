@@ -1,0 +1,115 @@
+{
+  "id": "switch-ternary",
+  "title": "Switch, enum class, and the Ternary Operator",
+  "section": "Control Flow",
+  "summary": "Pick one of many branches with switch, switch over a scoped enum class, and choose between two values in one expression with ?:.",
+  "intro": "An `else if` chain that tests one variable against many values gets long fast. A `switch` handles that case cleanly, an `enum class` gives the values names, and the ternary operator `?:` picks between two values in a single expression.",
+  "steps": [
+    {
+      "title": "switch, case, and break",
+      "body": "A `switch` compares one value against a list of constants and jumps straight to the matching `case`. It reads better than a long `else if` chain when every branch tests the same variable for equality.\n\n```cpp\nswitch (level) {\n    case 1:\n        std::cout << \"Easy\\n\";\n        break;\n    case 2:\n        std::cout << \"Hard\\n\";\n        break;\n    default:\n        std::cout << \"Unknown\\n\";\n        break;\n}\n```\n\n- The value in `switch (...)` must be an integer, a `char`, or an enum. A `double` does not compile.\n- Each `case` label must be a constant known at compile time, such as `3`, `'x'`, or a `const int` set from a literal. A plain variable is not allowed, and two labels cannot repeat.\n- `break` jumps out of the switch.\n- `default` runs when no case matches. It is optional, but it is the place to catch bad values.\n\n**Gotcha:** a case with no `break` falls through and keeps running the next case's code too. Forgetting one prints two answers. End every case with `break` unless you mean it.",
+      "example": {
+        "title": "Day of the week",
+        "prompt": "Turn a day number from 1 to 7 into its name, with a default for anything else.",
+        "code": "#include <iostream>\n\nint main() {\n    const int day = 3;\n    std::cout << \"Day \" << day << \": \";\n    switch (day) {\n        case 1:\n            std::cout << \"Monday\\n\";\n            break;\n        case 2:\n            std::cout << \"Tuesday\\n\";\n            break;\n        case 3:\n            std::cout << \"Wednesday\\n\";\n            break;\n        case 4:\n            std::cout << \"Thursday\\n\";\n            break;\n        case 5:\n            std::cout << \"Friday\\n\";\n            break;\n        case 6:\n            std::cout << \"Saturday\\n\";\n            break;\n        case 7:\n            std::cout << \"Sunday\\n\";\n            break;\n        default:\n            std::cout << \"Invalid day\\n\";\n            break;\n    }\n    return 0;\n}\n",
+        "output": "Day 3: Wednesday",
+        "explanation": "`day` is 3, so control jumps to `case 3:`, prints `Wednesday`, and `break` leaves the switch. The other cases never run. If `day` were 9, no label would match and `default` would print `Invalid day`."
+      },
+      "practice": {
+        "title": "Game menu",
+        "prompt": "Turn a menu option number into its label with a switch.\n\n1. Keep the line that prints `Option 2: ` without a newline.\n2. Switch on `option`: 1 prints `New game`, 2 prints `Load game`, 3 prints `Settings`, 4 prints `Quit`.\n3. Add a `default` that prints `Unknown option`.\n4. End every case with `break` and every label with `'\\n'`.\n\nExpected output:\n\n```text\nOption 2: Load game\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    const int option = 2;\n    std::cout << \"Option \" << option << \": \";\n    // TODO: switch on option and print its label, with \"Unknown option\" as the default\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    const int option = 2;\n    std::cout << \"Option \" << option << \": \";\n    switch (option) {\n        case 1:\n            std::cout << \"New game\\n\";\n            break;\n        case 2:\n            std::cout << \"Load game\\n\";\n            break;\n        case 3:\n            std::cout << \"Settings\\n\";\n            break;\n        case 4:\n            std::cout << \"Quit\\n\";\n            break;\n        default:\n            std::cout << \"Unknown option\\n\";\n            break;\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Option 2: Load game"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the day example: one `case` per number, each ending with `break;`.",
+          "If you see `Load game` followed by `Settings`, a `break` is missing after case 2."
+        ]
+      }
+    },
+    {
+      "title": "Grouped cases and fallthrough",
+      "body": "Stack several labels on one body when they should do the same thing. A switch on a `char` uses char literals as labels.\n\n```cpp\nswitch (answer) {\n    case 'y':\n    case 'Y':\n        std::cout << \"Yes\\n\";\n        break;\n    default:\n        std::cout << \"No\\n\";\n        break;\n}\n```\n\nSometimes you want one case to run its code and then continue into the next. Mark that on purpose with the C++17 attribute `[[fallthrough]];` as the last statement before the next label. It changes nothing at run time, but it tells readers and the compiler (with `-Wimplicit-fallthrough`) that the missing `break` is not a bug.\n\nA case that declares a variable needs its own braces. Without them, the variable's scope runs into the later cases, and jumping past its initialization is a compile error.\n\n```cpp\ncase 'A': {\n    const int stars = 3;\n    std::cout << stars << '\\n';\n    [[fallthrough]];\n}\ncase 'B':\n```\n\n**Gotcha:** `switch` cannot take a `std::string`. Use an `if` / `else if` chain to compare strings.",
+      "example": {
+        "title": "Grade feedback",
+        "prompt": "Print feedback for a letter grade, where an A also counts as a pass.",
+        "code": "#include <iostream>\n\nint main() {\n    const char grade = 'A';\n    std::cout << \"Grade: \" << grade << '\\n';\n    switch (grade) {\n        case 'A': {\n            const int stars = 3;\n            std::cout << \"Excellent, \" << stars << \" stars\\n\";\n            [[fallthrough]];\n        }\n        case 'B':\n        case 'C':\n            std::cout << \"Passed\\n\";\n            break;\n        case 'D':\n        case 'F':\n            std::cout << \"Try again\\n\";\n            break;\n        default:\n            std::cout << \"Unknown grade\\n\";\n            break;\n    }\n    return 0;\n}\n",
+        "output": "Grade: A\nExcellent, 3 stars\nPassed",
+        "explanation": "`grade` is `'A'`, so the braced `case 'A'` body runs. Its `stars` variable lives only inside those braces. There is no `break`, so control falls into the shared `'B'` / `'C'` body, which prints `Passed`, then `break` exits. The `[[fallthrough]];` line only marks that as intentional. A `'C'` would print only `Passed`."
+      },
+      "practice": {
+        "title": "Role permissions",
+        "prompt": "Print every permission a user role has, where higher roles fall through to the lower ones.\n\n1. Keep the line that prints `Role: e`.\n2. Switch on `role` with stacked labels: `'a'` or `'A'` prints `Manage users`, `'e'` or `'E'` prints `Edit posts`, `'v'` or `'V'` prints `Read posts`.\n3. Admin falls through to edit, and edit falls through to view, each marked with `[[fallthrough]];`. View ends with `break`.\n4. Any other role prints `No access`.\n\nExpected output:\n\n```text\nRole: e\nEdit posts\nRead posts\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    const char role = 'e';\n    std::cout << \"Role: \" << role << '\\n';\n    // TODO: switch on role, stacking upper and lowercase labels on each body\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    const char role = 'e';\n    std::cout << \"Role: \" << role << '\\n';\n    switch (role) {\n        case 'a':\n        case 'A':\n            std::cout << \"Manage users\\n\";\n            [[fallthrough]];\n        case 'e':\n        case 'E':\n            std::cout << \"Edit posts\\n\";\n            [[fallthrough]];\n        case 'v':\n        case 'V':\n            std::cout << \"Read posts\\n\";\n            break;\n        default:\n            std::cout << \"No access\\n\";\n            break;\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Role: e\nEdit posts\nRead posts"
+          }
+        ],
+        "hints": [
+          "Write `case 'e':` and `case 'E':` on two lines above the same body.",
+          "Only the view body needs `break`. The admin and edit bodies end with `[[fallthrough]];`."
+        ]
+      }
+    },
+    {
+      "title": "enum class and switch",
+      "body": "An `enum class` defines a new type with a fixed set of named values. It turns magic numbers like `case 2:` into readable names. Define it above `main`.\n\n```cpp\nenum class Size { Small, Medium, Large };\n\nconst Size order = Size::Medium;\n```\n\n- The values are scoped: write `Size::Small`, never plain `Small`, so two enums can both have a `Small` without clashing.\n- Under the hood each value is an `int` numbered from 0 (`Small` is 0, `Medium` 1, `Large` 2), so `sizeof(Size)` is 4. The names cost nothing at run time.\n- The values do not convert to `int` on their own. `int n = Size::Large;` and `std::cout << Size::Large;` do not compile. Ask for the number with `static_cast<int>(Size::Large)`.\n\nA switch over an enum class uses the scoped names as labels. If you list every value and leave out `default`, g++ with `-Wall` warns when you later add a value and forget its case.",
+      "example": {
+        "title": "Traffic light",
+        "prompt": "Print which color a traffic light shows next, then print the number behind Green.",
+        "code": "#include <iostream>\n\nenum class Light { Red, Yellow, Green };\n\nint main() {\n    const Light current = Light::Yellow;\n    switch (current) {\n        case Light::Red:\n            std::cout << \"Next: Green\\n\";\n            break;\n        case Light::Yellow:\n            std::cout << \"Next: Red\\n\";\n            break;\n        case Light::Green:\n            std::cout << \"Next: Yellow\\n\";\n            break;\n    }\n    std::cout << \"Green is \" << static_cast<int>(Light::Green) << '\\n';\n    return 0;\n}\n",
+        "output": "Next: Red\nGreen is 2",
+        "explanation": "`current` is `Light::Yellow`, so the `case Light::Yellow:` body prints `Next: Red`. Every value has a case, so no `default` is needed. `Green` is the third value, so `static_cast<int>` turns it into 2."
+      },
+      "practice": {
+        "title": "Compass turn",
+        "prompt": "Print where you face after turning right, then print the number behind South.\n\n1. Switch on `facing` with one `case` per `Direction` value.\n2. A right turn goes North to East, East to South, South to West, and West to North. Print `Turn right: ` followed by the new direction.\n3. After the switch, print `South is ` followed by `static_cast<int>(Direction::South)`.\n\nExpected output:\n\n```text\nTurn right: North\nSouth is 2\n```",
+        "starter": "#include <iostream>\n\nenum class Direction { North, East, South, West };\n\nint main() {\n    const Direction facing = Direction::West;\n    // TODO: switch on facing and print the direction after a right turn\n    // TODO: print South's number with static_cast<int>\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nenum class Direction { North, East, South, West };\n\nint main() {\n    const Direction facing = Direction::West;\n    switch (facing) {\n        case Direction::North:\n            std::cout << \"Turn right: East\\n\";\n            break;\n        case Direction::East:\n            std::cout << \"Turn right: South\\n\";\n            break;\n        case Direction::South:\n            std::cout << \"Turn right: West\\n\";\n            break;\n        case Direction::West:\n            std::cout << \"Turn right: North\\n\";\n            break;\n    }\n    std::cout << \"South is \" << static_cast<int>(Direction::South) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Turn right: North\nSouth is 2"
+          }
+        ],
+        "hints": [
+          "Case labels use the scoped names, like `case Direction::West:`.",
+          "`std::cout << Direction::South` does not compile. Wrap it in `static_cast<int>(...)`."
+        ]
+      }
+    },
+    {
+      "title": "Choosing a value with ? :",
+      "body": "The ternary operator `condition ? valueIfTrue : valueIfFalse` picks one of two values. Unlike `if`, it is an expression: it produces a value you can store or print.\n\n```cpp\nconst int fee = isMember ? 0 : 10;\nstd::cout << (score >= 50 ? \"pass\" : \"fail\") << '\\n';\n```\n\n- It can initialize a `const`, which `if` / `else` cannot do because the variable would have to exist before either branch assigns it.\n- Inside `std::cout`, wrap it in parentheses. `<<` binds tighter than `?:`, so without them the stream gets the condition, not the chosen value. The line then either fails to compile or prints the wrong thing.\n- Both branches need compatible types: `\"one\"` and `\"many\"` work, but `n ? 1 : \"none\"` does not compile. Mixed numbers convert to a common type, so `flag ? 1 : 2.5` is a `double` and `flag ? 'x' : 0` is an `int` that prints 120 instead of `x`.\n- Nest one level at most, with parentheses. Past that, or when the branches do work rather than pick a value, use `if` / `else`.\n\nA classic use is choosing a singular or plural word: `(count == 1 ? \"item\" : \"items\")`.",
+      "example": {
+        "title": "Signs, prices, and plurals",
+        "prompt": "Use ternaries to describe a number, find its absolute value, pick a ticket price, and choose singular or plural words.",
+        "code": "#include <iostream>\n\nint main() {\n    const int n = -4;\n    std::cout << (n >= 0 ? \"non-negative\" : \"negative\") << '\\n';\n    const int absValue = n < 0 ? -n : n;\n    std::cout << \"abs: \" << absValue << '\\n';\n\n    const int age = 70;\n    const int price = age < 12 ? 5 : (age >= 65 ? 7 : 12);\n    std::cout << \"price: \" << price << '\\n';\n\n    const int cartCount = 1;\n    const int boxCount = 3;\n    std::cout << cartCount << ' ' << (cartCount == 1 ? \"item\" : \"items\") << '\\n';\n    std::cout << boxCount << ' ' << (boxCount == 1 ? \"item\" : \"items\") << '\\n';\n    return 0;\n}\n",
+        "output": "negative\nabs: 4\nprice: 7\n1 item\n3 items",
+        "explanation": "`n >= 0` is false, so the first ternary yields `\"negative\"`. `absValue` is a `const` set in one line because the ternary hands back `-n`, which is 4. For `age` 70 the outer test `age < 12` fails, so the nested ternary runs and picks 7. The plural ternaries pick `\"item\"` only when the count is exactly 1."
+      },
+      "practice": {
+        "title": "Shop status",
+        "prompt": "Use ternaries to report a shop's stock, shipping cost, a number's sign, and file counts.\n\n1. Print `in stock` when `stock > 0`, otherwise `sold out`, with a ternary inside `std::cout`.\n2. Declare `const int shipping` as 0 when `total >= 50`, otherwise 5, and print `shipping: ` followed by it.\n3. Declare `const char sign` as `'+'` when `x > 0`, `'-'` when `x < 0`, otherwise `'0'`, using one nested ternary, and print `sign: ` followed by it.\n4. Print `1 file` and `4 files`, choosing the word with a ternary on each count.\n\nExpected output:\n\n```text\nsold out\nshipping: 5\nsign: 0\n1 file\n4 files\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    const int stock = 0;\n    // TODO: print \"in stock\" or \"sold out\" with a ternary\n\n    const int total = 42;\n    // TODO: declare const int shipping with a ternary, then print \"shipping: \" and it\n\n    const int x = 0;\n    // TODO: declare const char sign with a nested ternary, then print \"sign: \" and it\n\n    const int uploadCount = 1;\n    const int downloadCount = 4;\n    // TODO: print each count followed by \"file\" or \"files\"\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    const int stock = 0;\n    std::cout << (stock > 0 ? \"in stock\" : \"sold out\") << '\\n';\n\n    const int total = 42;\n    const int shipping = total >= 50 ? 0 : 5;\n    std::cout << \"shipping: \" << shipping << '\\n';\n\n    const int x = 0;\n    const char sign = x > 0 ? '+' : (x < 0 ? '-' : '0');\n    std::cout << \"sign: \" << sign << '\\n';\n\n    const int uploadCount = 1;\n    const int downloadCount = 4;\n    std::cout << uploadCount << ' ' << (uploadCount == 1 ? \"file\" : \"files\") << '\\n';\n    std::cout << downloadCount << ' ' << (downloadCount == 1 ? \"file\" : \"files\") << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "sold out\nshipping: 5\nsign: 0\n1 file\n4 files"
+          }
+        ],
+        "hints": [
+          "Follow the example line by line: each task has a matching line there.",
+          "Put parentheses around every ternary you print, like `(n == 1 ? \"file\" : \"files\")`.",
+          "For the sign, put a second ternary in parentheses as the false branch of the first: `x > 0 ? '+' : (...)`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `switch (value)` jumps to the matching `case`. Labels must be constants, and the value must be an integer, `char`, or enum, never a `std::string` or `double`.\n- End each case with `break`. A missing `break` falls through, so mark intentional fallthrough with `[[fallthrough]];`.\n- Stack labels like `case 'y': case 'Y':` to share a body, and brace a case body that declares a variable.\n- `enum class Name { A, B };` makes scoped values used as `Name::A`. They need `static_cast<int>` to become numbers.\n- `cond ? a : b` is an expression: it can initialize a `const`, needs parentheses inside `std::cout`, and needs compatible types in both branches.\n- Nest a ternary one level at most. Use `if` / `else` when the branches do work."
+}

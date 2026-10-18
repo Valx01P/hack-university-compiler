@@ -1,0 +1,153 @@
+{
+  "id": "bitwise",
+  "title": "Bitwise Operations",
+  "section": "Bits and Errors",
+  "summary": "Work with the bits of integers using &, |, ^, ~, and shifts, and use bitmasks for flags and subsets.",
+  "intro": "Every integer is stored as a row of bits. C++ gives you operators that work on those bits directly, which makes flags, parity checks, and walking through every subset of a small set fast and compact.",
+  "steps": [
+    {
+      "title": "Seeing bits with std::bitset",
+      "body": "`std::bitset<N>` from `<bitset>` holds exactly N bits and prints them as 0s and 1s, so it is the easiest way to see a number in binary. `std::bitset<8>(x)` keeps the lowest 8 bits of `x`.\n\n```cpp\nstd::cout << std::bitset<8>(5) << '\\n';    // 00000101\nstd::cout << 0b1010 << '\\n';               // 10, a binary literal\nstd::cout << 0xFF << '\\n';                 // 255, a hex literal\nstd::cout << std::bitset<8>(255).count();  // 8 bits are 1\n```\n\nYou can write literals in binary with `0b` and in hex with `0x`, but `std::cout` still prints them in decimal. Each hex digit stands for exactly 4 bits, so `0xFF` is `11111111`. `count()` returns how many bits are 1, as a `std::size_t`.\n\nAn `int` is 4 bytes, so it holds 32 bits. Bit 0 is the rightmost and is worth 1, and bit k is worth 2 to the k. `std::bitset<32>(x)` shows all of them. A local bitset is a small fixed-size value that lives on the stack, so building one just to print it costs almost nothing.\n\n> Gotcha: `std::bitset<8>(300)` silently drops the high bits and prints `00101100`. Pick N large enough for your values.",
+      "example": {
+        "title": "Binary views",
+        "prompt": "Print three numbers as 8-bit binary, a binary and a hex literal in decimal, the number of 1 bits in 255, and the width of an int in bits.",
+        "code": "#include <bitset>\n#include <iostream>\n\nint main() {\n    const int small = 5;\n    const int dozen = 12;\n    const int full = 255;\n\n    std::cout << std::bitset<8>(small) << '\\n';\n    std::cout << std::bitset<8>(dozen) << '\\n';\n    std::cout << std::bitset<8>(full) << '\\n';\n    std::cout << 0b1010 << ' ' << 0xFF << '\\n';\n    std::cout << std::bitset<8>(full).count() << '\\n';\n    std::cout << sizeof(int) * 8 << '\\n';\n    return 0;\n}\n",
+        "output": "00000101\n00001100\n11111111\n10 255\n8\n32",
+        "explanation": "`std::bitset<8>(x)` prints the lowest 8 bits of `x`, padded with leading zeros. The literals `0b1010` and `0xFF` are plain ints, so they print as 10 and 255. `count()` reports that all 8 bits of 255 are 1, and `sizeof(int) * 8` turns 4 bytes into 32 bits."
+      },
+      "practice": {
+        "title": "Byte inspector",
+        "prompt": "Show a byte in binary and count its 1 bits.\n\n1. Read an integer `x` from 0 to 255.\n2. Print `x` as 8-bit binary with `std::bitset<8>`.\n3. Print how many bits of `x` are 1.\n\nInput:\n\n```text\n37\n```\n\nExpected output:\n\n```text\n00100101\n3\n```",
+        "starter": "#include <bitset>\n#include <iostream>\n\nint main() {\n    int x = 0;\n    std::cin >> x;\n    // TODO: print x as 8-bit binary, then how many of its bits are 1\n    return 0;\n}\n",
+        "solution": "#include <bitset>\n#include <iostream>\n\nint main() {\n    int x = 0;\n    std::cin >> x;\n    const std::bitset<8> bits(x);\n    std::cout << bits << '\\n';\n    std::cout << bits.count() << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "37\n",
+            "output": "00100101\n3"
+          },
+          {
+            "stdin": "0\n",
+            "output": "00000000\n0"
+          },
+          {
+            "stdin": "255\n",
+            "output": "11111111\n8"
+          }
+        ],
+        "hints": [
+          "Build one `std::bitset<8>` from `x` and use it for both lines.",
+          "A bitset's `count()` returns how many of its bits are 1."
+        ]
+      }
+    },
+    {
+      "title": "AND, OR, XOR, and NOT",
+      "body": "Bitwise operators combine two numbers bit by bit. With `a = 12` (`1100`) and `b = 10` (`1010`):\n\n- `a & b` (AND) keeps bits set in both: `1000`, which is 8.\n- `a | b` (OR) keeps bits set in either: `1110`, which is 14.\n- `a ^ b` (XOR) keeps bits that differ: `0110`, which is 6. It is not a power.\n- `~a` (NOT) flips all 32 bits.\n\nNegative ints use two's complement, where `-x` equals `~x + 1`. So `~5` is -6 and `~12` is -13.\n\nTwo tricks show up everywhere. `x & 1` is the lowest bit, so it is 1 exactly when `x` is odd, even for negative numbers where `x % 2` gives -1. `x & (x - 1)` clears the lowest set bit. A power of two has a single 1 bit, so it becomes 0. The `x > 0` test rules out 0 and negatives:\n\n```cpp\nbool isPowerOfTwo(int x) {\n    return x > 0 && (x & (x - 1)) == 0;\n}\n```\n\n> Gotcha: `&`, `|`, and `^` bind more loosely than `==` and `<<`. `x & 1 == 0` means `x & (1 == 0)`, which is always 0. Parenthesize every bitwise expression: `(x & 1) == 0` and `std::cout << (a & b)`.",
+      "example": {
+        "title": "Bit operators on 12 and 10",
+        "prompt": "Apply AND, OR, XOR, and NOT to 12 and 10, clear the lowest set bit of 96, and classify four numbers as odd or even and as powers of two.",
+        "code": "#include <bitset>\n#include <iostream>\n#include <vector>\n\nbool isPowerOfTwo(int x) {\n    return x > 0 && (x & (x - 1)) == 0;\n}\n\nint main() {\n    const int a = 12;\n    const int b = 10;\n    std::cout << \"a & b = \" << (a & b) << ' ' << std::bitset<4>(a & b) << '\\n';\n    std::cout << \"a | b = \" << (a | b) << ' ' << std::bitset<4>(a | b) << '\\n';\n    std::cout << \"a ^ b = \" << (a ^ b) << ' ' << std::bitset<4>(a ^ b) << '\\n';\n    std::cout << \"~a = \" << ~a << '\\n';\n    std::cout << \"96 & 95 = \" << (96 & 95) << '\\n';\n\n    std::cout << std::boolalpha;\n    const std::vector<int> nums = {7, 10, 64, 96};\n    for (int x : nums) {\n        const bool odd = (x & 1) == 1;\n        std::cout << x << \": \" << (odd ? \"odd\" : \"even\")\n                  << \", power of two: \" << isPowerOfTwo(x) << '\\n';\n    }\n    return 0;\n}\n",
+        "output": "a & b = 8 1000\na | b = 14 1110\na ^ b = 6 0110\n~a = -13\n96 & 95 = 64\n7: odd, power of two: false\n10: even, power of two: false\n64: even, power of two: true\n96: even, power of two: false",
+        "explanation": "Each operator compares `1100` and `1010` column by column, and `std::bitset<4>` shows the result. `~a` flips all 32 bits of 12, which in two's complement is -13. 96 is `1100000`, so `96 & 95` drops its lowest 1 bit and leaves 64. `(x & 1) == 1` checks the last bit for oddness, and `isPowerOfTwo` is true only for 64, the one number with a single 1 bit. Every `&`, `|`, and `^` expression is in parentheses so `<<` and `==` cannot grab its operands first. Unary `~` binds tightly, so `~a` needs none."
+      },
+      "practice": {
+        "title": "Two byte report",
+        "prompt": "Combine two bytes with every bitwise operator and classify each one.\n\n1. Read two integers `a` and `b`, each from 0 to 255.\n2. Print `AND: `, `OR: `, and `XOR: ` lines, each with the result in decimal, a space, and the result as 8-bit binary.\n3. Print `NOT a: ` followed by `~a` in decimal.\n4. For `a` and then `b`, print the number, `: `, `odd` or `even`, then `, power of two: ` and `true` or `false`.\n\nInput:\n\n```text\n9 8\n```\n\nExpected output:\n\n```text\nAND: 8 00001000\nOR: 9 00001001\nXOR: 1 00000001\nNOT a: -10\n9: odd, power of two: false\n8: even, power of two: true\n```",
+        "starter": "#include <bitset>\n#include <iostream>\n#include <vector>\n\nbool isPowerOfTwo(int x) {\n    // TODO: return true when x is a power of two\n    return false;\n}\n\nint main() {\n    int a = 0;\n    int b = 0;\n    std::cin >> a >> b;\n    // TODO: print AND, OR, XOR (decimal and 8-bit binary), then NOT a\n    // TODO: for a and then b, print odd or even and the power of two check\n    return 0;\n}\n",
+        "solution": "#include <bitset>\n#include <iostream>\n#include <vector>\n\nbool isPowerOfTwo(int x) {\n    return x > 0 && (x & (x - 1)) == 0;\n}\n\nint main() {\n    int a = 0;\n    int b = 0;\n    std::cin >> a >> b;\n    std::cout << \"AND: \" << (a & b) << ' ' << std::bitset<8>(a & b) << '\\n';\n    std::cout << \"OR: \" << (a | b) << ' ' << std::bitset<8>(a | b) << '\\n';\n    std::cout << \"XOR: \" << (a ^ b) << ' ' << std::bitset<8>(a ^ b) << '\\n';\n    std::cout << \"NOT a: \" << ~a << '\\n';\n\n    std::cout << std::boolalpha;\n    const std::vector<int> nums = {a, b};\n    for (int x : nums) {\n        const bool odd = (x & 1) == 1;\n        std::cout << x << \": \" << (odd ? \"odd\" : \"even\")\n                  << \", power of two: \" << isPowerOfTwo(x) << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "9 8\n",
+            "output": "AND: 8 00001000\nOR: 9 00001001\nXOR: 1 00000001\nNOT a: -10\n9: odd, power of two: false\n8: even, power of two: true"
+          },
+          {
+            "stdin": "0 255\n",
+            "output": "AND: 0 00000000\nOR: 255 11111111\nXOR: 255 11111111\nNOT a: -1\n0: even, power of two: false\n255: odd, power of two: false"
+          },
+          {
+            "stdin": "1 64\n",
+            "output": "AND: 0 00000000\nOR: 65 01000001\nXOR: 65 01000001\nNOT a: -2\n1: odd, power of two: true\n64: even, power of two: true"
+          }
+        ],
+        "hints": [
+          "Wrap each operation in parentheses before printing: `std::cout << (a & b)`.",
+          "`~a` is `-(a + 1)` in two's complement, so 9 becomes -10.",
+          "0 is not a power of two, which is why the check starts with `x > 0`. 1 is 2 to the 0, so it counts."
+        ]
+      }
+    },
+    {
+      "title": "Shifts and single-bit tricks",
+      "body": "`x << k` shifts the bits left by k places and fills with zeros, which multiplies by 2 to the k. `x >> k` shifts right and divides by 2 to the k, dropping the remainder, for non-negative `x`. A negative `x` rounds down instead, so `-7 >> 1` is -4 while `-7 / 2` is -3. That makes `1 << k` a mask with only bit k set, and four one-liners handle any single bit:\n\n```cpp\nconst bool on = (x >> k) & 1;  // test bit k\nx = x | (1 << k);              // set bit k\nx = x & ~(1 << k);             // clear bit k\nx = x ^ (1 << k);              // toggle bit k\n```\n\nThe compound forms `x |= mask`, `x &= ~mask`, and `x ^= mask` change `x` in place. A bit test needs no `== 1`: `if ((x >> k) & 1)` works directly as a condition, because nonzero is true. One int can pack 32 on or off flags this way.\n\n> Gotcha: the literal `1` is an `int`. `1 << 31` lands on the sign bit and comes out negative, and shifting by 32 or more is undefined behavior. For bit 31 and above, shift a 64-bit value with `1LL << k`, and give the mask the same type as `x`. Shifting a negative number left is also undefined, so shift non-negative values.",
+      "example": {
+        "title": "Flag register",
+        "prompt": "Set, test, clear, and toggle bits of a flags variable, printing it as 8-bit binary after each change, then show shifts as multiplication and division.",
+        "code": "#include <bitset>\n#include <iostream>\n\nint main() {\n    int flags = 0;\n    flags |= (1 << 0);\n    std::cout << \"set 0: \" << std::bitset<8>(flags) << '\\n';\n    flags |= (1 << 3);\n    std::cout << \"set 3: \" << std::bitset<8>(flags) << '\\n';\n    std::cout << \"bit 3: \" << ((flags >> 3) & 1) << '\\n';\n    flags &= ~(1 << 0);\n    std::cout << \"clear 0: \" << std::bitset<8>(flags) << '\\n';\n    flags ^= (1 << 1);\n    std::cout << \"toggle 1: \" << std::bitset<8>(flags) << '\\n';\n\n    std::cout << \"3 << 4 = \" << (3 << 4) << '\\n';\n    std::cout << \"100 >> 2 = \" << (100 >> 2) << '\\n';\n    std::cout << \"1LL << 40 = \" << (1LL << 40) << '\\n';\n    return 0;\n}\n",
+        "output": "set 0: 00000001\nset 3: 00001001\nbit 3: 1\nclear 0: 00001000\ntoggle 1: 00001010\n3 << 4 = 48\n100 >> 2 = 25\n1LL << 40 = 1099511627776",
+        "explanation": "`flags |= (1 << 3)` turns on bit 3 without touching the others, and `(flags >> 3) & 1` moves bit 3 to position 0 and keeps only it. `~(1 << 0)` is all ones except bit 0, so `&=` clears just that bit, and `^=` flips bit 1 from 0 to 1. `3 << 4` is 3 times 16 and `100 >> 2` is 100 divided by 4. `1LL << 40` needs a 64-bit left side, because an int has only 32 bits."
+      },
+      "practice": {
+        "title": "Bit editor",
+        "prompt": "Inspect and change one bit of a 64-bit number in three ways.\n\n1. Read a `long long` `x` (not negative) and a bit position `k` from 0 to 50.\n2. Print `bit k: ` followed by the original bit k of `x` (0 or 1), with the real position in place of k.\n3. Print `set: `, `cleared: `, and `toggled: ` lines with `x` after setting, clearing, and toggling bit k, in decimal. Each one starts from the original `x`.\n4. Build the mask with `1LL << k` so positions above 30 work.\n\nInput:\n\n```text\n37 2\n```\n\nExpected output:\n\n```text\nbit 2: 1\nset: 37\ncleared: 33\ntoggled: 33\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    long long x = 0;\n    int k = 0;\n    std::cin >> x >> k;\n    // TODO: build a mask for bit k with 1LL << k\n    // TODO: print bit k of x, then x with bit k set, cleared, and toggled\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    long long x = 0;\n    int k = 0;\n    std::cin >> x >> k;\n    const long long mask = 1LL << k;\n    std::cout << \"bit \" << k << \": \" << ((x >> k) & 1) << '\\n';\n    std::cout << \"set: \" << (x | mask) << '\\n';\n    std::cout << \"cleared: \" << (x & ~mask) << '\\n';\n    std::cout << \"toggled: \" << (x ^ mask) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "37 2\n",
+            "output": "bit 2: 1\nset: 37\ncleared: 33\ntoggled: 33"
+          },
+          {
+            "stdin": "37 4\n",
+            "output": "bit 4: 0\nset: 53\ncleared: 37\ntoggled: 53"
+          },
+          {
+            "stdin": "1099511627781 40\n",
+            "output": "bit 40: 1\nset: 1099511627781\ncleared: 5\ntoggled: 5"
+          }
+        ],
+        "hints": [
+          "Store the mask once: `const long long mask = 1LL << k;`.",
+          "The body's set, clear, and toggle one-liners work here with `mask` in place of `1 << k`. Wrap each one in parentheses when you print it.",
+          "For the original bit, move bit k down to position 0 with `>>`, then keep only that bit with `& 1`."
+        ]
+      }
+    },
+    {
+      "title": "Bitmasks for subsets",
+      "body": "With n items, a subset is one yes or no choice per item, which is exactly n bits. So the integers from 0 to `(1 << n) - 1` list every subset once, and bit i of `mask` says whether item i is in it:\n\n```cpp\nfor (int mask = 0; mask < (1 << n); ++mask) {\n    for (int i = 0; i < n; ++i) {\n        if ((mask >> i) & 1) {\n            // item i is in this subset\n        }\n    }\n}\n```\n\nFor items a, b, c, mask 5 is `101`, so it picks a and c. `__builtin_popcount(mask)` is a g++ built-in that counts the 1 bits of an `unsigned int`, which is the size of the subset. `std::popcount` is C++20 and not available here, though `std::bitset::count` gives the same number. For a `long long` mask use `__builtin_popcountll`.\n\nNothing is stored per subset: each one is just an int on the stack, decoded on the fly. The cost is O(2^n * n) work, which is instant for n up to about 20 and far too slow past about 30. With an `int` mask, `1 << n` only works up to n of 30.",
+      "example": {
+        "title": "Every subset of three letters",
+        "prompt": "List all 8 subsets of a, b, and c using masks 0 to 7, each with its size.",
+        "code": "#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::vector<std::string> items = {\"a\", \"b\", \"c\"};\n    const int n = static_cast<int>(items.size());\n    for (int mask = 0; mask < (1 << n); ++mask) {\n        std::cout << '{';\n        bool first = true;\n        for (int i = 0; i < n; ++i) {\n            if ((mask >> i) & 1) {\n                if (!first) {\n                    std::cout << \", \";\n                }\n                std::cout << items[i];\n                first = false;\n            }\n        }\n        std::cout << \"} size \" << __builtin_popcount(mask) << '\\n';\n    }\n    return 0;\n}\n",
+        "output": "{} size 0\n{a} size 1\n{b} size 1\n{a, b} size 2\n{c} size 1\n{a, c} size 2\n{b, c} size 2\n{a, b, c} size 3",
+        "explanation": "With n = 3, `1 << n` is 8, so masks 0 through 7 cover every subset. The inner loop prints item i whenever bit i of the mask is 1, so mask 5 (`101`) prints `{a, c}`. `__builtin_popcount(mask)` counts the 1 bits, which is the number of items chosen. The `first` flag puts `, ` between items but not before the first one."
+      },
+      "practice": {
+        "title": "Exact weight combos",
+        "prompt": "Find every group of weights that adds up exactly to a target.\n\n1. Read `n` (1 to 15), then `n` weights, then a target of at least 1.\n2. Try every mask from 0 to `(1 << n) - 1` in increasing order, where weight i is in the subset when `(mask >> i) & 1`.\n3. For each subset whose weights sum to the target, print `size `, its size from `__builtin_popcount`, `: `, then its weights in index order joined by ` + `.\n4. Finally print `count: ` followed by how many subsets matched.\n\nInput:\n\n```text\n5\n2 3 5 7 8\n10\n```\n\nExpected output:\n\n```text\nsize 3: 2 + 3 + 5\nsize 2: 3 + 7\nsize 2: 2 + 8\ncount: 3\n```",
+        "starter": "#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> weights(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> weights[i];\n    }\n    int target = 0;\n    std::cin >> target;\n    // TODO: loop over every mask, sum the chosen weights, and print the matches\n    // TODO: print count: followed by the number of matches\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> weights(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> weights[i];\n    }\n    int target = 0;\n    std::cin >> target;\n\n    int matches = 0;\n    for (int mask = 0; mask < (1 << n); ++mask) {\n        int total = 0;\n        for (int i = 0; i < n; ++i) {\n            if ((mask >> i) & 1) {\n                total += weights[i];\n            }\n        }\n        if (total != target) {\n            continue;\n        }\n        ++matches;\n        std::cout << \"size \" << __builtin_popcount(mask) << \": \";\n        bool first = true;\n        for (int i = 0; i < n; ++i) {\n            if ((mask >> i) & 1) {\n                if (!first) {\n                    std::cout << \" + \";\n                }\n                std::cout << weights[i];\n                first = false;\n            }\n        }\n        std::cout << '\\n';\n    }\n    std::cout << \"count: \" << matches << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "5\n2 3 5 7 8\n10\n",
+            "output": "size 3: 2 + 3 + 5\nsize 2: 3 + 7\nsize 2: 2 + 8\ncount: 3"
+          },
+          {
+            "stdin": "3\n4 6 9\n5\n",
+            "output": "count: 0"
+          },
+          {
+            "stdin": "4\n1 1 2 2\n4\n",
+            "output": "size 3: 1 + 1 + 2\nsize 3: 1 + 1 + 2\nsize 2: 2 + 2\ncount: 3"
+          }
+        ],
+        "hints": [
+          "For each mask, add up `weights[i]` for every i where `(mask >> i) & 1` is true.",
+          "Skip the mask with `continue` when the total is not the target, otherwise count it and print it.",
+          "Print the weights with a second loop over i, putting ` + ` before every weight except the first."
+        ]
+      }
+    }
+  ],
+  "recap": "- `std::bitset<N>(x)` from `<bitset>` prints the lowest N bits of `x`, and `count()` counts the 1 bits.\n- `0b1010` is a binary literal and `0xFF` a hex literal. Both print in decimal. An `int` has 32 bits.\n- `&` keeps bits set in both, `|` in either, `^` where they differ, and `~` flips every bit. `^` is XOR, not a power.\n- Two's complement makes `~x` equal to `-x - 1`, so `~5` is -6.\n- `(x & 1) == 1` tests for odd, `x & (x - 1)` clears the lowest set bit, and `x > 0 && (x & (x - 1)) == 0` checks for a power of two.\n- Bitwise operators bind more loosely than `==` and `<<`, so always parenthesize them.\n- `x << k` multiplies by 2 to the k and `x >> k` divides by it for non-negative `x`.\n- With `mask = 1 << k`: test with `(x >> k) & 1`, set with `x | mask`, clear with `x & ~mask`, toggle with `x ^ mask`.\n- Use `1LL << k` for bit 31 and above, never shift by 32 or more on an int, and never shift a negative number left.\n- Masks 0 to `(1 << n) - 1` list every subset of n items, item i is in when `(mask >> i) & 1`, and `__builtin_popcount(mask)` gives the size."
+}

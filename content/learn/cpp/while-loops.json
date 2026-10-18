@@ -1,0 +1,89 @@
+{
+  "id": "while-loops",
+  "title": "While and Do-While Loops",
+  "section": "Control Flow",
+  "summary": "Loop while a condition holds, take numbers apart digit by digit, and use do-while and while (true) with break.",
+  "intro": "A `for` loop fits when you know the count up front. When you only know the stopping point, use `while`. This lesson covers `while`, digit loops with `% 10` and `/ 10`, `do-while`, and `while (true)` with `break`.",
+  "steps": [
+    {
+      "title": "Looping while a condition holds",
+      "body": "`while (condition) { }` checks the condition, runs the body if it is true, then checks again. It stops the first time the condition is false. Reach for it when you know *when to stop* but not *how many times* the loop will run.\n\n```cpp\nint n = 40;\nwhile (n > 5) {\n    n /= 2;  // the update: 20, 10, 5\n}\n```\n\nUnlike `for`, the update lives inside the body, so it is yours to write. The body must move the variable toward making the condition false. Forget `n /= 2` and `n > 5` stays true forever. In the sandbox that runaway loop is killed at the 10 second limit.\n\nWatch for a stray semicolon too: `while (n > 5);` has an empty body, so nothing ever changes `n` and the loop never ends.\n\n`continue` is a trap here too. In a `for` it still runs the update, but in a `while` it jumps straight back to the condition and skips any update below it, so the loop can get stuck.\n\nTo count iterations, keep a counter declared before the loop and bump it with `++steps` inside.",
+      "example": {
+        "title": "Halving to one",
+        "prompt": "Halve 1000 with integer division until it reaches 1, printing every value on one line and then the number of steps.",
+        "code": "#include <iostream>\n\nint main() {\n    int n = 1000;\n    int steps = 0;\n    std::cout << n;\n    while (n > 1) {\n        n /= 2;\n        ++steps;\n        std::cout << ' ' << n;\n    }\n    std::cout << '\\n';\n    std::cout << \"Steps: \" << steps << '\\n';\n    return 0;\n}\n",
+        "output": "1000 500 250 125 62 31 15 7 3 1\nSteps: 9",
+        "explanation": "The loop runs while `n > 1`. Each pass halves `n` with `n /= 2`, which truncates (125 becomes 62), adds 1 to `steps`, and prints a space then the new value. When `n` becomes 1 the condition is false and the loop ends after 9 steps. Nobody had to know the count 9 in advance: the condition decided it."
+      },
+      "practice": {
+        "title": "Collatz steps",
+        "prompt": "Follow the Collatz rule from 6 until it reaches 1, printing every value and then the number of steps.\n\n1. Loop with `while (n > 1)`.\n2. If `n` is even, halve it. Otherwise set it to `3 * n + 1`.\n3. Add 1 to `steps` and print a space then the new `n` on each pass.\n4. Keep the starter's first print and the `Steps:` line.\n\nExpected output:\n\n```text\n6 3 10 5 16 8 4 2 1\nSteps: 8\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    int n = 6;\n    int steps = 0;\n    std::cout << n;\n    // TODO: while n is greater than 1, apply the Collatz rule, add 1 to steps, and print ' ' then n\n    std::cout << '\\n';\n    std::cout << \"Steps: \" << steps << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    int n = 6;\n    int steps = 0;\n    std::cout << n;\n    while (n > 1) {\n        if (n % 2 == 0) {\n            n /= 2;\n        } else {\n            n = 3 * n + 1;\n        }\n        ++steps;\n        std::cout << ' ' << n;\n    }\n    std::cout << '\\n';\n    std::cout << \"Steps: \" << steps << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "6 3 10 5 16 8 4 2 1\nSteps: 8"
+          }
+        ],
+        "hints": [
+          "Test for even with `n % 2 == 0` inside an if / else in the loop body.",
+          "Both branches change `n`, so the loop always moves on. Put `++steps;` and `std::cout << ' ' << n;` after the if / else."
+        ]
+      }
+    },
+    {
+      "title": "Digits with % 10 and / 10",
+      "body": "A `while` loop can take a whole number apart one digit at a time. Two integer operations do the work:\n\n- `n % 10` is the last digit: `4096 % 10` is 6.\n- `n / 10` drops the last digit: `4096 / 10` is 409, because int division truncates.\n\nRepeat until `n` reaches 0. To build a reversed number, shift the result one place left and add the digit: `r = r * 10 + digit` gives 6, 69, 690, 6904.\n\n```cpp\nconst int original = 4096;\nint n = original;  // a copy: original keeps 4096\nwhile (n > 0) {\n    const int digit = n % 10;\n    n /= 10;\n}\n```\n\nThe loop destroys `n`, so save the original first when you need it later. `int n = original;` copies the value into a separate `int` with its own 4 bytes, so shrinking `n` never touches `original`. Reset the copy before a second loop.\n\nGotchas: a digit product starts at 1, not 0. Reversing drops trailing zeros (1200 becomes 21) and can overflow `int` for large numbers. For a negative `n`, `n % 10` is negative and `n > 0` is false, so these loops handle zero and positive numbers only.",
+      "example": {
+        "title": "Digit sum and palindrome check",
+        "prompt": "Sum the digits of 4096, reverse it, and compare the reversed number with a saved copy of the original.",
+        "code": "#include <iostream>\n\nint main() {\n    const int original = 4096;\n\n    int n = original;\n    int digitSum = 0;\n    while (n > 0) {\n        digitSum += n % 10;\n        n /= 10;\n    }\n    std::cout << \"Digit sum: \" << digitSum << '\\n';\n\n    n = original;\n    int reversed = 0;\n    while (n > 0) {\n        const int digit = n % 10;\n        reversed = reversed * 10 + digit;\n        n /= 10;\n    }\n    std::cout << \"Reversed: \" << reversed << '\\n';\n\n    if (reversed == original) {\n        std::cout << original << \" is a palindrome\\n\";\n    } else {\n        std::cout << original << \" is not a palindrome\\n\";\n    }\n    return 0;\n}\n",
+        "output": "Digit sum: 19\nReversed: 6904\n4096 is not a palindrome",
+        "explanation": "`original` holds 4096 and never changes. The first loop adds 6, 9, 0, 4 to `digitSum` while `n` shrinks to 409, 40, 4, 0. Since that loop left `n` at 0, `n = original;` restores it. The second loop builds `reversed` as 6, 69, 690, 6904. Comparing 6904 with the saved 4096 gives the not a palindrome branch."
+      },
+      "practice": {
+        "title": "Digit product and palindrome",
+        "prompt": "Multiply the digits of 2345, then reverse 12321 and check whether it is a palindrome.\n\n1. Loop while `value > 0`, multiplying `digitProduct` by `value % 10` and then dropping the last digit.\n2. Loop while `n > 0`, building `reversed` with `reversed = reversed * 10 + digit`.\n3. If `reversed` equals `original`, print `12321 is a palindrome`, otherwise print `12321 is not a palindrome`, using `original` for the number.\n\nExpected output:\n\n```text\nDigit product: 120\nReversed: 12321\n12321 is a palindrome\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    int value = 2345;\n    int digitProduct = 1;\n    // TODO: multiply digitProduct by each digit of value\n    std::cout << \"Digit product: \" << digitProduct << '\\n';\n\n    const int original = 12321;\n    int n = original;\n    int reversed = 0;\n    // TODO: build reversed from the digits of n\n    std::cout << \"Reversed: \" << reversed << '\\n';\n\n    // TODO: compare reversed with original and print the palindrome line\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    int value = 2345;\n    int digitProduct = 1;\n    while (value > 0) {\n        digitProduct *= value % 10;\n        value /= 10;\n    }\n    std::cout << \"Digit product: \" << digitProduct << '\\n';\n\n    const int original = 12321;\n    int n = original;\n    int reversed = 0;\n    while (n > 0) {\n        const int digit = n % 10;\n        reversed = reversed * 10 + digit;\n        n /= 10;\n    }\n    std::cout << \"Reversed: \" << reversed << '\\n';\n\n    if (reversed == original) {\n        std::cout << original << \" is a palindrome\\n\";\n    } else {\n        std::cout << original << \" is not a palindrome\\n\";\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Digit product: 120\nReversed: 12321\n12321 is a palindrome"
+          }
+        ],
+        "hints": [
+          "`digitProduct` starts at 1 because a product that starts at 0 stays 0. Multiply by the last digit before you drop it.",
+          "Compare against `original`, not `n`: after the reverse loop `n` is 0."
+        ]
+      }
+    },
+    {
+      "title": "do-while and while (true)",
+      "body": "`do { } while (condition);` runs the body first and checks the condition after, so the body always runs at least once. The semicolon after the closing parenthesis is required.\n\nThat fixes counting digits. With a plain `while (n > 0)`, the number 0 never enters the loop and reports 0 digits. A do-while counts one digit before it checks:\n\n```cpp\nint n = 0;\nint digits = 0;\ndo {\n    ++digits;\n    n /= 10;\n} while (n > 0);  // digits is 1\n```\n\nWhen the stop test belongs in the middle of the body, write `while (true)` and leave with `break`. It reads well for searches: keep trying the next value until one fits.\n\n```cpp\nint x = 1;\nwhile (true) {\n    if (x * x > 50) {\n        break;  // x is 8\n    }\n    ++x;\n}\n```\n\nEvery `while (true)` needs a `break` that is sure to run, or it is an infinite loop. `break` only leaves the innermost loop, just as in a `for`.",
+      "example": {
+        "title": "Digits of zero and a power of 2",
+        "prompt": "Count the digits of 0 with do-while, then use while (true) with break to find the first power of 2 above 1000.",
+        "code": "#include <iostream>\n\nint main() {\n    const int original = 0;\n    int n = original;\n    int digits = 0;\n    do {\n        ++digits;\n        n /= 10;\n    } while (n > 0);\n    std::cout << \"Digits in \" << original << \": \" << digits << '\\n';\n\n    int power = 1;\n    while (true) {\n        power *= 2;\n        if (power > 1000) {\n            break;\n        }\n    }\n    std::cout << \"First power of 2 above 1000: \" << power << '\\n';\n    return 0;\n}\n",
+        "output": "Digits in 0: 1\nFirst power of 2 above 1000: 1024",
+        "explanation": "The do-while body runs once before the check: `digits` becomes 1 and `n` stays 0, then `n > 0` is false, so it stops with the right answer. The second loop has no condition of its own. Each pass doubles `power` and the `if` inside decides when to leave: 512 is not above 1000, so it doubles once more to 1024 and `break` exits."
+      },
+      "practice": {
+        "title": "Digit counts and a square search",
+        "prompt": "Count the digits of 0 and of 70500 with do-while, then find the smallest x where x * x is greater than 500.\n\n1. Count the digits of `first` with a do-while loop that adds 1 to `digits` and drops a digit with `n /= 10`.\n2. Do the same for `second`, which the starter already copied into `n`.\n3. Use `while (true)`: break when `x * x > 500`, otherwise add 1 to `x`.\n\nExpected output:\n\n```text\nDigits in 0: 1\nDigits in 70500: 5\nSmallest x with x * x > 500: 23\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    const int first = 0;\n    int n = first;\n    int digits = 0;\n    // TODO: count the digits of n with a do-while loop\n    std::cout << \"Digits in \" << first << \": \" << digits << '\\n';\n\n    const int second = 70500;\n    n = second;\n    digits = 0;\n    // TODO: count the digits of n with a do-while loop\n    std::cout << \"Digits in \" << second << \": \" << digits << '\\n';\n\n    int x = 1;\n    // TODO: use while (true) and break to stop at the first x where x * x > 500\n    std::cout << \"Smallest x with x * x > 500: \" << x << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    const int first = 0;\n    int n = first;\n    int digits = 0;\n    do {\n        ++digits;\n        n /= 10;\n    } while (n > 0);\n    std::cout << \"Digits in \" << first << \": \" << digits << '\\n';\n\n    const int second = 70500;\n    n = second;\n    digits = 0;\n    do {\n        ++digits;\n        n /= 10;\n    } while (n > 0);\n    std::cout << \"Digits in \" << second << \": \" << digits << '\\n';\n\n    int x = 1;\n    while (true) {\n        if (x * x > 500) {\n            break;\n        }\n        ++x;\n    }\n    std::cout << \"Smallest x with x * x > 500: \" << x << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Digits in 0: 1\nDigits in 70500: 5\nSmallest x with x * x > 500: 23"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the example's do-while: add 1 to `digits`, drop a digit, then test `n > 0` after the body.",
+          "Check before you add: test `x * x > 500` first, then `++x`, so `x` holds the answer when you break.",
+          "The zeros inside 70500 still count as digits because the loop runs until `n` itself is 0."
+        ]
+      }
+    }
+  ],
+  "recap": "- `while (condition) { }` checks first and repeats while the condition is true.\n- Update the loop variable in the body, or the loop never ends and hits the time limit.\n- `n % 10` is the last digit and `n /= 10` drops it.\n- Build a reversed number with `r = r * 10 + digit`.\n- Digit loops destroy `n`, so copy the original first.\n- `do { } while (condition);` runs the body at least once, so 0 counts as 1 digit.\n- `while (true)` with `break` stops from the middle of the body."
+}

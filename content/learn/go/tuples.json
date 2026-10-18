@@ -1,0 +1,91 @@
+{
+  "id": "tuples",
+  "title": "Tuples: Multiple Returns and Structs",
+  "section": "Collections",
+  "summary": "Go has no tuples, so return several values, group values in structs, and use arrays and structs as map keys.",
+  "intro": "Python writes `(3, 4)` and calls it a tuple. Go has no tuples. It has three replacements instead: multiple return values when a function hands back several results (`q, r := divmod(17, 5)`, which you already know), a **struct** when named values travel together, and a fixed-size array such as `[2]int` for a small group of one type. Arrays and structs can be compared with `==`, so both also work as map keys. You met the empty `struct{}` in the sets lesson. Here structs get fields.",
+  "steps": [
+    {
+      "title": "Grouping values with a struct",
+      "body": "A struct type gives a group of values one name. Each value is a **field** with its own name and type. gofmt keeps a struct on one line only when it has a single field line, otherwise it puts one field per line:\n\n```go\ntype Point struct{ X, Y int }\n\ntype Team struct {\n\tName    string\n\tMembers []string\n}\n```\n\nBuild a value with field names, `Point{X: 1, Y: 2}`, or positionally, `Point{1, 2}`. A positional literal must list every field in order and breaks when a field is added, so prefer field names for anything but tiny types. Read and write fields with a dot: `p.X = 5`. `var p Point` gives every field its zero value, `{0 0}`, and a struct is never nil.\n\n`%v` prints the values, `{1 2}`, and `%+v` adds the names, `{X:1 Y:2}`.\n\n### Memory\n\nA struct's fields sit side by side in one block of memory, and assigning a struct copies every field, just like an array. The gotcha: the copy is **shallow**. A slice field copies only its header, so the copy still points at the same elements, and a map field shares the same map. Field order can also change the size because of padding: `{bool, int64, bool}` takes 24 bytes while `{int64, bool, bool}` takes 16.",
+      "example": {
+        "title": "Points and teams",
+        "prompt": "Copy a Point and a Team, change the copies, and print the originals next to them.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Point struct{ X, Y int }\n\ntype Team struct {\n\tName    string\n\tMembers []string\n}\n\nfunc main() {\n\tp := Point{X: 1, Y: 2}\n\tq := p // copies both fields\n\tq.X = 10\n\tfmt.Printf(\"%v %v\\n\", p, q)\n\tfmt.Printf(\"%+v\\n\", p)\n\n\tvar origin Point\n\tfmt.Printf(\"%+v\\n\", origin)\n\tr := Point{3, 4}\n\tfmt.Println(r.X + r.Y)\n\n\tred := Team{Name: \"Red\", Members: []string{\"Ann\", \"Ben\"}}\n\tblue := red\n\tblue.Name = \"Blue\"\n\tblue.Members[0] = \"Zoe\" // same backing array as red.Members\n\tfmt.Printf(\"%+v\\n\", red)\n\tfmt.Printf(\"%+v\\n\", blue)\n}\n",
+        "output": "{1 2} {10 2}\n{X:1 Y:2}\n{X:0 Y:0}\n7\n{Name:Red Members:[Zoe Ben]}\n{Name:Blue Members:[Zoe Ben]}",
+        "explanation": "`q := p` copies both ints, so changing `q.X` leaves `p` alone. `var origin Point` starts at `{0 0}`, and `Point{3, 4}` fills fields in order. `blue := red` copies the `Name` string and the slice header, but both headers point at one backing array, so `blue.Members[0] = \"Zoe\"` shows up in `red` too while the names stay separate."
+      },
+      "practice": {
+        "title": "Pairs and boxes",
+        "prompt": "Declare a struct, copy values of two struct types, and show which changes the original sees.\n\n1. Declare `Pair` with the fields `Name string` and `Score int`.\n2. Create `a := Pair{Name: \"Kim\", Score: 70}`, copy it to `b`, set `b.Score` to 85, and print `a` then `b` with `%+v`.\n3. Declare `var empty Pair` and print it with `%+v`.\n4. Create `c := Pair{\"Lee\", 60}` positionally and print `c.Name` with `fmt.Println`.\n5. Copy `crate` to `spare`, set `spare.Label` to `Spare` and `spare.Items[0]` to `hammer`, then print `crate` and `spare` with `%+v`. The starter already prints `crate`.\n\nExpected output:\n\n```text\n{Name:Kim Score:70}\n{Name:Kim Score:85}\n{Name: Score:0}\nLee\n{Label:Tools Items:[hammer drill]}\n{Label:Spare Items:[hammer drill]}\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// TODO: declare the Pair struct here\n\ntype Box struct {\n\tLabel string\n\tItems []string\n}\n\nfunc main() {\n\t// TODO: create, copy, and print the Pair values\n\n\tcrate := Box{Label: \"Tools\", Items: []string{\"saw\", \"drill\"}}\n\t// TODO: copy crate, change the copy, and print both\n\tfmt.Printf(\"%+v\\n\", crate)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Pair struct {\n\tName  string\n\tScore int\n}\n\ntype Box struct {\n\tLabel string\n\tItems []string\n}\n\nfunc main() {\n\ta := Pair{Name: \"Kim\", Score: 70}\n\tb := a\n\tb.Score = 85\n\tfmt.Printf(\"%+v\\n\", a)\n\tfmt.Printf(\"%+v\\n\", b)\n\n\tvar empty Pair\n\tfmt.Printf(\"%+v\\n\", empty)\n\tc := Pair{\"Lee\", 60}\n\tfmt.Println(c.Name)\n\n\tcrate := Box{Label: \"Tools\", Items: []string{\"saw\", \"drill\"}}\n\tspare := crate\n\tspare.Label = \"Spare\"\n\tspare.Items[0] = \"hammer\"\n\tfmt.Printf(\"%+v\\n\", crate)\n\tfmt.Printf(\"%+v\\n\", spare)\n}\n",
+        "tests": [
+          {
+            "output": "{Name:Kim Score:70}\n{Name:Kim Score:85}\n{Name: Score:0}\nLee\n{Label:Tools Items:[hammer drill]}\n{Label:Spare Items:[hammer drill]}"
+          }
+        ],
+        "hints": [
+          "`Name` and `Score` have different types, so they are two field lines, and gofmt puts each one on its own line inside the braces.",
+          "`b := a` makes an independent copy, so `b.Score = 85` does not touch `a`.",
+          "`spare := crate` copies the slice header only, so `spare.Items[0] = \"hammer\"` changes `crate.Items` too."
+        ]
+      }
+    },
+    {
+      "title": "Slices of structs",
+      "body": "A slice of structs is Go's list of records. With a named type, the element literals can drop the type name:\n\n```go\npts := []Point{{1, 2}, {3, 4}}\n```\n\nFor a one-off record you never reuse, write an anonymous struct type right in the slice type:\n\n```go\nplayers := []struct {\n\tName  string\n\tScore int\n}{\n\t{\"Cy\", 88},\n\t{\"Ana\", 95},\n}\n```\n\nThe classic gotcha: the range value is a **copy** of the element. `for _, p := range players { p.Score += 5 }` changes only `p`, a temporary struct, and the slice stays as it was. To change elements, index the slice: `for i := range players { players[i].Score += 5 }`.\n\n`sort.Slice` sorts by any field. Compare the main key first and fall back to a second key on ties, so the order is fully decided:\n\n```go\nsort.Slice(players, func(i, j int) bool {\n\tif players[i].Score != players[j].Score {\n\t\treturn players[i].Score > players[j].Score\n\t}\n\treturn players[i].Name < players[j].Name\n})\n```",
+      "example": {
+        "title": "Leaderboard",
+        "prompt": "Add a 5 point bonus to every player, then print the leaderboard from highest score to lowest, ties by name.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\tplayers := []struct {\n\t\tName  string\n\t\tScore int\n\t}{\n\t\t{\"Cy\", 88},\n\t\t{\"Ana\", 95},\n\t\t{\"Ben\", 88},\n\t}\n\tfor _, p := range players {\n\t\tp.Score += 5 // changes only the copy\n\t}\n\tfmt.Println(players)\n\n\tfor i := range players {\n\t\tplayers[i].Score += 5\n\t}\n\tsort.Slice(players, func(i, j int) bool {\n\t\tif players[i].Score != players[j].Score {\n\t\t\treturn players[i].Score > players[j].Score\n\t\t}\n\t\treturn players[i].Name < players[j].Name\n\t})\n\tfor i, p := range players {\n\t\tfmt.Printf(\"%d. %s %d\\n\", i+1, p.Name, p.Score)\n\t}\n}\n",
+        "output": "[{Cy 88} {Ana 95} {Ben 88}]\n1. Ana 100\n2. Ben 93\n3. Cy 93",
+        "explanation": "The first loop edits copies, so printing `players` shows the old scores. The second loop writes through `players[i]`, which reaches the elements in the slice. `sort.Slice` puts higher scores first, and Ben and Cy, tied at 93, fall back to name order."
+      },
+      "practice": {
+        "title": "Price list",
+        "prompt": "Discount every product, then print the price list from cheapest to most expensive.\n\n1. Add `\"sort\"` to the imports.\n2. Take 1.00 off every price through the range value, then print `products[0]` as `name: $price` with `%.2f` to show it did not change.\n3. Take 1.00 off every price through `products[i]`.\n4. Sort by price from lowest to highest, ties broken by name, before the given print loop.\n\nExpected output:\n\n```text\nTea: $3.50\nPen: $2.50\nTea: $2.50\nMug: $5.25\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tproducts := []struct {\n\t\tName  string\n\t\tPrice float64\n\t}{\n\t\t{\"Tea\", 3.50},\n\t\t{\"Mug\", 6.25},\n\t\t{\"Pen\", 3.50},\n\t}\n\t// TODO: take 1.00 off through the range value, then print the first product\n\t// TODO: take 1.00 off through products[i]\n\t// TODO: sort by price, lowest first, ties by name\n\tfor _, p := range products {\n\t\tfmt.Printf(\"%s: $%.2f\\n\", p.Name, p.Price)\n\t}\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\tproducts := []struct {\n\t\tName  string\n\t\tPrice float64\n\t}{\n\t\t{\"Tea\", 3.50},\n\t\t{\"Mug\", 6.25},\n\t\t{\"Pen\", 3.50},\n\t}\n\tfor _, p := range products {\n\t\tp.Price -= 1.00 // changes only the copy\n\t}\n\tfmt.Printf(\"%s: $%.2f\\n\", products[0].Name, products[0].Price)\n\n\tfor i := range products {\n\t\tproducts[i].Price -= 1.00\n\t}\n\tsort.Slice(products, func(i, j int) bool {\n\t\tif products[i].Price != products[j].Price {\n\t\t\treturn products[i].Price < products[j].Price\n\t\t}\n\t\treturn products[i].Name < products[j].Name\n\t})\n\tfor _, p := range products {\n\t\tfmt.Printf(\"%s: $%.2f\\n\", p.Name, p.Price)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "Tea: $3.50\nPen: $2.50\nTea: $2.50\nMug: $5.25"
+          }
+        ],
+        "hints": [
+          "The range value `p` is a copy, so changing `p.Price` leaves the slice alone. That is exactly what step 2 should show.",
+          "To change the real elements, loop over the indexes with `for i := range products` and write through `products[i]`.",
+          "In the less function, compare the prices first and fall back to comparing the names only when the prices are equal."
+        ]
+      }
+    },
+    {
+      "title": "Arrays and structs as map keys",
+      "body": "Arrays and structs are **comparable**: `==` checks every element or field. `Point{1, 2} == Point{1, 2}` is true, and `[2]int{3, 4} == [2]int{4, 3}` is false because order matters.\n\nAnything comparable can be a map key, which makes a `[2]int` or a small struct the natural key for a grid position:\n\n```go\nvisited := map[[2]int]bool{}\nvisited[[2]int{0, 1}] = true\nnames := map[Point]string{{0, 0}: \"start\"}\n```\n\nAs in a slice literal, a map literal can drop the type name from struct keys and values: `{0, 0}` above means `Point{0, 0}`.\n\nSlices are not comparable, so `map[[]int]bool` does not compile. A struct with a slice field cannot be a key or use `==` either. Use an array when you need a fixed-size key.\n\nThe other gotcha: a struct stored in a map cannot be changed in place. `pos[\"ana\"].X += 2` does not compile. A map moves its entries around as it grows, so Go never lets you reach inside one, and `pos[\"ana\"]` only hands back a copy. Copy it out, change it, and store it back:\n\n```go\np := pos[\"ana\"]\np.X += 2\npos[\"ana\"] = p\n```",
+      "example": {
+        "title": "Grid walker",
+        "prompt": "Track visited cells, name two points, and move a player stored in a map.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Point struct{ X, Y int }\n\nfunc main() {\n\tvisited := map[[2]int]bool{}\n\tvisited[[2]int{0, 0}] = true\n\tvisited[[2]int{0, 1}] = true\n\tfmt.Println(visited[[2]int{0, 1}], visited[[2]int{2, 2}], len(visited))\n\tfmt.Println(Point{1, 2} == Point{1, 2}, [2]int{3, 4} == [2]int{4, 3})\n\n\tnames := map[Point]string{{0, 0}: \"start\", {5, 5}: \"goal\"}\n\tfor _, at := range []Point{{5, 5}, {1, 1}} {\n\t\tif name, ok := names[at]; ok {\n\t\t\tfmt.Println(name)\n\t\t} else {\n\t\t\tfmt.Println(\"unknown\")\n\t\t}\n\t}\n\n\tpos := map[string]Point{\"ana\": {0, 0}}\n\tp := pos[\"ana\"] // a copy\n\tp.X += 2\n\tpos[\"ana\"] = p // store it back\n\tfmt.Println(pos)\n}\n",
+        "output": "true false 2\ntrue false\ngoal\nunknown\nmap[ana:{2 0}]",
+        "explanation": "`visited[[2]int{2, 2}]` is missing, so it gives `false`. Struct keys use the same comma-ok lookup as any map: `{5, 5}` is found and `{1, 1}` is not. `pos[\"ana\"]` returns a copy of the point, so the program changes the copy and assigns it back to update the map."
+      },
+      "practice": {
+        "title": "Places and records",
+        "prompt": "Label places by their coordinates and update a player's record stored in a map.\n\n1. Store `home` at `Point{0, 0}` and `school` at `Point{3, 4}` in `places`, then print `Places: 2` using `len`.\n2. Look up `{3, 4}` and then `{1, 1}` with comma-ok, printing the label or `unknown`.\n3. Add one win to `ana` in `record` by copying the `Stats` out, changing it, and storing it back. The starter already prints `record`.\n4. Remove the `_ = places` line once you use the map.\n\nExpected output:\n\n```text\nPlaces: 2\nschool\nunknown\nmap[ana:{Wins:3 Losses:1}]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Point struct{ X, Y int }\n\ntype Stats struct{ Wins, Losses int }\n\nfunc main() {\n\tplaces := map[Point]string{}\n\trecord := map[string]Stats{\"ana\": {2, 1}}\n\t_ = places\n\t// TODO: label {0, 0} as home and {3, 4} as school, then print the count\n\t// TODO: look up {3, 4} and {1, 1}, printing the label or unknown\n\t// TODO: add one win to ana by copying out and storing back\n\tfmt.Printf(\"%+v\\n\", record)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Point struct{ X, Y int }\n\ntype Stats struct{ Wins, Losses int }\n\nfunc main() {\n\tplaces := map[Point]string{}\n\trecord := map[string]Stats{\"ana\": {2, 1}}\n\tplaces[Point{0, 0}] = \"home\"\n\tplaces[Point{3, 4}] = \"school\"\n\tfmt.Printf(\"Places: %d\\n\", len(places))\n\tfor _, at := range []Point{{3, 4}, {1, 1}} {\n\t\tif label, ok := places[at]; ok {\n\t\t\tfmt.Println(label)\n\t\t} else {\n\t\t\tfmt.Println(\"unknown\")\n\t\t}\n\t}\n\n\ts := record[\"ana\"]\n\ts.Wins++\n\trecord[\"ana\"] = s\n\tfmt.Printf(\"%+v\\n\", record)\n}\n",
+        "tests": [
+          {
+            "output": "Places: 2\nschool\nunknown\nmap[ana:{Wins:3 Losses:1}]"
+          }
+        ],
+        "hints": [
+          "Struct keys go in brackets like any key: `places[Point{3, 4}] = \"school\"`.",
+          "`if label, ok := places[at]; ok { ... } else { ... }` prints either case.",
+          "`record[\"ana\"].Wins++` does not compile. Copy the value into a variable, add the win there, then assign the variable back to `record[\"ana\"]`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Go has no tuples: return several values from functions, group values in structs, or use small arrays like `[2]int`.\n- `type Point struct{ X, Y int }` fits on one line, and structs with more field lines put one field per line.\n- `Point{X: 1, Y: 2}` names fields, `Point{1, 2}` fills them in order, and `p.X` reads one.\n- A zero-value struct has every field at its zero value, and a struct is never nil.\n- Assigning a struct copies every field, but slice and map fields still share their elements.\n- `%v` prints `{1 2}` and `%+v` prints `{X:1 Y:2}`.\n- The range value is a copy, so change elements of a slice of structs through `s[i].Field`.\n- `sort.Slice` with a second key on ties gives a fully decided order.\n- Arrays and structs compare with `==` and work as map keys, while slices cannot.\n- A struct in a map cannot be changed in place: copy it out, change it, and store it back."
+}

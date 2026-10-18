@@ -1,0 +1,118 @@
+{
+  "id": "interfaces",
+  "title": "Interfaces",
+  "section": "Object-Oriented Programming",
+  "summary": "Describe behavior with interfaces, satisfy them implicitly, implement fmt.Stringer, and hold any value in interface{}.",
+  "intro": "Methods let a type do things. An interface names a set of methods, so code can work with anything that has them, without caring about the concrete type. Go interfaces are satisfied implicitly: if a type has the methods, it fits.",
+  "steps": [
+    {
+      "title": "Implicit interfaces",
+      "body": "An interface type lists method signatures. Any type that has all of those methods satisfies the interface automatically. There is no `implements` keyword. Go checks the methods at compile time wherever you use a value as the interface, so a missing method is a compile error, not a crash.\n\n```go\ntype Shape interface {\n\tArea() float64\n\tName() string\n}\n```\n\nOnce `Rect` and `Circle` both have `Area` and `Name`, either one can go wherever a `Shape` is expected, including a `[]Shape` that mixes them.\n\n```go\nshapes := []Shape{Rect{W: 3, H: 4}, Circle{R: 1}}\nfor _, s := range shapes {\n\tfmt.Println(s.Area())\n}\n```\n\nCalling `s.Area()` runs the method of whatever concrete type `s` holds right now: `Rect.Area` for the rectangle, `Circle.Area` for the circle. The loop never needs to know which is which. Through a `Shape` you can only call the interface's own methods, so `s.W` does not compile even when `s` holds a `Rect`.",
+      "example": {
+        "title": "Total area of mixed shapes",
+        "prompt": "Implement Shape with Rect and Circle, then print each shape's name and area and the total area.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"math\"\n)\n\ntype Shape interface {\n\tArea() float64\n\tName() string\n}\n\ntype Rect struct{ W, H float64 }\n\ntype Circle struct{ R float64 }\n\nfunc (r Rect) Area() float64 { return r.W * r.H }\nfunc (r Rect) Name() string  { return \"rect\" }\n\nfunc (c Circle) Area() float64 { return math.Pi * c.R * c.R }\nfunc (c Circle) Name() string  { return \"circle\" }\n\nfunc main() {\n\tshapes := []Shape{Rect{W: 3, H: 4}, Circle{R: 1}, Circle{R: 2}}\n\tvar total float64\n\tfor _, s := range shapes {\n\t\tfmt.Printf(\"%s: %.2f\\n\", s.Name(), s.Area())\n\t\ttotal += s.Area()\n\t}\n\tfmt.Printf(\"Total area: %.2f\\n\", total)\n}\n",
+        "output": "rect: 12.00\ncircle: 3.14\ncircle: 12.57\nTotal area: 27.71",
+        "explanation": "`Rect` and `Circle` each declare `Area` and `Name`, so both satisfy `Shape` without saying so. The `[]Shape` holds one rectangle and two circles. Each `s.Area()` call runs the version for the value inside `s`, and the loop adds every area into `total`."
+      },
+      "practice": {
+        "title": "Counting legs",
+        "prompt": "Implement an Animal interface with three types, then print each sound and the total number of legs.\n\n1. Declare `Animal` with the methods `Sound() string` and `Legs() int`.\n2. Give `Dog` the sound `Woof` and 4 legs, `Bird` the sound `Tweet` and 2 legs, and `Fish` the sound `Blub` and 0 legs.\n3. In `main`, loop over `[]Animal{Dog{}, Bird{}, Fish{}}` and print `Sound: N legs` for each animal, adding its legs to `total`.\n4. Keep the given `Total legs` line at the end.\n\nExpected output:\n\n```text\nWoof: 4 legs\nTweet: 2 legs\nBlub: 0 legs\nTotal legs: 6\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// TODO: declare the Animal interface with Sound() string and Legs() int\n\ntype Dog struct{}\n\ntype Bird struct{}\n\ntype Fish struct{}\n\n// TODO: give Dog, Bird, and Fish their Sound and Legs methods\n\nfunc main() {\n\tvar total int\n\t// TODO: loop over a []Animal holding Dog{}, Bird{}, and Fish{}\n\tfmt.Printf(\"Total legs: %d\\n\", total)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Animal interface {\n\tSound() string\n\tLegs() int\n}\n\ntype Dog struct{}\n\ntype Bird struct{}\n\ntype Fish struct{}\n\nfunc (d Dog) Sound() string { return \"Woof\" }\nfunc (d Dog) Legs() int     { return 4 }\n\nfunc (b Bird) Sound() string { return \"Tweet\" }\nfunc (b Bird) Legs() int     { return 2 }\n\nfunc (f Fish) Sound() string { return \"Blub\" }\nfunc (f Fish) Legs() int     { return 0 }\n\nfunc main() {\n\tanimals := []Animal{Dog{}, Bird{}, Fish{}}\n\tvar total int\n\tfor _, a := range animals {\n\t\tfmt.Printf(\"%s: %d legs\\n\", a.Sound(), a.Legs())\n\t\ttotal += a.Legs()\n\t}\n\tfmt.Printf(\"Total legs: %d\\n\", total)\n}\n",
+        "tests": [
+          {
+            "output": "Woof: 4 legs\nTweet: 2 legs\nBlub: 0 legs\nTotal legs: 6"
+          }
+        ],
+        "hints": [
+          "Declare the interface like a struct, but list method signatures: `type Animal interface { ... }`.",
+          "Each type needs both methods, for example `func (d Dog) Legs() int { return 4 }`.",
+          "Inside the loop use `fmt.Printf(\"%s: %d legs\\n\", a.Sound(), a.Legs())` and `total += a.Legs()`."
+        ]
+      }
+    },
+    {
+      "title": "Functions that accept interfaces",
+      "body": "A parameter of interface type accepts any value that satisfies it, so one function works for many types. Go code prefers small interfaces with one or two methods, like `Notifier` here or `fmt.Stringer` in the standard library, declared next to the code that uses them.\n\n```go\nfunc broadcast(ns []Notifier, msg string) {\n\tfor _, n := range ns {\n\t\tfmt.Println(n.Notify(msg))\n\t}\n}\n```\n\n**Pointer receivers matter.** If `Notify` is declared on `*SMS`, only `*SMS` has that method, so you must store `&sms`. Writing `sms` fails to compile with \"Notify method has pointer receiver\". The automatic `&` that `c.Inc()` gets on a variable never happens when a value is stored in an interface. Value-receiver methods work for both `Email` and `*Email`.\n\nIn memory an interface value is two words: one points at the concrete type, the other at the data. Storing a struct value copies the struct, so later changes to the original do not show through the interface. Storing `&sms` copies only the pointer, so every call updates the same `sms`. `%T` prints the concrete type an interface holds.",
+      "example": {
+        "title": "Broadcast to every notifier",
+        "prompt": "Send two messages through an email and an SMS notifier, then show that the SMS counted both texts.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Notifier interface {\n\tNotify(msg string) string\n}\n\ntype Email struct{ Addr string }\n\ntype SMS struct {\n\tPhone string\n\tSent  int\n}\n\nfunc (e Email) Notify(msg string) string {\n\treturn fmt.Sprintf(\"email to %s: %s\", e.Addr, msg)\n}\n\nfunc (s *SMS) Notify(msg string) string {\n\ts.Sent++ // changes the SMS that the pointer points at\n\treturn fmt.Sprintf(\"sms to %s: %s\", s.Phone, msg)\n}\n\nfunc broadcast(ns []Notifier, msg string) {\n\tfor _, n := range ns {\n\t\tfmt.Println(n.Notify(msg))\n\t}\n}\n\nfunc main() {\n\tsms := SMS{Phone: \"555-0101\"}\n\tns := []Notifier{Email{Addr: \"ada@example.com\"}, &sms}\n\tfmt.Printf(\"%T %T\\n\", ns[0], ns[1])\n\tbroadcast(ns, \"build passed\")\n\tbroadcast(ns, \"deploy done\")\n\tfmt.Printf(\"texts sent: %d\\n\", sms.Sent)\n}\n",
+        "output": "main.Email *main.SMS\nemail to ada@example.com: build passed\nsms to 555-0101: build passed\nemail to ada@example.com: deploy done\nsms to 555-0101: deploy done\ntexts sent: 2",
+        "explanation": "`Email` has a value receiver, so the `Email` value itself satisfies `Notifier`. `SMS` has a pointer receiver, so the slice holds `&sms`, and `%T` shows `*main.SMS`. Each `broadcast` call reaches the original `sms` through that pointer, so `Sent` ends at 2."
+      },
+      "practice": {
+        "title": "Checkout counter",
+        "prompt": "Pay with cash once and with a card three times through one interface, then show the card's use count.\n\n1. Declare `Payer` with the method `Pay(amount int) string`.\n2. Give `Cash` a value-receiver `Pay` that returns `paid AMOUNT in cash`.\n3. Give `*Card` a pointer-receiver `Pay` that adds 1 to `Uses` and returns `paid AMOUNT with card LAST4`.\n4. Write `checkout(p Payer, amount int)` that prints the result of `p.Pay(amount)`.\n5. In `main`, call `checkout(Cash{}, 20)`, then `checkout` with `&card` for 15, 40, and 5, before the given `card uses` line.\n\nExpected output:\n\n```text\npaid 20 in cash\npaid 15 with card 4242\npaid 40 with card 4242\npaid 5 with card 4242\ncard uses: 3\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// TODO: declare the Payer interface with Pay(amount int) string\n\ntype Cash struct{}\n\ntype Card struct {\n\tLast4 string\n\tUses  int\n}\n\n// TODO: write Pay for Cash (value receiver) and for *Card (pointer receiver)\n\n// TODO: write checkout(p Payer, amount int)\n\nfunc main() {\n\tcard := Card{Last4: \"4242\"}\n\t// TODO: call checkout with Cash{} once and with &card three times\n\tfmt.Printf(\"card uses: %d\\n\", card.Uses)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Payer interface {\n\tPay(amount int) string\n}\n\ntype Cash struct{}\n\ntype Card struct {\n\tLast4 string\n\tUses  int\n}\n\nfunc (c Cash) Pay(amount int) string {\n\treturn fmt.Sprintf(\"paid %d in cash\", amount)\n}\n\nfunc (c *Card) Pay(amount int) string {\n\tc.Uses++\n\treturn fmt.Sprintf(\"paid %d with card %s\", amount, c.Last4)\n}\n\nfunc checkout(p Payer, amount int) {\n\tfmt.Println(p.Pay(amount))\n}\n\nfunc main() {\n\tcard := Card{Last4: \"4242\"}\n\tcheckout(Cash{}, 20)\n\tcheckout(&card, 15)\n\tcheckout(&card, 40)\n\tcheckout(&card, 5)\n\tfmt.Printf(\"card uses: %d\\n\", card.Uses)\n}\n",
+        "tests": [
+          {
+            "output": "paid 20 in cash\npaid 15 with card 4242\npaid 40 with card 4242\npaid 5 with card 4242\ncard uses: 3"
+          }
+        ],
+        "hints": [
+          "Build each result with `fmt.Sprintf`, for example `fmt.Sprintf(\"paid %d in cash\", amount)`.",
+          "Declare the card method as `func (c *Card) Pay(amount int) string` and write `c.Uses++` inside it.",
+          "Pass `&card`, not `card`: only `*Card` has the `Pay` method."
+        ]
+      }
+    },
+    {
+      "title": "fmt.Stringer",
+      "body": "The fmt package declares a one-method interface:\n\n```go\ntype Stringer interface {\n\tString() string\n}\n```\n\nGive a type a `String()` method and `fmt.Println`, `%v`, and `%s` call it for you, even for values inside a slice. That is how an iota enum prints `Green` instead of `1`, while `%d` still prints the number.\n\n```go\nfunc (c Color) String() string {\n\tswitch c {\n\tcase Red:\n\t\treturn \"Red\"\n\t}\n\treturn fmt.Sprintf(\"Color(%d)\", int(c))\n}\n```\n\nTwo gotchas:\n\n- Inside `String`, format the fields or a plain conversion such as `int(c)`, never the value itself. `fmt.Sprintf(\"%v\", c)` calls `String` again, which calls `Sprintf` again, until the stack runs out and the program crashes.\n- Watch the receiver. A `String` on `*Point` runs only when you print a `*Point`. Printing a plain `Point` falls back to `{3 4}`. A type whose methods all use value receivers, like `Color` here, gets a value-receiver `String` too.",
+      "example": {
+        "title": "Named colors",
+        "prompt": "Give an iota Color type a String method, then print a color, a slice of colors, its number, and an unknown color.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Color int\n\nconst (\n\tRed Color = iota\n\tGreen\n\tBlue\n)\n\nfunc (c Color) String() string {\n\tswitch c {\n\tcase Red:\n\t\treturn \"Red\"\n\tcase Green:\n\t\treturn \"Green\"\n\tcase Blue:\n\t\treturn \"Blue\"\n\t}\n\treturn fmt.Sprintf(\"Color(%d)\", int(c)) // int(c) has no String method\n}\n\nfunc main() {\n\tfmt.Println(Green)\n\tfmt.Println([]Color{Blue, Red})\n\tfmt.Printf(\"%v is number %d\\n\", Blue, Blue)\n\tfmt.Println(Color(7))\n}\n",
+        "output": "Green\n[Blue Red]\nBlue is number 2\nColor(7)",
+        "explanation": "`Color` now satisfies `fmt.Stringer`, so `Println` prints the names, and the slice prints each element through `String` too. `%v` uses `String` while `%d` prints the underlying 2. `Color(7)` matches no case, so it falls through to `Sprintf` on `int(c)`, which has no `String` method and cannot recurse."
+      },
+      "practice": {
+        "title": "Printable points",
+        "prompt": "Give Point a String method so every print shows it as a coordinate pair.\n\n1. Add a value-receiver `String() string` method to `Point` that returns `(X, Y)`, built from `p.X` and `p.Y`.\n2. Keep the given line that prints `p`.\n3. Print a `[]Point` holding `{X: 1, Y: 2}` and `{X: 3, Y: 4}`.\n4. Print `moved from A to B` with `%v`, where A is the zero `Point{}` and B is `p`.\n\nExpected output:\n\n```text\n(3, 4)\n[(1, 2) (3, 4)]\nmoved from (0, 0) to (3, 4)\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Point struct{ X, Y int }\n\n// TODO: give Point a String method that formats it as (3, 4)\n\nfunc main() {\n\tp := Point{X: 3, Y: 4}\n\tfmt.Println(p)\n\t// TODO: print a []Point holding (1, 2) and (3, 4)\n\t// TODO: print the moved line with %v\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Point struct{ X, Y int }\n\nfunc (p Point) String() string {\n\treturn fmt.Sprintf(\"(%d, %d)\", p.X, p.Y)\n}\n\nfunc main() {\n\tp := Point{X: 3, Y: 4}\n\tfmt.Println(p)\n\tfmt.Println([]Point{{X: 1, Y: 2}, {X: 3, Y: 4}})\n\tfmt.Printf(\"moved from %v to %v\\n\", Point{}, p)\n}\n",
+        "tests": [
+          {
+            "output": "(3, 4)\n[(1, 2) (3, 4)]\nmoved from (0, 0) to (3, 4)"
+          }
+        ],
+        "hints": [
+          "Declare it as `func (p Point) String() string`.",
+          "Return `fmt.Sprintf(\"(%d, %d)\", p.X, p.Y)`, formatting the fields, not `p` itself.",
+          "Once `String` exists, `fmt.Println` and `%v` use it automatically."
+        ]
+      }
+    },
+    {
+      "title": "The empty interface",
+      "body": "`interface{}` lists no methods, so every type satisfies it and a variable of that type can hold any value. Go 1.16 has no `any` alias, so always write `interface{}`. A `[]interface{}` holds mixed values.\n\nA constant stored in `interface{}` gets its default type: `3` becomes an `int`, `3.0` a `float64`, and `'x'` an `int32` (a rune).\n\nYou cannot use the value directly: `a + 1` does not compile when `a` is an `interface{}`. To get the concrete value back, use a type assertion:\n\n```go\ns := x.(string)  // panics if x does not hold a string\nn, ok := x.(int) // ok is false and n is 0 on a mismatch\n```\n\nThe single-result form is for when you are sure of the type. A wrong guess panics at run time. The comma-ok form never panics, so use it whenever the type might differ. The type must match exactly: `x.(int)` fails for an `int64` or a `float64`, even one holding 5.0.",
+      "example": {
+        "title": "Sum only the ints",
+        "prompt": "Show the default types of 3 and 3.0, assert one value to a string, and add up only the ints in a mixed slice.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar a interface{} = 3\n\tvar b interface{} = 3.0\n\tfmt.Printf(\"%T %T\\n\", a, b)\n\n\tvals := []interface{}{3, \"four\", 5, 6.5, 7}\n\tword := vals[1].(string) // panics if vals[1] is not a string\n\tfmt.Printf(\"%s has %d letters\\n\", word, len(word))\n\n\tvar sum int\n\tfor _, v := range vals {\n\t\tif n, ok := v.(int); ok {\n\t\t\tsum += n\n\t\t}\n\t}\n\tfmt.Printf(\"Sum of ints: %d\\n\", sum)\n}\n",
+        "output": "int float64\nfour has 4 letters\nSum of ints: 15",
+        "explanation": "`%T` reveals the concrete type stored in each `interface{}`. `vals[1].(string)` is safe because index 1 holds `\"four\"`. In the loop, `v.(int)` gives `ok == true` only for 3, 5, and 7, so the string and `6.5` are skipped and the sum is 15."
+      },
+      "practice": {
+        "title": "Keep only the words",
+        "prompt": "Show the default types of 'x' and \"x\", assert the first value to a string, and join only the strings in a mixed slice.\n\n1. Add `\"strings\"` to the imports, using a parenthesized import block.\n2. Store `'x'` and `\"x\"` in two `interface{}` variables and print their types with `%T`, separated by a space.\n3. Assert `vals[0]` to a `string` and print `WORD has N letters`.\n4. Loop over `vals`, collect only the strings with `s, ok := v.(string)`, and print them joined by single spaces.\n5. Remove the placeholder `_ = vals` and `fmt.Println()` lines.\n\nExpected output:\n\n```text\nint32 string\ngo has 2 letters\ngo is fun\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\t// TODO: store 'x' and \"x\" in interface{} variables and print their types with %T\n\n\tvals := []interface{}{\"go\", 1, \"is\", true, \"fun\"}\n\t_ = vals\n\t// TODO: assert vals[0] to a string and print how many letters it has\n\t// TODO: collect only the strings with v.(string) and print them joined by spaces\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\tvar a interface{} = 'x'\n\tvar b interface{} = \"x\"\n\tfmt.Printf(\"%T %T\\n\", a, b)\n\n\tvals := []interface{}{\"go\", 1, \"is\", true, \"fun\"}\n\tfirst := vals[0].(string)\n\tfmt.Printf(\"%s has %d letters\\n\", first, len(first))\n\n\tvar words []string\n\tfor _, v := range vals {\n\t\tif s, ok := v.(string); ok {\n\t\t\twords = append(words, s)\n\t\t}\n\t}\n\tfmt.Println(strings.Join(words, \" \"))\n}\n",
+        "tests": [
+          {
+            "output": "int32 string\ngo has 2 letters\ngo is fun"
+          }
+        ],
+        "hints": [
+          "`var a interface{} = 'x'` stores a rune, which is an `int32`.",
+          "Start with `var words []string` and append each `s` when `ok` is true.",
+          "Print the result with `fmt.Println(strings.Join(words, \" \"))`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `type Shape interface{ Area() float64 }` lists methods, and any type with them satisfies it, checked at compile time.\n- A `[]Shape` mixes concrete types, and each call runs the concrete type's method.\n- Interface parameters let one function accept many types. Keep interfaces small.\n- With pointer-receiver methods only `*T` satisfies the interface, so pass `&v`.\n- An interface value holds a concrete type and a value, and `%T` shows the type.\n- A `String() string` method makes `Println` and `%v` print your type, even inside slices.\n- Inside `String`, format the fields, never the value itself.\n- `interface{}` holds any value (Go 1.16 has no `any`), and constants get their default types.\n- `x.(T)` panics on the wrong type, while `v, ok := x.(T)` reports it safely."
+}

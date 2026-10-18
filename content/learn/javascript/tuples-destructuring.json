@@ -1,0 +1,118 @@
+{
+  "id": "tuples-destructuring",
+  "title": "Tuples, Destructuring, Spread, and Rest",
+  "section": "Collections",
+  "summary": "JavaScript has no tuple type, so use small arrays and objects with destructuring, spread, and rest to group and unpack values.",
+  "intro": "Python and other languages have tuples. JavaScript does not. Instead you group values in a small array or object and unpack them with destructuring, then build and split collections with `...`, which works as spread or rest depending on where you write it.",
+  "steps": [
+    {
+      "title": "Small arrays as tuples",
+      "body": "JavaScript has **no tuple type**. The idiom is a small fixed-length array where each position has a meaning, such as `[x, y]` or `[min, max]`. You have unpacked arrays by position since `const [x, y] = [3, 4]`, and in loops like `for (const [key, value] of Object.entries(obj))`. Destructuring has a few more forms:\n\n```javascript\nconst pair = [3, 4];\nconst [a, b] = pair;                // a is 3, b is 4\nconst [, second] = [\"a\", \"b\", \"c\"]; // a comma skips an item\nconst [p, q = 0] = [7];             // q falls back to 0\n```\n\nA default is used only when the slot is `undefined` (a `null` stays `null`). Returning an array is how a function hands back several values: `return [min, max];` and the caller writes `const [low, high] = minMax(nums);`.\n\nTo make a tuple read-only, wrap it in `Object.freeze`. In this script a write like `point[0] = 9` is **silently ignored**, with no error at all, while `point.push(5)` throws a `TypeError`. So freezing protects the data, but a quiet write can still hide a bug.\n\n**The gotcha:** freeze is shallow. An array nested inside a frozen tuple is not frozen, so `segment[1][0] = 5` still changes it.\n\nWhen the fields deserve names, use an object instead. That is the next step.",
+      "example": {
+        "title": "Min and max as a pair",
+        "prompt": "Return a min and max pair from a function, freeze a point and a segment, and unpack arrays with a skip and a default.",
+        "code": "function minMax(nums) {\n  return [Math.min(...nums), Math.max(...nums)];\n}\n\nconst [low, high] = minMax([7, 2, 9, 4]);\nconsole.log(`min ${low}, max ${high}`);\n\nconst point = Object.freeze([3, 4]);\npoint[0] = 9;\nconsole.log(`point: ${point.join(\", \")}`);\n\nconst segment = Object.freeze([[0, 0], [2, 2]]);\nsegment[1][0] = 5;\nconsole.log(`segment: ${JSON.stringify(segment)}`);\n\nconst [, second] = [\"a\", \"b\", \"c\"];\nconsole.log(`second: ${second}`);\n\nconst [x, y, z = 0] = point;\nconsole.log(`x ${x}, y ${y}, z ${z}`);\n",
+        "output": "min 2, max 9\npoint: 3, 4\nsegment: [[0,0],[5,2]]\nsecond: b\nx 3, y 4, z 0",
+        "explanation": "`minMax` builds a two-item array and the caller unpacks it into `low` and `high` in one line. `point` is frozen, so `point[0] = 9` does nothing and it still prints `3, 4`. `segment` is frozen too, but only its outer array: the inner `[2, 2]` is a separate array, so `segment[1][0] = 5` changes it. The leading comma in `[, second]` skips `\"a\"`. `point` has no third item, so `z` takes its default `0`."
+      },
+      "practice": {
+        "title": "Quotient and remainder",
+        "prompt": "Return two values from one function, freeze a color tuple, and unpack an array with a skip and a default.\n\n1. Make `divide(a, b)` return `[quotient, remainder]`, with the quotient from `Math.floor(a / b)` and the remainder from `%`.\n2. Destructure `divide(17, 5)` into `quotient` and `remainder` and print `17 / 5 = 3 r 2`.\n3. Wrap the `rgb` array in `Object.freeze` so the line `rgb[2] = 99;` is ignored, and keep the `rgb:` line as it is.\n4. Destructure `[\"x\", \"y\"]` into `first` and `third`, skipping the second item with an empty slot and giving `third` the default `\"none\"`, then print them separated by a space.\n\nExpected output:\n\n```text\n17 / 5 = 3 r 2\nrgb: 255, 128, 0\nx none\n```",
+        "starter": "// TODO: return [quotient, remainder], using Math.floor(a / b) and %\nfunction divide(a, b) {\n  return [0, 0];\n}\n\n// TODO: destructure divide(17, 5) into quotient and remainder\nconsole.log(\"17 / 5 = ? r ?\");\n\n// TODO: freeze this tuple so the write below is ignored\nconst rgb = [255, 128, 0];\nrgb[2] = 99;\nconsole.log(`rgb: ${rgb.join(\", \")}`);\n\n// TODO: destructure [\"x\", \"y\"] into first and third (skip the second item, third defaults to \"none\")\n",
+        "solution": "function divide(a, b) {\n  return [Math.floor(a / b), a % b];\n}\n\nconst [quotient, remainder] = divide(17, 5);\nconsole.log(`17 / 5 = ${quotient} r ${remainder}`);\n\nconst rgb = Object.freeze([255, 128, 0]);\nrgb[2] = 99;\nconsole.log(`rgb: ${rgb.join(\", \")}`);\n\nconst [first, , third = \"none\"] = [\"x\", \"y\"];\nconsole.log(`${first} ${third}`);\n",
+        "tests": [
+          {
+            "output": "17 / 5 = 3 r 2\nrgb: 255, 128, 0\nx none"
+          }
+        ],
+        "hints": [
+          "Return an array literal with two items, the same way `minMax` returns its pair.",
+          "`Object.freeze(...)` returns the array you give it, so you can wrap the literal right where `rgb` is declared.",
+          "Leave a slot empty between two commas to skip an item, and write `= \"none\"` after a name to give it a default."
+        ]
+      }
+    },
+    {
+      "title": "Object destructuring",
+      "body": "Object destructuring pulls fields out **by name**, not by position, so order does not matter:\n\n```javascript\nconst person = { name: \"Ada\", age: 36 };\nconst { name, age } = person;\n```\n\nFour forms cover almost everything you will see:\n\n```javascript\nconst { name: fullName } = person;         // rename: the variable is fullName\nconst { role = \"guest\" } = person;         // default when the key is missing\nconst { address: { city } } = user;        // nested: reach inside address\nfunction show({ name, age }) { /* ... */ } // destructure a parameter\n```\n\nIn a rename, read `name: fullName` as \"take `name`, call it `fullName`\". A default works like the array version: it applies only when the value is `undefined`.\n\nDestructuring a parameter is very common. The caller passes a whole object and the function names only the fields it needs. Extra keys are ignored. Calling `show()` with no argument throws a `TypeError`, so give the pattern a default, `{ name, age } = {}`, when the argument is optional.\n\n**The gotcha:** nested destructuring creates `city` but **not** `address`. And if `address` is missing, reaching into it throws a `TypeError`, because you cannot read `city` from `undefined`.",
+      "example": {
+        "title": "Unpacking a user",
+        "prompt": "Pull a renamed name, the age, a default role, and the nested city out of a user object, then format it with a function that destructures its parameter.",
+        "code": "const user = {\n  name: \"Ada\",\n  age: 36,\n  address: { city: \"London\", zip: \"W1\" },\n};\n\nfunction formatUser({ name, age }) {\n  return `${name} (${age})`;\n}\n\nconst { name: fullName, age, role = \"guest\" } = user;\nconst { address: { city } } = user;\n\nconsole.log(`${fullName} is ${age}, role ${role}`);\nconsole.log(`city: ${city}`);\nconsole.log(formatUser(user));\n",
+        "output": "Ada is 36, role guest\ncity: London\nAda (36)",
+        "explanation": "`name: fullName` reads the `name` key into a variable called `fullName`. `user` has no `role` key, so `role` takes the default `\"guest\"`. `{ address: { city } }` walks into the nested object and creates only `city`. `formatUser` receives the whole `user` but its parameter keeps just `name` and `age`, ignoring `address`."
+      },
+      "practice": {
+        "title": "Unpacking a product",
+        "prompt": "Unpack a product record by name, with a rename, a default, and a nested field.\n\n1. Destructure `product` into `productName` (renamed from `title`), `price`, and `currency` with the default `\"USD\"`.\n2. Destructure the nested `dimensions.width` into `width`.\n3. Change `formatProduct` to destructure `{ title, price }` in its parameter list and return the title, a colon, a space, a dollar sign, and the price.\n4. Keep the three `console.log` lines as they are.\n\nExpected output:\n\n```text\nLamp costs 25 USD\nwidth: 30\nLamp: $25\n```",
+        "starter": "const product = {\n  title: \"Lamp\",\n  price: 25,\n  dimensions: { width: 30, height: 45 },\n};\n\n// TODO: destructure title and price in the parameter list and return \"Lamp: $25\"\nfunction formatProduct(item) {\n  return \"\";\n}\n\n// TODO: replace these placeholders with destructuring from product:\n// title renamed to productName, price, currency defaulting to \"USD\", and dimensions.width\nconst productName = \"\";\nconst price = 0;\nconst currency = \"\";\nconst width = 0;\n\nconsole.log(`${productName} costs ${price} ${currency}`);\nconsole.log(`width: ${width}`);\nconsole.log(formatProduct(product));\n",
+        "solution": "const product = {\n  title: \"Lamp\",\n  price: 25,\n  dimensions: { width: 30, height: 45 },\n};\n\nfunction formatProduct({ title, price }) {\n  return `${title}: $${price}`;\n}\n\nconst { title: productName, price, currency = \"USD\" } = product;\nconst { dimensions: { width } } = product;\n\nconsole.log(`${productName} costs ${price} ${currency}`);\nconsole.log(`width: ${width}`);\nconsole.log(formatProduct(product));\n",
+        "tests": [
+          {
+            "output": "Lamp costs 25 USD\nwidth: 30\nLamp: $25"
+          }
+        ],
+        "hints": [
+          "A rename is written `key: newName` and a default is written `key = value`. Both fit in one pattern next to `price`.",
+          "Reach into the nested object with a pattern inside a pattern, as the example does for `city`.",
+          "Replace `item` with the pattern. A `$` written right before `${...}` in a template literal prints a literal dollar sign."
+        ]
+      }
+    },
+    {
+      "title": "Spread",
+      "body": "Spread syntax `...` unpacks the items of an array, or the keys of an object, **into a new one**. It never changes the original. You already used the array form for set union.\n\n```javascript\nconst all = [...front, 3, ...back];           // combine arrays, items in order\nconst settings = { ...defaults, ...options }; // merge objects\nconst dark = { ...settings, theme: \"dark\" };  // copy and override one key\n```\n\nWhen two objects share a key, **the later one wins**. That is why defaults go first and the user's options go after them. The same rule lets `{ ...obj, key: value }` replace one field while copying the rest. A replaced key keeps its original position, and a new key goes at the end.\n\nSpread also turns an array into separate arguments: `area(...dims)` calls `area(dims[0], dims[1])`, just like `Math.max(...nums)`.\n\n**The gotcha:** spread copies are **shallow**. Only the top level is new. A nested array or object is copied by reference, so the copy and the original share it, and a `push` through one shows up in the other. A later lesson covers deep copies.",
+      "example": {
+        "title": "Merging settings",
+        "prompt": "Merge default settings with options, override one key, combine two arrays around a middle value, spread an array into a function, and show a shallow copy sharing a nested array.",
+        "code": "const defaults = { theme: \"light\", size: 12 };\nconst options = { size: 16 };\nconst front = [1, 2];\nconst back = [4, 5];\nconst original = { name: \"todo\", items: [\"a\", \"b\"] };\n\nfunction area(width, height) {\n  return width * height;\n}\n\nconst settings = { ...defaults, ...options };\nconst dark = { ...settings, theme: \"dark\" };\nconsole.log(JSON.stringify(settings));\nconsole.log(JSON.stringify(dark));\n\nconst all = [...front, 3, ...back];\nconsole.log(all.join(\", \"));\n\nconst dims = [3, 4];\nconsole.log(`area: ${area(...dims)}`);\n\nconst copy = { ...original };\ncopy.items.push(\"c\");\nconsole.log(`original items: ${original.items.join(\", \")}`);\n",
+        "output": "{\"theme\":\"light\",\"size\":16}\n{\"theme\":\"dark\",\"size\":16}\n1, 2, 3, 4, 5\narea: 12\noriginal items: a, b, c",
+        "explanation": "`options` comes after `defaults`, so its `size: 16` wins and `theme` keeps its default. `dark` copies `settings` and then sets `theme` again, so the later `\"dark\"` wins while `theme` stays in first position. `[...front, 3, ...back]` lays the items out in order with `3` in the middle. `area(...dims)` passes `3` and `4` as two arguments. `copy` is a new object, but `copy.items` is the same array as `original.items`, so the push shows up in both."
+      },
+      "practice": {
+        "title": "Merging a config",
+        "prompt": "Build new configs and lists with spread, and show that a shallow copy still shares its nested array.\n\n1. Set `merged` to `baseConfig` merged with `overrides`, so the override wins.\n2. Set `debugConfig` to a copy of `merged` with `debug: true` added at the end.\n3. Set `allTags` to `coreTags`, `uiTags`, and `apiTags` combined in that order.\n4. Print `volume: ` followed by `volume` called with the items of `box` spread into its arguments.\n5. Push `\"eve\"` into `copy.members`, then keep the last line, which prints the original `team`'s members.\n\nExpected output:\n\n```text\n{\"host\":\"localhost\",\"port\":3000,\"retries\":3}\n{\"host\":\"localhost\",\"port\":3000,\"retries\":3,\"debug\":true}\ncore, ui, api, docs\nvolume: 24\noriginal members: ana, ben, eve\n```",
+        "starter": "const baseConfig = { host: \"localhost\", port: 8080, retries: 3 };\nconst overrides = { port: 3000 };\nconst coreTags = [\"core\"];\nconst uiTags = [\"ui\"];\nconst apiTags = [\"api\", \"docs\"];\nconst team = { name: \"web\", members: [\"ana\", \"ben\"] };\n\nfunction volume(length, width, height) {\n  return length * width * height;\n}\n\n// TODO: merge baseConfig with overrides (overrides win)\nconst merged = {};\nconsole.log(JSON.stringify(merged));\n\n// TODO: copy merged and add debug: true\nconst debugConfig = {};\nconsole.log(JSON.stringify(debugConfig));\n\n// TODO: combine coreTags, uiTags, and apiTags in that order\nconst allTags = [];\nconsole.log(allTags.join(\", \"));\n\nconst box = [2, 3, 4];\n// TODO: call volume with the items of box spread into arguments\nconsole.log(`volume: ${0}`);\n\nconst copy = { ...team };\n// TODO: push \"eve\" into copy.members\nconsole.log(`original members: ${team.members.join(\", \")}`);\n",
+        "solution": "const baseConfig = { host: \"localhost\", port: 8080, retries: 3 };\nconst overrides = { port: 3000 };\nconst coreTags = [\"core\"];\nconst uiTags = [\"ui\"];\nconst apiTags = [\"api\", \"docs\"];\nconst team = { name: \"web\", members: [\"ana\", \"ben\"] };\n\nfunction volume(length, width, height) {\n  return length * width * height;\n}\n\nconst merged = { ...baseConfig, ...overrides };\nconsole.log(JSON.stringify(merged));\n\nconst debugConfig = { ...merged, debug: true };\nconsole.log(JSON.stringify(debugConfig));\n\nconst allTags = [...coreTags, ...uiTags, ...apiTags];\nconsole.log(allTags.join(\", \"));\n\nconst box = [2, 3, 4];\nconsole.log(`volume: ${volume(...box)}`);\n\nconst copy = { ...team };\ncopy.members.push(\"eve\");\nconsole.log(`original members: ${team.members.join(\", \")}`);\n",
+        "tests": [
+          {
+            "output": "{\"host\":\"localhost\",\"port\":3000,\"retries\":3}\n{\"host\":\"localhost\",\"port\":3000,\"retries\":3,\"debug\":true}\ncore, ui, api, docs\nvolume: 24\noriginal members: ana, ben, eve"
+          }
+        ],
+        "hints": [
+          "In a merge the later spread wins, so decide which of the two objects goes last.",
+          "A key written after a spread is added to the copy. Several arrays combine by spreading each one inside a single `[ ]`, and `...` in a call spreads `box` into arguments.",
+          "`copy` is a new object, but `copy.members` is still the very same array as `team.members`."
+        ]
+      }
+    },
+    {
+      "title": "Rest",
+      "body": "Rest looks like spread, `...name`, but does the opposite: it **gathers** leftover items into one array or object.\n\n```javascript\nfunction sum(...nums) { // rest parameter: nums is a real array\n  return nums.reduce((total, n) => total + n, 0);\n}\nsum(1, 2, 3);           // 6\n\nconst [first, ...others] = [1, 2, 3, 4]; // others is [2, 3, 4]\nconst { password, ...safeUser } = user;  // every key but password\n```\n\nRest in object destructuring is the clean way to **drop a field**: pull it out by name and keep the rest. Rest can follow normal parameters too, as in `function log(label, ...values)`.\n\n**The gotcha:** the rest element must come **last**. `const [...start, last] = arr` and `function f(...a, b)` are both a `SyntaxError`.\n\nOlder code reads extra arguments from `arguments`, an array-like object that exists only inside regular `function`s (arrow functions do not get their own):\n\n```javascript\nfunction countArgs() {\n  return arguments.length; // legacy style\n}\n```\n\nIt has no `map` or `reduce`. Rest parameters replace it in new code.",
+      "example": {
+        "title": "Averages and leftovers",
+        "prompt": "Average any number of arguments, split the winner from the other runners, and drop a password before printing a user.",
+        "code": "const runners = [\"mia\", \"leo\", \"kai\", \"zoe\"];\nconst user = { id: 1, name: \"ada\", password: \"hunter2\" };\n\nfunction average(...nums) {\n  const total = nums.reduce((sum, n) => sum + n, 0);\n  return total / nums.length;\n}\n\nconsole.log(`average: ${average(4, 8, 6)}`);\nconsole.log(`average: ${average(10, 15)}`);\n\nconst [winner, ...others] = runners;\nconsole.log(`winner: ${winner}`);\nconsole.log(`others: ${others.join(\", \")}`);\n\nconst { password, ...publicUser } = user;\nconsole.log(JSON.stringify(publicUser));\n",
+        "output": "average: 6\naverage: 12.5\nwinner: mia\nothers: leo, kai, zoe\n{\"id\":1,\"name\":\"ada\"}",
+        "explanation": "`...nums` collects every argument into a real array, so `reduce` and `length` work on it whether you pass two numbers or three. `[winner, ...others]` takes the first runner and gathers the rest into a new array. `{ password, ...publicUser }` pulls `password` out by name, and `publicUser` gets every remaining key, so the secret never reaches the output."
+      },
+      "practice": {
+        "title": "Queue and order",
+        "prompt": "Gather extra arguments, split a queue, and separate an order's id from its other fields with rest.\n\n1. Give `maxOf` a rest parameter `values` after `label`, and return the label, a colon, a space, and the largest value.\n2. Destructure `queue` into `head` (the first item) and `tail` (all the others).\n3. Destructure `order` into `id` and `details`, where `details` holds every other field.\n4. Keep the `console.log` lines as they are.\n\nExpected output:\n\n```text\ntemps: 25\nscores: 7\nnext: ana\nwaiting: ben, cal\nOrder 7: {\"item\":\"lamp\",\"qty\":2}\n```",
+        "starter": "const queue = [\"ana\", \"ben\", \"cal\"];\nconst order = { id: 7, item: \"lamp\", qty: 2 };\n\n// TODO: add a rest parameter called values and return \"label: biggest value\"\nfunction maxOf(label) {\n  return `${label}: ?`;\n}\n\nconsole.log(maxOf(\"temps\", 18, 25, 21));\nconsole.log(maxOf(\"scores\", 7, 3));\n\n// TODO: replace these placeholders with one destructuring of queue into head and tail\nconst head = \"\";\nconst tail = [];\nconsole.log(`next: ${head}`);\nconsole.log(`waiting: ${tail.join(\", \")}`);\n\n// TODO: replace these placeholders with one destructuring of order into id and details\nconst id = 0;\nconst details = {};\nconsole.log(`Order ${id}: ${JSON.stringify(details)}`);\n",
+        "solution": "const queue = [\"ana\", \"ben\", \"cal\"];\nconst order = { id: 7, item: \"lamp\", qty: 2 };\n\nfunction maxOf(label, ...values) {\n  return `${label}: ${Math.max(...values)}`;\n}\n\nconsole.log(maxOf(\"temps\", 18, 25, 21));\nconsole.log(maxOf(\"scores\", 7, 3));\n\nconst [head, ...tail] = queue;\nconsole.log(`next: ${head}`);\nconsole.log(`waiting: ${tail.join(\", \")}`);\n\nconst { id, ...details } = order;\nconsole.log(`Order ${id}: ${JSON.stringify(details)}`);\n",
+        "tests": [
+          {
+            "output": "temps: 25\nscores: 7\nnext: ana\nwaiting: ben, cal\nOrder 7: {\"item\":\"lamp\",\"qty\":2}"
+          }
+        ],
+        "hints": [
+          "Add `...values` after `label` in the parameter list. `values` is a real array, so you can spread it into `Math.max`.",
+          "Use one array pattern: a name for the first item, then `...tail` for everything after it.",
+          "The object pattern names `id` and ends with the rest element, because rest must come last."
+        ]
+      }
+    }
+  ],
+  "recap": "- JavaScript has no tuples: use a fixed-length array like `[x, y]`, or an object when the fields deserve names.\n- `const [a, b] = pair` unpacks by position. `[, second]` skips an item and `[a, b = 0]` sets a default.\n- Return several values as an array: `return [min, max]`.\n- `Object.freeze(arr)` makes a tuple read-only: index writes are silently ignored here and `push` throws. Freeze is shallow.\n- `const { name: fullName, role = \"guest\", address: { city } } = user` renames, defaults, and reaches into nested objects.\n- `function show({ name, age })` destructures a parameter.\n- Spread builds new values: `[...a, ...b]`, `{ ...defaults, ...options }` (later keys win), `{ ...obj, key: value }`, and `f(...args)`.\n- Spread copies are shallow, so nested arrays and objects are still shared.\n- Rest gathers: `function sum(...nums)`, `const [first, ...others] = arr`, `const { password, ...safeUser } = user`. It must come last.\n- Rest parameters replace the legacy `arguments` object."
+}

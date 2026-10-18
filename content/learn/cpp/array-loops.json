@@ -1,0 +1,90 @@
+{
+  "id": "array-loops",
+  "title": "Looping Over Arrays",
+  "section": "Arrays and Vectors",
+  "summary": "Visit every element with index loops, range-based for loops, and while loops to compute totals, extremes, and searches.",
+  "intro": "Most array work is one loop: visit each element and do something with it. This lesson covers index loops when you need positions, range-based for loops when you only need values, and while loops when you want to stop early.",
+  "steps": [
+    {
+      "title": "Index loops",
+      "body": "An index loop counts `i` from 0 up to the size and reads each element with `v[i]`. Use it when you need the position, not just the value.\n\n```cpp\nfor (std::size_t i = 0; i < v.size(); ++i) {\n    std::cout << i << \": \" << v[i] << '\\n';\n}\n```\n\n`i` is a `std::size_t` because `.size()` returns that unsigned type. Compare an `int` with it instead and `g++ -Wall` warns about a signed and unsigned comparison, because a negative `int` would turn into a huge unsigned number.\n\nTo print a list with separators *between* items, print the separator before every item except the first: `if (i > 0)`. Add `i + 1` when people expect numbering from 1.\n\nThe same loop can collect results. Keep a running total declared before the loop. For a running maximum, start from `INT_MIN` (from `<climits>`), the smallest possible `int`, so no element can lose to it. For a minimum, start from `INT_MAX`. Starting from `v[0]` also works, but only when the vector is not empty.\n\n> Gotcha: a `std::size_t` is never negative, so a countdown loop with `i >= 0` never ends. After 0, `--i` wraps around to a huge number and `v[i]` reads far past the end. The next lesson shows the safe way to count down.",
+      "example": {
+        "title": "Fruit list and prices",
+        "prompt": "Number a list of fruits, then print four prices separated by commas along with their total and the largest price.",
+        "code": "#include <climits>\n#include <cstddef>\n#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::vector<std::string> fruits = {\"apple\", \"banana\", \"cherry\"};\n    for (std::size_t i = 0; i < fruits.size(); ++i) {\n        std::cout << i << \": \" << fruits[i] << '\\n';\n    }\n\n    const std::vector<int> prices = {12, 45, 7, 30};\n    int total = 0;\n    int maxPrice = INT_MIN;\n    for (std::size_t i = 0; i < prices.size(); ++i) {\n        if (i > 0) {\n            std::cout << \", \";\n        }\n        std::cout << prices[i];\n        total += prices[i];\n        if (prices[i] > maxPrice) {\n            maxPrice = prices[i];\n        }\n    }\n    std::cout << '\\n';\n    std::cout << \"Total: \" << total << '\\n';\n    std::cout << \"Max: \" << maxPrice << '\\n';\n    return 0;\n}\n",
+        "output": "0: apple\n1: banana\n2: cherry\n12, 45, 7, 30\nTotal: 94\nMax: 45",
+        "explanation": "The first loop prints each index next to `fruits[i]`. The second loop does three jobs in one pass. It prints `\", \"` before every price except the first, adds each price to `total`, and replaces `maxPrice` whenever it sees a bigger value. Because `maxPrice` starts at `INT_MIN`, the first price, 12, always wins, then 45 replaces it and nothing beats 45."
+      },
+      "practice": {
+        "title": "Trip planner",
+        "prompt": "Number a list of cities from 1, then print four distances separated by ` | ` along with their total and the smallest distance.\n\n1. Loop over `cities` with a `std::size_t` index and print `i + 1`, a period and a space, then the city.\n2. Loop over `distances`, printing ` | ` before every distance except the first.\n3. In the same loop add each distance to `total` and update `minDistance` when you find a smaller one.\n4. Keep the starter's `Total:` and `Min:` lines.\n\nExpected output:\n\n```text\n1. Paris\n2. Rome\n3. Oslo\n120 | 45 | 300 | 80\nTotal: 545\nMin: 45\n```",
+        "starter": "#include <climits>\n#include <cstddef>\n#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::vector<std::string> cities = {\"Paris\", \"Rome\", \"Oslo\"};\n    // TODO: print each city numbered from 1\n\n    const std::vector<int> distances = {120, 45, 300, 80};\n    int total = 0;\n    int minDistance = INT_MAX;\n    // TODO: print the distances separated by \" | \", add up total, and track minDistance\n    std::cout << '\\n';\n    std::cout << \"Total: \" << total << '\\n';\n    std::cout << \"Min: \" << minDistance << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <climits>\n#include <cstddef>\n#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::vector<std::string> cities = {\"Paris\", \"Rome\", \"Oslo\"};\n    for (std::size_t i = 0; i < cities.size(); ++i) {\n        std::cout << i + 1 << \". \" << cities[i] << '\\n';\n    }\n\n    const std::vector<int> distances = {120, 45, 300, 80};\n    int total = 0;\n    int minDistance = INT_MAX;\n    for (std::size_t i = 0; i < distances.size(); ++i) {\n        if (i > 0) {\n            std::cout << \" | \";\n        }\n        std::cout << distances[i];\n        total += distances[i];\n        if (distances[i] < minDistance) {\n            minDistance = distances[i];\n        }\n    }\n    std::cout << '\\n';\n    std::cout << \"Total: \" << total << '\\n';\n    std::cout << \"Min: \" << minDistance << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "1. Paris\n2. Rome\n3. Oslo\n120 | 45 | 300 | 80\nTotal: 545\nMin: 45"
+          }
+        ],
+        "hints": [
+          "The index starts at 0, so print `i + 1` to number from 1.",
+          "Print `\" | \"` before `distances[i]` only when `i` is not the first index.",
+          "Use `if (distances[i] < minDistance)` to update the minimum. `INT_MAX` loses to any real distance."
+        ]
+      }
+    },
+    {
+      "title": "Range-based for loops",
+      "body": "When you only need the values, a range-based for loop visits every element in order with no index to manage, so it cannot go out of bounds.\n\n```cpp\nfor (int x : v) { }                // x is a copy of each element\nfor (int& x : v) { x *= 2; }       // x IS the element, so this changes v\nfor (const auto& s : words) { }    // reads each string without copying it\n```\n\n`int x` gets a fresh copy each pass, so `x = 0` inside the loop leaves `v` untouched. Add `&` to bind `x` to the element itself and change it in place (the References lesson explains `&`). Copying an `int` or `double` is cheap, but a `std::string` copy may allocate heap memory for its text. Read strings and objects with `const auto&`: no copy, and `const` blocks accidental changes.\n\nRange-for also works on C arrays and `std::array`, because their size is part of the type:\n\n```cpp\nstd::array<int, 3> a = {1, 2, 3};\nfor (int x : a) { }\n```\n\n> Gotcha: never `push_back` into a vector while a range-for walks it. The vector may move its elements to a bigger heap block, and the loop keeps reading the old one, which is undefined behavior.",
+      "example": {
+        "title": "Double, greet, and total",
+        "prompt": "Double every number in place, greet each name, and total a C array of prices with 2 decimals.",
+        "code": "#include <iomanip>\n#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    std::vector<int> nums = {3, 5, 8, 12};\n    for (int& x : nums) {\n        x *= 2;\n    }\n    std::cout << \"Doubled:\";\n    for (int x : nums) {\n        std::cout << ' ' << x;\n    }\n    std::cout << '\\n';\n\n    const std::vector<std::string> names = {\"Ada\", \"Linus\", \"Grace\"};\n    for (const auto& name : names) {\n        std::cout << \"Hi, \" << name << '\\n';\n    }\n\n    const double prices[3] = {2.5, 4.25, 3.0};\n    double total = 0.0;\n    for (double p : prices) {\n        total += p;\n    }\n    std::cout << \"Total: \" << total << '\\n';\n    return 0;\n}\n",
+        "output": "Doubled: 6 10 16 24\nHi, Ada\nHi, Linus\nHi, Grace\nTotal: 9.75",
+        "explanation": "`int& x` refers to each element of `nums`, so `x *= 2` changes the vector itself. The next loop uses plain `int x` because it only reads, and printing `' '` before each value after the `Doubled:` label gives single spaces with no trailing one. `const auto& name` reads each string in place without copying it. The last loop walks the C array `prices` directly, since the compiler knows it holds 3 elements, and the `std::fixed << std::setprecision(2)` set at the top of `main` prints `9.75`. It does not change how the ints print."
+      },
+      "practice": {
+        "title": "Bonus, tags, and lap times",
+        "prompt": "Add 10 bonus points to every score in place, print each word in brackets, and print the average of four lap times with 2 decimals.\n\n1. Add 10 to every element of `scores` with `for (int& s : scores)`.\n2. Print `Scores:`, then use a second range-for to print a space before each score.\n3. Print each word of `words` as `[word]` on its own line, reading it with `const auto&`.\n4. Add up `laps` with a range-for and print `Average: ` and the total divided by `laps.size()`, with 2 decimals.\n\nExpected output:\n\n```text\nScores: 80 95 102\n[red]\n[green]\n[blue]\nAverage: 59.81\n```",
+        "starter": "#include <array>\n#include <iomanip>\n#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    std::vector<int> scores = {70, 85, 92};\n    // TODO: add 10 to every score in place, then print \"Scores:\" and each score after a space\n    std::cout << '\\n';\n\n    const std::vector<std::string> words = {\"red\", \"green\", \"blue\"};\n    // TODO: print each word as [word] on its own line\n\n    const std::array<double, 4> laps = {61.5, 59.0, 60.25, 58.5};\n    double total = 0.0;\n    // TODO: add every lap time to total\n    std::cout << \"Average: \" << total / laps.size() << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <array>\n#include <iomanip>\n#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    std::vector<int> scores = {70, 85, 92};\n    for (int& s : scores) {\n        s += 10;\n    }\n    std::cout << \"Scores:\";\n    for (int s : scores) {\n        std::cout << ' ' << s;\n    }\n    std::cout << '\\n';\n\n    const std::vector<std::string> words = {\"red\", \"green\", \"blue\"};\n    for (const auto& word : words) {\n        std::cout << '[' << word << ']' << '\\n';\n    }\n\n    const std::array<double, 4> laps = {61.5, 59.0, 60.25, 58.5};\n    double total = 0.0;\n    for (double lap : laps) {\n        total += lap;\n    }\n    std::cout << \"Average: \" << total / laps.size() << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Scores: 80 95 102\n[red]\n[green]\n[blue]\nAverage: 59.81"
+          }
+        ],
+        "hints": [
+          "The `&` in `int& s` is what makes `s += 10` change the vector. Without it you only change a copy.",
+          "Print `\"Scores:\"` once before the loop, then `' '` and the score inside it.",
+          "Loop with `for (double lap : laps)` and add each `lap` to `total`. The starter already divides by `laps.size()`."
+        ]
+      }
+    },
+    {
+      "title": "While loops over arrays",
+      "body": "A `while` loop with your own index fits when the loop should stop *early*, as soon as it finds what it wants. Put both stopping reasons in the condition:\n\n```cpp\nstd::size_t i = 0;\nwhile (i < v.size() && v[i] != target) {\n    ++i;\n}\n// i is the match, or v.size() when nothing matched\n```\n\nOrder matters. `&&` short-circuits: when `i < v.size()` is false, C++ never evaluates `v[i]`. Write the checks the other way round and, when nothing matches, the final test reads `v[v.size()]`, one past the end, which is undefined behavior.\n\nAfter the loop, `i < v.size()` tells you whether it stopped on a match or ran off the end. `i` also counts how many elements were passed, which is handy for \"take items until\" problems.\n\nYou can also stop from inside the body with `break`, as in any loop:\n\n```cpp\nwhile (i < v.size()) {\n    if (v[i] == target) {\n        break;\n    }\n    ++i;\n}\n```",
+      "example": {
+        "title": "First negative",
+        "prompt": "Find the index of the first negative number, stopping as soon as it is found.",
+        "code": "#include <cstddef>\n#include <iostream>\n#include <vector>\n\nint main() {\n    const std::vector<int> values = {4, 8, 15, -16, 23};\n    std::size_t i = 0;\n    while (i < values.size() && values[i] >= 0) {\n        ++i;\n    }\n    if (i < values.size()) {\n        std::cout << \"First negative at index \" << i << '\\n';\n    } else {\n        std::cout << \"No negatives\\n\";\n    }\n    return 0;\n}\n",
+        "output": "First negative at index 3",
+        "explanation": "The loop moves past 4, 8, and 15 because they are not negative. At index 3, `values[i] >= 0` is false, so the loop stops without ever looking at 23. Since `i` (3) is still less than the size, the `if` reports a match. If no value were negative, `i` would reach 5, the bounds check would stop the loop before reading `values[5]`, and the program would print `No negatives`."
+      },
+      "practice": {
+        "title": "Packing a bag",
+        "prompt": "Load weights into a bag in order, stopping before the next one would push the total above the limit.\n\n1. Use a `while` loop with the index `i` the starter declares.\n2. Keep going while `i` is in bounds and `total + weights[i]` is at most `LIMIT`.\n3. In the body add `weights[i]` to `total` and move `i` forward.\n4. Keep the starter's last line, which prints how many items fit and their total.\n\nExpected output:\n\n```text\n3 items, total 15\n```",
+        "starter": "#include <cstddef>\n#include <iostream>\n#include <vector>\n\nint main() {\n    const std::vector<int> weights = {5, 7, 3, 9, 2};\n    const int LIMIT = 15;\n    std::size_t i = 0;\n    int total = 0;\n    // TODO: while i is in bounds and the next weight still fits under LIMIT, add it and move on\n    std::cout << i << \" items, total \" << total << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <iostream>\n#include <vector>\n\nint main() {\n    const std::vector<int> weights = {5, 7, 3, 9, 2};\n    const int LIMIT = 15;\n    std::size_t i = 0;\n    int total = 0;\n    while (i < weights.size() && total + weights[i] <= LIMIT) {\n        total += weights[i];\n        ++i;\n    }\n    std::cout << i << \" items, total \" << total << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "3 items, total 15"
+          }
+        ],
+        "hints": [
+          "Write the bounds check `i < weights.size()` first, then `&&`, then the weight check.",
+          "The second check asks whether the next weight still fits: add `weights[i]` to `total` and compare with `LIMIT`. The loop should stop at 9, because 15 + 9 is more than 15."
+        ]
+      }
+    }
+  ],
+  "recap": "- `for (std::size_t i = 0; i < v.size(); ++i)` visits every index. Use `std::size_t` because `.size()` is unsigned.\n- Print separators between items with `if (i > 0)` before each one.\n- Keep running totals in a variable declared before the loop. Start a maximum at `INT_MIN`, a minimum at `INT_MAX`, or either at `v[0]` when the vector is not empty.\n- `for (int x : v)` reads copies, `for (int& x : v)` changes elements in place, and `for (const auto& s : words)` reads strings without copying.\n- Range-for works on vectors, C arrays, and `std::array`.\n- A `while` loop with a manual index can stop early. Put the bounds check first: `i < v.size() && ...`."
+}

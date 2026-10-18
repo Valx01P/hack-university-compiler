@@ -1,0 +1,90 @@
+{
+  "id": "stringbuilder",
+  "title": "StringBuilder",
+  "section": "Strings",
+  "summary": "Build Strings efficiently with StringBuilder and its append, insert, reverse, and delete methods.",
+  "intro": "Strings never change, so gluing them together in a loop copies them again and again. A `StringBuilder` is a mutable buffer of characters: you append, insert, reverse, and delete in place, then call `toString()` once at the end.",
+  "steps": [
+    {
+      "title": "append and toString",
+      "body": "A `String` is immutable, so `s += x` builds a brand new String and copies every character of `s` into it. If a loop adds one char per pass for n passes, it copies about n * n / 2 chars in total. A `StringBuilder` keeps one growable buffer and adds to the end of it in place.\n\n```java\nStringBuilder sb = new StringBuilder();\nsb.append(\"Score: \").append(42).append(' ').append(true);\nString text = sb.toString(); // \"Score: 42 true\"\nint len = sb.length();       // 14\n```\n\n- `append` takes any type (String, int, char, double, boolean) and returns the same builder, so calls chain.\n- `toString()` gives you a real `String`. Printing a builder or adding it to a String calls it for you.\n- `length()` counts the characters so far.\n\nGotcha: `append('A' + i)` appends a number like `65`, because `char + int` is an `int`. Cast first: `append((char) ('A' + i))`.\n\nGotcha: `StringBuilder` does not override `equals`, so `a.equals(b)` is only true for the very same object. Compare the text instead: `a.toString().equals(b.toString())`.",
+      "example": {
+        "title": "Digits and a row of hashes",
+        "prompt": "Build 12345 and a row of eight # characters with loops, print each with its length, and compare two builders.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        StringBuilder digits = new StringBuilder();\n        for (int i = 1; i <= 5; i++) {\n            digits.append(i);\n        }\n\n        StringBuilder row = new StringBuilder();\n        for (int i = 0; i < 8; i++) {\n            row.append('#');\n        }\n\n        System.out.println(digits + \" has length \" + digits.length());\n        System.out.println(row.toString() + \" has length \" + row.length());\n\n        StringBuilder other = new StringBuilder();\n        other.append(12).append(\"345\");\n        System.out.println(\"equals: \" + digits.equals(other));\n        System.out.println(\"same text: \" + digits.toString().equals(other.toString()));\n    }\n}\n",
+        "output": "12345 has length 5\n######## has length 8\nequals: false\nsame text: true",
+        "explanation": "The first loop appends the ints 1 to 5 and the second appends the char `#` eight times, both into one buffer each. Concatenating a builder with `+` calls its `toString()`, so the first two lines print the text and `length()`. `other` holds the same text, built from an int and a String, but `equals` compares objects, so it prints `false`. Comparing the two `toString()` results compares the text and prints `true`. For a fixed run of one char, `\"#\".repeat(8)` from the Strings lesson is shorter. The loop is here to show `append` with a `char`."
+      },
+      "practice": {
+        "title": "Letters and evens",
+        "prompt": "Build two Strings with loops and a StringBuilder, print each with its length, then compare two builders by their text.\n\n1. Append the letters A to H to `letters` with a loop over `i` from 0 to 7, using `(char) ('A' + i)`.\n2. Append the even numbers 2, 4, 6, 8 to `evens` with a loop that steps by 2.\n3. Keep the two print lines from the starter.\n4. Fill `copy` by appending `\"ABCD\"` and then `\"EFGH\"`.\n5. Print `same text: ` followed by whether `letters` and `copy` hold the same text.\n\nExpected output:\n\n```text\nABCDEFGH has length 8\n2468 has length 4\nsame text: true\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        StringBuilder letters = new StringBuilder();\n        StringBuilder evens = new StringBuilder();\n\n        // TODO: append A to H to letters with a loop\n        // TODO: append 2, 4, 6, 8 to evens with a loop\n\n        System.out.println(letters + \" has length \" + letters.length());\n        System.out.println(evens + \" has length \" + evens.length());\n\n        StringBuilder copy = new StringBuilder();\n        // TODO: append \"ABCD\" and \"EFGH\" to copy\n        // TODO: print \"same text: \" and whether letters and copy hold the same text\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        StringBuilder letters = new StringBuilder();\n        StringBuilder evens = new StringBuilder();\n\n        for (int i = 0; i < 8; i++) {\n            letters.append((char) ('A' + i));\n        }\n        for (int n = 2; n <= 8; n += 2) {\n            evens.append(n);\n        }\n\n        System.out.println(letters + \" has length \" + letters.length());\n        System.out.println(evens + \" has length \" + evens.length());\n\n        StringBuilder copy = new StringBuilder();\n        copy.append(\"ABCD\").append(\"EFGH\");\n        System.out.println(\"same text: \" + letters.toString().equals(copy.toString()));\n    }\n}\n",
+        "tests": [
+          {
+            "output": "ABCDEFGH has length 8\n2468 has length 4\nsame text: true"
+          }
+        ],
+        "hints": [
+          "Without the cast, `'A' + i` is an int, and `append` would add numbers like 65.",
+          "For the evens, start at 2, stop at 8, and use `n += 2`.",
+          "`letters.equals(copy)` compares objects and gives false. Compare the two `toString()` results instead."
+        ]
+      }
+    },
+    {
+      "title": "Editing a builder",
+      "body": "Pass a String to the constructor to start with text: `new StringBuilder(\"stressed\")`. Unlike a String, a builder changes in place, so these methods edit the same object:\n\n```java\nStringBuilder sb = new StringBuilder(\"cat\");\nsb.reverse();                 // \"tac\"\nsb.insert(0, \"a \");           // \"a tac\"\nsb.setCharAt(2, 'T');         // \"a Tac\"\nsb.deleteCharAt(sb.length() - 1); // \"a Ta\"\nchar first = sb.charAt(0);    // 'a'\n```\n\n- `reverse()` flips the characters in one call, with no backwards loop over the indexes.\n- `insert(index, value)` puts any value before the character at `index`. Index 0 is the front, `length()` is the end.\n- `setCharAt(i, c)` replaces one char. Pair it with `charAt(i)` to change a letter, for example `Character.toUpperCase(sb.charAt(0))`.\n- `deleteCharAt(i)` removes one char and shifts the rest left.\n\n`reverse`, `insert`, and `deleteCharAt` also return the builder, so they chain, but you do not need to reassign the result. `setCharAt` returns nothing, so it ends a chain. An index outside the text throws `StringIndexOutOfBoundsException`.\n\nGotcha: `new StringBuilder('a')` does not start with `a`. The char is widened to the int 97, which becomes the starting capacity, and the builder is empty. Use `new StringBuilder(\"a\")` or append the char.",
+      "example": {
+        "title": "Stressed to dessert",
+        "prompt": "Reverse a word, insert a prefix, capitalize the first letter, and drop the last char, printing after each change.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        StringBuilder sb = new StringBuilder(\"stressed\");\n\n        sb.reverse();\n        System.out.println(sb);\n\n        sb.insert(0, \"my \");\n        System.out.println(sb);\n\n        sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));\n        System.out.println(sb);\n\n        sb.deleteCharAt(sb.length() - 1);\n        System.out.println(sb);\n    }\n}\n",
+        "output": "desserts\nmy desserts\nMy desserts\nMy dessert",
+        "explanation": "The builder starts as `stressed` and every call edits that one object. `reverse()` gives `desserts`. `insert(0, \"my \")` puts the prefix at the front. `charAt(0)` reads `m`, and `setCharAt` writes back its upper case form. `deleteCharAt(sb.length() - 1)` removes the last char, the final `s`. `println(sb)` prints the current text each time."
+      },
+      "practice": {
+        "title": "Reversed greeting",
+        "prompt": "Edit a StringBuilder that starts as `hello world` and print it after each change.\n\n1. Reverse it.\n2. Upper-case its first char with `setCharAt` and `charAt`.\n3. Append `!`.\n4. Insert `>>` at index 0.\n5. Delete the character at index 3 with `deleteCharAt`.\n6. Print the builder after each of the five changes.\n\nExpected output:\n\n```text\ndlrow olleh\nDlrow olleh\nDlrow olleh!\n>>Dlrow olleh!\n>>Drow olleh!\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        StringBuilder sb = new StringBuilder(\"hello world\");\n\n        // TODO: make the five changes, printing sb after each one\n        System.out.println(sb);\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        StringBuilder sb = new StringBuilder(\"hello world\");\n\n        sb.reverse();\n        System.out.println(sb);\n\n        sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));\n        System.out.println(sb);\n\n        sb.append('!');\n        System.out.println(sb);\n\n        sb.insert(0, \">>\");\n        System.out.println(sb);\n\n        sb.deleteCharAt(3);\n        System.out.println(sb);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "dlrow olleh\nDlrow olleh\nDlrow olleh!\n>>Dlrow olleh!\n>>Drow olleh!"
+          }
+        ],
+        "hints": [
+          "Each change is one call on `sb` followed by `System.out.println(sb);`.",
+          "Read the first char with `charAt(0)`, upper-case it with `Character.toUpperCase`, and write it back with `setCharAt`.",
+          "After the insert, index 3 is the `l` right after `>>D`."
+        ]
+      }
+    },
+    {
+      "title": "Separators without a trailing comma",
+      "body": "Joining values with a separator is the classic builder job, and the classic bug is a trailing `, ` at the end. `String.join` handles a `String[]`, but when you filter values or join numbers you build it yourself. Two common fixes:\n\n**Check first.** Before each value, append the separator only if something is already there:\n\n```java\nif (sb.length() > 0) {\n    sb.append(\", \");\n}\nsb.append(n);\n```\n\n**Trim after.** Append the separator after every value, then cut the last one off with `setLength`, which keeps only the first n chars:\n\n```java\nif (sb.length() > 0) {\n    sb.setLength(sb.length() - 2); // \", \" is 2 chars\n}\n```\n\nGuard the trim: if nothing was appended, `setLength(-2)` throws. The `length() > 0` check only works when the builder starts empty, so add labels like `Evens: ` outside the builder. `setLength(0)` clears a builder so you can reuse it.",
+      "example": {
+        "title": "Joining even numbers",
+        "prompt": "Join the even numbers from an array with a comma and a space, once with a length check and once with setLength.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        int[] nums = {3, 8, 12, 5, 6, 7, 10};\n\n        StringBuilder checked = new StringBuilder();\n        for (int n : nums) {\n            if (n % 2 == 0) {\n                if (checked.length() > 0) {\n                    checked.append(\", \");\n                }\n                checked.append(n);\n            }\n        }\n        System.out.println(\"Evens: \" + checked);\n\n        StringBuilder trimmed = new StringBuilder();\n        for (int n : nums) {\n            if (n % 2 == 0) {\n                trimmed.append(n).append(\", \");\n            }\n        }\n        if (trimmed.length() > 0) {\n            trimmed.setLength(trimmed.length() - 2);\n        }\n        System.out.println(\"Evens: \" + trimmed);\n    }\n}\n",
+        "output": "Evens: 8, 12, 6, 10\nEvens: 8, 12, 6, 10",
+        "explanation": "In the first loop the builder is empty when `8` arrives, so no separator goes before it. Every later even number gets `, ` first. The second loop appends `, ` after every even number, leaving `8, 12, 6, 10, `, then `setLength` drops the last 2 chars. Both builders end with the same text, and the label stays outside so the length check still works."
+      },
+      "practice": {
+        "title": "Long names",
+        "prompt": "Join the names longer than three letters with ` | ` and no trailing separator.\n\n1. Loop over `names` and skip any name with 3 or fewer letters.\n2. Append each long name to `sb`, putting ` | ` between names: check `sb.length() > 0` first, or trim the end with `setLength`.\n3. Keep the print line from the starter.\n\nExpected output:\n\n```text\nLong names: Bruno | Carla | Diego\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        String[] names = {\"Ana\", \"Bruno\", \"Li\", \"Carla\", \"Tom\", \"Diego\"};\n\n        StringBuilder sb = new StringBuilder();\n        // TODO: append the names longer than three letters, separated by \" | \"\n\n        System.out.println(\"Long names: \" + sb);\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        String[] names = {\"Ana\", \"Bruno\", \"Li\", \"Carla\", \"Tom\", \"Diego\"};\n\n        StringBuilder sb = new StringBuilder();\n        for (String name : names) {\n            if (name.length() > 3) {\n                if (sb.length() > 0) {\n                    sb.append(\" | \");\n                }\n                sb.append(name);\n            }\n        }\n\n        System.out.println(\"Long names: \" + sb);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Long names: Bruno | Carla | Diego"
+          }
+        ],
+        "hints": [
+          "Use `name.length() > 3` to keep only the long names.",
+          "Inside that if, append `\" | \"` only when `sb.length() > 0`, then append the name."
+        ]
+      }
+    }
+  ],
+  "recap": "- `new StringBuilder()` starts empty and `new StringBuilder(\"text\")` starts with text. Never pass a char to the constructor.\n- `append` takes any type and chains. Cast `(char) ('A' + i)` to append a letter, not a number.\n- `toString()` gives the String, and `length()` counts the chars.\n- `s += x` in a loop copies the whole String every time, so use a builder instead.\n- Compare builders with `a.toString().equals(b.toString())`, because `equals` on a builder compares objects.\n- `reverse`, `insert(index, value)`, `deleteCharAt(i)`, `setCharAt(i, c)`, and `charAt(i)` edit or read in place.\n- Avoid a trailing separator: append it only when `length() > 0`, or trim the end with `setLength`."
+}

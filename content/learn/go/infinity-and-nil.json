@@ -1,0 +1,89 @@
+{
+  "id": "infinity-and-nil",
+  "title": "Infinity, Limits and nil",
+  "section": "Basics",
+  "summary": "Represent infinity with math.Inf, use integer limits as sentinels, and meet nil, Go's version of null.",
+  "intro": "Sometimes a program needs a value that means \"bigger than anything\" or \"nothing at all\". Go gives floats real infinity, gives integers named limits, and uses `nil` for references that point nowhere.",
+  "steps": [
+    {
+      "title": "Infinity and NaN",
+      "body": "Floats in Go follow IEEE 754, so they can hold infinity and \"not a number\". The `math` package has the tools. To use two packages, group the imports in one parenthesized block, sorted, one per line. Then write each name with its package in front, like `math.Inf`.\n\n```go\nimport (\n\t\"fmt\"\n\t\"math\"\n)\n```\n\n- `math.Inf(1)` is positive infinity and prints as `+Inf`.\n- `math.Inf(-1)` is negative infinity and prints as `-Inf`.\n- `math.NaN()` is not a number and prints as `NaN`.\n- `math.IsInf(x, 1)` reports whether `x` is `+Inf`, `math.IsInf(x, -1)` checks for `-Inf`, and a sign of `0` accepts either.\n\nDividing a float by a zero **variable** does not crash: `5.0 / zero` is `+Inf`, `-3.0 / zero` is `-Inf`, and `zero / zero` is `NaN`.\n\n> Gotchas: `5.0 / 0.0` written with constants does not compile (division by zero), and an *integer* divided by a zero variable crashes at run time, as the math lesson showed. Only floats have infinity. Also, `NaN` is not equal to anything, not even itself, so you will check for it with `math.IsNaN` once you learn comparisons.",
+      "example": {
+        "title": "Speed limits",
+        "prompt": "Print positive and negative infinity, then make infinity and NaN by dividing by a zero variable and check one result with math.IsInf.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"math\"\n)\n\nfunc main() {\n\tfmt.Println(\"speed limits\")\n\tfmt.Println(\"top:\", math.Inf(1))\n\tfmt.Println(\"bottom:\", math.Inf(-1))\n\tzero := 0.0\n\tfmt.Println(\"5 / 0:\", 5.0/zero)\n\tfmt.Println(\"0 / 0:\", zero/zero)\n\tfmt.Println(\"is +Inf:\", math.IsInf(5.0/zero, 1))\n}\n",
+        "output": "speed limits\ntop: +Inf\nbottom: -Inf\n5 / 0: +Inf\n0 / 0: NaN\nis +Inf: true",
+        "explanation": "The grouped import brings in both `fmt` and `math`. `math.Inf(1)` and `math.Inf(-1)` print as `+Inf` and `-Inf`. Because `zero` is a variable, `5.0/zero` is computed at run time and gives `+Inf`, while `zero/zero` has no sensible answer, so it is `NaN`. `math.IsInf(5.0/zero, 1)` asks \"is this positive infinity?\" and prints `true`."
+      },
+      "practice": {
+        "title": "Unlimited data plan",
+        "prompt": "Describe an unlimited data plan with infinity and NaN.\n\n1. Add `\"math\"` next to `\"fmt\"` in one grouped import block.\n2. Keep the `plan: unlimited` line, then print `cap:` followed by `math.Inf(1)`.\n3. Print `floor:` followed by `math.Inf(-1)`.\n4. Print `-3 / 0:` followed by `-3.0 / zero`.\n5. Print `missing:` followed by `math.NaN()`.\n6. Print `is -Inf:` followed by `math.IsInf(-3.0/zero, -1)`.\n\nExpected output:\n\n```text\nplan: unlimited\ncap: +Inf\nfloor: -Inf\n-3 / 0: -Inf\nmissing: NaN\nis -Inf: true\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"plan: unlimited\")\n\tzero := 0.0\n\t_ = zero\n\t// TODO: group \"math\" with \"fmt\" in one import block, then print the five labeled lines\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"math\"\n)\n\nfunc main() {\n\tfmt.Println(\"plan: unlimited\")\n\tfmt.Println(\"cap:\", math.Inf(1))\n\tfmt.Println(\"floor:\", math.Inf(-1))\n\tzero := 0.0\n\tfmt.Println(\"-3 / 0:\", -3.0/zero)\n\tfmt.Println(\"missing:\", math.NaN())\n\tfmt.Println(\"is -Inf:\", math.IsInf(-3.0/zero, -1))\n}\n",
+        "tests": [
+          {
+            "output": "plan: unlimited\ncap: +Inf\nfloor: -Inf\n-3 / 0: -Inf\nmissing: NaN\nis -Inf: true"
+          }
+        ],
+        "hints": [
+          "Write the imports as `import (` then `\"fmt\"` and `\"math\"` on their own lines, then `)`.",
+          "`fmt.Println(\"cap:\", math.Inf(1))` prints the label and the value with one space between them.",
+          "Once `zero` is used in a division you can delete the `_ = zero` line."
+        ]
+      }
+    },
+    {
+      "title": "Integer limits",
+      "body": "Integers have no infinity. When you need \"bigger than anything\", use the largest value the type can hold. The `math` package names these limits as constants:\n\n| Constant | Value |\n| --- | --- |\n| `math.MaxInt64` | 9223372036854775807 |\n| `math.MinInt64` | -9223372036854775808 |\n| `math.MaxInt32` | 2147483647 |\n| `math.MinInt32` | -2147483648 |\n| `math.MaxUint8` | 255 |\n| `math.MaxFloat64` | about 1.8e+308 |\n\nGo 1.16 has no `math.MaxInt` (it arrived in Go 1.17). Since `int` is 64 bits here, `best := math.MaxInt64` makes an `int` sentinel that means \"no best value yet\": any real value you find later will be smaller or equal.\n\nYou saw an `int8` wrap in the math lesson. Every limit in this table works the same way: an integer is a fixed number of bits in memory, so going one past the top wraps around to the bottom at run time with no error:\n\n```go\nbig := int64(math.MaxInt64)\nbig++ // now -9223372036854775808\n```\n\n> Gotcha: the limits are untyped constants, and constants never wrap. `fmt.Println(math.MaxUint64)` and `int64(math.MaxInt64) + 1` do not compile because the value overflows its type. Only a variable wraps.",
+      "example": {
+        "title": "Int64 limits and a sentinel",
+        "prompt": "Print the int64 and float64 limits, store a no-best-yet sentinel, then push an int64 past its maximum.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"math\"\n)\n\nfunc main() {\n\tfmt.Println(\"max int64:\", math.MaxInt64)\n\tfmt.Println(\"min int64:\", math.MinInt64)\n\tfmt.Println(\"max float64:\", math.MaxFloat64)\n\tbest := math.MaxInt64\n\tfmt.Println(\"best so far:\", best)\n\tbig := int64(math.MaxInt64)\n\tbig++\n\tfmt.Println(\"wrapped:\", big)\n}\n",
+        "output": "max int64: 9223372036854775807\nmin int64: -9223372036854775808\nmax float64: 1.7976931348623157e+308\nbest so far: 9223372036854775807\nwrapped: -9223372036854775808",
+        "explanation": "`math.MaxInt64` and `math.MinInt64` fit in an `int`, so they print as plain numbers. `math.MaxFloat64` is so large that `Println` shows it in e-notation. `best := math.MaxInt64` gives an `int` holding the largest value, a common starting point when searching for a minimum. `big` is an `int64` at its limit, and `big++` overflows its 64 bits, wrapping to the smallest `int64`."
+      },
+      "practice": {
+        "title": "Level counter overflow",
+        "prompt": "Print the 32-bit and 8-bit limits, then overflow an int32 level counter.\n\n1. Print `max int32:` followed by `math.MaxInt32`.\n2. Print `min int32:` followed by `math.MinInt32`.\n3. Print `max uint8:` followed by `math.MaxUint8`.\n4. Add 1 to `level` with `level++` so the `level:` line prints the wrapped value.\n\nExpected output:\n\n```text\nmax int32: 2147483647\nmin int32: -2147483648\nmax uint8: 255\nlevel: -2147483648\n```",
+        "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"math\"\n)\n\nfunc main() {\n\t// TODO: print math.MaxInt32, math.MinInt32, and math.MaxUint8 with their labels\n\tvar level int32 = math.MaxInt32\n\t// TODO: add 1 to level\n\tfmt.Println(\"level:\", level)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"math\"\n)\n\nfunc main() {\n\tfmt.Println(\"max int32:\", math.MaxInt32)\n\tfmt.Println(\"min int32:\", math.MinInt32)\n\tfmt.Println(\"max uint8:\", math.MaxUint8)\n\tvar level int32 = math.MaxInt32\n\tlevel++\n\tfmt.Println(\"level:\", level)\n}\n",
+        "tests": [
+          {
+            "output": "max int32: 2147483647\nmin int32: -2147483648\nmax uint8: 255\nlevel: -2147483648"
+          }
+        ],
+        "hints": [
+          "Use `fmt.Println(\"max int32:\", math.MaxInt32)` and the same pattern for the other two limits.",
+          "`level` is an `int32`, so one past 2147483647 wraps to -2147483648."
+        ]
+      }
+    },
+    {
+      "title": "nil, Go's null",
+      "body": "`nil` is Go's \"no value\". Only types that refer to something else can be `nil`: pointers, slices, maps, channels, functions, and interfaces such as `error`. Declare one with `var` and no value, and its zero value is `nil`.\n\n```go\nvar p *int           // a pointer to an int, pointing nowhere\nvar s []int          // a slice with no backing array\nvar m map[string]int // a map with no storage yet\nvar err error        // no error\n```\n\nPrinting them is safe: a nil pointer and a nil error print `<nil>`, a nil slice prints `[]`, and a nil map prints `map[]`. Each variable is only a small header or pointer set to zero. No backing storage has been allocated yet.\n\nNumbers, strings, bools, and structs are never `nil`. They always hold their zero value (`0`, `\"\"`, `false`). Even a string, which is a small header pointing at its text, starts as the empty string, never `nil`.\n\n> Gotcha: reading through a nil pointer with `*p` crashes the program. Go calls this crash a panic and prints `panic: runtime error: invalid memory address or nil pointer dereference`. Writing a key into a nil map panics too, while reading from it just gives `0`. You will learn to guard against both later.",
+      "example": {
+        "title": "Printing nil values",
+        "prompt": "Declare a pointer, a slice, a map, an error, and an int without values and print each with a label.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar p *int\n\tvar s []int\n\tvar m map[string]int\n\tvar err error\n\tvar count int\n\tfmt.Println(\"pointer:\", p)\n\tfmt.Println(\"slice:\", s)\n\tfmt.Println(\"map:\", m)\n\tfmt.Println(\"error:\", err)\n\tfmt.Println(\"count:\", count)\n}\n",
+        "output": "pointer: <nil>\nslice: []\nmap: map[]\nerror: <nil>\ncount: 0",
+        "explanation": "Each `var` with no value gets the zero value of its type. For the pointer, slice, map, and error that is `nil`, which `Println` shows as `<nil>`, `[]`, `map[]`, and `<nil>`. The `int` cannot be `nil`, so it starts at `0`."
+      },
+      "practice": {
+        "title": "Empty profile",
+        "prompt": "Print the starting values of an empty user profile.\n\n1. Declare `var tags []string`, `var ages map[string]int`, `var lastErr error`, and `var active bool`.\n2. Keep the `best:` line, then print `tags:`, `ages:`, `last error:`, and `active:`, each followed by its variable, in that order.\n\nExpected output:\n\n```text\nbest: <nil>\ntags: []\nages: map[]\nlast error: <nil>\nactive: false\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar best *float64\n\tfmt.Println(\"best:\", best)\n\t// TODO: declare tags, ages, lastErr, and active, then print each with its label\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar best *float64\n\tvar tags []string\n\tvar ages map[string]int\n\tvar lastErr error\n\tvar active bool\n\tfmt.Println(\"best:\", best)\n\tfmt.Println(\"tags:\", tags)\n\tfmt.Println(\"ages:\", ages)\n\tfmt.Println(\"last error:\", lastErr)\n\tfmt.Println(\"active:\", active)\n}\n",
+        "tests": [
+          {
+            "output": "best: <nil>\ntags: []\nages: map[]\nlast error: <nil>\nactive: false"
+          }
+        ],
+        "hints": [
+          "Declare each variable with `var` and no value, like the `best` line.",
+          "A nil error prints `<nil>` just like the nil pointer, so plain `fmt.Println` calls with labels are all you need."
+        ]
+      }
+    }
+  ],
+  "recap": "- Group imports in `import ( ... )` and write package members with the package in front, as in `math.Inf`.\n- `math.Inf(1)` and `math.Inf(-1)` print `+Inf` and `-Inf`. A float divided by a zero variable gives them too, and `zero / zero` is `NaN`.\n- `math.IsInf(x, sign)` checks for infinity.\n- Integers have no infinity: use `math.MaxInt64` as a sentinel (Go 1.16 has no `math.MaxInt`).\n- Going past a fixed-size integer's limit wraps around.\n- `nil` is the zero value of pointers, slices, maps, channels, functions, and interfaces. Numbers, strings, bools, and structs are never `nil`.\n- Dereferencing a nil pointer panics."
+}

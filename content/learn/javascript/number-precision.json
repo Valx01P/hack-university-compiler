@@ -1,0 +1,91 @@
+{
+  "id": "number-precision",
+  "title": "Number Precision and BigInt",
+  "section": "Math and Numbers",
+  "summary": "Understand floating-point rounding, the safe integer limit, and when to switch to BigInt for exact large integers.",
+  "intro": "JavaScript stores every number as a 64-bit float. That makes decimals slightly inexact and very large integers lose digits. Here you learn to compare and format decimals safely, spot the safe integer limit, and switch to BigInt when you need exact big integers.",
+  "steps": [
+    {
+      "title": "Floating-point surprises",
+      "body": "Every JavaScript number is a 64-bit binary floating-point value. Binary cannot store most decimals exactly, so tiny rounding errors appear:\n\n```javascript\nconsole.log(0.1 + 0.2);         // 0.30000000000000004\nconsole.log(0.1 + 0.2 === 0.3); // false\n```\n\nNever compare decimal results with `===`. Check that they are close instead, using a tolerance sized for your data: `Math.abs(a - b) < 1e-9`. `1e-9` is exponent notation for 1 times 10 to the power -9, or 0.000000001.\n\n`Number.EPSILON` (about `2.2e-16`) is the gap between 1 and the next number a float can store, so a bare `Math.abs(a - b) < Number.EPSILON` only works for values near 1. It already fails for `1.1 + 2.2` versus `3.3`. If you want EPSILON, scale it: `Math.abs(a - b) <= Number.EPSILON * Math.max(Math.abs(a), Math.abs(b))`.\n\nAs in the last lesson, `toFixed(n)` is for display: it rounds to n places and returns a string. For money, store whole cents with `Math.round(price * 100)`, which gives the right cents for any price with at most 2 decimals. Add the integer cents and divide by 100 only to print.\n\n> Gotcha: `toFixed` rounds the stored binary value, not the decimal you typed. `(1.005).toFixed(2)` is `\"1.00\"` because 1.005 is really 1.00499999... The same cause makes `Math.round(1.005 * 100) / 100` give `1`.",
+      "example": {
+        "title": "Adding prices",
+        "prompt": "Show float rounding, compare with two tolerances, and total prices as floats and as cents.",
+        "code": "const sum = 0.1 + 0.2;\nconsole.log(`0.1 + 0.2 = ${sum}`);\nconsole.log(`=== 0.3: ${sum === 0.3}`);\n\nconst a = 1.1 + 2.2;\nconsole.log(`1.1 + 2.2 = ${a}`);\nconsole.log(`EPSILON check: ${Math.abs(a - 3.3) < Number.EPSILON}`);\nconsole.log(`1e-9 check: ${Math.abs(a - 3.3) < 1e-9}`);\nconsole.log(`(1.005).toFixed(2) = ${(1.005).toFixed(2)}`);\n\nconst prices = [0.1, 0.2, 0.3];\nlet floatTotal = 0;\nlet cents = 0;\nfor (const price of prices) {\n  floatTotal += price;\n  cents += Math.round(price * 100);\n}\nconsole.log(`Float total: ${floatTotal}`);\nconsole.log(`Cents total: $${(cents / 100).toFixed(2)}`);\n",
+        "output": "0.1 + 0.2 = 0.30000000000000004\n=== 0.3: false\n1.1 + 2.2 = 3.3000000000000003\nEPSILON check: false\n1e-9 check: true\n(1.005).toFixed(2) = 1.00\nFloat total: 0.6000000000000001\nCents total: $0.60",
+        "explanation": "The sum is a hair above 0.3, so `===` says false. The error in `1.1 + 2.2` is about `4.4e-16`, bigger than `Number.EPSILON`, so the EPSILON check fails while the `1e-9` tolerance passes. `toFixed` rounds 1.005 down because the stored value is just below it. In the loop, the float total drifts, but each price becomes a whole number of cents (10, 20, 30), so the cents total is exactly 60 and prints as `$0.60`."
+      },
+      "practice": {
+        "title": "Adding a tip",
+        "prompt": "Show float rounding for 0.7 + 0.1, compare it two ways, and total a price and a tip as floats and as cents.\n\n1. Store `0.7 + 0.1` in `sum` and print `0.7 + 0.1 = ` followed by it.\n2. Print `=== 0.8: ` followed by whether `sum === 0.8`.\n3. Print `1e-9 check: ` followed by whether `Math.abs(sum - 0.8) < 1e-9`.\n4. Print `(2.675).toFixed(2) = ` followed by that value.\n5. Loop over `prices`, adding each price to `floatTotal` and its whole cents (`Math.round(price * 100)`) to `cents`.\n6. Print `Float total: ` followed by `floatTotal`.\n7. Print `Cents total: $` followed by `cents` divided by 100 with 2 decimal places.\n\nExpected output:\n\n```text\n0.7 + 0.1 = 0.7999999999999999\n=== 0.8: false\n1e-9 check: true\n(2.675).toFixed(2) = 2.67\nFloat total: 0.7999999999999999\nCents total: $0.80\n```",
+        "starter": "const prices = [0.7, 0.1];\n\n// TODO: store 0.7 + 0.1 and print it, the === check, and the 1e-9 check\n// TODO: print (2.675).toFixed(2)\n// TODO: total prices as floats and as cents, then print both totals\n",
+        "solution": "const prices = [0.7, 0.1];\n\nconst sum = 0.7 + 0.1;\nconsole.log(`0.7 + 0.1 = ${sum}`);\nconsole.log(`=== 0.8: ${sum === 0.8}`);\nconsole.log(`1e-9 check: ${Math.abs(sum - 0.8) < 1e-9}`);\nconsole.log(`(2.675).toFixed(2) = ${(2.675).toFixed(2)}`);\n\nlet floatTotal = 0;\nlet cents = 0;\nfor (const price of prices) {\n  floatTotal += price;\n  cents += Math.round(price * 100);\n}\nconsole.log(`Float total: ${floatTotal}`);\nconsole.log(`Cents total: $${(cents / 100).toFixed(2)}`);\n",
+        "tests": [
+          {
+            "output": "0.7 + 0.1 = 0.7999999999999999\n=== 0.8: false\n1e-9 check: true\n(2.675).toFixed(2) = 2.67\nFloat total: 0.7999999999999999\nCents total: $0.80"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the example: one template literal per line, with each check inside `${...}`.",
+          "Declare `floatTotal` and `cents` with `let` before the loop, then update both inside a `for...of` loop over `prices`.",
+          "Turn each price into whole cents with `Math.round` before adding it, and format the cents total only when you print it."
+        ]
+      }
+    },
+    {
+      "title": "Safe integers",
+      "body": "A 64-bit float has 53 bits for its digits, so integers are exact only up to `Number.MAX_SAFE_INTEGER`, which is `2 ** 53 - 1` (9007199254740991). From `2 ** 53` on, the gap between storable numbers is 2 or more, so many integers silently round to a neighbor:\n\n```javascript\nconsole.log(2 ** 53 + 1 === 2 ** 53); // true\nconsole.log(9007199254740993);         // 9007199254740992\n```\n\n`Number.isSafeInteger(x)` is true only for whole numbers inside the safe range. `2 ** 53` itself is stored exactly, but it is not safe because `2 ** 53 + 1` lands on it too. Use it on results that might grow too big:\n\n```javascript\nconsole.log(Number.isSafeInteger(2 ** 53 - 1)); // true\nconsole.log(Number.isSafeInteger(2 ** 53));     // false\n```\n\nVery large results switch to exponent form when printed, such as `1.5511210043330986e+25` (times 10 to the power 25). That number has only about 17 significant digits. The rest are lost, so it is an estimate, not an exact integer.\n\n> Gotcha: nothing warns you when you cross the limit. IDs from databases and APIs are often 64-bit, so a value like 9007199254740993 can quietly change. Check with `Number.isSafeInteger` or keep such values as strings.",
+      "example": {
+        "title": "Last safe factorial",
+        "prompt": "Show the safe limit, find the largest factorial that is still a safe integer, and print 25! as a Number.",
+        "code": "console.log(`MAX_SAFE_INTEGER = ${Number.MAX_SAFE_INTEGER}`);\nconsole.log(`2 ** 53 + 1 === 2 ** 53: ${2 ** 53 + 1 === 2 ** 53}`);\nconsole.log(`isSafeInteger(2 ** 53): ${Number.isSafeInteger(2 ** 53)}`);\n\nlet n = 1;\nlet fact = 1;\nwhile (Number.isSafeInteger(fact * (n + 1))) {\n  n++;\n  fact *= n;\n}\nconsole.log(`${n}! = ${fact} is the last safe factorial`);\n\nlet big = 1;\nfor (let i = 2; i <= 25; i++) {\n  big *= i;\n}\nconsole.log(`25! as a Number = ${big}`);\n",
+        "output": "MAX_SAFE_INTEGER = 9007199254740991\n2 ** 53 + 1 === 2 ** 53: true\nisSafeInteger(2 ** 53): false\n18! = 6402373705728000 is the last safe factorial\n25! as a Number = 1.5511210043330986e+25",
+        "explanation": "`2 ** 53 + 1` cannot be stored, so it rounds back to `2 ** 53` and the two compare equal. That is also why `2 ** 53` is not safe. The while loop checks the next product before taking it, so it stops at 18!, because 19! is past the safe limit. The second loop keeps multiplying anyway: 25! has 26 digits, so it prints in exponent form with only about 17 of them correct."
+      },
+      "practice": {
+        "title": "Last safe Fibonacci",
+        "prompt": "Show the safe limit in action and find the largest Fibonacci number that is still a safe integer.\n\n1. Print `9007199254740993 prints as ` followed by the literal `9007199254740993`.\n2. Print `isSafeInteger(2 ** 53 - 1): ` followed by the result of `Number.isSafeInteger(2 ** 53 - 1)`.\n3. Print `isSafeInteger(2 ** 53): ` followed by the result of `Number.isSafeInteger(2 ** 53)`.\n4. Starting from `prev` = F(0) = 0 and `curr` = F(1) = 1, keep stepping forward while `prev + curr` is a safe integer, counting the index `n` of `curr`.\n5. Print `F(n) = value is the last safe Fibonacci number` with the final index and value.\n\nExpected output:\n\n```text\n9007199254740993 prints as 9007199254740992\nisSafeInteger(2 ** 53 - 1): true\nisSafeInteger(2 ** 53): false\nF(78) = 8944394323791464 is the last safe Fibonacci number\n```",
+        "starter": "// TODO: print the literal 9007199254740993 and the two isSafeInteger checks\n\nlet n = 1;\nlet prev = 0;\nlet curr = 1;\n// TODO: step forward while prev + curr is a safe integer, then print the result\n",
+        "solution": "console.log(`9007199254740993 prints as ${9007199254740993}`);\nconsole.log(`isSafeInteger(2 ** 53 - 1): ${Number.isSafeInteger(2 ** 53 - 1)}`);\nconsole.log(`isSafeInteger(2 ** 53): ${Number.isSafeInteger(2 ** 53)}`);\n\nlet n = 1;\nlet prev = 0;\nlet curr = 1;\nwhile (Number.isSafeInteger(prev + curr)) {\n  const next = prev + curr;\n  prev = curr;\n  curr = next;\n  n++;\n}\nconsole.log(`F(${n}) = ${curr} is the last safe Fibonacci number`);\n",
+        "tests": [
+          {
+            "output": "9007199254740993 prints as 9007199254740992\nisSafeInteger(2 ** 53 - 1): true\nisSafeInteger(2 ** 53): false\nF(78) = 8944394323791464 is the last safe Fibonacci number"
+          }
+        ],
+        "hints": [
+          "Put the literal inside `${...}` in a template literal to see the value JavaScript actually stored.",
+          "Check the next value before you take it, just like the factorial loop checks `fact * (n + 1)`.",
+          "Each step computes the next number from `prev` and `curr`, shifts both forward, and adds 1 to `n`."
+        ]
+      }
+    },
+    {
+      "title": "BigInt for exact large integers",
+      "body": "A BigInt holds a whole number of any size, exactly. Write one with an `n` at the end, or convert with `BigInt(value)`, which accepts an integer number or a string of digits. `BigInt(1.5)` throws. Use a string for values past the safe limit, since a number literal is already rounded.\n\n```javascript\nconst a = 25n;\nconst b = BigInt(7);\nconst c = BigInt(\"123456789012345678901234567890\");\nconsole.log(typeof a); // bigint\n```\n\n`+ - * ** %` work as usual, and `/` drops the remainder, rounding toward zero: `7n / 2n` is `3n`. You cannot mix types: `10n + 1` throws a TypeError. Convert explicitly with `BigInt(x)`, or with `Number(big)` when the value is small enough and you need decimals: `Number(7n) / 2` is `3.5`.\n\n`===` also checks the type, so `10n === 10` is false. Convert first, then compare: `10n === BigInt(10)` is true. Like `0`, `0n` is falsy.\n\nA template literal prints a BigInt without the `n` (`${25n}` shows `25`), while `console.log(25n)` shows `25n`. Print with template literals so the output stays clean.\n\n> Gotcha: BigInt has no decimals and does not work with `Math` functions. Use it for exact integers, not for general math.",
+      "example": {
+        "title": "Exact 25 factorial",
+        "prompt": "Compute 25! exactly with BigInt and show BigInt and Number division, powers, and type-aware equality.",
+        "code": "let fact = 1n;\nfor (let i = 2n; i <= 25n; i++) {\n  fact *= i;\n}\nconsole.log(`25! = ${fact}`);\nconsole.log(`7n / 2n = ${7n / 2n}`);\nconsole.log(`Number(7n) / 2 = ${Number(7n) / 2}`);\nconsole.log(`2n ** 64n = ${2n ** 64n}`);\n\nconst big = BigInt(\"9007199254740993\");\nconsole.log(`big + 1n = ${big + 1n}`);\nconsole.log(`typeof big: ${typeof big}`);\nconsole.log(`0n is truthy: ${Boolean(0n)}`);\nconsole.log(`10n === 10: ${10n === 10}`);\nconsole.log(`10n === BigInt(10): ${10n === BigInt(10)}`);\n",
+        "output": "25! = 15511210043330985984000000\n7n / 2n = 3\nNumber(7n) / 2 = 3.5\n2n ** 64n = 18446744073709551616\nbig + 1n = 9007199254740994\ntypeof big: bigint\n0n is truthy: false\n10n === 10: false\n10n === BigInt(10): true",
+        "explanation": "The loop counter is a BigInt too, so `fact *= i` never mixes types and every digit of 25! is exact. `7n / 2n` drops the remainder, while `Number(7n) / 2` converts first and keeps the `.5`. Building `big` from a string keeps the 3 at the end that a number literal would lose. `Boolean(0n)` is false, just like `Boolean(0)`. The last two lines show that `===` needs both sides to be BigInt. The template literals print every BigInt without its `n`."
+      },
+      "practice": {
+        "title": "Exact Fibonacci 100",
+        "prompt": "Compute Fibonacci(100) exactly with BigInt and try a few BigInt operations and conversions.\n\n1. Starting from `prev = 0n` and `curr = 1n`, step forward until `curr` is F(100), then print `F(100) = ` followed by it.\n2. Print `10n % 3n = ` followed by its value.\n3. Print `Number(10n) / 4 = ` followed by its value.\n4. Print `2n ** 100n = ` followed by its value.\n5. Convert `text` with `BigInt()`, multiply it by `2n`, and print `doubled = ` followed by the result.\n6. Print `100n === 100: ` followed by its result.\n7. Print `100n === BigInt(100): ` followed by its result.\n\nUse template literals, so no value prints with an `n`.\n\nExpected output:\n\n```text\nF(100) = 354224848179261915075\n10n % 3n = 1\nNumber(10n) / 4 = 2.5\n2n ** 100n = 1267650600228229401496703205376\ndoubled = 246913578024691357802469135780\n100n === 100: false\n100n === BigInt(100): true\n```",
+        "starter": "const text = \"123456789012345678901234567890\";\n\nlet prev = 0n;\nlet curr = 1n;\n// TODO: step forward 99 times so curr becomes F(100), then print it\n\n// TODO: print 10n % 3n, Number(10n) / 4, and 2n ** 100n\n// TODO: convert text with BigInt(), double it, and print it\n// TODO: print the two equality checks\n",
+        "solution": "const text = \"123456789012345678901234567890\";\n\nlet prev = 0n;\nlet curr = 1n;\nfor (let i = 2; i <= 100; i++) {\n  const next = prev + curr;\n  prev = curr;\n  curr = next;\n}\nconsole.log(`F(100) = ${curr}`);\n\nconsole.log(`10n % 3n = ${10n % 3n}`);\nconsole.log(`Number(10n) / 4 = ${Number(10n) / 4}`);\nconsole.log(`2n ** 100n = ${2n ** 100n}`);\nconsole.log(`doubled = ${BigInt(text) * 2n}`);\nconsole.log(`100n === 100: ${100n === 100}`);\nconsole.log(`100n === BigInt(100): ${100n === BigInt(100)}`);\n",
+        "tests": [
+          {
+            "output": "F(100) = 354224848179261915075\n10n % 3n = 1\nNumber(10n) / 4 = 2.5\n2n ** 100n = 1267650600228229401496703205376\ndoubled = 246913578024691357802469135780\n100n === 100: false\n100n === BigInt(100): true"
+          }
+        ],
+        "hints": [
+          "The loop counter can stay a normal number because it is never mixed into BigInt math.",
+          "Inside the loop add `prev + curr`, then shift both forward, just like the safe Fibonacci loop.",
+          "Convert `text` first, then multiply by a BigInt. Multiplying by plain `2` would throw a TypeError."
+        ]
+      }
+    }
+  ],
+  "recap": "- Every number is a 64-bit float, so `0.1 + 0.2` is `0.30000000000000004`.\n- Compare decimals with a tolerance sized for the data: `Math.abs(a - b) < 1e-9`. A bare `Number.EPSILON` only works near 1.\n- Use `toFixed(n)` for display, and keep money in whole cents with `Math.round(price * 100)`.\n- `toFixed` rounds the stored value, so `(1.005).toFixed(2)` is `\"1.00\"`.\n- Integers are exact only up to `Number.MAX_SAFE_INTEGER` (`2 ** 53 - 1`). Check with `Number.isSafeInteger(x)`.\n- BigInt literals end in `n`, and `BigInt(value)` converts an integer number or a string of digits. `Number(big)` converts back when you need decimals.\n- BigInt `/` drops the remainder. Mixing BigInt and Number in math throws a TypeError, and `10n === 10` is false, so convert first.\n- `typeof 10n` is `\"bigint\"`, `0n` is falsy, and template literals print a BigInt without the `n`."
+}

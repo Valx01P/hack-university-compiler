@@ -1,0 +1,91 @@
+{
+  "id": "two-d-arrays",
+  "title": "2D Arrays and Grids",
+  "section": "Arrays and Vectors",
+  "summary": "Store grids as 2D arrays or vectors of vectors and practice nested loops over rows, columns, and diagonals.",
+  "intro": "Seating charts, game boards, maps, and matrices are all grids: values arranged in rows and columns. C++ stores them as a C-style 2D array or as a vector of vectors, and you walk them with one loop nested inside another.",
+  "steps": [
+    {
+      "title": "C-style 2D arrays",
+      "body": "A 2D array is an array of rows. `int grid[R][C]` holds R rows of C columns, and nested braces give one inner list per row. `grid[r][c]` reads or writes the cell at row `r` and column `c`, both counted from 0.\n\n```cpp\nint grid[2][3] = {\n    {1, 2, 3},\n    {4, 5, 6}\n};\ngrid[1][0] = 9; // row 1, column 0\n```\n\nTo visit every cell, nest two loops: the outer loop walks the rows and the inner loop walks the columns of the current row. Print `'\\n'` after the inner loop to end each row.\n\nIn memory there are no separate rows. The grid is one contiguous block stored row-major: all of row 0, then all of row 1. So `sizeof(grid)` is R times C times the element size, 2 * 3 * 4 = 24 bytes here, and `sizeof(grid[0])` is one row, 12 bytes. A local 2D array lives on the stack, which is only a few megabytes, and it is never bounds-checked.\n\n> Gotcha: `grid[0][3]` is undefined behavior even though it happens to land on row 1 in memory. Keep each index below its own dimension.",
+      "example": {
+        "title": "Theater seats",
+        "prompt": "Fill one seat in a 3 by 4 seating chart, print the chart, count the occupied seats, and print the array's size in bytes.",
+        "code": "#include <iostream>\n\nint main() {\n    const int ROWS = 3;\n    const int COLS = 4;\n    int seats[ROWS][COLS] = {\n        {1, 0, 0, 1},\n        {0, 1, 0, 0},\n        {1, 1, 0, 1}\n    };\n    seats[1][2] = 1;\n\n    int occupied = 0;\n    for (int r = 0; r < ROWS; ++r) {\n        for (int c = 0; c < COLS; ++c) {\n            if (c > 0) {\n                std::cout << ' ';\n            }\n            std::cout << seats[r][c];\n            if (seats[r][c] == 1) {\n                ++occupied;\n            }\n        }\n        std::cout << '\\n';\n    }\n\n    std::cout << \"Occupied: \" << occupied << '\\n';\n    std::cout << \"Bytes: \" << sizeof(seats) << '\\n';\n    std::cout << \"Row bytes: \" << sizeof(seats[0]) << '\\n';\n    return 0;\n}\n",
+        "output": "1 0 0 1\n0 1 1 0\n1 1 0 1\nOccupied: 7\nBytes: 48\nRow bytes: 16",
+        "explanation": "The nested braces fill the array one row at a time, and `seats[1][2] = 1` fills the third seat of the second row. The outer loop picks a row, the inner loop prints its four cells with a space before every cell except the first, and the `'\\n'` after the inner loop ends the row. The same pass counts the 1s. `sizeof(seats)` is 48 because 12 ints of 4 bytes sit in one contiguous block, and one row of 4 ints is 16."
+      },
+      "practice": {
+        "title": "Board of X and O",
+        "prompt": "Build a small tic-tac-toe strip as a C-style 2D array and inspect it the same way.\n\n1. Declare `char board[ROWS][COLS]` with row 0 as `'O', 'O', 'X'` and row 1 as `'X', 'O', 'O'`.\n2. Set `board[0][1]` to `'X'`.\n3. Print the board row by row with one space between cells, counting the `'X'` cells as you go.\n4. Print `X count: ` followed by the count.\n5. Print `Bytes: ` followed by `sizeof(board)`.\n\nExpected output:\n\n```text\nO X X\nX O O\nX count: 3\nBytes: 6\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    const int ROWS = 2;\n    const int COLS = 3;\n    // TODO: declare board with nested braces and set board[0][1]\n    // TODO: print it row by row, count the X cells, then print the count and sizeof(board)\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    const int ROWS = 2;\n    const int COLS = 3;\n    char board[ROWS][COLS] = {\n        {'O', 'O', 'X'},\n        {'X', 'O', 'O'}\n    };\n    board[0][1] = 'X';\n\n    int xCount = 0;\n    for (int r = 0; r < ROWS; ++r) {\n        for (int c = 0; c < COLS; ++c) {\n            if (c > 0) {\n                std::cout << ' ';\n            }\n            std::cout << board[r][c];\n            if (board[r][c] == 'X') {\n                ++xCount;\n            }\n        }\n        std::cout << '\\n';\n    }\n\n    std::cout << \"X count: \" << xCount << '\\n';\n    std::cout << \"Bytes: \" << sizeof(board) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "O X X\nX O O\nX count: 3\nBytes: 6"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the seats example: nested braces, one assignment, then two nested loops.",
+          "Compare each cell with the char literal `'X'`, in single quotes.",
+          "A `char` is 1 byte, so `sizeof(board)` is 2 * 3 * 1."
+        ]
+      }
+    },
+    {
+      "title": "Vectors of vectors",
+      "body": "A `std::vector<std::vector<int>>` is a vector whose elements are vectors, one per row. Its size can be chosen while the program runs, and its cells live on the heap, so even a big grid fits. That makes it the usual choice for grids.\n\n```cpp\nstd::vector<std::vector<int>> grid(3, std::vector<int>(4, 0)); // 3 rows of 4 zeros\nstd::vector<std::vector<int>> small = {{1, 2}, {3, 4}};        // nested braces\n```\n\n`grid.size()` is the number of rows and `grid[r].size()` is the number of columns in row `r`. To set a whole row, fix the row and loop over its columns. To set a whole column, fix the column and loop over the rows.\n\nUnlike a C array, each row is its own separate heap buffer. Rows are not one contiguous block, and they can have different lengths: a jagged grid. That is why inner loops should stop at `grid[r].size()`, not `grid[0].size()`. It also means `sizeof(grid)` no longer counts the cells: it is just the outer vector object, 24 bytes here, whatever the grid holds.\n\nWhen you do not need indexes, nest range-for loops. Write `const auto& row` so each row is read in place. Plain `auto row` would copy the whole inner vector, heap buffer and all, on every pass.",
+      "example": {
+        "title": "Cross pattern and a jagged triangle",
+        "prompt": "Mark row 1 and column 2 of a 3 by 4 grid of zeros, print it with its dimensions, then print a jagged triangle with nested range-for loops.",
+        "code": "#include <cstddef>\n#include <iostream>\n#include <vector>\n\nint main() {\n    std::vector<std::vector<int>> grid(3, std::vector<int>(4, 0));\n    for (std::size_t c = 0; c < grid[1].size(); ++c) {\n        grid[1][c] = 1;\n    }\n    for (std::size_t r = 0; r < grid.size(); ++r) {\n        grid[r][2] = 1;\n    }\n\n    for (std::size_t r = 0; r < grid.size(); ++r) {\n        for (std::size_t c = 0; c < grid[r].size(); ++c) {\n            if (c > 0) {\n                std::cout << ' ';\n            }\n            std::cout << grid[r][c];\n        }\n        std::cout << '\\n';\n    }\n    std::cout << \"Rows: \" << grid.size() << \", columns: \" << grid[0].size() << '\\n';\n\n    const std::vector<std::vector<int>> triangle = {{1}, {1, 1}, {1, 2, 1}};\n    for (const auto& row : triangle) {\n        std::cout << \"Size \" << row.size() << ':';\n        for (int x : row) {\n            std::cout << ' ' << x;\n        }\n        std::cout << '\\n';\n    }\n    return 0;\n}\n",
+        "output": "0 0 1 0\n1 1 1 1\n0 0 1 0\nRows: 3, columns: 4\nSize 1: 1\nSize 2: 1 1\nSize 3: 1 2 1",
+        "explanation": "`grid(3, std::vector<int>(4, 0))` makes 3 copies of a 4-zero row, each with its own heap buffer. The first loop fixes row 1 and walks its columns, and the second fixes column 2 and walks the rows, so cell `[1][2]` is set twice. The triangle is jagged, so each row reports its own `row.size()`. The outer range-for binds `row` by `const auto&`, so no inner vector is copied, and the inner one reads plain `int` values."
+      },
+      "practice": {
+        "title": "Walls on a map",
+        "prompt": "Draw a map of `char` cells, then print a jagged grid with range-for loops.\n\n1. Create a 4 by 5 `std::vector<std::vector<char>>` named `tiles` filled with `'.'`.\n2. Set every cell in row 2 to `'#'`, then every cell in column 0 to `'#'`.\n3. Print the map row by row with no spaces between cells.\n4. Print `Rows: 4, columns: 5` using `tiles.size()` and `tiles[0].size()`.\n5. For the jagged rows `{{3}, {1, 4}, {1, 5, 9}}`, use nested range-for loops to print `Size `, the row's size, a colon, and then each value after a space.\n\nExpected output:\n\n```text\n#....\n#....\n#####\n#....\nRows: 4, columns: 5\nSize 1: 3\nSize 2: 1 4\nSize 3: 1 5 9\n```",
+        "starter": "#include <cstddef>\n#include <iostream>\n#include <vector>\n\nint main() {\n    // TODO: create the 4 by 5 tiles grid of '.', fill row 2 and column 0 with '#', and print it\n    // TODO: print the row and column counts\n    const std::vector<std::vector<int>> digits = {{3}, {1, 4}, {1, 5, 9}};\n    // TODO: print each row of digits with nested range-for loops\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <iostream>\n#include <vector>\n\nint main() {\n    std::vector<std::vector<char>> tiles(4, std::vector<char>(5, '.'));\n    for (std::size_t c = 0; c < tiles[2].size(); ++c) {\n        tiles[2][c] = '#';\n    }\n    for (std::size_t r = 0; r < tiles.size(); ++r) {\n        tiles[r][0] = '#';\n    }\n\n    for (std::size_t r = 0; r < tiles.size(); ++r) {\n        for (std::size_t c = 0; c < tiles[r].size(); ++c) {\n            std::cout << tiles[r][c];\n        }\n        std::cout << '\\n';\n    }\n    std::cout << \"Rows: \" << tiles.size() << \", columns: \" << tiles[0].size() << '\\n';\n\n    const std::vector<std::vector<int>> digits = {{3}, {1, 4}, {1, 5, 9}};\n    for (const auto& row : digits) {\n        std::cout << \"Size \" << row.size() << ':';\n        for (int x : row) {\n            std::cout << ' ' << x;\n        }\n        std::cout << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "#....\n#....\n#####\n#....\nRows: 4, columns: 5\nSize 1: 3\nSize 2: 1 4\nSize 3: 1 5 9"
+          }
+        ],
+        "hints": [
+          "Build the map the way the example builds its grid, with `char` in place of `int` and `'.'` in place of `0`.",
+          "Row 2 is one loop over `tiles[2]`, and column 0 is one loop over the rows setting `tiles[r][0]`.",
+          "Print each char with no separator, and end every row with `'\\n'`."
+        ]
+      }
+    },
+    {
+      "title": "Row sums, column sums, and diagonals",
+      "body": "Most grid questions are sums along a line. For row totals, the outer loop goes over rows: start a total at 0 for each row, and let the inner loop add that row's cells. For column totals, swap the loops so the outer loop goes over columns and the inner loop walks down the rows.\n\n```cpp\nfor (std::size_t c = 0; c < grid[0].size(); ++c) {\n    int total = 0;\n    for (std::size_t r = 0; r < grid.size(); ++r) {\n        total += grid[r][c];\n    }\n    std::cout << ' ' << total;\n}\n```\n\nUsing `grid[0].size()` as the column count assumes a rectangular grid where every row has the same length.\n\nDiagonals only exist on a square n by n grid, and each needs just one loop. The main diagonal runs top-left to bottom-right, where the row equals the column: `grid[i][i]`. The anti-diagonal runs top-right to bottom-left: `grid[i][n - 1 - i]`. Because `i` stays below `n`, `n - 1 - i` never drops below 0, so it is safe with `std::size_t`.\n\nRow-by-row loops read each row's buffer in order, which is the cache-friendly pattern. Column loops jump between rows, which is fine for small grids.",
+      "example": {
+        "title": "Totals of a 3 by 3 matrix",
+        "prompt": "Print the row sums, column sums, and both diagonal sums of the matrix 1 to 9.",
+        "code": "#include <cstddef>\n#include <iostream>\n#include <vector>\n\nint main() {\n    const std::vector<std::vector<int>> grid = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};\n\n    std::cout << \"Row sums:\";\n    for (std::size_t r = 0; r < grid.size(); ++r) {\n        int total = 0;\n        for (std::size_t c = 0; c < grid[r].size(); ++c) {\n            total += grid[r][c];\n        }\n        std::cout << ' ' << total;\n    }\n    std::cout << '\\n';\n\n    std::cout << \"Column sums:\";\n    for (std::size_t c = 0; c < grid[0].size(); ++c) {\n        int total = 0;\n        for (std::size_t r = 0; r < grid.size(); ++r) {\n            total += grid[r][c];\n        }\n        std::cout << ' ' << total;\n    }\n    std::cout << '\\n';\n\n    const std::size_t n = grid.size();\n    int mainSum = 0;\n    int antiSum = 0;\n    for (std::size_t i = 0; i < n; ++i) {\n        mainSum += grid[i][i];\n        antiSum += grid[i][n - 1 - i];\n    }\n    std::cout << \"Diagonals: \" << mainSum << ' ' << antiSum << '\\n';\n    return 0;\n}\n",
+        "output": "Row sums: 6 15 24\nColumn sums: 12 15 18\nDiagonals: 15 15",
+        "explanation": "Each total is declared inside the outer loop, so it resets to 0 for every row or column. The row loop adds across `grid[r]`, and the column loop holds `c` fixed while `r` moves down. One diagonal loop fills both sums: when `i` is 0 it reads `grid[0][0]` and `grid[0][2]`, and when `i` is 2 it reads `grid[2][2]` and `grid[2][0]`, so the main diagonal is 1 + 5 + 9 and the anti-diagonal is 3 + 5 + 7."
+      },
+      "practice": {
+        "title": "Totals of a 4 by 4 matrix",
+        "prompt": "Total the rows, columns, and diagonals of a 4 by 4 matrix.\n\n1. Print `Row sums:` followed by each row's total, each after a space.\n2. Print `Column sums:` followed by each column's total, each after a space.\n3. Print `Diagonals: ` followed by the main diagonal sum, a space, and the anti-diagonal sum.\n\nExpected output:\n\n```text\nRow sums: 6 16 18 13\nColumn sums: 13 9 16 15\nDiagonals: 24 10\n```",
+        "starter": "#include <cstddef>\n#include <iostream>\n#include <vector>\n\nint main() {\n    const std::vector<std::vector<int>> grid = {\n        {2, 0, 1, 3},\n        {4, 5, 6, 1},\n        {7, 1, 8, 2},\n        {0, 3, 1, 9}\n    };\n    // TODO: print the row sums, the column sums, and both diagonal sums\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <iostream>\n#include <vector>\n\nint main() {\n    const std::vector<std::vector<int>> grid = {\n        {2, 0, 1, 3},\n        {4, 5, 6, 1},\n        {7, 1, 8, 2},\n        {0, 3, 1, 9}\n    };\n\n    std::cout << \"Row sums:\";\n    for (std::size_t r = 0; r < grid.size(); ++r) {\n        int total = 0;\n        for (std::size_t c = 0; c < grid[r].size(); ++c) {\n            total += grid[r][c];\n        }\n        std::cout << ' ' << total;\n    }\n    std::cout << '\\n';\n\n    std::cout << \"Column sums:\";\n    for (std::size_t c = 0; c < grid[0].size(); ++c) {\n        int total = 0;\n        for (std::size_t r = 0; r < grid.size(); ++r) {\n            total += grid[r][c];\n        }\n        std::cout << ' ' << total;\n    }\n    std::cout << '\\n';\n\n    const std::size_t n = grid.size();\n    int mainSum = 0;\n    int antiSum = 0;\n    for (std::size_t i = 0; i < n; ++i) {\n        mainSum += grid[i][i];\n        antiSum += grid[i][n - 1 - i];\n    }\n    std::cout << \"Diagonals: \" << mainSum << ' ' << antiSum << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Row sums: 6 16 18 13\nColumn sums: 13 9 16 15\nDiagonals: 24 10"
+          }
+        ],
+        "hints": [
+          "Declare each total inside the outer loop so it restarts at 0.",
+          "For column sums, the outer loop runs over `c` and the inner loop over `r`.",
+          "With `n = grid.size()`, the diagonals are `grid[i][i]` and `grid[i][n - 1 - i]`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `int grid[R][C] = {{...}, {...}};` is one contiguous row-major block, and `sizeof(grid)` is R * C * the element size.\n- `grid[r][c]` picks row `r`, column `c`. Neither index is bounds-checked.\n- Walk a grid with nested loops: the outer loop over rows, the inner loop over columns, and `'\\n'` after each row.\n- `std::vector<std::vector<int>> grid(rows, std::vector<int>(cols, 0))` builds a grid on the heap, one buffer per row.\n- `grid.size()` is the row count and `grid[r].size()` the length of row `r`, which can differ in a jagged grid.\n- Read rows with `for (const auto& row : grid)` to avoid copying each inner vector.\n- Row totals loop rows outside, column totals loop columns outside.\n- On an n by n grid the main diagonal is `grid[i][i]` and the anti-diagonal is `grid[i][n - 1 - i]`."
+}

@@ -1,0 +1,118 @@
+{
+  "id": "recursion",
+  "title": "Recursion",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Solve problems with functions that call themselves, using base cases, the call stack, recursion over nested data, and memoization.",
+  "intro": "Some problems contain smaller copies of themselves: a factorial, a word inside a word, an array inside an array. A recursive function solves the small copy and builds the answer from it. This lesson covers base cases, nested data, and memoization, which turns slow recursion into fast recursion.",
+  "steps": [
+    {
+      "title": "Base case and recursive case",
+      "body": "A recursive function calls itself on a smaller version of the same problem. Every one needs two parts:\n\n- **Base case:** an input small enough to answer directly. It stops the recursion.\n- **Recursive case:** shrink the input and call the function again.\n\n```javascript\nfunction factorial(n) {\n  if (n <= 1) {\n    return 1; // base case\n  }\n  return n * factorial(n - 1); // smaller input\n}\n```\n\nEach call gets its own copy of `n` on the **call stack**. `factorial(3)` waits for `factorial(2)`, which waits for `factorial(1)`. Then the answers flow back up: 1, then 2, then 6.\n\nStrings shrink the same way: handle the first character `str[0]` and recurse on the rest with `str.slice(1)`. To work from both ends, `str.slice(1, -1)` drops the first and last characters.\n\n**The gotcha:** forget the base case, or never reach it, and the calls pile up until Node throws `RangeError: Maximum call stack size exceeded`. That happens after roughly 10,000 calls for a tiny function and often half that for real ones, so keep recursion depth well under that.",
+      "example": {
+        "title": "Factorial and reverse",
+        "prompt": "Read a number and a word on two lines, then print the factorial of the number and the word reversed, both computed recursively.",
+        "stdin": "5\nhello\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [numText, word] = input.trim().split(\"\\n\");\nconst num = Number(numText);\n\nfunction factorial(n) {\n  if (n <= 1) {\n    return 1;\n  }\n  return n * factorial(n - 1);\n}\n\nfunction reverse(str) {\n  if (str === \"\") {\n    return \"\";\n  }\n  return reverse(str.slice(1)) + str[0];\n}\n\nconsole.log(`${num}! = ${factorial(num)}`);\nconsole.log(`reverse(${word}) = ${reverse(word)}`);\n",
+        "output": "5! = 120\nreverse(hello) = olleh",
+        "explanation": "`factorial(5)` becomes `5 * factorial(4)`, and so on down to the base case `factorial(1)`, which returns 1. `reverse` moves the first character to the end of the reversed rest: `reverse(\"hello\")` is `reverse(\"ello\") + \"h\"`. The empty string is its base case, so every call shortens the string by one until it hits `\"\"`."
+      },
+      "practice": {
+        "title": "Sum and palindrome",
+        "prompt": "Read a number n (at most 1,000) and a word on two lines, then print a recursive sum and a recursive palindrome check.\n\n1. Write `sumTo(n)` so it returns 0 when `n` is 0, otherwise `n + sumTo(n - 1)`.\n2. Write `isPalindrome(str)` so a string of 0 or 1 characters returns `true`.\n3. If the first and last characters differ, return `false`. Otherwise recurse on `str.slice(1, -1)`.\n4. Keep the two print lines from the starter.\n\nInput:\n\n```text\n100\nracecar\n```\n\nExpected output:\n\n```text\nsumTo(100) = 5050\nisPalindrome(racecar) = true\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [numText, word] = input.trim().split(\"\\n\");\nconst num = Number(numText);\n\nfunction sumTo(n) {\n  // TODO: base case n === 0, otherwise n plus sumTo(n - 1)\n  return 0;\n}\n\nfunction isPalindrome(str) {\n  // TODO: base case for 0 or 1 characters, compare the ends, recurse on the middle\n  return false;\n}\n\nconsole.log(`sumTo(${num}) = ${sumTo(num)}`);\nconsole.log(`isPalindrome(${word}) = ${isPalindrome(word)}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [numText, word] = input.trim().split(\"\\n\");\nconst num = Number(numText);\n\nfunction sumTo(n) {\n  if (n === 0) {\n    return 0;\n  }\n  return n + sumTo(n - 1);\n}\n\nfunction isPalindrome(str) {\n  if (str.length <= 1) {\n    return true;\n  }\n  if (str[0] !== str.at(-1)) {\n    return false;\n  }\n  return isPalindrome(str.slice(1, -1));\n}\n\nconsole.log(`sumTo(${num}) = ${sumTo(num)}`);\nconsole.log(`isPalindrome(${word}) = ${isPalindrome(word)}`);\n",
+        "tests": [
+          {
+            "stdin": "100\nracecar\n",
+            "output": "sumTo(100) = 5050\nisPalindrome(racecar) = true"
+          },
+          {
+            "stdin": "1000\nlevels\n",
+            "output": "sumTo(1000) = 500500\nisPalindrome(levels) = false"
+          },
+          {
+            "stdin": "0\nnoon\n",
+            "output": "sumTo(0) = 0\nisPalindrome(noon) = true"
+          }
+        ],
+        "hints": [
+          "Write the base case first, then the one line that calls the function on a smaller input.",
+          "`str.at(-1)` is the last character, and `str.slice(1, -1)` is everything between the ends."
+        ]
+      }
+    },
+    {
+      "title": "Recursion on arrays and nested arrays",
+      "body": "An array shrinks like a string. Slicing works, but `arr.slice(1)` copies the rest on every call. Passing an index is cheaper: a default parameter starts it at 0.\n\n```javascript\nfunction sumArray(arr, i = 0) {\n  if (i === arr.length) {\n    return 0;\n  }\n  return arr[i] + sumArray(arr, i + 1);\n}\n```\n\nRecursion really shines on **nested** data, where you cannot know how many loops to write. `Array.isArray(x)` tells an inner array apart from a number. Loop over the items, recurse into each inner array, and handle plain values directly:\n\n```javascript\nfor (const item of arr) {\n  total += Array.isArray(item) ? deepSum(item) : item;\n}\n```\n\nThe base case is hidden here: an array with no inner arrays makes no recursive calls. Use `Array.isArray`, not `typeof item === \"object\"` (true for `null` and plain objects too) or `item.length` (strings have a length too).\n\nJavaScript also has a built-in flatten. `arr.flat()` removes one level of nesting, and `arr.flat(Infinity)` removes all of them. Use it in real code, and write your own when you need to count, sum, or check something along the way.",
+      "example": {
+        "title": "Nested sums",
+        "prompt": "Read a nested array written as JSON, then sum it, flatten it, sum the flat copy with an index, and compare with the built-in flat.",
+        "stdin": "[1,[2,[3,4]],5]\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst data = JSON.parse(input);\n\nfunction deepSum(arr) {\n  let total = 0;\n  for (const item of arr) {\n    total += Array.isArray(item) ? deepSum(item) : item;\n  }\n  return total;\n}\n\nfunction flatten(arr) {\n  const result = [];\n  for (const item of arr) {\n    if (Array.isArray(item)) {\n      result.push(...flatten(item));\n    } else {\n      result.push(item);\n    }\n  }\n  return result;\n}\n\nfunction sumArray(arr, i = 0) {\n  if (i === arr.length) {\n    return 0;\n  }\n  return arr[i] + sumArray(arr, i + 1);\n}\n\nconst flat = flatten(data);\nconsole.log(`deepSum = ${deepSum(data)}`);\nconsole.log(`flatten = ${flat.join(\",\")}`);\nconsole.log(`sumArray = ${sumArray(flat)}`);\nconsole.log(`same as flat(Infinity): ${flat.join(\",\") === data.flat(Infinity).join(\",\")}`);\n",
+        "output": "deepSum = 15\nflatten = 1,2,3,4,5\nsumArray = 15\nsame as flat(Infinity): true",
+        "explanation": "`deepSum` adds plain numbers and calls itself on each inner array, so `[2,[3,4]]` contributes 9. `flatten` pushes numbers and spreads in the flattened result of each inner array, keeping the original order. `sumArray` walks the flat copy by index until `i` reaches the length. Arrays compare by reference, so the last line compares the joined strings."
+      },
+      "practice": {
+        "title": "Nested stats",
+        "prompt": "Read a nested array written as JSON, then count its numbers, find the largest, and flatten it, all recursively.\n\n1. Write `countNumbers(arr)` to return how many numbers the array holds at any depth.\n2. Write `largest(arr)` starting from `-Infinity`, so an array with no numbers returns `-Infinity`.\n3. Write `flatten(arr)` to return every number in one array, in their original order.\n4. Keep the three print lines from the starter.\n\nInput:\n\n```text\n[1,[2,3],[[4],5]]\n```\n\nExpected output:\n\n```text\ncount = 5\nmax = 5\nflat = 1,2,3,4,5\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst data = JSON.parse(input);\n\nfunction countNumbers(arr) {\n  // TODO: count every number, recursing into nested arrays\n  return 0;\n}\n\nfunction largest(arr) {\n  // TODO: start from -Infinity and keep the biggest number found at any depth\n  return 0;\n}\n\nfunction flatten(arr) {\n  // TODO: collect every number into one flat array, in order\n  return [];\n}\n\nconsole.log(`count = ${countNumbers(data)}`);\nconsole.log(`max = ${largest(data)}`);\nconsole.log(`flat = ${flatten(data).join(\",\")}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst data = JSON.parse(input);\n\nfunction countNumbers(arr) {\n  let count = 0;\n  for (const item of arr) {\n    count += Array.isArray(item) ? countNumbers(item) : 1;\n  }\n  return count;\n}\n\nfunction largest(arr) {\n  let best = -Infinity;\n  for (const item of arr) {\n    const value = Array.isArray(item) ? largest(item) : item;\n    best = Math.max(best, value);\n  }\n  return best;\n}\n\nfunction flatten(arr) {\n  const result = [];\n  for (const item of arr) {\n    if (Array.isArray(item)) {\n      result.push(...flatten(item));\n    } else {\n      result.push(item);\n    }\n  }\n  return result;\n}\n\nconsole.log(`count = ${countNumbers(data)}`);\nconsole.log(`max = ${largest(data)}`);\nconsole.log(`flat = ${flatten(data).join(\",\")}`);\n",
+        "tests": [
+          {
+            "stdin": "[1,[2,3],[[4],5]]\n",
+            "output": "count = 5\nmax = 5\nflat = 1,2,3,4,5"
+          },
+          {
+            "stdin": "[[7,[-2]],[],[[[9]],3]]\n",
+            "output": "count = 4\nmax = 9\nflat = 7,-2,9,3"
+          },
+          {
+            "stdin": "[[],[[]]]\n",
+            "output": "count = 0\nmax = -Infinity\nflat ="
+          }
+        ],
+        "hints": [
+          "Each function loops with `for (const item of arr)` and checks `Array.isArray(item)` first.",
+          "For `largest`, get a value for each item (recurse for arrays) and keep `Math.max(best, value)`."
+        ]
+      }
+    },
+    {
+      "title": "Memoization",
+      "body": "The textbook Fibonacci is short but slow:\n\n```javascript\nfunction fib(n) {\n  if (n < 2) {\n    return n;\n  }\n  return fib(n - 1) + fib(n - 2);\n}\n```\n\nEach call makes two more, so `fib(5)` computes `fib(3)` twice and `fib(2)` three times. The call count grows by about 1.6 times with every step of `n`. That is **exponential** time. Big O notation describes how the work grows as the input grows, and this growth is usually written O(2^n): `fib(40)` already makes over 300 million calls.\n\n**Memoization** fixes it by remembering answers. Check a `Map` before doing any work, and store each new result:\n\n```javascript\nfunction memoFib(n, memo = new Map()) {\n  if (n < 2) {\n    return n;\n  }\n  if (memo.has(n)) {\n    return memo.get(n);\n  }\n  const result = memoFib(n - 1, memo) + memoFib(n - 2, memo);\n  memo.set(n, result);\n  return result;\n}\n```\n\nThe default parameter creates a fresh `Map` for each outside call. **Pass `memo` along** in every recursive call, or each one gets a new empty map and nothing is saved. Now each `n` is computed once: **linear** time, O(n).\n\nThe same trick solves counting problems. Results past `fib(78)` exceed `Number.MAX_SAFE_INTEGER`, so switch to BigInt for bigger inputs.",
+      "example": {
+        "title": "Naive and memoized Fibonacci",
+        "prompt": "Read two numbers, then print the naive Fibonacci of the first with its call count and the memoized Fibonacci of the second.",
+        "stdin": "20 50\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [naiveN, memoN] = input.trim().split(/\\s+/).map(Number);\n\nlet calls = 0;\n\nfunction fib(n) {\n  calls++;\n  if (n < 2) {\n    return n;\n  }\n  return fib(n - 1) + fib(n - 2);\n}\n\nfunction memoFib(n, memo = new Map()) {\n  if (n < 2) {\n    return n;\n  }\n  if (memo.has(n)) {\n    return memo.get(n);\n  }\n  const result = memoFib(n - 1, memo) + memoFib(n - 2, memo);\n  memo.set(n, result);\n  return result;\n}\n\nconst naiveResult = fib(naiveN);\nconsole.log(`naive fib(${naiveN}) = ${naiveResult} after ${calls} calls`);\nconsole.log(`memo fib(${memoN}) = ${memoFib(memoN)}`);\n",
+        "output": "naive fib(20) = 6765 after 21891 calls\nmemo fib(50) = 12586269025",
+        "explanation": "The naive version bumps `calls` on every call and needs 21,891 of them for `fib(20)`. The memoized version shares one `Map` through the whole recursion, so it computes each value from 2 to 50 once. Naive `fib(50)` would take billions of calls. Computing `naiveResult` on its own line makes it clear that `calls` is read only after the recursion has finished."
+      },
+      "practice": {
+        "title": "Climbing stairs",
+        "prompt": "Count the ways to climb n stairs taking 1 or 2 steps at a time, first naively with a call count, then with a memo.\n\n1. In `climbWays(n)`, add 1 to `calls`, return 1 when `n < 2`, otherwise return `climbWays(n - 1) + climbWays(n - 2)`.\n2. Write `memoClimbWays(n, memo = new Map())` with the same base case and recursion.\n3. Return `memo.get(n)` when `memo.has(n)`, and store each new result with `memo.set` before returning it.\n4. Keep the two print lines from the starter.\n\nInput:\n\n```text\n10 50\n```\n\nExpected output:\n\n```text\nnaive climbWays(10) = 89 after 177 calls\nmemo climbWays(50) = 20365011074\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [naiveN, memoN] = input.trim().split(/\\s+/).map(Number);\n\nlet calls = 0;\n\nfunction climbWays(n) {\n  // TODO: count this call, return 1 when n < 2, else add the 1-step and 2-step ways\n  return 0;\n}\n\nfunction memoClimbWays(n, memo = new Map()) {\n  // TODO: same recursion, but return memo.get(n) when memo.has(n) and store each new result\n  return 0;\n}\n\nconst naiveResult = climbWays(naiveN);\nconsole.log(`naive climbWays(${naiveN}) = ${naiveResult} after ${calls} calls`);\nconsole.log(`memo climbWays(${memoN}) = ${memoClimbWays(memoN)}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [naiveN, memoN] = input.trim().split(/\\s+/).map(Number);\n\nlet calls = 0;\n\nfunction climbWays(n) {\n  calls++;\n  if (n < 2) {\n    return 1;\n  }\n  return climbWays(n - 1) + climbWays(n - 2);\n}\n\nfunction memoClimbWays(n, memo = new Map()) {\n  if (n < 2) {\n    return 1;\n  }\n  if (memo.has(n)) {\n    return memo.get(n);\n  }\n  const result = memoClimbWays(n - 1, memo) + memoClimbWays(n - 2, memo);\n  memo.set(n, result);\n  return result;\n}\n\nconst naiveResult = climbWays(naiveN);\nconsole.log(`naive climbWays(${naiveN}) = ${naiveResult} after ${calls} calls`);\nconsole.log(`memo climbWays(${memoN}) = ${memoClimbWays(memoN)}`);\n",
+        "tests": [
+          {
+            "stdin": "10 50\n",
+            "output": "naive climbWays(10) = 89 after 177 calls\nmemo climbWays(50) = 20365011074"
+          },
+          {
+            "stdin": "25 70\n",
+            "output": "naive climbWays(25) = 121393 after 242785 calls\nmemo climbWays(70) = 308061521170129"
+          },
+          {
+            "stdin": "1 0\n",
+            "output": "naive climbWays(1) = 1 after 1 calls\nmemo climbWays(0) = 1"
+          }
+        ],
+        "hints": [
+          "The last move onto stair n was either 1 step from n - 1 or 2 steps from n - 2, so add those two counts.",
+          "Pass `memo` as the second argument in both recursive calls of `memoClimbWays`."
+        ]
+      }
+    }
+  ],
+  "recap": "- A recursive function calls itself on a smaller input. The base case answers directly and stops it.\n- Each call has its own parameters on the call stack. Too many nested calls throw `RangeError: Maximum call stack size exceeded`.\n- Strings recurse on `str[0]` and `str.slice(1)`. Arrays can pass an index instead: `sumArray(arr, i = 0)`.\n- `Array.isArray(item)` finds nested arrays to recurse into. `arr.flat(Infinity)` is the built-in flatten.\n- Naive `fib` repeats work and takes O(2^n) calls.\n- Memoize with a `Map`: return `memo.get(n)` when `memo.has(n)`, store results with `memo.set`, and pass `memo` to every recursive call. That makes it O(n)."
+}

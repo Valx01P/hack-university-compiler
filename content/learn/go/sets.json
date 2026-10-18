@@ -1,0 +1,91 @@
+{
+  "id": "sets",
+  "title": "Sets",
+  "section": "Collections",
+  "summary": "Build sets from maps, save memory with map[T]struct{}, remove duplicates, and compute unions, intersections, and differences.",
+  "intro": "Go has no set type, but a map with the members as keys does the job. This lesson builds sets two ways, uses one to remove duplicates, and combines sets with intersection, union, and difference.",
+  "steps": [
+    {
+      "title": "A set as map[T]bool",
+      "body": "Go has no built-in set type. The usual stand-in is a map whose values are `bool`: the keys are the members, and `true` marks each one as present. Members must be comparable with `==`, so strings, ints, and runes work, but slices cannot be keys.\n\n```go\nvisited := map[string]bool{} // or make(map[string]bool)\nvisited[\"Paris\"] = true      // add\nif visited[\"Paris\"] {        // check\n\tfmt.Println(\"been there\")\n}\ndelete(visited, \"Paris\")  // remove\nfmt.Println(len(visited)) // count\n```\n\nThis reads naturally because a missing key gives the zero value, `false`. So `visited[\"Tokyo\"]` is simply `false` for a city you never added, with no `ok` check needed. Adding a member twice changes nothing, since a key exists only once, and `delete` on a missing key is a harmless no-op.\n\nTwo gotchas. As with any map, start from a literal or `make`, because writing to a nil map (`var s map[string]bool`) panics. And never store `false` to mean removed: the key stays in the map and `len` still counts it. Use `delete` instead.",
+      "example": {
+        "title": "Visited cities",
+        "prompt": "Track visited cities in a set: add three, check two, remove one, and print the size.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvisited := map[string]bool{}\n\tvisited[\"Paris\"] = true\n\tvisited[\"Rome\"] = true\n\tvisited[\"Lima\"] = true\n\tfmt.Println(\"Cities:\", len(visited))\n\n\tfmt.Println(\"Paris:\", visited[\"Paris\"])\n\tfmt.Println(\"Tokyo:\", visited[\"Tokyo\"])\n\tif !visited[\"Tokyo\"] {\n\t\tfmt.Println(\"Tokyo is still on the list\")\n\t}\n\n\tdelete(visited, \"Rome\")\n\tfmt.Println(\"Rome:\", visited[\"Rome\"])\n\tfmt.Println(\"Cities:\", len(visited))\n}\n",
+        "output": "Cities: 3\nParis: true\nTokyo: false\nTokyo is still on the list\nRome: false\nCities: 2",
+        "explanation": "Each `visited[city] = true` adds a key, so `len` reports 3. Reading `visited[\"Tokyo\"]` finds no key and returns the zero value `false`, which makes the `if !visited[\"Tokyo\"]` check read like plain English. After `delete`, Rome is gone: reading it gives `false` and the count drops to 2."
+      },
+      "practice": {
+        "title": "Registered usernames",
+        "prompt": "Track registered usernames in a `map[string]bool` set.\n\n1. Add `ana`, `ben`, `cara`, and then `ben` again with `registered[name] = true`, before the given size print.\n2. Print `ben:` and whether `ben` is in the set, then the same for `dan`, one line each.\n3. Delete `ana`, then print `Users:` and the new size.\n\nExpected output:\n\n```text\nUsers: 3\nben: true\ndan: false\nUsers: 2\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tregistered := map[string]bool{}\n\t// TODO: add ana, ben, cara, and ben again\n\tfmt.Println(\"Users:\", len(registered))\n\n\t// TODO: print whether ben and dan are in the set, one line each\n\t// TODO: delete ana and print the size again\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tregistered := map[string]bool{}\n\tregistered[\"ana\"] = true\n\tregistered[\"ben\"] = true\n\tregistered[\"cara\"] = true\n\tregistered[\"ben\"] = true // already there, so nothing changes\n\tfmt.Println(\"Users:\", len(registered))\n\n\tfmt.Println(\"ben:\", registered[\"ben\"])\n\tfmt.Println(\"dan:\", registered[\"dan\"])\n\n\tdelete(registered, \"ana\")\n\tfmt.Println(\"Users:\", len(registered))\n}\n",
+        "tests": [
+          {
+            "output": "Users: 3\nben: true\ndan: false\nUsers: 2"
+          }
+        ],
+        "hints": [
+          "Adding `ben` a second time sets the same key again, so the size is 3, not 4.",
+          "`registered[\"dan\"]` returns `false` because the key is missing.",
+          "Remove a member with `delete(set, key)`, then print `len` again."
+        ]
+      }
+    },
+    {
+      "title": "map[T]struct{} and duplicates",
+      "body": "`struct{}` is a struct type with no fields, and `struct{}{}` is its only value. It holds no data, so it takes zero bytes: `unsafe.Sizeof(struct{}{})` is 0. A `map[T]struct{}` set therefore stores only keys, while `map[T]bool` keeps a one-byte `bool` beside every key. The saving is small and both forms are common, but `struct{}` also tells the reader that the value means nothing.\n\n```go\nseen := map[int]struct{}{}\nseen[7] = struct{}{}      // add\nif _, ok := seen[7]; ok { // check\n\tfmt.Println(\"seen 7\")\n}\n```\n\nThe value carries no answer, so check membership with the comma-ok form: `ok` is `true` only when the key exists. `delete` and `len` work exactly as before.\n\nA set is the standard tool for removing duplicates. Loop over the slice, skip a value already in `seen`, otherwise add it to `seen` and append it to the result. The output keeps the order in which values first appeared, which the map alone could not give you.",
+      "example": {
+        "title": "Unique numbers",
+        "prompt": "Remove duplicates from a slice of ints with a `map[int]struct{}` of seen values, keeping first-seen order.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"unsafe\"\n)\n\nfunc main() {\n\tnums := []int{3, 1, 3, 2, 1, 4}\n\n\tseen := map[int]struct{}{}\n\tvar unique []int\n\tfor _, n := range nums {\n\t\tif _, ok := seen[n]; ok {\n\t\t\tcontinue // a repeat\n\t\t}\n\t\tseen[n] = struct{}{}\n\t\tunique = append(unique, n)\n\t}\n\n\tfmt.Println(unique)\n\tfmt.Println(\"Distinct:\", len(seen))\n\t_, ok := seen[5]\n\tfmt.Println(\"Has 5:\", ok)\n\tfmt.Println(\"Bytes per value:\", unsafe.Sizeof(struct{}{}))\n}\n",
+        "output": "[3 1 2 4]\nDistinct: 4\nHas 5: false\nBytes per value: 0",
+        "explanation": "The loop walks `nums` in order. Each value met for the first time goes into both `seen` and `unique`. The second 3 and the second 1 find `ok` true and hit `continue`. `unique` is a separate slice, so it keeps first-seen order while `seen` only answers \"have I met this?\". `len(seen)` counts the distinct values, and the empty struct really costs 0 bytes."
+      },
+      "practice": {
+        "title": "Unique tags",
+        "prompt": "Remove the duplicate tags from a slice, keeping the order each tag first appears.\n\n1. Create `seen := map[string]struct{}{}` below the given nil `unique` slice.\n2. Range over `tags`. Skip a tag when `_, ok := seen[tag]` finds it, otherwise add it with `seen[tag] = struct{}{}` and append it to `unique`.\n3. After the given print of `unique`, print `Distinct:` and the size of `seen`.\n4. Check `api` with the comma-ok form and print `Has api:` and the result.\n5. Remove the `_ = tags` line once you use the slice.\n\nExpected output:\n\n```text\n[go web api]\nDistinct: 3\nHas api: true\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttags := []string{\"go\", \"web\", \"go\", \"api\", \"web\"}\n\tvar unique []string\n\t// TODO: create seen, then range over tags, skipping tags already in seen\n\t_ = tags\n\n\tfmt.Println(unique)\n\t// TODO: print the number of distinct tags, then whether api is in seen\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttags := []string{\"go\", \"web\", \"go\", \"api\", \"web\"}\n\n\tvar unique []string\n\tseen := map[string]struct{}{}\n\tfor _, tag := range tags {\n\t\tif _, ok := seen[tag]; ok {\n\t\t\tcontinue\n\t\t}\n\t\tseen[tag] = struct{}{}\n\t\tunique = append(unique, tag)\n\t}\n\n\tfmt.Println(unique)\n\tfmt.Println(\"Distinct:\", len(seen))\n\t_, ok := seen[\"api\"]\n\tfmt.Println(\"Has api:\", ok)\n}\n",
+        "tests": [
+          {
+            "output": "[go web api]\nDistinct: 3\nHas api: true"
+          }
+        ],
+        "hints": [
+          "A nil slice works with `append`, so `unique` needs no starting value.",
+          "Inside the loop, use the comma-ok check from the example and `continue` when `ok` is true. Otherwise add the tag to `seen` and append it.",
+          "After the loop, the same comma-ok form on `seen` tells you whether `api` is a member."
+        ]
+      }
+    },
+    {
+      "title": "Set operations",
+      "body": "Set operations are short loops. Range over one set and decide, key by key, what goes into a new set.\n\n- **Intersection** (in both): loop over `a` and keep each key that `b` also has.\n- **Union** (in either): add every key of `a`, then every key of `b`, into a new set. Repeats collapse on their own.\n- **Difference** (`a` but not `b`): loop over `a` and keep each key that `b` lacks.\n\n```go\nboth := map[string]struct{}{}\nfor k := range a {\n\tif _, ok := b[k]; ok {\n\t\tboth[k] = struct{}{}\n\t}\n}\n```\n\nBuild a new set instead of deleting from `a`. A map is shared when you assign or pass it, so changing it in place would change the caller's set too.\n\nRanging over a map visits keys in random order, so never print a set from inside the loop. Collect the keys into a slice, call `sort.Strings`, and print that. A small `sortedKeys` helper keeps this tidy, and a `toSet` helper turns a slice into a set.",
+      "example": {
+        "title": "Club members",
+        "prompt": "Print the students in both clubs, in either club, and in chess only, each sorted.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc toSet(items []string) map[string]struct{} {\n\tset := map[string]struct{}{}\n\tfor _, item := range items {\n\t\tset[item] = struct{}{}\n\t}\n\treturn set\n}\n\nfunc sortedKeys(set map[string]struct{}) []string {\n\tkeys := make([]string, 0, len(set))\n\tfor k := range set {\n\t\tkeys = append(keys, k)\n\t}\n\tsort.Strings(keys) // map order is random, so sort before printing\n\treturn keys\n}\n\nfunc main() {\n\tchess := toSet([]string{\"Ana\", \"Ben\", \"Cleo\", \"Dev\"})\n\tmusic := toSet([]string{\"Ben\", \"Dev\", \"Eli\"})\n\n\tboth := map[string]struct{}{}\n\tfor name := range chess {\n\t\tif _, ok := music[name]; ok {\n\t\t\tboth[name] = struct{}{}\n\t\t}\n\t}\n\n\teither := map[string]struct{}{}\n\tfor name := range chess {\n\t\teither[name] = struct{}{}\n\t}\n\tfor name := range music {\n\t\teither[name] = struct{}{}\n\t}\n\n\tchessOnly := map[string]struct{}{}\n\tfor name := range chess {\n\t\tif _, ok := music[name]; !ok {\n\t\t\tchessOnly[name] = struct{}{}\n\t\t}\n\t}\n\n\tfmt.Println(\"Both:\", sortedKeys(both))\n\tfmt.Println(\"Either:\", sortedKeys(either))\n\tfmt.Println(\"Chess only:\", sortedKeys(chessOnly))\n}\n",
+        "output": "Both: [Ben Dev]\nEither: [Ana Ben Cleo Dev Eli]\nChess only: [Ana Cleo]",
+        "explanation": "The intersection loop keeps Ben and Dev, the only chess players `music` also has. The union adds all of `chess`, then all of `music`, and Ben and Dev land on keys that already exist, so the set ends with 5 names. The difference keeps chess players where `ok` is false. Each loop visits keys in random order, but `sortedKeys` sorts before printing, so the output is the same on every run."
+      },
+      "practice": {
+        "title": "Candidate skills",
+        "prompt": "Compare the skills of two candidates using set operations.\n\n1. Fill the given `onlyAlice` set with the skills in `alice` that `bob` lacks.\n2. Fill the given `combined` set with every skill from `alice` and from `bob`.\n3. Keep the given prints of `sortedKeys(onlyAlice)` and the size of `combined`.\n4. Remove the `_ =` lines once you use the sets.\n\nExpected output:\n\n```text\nOnly Alice: [docker rust]\nCombined: 5\n```",
+        "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc toSet(items []string) map[string]struct{} {\n\tset := map[string]struct{}{}\n\tfor _, item := range items {\n\t\tset[item] = struct{}{}\n\t}\n\treturn set\n}\n\nfunc sortedKeys(set map[string]struct{}) []string {\n\tkeys := make([]string, 0, len(set))\n\tfor k := range set {\n\t\tkeys = append(keys, k)\n\t}\n\tsort.Strings(keys) // map order is random, so sort before printing\n\treturn keys\n}\n\nfunc main() {\n\talice := toSet([]string{\"go\", \"sql\", \"docker\", \"rust\"})\n\tbob := toSet([]string{\"sql\", \"python\", \"go\"})\n\t_ = alice\n\t_ = bob\n\n\tonlyAlice := map[string]struct{}{}\n\t// TODO: add the skills alice has and bob lacks\n\n\tcombined := map[string]struct{}{}\n\t// TODO: add every skill from both candidates\n\n\tfmt.Println(\"Only Alice:\", sortedKeys(onlyAlice))\n\tfmt.Println(\"Combined:\", len(combined))\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc toSet(items []string) map[string]struct{} {\n\tset := map[string]struct{}{}\n\tfor _, item := range items {\n\t\tset[item] = struct{}{}\n\t}\n\treturn set\n}\n\nfunc sortedKeys(set map[string]struct{}) []string {\n\tkeys := make([]string, 0, len(set))\n\tfor k := range set {\n\t\tkeys = append(keys, k)\n\t}\n\tsort.Strings(keys) // map order is random, so sort before printing\n\treturn keys\n}\n\nfunc main() {\n\talice := toSet([]string{\"go\", \"sql\", \"docker\", \"rust\"})\n\tbob := toSet([]string{\"sql\", \"python\", \"go\"})\n\n\tonlyAlice := map[string]struct{}{}\n\tfor skill := range alice {\n\t\tif _, ok := bob[skill]; !ok {\n\t\t\tonlyAlice[skill] = struct{}{}\n\t\t}\n\t}\n\n\tcombined := map[string]struct{}{}\n\tfor skill := range alice {\n\t\tcombined[skill] = struct{}{}\n\t}\n\tfor skill := range bob {\n\t\tcombined[skill] = struct{}{}\n\t}\n\n\tfmt.Println(\"Only Alice:\", sortedKeys(onlyAlice))\n\tfmt.Println(\"Combined:\", len(combined))\n}\n",
+        "tests": [
+          {
+            "output": "Only Alice: [docker rust]\nCombined: 5"
+          }
+        ],
+        "hints": [
+          "The difference loop ranges over `alice` and keeps a skill when `_, ok := bob[skill]` gives `ok == false`.",
+          "For the union, range over `alice` and then over `bob`, adding every skill to `combined`.",
+          "`go` and `sql` appear in both, so they count once: 4 + 3 - 2 = 5."
+        ]
+      }
+    }
+  ],
+  "recap": "- Go has no set type. Use a map whose keys are the members.\n- `map[T]bool`: add with `set[x] = true`, check with `set[x]` (missing keys give `false`).\n- `delete(set, x)` removes a member and `len(set)` counts them. Adding twice keeps one copy.\n- Writing to a nil map panics, so start from a literal or `make`.\n- `struct{}{}` is the only value of the empty struct and takes 0 bytes, so `map[T]struct{}` stores only keys.\n- With `map[T]struct{}`, check membership with `_, ok := set[x]`.\n- Remove duplicates in first-seen order with a `seen` set plus a result slice.\n- Intersection keeps keys the other set has, union adds both sets, difference keeps keys the other set lacks.\n- Map order is random: collect the keys, sort them, then print."
+}

@@ -1,0 +1,158 @@
+{
+  "id": "recursion",
+  "title": "Recursion",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Solve problems with methods that call themselves: base cases, helper indexes, memoization, and divide and conquer.",
+  "intro": "A recursive method solves a problem by calling itself on a smaller piece of the same problem: a smaller number, the rest of an array, half of a sorted range. In this lesson you write a base case that stops the recursion, a private helper that carries an index, a memo that removes repeated work, and a binary search that halves its range on every call.",
+  "steps": [
+    {
+      "title": "Base case and recursive case",
+      "body": "A recursive method calls itself on a smaller version of the same problem. Every one needs two parts:\n\n- **Base case:** an input small enough to answer directly, with no further call. It stops the recursion.\n- **Recursive case:** shrink the input, call yourself, and build the answer from the smaller result.\n\n```java\nstatic long factorial(int n) {\n    if (n <= 1) {\n        return 1;                   // base case\n    }\n    return n * factorial(n - 1);    // recursive case\n}\n```\n\nEach call gets its own frame on the **call stack**, with its own `n`. `factorial(3)` waits on `factorial(2)`, which waits on `factorial(1)`. The base case returns 1, then the waiting frames finish in reverse order: `2 * 1`, then `3 * 2`.\n\nForget the base case, or forget to shrink the input, and the calls never stop. Java then throws `StackOverflowError` once the stack fills up, which in this sandbox happens after several thousand frames. Keep recursion depth under about 2,000.\n\nRecursive results grow fast, so return `long`. `20!` is the largest factorial that fits in a `long`, and `21!` silently wraps to a negative number. For integers beyond `long`, Java has `java.math.BigInteger`, which you will not need here.",
+      "example": {
+        "title": "Factorial and running sum",
+        "prompt": "Read n, then print n! and the sum 1 + 2 + ... + n, both computed recursively.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n\n        System.out.println(n + \"! = \" + factorial(n));\n        System.out.println(\"sumTo(\" + n + \") = \" + sumTo(n));\n    }\n\n    static long factorial(int n) {\n        if (n <= 1) {\n            return 1;\n        }\n        return n * factorial(n - 1);\n    }\n\n    static int sumTo(int n) {\n        if (n == 0) {\n            return 0;\n        }\n        return n + sumTo(n - 1);\n    }\n}\n",
+        "stdin": "20\n",
+        "output": "20! = 2432902008176640000\nsumTo(20) = 210",
+        "explanation": "`factorial(20)` calls `factorial(19)`, and so on down to `factorial(1)`, which returns 1 without calling again. The 19 waiting frames then multiply on the way back up. The result needs `long`: as an `int` it would have overflowed at `13!`. `sumTo` has the same shape with `+` instead of `*` and stops at 0."
+      },
+      "practice": {
+        "title": "Power and digit sum",
+        "prompt": "Read a base, an exponent, and a number, then print a power and a digit sum, both computed recursively.\n\n1. The starter reads `base`, `exp`, and `n` (all zero or more) and prints the results.\n2. Write `power(base, exp)`: return 1 when `exp` is 0, otherwise `base * power(base, exp - 1)`. It returns `long` because powers outgrow `int`.\n3. Write `digitSum(n)`: return `n` when it is a single digit, otherwise its last digit `n % 10` plus `digitSum(n / 10)`.\n4. Use no loops.\n\nInput:\n\n```text\n2 10\n9045\n```\n\nExpected output:\n\n```text\npower(2, 10) = 1024\ndigitSum(9045) = 18\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int base = sc.nextInt();\n        int exp = sc.nextInt();\n        int n = sc.nextInt();\n\n        System.out.println(\"power(\" + base + \", \" + exp + \") = \" + power(base, exp));\n        System.out.println(\"digitSum(\" + n + \") = \" + digitSum(n));\n    }\n\n    static long power(int base, int exp) {\n        // TODO: base case when exp is 0, otherwise base times power(base, exp - 1)\n        return 0;\n    }\n\n    static int digitSum(int n) {\n        // TODO: base case when n is a single digit, otherwise last digit plus digitSum of the rest\n        return 0;\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int base = sc.nextInt();\n        int exp = sc.nextInt();\n        int n = sc.nextInt();\n\n        System.out.println(\"power(\" + base + \", \" + exp + \") = \" + power(base, exp));\n        System.out.println(\"digitSum(\" + n + \") = \" + digitSum(n));\n    }\n\n    static long power(int base, int exp) {\n        if (exp == 0) {\n            return 1;\n        }\n        return base * power(base, exp - 1);\n    }\n\n    static int digitSum(int n) {\n        if (n < 10) {\n            return n;\n        }\n        return n % 10 + digitSum(n / 10);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "2 10\n9045\n",
+            "output": "power(2, 10) = 1024\ndigitSum(9045) = 18"
+          },
+          {
+            "stdin": "3 0\n7\n",
+            "output": "power(3, 0) = 1\ndigitSum(7) = 7"
+          },
+          {
+            "stdin": "5 20\n1000000\n",
+            "output": "power(5, 20) = 95367431640625\ndigitSum(1000000) = 1"
+          }
+        ],
+        "hints": [
+          "Write the base case first, as an `if` that returns without calling the method again.",
+          "In `power`, each call supplies one factor of `base` and leaves `exp - 1` factors to the recursive call.",
+          "In `digitSum`, `n % 10` is the last digit and `n / 10` is the number without it."
+        ]
+      }
+    },
+    {
+      "title": "Recursion with an index",
+      "body": "To recurse over an array or a String, pass an index that says where you are. The base case is the index reaching the end, and each call moves it by one. This is cheaper than `s.substring(1)`, which copies the rest of the String on every call.\n\nCallers should not have to supply that index. Write a `public` entry method that starts the recursion, and a `private` overload with the same name that carries the index:\n\n```java\npublic static int sum(int[] a) {\n    return sum(a, 0);                // entry point: start at index 0\n}\n\nprivate static int sum(int[] a, int i) {\n    if (i == a.length) {\n        return 0;                    // past the end: nothing left\n    }\n    return a[i] + sum(a, i + 1);\n}\n```\n\nOverloading lets both share one name because their parameter lists differ. Strings work the same way with `s.length()` and `s.charAt(i)`. A helper can also stop early: return `false` the moment a check fails, and the waiting frames pass that answer straight back up.\n\nBe careful with the base case test: use `i == a.length`. Stopping at `i == a.length - 1` either skips the last element or, on an empty array, reads past the end.",
+      "example": {
+        "title": "Sum an array and reverse a word",
+        "prompt": "Read n numbers and a word, then print the sum of the numbers and the word reversed, both with recursive helpers that carry an index.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n        String word = sc.next();\n\n        System.out.println(\"sum = \" + sum(nums));\n        System.out.println(\"reversed = \" + reverse(word));\n    }\n\n    public static int sum(int[] a) {\n        return sum(a, 0);\n    }\n\n    private static int sum(int[] a, int i) {\n        if (i == a.length) {\n            return 0;\n        }\n        return a[i] + sum(a, i + 1);\n    }\n\n    public static String reverse(String s) {\n        return reverse(s, 0);\n    }\n\n    private static String reverse(String s, int i) {\n        if (i == s.length()) {\n            return \"\";\n        }\n        return reverse(s, i + 1) + s.charAt(i);\n    }\n}\n",
+        "stdin": "5\n3 1 4 1 5\nstressed\n",
+        "output": "sum = 14\nreversed = desserts",
+        "explanation": "`main` calls the one-argument `sum` and `reverse`, which start their private helpers at index 0. `sum(a, i)` adds `a[i]` to the sum of everything after it and returns 0 past the end. `reverse(s, i)` first reverses the rest, then appends `s.charAt(i)`, so the first character lands last. Java picks the right overload from the number of arguments."
+      },
+      "practice": {
+        "title": "Count a letter and check a palindrome",
+        "prompt": "Read a word and a character, then count that character in the word and check whether the word is a palindrome, both recursively.\n\n1. The starter reads the word and the character, and already has the public `count` and `isPalindrome` entry points that start at index 0.\n2. Finish the private `count(s, c, i)`: return 0 when `i` reaches the end, otherwise 1 or 0 for `s.charAt(i)` plus the count from `i + 1`.\n3. Finish the private `isPalindrome(s, i)`: return `true` once `i` reaches `s.length() / 2`. Otherwise compare `s.charAt(i)` with its mirror `s.charAt(s.length() - 1 - i)`, return `false` on a mismatch, and recurse with `i + 1` on a match.\n4. Use no loops.\n\nInput:\n\n```text\nracecar r\n```\n\nExpected output:\n\n```text\ncount = 2\npalindrome = true\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String word = sc.next();\n        char target = sc.next().charAt(0);\n\n        System.out.println(\"count = \" + count(word, target));\n        System.out.println(\"palindrome = \" + isPalindrome(word));\n    }\n\n    public static int count(String s, char c) {\n        return count(s, c, 0);\n    }\n\n    public static boolean isPalindrome(String s) {\n        return isPalindrome(s, 0);\n    }\n\n    private static int count(String s, char c, int i) {\n        // TODO: 0 past the end, otherwise (1 if s.charAt(i) == c, else 0) plus the count from i + 1\n        return 0;\n    }\n\n    private static boolean isPalindrome(String s, int i) {\n        // TODO: true once i reaches the middle, false on a mismatch, otherwise check from i + 1\n        return false;\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String word = sc.next();\n        char target = sc.next().charAt(0);\n\n        System.out.println(\"count = \" + count(word, target));\n        System.out.println(\"palindrome = \" + isPalindrome(word));\n    }\n\n    public static int count(String s, char c) {\n        return count(s, c, 0);\n    }\n\n    public static boolean isPalindrome(String s) {\n        return isPalindrome(s, 0);\n    }\n\n    private static int count(String s, char c, int i) {\n        if (i == s.length()) {\n            return 0;\n        }\n        int here = s.charAt(i) == c ? 1 : 0;\n        return here + count(s, c, i + 1);\n    }\n\n    private static boolean isPalindrome(String s, int i) {\n        if (i >= s.length() / 2) {\n            return true;\n        }\n        if (s.charAt(i) != s.charAt(s.length() - 1 - i)) {\n            return false;\n        }\n        return isPalindrome(s, i + 1);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "racecar r\n",
+            "output": "count = 2\npalindrome = true"
+          },
+          {
+            "stdin": "banana a\n",
+            "output": "count = 3\npalindrome = false"
+          },
+          {
+            "stdin": "x y\n",
+            "output": "count = 0\npalindrome = true"
+          }
+        ],
+        "hints": [
+          "Both helpers follow the example's `sum(a, i)` shape: a base case on `i`, then one call with `i + 1`.",
+          "In `count`, turn the test `s.charAt(i) == c` into 1 or 0 with a ternary, then add the count from `i + 1`.",
+          "In `isPalindrome`, check `i >= s.length() / 2` first. A one-letter word is then a palindrome right away."
+        ]
+      }
+    },
+    {
+      "title": "Memoization",
+      "body": "Some recursions call themselves more than once. Fibonacci numbers add the two before them: `fib(n) = fib(n - 1) + fib(n - 2)`. Written directly, every call branches into two, and the same values are computed over and over. `fib(30)` makes more than two million calls, and `fib(50)` makes tens of billions. The work grows exponentially.\n\n**Memoization** fixes it: save each answer the first time you compute it, and return the saved copy after that. For small non-negative `int` inputs, a `long[] memo` indexed by `n` is the simplest store:\n\n```java\nprivate static long fib(int n, long[] memo) {\n    if (n < 2) {\n        return n;\n    }\n    if (memo[n] != 0) {\n        return memo[n];              // computed before\n    }\n    memo[n] = fib(n - 1, memo) + fib(n - 2, memo);\n    return memo[n];\n}\n```\n\nNow each `n` is computed once, so `fib(90)` needs fewer than 200 calls. Using 0 to mean \"not computed yet\" works because every saved answer is positive. If 0 can be a real answer, `Arrays.fill(memo, -1)` first. When keys are sparse or not small ints, a `Map<Integer, Long> cache = new HashMap<>()` does the same job with `containsKey`, `get`, and `put`.\n\nAnswers still grow: `fib(92)` is the largest Fibonacci number that fits in a `long`.",
+      "example": {
+        "title": "Fast Fibonacci",
+        "prompt": "Read numbers until the input ends and print the Fibonacci number for each, using a memoized recursion.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        while (sc.hasNextInt()) {\n            int n = sc.nextInt();\n            System.out.println(\"fib(\" + n + \") = \" + fib(n));\n        }\n    }\n\n    public static long fib(int n) {\n        return fib(n, new long[n + 1]);\n    }\n\n    private static long fib(int n, long[] memo) {\n        if (n < 2) {\n            return n;\n        }\n        if (memo[n] != 0) {\n            return memo[n];\n        }\n        memo[n] = fib(n - 1, memo) + fib(n - 2, memo);\n        return memo[n];\n    }\n}\n",
+        "stdin": "10 50 90\n",
+        "output": "fib(10) = 55\nfib(50) = 12586269025\nfib(90) = 2880067194370816120",
+        "explanation": "The public `fib(n)` makes a fresh `long[n + 1]` memo and hands it to the private helper. The first path down, `fib(n - 1)`, fills `memo` for every smaller index. When the second call `fib(n - 2)` runs, its answer is already saved, so it returns at once. Without the memo, `fib(90)` would make about 10 quintillion calls and run for centuries."
+      },
+      "practice": {
+        "title": "Climbing stairs",
+        "prompt": "Read stair counts until the input ends and print how many ways you can climb each one taking 1, 2, or 3 steps at a time.\n\n1. The starter reads each `n` and has the public `ways(n)` that creates the memo.\n2. In the private `ways(n, memo)`, return 0 when `n < 0` (you overshot) and 1 when `n == 0` (you arrived).\n3. Otherwise return the saved `memo[n]` if it is not 0, or add the three calls for `n - 1`, `n - 2`, and `n - 3` (each passing `memo`), save the sum in `memo[n]`, and return it.\n\nInput:\n\n```text\n4 0 30\n```\n\nExpected output:\n\n```text\nways(4) = 7\nways(0) = 1\nways(30) = 53798080\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        while (sc.hasNextInt()) {\n            int n = sc.nextInt();\n            System.out.println(\"ways(\" + n + \") = \" + ways(n));\n        }\n    }\n\n    public static long ways(int n) {\n        return ways(n, new long[n + 1]);\n    }\n\n    private static long ways(int n, long[] memo) {\n        // TODO: base cases for n < 0 and n == 0, then memoize ways(n - 1) + ways(n - 2) + ways(n - 3)\n        return 0;\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        while (sc.hasNextInt()) {\n            int n = sc.nextInt();\n            System.out.println(\"ways(\" + n + \") = \" + ways(n));\n        }\n    }\n\n    public static long ways(int n) {\n        return ways(n, new long[n + 1]);\n    }\n\n    private static long ways(int n, long[] memo) {\n        if (n < 0) {\n            return 0;\n        }\n        if (n == 0) {\n            return 1;\n        }\n        if (memo[n] != 0) {\n            return memo[n];\n        }\n        memo[n] = ways(n - 1, memo) + ways(n - 2, memo) + ways(n - 3, memo);\n        return memo[n];\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "4 0 30\n",
+            "output": "ways(4) = 7\nways(0) = 1\nways(30) = 53798080"
+          },
+          {
+            "stdin": "1 2 3\n",
+            "output": "ways(1) = 1\nways(2) = 2\nways(3) = 4"
+          },
+          {
+            "stdin": "60\n",
+            "output": "ways(60) = 4680045560037375"
+          }
+        ],
+        "hints": [
+          "Check `n < 0` before you touch `memo[n]`, or a negative index throws.",
+          "This is the Fibonacci helper with one extra recursive call, and the same `memo` passed to all three.",
+          "Store the sum in `memo[n]` before you return it, or a large `n` runs far too long."
+        ]
+      }
+    },
+    {
+      "title": "Divide and conquer",
+      "body": "Divide and conquer splits a problem and recurses only on the part that matters. Binary search is the classic case. In a **sorted** array, look at the middle element. If it is the target, you are done. If the target is bigger, it can only be in the right half, otherwise only in the left half. Each call throws away half the range, so a million elements need about 20 calls and the stack stays shallow.\n\nTrack the range with `lo` and `hi`, both inclusive. An empty range, `lo > hi`, is the base case and means the target is missing:\n\n```java\nprivate static int search(int[] a, int target, int lo, int hi) {\n    if (lo > hi) {\n        return -1;\n    }\n    int mid = lo + (hi - lo) / 2;\n    if (a[mid] == target) {\n        return mid;\n    }\n    // recurse on mid + 1..hi or lo..mid - 1\n}\n```\n\nWrite `lo + (hi - lo) / 2`, not `(lo + hi) / 2`. On a huge array `lo + hi` can pass `Integer.MAX_VALUE` and wrap to a negative index.\n\nThe array must be sorted. On unsorted data binary search does not crash, it just gives wrong answers. With duplicates, it returns whichever match it lands on first, which is not always the first one.",
+      "example": {
+        "title": "Recursive binary search",
+        "prompt": "Read a sorted array, then print the index of each target that follows, or -1 when it is missing.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] a = new int[n];\n        for (int i = 0; i < n; i++) {\n            a[i] = sc.nextInt();\n        }\n        while (sc.hasNextInt()) {\n            int target = sc.nextInt();\n            System.out.println(target + \" -> \" + search(a, target));\n        }\n    }\n\n    public static int search(int[] a, int target) {\n        return search(a, target, 0, a.length - 1);\n    }\n\n    private static int search(int[] a, int target, int lo, int hi) {\n        if (lo > hi) {\n            return -1;\n        }\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] == target) {\n            return mid;\n        }\n        if (a[mid] < target) {\n            return search(a, target, mid + 1, hi);\n        }\n        return search(a, target, lo, mid - 1);\n    }\n}\n",
+        "stdin": "8\n2 5 8 12 16 23 38 56\n23 2 56 7\n",
+        "output": "23 -> 5\n2 -> 0\n56 -> 7\n7 -> -1",
+        "explanation": "For 23 the first range is 0..7, so `mid` is 3 and `a[3]` is 12. 23 is bigger, so the search recurses on 4..7, where `mid` is 5 and `a[5]` is 23. For 7 the range keeps shrinking until `lo` passes `hi`, and the base case returns -1. Every call halves the range, so 8 elements need at most 4 looks at a middle element."
+      },
+      "practice": {
+        "title": "First index with duplicates",
+        "prompt": "Read a sorted array that may contain duplicates, then print the first index of each target that follows, or -1 when it is missing.\n\n1. The starter reads the array and the targets, and has the public `firstIndex(a, target)` entry point.\n2. Finish the private `firstIndex(a, target, lo, hi)`. Return -1 for an empty range and compute `mid = lo + (hi - lo) / 2`.\n3. If `a[mid]` is smaller than the target, search the right half. If it is bigger, search the left half.\n4. On a match, search `lo..mid - 1` for an earlier match. Return that index if it found one, otherwise `mid`.\n\nInput:\n\n```text\n9\n1 2 2 2 3 5 5 8 9\n2 5 1 9 4\n```\n\nExpected output:\n\n```text\n2 -> 1\n5 -> 5\n1 -> 0\n9 -> 8\n4 -> -1\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] a = new int[n];\n        for (int i = 0; i < n; i++) {\n            a[i] = sc.nextInt();\n        }\n        while (sc.hasNextInt()) {\n            int target = sc.nextInt();\n            System.out.println(target + \" -> \" + firstIndex(a, target));\n        }\n    }\n\n    public static int firstIndex(int[] a, int target) {\n        return firstIndex(a, target, 0, a.length - 1);\n    }\n\n    private static int firstIndex(int[] a, int target, int lo, int hi) {\n        // TODO: binary search, but on a match keep searching lo..mid - 1 for an earlier one\n        return -1;\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] a = new int[n];\n        for (int i = 0; i < n; i++) {\n            a[i] = sc.nextInt();\n        }\n        while (sc.hasNextInt()) {\n            int target = sc.nextInt();\n            System.out.println(target + \" -> \" + firstIndex(a, target));\n        }\n    }\n\n    public static int firstIndex(int[] a, int target) {\n        return firstIndex(a, target, 0, a.length - 1);\n    }\n\n    private static int firstIndex(int[] a, int target, int lo, int hi) {\n        if (lo > hi) {\n            return -1;\n        }\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] < target) {\n            return firstIndex(a, target, mid + 1, hi);\n        }\n        if (a[mid] > target) {\n            return firstIndex(a, target, lo, mid - 1);\n        }\n        int earlier = firstIndex(a, target, lo, mid - 1);\n        return earlier == -1 ? mid : earlier;\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "9\n1 2 2 2 3 5 5 8 9\n2 5 1 9 4\n",
+            "output": "2 -> 1\n5 -> 5\n1 -> 0\n9 -> 8\n4 -> -1"
+          },
+          {
+            "stdin": "5\n7 7 7 7 7\n7 3\n",
+            "output": "7 -> 0\n3 -> -1"
+          },
+          {
+            "stdin": "1\n4\n4 10\n",
+            "output": "4 -> 0\n10 -> -1"
+          }
+        ],
+        "hints": [
+          "Start from the example's `search` and change only what happens when `a[mid] == target`.",
+          "On a match, call `firstIndex(a, target, lo, mid - 1)`. It returns -1 when there is no earlier copy.",
+          "Return `mid` only when that left search found nothing, otherwise return what it found."
+        ]
+      }
+    }
+  ],
+  "recap": "- Every recursive method needs a base case that returns directly and a recursive case that shrinks the input.\n- Each call has its own frame on the call stack. No base case means `StackOverflowError`, so keep depth under about 2,000.\n- Return `long` for fast-growing results: `20!` is the largest factorial that fits, and `java.math.BigInteger` goes beyond.\n- Recurse over arrays and Strings with an index. Hide it behind a `public` entry method that calls a `private` overload starting at 0.\n- Several calls on overlapping inputs repeat work exponentially. Save answers in a `long[] memo` or a `Map<Integer, Long>` cache.\n- Binary search halves a sorted range each call: base case `lo > hi`, and `mid = lo + (hi - lo) / 2` to avoid `int` overflow.\n- Binary search needs sorted data. To find the first of several duplicates, keep searching left after a match."
+}

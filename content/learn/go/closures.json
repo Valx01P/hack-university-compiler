@@ -1,0 +1,114 @@
+{
+  "id": "closures",
+  "title": "Function Values and Closures",
+  "section": "Functions",
+  "summary": "Pass functions around as values, capture variables in closures, sort with sort.Slice, and avoid Go 1.16's loop variable trap.",
+  "intro": "Functions in Go are values. You can store them, pass them to other functions, and return them. A function literal that uses variables from around it is a closure, and closures power everyday tools like `sort.Slice`.",
+  "steps": [
+    {
+      "title": "Functions as values",
+      "body": "In Go a function is a value like any other. You can store it in a variable, pass it to another function, and call it later. Its type lists the parameter and result types, so `double` below has type `func(int) int`.\n\n```go\nfunc double(n int) int { return n * 2 }\n\nf := double       // no parentheses: store it, do not call it\nfmt.Println(f(4)) // 8\n```\n\nA parameter can have a function type, so the caller decides what work gets done:\n\n```go\nfunc apply(nums []int, f func(int) int) []int\n```\n\nWhen you need a function only once, write a *function literal*, also called an anonymous function: `func` plus parameters and a body, with no name. It can go straight into an argument list or be assigned with `:=`.\n\n```go\napply(nums, func(n int) int { return n + 1 })\n```\n\nPass `double`, not `double(...)`. Adding parentheses calls the function and passes its result instead. The zero value of a function type is `nil`, and calling a nil function panics. Function values can be compared only with `nil`, never with each other.",
+      "example": {
+        "title": "Apply a function to every number",
+        "prompt": "Store a function in a variable, then use `apply` with a named function and with an anonymous one.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc double(n int) int {\n\treturn n * 2\n}\n\nfunc apply(nums []int, f func(int) int) []int {\n\tvar out []int\n\tfor _, n := range nums {\n\t\tout = append(out, f(n))\n\t}\n\treturn out\n}\n\nfunc main() {\n\tnums := []int{1, 2, 3, 4}\n\n\ttwice := double // a function value, no call yet\n\tfmt.Printf(\"%T %d\\n\", twice, twice(21))\n\n\tfmt.Println(apply(nums, double))\n\tfmt.Println(apply(nums, func(n int) int {\n\t\treturn n * n\n\t}))\n}\n",
+        "output": "func(int) int 42\n[2 4 6 8]\n[1 4 9 16]",
+        "explanation": "`twice := double` copies the function value, so `%T` prints its type `func(int) int` and `twice(21)` calls it. `apply` does not know what `f` does. It just calls `f(n)` for every element and appends the result. The first call passes the named `double`, the second passes a function literal that squares its argument."
+      },
+      "practice": {
+        "title": "Filter numbers",
+        "prompt": "Write a `filter` function that keeps only the numbers a `keep` function accepts.\n\n1. Finish `isEven` so it returns `true` for even numbers.\n2. Finish `filter(nums []int, keep func(int) bool) []int`: append each `n` where `keep(n)` is `true` to a new slice and return it.\n3. Keep the given line that prints `filter(nums, isEven)`.\n4. Print `filter` again with an anonymous function that keeps numbers greater than 10.\n\nExpected output:\n\n```text\n[4 12 20]\n[12 15 20]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc isEven(n int) bool {\n\t// TODO: report whether n is even\n\treturn false\n}\n\nfunc filter(nums []int, keep func(int) bool) []int {\n\t// TODO: return the numbers for which keep returns true\n\treturn nil\n}\n\nfunc main() {\n\tnums := []int{4, 7, 12, 15, 20, 3}\n\n\tfmt.Println(filter(nums, isEven))\n\t// TODO: print filter(nums, ...) with an anonymous function that keeps numbers greater than 10\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc isEven(n int) bool {\n\treturn n%2 == 0\n}\n\nfunc filter(nums []int, keep func(int) bool) []int {\n\tvar out []int\n\tfor _, n := range nums {\n\t\tif keep(n) {\n\t\t\tout = append(out, n)\n\t\t}\n\t}\n\treturn out\n}\n\nfunc main() {\n\tnums := []int{4, 7, 12, 15, 20, 3}\n\n\tfmt.Println(filter(nums, isEven))\n\tfmt.Println(filter(nums, func(n int) bool {\n\t\treturn n > 10\n\t}))\n}\n",
+        "tests": [
+          {
+            "output": "[4 12 20]\n[12 15 20]"
+          }
+        ],
+        "hints": [
+          "Follow `apply` from the example, but only append `n` when `keep(n)` is true.",
+          "The anonymous function has the same type as `isEven`, `func(n int) bool`, and its body returns a comparison."
+        ]
+      }
+    },
+    {
+      "title": "Closures",
+      "body": "A function literal can use variables from the code around it. It does not get a copy: it shares the variable, so it can read and change it. A function that does this is a *closure*.\n\n```go\ntotal := 0\nadd := func(n int) { total += n }\nadd(5)\nadd(3)\nfmt.Println(total) // 8\n```\n\nClosures get interesting when a function returns one. The returned function keeps its captured variables alive after the outer function has returned. The compiler notices this and moves such a variable from the stack to the heap, where it lives as long as some closure still refers to it.\n\n```go\nfunc makeCounter() func() int {\n\tcount := 0\n\treturn func() int {\n\t\tcount++\n\t\treturn count\n\t}\n}\n```\n\nEach call to `makeCounter` creates a new `count`, so two counters never share state. This is how you give a function private memory without a global variable.",
+      "example": {
+        "title": "Two independent counters",
+        "prompt": "Make two counters, call the first three times and the second once, then the first again.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc makeCounter() func() int {\n\tcount := 0\n\treturn func() int {\n\t\tcount++\n\t\treturn count\n\t}\n}\n\nfunc main() {\n\ta := makeCounter()\n\tb := makeCounter()\n\n\tfmt.Println(a(), a(), a())\n\tfmt.Println(b())\n\tfmt.Println(a())\n}\n",
+        "output": "1 2 3\n1\n4",
+        "explanation": "Every call to `makeCounter` declares a fresh `count` and returns a closure over it. `a` and `b` each hold their own `count`. Calling `a` three times moves its count to 3, calling `b` starts its own count at 1, and the last `a()` continues from 3 to 4. The arguments of one `Println` are evaluated left to right, so the first line is `1 2 3`."
+      },
+      "practice": {
+        "title": "Running total",
+        "prompt": "Write `makeAccumulator`, which returns a closure that keeps a running total.\n\n1. In `makeAccumulator(start int) func(int) int`, declare a `total` that starts at `start`.\n2. Return a closure that adds its argument `n` to `total` and returns the new total.\n3. Keep the given `main`, which starts at 100 and adds 10, 25, and -5.\n\nExpected output:\n\n```text\n110\n135\n130\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc makeAccumulator(start int) func(int) int {\n\t// TODO: keep a running total that starts at start, and make the closure add n to it and return it\n\treturn func(n int) int {\n\t\treturn 0\n\t}\n}\n\nfunc main() {\n\tacc := makeAccumulator(100)\n\tfmt.Println(acc(10))\n\tfmt.Println(acc(25))\n\tfmt.Println(acc(-5))\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc makeAccumulator(start int) func(int) int {\n\ttotal := start\n\treturn func(n int) int {\n\t\ttotal += n\n\t\treturn total\n\t}\n}\n\nfunc main() {\n\tacc := makeAccumulator(100)\n\tfmt.Println(acc(10))\n\tfmt.Println(acc(25))\n\tfmt.Println(acc(-5))\n}\n",
+        "tests": [
+          {
+            "output": "110\n135\n130"
+          }
+        ],
+        "hints": [
+          "Declare `total` before the `return`, the way the example declares `count` before returning its closure.",
+          "Inside the closure, change `total` first, then return it."
+        ]
+      }
+    },
+    {
+      "title": "Sorting with sort.Slice",
+      "body": "`sort.Ints` and `sort.Strings` only sort ascending by the natural order. For any other order, use `sort.Slice` from the `sort` package. You pass the slice and a *less* function that answers one question: should the element at index `i` come before the element at index `j`?\n\n```go\nsort.Slice(nums, func(i, j int) bool {\n\treturn nums[i] < nums[j] // ascending\n})\n```\n\nThe less function is a closure: it reads `nums` from the surrounding code. `sort.Slice` sorts in place, moving elements around in the slice you gave it.\n\n- Use `<` for ascending and `>` for descending.\n- Compare a computed key to sort by something else, such as `len(words[i]) < len(words[j])` to sort by length.\n- Always index the slice with `i` and `j`. The less function gets positions, not values.\n\n`sort.Slice` is not stable: elements that compare equal may end up in any order. Keep your data free of ties, or compare a second key when the first one is equal.",
+      "example": {
+        "title": "Scores and words",
+        "prompt": "Sort scores from highest to lowest, then sort words from shortest to longest.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\tscores := []int{70, 95, 82, 64}\n\tsort.Slice(scores, func(i, j int) bool {\n\t\treturn scores[i] > scores[j] // > puts the larger value first\n\t})\n\tfmt.Println(scores)\n\n\twords := []string{\"banana\", \"fig\", \"apple\", \"kiwi\"}\n\tsort.Slice(words, func(i, j int) bool {\n\t\treturn len(words[i]) < len(words[j])\n\t})\n\tfmt.Println(words)\n}\n",
+        "output": "[95 82 70 64]\n[fig kiwi apple banana]",
+        "explanation": "For `scores`, the less function returns true when `scores[i]` is larger, so larger values move to the front. For `words`, it compares lengths instead of the words themselves: 3, 4, 5, 6 letters. Both closures read the slice they are sorting, and both slices are changed in place."
+      },
+      "practice": {
+        "title": "Prices and cities",
+        "prompt": "Sort two slices with `sort.Slice`, both in descending order.\n\n1. Add `\"sort\"` to the imports, using a parenthesized import block.\n2. Sort `prices` from highest to lowest.\n3. Sort `cities` from the longest name to the shortest.\n4. Keep the given `Println` lines.\n\nExpected output:\n\n```text\n[99 42 15 7]\n[Amsterdam Berlin Tokyo Rome]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tprices := []int{15, 99, 42, 7}\n\t// TODO: sort prices from highest to lowest\n\tfmt.Println(prices)\n\n\tcities := []string{\"Tokyo\", \"Rome\", \"Amsterdam\", \"Berlin\"}\n\t// TODO: sort cities from the longest name to the shortest\n\tfmt.Println(cities)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\tprices := []int{15, 99, 42, 7}\n\tsort.Slice(prices, func(i, j int) bool {\n\t\treturn prices[i] > prices[j]\n\t})\n\tfmt.Println(prices)\n\n\tcities := []string{\"Tokyo\", \"Rome\", \"Amsterdam\", \"Berlin\"}\n\tsort.Slice(cities, func(i, j int) bool {\n\t\treturn len(cities[i]) > len(cities[j])\n\t})\n\tfmt.Println(cities)\n}\n",
+        "tests": [
+          {
+            "output": "[99 42 15 7]\n[Amsterdam Berlin Tokyo Rome]"
+          }
+        ],
+        "hints": [
+          "Use `>` in the less function to get descending order.",
+          "For the cities, compare `len(cities[i])` with `len(cities[j])`."
+        ]
+      }
+    },
+    {
+      "title": "Closures in loops",
+      "body": "In Go 1.16 a `for` loop declares its loop variable once and reuses it for every iteration. That includes the index and value variables of a `range` loop. A closure made inside the loop captures that one shared variable, not its value at the time. When you call the closures after the loop, they all see the final value.\n\n```go\nfor i := 0; i < 3; i++ {\n\tfuncs = append(funcs, func() int { return i }) // all share one i\n}\n```\n\nThere are two standard fixes:\n\n- Copy it first: `i := i` as the first line of the body declares a new `i` for this iteration, and the closure captures that one.\n- Pass it as an argument: arguments are copied, so a helper `valueOf(n int) func() int` that returns a closure over `n` gives each closure its own `n`.\n\nGo 1.22 and later give every iteration its own variable, so modern code often skips the fix. This course runs Go 1.16, where the bug is real. Write the copy whenever a closure outlives its iteration.",
+      "example": {
+        "title": "The shared loop variable",
+        "prompt": "Collect three closures in a loop, then fix them with a copy and with an argument.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc valueOf(n int) func() int {\n\treturn func() int {\n\t\treturn n\n\t}\n}\n\nfunc main() {\n\tvar shared []func() int\n\tfor i := 0; i < 3; i++ {\n\t\tshared = append(shared, func() int {\n\t\t\treturn i\n\t\t})\n\t}\n\tfmt.Println(shared[0](), shared[1](), shared[2]())\n\n\tvar copied []func() int\n\tfor i := 0; i < 3; i++ {\n\t\ti := i // a new variable for this iteration only\n\t\tcopied = append(copied, func() int {\n\t\t\treturn i\n\t\t})\n\t}\n\tfmt.Println(copied[0](), copied[1](), copied[2]())\n\n\tvar passed []func() int\n\tfor i := 0; i < 3; i++ {\n\t\tpassed = append(passed, valueOf(i)) // the argument is a copy\n\t}\n\tfmt.Println(passed[0](), passed[1](), passed[2]())\n}\n",
+        "output": "3 3 3\n0 1 2\n0 1 2",
+        "explanation": "In the first loop all three closures capture the same `i`. The loop leaves it at 3, so every call returns 3. In the second loop, `i := i` shadows the loop variable with a new one per iteration, so each closure keeps 0, 1, or 2. In the third loop, `valueOf(i)` copies `i` into its parameter `n`, and the returned closure captures that `n`."
+      },
+      "practice": {
+        "title": "Fix the greetings",
+        "prompt": "Fix the starter so each greeting closure remembers its own name.\n\n1. Run the starter first: it prints `Hi Cy` three times.\n2. Inside the `range` loop, before the closure is created, declare a new `name` for each iteration, the way the example copies `i`.\n3. Leave the rest of the program as it is.\n\nExpected output:\n\n```text\nHi Ana\nHi Ben\nHi Cy\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tnames := []string{\"Ana\", \"Ben\", \"Cy\"}\n\n\tvar greetings []func()\n\tfor _, name := range names {\n\t\t// TODO: give each closure its own copy of name\n\t\tgreetings = append(greetings, func() {\n\t\t\tfmt.Println(\"Hi \" + name)\n\t\t})\n\t}\n\n\tfor _, greet := range greetings {\n\t\tgreet()\n\t}\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tnames := []string{\"Ana\", \"Ben\", \"Cy\"}\n\n\tvar greetings []func()\n\tfor _, name := range names {\n\t\tname := name // a new variable for this iteration only\n\t\tgreetings = append(greetings, func() {\n\t\t\tfmt.Println(\"Hi \" + name)\n\t\t})\n\t}\n\n\tfor _, greet := range greetings {\n\t\tgreet()\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "Hi Ana\nHi Ben\nHi Cy"
+          }
+        ],
+        "hints": [
+          "The range loop reuses one `name` variable, so every closure sees its last value.",
+          "Shadow the loop variable: `:=` with the same name on both sides makes a new variable for this iteration."
+        ]
+      }
+    }
+  ],
+  "recap": "- A function type such as `func(int) int` lists parameter and result types. Store a function with `f := double`, no parentheses.\n- A function literal `func(n int) int { ... }` has no name and can be passed straight as an argument.\n- A closure shares the variables it uses from the surrounding code, so it can read and change them.\n- A returned closure keeps its captured variables alive on the heap, and each call to the outer function makes new ones.\n- `sort.Slice(s, func(i, j int) bool { ... })` sorts in place. Use `<` for ascending, `>` for descending, or compare a key such as `len`.\n- `sort.Slice` is not stable, so avoid ties or break them with a second key.\n- In Go 1.16 loop variables are shared by every iteration. Copy with `i := i` or pass the value as an argument before a closure captures it."
+}

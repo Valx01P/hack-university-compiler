@@ -1,0 +1,115 @@
+{
+  "id": "arrays",
+  "title": "Arrays: Dynamic and Fixed-Size",
+  "section": "Arrays",
+  "summary": "Store ordered values in arrays that grow and shrink as needed, search and slice them, and use typed arrays when you need a fixed size.",
+  "intro": "Most programs work with lists: scores, names, readings. An array keeps values in order under one name. JavaScript arrays grow and shrink on their own, and typed arrays give you a fixed size when you need one.",
+  "steps": [
+    {
+      "title": "Creating and reading arrays",
+      "body": "An array holds an ordered list of values. Write one with square brackets and commas. Indexes start at 0, so the first item is `arr[0]` and `arr.length` counts the items.\n\n```javascript\nconst colors = [\"red\", \"green\", \"blue\"];\ncolors[0];                 // \"red\"\ncolors.length;             // 3\ncolors[colors.length - 1]; // \"blue\", the last item\ncolors.at(-1);             // \"blue\", counting from the end\ncolors[1] = \"lime\";        // replace an item\ncolors[7];                 // undefined, there is no index 7\n```\n\nThe last index is always `length - 1`. `at(-1)` reads the same item with less math, but plain brackets do not count backwards: `colors[-1]` is `undefined`. Reading past the end never throws an error, it just gives `undefined`, so a typo in an index fails quietly.\n\nTo print an array, use `arr.join(\", \")` to glue the items into one string with your separator, or `JSON.stringify(arr)` for the bracketed form `[\"red\",\"lime\",\"blue\"]`. Avoid `console.log(arr)` for checked output: Node prints its own format, such as `[ 'red', 'lime', 'blue' ]`, and wraps arrays longer than 6 items across several lines.",
+      "example": {
+        "title": "Planet list",
+        "prompt": "Read the first and last planet and the count, peek past the end, replace index 2, and print the list two ways.",
+        "code": "const planets = [\"Mercury\", \"Venus\", \"Earth\", \"Mars\"];\n\nconsole.log(`First: ${planets[0]}`);\nconsole.log(`Last: ${planets.at(-1)}`);\nconsole.log(`Count: ${planets.length}`);\nconsole.log(`Index 9: ${planets[9]}`);\n\nplanets[2] = \"Terra\";\nconsole.log(planets.join(\", \"));\nconsole.log(JSON.stringify(planets));\n",
+        "output": "First: Mercury\nLast: Mars\nCount: 4\nIndex 9: undefined\nMercury, Venus, Terra, Mars\n[\"Mercury\",\"Venus\",\"Terra\",\"Mars\"]",
+        "explanation": "`planets[0]` is the first item and `at(-1)` the last. There are 4 items, so index 9 does not exist and reads as `undefined`. Assigning to `planets[2]` replaces `\"Earth\"` in place. `join(\", \")` prints plain text, while `JSON.stringify` keeps the brackets and quotes and adds no spaces."
+      },
+      "practice": {
+        "title": "Temperature log",
+        "prompt": "Read and update five days of temperatures stored in an array.\n\n1. Print `First: ` and the first value.\n2. Print `Last: ` and the last value, using `temps.length - 1`, then print `Also last: ` and the same value read with `at(-1)`.\n3. Print `Count: ` and the number of values.\n4. Print `Day 6: ` and the value at index 5.\n5. Change the value at index 2 to `11`.\n6. Print the whole array with `JSON.stringify`.\n\nExpected output:\n\n```text\nFirst: 12\nLast: 18\nAlso last: 18\nCount: 5\nDay 6: undefined\n[12,15,11,20,18]\n```",
+        "starter": "const temps = [12, 15, 9, 20, 18];\n\n// TODO: print the first value, the last value (two ways), the count, and index 5\n\n// TODO: change index 2 to 11, then print the array with JSON.stringify\n",
+        "solution": "const temps = [12, 15, 9, 20, 18];\n\nconsole.log(`First: ${temps[0]}`);\nconsole.log(`Last: ${temps[temps.length - 1]}`);\nconsole.log(`Also last: ${temps.at(-1)}`);\nconsole.log(`Count: ${temps.length}`);\nconsole.log(`Day 6: ${temps[5]}`);\n\ntemps[2] = 11;\nconsole.log(JSON.stringify(temps));\n",
+        "tests": [
+          {
+            "output": "First: 12\nLast: 18\nAlso last: 18\nCount: 5\nDay 6: undefined\n[12,15,11,20,18]"
+          }
+        ],
+        "hints": [
+          "The last index is `temps.length - 1`, which is 4 here. `temps.at(-1)` reads the same item without the math.",
+          "Index 5 is past the end, so reading it gives `undefined`. Do the assignment to index 2 before you print the JSON."
+        ]
+      }
+    },
+    {
+      "title": "Growing and shrinking",
+      "body": "JavaScript arrays are dynamic: they grow and shrink as you add and remove items, so you never declare a size. Four methods work on the ends.\n\n```javascript\nconst queue = [\"b\"];\nqueue.push(\"c\");                // add to the end, returns the new length (2)\nqueue.unshift(\"a\");             // add to the front: [\"a\", \"b\", \"c\"]\nconst last = queue.pop();       // remove and return the last item: \"c\"\nconst first = queue.shift();    // remove and return the first item: \"a\"\n```\n\n`push` and `unshift` accept several items at once (`queue.push(\"x\", \"y\")`) and both return the new length. `pop` and `shift` return the item they removed, so save it in a variable when you need it. On an empty array they return `undefined`.\n\nNotice that `queue` is a `const`, yet it changed. `const` only stops you from pointing the name at a different array (`queue = []` throws a TypeError). The array itself can still be changed. Use `const` for arrays unless you really reassign the name.\n\n`push` and `pop` are fast. `unshift` and `shift` work on the front, so the engine may have to move every other item over by one, which gets slow on very large arrays.",
+      "example": {
+        "title": "To-do list",
+        "prompt": "Build a to-do list with push and unshift, take one task off each end, and print what was removed and what is left.",
+        "code": "const todo = [];\n\ntodo.push(\"email\");\ntodo.push(\"laundry\");\nconst size = todo.push(\"groceries\");\ntodo.unshift(\"fix leak\");\n\nconst popped = todo.pop();\nconst shifted = todo.shift();\n\nconsole.log(`Size after push: ${size}`);\nconsole.log(`Popped: ${popped}`);\nconsole.log(`Shifted: ${shifted}`);\nconsole.log(`Left: ${todo.join(\" | \")}`);\nconsole.log(`Count: ${todo.length}`);\n",
+        "output": "Size after push: 3\nPopped: groceries\nShifted: fix leak\nLeft: email | laundry\nCount: 2",
+        "explanation": "The third `push` returns 3, the new length. `unshift` puts `\"fix leak\"` at the front. `pop` takes `\"groceries\"` off the end and `shift` takes `\"fix leak\"` off the front, and each returns the removed task. The `const` array changed the whole time because only the name is fixed, not the contents."
+      },
+      "practice": {
+        "title": "Playlist edits",
+        "prompt": "Edit a playlist from both ends and report what changed.\n\n1. Push `\"Creep\"`, then push `\"Valerie\"` and save the length that second `push` returns.\n2. Unshift `\"Intro\"` onto the front.\n3. Pop the last song and shift the first one, saving both.\n4. Print `Size after push: `, `Popped: `, and `Shifted: ` lines in that order, above the two lines the starter already prints.\n\nExpected output:\n\n```text\nSize after push: 4\nPopped: Valerie\nShifted: Intro\nPlaylist: Halo | Yellow | Creep\nCount: 3\n```",
+        "starter": "const playlist = [\"Halo\", \"Yellow\"];\n\n// TODO: push \"Creep\", then push \"Valerie\" and keep the new length\n// TODO: unshift \"Intro\", then pop and shift, keeping both removed songs\n// TODO: print the size, the popped song, and the shifted song\n\nconsole.log(`Playlist: ${playlist.join(\" | \")}`);\nconsole.log(`Count: ${playlist.length}`);\n",
+        "solution": "const playlist = [\"Halo\", \"Yellow\"];\n\nplaylist.push(\"Creep\");\nconst size = playlist.push(\"Valerie\");\nplaylist.unshift(\"Intro\");\n\nconst popped = playlist.pop();\nconst shifted = playlist.shift();\n\nconsole.log(`Size after push: ${size}`);\nconsole.log(`Popped: ${popped}`);\nconsole.log(`Shifted: ${shifted}`);\nconsole.log(`Playlist: ${playlist.join(\" | \")}`);\nconsole.log(`Count: ${playlist.length}`);\n",
+        "tests": [
+          {
+            "output": "Size after push: 4\nPopped: Valerie\nShifted: Intro\nPlaylist: Halo | Yellow | Creep\nCount: 3"
+          }
+        ],
+        "hints": [
+          "`push` returns the new length, so assign the result of the second `push` to a `const`.",
+          "`pop()` and `shift()` return the song they remove. Save each one in its own `const` before printing."
+        ]
+      }
+    },
+    {
+      "title": "Search, slice, splice, and copies",
+      "body": "Search an array with `includes(x)` (true or false), `indexOf(x)` (the first index, or -1), and `lastIndexOf(x)` (the last index, or -1). They compare like `===`, so `[1, 2].includes(\"1\")` is false. One exception: `includes` finds `NaN`, but `indexOf(NaN)` is always -1.\n\n`slice(start, end)` copies a part into a new array without touching the original. The end index is excluded, and negative indexes count from the end. `splice(start, deleteCount, ...items)` edits the array in place: it removes `deleteCount` items at `start`, inserts any `items` there, and returns the removed ones. A `deleteCount` of 0 only inserts. `concat(other)` returns a new array with both lists.\n\n```javascript\nconst n = [10, 20, 30, 40];\nn.slice(1, 3);           // [20, 30]\nn.slice(-2);             // [30, 40]\nn.splice(1, 1, 15, 17);  // returns [20], n is now [10, 15, 17, 30, 40]\nn.concat([50]);          // new array, n is unchanged\n```\n\n**The gotcha:** `const b = a` does not copy. Both names point to one array, so a change through either shows in both. Make a real copy with `[...a]`, where the three dots spread the items of `a` into a new array, or with `a.slice()`. For the same reason `===` compares arrays by reference, not contents: it is true only when both sides are the same array, so `[1, 2] === [1, 2]` is false.",
+      "example": {
+        "title": "Guest list",
+        "prompt": "Search a guest list, slice it, splice in two guests, combine it with a waitlist, and compare an alias with a copy.",
+        "code": "const guests = [\"Al\", \"Bo\", \"Cy\", \"Di\", \"Bo\"];\n\nconsole.log(`Has Bo: ${guests.includes(\"Bo\")}`);\nconsole.log(`First Bo: ${guests.indexOf(\"Bo\")}, last Bo: ${guests.lastIndexOf(\"Bo\")}`);\nconsole.log(`Cy at: ${guests.indexOf(\"Cy\")}`);\nconsole.log(`First two: ${guests.slice(0, 2).join(\", \")}`);\n\nconst removed = guests.splice(4, 1, \"Eve\", \"Fay\");\nconsole.log(`Removed: ${removed.join(\", \")}`);\nconsole.log(`Guests: ${guests.join(\", \")}`);\n\nconst everyone = guests.concat([\"Gus\", \"Hal\"]);\nconsole.log(`Everyone: ${everyone.length}`);\n\nconst alias = guests;\nconst copy = [...guests];\nguests.push(\"Ivy\");\nconsole.log(`Guests: ${guests.length}, alias: ${alias.length}, copy: ${copy.length}`);\nconsole.log(`alias === guests: ${alias === guests}`);\nconsole.log(`[1, 2] === [1, 2]: ${[1, 2] === [1, 2]}`);\n",
+        "output": "Has Bo: true\nFirst Bo: 1, last Bo: 4\nCy at: 2\nFirst two: Al, Bo\nRemoved: Bo\nGuests: Al, Bo, Cy, Di, Eve, Fay\nEveryone: 8\nGuests: 7, alias: 7, copy: 6\nalias === guests: true\n[1, 2] === [1, 2]: false",
+        "explanation": "`indexOf` finds the first `\"Bo\"` at 1 and `lastIndexOf` finds the duplicate at 4. `slice(0, 2)` copies indexes 0 and 1. `splice(4, 1, \"Eve\", \"Fay\")` removes the duplicate, inserts two names in its place, and returns `[\"Bo\"]`. `concat` builds a new 8 item array and leaves `guests` alone. After `push`, the alias also shows 7 because it is the same array, while the spread copy still has 6."
+      },
+      "practice": {
+        "title": "Bookshelf",
+        "prompt": "Search, edit, and copy a shelf of book titles.\n\n1. Print `Has Emma: ` and whether the shelf includes `\"Emma\"`.\n2. On one line, print `Dune at: ` with the index of `\"Dune\"`, then `, last Emma at: ` with the last index of `\"Emma\"` (it appears twice), then `, Odyssey at: ` with the index of `\"Odyssey\"`.\n3. Print `Last three: ` and the last three titles, using `slice` with a negative index and joined with `, `.\n4. Use `splice` to insert `\"Ivanhoe\"` at index 1 without removing anything, then print `Shelf: ` and the shelf joined with `, `.\n5. Combine the shelf with `shelf2` using `concat` and print `Combined: ` with the length of the result.\n6. Make `alias` with `=` and `copy` with `shelf.slice()`, pop one title from `shelf`, then print the three lengths and whether `copy === shelf`, as shown below.\n\nExpected output:\n\n```text\nHas Emma: true\nDune at: 0, last Emma at: 3, Odyssey at: -1\nLast three: Ulysses, Emma, Hamlet\nShelf: Dune, Ivanhoe, Emma, Ulysses, Emma, Hamlet\nCombined: 8\nShelf: 5, alias: 5, copy: 6\ncopy === shelf: false\n```",
+        "starter": "const shelf = [\"Dune\", \"Emma\", \"Ulysses\", \"Emma\", \"Hamlet\"];\nconst shelf2 = [\"Walden\", \"Rebecca\"];\n\n// TODO: search the shelf and print the first three lines\n\n// TODO: splice \"Ivanhoe\" in at index 1, print the shelf, then concat shelf2\n\n// TODO: make an alias and a slice() copy, pop from shelf, print the lengths and the === check\n",
+        "solution": "const shelf = [\"Dune\", \"Emma\", \"Ulysses\", \"Emma\", \"Hamlet\"];\nconst shelf2 = [\"Walden\", \"Rebecca\"];\n\nconsole.log(`Has Emma: ${shelf.includes(\"Emma\")}`);\nconsole.log(`Dune at: ${shelf.indexOf(\"Dune\")}, last Emma at: ${shelf.lastIndexOf(\"Emma\")}, Odyssey at: ${shelf.indexOf(\"Odyssey\")}`);\nconsole.log(`Last three: ${shelf.slice(-3).join(\", \")}`);\n\nshelf.splice(1, 0, \"Ivanhoe\");\nconsole.log(`Shelf: ${shelf.join(\", \")}`);\nconst combined = shelf.concat(shelf2);\nconsole.log(`Combined: ${combined.length}`);\n\nconst alias = shelf;\nconst copy = shelf.slice();\nshelf.pop();\nconsole.log(`Shelf: ${shelf.length}, alias: ${alias.length}, copy: ${copy.length}`);\nconsole.log(`copy === shelf: ${copy === shelf}`);\n",
+        "tests": [
+          {
+            "output": "Has Emma: true\nDune at: 0, last Emma at: 3, Odyssey at: -1\nLast three: Ulysses, Emma, Hamlet\nShelf: Dune, Ivanhoe, Emma, Ulysses, Emma, Hamlet\nCombined: 8\nShelf: 5, alias: 5, copy: 6\ncopy === shelf: false"
+          }
+        ],
+        "hints": [
+          "`indexOf` gives the first match, `lastIndexOf` the last one, and both return -1 for a title that is not there. `slice(-3)` copies the last three.",
+          "A `deleteCount` of 0 inserts without removing anything, so pass 0 as the second argument to `splice`.",
+          "Make `alias` and `copy` before you call `shelf.pop()`, or the copy misses the popped title."
+        ]
+      }
+    },
+    {
+      "title": "Fixed-size arrays",
+      "body": "Normal arrays have no fixed size. To start with `n` slots holding the same value, use `new Array(n).fill(value)`. Without `fill`, `new Array(3)` is just 3 empty slots.\n\nWhen you want a true fixed-size array, the closest JavaScript has is a typed array such as `Int32Array`. It holds numbers only, every slot starts at 0, its length never changes, and it has no `push` or `pop`.\n\n```javascript\nconst counts = new Int32Array(4); // 0, 0, 0, 0\ncounts[1] = 7.9;                  // stored as 7, whole numbers only\ncounts[9] = 5;                    // ignored, index 9 does not exist\ncounts.join(\", \");                // \"0, 7, 0, 0\"\n```\n\nA normal array does the opposite. Writing past its end grows it and leaves empty slots in between, which `JSON.stringify` prints as `null`.\n\n```javascript\nconst plain = [1];\nplain[3] = 4;          // length is now 4\nJSON.stringify(plain); // \"[1,null,null,4]\"\n```\n\nBoth mistakes are silent. A typed array drops the write without an error, and a plain array quietly fills with holes. `Int32Array` also cuts decimals toward zero and wraps numbers beyond about 2.1 billion, so pick it only for whole numbers in that range.",
+      "example": {
+        "title": "Weekly step counter",
+        "prompt": "Track a week of step counts in a fixed-size Int32Array, then compare it with a plain array that grows.",
+        "code": "const steps = new Int32Array(7);\nsteps[0] = 5000;\nsteps[1] = 4200.9;\nsteps[6] = 8000;\nsteps[10] = 999;\n\nconsole.log(`Days: ${steps.length}`);\nconsole.log(`Steps: ${steps.join(\", \")}`);\nconsole.log(`push: ${typeof steps.push}`);\n\nconst plain = [1, 2];\nplain[5] = 9;\nconsole.log(`Plain length: ${plain.length}`);\nconsole.log(`Plain: ${JSON.stringify(plain)}`);\n\nconst blanks = new Array(3).fill(\"-\");\nconsole.log(`Blanks: ${blanks.join(\" \")}`);\n",
+        "output": "Days: 7\nSteps: 5000, 4200, 0, 0, 0, 0, 8000\npush: undefined\nPlain length: 6\nPlain: [1,2,null,null,null,9]\nBlanks: - - -",
+        "explanation": "`new Int32Array(7)` starts as seven zeros. `4200.9` is stored as `4200`, and the write to index 10 is dropped, so the length stays 7. `typeof steps.push` is `\"undefined\"` because typed arrays cannot grow. The plain array grows to length 6 and its three empty slots print as `null`. `fill(\"-\")` puts the same value in every slot."
+      },
+      "practice": {
+        "title": "Hourly readings",
+        "prompt": "Record five hourly readings in a fixed-size array and compare it with a plain array.\n\n1. Create `readings` as `new Int32Array(5)`.\n2. Set index 0 to `18`, index 2 to `21.7`, index 4 to `19`, and index 8 to `30`.\n3. Print `Hours: ` with its length, `Readings: ` with its values joined by `, `, and `pop: ` with `typeof readings.pop`.\n4. Set index 3 of `letters` to `\"d\"`, then print `Letters length: ` with its length and `Letters: ` with its JSON.\n5. Print `Zeros: ` and `new Array(4).fill(0)` joined with single spaces.\n\nExpected output:\n\n```text\nHours: 5\nReadings: 18, 0, 21, 0, 19\npop: undefined\nLetters length: 4\nLetters: [\"a\",null,null,\"d\"]\nZeros: 0 0 0 0\n```",
+        "starter": "// TODO: make readings an Int32Array of 5, set index 0 to 18, index 2 to 21.7,\n// index 4 to 19, and index 8 to 30, then print the first three lines\n\nconst letters = [\"a\"];\n// TODO: set index 3 of letters to \"d\" and print its length and JSON\n\n// TODO: print 4 zeros made with new Array(4).fill(0), joined with spaces\n",
+        "solution": "const readings = new Int32Array(5);\nreadings[0] = 18;\nreadings[2] = 21.7;\nreadings[4] = 19;\nreadings[8] = 30;\n\nconsole.log(`Hours: ${readings.length}`);\nconsole.log(`Readings: ${readings.join(\", \")}`);\nconsole.log(`pop: ${typeof readings.pop}`);\n\nconst letters = [\"a\"];\nletters[3] = \"d\";\nconsole.log(`Letters length: ${letters.length}`);\nconsole.log(`Letters: ${JSON.stringify(letters)}`);\n\nconst zeros = new Array(4).fill(0);\nconsole.log(`Zeros: ${zeros.join(\" \")}`);\n",
+        "tests": [
+          {
+            "output": "Hours: 5\nReadings: 18, 0, 21, 0, 19\npop: undefined\nLetters length: 4\nLetters: [\"a\",null,null,\"d\"]\nZeros: 0 0 0 0"
+          }
+        ],
+        "hints": [
+          "Write every value even if it looks wrong. The Int32Array keeps 21 from 21.7 and ignores index 8 on its own.",
+          "Assigning to index 3 grows `letters` to length 4 and leaves holes at 1 and 2. Print it with `JSON.stringify(letters)`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `[a, b, c]` makes an array. Indexes start at 0, `arr.length` counts items, and `arr.at(-1)` is the last one.\n- `arr[i] = value` replaces an item. Reading past the end gives `undefined`.\n- Print with `arr.join(\", \")` or `JSON.stringify(arr)`, not `console.log(arr)`.\n- `push` and `unshift` add to the end and front, `pop` and `shift` remove and return.\n- A `const` array can still change its contents.\n- `includes`, `indexOf`, and `lastIndexOf` search. `slice` and `concat` return new arrays, `splice` edits in place.\n- `const b = a` shares one array. Copy with `[...a]` or `a.slice()`. `===` compares arrays by reference.\n- `new Array(n).fill(v)` repeats a value. Writing past a plain array's end leaves empty slots that `JSON.stringify` prints as `null`.\n- `new Int32Array(n)` starts as zeros, has a fixed length, keeps whole numbers only, has no `push` or `pop`, and ignores writes past its end."
+}

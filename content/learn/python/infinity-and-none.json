@@ -1,0 +1,88 @@
+{
+  "id": "infinity-and-none",
+  "title": "Infinity, NaN, and None",
+  "section": "Basics",
+  "summary": "Represent unbounded values with float(\"inf\") and math.inf, undefined results with NaN, and missing values with None.",
+  "intro": "Sometimes a variable needs a value bigger than any number, or no value at all. Python gives you infinity for the first and `None` for the second. Along the way you meet NaN, the float for results that have no answer.",
+  "steps": [
+    {
+      "title": "Positive and negative infinity",
+      "body": "Python ints never overflow, so unlike C or Java there is no largest int to start from. When you need a value larger than every number, such as a starting \"best time\" that any real time beats, use infinity. It is a float, and there are two common ways to write it:\n\n```python\nimport math\n\nbig = float(\"inf\")\nsmall = float(\"-inf\")\nbig = math.inf\nsmall = -math.inf\n```\n\n`import math` goes at the top of the file and gives you `math.inf` plus helper functions. Most code uses `math.inf` because it reads clearly and skips turning a string into a float.\n\nInfinity swallows ordinary arithmetic: `math.inf + 1` is still `inf`, `math.inf * 2` is `inf`, and a positive number divided by infinity is `0.0`. A float that grows too big also becomes infinity without any error: `1e308 * 10` is `inf`. `math.isinf(x)` returns `True` for `inf` or `-inf` and `False` for every finite number, even a huge one like `1e308`.\n\nTwo gotchas: dividing by zero is still an error, as in the math lesson, not infinity. And infinity cannot become an int.\n\n```python\n# print(1 / 0)  # ZeroDivisionError: division by zero\n# print(int(math.inf))  # OverflowError: cannot convert float infinity to integer\n```",
+      "example": {
+        "title": "Infinity basics",
+        "prompt": "Create positive and negative infinity, do arithmetic with them, and check values with math.isinf().",
+        "code": "import math\n\npositive = float(\"inf\")\nnegative = -math.inf\nprint(f\"positive: {positive}\")\nprint(f\"negative: {negative}\")\nprint(f\"inf + 1000: {math.inf + 1000}\")\nprint(f\"1 / inf: {1 / math.inf}\")\nprint(f\"isinf(inf): {math.isinf(math.inf)}\")\nprint(f\"isinf(1e308): {math.isinf(1e308)}\")\n",
+        "output": "positive: inf\nnegative: -inf\ninf + 1000: inf\n1 / inf: 0.0\nisinf(inf): True\nisinf(1e308): False",
+        "explanation": "`float(\"inf\")` and `-math.inf` are the same kind of float value. Adding 1000 to infinity leaves it unchanged, and 1 divided by infinity shrinks to `0.0`. `math.isinf()` is `True` for infinity but `False` for `1e308`, which is huge yet still finite."
+      },
+      "practice": {
+        "title": "Race time sentinels",
+        "prompt": "Set up starting values for a race tracker and test how infinity behaves.\n\n1. Add `import math` at the top.\n2. Set `best_time` to `math.inf` and `worst_time` to `float(\"-inf\")`.\n3. Print each one with its name as a label, like `best_time: inf`.\n4. Print `math.inf * 2`, `-math.inf - 5`, and `10 / math.inf` with the labels shown in the expected output.\n5. Print `math.isinf(best_time)` with the label `isinf(best_time):`.\n\nExpected output:\n\n```text\nbest_time: inf\nworst_time: -inf\ninf * 2: inf\n-inf - 5: -inf\n10 / inf: 0.0\nisinf(best_time): True\n```",
+        "starter": "# TODO: import math\n# TODO: set best_time to math.inf and worst_time to float(\"-inf\")\n# TODO: print the six labeled lines shown in the expected output\n",
+        "solution": "import math\n\nbest_time = math.inf\nworst_time = float(\"-inf\")\nprint(f\"best_time: {best_time}\")\nprint(f\"worst_time: {worst_time}\")\nprint(f\"inf * 2: {math.inf * 2}\")\nprint(f\"-inf - 5: {-math.inf - 5}\")\nprint(f\"10 / inf: {10 / math.inf}\")\nprint(f\"isinf(best_time): {math.isinf(best_time)}\")\n",
+        "tests": [
+          {
+            "output": "best_time: inf\nworst_time: -inf\ninf * 2: inf\n-inf - 5: -inf\n10 / inf: 0.0\nisinf(best_time): True"
+          }
+        ],
+        "hints": [
+          "Write one f-string per line: the label as plain text, then the value or expression inside the braces, as in the example.",
+          "Infinity times 2 is still infinity, and a positive number divided by infinity is `0.0`."
+        ]
+      }
+    },
+    {
+      "title": "NaN: not a number",
+      "body": "Some operations on infinity have no sensible answer. `math.inf - math.inf` and `math.inf * 0` produce `nan`, short for \"not a number\". NaN is still a float, and it spreads: almost any arithmetic with `nan` gives `nan`. You can also create it directly:\n\n```python\nimport math\n\na = float(\"nan\")\nb = math.nan\nprint(math.inf - math.inf)  # nan\n```\n\nNaN has one strange rule: it is not equal to anything, not even itself. You will see that comparison in the next lesson. Because of it, you test for NaN with `math.isnan(x)`, which returns `True` only for `nan` and `False` for ordinary numbers and for infinity.\n\n```python\nprint(math.isnan(math.nan))  # True\nprint(math.isnan(math.inf))  # False\n```\n\nLike infinity, NaN cannot become an int:\n\n```python\n# print(int(math.nan))  # ValueError: cannot convert float NaN to integer\n```",
+      "example": {
+        "title": "Spotting NaN",
+        "prompt": "Produce NaN from infinity, print math.nan, and test values with math.isnan().",
+        "code": "import math\n\nresult = math.inf - math.inf\nprint(f\"inf - inf: {result}\")\nprint(f\"math.nan: {math.nan}\")\nprint(f\"isnan(result): {math.isnan(result)}\")\nprint(f\"isnan(3.5): {math.isnan(3.5)}\")\n",
+        "output": "inf - inf: nan\nmath.nan: nan\nisnan(result): True\nisnan(3.5): False",
+        "explanation": "Infinity minus infinity has no defined answer, so Python returns `nan`, the same kind of value that `math.nan` holds. `math.isnan()` is the reliable way to detect it: `True` for the result, `False` for an ordinary number like `3.5`."
+      },
+      "practice": {
+        "title": "Two ways to get NaN",
+        "prompt": "Make NaN in two ways and check which values are NaN.\n\n1. Set `product` to `math.inf * 0` and `parsed` to `float(\"nan\")`.\n2. Print both with the labels `inf * 0:` and `parsed:`.\n3. Print `math.isnan()` of `product`, of `parsed`, and of `0.0` with the labels shown in the expected output.\n\nExpected output:\n\n```text\ninf * 0: nan\nparsed: nan\nisnan(product): True\nisnan(parsed): True\nisnan(0.0): False\n```",
+        "starter": "import math\n\n# TODO: set product to math.inf * 0 and parsed to float(\"nan\")\n# TODO: print the five labeled lines shown in the expected output\n",
+        "solution": "import math\n\nproduct = math.inf * 0\nparsed = float(\"nan\")\nprint(f\"inf * 0: {product}\")\nprint(f\"parsed: {parsed}\")\nprint(f\"isnan(product): {math.isnan(product)}\")\nprint(f\"isnan(parsed): {math.isnan(parsed)}\")\nprint(f\"isnan(0.0): {math.isnan(0.0)}\")\n",
+        "tests": [
+          {
+            "output": "inf * 0: nan\nparsed: nan\nisnan(product): True\nisnan(parsed): True\nisnan(0.0): False"
+          }
+        ],
+        "hints": [
+          "Infinity times zero has no defined answer, so it is `nan`.",
+          "Each check is `math.isnan()` called inside the braces of an f-string, after its label."
+        ]
+      }
+    },
+    {
+      "title": "None for no value",
+      "body": "`None` means \"no value here\": a middle name someone does not have, or a result that is not computed yet. Other languages call it `null`. It is the only value of its own type, `NoneType`.\n\n```python\nmiddle_name = None\nprint(middle_name)        # None\nprint(type(middle_name))  # <class 'NoneType'>\n```\n\nCheck for it with `is None` and `is not None`. Each gives a bool. There is exactly one `None` object in a program, so asking \"is this that object?\" is the reliable test, and it is the style PEP 8 asks for.\n\n```python\nprint(middle_name is None)      # True\nprint(middle_name is not None)  # False\n```\n\n`None` is not `0`, not `\"\"`, and not `False`. A score of `0` is a real score, while `None` means there is no score at all. The next lesson shows that `None == 0` is `False`. Save `is` for `None`: numbers and strings are compared with `==`, which comes next.",
+      "example": {
+        "title": "Optional middle name",
+        "prompt": "Start a middle name as None, check it, then give it a value and check again.",
+        "code": "middle_name = None\nprint(f\"middle_name: {middle_name}\")\nprint(f\"type: {type(middle_name)}\")\nprint(f\"is None: {middle_name is None}\")\n\nmiddle_name = \"Lee\"\nprint(f\"middle_name: {middle_name}\")\nprint(f\"is None: {middle_name is None}\")\n",
+        "output": "middle_name: None\ntype: <class 'NoneType'>\nis None: True\nmiddle_name: Lee\nis None: False",
+        "explanation": "`None` prints as `None` and its type is `NoneType`. `middle_name is None` is `True` while the name holds `None`. After `middle_name = \"Lee\"` the same check gives `False`, because the variable now refers to a string."
+      },
+      "practice": {
+        "title": "Contest winner",
+        "prompt": "Track a contest winner that is unknown at first, then gets decided.\n\n1. Set `winner` to `None`.\n2. Print `winner`, its `type()`, `winner is None`, and `winner is not None` with the labels shown.\n3. Set `winner` to `\"Ava\"`.\n4. Print `winner` and both checks again.\n\nExpected output:\n\n```text\nwinner: None\ntype: <class 'NoneType'>\nis None: True\nis not None: False\nwinner: Ava\nis None: False\nis not None: True\n```",
+        "starter": "# TODO: set winner to None\n# TODO: print winner, its type, and both checks\n# TODO: set winner to \"Ava\", then print winner and both checks again\n",
+        "solution": "winner = None\nprint(f\"winner: {winner}\")\nprint(f\"type: {type(winner)}\")\nprint(f\"is None: {winner is None}\")\nprint(f\"is not None: {winner is not None}\")\n\nwinner = \"Ava\"\nprint(f\"winner: {winner}\")\nprint(f\"is None: {winner is None}\")\nprint(f\"is not None: {winner is not None}\")\n",
+        "tests": [
+          {
+            "output": "winner: None\ntype: <class 'NoneType'>\nis None: True\nis not None: False\nwinner: Ava\nis None: False\nis not None: True"
+          }
+        ],
+        "hints": [
+          "The check itself can go inside the braces of an f-string, as `{middle_name is None}` does in the example.",
+          "`is not None` is always the opposite of `is None`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `float(\"inf\")` and `math.inf` are positive infinity, `float(\"-inf\")` and `-math.inf` are negative infinity.\n- Infinity plus a finite number or times a positive number stays infinity, and a positive number divided by infinity is `0.0`.\n- `math.isinf(x)` is `True` only for `inf` and `-inf`.\n- `inf - inf` and `inf * 0` give `nan`. Detect it with `math.isnan(x)`, never by comparing.\n- `None` means no value. Its type is `NoneType`.\n- Check it with `x is None` and `x is not None`. `None` is not `0`, `\"\"`, or `False`."
+}

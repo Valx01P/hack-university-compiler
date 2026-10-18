@@ -1,0 +1,115 @@
+{
+  "id": "string-iteration",
+  "title": "Looping Over Strings",
+  "section": "Strings",
+  "summary": "Loop over bytes and runes, classify characters with unicode, change text through rune and byte slices, and build strings fast.",
+  "intro": "A Go string is a run of bytes, usually UTF-8 text, and one character can take more than one byte. This lesson shows how to loop over bytes or whole characters, test what kind of character you have, change text safely, and build new strings without wasteful copying.",
+  "steps": [
+    {
+      "title": "Bytes versus runes",
+      "body": "The last lesson kept to ASCII, where every character is one byte. Go source and most text is UTF-8, where a character like `é` takes two bytes. So `len(s)` still counts **bytes**, not characters.\n\nThere are two ways to loop, and they visit different things:\n\n```go\nfor i := 0; i < len(s); i++ {\n\tfmt.Print(s[i]) // a byte (uint8), printed as a number\n}\nfor i, r := range s {\n\tfmt.Printf(\"%d:%c \", i, r) // a rune (int32) and its byte offset\n}\n```\n\nThe index loop hands you raw bytes. `range` decodes UTF-8 for you: `r` is a whole **rune**, an `int32` code point, and `i` is the byte offset where it starts, so offsets can jump by 2 or more. Print a rune with `%c` to see the character instead of its number.\n\nTo count characters, use `utf8.RuneCountInString(s)` from `import \"unicode/utf8\"` (you call it with the last part of the path, `utf8`), or `len([]rune(s))`.\n\nGotcha: indexing grabs one byte, not one character. On `\"café\"`, `s[3]` is 195, the first of the two bytes of `é`, and `string(s[3])` turns 195 into the character with that code point, so it prints `Ã`.",
+      "example": {
+        "title": "Bytes and runes of café",
+        "prompt": "Print the byte and rune counts of `café`, the types of a byte and a rune, every byte, then every rune with its byte offset.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"unicode/utf8\"\n)\n\nfunc main() {\n\ts := \"café\"\n\tfmt.Println(len(s), utf8.RuneCountInString(s))\n\tfmt.Printf(\"%T %T\\n\", s[0], 'é')\n\n\tfor i := 0; i < len(s); i++ {\n\t\tif i > 0 {\n\t\t\tfmt.Print(\" \")\n\t\t}\n\t\tfmt.Print(s[i])\n\t}\n\tfmt.Println()\n\n\tfor i, r := range s {\n\t\tif i > 0 {\n\t\t\tfmt.Print(\" \")\n\t\t}\n\t\tfmt.Printf(\"%d:%c\", i, r)\n\t}\n\tfmt.Println()\n}\n",
+        "output": "5 4\nuint8 int32\n99 97 102 195 169\n0:c 1:a 2:f 3:é",
+        "explanation": "`len(s)` is 5 because `é` is stored as the two bytes 195 and 169, while `utf8.RuneCountInString` counts 4 characters. `s[0]` is a `uint8`, and the rune literal `'é'` is a `rune`, which `%T` shows as `int32`. The index loop prints each byte as a number. The `range` loop decodes runes, so the offsets go 0, 1, 2, 3 and `%c` prints `é` as one character. The `if i > 0` check puts a space between items without a trailing one."
+      },
+      "practice": {
+        "title": "Bytes and runes of naïve",
+        "prompt": "Show how the word `naïve` is stored as bytes and as runes.\n\n1. Print `len(s)` and `len([]rune(s))` on one line with `fmt.Println`.\n2. Print every byte with an index loop, separated by single spaces.\n3. Print every rune as `offset:char` with `range` and `%d:%c`, separated by single spaces.\n4. Remove the `_ = s` line and keep the `fmt.Println()` calls that end each row.\n\nExpected output:\n\n```text\n6 5\n110 97 195 175 118 101\n0:n 1:a 2:ï 4:v 5:e\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ts := \"naïve\"\n\t_ = s\n\t// TODO: print the byte count and the rune count on one line\n\n\t// TODO: print every byte with an index loop\n\tfmt.Println()\n\n\t// TODO: print every rune with its byte offset using range\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ts := \"naïve\"\n\tfmt.Println(len(s), len([]rune(s)))\n\n\tfor i := 0; i < len(s); i++ {\n\t\tif i > 0 {\n\t\t\tfmt.Print(\" \")\n\t\t}\n\t\tfmt.Print(s[i])\n\t}\n\tfmt.Println()\n\n\tfor i, r := range s {\n\t\tif i > 0 {\n\t\t\tfmt.Print(\" \")\n\t\t}\n\t\tfmt.Printf(\"%d:%c\", i, r)\n\t}\n\tfmt.Println()\n}\n",
+        "tests": [
+          {
+            "output": "6 5\n110 97 195 175 118 101\n0:n 1:a 2:ï 4:v 5:e"
+          }
+        ],
+        "hints": [
+          "The two loops are exactly the ones in the example. Only the count line changes.",
+          "`ï` takes two bytes, so the offset jumps from 2 to 4."
+        ]
+      }
+    },
+    {
+      "title": "Classifying characters",
+      "body": "The `unicode` package answers questions about one rune. Each function takes a `rune` and returns a `bool`, and they work for every alphabet, not only ASCII:\n\n| Function | True for |\n| --- | --- |\n| `unicode.IsLetter(r)` | letters, including `é` and `ß` |\n| `unicode.IsDigit(r)` | `0` to `9` and other decimal digits |\n| `unicode.IsUpper(r)` / `unicode.IsLower(r)` | upper or lower case letters |\n| `unicode.IsSpace(r)` | space, tab, newline |\n| `unicode.IsPunct(r)` | punctuation such as `,` `.` `!` `?` |\n\nA condition-only `switch` inside a `range` loop sorts each rune into one bucket:\n\n```go\nswitch {\ncase unicode.IsLetter(r):\n\tletters++\ncase unicode.IsDigit(r):\n\tdigits++\n}\n```\n\nTo compare characters while ignoring case, normalize first with `unicode.ToLower(r)`, then switch on the result with rune literal cases:\n\n```go\nswitch unicode.ToLower(r) {\ncase 'a', 'e', 'i', 'o', 'u':\n\tvowels++\n}\n```\n\nGotcha: `unicode.IsPunct('$')` is false. Symbols like `$`, `+`, and `=` are a different category.",
+      "example": {
+        "title": "Letters, digits, spaces, vowels",
+        "prompt": "Count the letters, digits, spaces, and vowels in `Go 1.16 Is Great!` in one range loop.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"unicode\"\n)\n\nfunc main() {\n\ts := \"Go 1.16 Is Great!\"\n\tvar letters, digits, spaces, vowels int\n\tfor _, r := range s {\n\t\tswitch {\n\t\tcase unicode.IsLetter(r):\n\t\t\tletters++\n\t\tcase unicode.IsDigit(r):\n\t\t\tdigits++\n\t\tcase unicode.IsSpace(r):\n\t\t\tspaces++\n\t\t}\n\t\tswitch unicode.ToLower(r) {\n\t\tcase 'a', 'e', 'i', 'o', 'u':\n\t\t\tvowels++\n\t\t}\n\t}\n\tfmt.Printf(\"letters=%d digits=%d spaces=%d vowels=%d\\n\", letters, digits, spaces, vowels)\n}\n",
+        "output": "letters=9 digits=3 spaces=3 vowels=4",
+        "explanation": "The first `switch` has no value, so the first true case wins and each rune lands in at most one counter. The `.` and `!` match no case and are skipped. The second `switch` lowers the rune first, so the capital `I` counts as a vowel just like `o`, `e`, and `a`. `var` gives all four counters the zero value 0."
+      },
+      "practice": {
+        "title": "Upper, lower, digits, punctuation, vowels",
+        "prompt": "Count five kinds of characters in `Hello, World 2024!` in one range loop.\n\n1. Add `\"unicode\"` to the imports (use a parenthesized import block).\n2. Range over `s` and use a condition-only `switch` with `unicode.IsUpper`, `unicode.IsLower`, `unicode.IsDigit`, and `unicode.IsPunct` to add 1 to the matching counter.\n3. In the same loop, add 1 to `vowels` with a second `switch` on `unicode.ToLower(r)` whose case lists `'a'`, `'e'`, `'i'`, `'o'`, and `'u'`.\n4. Remove the `_ = s` line and keep the given `Printf` line.\n\nExpected output:\n\n```text\nupper=2 lower=8 digits=4 punct=2 vowels=3\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ts := \"Hello, World 2024!\"\n\tvar upper, lower, digits, punct, vowels int\n\t// TODO: range over s, count each kind of rune, and count the vowels\n\t_ = s\n\tfmt.Printf(\"upper=%d lower=%d digits=%d punct=%d vowels=%d\\n\", upper, lower, digits, punct, vowels)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"unicode\"\n)\n\nfunc main() {\n\ts := \"Hello, World 2024!\"\n\tvar upper, lower, digits, punct, vowels int\n\tfor _, r := range s {\n\t\tswitch {\n\t\tcase unicode.IsUpper(r):\n\t\t\tupper++\n\t\tcase unicode.IsLower(r):\n\t\t\tlower++\n\t\tcase unicode.IsDigit(r):\n\t\t\tdigits++\n\t\tcase unicode.IsPunct(r):\n\t\t\tpunct++\n\t\t}\n\t\tswitch unicode.ToLower(r) {\n\t\tcase 'a', 'e', 'i', 'o', 'u':\n\t\t\tvowels++\n\t\t}\n\t}\n\tfmt.Printf(\"upper=%d lower=%d digits=%d punct=%d vowels=%d\\n\", upper, lower, digits, punct, vowels)\n}\n",
+        "tests": [
+          {
+            "output": "upper=2 lower=8 digits=4 punct=2 vowels=3"
+          }
+        ],
+        "hints": [
+          "The loop header is `for _, r := range s {`, and both switches go inside it.",
+          "The spaces match no case in the first switch, which is fine: they are not counted.",
+          "The vowel switch is the same as the one in the example."
+        ]
+      }
+    },
+    {
+      "title": "Changing characters",
+      "body": "Strings are immutable, so to change characters you convert to a slice, edit the slice, and convert back:\n\n```go\nrunes := []rune(s) // one element per character\nrunes[0] = 'J'\ns2 := string(runes)\n\nb := []byte(s) // one element per byte\nb[0] = 'J'\ns3 := string(b)\n```\n\nEach conversion **copies** the data into new memory. Editing `runes` or `b` never touches `s`, and `string(...)` copies again to make a new immutable string.\n\nUse `[]rune` when the text may hold multi-byte characters: reversing `[]byte(\"héllo\")` would also swap the two bytes of `é` and break it. Use `[]byte` for plain ASCII, where it is cheaper.\n\nRunes are numbers, so you can do math on them. `r - 'a'` gives a letter's position (0 to 25), and `'a' + n` turns a position back into a letter. Check the range first so only lowercase letters change:\n\n```go\nif r >= 'a' && r <= 'z' {\n\tr = 'a' + (r-'a'+3)%26 // shift 3, wrapping z to c\n}\n```\n\nThe `% 26` makes the shift wrap past `z` back to `a`.",
+      "example": {
+        "title": "Reverse, shift, and patch",
+        "prompt": "Reverse `Gopher` through a rune slice, shift every lowercase letter of `abc xyz` three places, and capitalize `go` through a byte slice.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\trunes := []rune(\"Gopher\")\n\tfor i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {\n\t\trunes[i], runes[j] = runes[j], runes[i]\n\t}\n\tfmt.Println(string(runes))\n\n\tshifted := []rune(\"abc xyz\")\n\tfor i, r := range shifted {\n\t\tif r >= 'a' && r <= 'z' {\n\t\t\tshifted[i] = 'a' + (r-'a'+3)%26\n\t\t}\n\t}\n\tfmt.Println(string(shifted))\n\n\tword := \"go\"\n\tb := []byte(word)\n\tb[0] = 'G'\n\tfmt.Println(word, string(b))\n}\n",
+        "output": "rehpoG\ndef abc\ngo Go",
+        "explanation": "The two-index loop swaps runes from both ends until they meet, then `string(runes)` builds the reversed text. In the shift, `x` is position 23, plus 3 is 26, and `% 26` wraps it to 0, which is `a`. The space fails the range check and stays. The last line prints `go Go` because `[]byte(word)` made a copy, so changing `b[0]` left `word` alone."
+      },
+      "practice": {
+        "title": "Reverse, ROT13, and patch",
+        "prompt": "Reverse a word with an accent, apply ROT13, and patch a byte.\n\n1. Reverse `word` by swapping runes in a `[]rune(word)` and print the result.\n2. Convert `secret` to a `[]rune`, shift every rune from `'a'` to `'z'` 13 places with wrap-around, and print it.\n3. Convert `pet` to a `[]byte`, set the first byte to `'b'`, then print `pet` and the new word with one `fmt.Println`.\n4. Remove the `_, _, _` line and the empty `fmt.Println()`.\n\nExpected output:\n\n```text\nolléh\nuryyb\ncat bat\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tword := \"héllo\"\n\tsecret := \"hello\"\n\tpet := \"cat\"\n\t// TODO: reverse word through a []rune and print it\n\t// TODO: shift every lowercase letter of secret 13 places and print it\n\t// TODO: change the first byte of pet to 'b', then print pet and the new word\n\t_, _, _ = word, secret, pet\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tword := \"héllo\"\n\trunes := []rune(word)\n\tfor i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {\n\t\trunes[i], runes[j] = runes[j], runes[i]\n\t}\n\tfmt.Println(string(runes))\n\n\tsecret := \"hello\"\n\tshifted := []rune(secret)\n\tfor i, r := range shifted {\n\t\tif r >= 'a' && r <= 'z' {\n\t\t\tshifted[i] = 'a' + (r-'a'+13)%26\n\t\t}\n\t}\n\tfmt.Println(string(shifted))\n\n\tpet := \"cat\"\n\tb := []byte(pet)\n\tb[0] = 'b'\n\tfmt.Println(pet, string(b))\n}\n",
+        "tests": [
+          {
+            "output": "olléh\nuryyb\ncat bat"
+          }
+        ],
+        "hints": [
+          "Each part matches one part of the example, with different data.",
+          "The wrap-around shift from the example works for any distance. Only the number changes."
+        ]
+      }
+    },
+    {
+      "title": "Building strings with strings.Builder",
+      "body": "Building a string with `s += piece` in a loop gets slow. Strings are immutable, so every `+=` allocates a new string and copies everything built so far. For long loops that copying adds up fast.\n\nA `strings.Builder` keeps one growing buffer and appends to it in place. Its zero value is ready to use:\n\n```go\nvar sb strings.Builder\nsb.WriteString(\"Go\") // append a string\nsb.WriteRune('é')    // append one rune (UTF-8 encoded)\nsb.WriteByte('!')    // append one byte\n\nfmt.Println(sb.String(), sb.Len()) // Goé! 5\n```\n\n`sb.WriteString(...)` is a **method call**: the syntax `value.Method()` runs a function that belongs to that value and works on it. You will write your own methods later.\n\n`sb.String()` returns the text and `sb.Len()` returns its length in **bytes**, like `len`. `unicode.ToUpper(r)` is the rune version of `strings.ToUpper`, handy for capitalizing one character.\n\nGotcha: never copy a Builder after writing to it (`sb2 := sb`). The copy points at the same buffer, so writing to the copy panics. Keep it in one variable.",
+      "example": {
+        "title": "Acronym builder",
+        "prompt": "Build the acronym of `portable network graphics`, add ` format`, and print the text and its length.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n\t\"unicode\"\n)\n\nfunc main() {\n\tvar sb strings.Builder\n\tfor _, word := range strings.Fields(\"portable network graphics\") {\n\t\tfirst := []rune(word)[0]\n\t\tsb.WriteRune(unicode.ToUpper(first))\n\t}\n\tsb.WriteByte(' ')\n\tsb.WriteString(\"format\")\n\tfmt.Println(sb.String(), sb.Len())\n}\n",
+        "output": "PNG format 10",
+        "explanation": "`strings.Fields` splits the phrase into three words. For each one, `[]rune(word)[0]` takes the first character, `unicode.ToUpper` capitalizes it, and `WriteRune` appends it. `WriteByte(' ')` adds the space and `WriteString` adds the rest. The finished text has 10 bytes, so `sb.Len()` is 10."
+      },
+      "practice": {
+        "title": "Initials builder",
+        "prompt": "Build the initials of `grace brewster hopper` with a Builder.\n\n1. Add `\"unicode\"` to the imports.\n2. Loop over `strings.Fields(name)`.\n3. For each word, write its first rune upper-cased with `WriteRune`, then a dot with `WriteByte('.')`.\n4. Remove the `_ = name` line and keep the given `Println`.\n\nExpected output:\n\n```text\nG.B.H. 6\n```",
+        "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\tname := \"grace brewster hopper\"\n\tvar sb strings.Builder\n\t// TODO: for each word, write its upper-cased first letter and then a dot\n\t_ = name\n\tfmt.Println(sb.String(), sb.Len())\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n\t\"unicode\"\n)\n\nfunc main() {\n\tname := \"grace brewster hopper\"\n\tvar sb strings.Builder\n\tfor _, word := range strings.Fields(name) {\n\t\tfirst := []rune(word)[0]\n\t\tsb.WriteRune(unicode.ToUpper(first))\n\t\tsb.WriteByte('.')\n\t}\n\tfmt.Println(sb.String(), sb.Len())\n}\n",
+        "tests": [
+          {
+            "output": "G.B.H. 6"
+          }
+        ],
+        "hints": [
+          "Start from the example loop and add one `WriteByte` call inside it.",
+          "`'.'` is a rune constant, and Go lets it fill a `byte` argument because `.` fits in one byte."
+        ]
+      }
+    }
+  ],
+  "recap": "- `for i := 0; i < len(s); i++` visits bytes (`uint8`). `for i, r := range s` visits runes (`int32`) and gives each one's byte offset.\n- Count characters with `utf8.RuneCountInString(s)` or `len([]rune(s))`. `len(s)` counts bytes.\n- `%c` prints a rune as a character.\n- `unicode.IsLetter`, `IsDigit`, `IsUpper`, `IsLower`, `IsSpace`, and `IsPunct` classify a rune. Lower it with `unicode.ToLower` before comparing, then `switch` on it with rune literal cases.\n- `unicode.ToUpper` and `unicode.ToLower` change the case of one rune, like `strings.ToUpper` and `strings.ToLower` do for a whole string.\n- `[]rune(s)`, `[]byte(s)`, and `string(...)` copy the data. Edit the slice, then convert back.\n- `r - 'a'` and `'a' + n` move between letters and positions. Check `r >= 'a' && r <= 'z'` first.\n- Use `strings.Builder` instead of `+=` in a loop: `WriteString`, `WriteRune`, `WriteByte`, then `String()` and `Len()` (bytes). These are method calls: `value.Method()`."
+}

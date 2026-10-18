@@ -1,0 +1,90 @@
+{
+  "id": "references",
+  "title": "References and Pass by Reference",
+  "section": "Memory",
+  "summary": "Create aliases with references, let functions change the caller's variables, and pass big objects by const reference.",
+  "intro": "Every parameter you have written so far was a copy. A reference is a second name for an existing variable, with no copy at all. It lets a function change the caller's data, and with `const` it lets a function read big objects without copying them.",
+  "steps": [
+    {
+      "title": "References are aliases",
+      "body": "A reference is another name for an existing variable. Write `&` after the type and bind it when you declare it:\n\n```cpp\nint x = 5;\nint& r = x;  // r and x name the same int\nr += 1;      // x is now 6\nint c = x;   // c is a separate int holding 6\n```\n\nNo new memory is made for the value: `r` refers to the same bytes as `x`, so a change through either name shows through both. A copy like `c` gets its own memory and is independent from then on.\n\nTwo rules set references apart from ordinary variables:\n\n- A reference must be initialized. `int& r;` does not compile.\n- A reference cannot be re-bound. `r = y;` copies the value of `y` into `x`. It does not make `r` refer to `y`.\n\n> Gotcha: `auto` drops the `&`. `auto c = r;` deduces `int` and makes a copy. Write `auto& c = r;` when you want another reference.",
+      "example": {
+        "title": "Score alias",
+        "prompt": "Change a score through a reference, a copy, and two auto variables, and print which changes reach the original.",
+        "code": "#include <iostream>\n\nint main() {\n    int score = 50;\n    int& alias = score;  // another name for score\n    int copy = score;    // its own int, starts at 50\n\n    alias += 10;  // changes score\n    copy += 5;    // changes only copy\n    std::cout << score << ' ' << alias << ' ' << copy << '\\n';\n\n    auto other = alias;  // auto drops the &: other is a new int\n    other += 1;\n    std::cout << score << ' ' << other << '\\n';\n\n    auto& same = alias;  // same refers to score too\n    same += 1;\n    std::cout << score << '\\n';\n\n    int bonus = 99;\n    alias = bonus;  // no re-binding: copies 99 into score\n    std::cout << score << ' ' << bonus << '\\n';\n    return 0;\n}\n",
+        "output": "60 60 55\n60 61\n61\n99 99",
+        "explanation": "`alias` and `score` share one `int`, so adding 10 through `alias` shows up in both, while `copy` grew on its own to 55. `auto other = alias;` deduced a plain `int`, so `other` became 61 and `score` stayed 60. `auto& same` is a reference, so adding 1 through it moved `score` to 61. The last assignment did not re-bind `alias`: it copied 99 into `score`."
+      },
+      "practice": {
+        "title": "City alias",
+        "prompt": "Make a reference and a copy of a city name and see which changes reach the original.\n\n1. Declare `std::string city = \"Oslo\";`, then `std::string& place = city;` and `std::string backup = city;`.\n2. Append `\" Norway\"` through `place` and `\"!\"` through `backup`.\n3. Print `city`, `place`, and `backup`, one per line.\n4. Make `auto again = place;` and append `\"?\"` to it, then make `auto& same = place;` and append `\"?\"` to it.\n5. Print `city` once more.\n\nExpected output:\n\n```text\nOslo Norway\nOslo Norway\nOslo!\nOslo Norway?\n```",
+        "starter": "#include <iostream>\n#include <string>\n\nint main() {\n    std::string city = \"Oslo\";\n    // TODO: make place (a reference) and backup (a copy), then append and print\n    // TODO: append \"?\" through auto again and auto& same, then print city\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n\nint main() {\n    std::string city = \"Oslo\";\n    std::string& place = city;\n    std::string backup = city;\n\n    place += \" Norway\";\n    backup += \"!\";\n    std::cout << city << '\\n';\n    std::cout << place << '\\n';\n    std::cout << backup << '\\n';\n\n    auto again = place;\n    again += \"?\";\n    auto& same = place;\n    same += \"?\";\n    std::cout << city << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Oslo Norway\nOslo Norway\nOslo!\nOslo Norway?"
+          }
+        ],
+        "hints": [
+          "A reference is declared like `std::string& place = city;` and a copy like `std::string backup = city;`.",
+          "`auto again = place;` is a copy, so appending to it leaves `city` alone. Only `same` adds the `?` to `city`."
+        ]
+      }
+    },
+    {
+      "title": "Pass by value vs pass by reference",
+      "body": "A plain parameter such as `int n` is a copy: the function gets its own `int` and the caller's variable never changes. Add `&` to make it a reference parameter. Now the parameter is another name for the caller's variable, and changes go straight back:\n\n```cpp\nvoid reset(int& n) {\n    n = 0;  // changes the caller's variable\n}\n```\n\nNothing is copied: the function works on the caller's own bytes. So the argument must be a variable (or an element such as `v[i]`) of that type. `reset(5)` and `reset(a + b)` do not compile, because there is no variable for `n` to refer to.\n\nReference parameters also let a function hand back more than one result. The caller passes variables, and the function fills them in. These are called out-parameters:\n\n```cpp\nvoid minMax(int a, int b, int& lo, int& hi);\n```\n\nOut-parameters show how references work, but modern C++ prefers returning a value, a struct, or a pair. Returning a `std::vector` does not copy its elements either, as the Copy and Move lesson shows.\n\n> Gotcha: never return a reference to a local variable. The local is gone when the function ends, so the reference dangles and using it is undefined behavior.",
+      "example": {
+        "title": "Bonus points and division",
+        "prompt": "Add a bonus by copy and by reference, then return a quotient and remainder through out-parameters.",
+        "code": "#include <iostream>\n\nvoid addBonusCopy(int points) {\n    points += 10;  // changes the local copy only\n}\n\nvoid addBonus(int& points) {\n    points += 10;  // changes the caller's variable\n}\n\nvoid divide(int a, int b, int& quotient, int& remainder) {\n    quotient = a / b;\n    remainder = a % b;\n}\n\nint main() {\n    int points = 100;\n    addBonusCopy(points);\n    std::cout << points << '\\n';\n    addBonus(points);\n    std::cout << points << '\\n';\n\n    int quotient = 0;\n    int remainder = 0;\n    divide(17, 5, quotient, remainder);\n    std::cout << quotient << ' ' << remainder << '\\n';\n    return 0;\n}\n",
+        "output": "100\n110\n3 2",
+        "explanation": "`addBonusCopy` added 10 to its own copy, which vanished when it returned, so `points` still printed 100. `addBonus` took `points` by reference, so its `+= 10` changed `main`'s variable to 110. `divide` wrote both results into `quotient` and `remainder` through its reference parameters, so one call produced two answers."
+      },
+      "practice": {
+        "title": "Doubling and split time",
+        "prompt": "Write functions that double a number by copy and by reference, then split a duration into minutes and seconds.\n\n1. Write `void doubleCopy(int n)` that doubles `n`, and `void doubleIt(int& n)` that doubles `n`.\n2. In `main`, starting from `int value = 21;`, call `doubleCopy(value)` and print `value`, then call `doubleIt(value)` and print `value`.\n3. Write `void splitTime(int totalSeconds, int& minutes, int& seconds)` that fills in whole minutes and leftover seconds.\n4. Call it with 754 and print the result as `12 min 34 s`.\n\nExpected output:\n\n```text\n21\n42\n12 min 34 s\n```",
+        "starter": "#include <iostream>\n\n// TODO: write doubleCopy, doubleIt, and splitTime here\n\nint main() {\n    int value = 21;\n    // TODO: call doubleCopy and doubleIt, printing value after each\n    // TODO: call splitTime with 754 and print \"12 min 34 s\"\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nvoid doubleCopy(int n) {\n    n *= 2;\n}\n\nvoid doubleIt(int& n) {\n    n *= 2;\n}\n\nvoid splitTime(int totalSeconds, int& minutes, int& seconds) {\n    minutes = totalSeconds / 60;\n    seconds = totalSeconds % 60;\n}\n\nint main() {\n    int value = 21;\n    doubleCopy(value);\n    std::cout << value << '\\n';\n    doubleIt(value);\n    std::cout << value << '\\n';\n\n    int minutes = 0;\n    int seconds = 0;\n    splitTime(754, minutes, seconds);\n    std::cout << minutes << \" min \" << seconds << \" s\" << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "21\n42\n12 min 34 s"
+          }
+        ],
+        "hints": [
+          "Only `doubleIt` has `&` on its parameter, so only it changes `value`.",
+          "Declare `int minutes = 0;` and `int seconds = 0;` in `main` and pass them to `splitTime`.",
+          "Whole minutes are `totalSeconds / 60` and leftover seconds are `totalSeconds % 60`."
+        ]
+      }
+    },
+    {
+      "title": "const references: no copy, no changes",
+      "body": "Passing a `std::vector` or `std::string` by value copies every element into new memory, which is slow for big data. A `const` reference gives the function the caller's object with no copy, and the `const` promises it will only read:\n\n```cpp\nint total(const std::vector<int>& values);\n// values.push_back(1); inside total would not compile\n```\n\nThe compiler rejects any change through a `const&`, so callers know their data is safe. It also accepts temporaries and literals, unlike a plain `&`.\n\nPick a parameter style with one rule:\n\n| Parameter | Use it for |\n| --- | --- |\n| `int n`, `double x` | small types: copying is as cheap as a reference |\n| `const std::string& s` | strings, containers, and objects you only read |\n| `std::vector<int>& v` | anything the function must change |\n\nInside the function, loop with `for (const auto& x : v)` to read each element without copying it.\n\nC++17 also has `std::string_view`, a cheap read-only view of text. It does not own the characters, so it must not outlive the string it views. This course sticks with `const std::string&`.",
+      "example": {
+        "title": "Team totals",
+        "prompt": "Sum scores and print names through const references, and add a name through a plain reference.",
+        "code": "#include <iostream>\n#include <string>\n#include <vector>\n\nint total(const std::vector<int>& values) {\n    int sum = 0;\n    for (int v : values) {\n        sum += v;\n    }\n    // values.push_back(1); would not compile: values is const\n    return sum;\n}\n\nvoid addName(std::vector<std::string>& names, const std::string& name) {\n    names.push_back(name);  // & because it changes the caller's vector\n}\n\nvoid printAll(const std::vector<std::string>& names) {\n    for (const auto& name : names) {\n        std::cout << name << '\\n';\n    }\n}\n\nint main() {\n    const std::vector<int> scores = {70, 85, 90, 64};\n    std::vector<std::string> team = {\"Ada\", \"Linus\", \"Grace\"};\n    std::cout << total(scores) << '\\n';\n    addName(team, \"Mia\");\n    printAll(team);\n    return 0;\n}\n",
+        "output": "309\nAda\nLinus\nGrace\nMia",
+        "explanation": "`total` and `printAll` only read, so they take `const&` and work on the caller's vectors directly with no copy. `addName` must change `team`, so it takes a plain `&` for the vector and a `const&` for the new name. The literal `\"Mia\"` is fine there because a `const std::string&` can bind to a temporary string. `const auto& name` reads each string in place."
+      },
+      "practice": {
+        "title": "Ratings and word lengths",
+        "prompt": "Write read-only helpers that take a list of ratings and a list of words by const reference, plus one that changes the word list.\n\n1. Write `double average(const std::vector<double>& xs)` that returns the mean, or `0.0` when `xs` is empty.\n2. Write `int countLonger(const std::vector<std::string>& words, std::size_t minLength)` that counts words longer than `minLength`.\n3. Write `void addWord(std::vector<std::string>& words, const std::string& word)` that appends `word`.\n4. Print `Average: ` with the average of `ratings` (the starter sets 2 decimals) and `Longer than 4: ` with `countLonger(words, 4)`.\n5. Call `addWord(words, \"papaya\")` and print `Longer than 4: ` with the new count.\n\nExpected output:\n\n```text\nAverage: 3.69\nLonger than 4: 2\nLonger than 4: 3\n```",
+        "starter": "#include <cstddef>\n#include <iomanip>\n#include <iostream>\n#include <string>\n#include <vector>\n\n// TODO: write average, countLonger, and addWord here\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    const std::vector<double> ratings = {3.5, 4.0, 2.25, 5.0};\n    std::vector<std::string> words = {\"pear\", \"banana\", \"fig\", \"cherry\", \"kiwi\"};\n    // TODO: print the average and the count, add \"papaya\", print the count again\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <iomanip>\n#include <iostream>\n#include <string>\n#include <vector>\n\ndouble average(const std::vector<double>& xs) {\n    if (xs.empty()) {\n        return 0.0;\n    }\n    double sum = 0.0;\n    for (double x : xs) {\n        sum += x;\n    }\n    return sum / static_cast<double>(xs.size());\n}\n\nint countLonger(const std::vector<std::string>& words, std::size_t minLength) {\n    int count = 0;\n    for (const auto& word : words) {\n        if (word.size() > minLength) {\n            ++count;\n        }\n    }\n    return count;\n}\n\nvoid addWord(std::vector<std::string>& words, const std::string& word) {\n    words.push_back(word);\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    const std::vector<double> ratings = {3.5, 4.0, 2.25, 5.0};\n    std::vector<std::string> words = {\"pear\", \"banana\", \"fig\", \"cherry\", \"kiwi\"};\n    std::cout << \"Average: \" << average(ratings) << '\\n';\n    std::cout << \"Longer than 4: \" << countLonger(words, 4) << '\\n';\n    addWord(words, \"papaya\");\n    std::cout << \"Longer than 4: \" << countLonger(words, 4) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Average: 3.69\nLonger than 4: 2\nLonger than 4: 3"
+          }
+        ],
+        "hints": [
+          "Sum with `for (double x : xs)` and divide by `static_cast<double>(xs.size())`.",
+          "In `countLonger`, loop with `for (const auto& word : words)` and compare `word.size() > minLength`.",
+          "`addWord` needs a plain `&` on the vector because it changes it."
+        ]
+      }
+    }
+  ],
+  "recap": "- `int& r = x;` makes `r` another name for `x`: same memory, no copy.\n- A reference must be initialized and can never be re-bound. `r = y;` copies `y` into `x`.\n- `auto c = r;` makes a copy, `auto& c = r;` makes another reference.\n- A value parameter works on a copy. A `&` parameter changes the caller's variable and can serve as an out-parameter.\n- Pass small types by value, strings, containers, and objects by `const&` to read, and by `&` only to modify.\n- The compiler rejects changes through a `const&`, and `for (const auto& x : v)` reads elements without copying.\n- Never return a reference to a local variable: it dangles."
+}

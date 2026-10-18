@@ -1,0 +1,116 @@
+{
+  "id": "stl-containers",
+  "title": "Stacks, Queues, Deques, and Priority Queues",
+  "section": "Standard Library",
+  "summary": "Use std::stack, std::queue, std::deque, and std::priority_queue for last-in-first-out, first-in-first-out, and largest-first work.",
+  "intro": "Many problems only touch the ends of a collection: undo the last action, serve the next customer, grab the most urgent task. The standard library has a container for each: `std::stack`, `std::queue`, `std::deque`, and `std::priority_queue`. Each one offers only the operations its job needs, so your code says exactly what it does.",
+  "steps": [
+    {
+      "title": "std::stack: last in, first out",
+      "body": "A `std::stack<T>` from `<stack>` is last in, first out: the last thing you push is the first thing you get back, like a pile of plates.\n\n```cpp\nstd::stack<char> st;\nst.push('a');\nst.push('b');\nst.top();    // 'b', the newest element\nst.size();   // 2\nst.empty();  // false\n```\n\nOnly the top is visible: a stack has no indexing and no range-for loop.\n\n> Gotcha: `pop()` returns `void`. It removes the top but does not hand it to you, so read `top()` first and copy it into a value, then pop:\n\n```cpp\nchar c = st.top();\nst.pop();\n```\n\n`top()` returns a reference into the stack, and `pop()` destroys that element, so a `const auto&` taken before `pop()` dangles. Calling `top()` or `pop()` on an empty stack is undefined behavior, so check `empty()` first.\n\nA classic use is checking brackets. Push every opener. On each closer, the stack must not be empty and its top must be the matching opener. At the end the stack must be empty, or some opener was never closed.",
+      "example": {
+        "title": "Reverse a word and check brackets",
+        "prompt": "Push the letters of `drawer` onto a stack, print the size and the top, pop them all to reverse the word, then check two bracket strings.",
+        "code": "#include <iostream>\n#include <stack>\n#include <string>\n\nbool isBalanced(const std::string& text) {\n    std::stack<char> openers;\n    for (char c : text) {\n        if (c == '(' || c == '[' || c == '{') {\n            openers.push(c);\n        } else {\n            if (openers.empty()) {\n                return false;\n            }\n            char open = openers.top();\n            openers.pop();\n            if ((c == ')' && open != '(') || (c == ']' && open != '[') || (c == '}' && open != '{')) {\n                return false;\n            }\n        }\n    }\n    return openers.empty();\n}\n\nint main() {\n    const std::string word = \"drawer\";\n    std::stack<char> letters;\n    for (char c : word) {\n        letters.push(c);\n    }\n    std::cout << letters.size() << '\\n';\n    std::cout << letters.top() << '\\n';\n\n    std::string reversed = \"\";\n    while (!letters.empty()) {\n        char c = letters.top();\n        letters.pop();\n        reversed += c;\n    }\n    std::cout << reversed << '\\n';\n\n    std::cout << (isBalanced(\"{[()]}\") ? \"balanced\" : \"not balanced\") << '\\n';\n    std::cout << (isBalanced(\"{[(])}\") ? \"balanced\" : \"not balanced\") << '\\n';\n    return 0;\n}\n",
+        "output": "6\nr\nreward\nbalanced\nnot balanced",
+        "explanation": "Pushing the six letters of `drawer` leaves `r`, the last one pushed, on top. The while loop copies the top into `c`, pops, and appends, so the letters come out newest first and spell `reward`. In `{[()]}` every closer meets its own opener on top. In `{[(])}` the `]` arrives while `(` is on top, so `isBalanced` returns false right away. The final `openers.empty()` catches strings like `((` that never close."
+      },
+      "practice": {
+        "title": "Reverse stack and check brackets",
+        "prompt": "Reverse the word `stack` with a stack, then check two bracket strings.\n\n1. Push each character of `word` onto a `std::stack<char>`.\n2. Print the size, then the top, each on its own line.\n3. Pop every character, copying the top before each pop, to build the reversed word, and print it.\n4. Finish `isBalanced`: push each opener, and on each closer return false if the stack is empty or its top is not the matching opener. Return true only if the stack ends empty.\n\nExpected output:\n\n```text\n5\nk\nkcats\nbalanced\nnot balanced\n```",
+        "starter": "#include <iostream>\n#include <stack>\n#include <string>\n\nbool isBalanced(const std::string& text) {\n    // TODO: push openers, match each closer against the top, then check the stack is empty\n    return false;\n}\n\nint main() {\n    const std::string word = \"stack\";\n    // TODO: push each letter, print the size and the top, then pop everything to build the reverse\n\n    std::cout << (isBalanced(\"([]{})\") ? \"balanced\" : \"not balanced\") << '\\n';\n    std::cout << (isBalanced(\"([)]\") ? \"balanced\" : \"not balanced\") << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <stack>\n#include <string>\n\nbool isBalanced(const std::string& text) {\n    std::stack<char> openers;\n    for (char c : text) {\n        if (c == '(' || c == '[' || c == '{') {\n            openers.push(c);\n        } else {\n            if (openers.empty()) {\n                return false;\n            }\n            char open = openers.top();\n            openers.pop();\n            if ((c == ')' && open != '(') || (c == ']' && open != '[') || (c == '}' && open != '{')) {\n                return false;\n            }\n        }\n    }\n    return openers.empty();\n}\n\nint main() {\n    const std::string word = \"stack\";\n    std::stack<char> letters;\n    for (char c : word) {\n        letters.push(c);\n    }\n    std::cout << letters.size() << '\\n';\n    std::cout << letters.top() << '\\n';\n\n    std::string reversed = \"\";\n    while (!letters.empty()) {\n        char c = letters.top();\n        letters.pop();\n        reversed += c;\n    }\n    std::cout << reversed << '\\n';\n\n    std::cout << (isBalanced(\"([]{})\") ? \"balanced\" : \"not balanced\") << '\\n';\n    std::cout << (isBalanced(\"([)]\") ? \"balanced\" : \"not balanced\") << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "5\nk\nkcats\nbalanced\nnot balanced"
+          }
+        ],
+        "hints": [
+          "Reversing works exactly like the example: while the stack is not empty, copy the top, pop, and append the copy.",
+          "In `isBalanced`, a closer is wrong when `c == ')' && open != '('`, and the same for `]` and `}`.",
+          "After the loop, leftover openers mean some bracket never closed, so return `openers.empty()`."
+        ]
+      }
+    },
+    {
+      "title": "std::queue: first in, first out",
+      "body": "A `std::queue<T>` from `<queue>` is first in, first out, like a line at a counter. You `push` at the back and take from the front. Only the two ends are visible: there is no indexing and no range-for loop.\n\n```cpp\nstd::queue<std::string> line;\nline.push(\"ana\");    // joins at the back\nline.push(\"ben\");\nline.front();        // \"ana\", next to be served\nline.back();         // \"ben\", the newest arrival\nline.pop();          // removes ana\nline.size();         // 1\n```\n\nThe same rules as the stack apply: `pop()` returns `void`, and `front()` returns a reference to an element that `pop()` destroys. So copy it first, with `std::string job = q.front();`, then pop. `front`, `back`, and `pop` on an empty queue are undefined behavior, so loop with `while (!q.empty())`.\n\nProcessing a queue means taking items in the order they arrived. To retry an item, push the copy you made onto the back again: it waits behind everyone already in line. Use a flag or counter so an item is not re-queued forever.",
+      "example": {
+        "title": "Print jobs with one retry",
+        "prompt": "Process three print jobs in arrival order, sending `b.doc` to the back once.",
+        "code": "#include <iostream>\n#include <queue>\n#include <string>\n\nint main() {\n    std::queue<std::string> jobs;\n    jobs.push(\"a.pdf\");\n    jobs.push(\"b.doc\");\n    jobs.push(\"c.png\");\n    std::cout << jobs.size() << '\\n';\n    std::cout << jobs.front() << ' ' << jobs.back() << '\\n';\n\n    bool retried = false;\n    while (!jobs.empty()) {\n        std::string job = jobs.front();\n        jobs.pop();\n        if (job == \"b.doc\" && !retried) {\n            retried = true;\n            std::cout << \"Retry \" << job << '\\n';\n            jobs.push(job);\n        } else {\n            std::cout << \"Printing \" << job << '\\n';\n        }\n    }\n    return 0;\n}\n",
+        "output": "3\na.pdf c.png\nPrinting a.pdf\nRetry b.doc\nPrinting c.png\nPrinting b.doc",
+        "explanation": "After three pushes `front()` is the first job and `back()` the last. Each pass copies the front into `job` before `pop()`, so `job` stays valid after the element is gone. The first time `b.doc` comes up, `retried` is false, so it is pushed onto the back behind `c.png`. That is why `c.png` prints before `b.doc`. The second time, `retried` is true and it prints normally, and the loop ends when the queue is empty."
+      },
+      "practice": {
+        "title": "Customer line",
+        "prompt": "Serve a line of customers in arrival order, sending Lee to the back once.\n\n1. Push `Ana`, `Lee`, and `Max` onto `customers`.\n2. Print the size on one line, then the front and back on the next line, separated by a space.\n3. While the queue is not empty, copy the front into a `std::string` and pop it.\n4. The first time you get `Lee`, print `Lee to the back` and push Lee again. Otherwise print `Serving NAME`.\n\nExpected output:\n\n```text\n3\nAna Max\nServing Ana\nLee to the back\nServing Max\nServing Lee\n```",
+        "starter": "#include <iostream>\n#include <queue>\n#include <string>\n\nint main() {\n    std::queue<std::string> customers;\n    // TODO: queue Ana, Lee, and Max, print the size and the front and back, then serve them\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <queue>\n#include <string>\n\nint main() {\n    std::queue<std::string> customers;\n    customers.push(\"Ana\");\n    customers.push(\"Lee\");\n    customers.push(\"Max\");\n    std::cout << customers.size() << '\\n';\n    std::cout << customers.front() << ' ' << customers.back() << '\\n';\n\n    bool sentBack = false;\n    while (!customers.empty()) {\n        std::string name = customers.front();\n        customers.pop();\n        if (name == \"Lee\" && !sentBack) {\n            sentBack = true;\n            std::cout << name << \" to the back\" << '\\n';\n            customers.push(name);\n        } else {\n            std::cout << \"Serving \" << name << '\\n';\n        }\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "3\nAna Max\nServing Ana\nLee to the back\nServing Max\nServing Lee"
+          }
+        ],
+        "hints": [
+          "Declare `bool sentBack = false;` before the loop so Lee goes to the back only once.",
+          "Inside the loop, copy the front into a `std::string` before `pop()`, then push that copy to send Lee to the back, just as the example re-queues `job`."
+        ]
+      }
+    },
+    {
+      "title": "std::deque: both ends",
+      "body": "A `std::deque<T>` (say \"deck\") from `<deque>` is a double-ended queue: fast adds and removes at both ends, plus indexing like a vector.\n\n```cpp\nstd::deque<int> dq = {2, 3};\ndq.push_front(1);  // 1 2 3\ndq.push_back(4);   // 1 2 3 4\ndq.pop_front();    // 2 3 4\ndq.pop_back();     // 2 3\ndq.front();        // 2\ndq.back();         // 3\ndq[1];             // 3, random access\n```\n\nA vector's `insert` at the front shifts every element, which is O(n). A deque stores its elements in fixed-size blocks on the heap and keeps a small table of block pointers, so `push_front` just uses room in the first block or adds a new one: O(1). The cost is that elements are not one contiguous block like a vector, so `&dq[0] + i` is not a safe way to reach element `i`. Use `dq[i]`.\n\nBecause both ends are fast, `std::stack` and `std::queue` use a `std::deque` underneath by default. They are *adapters*: each wraps a container and exposes only the ends it allows. A deque is a natural fit for a sliding window: push new items on the back and pop old ones off the front.",
+      "example": {
+        "title": "Recently visited pages",
+        "prompt": "Keep the last 3 visited pages in a deque, then add a page at the front and drop one from the back.",
+        "code": "#include <cstddef>\n#include <deque>\n#include <iostream>\n#include <string>\n#include <vector>\n\nvoid printWindow(const std::deque<std::string>& window) {\n    for (std::size_t i = 0; i < window.size(); ++i) {\n        if (i > 0) {\n            std::cout << ' ';\n        }\n        std::cout << window[i];\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    const std::vector<std::string> visits = {\"home\", \"news\", \"sports\", \"weather\", \"mail\"};\n    std::deque<std::string> recent;\n    for (const auto& page : visits) {\n        recent.push_back(page);\n        if (recent.size() > 3) {\n            recent.pop_front();\n        }\n        printWindow(recent);\n    }\n\n    recent.push_front(\"start\");\n    std::cout << recent.front() << ' ' << recent.back() << '\\n';\n    recent.pop_back();\n    std::cout << recent.front() << ' ' << recent.back() << '\\n';\n    return 0;\n}\n",
+        "output": "home\nhome news\nhome news sports\nnews sports weather\nsports weather mail\nstart mail\nstart weather",
+        "explanation": "Each visit goes on the back. Once the size reaches 4, `pop_front()` drops the oldest page, so the window never holds more than 3. `printWindow` reads the deque by index with `window[i]`, exactly like a vector. After the loop `push_front(\"start\")` puts a page before `sports`, so the front is `start` and the back is `mail`. `pop_back()` then removes `mail`, leaving `weather` at the back."
+      },
+      "practice": {
+        "title": "Temperature window",
+        "prompt": "Keep a sliding window of the last 4 temperature readings in a deque.\n\n1. Finish `printWindow` so it prints the elements with `window[i]`, separated by single spaces.\n2. For each reading, `push_back` it, `pop_front` when the size passes 4, and print the window.\n3. `push_front` a baseline of `0`, then print the front and back separated by a space.\n4. `pop_back` once, then print the front and back again.\n\nExpected output:\n\n```text\n12\n12 15\n12 15 11\n12 15 11 18\n15 11 18 20\n11 18 20 9\n0 9\n0 20\n```",
+        "starter": "#include <cstddef>\n#include <deque>\n#include <iostream>\n#include <vector>\n\nvoid printWindow(const std::deque<int>& window) {\n    // TODO: print window[0], window[1], ... separated by single spaces, then a newline\n}\n\nint main() {\n    const std::vector<int> readings = {12, 15, 11, 18, 20, 9};\n    std::deque<int> window;\n    // TODO: keep the last 4 readings and print the window after each one\n    // TODO: push_front 0, print front and back, pop_back, print front and back\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <deque>\n#include <iostream>\n#include <vector>\n\nvoid printWindow(const std::deque<int>& window) {\n    for (std::size_t i = 0; i < window.size(); ++i) {\n        if (i > 0) {\n            std::cout << ' ';\n        }\n        std::cout << window[i];\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    const std::vector<int> readings = {12, 15, 11, 18, 20, 9};\n    std::deque<int> window;\n    for (int t : readings) {\n        window.push_back(t);\n        if (window.size() > 4) {\n            window.pop_front();\n        }\n        printWindow(window);\n    }\n\n    window.push_front(0);\n    std::cout << window.front() << ' ' << window.back() << '\\n';\n    window.pop_back();\n    std::cout << window.front() << ' ' << window.back() << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "12\n12 15\n12 15 11\n12 15 11 18\n15 11 18 20\n11 18 20 9\n0 9\n0 20"
+          }
+        ],
+        "hints": [
+          "Loop with `for (std::size_t i = 0; i < window.size(); ++i)` and print a space before every element except the first.",
+          "Check `if (window.size() > 4)` right after `push_back`, and call `pop_front()` when it is true."
+        ]
+      }
+    },
+    {
+      "title": "std::priority_queue: largest first",
+      "body": "A `std::priority_queue<T>`, also from `<queue>`, always gives you the largest element first. It is a *max-heap*: a binary tree packed into a `std::vector`, so `push` and `pop` are O(log n) and `top` is O(1).\n\n```cpp\nstd::priority_queue<int> pq;\npq.push(3);\npq.push(9);\npq.push(1);\npq.top();  // 9\n```\n\nIt does not keep everything sorted. Only the top is guaranteed, and you cannot loop over it or index it. Drain it with the usual pattern: copy `top()`, then `pop()`.\n\nFor smallest first, pass the underlying container and `std::greater` from `<functional>`:\n\n```cpp\nstd::priority_queue<int, std::vector<int>, std::greater<int>> minHeap;\n```\n\nPairs compare by `first`, then by `second`, so a heap of `(minutes, name)` pairs orders by minutes and breaks ties by name. Unpack the top with structured bindings:\n\n```cpp\nauto [minutes, name] = pq.top();  // a copy, safe to keep\npq.pop();\n```\n\n> Gotcha: `const auto& [minutes, name] = pq.top();` binds to the element inside the heap, and `pop()` moves other elements into that slot, so the names then read the wrong pair. With one element left, they dangle. Use plain `auto`. As always, `top()` on an empty heap is undefined behavior.",
+      "example": {
+        "title": "Task priorities and shortest tasks",
+        "prompt": "Print priorities largest first with a max-heap, then tasks shortest first with a min-heap of pairs.",
+        "code": "#include <functional>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing Task = std::pair<int, std::string>;\n\nint main() {\n    const std::vector<int> priorities = {3, 9, 1, 7};\n    std::priority_queue<int> maxHeap;\n    for (int p : priorities) {\n        maxHeap.push(p);\n    }\n    std::string line = \"\";\n    while (!maxHeap.empty()) {\n        int p = maxHeap.top();\n        maxHeap.pop();\n        if (!line.empty()) {\n            line += ' ';\n        }\n        line += std::to_string(p);\n    }\n    std::cout << line << '\\n';\n\n    std::priority_queue<Task, std::vector<Task>, std::greater<Task>> tasks;\n    tasks.push({25, \"report\"});\n    tasks.push({5, \"email\"});\n    tasks.push({15, \"review\"});\n    tasks.push({5, \"call\"});\n    while (!tasks.empty()) {\n        auto [minutes, name] = tasks.top();\n        tasks.pop();\n        std::cout << name << \" takes \" << minutes << \" min\" << '\\n';\n    }\n    return 0;\n}\n",
+        "output": "9 7 3 1\ncall takes 5 min\nemail takes 5 min\nreview takes 15 min\nreport takes 25 min",
+        "explanation": "The plain `std::priority_queue<int>` hands back 9, 7, 3, 1 no matter what order they went in. The second heap uses `std::greater<Task>`, so the smallest pair is on top. Two tasks take 5 minutes, and pairs compare by `second` on a tie, so `call` comes before `email`. `auto [minutes, name] = tasks.top();` copies the pair into two fresh variables before `pop()` removes it."
+      },
+      "practice": {
+        "title": "Top scores and cheapest items",
+        "prompt": "Print the three highest scores with a max-heap and the two cheapest items with a min-heap of pairs.\n\n1. Push every score into a `std::priority_queue<int>`.\n2. Pop the top 3 and print them on one line separated by single spaces.\n3. Make a min-heap of `Offer` pairs and push `{4, \"pen\"}`, `{12, \"book\"}`, `{2, \"eraser\"}`, `{7, \"ruler\"}`, and `{2, \"clip\"}`.\n4. Pop the two cheapest, copying each top with `auto [price, item]`, and print `ITEM costs PRICE` for each.\n\nExpected output:\n\n```text\n99 91 78\nclip costs 2\neraser costs 2\n```",
+        "starter": "#include <functional>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing Offer = std::pair<int, std::string>;\n\nint main() {\n    const std::vector<int> scores = {55, 91, 78, 99, 64};\n    // TODO: push the scores into a max-heap and print the top 3 on one line\n\n    // TODO: make a min-heap of Offer, push the five offers, and print the two cheapest\n    return 0;\n}\n",
+        "solution": "#include <functional>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing Offer = std::pair<int, std::string>;\n\nint main() {\n    const std::vector<int> scores = {55, 91, 78, 99, 64};\n    std::priority_queue<int> maxHeap;\n    for (int s : scores) {\n        maxHeap.push(s);\n    }\n    std::string line = \"\";\n    for (int i = 0; i < 3 && !maxHeap.empty(); ++i) {\n        int s = maxHeap.top();\n        maxHeap.pop();\n        if (!line.empty()) {\n            line += ' ';\n        }\n        line += std::to_string(s);\n    }\n    std::cout << line << '\\n';\n\n    std::priority_queue<Offer, std::vector<Offer>, std::greater<Offer>> offers;\n    offers.push({4, \"pen\"});\n    offers.push({12, \"book\"});\n    offers.push({2, \"eraser\"});\n    offers.push({7, \"ruler\"});\n    offers.push({2, \"clip\"});\n    for (int i = 0; i < 2 && !offers.empty(); ++i) {\n        auto [price, item] = offers.top();\n        offers.pop();\n        std::cout << item << \" costs \" << price << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "99 91 78\nclip costs 2\neraser costs 2"
+          }
+        ],
+        "hints": [
+          "Instead of draining the whole heap, use a counting for loop that pops only 3 times and still checks `!maxHeap.empty()`.",
+          "The min-heap type is `std::priority_queue<Offer, std::vector<Offer>, std::greater<Offer>>`.",
+          "Both cheapest items cost 2, so the tie is broken by name: clip before eraser."
+        ]
+      }
+    }
+  ],
+  "recap": "- `std::stack<T>` from `<stack>` is last in, first out: `push`, `top`, `pop`, `empty`, `size`.\n- `std::queue<T>` from `<queue>` is first in, first out: `push` at the back, `front` and `back` to read, `pop` from the front.\n- `pop()` returns `void`. Copy `top()` or `front()` into a value first, never into a `const auto&`.\n- `top`, `front`, `back`, and `pop` on an empty container are undefined behavior, so check `empty()`.\n- `std::deque<T>` from `<deque>` adds and removes at both ends in O(1) and supports `dq[i]`.\n- `std::stack` and `std::queue` are adapters over a `std::deque` by default.\n- `std::priority_queue<T>` is a max-heap with O(log n) `push` and `pop`. Use `std::greater<T>` for a min-heap.\n- A heap of pairs orders by `first`, then `second`: `auto [a, b] = pq.top(); pq.pop();`."
+}

@@ -1,0 +1,114 @@
+{
+  "id": "variables",
+  "title": "Variables, Types and Constants",
+  "section": "Basics",
+  "summary": "Declare variables with var and :=, use Go's basic types and zero values, and name fixed values with const and iota.",
+  "intro": "Programs need to remember things. In Go every value has a fixed type, every variable starts with a known value, and the compiler stops you from mixing types or leaving variables unused.",
+  "steps": [
+    {
+      "title": "var, := and zero values",
+      "body": "Go has a few ways to make a variable. Pick the shortest one that says what you mean.\n\n```go\nvar name string = \"Ada\" // full form: name, type, value\nvar level = 3           // type inferred: int\nscore := 120            // short form, the everyday choice\nscore = 150             // = changes an existing variable\n```\n\n`:=` declares *and* assigns, and it only works inside functions. Use plain `=` to change a variable that already exists. Writing `score := 150` a second time is a compile error, because `:=` needs at least one new name on its left.\n\nWrite a type only when it differs from the value's default. `2` would be an `int`, so a float needs `var speed float64 = 2`.\n\n`var x T` with no value gives the **zero value**: `0` for numbers, `\"\"` for strings, `false` for bools. Go always initializes memory, so you never read leftover garbage the way you can in C.\n\n> Gotcha: a local variable you declare but never use is a compile error, not a warning.",
+      "example": {
+        "title": "Player profile",
+        "prompt": "Declare a player's fields in several ways, update the score, and print them.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar name string = \"Ada\"\n\tvar level = 3\n\tscore := 120\n\tvar speed float64 = 2\n\tvar lives int\n\tvar online bool\n\n\tscore = 150\n\tfmt.Println(name, level, score, speed)\n\tfmt.Println(lives, online)\n}\n",
+        "output": "Ada 3 150 2\n0 false",
+        "explanation": "`name` uses the full form, `level` lets Go infer `int`, and `score` uses `:=`. The line `score = 150` replaces the old value. `speed` needs its type written because `2` alone would be an `int`, and `Println` prints the float 2 as `2`. `lives` and `online` got no value, so they hold their zero values `0` and `false`."
+      },
+      "practice": {
+        "title": "Book tracker",
+        "prompt": "Declare a book's fields, update how much you have read, and print them.\n\n1. Declare `var title string = \"Dune\"` and `var pages = 412`.\n2. Declare `read := 50` and `var price float64 = 9`.\n3. Declare `var rating int` and `var finished bool` with no value.\n4. Change `read` to `120` with `=`.\n5. Print `title`, `pages`, `read`, and `price` with one `fmt.Println`, then `rating` and `finished` with another.\n\nExpected output:\n\n```text\nDune 412 120 9\n0 false\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\t// TODO: declare title, pages, read, price, rating, and finished\n\t// TODO: change read to 120\n\t// TODO: print the two lines\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar title string = \"Dune\"\n\tvar pages = 412\n\tread := 50\n\tvar price float64 = 9\n\tvar rating int\n\tvar finished bool\n\n\tread = 120\n\tfmt.Println(title, pages, read, price)\n\tfmt.Println(rating, finished)\n}\n",
+        "tests": [
+          {
+            "output": "Dune 412 120 9\n0 false"
+          }
+        ],
+        "hints": [
+          "Use `read = 120`, not `read := 120`: the variable already exists.",
+          "`rating` and `finished` print their zero values, `0` and `false`."
+        ]
+      }
+    },
+    {
+      "title": "Basic types",
+      "body": "These are the types you use every day. When you write no type, each literal in the last column gets the type in its row:\n\n| Type | Holds | Literal |\n| --- | --- | --- |\n| `int` | whole numbers | `42` |\n| `float64` | decimals | `4.5` |\n| `string` | text | `\"hi\"` |\n| `bool` | `true` or `false` | `true` |\n\n`int` is 64 bits on this machine. When you need an exact size, use `int8`, `int16`, `int32`, or `int64`. The unsigned types `uint`, `uint8`, `uint16`, `uint32`, and `uint64` hold only whole numbers that are never negative. An `int8` takes 1 byte of memory and holds only -128 to 127.\n\nTwo names are aliases. `byte` is `uint8`, one byte of raw data. `rune` is `int32`, one Unicode code point, which is usually one character. A rune literal uses single quotes:\n\n```go\nvar grade byte = 'A'\ninitial := 'Z' // type rune\n```\n\n`Println` prints a `byte` or `rune` as its number (`'A'` is `65`). The strings lessons show how to print it as a letter.\n\n> Gotcha: Go never converts between types for you. Assigning an `int` variable to an `int64` variable is a compile error, even though both hold whole numbers.",
+      "example": {
+        "title": "Product record",
+        "prompt": "Store a product in six variables of different types and print each one.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tname := \"Notebook\"\n\tquantity := 12\n\tprice := 4.5\n\tinStock := true\n\tvar serial int64 = 9000000000\n\tvar grade byte = 'A'\n\n\tfmt.Println(name)\n\tfmt.Println(quantity)\n\tfmt.Println(price)\n\tfmt.Println(inStock)\n\tfmt.Println(serial)\n\tfmt.Println(grade)\n}\n",
+        "output": "Notebook\n12\n4.5\ntrue\n9000000000\n65",
+        "explanation": "`:=` infers `string`, `int`, `float64`, and `bool` from the values. The serial is written as `int64` to make its size explicit, and `grade` is written as `byte` because `'A'` alone would be a `rune`. A byte is just a number, so `Println` shows `65`, the code for `A`."
+      },
+      "practice": {
+        "title": "Student record",
+        "prompt": "Store a student in six variables of different types and print each one.\n\n1. Declare `name` as `\"Grace\"`, `age` as `20`, `gpa` as `3.8`, and `enrolled` as `true` with `:=`.\n2. Declare `id` as an `int64` holding `5000000001`.\n3. Declare `initial` as the rune `'Z'`.\n4. Print each variable on its own line, in that order.\n\nExpected output:\n\n```text\nGrace\n20\n3.8\ntrue\n5000000001\n90\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\t// TODO: declare name, age, gpa, enrolled, id, and initial\n\t// TODO: print each one on its own line\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tname := \"Grace\"\n\tage := 20\n\tgpa := 3.8\n\tenrolled := true\n\tvar id int64 = 5000000001\n\tinitial := 'Z' // a rune literal\n\n\tfmt.Println(name)\n\tfmt.Println(age)\n\tfmt.Println(gpa)\n\tfmt.Println(enrolled)\n\tfmt.Println(id)\n\tfmt.Println(initial)\n}\n",
+        "tests": [
+          {
+            "output": "Grace\n20\n3.8\ntrue\n5000000001\n90"
+          }
+        ],
+        "hints": [
+          "A rune literal uses single quotes, and `:=` gives it the type `rune`.",
+          "`5000000001` alone would be an `int`, so write the type `int64` in a `var` declaration."
+        ]
+      }
+    },
+    {
+      "title": "Constants",
+      "body": "Use `const` for a value that never changes. Group related constants in a block:\n\n```go\nconst Title = \"Space Run\"\n\nconst (\n\tMaxLives   = 3\n\tStartLevel = 1\n)\n```\n\nConstants are fixed when the program compiles, so assigning to one (`MaxLives = 4`) is a compile error. Unlike variables, an unused constant is fine.\n\nMost constants are **untyped**: they take whatever type their use needs. `MaxLives` works as an `int` in one place and a `float64` in another:\n\n```go\nvar lives = MaxLives         // int\nvar ratio float64 = MaxLives // also fine\n```\n\nWhen you want one fixed type, write it: `const Gravity float64 = 9.8`. A typed constant is stricter: `Gravity` fits only where a `float64` does, so `var g int = Gravity` does not compile.\n\nName constants in MixedCaps (`MaxLives`), never `MAX_LIVES`. ALL_CAPS is a habit from other languages and looks out of place in Go.",
+      "example": {
+        "title": "Game settings",
+        "prompt": "Name a game's fixed settings with constants and print them.",
+        "code": "package main\n\nimport \"fmt\"\n\nconst Title = \"Space Run\"\n\nconst (\n\tMaxLives           = 3\n\tStartLevel         = 1\n\tGravity    float64 = 9.8\n)\n\nfunc main() {\n\tfmt.Println(Title)\n\tfmt.Println(MaxLives)\n\tfmt.Println(StartLevel)\n\tfmt.Println(Gravity)\n}\n",
+        "output": "Space Run\n3\n1\n9.8",
+        "explanation": "`Title` is a single constant and the block holds three more. `MaxLives` and `StartLevel` are untyped, while `Gravity` is a typed `float64`. gofmt lines up the names, types, and `=` signs in the block. Constants live outside `main`, and any function in the file can use them."
+      },
+      "practice": {
+        "title": "Shop settings",
+        "prompt": "Name a shop's fixed settings with constants and print them.\n\n1. Declare `const StoreName = \"Corner Shop\"`.\n2. In a `const ( ... )` block declare `OpenHour = 9` and `CloseHour = 21`.\n3. In the same block declare `TaxRate` as a typed `float64` with value `0.07`.\n4. Print `StoreName`, `OpenHour`, `CloseHour`, and `TaxRate`, each on its own line.\n\nExpected output:\n\n```text\nCorner Shop\n9\n21\n0.07\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// TODO: declare the StoreName constant\n// TODO: declare OpenHour, CloseHour, and TaxRate in a const block\n\nfunc main() {\n\t// TODO: print each constant on its own line\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nconst StoreName = \"Corner Shop\"\n\nconst (\n\tOpenHour          = 9\n\tCloseHour         = 21\n\tTaxRate   float64 = 0.07\n)\n\nfunc main() {\n\tfmt.Println(StoreName)\n\tfmt.Println(OpenHour)\n\tfmt.Println(CloseHour)\n\tfmt.Println(TaxRate)\n}\n",
+        "tests": [
+          {
+            "output": "Corner Shop\n9\n21\n0.07"
+          }
+        ],
+        "hints": [
+          "Constants go outside `main`, above it, just like in the example.",
+          "Put the type between the name and the `=`, the way `Gravity` does in the example."
+        ]
+      }
+    },
+    {
+      "title": "Enums with iota",
+      "body": "Go has no `enum` keyword. You build one from a named type and a const block.\n\n`type Weekday int` declares a new type whose values are stored as `int`. Because it is its own type, Go will not let you mix a `Weekday` with an `int` variable or another named type by accident.\n\nInside a const block, `iota` counts the lines: `0`, then `1`, then `2`. A line with no value repeats the type and expression above it, so only the first line needs `= iota`:\n\n```go\nconst (\n\tRed   Color = iota // 0\n\tGreen              // 1\n\tBlue               // 2\n)\n```\n\nWhen `0` should mean \"not set\", skip it with the blank name `_`. The line still counts, so the next name gets `1`:\n\n```go\nconst (\n\t_      Rank = iota // 0, thrown away\n\tBronze             // 1\n)\n```\n\n`Println` prints these values as plain numbers. `iota` restarts at `0` in every new const block.",
+      "example": {
+        "title": "Days and levels",
+        "prompt": "Number the days of the week and three difficulty levels with iota.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Weekday int\n\nconst (\n\tSunday Weekday = iota\n\tMonday\n\tTuesday\n\tWednesday\n\tThursday\n\tFriday\n\tSaturday\n)\n\ntype Level int\n\nconst (\n\t_ Level = iota\n\tEasy\n\tMedium\n\tHard\n)\n\nfunc main() {\n\tfmt.Println(Sunday, Wednesday, Saturday)\n\tfmt.Println(Easy, Hard)\n}\n",
+        "output": "0 3 6\n1 3",
+        "explanation": "`Sunday` gets `iota`, which is `0`, and each following line repeats `Weekday = iota` with the counter one higher, so `Wednesday` is `3` and `Saturday` is `6`. In the second block `iota` starts again at `0`, but `_` throws that value away, so `Easy` is `1` and `Hard` is `3`."
+      },
+      "practice": {
+        "title": "Shirt sizes",
+        "prompt": "Number shirt sizes with iota so that the smallest size is 1.\n\n1. Below `type Size int`, open a const block whose first line is `_ Size = iota`.\n2. Add `Small`, `Medium`, `Large`, and `XLarge` on their own lines.\n3. Print `Small`, `Large`, and `XLarge` with one `fmt.Println`.\n\nExpected output:\n\n```text\n1 3 4\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Size int\n\n// TODO: declare Small, Medium, Large, and XLarge with iota, skipping 0\n\nfunc main() {\n\t// TODO: print Small, Large, and XLarge on one line\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Size int\n\nconst (\n\t_ Size = iota // skip 0 so Small is 1\n\tSmall\n\tMedium\n\tLarge\n\tXLarge\n)\n\nfunc main() {\n\tfmt.Println(Small, Large, XLarge)\n}\n",
+        "tests": [
+          {
+            "output": "1 3 4"
+          }
+        ],
+        "hints": [
+          "Only the first line needs `= iota`. The others repeat it automatically.",
+          "The `_` line uses up `0`, so `Small` becomes `1`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `x := 5` inside functions, `var x = 5` anywhere, `var x T` for the zero value.\n- `=` changes an existing variable. Unused locals do not compile.\n- Write a type only when it differs from the default: `var speed float64 = 2`.\n- Zero values: `0`, `\"\"`, `false`. Go never leaves memory uninitialized.\n- `int`, `float64`, `string`, `bool`, plus sized `int8` to `int64` and unsigned `uint` to `uint64`.\n- `byte` is `uint8`, `rune` is `int32`, and both print as numbers.\n- `const` values never change. Untyped constants adapt to where they are used.\n- `type Name int` plus `iota` in a const block makes an enum. `_` skips a value."
+}

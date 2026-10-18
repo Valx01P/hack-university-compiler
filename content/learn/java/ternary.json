@@ -1,0 +1,62 @@
+{
+  "id": "ternary",
+  "title": "The Ternary Operator",
+  "section": "Control Flow",
+  "summary": "Pick one of two values inline with condition ? a : b.",
+  "intro": "An if/else runs one of two blocks of code. The ternary operator is its expression form: it picks one of two *values*, so you can use it right inside an assignment or a print.",
+  "steps": [
+    {
+      "title": "condition ? a : b",
+      "body": "`condition ? a : b` evaluates the condition. If it is true the whole expression is `a`, otherwise it is `b`. Only the chosen branch runs, so `count != 0 ? total / count : 0` never divides by zero. It produces a value, so it fits where an if/else cannot, like the right side of an assignment.\n\n```java\nint larger = x > y ? x : y;\nString label = score >= 50 ? \"PASS\" : \"FAIL\";\n```\n\nInside a concatenation, wrap the ternary in parentheses. Without them, `+` binds tighter than `==`, so `n + \" \" + n == 1 ? ...` tries to compare a String with an int and does not compile.\n\n```java\nSystem.out.println(n + \" \" + (n == 1 ? \"item\" : \"items\"));\n```\n\nThe whole ternary has one type, so both branches must fit where you use it. `int n = isWhole ? 1 : \"one\";` is a compile error because `\"one\"` is not an `int`. Keep both branches the same type. When the branches are two different number types, Java promotes them to the wider one, so `isWhole ? 1 : 2.5` is a `double` and prints `1.0` even when `isWhole` is true.\n\nUse a ternary to choose a value, and if/else to run different actions.",
+      "example": {
+        "title": "Plurals, the larger number, and promotion",
+        "prompt": "Pick item or items for the counts 1 and 3, pick the larger of 14 and 9, and show that isWhole ? 1 : 2.5 prints 1.0.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        int cartCount = 1;\n        int bagCount = 3;\n        System.out.println(cartCount + \" \" + (cartCount == 1 ? \"item\" : \"items\"));\n        System.out.println(bagCount + \" \" + (bagCount == 1 ? \"item\" : \"items\"));\n\n        int left = 14;\n        int right = 9;\n        int larger = left > right ? left : right;\n        System.out.println(\"Larger: \" + larger);\n\n        boolean isWhole = true;\n        System.out.println(isWhole ? 1 : 2.5);\n    }\n}\n",
+        "output": "1 item\n3 items\nLarger: 14\n1.0",
+        "explanation": "The parentheses make each ternary run before the `+` joins it to the text, so `1` gets `item` and `3` gets `items`. The second ternary chooses `left` because `14 > 9`, and its value is stored in `larger`. The last line prints `1.0`, not `1`: one branch is a `double`, so the whole expression is a `double` no matter which branch wins."
+      },
+      "practice": {
+        "title": "Files and pass marks",
+        "prompt": "Print file counts with the right plural, then label two scores PASS or FAIL.\n\n1. Print `reportCount` and `photoCount`, each followed by a space and `file` when the count is 1 or `files` otherwise. Use a ternary in parentheses inside the concatenation.\n2. For `mathScore` and `artScore`, store `PASS` in a String with a ternary when the score is at least `PASS_MARK`, otherwise `FAIL`.\n3. Print the labels as `Math: <label>` and `Art: <label>`.\n\nExpected output:\n\n```text\n1 file\n7 files\nMath: PASS\nArt: FAIL\n```",
+        "starter": "public class Main {\n    static final int PASS_MARK = 50;\n\n    public static void main(String[] args) {\n        int reportCount = 1;\n        int photoCount = 7;\n        int mathScore = 64;\n        int artScore = 38;\n\n        // TODO: print each count followed by file or files\n        // TODO: store PASS or FAIL in a String for each score, then print it\n    }\n}\n",
+        "solution": "public class Main {\n    static final int PASS_MARK = 50;\n\n    public static void main(String[] args) {\n        int reportCount = 1;\n        int photoCount = 7;\n        int mathScore = 64;\n        int artScore = 38;\n\n        System.out.println(reportCount + \" \" + (reportCount == 1 ? \"file\" : \"files\"));\n        System.out.println(photoCount + \" \" + (photoCount == 1 ? \"file\" : \"files\"));\n\n        String mathLabel = mathScore >= PASS_MARK ? \"PASS\" : \"FAIL\";\n        String artLabel = artScore >= PASS_MARK ? \"PASS\" : \"FAIL\";\n        System.out.println(\"Math: \" + mathLabel);\n        System.out.println(\"Art: \" + artLabel);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "1 file\n7 files\nMath: PASS\nArt: FAIL"
+          }
+        ],
+        "hints": [
+          "Wrap each ternary in parentheses so it picks the word before `+` joins it to the text.",
+          "For a label, the condition is `score >= PASS_MARK` and the two values are `\"PASS\"` and `\"FAIL\"`."
+        ]
+      }
+    },
+    {
+      "title": "Chained ternaries and when to stop",
+      "body": "For three outcomes, put a second ternary in the false branch of the first. The ternary groups from the right, so the chain reads like if, else if, else: the first true condition wins and the last value is the fallback.\n\n```java\nString size = n < 10 ? \"small\"\n        : n < 100 ? \"medium\"\n        : \"large\";\n```\n\nPut each condition on its own line so the chain stays readable. Order the conditions the same way you would order else if branches, most specific first. With `<` tests that means the smallest threshold first, because `n < 100` is also true for 5.\n\nStop at about three outcomes. Past that, or when a branch needs more than one statement, an if/else chain is clearer. When you match exact values instead of ranges, a switch expression is clearer still. Here is the same choice as an if/else chain:\n\n```java\nString size;\nif (n < 10) {\n    size = \"small\";\n} else if (n < 100) {\n    size = \"medium\";\n} else {\n    size = \"large\";\n}\n```\n\nAvoid nesting a ternary inside the *true* branch as well. It compiles, but it is very hard to read.",
+      "example": {
+        "title": "Sign of a number",
+        "prompt": "Label -4, 0, and 9 as negative, zero, or positive with a chained ternary.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        int first = -4;\n        int second = 0;\n        int third = 9;\n\n        String firstSign = first < 0 ? \"negative\"\n                : first == 0 ? \"zero\"\n                : \"positive\";\n        String secondSign = second < 0 ? \"negative\"\n                : second == 0 ? \"zero\"\n                : \"positive\";\n        String thirdSign = third < 0 ? \"negative\"\n                : third == 0 ? \"zero\"\n                : \"positive\";\n\n        System.out.println(first + \" is \" + firstSign);\n        System.out.println(second + \" is \" + secondSign);\n        System.out.println(third + \" is \" + thirdSign);\n    }\n}\n",
+        "output": "-4 is negative\n0 is zero\n9 is positive",
+        "explanation": "For `-4` the first condition is true, so the result is `negative` and the rest is skipped. For `0` the first condition is false, so Java evaluates the second ternary, where `0 == 0` gives `zero`. For `9` both conditions are false and the final value `positive` is the fallback."
+      },
+      "practice": {
+        "title": "Battery levels",
+        "prompt": "Label three battery levels with a chained ternary.\n\n1. For `phone`, `laptop`, and `watch`, store `Low` in a String when the level is under 20, `Medium` when it is under 80, and `Full` otherwise.\n2. Use one chained ternary per label.\n3. Print each line as `Battery <level>: <label>`.\n\nExpected output:\n\n```text\nBattery 12: Low\nBattery 55: Medium\nBattery 100: Full\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        int phone = 12;\n        int laptop = 55;\n        int watch = 100;\n\n        // TODO: label each level Low (under 20), Medium (under 80), or Full\n        // TODO: print each line as Battery <level>: <label>\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        int phone = 12;\n        int laptop = 55;\n        int watch = 100;\n\n        String phoneLabel = phone < 20 ? \"Low\"\n                : phone < 80 ? \"Medium\"\n                : \"Full\";\n        String laptopLabel = laptop < 20 ? \"Low\"\n                : laptop < 80 ? \"Medium\"\n                : \"Full\";\n        String watchLabel = watch < 20 ? \"Low\"\n                : watch < 80 ? \"Medium\"\n                : \"Full\";\n\n        System.out.println(\"Battery \" + phone + \": \" + phoneLabel);\n        System.out.println(\"Battery \" + laptop + \": \" + laptopLabel);\n        System.out.println(\"Battery \" + watch + \": \" + watchLabel);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Battery 12: Low\nBattery 55: Medium\nBattery 100: Full"
+          }
+        ],
+        "hints": [
+          "Check `< 20` first, then `< 80`, then fall back to `Full`.",
+          "The second ternary goes in the false branch of the first, right after its `:`, and `\"Full\"` is the last value of the chain."
+        ]
+      }
+    }
+  ],
+  "recap": "- `condition ? a : b` is an expression that picks `a` when the condition is true and `b` otherwise.\n- Use it in assignments: `int larger = x > y ? x : y;`\n- Wrap it in parentheses inside a concatenation.\n- The ternary has one type, so both branches must fit where you use it. Mixed numbers promote: `isWhole ? 1 : 2.5` is `1.0`.\n- Chain ternaries for three outcomes, one condition per line.\n- For more outcomes or multi-statement branches, use if/else or a switch expression."
+}

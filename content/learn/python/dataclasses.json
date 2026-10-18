@@ -1,0 +1,154 @@
+{
+  "id": "dataclasses",
+  "title": "Properties, Dataclasses, and Enums",
+  "section": "More Object-Oriented Programming",
+  "summary": "Validate attributes with @property, remove boilerplate with @dataclass, and name constants with Enum.",
+  "intro": "Three tools make classes shorter and safer. Properties guard attributes with checks, dataclasses write `__init__`, `__repr__`, and `__eq__` for you, and enums replace magic numbers with named members.",
+  "steps": [
+    {
+      "title": "Properties",
+      "body": "`@property` turns a method into an attribute you read without parentheses. Add `@name.setter` and every assignment runs your check first, so bad values never get in.\n\n```python\nclass Account:\n    def __init__(self, balance):\n        self.balance = balance  # runs the setter\n\n    @property\n    def balance(self):\n        return self._balance\n\n    @balance.setter\n    def balance(self, value):\n        if value < 0:\n            raise ValueError(\"balance cannot be negative\")\n        self._balance = value\n```\n\n- The getter and setter share the name `balance`. The value lives in `self._balance`.\n- A leading underscore means \"internal, do not touch\". It is only a convention: Python does not stop `acct._balance = -5`.\n- Assign through `self.balance` in `__init__` so the constructor is validated too.\n- A property without a setter is a computed, read-only attribute. Assigning to it raises `AttributeError`, for example `property 'fahrenheit' of 'Temperature' object has no setter` in the next example.\n\nGotcha: inside the setter, write `self._balance`, never `self.balance`. Assigning to the property calls the setter again, forever, until Python raises `RecursionError`.",
+      "example": {
+        "title": "Temperature guard",
+        "prompt": "Store a temperature behind a validated celsius property and compute fahrenheit from it.",
+        "code": "class Temperature:\n    def __init__(self, celsius):\n        self.celsius = celsius\n\n    @property\n    def celsius(self):\n        return self._celsius\n\n    @celsius.setter\n    def celsius(self, value):\n        if value < -273.15:\n            raise ValueError(\"below absolute zero\")\n        self._celsius = value\n\n    @property\n    def fahrenheit(self):\n        return self._celsius * 9 / 5 + 32\n\n\ntemp = Temperature(20)\nprint(f\"{temp.celsius} C is {temp.fahrenheit:.1f} F\")\ntemp.celsius = 100\nprint(f\"{temp.celsius} C is {temp.fahrenheit:.1f} F\")\ntry:\n    temp.celsius = -300\nexcept ValueError as e:\n    print(\"Error:\", e)\ntry:\n    temp.fahrenheit = 50\nexcept AttributeError:\n    print(\"Error: fahrenheit is read-only\")\nprint(f\"Still {temp.celsius} C\")\n",
+        "output": "20 C is 68.0 F\n100 C is 212.0 F\nError: below absolute zero\nError: fahrenheit is read-only\nStill 100 C",
+        "explanation": "`__init__` assigns `self.celsius`, so even the constructor goes through the setter. Reading `temp.fahrenheit` calls the getter with no parentheses and computes the value fresh from `_celsius`, so it is always in sync. Setting `-300` raises inside the setter before `_celsius` changes, which is why the last line still shows 100. `fahrenheit` has no setter, so assigning to it raises `AttributeError`."
+      },
+      "practice": {
+        "title": "Validated rectangle",
+        "prompt": "Build a Rectangle class that validates its sides with properties.\n\n1. Add `width` and `height` properties that store their values in `_width` and `_height`.\n2. Each setter raises `ValueError(\"width must be positive\")` or `ValueError(\"height must be positive\")` when the value is 0 or less.\n3. Add a read-only `area` property that returns width times height.\n4. For each input line `width height`, build a `Rectangle` and print `Area: ` and its area.\n5. If building it raises `ValueError`, print `Error: ` and the message instead. Width is checked before height.\n\nInput:\n\n```text\n3 4\n0 5\n6 -2\n```\n\nExpected output:\n\n```text\nArea: 12\nError: width must be positive\nError: height must be positive\n```",
+        "starter": "import sys\n\n\nclass Rectangle:\n    def __init__(self, width, height):\n        self.width = width\n        self.height = height\n\n    # TODO: add width and height properties whose setters raise\n    # ValueError for values <= 0, and a read-only area property\n\n\nfor line in sys.stdin:\n    width, height = map(int, line.split())\n    # TODO: build a Rectangle and print its area, or print the error\n",
+        "solution": "import sys\n\n\nclass Rectangle:\n    def __init__(self, width, height):\n        self.width = width\n        self.height = height\n\n    @property\n    def width(self):\n        return self._width\n\n    @width.setter\n    def width(self, value):\n        if value <= 0:\n            raise ValueError(\"width must be positive\")\n        self._width = value\n\n    @property\n    def height(self):\n        return self._height\n\n    @height.setter\n    def height(self, value):\n        if value <= 0:\n            raise ValueError(\"height must be positive\")\n        self._height = value\n\n    @property\n    def area(self):\n        return self._width * self._height\n\n\nfor line in sys.stdin:\n    width, height = map(int, line.split())\n    try:\n        rect = Rectangle(width, height)\n        print(\"Area:\", rect.area)\n    except ValueError as e:\n        print(\"Error:\", e)\n",
+        "tests": [
+          {
+            "stdin": "3 4\n0 5\n6 -2\n",
+            "output": "Area: 12\nError: width must be positive\nError: height must be positive"
+          },
+          {
+            "stdin": "10 10\n2 7\n",
+            "output": "Area: 100\nArea: 14"
+          },
+          {
+            "stdin": "-1 -1\n5 0\n1 1\n",
+            "output": "Error: width must be positive\nError: height must be positive\nArea: 1"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the celsius property: an `@property` getter, then an `@width.setter` that checks and stores `self._width`.",
+          "Because `__init__` assigns `self.width` first, a bad width raises before height is checked.",
+          "Wrap both the constructor call and the print in `try:`, and print `e` in `except ValueError as e:`."
+        ]
+      }
+    },
+    {
+      "title": "Dataclasses",
+      "body": "A class that mostly holds data needs a lot of boilerplate: `__init__`, `__repr__`, and an `__eq__` like the one you wrote by hand in the dunder methods lesson. `@dataclass` writes them for you from annotated class attributes.\n\n```python\nfrom dataclasses import dataclass, field\n\n\n@dataclass\nclass Item:\n    name: str\n    price: float\n    qty: int = 1\n    tags: list[str] = field(default_factory=list)\n```\n\n- Each annotated line declares a field, in order. A class attribute without an annotation is not a field, and Python never checks the types.\n- The generated `__init__` takes the fields in that order: `Item(\"Pen\", 1.5)` or `Item(\"Pen\", 1.5, qty=3)`.\n- `__repr__` prints `Item(name='Pen', price=1.5, qty=1, tags=[])`, and `==` compares every field.\n- Fields with defaults must come after fields without: otherwise you get `TypeError: non-default argument 'price' follows default argument`.\n- You can add ordinary methods, and they use `self` as usual.\n\nThe mutable default trap from functions applies here too, and dataclasses refuse a list, dict, or set default outright: `tags: list[str] = []` raises `ValueError: mutable default <class 'list'> for field tags is not allowed: use default_factory`. `field(default_factory=list)` calls `list()` for every new object, so no two instances share a list.",
+      "example": {
+        "title": "Product records",
+        "prompt": "Describe products with a dataclass, print them, compare them, and compute totals.",
+        "code": "from dataclasses import dataclass, field\n\n\n@dataclass\nclass Product:\n    name: str\n    price: float\n    quantity: int = 1\n    tags: list[str] = field(default_factory=list)\n\n    def total(self) -> float:\n        return self.price * self.quantity\n\n\npen = Product(\"Pen\", 1.25, 4)\nbook = Product(\"Book\", 12.99, tags=[\"paper\"])\npen.tags.append(\"office\")\nprint(pen)\nprint(book)\nprint(f\"{pen.name} total: {pen.total():.2f}\")\nprint(f\"{book.name} total: {book.total():.2f}\")\nprint(pen == Product(\"Pen\", 1.25, 4, [\"office\"]))\nprint(pen == book)\nprint(Product(\"Cup\", 3.0).tags)\n",
+        "output": "Product(name='Pen', price=1.25, quantity=4, tags=['office'])\nProduct(name='Book', price=12.99, quantity=1, tags=['paper'])\nPen total: 5.00\nBook total: 12.99\nTrue\nFalse\n[]",
+        "explanation": "Four annotated lines are all it takes: `@dataclass` builds `__init__`, `__repr__`, and `__eq__` from them. `book` skips `quantity` and passes `tags` by keyword, so it gets the default 1. `==` is True because every field matches, including the tags list. The `Cup` gets its own fresh `[]` from `default_factory`, untouched by the `append` on `pen`. `total()` is a normal method."
+      },
+      "practice": {
+        "title": "Student averages",
+        "prompt": "Model students as a dataclass and report each one's average.\n\n1. Define a `Student` dataclass with `name: str`, `year: int = 1`, and `grades: list[int]` that defaults to a new empty list.\n2. Add an `average()` method that returns the mean of `grades`, or `0.0` when there are none.\n3. Each input line is a name followed by zero or more grades. Build a `Student` with that name, the default year, and the grades as ints.\n4. Print the student (its generated repr), then `Average: ` and the average to 1 decimal place.\n\nInput:\n\n```text\nAna 90 85 77\nBen\nCleo 100 95\n```\n\nExpected output:\n\n```text\nStudent(name='Ana', year=1, grades=[90, 85, 77])\nAverage: 84.0\nStudent(name='Ben', year=1, grades=[])\nAverage: 0.0\nStudent(name='Cleo', year=1, grades=[100, 95])\nAverage: 97.5\n```",
+        "starter": "import sys\nfrom dataclasses import dataclass, field\n\n\n# TODO: define the Student dataclass with an average() method\n\n\nfor line in sys.stdin:\n    name, *scores = line.split()\n    # TODO: build a Student and print it and its average\n",
+        "solution": "import sys\nfrom dataclasses import dataclass, field\n\n\n@dataclass\nclass Student:\n    name: str\n    year: int = 1\n    grades: list[int] = field(default_factory=list)\n\n    def average(self) -> float:\n        if not self.grades:\n            return 0.0\n        return sum(self.grades) / len(self.grades)\n\n\nfor line in sys.stdin:\n    name, *scores = line.split()\n    student = Student(name, grades=[int(s) for s in scores])\n    print(student)\n    print(f\"Average: {student.average():.1f}\")\n",
+        "tests": [
+          {
+            "stdin": "Ana 90 85 77\nBen\nCleo 100 95\n",
+            "output": "Student(name='Ana', year=1, grades=[90, 85, 77])\nAverage: 84.0\nStudent(name='Ben', year=1, grades=[])\nAverage: 0.0\nStudent(name='Cleo', year=1, grades=[100, 95])\nAverage: 97.5"
+          },
+          {
+            "stdin": "Dev 70 80\n",
+            "output": "Student(name='Dev', year=1, grades=[70, 80])\nAverage: 75.0"
+          },
+          {
+            "stdin": "Eli\nFay 88\n",
+            "output": "Student(name='Eli', year=1, grades=[])\nAverage: 0.0\nStudent(name='Fay', year=1, grades=[88])\nAverage: 88.0"
+          }
+        ],
+        "hints": [
+          "Follow the `Product` example: one annotated line per field, with the defaulted fields after `name`.",
+          "Use `field(default_factory=list)` for `grades`, and pass the grades by keyword so `year` keeps its default.",
+          "Return `0.0` early with `if not self.grades:` to avoid dividing by zero."
+        ]
+      }
+    },
+    {
+      "title": "Ordered and frozen dataclasses",
+      "body": "Two flags on the decorator add more generated methods.\n\n- `@dataclass(order=True)` adds `<`, `<=`, `>`, and `>=`, so you no longer write `__lt__` and `@functools.total_ordering` yourself. They compare fields in declaration order, like tuples: `Card(9, \"spades\") < Card(10, \"clubs\")` is True because `rank` decides first. Now `sorted()`, `min()`, and `max()` work without a key.\n- `@dataclass(frozen=True)` makes instances immutable and generates `__hash__`, so they can be set items and dict keys.\n\n```python\n@dataclass(frozen=True, order=True)\nclass Card:\n    rank: int\n    suit: str\n\n\nhand = {Card(10, \"hearts\"), Card(10, \"hearts\")}\nprint(len(hand))  # 1\n```\n\nWhy frozen matters: a plain `@dataclass` defines `__eq__`, and just like a hand-written `__eq__`, that removes the default hash, so `{Item(\"Pen\", 1.5)}` raises `TypeError: unhashable type: 'Item'`. A hash must never change, so `@dataclass` adds one only when the instance is frozen.\n\nAssigning to a field of a frozen instance raises `FrozenInstanceError`:\n\n```python\ncard = Card(10, \"hearts\")\n# card.rank = 11  # dataclasses.FrozenInstanceError: cannot assign to field 'rank'\n```\n\nTo change one, build a new instance instead. Frozen is shallow: a list field can still change in place, and hashing that instance raises `TypeError`. Sets have no order, so print `sorted(unique)`, which works because the class is ordered.",
+      "example": {
+        "title": "Point visits",
+        "prompt": "Sort points, drop duplicates with a set, and count visits in a dict keyed by Point.",
+        "code": "from dataclasses import dataclass\n\n\n@dataclass(frozen=True, order=True)\nclass Point:\n    x: int\n    y: int\n\n\nvisits = [Point(2, 1), Point(0, 3), Point(2, 1), Point(0, -1), Point(0, 3)]\nfor p in sorted(visits):\n    print(p)\nunique = set(visits)\nprint(\"Unique:\", len(unique))\nprint(sorted(unique))\ncounts = {}\nfor p in visits:\n    counts[p] = counts.get(p, 0) + 1\nfor p, n in counts.items():\n    print(f\"({p.x}, {p.y}) visited {n}x\")\n",
+        "output": "Point(x=0, y=-1)\nPoint(x=0, y=3)\nPoint(x=0, y=3)\nPoint(x=2, y=1)\nPoint(x=2, y=1)\nUnique: 3\n[Point(x=0, y=-1), Point(x=0, y=3), Point(x=2, y=1)]\n(2, 1) visited 2x\n(0, 3) visited 2x\n(0, -1) visited 1x",
+        "explanation": "`order=True` lets `sorted()` compare points by `x`, then `y`, so the three points with `x` 0 come first. `frozen=True` gives each point a hash, so `set(visits)` keeps one copy of each equal point and `counts[p]` works as a dict key. The set prints through `sorted()` for a stable order. The dict keeps insertion order, so the counts follow first appearance."
+      },
+      "practice": {
+        "title": "Task queue",
+        "prompt": "Sort a task list and count its distinct tasks with a frozen, ordered dataclass.\n\n1. Define `Task` with `@dataclass(frozen=True, order=True)` and the fields `priority: int` and `name: str`, in that order.\n2. Each input line is `priority name`. Build a `Task` from each line.\n3. Print every task in sorted order (duplicates included) as the priority, a space, and the name. Tasks with the same priority are ordered by name.\n4. Print `Distinct: ` and the number of different tasks, using a set.\n\nInput:\n\n```text\n2 email\n1 deploy\n2 backup\n1 deploy\n3 lunch\n```\n\nExpected output:\n\n```text\n1 deploy\n1 deploy\n2 backup\n2 email\n3 lunch\nDistinct: 4\n```",
+        "starter": "import sys\nfrom dataclasses import dataclass\n\n\n# TODO: define an ordered, frozen Task dataclass with priority and name\n\n\ntasks = []\nfor line in sys.stdin:\n    priority, name = line.split()\n    # TODO: append a Task with an int priority\n# TODO: print the sorted tasks, then the number of distinct tasks\n",
+        "solution": "import sys\nfrom dataclasses import dataclass\n\n\n@dataclass(frozen=True, order=True)\nclass Task:\n    priority: int\n    name: str\n\n\ntasks = []\nfor line in sys.stdin:\n    priority, name = line.split()\n    tasks.append(Task(int(priority), name))\nfor task in sorted(tasks):\n    print(task.priority, task.name)\nprint(\"Distinct:\", len(set(tasks)))\n",
+        "tests": [
+          {
+            "stdin": "2 email\n1 deploy\n2 backup\n1 deploy\n3 lunch\n",
+            "output": "1 deploy\n1 deploy\n2 backup\n2 email\n3 lunch\nDistinct: 4"
+          },
+          {
+            "stdin": "5 review\n4 plan\n",
+            "output": "4 plan\n5 review\nDistinct: 2"
+          },
+          {
+            "stdin": "1 sync\n1 sync\n1 sync\n",
+            "output": "1 sync\n1 sync\n1 sync\nDistinct: 1"
+          }
+        ],
+        "hints": [
+          "Declare `priority` before `name`: the generated comparisons follow field order.",
+          "`sorted(tasks)` works directly because the class is ordered. No key is needed.",
+          "A set keeps one copy of equal items, and frozen tasks are hashable, so they can go in one. Then count it."
+        ]
+      }
+    },
+    {
+      "title": "Enums",
+      "body": "An `Enum` gives a fixed set of named constants, so you write `Color.RED` instead of a bare `1` or `\"red\"` that a typo could break.\n\n```python\nfrom enum import Enum\n\n\nclass Color(Enum):\n    RED = 1\n    GREEN = 2\n```\n\n- `Color.RED.name` is `\"RED\"` and `Color.RED.value` is `1`. `print(Color.RED)` shows `Color.RED`.\n- `Color(2)` looks a member up by value and returns `Color.GREEN`. A missing value raises `ValueError: 9 is not a valid Color`.\n- `Color[\"RED\"]` looks a member up by name.\n- `for c in Color:` visits the members in definition order.\n- Members are not their values: `Color.RED == 1` is False. Compare a member with a member (`color == Color.RED`), or compare `color.value` with the number.\n\nIn `match`, a dotted name is a value pattern: `case Direction.NORTH:` compares with that member. A bare name would capture anything, which is why the match lesson needed guards for constants.\n\n```python\nmatch color:\n    case Color.RED | Color.GREEN:\n        print(\"a known color\")\n```",
+      "example": {
+        "title": "Compass turns",
+        "prompt": "Define four directions, look them up by value, and turn right with match.",
+        "code": "from enum import Enum\n\n\nclass Direction(Enum):\n    NORTH = 1\n    EAST = 2\n    SOUTH = 3\n    WEST = 4\n\n\ndef turn_right(d):\n    match d:\n        case Direction.NORTH:\n            return Direction.EAST\n        case Direction.EAST:\n            return Direction.SOUTH\n        case Direction.SOUTH:\n            return Direction.WEST\n        case Direction.WEST:\n            return Direction.NORTH\n\n\nprint(Direction.SOUTH, Direction.SOUTH.name, Direction.SOUTH.value)\nprint(\"All:\", *[d.name for d in Direction])\nfor value in [2, 4, 9]:\n    try:\n        d = Direction(value)\n        print(f\"{value} is {d.name}, right turn: {turn_right(d).name}\")\n    except ValueError:\n        print(f\"No direction {value}\")\n",
+        "output": "Direction.SOUTH SOUTH 3\nAll: NORTH EAST SOUTH WEST\n2 is EAST, right turn: SOUTH\n4 is WEST, right turn: NORTH\nNo direction 9",
+        "explanation": "Printing a member shows `Direction.SOUTH`, while `.name` and `.value` give its parts. Looping over `Direction` yields the members in the order they were defined. `Direction(2)` finds `EAST` by value, and `Direction(9)` raises `ValueError`, which the loop catches. Each `case Direction.NORTH:` compares against a member instead of capturing, so `turn_right` picks the next direction clockwise."
+      },
+      "practice": {
+        "title": "Alert levels",
+        "prompt": "Look up a level by its number and react to it with an Enum and match.\n\n1. Define `Level(Enum)` with `LOW = 1`, `MEDIUM = 2`, and `HIGH = 3`.\n2. Write `message(level)` with `match`: `case Level.LOW | Level.MEDIUM:` returns `keep going` and `case Level.HIGH:` returns `slow down`.\n3. Print `All:` followed by every member name, separated by spaces.\n4. Read one number and look up `Level(value)`. Print `Level: ` and its name, then `Message: ` and its message.\n5. If the number is not a valid level, print `No level ` and the number instead.\n\nInput:\n\n```text\n2\n```\n\nExpected output:\n\n```text\nAll: LOW MEDIUM HIGH\nLevel: MEDIUM\nMessage: keep going\n```",
+        "starter": "from enum import Enum\n\n\n# TODO: define Level with LOW = 1, MEDIUM = 2, and HIGH = 3\n\n\ndef message(level):\n    # TODO: match on the level members\n    return \"\"\n\n\nvalue = int(input())\n# TODO: print all names, then the level and its message\n",
+        "solution": "from enum import Enum\n\n\nclass Level(Enum):\n    LOW = 1\n    MEDIUM = 2\n    HIGH = 3\n\n\ndef message(level):\n    match level:\n        case Level.LOW | Level.MEDIUM:\n            return \"keep going\"\n        case Level.HIGH:\n            return \"slow down\"\n\n\nprint(\"All:\", *[level.name for level in Level])\nvalue = int(input())\ntry:\n    level = Level(value)\n    print(\"Level:\", level.name)\n    print(\"Message:\", message(level))\nexcept ValueError:\n    print(f\"No level {value}\")\n",
+        "tests": [
+          {
+            "stdin": "2\n",
+            "output": "All: LOW MEDIUM HIGH\nLevel: MEDIUM\nMessage: keep going"
+          },
+          {
+            "stdin": "3\n",
+            "output": "All: LOW MEDIUM HIGH\nLevel: HIGH\nMessage: slow down"
+          },
+          {
+            "stdin": "7\n",
+            "output": "All: LOW MEDIUM HIGH\nNo level 7"
+          }
+        ],
+        "hints": [
+          "Loop over `Level` to get its members in definition order, and print each member's `.name`.",
+          "Use dotted names in the cases, such as `case Level.HIGH:`. A bare `case HIGH:` would capture every value.",
+          "`Level(7)` raises `ValueError`, so put the lookup and its prints in `try:` and print the fallback in `except ValueError:`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `@property` makes a getter. `@name.setter` validates assignments and stores the value in `_name`.\n- A property without a setter is a computed, read-only attribute.\n- `@dataclass` builds `__init__`, `__repr__`, and `__eq__` from annotated fields. Defaults go last.\n- Use `field(default_factory=list)` for list defaults. A plain `[]` is refused.\n- `order=True` compares fields in order. `frozen=True` blocks assignment and makes instances hashable for sets and dict keys.\n- `Enum` members have `.name` and `.value`. `Color(2)` looks up by value, and `for c in Color:` lists them.\n- Match members with dotted patterns such as `case Direction.NORTH:`."
+}

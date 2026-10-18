@@ -1,0 +1,118 @@
+{
+  "id": "maps",
+  "title": "Maps",
+  "section": "Collections",
+  "summary": "Store key-value pairs in maps, check keys with comma-ok, loop in sorted order, and count and group data.",
+  "intro": "A map looks up a value by its key in about constant time, no matter how many entries it holds. Go builds maps into the language: `map[K]V`. This lesson covers creating and changing maps, checking whether a key exists, printing them in a fixed order, and the two patterns you will write most: counting and grouping.",
+  "steps": [
+    {
+      "title": "Create, read, write, delete",
+      "body": "A map stores values under keys, so you can look a value up by name instead of by position. The type `map[string]int` maps string keys to int values. Create one with a literal, or an empty one with `make`.\n\n```go\nstock := map[string]int{\"apple\": 5, \"pear\": 2}\nscores := make(map[string]int)\nscores[\"ana\"] = 10 // adds a key, or updates it if it exists\ndelete(stock, \"pear\")\n```\n\n- Reading a missing key does not fail: `m[k]` gives the value type's zero value (0, \"\", false).\n- `len(m)` counts the keys. `delete(m, k)` removes one and does nothing if it is missing.\n- `fmt.Println(m)` prints `map[apple:5 fig:4]` with the keys sorted, so its output is the same on every run.\n- Keys must be comparable with `==`: strings, numbers, and bools work, slices do not.\n\n**Gotcha:** `var m map[string]int` is a nil map. You can read from it and take its length, but writing to it panics. Always start with a literal or `make`.\n\nA map value is a pointer to a hash table that the runtime manages. Assigning a map or passing it to a function copies that pointer, not the entries, so both names change the same map.",
+      "example": {
+        "title": "Fruit stock",
+        "prompt": "Build a stock map, change it, read a missing key, and show that an assigned map is shared.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tstock := map[string]int{\"apple\": 5, \"pear\": 2}\n\tstock[\"fig\"] = 4\n\tstock[\"apple\"] = 7\n\tdelete(stock, \"pear\")\n\tfmt.Println(stock)\n\tfmt.Println(len(stock))\n\tfmt.Println(stock[\"kiwi\"])\n\n\talias := stock\n\talias[\"fig\"] = 9\n\tfmt.Println(stock)\n}\n",
+        "output": "map[apple:7 fig:4]\n2\n0\nmap[apple:7 fig:9]",
+        "explanation": "`stock[\"fig\"] = 4` adds a key and `stock[\"apple\"] = 7` replaces an existing value. After `delete` two keys remain, and `Println` shows them sorted. `kiwi` was never added, so reading it gives the int zero value 0. `alias := stock` copies only the map's pointer, so writing through `alias` changes the map `stock` sees too."
+      },
+      "practice": {
+        "title": "Phone book",
+        "prompt": "Keep a small phone book in a map and show that a second name for it shares the same data.\n\n1. Keep the given `phone` map.\n2. Add `\"cy\"` with `\"555-0103\"` and change `\"bo\"` to `\"555-0199\"`.\n3. Delete `\"ana\"`.\n4. Print the map, then its length, then `phone[\"dee\"]` with `%q`.\n5. Set `book := phone`, change `\"cy\"` to `\"555-0142\"` through `book`, and print `phone` again.\n\nExpected output:\n\n```text\nmap[bo:555-0199 cy:555-0103]\n2\n\"\"\nmap[bo:555-0199 cy:555-0142]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tphone := map[string]string{\"ana\": \"555-0101\", \"bo\": \"555-0102\"}\n\t// TODO: add cy, change bo, and delete ana\n\tfmt.Println(phone)\n\t// TODO: print the length of phone, then phone[\"dee\"] with %q\n\t// TODO: set book := phone, change cy through book, then print phone\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tphone := map[string]string{\"ana\": \"555-0101\", \"bo\": \"555-0102\"}\n\tphone[\"cy\"] = \"555-0103\"\n\tphone[\"bo\"] = \"555-0199\"\n\tdelete(phone, \"ana\")\n\tfmt.Println(phone)\n\tfmt.Println(len(phone))\n\tfmt.Printf(\"%q\\n\", phone[\"dee\"])\n\n\tbook := phone\n\tbook[\"cy\"] = \"555-0142\"\n\tfmt.Println(phone)\n}\n",
+        "tests": [
+          {
+            "output": "map[bo:555-0199 cy:555-0103]\n2\n\"\"\nmap[bo:555-0199 cy:555-0142]"
+          }
+        ],
+        "hints": [
+          "Use `phone[key] = value` both to add a contact and to change one.",
+          "A missing string key reads as `\"\"`, and `%q` prints it as `\"\"`.",
+          "`book := phone` does not copy the contacts, so `book[\"cy\"] = ...` changes `phone` too."
+        ]
+      }
+    },
+    {
+      "title": "The comma-ok idiom",
+      "body": "Because a missing key reads as the zero value, `m[k]` alone cannot tell a stored 0 from a key that is not there. Ask for a second result: the comma-ok form.\n\n```go\nprice, ok := prices[\"cake\"] // ok is false when the key is missing\n_, ok = prices[\"tea\"]       // only care whether it exists\n```\n\n`ok` is a bool that is true only when the key is in the map. When it is false, the value is the zero value.\n\nUsually you check it right away with an if statement that declares both variables. They exist only inside the if and its else.\n\n```go\nif price, ok := prices[item]; ok {\n\tfmt.Println(item, price)\n} else {\n\tfmt.Println(item, \"missing\")\n}\n```\n\nReach for comma-ok whenever the zero value is a real, valid value, such as a free item or a grade of 0.",
+      "example": {
+        "title": "Menu prices",
+        "prompt": "Look up three items where one is free and one is missing, and tell them apart.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tprices := map[string]int{\"tea\": 3, \"sample\": 0}\n\tfmt.Println(prices[\"sample\"], prices[\"cake\"])\n\n\tprice, ok := prices[\"sample\"]\n\tfmt.Println(price, ok)\n\n\tfor _, item := range []string{\"tea\", \"sample\", \"cake\"} {\n\t\tif p, ok := prices[item]; ok {\n\t\t\tfmt.Printf(\"%s: %d\\n\", item, p)\n\t\t} else {\n\t\t\tfmt.Printf(\"%s: not on the menu\\n\", item)\n\t\t}\n\t}\n}\n",
+        "output": "0 0\n0 true\ntea: 3\nsample: 0\ncake: not on the menu",
+        "explanation": "The first line prints `0 0`: a free sample and a missing cake look the same with a plain read. Comma-ok fixes that: `sample` gives `0 true`. In the loop, the if declares `p` and `ok` for each item, so `sample: 0` prints as a real price while `cake` falls to the else branch."
+      },
+      "practice": {
+        "title": "Grade lookup",
+        "prompt": "Look up grades and tell a real grade of 0 apart from a student with no grade.\n\n1. Keep the given `grades` map.\n2. Print `grades[\"bo\"]` and `grades[\"cy\"]` with one `fmt.Println`.\n3. Read `grades[\"cy\"]` with `grade, ok :=` and print `grade` and `ok` with one `fmt.Println`.\n4. In the given loop, use `if g, ok := grades[name]; ok` to print `name: grade`, and move the given `no grade` line into the else branch.\n5. Remove the `_ = grades` line once you use the map.\n\nExpected output:\n\n```text\n0 0\n0 false\nana: 91\nbo: 0\ncy: no grade\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tgrades := map[string]int{\"ana\": 91, \"bo\": 0}\n\t// TODO: print grades[\"bo\"] and grades[\"cy\"] on one line\n\t// TODO: read grades[\"cy\"] with comma-ok and print the value and ok\n\t_ = grades\n\n\tfor _, name := range []string{\"ana\", \"bo\", \"cy\"} {\n\t\t// TODO: print \"name: grade\" when name has a grade, otherwise this line\n\t\tfmt.Printf(\"%s: no grade\\n\", name)\n\t}\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tgrades := map[string]int{\"ana\": 91, \"bo\": 0}\n\tfmt.Println(grades[\"bo\"], grades[\"cy\"])\n\n\tgrade, ok := grades[\"cy\"]\n\tfmt.Println(grade, ok)\n\n\tfor _, name := range []string{\"ana\", \"bo\", \"cy\"} {\n\t\tif g, ok := grades[name]; ok {\n\t\t\tfmt.Printf(\"%s: %d\\n\", name, g)\n\t\t} else {\n\t\t\tfmt.Printf(\"%s: no grade\\n\", name)\n\t\t}\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "0 0\n0 false\nana: 91\nbo: 0\ncy: no grade"
+          }
+        ],
+        "hints": [
+          "`fmt.Println(a, b)` prints both values separated by a space.",
+          "`grade, ok := grades[\"cy\"]` gives `0` and `false` because `cy` is not a key.",
+          "Put the grade print in the if branch and the given `no grade` print in the else branch."
+        ]
+      }
+    },
+    {
+      "title": "Looping in sorted order",
+      "body": "`for k, v := range m` visits every key and value. Use `for k := range m` for keys only, or `for _, v := range m` for values only.\n\n**Gotcha:** the order is random. Go deliberately shuffles it, so it can change on every loop, even within one run. That is fine for totals and counts, where order does not matter, but never print inside the loop or let the order pick a winner, such as which key is first.\n\nTo visit keys in order, collect them into a slice, sort it, then loop over the slice and read each value from the map.\n\n```go\nkeys := make([]string, 0, len(m))\nfor k := range m {\n\tkeys = append(keys, k)\n}\nsort.Strings(keys)\nfor _, k := range keys {\n\tfmt.Println(k, m[k])\n}\n```\n\nGiving the slice a capacity of `len(m)` lets every `append` reuse one backing array. Use `sort.Ints` when the keys are ints.",
+      "example": {
+        "title": "Basket in order",
+        "prompt": "Total a fruit basket, then print its counts alphabetically.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\tbasket := map[string]int{\"pear\": 3, \"apple\": 5, \"fig\": 1}\n\n\ttotal := 0\n\tfor _, n := range basket {\n\t\ttotal += n\n\t}\n\tfmt.Println(\"total:\", total)\n\n\tkeys := make([]string, 0, len(basket))\n\tfor k := range basket {\n\t\tkeys = append(keys, k)\n\t}\n\tsort.Strings(keys)\n\tfor _, k := range keys {\n\t\tfmt.Printf(\"%s: %d\\n\", k, basket[k])\n\t}\n}\n",
+        "output": "total: 9\napple: 5\nfig: 1\npear: 3",
+        "explanation": "The total loops straight over the map because a sum is the same in any order. For printing, the keys go into `keys`, `sort.Strings` puts them in alphabetical order, and the last loop reads `basket[k]` for each one. The output is identical on every run."
+      },
+      "practice": {
+        "title": "Rooms in order",
+        "prompt": "List a building's rooms in increasing room number order.\n\n1. Keep the given `rooms` map and add `\"sort\"` to the imports.\n2. Range over the map and add 1 to `firstFloor` for each room number below 200. The starter already prints it.\n3. Collect the room numbers into a slice and sort it with `sort.Ints`.\n4. Loop over the sorted numbers and print each as `number: name`.\n5. Remove the `_ = rooms` line once you use the map.\n\nExpected output:\n\n```text\nfloor 1 rooms: 2\n101: Office\n150: Library\n204: Lab\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\trooms := map[int]string{204: \"Lab\", 101: \"Office\", 150: \"Library\"}\n\n\tfirstFloor := 0\n\t// TODO: range over rooms and count the room numbers below 200\n\t_ = rooms\n\tfmt.Println(\"floor 1 rooms:\", firstFloor)\n\n\t// TODO: collect the room numbers, sort them, and print \"number: name\" lines\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\trooms := map[int]string{204: \"Lab\", 101: \"Office\", 150: \"Library\"}\n\n\tfirstFloor := 0\n\tfor num := range rooms {\n\t\tif num < 200 {\n\t\t\tfirstFloor++\n\t\t}\n\t}\n\tfmt.Println(\"floor 1 rooms:\", firstFloor)\n\n\tnums := make([]int, 0, len(rooms))\n\tfor num := range rooms {\n\t\tnums = append(nums, num)\n\t}\n\tsort.Ints(nums)\n\tfor _, num := range nums {\n\t\tfmt.Printf(\"%d: %s\\n\", num, rooms[num])\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "floor 1 rooms: 2\n101: Office\n150: Library\n204: Lab"
+          }
+        ],
+        "hints": [
+          "A count does not depend on order, so `for num := range rooms` is fine for it.",
+          "Start with `nums := make([]int, 0, len(rooms))` and append each key.",
+          "After `sort.Ints(nums)`, print with `fmt.Printf(\"%d: %s\\n\", num, rooms[num])`."
+        ]
+      }
+    },
+    {
+      "title": "Counting and grouping",
+      "body": "Two patterns cover most real map code: counting and grouping.\n\n**Counting.** A missing key reads as 0, so `counts[w]++` works on the first sighting too. No existence check is needed.\n\n```go\ncounts := make(map[string]int)\nfor _, w := range words {\n\tcounts[w]++\n}\n```\n\n**Grouping.** Values can be any type, including slices. A `map[int][]string` holds a list of words for each length. A missing key reads as a nil slice, and `append` works on nil, so one line builds every group.\n\n```go\ngroups[n] = append(groups[n], w)\n```\n\nAlways store the result back. The map holds a slice header (pointer, length, capacity), and `append` returns a new header with the longer length. The map keeps the old header until you assign the new one, and Go rejects an `append` whose result is unused.\n\nPrint counts and groups the same way as before: collect the keys, sort them, and loop.",
+      "example": {
+        "title": "Colors and word lengths",
+        "prompt": "Count the colors in a string, then group words by length.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n\t\"strings\"\n)\n\nfunc main() {\n\tcounts := make(map[string]int)\n\tfor _, c := range strings.Fields(\"red blue red green blue red\") {\n\t\tcounts[c]++\n\t}\n\tcolors := make([]string, 0, len(counts))\n\tfor c := range counts {\n\t\tcolors = append(colors, c)\n\t}\n\tsort.Strings(colors)\n\tfor _, c := range colors {\n\t\tfmt.Println(c, counts[c])\n\t}\n\n\tbyLen := make(map[int][]string)\n\tfor _, w := range []string{\"cat\", \"horse\", \"dog\", \"mouse\", \"ox\"} {\n\t\tbyLen[len(w)] = append(byLen[len(w)], w)\n\t}\n\tlengths := make([]int, 0, len(byLen))\n\tfor n := range byLen {\n\t\tlengths = append(lengths, n)\n\t}\n\tsort.Ints(lengths)\n\tfor _, n := range lengths {\n\t\tfmt.Printf(\"%d: %v\\n\", n, byLen[n])\n\t}\n}\n",
+        "output": "blue 2\ngreen 1\nred 3\n2: [ox]\n3: [cat dog]\n5: [horse mouse]",
+        "explanation": "`strings.Fields` splits the colors, and `counts[c]++` starts each new color at 0 before adding 1. The second half appends each word to the slice stored under its length, so words keep their original order inside a group. Both halves sort their keys before printing, and `%v` prints a slice as `[cat dog]`."
+      },
+      "practice": {
+        "title": "Votes and initials",
+        "prompt": "Count an election's votes, then group the candidates by their first letter.\n\n1. Import `fmt`, `sort`, and `strings`.\n2. Split `ballots` with `strings.Fields` and count each name in a `map[string]int` with `++`.\n3. Print `name votes` lines in sorted name order with `fmt.Println`.\n4. Group `names` into a `map[string][]string` keyed by `string(name[0])`, keeping each group in the original order.\n5. Print `letter: [names]` lines in sorted letter order with `%v` for the slice.\n6. Remove the `_ =` lines once you use the data.\n\nExpected output:\n\n```text\nana 3\nbo 2\ncy 1\na: [ana al]\nb: [bo bea]\nc: [cy]\n```",
+        "starter": "package main\n\nfunc main() {\n\tballots := \"ana bo ana cy bo ana\"\n\tnames := []string{\"ana\", \"bo\", \"al\", \"cy\", \"bea\"}\n\t// TODO: count the votes in ballots and print \"name votes\" lines in sorted order\n\t// TODO: group names by first letter and print \"letter: [names]\" lines in sorted order\n\t_ = ballots\n\t_ = names\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n\t\"strings\"\n)\n\nfunc main() {\n\tballots := \"ana bo ana cy bo ana\"\n\tnames := []string{\"ana\", \"bo\", \"al\", \"cy\", \"bea\"}\n\n\tvotes := make(map[string]int)\n\tfor _, v := range strings.Fields(ballots) {\n\t\tvotes[v]++\n\t}\n\tcandidates := make([]string, 0, len(votes))\n\tfor c := range votes {\n\t\tcandidates = append(candidates, c)\n\t}\n\tsort.Strings(candidates)\n\tfor _, c := range candidates {\n\t\tfmt.Println(c, votes[c])\n\t}\n\n\tbyLetter := make(map[string][]string)\n\tfor _, name := range names {\n\t\tfirst := string(name[0])\n\t\tbyLetter[first] = append(byLetter[first], name)\n\t}\n\tletters := make([]string, 0, len(byLetter))\n\tfor l := range byLetter {\n\t\tletters = append(letters, l)\n\t}\n\tsort.Strings(letters)\n\tfor _, l := range letters {\n\t\tfmt.Printf(\"%s: %v\\n\", l, byLetter[l])\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "ana 3\nbo 2\ncy 1\na: [ana al]\nb: [bo bea]\nc: [cy]"
+          }
+        ],
+        "hints": [
+          "Start the maps with `votes := make(map[string]int)` and `byLetter := make(map[string][]string)`.",
+          "Save `first := string(name[0])` and use it as the key: `byLetter[first] = append(byLetter[first], name)`.",
+          "Each half needs its own keys slice, sorted with `sort.Strings` before the printing loop."
+        ]
+      }
+    }
+  ],
+  "recap": "- `map[K]V{...}` or `make(map[K]V)` creates a map. `m[k] = v` adds or updates, `delete(m, k)` removes, `len(m)` counts keys.\n- A missing key reads as the zero value. Use `v, ok := m[k]` to tell a stored zero from a missing key.\n- Writing to a nil map panics. Assigning or passing a map shares the same data.\n- Range order over a map is random. Collect the keys, sort them, then loop. `fmt.Println(m)` already sorts.\n- Count with `m[k]++` and group with `m[k] = append(m[k], v)`."
+}

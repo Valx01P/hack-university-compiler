@@ -1,0 +1,98 @@
+{
+  "id": "goroutines",
+  "title": "Goroutines and WaitGroups",
+  "section": "Concurrency",
+  "summary": "Run functions concurrently with go, wait for them with sync.WaitGroup, split work into chunks, and guard shared data with a Mutex.",
+  "intro": "A goroutine is a function running at the same time as the rest of your program. Go makes them cheap to start and easy to write: one keyword, `go`. This lesson covers starting goroutines and waiting for them with `sync.WaitGroup`, splitting a job into chunks that run at the same time, and protecting shared data with `sync.Mutex` so goroutines never corrupt it.",
+  "steps": [
+    {
+      "title": "Starting goroutines",
+      "body": "Put `go` in front of a function call and that call runs in a new goroutine, a lightweight thread managed by the Go runtime. The `go` statement returns right away and `main` keeps going.\n\n```go\ngo square(i, nums, results, &wg)\n```\n\nWhen `main` returns, the program ends, even if goroutines are still running. Their work is simply lost. So `main` must wait, and `sync.WaitGroup` is the standard tool:\n\n```go\nvar wg sync.WaitGroup\nwg.Add(1)      // before go, so Wait cannot miss it\ngo worker(&wg) // inside worker: defer wg.Done()\nwg.Wait()      // blocks until every Done has run\n```\n\n- Call `wg.Add(1)` in `main` before the `go` statement, never inside the goroutine.\n- Start the worker with `defer wg.Done()` so it counts as finished on every return path.\n- Pass `*sync.WaitGroup`. A copy has its own counter, so `Done` never reaches the original and `Wait` deadlocks.\n\nThe scheduler decides when each goroutine runs, so lines printed inside them can come out in a different order on every run. Give each one its own slot, `results[i]`, and print from `main` after `Wait`. Writes to different elements never collide. A goroutine starts with a stack of a few KB that grows as needed, so starting thousands is cheap.",
+      "example": {
+        "title": "Square in goroutines",
+        "prompt": "Read numbers until the input ends, square each one in its own goroutine, wait, and print the results in input order.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sync\"\n)\n\nfunc square(i int, nums, results []int, wg *sync.WaitGroup) {\n\tdefer wg.Done()\n\tresults[i] = nums[i] * nums[i]\n}\n\nfunc main() {\n\tvar nums []int\n\tfor {\n\t\tvar n int\n\t\tif _, err := fmt.Scan(&n); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tnums = append(nums, n)\n\t}\n\n\tresults := make([]int, len(nums))\n\tvar wg sync.WaitGroup\n\tfor i := range nums {\n\t\twg.Add(1)\n\t\tgo square(i, nums, results, &wg)\n\t}\n\twg.Wait()\n\tfmt.Println(results)\n}\n",
+        "stdin": "1 2 3 4 5\n",
+        "output": "[1 4 9 16 25]",
+        "explanation": "`results` has one slot per number, made before any goroutine starts. Each `square` call writes only `results[i]`, so no two goroutines touch the same element. `wg.Add(1)` runs in `main` before each `go`, and every worker calls `wg.Done()` on the way out through `defer`. `main` passes `&wg`, a pointer, so all five `Done` calls lower the same counter. `wg.Wait()` blocks until it reaches zero, and only then does `main` print. The goroutines may finish in any order, but the output is always the same because each value lands at its own index."
+      },
+      "practice": {
+        "title": "Word lengths",
+        "prompt": "Measure every input word in its own goroutine and print the lengths in the original order.\n\n1. Add `\"sync\"` to the imports.\n2. Write `wordLen(i int, words []string, lengths []int, wg *sync.WaitGroup)`. It defers `wg.Done()` and stores `len(words[i])` in `lengths[i]`.\n3. In `main`, declare a `sync.WaitGroup`. For each index, call `wg.Add(1)`, then `go wordLen(i, words, lengths, &wg)`.\n4. Call `wg.Wait()` before the print loop, so the lengths are filled in.\n5. The starter already reads the words and prints one `word: length` line per word.\n\nInput:\n\n```text\ngo is fun\n```\n\nExpected output:\n\n```text\ngo: 2\nis: 2\nfun: 3\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// TODO: write wordLen(i int, words []string, lengths []int, wg *sync.WaitGroup)\n\nfunc main() {\n\tvar words []string\n\tfor {\n\t\tvar w string\n\t\tif _, err := fmt.Scan(&w); err != nil {\n\t\t\tbreak\n\t\t}\n\t\twords = append(words, w)\n\t}\n\n\tlengths := make([]int, len(words))\n\t// TODO: start one wordLen goroutine per word, then wait for all of them\n\tfor i, w := range words {\n\t\tfmt.Printf(\"%s: %d\\n\", w, lengths[i])\n\t}\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sync\"\n)\n\nfunc wordLen(i int, words []string, lengths []int, wg *sync.WaitGroup) {\n\tdefer wg.Done()\n\tlengths[i] = len(words[i])\n}\n\nfunc main() {\n\tvar words []string\n\tfor {\n\t\tvar w string\n\t\tif _, err := fmt.Scan(&w); err != nil {\n\t\t\tbreak\n\t\t}\n\t\twords = append(words, w)\n\t}\n\n\tlengths := make([]int, len(words))\n\tvar wg sync.WaitGroup\n\tfor i := range words {\n\t\twg.Add(1)\n\t\tgo wordLen(i, words, lengths, &wg)\n\t}\n\twg.Wait()\n\tfor i, w := range words {\n\t\tfmt.Printf(\"%s: %d\\n\", w, lengths[i])\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "go is fun\n",
+            "output": "go: 2\nis: 2\nfun: 3"
+          },
+          {
+            "stdin": "concurrency\n",
+            "output": "concurrency: 11"
+          },
+          {
+            "stdin": "a bb\nccc dddd\n",
+            "output": "a: 1\nbb: 2\nccc: 3\ndddd: 4"
+          }
+        ],
+        "hints": [
+          "The worker has the same shape as `square` in the example: `defer wg.Done()` first, then one write to its own index.",
+          "Pass `&wg`, not `wg`. A copied WaitGroup never reaches zero in `main`, so `Wait` deadlocks."
+        ]
+      }
+    },
+    {
+      "title": "Splitting work into chunks",
+      "body": "For a big job, split the data into chunks and give each chunk its own goroutine. `s[lo:hi]` makes a chunk without copying anything: it is a new slice header that points into the same backing array.\n\n```go\nsize := len(nums) / NumChunks\nfor c := 0; c < NumChunks; c++ {\n\tlo, hi := c*size, (c+1)*size\n\twg.Add(1)\n\tgo func(c int, part []int) {\n\t\tdefer wg.Done()\n\t\t// work on part, store the answer in partial[c]\n\t}(c, nums[lo:hi])\n}\n```\n\n- An anonymous goroutine passes the loop variable and the chunk as arguments. In Go 1.16 the loop reuses one `c` for every iteration, so a closure that read `c` directly could see a later value. Arguments are copied when the `go` statement runs.\n- The closure may still use `wg` and `partial` from `main`. It captures those variables themselves, not copies, so `wg.Done()` reaches the real WaitGroup.\n- Each goroutine reads only its own chunk and writes only `partial[c]`, so nothing is shared.\n- After `wg.Wait()`, combine the partial results in `main`.\n\nWhen the length does not divide evenly, let the last chunk take the rest: `if c == NumChunks-1 { hi = len(nums) }`.",
+      "example": {
+        "title": "Sum in four chunks",
+        "prompt": "Sum the numbers 1 to 100 with four goroutines of 25 numbers each, then print the partial sums and the total.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sync\"\n)\n\nconst NumChunks = 4\n\nfunc main() {\n\tnums := make([]int, 100)\n\tfor i := range nums {\n\t\tnums[i] = i + 1\n\t}\n\n\tsize := len(nums) / NumChunks\n\tpartial := make([]int, NumChunks)\n\tvar wg sync.WaitGroup\n\tfor c := 0; c < NumChunks; c++ {\n\t\tlo, hi := c*size, (c+1)*size\n\t\twg.Add(1)\n\t\tgo func(c int, part []int) {\n\t\t\tdefer wg.Done()\n\t\t\tsum := 0\n\t\t\tfor _, v := range part {\n\t\t\t\tsum += v\n\t\t\t}\n\t\t\tpartial[c] = sum\n\t\t}(c, nums[lo:hi])\n\t}\n\twg.Wait()\n\n\ttotal := 0\n\tfor _, p := range partial {\n\t\ttotal += p\n\t}\n\tfmt.Println(partial)\n\tfmt.Println(\"Total:\", total)\n}\n",
+        "output": "[325 950 1575 2200]\nTotal: 5050",
+        "explanation": "`size` is 25, so the chunks are `nums[0:25]`, `nums[25:50]`, `nums[50:75]`, and `nums[75:100]`. Each is a slice header pointing into the same array, so no numbers are copied. The goroutine gets `c` and its chunk as arguments, adds up the chunk in a local `sum`, and writes it once to `partial[c]`. After `wg.Wait()` all four slots are filled, and `main` adds them to get 5050."
+      },
+      "practice": {
+        "title": "Chunked maximum",
+        "prompt": "Find the largest of 12 numbers with three goroutines that each scan 4 of them.\n\n1. Add `\"sync\"` to the imports and declare a `sync.WaitGroup`.\n2. Loop `c` from 0 while `c < NumChunks`. Compute `lo, hi := c*size, (c+1)*size` and call `wg.Add(1)`.\n3. Start `go func(c int, part []int) { ... }(c, nums[lo:hi])`. Inside, defer `wg.Done()`, find the largest value in `part`, and store it in `partial[c]`.\n4. After `wg.Wait()`, set `best` to the largest value in `partial`. You can remove the `_ = size` line.\n5. Print `partial`, then `Max:` and the overall maximum.\n\nExpected output:\n\n```text\n[42 88 73]\nMax: 88\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nconst NumChunks = 3\n\nfunc main() {\n\tnums := []int{7, 42, 3, 19, 88, 5, 61, 27, 14, 73, 9, 50}\n\n\tsize := len(nums) / NumChunks\n\tpartial := make([]int, NumChunks)\n\t// TODO: start one goroutine per chunk that stores the chunk's maximum in partial[c], then wait\n\t_ = size\n\n\tbest := 0\n\t// TODO: set best to the largest value in partial\n\tfmt.Println(partial)\n\tfmt.Println(\"Max:\", best)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sync\"\n)\n\nconst NumChunks = 3\n\nfunc main() {\n\tnums := []int{7, 42, 3, 19, 88, 5, 61, 27, 14, 73, 9, 50}\n\n\tsize := len(nums) / NumChunks\n\tpartial := make([]int, NumChunks)\n\tvar wg sync.WaitGroup\n\tfor c := 0; c < NumChunks; c++ {\n\t\tlo, hi := c*size, (c+1)*size\n\t\twg.Add(1)\n\t\tgo func(c int, part []int) {\n\t\t\tdefer wg.Done()\n\t\t\tm := part[0]\n\t\t\tfor _, v := range part[1:] {\n\t\t\t\tif v > m {\n\t\t\t\t\tm = v\n\t\t\t\t}\n\t\t\t}\n\t\t\tpartial[c] = m\n\t\t}(c, nums[lo:hi])\n\t}\n\twg.Wait()\n\n\tbest := partial[0]\n\tfor _, p := range partial[1:] {\n\t\tif p > best {\n\t\t\tbest = p\n\t\t}\n\t}\n\tfmt.Println(partial)\n\tfmt.Println(\"Max:\", best)\n}\n",
+        "tests": [
+          {
+            "output": "[42 88 73]\nMax: 88"
+          }
+        ],
+        "hints": [
+          "Copy the example's loop and change only the body of the goroutine: track the largest value instead of a sum.",
+          "Start the running maximum at `part[0]`, then compare the rest. Do the same with `partial` after `wg.Wait()`."
+        ]
+      }
+    },
+    {
+      "title": "Mutex for shared data",
+      "body": "A data race is two goroutines touching the same memory at once, with at least one of them writing. `n++` looks like one step but is really read, add, write. Two goroutines can both read 41 and both write 42, so a racy counter loses counts and its total can change from run to run. Maps are worse: writing a map while another goroutine reads or writes it, without a lock, can crash the whole program with `fatal error: concurrent map writes`, and `recover` cannot catch it.\n\nA `sync.Mutex` lets only one goroutine at a time into a section of code. Keep it in a `mu` field right next to the data it guards:\n\n```go\ntype Counter struct {\n\tmu sync.Mutex\n\tn  int\n}\n\nfunc (c *Counter) Inc() {\n\tc.mu.Lock()\n\tdefer c.mu.Unlock()\n\tc.n++\n}\n```\n\n- `Lock` waits until no one else holds the mutex. `defer c.mu.Unlock()` releases it on every return path, even after a panic.\n- Use pointer receivers for every method. A value receiver copies the struct, mutex included, so each call locks its own private copy and guards nothing.\n- After `wg.Wait()` every goroutine is finished, so `main` can read the fields safely.\n\nEmbedding `sync.Mutex` also works, but it makes `Lock` and `Unlock` part of the type's API, so the course keeps a named `mu` field.",
+      "example": {
+        "title": "Safe counter",
+        "prompt": "Increment one shared counter from 100 goroutines and print the final count.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sync\"\n)\n\ntype Counter struct {\n\tmu sync.Mutex\n\tn  int\n}\n\nfunc (c *Counter) Inc() {\n\tc.mu.Lock()\n\tdefer c.mu.Unlock()\n\tc.n++\n}\n\nfunc main() {\n\tvar counter Counter\n\tvar wg sync.WaitGroup\n\tfor i := 0; i < 100; i++ {\n\t\twg.Add(1)\n\t\tgo func() {\n\t\t\tdefer wg.Done()\n\t\t\tcounter.Inc()\n\t\t}()\n\t}\n\twg.Wait()\n\tfmt.Printf(\"Count: %d\\n\", counter.n)\n}\n",
+        "output": "Count: 100",
+        "explanation": "All 100 goroutines call `Inc` on the same `counter`. Inside, `Lock` lets one goroutine at a time run `c.n++`, so no increment is lost and the total is always 100. `Inc` has a pointer receiver, so `counter.Inc()` works on the real struct and its one mutex. The goroutine needs no arguments here because it does not use the loop variable. `main` reads `counter.n` only after `wg.Wait()`, when no goroutine can still be writing."
+      },
+      "practice": {
+        "title": "Safe word count",
+        "prompt": "Count words with one goroutine per word, using a mutex to guard the shared map.\n\n1. Finish `Inc`: lock `c.mu`, `defer c.mu.Unlock()`, then add 1 to `c.counts[word]`.\n2. In `main`, declare a `sync.WaitGroup` and remove the `_ = words` line.\n3. For each word, call `wg.Add(1)` and start `go func(w string) { ... }(w)`. Inside, defer `wg.Done()` and call `counter.Inc(w)`.\n4. Call `wg.Wait()` before the starter's code that prints the counts in sorted key order.\n\nExpected output:\n\n```text\ngo: 3\nrust: 2\nzig: 1\n```",
+        "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n\t\"sync\"\n)\n\ntype SafeCounter struct {\n\tmu     sync.Mutex\n\tcounts map[string]int\n}\n\nfunc (c *SafeCounter) Inc(word string) {\n\t// TODO: lock c.mu, defer the unlock, and add 1 to c.counts[word]\n}\n\nfunc main() {\n\twords := []string{\"go\", \"rust\", \"go\", \"zig\", \"rust\", \"go\"}\n\tcounter := SafeCounter{counts: make(map[string]int)}\n\t// TODO: start one goroutine per word that calls counter.Inc, then wait\n\t_ = words\n\n\tkeys := make([]string, 0, len(counter.counts))\n\tfor k := range counter.counts {\n\t\tkeys = append(keys, k)\n\t}\n\tsort.Strings(keys)\n\tfor _, k := range keys {\n\t\tfmt.Printf(\"%s: %d\\n\", k, counter.counts[k])\n\t}\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n\t\"sync\"\n)\n\ntype SafeCounter struct {\n\tmu     sync.Mutex\n\tcounts map[string]int\n}\n\nfunc (c *SafeCounter) Inc(word string) {\n\tc.mu.Lock()\n\tdefer c.mu.Unlock()\n\tc.counts[word]++\n}\n\nfunc main() {\n\twords := []string{\"go\", \"rust\", \"go\", \"zig\", \"rust\", \"go\"}\n\tcounter := SafeCounter{counts: make(map[string]int)}\n\tvar wg sync.WaitGroup\n\tfor _, w := range words {\n\t\twg.Add(1)\n\t\tgo func(w string) {\n\t\t\tdefer wg.Done()\n\t\t\tcounter.Inc(w)\n\t\t}(w)\n\t}\n\twg.Wait()\n\n\tkeys := make([]string, 0, len(counter.counts))\n\tfor k := range counter.counts {\n\t\tkeys = append(keys, k)\n\t}\n\tsort.Strings(keys)\n\tfor _, k := range keys {\n\t\tfmt.Printf(\"%s: %d\\n\", k, counter.counts[k])\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "go: 3\nrust: 2\nzig: 1"
+          }
+        ],
+        "hints": [
+          "`Inc` has the same three lines as the example's `Inc`, with `c.counts[word]++` as the last one.",
+          "Pass the word as an argument to the goroutine, because Go 1.16 reuses the range variable for every iteration."
+        ]
+      }
+    }
+  ],
+  "recap": "- `go f(x)` runs `f` in a new goroutine. When `main` returns, the program ends, finished or not.\n- `var wg sync.WaitGroup`: `wg.Add(1)` before each `go`, `defer wg.Done()` inside, `wg.Wait()` in `main`.\n- Pass `&wg` to named workers. A copied WaitGroup deadlocks.\n- Give each goroutine its own index or chunk (`s[lo:hi]`), then combine and print from `main` after `Wait`.\n- Pass loop variables to goroutines as arguments: `go func(c int, part []int) { ... }(c, s[lo:hi])`.\n- Guard shared data with a `mu sync.Mutex` field: `c.mu.Lock()`, then `defer c.mu.Unlock()`, in pointer-receiver methods.\n- Unguarded shared counters lose updates, and unguarded concurrent map writes crash the program."
+}

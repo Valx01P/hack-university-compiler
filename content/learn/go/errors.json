@@ -1,0 +1,121 @@
+{
+  "id": "errors",
+  "title": "Errors as Values",
+  "section": "Bits and Errors",
+  "summary": "Return and check errors instead of throwing exceptions, wrap them with context, and inspect them with errors.Is and errors.As.",
+  "intro": "Go has no try/catch. A function that can fail says so in its signature by returning an `error`, and the caller checks it with a plain `if`. This lesson shows how to create errors, add context by wrapping them, and look inside a chain of wrapped errors to decide what to do.",
+  "steps": [
+    {
+      "title": "Returning and checking errors",
+      "body": "In Go, failure is not thrown and caught. A function that can fail returns an `error` as its last result, and the caller checks it right away. `error` is a built-in interface with one method:\n\n```go\ntype error interface {\n\tError() string\n}\n```\n\nThe quickest way to make one is `errors.New`, after you add `import \"errors\"`. On failure, return the zero value for the other results plus the error. On success, return the real value plus `nil`.\n\n```go\nfunc parseAge(n int) (int, error) {\n\tif n < 0 {\n\t\treturn 0, errors.New(\"negative age\")\n\t}\n\treturn n, nil\n}\n```\n\nThe caller writes `if err != nil`, handles the failure, then either continues or returns. Only use the other results when `err` is `nil`.\n\nErrors are ordinary values. You can print them (`fmt.Println(err)` calls `Error()` for you), store them in variables or slices, and pass them to other functions. By convention error strings are lowercase with no final punctuation, because they often end up in the middle of a longer message.",
+      "example": {
+        "title": "Safe division",
+        "prompt": "Read `a b` pairs until the input ends and print each quotient with 2 decimals, or the error when b is 0.",
+        "code": "package main\n\nimport (\n\t\"errors\"\n\t\"fmt\"\n)\n\nfunc divide(a, b float64) (float64, error) {\n\tif b == 0 {\n\t\treturn 0, errors.New(\"division by zero\")\n\t}\n\treturn a / b, nil\n}\n\nfunc main() {\n\tvar a, b float64\n\tfor {\n\t\tif _, err := fmt.Scan(&a, &b); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tq, err := divide(a, b)\n\t\tif err != nil {\n\t\t\tfmt.Println(\"error:\", err)\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Printf(\"%.2f\\n\", q)\n\t}\n}\n",
+        "stdin": "10 4\n7 0\n1 3\n",
+        "output": "2.50\nerror: division by zero\n0.33",
+        "explanation": "`divide` returns two values. When `b` is 0 it returns `0` and a new error, so the caller never sees a bogus quotient. Otherwise it returns the result and `nil`. In `main`, `if err != nil` catches the failing pair, prints the error, and `continue` moves on to the next pair, so one bad input does not stop the program. Float division by a zero variable would not crash. It would quietly give `+Inf`, `-Inf`, or `NaN`, so returning an error makes the problem explicit instead."
+      },
+      "practice": {
+        "title": "Bank withdrawals",
+        "prompt": "Process withdrawals and report the ones that fail.\n\n1. Add `\"errors\"` to the imports.\n2. Make `withdraw(balance, amount int) (int, error)` return `0` and the error `invalid amount` when the amount is 0 or less. Check this first.\n3. Return `0` and the error `insufficient funds` when the amount is larger than the balance.\n4. Otherwise return the new balance and `nil`.\n5. In `main`, each input line is an independent `balance amount` pair. Print the new balance, or `error:` followed by the error.\n\nInput:\n\n```text\n100 30\n50 80\n20 0\n40 40\n```\n\nExpected output:\n\n```text\n70\nerror: insufficient funds\nerror: invalid amount\n0\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc withdraw(balance, amount int) (int, error) {\n\t// TODO: return 0 and an error for a bad amount, otherwise the new balance and nil\n\treturn 0, nil\n}\n\nfunc main() {\n\tvar balance, amount int\n\tfor {\n\t\tif _, err := fmt.Scan(&balance, &amount); err != nil {\n\t\t\tbreak\n\t\t}\n\t\t// TODO: call withdraw, then print the new balance or \"error:\" and the error\n\t}\n}\n",
+        "solution": "package main\n\nimport (\n\t\"errors\"\n\t\"fmt\"\n)\n\nfunc withdraw(balance, amount int) (int, error) {\n\tif amount <= 0 {\n\t\treturn 0, errors.New(\"invalid amount\")\n\t}\n\tif amount > balance {\n\t\treturn 0, errors.New(\"insufficient funds\")\n\t}\n\treturn balance - amount, nil\n}\n\nfunc main() {\n\tvar balance, amount int\n\tfor {\n\t\tif _, err := fmt.Scan(&balance, &amount); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tleft, err := withdraw(balance, amount)\n\t\tif err != nil {\n\t\t\tfmt.Println(\"error:\", err)\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Println(left)\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "100 30\n50 80\n20 0\n40 40\n",
+            "output": "70\nerror: insufficient funds\nerror: invalid amount\n0"
+          },
+          {
+            "stdin": "10 -5\n5 6\n",
+            "output": "error: invalid amount\nerror: insufficient funds"
+          },
+          {
+            "stdin": "250 100\n",
+            "output": "150"
+          }
+        ],
+        "hints": [
+          "Check the amount first, then the balance, and return early from each check.",
+          "Each failing return gives `0` plus a new error made with `errors.New`.",
+          "In `main`, follow the example: call `withdraw`, check `err != nil`, and `continue` after printing the error."
+        ]
+      }
+    },
+    {
+      "title": "Wrapping and sentinel errors",
+      "body": "A bare `not found` does not say what was missing. `fmt.Errorf` with the `%w` verb adds context and *wraps* the original error inside the new one:\n\n```go\nreturn fmt.Errorf(\"load profile %d: %w\", id, err)\n```\n\nEach layer adds a prefix, so the final message reads as a chain: `load profile 7: not found`. Use exactly one `%w` per call. Go 1.16 wraps only one error: a second `%w` prints a `%!w(...)` marker, and the result then wraps nothing at all. With `%v` instead of `%w`, or with no error argument, you get the same text but nothing is wrapped.\n\nA *sentinel error* is a package-level error value that callers can test for:\n\n```go\nvar ErrNotFound = errors.New(\"not found\")\n```\n\nOnce an error is wrapped, `err == ErrNotFound` is false, because `err` is the wrapper. `errors.Is(err, ErrNotFound)` follows the whole chain and reports whether the sentinel is anywhere in it. `errors.Unwrap(err)` returns the next error down the chain, or `nil` when `err` wraps nothing.\n\nGotcha: two calls to `errors.New(\"not found\")` make two different errors that never compare equal. That is why the sentinel is declared once and shared.",
+      "example": {
+        "title": "Profile lookup",
+        "prompt": "Read user ids until the input ends and print each profile, or the wrapped error, whether it is ErrNotFound, and what it wraps.",
+        "code": "package main\n\nimport (\n\t\"errors\"\n\t\"fmt\"\n)\n\nvar ErrNotFound = errors.New(\"not found\")\n\nvar users = map[int]string{1: \"ada\", 2: \"linus\"}\n\nfunc findUser(id int) (string, error) {\n\tif id <= 0 {\n\t\treturn \"\", errors.New(\"invalid id\")\n\t}\n\tname, ok := users[id]\n\tif !ok {\n\t\treturn \"\", ErrNotFound\n\t}\n\treturn name, nil\n}\n\nfunc loadProfile(id int) (string, error) {\n\tname, err := findUser(id)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"load profile %d: %w\", id, err)\n\t}\n\treturn \"profile of \" + name, nil\n}\n\nfunc main() {\n\tvar id int\n\tfor {\n\t\tif _, err := fmt.Scan(&id); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tprofile, err := loadProfile(id)\n\t\tif err != nil {\n\t\t\tfmt.Println(\"error:\", err)\n\t\t\tfmt.Println(\"  not found:\", errors.Is(err, ErrNotFound))\n\t\t\tfmt.Println(\"  unwrapped:\", errors.Unwrap(err))\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Println(profile)\n\t}\n}\n",
+        "stdin": "2 7 -1\n",
+        "output": "profile of linus\nerror: load profile 7: not found\n  not found: true\n  unwrapped: not found\nerror: load profile -1: invalid id\n  not found: false\n  unwrapped: invalid id",
+        "explanation": "`findUser` returns the shared `ErrNotFound` for id 7 and a fresh `invalid id` error for -1. `loadProfile` wraps either one with `%w`, so the printed message carries the id as context. `errors.Is` digs through the wrapper and finds `ErrNotFound` only for id 7. `errors.Unwrap` peels off one layer and gives back the error that `findUser` returned. Here `err == ErrNotFound` would be false for id 7, since `err` is the wrapper, which is why the check uses `errors.Is`."
+      },
+      "practice": {
+        "title": "Stock reservations",
+        "prompt": "Reserve items from a stock map and report why an order fails.\n\n1. Add `\"errors\"` to the imports and declare `var ErrOutOfStock = errors.New(\"out of stock\")`.\n2. In `reserve`, when `item` is not in `stock`, return `fmt.Errorf(\"reserve %s: unknown item\", item)`. It has no `%w`, so it wraps nothing.\n3. When `qty` is larger than the stock, wrap `ErrOutOfStock` with `%w` so the message reads `reserve <item>: out of stock`.\n4. Otherwise subtract `qty` from the stock and return `nil`, so later orders see less stock.\n5. In `main`, read `item qty` orders until the input ends. Print `ok`, or `error:` and the error, then `  out of stock: ` with `errors.Is`, then `  unwrapped: ` with `errors.Unwrap` (two spaces at the start of each detail line).\n\nInput:\n\n```text\napple 3\npear 5\nfig 1\napple 2\napple 1\n```\n\nExpected output:\n\n```text\nok\nerror: reserve pear: out of stock\n  out of stock: true\n  unwrapped: out of stock\nerror: reserve fig: unknown item\n  out of stock: false\n  unwrapped: <nil>\nok\nerror: reserve apple: out of stock\n  out of stock: true\n  unwrapped: out of stock\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nvar stock = map[string]int{\"apple\": 5, \"pear\": 2}\n\n// TODO: declare the sentinel error ErrOutOfStock\n\nfunc reserve(item string, qty int) error {\n\t// TODO: return a wrapped error for unknown items and low stock, otherwise take qty from stock\n\treturn nil\n}\n\nfunc main() {\n\tvar item string\n\tvar qty int\n\tfor {\n\t\tif _, err := fmt.Scan(&item, &qty); err != nil {\n\t\t\tbreak\n\t\t}\n\t\t// TODO: call reserve, then print ok, or the error and its two detail lines\n\t}\n}\n",
+        "solution": "package main\n\nimport (\n\t\"errors\"\n\t\"fmt\"\n)\n\nvar ErrOutOfStock = errors.New(\"out of stock\")\n\nvar stock = map[string]int{\"apple\": 5, \"pear\": 2}\n\nfunc reserve(item string, qty int) error {\n\tn, ok := stock[item]\n\tif !ok {\n\t\treturn fmt.Errorf(\"reserve %s: unknown item\", item)\n\t}\n\tif qty > n {\n\t\treturn fmt.Errorf(\"reserve %s: %w\", item, ErrOutOfStock)\n\t}\n\tstock[item] = n - qty\n\treturn nil\n}\n\nfunc main() {\n\tvar item string\n\tvar qty int\n\tfor {\n\t\tif _, err := fmt.Scan(&item, &qty); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tif err := reserve(item, qty); err != nil {\n\t\t\tfmt.Println(\"error:\", err)\n\t\t\tfmt.Println(\"  out of stock:\", errors.Is(err, ErrOutOfStock))\n\t\t\tfmt.Println(\"  unwrapped:\", errors.Unwrap(err))\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Println(\"ok\")\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "apple 3\npear 5\nfig 1\napple 2\napple 1\n",
+            "output": "ok\nerror: reserve pear: out of stock\n  out of stock: true\n  unwrapped: out of stock\nerror: reserve fig: unknown item\n  out of stock: false\n  unwrapped: <nil>\nok\nerror: reserve apple: out of stock\n  out of stock: true\n  unwrapped: out of stock"
+          },
+          {
+            "stdin": "pear 2\npear 1\n",
+            "output": "ok\nerror: reserve pear: out of stock\n  out of stock: true\n  unwrapped: out of stock"
+          },
+          {
+            "stdin": "kiwi 4\n",
+            "output": "error: reserve kiwi: unknown item\n  out of stock: false\n  unwrapped: <nil>"
+          }
+        ],
+        "hints": [
+          "Look the item up with `n, ok := stock[item]` and handle `!ok` first.",
+          "Only the out-of-stock return uses `%w`. Its format string is the same as the unknown item one, with `%w` where the words go.",
+          "In `main`, print the two detail lines just like the example, using `ErrOutOfStock` in place of `ErrNotFound`."
+        ]
+      }
+    },
+    {
+      "title": "Custom error types",
+      "body": "`errors.New` gives you only a message. When callers need details, define your own type. Any type with an `Error() string` method is an `error`:\n\n```go\ntype RangeError struct {\n\tValue int\n\tMin   int\n\tMax   int\n}\n\nfunc (e *RangeError) Error() string {\n\treturn fmt.Sprintf(\"%d is outside %d to %d\", e.Value, e.Min, e.Max)\n}\n```\n\nWith a pointer receiver, `*RangeError` is the error type, so return `&RangeError{...}`. The struct escapes to the heap and the `error` holds a pointer to it.\n\nTo get the details back out of a wrapped chain, declare a variable of the error type, here `*RangeError`, and pass its address to `errors.As`. If it finds a match, it stores it in your variable and returns true:\n\n```go\nvar re *RangeError\nif errors.As(err, &re) {\n\tfmt.Println(re.Value)\n}\n```\n\nPass `&re`, not `re`. Without the `&`, `errors.As` panics.\n\nGotcha: on success, return a literal `nil`. If a function returns a `*RangeError` variable that happens to be nil as an `error`, the interface holds a type plus a nil pointer, so `err != nil` is true.",
+      "example": {
+        "title": "Age validation",
+        "prompt": "Read ages until the input ends and print `ok` for valid ones, or the error and the offending value found with errors.As.",
+        "code": "package main\n\nimport (\n\t\"errors\"\n\t\"fmt\"\n)\n\ntype RangeError struct {\n\tValue int\n\tMin   int\n\tMax   int\n}\n\nfunc (e *RangeError) Error() string {\n\treturn fmt.Sprintf(\"%d is outside %d to %d\", e.Value, e.Min, e.Max)\n}\n\nfunc validateAge(age int) error {\n\tif age < 0 || age > 150 {\n\t\treturn &RangeError{Value: age, Min: 0, Max: 150}\n\t}\n\treturn nil\n}\n\nfunc register(age int) error {\n\tif err := validateAge(age); err != nil {\n\t\treturn fmt.Errorf(\"register: %w\", err)\n\t}\n\treturn nil\n}\n\nfunc main() {\n\tvar age int\n\tfor {\n\t\tif _, err := fmt.Scan(&age); err != nil {\n\t\t\tbreak\n\t\t}\n\t\terr := register(age)\n\t\tif err != nil {\n\t\t\tfmt.Println(\"error:\", err)\n\t\t\tvar re *RangeError\n\t\t\tif errors.As(err, &re) {\n\t\t\t\tfmt.Println(\"  bad value:\", re.Value)\n\t\t\t}\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Println(age, \"ok\")\n\t}\n}\n",
+        "stdin": "30 -4 200\n",
+        "output": "30 ok\nerror: register: -4 is outside 0 to 150\n  bad value: -4\nerror: register: 200 is outside 0 to 150\n  bad value: 200",
+        "explanation": "`validateAge` returns `&RangeError{...}` with the bad value and the limits, or a plain `nil`. `register` wraps it with `%w`, so the message gains the `register:` prefix. In `main`, `errors.As(err, &re)` walks the chain, finds the `*RangeError` under the wrapper, and points `re` at it. Then `re.Value` reads a field that a plain message string could not give back. Pass `&re`, the address of the pointer variable, because `errors.As` has to fill it in."
+      },
+      "practice": {
+        "title": "Settings parser",
+        "prompt": "Parse `key=value` settings and report which one is malformed.\n\n1. Add `\"errors\"` and `\"strings\"` to the imports.\n2. Define `SettingError` with `Index int` and `Msg string`, and a pointer-receiver `Error` method that returns `setting <Index>: <Msg>`.\n3. In `parseSetting`, split `s` on `=`. When there are not exactly two parts, return `&SettingError{Index: i, Msg: fmt.Sprintf(\"%q is not key=value\", s)}`. Otherwise return the two parts and `nil`.\n4. In `load`, call `parseSetting` and wrap a failure with `fmt.Errorf(\"load: %w\", err)`.\n5. In `main`, the starter numbers the words from 1 in `i`. Print `key -> value`, or `error:` and the error followed by `  bad index: ` and the index found with `errors.As`.\n\nInput:\n\n```text\nhost=local port=80 debug\n```\n\nExpected output:\n\n```text\nhost -> local\nport -> 80\nerror: load: setting 3: \"debug\" is not key=value\n  bad index: 3\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// TODO: define SettingError with Index and Msg fields and a pointer-receiver Error method\n\nfunc parseSetting(i int, s string) (string, string, error) {\n\t// TODO: split s on \"=\" and return a *SettingError unless there are exactly two parts\n\treturn \"\", \"\", nil\n}\n\nfunc load(i int, s string) (string, string, error) {\n\t// TODO: call parseSetting and wrap its error with \"load: %w\"\n\treturn \"\", \"\", nil\n}\n\nfunc main() {\n\tvar word string\n\ti := 0\n\tfor {\n\t\tif _, err := fmt.Scan(&word); err != nil {\n\t\t\tbreak\n\t\t}\n\t\ti++\n\t\t// TODO: call load, then print the setting, or the error and its index\n\t}\n}\n",
+        "solution": "package main\n\nimport (\n\t\"errors\"\n\t\"fmt\"\n\t\"strings\"\n)\n\ntype SettingError struct {\n\tIndex int\n\tMsg   string\n}\n\nfunc (e *SettingError) Error() string {\n\treturn fmt.Sprintf(\"setting %d: %s\", e.Index, e.Msg)\n}\n\nfunc parseSetting(i int, s string) (string, string, error) {\n\tparts := strings.Split(s, \"=\")\n\tif len(parts) != 2 {\n\t\treturn \"\", \"\", &SettingError{Index: i, Msg: fmt.Sprintf(\"%q is not key=value\", s)}\n\t}\n\treturn parts[0], parts[1], nil\n}\n\nfunc load(i int, s string) (string, string, error) {\n\tkey, value, err := parseSetting(i, s)\n\tif err != nil {\n\t\treturn \"\", \"\", fmt.Errorf(\"load: %w\", err)\n\t}\n\treturn key, value, nil\n}\n\nfunc main() {\n\tvar word string\n\ti := 0\n\tfor {\n\t\tif _, err := fmt.Scan(&word); err != nil {\n\t\t\tbreak\n\t\t}\n\t\ti++\n\t\tkey, value, err := load(i, word)\n\t\tif err != nil {\n\t\t\tfmt.Println(\"error:\", err)\n\t\t\tvar se *SettingError\n\t\t\tif errors.As(err, &se) {\n\t\t\t\tfmt.Println(\"  bad index:\", se.Index)\n\t\t\t}\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Println(key, \"->\", value)\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "host=local port=80 debug\n",
+            "output": "host -> local\nport -> 80\nerror: load: setting 3: \"debug\" is not key=value\n  bad index: 3"
+          },
+          {
+            "stdin": "a=b=c\nmode=fast\n",
+            "output": "error: load: setting 1: \"a=b=c\" is not key=value\n  bad index: 1\nmode -> fast"
+          },
+          {
+            "stdin": "verbose quiet\n",
+            "output": "error: load: setting 1: \"verbose\" is not key=value\n  bad index: 1\nerror: load: setting 2: \"quiet\" is not key=value\n  bad index: 2"
+          }
+        ],
+        "hints": [
+          "`strings.Split(\"a=b=c\", \"=\")` gives three parts, so check `len(parts) != 2`.",
+          "Return the error as `&SettingError{...}` and a plain `nil` on success.",
+          "In `main`, follow the example: declare a `*SettingError` variable and pass its address to `errors.As`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `error` is an interface with one method, `Error() string`.\n- Return the zero value plus an error on failure, and the result plus `nil` on success.\n- Check `if err != nil` right after every call that can fail.\n- `errors.New(\"msg\")` makes a simple error. Keep messages lowercase with no final punctuation.\n- `fmt.Errorf(\"context: %w\", err)` wraps an error. Use exactly one `%w` per call in Go 1.16, and remember `%v` does not wrap.\n- Declare sentinels once (`var ErrNotFound = errors.New(\"not found\")`) and test them with `errors.Is`, not `==`.\n- `errors.Unwrap` returns the next error in the chain.\n- Custom error types carry details. Find them with `errors.As(err, &target)`, passing the address of the target.\n- Return a literal `nil` on success, never a nil `*MyError`."
+}

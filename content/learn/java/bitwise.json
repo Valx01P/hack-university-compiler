@@ -1,0 +1,158 @@
+{
+  "id": "bitwise",
+  "title": "Bitwise Operations",
+  "section": "Bits and Errors",
+  "summary": "See numbers in binary and use &, |, ^, ~, and shifts, including Java's unsigned >>> and common bit tricks.",
+  "intro": "Every int is 32 bits, and Java lets you work on those bits directly. Bit operators power flags and permissions, fast multiplication by 2, and a few classic interview tricks. This lesson shows how to read and print binary, the four bit operators, the three shifts, bit masks, and the tricks people reach for most.",
+  "steps": [
+    {
+      "title": "Binary and the bit operators",
+      "body": "Java writes binary literals with `0b`, and underscores keep them readable: `0b1010` is 10 and `0b1111_1111` is 255. `Integer.toBinaryString(x)` drops leading zeros, so pad a value from 0 to 255 to 8 digits with `String.format(\"%8s\", ...)` and turn the spaces into zeros. `Integer.parseInt(s, 2)` goes the other way.\n\n```java\nString bits = String.format(\"%8s\", Integer.toBinaryString(5)).replace(' ', '0'); // 00000101\nint value = Integer.parseInt(\"1011\", 2); // 11\n```\n\nThe bit operators compare the two numbers one bit position at a time:\n\n- `a & b` (AND) has a 1 where both bits are 1.\n- `a | b` (OR) has a 1 where either bit is 1.\n- `a ^ b` (XOR) has a 1 where exactly one bit is 1.\n- `~a` (NOT) flips all 32 bits, so `~13` is negative. Mask with `& 0b1111_1111` to keep only the low 8 bits.\n\n`&` and `|` also work on booleans, but they never short-circuit: both sides always run, so `s != null & s.isEmpty()` still calls `isEmpty` on a null `s`. Keep `&&` and `||` for conditions.\n\nGotcha: `==` binds tighter than `&`, so `n & 1 == 0` is a compile error. Write `(n & 1) == 0` to test for even.",
+      "example": {
+        "title": "Two bytes side by side",
+        "prompt": "Read two ints and a binary String, show both ints in 8-bit binary, combine them with AND, OR, and XOR, flip the first with NOT, test each for odd, and convert the String to decimal.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    static final int LOW_BYTE = 0b1111_1111;\n\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        String bits = sc.next();\n\n        System.out.printf(\"a: %d %s%n\", a, bin8(a));\n        System.out.printf(\"b: %d %s%n\", b, bin8(b));\n        System.out.printf(\"a & b: %d %s%n\", a & b, bin8(a & b));\n        System.out.printf(\"a | b: %d %s%n\", a | b, bin8(a | b));\n        System.out.printf(\"a ^ b: %d %s%n\", a ^ b, bin8(a ^ b));\n        int notA = ~a & LOW_BYTE;\n        System.out.printf(\"~a low 8 bits: %d %s%n\", notA, bin8(notA));\n        System.out.println(\"a odd: \" + ((a & 1) == 1));\n        System.out.println(\"b odd: \" + ((b & 1) == 1));\n        System.out.println(bits + \" = \" + Integer.parseInt(bits, 2));\n    }\n\n    static String bin8(int x) {\n        return String.format(\"%8s\", Integer.toBinaryString(x)).replace(' ', '0');\n    }\n}\n",
+        "stdin": "13 10\n1011\n",
+        "output": "a: 13 00001101\nb: 10 00001010\na & b: 8 00001000\na | b: 15 00001111\na ^ b: 7 00000111\n~a low 8 bits: 242 11110010\na odd: true\nb odd: false\n1011 = 11",
+        "explanation": "`bin8` pads `Integer.toBinaryString` to 8 digits so the columns line up and you can check each operator bit by bit: 1101 & 1010 keeps only the shared 1000. `~a` flips all 32 bits, so `& LOW_BYTE` (written as the literal `0b1111_1111`) keeps just the low 8. The odd test wraps `a & 1` in parentheses before comparing with `==`, and unlike `a % 2 == 1` it also works for negative odd numbers. `Integer.parseInt(bits, 2)` reads the String as base 2."
+      },
+      "practice": {
+        "title": "AND, OR, XOR table",
+        "prompt": "Read two ints and a binary String, then print their AND, OR, and XOR and the value of the String.\n\n1. Finish `bin8` so it returns `x` as exactly 8 binary digits, padded with leading zeros.\n2. Print `AND: `, `OR: `, and `XOR: ` lines, each followed by the decimal result, a space, and its 8-bit binary.\n3. Print `Value: ` followed by the decimal value of the binary String.\n\nInput:\n\n```text\n12 10\n10011\n```\n\nExpected output:\n\n```text\nAND: 8 00001000\nOR: 14 00001110\nXOR: 6 00000110\nValue: 19\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        String bits = sc.next();\n        // TODO: print AND, OR, and XOR in decimal and 8-bit binary, then the value of bits\n    }\n\n    static String bin8(int x) {\n        // TODO: return x as exactly 8 binary digits\n        return \"\";\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        String bits = sc.next();\n        System.out.printf(\"AND: %d %s%n\", a & b, bin8(a & b));\n        System.out.printf(\"OR: %d %s%n\", a | b, bin8(a | b));\n        System.out.printf(\"XOR: %d %s%n\", a ^ b, bin8(a ^ b));\n        System.out.println(\"Value: \" + Integer.parseInt(bits, 2));\n    }\n\n    static String bin8(int x) {\n        return String.format(\"%8s\", Integer.toBinaryString(x)).replace(' ', '0');\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "12 10\n10011\n",
+            "output": "AND: 8 00001000\nOR: 14 00001110\nXOR: 6 00000110\nValue: 19"
+          },
+          {
+            "stdin": "255 0\n11111111\n",
+            "output": "AND: 0 00000000\nOR: 255 11111111\nXOR: 255 11111111\nValue: 255"
+          },
+          {
+            "stdin": "170 85\n0\n",
+            "output": "AND: 0 00000000\nOR: 255 11111111\nXOR: 255 11111111\nValue: 0"
+          }
+        ],
+        "hints": [
+          "`Integer.toBinaryString` drops leading zeros. Format it into a field 8 wide with `%8s`, then swap the spaces for zeros.",
+          "Use `printf` with `%d %s%n` and pass `a & b` and `bin8(a & b)`.",
+          "`Integer.parseInt(bits, 2)` reads the String as binary."
+        ]
+      }
+    },
+    {
+      "title": "Shifts and negative numbers",
+      "body": "`n << k` moves every bit k places left and fills with zeros, which multiplies by 2 to the k (until it overflows). Right shifts come in two kinds:\n\n- `n >> k` (arithmetic) copies the sign bit in, so a negative stays negative.\n- `n >>> k` (unsigned) fills with zeros, so for any k from 1 to 31 a negative turns positive.\n\nJava ints use two's complement: `-x` is stored as `~x + 1`. That is why `~x` equals `-x - 1` and `Integer.toBinaryString(-1)` is 32 ones.\n\n```java\nSystem.out.println(3 << 4);    // 48\nSystem.out.println(-16 >> 2);  // -4\nSystem.out.println(-1 >>> 28); // 15\nSystem.out.println(~5);        // -6\n```\n\nGotcha: `>> k` rounds down, but `/` truncates toward zero. They agree on positives and disagree on any negative that 2 to the k does not divide evenly: `-7 >> 1` is -4 while `-7 / 2` is -3.\n\nGotcha: an int shift uses only the low 5 bits of the distance, so `1 << 32` is 1, not 0. For shifts of 32 or more, shift a long: `1L << 40`.",
+      "example": {
+        "title": "Shifting pairs",
+        "prompt": "For each line of n and k, print n << k, n >> k, n / (1 << k), n >>> k, and ~n.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        while (sc.hasNextInt()) {\n            int n = sc.nextInt();\n            int k = sc.nextInt();\n            System.out.printf(\"n=%d k=%d: << %d, >> %d, / %d, >>> %d, ~ %d%n\",\n                    n, k, n << k, n >> k, n / (1 << k), n >>> k, ~n);\n        }\n    }\n}\n",
+        "stdin": "5 2\n-7 1\n-16 2\n",
+        "output": "n=5 k=2: << 20, >> 1, / 1, >>> 1, ~ -6\nn=-7 k=1: << -14, >> -4, / -3, >>> 2147483644, ~ 6\nn=-16 k=2: << -64, >> -4, / -4, >>> 1073741820, ~ 15",
+        "explanation": "`5 << 2` is 5 times 4. For -7, `>> 1` rounds down to -4 while `/ 2` truncates to -3, so they disagree. For -16 the division is exact, so they agree. `>>>` shifts zeros into the sign bit, which turns both negatives here into large positives. `~n` always equals `-n - 1`: `~5` is -6 and `~-7` is 6."
+      },
+      "practice": {
+        "title": "Shift versus divide",
+        "prompt": "For each line of n and k, print the three shifts and whether n >> k matches division.\n\n1. Keep reading pairs until input ends (the loop is ready).\n2. For each pair print one line `n=N k=K: << A, >> B, >>> C, W`, where A, B, and C are `n << k`, `n >> k`, and `n >>> k`.\n3. W is `same` when `n >> k` equals `n / (1 << k)`, otherwise `different`.\n\nInput:\n\n```text\n3 4\n-9 2\n-1 28\n```\n\nExpected output:\n\n```text\nn=3 k=4: << 48, >> 0, >>> 0, same\nn=-9 k=2: << -36, >> -3, >>> 1073741821, different\nn=-1 k=28: << -268435456, >> -1, >>> 15, different\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        while (sc.hasNextInt()) {\n            int n = sc.nextInt();\n            int k = sc.nextInt();\n            // TODO: print n << k, n >> k, n >>> k, then same or different\n        }\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        while (sc.hasNextInt()) {\n            int n = sc.nextInt();\n            int k = sc.nextInt();\n            String match = (n >> k) == n / (1 << k) ? \"same\" : \"different\";\n            System.out.printf(\"n=%d k=%d: << %d, >> %d, >>> %d, %s%n\",\n                    n, k, n << k, n >> k, n >>> k, match);\n        }\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "3 4\n-9 2\n-1 28\n",
+            "output": "n=3 k=4: << 48, >> 0, >>> 0, same\nn=-9 k=2: << -36, >> -3, >>> 1073741821, different\nn=-1 k=28: << -268435456, >> -1, >>> 15, different"
+          },
+          {
+            "stdin": "40 3\n-8 2\n",
+            "output": "n=40 k=3: << 320, >> 5, >>> 5, same\nn=-8 k=2: << -32, >> -2, >>> 1073741822, same"
+          },
+          {
+            "stdin": "7 0\n-5 1\n",
+            "output": "n=7 k=0: << 7, >> 7, >>> 7, same\nn=-5 k=1: << -10, >> -3, >>> 2147483645, different"
+          }
+        ],
+        "hints": [
+          "`1 << k` is 2 to the k, so `n / (1 << k)` divides by it.",
+          "Compare `n >> k` with `n / (1 << k)` using `==`. Shifts bind tighter than `==`, so unlike `&` no parentheses are required, but they help readers.",
+          "A ternary picks the word: `cond ? \"same\" : \"different\"`."
+        ]
+      }
+    },
+    {
+      "title": "Bit masks",
+      "body": "A bit mask packs many on/off flags into one int, one flag per bit. Bits count from 0 at the right. Build a one-bit mask with `1 << i`, then combine it with the operators you know:\n\n- Test bit i: `(n >> i) & 1` is 1 when the bit is on, 0 when it is off.\n- Set bit i: `n | (1 << i)` turns it on.\n- Clear bit i: `n & ~(1 << i)` turns it off. The `~` makes a mask with every bit on except bit i.\n- Toggle bit i: `n ^ (1 << i)` flips it.\n\n```java\nint flags = 0b0101;\nboolean on = ((flags >> 2) & 1) == 1; // true\nflags = flags | (1 << 1);             // 0b0111\nflags = flags & ~(1 << 0);            // 0b0110\n```\n\nNone of these change `n` on their own: they build a new int, so assign it back when you want to keep it. The short forms `|=`, `&=`, and `^=` do that too.\n\nGotcha: the test gives an int, not a boolean, so compare it with `== 1` before using it in an `if`. Setting a bit that is already on, or clearing one that is already off, changes nothing.",
+      "example": {
+        "title": "Permission flags",
+        "prompt": "Read a permissions mask and a bit index, then print whether that bit is set and the mask after setting, clearing, and toggling it.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int mask = sc.nextInt();\n        int i = sc.nextInt();\n\n        boolean isSet = ((mask >> i) & 1) == 1;\n        int set = mask | (1 << i);\n        int cleared = mask & ~(1 << i);\n        int toggled = mask ^ (1 << i);\n\n        System.out.printf(\"mask: %d %s%n\", mask, bin8(mask));\n        System.out.printf(\"bit %d set: %b%n\", i, isSet);\n        System.out.printf(\"set: %d %s%n\", set, bin8(set));\n        System.out.printf(\"clear: %d %s%n\", cleared, bin8(cleared));\n        System.out.printf(\"toggle: %d %s%n\", toggled, bin8(toggled));\n    }\n\n    static String bin8(int x) {\n        return String.format(\"%8s\", Integer.toBinaryString(x)).replace(' ', '0');\n    }\n}\n",
+        "stdin": "13 2\n",
+        "output": "mask: 13 00001101\nbit 2 set: true\nset: 13 00001101\nclear: 9 00001001\ntoggle: 9 00001001",
+        "explanation": "13 is 00001101, so bit 2 (the third from the right) is on and the test gives 1. Setting it changes nothing, clearing it removes 4 to give 9, and toggling it also turns it off. Each line builds a new int from `mask`, so `mask` itself never changes."
+      },
+      "practice": {
+        "title": "Set one, clear another",
+        "prompt": "Read a mask and two bit indexes a and b, report both bits, then set bit a and clear bit b.\n\n1. Print `bit A set: true` or `bit A set: false`, where A is the index a, then the same line for bit b.\n2. Set bit a in the mask first, then clear bit b in that result.\n3. Print `result: ` followed by the decimal value, a space, and its 8-bit binary.\n\nInput:\n\n```text\n9 1 3\n```\n\nExpected output:\n\n```text\nbit 1 set: false\nbit 3 set: true\nresult: 3 00000011\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int mask = sc.nextInt();\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        // TODO: print whether bits a and b are set, then the mask with bit a set and bit b cleared\n    }\n\n    static String bin8(int x) {\n        return String.format(\"%8s\", Integer.toBinaryString(x)).replace(' ', '0');\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int mask = sc.nextInt();\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n\n        System.out.printf(\"bit %d set: %b%n\", a, ((mask >> a) & 1) == 1);\n        System.out.printf(\"bit %d set: %b%n\", b, ((mask >> b) & 1) == 1);\n        int result = mask | (1 << a);\n        result = result & ~(1 << b);\n        System.out.printf(\"result: %d %s%n\", result, bin8(result));\n    }\n\n    static String bin8(int x) {\n        return String.format(\"%8s\", Integer.toBinaryString(x)).replace(' ', '0');\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "9 1 3\n",
+            "output": "bit 1 set: false\nbit 3 set: true\nresult: 3 00000011"
+          },
+          {
+            "stdin": "0 7 0\n",
+            "output": "bit 7 set: false\nbit 0 set: false\nresult: 128 10000000"
+          },
+          {
+            "stdin": "255 4 4\n",
+            "output": "bit 4 set: true\nbit 4 set: true\nresult: 239 11101111"
+          }
+        ],
+        "hints": [
+          "Move bit a down to position 0 with `mask >> a`, then keep only that bit with `& 1` and compare it with 1.",
+          "Set with `| (1 << a)` and clear with `& ~(1 << b)`.",
+          "Clear after setting, so when a equals b the bit ends up off."
+        ]
+      }
+    },
+    {
+      "title": "Bit tricks",
+      "body": "A few one-line tricks come up again and again.\n\n**Power of two.** A power of two has exactly one 1 bit. Subtracting 1 flips that bit and every bit below it, so `n & (n - 1)` is 0 when n has at most one 1 bit. Check `n > 0` first, because 0 has no 1 bits and `Integer.MIN_VALUE` has its only 1 bit in the sign position:\n\n```java\nboolean power = n > 0 && (n & (n - 1)) == 0; // 1, 2, 4, 8, ...\n```\n\n**Counting bits.** `Integer.bitCount(n)` returns how many bits are 1: `Integer.bitCount(13)` is 3, and `Integer.bitCount(-1)` is 32.\n\n**XOR cancels.** `x ^ x == 0` and `x ^ 0 == x`, and the order of XORs does not matter. XOR every value into a running result that starts at 0: each pair cancels, and what is left is the value that appears an odd number of times.\n\n```java\nint result = 0;\nfor (int x : new int[]{4, 9, 4}) {\n    result ^= x;\n}\nSystem.out.println(result); // 9\n```\n\nThat finds the odd one out in one pass with no map or set. It only works when exactly one value has an odd count.",
+      "example": {
+        "title": "Find the odd one out",
+        "prompt": "Read numbers until input ends, print for each whether it is a power of two and its bit count, then XOR them all to find the value that appears an odd number of times.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int odd = 0;\n        while (sc.hasNextInt()) {\n            int x = sc.nextInt();\n            boolean power = x > 0 && (x & (x - 1)) == 0;\n            System.out.printf(\"%d: power of two %b, bits %d%n\", x, power, Integer.bitCount(x));\n            odd ^= x;\n        }\n        System.out.println(\"odd one out: \" + odd);\n    }\n}\n",
+        "stdin": "8 6 0 1\n6 8 0\n",
+        "output": "8: power of two true, bits 1\n6: power of two false, bits 2\n0: power of two false, bits 0\n1: power of two true, bits 1\n6: power of two false, bits 2\n8: power of two true, bits 1\n0: power of two false, bits 0\nodd one out: 1",
+        "explanation": "1 and 8 have a single 1 bit, so `x & (x - 1)` is 0. Zero gives 0 too, but `x > 0` rules it out. `Integer.bitCount` counts the 1 bits directly. The pairs of 8, 6, and 0 cancel under XOR, which leaves 1 in `odd`."
+      },
+      "practice": {
+        "title": "Bit summary",
+        "prompt": "Read numbers until input ends and summarize their bits.\n\n1. Count how many numbers are powers of two.\n2. Add up the 1 bits of every number.\n3. XOR every number together to find the one that appears an odd number of times.\n4. Print the three lines the starter already prints.\n\nInput:\n\n```text\n3 5 16 3\n5 9 9\n```\n\nExpected output:\n\n```text\npowers of two: 1\none bits: 13\nodd one out: 16\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int powers = 0;\n        int ones = 0;\n        int odd = 0;\n        while (sc.hasNextInt()) {\n            int x = sc.nextInt();\n            // TODO: count powers of two, add up the 1 bits, and XOR x into odd\n        }\n        System.out.println(\"powers of two: \" + powers);\n        System.out.println(\"one bits: \" + ones);\n        System.out.println(\"odd one out: \" + odd);\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int powers = 0;\n        int ones = 0;\n        int odd = 0;\n        while (sc.hasNextInt()) {\n            int x = sc.nextInt();\n            if (x > 0 && (x & (x - 1)) == 0) {\n                powers++;\n            }\n            ones += Integer.bitCount(x);\n            odd ^= x;\n        }\n        System.out.println(\"powers of two: \" + powers);\n        System.out.println(\"one bits: \" + ones);\n        System.out.println(\"odd one out: \" + odd);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "3 5 16 3\n5 9 9\n",
+            "output": "powers of two: 1\none bits: 13\nodd one out: 16"
+          },
+          {
+            "stdin": "0 64 0\n",
+            "output": "powers of two: 1\none bits: 1\nodd one out: 64"
+          },
+          {
+            "stdin": "7 7 7\n",
+            "output": "powers of two: 0\none bits: 9\nodd one out: 7"
+          }
+        ],
+        "hints": [
+          "A power of two passes `x > 0 && (x & (x - 1)) == 0`.",
+          "Add `Integer.bitCount(x)` to `ones` on every number.",
+          "Use `odd ^= x` so pairs cancel out."
+        ]
+      }
+    }
+  ],
+  "recap": "- `0b1010` is a binary literal. `Integer.toBinaryString` and `Integer.parseInt(s, 2)` convert both ways. Pad with `String.format(\"%8s\", ...).replace(' ', '0')`.\n- `&`, `|`, `^`, and `~` work bit by bit. Parenthesize bit tests: `(n & 1) == 0`.\n- `<<` multiplies by powers of 2, `>>` keeps the sign and rounds down, `>>>` fills with zeros.\n- `~x == -x - 1`. Int shifts use only the low 5 bits of the distance, so use `1L << k` for shifts of 32 or more.\n- Masks: test `(n >> i) & 1`, set `n | (1 << i)`, clear `n & ~(1 << i)`, toggle `n ^ (1 << i)`.\n- Tricks: `n > 0 && (n & (n - 1)) == 0`, `Integer.bitCount`, and XOR of all values finds the odd one out."
+}

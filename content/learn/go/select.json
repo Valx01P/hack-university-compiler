@@ -1,0 +1,118 @@
+{
+  "id": "select",
+  "title": "Select and Worker Pools",
+  "section": "Concurrency",
+  "summary": "Wait on several channels with select, skip work with default, stop goroutines with a done channel, and run a pool of workers.",
+  "intro": "Channels move values between goroutines. `select` lets one goroutine wait on several channels at once, which unlocks the patterns real concurrent Go is built from: non-blocking sends, merging inputs, stopping goroutines cleanly, and worker pools.",
+  "steps": [
+    {
+      "title": "Select with default",
+      "body": "A `select` looks like a `switch`, but every case is a channel send or receive. It waits until one case can proceed, then runs that one. If several are ready at once, Go picks one at random.\n\n```go\nselect {\ncase v := <-in:\n\tfmt.Println(\"got\", v)\ncase out <- 7:\n\tfmt.Println(\"sent\")\n}\n```\n\nAdd a `default` case and `select` never waits: when no case is ready right now, `default` runs instead.\n\n- **Non-blocking send:** `case buf <- v:` with `default:` drops the value when the buffer is full, instead of stalling the sender.\n- **Non-blocking receive:** `case v := <-ch:` with `default:` takes the default branch when the channel is empty.\n\n**Gotcha:** a receive from a *closed* channel is always ready. It returns any values still in the buffer, then zero values, so it never takes `default`.\n\nReal programs also use `case <-time.After(time.Second):` as a timeout. Timing is not deterministic, so this course only mentions it.",
+      "example": {
+        "title": "Dropping overflow",
+        "prompt": "Offer 1 to 5 to a channel that holds 2, drop what does not fit, then try to receive from an empty channel without waiting.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tbuf := make(chan int, 2)\n\tdropped := 0\n\tfor i := 1; i <= 5; i++ {\n\t\tselect {\n\t\tcase buf <- i:\n\t\tdefault:\n\t\t\tdropped++ // the buffer is full, so skip instead of waiting\n\t\t}\n\t}\n\tclose(buf)\n\tvar kept []int\n\tfor v := range buf {\n\t\tkept = append(kept, v)\n\t}\n\tfmt.Println(\"kept:\", kept)\n\tfmt.Println(\"dropped:\", dropped)\n\n\tempty := make(chan int)\n\tselect {\n\tcase v := <-empty:\n\t\tfmt.Println(\"got\", v)\n\tdefault:\n\t\tfmt.Println(\"no value ready\")\n\t}\n}\n",
+        "output": "kept: [1 2]\ndropped: 3\nno value ready",
+        "explanation": "Nobody receives from `buf` during the loop, so the first two sends fill its buffer. For 3, 4, and 5 the send case is not ready, so `default` counts a drop instead of blocking forever. After `close`, `range` drains the two kept values. `empty` is unbuffered with no sender, so the receive case is not ready and `default` prints the message."
+      },
+      "practice": {
+        "title": "Request queue",
+        "prompt": "Accept requests into a small queue and reject the ones that do not fit.\n\n1. Loop over the ids 101 to 107 and offer each one to `queue` (capacity 3) with a `select`.\n2. In `default`, count the request as rejected.\n3. Keep the given code that prints the accepted ids and the rejected count.\n4. Receive from the empty `replies` channel without waiting: print `reply:` and the value if one is ready, otherwise print `no reply yet`. Then delete the `_ = replies` line.\n\nExpected output:\n\n```text\naccepted: [101 102 103]\nrejected: 4\nno reply yet\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tqueue := make(chan int, 3)\n\trejected := 0\n\tfor id := 101; id <= 107; id++ {\n\t\t// TODO: send id on queue with select, and count a rejection in default\n\t}\n\tclose(queue)\n\tvar accepted []int\n\tfor id := range queue {\n\t\taccepted = append(accepted, id)\n\t}\n\tfmt.Println(\"accepted:\", accepted)\n\tfmt.Println(\"rejected:\", rejected)\n\n\treplies := make(chan string, 1)\n\t// TODO: receive from replies without waiting, and print \"no reply yet\" in default\n\t_ = replies\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tqueue := make(chan int, 3)\n\trejected := 0\n\tfor id := 101; id <= 107; id++ {\n\t\tselect {\n\t\tcase queue <- id:\n\t\tdefault:\n\t\t\trejected++\n\t\t}\n\t}\n\tclose(queue)\n\tvar accepted []int\n\tfor id := range queue {\n\t\taccepted = append(accepted, id)\n\t}\n\tfmt.Println(\"accepted:\", accepted)\n\tfmt.Println(\"rejected:\", rejected)\n\n\treplies := make(chan string, 1)\n\tselect {\n\tcase r := <-replies:\n\t\tfmt.Println(\"reply:\", r)\n\tdefault:\n\t\tfmt.Println(\"no reply yet\")\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "accepted: [101 102 103]\nrejected: 4\nno reply yet"
+          }
+        ],
+        "hints": [
+          "The send gets a case of its own, `case queue <- id:`. Its body can stay empty because the send already happened.",
+          "`default` runs only when the send cannot proceed, so that is where `rejected` grows.",
+          "The receive works the same way: one case that receives from `replies` and a `default` that prints the fallback."
+        ]
+      }
+    },
+    {
+      "title": "Merging channels",
+      "body": "Put a `select` inside a `for` loop to receive from several channels as values arrive. Use the two-value receive to notice when an input closes.\n\n```go\nfor a != nil || b != nil {\n\tselect {\n\tcase v, ok := <-a:\n\t\tif !ok {\n\t\t\ta = nil\n\t\t\tcontinue\n\t\t}\n\t\t// use v\n\tcase v, ok := <-b:\n\t\t// same for b\n\t}\n}\n```\n\nWhy `a = nil`? A closed channel is always ready, so its case would fire again and again with zero values. A send or receive on a **nil channel is never ready**, so setting it to nil switches that case off. The loop ends when every input is nil. `continue` inside the `select` continues the `for` loop, but a plain `break` only leaves the `select`, just like in a `switch`.\n\nWhich channel wins each round depends on scheduling, so the arrival order changes between runs. Combine the merged values in a way that does not care about order: a total, a count, or a slice you sort before printing.",
+      "example": {
+        "title": "Merge two producers",
+        "prompt": "Merge the values from two producer goroutines, then print them sorted with their sum.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc produce(nums []int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor _, n := range nums {\n\t\t\tout <- n\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc main() {\n\ta := produce([]int{1, 2, 3})\n\tb := produce([]int{10, 20, 30})\n\tvar got []int\n\tsum := 0\n\tfor a != nil || b != nil {\n\t\tselect {\n\t\tcase v, ok := <-a:\n\t\t\tif !ok {\n\t\t\t\ta = nil // a nil channel is never ready, so this case turns off\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tgot = append(got, v)\n\t\t\tsum += v\n\t\tcase v, ok := <-b:\n\t\t\tif !ok {\n\t\t\t\tb = nil\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tgot = append(got, v)\n\t\t\tsum += v\n\t\t}\n\t}\n\tsort.Ints(got) // arrival order depends on scheduling\n\tfmt.Println(got, sum)\n}\n",
+        "output": "[1 2 3 10 20 30] 66",
+        "explanation": "Each `produce` goroutine sends its numbers and closes its channel when done. The loop takes whichever value is ready. When `ok` is false that producer has finished, so its variable becomes nil and its case can never run again. Once both are nil the loop stops. Sorting and summing give the same result whatever order the values arrived in."
+      },
+      "practice": {
+        "title": "Evens and odds",
+        "prompt": "Merge an even producer and an odd producer, then print the sorted values, their count, and their sum.\n\n1. Loop while `evens` or `odds` is not nil.\n2. In a `select`, receive from each with `v, ok := <-ch`.\n3. When `ok` is false, set that channel to nil and `continue`.\n4. Otherwise append `v` to `got` and add it to `sum`.\n5. Delete the `_, _ = evens, odds` line, and keep the given sort and print.\n\nExpected output:\n\n```text\n[1 2 3 4 5 6 8] 7 29\n```",
+        "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc produce(nums []int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor _, n := range nums {\n\t\t\tout <- n\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc main() {\n\tevens := produce([]int{2, 4, 6, 8})\n\todds := produce([]int{1, 3, 5})\n\tvar got []int\n\tsum := 0\n\t// TODO: loop until evens and odds are both nil, merging them with select\n\t_, _ = evens, odds\n\tsort.Ints(got)\n\tfmt.Println(got, len(got), sum)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc produce(nums []int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor _, n := range nums {\n\t\t\tout <- n\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc main() {\n\tevens := produce([]int{2, 4, 6, 8})\n\todds := produce([]int{1, 3, 5})\n\tvar got []int\n\tsum := 0\n\tfor evens != nil || odds != nil {\n\t\tselect {\n\t\tcase v, ok := <-evens:\n\t\t\tif !ok {\n\t\t\t\tevens = nil\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tgot = append(got, v)\n\t\t\tsum += v\n\t\tcase v, ok := <-odds:\n\t\t\tif !ok {\n\t\t\t\todds = nil\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tgot = append(got, v)\n\t\t\tsum += v\n\t\t}\n\t}\n\tsort.Ints(got)\n\tfmt.Println(got, len(got), sum)\n}\n",
+        "tests": [
+          {
+            "output": "[1 2 3 4 5 6 8] 7 29"
+          }
+        ],
+        "hints": [
+          "Keep looping while at least one of the two channels is still not nil.",
+          "Each case uses the two-value receive, such as `v, ok := <-evens`, and checks `ok` first.",
+          "Without the nil assignment a closed channel keeps returning 0 and the loop never ends."
+        ]
+      }
+    },
+    {
+      "title": "Stopping with a done channel",
+      "body": "A generator that loops forever needs a way to hear \"stop\". The usual signal is a `done chan struct{}`. Its values take zero bytes, and nobody ever sends on it. The side that decides to stop, here `main`, just closes it.\n\n```go\nselect {\ncase out <- n:\ncase <-done:\n\treturn\n}\n```\n\nA receive from a closed channel is ready right away, so `close(done)` wakes **every** goroutine waiting on `<-done` at once. One close can stop many workers, which a single send never could. Afterwards, drain the output with `for range out { }`: a range with no variables receives and discards each value, and ends when the generator closes its channel.\n\nThe parameter type `<-chan struct{}` is receive-only, so the generator can listen but cannot close `done` by mistake.\n\n**Gotcha:** without `done`, a generator blocks forever on `out <- n` as soon as main stops receiving. That is a goroutine leak. The garbage collector never frees a blocked goroutine, so its stack and everything it references stay in memory until the program exits.",
+      "example": {
+        "title": "Endless naturals",
+        "prompt": "Take the first five values from an endless generator, then stop it with a done channel.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc naturals(done <-chan struct{}) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor n := 1; ; n++ {\n\t\t\tselect {\n\t\t\tcase out <- n:\n\t\t\tcase <-done:\n\t\t\t\treturn // done was closed, so stop instead of blocking forever\n\t\t\t}\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc main() {\n\tdone := make(chan struct{})\n\tnums := naturals(done)\n\tvar got []int\n\tfor i := 0; i < 5; i++ {\n\t\tgot = append(got, <-nums)\n\t}\n\tfmt.Println(got)\n\n\tclose(done)\n\tfor range nums {\n\t\t// discard values until the generator sees done and closes nums\n\t}\n\tfmt.Println(\"generator stopped\")\n}\n",
+        "output": "[1 2 3 4 5]\ngenerator stopped",
+        "explanation": "`naturals` returns a receive-only channel and keeps sending 1, 2, 3, and so on. Main receives five values and then closes `done`. The generator's `<-done` case is now always ready, so it soon returns and its deferred `close(out)` runs. `for range nums` throws away any value sent in between and ends when `nums` closes, which proves the goroutine really stopped."
+      },
+      "practice": {
+        "title": "Powers below 100",
+        "prompt": "Read powers of two from an endless generator while they stay below 100, then stop it.\n\n1. In `powers`, loop with `p` starting at 1 and doubling forever.\n2. Each turn, `select` between sending `p` on `out` and receiving from `done`, and `return` when `done` is closed.\n3. In main, range over `nums`, `break` at the first value of 100 or more, and append the rest to `got`.\n4. Keep the given code that closes `done`, drains `nums`, and prints.\n\nExpected output:\n\n```text\n[1 2 4 8 16 32 64]\ngenerator stopped\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc powers(done <-chan struct{}) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\t// TODO: send 1, 2, 4, 8, ... on out until done is closed\n\t}()\n\treturn out\n}\n\nfunc main() {\n\tdone := make(chan struct{})\n\tnums := powers(done)\n\tvar got []int\n\t// TODO: receive from nums and append each value while it is below 100\n\n\tclose(done)\n\tfor range nums {\n\t\t// discard values until the generator sees done and closes nums\n\t}\n\tfmt.Println(got)\n\tfmt.Println(\"generator stopped\")\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc powers(done <-chan struct{}) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor p := 1; ; p *= 2 {\n\t\t\tselect {\n\t\t\tcase out <- p:\n\t\t\tcase <-done:\n\t\t\t\treturn\n\t\t\t}\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc main() {\n\tdone := make(chan struct{})\n\tnums := powers(done)\n\tvar got []int\n\tfor v := range nums {\n\t\tif v >= 100 {\n\t\t\tbreak\n\t\t}\n\t\tgot = append(got, v)\n\t}\n\n\tclose(done)\n\tfor range nums {\n\t\t// discard values until the generator sees done and closes nums\n\t}\n\tfmt.Println(got)\n\tfmt.Println(\"generator stopped\")\n}\n",
+        "tests": [
+          {
+            "output": "[1 2 4 8 16 32 64]\ngenerator stopped"
+          }
+        ],
+        "hints": [
+          "The generator mirrors `naturals`. Only the loop changes: start `p` at 1 and multiply it by 2 each turn.",
+          "One case sends `p` on `out`. The other receives from `done` and returns.",
+          "In main, check each value before you append it, and `break` out of the range loop once it reaches 100."
+        ]
+      }
+    },
+    {
+      "title": "Worker pools",
+      "body": "A worker pool runs a fixed number of goroutines that share one queue of jobs. Each worker ranges over the same `jobs` channel, and every job goes to exactly one worker.\n\n```go\nfunc worker(jobs <-chan int, results chan<- int, wg *sync.WaitGroup)\n```\n\n`chan<- int` is **send-only**: the worker can send results but not receive them. Its partner `<-chan int` is receive-only, and the compiler rejects any use in the wrong direction.\n\nThe wiring has a fixed order:\n\n1. Buffer `jobs` and `results` to the job count. Main sends every job before it reads any result, so without the buffers the sends would block forever. Every job and result still has a receiver, so these buffers do not hide a missing one.\n2. Start the workers, each with `wg.Add(1)`.\n3. Send every job, then `close(jobs)` so each worker's `range` loop ends.\n4. In a separate goroutine, `wg.Wait()` and then `close(results)`.\n5. Range over `results` in main.\n\nWhy step 4 runs in its own goroutine: main must be free to read results, and `results` may only close after the last worker is done sending. Workers finish in any order, so collect the results and sort them before printing.",
+      "example": {
+        "title": "Square with three workers",
+        "prompt": "Square the numbers 1 to 6 with a pool of three workers and print the sorted results.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n\t\"sync\"\n)\n\nconst (\n\tNumJobs    = 6\n\tNumWorkers = 3\n)\n\nfunc worker(jobs <-chan int, results chan<- int, wg *sync.WaitGroup) {\n\tdefer wg.Done()\n\tfor n := range jobs {\n\t\tresults <- n * n\n\t}\n}\n\nfunc main() {\n\tjobs := make(chan int, NumJobs)\n\tresults := make(chan int, NumJobs)\n\tvar wg sync.WaitGroup\n\tfor w := 0; w < NumWorkers; w++ {\n\t\twg.Add(1)\n\t\tgo worker(jobs, results, &wg)\n\t}\n\tfor n := 1; n <= NumJobs; n++ {\n\t\tjobs <- n\n\t}\n\tclose(jobs) // lets every worker's range loop end\n\tgo func() {\n\t\twg.Wait()\n\t\tclose(results)\n\t}()\n\tvar squares []int\n\tfor sq := range results {\n\t\tsquares = append(squares, sq)\n\t}\n\tsort.Ints(squares)\n\tfmt.Println(squares)\n}\n",
+        "output": "[1 4 9 16 25 36]",
+        "explanation": "Three workers share `jobs`. Because `jobs` holds all six numbers, main sends them without waiting and then closes it. Each worker squares jobs until the channel is empty and closed, then `defer wg.Done()` runs. The small goroutine closes `results` only after all three are done, which ends main's `range` loop. Which worker squared which number changes between runs, but the sorted slice is always the same."
+      },
+      "practice": {
+        "title": "Word labels",
+        "prompt": "Use a pool of two workers to label each word with its length, then print the sorted labels.\n\n1. Write `worker` so it calls `wg.Done` when it finishes and sends `word:length` (for example `go:2`) on `results` for every word from `jobs`.\n2. In main, make `jobs` and `results` with a buffer of `len(words)` and start `NumWorkers` workers, calling `wg.Add(1)` before each one.\n3. Send every word, then close `jobs`.\n4. Close `results` after `wg.Wait()` in its own goroutine, collect every label into `lines`, and sort them with `sort.Strings` (add the `sort` import).\n5. Delete the `_ = words` line and keep the final print.\n\nExpected output:\n\n```text\n[channel:7 done:4 go:2 pool:4 select:6]\n```",
+        "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"sync\"\n)\n\nconst NumWorkers = 2\n\nfunc worker(jobs <-chan string, results chan<- string, wg *sync.WaitGroup) {\n\t// TODO: call wg.Done when finished, and send \"word:length\" for every job\n}\n\nfunc main() {\n\twords := []string{\"select\", \"go\", \"channel\", \"pool\", \"done\"}\n\tvar lines []string\n\t// TODO: buffer jobs and results, start the workers, send every word, and close jobs\n\t// TODO: close results after wg.Wait() in its own goroutine, collect into lines, and sort them\n\t_ = words\n\tfmt.Println(lines)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n\t\"sync\"\n)\n\nconst NumWorkers = 2\n\nfunc worker(jobs <-chan string, results chan<- string, wg *sync.WaitGroup) {\n\tdefer wg.Done()\n\tfor w := range jobs {\n\t\tresults <- fmt.Sprintf(\"%s:%d\", w, len(w))\n\t}\n}\n\nfunc main() {\n\twords := []string{\"select\", \"go\", \"channel\", \"pool\", \"done\"}\n\tjobs := make(chan string, len(words))\n\tresults := make(chan string, len(words))\n\tvar wg sync.WaitGroup\n\tfor i := 0; i < NumWorkers; i++ {\n\t\twg.Add(1)\n\t\tgo worker(jobs, results, &wg)\n\t}\n\tfor _, w := range words {\n\t\tjobs <- w\n\t}\n\tclose(jobs)\n\tgo func() {\n\t\twg.Wait()\n\t\tclose(results)\n\t}()\n\tvar lines []string\n\tfor line := range results {\n\t\tlines = append(lines, line)\n\t}\n\tsort.Strings(lines)\n\tfmt.Println(lines)\n}\n",
+        "tests": [
+          {
+            "output": "[channel:7 done:4 go:2 pool:4 select:6]"
+          }
+        ],
+        "hints": [
+          "The worker mirrors the example: `defer wg.Done()` first, then a range loop over `jobs`.",
+          "`fmt.Sprintf` with the format `%s:%d` builds a label such as `go:2`.",
+          "The goroutine that closes `results` waits on `wg` first, so main's range loop ends only after every worker is done."
+        ]
+      }
+    }
+  ],
+  "recap": "- `select` runs whichever case can proceed, and picks at random when several are ready.\n- A `default` case makes a send or receive non-blocking: a full buffer drops the value, an empty channel takes `default`.\n- Merge channels with `for` plus `select`. Detect a close with `v, ok := <-ch` and set that channel to nil, because a nil channel is never ready.\n- A `done chan struct{}` signals stop. `close(done)` wakes every goroutine waiting on it, and a generator without one leaks.\n- A worker pool: workers range over one `jobs` channel, main closes `jobs` after sending, and a goroutine closes `results` after `wg.Wait()`.\n- Concurrent results arrive in any order, so total them or sort them before printing."
+}

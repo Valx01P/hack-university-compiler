@@ -1,0 +1,116 @@
+{
+  "id": "maps",
+  "title": "Maps: HashMap, TreeMap, LinkedHashMap",
+  "section": "Collections",
+  "summary": "Store key-value pairs, count with getOrDefault, iterate entries, and pick the map type that gives the order you need.",
+  "intro": "A map looks up a value by its key, like a phone book. Java has three everyday maps, and the main difference is order: `HashMap` (no order, fastest), `TreeMap` (sorted keys), and `LinkedHashMap` (insertion order).",
+  "steps": [
+    {
+      "title": "HashMap basics",
+      "body": "A map stores key-value pairs and finds a value by its key. A `HashMap` does that lookup in about the same short time no matter how big the map gets. Declare the variable by the `Map` interface and build a `HashMap`:\n\n```java\nimport java.util.HashMap;\nimport java.util.Map;\n\nMap<String, Integer> ages = new HashMap<>();\nages.put(\"Ana\", 30);\nages.put(\"Ana\", 31);          // same key: overwrites, size stays 1\nages.get(\"Ana\");              // 31\nages.get(\"Bo\");               // null, the key is missing\nages.getOrDefault(\"Bo\", 0);   // 0\n```\n\n`containsKey(k)` and `containsValue(v)` return booleans, `remove(k)` deletes a pair, and `size()` counts pairs. Keys are unique, values can repeat. `containsValue` scans every pair, so it is slow on big maps.\n\nGotcha: `get` returns an `Integer`, and a missing key gives `null`. Writing `int x = ages.get(\"Bo\");` or `flag ? ages.get(k) : 0` unboxes that `null` and throws `NullPointerException`. Use `getOrDefault` or check `containsKey` first.\n\nFor a small fixed table, `Map.of(\"apple\", 0.5, \"pear\", 0.75)` builds an immutable map in one line. Use it for lookups only: its iteration order changes between runs, and `put` on it throws.",
+      "example": {
+        "title": "Fruit stock",
+        "prompt": "Store stock levels for three fruits, update and remove entries, then query the map and a fixed price table.",
+        "code": "import java.util.HashMap;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, Integer> stock = new HashMap<>();\n        stock.put(\"apple\", 12);\n        stock.put(\"banana\", 5);\n        stock.put(\"cherry\", 30);\n\n        stock.put(\"banana\", 8); // overwrites 5\n        stock.remove(\"cherry\");\n\n        System.out.println(\"banana: \" + stock.get(\"banana\"));\n        System.out.println(\"kiwi: \" + stock.get(\"kiwi\"));\n        System.out.println(\"kiwi or 0: \" + stock.getOrDefault(\"kiwi\", 0));\n        System.out.println(\"has apple: \" + stock.containsKey(\"apple\"));\n        System.out.println(\"has cherry: \" + stock.containsKey(\"cherry\"));\n        System.out.println(\"any stock of 8: \" + stock.containsValue(8));\n        System.out.println(\"fruits: \" + stock.size());\n\n        Map<String, Double> prices = Map.of(\"apple\", 0.5, \"banana\", 0.25);\n        System.out.printf(\"apple price: %.2f%n\", prices.get(\"apple\"));\n    }\n}\n",
+        "output": "banana: 8\nkiwi: null\nkiwi or 0: 0\nhas apple: true\nhas cherry: false\nany stock of 8: true\nfruits: 2\napple price: 0.50",
+        "explanation": "The second `put(\"banana\", 8)` replaces 5 because keys are unique. After `remove(\"cherry\")` two pairs are left. `get(\"kiwi\")` prints `null`, while `getOrDefault` gives the fallback 0. `containsValue(8)` finds banana's new stock. The `Map.of` table is only read with `get`, never looped over, so its unspecified order never shows."
+      },
+      "practice": {
+        "title": "Phone extensions",
+        "prompt": "Keep a map of phone extensions, update it, and report on it.\n\n1. Put `Ana` 101, `Ben` 102, `Cara` 103, and `Dev` 104 into `ext`.\n2. Change `Ben` to 205 with another `put`, then remove `Dev`.\n3. Print `Ben: ` and his extension from `get`.\n4. Print `Dev: ` and `getOrDefault` with -1 as the default.\n5. Print `Has Cara: ` with `containsKey`, `Uses 102: ` with `containsValue`, and `Size: ` with `size()`.\n\nExpected output:\n\n```text\nBen: 205\nDev: -1\nHas Cara: true\nUses 102: false\nSize: 3\n```",
+        "starter": "import java.util.HashMap;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, Integer> ext = new HashMap<>();\n        // TODO: put the four extensions, change Ben, remove Dev\n        // TODO: print the five lines\n    }\n}\n",
+        "solution": "import java.util.HashMap;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        Map<String, Integer> ext = new HashMap<>();\n        ext.put(\"Ana\", 101);\n        ext.put(\"Ben\", 102);\n        ext.put(\"Cara\", 103);\n        ext.put(\"Dev\", 104);\n\n        ext.put(\"Ben\", 205);\n        ext.remove(\"Dev\");\n\n        System.out.println(\"Ben: \" + ext.get(\"Ben\"));\n        System.out.println(\"Dev: \" + ext.getOrDefault(\"Dev\", -1));\n        System.out.println(\"Has Cara: \" + ext.containsKey(\"Cara\"));\n        System.out.println(\"Uses 102: \" + ext.containsValue(102));\n        System.out.println(\"Size: \" + ext.size());\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Ben: 205\nDev: -1\nHas Cara: true\nUses 102: false\nSize: 3"
+          }
+        ],
+        "hints": [
+          "Calling `put` with a key that already exists replaces its value.",
+          "`getOrDefault` returns your default only when the key is missing. `containsValue` checks the values the map holds now, after Ben changed."
+        ]
+      }
+    },
+    {
+      "title": "Counting and iterating",
+      "body": "The most common map job is counting. Look up the current count with a default of 0, add 1, and put it back:\n\n```java\ncounts.put(word, counts.getOrDefault(word, 0) + 1);\n```\n\nA map gives three views to loop over: `keySet()` for keys, `values()` for values, and `entrySet()` for pairs. Each pair is a `Map.Entry<K, V>` with `getKey()` and `getValue()`, so you skip a second lookup:\n\n```java\nfor (Map.Entry<String, Integer> entry : counts.entrySet()) {\n    String key = entry.getKey();\n    int count = entry.getValue();\n}\n```\n\nA `HashMap` keeps no useful order. It can even change when the map grows. Looping over it directly is fine when order cannot matter, such as a total or a count of repeats. To print a listing, copy the keys into a list and sort it:\n\n```java\nList<String> keys = new ArrayList<>(counts.keySet());\nCollections.sort(keys);\n```",
+      "example": {
+        "title": "Word frequencies",
+        "prompt": "Count the words in a sentence, print order-free totals straight from the HashMap, then list each word in sorted order.",
+        "code": "import java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.HashMap;\nimport java.util.List;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        String sentence = \"the cat and the dog and the bird\";\n\n        Map<String, Integer> counts = new HashMap<>();\n        for (String word : sentence.split(\" \")) {\n            counts.put(word, counts.getOrDefault(word, 0) + 1);\n        }\n\n        int total = 0;\n        for (int count : counts.values()) {\n            total += count;\n        }\n\n        int repeated = 0;\n        for (Map.Entry<String, Integer> entry : counts.entrySet()) {\n            if (entry.getValue() > 1) {\n                repeated++;\n            }\n        }\n\n        System.out.println(\"Total words: \" + total);\n        System.out.println(\"Distinct words: \" + counts.size());\n        System.out.println(\"Repeated words: \" + repeated);\n\n        List<String> words = new ArrayList<>(counts.keySet());\n        Collections.sort(words);\n        for (String word : words) {\n            System.out.println(word + \": \" + counts.get(word));\n        }\n    }\n}\n",
+        "output": "Total words: 8\nDistinct words: 5\nRepeated words: 2\nand: 2\nbird: 1\ncat: 1\ndog: 1\nthe: 3",
+        "explanation": "The first time a word appears, `getOrDefault` returns 0, so it is stored as 1. Later it goes up by one. The total and the repeat count come out the same in any order, so they loop over the `HashMap` directly. The listing copies `keySet()` into an `ArrayList` and sorts it first, so it prints alphabetically on every run."
+      },
+      "practice": {
+        "title": "Vote tally",
+        "prompt": "Count the votes for each candidate and print a sorted tally.\n\n1. Count each name in `votes` into `counts` with `getOrDefault`.\n2. Add up `counts.values()` into `total`.\n3. Loop over `counts.entrySet()` and count the candidates with more than one vote into `multiple`.\n4. After the two given print lines, copy the keys into a list, sort it, and print each name as `name = count`.\n\nExpected output:\n\n```text\nTotal votes: 7\nMultiple votes: 2\nIvy = 1\nLeo = 2\nMaya = 3\nZoe = 1\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.HashMap;\nimport java.util.List;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] votes = {\"Maya\", \"Leo\", \"Maya\", \"Zoe\", \"Leo\", \"Maya\", \"Ivy\"};\n\n        Map<String, Integer> counts = new HashMap<>();\n        // TODO: count each vote\n\n        int total = 0;\n        int multiple = 0;\n        // TODO: total from values(), multiple from entrySet()\n\n        System.out.println(\"Total votes: \" + total);\n        System.out.println(\"Multiple votes: \" + multiple);\n        // TODO: print each name and count in sorted name order\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.HashMap;\nimport java.util.List;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] votes = {\"Maya\", \"Leo\", \"Maya\", \"Zoe\", \"Leo\", \"Maya\", \"Ivy\"};\n\n        Map<String, Integer> counts = new HashMap<>();\n        for (String name : votes) {\n            counts.put(name, counts.getOrDefault(name, 0) + 1);\n        }\n\n        int total = 0;\n        int multiple = 0;\n        for (int count : counts.values()) {\n            total += count;\n        }\n        for (Map.Entry<String, Integer> entry : counts.entrySet()) {\n            if (entry.getValue() > 1) {\n                multiple++;\n            }\n        }\n\n        System.out.println(\"Total votes: \" + total);\n        System.out.println(\"Multiple votes: \" + multiple);\n        List<String> names = new ArrayList<>(counts.keySet());\n        Collections.sort(names);\n        for (String name : names) {\n            System.out.println(name + \" = \" + counts.get(name));\n        }\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Total votes: 7\nMultiple votes: 2\nIvy = 1\nLeo = 2\nMaya = 3\nZoe = 1"
+          }
+        ],
+        "hints": [
+          "For each name, look up its count with a default of 0, add 1, and `put` the result back.",
+          "For `multiple`, test `entry.getValue() > 1` inside the `entrySet()` loop.",
+          "Build the list with `new ArrayList<>(counts.keySet())`, then call `Collections.sort` on it before looping."
+        ]
+      }
+    },
+    {
+      "title": "TreeMap for sorted keys",
+      "body": "A `TreeMap` keeps its keys sorted: numbers ascending, Strings in `compareTo` order. Printing it shows `{a=1, b=2}` in key order, and a loop over its `entrySet()` runs in key order too, so no sorting step is needed.\n\n```java\nimport java.util.TreeMap;\n\nTreeMap<Integer, String> levels = new TreeMap<>();\nlevels.put(50, \"Silver\");\nlevels.put(0, \"Bronze\");\nlevels.put(100, \"Gold\");\nSystem.out.println(levels); // {0=Bronze, 50=Silver, 100=Gold}\n```\n\nDeclare the variable as `TreeMap<K, V>`, not `Map<K, V>`, when you need its navigation methods, because `Map` does not have them:\n\n- `firstKey()` and `lastKey()` give the smallest and largest key.\n- `floorKey(x)` gives the largest key less than or equal to `x`.\n- `ceilingKey(x)` gives the smallest key greater than or equal to `x`.\n\n`floorKey` and `ceilingKey` return `null` when nothing matches, so `levels.floorKey(-1)` is `null`. Store the result in an `Integer` and check it, because unboxing `null` into an `int` throws. The trade-off: keeping keys sorted makes `put` and `get` a little slower than in a `HashMap`, and the time grows slowly as the map gets bigger.",
+      "example": {
+        "title": "Ticket prices by age",
+        "prompt": "Map age thresholds to ticket types, print the table two ways, price three ages, and try the other navigation methods.",
+        "code": "import java.util.Map;\nimport java.util.TreeMap;\n\npublic class Main {\n    public static void main(String[] args) {\n        TreeMap<Integer, String> tickets = new TreeMap<>();\n        tickets.put(65, \"Senior\");\n        tickets.put(0, \"Child\");\n        tickets.put(18, \"Adult\");\n        tickets.put(13, \"Teen\");\n\n        System.out.println(tickets);\n        for (Map.Entry<Integer, String> entry : tickets.entrySet()) {\n            System.out.println(entry.getKey() + \"+ \" + entry.getValue());\n        }\n\n        int[] ages = {7, 16, 70};\n        for (int age : ages) {\n            Integer bracket = tickets.floorKey(age);\n            System.out.println(\"Age \" + age + \": \" + tickets.get(bracket));\n        }\n\n        System.out.println(\"First: \" + tickets.firstKey());\n        System.out.println(\"Last: \" + tickets.lastKey());\n        System.out.println(\"Ceiling of 14: \" + tickets.ceilingKey(14));\n        System.out.println(\"Floor of -5: \" + tickets.floorKey(-5));\n    }\n}\n",
+        "output": "{0=Child, 13=Teen, 18=Adult, 65=Senior}\n0+ Child\n13+ Teen\n18+ Adult\n65+ Senior\nAge 7: Child\nAge 16: Teen\nAge 70: Senior\nFirst: 0\nLast: 65\nCeiling of 14: 18\nFloor of -5: null",
+        "explanation": "The keys go in out of order but the `TreeMap` stores them sorted, so both `println` and the `entrySet()` loop show 0, 13, 18, 65. `floorKey(16)` is 13, the largest threshold not above 16, which maps to Teen. `ceilingKey(14)` rounds up to 18. Nothing is at or below -5, so `floorKey(-5)` returns `null` and prints as `null`."
+      },
+      "practice": {
+        "title": "Letter grades",
+        "prompt": "Turn scores into letter grades with a TreeMap of cutoffs.\n\n1. Put the cutoffs 0 `F`, 60 `D`, 70 `C`, 80 `B`, and 90 `A` into `grades`.\n2. For each score in `scores`, find its cutoff with `floorKey` and print `score -> letter`.\n3. Print the grade table with an `entrySet()` loop as `cutoff: letter`.\n4. Print `Lowest: ` with `firstKey()`, then `Highest: ` with `lastKey()`, each on its own line.\n5. Print `Ceiling of 75: ` with `ceilingKey(75)`, then `Ceiling of 95: ` with `ceilingKey(95)`, each on its own line.\n\nExpected output:\n\n```text\n95 -> A\n72 -> C\n59 -> F\n80 -> B\n0: F\n60: D\n70: C\n80: B\n90: A\nLowest: 0\nHighest: 90\nCeiling of 75: 80\nCeiling of 95: null\n```",
+        "starter": "import java.util.Map;\nimport java.util.TreeMap;\n\npublic class Main {\n    public static void main(String[] args) {\n        TreeMap<Integer, String> grades = new TreeMap<>();\n        // TODO: put the five cutoffs\n\n        int[] scores = {95, 72, 59, 80};\n        // TODO: grade each score with floorKey\n        // TODO: print the table with an entrySet loop\n        // TODO: print the lowest and highest cutoffs and the two ceilings\n    }\n}\n",
+        "solution": "import java.util.Map;\nimport java.util.TreeMap;\n\npublic class Main {\n    public static void main(String[] args) {\n        TreeMap<Integer, String> grades = new TreeMap<>();\n        grades.put(0, \"F\");\n        grades.put(60, \"D\");\n        grades.put(70, \"C\");\n        grades.put(80, \"B\");\n        grades.put(90, \"A\");\n\n        int[] scores = {95, 72, 59, 80};\n        for (int score : scores) {\n            Integer cutoff = grades.floorKey(score);\n            System.out.println(score + \" -> \" + grades.get(cutoff));\n        }\n\n        for (Map.Entry<Integer, String> entry : grades.entrySet()) {\n            System.out.println(entry.getKey() + \": \" + entry.getValue());\n        }\n\n        System.out.println(\"Lowest: \" + grades.firstKey());\n        System.out.println(\"Highest: \" + grades.lastKey());\n        System.out.println(\"Ceiling of 75: \" + grades.ceilingKey(75));\n        System.out.println(\"Ceiling of 95: \" + grades.ceilingKey(95));\n    }\n}\n",
+        "tests": [
+          {
+            "output": "95 -> A\n72 -> C\n59 -> F\n80 -> B\n0: F\n60: D\n70: C\n80: B\n90: A\nLowest: 0\nHighest: 90\nCeiling of 75: 80\nCeiling of 95: null"
+          }
+        ],
+        "hints": [
+          "`grades.floorKey(72)` returns 70, and `grades.get(70)` is `C`.",
+          "An exact cutoff counts: `floorKey(80)` returns 80 itself.",
+          "`ceilingKey` rounds up to the next cutoff and returns `null` when no cutoff is that high. Concatenating `null` prints the text `null`."
+        ]
+      }
+    },
+    {
+      "title": "LinkedHashMap and grouping",
+      "body": "A `LinkedHashMap` keeps keys in insertion order: the order they were first put. Updating an existing key does not move it. Use it when the output should follow the input, and a `TreeMap` when it should be sorted.\n\n```java\nimport java.util.LinkedHashMap;\n\nMap<String, Integer> seen = new LinkedHashMap<>();\n```\n\n`putIfAbsent(key, value)` stores the value only when the key is missing, and leaves an existing value alone. That makes grouping easy: make sure each key has a list, then add to it.\n\n```java\nMap<String, List<String>> byTeam = new LinkedHashMap<>();\nbyTeam.putIfAbsent(team, new ArrayList<>());\nbyTeam.get(team).add(player);\n```\n\n`get(team)` returns the list stored in the map, not a copy, so `add` changes the map's list directly. Printing a `Map` of `List` values shows `{red=[Ann, Bo], blue=[Cy]}`.\n\nGotcha: `new ArrayList<>()` is built on every call, even when the key already has a list. That waste is small here. The Lambdas lesson shows `computeIfAbsent`, which only builds the list when it is needed.",
+      "example": {
+        "title": "Words by first letter",
+        "prompt": "Group fruit names by their first letter, keeping letters in first-seen order.",
+        "code": "import java.util.ArrayList;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] words = {\"cherry\", \"apple\", \"banana\", \"avocado\", \"cranberry\", \"blueberry\"};\n\n        Map<Character, List<String>> byLetter = new LinkedHashMap<>();\n        for (String word : words) {\n            char first = word.charAt(0);\n            byLetter.putIfAbsent(first, new ArrayList<>());\n            byLetter.get(first).add(word);\n        }\n\n        System.out.println(byLetter);\n        for (Map.Entry<Character, List<String>> entry : byLetter.entrySet()) {\n            System.out.println(entry.getKey() + \": \" + entry.getValue().size() + \" words\");\n        }\n    }\n}\n",
+        "output": "{c=[cherry, cranberry], a=[apple, avocado], b=[banana, blueberry]}\nc: 2 words\na: 2 words\nb: 2 words",
+        "explanation": "`c` is seen first, so it comes first, even though `a` sorts earlier. On `avocado` the key `a` already has a list, so `putIfAbsent` does nothing and `add` appends to the existing list. The `entrySet()` loop follows the same insertion order, and `getValue()` is the list itself, so `size()` works on it."
+      },
+      "practice": {
+        "title": "Students by class",
+        "prompt": "Group students by class, keeping the classes in the order they first appear.\n\n1. Loop over the indexes of `students`. Student `students[i]` is in class `classes[i]`.\n2. Use `putIfAbsent` to give each class an empty list, then `get(...).add(...)` the student.\n3. Loop over `byClass.entrySet()` and print each line as `class: [names]`.\n\nExpected output:\n\n```text\nMath: [Ana, Cy, Fay]\nArt: [Ben, Eli]\nMusic: [Dee]\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] students = {\"Ana\", \"Ben\", \"Cy\", \"Dee\", \"Eli\", \"Fay\"};\n        String[] classes = {\"Math\", \"Art\", \"Math\", \"Music\", \"Art\", \"Math\"};\n\n        Map<String, List<String>> byClass = new LinkedHashMap<>();\n        // TODO: group each student under their class\n        // TODO: print each class and its list\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.LinkedHashMap;\nimport java.util.List;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] students = {\"Ana\", \"Ben\", \"Cy\", \"Dee\", \"Eli\", \"Fay\"};\n        String[] classes = {\"Math\", \"Art\", \"Math\", \"Music\", \"Art\", \"Math\"};\n\n        Map<String, List<String>> byClass = new LinkedHashMap<>();\n        for (int i = 0; i < students.length; i++) {\n            byClass.putIfAbsent(classes[i], new ArrayList<>());\n            byClass.get(classes[i]).add(students[i]);\n        }\n\n        for (Map.Entry<String, List<String>> entry : byClass.entrySet()) {\n            System.out.println(entry.getKey() + \": \" + entry.getValue());\n        }\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Math: [Ana, Cy, Fay]\nArt: [Ben, Eli]\nMusic: [Dee]"
+          }
+        ],
+        "hints": [
+          "Use an index loop, `for (int i = 0; i < students.length; i++)`, so you can read both arrays.",
+          "Concatenating `entry.getValue()` prints the list as `[Ana, Cy, Fay]`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `Map<K, V> m = new HashMap<>()`, then `put`, `get`, `getOrDefault`, `containsKey`, `containsValue`, `remove`, and `size()`.\n- `put` on an existing key overwrites it. `get` on a missing key returns `null`, so never unbox it into an `int`.\n- `Map.of(...)` is an immutable lookup table. Never loop over it or print it.\n- Count with `m.put(k, m.getOrDefault(k, 0) + 1)`.\n- Loop with `keySet()`, `values()`, or `entrySet()` and `Map.Entry` with `getKey()` and `getValue()`.\n- `HashMap` order is unspecified: sort the keys before printing a listing.\n- `TreeMap` keeps keys sorted and adds `firstKey`, `lastKey`, `floorKey`, and `ceilingKey`, which return `null` on no match.\n- `LinkedHashMap` keeps insertion order. Group with `putIfAbsent(k, new ArrayList<>())` then `get(k).add(v)`."
+}

@@ -1,0 +1,118 @@
+{
+  "id": "structs-methods",
+  "title": "Structs and Methods",
+  "section": "Object-Oriented Programming",
+  "summary": "Attach methods to types, choose value or pointer receivers, write constructor functions, and control what is exported.",
+  "intro": "Go has no classes, constructors, or inheritance. Instead you declare a type and attach methods to it: functions that take a value of that type as their receiver. You will choose between value and pointer receivers, write constructor functions, control what is exported, and add methods to types that are not structs.",
+  "steps": [
+    {
+      "title": "Methods",
+      "body": "A method is a function with a **receiver**: an extra parameter written in parentheses before the name. The receiver attaches the function to a type.\n\n```go\nfunc (r Rect) Area() int {\n\treturn r.W * r.H\n}\n```\n\nThe receiver `r` is an ordinary named parameter. Go has no `this` or `self`, so you pick a short name, usually the first letter of the type, and use the same one in every method of that type. Call a method with a dot, the way you read a field: `r.Area()`.\n\nWith a **value receiver** like `(r Rect)`, the method gets a copy of the struct, exactly like a function argument. Reading fields works fine. Changing `r` inside the method changes only that copy, so the caller's value stays as it was. That makes value receivers a good fit for methods that compute something or return a changed version, such as `Scaled` below.\n\nMethods are declared at package level, next to their type, never inside `main`.",
+      "example": {
+        "title": "Rectangle methods",
+        "prompt": "Give a Rect type three value-receiver methods, call them on a 3 by 4 rectangle, and show that Scaled left the original alone.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Rect struct{ W, H int }\n\nfunc (r Rect) Area() int {\n\treturn r.W * r.H\n}\n\nfunc (r Rect) Perimeter() int {\n\treturn 2 * (r.W + r.H)\n}\n\n// Scaled changes its own copy of r and returns it\nfunc (r Rect) Scaled(k int) Rect {\n\tr.W *= k\n\tr.H *= k\n\treturn r\n}\n\nfunc main() {\n\tr := Rect{W: 3, H: 4}\n\tfmt.Printf(\"Area: %d\\n\", r.Area())\n\tfmt.Printf(\"Perimeter: %d\\n\", r.Perimeter())\n\tbig := r.Scaled(2)\n\tfmt.Printf(\"Scaled area: %d\\n\", big.Area())\n\tfmt.Printf(\"Original: %+v\\n\", r)\n}\n",
+        "output": "Area: 12\nPerimeter: 14\nScaled area: 48\nOriginal: {W:3 H:4}",
+        "explanation": "`r.Area()` runs `Area` with `r` copied into the receiver, so it returns 3 * 4 = 12, and `Perimeter` returns 2 * (3 + 4) = 14. `Scaled` doubles the fields of its own copy and returns that copy, a 6 by 8 rectangle with area 48. The original `r` was never touched, so `%+v` still prints `{W:3 H:4}`."
+      },
+      "practice": {
+        "title": "Circle methods",
+        "prompt": "Give a Circle type three value-receiver methods and print what they compute for a circle of radius 3.\n\n1. Add `\"math\"` to the imports, using a parenthesized import block.\n2. Write `Area() float64` on `Circle`, returning `math.Pi * c.R * c.R`.\n3. Write `Circumference() float64`, returning `2 * math.Pi * c.R`.\n4. Write `Scaled(k float64) Circle`, which multiplies the radius of its copy by `k` and returns it.\n5. In `main`, print the area, the circumference, the area of `c.Scaled(2)`, and `c.R`, each with `%.2f` and the labels shown below.\n\nExpected output:\n\n```text\nArea: 28.27\nCircumference: 18.85\nScaled area: 113.10\nOriginal radius: 3.00\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Circle struct{ R float64 }\n\n// TODO: write the Area, Circumference, and Scaled methods\n\nfunc main() {\n\tc := Circle{R: 3}\n\t_ = c\n\t// TODO: print the four lines\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"math\"\n)\n\ntype Circle struct{ R float64 }\n\nfunc (c Circle) Area() float64 {\n\treturn math.Pi * c.R * c.R\n}\n\nfunc (c Circle) Circumference() float64 {\n\treturn 2 * math.Pi * c.R\n}\n\nfunc (c Circle) Scaled(k float64) Circle {\n\tc.R *= k\n\treturn c\n}\n\nfunc main() {\n\tc := Circle{R: 3}\n\tfmt.Printf(\"Area: %.2f\\n\", c.Area())\n\tfmt.Printf(\"Circumference: %.2f\\n\", c.Circumference())\n\tbig := c.Scaled(2)\n\tfmt.Printf(\"Scaled area: %.2f\\n\", big.Area())\n\tfmt.Printf(\"Original radius: %.2f\\n\", c.R)\n}\n",
+        "tests": [
+          {
+            "output": "Area: 28.27\nCircumference: 18.85\nScaled area: 113.10\nOriginal radius: 3.00"
+          }
+        ],
+        "hints": [
+          "Every method starts with `func (c Circle)`, then the name, parameters, and result type.",
+          "Inside `Scaled`, `c.R *= k` changes only the copy, then `return c` hands it back.",
+          "Print each line with `fmt.Printf(\"Area: %.2f\\n\", c.Area())` and the same pattern for the others."
+        ]
+      }
+    },
+    {
+      "title": "Pointer receivers",
+      "body": "To change the caller's value, use a **pointer receiver**:\n\n```go\nfunc (c *Counter) Inc() {\n\tc.Count++\n}\n```\n\nNow `c` holds the address of the original struct, so `c.Count++` updates the original. Only an 8-byte pointer is copied into the method, which is also why large structs usually get pointer receivers.\n\nWith a value receiver the method works on a copy, so a method meant to change the value compiles, runs, and silently changes nothing. This is the classic method bug in Go.\n\nYou do not have to write `(&c).Inc()`. When `c` is a variable, Go takes its address for you when you call `c.Inc()`. It cannot do that for a value without an address, so calling a pointer method on a map element like `m[k].Inc()` does not compile.\n\n**Rule of thumb:** if one method of a type needs a pointer receiver, give all of its methods pointer receivers. Then every call works on the same original, and nobody has to remember which methods copy.",
+      "example": {
+        "title": "A counter and a broken copy",
+        "prompt": "Give Counter two pointer-receiver methods and one broken value-receiver method, and print the count after every call.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Counter struct{ Count int }\n\nfunc (c *Counter) Inc() {\n\tc.Count++\n}\n\nfunc (c *Counter) Add(n int) {\n\tc.Count += n\n}\n\n// IncCopy is the bug: c is a copy, so the change is lost\nfunc (c Counter) IncCopy() {\n\tc.Count++\n}\n\nfunc main() {\n\tvar c Counter\n\tc.Inc()\n\tfmt.Printf(\"Inc: %d\\n\", c.Count)\n\tc.Inc()\n\tfmt.Printf(\"Inc: %d\\n\", c.Count)\n\tc.IncCopy()\n\tfmt.Printf(\"IncCopy: %d\\n\", c.Count)\n\tc.IncCopy()\n\tfmt.Printf(\"IncCopy: %d\\n\", c.Count)\n\tc.Add(5)\n\tfmt.Printf(\"Add 5: %d\\n\", c.Count)\n}\n",
+        "output": "Inc: 1\nInc: 2\nIncCopy: 2\nIncCopy: 2\nAdd 5: 7",
+        "explanation": "`c.Inc()` is shorthand for `(&c).Inc()`, so each call changes `c` itself and the count reaches 2. `IncCopy` has a value receiver: it bumps a copy that disappears when the method returns, so two calls leave the count at 2, not 4. `Add` takes a parameter like any function and adds 5 to the original. The example mixes receiver kinds only to show the bug. Real code would give `IncCopy` a pointer receiver too."
+      },
+      "practice": {
+        "title": "Bank account",
+        "prompt": "Give Account two pointer-receiver methods, where withdrawing refuses to overdraw, and print the balance after each of four calls.\n\n1. Write `Deposit(amount int)` with a `*Account` receiver that adds `amount` to `Balance`.\n2. Write `Withdraw(amount int) bool` with a `*Account` receiver. If `amount` is more than `Balance`, return `false` and change nothing. Otherwise subtract it and return `true`.\n3. In `main`, call `Deposit(50)`, `Withdraw(20)`, `Withdraw(100)`, and `Deposit(15)` on `a`, in that order.\n4. After each call print a line in the format shown below: the call, then the `%t` result for withdrawals, then the balance.\n\nExpected output:\n\n```text\nDeposit 50: 50\nWithdraw 20: true, 30\nWithdraw 100: false, 30\nDeposit 15: 45\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Account struct{ Balance int }\n\n// TODO: write the Deposit and Withdraw methods with pointer receivers\n\nfunc main() {\n\tvar a Account\n\t_ = a\n\t// TODO: make the four calls, printing a line after each\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Account struct{ Balance int }\n\nfunc (a *Account) Deposit(amount int) {\n\ta.Balance += amount\n}\n\nfunc (a *Account) Withdraw(amount int) bool {\n\tif amount > a.Balance {\n\t\treturn false\n\t}\n\ta.Balance -= amount\n\treturn true\n}\n\nfunc main() {\n\tvar a Account\n\ta.Deposit(50)\n\tfmt.Printf(\"Deposit 50: %d\\n\", a.Balance)\n\tok := a.Withdraw(20)\n\tfmt.Printf(\"Withdraw 20: %t, %d\\n\", ok, a.Balance)\n\tok = a.Withdraw(100)\n\tfmt.Printf(\"Withdraw 100: %t, %d\\n\", ok, a.Balance)\n\ta.Deposit(15)\n\tfmt.Printf(\"Deposit 15: %d\\n\", a.Balance)\n}\n",
+        "tests": [
+          {
+            "output": "Deposit 50: 50\nWithdraw 20: true, 30\nWithdraw 100: false, 30\nDeposit 15: 45"
+          }
+        ],
+        "hints": [
+          "Both receivers are `(a *Account)`, so `a.Balance` changes the original.",
+          "Use a guard clause in `Withdraw`: `if amount > a.Balance { return false }`.",
+          "Store the result with `ok := a.Withdraw(20)` and print it with `%t`."
+        ]
+      }
+    },
+    {
+      "title": "Constructors and exported names",
+      "body": "Go has no constructors. By convention a function named `NewT` builds a ready-to-use `T` from its arguments and returns a pointer to it:\n\n```go\nfunc NewStack(name string) *Stack {\n\treturn &Stack{name: name}\n}\n```\n\n`&Stack{name: name}` creates the struct and takes its address in one step. Returning that address is safe: escape analysis keeps the struct alive, on the heap when it outlives the function. Returning a pointer means every method works on one shared stack. A copied `Stack` value would copy only the slice header, so two copies would share a backing array but keep separate lengths.\n\n**Exported names** start with a capital letter (`Push`, `Len`) and are visible to other packages. Lowercase names (`name`, `items`) are unexported, private to their package. That is how a type hides its data and offers methods instead. Visibility is per package, not per type, so in a one-file program `main` could still reach `s.items`. Other packages could not.\n\nA getter for an unexported field is named after the field, without `Get`: `Name()` returns `name`.\n\nInside a method, `s.items` works even though `s` is a `*Stack`. Go dereferences the pointer for you, so you never write `(*s).items`.",
+      "example": {
+        "title": "A stack with hidden items",
+        "prompt": "Build a Stack with unexported name and items fields, a NewStack constructor that sets the name, and Name, Push, Pop, and Len methods, then pop three values in reverse order.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Stack struct {\n\tname  string\n\titems []int\n}\n\nfunc NewStack(name string) *Stack {\n\treturn &Stack{name: name}\n}\n\nfunc (s *Stack) Name() string {\n\treturn s.name\n}\n\nfunc (s *Stack) Push(v int) {\n\ts.items = append(s.items, v)\n}\n\nfunc (s *Stack) Pop() (int, bool) {\n\tif len(s.items) == 0 {\n\t\treturn 0, false\n\t}\n\tlast := len(s.items) - 1\n\tv := s.items[last]\n\ts.items = s.items[:last]\n\treturn v, true\n}\n\nfunc (s *Stack) Len() int {\n\treturn len(s.items)\n}\n\nfunc main() {\n\ts := NewStack(\"trays\")\n\ts.Push(10)\n\ts.Push(20)\n\ts.Push(30)\n\tfmt.Printf(\"%s: %d items\\n\", s.Name(), s.Len())\n\tfor s.Len() > 0 {\n\t\tv, _ := s.Pop()\n\t\tfmt.Printf(\"Popped: %d\\n\", v)\n\t}\n\t_, ok := s.Pop()\n\tfmt.Printf(\"Pop on empty: %t\\n\", ok)\n}\n",
+        "output": "trays: 3 items\nPopped: 30\nPopped: 20\nPopped: 10\nPop on empty: false",
+        "explanation": "`NewStack` returns a `*Stack`, so `s` is a pointer and every method changes the same stack. `Name` is a getter: it hands out the unexported `name` without letting callers change it. `Push` appends to the end and `Pop` takes from the end, so values come back last in, first out: 30, 20, 10. `Pop` returns `ok` as `false` instead of crashing when the stack is empty. `main` uses only the methods, never `name` or `items` directly, which is what a caller in another package would have to do."
+      },
+      "practice": {
+        "title": "A queue at the counter",
+        "prompt": "Build a Queue with unexported name and items fields and serve three customers in the order they arrived.\n\n1. Write `NewQueue(name string) *Queue` returning `&Queue{name: name}`.\n2. Write the getter `Name() string` and `Enqueue(name string)`, which appends to `items`.\n3. Write `Dequeue() (string, bool)`, which removes and returns the first item, or returns `\"\"` and `false` when the queue is empty.\n4. Write `Len() int`. Give every method a `*Queue` receiver.\n5. In `main`, build a queue named `bakery`, enqueue `Ana`, `Ben`, and `Cy`, print its name and waiting count, dequeue until `Len()` is 0, then try one more `Dequeue` and print its `ok`.\n\nExpected output:\n\n```text\nbakery: 3 waiting\nServing: Ana\nServing: Ben\nServing: Cy\nDequeue on empty: false\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Queue struct {\n\tname  string\n\titems []string\n}\n\n// TODO: write NewQueue, Name, Enqueue, Dequeue, and Len\n\nfunc main() {\n\t// TODO: build the bakery queue, add Ana, Ben, and Cy, then serve them\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Queue struct {\n\tname  string\n\titems []string\n}\n\nfunc NewQueue(name string) *Queue {\n\treturn &Queue{name: name}\n}\n\nfunc (q *Queue) Name() string {\n\treturn q.name\n}\n\nfunc (q *Queue) Enqueue(name string) {\n\tq.items = append(q.items, name)\n}\n\nfunc (q *Queue) Dequeue() (string, bool) {\n\tif len(q.items) == 0 {\n\t\treturn \"\", false\n\t}\n\tfirst := q.items[0]\n\tq.items = q.items[1:]\n\treturn first, true\n}\n\nfunc (q *Queue) Len() int {\n\treturn len(q.items)\n}\n\nfunc main() {\n\tq := NewQueue(\"bakery\")\n\tq.Enqueue(\"Ana\")\n\tq.Enqueue(\"Ben\")\n\tq.Enqueue(\"Cy\")\n\tfmt.Printf(\"%s: %d waiting\\n\", q.Name(), q.Len())\n\tfor q.Len() > 0 {\n\t\tname, _ := q.Dequeue()\n\t\tfmt.Printf(\"Serving: %s\\n\", name)\n\t}\n\t_, ok := q.Dequeue()\n\tfmt.Printf(\"Dequeue on empty: %t\\n\", ok)\n}\n",
+        "tests": [
+          {
+            "output": "bakery: 3 waiting\nServing: Ana\nServing: Ben\nServing: Cy\nDequeue on empty: false"
+          }
+        ],
+        "hints": [
+          "`Name` just returns `q.name`. The first item is `q.items[0]`, and `q.items = q.items[1:]` drops it.",
+          "Check `len(q.items) == 0` before reading `q.items[0]`, or the program panics.",
+          "Reuse the loop shape from the example: keep calling `Dequeue` while `q.Len()` is above 0."
+        ]
+      }
+    },
+    {
+      "title": "Methods on any named type",
+      "body": "Methods are not only for structs. Any named type you declare in your package can have them, including numbers and slices. The one exception is a named pointer type such as `type IntPtr *int`.\n\n```go\ntype Celsius float64\ntype Scores []int\n\nfunc (c Celsius) ToFahrenheit() Fahrenheit {\n\treturn Fahrenheit(c*9/5 + 32)\n}\n```\n\n`Celsius` is stored like a `float64` but is a different type. You cannot mix it with a plain `float64` or with `Fahrenheit` in one expression, so unit mix-ups fail at compile time. Convert explicitly with `T(x)`: `Celsius(degrees)`, `float64(c)`, `Scores(raw)`. Converting between types with the same underlying type is free at runtime. Untyped constants such as `9` and `32` take the type `Celsius` by themselves.\n\nA slice type with a value receiver gets a copy of the slice header, which still points at the same backing array. So `s[i] += n` inside the method changes the caller's elements, but an `append` inside it is lost unless you return the new slice.\n\nYou can only add methods to types declared in your own package, not to `int`, `string`, or types from other packages.",
+      "example": {
+        "title": "Temperatures and scores",
+        "prompt": "Give a Celsius type a conversion method and a Scores slice type Average and Curve methods, then print the results with one decimal place.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Celsius float64\ntype Fahrenheit float64\ntype Scores []int\n\nfunc (c Celsius) ToFahrenheit() Fahrenheit {\n\treturn Fahrenheit(c*9/5 + 32)\n}\n\nfunc (s Scores) Average() float64 {\n\tif len(s) == 0 {\n\t\treturn 0\n\t}\n\tvar total int\n\tfor _, v := range s {\n\t\ttotal += v\n\t}\n\treturn float64(total) / float64(len(s))\n}\n\n// Curve changes the shared elements, so the caller sees it\nfunc (s Scores) Curve(n int) {\n\tfor i := range s {\n\t\ts[i] += n\n\t}\n}\n\nfunc main() {\n\tdegrees := 21.5\n\ttemp := Celsius(degrees)\n\tfmt.Printf(\"%.1f C = %.1f F\\n\", temp, temp.ToFahrenheit())\n\traw := []int{80, 92, 75}\n\ts := Scores(raw)\n\tfmt.Printf(\"Average: %.1f\\n\", s.Average())\n\ts.Curve(5)\n\tfmt.Println(\"Curved:\", raw)\n\tfmt.Printf(\"Average: %.1f\\n\", s.Average())\n}\n",
+        "output": "21.5 C = 70.7 F\nAverage: 82.3\nCurved: [85 97 80]\nAverage: 87.3",
+        "explanation": "`Celsius(degrees)` converts the `float64` into a `Celsius`, and `ToFahrenheit` returns 21.5 * 9 / 5 + 32 = 70.7 as a `Fahrenheit`. `%.1f` prints both because their underlying type is `float64`. `Scores(raw)` gives the slice its methods without copying any elements. `Curve` has a value receiver, yet `raw` shows the curved scores, because the copied header still points at the same backing array."
+      },
+      "practice": {
+        "title": "Lengths and prices",
+        "prompt": "Give a Meters type a conversion method and a Prices slice type Total and Raise methods, then print the results with two decimal places.\n\n1. Add `const FeetPerMeter = 3.28084` and declare `type Meters float64`, `type Feet float64`, and `type Prices []float64`.\n2. Write `ToFeet() Feet` on `Meters`, returning `Feet(m * FeetPerMeter)`.\n3. Write `Total() float64` on `Prices`, summing every price, and `Raise(amount float64)`, adding `amount` to every price.\n4. In `main`, convert `length` with `Meters(length)` and `raw` with `Prices(raw)`.\n5. Print the conversion, the total, then call `Raise(1)` and print the total again, all with `%.2f` as shown below.\n\nExpected output:\n\n```text\n2.50 m = 8.20 ft\nTotal: 20.74\nTotal after raise: 23.74\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// TODO: declare Meters, Feet, and Prices, then write their methods\n\nfunc main() {\n\tlength := 2.5\n\traw := []float64{4.99, 12.5, 3.25}\n\t_ = length\n\t_ = raw\n\t// TODO: convert length and raw, then print the three lines\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nconst FeetPerMeter = 3.28084\n\ntype Meters float64\ntype Feet float64\ntype Prices []float64\n\nfunc (m Meters) ToFeet() Feet {\n\treturn Feet(m * FeetPerMeter)\n}\n\nfunc (p Prices) Total() float64 {\n\tvar total float64\n\tfor _, v := range p {\n\t\ttotal += v\n\t}\n\treturn total\n}\n\nfunc (p Prices) Raise(amount float64) {\n\tfor i := range p {\n\t\tp[i] += amount\n\t}\n}\n\nfunc main() {\n\tlength := 2.5\n\traw := []float64{4.99, 12.5, 3.25}\n\tm := Meters(length)\n\tfmt.Printf(\"%.2f m = %.2f ft\\n\", m, m.ToFeet())\n\tp := Prices(raw)\n\tfmt.Printf(\"Total: %.2f\\n\", p.Total())\n\tp.Raise(1)\n\tfmt.Printf(\"Total after raise: %.2f\\n\", p.Total())\n}\n",
+        "tests": [
+          {
+            "output": "2.50 m = 8.20 ft\nTotal: 20.74\nTotal after raise: 23.74"
+          }
+        ],
+        "hints": [
+          "The receivers are `(m Meters)` and `(p Prices)`. Value receivers are fine here.",
+          "In `Raise`, loop with `for i := range p` and change `p[i]`, so the shared elements change.",
+          "Declare the sum with `var total float64` so it starts at 0 and can hold decimals."
+        ]
+      }
+    }
+  ],
+  "recap": "- `func (r Rect) Area() int` declares a method. The receiver `r` is a named parameter. Go has no `this` or `self`.\n- A value receiver gets a copy, so changes inside the method are lost.\n- `func (c *Counter) Inc()` changes the original, and `c.Inc()` on a variable takes the address for you.\n- If one method needs a pointer receiver, give all of the type's methods pointer receivers.\n- `NewT` functions act as constructors and usually `return &T{...}`.\n- Capitalized names are exported. Lowercase names are private to the package. A getter for the unexported `name` is named `Name()`, not `GetName()`.\n- `p.Field` works through a pointer, with no `(*p)` needed.\n- Any named type can have methods: `type Celsius float64`, `type Scores []int`. Convert with `T(x)`."
+}

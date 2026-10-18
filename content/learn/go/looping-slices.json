@@ -1,0 +1,89 @@
+{
+  "id": "looping-slices",
+  "title": "Looping Over Slices",
+  "section": "Arrays and Slices",
+  "summary": "Walk through arrays and slices with counted loops, while-style loops, and for range, and learn why range gives you copies.",
+  "intro": "Most work with a slice means visiting every element: adding them up, finding the biggest, or changing each one. Go gives you three loop shapes for that: the counted loop, the while-style loop, and `for range`. Pick the one that fits, and know which one can change the slice.",
+  "steps": [
+    {
+      "title": "Index loops",
+      "body": "A slice holds its elements in order, so the first way to visit them is the counted loop you already know. Start `i` at 0 and stop before `len(s)`, because the last index is `len(s)-1`.\n\n```go\ntotal := 0\nfor i := 0; i < len(s); i++ {\n\ttotal += s[i]\n}\n```\n\nReading `s[len(s)]` is out of range and panics, so the condition is `<`, never `<=`.\n\nFor a maximum or minimum, start from the first element, then let each later element replace it when it is bigger or smaller. Starting from 0 would be wrong for a minimum, and `s[0]` panics on an empty slice, so check `len(s) > 0` first when the data may be empty.\n\nWhen you want to stop as soon as you find something, a while-style loop reads well. You manage `i` yourself and `break` out when the condition is met:\n\n```go\ni := 0\nfor i < len(s) {\n\tif s[i] > 8000 {\n\t\tbreak\n\t}\n\ti++\n}\n```\n\nUse a sentinel such as `-1` for the not-found case.",
+      "example": {
+        "title": "Step counter",
+        "prompt": "Total a week of step counts, find the busiest day, and find the first day over 8000.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tsteps := []int{4200, 8100, 6500, 9900, 3000}\n\n\ttotal := 0\n\tmaxSteps := steps[0]\n\tfor i := 0; i < len(steps); i++ {\n\t\ttotal += steps[i]\n\t\tif steps[i] > maxSteps {\n\t\t\tmaxSteps = steps[i]\n\t\t}\n\t}\n\tfmt.Println(\"Total:\", total)\n\tfmt.Println(\"Max:\", maxSteps)\n\n\tfirst := -1\n\ti := 0\n\tfor i < len(steps) {\n\t\tif steps[i] > 8000 {\n\t\t\tfirst = i\n\t\t\tbreak\n\t\t}\n\t\ti++\n\t}\n\tfmt.Println(\"First day over 8000:\", first)\n}\n",
+        "output": "Total: 31700\nMax: 9900\nFirst day over 8000: 1",
+        "explanation": "The counted loop visits indexes 0 to 4. Each pass adds `steps[i]` to `total` and replaces `maxSteps` when the current day is bigger. `maxSteps` starts at `steps[0]`, a real value from the data, so it is correct even if every number were negative.\n\nThe while-style loop starts `i` at 0 and moves it forward by hand. At index 1 it sees 8100, saves the index in `first`, and `break` ends the loop without looking at the rest. If no day were over 8000, `first` would stay `-1`."
+      },
+      "practice": {
+        "title": "Expense tracker",
+        "prompt": "Total a week of expenses, find the smallest one, and find the first big one.\n\n1. Keep the given `expenses` slice, `total`, and `minCost`.\n2. Write a counted loop (`for i := 0; i < len(expenses); i++`) that adds each expense to `total` and lowers `minCost` when it finds a smaller expense.\n3. Write a while-style loop with your own `i` that sets `first` to the index of the first expense over 30, then stops with `break`.\n4. Keep the given print lines.\n\nExpected output:\n\n```text\nTotal: 87\nMin: 3\nFirst expense over 30: 1\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\texpenses := []int{12, 40, 7, 25, 3}\n\n\ttotal := 0\n\tminCost := expenses[0]\n\t// TODO: counted loop that adds to total and lowers minCost\n\tfmt.Println(\"Total:\", total)\n\tfmt.Println(\"Min:\", minCost)\n\n\tfirst := -1\n\t// TODO: while-style loop that sets first to the index of the first expense over 30\n\tfmt.Println(\"First expense over 30:\", first)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\texpenses := []int{12, 40, 7, 25, 3}\n\n\ttotal := 0\n\tminCost := expenses[0]\n\tfor i := 0; i < len(expenses); i++ {\n\t\ttotal += expenses[i]\n\t\tif expenses[i] < minCost {\n\t\t\tminCost = expenses[i]\n\t\t}\n\t}\n\tfmt.Println(\"Total:\", total)\n\tfmt.Println(\"Min:\", minCost)\n\n\tfirst := -1\n\ti := 0\n\tfor i < len(expenses) {\n\t\tif expenses[i] > 30 {\n\t\t\tfirst = i\n\t\t\tbreak\n\t\t}\n\t\ti++\n\t}\n\tfmt.Println(\"First expense over 30:\", first)\n}\n",
+        "tests": [
+          {
+            "output": "Total: 87\nMin: 3\nFirst expense over 30: 1"
+          }
+        ],
+        "hints": [
+          "Inside the counted loop, compare `expenses[i]` with `minCost` and replace `minCost` when the expense is smaller.",
+          "For the second loop, declare `i := 0`, loop `for i < len(expenses)`, and end the body with `i++`.",
+          "When you find an expense over 30, save its index in `first` before you `break`."
+        ]
+      }
+    },
+    {
+      "title": "for range",
+      "body": "Counting indexes by hand is common enough that Go has a shorter form. `for range` hands you the index and the element on every pass:\n\n```go\nfor i, f := range fruits {\n\tfmt.Println(i, f)\n}\n```\n\n`i` starts at 0, and `f` holds the value of `fruits[i]`. There is no condition to get wrong, so you cannot run off the end.\n\nGo refuses unused variables, so if you only need the elements, put the blank identifier `_` where the index goes:\n\n```go\nfor _, p := range prices {\n\tsum += p\n}\n```\n\n`range` works the same on arrays and slices. The length of the slice is read once, before the first pass.\n\nIndexes start at 0, so print `i+1` when people expect a list that starts at 1. To average, convert both the total and the count with `float64(...)` before dividing, or the int division drops the decimals.",
+      "example": {
+        "title": "Fruit list and price sum",
+        "prompt": "Print a numbered fruit list, then sum and average an array of prices.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfruits := []string{\"apple\", \"banana\", \"cherry\"}\n\tfor i, f := range fruits {\n\t\tfmt.Printf(\"%d. %s\\n\", i+1, f)\n\t}\n\n\tprices := [4]int{120, 80, 45, 99}\n\tsum := 0\n\tfor _, p := range prices {\n\t\tsum += p\n\t}\n\tfmt.Println(\"Sum:\", sum)\n\tfmt.Printf(\"Average: %.2f\\n\", float64(sum)/float64(len(prices)))\n}\n",
+        "output": "1. apple\n2. banana\n3. cherry\nSum: 344\nAverage: 86.00",
+        "explanation": "The first loop gets both the index and the fruit. Adding 1 to the index turns 0, 1, 2 into the list numbers 1, 2, 3.\n\nThe second loop ranges over an array, which works exactly like a slice. It does not need the index, so `_` takes its place and only `p` is declared. The average converts `sum` and `len(prices)` to `float64` so the division keeps its decimals, and `%.2f` prints two of them."
+      },
+      "practice": {
+        "title": "Lap times",
+        "prompt": "Print a numbered list of lap times, then the average lap.\n\n1. Keep the given `laps` array and `total`.\n2. Write `for i, t := range laps` and print each lap as `Lap 1: 62s`, numbering from 1.\n3. Write a second loop, `for _, t := range laps`, that adds every lap to `total`.\n4. Keep the given line that prints the average with `%.2f`.\n\nExpected output:\n\n```text\nLap 1: 62s\nLap 2: 59s\nLap 3: 61s\nLap 4: 57s\nAverage: 59.75s\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tlaps := [...]int{62, 59, 61, 57}\n\ttotal := 0\n\t// TODO: print each lap with for i, t := range laps\n\t// TODO: add every lap to total with for _, t := range laps\n\tfmt.Printf(\"Average: %.2fs\\n\", float64(total)/float64(len(laps)))\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tlaps := [...]int{62, 59, 61, 57}\n\ttotal := 0\n\tfor i, t := range laps {\n\t\tfmt.Printf(\"Lap %d: %ds\\n\", i+1, t)\n\t}\n\tfor _, t := range laps {\n\t\ttotal += t\n\t}\n\tfmt.Printf(\"Average: %.2fs\\n\", float64(total)/float64(len(laps)))\n}\n",
+        "tests": [
+          {
+            "output": "Lap 1: 62s\nLap 2: 59s\nLap 3: 61s\nLap 4: 57s\nAverage: 59.75s"
+          }
+        ],
+        "hints": [
+          "Use `fmt.Printf` with `%d` for both numbers, and print `i+1` so the list starts at 1.",
+          "In the second loop, add `t` to `total` on every pass."
+        ]
+      }
+    },
+    {
+      "title": "range gives copies",
+      "body": "Here is a classic Go bug. The range value is a **copy** of the element, not the element itself:\n\n```go\nfor _, v := range nums {\n\tv *= 2 // changes the copy only\n}\n```\n\nOn each pass Go copies `nums[i]` into one separate variable `v`. Changing `v` changes that variable, and the element stored in the slice never sees it. The code compiles and runs, so the bug is silent.\n\nTo change the slice, write through the index. Leave out the value and `range` gives you only the index:\n\n```go\nfor i := range nums {\n\tnums[i] *= 2\n}\n```\n\n`nums[i]` names the real element stored in the slice, so the change sticks. The counted loop `for i := 0; i < len(nums); i++` works too, but `for i := range nums` is the usual way to modify in place.\n\nThe same rule holds for arrays: `for i := range a` with `a[i] = ...` changes the array. Reading through `v` is fine. Only writes need the index.",
+      "example": {
+        "title": "Doubling numbers",
+        "prompt": "Try to double a slice through the range value, then double it through the index.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tnums := []int{1, 2, 3}\n\n\tfor _, v := range nums {\n\t\tv *= 2\n\t}\n\tfmt.Println(\"After v *= 2:\", nums)\n\n\tfor i := range nums {\n\t\tnums[i] *= 2\n\t}\n\tfmt.Println(\"After nums[i] *= 2:\", nums)\n}\n",
+        "output": "After v *= 2: [1 2 3]\nAfter nums[i] *= 2: [2 4 6]",
+        "explanation": "In the first loop, `v` receives a copy of 1, then 2, then 3. Doubling it changes only that copy, which is thrown away at the end of each pass, so `nums` still prints `[1 2 3]`.\n\nThe second loop asks `range` for the index only. `nums[i] *= 2` writes straight into the slice's elements, so the print shows `[2 4 6]`."
+      },
+      "practice": {
+        "title": "Price cut",
+        "prompt": "Show that a range value cannot change a slice, then lower every price for real.\n\n1. Keep the given `prices` slice and both print lines.\n2. Before the first print, write `for _, p := range prices` and subtract 5 from `p`.\n3. Before the second print, write `for i := range prices` and subtract 5 from `prices[i]`.\n\nExpected output:\n\n```text\nThrough p: [20 35 50]\nThrough prices[i]: [15 30 45]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tprices := []int{20, 35, 50}\n\n\t// TODO: subtract 5 from each p in for _, p := range prices\n\tfmt.Println(\"Through p:\", prices)\n\n\t// TODO: subtract 5 from each prices[i] in for i := range prices\n\tfmt.Println(\"Through prices[i]:\", prices)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tprices := []int{20, 35, 50}\n\n\tfor _, p := range prices {\n\t\tp -= 5 // changes only the copy\n\t}\n\tfmt.Println(\"Through p:\", prices)\n\n\tfor i := range prices {\n\t\tprices[i] -= 5\n\t}\n\tfmt.Println(\"Through prices[i]:\", prices)\n}\n",
+        "tests": [
+          {
+            "output": "Through p: [20 35 50]\nThrough prices[i]: [15 30 45]"
+          }
+        ],
+        "hints": [
+          "In the first loop, change `p` itself. It compiles, but the slice stays the same.",
+          "In the second loop, write through the index so the change lands in the slice."
+        ]
+      }
+    }
+  ],
+  "recap": "- `for i := 0; i < len(s); i++` visits every index. Use `<`, because `s[len(s)]` panics.\n- A while-style loop (`for i < len(s) { ... i++ }`) with `break` stops as soon as you find what you need.\n- Start a maximum or minimum at `s[0]`, then compare every element.\n- `for i, v := range s` gives the index and the element, and works on arrays and slices.\n- Use `_` for the index when you only need the values.\n- The range value is a copy. Change elements with `for i := range s` and `s[i] = ...`."
+}

@@ -1,0 +1,89 @@
+{
+  "id": "classes",
+  "title": "Classes and Objects",
+  "section": "Object-Oriented Programming",
+  "summary": "Define classes with constructors, fields, and methods, and create objects that each hold their own state.",
+  "intro": "Plain objects hold data, but the functions that work on that data live somewhere else. A class bundles both: it describes the fields every object starts with and the methods that read and change them. Then `new` stamps out as many independent objects as you need.",
+  "steps": [
+    {
+      "title": "Defining a class",
+      "body": "A class is a blueprint for objects that share the same shape and behavior. Name it in PascalCase. The `constructor` runs once for every `new` call and stores the starting values on `this`, the object being built. Methods go in the class body with no `function` keyword and no commas between them.\n\n```javascript\nclass Point {\n  constructor(x, y) {\n    this.x = x;\n    this.y = y;\n  }\n\n  distanceFromOrigin() {\n    return Math.hypot(this.x, this.y);\n  }\n}\n\nconst p = new Point(3, 4);\nconsole.log(p.distanceFromOrigin()); // 5\n```\n\n`new Point(3, 4)` creates an instance. Inside a method, `this` is the instance the method was called on, so `p.distanceFromOrigin()` reads `p.x` and `p.y`. Always write `this.x` inside methods: a bare `x` is not the field.\n\nWatch out for these:\n\n- Classes are not hoisted like function declarations. Like `let`, using `Point` above its declaration throws a ReferenceError, so declare classes first.\n- Calling `Point(3, 4)` without `new` throws a TypeError.\n- Class bodies always run in strict mode, so assigning to an undeclared name inside a method throws instead of quietly creating a global.\n- A method pulled off its instance loses `this`. `const f = p.distanceFromOrigin;` then `f()` throws a TypeError, so call methods on the instance, or wrap them in an arrow such as `() => p.distanceFromOrigin()`. The next lesson shows more fixes.",
+      "example": {
+        "title": "Rectangles",
+        "prompt": "Define a Rectangle class with area and perimeter methods, then describe two rectangles.",
+        "code": "class Rectangle {\n  constructor(width, height) {\n    this.width = width;\n    this.height = height;\n  }\n\n  area() {\n    return this.width * this.height;\n  }\n\n  perimeter() {\n    return 2 * (this.width + this.height);\n  }\n}\n\nconst small = new Rectangle(3, 4);\nconst square = new Rectangle(5, 5);\n\nconsole.log(`${small.width} x ${small.height}: area ${small.area()}, perimeter ${small.perimeter()}`);\nconsole.log(`${square.width} x ${square.height}: area ${square.area()}, perimeter ${square.perimeter()}`);\n",
+        "output": "3 x 4: area 12, perimeter 14\n5 x 5: area 25, perimeter 20",
+        "explanation": "`new Rectangle(3, 4)` runs the constructor with `this` set to a fresh object, which gets `width` and `height`. Calling `small.area()` runs the method with `this` set to `small`, so it multiplies 3 by 4. The same methods give different answers for `square` because `this` is a different instance."
+      },
+      "practice": {
+        "title": "Circles",
+        "prompt": "Finish a Circle class that measures circles.\n\n1. In the constructor, store `radius` on `this`.\n2. Make `area()` return `Math.PI` times the radius squared.\n3. Make `circumference()` return 2 times `Math.PI` times the radius.\n4. Keep the printing lines, which format both values with 2 decimal places.\n\nExpected output:\n\n```text\nRadius 1: area 3.14, circumference 6.28\nRadius 2.5: area 19.63, circumference 15.71\n```",
+        "starter": "class Circle {\n  constructor(radius) {\n    // TODO: store radius on this\n  }\n\n  area() {\n    // TODO: return the area (PI times radius squared)\n    return 0;\n  }\n\n  circumference() {\n    // TODO: return the circumference (2 times PI times radius)\n    return 0;\n  }\n}\n\nconst coin = new Circle(1);\nconst plate = new Circle(2.5);\n\nconsole.log(`Radius ${coin.radius}: area ${coin.area().toFixed(2)}, circumference ${coin.circumference().toFixed(2)}`);\nconsole.log(`Radius ${plate.radius}: area ${plate.area().toFixed(2)}, circumference ${plate.circumference().toFixed(2)}`);\n",
+        "solution": "class Circle {\n  constructor(radius) {\n    this.radius = radius;\n  }\n\n  area() {\n    return Math.PI * this.radius ** 2;\n  }\n\n  circumference() {\n    return 2 * Math.PI * this.radius;\n  }\n}\n\nconst coin = new Circle(1);\nconst plate = new Circle(2.5);\n\nconsole.log(`Radius ${coin.radius}: area ${coin.area().toFixed(2)}, circumference ${coin.circumference().toFixed(2)}`);\nconsole.log(`Radius ${plate.radius}: area ${plate.area().toFixed(2)}, circumference ${plate.circumference().toFixed(2)}`);\n",
+        "tests": [
+          {
+            "output": "Radius 1: area 3.14, circumference 6.28\nRadius 2.5: area 19.63, circumference 15.71"
+          }
+        ],
+        "hints": [
+          "Inside a method, read the radius as `this.radius`, not `radius`.",
+          "`**` runs before `*`, so you can square `this.radius` without extra parentheses."
+        ]
+      }
+    },
+    {
+      "title": "Fields and methods that change state",
+      "body": "You can also declare fields right in the class body. `count = 0;` gives every new instance its own `count` starting at 0, set before the constructor body runs. Use a field for starting values that do not come from arguments.\n\n```javascript\nclass Counter {\n  count = 0;\n\n  increment() {\n    this.count++;\n  }\n}\n```\n\nMethods change state by assigning through `this`. Each instance keeps its own fields, so `a.increment()` never touches `b.count`.\n\nA class guards its data by refusing bad changes. Check the request with an `if` and return early before changing anything:\n\n```javascript\nwithdraw(amount) {\n  if (amount > this.balance) {\n    return false;\n  }\n  this.balance -= amount;\n  return true;\n}\n```\n\nReturning `true` or `false` tells the caller whether the change happened. Outside code can still write `account.balance = -5` directly. Private fields, covered in the next lesson, close that gap.",
+      "example": {
+        "title": "Bank accounts",
+        "prompt": "Make deposits and withdrawals on two accounts, refusing bad amounts and overdrafts, and print the balance after each call.",
+        "code": "class BankAccount {\n  balance = 0;\n\n  constructor(owner) {\n    this.owner = owner;\n  }\n\n  deposit(amount) {\n    if (amount <= 0) {\n      return false;\n    }\n    this.balance += amount;\n    return true;\n  }\n\n  withdraw(amount) {\n    if (amount <= 0 || amount > this.balance) {\n      return false;\n    }\n    this.balance -= amount;\n    return true;\n  }\n}\n\nfunction report(account, action, ok) {\n  console.log(`${account.owner} ${action}: ${ok ? \"ok\" : \"refused\"}, balance ${account.balance}`);\n}\n\nconst ada = new BankAccount(\"Ada\");\nconst bo = new BankAccount(\"Bo\");\n\nreport(ada, \"deposit 100\", ada.deposit(100));\nreport(ada, \"withdraw 30\", ada.withdraw(30));\nreport(ada, \"withdraw 500\", ada.withdraw(500));\nreport(bo, \"deposit 50\", bo.deposit(50));\nreport(bo, \"deposit -20\", bo.deposit(-20));\nconsole.log(`Ada has ${ada.balance}, Bo has ${bo.balance}`);\n",
+        "output": "Ada deposit 100: ok, balance 100\nAda withdraw 30: ok, balance 70\nAda withdraw 500: refused, balance 70\nBo deposit 50: ok, balance 50\nBo deposit -20: refused, balance 50\nAda has 70, Bo has 50",
+        "explanation": "The field `balance = 0;` gives each account its own balance, while the constructor stores the owner. `deposit` and `withdraw` check the amount first and return `false` without touching `this.balance` when it is invalid. The arguments to `report` are evaluated before it runs, so the method call happens first and the printed balance is the updated one. Ada's activity never changes Bo's balance."
+      },
+      "practice": {
+        "title": "Thermostats",
+        "prompt": "Finish a Thermostat class that keeps its target between 10 and 30.\n\n1. Declare a `target` field that starts at 20.\n2. Make `up(step)` return `false` without changing anything if the new target would be above 30, otherwise add `step` and return `true`.\n3. Make `down(step)` return `false` if the new target would be below 10, otherwise subtract `step` and return `true`.\n4. Keep the calls and printing at the bottom.\n\nExpected output:\n\n```text\nHall up 5: ok, target 25\nHall up 8: refused, target 25\nHall down 3: ok, target 22\nOffice down 12: refused, target 20\nOffice down 10: ok, target 10\nHall is 22, Office is 10\n```",
+        "starter": "class Thermostat {\n  // TODO: declare a target field that starts at 20\n\n  constructor(room) {\n    this.room = room;\n  }\n\n  up(step) {\n    // TODO: raise target by step unless it would go above 30\n    return false;\n  }\n\n  down(step) {\n    // TODO: lower target by step unless it would go below 10\n    return false;\n  }\n}\n\nfunction report(thermostat, action, ok) {\n  console.log(`${thermostat.room} ${action}: ${ok ? \"ok\" : \"refused\"}, target ${thermostat.target}`);\n}\n\nconst hall = new Thermostat(\"Hall\");\nconst office = new Thermostat(\"Office\");\n\nreport(hall, \"up 5\", hall.up(5));\nreport(hall, \"up 8\", hall.up(8));\nreport(hall, \"down 3\", hall.down(3));\nreport(office, \"down 12\", office.down(12));\nreport(office, \"down 10\", office.down(10));\nconsole.log(`Hall is ${hall.target}, Office is ${office.target}`);\n",
+        "solution": "class Thermostat {\n  target = 20;\n\n  constructor(room) {\n    this.room = room;\n  }\n\n  up(step) {\n    if (this.target + step > 30) {\n      return false;\n    }\n    this.target += step;\n    return true;\n  }\n\n  down(step) {\n    if (this.target - step < 10) {\n      return false;\n    }\n    this.target -= step;\n    return true;\n  }\n}\n\nfunction report(thermostat, action, ok) {\n  console.log(`${thermostat.room} ${action}: ${ok ? \"ok\" : \"refused\"}, target ${thermostat.target}`);\n}\n\nconst hall = new Thermostat(\"Hall\");\nconst office = new Thermostat(\"Office\");\n\nreport(hall, \"up 5\", hall.up(5));\nreport(hall, \"up 8\", hall.up(8));\nreport(hall, \"down 3\", hall.down(3));\nreport(office, \"down 12\", office.down(12));\nreport(office, \"down 10\", office.down(10));\nconsole.log(`Hall is ${hall.target}, Office is ${office.target}`);\n",
+        "tests": [
+          {
+            "output": "Hall up 5: ok, target 25\nHall up 8: refused, target 25\nHall down 3: ok, target 22\nOffice down 12: refused, target 20\nOffice down 10: ok, target 10\nHall is 22, Office is 10"
+          }
+        ],
+        "hints": [
+          "A field goes in the class body on its own line, like `balance = 0;` in the example.",
+          "Work out what `this.target` would become and `return false` early if that leaves the range, before you change anything."
+        ]
+      }
+    },
+    {
+      "title": "toString and arrays of instances",
+      "body": "Put an instance in a template literal and you get `[object Object]`. Give the class a `toString()` method and both `${book}` and `String(book)` use it instead:\n\n```javascript\nclass Book {\n  constructor(title, year) {\n    this.title = title;\n    this.year = year;\n  }\n\n  toString() {\n    return `${this.title} (${this.year})`;\n  }\n}\n\nconst book = new Book(\"Dune\", 1965);\nconsole.log(`${book}`); // Dune (1965)\nconsole.log(String(book)); // Dune (1965)\n```\n\n`console.log(book)` on its own ignores `toString` and prints Node's debug view, such as `Book { title: 'Dune', year: 1965 }`. Always print instances through a template literal or a method.\n\nInstances are ordinary values, so they live happily in arrays and every array method works on them. Callbacks receive whole instances and can read fields or call methods:\n\n```javascript\nconst recent = shelf.filter((book) => book.year > 1960);\nconst titles = shelf.map((book) => book.title).join(\", \");\nconst byYear = shelf.toSorted((a, b) => a.year - b.year);\n```\n\n`sort` reorders the array in place, while `toSorted` returns a sorted copy and leaves the original alone. Build the array after the class declaration, because classes are not hoisted.",
+      "example": {
+        "title": "Bookshelf",
+        "prompt": "Print a shelf of books sorted by year, then list the titles published before 1950.",
+        "code": "class Book {\n  constructor(title, author, year) {\n    this.title = title;\n    this.author = author;\n    this.year = year;\n  }\n\n  toString() {\n    return `${this.title} by ${this.author} (${this.year})`;\n  }\n}\n\nconst shelf = [\n  new Book(\"Dune\", \"Frank Herbert\", 1965),\n  new Book(\"The Hobbit\", \"J.R.R. Tolkien\", 1937),\n  new Book(\"Neuromancer\", \"William Gibson\", 1984),\n  new Book(\"1984\", \"George Orwell\", 1949),\n];\n\nconst byYear = shelf.toSorted((a, b) => a.year - b.year);\nfor (const book of byYear) {\n  console.log(`${book}`);\n}\n\nconst older = byYear.filter((book) => book.year < 1950).map((book) => book.title);\nconsole.log(`Before 1950: ${older.join(\", \")}`);\n",
+        "output": "The Hobbit by J.R.R. Tolkien (1937)\n1984 by George Orwell (1949)\nDune by Frank Herbert (1965)\nNeuromancer by William Gibson (1984)\nBefore 1950: The Hobbit, 1984",
+        "explanation": "`toSorted` compares the `year` fields and returns a new array, so `shelf` keeps its original order. Each `${book}` calls `toString()` to build the line. `filter` keeps the older books and `map` turns those instances into plain title strings for `join`."
+      },
+      "practice": {
+        "title": "Team leaderboard",
+        "prompt": "Print a leaderboard of the players who scored over 50, then list everyone else.\n\n1. Add a `toString()` method to Player that returns text like `Ana: 72 pts` (the name, a colon, a space, the score, a space, and `pts`).\n2. Set `top` to the players with a score over 50, sorted by score from highest to lowest (no two scores tie).\n3. Set `others` to the players with a score of 50 or less, in team order.\n4. Keep the printing lines.\n\nExpected output:\n\n```text\nCai: 88 pts\nAna: 72 pts\nEli: 61 pts\nOthers: Ben, Dev\n```",
+        "starter": "class Player {\n  constructor(name, score) {\n    this.name = name;\n    this.score = score;\n  }\n\n  // TODO: add toString() returning \"Name: score pts\"\n}\n\nconst team = [\n  new Player(\"Ana\", 72),\n  new Player(\"Ben\", 45),\n  new Player(\"Cai\", 88),\n  new Player(\"Dev\", 50),\n  new Player(\"Eli\", 61),\n];\n\n// TODO: keep players scoring over 50, sorted by score from high to low\nconst top = [];\nfor (const player of top) {\n  console.log(`${player}`);\n}\n\n// TODO: keep players scoring 50 or less, in team order\nconst others = [];\nconsole.log(`Others: ${others.map((player) => player.name).join(\", \")}`);\n",
+        "solution": "class Player {\n  constructor(name, score) {\n    this.name = name;\n    this.score = score;\n  }\n\n  toString() {\n    return `${this.name}: ${this.score} pts`;\n  }\n}\n\nconst team = [\n  new Player(\"Ana\", 72),\n  new Player(\"Ben\", 45),\n  new Player(\"Cai\", 88),\n  new Player(\"Dev\", 50),\n  new Player(\"Eli\", 61),\n];\n\nconst top = team.filter((player) => player.score > 50).sort((a, b) => b.score - a.score);\nfor (const player of top) {\n  console.log(`${player}`);\n}\n\nconst others = team.filter((player) => player.score <= 50);\nconsole.log(`Others: ${others.map((player) => player.name).join(\", \")}`);\n",
+        "tests": [
+          {
+            "output": "Cai: 88 pts\nAna: 72 pts\nEli: 61 pts\nOthers: Ben, Dev"
+          }
+        ],
+        "hints": [
+          "`toString()` can return a template literal built from `this.name` and `this.score`.",
+          "Chain `sort` onto the result of `filter`, with a comparator that puts the higher score first.",
+          "`filter` returns a new array, so sorting that result leaves `team` in its original order."
+        ]
+      }
+    }
+  ],
+  "recap": "- `class Name { constructor(...) { this.x = ...; } }` defines a class, and `new Name(...)` creates an instance.\n- Inside a method, `this` is the instance the method was called on.\n- Declare classes before using them: they are not hoisted, and calling one without `new` throws.\n- Fields like `balance = 0;` give every instance its own starting value.\n- Methods change state through `this` and can refuse invalid changes with an early `return`.\n- A `toString()` method makes `${obj}` and `String(obj)` print nicely. Never `console.log` an instance directly in checked output.\n- Instances go in arrays, and `map`, `filter`, and `sort` work on them like any other values."
+}

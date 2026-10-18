@@ -1,0 +1,120 @@
+{
+  "id": "input-collections",
+  "title": "Input with Collections and Classes",
+  "section": "Input",
+  "summary": "Turn input into arrays, strings, Maps, Sets, and class instances to solve complete small problems.",
+  "intro": "Reading input is only the first line of a real program. The rest is turning that text into the structures you already know: arrays of words, Maps of counts, Sets of unique values, and class instances built from each line. This lesson puts each of them to work on input.",
+  "steps": [
+    {
+      "title": "Input into arrays and strings",
+      "body": "Most input problems start the same way: read the text, split it into words, then use the array methods you already know. Split on `/\\s+/` after `trim()`, so doubled spaces and the trailing newline never turn into empty words:\n\n```javascript\nconst words = input.trim().split(/\\s+/);\nconst caps = words.map((w) => `${w[0].toUpperCase()}${w.slice(1)}`);\nconsole.log(caps.join(\" \"));\nconsole.log(words.toSorted((a, b) => a.localeCompare(b)).join(\", \"));\n```\n\n`map` transforms each word and `join` glues the results back into one line. `toSorted` returns a sorted copy and leaves `words` in input order, which matters when a later line still needs the original order. To pick one word, `reduce` with the first word as the starting value and a strict `>` or `<`, so the earliest word wins ties.\n\n**The gotchas:** `split(\" \")` turns `\"a  b\"` into `[\"a\", \"\", \"b\"]`. And empty input still gives one word, because `\"\".split(/\\s+/)` is `[\"\"]`.",
+      "example": {
+        "title": "Sentence report",
+        "prompt": "Read a sentence and print it capitalized, reversed, and sorted, plus its longest word (the first one wins ties).",
+        "stdin": "the quick brown fox jumps over the lazy dog\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst words = input.trim().split(/\\s+/);\n\nconst capitalized = words.map((w) => `${w[0].toUpperCase()}${w.slice(1)}`);\nconst reversed = words.toReversed();\nconst sorted = words.toSorted((a, b) => a.localeCompare(b));\nconst longest = words.reduce((best, w) => (w.length > best.length ? w : best), words[0]);\n\nconsole.log(`Capitalized: ${capitalized.join(\" \")}`);\nconsole.log(`Reversed: ${reversed.join(\" \")}`);\nconsole.log(`Sorted: ${sorted.join(\", \")}`);\nconsole.log(`Longest: ${longest}`);\n",
+        "output": "Capitalized: The Quick Brown Fox Jumps Over The Lazy Dog\nReversed: dog lazy the over jumps fox brown quick the\nSorted: brown, dog, fox, jumps, lazy, over, quick, the, the\nLongest: quick",
+        "explanation": "`trim().split(/\\s+/)` turns the line into an array of words. `map` capitalizes each word by uppercasing its first letter and adding the rest with `slice(1)`. `toReversed` and `toSorted` return copies, so `words` stays in input order for the next line. `reduce` starts from the first word and only replaces it with a strictly longer one, so `quick` beats `brown` and `jumps`, which have the same length but come later."
+      },
+      "practice": {
+        "title": "Word sorter",
+        "prompt": "Read one line of lowercase words and report on them.\n\n1. Split the input into words with `trim()` and `split(/\\s+/)`, so extra spaces are ignored.\n2. Print `Sorted: ` followed by the words in alphabetical order, joined with `, `.\n3. Print `Words: ` followed by the number of words.\n4. Print `Shortest: ` followed by the shortest word. If several words share that length, the first one in the input wins.\n\nInput:\n\n```text\npear fig apple kiwi banana\n```\n\nExpected output:\n\n```text\nSorted: apple, banana, fig, kiwi, pear\nWords: 5\nShortest: fig\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\n\n// TODO: split input into words with trim() and split(/\\s+/)\nconst words = [];\n\n// TODO: print the sorted words, the word count, and the shortest word\nconsole.log(`Words: ${words.length}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst words = input.trim().split(/\\s+/);\n\nconst sorted = words.toSorted((a, b) => a.localeCompare(b));\nconst shortest = words.reduce((best, w) => (w.length < best.length ? w : best), words[0]);\n\nconsole.log(`Sorted: ${sorted.join(\", \")}`);\nconsole.log(`Words: ${words.length}`);\nconsole.log(`Shortest: ${shortest}`);\n",
+        "tests": [
+          {
+            "stdin": "pear fig apple kiwi banana\n",
+            "output": "Sorted: apple, banana, fig, kiwi, pear\nWords: 5\nShortest: fig"
+          },
+          {
+            "stdin": "  one  two   six \n",
+            "output": "Sorted: one, six, two\nWords: 3\nShortest: one"
+          },
+          {
+            "stdin": "zebra\n",
+            "output": "Sorted: zebra\nWords: 1\nShortest: zebra"
+          }
+        ],
+        "hints": [
+          "`toSorted` with a `localeCompare` comparator returns an alphabetical copy and leaves `words` alone.",
+          "Use `reduce` starting from `words[0]` and keep the word only when `w.length < best.length`, so ties keep the earlier word."
+        ]
+      }
+    },
+    {
+      "title": "Input into Map and Set",
+      "body": "Input keys belong in a Map, not a plain object, because a word like `constructor` would collide with inherited object keys. Count with `get` and `??`, and use a Set when you only care whether a value appeared:\n\n```javascript\nconst counts = new Map();\nfor (const w of words) {\n  counts.set(w, (counts.get(w) ?? 0) + 1);\n}\nconst unique = new Set(words); // unique.size is the distinct count\n```\n\nA Map iterates in insertion order, which follows the input, not the order your output needs. To print by a rule such as highest count first, spread it into `[key, value]` pairs and sort them. Destructure the pairs in the comparator and add a tie-breaker with `||`:\n\n```javascript\nconst sorted = [...counts].sort(\n  ([wordA, countA], [wordB, countB]) => countB - countA || wordA.localeCompare(wordB)\n);\n```\n\n`countB - countA` puts bigger counts first. When the counts are equal it is 0, which is falsy, so `||` falls through to the alphabetical comparison. Spread a Set the same way, `[...set]`, before you sort or join it.",
+      "example": {
+        "title": "Word frequency",
+        "prompt": "Read a line of lowercase words, print how many distinct words it has, then each word with its count, sorted by count descending and then alphabetically.",
+        "stdin": "to be or not to be that is the question\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst words = input.trim().split(/\\s+/);\n\nconst unique = new Set(words);\nconst counts = new Map();\nfor (const w of words) {\n  counts.set(w, (counts.get(w) ?? 0) + 1);\n}\n\nconst sorted = [...counts].sort(\n  ([wordA, countA], [wordB, countB]) => countB - countA || wordA.localeCompare(wordB)\n);\n\nconsole.log(`Unique words: ${unique.size}`);\nfor (const [word, count] of sorted) {\n  console.log(`${word}: ${count}`);\n}\n",
+        "output": "Unique words: 8\nbe: 2\nto: 2\nis: 1\nnot: 1\nor: 1\nquestion: 1\nthat: 1\nthe: 1",
+        "explanation": "`new Set(words)` drops the duplicates, so its `size` is the distinct count. The loop adds 1 to each word's count, starting from 0 through `??` the first time a word shows up. Spreading the Map gives `[word, count]` pairs. The comparator puts higher counts first, and for equal counts `localeCompare` orders the words, which is why `be` comes before `to` and the single words appear alphabetically instead of in input order."
+      },
+      "practice": {
+        "title": "Visitor log",
+        "prompt": "Read a visitor log with one lowercase name per line and report the unique and repeat visitors.\n\n1. The starter already reads the names into `names` with `input.trim().split(/\\s+/)`, which works across lines because `\\s` also matches newlines.\n2. Print `Unique visitors: ` followed by the number of different names.\n3. Count each name in a Map.\n4. Print `Repeat visitors: ` followed by the names that appear more than once, sorted alphabetically and joined with `, `. Print `none` instead when no name repeats.\n\nInput:\n\n```text\nben\nana\ncal\nben\nana\ndev\nana\n```\n\nExpected output:\n\n```text\nUnique visitors: 4\nRepeat visitors: ana, ben\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst names = input.trim().split(/\\s+/);\n\n// TODO: collect the names in a Set and count them in a Map\n// TODO: print the unique count, then the repeat visitors sorted alphabetically (or none)\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst names = input.trim().split(/\\s+/);\n\nconst unique = new Set(names);\nconst counts = new Map();\nfor (const name of names) {\n  counts.set(name, (counts.get(name) ?? 0) + 1);\n}\n\nconst repeats = [...counts]\n  .filter(([, count]) => count > 1)\n  .map(([name]) => name)\n  .sort((a, b) => a.localeCompare(b));\n\nconsole.log(`Unique visitors: ${unique.size}`);\nconsole.log(`Repeat visitors: ${repeats.length > 0 ? repeats.join(\", \") : \"none\"}`);\n",
+        "tests": [
+          {
+            "stdin": "ben\nana\ncal\nben\nana\ndev\nana\n",
+            "output": "Unique visitors: 4\nRepeat visitors: ana, ben"
+          },
+          {
+            "stdin": "zed\nkim\nlee\n",
+            "output": "Unique visitors: 3\nRepeat visitors: none"
+          },
+          {
+            "stdin": "max\nmax\n",
+            "output": "Unique visitors: 1\nRepeat visitors: max"
+          }
+        ],
+        "hints": [
+          "`new Set(names).size` is the number of different names.",
+          "Spread the Map into pairs, `filter` the ones whose count is above 1, `map` each pair to its name, then sort.",
+          "A ternary on `repeats.length > 0` chooses between the joined names and `none`."
+        ]
+      }
+    },
+    {
+      "title": "Input into objects and classes",
+      "body": "When each line is a record, split it and destructure the fields straight into names. Everything arrives as text, so convert the numeric fields with `Number`. Then hand them to a class, so the rest of the program works with real objects and methods:\n\n```javascript\nconst n = Number(lines[0]);\nconst items = lines.slice(1, n + 1).map((line) => {\n  const [name, price, qty] = line.trim().split(/\\s+/);\n  return new Item(name, Number(price), Number(qty));\n});\n```\n\nDeclare the class above this code, because classes are not hoisted. A rest pattern such as `const [name, ...scores] = parts` collects a variable number of trailing fields.\n\n**The gotcha:** never sort on raw float results. `1.1 * 3` is `3.3000000000000003`, so it sorts above an exact `3.3` even though both print as `3.30`. Sort on the value you display instead:\n\n```javascript\nitems.sort((a, b) =>\n  Math.round(b.total() * 100) - Math.round(a.total() * 100) || a.name.localeCompare(b.name)\n);\n```\n\nRounding to whole cents makes the two totals equal, so the name tie-breaker decides, just as the reader expects. For values shown with 1 decimal, compare `Math.round(value * 10)` the same way.",
+      "example": {
+        "title": "Shopping receipt",
+        "prompt": "Read n item lines of `name price qty`, build Item objects with a total() method, and print them sorted by total in cents descending, then by name, followed by the grand total to 2 decimals.",
+        "stdin": "4\npen 1.1 3\ncup 3.3 1\nbook 12.5 2\ntape 0.75 4\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst n = Number(lines[0]);\n\nclass Item {\n  constructor(name, price, qty) {\n    this.name = name;\n    this.price = price;\n    this.qty = qty;\n  }\n\n  total() {\n    return this.price * this.qty;\n  }\n}\n\nconst items = lines.slice(1, n + 1).map((line) => {\n  const [name, price, qty] = line.trim().split(/\\s+/);\n  return new Item(name, Number(price), Number(qty));\n});\n\nitems.sort((a, b) =>\n  Math.round(b.total() * 100) - Math.round(a.total() * 100) || a.name.localeCompare(b.name)\n);\n\nfor (const item of items) {\n  console.log(`${item.name} x${item.qty} = ${item.total().toFixed(2)}`);\n}\nconst grand = items.reduce((sum, item) => sum + item.total(), 0);\nconsole.log(`Grand total: ${grand.toFixed(2)}`);\n",
+        "output": "book x2 = 25.00\ncup x1 = 3.30\npen x3 = 3.30\ntape x4 = 3.00\nGrand total: 34.60",
+        "explanation": "The first line says how many records follow, and `slice(1, n + 1)` takes exactly those lines. Each line is destructured into `name`, `price`, and `qty`, converted with `Number`, and passed to `new Item`. The sort compares `Math.round(total * 100)`: `pen` is really `3.3000000000000003` and `cup` is `3.3`, but both round to 330 cents, so the tie goes to the name and `cup` comes first. `reduce` adds up the totals for the last line."
+      },
+      "practice": {
+        "title": "Class rankings",
+        "prompt": "Read n student lines of `name score1 score2 score3` and print the students ranked by average.\n\n1. The first line is `n`. Each of the next n lines holds a lowercase name and three scores with one decimal place, separated by spaces.\n2. Finish the `average()` method so it returns the mean of `this.scores`.\n3. Build one `Student` per line. Destructure the name and the scores, and convert the scores with `Number`.\n4. Sort by the average rounded to 1 decimal (`Math.round(average * 10)`), highest first. Break ties by name, alphabetically.\n5. Print each student as `name: average` with the average to 1 decimal place.\n\nInput:\n\n```text\n4\nmia 90.0 85.5 77.0\nleo 84.5 84.0 84.5\nava 84.0 84.5 84.3\nsam 99.0 92.5 95.0\n```\n\nExpected output:\n\n```text\nsam: 95.5\nava: 84.3\nleo: 84.3\nmia: 84.2\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst n = Number(lines[0]);\n\nclass Student {\n  constructor(name, scores) {\n    this.name = name;\n    this.scores = scores;\n  }\n\n  average() {\n    // TODO: return the mean of this.scores\n    return 0;\n  }\n}\n\n// TODO: turn lines 1 to n into Student objects with destructuring and Number\nconst students = [];\n\n// TODO: sort by Math.round(average * 10) descending, then by name\nfor (const student of students) {\n  console.log(`${student.name}: ${student.average().toFixed(1)}`);\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst n = Number(lines[0]);\n\nclass Student {\n  constructor(name, scores) {\n    this.name = name;\n    this.scores = scores;\n  }\n\n  average() {\n    return this.scores.reduce((sum, s) => sum + s, 0) / this.scores.length;\n  }\n}\n\nconst students = lines.slice(1, n + 1).map((line) => {\n  const [name, ...scores] = line.trim().split(/\\s+/);\n  return new Student(name, scores.map(Number));\n});\n\nstudents.sort((a, b) =>\n  Math.round(b.average() * 10) - Math.round(a.average() * 10) || a.name.localeCompare(b.name)\n);\n\nfor (const student of students) {\n  console.log(`${student.name}: ${student.average().toFixed(1)}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "4\nmia 90.0 85.5 77.0\nleo 84.5 84.0 84.5\nava 84.0 84.5 84.3\nsam 99.0 92.5 95.0\n",
+            "output": "sam: 95.5\nava: 84.3\nleo: 84.3\nmia: 84.2"
+          },
+          {
+            "stdin": "1\nzoe 100.0 99.5 99.0\n",
+            "output": "zoe: 99.5"
+          },
+          {
+            "stdin": "3\nkai  70.5 70.0 69.6\neli 70.0 70.0 70.0\nian 50.0 55.5 61.0\n",
+            "output": "eli: 70.0\nkai: 70.0\nian: 55.5"
+          }
+        ],
+        "hints": [
+          "A rest pattern, `[name, ...scores]`, puts the first field in `name` and the three score strings in `scores`.",
+          "Inside `average()`, `reduce` the scores into a sum starting from 0, then divide by `this.scores.length`.",
+          "`leo` averages a little more than `ava`, but both show `84.3`. Use the example's comparator with `average() * 10` in place of `total() * 100`, so the name decides that tie."
+        ]
+      }
+    }
+  ],
+  "recap": "- Split a line into words with `input.trim().split(/\\s+/)`, never `split(\" \")`.\n- Transform words with `map` and print them with `join`. `toSorted` and `toReversed` keep the original order intact.\n- Pick one word with `reduce` from `words[0]` and a strict comparison, so the first one wins ties.\n- Count input tokens in a Map with `counts.set(k, (counts.get(k) ?? 0) + 1)`, and use `new Set(values).size` for distinct values.\n- Spread a Map with `[...map]` and sort the pairs, with ties broken by `||` and `localeCompare`.\n- Destructure each record line with `const [name, a, b] = line.trim().split(/\\s+/)`, convert with `Number`, and build class instances.\n- Sort on the displayed precision, such as `Math.round(total * 100)`, so hidden float digits cannot change the order."
+}

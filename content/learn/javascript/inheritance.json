@@ -1,0 +1,156 @@
+{
+  "id": "inheritance",
+  "title": "Inheritance, Polymorphism, and Prototypes",
+  "section": "More Object-Oriented Programming",
+  "summary": "Extend classes with extends and super, override methods for polymorphism, see the prototype chain underneath, and build custom error classes.",
+  "intro": "Many things in a program are special versions of something more general: a truck is a vehicle, a circle is a shape. Inheritance lets a class reuse another class and change only what differs. Here you extend classes, override methods so one loop handles many kinds, peek at the prototypes underneath, and write your own error types.",
+  "steps": [
+    {
+      "title": "extends and super",
+      "body": "`class Child extends Parent` makes a class that starts with everything the parent has. Use it when one kind of thing is a more specific version of another: a dog is an animal.\n\n```javascript\nclass Dog extends Animal {\n  constructor(name, breed) {\n    super(name);        // runs Animal's constructor\n    this.breed = breed; // then add the extra field\n  }\n\n  describe() {\n    return `${super.describe()} Breed: ${this.breed}`;\n  }\n}\n```\n\n- `super(...)` calls the parent constructor, so the parent sets up its own fields such as `this.name`.\n- In a child constructor, `super(...)` must run before you touch `this`. Using `this` first, or never calling `super(...)` at all, throws a ReferenceError.\n- A child with no constructor gets one for free that passes every argument to the parent.\n- Instances inherit the parent's fields and methods, so `new Dog(\"Rex\", \"collie\").name` works.\n- Inside a method, `super.describe()` calls the parent's version. Wrap it to extend the parent instead of copying its code.\n\nWhen input lines start with a kind word, read that word first and build the matching class.",
+      "example": {
+        "title": "Pets and dogs",
+        "prompt": "Read lines like `dog Rex collie` or `animal Tom`, build a Dog or a plain Animal, and print each description.",
+        "stdin": "dog Rex collie\nanimal Tom\ndog Bella poodle\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nclass Animal {\n  constructor(name) {\n    this.name = name;\n  }\n\n  describe() {\n    return `${this.name} is an animal.`;\n  }\n}\n\nclass Dog extends Animal {\n  constructor(name, breed) {\n    super(name);\n    this.breed = breed;\n  }\n\n  describe() {\n    return `${super.describe()} Breed: ${this.breed}`;\n  }\n}\n\nfor (const line of lines) {\n  const [kind, name, breed] = line.trim().split(/\\s+/);\n  const pet = kind === \"dog\" ? new Dog(name, breed) : new Animal(name);\n  console.log(pet.describe());\n}\n",
+        "output": "Rex is an animal. Breed: collie\nTom is an animal.\nBella is an animal. Breed: poodle",
+        "explanation": "`Dog` calls `super(name)`, so `Animal`'s constructor sets `this.name`, then `Dog` adds `breed`. `Dog`'s `describe()` starts with `super.describe()`, which returns the animal sentence, and appends the breed. For `animal Tom` the third word is missing, `breed` is `undefined`, and the ternary builds a plain `Animal` that never reads it."
+      },
+      "practice": {
+        "title": "Trucks and vehicles",
+        "prompt": "Read lines like `truck Volvo 18` or `vehicle Fiat` and print a description of each vehicle.\n\n1. Write `class Truck extends Vehicle` whose constructor takes `make` and `capacity`, calls `super(make)`, stores `capacity`, and sets `this.wheels` to 6.\n2. Override `describe()` in `Truck` to return `super.describe()`, a space, then `Capacity: <capacity> tons`.\n3. For each line, build a `Truck` (capacity converted with `Number`) when the first word is `truck`, otherwise a `Vehicle`.\n4. Print each description in input order.\n\nInput:\n\n```text\ntruck Volvo 18\nvehicle Fiat\ntruck Scania 25\n```\n\nExpected output:\n\n```text\nVolvo has 6 wheels. Capacity: 18 tons\nFiat has 4 wheels.\nScania has 6 wheels. Capacity: 25 tons\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nclass Vehicle {\n  constructor(make) {\n    this.make = make;\n    this.wheels = 4;\n  }\n\n  describe() {\n    return `${this.make} has ${this.wheels} wheels.`;\n  }\n}\n\n// TODO: write class Truck extends Vehicle with a capacity and 6 wheels\n\nfor (const line of lines) {\n  const [kind, make, capacity] = line.trim().split(/\\s+/);\n  // TODO: build a Truck when kind is \"truck\", otherwise a Vehicle, and print its description\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nclass Vehicle {\n  constructor(make) {\n    this.make = make;\n    this.wheels = 4;\n  }\n\n  describe() {\n    return `${this.make} has ${this.wheels} wheels.`;\n  }\n}\n\nclass Truck extends Vehicle {\n  constructor(make, capacity) {\n    super(make);\n    this.capacity = capacity;\n    this.wheels = 6;\n  }\n\n  describe() {\n    return `${super.describe()} Capacity: ${this.capacity} tons`;\n  }\n}\n\nfor (const line of lines) {\n  const [kind, make, capacity] = line.trim().split(/\\s+/);\n  const vehicle = kind === \"truck\" ? new Truck(make, Number(capacity)) : new Vehicle(make);\n  console.log(vehicle.describe());\n}\n",
+        "tests": [
+          {
+            "stdin": "truck Volvo 18\nvehicle Fiat\ntruck Scania 25\n",
+            "output": "Volvo has 6 wheels. Capacity: 18 tons\nFiat has 4 wheels.\nScania has 6 wheels. Capacity: 25 tons"
+          },
+          {
+            "stdin": "vehicle Mini\nvehicle Kia\n",
+            "output": "Mini has 4 wheels.\nKia has 4 wheels."
+          },
+          {
+            "stdin": "truck Iveco 7\n",
+            "output": "Iveco has 6 wheels. Capacity: 7 tons"
+          }
+        ],
+        "hints": [
+          "Set `this.wheels = 6` after `super(make)`, which sets it to 4 first.",
+          "Start from `super.describe()` and add the capacity in one template literal."
+        ]
+      }
+    },
+    {
+      "title": "Overriding and polymorphism",
+      "body": "A subclass **overrides** a parent method by defining one with the same name. JavaScript finds the child's method before the parent's, so the child's version wins.\n\nThat gives you **polymorphism**: one loop calls `shape.area()` and each object runs its own version. The loop never asks which class it holds.\n\n```javascript\nclass Shape {\n  area() {\n    throw new Error(\"not implemented\"); // every subclass must override\n  }\n\n  describe() {\n    return `${this.name}: ${this.area().toFixed(2)}`; // calls the child's area()\n  }\n}\n```\n\nA base method that throws makes a forgotten override fail loudly instead of quietly returning `undefined`.\n\n`x instanceof Shape` checks the whole chain: a `Circle` is an instance of `Circle`, of `Shape`, and of `Object`.\n\nKeep the choice of subclass in one parse function with a `switch` on the first word. The rest of the program only works with the finished objects.\n\n```javascript\nswitch (kind) {\n  case \"circle\":\n    return new Circle(Number(a));\n  // one case per kind\n}\n```",
+      "example": {
+        "title": "Shape areas",
+        "prompt": "Read one shape per line, build it with `parseShape`, and print each area, the total, and a few `instanceof` checks.",
+        "stdin": "circle 2\nsquare 3\ntriangle 4 5\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nclass Shape {\n  constructor(name) {\n    this.name = name;\n  }\n\n  area() {\n    throw new Error(\"not implemented\");\n  }\n\n  describe() {\n    return `${this.name}: ${this.area().toFixed(2)}`;\n  }\n}\n\nclass Circle extends Shape {\n  constructor(radius) {\n    super(\"circle\");\n    this.radius = radius;\n  }\n\n  area() {\n    return Math.PI * this.radius ** 2;\n  }\n}\n\nclass Square extends Shape {\n  constructor(side) {\n    super(\"square\");\n    this.side = side;\n  }\n\n  area() {\n    return this.side ** 2;\n  }\n}\n\nclass Triangle extends Shape {\n  constructor(base, height) {\n    super(\"triangle\");\n    this.base = base;\n    this.height = height;\n  }\n\n  area() {\n    return 0.5 * this.base * this.height;\n  }\n}\n\nfunction parseShape(line) {\n  const [kind, a, b] = line.trim().split(/\\s+/);\n  switch (kind) {\n    case \"circle\":\n      return new Circle(Number(a));\n    case \"square\":\n      return new Square(Number(a));\n    case \"triangle\":\n      return new Triangle(Number(a), Number(b));\n    default:\n      throw new Error(`unknown shape: ${kind}`);\n  }\n}\n\nconst shapes = lines.map((line) => parseShape(line));\nfor (const shape of shapes) {\n  console.log(shape.describe());\n}\nconst total = shapes.reduce((sum, s) => sum + s.area(), 0);\nconsole.log(`Total: ${total.toFixed(2)}`);\nconsole.log(`All shapes: ${shapes.every((s) => s instanceof Shape)}`);\nconsole.log(`Circles: ${shapes.filter((s) => s instanceof Circle).length}`);\ntry {\n  new Shape(\"blob\").area();\n} catch (error) {\n  console.log(`Shape area: ${error.message}`);\n}\n",
+        "output": "circle: 12.57\nsquare: 9.00\ntriangle: 10.00\nTotal: 31.57\nAll shapes: true\nCircles: 1\nShape area: not implemented",
+        "explanation": "`parseShape` returns a different class for each first word. The loop calls `describe()`, which lives on `Shape`, and `describe()` calls `this.area()`, which runs the override on the real object. Every shape passes `instanceof Shape`, but only one passes `instanceof Circle`. A bare `Shape` has no real area, so its `area()` throws and the catch prints the message the program wrote."
+      },
+      "practice": {
+        "title": "Monthly payroll",
+        "prompt": "Read one employee per line and print each monthly pay, the total, and a few `instanceof` checks.\n\n1. Write `Salaried`, `Hourly`, and `Intern`, each extending `Employee`. Override `monthlyPay()`: `salary / 12`, `rate * hours * 4`, and a flat `1000`.\n2. Finish `parseEmployee(line)` with a `switch` on the first word: `salaried <name> <salary>`, `hourly <name> <rate> <hours>`, or `intern <name>`.\n3. Print `<name>: <pay>` for each employee in input order, then `Total: <sum>`, both to 2 decimal places.\n4. Print `All employees: <true or false>` (every item is an `Employee`) and `Interns: <count>` (items that are an `Intern`).\n5. Call `monthlyPay()` on `new Employee(\"Temp\")` inside try and print `Employee pay: <error message>`.\n\nInput:\n\n```text\nsalaried Ana 52000\nhourly Bo 20 35\nintern Cy\n```\n\nExpected output:\n\n```text\nAna: 4333.33\nBo: 2800.00\nCy: 1000.00\nTotal: 8133.33\nAll employees: true\nInterns: 1\nEmployee pay: not implemented\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nclass Employee {\n  constructor(name) {\n    this.name = name;\n  }\n\n  monthlyPay() {\n    throw new Error(\"not implemented\");\n  }\n}\n\n// TODO: write Salaried, Hourly, and Intern, each extending Employee and overriding monthlyPay()\n\nfunction parseEmployee(line) {\n  const [kind, name, a, b] = line.trim().split(/\\s+/);\n  // TODO: switch on kind and return a new Salaried, Hourly, or Intern\n  return null;\n}\n\nconst staff = lines.map((line) => parseEmployee(line));\n// TODO: print each name and pay, the total, All employees, Interns, and Employee pay\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nclass Employee {\n  constructor(name) {\n    this.name = name;\n  }\n\n  monthlyPay() {\n    throw new Error(\"not implemented\");\n  }\n}\n\nclass Salaried extends Employee {\n  constructor(name, salary) {\n    super(name);\n    this.salary = salary;\n  }\n\n  monthlyPay() {\n    return this.salary / 12;\n  }\n}\n\nclass Hourly extends Employee {\n  constructor(name, rate, hours) {\n    super(name);\n    this.rate = rate;\n    this.hours = hours;\n  }\n\n  monthlyPay() {\n    return this.rate * this.hours * 4;\n  }\n}\n\nclass Intern extends Employee {\n  monthlyPay() {\n    return 1000;\n  }\n}\n\nfunction parseEmployee(line) {\n  const [kind, name, a, b] = line.trim().split(/\\s+/);\n  switch (kind) {\n    case \"salaried\":\n      return new Salaried(name, Number(a));\n    case \"hourly\":\n      return new Hourly(name, Number(a), Number(b));\n    case \"intern\":\n      return new Intern(name);\n    default:\n      throw new Error(`unknown kind: ${kind}`);\n  }\n}\n\nconst staff = lines.map((line) => parseEmployee(line));\nfor (const person of staff) {\n  console.log(`${person.name}: ${person.monthlyPay().toFixed(2)}`);\n}\nconst total = staff.reduce((sum, e) => sum + e.monthlyPay(), 0);\nconsole.log(`Total: ${total.toFixed(2)}`);\nconsole.log(`All employees: ${staff.every((e) => e instanceof Employee)}`);\nconsole.log(`Interns: ${staff.filter((e) => e instanceof Intern).length}`);\ntry {\n  new Employee(\"Temp\").monthlyPay();\n} catch (error) {\n  console.log(`Employee pay: ${error.message}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "salaried Ana 52000\nhourly Bo 20 35\nintern Cy\n",
+            "output": "Ana: 4333.33\nBo: 2800.00\nCy: 1000.00\nTotal: 8133.33\nAll employees: true\nInterns: 1\nEmployee pay: not implemented"
+          },
+          {
+            "stdin": "intern Di\nintern Ed\nhourly Flo 18.5 40\n",
+            "output": "Di: 1000.00\nEd: 1000.00\nFlo: 2960.00\nTotal: 4960.00\nAll employees: true\nInterns: 2\nEmployee pay: not implemented"
+          },
+          {
+            "stdin": "salaried Gus 60000\n",
+            "output": "Gus: 5000.00\nTotal: 5000.00\nAll employees: true\nInterns: 0\nEmployee pay: not implemented"
+          }
+        ],
+        "hints": [
+          "`Intern` needs no constructor: the default one passes `name` to `Employee`.",
+          "Sum with `staff.reduce((sum, e) => sum + e.monthlyPay(), 0)` and format with `toFixed(2)` only when printing.",
+          "Count interns with `staff.filter((e) => e instanceof Intern).length`."
+        ]
+      }
+    },
+    {
+      "title": "Prototypes under the hood",
+      "body": "Classes are syntax over **prototypes**. `typeof Dog` is `\"function\"`, and every regular method you write in the class body is stored once on `Dog.prototype` (static methods live on `Dog` itself). Every instance links to that object, so all dogs share one copy of each method.\n\n```javascript\nObject.getPrototypeOf(rex) === Dog.prototype;              // true\nObject.getPrototypeOf(Dog.prototype) === Animal.prototype; // true\nrex.fetch === max.fetch;                                   // true, one shared method\n```\n\nReading `rex.key` walks the chain: rex's own properties, then `Dog.prototype`, then `Animal.prototype`, then `Object.prototype` (where `toString` lives). The first match wins, which is how overriding works. `rex instanceof Animal` walks the same chain and is true because `Animal.prototype` is on it.\n\n- `Object.hasOwn(obj, key)` is true only for the object's own properties, such as fields set in the constructor or declared in the class body.\n- `key in obj` is true anywhere on the chain, including methods and `toString`.\n\nNever add methods to built-in prototypes such as `Array.prototype`. Every array in the program, and every library, would see the change, and a future version of JavaScript can add a method with the same name.",
+      "example": {
+        "title": "Where properties live",
+        "prompt": "Read property names and report the prototype links of a Dog, then label each name as own, inherited, or missing on `rex`.",
+        "stdin": "name breed describe toString bark\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst names = input.trim().split(/\\s+/);\n\nclass Animal {\n  constructor(name) {\n    this.name = name;\n  }\n\n  describe() {\n    return `${this.name} is an animal.`;\n  }\n}\n\nclass Dog extends Animal {\n  constructor(name, breed) {\n    super(name);\n    this.breed = breed;\n  }\n\n  fetch() {\n    return `${this.name} fetches.`;\n  }\n}\n\nconst rex = new Dog(\"Rex\", \"collie\");\nconst max = new Dog(\"Max\", \"pug\");\n\nconsole.log(`typeof Dog: ${typeof Dog}`);\nconsole.log(`rex -> Dog.prototype: ${Object.getPrototypeOf(rex) === Dog.prototype}`);\nconsole.log(`Dog.prototype -> Animal.prototype: ${Object.getPrototypeOf(Dog.prototype) === Animal.prototype}`);\nconsole.log(`shared fetch: ${rex.fetch === max.fetch}`);\n\nfor (const key of names) {\n  const label = Object.hasOwn(rex, key)\n    ? \"own\"\n    : key in rex\n      ? \"inherited\"\n      : \"missing\";\n  console.log(`${key}: ${label}`);\n}\n",
+        "output": "typeof Dog: function\nrex -> Dog.prototype: true\nDog.prototype -> Animal.prototype: true\nshared fetch: true\nname: own\nbreed: own\ndescribe: inherited\ntoString: inherited\nbark: missing",
+        "explanation": "`name` and `breed` are set on `rex` itself, so `Object.hasOwn` says own. `describe` is on `Animal.prototype` and `toString` on `Object.prototype`: not own, but `in` finds them on the chain, so they are inherited. Nothing has `bark`. `rex.fetch === max.fetch` is true because both read the single function stored on `Dog.prototype`."
+      },
+      "practice": {
+        "title": "Truck properties",
+        "prompt": "Read property names, report the prototype links of a Truck, and label each name for `volvo`.\n\n1. Print `typeof Truck: <result>`.\n2. Print `volvo -> Truck.prototype: <true or false>` and `Truck.prototype -> Vehicle.prototype: <true or false>` using `Object.getPrototypeOf`.\n3. Print `shared describe: <true or false>`, comparing `volvo.describe` with `scania.describe`.\n4. For each name in input order, print `<name>: own` if it is an own property of `volvo`, `<name>: inherited` if it is found elsewhere on the chain, or `<name>: missing`.\n\nInput:\n\n```text\nmake capacity describe toString fly\n```\n\nExpected output:\n\n```text\ntypeof Truck: function\nvolvo -> Truck.prototype: true\nTruck.prototype -> Vehicle.prototype: true\nshared describe: true\nmake: own\ncapacity: own\ndescribe: inherited\ntoString: inherited\nfly: missing\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst names = input.trim().split(/\\s+/);\n\nclass Vehicle {\n  constructor(make) {\n    this.make = make;\n    this.wheels = 4;\n  }\n\n  describe() {\n    return `${this.make} has ${this.wheels} wheels.`;\n  }\n}\n\nclass Truck extends Vehicle {\n  constructor(make, capacity) {\n    super(make);\n    this.capacity = capacity;\n    this.wheels = 6;\n  }\n\n  describe() {\n    return `${super.describe()} Capacity: ${this.capacity} tons`;\n  }\n}\n\nconst volvo = new Truck(\"Volvo\", 18);\nconst scania = new Truck(\"Scania\", 25);\n\n// TODO: print typeof Truck and the two prototype checks\n// TODO: print whether volvo and scania share one describe method\n// TODO: label each name in names as own, inherited, or missing on volvo\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst names = input.trim().split(/\\s+/);\n\nclass Vehicle {\n  constructor(make) {\n    this.make = make;\n    this.wheels = 4;\n  }\n\n  describe() {\n    return `${this.make} has ${this.wheels} wheels.`;\n  }\n}\n\nclass Truck extends Vehicle {\n  constructor(make, capacity) {\n    super(make);\n    this.capacity = capacity;\n    this.wheels = 6;\n  }\n\n  describe() {\n    return `${super.describe()} Capacity: ${this.capacity} tons`;\n  }\n}\n\nconst volvo = new Truck(\"Volvo\", 18);\nconst scania = new Truck(\"Scania\", 25);\n\nconsole.log(`typeof Truck: ${typeof Truck}`);\nconsole.log(`volvo -> Truck.prototype: ${Object.getPrototypeOf(volvo) === Truck.prototype}`);\nconsole.log(`Truck.prototype -> Vehicle.prototype: ${Object.getPrototypeOf(Truck.prototype) === Vehicle.prototype}`);\nconsole.log(`shared describe: ${volvo.describe === scania.describe}`);\n\nfor (const key of names) {\n  const label = Object.hasOwn(volvo, key)\n    ? \"own\"\n    : key in volvo\n      ? \"inherited\"\n      : \"missing\";\n  console.log(`${key}: ${label}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "make capacity describe toString fly\n",
+            "output": "typeof Truck: function\nvolvo -> Truck.prototype: true\nTruck.prototype -> Vehicle.prototype: true\nshared describe: true\nmake: own\ncapacity: own\ndescribe: inherited\ntoString: inherited\nfly: missing"
+          },
+          {
+            "stdin": "wheels constructor hasOwnProperty speed\n",
+            "output": "typeof Truck: function\nvolvo -> Truck.prototype: true\nTruck.prototype -> Vehicle.prototype: true\nshared describe: true\nwheels: own\nconstructor: inherited\nhasOwnProperty: inherited\nspeed: missing"
+          },
+          {
+            "stdin": "valueOf capacity drive\n",
+            "output": "typeof Truck: function\nvolvo -> Truck.prototype: true\nTruck.prototype -> Vehicle.prototype: true\nshared describe: true\nvalueOf: inherited\ncapacity: own\ndrive: missing"
+          }
+        ],
+        "hints": [
+          "Check `Object.hasOwn(volvo, key)` first, then `key in volvo`.",
+          "`wheels` is own even though `Vehicle` sets it: the constructor writes it onto the instance."
+        ]
+      }
+    },
+    {
+      "title": "Custom error classes",
+      "body": "Errors are classes too, so you can extend `Error` to make error types for your own program.\n\n```javascript\nclass ValidationError extends Error {\n  constructor(field, message) {\n    super(message);                // sets this.message\n    this.name = \"ValidationError\"; // otherwise name stays \"Error\"\n    this.field = field;            // extra data for whoever catches it\n  }\n}\n```\n\n- `super(message)` lets `Error` set `message`. Set `this.name` yourself, or it prints as plain `Error`.\n- Extra fields such as `field` or `amount` let the catch block react without parsing the message text.\n\nCatch by type with `instanceof`. A `ValidationError` is also an `instanceof Error`, so test the most specific class. Handle the errors you expect and rethrow everything else, so a real bug such as a TypeError is not silently swallowed. This is the rethrow from Error Handling written as a guard clause. Keep the parentheses: `!error instanceof ValidationError` applies `!` to `error` first, so it is always false.\n\n```javascript\n} catch (error) {\n  if (!(error instanceof ValidationError)) {\n    throw error; // not ours: let it surface\n  }\n  console.log(`${error.name} on ${error.field}: ${error.message}`);\n}\n```",
+      "example": {
+        "title": "Validate users",
+        "prompt": "Read lines of `name age`, with `-` for a missing name, and print `ok` for valid users or which field failed.",
+        "stdin": "Ada 36\n- 20\nBo 200\nCy 7\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nclass ValidationError extends Error {\n  constructor(field, message) {\n    super(message);\n    this.name = \"ValidationError\";\n    this.field = field;\n  }\n}\n\nfunction validateUser(user) {\n  if (user.name === \"-\") {\n    throw new ValidationError(\"name\", \"required\");\n  }\n  if (Number.isNaN(user.age) || user.age < 0 || user.age > 150) {\n    throw new ValidationError(\"age\", \"must be 0-150\");\n  }\n}\n\nfor (const line of lines) {\n  const [name, ageText] = line.trim().split(/\\s+/);\n  const user = { name, age: Number(ageText) };\n  try {\n    validateUser(user);\n    console.log(`ok: ${user.name} (${user.age})`);\n  } catch (error) {\n    if (!(error instanceof ValidationError)) {\n      throw error;\n    }\n    console.log(`${error.name} on ${error.field}: ${error.message}`);\n  }\n}\n",
+        "output": "ok: Ada (36)\nValidationError on name: required\nValidationError on age: must be 0-150\nok: Cy (7)",
+        "explanation": "`validateUser` throws a `ValidationError` naming the bad field. Because the error is an instance of `ValidationError`, the catch prints its `name`, its `field`, and its `message`. Any other error would be rethrown. After each catch the loop moves on to the next line, so one bad record does not stop the rest."
+      },
+      "practice": {
+        "title": "Bank withdrawals",
+        "prompt": "Read a starting balance and one withdrawal per line, and print the result of each withdrawal.\n\n1. Write `class InsufficientFundsError extends Error` whose constructor takes `needed` and `available`, calls `super` with the message `need <needed>, have <available>`, sets `this.name`, and stores both numbers.\n2. Finish `withdraw(current, amount)`: throw an `InsufficientFundsError` when `amount` is more than `current`, otherwise return `current - amount`.\n3. For each amount, update `balance` and print `Balance: <balance>`.\n4. Catch only `InsufficientFundsError` (rethrow anything else), keep the balance unchanged, and print `<error name>: <message> (short <needed - available>)` using the error's fields.\n\nInput:\n\n```text\n100\n30\n50\n50\n20\n```\n\nExpected output:\n\n```text\nBalance: 70\nBalance: 20\nInsufficientFundsError: need 50, have 20 (short 30)\nBalance: 0\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...rest] = input.trim().split(\"\\n\");\nlet balance = Number(first);\nconst amounts = rest.map(Number);\n\n// TODO: write class InsufficientFundsError extends Error with needed and available fields\n\nfunction withdraw(current, amount) {\n  // TODO: throw an InsufficientFundsError when amount is more than current\n  return 0;\n}\n\nfor (const amount of amounts) {\n  // TODO: withdraw inside try, print the balance, and catch InsufficientFundsError by type\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...rest] = input.trim().split(\"\\n\");\nlet balance = Number(first);\nconst amounts = rest.map(Number);\n\nclass InsufficientFundsError extends Error {\n  constructor(needed, available) {\n    super(`need ${needed}, have ${available}`);\n    this.name = \"InsufficientFundsError\";\n    this.needed = needed;\n    this.available = available;\n  }\n}\n\nfunction withdraw(current, amount) {\n  if (amount > current) {\n    throw new InsufficientFundsError(amount, current);\n  }\n  return current - amount;\n}\n\nfor (const amount of amounts) {\n  try {\n    balance = withdraw(balance, amount);\n    console.log(`Balance: ${balance}`);\n  } catch (error) {\n    if (!(error instanceof InsufficientFundsError)) {\n      throw error;\n    }\n    console.log(`${error.name}: ${error.message} (short ${error.needed - error.available})`);\n  }\n}\n",
+        "tests": [
+          {
+            "stdin": "100\n30\n50\n50\n20\n",
+            "output": "Balance: 70\nBalance: 20\nInsufficientFundsError: need 50, have 20 (short 30)\nBalance: 0"
+          },
+          {
+            "stdin": "50\n60\n10\n",
+            "output": "InsufficientFundsError: need 60, have 50 (short 10)\nBalance: 40"
+          },
+          {
+            "stdin": "25\n25\n1\n",
+            "output": "Balance: 0\nInsufficientFundsError: need 1, have 0 (short 1)"
+          }
+        ],
+        "hints": [
+          "Build the message as a template literal from `needed` and `available`, and pass it to `super(...)` before setting `this.name`.",
+          "Assign `balance = withdraw(balance, amount);` inside try, so a throw leaves `balance` as it was.",
+          "Read the fields back in the catch: `error.needed - error.available`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `class Child extends Parent` inherits the parent's fields and methods.\n- `super(...)` runs the parent constructor and must come before `this` in a child constructor.\n- `super.method()` calls the parent version from inside an override.\n- Same method name in a child overrides the parent. One loop calling it on mixed objects is polymorphism.\n- A base method that throws `not implemented` forces subclasses to override it.\n- `instanceof` checks the whole chain. A parse function with a `switch` picks the subclass.\n- Methods live once on `ClassName.prototype`. `Object.getPrototypeOf(obj)` shows the link.\n- `Object.hasOwn(obj, key)` checks own properties, `key in obj` checks the whole chain.\n- Never add methods to built-in prototypes.\n- `class MyError extends Error`: call `super(message)`, set `this.name`, add extra fields, catch with `instanceof`, and rethrow the rest."
+}

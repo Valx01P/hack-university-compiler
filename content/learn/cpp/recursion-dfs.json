@@ -1,0 +1,151 @@
+{
+  "id": "recursion-dfs",
+  "title": "Recursion and Depth-First Search",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Solve problems with functions that call themselves, then use recursion to explore grids and choices depth-first.",
+  "intro": "Some problems are easiest to describe in terms of a smaller copy of themselves: the sum of a list is the first number plus the sum of the rest. A recursive function writes that down directly. The same idea, going deep and then backing up, explores grids and generates every subset or ordering of a set of items.",
+  "steps": [
+    {
+      "title": "Base case and recursive case",
+      "body": "A recursive function calls itself on a smaller version of the same problem. Every recursive function needs two parts:\n\n- The **base case** answers a tiny input directly and stops the recursion.\n- The **recursive case** calls the function on an input that is closer to the base case.\n\n```cpp\nlong long factorial(int n) {\n    if (n <= 1) {\n        return 1;                     // base case\n    }\n    return n * factorial(n - 1);      // n - 1 moves toward the base case\n}\n```\n\nEach call gets its own stack frame with its own copy of `n`. `factorial(4)` pushes frames for 4, 3, 2, and 1, then the results multiply back up as each frame returns and is popped.\n\nThe stack is 8 MB here, so depth is limited. A simple one-parameter function survives about 200,000 nested calls, and functions with more parameters or locals use bigger frames and crash sooner. A missing or unreachable base case recurses until the stack overflows and the program crashes with a segmentation fault, losing any buffered output. Also watch the values: `factorial(21)` overflows `long long`, which is undefined behavior.",
+      "example": {
+        "title": "Factorial and digit sum",
+        "prompt": "Compute 10 factorial and the digit sum of 4096 with recursive functions.",
+        "code": "#include <iostream>\n\nlong long factorial(int n) {\n    if (n <= 1) {\n        return 1;\n    }\n    return n * factorial(n - 1);\n}\n\nint sumDigits(int n) {\n    if (n < 10) {\n        return n;\n    }\n    return n % 10 + sumDigits(n / 10);\n}\n\nint main() {\n    std::cout << \"factorial(10) = \" << factorial(10) << '\\n';\n    std::cout << \"sumDigits(4096) = \" << sumDigits(4096) << '\\n';\n    return 0;\n}\n",
+        "output": "factorial(10) = 3628800\nsumDigits(4096) = 19",
+        "explanation": "`factorial(10)` waits on `factorial(9)`, which waits on `factorial(8)`, down to `factorial(1)`, which returns 1 without recursing. Each frame then multiplies its own `n` into the result on the way back up. Because `n` is an `int` and the return type is `long long`, the multiplication is done in `long long`. `sumDigits` peels off the last digit with `% 10` and recurses on the rest with `/ 10`: 6 + (9 + (0 + 4)) is 19. A single digit is the base case."
+      },
+      "practice": {
+        "title": "Power and digit count",
+        "prompt": "Read three numbers and print a recursive power and a recursive digit count.\n\n1. Read `base`, `exp`, and `n` (all non-negative).\n2. Write `long long power(int base, int exp)`: the base case is `exp == 0`, which returns 1. Otherwise return `base * power(base, exp - 1)`.\n3. Write `int countDigits(int n)`: a number below 10 has 1 digit. Otherwise it has 1 more digit than `n / 10`.\n4. Print `power(BASE, EXP) = RESULT` and then `countDigits(N) = RESULT`.\n\nInput:\n\n```text\n2 10 4096\n```\n\nExpected output:\n\n```text\npower(2, 10) = 1024\ncountDigits(4096) = 4\n```",
+        "starter": "#include <iostream>\n\nlong long power(int base, int exp) {\n    // TODO: return 1 when exp is 0, otherwise base * power(base, exp - 1)\n    return 0;\n}\n\nint countDigits(int n) {\n    // TODO: return 1 when n is below 10, otherwise 1 + countDigits(n / 10)\n    return 0;\n}\n\nint main() {\n    int base = 0;\n    int exp = 0;\n    int n = 0;\n    std::cin >> base >> exp >> n;\n    std::cout << \"power(\" << base << \", \" << exp << \") = \" << power(base, exp) << '\\n';\n    std::cout << \"countDigits(\" << n << \") = \" << countDigits(n) << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nlong long power(int base, int exp) {\n    if (exp == 0) {\n        return 1;\n    }\n    return base * power(base, exp - 1);\n}\n\nint countDigits(int n) {\n    if (n < 10) {\n        return 1;\n    }\n    return 1 + countDigits(n / 10);\n}\n\nint main() {\n    int base = 0;\n    int exp = 0;\n    int n = 0;\n    std::cin >> base >> exp >> n;\n    std::cout << \"power(\" << base << \", \" << exp << \") = \" << power(base, exp) << '\\n';\n    std::cout << \"countDigits(\" << n << \") = \" << countDigits(n) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "2 10 4096\n",
+            "output": "power(2, 10) = 1024\ncountDigits(4096) = 4"
+          },
+          {
+            "stdin": "7 0 5\n",
+            "output": "power(7, 0) = 1\ncountDigits(5) = 1"
+          },
+          {
+            "stdin": "3 13 1000000\n",
+            "output": "power(3, 13) = 1594323\ncountDigits(1000000) = 7"
+          }
+        ],
+        "hints": [
+          "Write the base case first and return right away, then the recursive call on a smaller input.",
+          "`power` recurses on `exp - 1` and `countDigits` recurses on `n / 10`."
+        ]
+      }
+    },
+    {
+      "title": "Recursion on strings and vectors",
+      "body": "To recurse over a string or vector, do not chop it into smaller copies. Pass the container by `const&` so every frame shares the same data, and pass an index or a `(left, right)` range that shrinks with each call.\n\n```cpp\nint sumFrom(const std::vector<int>& v, std::size_t i) {\n    if (i == v.size()) {\n        return 0;                     // past the end: nothing left\n    }\n    return v[i] + sumFrom(v, i + 1);\n}\n```\n\nPassing `v` by value instead would make every call copy the whole vector: O(n) extra memory per call and O(n squared) work overall.\n\nA two-sided check, like a palindrome, moves `left` and `right` toward each other and stops when they meet. Start it with `static_cast<int>(s.size()) - 1` so an empty string gives -1 instead of a huge `std::size_t`.\n\nYou can also build a result on the way back up. `reverseFrom(s, i + 1) + s[i]` returns the rest reversed, then appends the current character. Each `+` makes a new string, which is fine for short input.",
+      "example": {
+        "title": "Palindromes, max, and reverse",
+        "prompt": "Check two words for palindromes, find the max of a vector, and reverse a word, all recursively.",
+        "code": "#include <algorithm>\n#include <cstddef>\n#include <iostream>\n#include <string>\n#include <vector>\n\nbool isPalindrome(const std::string& s, int left, int right) {\n    if (left >= right) {\n        return true;\n    }\n    if (s[left] != s[right]) {\n        return false;\n    }\n    return isPalindrome(s, left + 1, right - 1);\n}\n\nint maxFrom(const std::vector<int>& v, std::size_t i) {\n    if (i == v.size() - 1) {\n        return v[i];\n    }\n    return std::max(v[i], maxFrom(v, i + 1));\n}\n\nstd::string reverseFrom(const std::string& s, std::size_t i) {\n    if (i == s.size()) {\n        return \"\";\n    }\n    return reverseFrom(s, i + 1) + s[i];\n}\n\nint main() {\n    std::cout << std::boolalpha;\n    const std::string a = \"racecar\";\n    const std::string b = \"rocket\";\n    std::cout << a << ' ' << isPalindrome(a, 0, static_cast<int>(a.size()) - 1) << '\\n';\n    std::cout << b << ' ' << isPalindrome(b, 0, static_cast<int>(b.size()) - 1) << '\\n';\n    const std::vector<int> nums = {3, 9, 2, 7};\n    std::cout << \"max \" << maxFrom(nums, 0) << '\\n';\n    std::cout << \"stressed \" << reverseFrom(\"stressed\", 0) << '\\n';\n    return 0;\n}\n",
+        "output": "racecar true\nrocket false\nmax 9\nstressed desserts",
+        "explanation": "`isPalindrome` compares the outer pair, then recurses on the range one step inward. `racecar` reaches `left >= right` at the middle `e` and returns true. `rocket` fails on the first pair, `r` and `t`, without recursing at all. `maxFrom` has the last element as its base case and returns the larger of `v[i]` and the max of everything after it. It assumes a non-empty vector, because `v.size() - 1` wraps around when the size is 0. `reverseFrom` returns an empty string past the end, then each frame appends its own character after the reversed tail, so the last character comes out first."
+      },
+      "practice": {
+        "title": "Reverse and sum",
+        "prompt": "Read a word and a list of numbers, then reverse the word and sum the numbers with recursion.\n\n1. Read a word, then `n`, then `n` integers into a `std::vector<int>`.\n2. Write `std::string reverseFrom(const std::string& s, std::size_t i)` that returns the characters from index `i` on, reversed.\n3. Write `int sumFrom(const std::vector<int>& v, std::size_t i)` that returns the sum from index `i` on. Past the end the sum is 0, so an empty list sums to 0.\n4. Print `reversed: WORD` and then `sum: TOTAL`.\n\nInput:\n\n```text\ndrawer\n5\n4 8 15 16 23\n```\n\nExpected output:\n\n```text\nreversed: reward\nsum: 66\n```",
+        "starter": "#include <cstddef>\n#include <iostream>\n#include <string>\n#include <vector>\n\nstd::string reverseFrom(const std::string& s, std::size_t i) {\n    // TODO: return \"\" past the end, otherwise the reversed rest plus s[i]\n    return \"\";\n}\n\nint sumFrom(const std::vector<int>& v, std::size_t i) {\n    // TODO: return 0 past the end, otherwise v[i] plus the sum of the rest\n    return 0;\n}\n\nint main() {\n    std::string word = \"\";\n    int n = 0;\n    std::cin >> word >> n;\n    std::vector<int> nums(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> nums[i];\n    }\n    std::cout << \"reversed: \" << reverseFrom(word, 0) << '\\n';\n    std::cout << \"sum: \" << sumFrom(nums, 0) << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <iostream>\n#include <string>\n#include <vector>\n\nstd::string reverseFrom(const std::string& s, std::size_t i) {\n    if (i == s.size()) {\n        return \"\";\n    }\n    return reverseFrom(s, i + 1) + s[i];\n}\n\nint sumFrom(const std::vector<int>& v, std::size_t i) {\n    if (i == v.size()) {\n        return 0;\n    }\n    return v[i] + sumFrom(v, i + 1);\n}\n\nint main() {\n    std::string word = \"\";\n    int n = 0;\n    std::cin >> word >> n;\n    std::vector<int> nums(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> nums[i];\n    }\n    std::cout << \"reversed: \" << reverseFrom(word, 0) << '\\n';\n    std::cout << \"sum: \" << sumFrom(nums, 0) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "drawer\n5\n4 8 15 16 23\n",
+            "output": "reversed: reward\nsum: 66"
+          },
+          {
+            "stdin": "level\n1\n-42\n",
+            "output": "reversed: level\nsum: -42"
+          },
+          {
+            "stdin": "go\n0\n",
+            "output": "reversed: og\nsum: 0"
+          }
+        ],
+        "hints": [
+          "Both base cases are `i == size()`: the empty string for `reverseFrom` and 0 for `sumFrom`.",
+          "`reverseFrom` recurses on `i + 1` and adds `s[i]` after the reversed rest. `sumFrom` adds `v[i]` to the sum of the rest."
+        ]
+      }
+    },
+    {
+      "title": "Depth-first search on a grid",
+      "body": "Depth-first search (DFS) goes as deep as it can along one path before it backs up and tries the next. Recursion does this for free: the call stack remembers where to back up to.\n\nA flood fill uses DFS to visit every land cell connected to a start cell. Direction arrays list the four neighbors in a fixed order, up, down, left, right, so the visiting order never changes:\n\n```cpp\nconst int DR[4] = {-1, 1, 0, 0};\nconst int DC[4] = {0, 0, -1, 1};\n```\n\nEach call does three things in order:\n\n1. **Bounds check first.** If `r` or `c` is outside the grid, return before touching `grid[r][c]`, which would be undefined behavior.\n2. **Skip** water and cells already visited.\n3. **Mark** the cell visited, then recurse into all four neighbors.\n\nMarking before recursing is what stops two neighbors from calling each other forever. To count regions, scan every cell and start a new fill from each unvisited land cell.\n\n`std::vector<bool>` packs each flag into one bit, so its elements are not real `bool` objects. Index it as `visited[r][c]` or read a row with `for (bool v : row)`. Never bind `auto&` to an element: `for (auto& v : row)` does not compile. Each frame here holds several parameters, so keep recursive grids to about 100 by 100.",
+      "example": {
+        "title": "Island sizes",
+        "prompt": "Count the islands in a fixed grid with a recursive flood fill and print each island's size in discovery order.",
+        "code": "#include <iostream>\n#include <string>\n#include <vector>\n\nconst int DR[4] = {-1, 1, 0, 0};\nconst int DC[4] = {0, 0, -1, 1};\n\nint floodFill(const std::vector<std::string>& grid, std::vector<std::vector<bool>>& visited, int r, int c) {\n    const int rows = static_cast<int>(grid.size());\n    const int cols = static_cast<int>(grid[0].size());\n    if (r < 0 || r >= rows || c < 0 || c >= cols) {\n        return 0;\n    }\n    if (grid[r][c] != '#' || visited[r][c]) {\n        return 0;\n    }\n    visited[r][c] = true;\n    int size = 1;\n    for (int d = 0; d < 4; ++d) {\n        size += floodFill(grid, visited, r + DR[d], c + DC[d]);\n    }\n    return size;\n}\n\nint main() {\n    const std::vector<std::string> grid = {\n        \"##..#\",\n        \"#...#\",\n        \"..#..\",\n        \".###.\",\n    };\n    const int rows = static_cast<int>(grid.size());\n    const int cols = static_cast<int>(grid[0].size());\n    std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false));\n    std::vector<int> sizes;\n    for (int r = 0; r < rows; ++r) {\n        for (int c = 0; c < cols; ++c) {\n            if (grid[r][c] == '#' && !visited[r][c]) {\n                sizes.push_back(floodFill(grid, visited, r, c));\n            }\n        }\n    }\n    std::cout << \"islands: \" << sizes.size() << '\\n';\n    std::cout << \"sizes:\";\n    for (int s : sizes) {\n        std::cout << ' ' << s;\n    }\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "output": "islands: 3\nsizes: 3 2 4",
+        "explanation": "The scan goes row by row, left to right. At (0, 0) it finds unvisited land and calls `floodFill`, which marks the cell and dives up (off the grid, returns 0), then down into (1, 0), and so on until the whole island is marked. The returned sizes add up on the way back: 3. The scan then skips (0, 1) because it is already visited, and the next new start is (0, 4), an island of 2. The last start is (2, 2), whose island continues down into the row below for a size of 4. `visited` is passed by `&` so every frame marks the same grid, while `grid` is only read, so it is `const&`."
+      },
+      "practice": {
+        "title": "Count islands",
+        "prompt": "Read a grid of `#` (land) and `.` (water) cells and report its islands.\n\n1. Read `rows` and `cols` (each at most 50), then `rows` lines of the grid. Cells connect only up, down, left, and right, never diagonally.\n2. Finish `floodFill` so it returns the size of the island at `(r, c)`: bounds check first, skip water and visited cells, mark the cell, then add the fills of its four neighbors.\n3. Scan the cells in row-major order. Each unvisited `#` starts a new island: count it and keep the largest size.\n4. Print `islands: COUNT` and then `largest: SIZE`. A grid with no land prints 0 for both.\n\nInput:\n\n```text\n4 6\n##..##\n#....#\n..##..\n#.##.#\n```\n\nExpected output:\n\n```text\nislands: 5\nlargest: 4\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <string>\n#include <vector>\n\nconst int DR[4] = {-1, 1, 0, 0};\nconst int DC[4] = {0, 0, -1, 1};\n\nint floodFill(const std::vector<std::string>& grid, std::vector<std::vector<bool>>& visited, int r, int c) {\n    // TODO: bounds check, skip water and visited cells, mark (r, c), then add the fills of the four neighbors\n    return 0;\n}\n\nint main() {\n    int rows = 0;\n    int cols = 0;\n    std::cin >> rows >> cols;\n    std::vector<std::string> grid(rows);\n    for (int r = 0; r < rows; ++r) {\n        std::cin >> grid[r];\n    }\n    std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false));\n    int islands = 0;\n    int largest = 0;\n    // TODO: scan every cell and start a fill from each unvisited '#'\n    std::cout << \"islands: \" << islands << '\\n';\n    std::cout << \"largest: \" << largest << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <string>\n#include <vector>\n\nconst int DR[4] = {-1, 1, 0, 0};\nconst int DC[4] = {0, 0, -1, 1};\n\nint floodFill(const std::vector<std::string>& grid, std::vector<std::vector<bool>>& visited, int r, int c) {\n    const int rows = static_cast<int>(grid.size());\n    const int cols = static_cast<int>(grid[0].size());\n    if (r < 0 || r >= rows || c < 0 || c >= cols) {\n        return 0;\n    }\n    if (grid[r][c] != '#' || visited[r][c]) {\n        return 0;\n    }\n    visited[r][c] = true;\n    int size = 1;\n    for (int d = 0; d < 4; ++d) {\n        size += floodFill(grid, visited, r + DR[d], c + DC[d]);\n    }\n    return size;\n}\n\nint main() {\n    int rows = 0;\n    int cols = 0;\n    std::cin >> rows >> cols;\n    std::vector<std::string> grid(rows);\n    for (int r = 0; r < rows; ++r) {\n        std::cin >> grid[r];\n    }\n    std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false));\n    int islands = 0;\n    int largest = 0;\n    for (int r = 0; r < rows; ++r) {\n        for (int c = 0; c < cols; ++c) {\n            if (grid[r][c] == '#' && !visited[r][c]) {\n                ++islands;\n                largest = std::max(largest, floodFill(grid, visited, r, c));\n            }\n        }\n    }\n    std::cout << \"islands: \" << islands << '\\n';\n    std::cout << \"largest: \" << largest << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "4 6\n##..##\n#....#\n..##..\n#.##.#\n",
+            "output": "islands: 5\nlargest: 4"
+          },
+          {
+            "stdin": "3 4\n....\n....\n....\n",
+            "output": "islands: 0\nlargest: 0"
+          },
+          {
+            "stdin": "3 3\n#.#\n.#.\n#.#\n",
+            "output": "islands: 5\nlargest: 1"
+          }
+        ],
+        "hints": [
+          "In `floodFill`, return 0 for out-of-bounds, water, or visited cells. Otherwise set `visited[r][c] = true` and start `size` at 1.",
+          "Loop `d` from 0 to 3 and add `floodFill(grid, visited, r + DR[d], c + DC[d])` to `size`.",
+          "In `main`, call `floodFill` only on unvisited `#` cells, then `++islands` and update `largest` with `std::max`."
+        ]
+      }
+    },
+    {
+      "title": "Backtracking",
+      "body": "Backtracking is DFS over choices. You keep the current partial answer in a `std::vector` passed by `&`, and every step follows one pattern: **choose, explore, un-choose**.\n\n```cpp\nfor (int i = start; i <= n; ++i) {\n    path.push_back(i);              // choose\n    subsets(i + 1, n, path);        // explore\n    path.pop_back();                // un-choose\n}\n```\n\nThe `pop_back` restores `path` exactly as it was, so the next loop iteration starts clean. One shared vector serves every frame, with no copies.\n\nThe `start` index means each call only picks numbers larger than the last pick. So each item is used at most once and every path is in increasing order: you get `{1 2}` but never its repeat `{2 1}`. Printing on entry lists every subset. Printing only when `path.size() == k` lists combinations of size k.\n\nPermutations use every item, in any order, so a start index does not work. Instead a `std::vector<bool> used` marks which items are already in the path: set `used[i] = true` before recursing and back to `false` after. Looping `i` from 0 upward makes the output come out in a fixed, sorted order when the input is sorted. For real code, `std::next_permutation` from `<algorithm>` steps through the same order without recursion, as long as you start from sorted input.",
+      "example": {
+        "title": "Subsets and permutations",
+        "prompt": "Print every subset of 1, 2, 3 with a start index, then every permutation of abc with a used array.",
+        "code": "#include <cstddef>\n#include <iostream>\n#include <string>\n#include <vector>\n\nvoid printPath(const std::vector<int>& path) {\n    std::cout << '{';\n    for (std::size_t i = 0; i < path.size(); ++i) {\n        if (i > 0) {\n            std::cout << ' ';\n        }\n        std::cout << path[i];\n    }\n    std::cout << \"}\\n\";\n}\n\nvoid subsets(int start, int n, std::vector<int>& path) {\n    printPath(path);\n    for (int i = start; i <= n; ++i) {\n        path.push_back(i);\n        subsets(i + 1, n, path);\n        path.pop_back();\n    }\n}\n\nvoid permute(const std::string& letters, std::vector<bool>& used, std::string& current) {\n    if (current.size() == letters.size()) {\n        std::cout << current << '\\n';\n        return;\n    }\n    for (std::size_t i = 0; i < letters.size(); ++i) {\n        if (used[i]) {\n            continue;\n        }\n        used[i] = true;\n        current.push_back(letters[i]);\n        permute(letters, used, current);\n        current.pop_back();\n        used[i] = false;\n    }\n}\n\nint main() {\n    std::vector<int> path;\n    subsets(1, 3, path);\n    const std::string letters = \"abc\";\n    std::vector<bool> used(letters.size(), false);\n    std::string current = \"\";\n    permute(letters, used, current);\n    return 0;\n}\n",
+        "output": "{}\n{1}\n{1 2}\n{1 2 3}\n{1 3}\n{2}\n{2 3}\n{3}\nabc\nacb\nbac\nbca\ncab\ncba",
+        "explanation": "`subsets(1, 3, path)` prints the empty path, then chooses 1 and recurses, which prints `{1}`, chooses 2, prints `{1 2}`, and so on as deep as it can. When `{1 2 3}` has no larger numbers left, its loop is empty and it returns. The pops then back up to `{1}` to try 3, and later back to `{}` to try 2 and 3 as the first pick. `permute` builds strings of length 3. At each level it tries every letter not yet marked in `used`, and un-marks it afterwards so later branches can use it. Since `abc` is sorted and `i` counts up, the permutations come out in alphabetical order."
+      },
+      "practice": {
+        "title": "Combinations of k",
+        "prompt": "Read n and k and print every combination of k numbers from 1 to n.\n\n1. Read `n` and `k` (with 1 <= k <= n).\n2. Finish `combine(start, n, k, path)`: when `path` holds `k` numbers, print it with `printPath` and return.\n3. Otherwise loop `i` from `start` to `n`: push `i`, recurse with `i + 1`, then pop.\n4. The combinations come out in increasing order, one per line.\n\nInput:\n\n```text\n4 2\n```\n\nExpected output:\n\n```text\n{1 2}\n{1 3}\n{1 4}\n{2 3}\n{2 4}\n{3 4}\n```",
+        "starter": "#include <cstddef>\n#include <iostream>\n#include <vector>\n\nvoid printPath(const std::vector<int>& path) {\n    std::cout << '{';\n    for (std::size_t i = 0; i < path.size(); ++i) {\n        if (i > 0) {\n            std::cout << ' ';\n        }\n        std::cout << path[i];\n    }\n    std::cout << \"}\\n\";\n}\n\nvoid combine(int start, int n, int k, std::vector<int>& path) {\n    // TODO: print and return when path holds k numbers, otherwise choose, explore, un-choose\n}\n\nint main() {\n    int n = 0;\n    int k = 0;\n    std::cin >> n >> k;\n    std::vector<int> path;\n    combine(1, n, k, path);\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <iostream>\n#include <vector>\n\nvoid printPath(const std::vector<int>& path) {\n    std::cout << '{';\n    for (std::size_t i = 0; i < path.size(); ++i) {\n        if (i > 0) {\n            std::cout << ' ';\n        }\n        std::cout << path[i];\n    }\n    std::cout << \"}\\n\";\n}\n\nvoid combine(int start, int n, int k, std::vector<int>& path) {\n    if (static_cast<int>(path.size()) == k) {\n        printPath(path);\n        return;\n    }\n    for (int i = start; i <= n; ++i) {\n        path.push_back(i);\n        combine(i + 1, n, k, path);\n        path.pop_back();\n    }\n}\n\nint main() {\n    int n = 0;\n    int k = 0;\n    std::cin >> n >> k;\n    std::vector<int> path;\n    combine(1, n, k, path);\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "4 2\n",
+            "output": "{1 2}\n{1 3}\n{1 4}\n{2 3}\n{2 4}\n{3 4}"
+          },
+          {
+            "stdin": "3 3\n",
+            "output": "{1 2 3}"
+          },
+          {
+            "stdin": "5 4\n",
+            "output": "{1 2 3 4}\n{1 2 3 5}\n{1 2 4 5}\n{1 3 4 5}\n{2 3 4 5}"
+          }
+        ],
+        "hints": [
+          "This is the subsets loop with one change: print only when the path is full.",
+          "Compare with `static_cast<int>(path.size()) == k`, print, and `return` before the loop."
+        ]
+      }
+    }
+  ],
+  "recap": "- A recursive function needs a base case that stops it and a recursive case that moves toward it.\n- Each call gets its own stack frame. The 8 MB stack allows about 200,000 simple calls, fewer with bigger frames.\n- Recurse over containers with an index or a `(left, right)` range, and pass them by `const&` so no frame copies them.\n- DFS goes as deep as possible, then backs up. A flood fill checks bounds first, skips water and visited cells, marks, then recurses.\n- Direction arrays `DR` and `DC` fix the neighbor order: up, down, left, right.\n- Index `std::vector<bool>` directly. Its elements are bits, so `auto&` cannot bind to them.\n- Backtracking: choose with `push_back`, explore with a recursive call, un-choose with `pop_back`.\n- A start index gives subsets and combinations in increasing order. A `used` array gives permutations."
+}

@@ -1,0 +1,155 @@
+{
+  "id": "exceptions",
+  "title": "Exceptions and Error Handling",
+  "section": "Bits and Errors",
+  "summary": "Signal errors with throw, handle them with try and catch, define custom exception types, and rely on RAII while the stack unwinds.",
+  "intro": "Some failures cannot be handled where they happen: a divisor of zero, a word where a number belongs, an index past the end. C++ lets the failing code `throw` an exception and lets a caller further up `catch` it, cleaning up every local object on the way.",
+  "steps": [
+    {
+      "title": "throw, try, and catch",
+      "body": "When a function cannot do its job, it can `throw` an exception instead of returning a bad value. The standard exception types live in `<stdexcept>`: `std::runtime_error` for problems found while running and `std::invalid_argument` for bad inputs. Both are kinds of `std::exception`, so one `catch (const std::exception& e)` handles either.\n\n```cpp\nif (b == 0) {\n    throw std::invalid_argument(\"division by zero\");\n}\n```\n\nWrap the calls that might fail in `try`, and handle the failure in `catch`:\n\n```cpp\ntry {\n    const double q = safeDivide(1, 0);\n    std::cout << q << '\\n';  // skipped: the throw jumps out\n} catch (const std::exception& e) {\n    std::cout << e.what() << '\\n';  // the message you threw\n}\nstd::cout << \"done\\n\";  // runs either way\n```\n\nA `throw` leaves the function at once, and every statement after it in the `try` block is skipped. After the matching `catch` finishes, the program carries on below it as if nothing happened.\n\n> Gotcha: throw by value and catch by `const&`. A reference avoids a copy, and catching `std::exception&` still sees the real message. If nothing catches an exception, the program aborts with a nonzero exit code.",
+      "example": {
+        "title": "Safe division",
+        "prompt": "Divide two pairs of numbers and handle division by zero with try and catch.",
+        "code": "#include <iomanip>\n#include <iostream>\n#include <stdexcept>\n\ndouble safeDivide(double a, double b) {\n    if (b == 0) {\n        throw std::invalid_argument(\"division by zero\");\n    }\n    return a / b;\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    try {\n        const double first = safeDivide(10, 4);\n        std::cout << first << '\\n';\n        const double second = safeDivide(1, 0);\n        std::cout << second << '\\n';\n    } catch (const std::exception& e) {\n        std::cout << \"Error: \" << e.what() << '\\n';\n    }\n    std::cout << \"done\\n\";\n    return 0;\n}\n",
+        "output": "2.50\nError: division by zero\ndone",
+        "explanation": "`safeDivide(10, 4)` returns 2.5, which prints as `2.50`. `safeDivide(1, 0)` throws before it can return, so `second` is never assigned and its print is skipped. Control jumps to the `catch`, which prints the message passed to `std::invalid_argument`. Then the program continues after the `catch` and prints `done`."
+      },
+      "practice": {
+        "title": "Bank withdrawal",
+        "prompt": "Withdraw money from a balance and report an error when there is not enough.\n\n1. Read a balance and a withdrawal amount.\n2. Write `void withdraw(double& balance, double amount)` that throws `std::runtime_error(\"insufficient funds\")` when the amount is more than the balance, and otherwise subtracts it. Withdrawing the whole balance is allowed.\n3. In a `try` block, call `withdraw`, then print `Withdrew ` and the amount.\n4. In the `catch` block, print `Error: ` followed by `e.what()`.\n5. After the `try` and `catch`, print `Balance: ` and the balance.\n6. Print every number with 2 decimal places.\n\nInput:\n\n```text\n50 80\n```\n\nExpected output:\n\n```text\nError: insufficient funds\nBalance: 50.00\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n#include <stdexcept>\n\nvoid withdraw(double& balance, double amount) {\n    // TODO: throw std::runtime_error(\"insufficient funds\") when amount is more than balance\n    // TODO: otherwise subtract amount from balance\n}\n\nint main() {\n    double balance = 0.0;\n    double amount = 0.0;\n    std::cin >> balance >> amount;\n    std::cout << std::fixed << std::setprecision(2);\n    // TODO: call withdraw in a try block and print the Withdrew line\n    // TODO: catch the exception and print the Error line\n    // TODO: print the Balance line after the try and catch\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n#include <stdexcept>\n\nvoid withdraw(double& balance, double amount) {\n    if (amount > balance) {\n        throw std::runtime_error(\"insufficient funds\");\n    }\n    balance -= amount;\n}\n\nint main() {\n    double balance = 0.0;\n    double amount = 0.0;\n    std::cin >> balance >> amount;\n    std::cout << std::fixed << std::setprecision(2);\n    try {\n        withdraw(balance, amount);\n        std::cout << \"Withdrew \" << amount << '\\n';\n    } catch (const std::exception& e) {\n        std::cout << \"Error: \" << e.what() << '\\n';\n    }\n    std::cout << \"Balance: \" << balance << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "50 80\n",
+            "output": "Error: insufficient funds\nBalance: 50.00"
+          },
+          {
+            "stdin": "100 30\n",
+            "output": "Withdrew 30.00\nBalance: 70.00"
+          },
+          {
+            "stdin": "40 40\n",
+            "output": "Withdrew 40.00\nBalance: 0.00"
+          }
+        ],
+        "hints": [
+          "In `withdraw`, check `amount > balance` first and `throw` before changing anything.",
+          "Put the `Withdrew` print right after the call inside the `try`, so a throw skips it.",
+          "The `Balance` line goes after the `catch` block, so it prints in both cases."
+        ]
+      }
+    },
+    {
+      "title": "Library exceptions and several catch blocks",
+      "body": "The standard library throws too:\n\n- `std::stoi(s)` throws `std::invalid_argument` when `s` does not start with a number, and `std::out_of_range` when the number does not fit in an `int`.\n- `v.at(i)` throws `std::out_of_range` when `i` is not a valid index. `v[i]` never checks, so a bad index there is undefined behavior.\n\n> Gotcha: `std::stoi` converts the leading number and stops at the first non-digit, so `std::stoi(\"2x\")` is 2 and `std::stoi(\"12abc\")` is 12. No exception at all.\n\nOne `try` can have several `catch` blocks. The first match wins, so put the most specific types first: a `catch (const std::exception&)` at the top would grab every standard exception before the specific blocks get a chance. `catch (...)` catches anything and goes last. An unused parameter can stay unnamed.\n\n```cpp\n} catch (const std::invalid_argument&) {\n    std::cout << token << \": not a number\\n\";\n} catch (const std::out_of_range&) {\n    std::cout << token << \": out of range\\n\";\n} catch (...) {\n    std::cout << token << \": unknown error\\n\";\n}\n```\n\nLibrary `what()` text differs between compilers, so print your own message. Do the risky call before printing: in `std::cout << token << \" -> \" << v.at(i)`, the text `7 -> ` is already sent when `at` throws, and it stays in the output.",
+      "example": {
+        "title": "Color lookup",
+        "prompt": "Treat each input token as an index into a list of colors and report bad tokens.",
+        "code": "#include <iostream>\n#include <stdexcept>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::vector<std::string> colors = {\"red\", \"green\", \"blue\"};\n    std::string token;\n    while (std::cin >> token) {\n        try {\n            const int index = std::stoi(token);\n            const std::string color = colors.at(index);\n            std::cout << token << \" -> \" << color << '\\n';\n        } catch (const std::invalid_argument&) {\n            std::cout << token << \": not a number\\n\";\n        } catch (const std::out_of_range&) {\n            std::cout << token << \": out of range\\n\";\n        } catch (...) {\n            std::cout << token << \": unknown error\\n\";\n        }\n    }\n    return 0;\n}\n",
+        "stdin": "1 abc 7 99999999999 2x",
+        "output": "1 -> green\nabc: not a number\n7: out of range\n99999999999: out of range\n2x -> blue",
+        "explanation": "`abc` has no leading digits, so `std::stoi` throws `std::invalid_argument`. `7` converts fine, but `colors.at(7)` throws `std::out_of_range`. `99999999999` does not fit in an `int`, so `std::stoi` itself throws `std::out_of_range`, and the same `catch` handles both. `2x` converts to 2 because `std::stoi` stops at the `x`. The color is stored before the print, so a failed lookup never leaves half a line behind."
+      },
+      "practice": {
+        "title": "Day lookup",
+        "prompt": "Look up days of the week by index and handle bad tokens without stopping.\n\n1. Read tokens until the input ends. Each token is a whole number or a plain word.\n2. Inside one `try`, convert the token with `std::stoi` and look it up in `days` with `at()`, storing the day before printing anything.\n3. On success print `token -> day` and add 1 to `valid`.\n4. Catch `std::invalid_argument` and print `token: not a number`.\n5. Catch `std::out_of_range` and print `token: out of range`. This covers bad indexes and numbers too big for an `int`.\n6. End with a `catch (...)` that prints `token: unknown error`.\n7. After the loop, print `Valid: ` and the count.\n\nInput:\n\n```text\n3 x 9 0 6\n```\n\nExpected output:\n\n```text\n3 -> Thu\nx: not a number\n9: out of range\n0 -> Mon\n6 -> Sun\nValid: 3\n```",
+        "starter": "#include <iostream>\n#include <stdexcept>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::vector<std::string> days = {\"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\", \"Sun\"};\n    int valid = 0;\n    std::string token;\n    while (std::cin >> token) {\n        // TODO: convert and look up inside try, then catch each error type\n    }\n    std::cout << \"Valid: \" << valid << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <stdexcept>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::vector<std::string> days = {\"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\", \"Sun\"};\n    int valid = 0;\n    std::string token;\n    while (std::cin >> token) {\n        try {\n            const int index = std::stoi(token);\n            const std::string day = days.at(index);\n            std::cout << token << \" -> \" << day << '\\n';\n            ++valid;\n        } catch (const std::invalid_argument&) {\n            std::cout << token << \": not a number\\n\";\n        } catch (const std::out_of_range&) {\n            std::cout << token << \": out of range\\n\";\n        } catch (...) {\n            std::cout << token << \": unknown error\\n\";\n        }\n    }\n    std::cout << \"Valid: \" << valid << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "3 x 9 0 6\n",
+            "output": "3 -> Thu\nx: not a number\n9: out of range\n0 -> Mon\n6 -> Sun\nValid: 3"
+          },
+          {
+            "stdin": "6 99999999999 Fri 4\n",
+            "output": "6 -> Sun\n99999999999: out of range\nFri: not a number\n4 -> Fri\nValid: 2"
+          },
+          {
+            "stdin": "-1\n",
+            "output": "-1: out of range\nValid: 0"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the color example: `std::stoi`, then `days.at(index)`, both inside the `try`.",
+          "Increment `valid` after the success print, inside the `try`, so a throw skips it.",
+          "`-1` converts fine, but `at` rejects it with `std::out_of_range`."
+        ]
+      }
+    },
+    {
+      "title": "Custom exception types",
+      "body": "Your own exception type says exactly what went wrong, and a caller can catch it separately. The usual recipe derives from `std::runtime_error` and passes the message to its constructor:\n\n```cpp\nclass ValidationError : public std::runtime_error {\npublic:\n    explicit ValidationError(const std::string& msg) : std::runtime_error(msg) {}\n};\n```\n\n`: public std::runtime_error` makes `ValidationError` a kind of `runtime_error`. The Inheritance lesson explains the details. For now, the recipe gives you `what()` for free, returning the message you passed in.\n\nThrow it like any other exception: `throw ValidationError(\"age 200 out of range\");`.\n\nA `catch` for a base type also catches the types derived from it, so `catch (const std::exception& e)` catches a `ValidationError` too. That is why order matters: catch your own type first, then `std::exception` as the fallback for everything else.\n\n```cpp\n} catch (const ValidationError& e) {\n    std::cout << \"Invalid: \" << e.what() << '\\n';  // your message\n} catch (const std::exception&) {\n    std::cout << \"bad input\\n\";                  // library errors\n}\n```\n\nSwap those two blocks and the custom handler never runs. g++ even warns that the exception will be caught by the earlier handler.",
+      "example": {
+        "title": "Age validation",
+        "prompt": "Validate ages from text with a custom ValidationError and a fallback for library errors.",
+        "code": "#include <iostream>\n#include <stdexcept>\n#include <string>\n#include <vector>\n\nclass ValidationError : public std::runtime_error {\npublic:\n    explicit ValidationError(const std::string& msg) : std::runtime_error(msg) {}\n};\n\nvoid validateAge(int age) {\n    if (age < 0 || age > 150) {\n        throw ValidationError(\"age \" + std::to_string(age) + \" out of range\");\n    }\n}\n\nint main() {\n    const std::vector<std::string> inputs = {\"42\", \"200\", \"abc\"};\n    for (const auto& text : inputs) {\n        try {\n            const int age = std::stoi(text);\n            validateAge(age);\n            std::cout << age << \" ok\\n\";\n        } catch (const ValidationError& e) {\n            std::cout << \"Invalid: \" << e.what() << '\\n';\n        } catch (const std::exception&) {\n            std::cout << text << \": bad input\\n\";\n        }\n    }\n    return 0;\n}\n",
+        "output": "42 ok\nInvalid: age 200 out of range\nabc: bad input",
+        "explanation": "`\"42\"` converts and passes validation. `\"200\"` converts, but `validateAge` throws a `ValidationError`, and the first `catch` prints its message. `\"abc\"` makes `std::stoi` throw `std::invalid_argument`, which is not a `ValidationError`, so the second `catch` for `std::exception` handles it and prints a message of your own."
+      },
+      "practice": {
+        "title": "Out of stock",
+        "prompt": "Fill orders from a fixed stock and report items you cannot supply with a custom exception.\n\n1. Define `class OutOfStock : public std::runtime_error` whose constructor takes the item name and passes it to the base constructor.\n2. Write `void order(std::map<std::string, int>& stock, const std::string& item, int qty)` that throws `OutOfStock(item)` when the item is not in the map or has fewer than `qty` left, and otherwise subtracts `qty`. Ordering exactly what is left is allowed.\n3. Read orders as `item qty` until the input ends.\n4. In a `try`, call `order`, then print `ok item`.\n5. Catch `OutOfStock` first and print `Out of stock: ` followed by `e.what()`. Then catch `std::exception` and print `Error`.\n\nInput:\n\n```text\napple 3\npear 1\napple 3\nkiwi 1\n```\n\nExpected output:\n\n```text\nok apple\nok pear\nOut of stock: apple\nOut of stock: kiwi\n```",
+        "starter": "#include <iostream>\n#include <map>\n#include <stdexcept>\n#include <string>\n\n// TODO: define class OutOfStock deriving from std::runtime_error\n\nvoid order(std::map<std::string, int>& stock, const std::string& item, int qty) {\n    // TODO: throw OutOfStock(item) when the item is missing or has fewer than qty\n    // TODO: otherwise subtract qty from the item's stock\n}\n\nint main() {\n    std::map<std::string, int> stock = {{\"apple\", 5}, {\"pear\", 2}, {\"plum\", 0}};\n    std::string item;\n    int qty = 0;\n    while (std::cin >> item >> qty) {\n        // TODO: call order in a try, print ok or catch OutOfStock\n    }\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <map>\n#include <stdexcept>\n#include <string>\n\nclass OutOfStock : public std::runtime_error {\npublic:\n    explicit OutOfStock(const std::string& item) : std::runtime_error(item) {}\n};\n\nvoid order(std::map<std::string, int>& stock, const std::string& item, int qty) {\n    auto it = stock.find(item);\n    if (it == stock.end() || it->second < qty) {\n        throw OutOfStock(item);\n    }\n    it->second -= qty;\n}\n\nint main() {\n    std::map<std::string, int> stock = {{\"apple\", 5}, {\"pear\", 2}, {\"plum\", 0}};\n    std::string item;\n    int qty = 0;\n    while (std::cin >> item >> qty) {\n        try {\n            order(stock, item, qty);\n            std::cout << \"ok \" << item << '\\n';\n        } catch (const OutOfStock& e) {\n            std::cout << \"Out of stock: \" << e.what() << '\\n';\n        } catch (const std::exception&) {\n            std::cout << \"Error\\n\";\n        }\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "apple 3\npear 1\napple 3\nkiwi 1\n",
+            "output": "ok apple\nok pear\nOut of stock: apple\nOut of stock: kiwi"
+          },
+          {
+            "stdin": "plum 1\npear 2\npear 1\n",
+            "output": "Out of stock: plum\nok pear\nOut of stock: pear"
+          },
+          {
+            "stdin": "apple 5\n",
+            "output": "ok apple"
+          }
+        ],
+        "hints": [
+          "Copy the `ValidationError` recipe, rename it, and pass `item` to the `std::runtime_error` constructor.",
+          "Use `stock.find(item)` and check for `stock.end()` first, so you never read a missing item.",
+          "Stock goes down after each successful order, so a second order for the same item can fail."
+        ]
+      }
+    },
+    {
+      "title": "Stack unwinding and RAII",
+      "body": "When an exception leaves a function, C++ *unwinds the stack*: every local object in every function it passes through is destroyed, and its destructor runs, before the `catch` block starts. This is why RAII matters. A class that releases its resource in the destructor cleans up on every exit path, including a throw.\n\nRaw `new` has no destructor to help it:\n\n```cpp\nvoid leaky() {\n    int* data = new int[100];\n    risky();          // throws\n    delete[] data;    // skipped: the 400 bytes leak\n}\n```\n\nUse `std::vector<int> data(100);` or a `std::unique_ptr` instead. Their destructors free the heap memory during unwinding, so nothing leaks.\n\n`noexcept` promises that a function never throws: `int size() const noexcept`. If an exception tries to escape a `noexcept` function anyway, the program calls `std::terminate` and stops. No `catch` outside the function ever sees it.\n\n> Gotcha: destructors are `noexcept` by default. Never throw from one: a destructor that throws ends the program, so destructors only clean up quietly.",
+      "example": {
+        "title": "Tracing a failed save",
+        "prompt": "Show a local object's destructor running while an exception leaves the function.",
+        "code": "#include <iostream>\n#include <stdexcept>\n#include <string>\n\nclass Tracer {\npublic:\n    explicit Tracer(const std::string& name) : name_(name) {\n        std::cout << \"open \" << name_ << '\\n';\n    }\n    ~Tracer() {\n        std::cout << \"close \" << name_ << '\\n';\n    }\n\nprivate:\n    std::string name_;\n};\n\nvoid save(const std::string& file, bool diskFull) {\n    Tracer tracer(file);\n    if (diskFull) {\n        throw std::runtime_error(\"disk full\");\n    }\n    std::cout << \"saved \" << file << '\\n';\n}\n\nint main() {\n    try {\n        save(\"notes.txt\", false);\n        save(\"photo.png\", true);\n        save(\"song.mp3\", false);\n    } catch (const std::exception& e) {\n        std::cout << \"caught: \" << e.what() << '\\n';\n    }\n    return 0;\n}\n",
+        "output": "open notes.txt\nsaved notes.txt\nclose notes.txt\nopen photo.png\nclose photo.png\ncaught: disk full",
+        "explanation": "Each call to `save` makes a `Tracer`, which prints `open`. The first call finishes normally, so the tracer prints `close` when the function returns. The second call throws: before control reaches the `catch` in `main`, the stack unwinds and destroys `tracer`, so `close photo.png` prints first. The third call never runs because the throw skipped the rest of the `try` block."
+      },
+      "practice": {
+        "title": "Failing step",
+        "prompt": "Run three steps that each hold an RAII object and watch it clean up when a step fails.\n\n1. Read `failAt`, the step number that fails (0 means no step fails).\n2. Give `Step` a constructor that prints `open N` and a destructor that prints `close N`.\n3. Write `void runStep(int number, int failAt)` that creates a `Step`, throws `std::runtime_error(\"step N failed\")` when `number` equals `failAt`, and otherwise prints `done N`.\n4. In `main`, inside one `try`, call `runStep` for steps 1, 2, and 3, then print `all steps finished`.\n5. Catch `std::exception` and print `handled: ` followed by `e.what()`.\n\nInput:\n\n```text\n2\n```\n\nExpected output:\n\n```text\nopen 1\ndone 1\nclose 1\nopen 2\nclose 2\nhandled: step 2 failed\n```",
+        "starter": "#include <iostream>\n#include <stdexcept>\n#include <string>\n\nclass Step {\npublic:\n    explicit Step(int number) : number_(number) {\n        // TODO: print open and the number\n    }\n    ~Step() {\n        // TODO: print close and the number\n    }\n\nprivate:\n    int number_;\n};\n\nvoid runStep(int number, int failAt) {\n    // TODO: create a Step, throw at failAt, otherwise print done and the number\n}\n\nint main() {\n    int failAt = 0;\n    std::cin >> failAt;\n    // TODO: run steps 1 to 3 inside a try, then print the finished or handled line\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <stdexcept>\n#include <string>\n\nclass Step {\npublic:\n    explicit Step(int number) : number_(number) {\n        std::cout << \"open \" << number_ << '\\n';\n    }\n    ~Step() {\n        std::cout << \"close \" << number_ << '\\n';\n    }\n\nprivate:\n    int number_;\n};\n\nvoid runStep(int number, int failAt) {\n    Step step(number);\n    if (number == failAt) {\n        throw std::runtime_error(\"step \" + std::to_string(number) + \" failed\");\n    }\n    std::cout << \"done \" << number << '\\n';\n}\n\nint main() {\n    int failAt = 0;\n    std::cin >> failAt;\n    try {\n        for (int i = 1; i <= 3; ++i) {\n            runStep(i, failAt);\n        }\n        std::cout << \"all steps finished\\n\";\n    } catch (const std::exception& e) {\n        std::cout << \"handled: \" << e.what() << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "2\n",
+            "output": "open 1\ndone 1\nclose 1\nopen 2\nclose 2\nhandled: step 2 failed"
+          },
+          {
+            "stdin": "0\n",
+            "output": "open 1\ndone 1\nclose 1\nopen 2\ndone 2\nclose 2\nopen 3\ndone 3\nclose 3\nall steps finished"
+          },
+          {
+            "stdin": "1\n",
+            "output": "open 1\nclose 1\nhandled: step 1 failed"
+          }
+        ],
+        "hints": [
+          "Create the `Step` object first in `runStep`, so it exists when the throw happens.",
+          "Build the message with `\"step \" + std::to_string(number) + \" failed\"`.",
+          "The `close` line comes from the destructor automatically. You never print it by hand in `runStep`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `throw std::runtime_error(\"msg\")` or `std::invalid_argument` from `<stdexcept>` signals an error.\n- `try { } catch (const std::exception& e) { }` handles it, and `e.what()` returns the message.\n- A throw skips the rest of the `try` block. The program continues after the `catch`.\n- `std::stoi` throws `std::invalid_argument` or `std::out_of_range`, but `std::stoi(\"2x\")` is 2.\n- `at()` throws `std::out_of_range`. `[]` does not check.\n- Several `catch` blocks run the first match: most specific first, `catch (...)` last.\n- Print your own message for library exceptions, and do the risky call before printing.\n- `class MyError : public std::runtime_error` with `MyError(const std::string& msg) : std::runtime_error(msg) {}` makes a custom type. Catch it before `std::exception`.\n- Stack unwinding runs local destructors, so RAII objects clean up. Raw `new` without a matching `delete` leaks.\n- `noexcept` promises no throw. Destructors are `noexcept` by default, so never throw from one."
+}

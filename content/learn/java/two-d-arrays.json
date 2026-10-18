@@ -1,0 +1,115 @@
+{
+  "id": "two-d-arrays",
+  "title": "2D Arrays",
+  "section": "Arrays and Lists",
+  "summary": "Store grids in int[][], loop over rows and columns, copy rows safely, and build lists of lists.",
+  "intro": "Boards, seating charts, and spreadsheets all have rows and columns. Java stores them as arrays of arrays, `int[][]`, or as lists of lists when rows need to grow. This lesson loops over grids in every direction and shows why copying one takes care.",
+  "steps": [
+    {
+      "title": "Grids and nested loops",
+      "body": "A 2D array is an array of rows. Write it with nested braces, one inner pair per row:\n\n```java\nint[][] grid = {\n    {1, 2, 3},\n    {4, 5, 6}\n};\n```\n\n`grid[r][c]` reads row `r`, column `c`, both zero-based, so `grid[1][0]` is `4`. `grid.length` is the number of rows and `grid[r].length` is the number of columns in row `r`. To visit every cell, loop over the rows outside and the columns inside, and end each row with `println()`:\n\n```java\nfor (int r = 0; r < grid.length; r++) {\n    for (int c = 0; c < grid[r].length; c++) {\n        if (c > 0) {\n            System.out.print(\" \");\n        }\n        System.out.print(grid[r][c]);\n    }\n    System.out.println();\n}\n```\n\nThe `c > 0` check puts a space between values without leaving one at the end of the line.\n\nGotcha: the order is always row, then column. Writing `grid[c][r]` reads the wrong cell, or throws `ArrayIndexOutOfBoundsException` when the grid is not square.",
+      "example": {
+        "title": "Print a 3 by 3 grid",
+        "prompt": "Print the size of a 3 by 3 grid, the grid itself row by row, and the value at its center.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        int[][] grid = {\n            {1, 2, 3},\n            {4, 5, 6},\n            {7, 8, 9}\n        };\n\n        System.out.println(\"Rows: \" + grid.length + \", columns: \" + grid[0].length);\n        for (int r = 0; r < grid.length; r++) {\n            for (int c = 0; c < grid[r].length; c++) {\n                if (c > 0) {\n                    System.out.print(\" \");\n                }\n                System.out.print(grid[r][c]);\n            }\n            System.out.println();\n        }\n        System.out.println(\"Center: \" + grid[1][1]);\n    }\n}\n",
+        "output": "Rows: 3, columns: 3\n1 2 3\n4 5 6\n7 8 9\nCenter: 5",
+        "explanation": "`grid.length` counts the 3 inner arrays, and `grid[0].length` counts the cells in the first one. The outer loop picks a row, the inner loop prints that row's cells, and `println()` ends the line. The center of a 3 by 3 grid is row 1, column 1, so `grid[1][1]` is `5`."
+      },
+      "practice": {
+        "title": "Seating chart",
+        "prompt": "Print a 4 by 3 seating chart row by row and count the taken seats, which hold `1`.\n\n1. Print `Rows: 4, seats per row: 3` using `seats.length` and `seats[0].length`.\n2. Loop over the rows, then the seats in each row, and print each row on its own line with one space between values.\n3. Add 1 to `taken` for every seat that holds `1`, then keep the final print from the starter.\n\nExpected output:\n\n```text\nRows: 4, seats per row: 3\n1 0 1\n1 1 0\n0 0 1\n1 1 1\nTaken: 8\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        int[][] seats = {\n            {1, 0, 1},\n            {1, 1, 0},\n            {0, 0, 1},\n            {1, 1, 1}\n        };\n\n        int taken = 0;\n        // TODO: print the row and seat counts\n        // TODO: print each row with spaces between seats and count the 1s\n\n        System.out.println(\"Taken: \" + taken);\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        int[][] seats = {\n            {1, 0, 1},\n            {1, 1, 0},\n            {0, 0, 1},\n            {1, 1, 1}\n        };\n\n        int taken = 0;\n        System.out.println(\"Rows: \" + seats.length + \", seats per row: \" + seats[0].length);\n        for (int r = 0; r < seats.length; r++) {\n            for (int c = 0; c < seats[r].length; c++) {\n                if (c > 0) {\n                    System.out.print(\" \");\n                }\n                System.out.print(seats[r][c]);\n                if (seats[r][c] == 1) {\n                    taken++;\n                }\n            }\n            System.out.println();\n        }\n\n        System.out.println(\"Taken: \" + taken);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Rows: 4, seats per row: 3\n1 0 1\n1 1 0\n0 0 1\n1 1 1\nTaken: 8"
+          }
+        ],
+        "hints": [
+          "Use the same two loops as the example: `r` over `seats.length`, `c` over `seats[r].length`.",
+          "Inside the inner loop, print the value, then check `seats[r][c] == 1` to count it."
+        ]
+      }
+    },
+    {
+      "title": "Row and column totals",
+      "body": "`new int[rows][cols]` makes a rectangular grid where every cell starts at `0`. Fill it with nested loops when each value comes from its position:\n\n```java\nint[][] grid = new int[3][4]; // 3 rows, 4 columns\nfor (int r = 0; r < grid.length; r++) {\n    for (int c = 0; c < grid[r].length; c++) {\n        grid[r][c] = r * 10 + c;\n    }\n}\n```\n\nA row sum walks along one row, so rows go outside and columns inside. A column sum walks down one column, so flip the loops: columns outside, rows inside. Every row of a rectangular grid has the same length, so `grid[0].length` is the column count:\n\n```java\nfor (int c = 0; c < grid[0].length; c++) {\n    int sum = 0;\n    for (int r = 0; r < grid.length; r++) {\n        sum += grid[r][c];\n    }\n    System.out.println(\"Column \" + c + \" sum: \" + sum);\n}\n```\n\nThe main diagonal runs from the top left to the bottom right, where the row equals the column. One loop reads it with `grid[i][i]`, and it only makes sense for a square grid.\n\nGotcha: declare `sum` inside the outer loop so it restarts at `0`. Declared above the loop, each total would include all the earlier ones.",
+      "example": {
+        "title": "Sums of an addition grid",
+        "prompt": "Fill a 3 by 3 grid with `r + c`, then print each row sum, each column sum, and the main diagonal sum.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        int rows = 3;\n        int cols = 3;\n        int[][] grid = new int[rows][cols];\n        for (int r = 0; r < rows; r++) {\n            for (int c = 0; c < cols; c++) {\n                grid[r][c] = r + c;\n            }\n        }\n\n        for (int r = 0; r < rows; r++) {\n            int sum = 0;\n            for (int c = 0; c < cols; c++) {\n                sum += grid[r][c];\n            }\n            System.out.println(\"Row \" + r + \" sum: \" + sum);\n        }\n\n        for (int c = 0; c < cols; c++) {\n            int sum = 0;\n            for (int r = 0; r < rows; r++) {\n                sum += grid[r][c];\n            }\n            System.out.println(\"Column \" + c + \" sum: \" + sum);\n        }\n\n        int diagonal = 0;\n        for (int i = 0; i < rows; i++) {\n            diagonal += grid[i][i];\n        }\n        System.out.println(\"Diagonal sum: \" + diagonal);\n    }\n}\n",
+        "output": "Row 0 sum: 3\nRow 1 sum: 6\nRow 2 sum: 9\nColumn 0 sum: 3\nColumn 1 sum: 6\nColumn 2 sum: 9\nDiagonal sum: 6",
+        "explanation": "The fill loop stores `r + c`, so the rows are `0 1 2`, `1 2 3`, and `2 3 4`. Row sums put `r` outside, column sums put `c` outside, and each total restarts at `0` inside its outer loop. The diagonal adds `grid[0][0]`, `grid[1][1]`, and `grid[2][2]`, which is 0 + 2 + 4."
+      },
+      "practice": {
+        "title": "Sums of a times table",
+        "prompt": "Fill a 4 by 4 grid with `r * c`, then print each row sum, each column sum, and the main diagonal sum.\n\n1. Fill every cell of `grid` with `r * c` using nested loops.\n2. Print `Row r sum: total` for each row, rows in order.\n3. Print `Column c sum: total` for each column, with the column loop outside and the row loop inside.\n4. Print `Diagonal sum: total` using `grid[i][i]`.\n\nExpected output:\n\n```text\nRow 0 sum: 0\nRow 1 sum: 6\nRow 2 sum: 12\nRow 3 sum: 18\nColumn 0 sum: 0\nColumn 1 sum: 6\nColumn 2 sum: 12\nColumn 3 sum: 18\nDiagonal sum: 14\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        int rows = 4;\n        int cols = 4;\n        int[][] grid = new int[rows][cols];\n        // TODO: fill each cell with r * c\n\n        // TODO: print each row sum\n\n        // TODO: print each column sum\n\n        // TODO: print the main diagonal sum\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        int rows = 4;\n        int cols = 4;\n        int[][] grid = new int[rows][cols];\n        for (int r = 0; r < rows; r++) {\n            for (int c = 0; c < cols; c++) {\n                grid[r][c] = r * c;\n            }\n        }\n\n        for (int r = 0; r < rows; r++) {\n            int sum = 0;\n            for (int c = 0; c < cols; c++) {\n                sum += grid[r][c];\n            }\n            System.out.println(\"Row \" + r + \" sum: \" + sum);\n        }\n\n        for (int c = 0; c < cols; c++) {\n            int sum = 0;\n            for (int r = 0; r < rows; r++) {\n                sum += grid[r][c];\n            }\n            System.out.println(\"Column \" + c + \" sum: \" + sum);\n        }\n\n        int diagonal = 0;\n        for (int i = 0; i < rows; i++) {\n            diagonal += grid[i][i];\n        }\n        System.out.println(\"Diagonal sum: \" + diagonal);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Row 0 sum: 0\nRow 1 sum: 6\nRow 2 sum: 12\nRow 3 sum: 18\nColumn 0 sum: 0\nColumn 1 sum: 6\nColumn 2 sum: 12\nColumn 3 sum: 18\nDiagonal sum: 14"
+          }
+        ],
+        "hints": [
+          "The structure matches the example exactly. Only the fill formula and the size change.",
+          "The diagonal is 0 + 1 + 4 + 9, the squares of 0 to 3."
+        ]
+      }
+    },
+    {
+      "title": "Rows are arrays: jagged grids and copies",
+      "body": "A 2D array is really an array whose elements are references to row arrays. Each row is its own `int[]` object, so rows can have different lengths. That is a *jagged* array. Leave the column count empty and allocate each row yourself:\n\n```java\nint[][] tri = new int[3][];   // 3 rows, all null for now\ntri[0] = new int[1];\ntri[1] = new int[2];\ntri[2] = new int[3];\n```\n\nUntil you allocate a row it is `null`, so reading `tri[0][0]` first throws `NullPointerException`. Loop columns with `grid[r].length`, never `grid[0].length`, because each row has its own length.\n\nBecause each row is an `int[]`, the enhanced for loop hands you whole rows: `for (int[] row : grid)`. `Arrays.deepToString(grid)` prints nested contents like `[[1], [2, 4]]`. Plain `Arrays.toString(grid)` would print a type and hash for each row instead.\n\nCopying needs care. `grid.clone()` makes a new outer array but copies only the row references, so both grids share the same rows and a change through one shows in the other. To copy for real, clone each row:\n\n```java\nint[][] copy = new int[grid.length][];\nfor (int r = 0; r < grid.length; r++) {\n    copy[r] = grid[r].clone();\n}\n```",
+      "example": {
+        "title": "Triangle of products",
+        "prompt": "Build a jagged triangle where row `r` has `r + 1` cells, print it two ways, then compare a `clone()` of the grid with a row by row copy.",
+        "code": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[][] tri = new int[4][];\n        for (int r = 0; r < tri.length; r++) {\n            tri[r] = new int[r + 1];\n            for (int c = 0; c < tri[r].length; c++) {\n                tri[r][c] = (r + 1) * (c + 1);\n            }\n        }\n        System.out.println(Arrays.deepToString(tri));\n\n        for (int[] row : tri) {\n            int sum = 0;\n            for (int x : row) {\n                sum += x;\n            }\n            System.out.println(\"Length \" + row.length + \", sum \" + sum);\n        }\n\n        int[][] shallow = tri.clone();\n        int[][] deep = new int[tri.length][];\n        for (int r = 0; r < tri.length; r++) {\n            deep[r] = tri[r].clone();\n        }\n        shallow[1][0] = 7;\n        deep[2][1] = 0;\n        System.out.println(\"Original: \" + Arrays.deepToString(tri));\n        System.out.println(\"Shallow: \" + Arrays.deepToString(shallow));\n        System.out.println(\"Deep: \" + Arrays.deepToString(deep));\n        System.out.println(\"Shallow shares rows: \" + (shallow[1] == tri[1]));\n        System.out.println(\"Deep shares rows: \" + (deep[1] == tri[1]));\n    }\n}\n",
+        "output": "[[1], [2, 4], [3, 6, 9], [4, 8, 12, 16]]\nLength 1, sum 1\nLength 2, sum 6\nLength 3, sum 18\nLength 4, sum 40\nOriginal: [[1], [7, 4], [3, 6, 9], [4, 8, 12, 16]]\nShallow: [[1], [7, 4], [3, 6, 9], [4, 8, 12, 16]]\nDeep: [[1], [2, 4], [3, 0, 9], [4, 8, 12, 16]]\nShallow shares rows: true\nDeep shares rows: false",
+        "explanation": "`new int[4][]` makes 4 empty row slots, and `tri[r] = new int[r + 1]` gives each row its own length. The enhanced for loop takes one `int[]` row at a time. `tri.clone()` copies the 4 row references, so `shallow[1][0] = 7` also changes `tri`, and `shallow[1] == tri[1]` is `true`. `deep` cloned every row, so its change to `deep[2][1]` stays in `deep`."
+      },
+      "practice": {
+        "title": "Workout log",
+        "prompt": "Total each week of a jagged workout log, then change a row by row copy without touching the original.\n\n1. Loop with `for (int[] row : minutes)`, add up the row with an inner enhanced for loop, and print `Week N: T minutes`, where `N` counts weeks from 1 and `T` is that week's total.\n2. Fill `copy` by cloning each row of `minutes`, then set `copy[1][0]` to `50`.\n3. Print `Original: ` and then `Copy: `, each followed by `Arrays.deepToString` of that grid.\n\nExpected output:\n\n```text\nWeek 1: 95 minutes\nWeek 2: 75 minutes\nWeek 3: 140 minutes\nOriginal: [[30, 45, 20], [60, 15], [40, 40, 25, 35]]\nCopy: [[30, 45, 20], [50, 15], [40, 40, 25, 35]]\n```",
+        "starter": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[][] minutes = {\n            {30, 45, 20},\n            {60, 15},\n            {40, 40, 25, 35}\n        };\n\n        int week = 1;\n        // TODO: loop with for (int[] row : minutes), add up each row,\n        // print \"Week N: T minutes\", then add 1 to week\n\n        int[][] copy = new int[minutes.length][];\n        // TODO: fill copy with a clone of each row, then set copy[1][0] to 50\n\n        // TODO: print \"Original: \" and \"Copy: \" with Arrays.deepToString\n    }\n}\n",
+        "solution": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[][] minutes = {\n            {30, 45, 20},\n            {60, 15},\n            {40, 40, 25, 35}\n        };\n\n        int week = 1;\n        for (int[] row : minutes) {\n            int total = 0;\n            for (int m : row) {\n                total += m;\n            }\n            System.out.println(\"Week \" + week + \": \" + total + \" minutes\");\n            week++;\n        }\n\n        int[][] copy = new int[minutes.length][];\n        for (int r = 0; r < minutes.length; r++) {\n            copy[r] = minutes[r].clone();\n        }\n        copy[1][0] = 50;\n\n        System.out.println(\"Original: \" + Arrays.deepToString(minutes));\n        System.out.println(\"Copy: \" + Arrays.deepToString(copy));\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Week 1: 95 minutes\nWeek 2: 75 minutes\nWeek 3: 140 minutes\nOriginal: [[30, 45, 20], [60, 15], [40, 40, 25, 35]]\nCopy: [[30, 45, 20], [50, 15], [40, 40, 25, 35]]"
+          }
+        ],
+        "hints": [
+          "Reset `total` to 0 at the top of the outer loop and add 1 to `week` at the bottom.",
+          "Use an index loop for the copy, because each `copy[r]` needs its own clone of row `r`."
+        ]
+      }
+    },
+    {
+      "title": "Lists of lists",
+      "body": "When rows need to grow, use a list of lists: `List<List<Integer>>`. The outer list starts empty, so add one new inner list per row:\n\n```java\nList<List<Integer>> grid = new ArrayList<>();\nfor (int r = 0; r < 3; r++) {\n    grid.add(new ArrayList<>());\n}\ngrid.get(0).add(5);      // append to row 0\ngrid.get(2).add(7);      // row 2 grows on its own\nint first = grid.get(0).get(0);   // row 0, column 0\n```\n\n`get(r)` returns row `r` as a `List<Integer>`, then `.get(c)` or `.add(x)` works on that row. Each row grows independently, and `println(grid)` prints `[[5], [], [7]]`.\n\nGotcha: create the inner list inside the loop. Adding one shared list several times gives you several references to the same row, so every add shows up in all of them:\n\n```java\nList<Integer> row = new ArrayList<>();\nfor (int r = 0; r < 3; r++) {\n    grid.add(row); // wrong: all rows are one list\n}\n```",
+      "example": {
+        "title": "Evens and odds",
+        "prompt": "Group the numbers 1 to 10 into an evens list and an odds list inside a `List<List<Integer>>`, grow only the odds, and print the result.",
+        "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<List<Integer>> groups = new ArrayList<>();\n        for (int i = 0; i < 2; i++) {\n            groups.add(new ArrayList<>());\n        }\n\n        for (int n = 1; n <= 10; n++) {\n            groups.get(n % 2).add(n);\n        }\n        groups.get(1).add(11); // only the odds row grows\n\n        System.out.println(groups);\n        System.out.println(\"Evens (\" + groups.get(0).size() + \"): \" + groups.get(0));\n        System.out.println(\"Odds (\" + groups.get(1).size() + \"): \" + groups.get(1));\n        System.out.println(\"First even: \" + groups.get(0).get(0));\n    }\n}\n",
+        "output": "[[2, 4, 6, 8, 10], [1, 3, 5, 7, 9, 11]]\nEvens (5): [2, 4, 6, 8, 10]\nOdds (6): [1, 3, 5, 7, 9, 11]\nFirst even: 2",
+        "explanation": "The first loop adds two separate inner lists. `n % 2` is `0` for evens and `1` for odds, so `groups.get(n % 2).add(n)` drops each number into the right row. Adding `11` to row 1 leaves row 0 alone, so the rows end with different sizes. `groups.get(0).get(0)` reads row 0, column 0."
+      },
+      "practice": {
+        "title": "Team roster",
+        "prompt": "Split six players into three teams stored in a `List<List<String>>` and print each team with its size.\n\n1. Add a new `ArrayList<>()` to `teams` for each of the 3 teams, inside a loop.\n2. Loop over `players` and add `players[i]` to the team at index `teamOf[i]`.\n3. Print `Team N (size): [players]` for each team, numbering teams from 1.\n4. Print `Captain of team 2: ` followed by the first player of team 2 (index 1).\n\nExpected output:\n\n```text\nTeam 1 (3): [Ana, Cal, Fay]\nTeam 2 (2): [Ben, Eli]\nTeam 3 (1): [Dee]\nCaptain of team 2: Ben\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] players = {\"Ana\", \"Ben\", \"Cal\", \"Dee\", \"Eli\", \"Fay\"};\n        int[] teamOf = {0, 1, 0, 2, 1, 0};\n\n        List<List<String>> teams = new ArrayList<>();\n        // TODO: add a new ArrayList<>() for each of the 3 teams\n\n        // TODO: add players[i] to the team at index teamOf[i]\n\n        // TODO: print each team with its size, then the captain of team 2\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] players = {\"Ana\", \"Ben\", \"Cal\", \"Dee\", \"Eli\", \"Fay\"};\n        int[] teamOf = {0, 1, 0, 2, 1, 0};\n\n        List<List<String>> teams = new ArrayList<>();\n        for (int t = 0; t < 3; t++) {\n            teams.add(new ArrayList<>());\n        }\n\n        for (int i = 0; i < players.length; i++) {\n            teams.get(teamOf[i]).add(players[i]);\n        }\n\n        for (int t = 0; t < teams.size(); t++) {\n            System.out.println(\"Team \" + (t + 1) + \" (\" + teams.get(t).size() + \"): \" + teams.get(t));\n        }\n        System.out.println(\"Captain of team 2: \" + teams.get(1).get(0));\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Team 1 (3): [Ana, Cal, Fay]\nTeam 2 (2): [Ben, Eli]\nTeam 3 (1): [Dee]\nCaptain of team 2: Ben"
+          }
+        ],
+        "hints": [
+          "Pick the row first with `teams.get(...)`, then call `add` on that row.",
+          "Print `(t + 1)` in parentheses so it adds before it joins the text.",
+          "Team 2 is at index 1, and its first player is at index 0 of that row."
+        ]
+      }
+    }
+  ],
+  "recap": "- `int[][] grid = {{1, 2}, {3, 4}};` and `grid[r][c]` reads row `r`, column `c`.\n- `grid.length` is the row count and `grid[r].length` the column count of row `r`.\n- Rows outside and columns inside for row work, columns outside for column sums.\n- `new int[rows][cols]` starts at all zeros, and `grid[i][i]` walks the main diagonal.\n- Each row is its own array: `new int[3][]` plus per row allocation makes a jagged grid.\n- `for (int[] row : grid)` loops over rows and `Arrays.deepToString` prints the whole grid.\n- `grid.clone()` shares rows. Copy with `copy[r] = grid[r].clone()` for independent rows.\n- `List<List<Integer>>` grows: add a new inner list per row, then use `get(r).add(x)` and `get(r).get(c)`."
+}

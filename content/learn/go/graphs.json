@@ -1,0 +1,158 @@
+{
+  "id": "graphs",
+  "title": "Graphs",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Store graphs as adjacency lists, find connected components, order tasks with topological sort, and find weighted shortest paths.",
+  "intro": "A graph is a set of nodes joined by edges: roads between cities, prerequisites between courses, friendships between people. This lesson stores graphs as adjacency lists, then uses them to find connected groups, order tasks that depend on each other, and find the cheapest route with Dijkstra's algorithm. Every program reads its graph as `n m` followed by m edge lines, with nodes numbered 0 to n-1.",
+  "steps": [
+    {
+      "title": "Adjacency lists and degrees",
+      "body": "The BFS lesson stored an undirected graph as a `[][]int` **adjacency list**. Here edges can have a direction and a weight. Number the nodes 0 to n-1 and let `adj[u]` hold every edge that leaves `u`. A **directed** edge goes one way only, so the edge `u v` is appended to `adj[u]` and never to `adj[v]`. For a weighted edge, store a small struct:\n\n```go\ntype Edge struct{ To, W int }\n\nadj := make([][]Edge, n)\nadj[u] = append(adj[u], Edge{To: v, W: w})\n```\n\n- A node's **out-degree** is `len(adj[u])`, the number of edges leaving it.\n- Its **in-degree** counts the edges arriving. Keep `indeg := make([]int, n)` and run `indeg[v]++` for every edge `u v`.\n- An **undirected** edge is two directed ones: append to both `adj[u]` and `adj[v]`.\n\nIn memory, `adj` is a slice of slice headers. Each `adj[u]` starts as a nil slice and gets its own backing array on its first append, so a node with no edges costs only its header. Appending in input order fixes the neighbor order, which keeps every later traversal deterministic.",
+      "example": {
+        "title": "Directed degrees",
+        "prompt": "Read a directed weighted graph and print each node's out-degree, in-degree, and the total weight of its outgoing edges.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Edge struct{ To, W int }\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]Edge, n)\n\tindeg := make([]int, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v, w int\n\t\tfmt.Scan(&u, &v, &w)\n\t\tadj[u] = append(adj[u], Edge{To: v, W: w}) // directed: only u -> v\n\t\tindeg[v]++\n\t}\n\tfor u := 0; u < n; u++ {\n\t\ttotal := 0\n\t\tfor _, e := range adj[u] {\n\t\t\ttotal += e.W\n\t\t}\n\t\tfmt.Printf(\"%d: out %d in %d weight %d\\n\", u, len(adj[u]), indeg[u], total)\n\t}\n}\n",
+        "stdin": "4 5\n0 1 4\n0 2 5\n1 2 2\n2 3 7\n3 1 1\n",
+        "output": "0: out 2 in 0 weight 9\n1: out 1 in 2 weight 2\n2: out 1 in 2 weight 7\n3: out 1 in 1 weight 1",
+        "explanation": "The first line gives 4 nodes and 5 edges. Each edge line is appended to `adj[u]` only, because it is directed, and bumps `indeg[v]`. Node 0 has two edges leaving it (weights 4 and 5) and none arriving, so it prints `out 2 in 0 weight 9`. Node 1 has one edge out to 2 and two in, from 0 and from 3. The loop over `adj[u]` sums the `W` field of each `Edge` to get the weight."
+      },
+      "practice": {
+        "title": "Undirected degrees",
+        "prompt": "Read an undirected weighted graph and print each node's degree and the total weight of its edges.\n\n1. The input is `n m` on the first line, then m lines `u v w`. The starter already reads them.\n2. Store every edge in both directions: append `Edge{To: v, W: w}` to `adj[u]` and `Edge{To: u, W: w}` to `adj[v]`.\n3. For each node u from 0 to n-1, print `u: degree D weight W`, where D is `len(adj[u])` and W is the sum of the weights in `adj[u]`.\n4. Remove the `_ = adj` line once `adj` is used.\n\nInput:\n\n```text\n4 4\n0 1 4\n0 2 5\n1 2 2\n2 3 7\n```\n\nExpected output:\n\n```text\n0: degree 2 weight 9\n1: degree 2 weight 6\n2: degree 3 weight 14\n3: degree 1 weight 7\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Edge struct{ To, W int }\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]Edge, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v, w int\n\t\tfmt.Scan(&u, &v, &w)\n\t\t// TODO: store the edge in both directions\n\t}\n\t// TODO: print each node's degree and the total weight of its edges\n\t_ = adj\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Edge struct{ To, W int }\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]Edge, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v, w int\n\t\tfmt.Scan(&u, &v, &w)\n\t\tadj[u] = append(adj[u], Edge{To: v, W: w})\n\t\tadj[v] = append(adj[v], Edge{To: u, W: w})\n\t}\n\tfor u := 0; u < n; u++ {\n\t\ttotal := 0\n\t\tfor _, e := range adj[u] {\n\t\t\ttotal += e.W\n\t\t}\n\t\tfmt.Printf(\"%d: degree %d weight %d\\n\", u, len(adj[u]), total)\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "4 4\n0 1 4\n0 2 5\n1 2 2\n2 3 7\n",
+            "output": "0: degree 2 weight 9\n1: degree 2 weight 6\n2: degree 3 weight 14\n3: degree 1 weight 7"
+          },
+          {
+            "stdin": "3 1\n0 2 6\n",
+            "output": "0: degree 1 weight 6\n1: degree 0 weight 0\n2: degree 1 weight 6"
+          },
+          {
+            "stdin": "2 2\n0 1 3\n1 0 2\n",
+            "output": "0: degree 2 weight 5\n1: degree 2 weight 5"
+          }
+        ],
+        "hints": [
+          "Inside the read loop, write two `append` calls, one for each direction.",
+          "An undirected node's degree is just `len(adj[u])`, because every edge touching it is stored in its list.",
+          "Reset `total := 0` for each node, then add `e.W` for every `e` in `adj[u]`."
+        ]
+      }
+    },
+    {
+      "title": "Connected components",
+      "body": "Two nodes are in the same **connected component** when some path joins them. To collect one component, start a DFS at a node and visit everything it can reach. It is the island count from the recursion lesson, with adjacency lists in place of grid neighbors. Recursion works too, but a long path needs one nested call per node, and Go stops the program when a goroutine's stack grows past 1 GB. An **iterative DFS** keeps its own stack in a slice instead:\n\n```go\nstack := []int{start}\nvisited[start] = true\nfor len(stack) > 0 {\n\tu := stack[len(stack)-1]\n\tstack = stack[:len(stack)-1]\n\tfor _, v := range adj[u] {\n\t\tif !visited[v] {\n\t\t\tvisited[v] = true\n\t\t\tstack = append(stack, v)\n\t\t}\n\t}\n}\n```\n\n- `visited := make([]bool, n)` remembers seen nodes. Mark a node when you **push** it, or a node reachable from two neighbors gets pushed twice. The visit order then differs a little from recursive DFS, which does not matter for components.\n- To **count components**, loop over every node and start a new DFS at each unvisited one. Every start is one component.\n- To **measure a component**, count the nodes you pop.\n\nPass `visited` to a helper function freely. Only the slice header is copied, and it still points at the same booleans, so marks made inside the helper are visible to the caller.",
+      "example": {
+        "title": "List the components",
+        "prompt": "Read an undirected graph with 7 nodes and print the sorted nodes of each connected component, then how many there are.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc component(adj [][]int, visited []bool, start int) []int {\n\tstack := []int{start}\n\tvisited[start] = true\n\tvar nodes []int\n\tfor len(stack) > 0 {\n\t\tu := stack[len(stack)-1] // pop the top of the stack\n\t\tstack = stack[:len(stack)-1]\n\t\tnodes = append(nodes, u)\n\t\tfor _, v := range adj[u] {\n\t\t\tif !visited[v] {\n\t\t\t\tvisited[v] = true // mark on push so no node is pushed twice\n\t\t\t\tstack = append(stack, v)\n\t\t\t}\n\t\t}\n\t}\n\tsort.Ints(nodes)\n\treturn nodes\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]int, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v int\n\t\tfmt.Scan(&u, &v)\n\t\tadj[u] = append(adj[u], v)\n\t\tadj[v] = append(adj[v], u)\n\t}\n\tvisited := make([]bool, n)\n\tcount := 0\n\tfor s := 0; s < n; s++ {\n\t\tif visited[s] {\n\t\t\tcontinue\n\t\t}\n\t\tcount++\n\t\tfmt.Printf(\"component %d: %v\\n\", count, component(adj, visited, s))\n\t}\n\tfmt.Println(\"components:\", count)\n}\n",
+        "stdin": "7 5\n0 1\n1 2\n3 4\n5 3\n2 0\n",
+        "output": "component 1: [0 1 2]\ncomponent 2: [3 4 5]\ncomponent 3: [6]\ncomponents: 3",
+        "explanation": "`main` stores each edge in both directions, then tries every node in order. Node 0 is unvisited, so `component` runs a DFS from it, popping and collecting 0, 1, and 2. When the loop reaches 1 and 2 they are already visited and skipped. Node 3 starts the second component, which also picks up 4 and 5. Node 6 has no edges, so its DFS pops only itself. The stack pops nodes in the order the search reaches them, not in numeric order, so `sort.Ints(nodes)` sorts each component before it prints. Starting at nodes in increasing order lists the components by their smallest node."
+      },
+      "practice": {
+        "title": "Friend groups",
+        "prompt": "Read a friendship graph and print how many friend groups there are and the size of the largest one.\n\n1. The input is `n m`, then m lines `u v` meaning people u and v are friends. The starter reads them into `adj` in both directions.\n2. Finish `groupSize` with an iterative DFS from `start`: push onto a stack slice, mark people visited when you push them, and return how many people you pop.\n3. In `main`, loop over every person. For each unvisited one, add 1 to `groups` and keep the largest `groupSize` result in `largest`.\n4. Print `groups: G` and then `largest: L`. Remove the `_ = visited` line once `visited` is used.\n\nInput:\n\n```text\n8 6\n0 1\n1 2\n2 3\n4 5\n6 5\n3 0\n```\n\nExpected output:\n\n```text\ngroups: 3\nlargest: 4\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc groupSize(adj [][]int, visited []bool, start int) int {\n\t// TODO: run an iterative DFS from start with a stack slice and count the people it reaches\n\treturn 0\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]int, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v int\n\t\tfmt.Scan(&u, &v)\n\t\tadj[u] = append(adj[u], v)\n\t\tadj[v] = append(adj[v], u)\n\t}\n\tvisited := make([]bool, n)\n\tgroups, largest := 0, 0\n\t// TODO: start a DFS at every unvisited person, count the groups, and keep the largest size\n\t_ = visited\n\tfmt.Println(\"groups:\", groups)\n\tfmt.Println(\"largest:\", largest)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc groupSize(adj [][]int, visited []bool, start int) int {\n\tstack := []int{start}\n\tvisited[start] = true\n\tsize := 0\n\tfor len(stack) > 0 {\n\t\tu := stack[len(stack)-1]\n\t\tstack = stack[:len(stack)-1]\n\t\tsize++\n\t\tfor _, v := range adj[u] {\n\t\t\tif !visited[v] {\n\t\t\t\tvisited[v] = true\n\t\t\t\tstack = append(stack, v)\n\t\t\t}\n\t\t}\n\t}\n\treturn size\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]int, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v int\n\t\tfmt.Scan(&u, &v)\n\t\tadj[u] = append(adj[u], v)\n\t\tadj[v] = append(adj[v], u)\n\t}\n\tvisited := make([]bool, n)\n\tgroups, largest := 0, 0\n\tfor p := 0; p < n; p++ {\n\t\tif visited[p] {\n\t\t\tcontinue\n\t\t}\n\t\tgroups++\n\t\tif size := groupSize(adj, visited, p); size > largest {\n\t\t\tlargest = size\n\t\t}\n\t}\n\tfmt.Println(\"groups:\", groups)\n\tfmt.Println(\"largest:\", largest)\n}\n",
+        "tests": [
+          {
+            "stdin": "8 6\n0 1\n1 2\n2 3\n4 5\n6 5\n3 0\n",
+            "output": "groups: 3\nlargest: 4"
+          },
+          {
+            "stdin": "5 0\n",
+            "output": "groups: 5\nlargest: 1"
+          },
+          {
+            "stdin": "4 3\n0 1\n1 2\n2 3\n",
+            "output": "groups: 1\nlargest: 4"
+          }
+        ],
+        "hints": [
+          "Copy the example's `component` function, but replace the `nodes` slice with a `size` counter that you add 1 to on every pop.",
+          "A person with no friends is a group of size 1, so `largest` is at least 1 whenever n is positive.",
+          "In `main`, use `if visited[p] { continue }` before starting a new group."
+        ]
+      }
+    },
+    {
+      "title": "Topological sort",
+      "body": "A **directed acyclic graph** (DAG) has directed edges and no cycles, like courses and their prerequisites. A **topological order** lists every node so that each edge `u v` puts u before v. **Kahn's algorithm** builds one:\n\n1. Count every node's in-degree.\n2. Put each node with in-degree 0 into a `ready` slice, since nothing has to come before it.\n3. Take a ready node, append it to the order, and remove its outgoing edges with `indeg[v]--`. A node whose count drops to 0 becomes ready.\n\nSeveral nodes are often ready at once, and each choice gives a valid but different order. Pick a rule so the answer is unique: sort the ready nodes and take the smallest.\n\n```go\nsort.Ints(ready)\nu := ready[0]\nready = ready[1:]\n```\n\nIf the graph has a cycle, the nodes on it wait for each other and never reach in-degree 0, and neither do the nodes after them, so fewer than n nodes come out. Checking `len(order) < n` is how Kahn's algorithm detects a cycle. The function changes `indeg` in place through the shared slice, so build a fresh one if you need the counts again.",
+      "example": {
+        "title": "Course order",
+        "prompt": "Read 6 courses and their prerequisite pairs, and print an order to take them in, always taking the smallest-numbered ready course, or cycle when no order exists.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc topoOrder(n int, adj [][]int, indeg []int) []int {\n\tvar ready []int\n\tfor u := 0; u < n; u++ {\n\t\tif indeg[u] == 0 {\n\t\t\tready = append(ready, u)\n\t\t}\n\t}\n\tvar order []int\n\tfor len(ready) > 0 {\n\t\tsort.Ints(ready) // smallest-numbered ready course first\n\t\tu := ready[0]\n\t\tready = ready[1:]\n\t\torder = append(order, u)\n\t\tfor _, v := range adj[u] {\n\t\t\tindeg[v]-- // remove the edge u -> v\n\t\t\tif indeg[v] == 0 {\n\t\t\t\tready = append(ready, v)\n\t\t\t}\n\t\t}\n\t}\n\treturn order\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]int, n)\n\tindeg := make([]int, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v int\n\t\tfmt.Scan(&u, &v)\n\t\tadj[u] = append(adj[u], v)\n\t\tindeg[v]++\n\t}\n\torder := topoOrder(n, adj, indeg)\n\tif len(order) < n {\n\t\tfmt.Println(\"cycle\")\n\t\treturn\n\t}\n\tfmt.Println(\"order:\", order)\n}\n",
+        "stdin": "6 6\n1 4\n1 2\n0 2\n2 3\n4 3\n3 5\n",
+        "output": "order: [0 1 2 4 3 5]",
+        "explanation": "Each pair `u v` means course u comes before course v, so it is stored as a directed edge and adds 1 to `indeg[v]`. Courses 0 and 1 start with in-degree 0. Taking 0 drops course 2 to one remaining prerequisite. Taking 1 frees 4 and then 2, so `ready` holds `[4 2]` in that order, and `sort.Ints` puts 2 first. Course 3 waits for both 2 and 4, and 5 waits for 3. All 6 courses come out, so there is no cycle and the order prints."
+      },
+      "practice": {
+        "title": "Build order",
+        "prompt": "Read tasks and their dependencies and print the build order with the smallest-first rule, or cycle when none exists.\n\n1. The input is `n m`, then m lines `u v` meaning task u must finish before task v. Inside the read loop, add `indeg[v]++`.\n2. Finish `buildOrder` with Kahn's algorithm: start with every task whose in-degree is 0, and each round sort the ready tasks with `sort.Ints` and take the smallest.\n3. Add `\"sort\"` to the imports.\n4. In `main`, print `cycle` when fewer than n tasks come out, otherwise print `build order:` followed by the order.\n\nInput:\n\n```text\n5 4\n4 1\n4 0\n1 2\n3 2\n```\n\nExpected output:\n\n```text\nbuild order: [3 4 0 1 2]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc buildOrder(n int, adj [][]int, indeg []int) []int {\n\t// TODO: run Kahn's algorithm, always taking the smallest-numbered ready task\n\treturn nil\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]int, n)\n\tindeg := make([]int, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v int\n\t\tfmt.Scan(&u, &v)\n\t\tadj[u] = append(adj[u], v)\n\t\t// TODO: count the in-degree of v\n\t}\n\torder := buildOrder(n, adj, indeg)\n\t// TODO: print cycle instead when fewer than n tasks come out\n\tfmt.Println(\"build order:\", order)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc buildOrder(n int, adj [][]int, indeg []int) []int {\n\tvar ready []int\n\tfor u := 0; u < n; u++ {\n\t\tif indeg[u] == 0 {\n\t\t\tready = append(ready, u)\n\t\t}\n\t}\n\tvar order []int\n\tfor len(ready) > 0 {\n\t\tsort.Ints(ready)\n\t\tu := ready[0]\n\t\tready = ready[1:]\n\t\torder = append(order, u)\n\t\tfor _, v := range adj[u] {\n\t\t\tindeg[v]--\n\t\t\tif indeg[v] == 0 {\n\t\t\t\tready = append(ready, v)\n\t\t\t}\n\t\t}\n\t}\n\treturn order\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]int, n)\n\tindeg := make([]int, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v int\n\t\tfmt.Scan(&u, &v)\n\t\tadj[u] = append(adj[u], v)\n\t\tindeg[v]++\n\t}\n\torder := buildOrder(n, adj, indeg)\n\tif len(order) < n {\n\t\tfmt.Println(\"cycle\")\n\t\treturn\n\t}\n\tfmt.Println(\"build order:\", order)\n}\n",
+        "tests": [
+          {
+            "stdin": "5 4\n4 1\n4 0\n1 2\n3 2\n",
+            "output": "build order: [3 4 0 1 2]"
+          },
+          {
+            "stdin": "4 4\n0 1\n1 2\n2 3\n3 1\n",
+            "output": "cycle"
+          },
+          {
+            "stdin": "4 3\n3 2\n2 1\n1 0\n",
+            "output": "build order: [3 2 1 0]"
+          }
+        ],
+        "hints": [
+          "Follow the example's `topoOrder`: collect the ready tasks, then loop while `len(ready) > 0`.",
+          "After you take task u, run `indeg[v]--` for every v in `adj[u]` and append v to `ready` when it reaches 0.",
+          "Check `len(order) < n` in `main`, print `cycle`, and return before the normal print."
+        ]
+      }
+    },
+    {
+      "title": "Dijkstra's shortest paths",
+      "body": "**Dijkstra's algorithm** finds the cheapest path from a source to every node when no edge weight is negative. It keeps `dist[u]`, the best distance found so far, and a min-heap of `Item{Dist, Node}` pairs, using the `container/heap` pattern from the sorting lesson with `Less` comparing `Dist`.\n\n1. Fill `dist` with `math.MaxInt64` as infinity, set `dist[src] = 0`, and push the source.\n2. Pop the closest item. If `it.Dist > dist[it.Node]`, the item is **stale** because a shorter path was found after it was pushed, so skip it.\n3. Otherwise relax each outgoing edge: when the new distance is smaller, store it and push it.\n\n```go\nif nd := it.Dist + e.W; nd < dist[e.To] {\n\tdist[e.To] = nd\n\theap.Push(h, Item{Dist: nd, Node: e.To})\n}\n```\n\nLowering a key inside `container/heap` needs `heap.Fix` plus each item's current index, which is extra bookkeeping, so pushing a duplicate and skipping stale entries is the usual approach. Never add a weight to the sentinel: when `dist[u]` is `math.MaxInt64`, `dist[u] + w` wraps around to a huge negative number that looks like the best path of all. Relaxing only edges out of popped nodes avoids that, since a popped node always has a real distance. A node still at `math.MaxInt64` at the end is unreachable.",
+      "example": {
+        "title": "Distances from a source",
+        "prompt": "Read a directed weighted graph and a source node, and print the shortest distance to every node, with INF for nodes the source cannot reach.",
+        "code": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n\t\"math\"\n)\n\ntype Edge struct{ To, W int }\n\ntype Item struct{ Dist, Node int }\n\ntype MinHeap []Item\n\nfunc (h MinHeap) Len() int           { return len(h) }\nfunc (h MinHeap) Less(i, j int) bool { return h[i].Dist < h[j].Dist }\nfunc (h MinHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }\n\nfunc (h *MinHeap) Push(x interface{}) {\n\t*h = append(*h, x.(Item))\n}\n\nfunc (h *MinHeap) Pop() interface{} {\n\told := *h\n\tn := len(old)\n\tx := old[n-1]\n\t*h = old[:n-1]\n\treturn x\n}\n\nfunc dijkstra(adj [][]Edge, src int) []int {\n\tdist := make([]int, len(adj))\n\tfor i := range dist {\n\t\tdist[i] = math.MaxInt64 // infinity: not reached yet\n\t}\n\tdist[src] = 0\n\th := &MinHeap{{Dist: 0, Node: src}}\n\tfor h.Len() > 0 {\n\t\tit := heap.Pop(h).(Item)\n\t\tif it.Dist > dist[it.Node] {\n\t\t\tcontinue // stale entry: a shorter path was already found\n\t\t}\n\t\tfor _, e := range adj[it.Node] {\n\t\t\tif nd := it.Dist + e.W; nd < dist[e.To] {\n\t\t\t\tdist[e.To] = nd\n\t\t\t\theap.Push(h, Item{Dist: nd, Node: e.To})\n\t\t\t}\n\t\t}\n\t}\n\treturn dist\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]Edge, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v, w int\n\t\tfmt.Scan(&u, &v, &w)\n\t\tadj[u] = append(adj[u], Edge{To: v, W: w})\n\t}\n\tvar src int\n\tfmt.Scan(&src)\n\tfor u, d := range dijkstra(adj, src) {\n\t\tif d == math.MaxInt64 {\n\t\t\tfmt.Printf(\"%d: INF\\n\", u)\n\t\t} else {\n\t\t\tfmt.Printf(\"%d: %d\\n\", u, d)\n\t\t}\n\t}\n}\n",
+        "stdin": "5 6\n0 1 10\n0 2 3\n2 1 4\n1 3 2\n2 3 9\n4 3 1\n0\n",
+        "output": "0: 0\n1: 7\n2: 3\n3: 9\n4: INF",
+        "explanation": "The heap starts with `{0, 0}`. Popping node 0 relaxes its edges, pushing node 1 at 10 and node 2 at 3. Node 2 pops next and finds a cheaper way to node 1 (3 + 4 = 7) and a way to node 3 at 12. Node 1 pops at 7 and improves node 3 to 9. Later the old entries `{10, 1}` and `{12, 3}` pop, but they are larger than `dist`, so they are skipped. Node 4 has an edge out to 3 but none in, so no path from 0 reaches it and its distance stays `math.MaxInt64`, printed as `INF`."
+      },
+      "practice": {
+        "title": "Road trip",
+        "prompt": "Read an undirected weighted road map and a line s t, and print the shortest distance from s to t, or INF when t cannot be reached.\n\n1. The input is `n m`, then m lines `u v w` for a two-way road of length w, then a line `s t`. Store each road in both directions.\n2. Add `\"container/heap\"` and `\"math\"` to the imports.\n3. Finish `shortest` with Dijkstra's algorithm from s, using the starter's `MinHeap`, and return `dist[t]`.\n4. Print `s -> t: D`, or `s -> t: INF` when the distance is still `math.MaxInt64`.\n\nInput:\n\n```text\n5 6\n0 1 4\n0 2 1\n2 1 2\n1 3 5\n2 3 8\n3 4 3\n0 4\n```\n\nExpected output:\n\n```text\n0 -> 4: 11\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Edge struct{ To, W int }\n\ntype Item struct{ Dist, Node int }\n\ntype MinHeap []Item\n\nfunc (h MinHeap) Len() int           { return len(h) }\nfunc (h MinHeap) Less(i, j int) bool { return h[i].Dist < h[j].Dist }\nfunc (h MinHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }\n\nfunc (h *MinHeap) Push(x interface{}) {\n\t*h = append(*h, x.(Item))\n}\n\nfunc (h *MinHeap) Pop() interface{} {\n\told := *h\n\tn := len(old)\n\tx := old[n-1]\n\t*h = old[:n-1]\n\treturn x\n}\n\nfunc shortest(adj [][]Edge, s, t int) int {\n\t// TODO: run Dijkstra from s with a MinHeap and return the distance to t (math.MaxInt64 when unreachable)\n\treturn 0\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]Edge, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v, w int\n\t\tfmt.Scan(&u, &v, &w)\n\t\t// TODO: store the road in both directions\n\t}\n\tvar s, t int\n\tfmt.Scan(&s, &t)\n\td := shortest(adj, s, t)\n\t// TODO: print INF instead of the number when t cannot be reached\n\tfmt.Printf(\"%d -> %d: %d\\n\", s, t, d)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n\t\"math\"\n)\n\ntype Edge struct{ To, W int }\n\ntype Item struct{ Dist, Node int }\n\ntype MinHeap []Item\n\nfunc (h MinHeap) Len() int           { return len(h) }\nfunc (h MinHeap) Less(i, j int) bool { return h[i].Dist < h[j].Dist }\nfunc (h MinHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }\n\nfunc (h *MinHeap) Push(x interface{}) {\n\t*h = append(*h, x.(Item))\n}\n\nfunc (h *MinHeap) Pop() interface{} {\n\told := *h\n\tn := len(old)\n\tx := old[n-1]\n\t*h = old[:n-1]\n\treturn x\n}\n\nfunc shortest(adj [][]Edge, s, t int) int {\n\tdist := make([]int, len(adj))\n\tfor i := range dist {\n\t\tdist[i] = math.MaxInt64 // infinity: not reached yet\n\t}\n\tdist[s] = 0\n\th := &MinHeap{{Dist: 0, Node: s}}\n\tfor h.Len() > 0 {\n\t\tit := heap.Pop(h).(Item)\n\t\tif it.Dist > dist[it.Node] {\n\t\t\tcontinue // stale entry: a shorter path was already found\n\t\t}\n\t\tfor _, e := range adj[it.Node] {\n\t\t\tif nd := it.Dist + e.W; nd < dist[e.To] {\n\t\t\t\tdist[e.To] = nd\n\t\t\t\theap.Push(h, Item{Dist: nd, Node: e.To})\n\t\t\t}\n\t\t}\n\t}\n\treturn dist[t]\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tadj := make([][]Edge, n)\n\tfor i := 0; i < m; i++ {\n\t\tvar u, v, w int\n\t\tfmt.Scan(&u, &v, &w)\n\t\tadj[u] = append(adj[u], Edge{To: v, W: w})\n\t\tadj[v] = append(adj[v], Edge{To: u, W: w})\n\t}\n\tvar s, t int\n\tfmt.Scan(&s, &t)\n\tif d := shortest(adj, s, t); d == math.MaxInt64 {\n\t\tfmt.Printf(\"%d -> %d: INF\\n\", s, t)\n\t} else {\n\t\tfmt.Printf(\"%d -> %d: %d\\n\", s, t, d)\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "5 6\n0 1 4\n0 2 1\n2 1 2\n1 3 5\n2 3 8\n3 4 3\n0 4\n",
+            "output": "0 -> 4: 11"
+          },
+          {
+            "stdin": "4 2\n0 1 5\n2 3 1\n0 3\n",
+            "output": "0 -> 3: INF"
+          },
+          {
+            "stdin": "3 3\n0 1 10\n1 2 1\n0 2 2\n1 0\n",
+            "output": "1 -> 0: 3"
+          }
+        ],
+        "hints": [
+          "Follow the example's `dijkstra`. The only difference is that `shortest` returns `dist[t]` instead of the whole slice.",
+          "Skip a popped item when `it.Dist > dist[it.Node]`, and only relax edges out of items you did not skip.",
+          "In `main`, compare the result with `math.MaxInt64` before printing it."
+        ]
+      }
+    }
+  ],
+  "recap": "- Store a graph as `adj := make([][]Edge, n)` with `type Edge struct{ To, W int }`. A directed edge goes in `adj[u]` only, an undirected one in both lists.\n- Out-degree is `len(adj[u])`. In-degree is counted with `indeg[v]++` for every edge `u v`.\n- Iterative DFS: push onto a stack slice, pop with `stack[:len(stack)-1]`, and mark `visited` on push.\n- One DFS per unvisited start node counts the connected components. Counting pops measures each one.\n- Kahn's algorithm takes in-degree 0 nodes, removes their edges, and with `sort.Ints(ready)` always takes the smallest. Fewer than n nodes out means a cycle.\n- Dijkstra pops the closest `Item` from a `container/heap` min-heap, skips stale entries, and relaxes edges only from popped nodes.\n- Use `math.MaxInt64` as infinity and never add a weight to it, or it wraps to a negative number."
+}

@@ -1,0 +1,117 @@
+{
+  "id": "slice-patterns",
+  "title": "Looping in Interesting Ways",
+  "section": "Arrays and Slices",
+  "summary": "Skip elements, walk backwards, reverse in place, filter into new slices, and compare neighbors.",
+  "intro": "A plain loop visits every element once from front to back. Small changes to the loop header or body give you the shapes you will use again and again: stepping by 2, counting down, meeting in the middle, collecting matches, and looking at the element before.",
+  "steps": [
+    {
+      "title": "Skipping elements",
+      "body": "The post statement of a `for` loop can move by any amount. Step by 2 to visit every other element. Start at 0 for the even positions and at 1 for the odd ones.\n\n```go\nfor i := 0; i < len(s); i += 2 { // indexes 0, 2, 4, ...\n}\nfor i := 1; i < len(s); i += 2 { // indexes 1, 3, 5, ...\n}\n```\n\nKeep the condition as `i < len(s)`. The check runs before every pass, so the loop stops cleanly even when the length is odd. Testing `i != len(s)` instead fails on an odd length: `i` steps right over `len(s)`, reads past the end, and panics with an index out of range.\n\nTo skip elements by *value* rather than position, test each one and call `continue`. It jumps straight to the next pass, so the rest of the body only sees the values you keep.\n\n```go\nfor _, v := range s {\n\tif v < 0 {\n\t\tcontinue // skip negatives\n\t}\n\tfmt.Println(v)\n}\n```\n\nAn early `continue` keeps the main work unindented, which reads better than wrapping it all in an `if`.",
+      "example": {
+        "title": "Even positions and odd values",
+        "prompt": "Print the elements at even indexes, then only the odd values, one per line.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tnums := []int{10, 11, 12, 13, 14, 15, 16}\n\n\tfmt.Println(\"Even indexes:\")\n\tfor i := 0; i < len(nums); i += 2 {\n\t\tfmt.Println(nums[i])\n\t}\n\n\tfmt.Println(\"Odd values:\")\n\tfor _, n := range nums {\n\t\tif n%2 == 0 {\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Println(n)\n\t}\n}\n",
+        "output": "Even indexes:\n10\n12\n14\n16\nOdd values:\n11\n13\n15",
+        "explanation": "The first loop starts at 0 and adds 2 each pass, so it reads indexes 0, 2, 4 and 6. Index 8 fails `i < len(nums)` and the loop ends. The second loop visits every value, and `continue` skips the even ones before they reach `fmt.Println`."
+      },
+      "practice": {
+        "title": "Odd positions and multiples of 3",
+        "prompt": "Print the letters at odd indexes, then only the numbers that are multiples of 3, one per line.\n\n1. Below `Odd indexes:`, loop over `letters` starting at index 1 and stepping by 2, printing each letter.\n2. Below `Multiples of 3:`, range over `nums` and use `continue` to skip any number where `n%3` is not 0.\n3. Print each number you keep on its own line.\n4. Remove the `_ =` lines once you use the slices.\n\nExpected output:\n\n```text\nOdd indexes:\nb\nd\nf\nMultiples of 3:\n9\n12\n15\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tletters := []string{\"a\", \"b\", \"c\", \"d\", \"e\", \"f\"}\n\tnums := []int{4, 9, 12, 7, 15, 20}\n\t_ = letters\n\t_ = nums\n\n\tfmt.Println(\"Odd indexes:\")\n\t// TODO: print the letters at odd indexes, one per line\n\n\tfmt.Println(\"Multiples of 3:\")\n\t// TODO: print the multiples of 3 in nums, skipping the rest with continue\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tletters := []string{\"a\", \"b\", \"c\", \"d\", \"e\", \"f\"}\n\tnums := []int{4, 9, 12, 7, 15, 20}\n\n\tfmt.Println(\"Odd indexes:\")\n\tfor i := 1; i < len(letters); i += 2 {\n\t\tfmt.Println(letters[i])\n\t}\n\n\tfmt.Println(\"Multiples of 3:\")\n\tfor _, n := range nums {\n\t\tif n%3 != 0 {\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Println(n)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "Odd indexes:\nb\nd\nf\nMultiples of 3:\n9\n12\n15"
+          }
+        ],
+        "hints": [
+          "Copy the first loop of the example, but start `i` at 1 and loop over `letters`.",
+          "Inside the range loop, `if n%3 != 0 { continue }` skips the numbers you do not want."
+        ]
+      }
+    },
+    {
+      "title": "Walking backwards and reversing",
+      "body": "To walk a slice backwards, start at the last index and count down while the index is still valid.\n\n```go\nfor i := len(s) - 1; i >= 0; i-- {\n\tfmt.Println(s[i])\n}\n```\n\nStart at `len(s) - 1`, not `len(s)`, which is one past the end and panics. Use `i >= 0` so index 0 is included. For an empty slice the start is -1, so the body never runs.\n\nTo reverse a slice *in place*, walk two indexes toward each other and swap as you go. A `for` header can declare and update two variables at once with multiple assignment.\n\n```go\nfor i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {\n\ts[i], s[j] = s[j], s[i]\n}\n```\n\nThe swap needs no temporary variable because the right side is evaluated before anything is assigned. The loop stops when the indexes meet, so each pair swaps exactly once and the middle of an odd length stays put. Using `i < len(s)` instead would swap everything twice and undo the work.\n\nIn place means no new slice is made: the swaps rewrite the elements the slice already holds. Assigning a slice shares its elements, so any other variable you assigned it to sees the reversed order too.",
+      "example": {
+        "title": "Backwards words and reversed numbers",
+        "prompt": "Print a slice of words backwards, then reverse a slice of numbers in place and print it.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\twords := []string{\"one\", \"two\", \"three\", \"four\"}\n\tfor i := len(words) - 1; i >= 0; i-- {\n\t\tfmt.Println(words[i])\n\t}\n\n\tnums := []int{1, 2, 3, 4, 5}\n\tfor i, j := 0, len(nums)-1; i < j; i, j = i+1, j-1 {\n\t\tnums[i], nums[j] = nums[j], nums[i]\n\t}\n\tfmt.Println(nums)\n}\n",
+        "output": "four\nthree\ntwo\none\n[5 4 3 2 1]",
+        "explanation": "The first loop starts at index 3 and counts down to 0. The second loop swaps positions 0 and 4, then 1 and 3. Then `i` and `j` both reach 2, `i < j` is false, and the middle 3 stays where it is. `fmt.Println(nums)` shows the same slice, now in reverse order."
+      },
+      "practice": {
+        "title": "Backwards days and reversed scores",
+        "prompt": "Print the days backwards, then reverse the scores in place.\n\n1. Loop over `days` from the last index down to 0, printing each day on its own line.\n2. Reverse `scores` in place with a two-index loop and a swap.\n3. Keep the given `fmt.Println(scores)` line after the loop.\n4. Remove the `_ = days` line once you use the slice.\n\nExpected output:\n\n```text\nWed\nTue\nMon\n[3 5 7 9]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tdays := []string{\"Mon\", \"Tue\", \"Wed\"}\n\t_ = days\n\t// TODO: print days from last to first, one per line\n\n\tscores := []int{9, 7, 5, 3}\n\t// TODO: reverse scores in place with two indexes\n\tfmt.Println(scores)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tdays := []string{\"Mon\", \"Tue\", \"Wed\"}\n\tfor i := len(days) - 1; i >= 0; i-- {\n\t\tfmt.Println(days[i])\n\t}\n\n\tscores := []int{9, 7, 5, 3}\n\tfor i, j := 0, len(scores)-1; i < j; i, j = i+1, j-1 {\n\t\tscores[i], scores[j] = scores[j], scores[i]\n\t}\n\tfmt.Println(scores)\n}\n",
+        "tests": [
+          {
+            "output": "Wed\nTue\nMon\n[3 5 7 9]"
+          }
+        ],
+        "hints": [
+          "Count down from `len(days) - 1` and keep going while `i >= 0`.",
+          "For the reverse, start `i` at 0 and `j` at the last index, and stop when they meet with `i < j`.",
+          "Swap each pair with one multiple assignment, no temporary variable needed."
+        ]
+      }
+    },
+    {
+      "title": "Filtering into a new slice",
+      "body": "To keep only some elements, start an empty result and `append` each element that passes a test.\n\n```go\nvar evens []int // nil, length 0\nfor _, v := range nums {\n\tif v%2 == 0 {\n\t\tevens = append(evens, v)\n\t}\n}\n```\n\nEither start works: `var out []int` gives a nil slice and `out := []int{}` gives an empty one. `append` works on both and makes room as the result grows. One loop can fill several results at once, each with its own test.\n\nThe original slice stays unchanged. You only read from it and write into separate slices, so `nums` still holds every value afterward.\n\nGotcha: if nothing matched, a `var` result is still nil. Nil and empty slices both print `[]` and both have length 0, but only the nil one equals `nil`. So check for no matches with `len(out) == 0`, which is true in both cases. Testing `out == nil` breaks the day someone switches the start to `[]int{}`.",
+      "example": {
+        "title": "Passed and failed scores",
+        "prompt": "Split scores into passed (60 or more) and failed, collect perfect scores, and report when there are none.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tscores := []int{45, 82, 67, 90, 38, 71}\n\n\tpassed := []int{}\n\tvar failed []int\n\tvar perfect []int\n\tfor _, score := range scores {\n\t\tif score >= 60 {\n\t\t\tpassed = append(passed, score)\n\t\t} else {\n\t\t\tfailed = append(failed, score)\n\t\t}\n\t\tif score == 100 {\n\t\t\tperfect = append(perfect, score)\n\t\t}\n\t}\n\n\tfmt.Println(\"Passed:\", passed)\n\tfmt.Println(\"Failed:\", failed)\n\tif len(perfect) == 0 {\n\t\tfmt.Println(\"No perfect scores\")\n\t} else {\n\t\tfmt.Println(\"Perfect:\", perfect)\n\t}\n\tfmt.Println(\"All:\", scores)\n}\n",
+        "output": "Passed: [82 67 90 71]\nFailed: [45 38]\nNo perfect scores\nAll: [45 82 67 90 38 71]",
+        "explanation": "Each score goes into exactly one of `passed` or `failed` through the if/else, and the separate `if` collects perfect scores. No score is 100, so `perfect` is still nil and `len(perfect) == 0` prints the message. `passed` started as `[]int{}` and `failed` as nil, yet both print the same way. The last line shows `scores` was never modified."
+      },
+      "practice": {
+        "title": "Above zero and freezing",
+        "prompt": "Split temperatures into above zero and freezing, collect boiling ones, and report when there are none.\n\n1. Range over `temps` and append each value above 0 to `above`, and every other value to `freezing`.\n2. In the same loop, also append any value of 100 or more to `boiling`.\n3. After the `Freezing:` line, print `None boiling` when `boiling` has length 0, otherwise print `Boiling:` followed by the slice.\n4. Keep the other `fmt.Println` lines as given, and remove the `_ = boiling` line once you use the slice.\n\nExpected output:\n\n```text\nAbove: [5 12 7]\nFreezing: [-3 0 -8]\nNone boiling\nAll: [-3 5 0 12 -8 7]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttemps := []int{-3, 5, 0, 12, -8, 7}\n\n\tvar above []int\n\tvar freezing []int\n\tvar boiling []int\n\t_ = boiling\n\t// TODO: append each temp to above or freezing, and to boiling when it is 100 or more\n\n\tfmt.Println(\"Above:\", above)\n\tfmt.Println(\"Freezing:\", freezing)\n\t// TODO: print None boiling when boiling is empty, otherwise print it\n\tfmt.Println(\"All:\", temps)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttemps := []int{-3, 5, 0, 12, -8, 7}\n\n\tvar above []int\n\tvar freezing []int\n\tvar boiling []int\n\tfor _, t := range temps {\n\t\tif t > 0 {\n\t\t\tabove = append(above, t)\n\t\t} else {\n\t\t\tfreezing = append(freezing, t)\n\t\t}\n\t\tif t >= 100 {\n\t\t\tboiling = append(boiling, t)\n\t\t}\n\t}\n\n\tfmt.Println(\"Above:\", above)\n\tfmt.Println(\"Freezing:\", freezing)\n\tif len(boiling) == 0 {\n\t\tfmt.Println(\"None boiling\")\n\t} else {\n\t\tfmt.Println(\"Boiling:\", boiling)\n\t}\n\tfmt.Println(\"All:\", temps)\n}\n",
+        "tests": [
+          {
+            "output": "Above: [5 12 7]\nFreezing: [-3 0 -8]\nNone boiling\nAll: [-3 5 0 12 -8 7]"
+          }
+        ],
+        "hints": [
+          "Use an if/else for above and freezing, then a separate `if` for boiling.",
+          "Grow a slice with `above = append(above, t)`.",
+          "Check for no matches with `if len(boiling) == 0 {`."
+        ]
+      }
+    },
+    {
+      "title": "Comparing neighbors",
+      "body": "Many questions are about how a value changes from one element to the next. Start the loop at 1 and compare `s[i]` with the element before it, `s[i-1]`.\n\n```go\nfor i := 1; i < len(s); i++ {\n\tchange := s[i] - s[i-1]\n\tfmt.Println(change)\n}\n```\n\nStarting at 1 matters: at `i := 0` the expression `s[i-1]` reads index -1 and panics. A slice of length n has n - 1 neighbor pairs, so this loop runs one time fewer than the length, and not at all when the slice has fewer than 2 elements.\n\nThe sign of each difference tells you the direction. Count rises with `change > 0` and drops with `change < 0`. A change of 0 is neither, so it lands in no count.\n\nTo print a change with its sign, use the `+` flag. `%+d` always prints a sign, so positive numbers get a `+` and zero prints as `+0`.\n\n```go\nfmt.Printf(\"%+d\\n\", 4)  // +4\nfmt.Printf(\"%+d\\n\", -3) // -3\n```",
+      "example": {
+        "title": "Daily price changes",
+        "prompt": "Print each day-to-day price change with its sign, then count the days the price went up.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tprices := []int{100, 104, 101, 107, 107, 110}\n\n\tupDays := 0\n\tfor i := 1; i < len(prices); i++ {\n\t\tchange := prices[i] - prices[i-1]\n\t\tfmt.Printf(\"%+d\\n\", change)\n\t\tif change > 0 {\n\t\t\tupDays++\n\t\t}\n\t}\n\tfmt.Println(\"Up days:\", upDays)\n}\n",
+        "output": "+4\n-3\n+6\n+0\n+3\nUp days: 3",
+        "explanation": "The loop starts at index 1, so every pass has a previous day to compare with. Six prices give five changes. `%+d` adds the `+` to the rises and to the flat day, which prints `+0` and is not counted. Three changes are above 0, so `upDays` ends at 3."
+      },
+      "practice": {
+        "title": "Lap time changes",
+        "prompt": "Print each lap-to-lap time change with its sign, then count the laps that were faster than the one before.\n\n1. Loop over `laps` starting at index 1.\n2. Compute the change as the current lap minus the previous lap and print it with `%+d`, one per line.\n3. A faster lap has a lower time, so add 1 to `faster` when the change is below 0.\n4. Remove the `_ = laps` line and keep the final `fmt.Println` line.\n\nExpected output:\n\n```text\n-2\n+1\n-3\n+0\nFaster laps: 2\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tlaps := []int{62, 60, 61, 58, 58}\n\n\tfaster := 0\n\t_ = laps\n\t// TODO: print each lap-to-lap change with %+d and count the drops in faster\n\tfmt.Println(\"Faster laps:\", faster)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tlaps := []int{62, 60, 61, 58, 58}\n\n\tfaster := 0\n\tfor i := 1; i < len(laps); i++ {\n\t\tchange := laps[i] - laps[i-1]\n\t\tfmt.Printf(\"%+d\\n\", change)\n\t\tif change < 0 {\n\t\t\tfaster++\n\t\t}\n\t}\n\tfmt.Println(\"Faster laps:\", faster)\n}\n",
+        "tests": [
+          {
+            "output": "-2\n+1\n-3\n+0\nFaster laps: 2"
+          }
+        ],
+        "hints": [
+          "Start at index 1 so `laps[i-1]` always exists.",
+          "The change is `laps[i] - laps[i-1]`, and a negative change means a faster lap.",
+          "Print it with `fmt.Printf` and the `%+d` verb, ending the format with `\\n`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `i += 2` visits every other element. Start at 0 for even indexes and at 1 for odd ones.\n- `continue` skips the rest of the body and moves to the next element.\n- `for i := len(s) - 1; i >= 0; i--` walks a slice backwards.\n- `for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1` with `s[i], s[j] = s[j], s[i]` reverses in place.\n- Filter by appending matches to a new slice. The original stays unchanged.\n- Nil and empty slices both print `[]`, so test for no matches with `len(out) == 0`.\n- Start at `i := 1` to compare `s[i]` with `s[i-1]`, and print signed changes with `%+d`."
+}

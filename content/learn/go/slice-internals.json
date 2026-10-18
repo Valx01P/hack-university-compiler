@@ -1,0 +1,117 @@
+{
+  "id": "slice-internals",
+  "title": "Slices Under the Hood",
+  "section": "Memory",
+  "summary": "See the slice header, how len and cap grow, how sub-slices share memory, and how to copy slices safely.",
+  "intro": "A slice looks like a list, but it is really a small header that points at an array. Once you can picture that header, the surprising behavior of `append`, sub-slices, and slice parameters all follows from one idea. It also explains when a pointer from `&s[i]`, like the ones in Pointers and Memory, stops reaching the slice.",
+  "steps": [
+    {
+      "title": "len, cap, and the header",
+      "body": "A slice value is a small header with three fields: a pointer to a backing array, a length, and a capacity. `len(s)` is how many elements you can index. `cap(s)` is how many the backing array holds, counting from the slice's first element.\n\n```go\ns := make([]int, 0, 4) // len 0, cap 4\n```\n\n`make([]T, len, cap)` reserves room up front. Careful: `make([]int, 4)` has length 4, so an `append` lands after four zeros. While `len < cap`, `append` reuses the array and bumps the length. Once the array is full, `append` allocates a bigger one, copies the elements over, and returns a header that points at it. That is why you always write `s = append(s, x)`.\n\n**Gotcha:** a pointer from `&s[0]` still points at the old array after a move, so writing through it no longer changes `s`.\n\n`unsafe.Sizeof` (from `import \"unsafe\"`) shows the header is tiny on this 64-bit machine: 24 bytes for any slice (pointer, len, cap) and 16 for any string (pointer, len). An array is its elements, so `[5]int` takes 40 bytes. The new capacity after a move is a runtime detail, not part of the spec, so never depend on it.",
+      "example": {
+        "title": "Watching a slice grow",
+        "prompt": "Append past a slice's capacity, show the stale pointer, and print the header sizes.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"unsafe\"\n)\n\nfunc main() {\n\ts := make([]int, 0, 4)\n\ts = append(s, 1)\n\tp := &s[0]\n\tfor i := 2; i <= 5; i++ {\n\t\ts = append(s, i)\n\t\tfmt.Printf(\"len=%d cap=%d\\n\", len(s), cap(s))\n\t}\n\t*p = 99 // writes to the old array, not to s\n\tfmt.Println(s)\n\tfmt.Println(unsafe.Sizeof(s), unsafe.Sizeof([5]int{}))\n}\n",
+        "output": "len=2 cap=4\nlen=3 cap=4\nlen=4 cap=4\nlen=5 cap=8\n[1 2 3 4 5]\n24 40",
+        "explanation": "The slice starts with room for 4 ints. Appends 2 to 4 reuse that array, so `cap` stays 4. The fifth element does not fit, so `append` allocates an array of 8, copies the four values, and `s` now points there. `p` still points at the old array, so `*p = 99` changes memory that `s` no longer uses. Finally, the slice header is 24 bytes no matter how many elements it holds, while a `[5]int` array is all 40 bytes of its data."
+      },
+      "practice": {
+        "title": "Growing a name list",
+        "prompt": "Grow a name list past its capacity and show that an old pointer no longer reaches it.\n\n1. Add `\"unsafe\"` to the imports, using a parenthesized block.\n2. Right after the first append, keep a pointer with `first := &names[0]`.\n3. Loop over `more`, append each name to `names`, and after each append print `len=<len> cap=<cap>` with `fmt.Printf`. Then delete the `_ = more` line.\n4. After the loop, set `*first = \"Zed\"`, and keep the given line that prints `names`.\n5. Print `unsafe.Sizeof(names)` and `unsafe.Sizeof(\"hello\")` on one line with `fmt.Println`.\n\nExpected output:\n\n```text\nlen=2 cap=2\nlen=3 cap=4\nlen=4 cap=4\n[Ana Ben Cy Dee]\n24 16\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tnames := make([]string, 0, 2)\n\tnames = append(names, \"Ana\")\n\t// TODO: keep a pointer to the first element: first := &names[0]\n\tmore := []string{\"Ben\", \"Cy\", \"Dee\"}\n\t// TODO: append each name from more, printing len and cap after each\n\t_ = more\n\t// TODO: set *first to \"Zed\"\n\tfmt.Println(names)\n\t// TODO: print unsafe.Sizeof(names) and unsafe.Sizeof(\"hello\") on one line\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"unsafe\"\n)\n\nfunc main() {\n\tnames := make([]string, 0, 2)\n\tnames = append(names, \"Ana\")\n\tfirst := &names[0]\n\tmore := []string{\"Ben\", \"Cy\", \"Dee\"}\n\tfor _, name := range more {\n\t\tnames = append(names, name)\n\t\tfmt.Printf(\"len=%d cap=%d\\n\", len(names), cap(names))\n\t}\n\t*first = \"Zed\" // writes to the old array, not to names\n\tfmt.Println(names)\n\tfmt.Println(unsafe.Sizeof(names), unsafe.Sizeof(\"hello\"))\n}\n",
+        "tests": [
+          {
+            "output": "len=2 cap=2\nlen=3 cap=4\nlen=4 cap=4\n[Ana Ben Cy Dee]\n24 16"
+          }
+        ],
+        "hints": [
+          "Take the pointer before the loop, while `names` still uses its first array.",
+          "Put the `fmt.Printf` inside the loop, right after each append, so it prints once per name.",
+          "The second append moves `names` to a new array, so `*first = \"Zed\"` only changes the old one and `names` still starts with Ana."
+        ]
+      }
+    },
+    {
+      "title": "Sub-slices share memory",
+      "body": "Slicing never copies. `b := a[1:3]` builds a new header that points into `a`'s backing array, starting at index 1 with length 2. Writing `b[0]` changes `a[1]`, because they are the same memory.\n\n```go\na := []int{1, 2, 3, 4, 5}\nb := a[1:3] // len 2, cap 4\n```\n\nThe capacity of a sub-slice runs from its start to the end of the original's backing array (`cap(a) - low`), so `b` above has `cap` 4. That spare room is the trap: `append(b, 99)` fits without allocating, so it writes 99 into `a[3]` and silently overwrites data the original still uses.\n\nThe full slice expression `a[low:high:max]` sets the capacity to `max - low`. With `a[1:3:3]`, the capacity is 2, so the first append has no room and copies to a fresh array. The original stays safe.\n\n```go\nc := a[1:3:3] // len 2, cap 2\n```\n\nUse the three-index form whenever you hand out a sub-slice that someone might append to. Element writes before the append still go to the shared array.",
+      "example": {
+        "title": "Append through a window",
+        "prompt": "Show that appending to a sub-slice overwrites the original, and that a capped sub-slice does not.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tnums := []int{1, 2, 3, 4, 5}\n\tmid := nums[1:3]\n\tfmt.Println(len(mid), cap(mid))\n\tmid[0] = 20\n\tmid = append(mid, 99) // fits in the spare capacity, so it lands on nums[3]\n\tfmt.Println(mid)\n\tfmt.Println(nums)\n\n\tfresh := []int{1, 2, 3, 4, 5}\n\tcapped := fresh[1:3:3]\n\tfmt.Println(len(capped), cap(capped))\n\tcapped[0] = 20\n\tcapped = append(capped, 99) // no room, so append copies to a new array\n\tfmt.Println(capped)\n\tfmt.Println(fresh)\n}\n",
+        "output": "2 4\n[20 3 99]\n[1 20 3 99 5]\n2 2\n[20 3 99]\n[1 20 3 4 5]",
+        "explanation": "`mid` covers `nums[1]` and `nums[2]` but has capacity 4. Setting `mid[0]` changes `nums[1]`, and the append writes 99 straight into `nums[3]`. `capped` has capacity 2, so its append allocates a new array. The write to `capped[0]` still reached `fresh[1]` because it happened before the copy, but the 4 survives."
+      },
+      "practice": {
+        "title": "Protecting the letters",
+        "prompt": "Repeat the sub-slice experiment with letters, first with a plain slice and then with a capped one.\n\n1. Make `part := letters[:2]` and print `len(part)` and `cap(part)` with `fmt.Println`.\n2. Set `part[1]` to `\"B\"`, append `\"X\"` to `part`, and print `part`.\n3. Keep the given line that prints `letters`.\n4. Do the same steps with `safe := fresh[:2:2]` before the line that prints `fresh`.\n\nExpected output:\n\n```text\n2 4\n[a B X]\n[a B X d]\n2 2\n[a B X]\n[a B c d]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tletters := []string{\"a\", \"b\", \"c\", \"d\"}\n\t// TODO: part := letters[:2], print its len and cap, set part[1] to \"B\",\n\t// append \"X\" to part, then print part\n\tfmt.Println(letters)\n\n\tfresh := []string{\"a\", \"b\", \"c\", \"d\"}\n\t// TODO: the same steps with safe := fresh[:2:2]\n\tfmt.Println(fresh)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tletters := []string{\"a\", \"b\", \"c\", \"d\"}\n\tpart := letters[:2]\n\tfmt.Println(len(part), cap(part))\n\tpart[1] = \"B\"\n\tpart = append(part, \"X\")\n\tfmt.Println(part)\n\tfmt.Println(letters)\n\n\tfresh := []string{\"a\", \"b\", \"c\", \"d\"}\n\tsafe := fresh[:2:2]\n\tfmt.Println(len(safe), cap(safe))\n\tsafe[1] = \"B\"\n\tsafe = append(safe, \"X\")\n\tfmt.Println(safe)\n\tfmt.Println(fresh)\n}\n",
+        "tests": [
+          {
+            "output": "2 4\n[a B X]\n[a B X d]\n2 2\n[a B X]\n[a B c d]"
+          }
+        ],
+        "hints": [
+          "`part` starts at index 0, so its capacity runs to the end of `letters`, which is 4.",
+          "Remember to assign the result: `part = append(part, \"X\")`.",
+          "`fresh[:2:2]` has length 2 and capacity 2, so the append must copy."
+        ]
+      }
+    },
+    {
+      "title": "copy for independent slices",
+      "body": "When you need a slice that does not share memory, copy the elements. `copy(dst, src)` copies `min(len(dst), len(src))` elements and returns that count.\n\n```go\nclone := make([]int, len(orig))\nn := copy(clone, orig) // n is 3\n```\n\n**Gotcha:** `copy` uses the destination's *length*, not its capacity. `make([]int, 0, 3)` has length 0, so nothing is copied and `copy` returns 0. Give the destination a real length with `make([]T, len(src))`. Make plus copy is the standard way to clone a slice.\n\nTo remove the element at index `i`, join the parts before and after it:\n\n```go\ns = append(s[:i], s[i+1:]...)\n```\n\nThis works in place. `s[:i]` has spare capacity, so `append` shifts the later elements one slot left inside the same backing array. No new array is made, which is fast, but any other slice that shares that array sees the shifted values, and the last slot keeps a leftover copy of the old final element.",
+      "example": {
+        "title": "Clone, then remove",
+        "prompt": "Clone a slice safely, show a copy into a zero-length slice, and remove an element in place.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\torig := []int{1, 2, 3}\n\tclone := make([]int, len(orig))\n\tfmt.Println(\"copied:\", copy(clone, orig))\n\tclone[0] = 100\n\tfmt.Println(orig, clone)\n\n\tempty := make([]int, 0, 3)\n\tfmt.Println(\"copied:\", copy(empty, orig), empty)\n\n\tnums := []int{10, 20, 30, 40}\n\ttrimmed := append(nums[:1], nums[2:]...)\n\tfmt.Println(trimmed, nums)\n}\n",
+        "output": "copied: 3\n[1 2 3] [100 2 3]\ncopied: 0 []\n[10 30 40] [10 30 40 40]",
+        "explanation": "`clone` has length 3, so `copy` moves all three values and returns 3. Changing `clone[0]` leaves `orig` alone because they use different arrays. `empty` has length 0, so `copy` moves nothing. Removing index 1 shifts 30 and 40 left inside `nums`'s array, so `nums` now reads `[10 30 40 40]`: the last 40 is a leftover."
+      },
+      "practice": {
+        "title": "Backing up a to-do list",
+        "prompt": "Clone a to-do list, change the clone, and remove an element in place.\n\n1. Make `backup` with `make` and the length of `todo`, then print `copied:` and the count `copy` returns.\n2. Set `backup[0]` to `\"sleep\"` and print `todo` and `backup` on one line. Delete the `_ = todo` line.\n3. Change `trimmed := nums` so it uses `append` to remove index 2 from `nums`.\n4. Keep the given line that prints `trimmed` and `nums`.\n\nExpected output:\n\n```text\ncopied: 3\n[wash cook read] [sleep cook read]\n[5 6 8 9] [5 6 8 9 9]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttodo := []string{\"wash\", \"cook\", \"read\"}\n\t// TODO: clone todo into backup with make and copy, print \"copied:\" and the count\n\t// TODO: set backup[0] to \"sleep\", then print todo and backup on one line\n\t_ = todo\n\n\tnums := []int{5, 6, 7, 8, 9}\n\ttrimmed := nums // TODO: remove index 2 with append\n\tfmt.Println(trimmed, nums)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttodo := []string{\"wash\", \"cook\", \"read\"}\n\tbackup := make([]string, len(todo))\n\tfmt.Println(\"copied:\", copy(backup, todo))\n\tbackup[0] = \"sleep\"\n\tfmt.Println(todo, backup)\n\n\tnums := []int{5, 6, 7, 8, 9}\n\ttrimmed := append(nums[:2], nums[3:]...)\n\tfmt.Println(trimmed, nums)\n}\n",
+        "tests": [
+          {
+            "output": "copied: 3\n[wash cook read] [sleep cook read]\n[5 6 8 9] [5 6 8 9 9]"
+          }
+        ],
+        "hints": [
+          "`copy` returns how many elements it copied, so you can pass its result straight to `fmt.Println`.",
+          "Keep everything before index 2 and append everything after it, spreading the second part with `...`."
+        ]
+      }
+    },
+    {
+      "title": "Slices and functions",
+      "body": "Go passes every argument by value, and a slice's value is its header. The function gets its own copy of the pointer, length, and capacity, but the pointer still leads to the caller's backing array.\n\nSo element writes inside the function are visible to the caller:\n\n```go\nfunc doubleAll(s []int) {\n\tfor i := range s {\n\t\ts[i] *= 2\n\t}\n}\n```\n\nAn `append` is not. It changes the length in the function's copy of the header, and maybe the pointer too. The caller's header still has the old length, so it never sees the new element. Even when there was spare capacity and the value landed in the shared array, it sits past the caller's length. The fix is the same pattern `append` itself uses: return the new slice and let the caller assign it.\n\n```go\nfunc addGood(s []int) []int {\n\treturn append(s, 100)\n}\n\nnums = addGood(nums)\n```\n\nArrays are different. An array value *is* its elements, so passing a `[3]int` copies all of them, and the function's changes never reach the caller.",
+      "example": {
+        "title": "What the caller sees",
+        "prompt": "Change, append to, and return slices from functions, then pass an array.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc doubleAll(s []int) {\n\tfor i := range s {\n\t\ts[i] *= 2\n\t}\n}\n\nfunc addBad(s []int) {\n\ts = append(s, 100) // changes only the local header\n}\n\nfunc addGood(s []int) []int {\n\treturn append(s, 100)\n}\n\nfunc resetFirst(a [3]int) {\n\ta[0] = 0\n}\n\nfunc main() {\n\tnums := []int{1, 2, 3}\n\tdoubleAll(nums)\n\tfmt.Println(nums)\n\taddBad(nums)\n\tfmt.Println(nums)\n\tnums = addGood(nums)\n\tfmt.Println(nums)\n\n\tarr := [3]int{7, 8, 9}\n\tresetFirst(arr)\n\tfmt.Println(arr)\n}\n",
+        "output": "[2 4 6]\n[2 4 6]\n[2 4 6 100]\n[7 8 9]",
+        "explanation": "`doubleAll` writes through the shared pointer, so `nums` changes. `addBad` appends to its own header, which is dropped when it returns, so `nums` still has 3 elements. `addGood` returns the grown slice and `main` stores it. `resetFirst` gets a full copy of the array, so `arr` keeps its 7."
+      },
+      "practice": {
+        "title": "Cleaning up scores",
+        "prompt": "Write three functions and check what the caller sees after each one.\n\n1. In `zeroNegatives`, set every negative element of `s` to 0 in place.\n2. In `withBonus`, append `x` to `s` and return the result.\n3. In `zeroNegativesArray`, write the same loop for the array `a`.\n4. Keep `main` as given: it prints `scores` after each slice call and `fixed` after the array call.\n\nExpected output:\n\n```text\n[4 0 7 0]\n[4 0 7 0 10]\n[-1 6 -3]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc zeroNegatives(s []int) {\n\t// TODO: set every negative value in s to 0\n}\n\nfunc withBonus(s []int, x int) []int {\n\t// TODO: append x to s and return the result\n\treturn nil\n}\n\nfunc zeroNegativesArray(a [3]int) {\n\t// TODO: set every negative value in a to 0\n}\n\nfunc main() {\n\tscores := []int{4, -2, 7, -5}\n\tzeroNegatives(scores)\n\tfmt.Println(scores)\n\tscores = withBonus(scores, 10)\n\tfmt.Println(scores)\n\n\tfixed := [3]int{-1, 6, -3}\n\tzeroNegativesArray(fixed)\n\tfmt.Println(fixed)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc zeroNegatives(s []int) {\n\tfor i, v := range s {\n\t\tif v < 0 {\n\t\t\ts[i] = 0\n\t\t}\n\t}\n}\n\nfunc withBonus(s []int, x int) []int {\n\treturn append(s, x)\n}\n\nfunc zeroNegativesArray(a [3]int) {\n\tfor i, v := range a {\n\t\tif v < 0 {\n\t\t\ta[i] = 0 // changes only the function's copy\n\t\t}\n\t}\n}\n\nfunc main() {\n\tscores := []int{4, -2, 7, -5}\n\tzeroNegatives(scores)\n\tfmt.Println(scores)\n\tscores = withBonus(scores, 10)\n\tfmt.Println(scores)\n\n\tfixed := [3]int{-1, 6, -3}\n\tzeroNegativesArray(fixed)\n\tfmt.Println(fixed)\n}\n",
+        "tests": [
+          {
+            "output": "[4 0 7 0]\n[4 0 7 0 10]\n[-1 6 -3]"
+          }
+        ],
+        "hints": [
+          "Loop with `for i, v := range s` and assign through `s[i]`, since `v` is a copy.",
+          "`append` already returns the grown slice, so `withBonus` can return its result directly.",
+          "`zeroNegativesArray` gets a full copy of the array, so `fixed` still prints its negative values."
+        ]
+      }
+    }
+  ],
+  "recap": "- A slice is a header: a pointer to a backing array, a length, and a capacity. `unsafe.Sizeof` of any slice is 24 on a 64-bit machine.\n- `make([]T, len, cap)` reserves room, and `make([]T, n)` already has `n` zeros. `append` reuses the array while it fits and copies to a bigger one when it does not.\n- A pointer to an element goes stale once `append` moves the data.\n- `a[low:high]` shares `a`'s array and its capacity runs to the end, so an append can overwrite `a`. Cap it with `a[low:high:max]`.\n- `copy(dst, src)` copies `min(len(dst), len(src))` elements. Clone with `make([]T, len(src))` plus `copy`.\n- `s = append(s[:i], s[i+1:]...)` removes index `i` by shifting later elements left in the same array.\n- Functions get a copy of the header: element writes show up in the caller, appends do not, so return the new slice.\n- Arrays are copied in full when passed to a function."
+}

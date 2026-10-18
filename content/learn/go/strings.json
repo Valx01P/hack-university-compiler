@@ -1,0 +1,118 @@
+{
+  "id": "strings",
+  "title": "Strings and the strings Package",
+  "section": "Strings",
+  "summary": "Index, slice, and join strings, then search, transform, split, and combine them with the strings package.",
+  "intro": "A Go string is an immutable sequence of bytes. You can measure it, index it, and slice it with the same syntax as a slice, and the standard `strings` package covers searching, cleaning, splitting, and joining. This lesson keeps to plain ASCII text. The next lesson handles letters that take more than one byte.",
+  "steps": [
+    {
+      "title": "String basics",
+      "body": "A string is a read-only run of bytes. `len(s)` counts **bytes**, and `s[i]` is one byte (a `uint8`), so it prints as a number. Convert it with `string(s[i])` to get a one-letter string back.\n\n```go\nword := \"Go\"\nfmt.Println(len(word), word[0], string(word[0])) // 2 71 G\n```\n\nSlicing works as it does on slices: `s[a:b]` includes `a` and excludes `b`, and `s[a:]` runs to the end. An index at or past `len(s)` panics at run time. `+` joins strings and `s += \"x\"` appends to a variable.\n\nIn memory a string value is a small header: a pointer to the bytes and a length. Assigning a string copies only that header, never the bytes. Because strings are **immutable**, `s[0] = 'x'` does not compile. That is what makes sharing safe: `s[1:4]` builds a new header that points into the same bytes, with no copying. The flip side: a short slice of a huge string keeps all of its bytes in memory. `+` and `+=` leave the old bytes alone: they allocate a new string and copy both sides into it.\n\nGotcha: `string(n)` on an integer gives the character with that code, so `string(65)` is `\"A\"`, not `\"65\"`. Use `fmt.Sprintf(\"%d\", n)` for the digits.",
+      "example": {
+        "title": "Gopher pieces",
+        "prompt": "Measure, index, slice, and extend the string `Gopher`.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tword := \"Gopher\"\n\tfmt.Println(\"length:\", len(word))\n\tfmt.Println(\"byte 0:\", word[0])\n\tfmt.Println(\"letter 0:\", string(word[0]))\n\tfmt.Println(\"word[1:4]:\", word[1:4])\n\tmessage := word + \"s\"\n\tmessage += \" rule\"\n\tfmt.Println(\"message:\", message)\n\tfmt.Println(\"word:\", word)\n}\n",
+        "output": "length: 6\nbyte 0: 71\nletter 0: G\nword[1:4]: oph\nmessage: Gophers rule\nword: Gopher",
+        "explanation": "`len(word)` is 6 because each ASCII letter is one byte. `word[0]` is the byte for G, which prints as 71, and `string(word[0])` turns it back into `\"G\"`. `word[1:4]` takes bytes 1, 2, and 3. `+` and `+=` build brand new strings, so `word` itself is still `Gopher` at the end."
+      },
+      "practice": {
+        "title": "City pieces",
+        "prompt": "Measure, index, slice, and extend the string `Lisbon`.\n\n1. Keep the given `city := \"Lisbon\"` and the line that prints its length.\n2. Print `byte 2:` followed by `city[2]`, then `letter 2:` followed by that byte as a string.\n3. Print `city[3:]:` followed by the slice from index 3 to the end.\n4. Build `message` as `\"I love \" + city`, append `\"!\"` with `+=`, and print it after `message:`.\n5. Print `city:` followed by `city` to show it did not change.\n\nExpected output:\n\n```text\nlength: 6\nbyte 2: 115\nletter 2: s\ncity[3:]: bon\nmessage: I love Lisbon!\ncity: Lisbon\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tcity := \"Lisbon\"\n\tfmt.Println(\"length:\", len(city))\n\t// TODO: print the byte and letter at index 2, city[3:], the message, and city\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tcity := \"Lisbon\"\n\tfmt.Println(\"length:\", len(city))\n\tfmt.Println(\"byte 2:\", city[2])\n\tfmt.Println(\"letter 2:\", string(city[2]))\n\tfmt.Println(\"city[3:]:\", city[3:])\n\tmessage := \"I love \" + city\n\tmessage += \"!\"\n\tfmt.Println(\"message:\", message)\n\tfmt.Println(\"city:\", city)\n}\n",
+        "tests": [
+          {
+            "output": "length: 6\nbyte 2: 115\nletter 2: s\ncity[3:]: bon\nmessage: I love Lisbon!\ncity: Lisbon"
+          }
+        ],
+        "hints": [
+          "`city[2]` is a byte, so `fmt.Println` shows it as a number.",
+          "Wrap the byte in `string(...)` to print it as a letter.",
+          "`city[3:]` runs from index 3 to the end."
+        ]
+      }
+    },
+    {
+      "title": "Searching",
+      "body": "Add `\"strings\"` to your imports to use the package. Its search functions take the string first, then what to look for:\n\n- `strings.Contains(s, sub)` reports whether `sub` appears anywhere.\n- `strings.HasPrefix(s, p)` and `strings.HasSuffix(s, p)` check the start and the end.\n- `strings.Index(s, sub)` is the byte index of the first match, or **-1** when it is missing.\n- `strings.LastIndex(s, sub)` is the index of the last match.\n- `strings.Count(s, sub)` counts matches that do not overlap.\n- `strings.EqualFold(a, b)` compares two strings ignoring case.\n\n```go\nat := strings.Index(email, \"@\")\nif at != -1 {\n\tfmt.Println(email[:at])\n}\n```\n\nPair `Index` with slicing to cut a string at a separator. Check for -1 first: if `at` is -1, `email[:at]` panics at run time. All of these searches are case sensitive, like `==`. Use `EqualFold` instead of lowering both sides when you only need to compare.",
+      "example": {
+        "title": "Inspect a file name",
+        "prompt": "Search the file name `report_2024_final.pdf` with the strings package.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\tfile := \"report_2024_final.pdf\"\n\tfmt.Println(\"contains 2024:\", strings.Contains(file, \"2024\"))\n\tfmt.Println(\"prefix report:\", strings.HasPrefix(file, \"report\"))\n\tfmt.Println(\"suffix .pdf:\", strings.HasSuffix(file, \".pdf\"))\n\tfirst := strings.Index(file, \"_\")\n\tfmt.Println(\"first _:\", first)\n\tfmt.Println(\"last _:\", strings.LastIndex(file, \"_\"))\n\tfmt.Println(\"count _:\", strings.Count(file, \"_\"))\n\tfmt.Println(\"index of zip:\", strings.Index(file, \"zip\"))\n\tif first != -1 {\n\t\tfmt.Println(\"name:\", file[:first])\n\t}\n\tfmt.Println(\"equal fold:\", strings.EqualFold(\"PDF\", \"pdf\"))\n}\n",
+        "output": "contains 2024: true\nprefix report: true\nsuffix .pdf: true\nfirst _: 6\nlast _: 11\ncount _: 2\nindex of zip: -1\nname: report\nequal fold: true",
+        "explanation": "The first `_` is at byte 6 and the last at byte 11, and there are 2 in total. `zip` never appears, so `Index` returns -1. Since the first `_` was found, `file[:first]` keeps everything before it. `EqualFold` treats `PDF` and `pdf` as equal."
+      },
+      "practice": {
+        "title": "Inspect an email",
+        "prompt": "Search the address `ada.lovelace@example.com` with the strings package.\n\n1. Keep the given `email` and the `contains @:` line.\n2. Print `prefix ada:` with `HasPrefix` and `suffix .org:` with `HasSuffix`.\n3. Store `strings.Index(email, \"@\")` in `at` and print it after `first @:`.\n4. Print `last .:` with `LastIndex`, `count .:` with `Count`, and `index of #:` with `Index` of `#`.\n5. If `at` is not -1, print `user:` followed by `email[:at]`.\n6. Print `equal fold:` with `strings.EqualFold(\"ADA\", \"ada\")`.\n\nExpected output:\n\n```text\ncontains @: true\nprefix ada: true\nsuffix .org: false\nfirst @: 12\nlast .: 20\ncount .: 2\nindex of #: -1\nuser: ada.lovelace\nequal fold: true\n```",
+        "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\temail := \"ada.lovelace@example.com\"\n\tfmt.Println(\"contains @:\", strings.Contains(email, \"@\"))\n\t// TODO: print the remaining checks in the order shown\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\temail := \"ada.lovelace@example.com\"\n\tfmt.Println(\"contains @:\", strings.Contains(email, \"@\"))\n\tfmt.Println(\"prefix ada:\", strings.HasPrefix(email, \"ada\"))\n\tfmt.Println(\"suffix .org:\", strings.HasSuffix(email, \".org\"))\n\tat := strings.Index(email, \"@\")\n\tfmt.Println(\"first @:\", at)\n\tfmt.Println(\"last .:\", strings.LastIndex(email, \".\"))\n\tfmt.Println(\"count .:\", strings.Count(email, \".\"))\n\tfmt.Println(\"index of #:\", strings.Index(email, \"#\"))\n\tif at != -1 {\n\t\tfmt.Println(\"user:\", email[:at])\n\t}\n\tfmt.Println(\"equal fold:\", strings.EqualFold(\"ADA\", \"ada\"))\n}\n",
+        "tests": [
+          {
+            "output": "contains @: true\nprefix ada: true\nsuffix .org: false\nfirst @: 12\nlast .: 20\ncount .: 2\nindex of #: -1\nuser: ada.lovelace\nequal fold: true"
+          }
+        ],
+        "hints": [
+          "Every call takes the string first: `strings.HasSuffix(email, \".org\")`.",
+          "`strings.Index` returns -1 when the text is missing.",
+          "`email[:at]` keeps the bytes before the `@`."
+        ]
+      }
+    },
+    {
+      "title": "Transforming",
+      "body": "Strings never change, so every `strings` function returns a **new** string. Assign the result or it is lost: `strings.ToUpper(s)` on its own line does nothing useful.\n\n- `strings.ToUpper(s)` and `strings.ToLower(s)` change case.\n- `strings.TrimSpace(s)` drops whitespace (spaces, tabs, newlines) from both ends.\n- `strings.Trim(s, cutset)` drops any of the characters in `cutset` from both ends.\n- `strings.TrimPrefix(s, p)` and `strings.TrimSuffix(s, p)` remove one exact string, once, if it is there.\n- `strings.Replace(s, old, new, n)` replaces the first `n` matches, and a negative `n` such as -1 means all.\n- `strings.ReplaceAll(s, old, new)` replaces every match.\n- `strings.Repeat(s, n)` glues `n` copies together.\n\nThe classic gotcha: `Trim`'s second argument is a **set of characters**, not a word. `strings.Trim(\"gogopher go\", \"go\")` strips every `g` and `o` from both ends until it reaches a character outside the set. When you mean one exact prefix or suffix, use `TrimPrefix` or `TrimSuffix`.",
+      "example": {
+        "title": "Clean a handle",
+        "prompt": "Clean up a messy handle one step at a time, then compare Trim with TrimPrefix.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\traw := \"  Go_Dev!!  \"\n\ts := strings.TrimSpace(raw)\n\tfmt.Printf(\"%q\\n\", s)\n\ts = strings.Trim(s, \"!\")\n\tfmt.Printf(\"%q\\n\", s)\n\ts = strings.ToLower(s)\n\tfmt.Printf(\"%q\\n\", s)\n\ts = strings.ReplaceAll(s, \"_\", \"-\")\n\tfmt.Printf(\"%q\\n\", s)\n\ts = strings.TrimPrefix(s, \"go\")\n\tfmt.Printf(\"%q\\n\", s)\n\tfmt.Println(strings.Repeat(\"=\", 10))\n\tfmt.Printf(\"%q\\n\", strings.Trim(\"gogopher go\", \"go\"))\n\tfmt.Printf(\"%q\\n\", strings.TrimPrefix(\"gogopher go\", \"go\"))\n\tfmt.Printf(\"raw is still %q\\n\", raw)\n}\n",
+        "output": "\"Go_Dev!!\"\n\"Go_Dev\"\n\"go_dev\"\n\"go-dev\"\n\"-dev\"\n==========\n\"pher \"\n\"gopher go\"\nraw is still \"  Go_Dev!!  \"",
+        "explanation": "Each call returns a new string that is stored back in `s`, and `%q` shows the quotes so you can see the spaces. `Trim` with the set `go` eats `g`, `o`, `g`, `o` from the left, stops at `p`, then eats `o` and `g` from the right, leaving `\"pher \"`. `TrimPrefix` removes the exact text `go` once. `raw` never changed."
+      },
+      "practice": {
+        "title": "Clean a product code",
+        "prompt": "Clean up a messy product code one step at a time, then compare Trim with TrimPrefix.\n\n1. Keep the given `TrimSpace` step and its print.\n2. Trim every `#` from both ends of `s`, then make `s` upper case.\n3. Replace only the first `-` with `_` using `strings.Replace` with a count of 1.\n4. Remove the suffix `-ABC` with `TrimSuffix`.\n5. Print `s` with `%q` after each of those four steps.\n6. Print `strings.Repeat(\"*\", 8)`, then print `strings.Trim(\"abcabc-cab\", \"abc\")` and `strings.TrimPrefix(\"abcabc-cab\", \"abc\")` with `%q`.\n7. Keep the given last line that prints `code`.\n\nExpected output:\n\n```text\n\"sku-123-abc##\"\n\"sku-123-abc\"\n\"SKU-123-ABC\"\n\"SKU_123-ABC\"\n\"SKU_123\"\n********\n\"-\"\n\"abc-cab\"\ncode is still \"  sku-123-abc##  \"\n```",
+        "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\tcode := \"  sku-123-abc##  \"\n\ts := strings.TrimSpace(code)\n\tfmt.Printf(\"%q\\n\", s)\n\t// TODO: Trim, ToUpper, Replace, TrimSuffix, then Repeat and the Trim comparison\n\tfmt.Printf(\"code is still %q\\n\", code)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\tcode := \"  sku-123-abc##  \"\n\ts := strings.TrimSpace(code)\n\tfmt.Printf(\"%q\\n\", s)\n\ts = strings.Trim(s, \"#\")\n\tfmt.Printf(\"%q\\n\", s)\n\ts = strings.ToUpper(s)\n\tfmt.Printf(\"%q\\n\", s)\n\ts = strings.Replace(s, \"-\", \"_\", 1)\n\tfmt.Printf(\"%q\\n\", s)\n\ts = strings.TrimSuffix(s, \"-ABC\")\n\tfmt.Printf(\"%q\\n\", s)\n\tfmt.Println(strings.Repeat(\"*\", 8))\n\tfmt.Printf(\"%q\\n\", strings.Trim(\"abcabc-cab\", \"abc\"))\n\tfmt.Printf(\"%q\\n\", strings.TrimPrefix(\"abcabc-cab\", \"abc\"))\n\tfmt.Printf(\"code is still %q\\n\", code)\n}\n",
+        "tests": [
+          {
+            "output": "\"sku-123-abc##\"\n\"sku-123-abc\"\n\"SKU-123-ABC\"\n\"SKU_123-ABC\"\n\"SKU_123\"\n********\n\"-\"\n\"abc-cab\"\ncode is still \"  sku-123-abc##  \""
+          }
+        ],
+        "hints": [
+          "Store each result back: `s = strings.Trim(s, \"#\")`.",
+          "The last argument of `strings.Replace` says how many matches to change.",
+          "The suffix is matched after upper casing, so remove `-ABC`, not `-abc`."
+        ]
+      }
+    },
+    {
+      "title": "Split, Fields, and Join",
+      "body": "`strings.Split(s, sep)` cuts a string at every `sep` and returns a `[]string`, so `len` and `range` work on the result. Each part is a substring that shares the original bytes.\n\nEvery separator counts, so two in a row produce an **empty string** between them, and so does a separator at either end. Println would show that as a double space, which is easy to miss. Print the slice with `%q` instead: it quotes every part, so empty ones show up as `\"\"`.\n\n```go\nfmt.Printf(\"%q\\n\", strings.Split(\"a,,b\", \",\")) // [\"a\" \"\" \"b\"]\n```\n\n`strings.Fields(s)` splits on any run of spaces, tabs, or newlines and ignores them at both ends, which is what you want for words. Watch the empty case: `strings.Split(\"\", \",\")` returns one empty string (length 1), while `strings.Fields(\"\")` returns an empty slice (length 0).\n\n`strings.Join(parts, sep)` goes the other way: it puts `sep` between the parts and returns one string.",
+      "example": {
+        "title": "Colors and words",
+        "prompt": "Split a list of colors, compare Split with Fields, and join the colors back together.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\tcolors := strings.Split(\"red,green,blue\", \",\")\n\tfmt.Println(len(colors), \"colors\")\n\tfor i, c := range colors {\n\t\tfmt.Println(i, c)\n\t}\n\tfmt.Printf(\"%q\\n\", strings.Split(\"a,,b\", \",\"))\n\twords := strings.Fields(\"  go   is   fun \")\n\tfmt.Println(len(words), \"words:\", words)\n\tfmt.Println(len(strings.Split(\"\", \",\")), len(strings.Fields(\"\")))\n\tfmt.Println(strings.Join(colors, \" | \"))\n}\n",
+        "output": "3 colors\n0 red\n1 green\n2 blue\n[\"a\" \"\" \"b\"]\n3 words: [go is fun]\n1 0\nred | green | blue",
+        "explanation": "`Split` returns three parts, which `range` walks with their indexes. In `a,,b` the two commas have nothing between them, and `%q` shows that empty part as `\"\"`. `Fields` ignores the extra spaces and finds 3 words. Splitting an empty string gives one empty part, Fields gives none. `Join` puts ` | ` between the colors."
+      },
+      "practice": {
+        "title": "Dates and words",
+        "prompt": "Split a date, rebuild it in a new order, and compare Split with Fields.\n\n1. Keep the given lines that split `\"2024-03-15\"` on `-` and print the count.\n2. Use `range` to print each index and part, separated by a space.\n3. Join `parts[2]`, `parts[1]`, and `parts[0]` with `/` and print the result.\n4. Print `strings.Split(\"x;;y;z\", \";\")` with `%q`.\n5. Split `\"  the quick  brown fox \"` with `Fields` and print the count, the word `words:`, and the slice on one line.\n6. Print `len(strings.Split(\"\", \"-\"))` and `len(strings.Fields(\"   \"))` on one line.\n\nExpected output:\n\n```text\n3 parts\n0 2024\n1 03\n2 15\n15/03/2024\n[\"x\" \"\" \"y\" \"z\"]\n4 words: [the quick brown fox]\n1 0\n```",
+        "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\tparts := strings.Split(\"2024-03-15\", \"-\")\n\tfmt.Println(len(parts), \"parts\")\n\t// TODO: print each part, the joined date, the %q split, the word count, and the empty lengths\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\tparts := strings.Split(\"2024-03-15\", \"-\")\n\tfmt.Println(len(parts), \"parts\")\n\tfor i, p := range parts {\n\t\tfmt.Println(i, p)\n\t}\n\tfmt.Println(strings.Join([]string{parts[2], parts[1], parts[0]}, \"/\"))\n\tfmt.Printf(\"%q\\n\", strings.Split(\"x;;y;z\", \";\"))\n\twords := strings.Fields(\"  the quick  brown fox \")\n\tfmt.Println(len(words), \"words:\", words)\n\tfmt.Println(len(strings.Split(\"\", \"-\")), len(strings.Fields(\"   \")))\n}\n",
+        "tests": [
+          {
+            "output": "3 parts\n0 2024\n1 03\n2 15\n15/03/2024\n[\"x\" \"\" \"y\" \"z\"]\n4 words: [the quick brown fox]\n1 0"
+          }
+        ],
+        "hints": [
+          "`for i, p := range parts` gives each index and part.",
+          "`Join` takes a `[]string`, so build one with the parts in the new order.",
+          "`Fields` of only spaces has no words, so its length is 0."
+        ]
+      }
+    }
+  ],
+  "recap": "- `len(s)` counts bytes, `s[i]` is a byte that prints as a number, and `string(s[i])` turns it into a letter.\n- `s[a:b]` shares the original bytes. A string value is just a pointer and a length.\n- Strings are immutable: `+`, `+=`, and every `strings` function return a new string, so assign the result.\n- Search with `Contains`, `HasPrefix`, `HasSuffix`, `Index`, `LastIndex`, and `Count`. `Index` returns -1 when missing.\n- `EqualFold` compares ignoring case.\n- Transform with `ToUpper`, `ToLower`, `TrimSpace`, `Replace`, `ReplaceAll`, and `Repeat`.\n- `Trim` removes a set of characters, while `TrimPrefix` and `TrimSuffix` remove one exact string.\n- `Split` keeps empty parts (print with `%q` to see them), `Fields` splits on runs of whitespace, and `Join` glues parts back together.\n- `Split` of an empty string has length 1, `Fields` of it has length 0."
+}

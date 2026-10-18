@@ -1,0 +1,118 @@
+{
+  "id": "strings",
+  "title": "Strings",
+  "section": "Strings",
+  "summary": "Inspect, transform, compare, split, and join immutable Java Strings.",
+  "intro": "Almost every program handles text. Java's `String` class has methods to read pieces of text, clean it up, compare it, and cut it apart. One rule runs through all of them: a String never changes, so methods that transform text hand you a new String instead.",
+  "steps": [
+    {
+      "title": "Reading a String",
+      "body": "A `String` is a sequence of `char` values with zero-based indexes. These methods read it without changing it:\n\n```java\nString s = \"hello.txt\";\ns.length();          // 9 (a method, unlike array.length)\ns.charAt(0);         // 'h'\ns.indexOf('.');      // 5, first match (a char or a String)\ns.lastIndexOf('l');  // 3, last match\ns.indexOf(\"zip\");    // -1 when missing\ns.substring(6);      // \"txt\", from 6 to the end\ns.substring(0, 5);   // \"hello\", end index excluded\n```\n\n`substring(begin, end)` stops *before* `end`, so its length is `end - begin`. That makes the pattern \"find a separator, cut around it\" easy: everything before index `i` is `substring(0, i)` and everything after it is `substring(i + 1)`.\n\nGotchas: the last character is `charAt(s.length() - 1)`. An index past the end throws `StringIndexOutOfBoundsException`. Always check for `-1` before you use the result of `indexOf` as an index, because `substring(-1)` throws too.",
+      "example": {
+        "title": "Parts of an email address",
+        "prompt": "Pull the user name, the domain, and the ending out of an email address.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        String email = \"ada.lovelace@math.org\";\n\n        int at = email.indexOf('@');\n        String user = email.substring(0, at);\n        String domain = email.substring(at + 1);\n        int lastDot = email.lastIndexOf('.');\n        String ending = email.substring(lastDot + 1);\n\n        System.out.println(\"Length: \" + email.length());\n        System.out.println(\"First char: \" + email.charAt(0));\n        System.out.println(\"User: \" + user);\n        System.out.println(\"Domain: \" + domain);\n        System.out.println(\"Ending: \" + ending);\n        System.out.println(\"First dot at: \" + email.indexOf(\".\"));\n        System.out.println(\"Index of #: \" + email.indexOf('#'));\n    }\n}\n",
+        "output": "Length: 21\nFirst char: a\nUser: ada.lovelace\nDomain: math.org\nEnding: org\nFirst dot at: 3\nIndex of #: -1",
+        "explanation": "`indexOf('@')` finds the separator at index 12. `substring(0, at)` keeps indexes 0 to 11, and `substring(at + 1)` keeps everything after the `@`. The address has two dots, so `lastIndexOf('.')` picks the one before `org` while `indexOf(\".\")` finds the first one at index 3. There is no `#`, so `indexOf` returns `-1`."
+      },
+      "practice": {
+        "title": "Parts of a file path",
+        "prompt": "Pull the folder, the file name, and the extension out of the path `docs/report.final.pdf`.\n\n1. Find the slash with `indexOf` and the last dot with `lastIndexOf`.\n2. The folder is everything before the slash and the file is everything after it.\n3. The base name runs from just after the slash up to (not including) the last dot, and the extension is everything after the last dot.\n4. Read the last character with `charAt` and search for `\"zip\"` with `indexOf`.\n5. Keep the six print lines from the starter.\n\nExpected output:\n\n```text\nFolder: docs\nFile: report.final.pdf\nBase name: report.final\nExtension: pdf\nLast char: f\nIndex of zip: -1\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        String path = \"docs/report.final.pdf\";\n\n        String folder = \"\";\n        String file = \"\";\n        String baseName = \"\";\n        String extension = \"\";\n        char lastChar = '?';\n        int zipIndex = 0;\n        // TODO: find the slash and the last dot, then fill in the six values above\n\n        System.out.println(\"Folder: \" + folder);\n        System.out.println(\"File: \" + file);\n        System.out.println(\"Base name: \" + baseName);\n        System.out.println(\"Extension: \" + extension);\n        System.out.println(\"Last char: \" + lastChar);\n        System.out.println(\"Index of zip: \" + zipIndex);\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        String path = \"docs/report.final.pdf\";\n\n        int slash = path.indexOf('/');\n        int lastDot = path.lastIndexOf('.');\n\n        String folder = path.substring(0, slash);\n        String file = path.substring(slash + 1);\n        String baseName = path.substring(slash + 1, lastDot);\n        String extension = path.substring(lastDot + 1);\n        char lastChar = path.charAt(path.length() - 1);\n        int zipIndex = path.indexOf(\"zip\");\n\n        System.out.println(\"Folder: \" + folder);\n        System.out.println(\"File: \" + file);\n        System.out.println(\"Base name: \" + baseName);\n        System.out.println(\"Extension: \" + extension);\n        System.out.println(\"Last char: \" + lastChar);\n        System.out.println(\"Index of zip: \" + zipIndex);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Folder: docs\nFile: report.final.pdf\nBase name: report.final\nExtension: pdf\nLast char: f\nIndex of zip: -1"
+          }
+        ],
+        "hints": [
+          "`indexOf('.')` would find the first dot and cut `final.pdf` as the extension. Use `lastIndexOf('.')`.",
+          "The base name starts one past the slash and stops at the last dot, so pass both indexes to `substring`. The end index is excluded, so the dot is left out.",
+          "The last character sits at index `length() - 1`."
+        ]
+      }
+    },
+    {
+      "title": "Transforming and testing",
+      "body": "Strings are **immutable**: no method changes a `String`. Methods like `toUpperCase` return a *new* String, so you must keep the result.\n\n```java\nString name = \" ada \";\nname.toUpperCase();         // result thrown away, name is unchanged\nname = name.strip().toUpperCase(); // \"ADA\"\n```\n\nThe everyday transformers:\n\n- `toUpperCase()` and `toLowerCase()` change case.\n- `strip()` removes leading and trailing whitespace. `trim()` is the older version. It removes only ASCII spaces and control characters like tabs, while `strip()` also knows Unicode whitespace, so prefer `strip()`.\n- `replace(\"_\", \" \")` replaces *every* match, and it takes plain literal text.\n- `repeat(3)` glues copies together: `\"-\".repeat(3)` is `\"---\"`.\n\nThe tests return a `boolean`: `contains(\"ab\")`, `startsWith(\"ab\")`, `endsWith(\"ab\")`, `isEmpty()` (length is 0), and `isBlank()` (empty or only whitespace). The first three are case-sensitive.\n\nCalls chain left to right because each one returns a String. `replaceAll` looks like `replace` but treats its first argument as a regular expression, where characters like `.` mean something special. Use `replace` for plain text.",
+      "example": {
+        "title": "Clean up a title",
+        "prompt": "Clean a messy title, test the result, and print a divider.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        String raw = \"   the java_handbook  \";\n\n        raw.toUpperCase(); // the new String is thrown away\n        System.out.println(\"Raw: [\" + raw + \"]\");\n\n        String title = raw.strip().replace(\"_\", \" \").toUpperCase();\n        System.out.println(\"Title: [\" + title + \"]\");\n        System.out.println(\"Lower: \" + title.toLowerCase());\n        System.out.println(\"Starts with THE: \" + title.startsWith(\"THE\"));\n        System.out.println(\"Ends with BOOK: \" + title.endsWith(\"BOOK\"));\n        System.out.println(\"Contains java: \" + title.contains(\"java\"));\n\n        String spaces = \"   \";\n        System.out.println(\"Spaces isEmpty: \" + spaces.isEmpty());\n        System.out.println(\"Spaces isBlank: \" + spaces.isBlank());\n        System.out.println(\"=\".repeat(20));\n    }\n}\n",
+        "output": "Raw: [   the java_handbook  ]\nTitle: [THE JAVA HANDBOOK]\nLower: the java handbook\nStarts with THE: true\nEnds with BOOK: true\nContains java: false\nSpaces isEmpty: false\nSpaces isBlank: true\n====================",
+        "explanation": "The first `toUpperCase()` builds a new String and drops it, so `raw` still prints in lower case with its spaces. The chain strips the spaces, swaps the underscore for a space, and upper-cases the result, which is stored in `title`. `contains(\"java\")` is `false` because the tests are case-sensitive and `title` is now upper case. A String of spaces is not empty, but it is blank."
+      },
+      "practice": {
+        "title": "Normalize a product code",
+        "prompt": "Normalize a messy product code, test it, and print a divider.\n\n1. Build `code` from `raw` with `strip`, `toUpperCase`, and `replace`, turning every `-` into `_`.\n2. Print `code` in lower case with `toLowerCase`.\n3. Print whether `code` starts with `AB`, ends with `XL`, and contains `123`.\n4. Print `isEmpty()` and `isBlank()` for `empty`, then for `blank`.\n5. Finish with a divider of 15 `-` characters made with `repeat`.\n\nExpected output:\n\n```text\nOriginal: [  ab-1234-xl ]\nCode: [AB_1234_XL]\nLower: ab_1234_xl\nStarts with AB: true\nEnds with XL: true\nContains 123: true\nEmpty isEmpty: true\nEmpty isBlank: true\nBlank isEmpty: false\nBlank isBlank: true\n---------------\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        String raw = \"  ab-1234-xl \";\n        String empty = \"\";\n        String blank = \"   \";\n\n        String code = raw;\n        // TODO: build code from raw with strip, toUpperCase, and replace\n\n        System.out.println(\"Original: [\" + raw + \"]\");\n        System.out.println(\"Code: [\" + code + \"]\");\n        // TODO: print the remaining nine lines\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        String raw = \"  ab-1234-xl \";\n        String empty = \"\";\n        String blank = \"   \";\n\n        String code = raw.strip().toUpperCase().replace(\"-\", \"_\");\n\n        System.out.println(\"Original: [\" + raw + \"]\");\n        System.out.println(\"Code: [\" + code + \"]\");\n        System.out.println(\"Lower: \" + code.toLowerCase());\n        System.out.println(\"Starts with AB: \" + code.startsWith(\"AB\"));\n        System.out.println(\"Ends with XL: \" + code.endsWith(\"XL\"));\n        System.out.println(\"Contains 123: \" + code.contains(\"123\"));\n        System.out.println(\"Empty isEmpty: \" + empty.isEmpty());\n        System.out.println(\"Empty isBlank: \" + empty.isBlank());\n        System.out.println(\"Blank isEmpty: \" + blank.isEmpty());\n        System.out.println(\"Blank isBlank: \" + blank.isBlank());\n        System.out.println(\"-\".repeat(15));\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Original: [  ab-1234-xl ]\nCode: [AB_1234_XL]\nLower: ab_1234_xl\nStarts with AB: true\nEnds with XL: true\nContains 123: true\nEmpty isEmpty: true\nEmpty isBlank: true\nBlank isEmpty: false\nBlank isBlank: true\n---------------"
+          }
+        ],
+        "hints": [
+          "Each method returns a new String, so chain `strip()`, `toUpperCase()`, and `replace(...)` and assign the result back to `code`.",
+          "`replace` takes the text to find first and the replacement second.",
+          "Each test line is a label plus a boolean, like `\"Ends with XL: \" + code.endsWith(\"XL\")`."
+        ]
+      }
+    },
+    {
+      "title": "Comparing Strings",
+      "body": "Compare text with `equals`. Never use `==` on Strings: it asks whether two variables point to the *same object*, not whether they hold the same text.\n\n```java\nString part = \"pass\";\nString built = part + \"word\";                 // a new object made at run time\nSystem.out.println(built.equals(\"password\")); // true\nSystem.out.println(built == \"password\");      // false\n```\n\nThe trap is that `==` sometimes works. Identical literals share one object, and `\"pass\" + \"word\"` is joined by the compiler, so tests on literals pass and the bug shows up later with real data.\n\nMore comparisons:\n\n- `equalsIgnoreCase(\"quit\")` ignores upper and lower case.\n- `\"quit\".equals(cmd)` puts the literal first, so it returns `false` instead of crashing when `cmd` is `null`.\n- `a.compareTo(b)` orders text: negative when `a` comes first, zero when equal, positive when `a` comes after. Only the sign is meaningful.\n\n`compareTo` compares character codes, and every upper case letter `A` to `Z` comes before every lower case letter `a` to `z`, so `\"Zoe\"` sorts before `\"adam\"`. Lower-case both sides first when you want dictionary order.",
+      "example": {
+        "title": "Password and name checks",
+        "prompt": "Check a password attempt with equals and with ==, match a command in any case, and order two names.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        String saved = \"password\";\n        String part = \"pass\";\n        String attempt = part + \"word\"; // built at run time\n\n        System.out.println(\"equals: \" + attempt.equals(saved));\n        System.out.println(\"==: \" + (attempt == saved));\n\n        String command = \"QUIT\";\n        String missing = null;\n        System.out.println(\"Quit? \" + command.equalsIgnoreCase(\"quit\"));\n        System.out.println(\"Null-safe: \" + \"quit\".equals(missing));\n\n        String a = \"Maya\";\n        String b = \"liam\";\n        String first = a.compareTo(b) <= 0 ? a : b;\n        String firstIgnoringCase = a.toLowerCase().compareTo(b.toLowerCase()) <= 0 ? a : b;\n        System.out.println(\"Same text: \" + a.compareTo(\"Maya\"));\n        System.out.println(\"First: \" + first);\n        System.out.println(\"First ignoring case: \" + firstIgnoringCase);\n    }\n}\n",
+        "output": "equals: true\n==: false\nQuit? true\nNull-safe: false\nSame text: 0\nFirst: Maya\nFirst ignoring case: liam",
+        "explanation": "`attempt` is built from a variable while the program runs, so it is a different object from the literal in `saved`. `equals` compares the text and says `true`, `==` compares the objects and says `false`. Putting the literal first makes the `null` check safe. `\"Maya\".compareTo(\"liam\")` is negative because `M` is upper case and sorts before `l`, but after lower-casing both, `liam` comes first."
+      },
+      "practice": {
+        "title": "Login and city checks",
+        "prompt": "Check a username and a PIN, then find which of two cities comes first alphabetically.\n\n1. Print whether `typedUser` matches `savedUser` with `equalsIgnoreCase`.\n2. Print `typedPin` compared to `savedPin` with `equals`, then with `==` (wrap the `==` in parentheses).\n3. Print `\"Gigi\".equals(nickname)` to show the null-safe form.\n4. Use `compareTo` and a ternary to print the city that comes first, then the city that comes first after lower-casing both.\n\nExpected output:\n\n```text\nUsername match: true\nPIN equals: true\nPIN ==: false\nNull-safe: false\nFirst city: Zurich\nFirst ignoring case: amsterdam\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        String savedUser = \"Grace_H\";\n        String typedUser = \"grace_h\";\n\n        String savedPin = \"4821\";\n        String pinStart = \"48\";\n        String typedPin = pinStart + \"21\"; // built at run time\n\n        String nickname = null;\n\n        String a = \"Zurich\";\n        String b = \"amsterdam\";\n\n        // TODO: print the six comparison lines\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        String savedUser = \"Grace_H\";\n        String typedUser = \"grace_h\";\n\n        String savedPin = \"4821\";\n        String pinStart = \"48\";\n        String typedPin = pinStart + \"21\"; // built at run time\n\n        String nickname = null;\n\n        String a = \"Zurich\";\n        String b = \"amsterdam\";\n\n        System.out.println(\"Username match: \" + typedUser.equalsIgnoreCase(savedUser));\n        System.out.println(\"PIN equals: \" + typedPin.equals(savedPin));\n        System.out.println(\"PIN ==: \" + (typedPin == savedPin));\n        System.out.println(\"Null-safe: \" + \"Gigi\".equals(nickname));\n\n        String first = a.compareTo(b) <= 0 ? a : b;\n        String firstIgnoringCase = a.toLowerCase().compareTo(b.toLowerCase()) <= 0 ? a : b;\n        System.out.println(\"First city: \" + first);\n        System.out.println(\"First ignoring case: \" + firstIgnoringCase);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Username match: true\nPIN equals: true\nPIN ==: false\nNull-safe: false\nFirst city: Zurich\nFirst ignoring case: amsterdam"
+          }
+        ],
+        "hints": [
+          "`\"PIN ==: \" + (typedPin == savedPin)` needs the parentheses, or the `+` runs before the `==`.",
+          "A negative `compareTo` result means the left String comes first. Use that test in a ternary that picks `a` or `b`.",
+          "For the second city, call `toLowerCase()` on both sides inside the comparison but print the original names."
+        ]
+      }
+    },
+    {
+      "title": "split and join",
+      "body": "`split` cuts a String at every separator and returns a `String[]`. `String.join` does the reverse.\n\n```java\nString[] parts = \"3,8,1\".split(\",\");   // [\"3\", \"8\", \"1\"]\nint first = Integer.parseInt(parts[0]); // 3, a real int\nString.join(\"-\", parts);                // \"3-8-1\"\nString.join(\"/\", \"a\", \"b\", \"c\");        // \"a/b/c\"\n```\n\nThe pieces are still text, so convert them with `Integer.parseInt` before doing math.\n\nThe gotcha: `split` takes a **regular expression**, not plain text. A `.` there means \"any character\", so `\"1.2\".split(\".\")` returns an empty array. Escape the dot with `split(\"\\\\.\")`. The doubled backslash is how a Java string literal holds one backslash.\n\nFor words separated by uneven spaces, `\\\\s+` means \"one or more whitespace characters\". Strip first, or a leading space produces an empty first piece:\n\n```java\n\"  hi   there \".strip().split(\"\\\\s+\"); // [\"hi\", \"there\"]\n```\n\nPrint an array with `Arrays.toString` to see its pieces.",
+      "example": {
+        "title": "Numbers, versions, and words",
+        "prompt": "Add the numbers in a CSV line, split a version number, and rejoin the words of a sentence.",
+        "code": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        String csv = \"12,7,30,5\";\n        String[] parts = csv.split(\",\");\n        int sum = 0;\n        for (String part : parts) {\n            sum += Integer.parseInt(part);\n        }\n        System.out.println(Arrays.toString(parts) + \" sum \" + sum);\n\n        String version = \"1.10.3\";\n        String[] nums = version.split(\"\\\\.\");\n        int minor = Integer.parseInt(nums[1]);\n        System.out.println(\"Minor: \" + minor + \", next: \" + (minor + 1));\n        System.out.println(\"Unescaped pieces: \" + version.split(\".\").length);\n\n        String sentence = \"  learn   java   fast \";\n        String[] words = sentence.strip().split(\"\\\\s+\");\n        System.out.println(words.length + \" words: \" + Arrays.toString(words));\n        System.out.println(String.join(\"-\", words));\n        System.out.println(String.join(\" | \", nums[0], nums[1], nums[2]));\n    }\n}\n",
+        "output": "[12, 7, 30, 5] sum 54\nMinor: 10, next: 11\nUnescaped pieces: 0\n3 words: [learn, java, fast]\nlearn-java-fast\n1 | 10 | 3",
+        "explanation": "`split(\",\")` gives four String pieces, and `Integer.parseInt` turns each into an int for the sum. `split(\"\\\\.\")` cuts the version at the literal dots, and parsing `\"10\"` gives an int you can add to. The unescaped `split(\".\")` matches every character, leaving only empty pieces, which `split` drops. `strip().split(\"\\\\s+\")` ignores the extra spaces, and `String.join` glues pieces back with any separator."
+      },
+      "practice": {
+        "title": "Flip a date",
+        "prompt": "Split a dotted date into numbers, then rejoin its pieces in day/month/year order.\n\n1. Split `date` on its dots into a `String[]`. Remember that `split` takes a regular expression.\n2. Turn the three pieces into the ints `year`, `month`, and `day` with `Integer.parseInt`.\n3. Build `flipped` with `String.join` from the original String pieces in day, month, year order, separated by `/`.\n4. Keep the five print lines from the starter.\n\nExpected output:\n\n```text\nYear: 2024\nMonth: 7\nDay: 15\nNext year: 2025\n15/07/2024\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        String date = \"2024.07.15\";\n\n        int year = 0;\n        int month = 0;\n        int day = 0;\n        String flipped = \"\";\n        // TODO: split date on its dots, parse the three pieces, and join them as day/month/year\n\n        System.out.println(\"Year: \" + year);\n        System.out.println(\"Month: \" + month);\n        System.out.println(\"Day: \" + day);\n        System.out.println(\"Next year: \" + (year + 1));\n        System.out.println(flipped);\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        String date = \"2024.07.15\";\n\n        String[] parts = date.split(\"\\\\.\");\n        int year = Integer.parseInt(parts[0]);\n        int month = Integer.parseInt(parts[1]);\n        int day = Integer.parseInt(parts[2]);\n        String flipped = String.join(\"/\", parts[2], parts[1], parts[0]);\n\n        System.out.println(\"Year: \" + year);\n        System.out.println(\"Month: \" + month);\n        System.out.println(\"Day: \" + day);\n        System.out.println(\"Next year: \" + (year + 1));\n        System.out.println(flipped);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Year: 2024\nMonth: 7\nDay: 15\nNext year: 2025\n15/07/2024"
+          }
+        ],
+        "hints": [
+          "A plain `\".\"` in `split` means any character and leaves no pieces. Escape the dot the same way the version example does.",
+          "`Integer.parseInt(\"07\")` is `7`, but the String piece `\"07\"` keeps its zero. Join the String pieces, not the ints.",
+          "`String.join` takes the separator first, then the pieces in the order you want them."
+        ]
+      }
+    }
+  ],
+  "recap": "- `length()`, `charAt(i)`, `indexOf`, `lastIndexOf`, and `substring(begin, end)` read a String. The end index is excluded and a missing match is `-1`.\n- Strings are immutable: `toUpperCase`, `strip`, `replace`, and `repeat` return new Strings that you must store.\n- `contains`, `startsWith`, `endsWith`, `isEmpty`, and `isBlank` return booleans. The first three are case-sensitive.\n- Compare text with `equals` or `equalsIgnoreCase`, never `==`. Put the literal first to be null-safe.\n- `compareTo` is negative, zero, or positive, and upper case sorts before lower case.\n- `split` takes a regular expression: escape a dot as `\"\\\\.\"` and split words with `strip().split(\"\\\\s+\")`.\n- `String.join` glues pieces together, and `Integer.parseInt` turns a piece into an int."
+}

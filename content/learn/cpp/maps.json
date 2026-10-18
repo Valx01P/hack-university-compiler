@@ -1,0 +1,117 @@
+{
+  "id": "maps",
+  "title": "Maps: std::map and std::unordered_map",
+  "section": "Collections",
+  "summary": "Store key-value pairs, look them up safely, loop in sorted order, and count things with std::map and std::unordered_map.",
+  "intro": "A vector finds values by position. A map finds them by key: a price by fruit name, an age by person, a count by word. C++ gives you two: `std::map`, a sorted tree, and `std::unordered_map`, a hash table.",
+  "steps": [
+    {
+      "title": "Creating and reading a map",
+      "body": "A `std::map` from `<map>` stores key-value pairs and finds a value by its key, like a dictionary. Each key appears at most once.\n\n```cpp\nstd::map<std::string, int> ages = {{\"ana\", 30}, {\"ben\", 25}};\nages[\"cy\"] = 41;    // new key: inserted\nages[\"ana\"] = 31;   // existing key: updated\nages.at(\"ben\");     // 25, reads a key you know exists\nages.size();        // 3 entries\nages.count(\"dan\");  // 0, a map's count is only ever 0 or 1\n```\n\n`m[key] = value` writes in both cases: it inserts a missing key or overwrites an existing one.\n\n> Gotcha: `m[key]` on a missing key **inserts** it with a default value (0 for numbers, an empty string for text) and returns that. Just reading `ages[\"dan\"]` grows the map. Ask `count` first when a key may be missing.\n\n`at` never inserts, but it throws on a missing key, which you will handle in the Exceptions lesson. For now use it only on keys you know are there.",
+      "example": {
+        "title": "Fruit prices",
+        "prompt": "Build a fruit price map, add and update entries, and show that reading a missing key with [] inserts it.",
+        "code": "#include <iostream>\n#include <map>\n#include <string>\n\nint main() {\n    std::map<std::string, int> prices = {{\"apple\", 120}, {\"banana\", 45}};\n    prices[\"mango\"] = 150;  // new key: inserted\n    prices[\"apple\"] = 130;  // existing key: updated\n\n    std::cout << prices.at(\"apple\") << '\\n';\n    std::cout << prices.size() << '\\n';\n    std::cout << prices.count(\"grape\") << '\\n';\n    std::cout << prices[\"grape\"] << '\\n';  // inserts grape with 0\n    std::cout << prices.size() << '\\n';\n    return 0;\n}\n",
+        "output": "130\n3\n0\n0\n4",
+        "explanation": "The braces build the map from two `{key, value}` pairs. Assigning to `prices[\"mango\"]` added a third entry and assigning to `prices[\"apple\"]` replaced 120 with 130. `count(\"grape\")` is 0 because grape is missing, and `count` does not change the map. Reading `prices[\"grape\"]` quietly inserted grape with the value 0, so the size jumped from 3 to 4."
+      },
+      "practice": {
+        "title": "Student grades",
+        "prompt": "Build a map of student grades and watch `[]` add a missing student.\n\n1. Start from `grades`, which the starter fills with `{\"ana\", 88}` and `{\"ben\", 72}`.\n2. Add `cara` with 95, then update `ben` to 79.\n3. Print `grades.at(\"ben\")`.\n4. Print `grades.count(\"dan\")`.\n5. Print `grades.size()`.\n6. Print `grades[\"dan\"]`, then print `grades.size()` again.\n7. Print each value on its own line.\n\nExpected output:\n\n```text\n79\n0\n3\n0\n4\n```",
+        "starter": "#include <iostream>\n#include <map>\n#include <string>\n\nint main() {\n    std::map<std::string, int> grades = {{\"ana\", 88}, {\"ben\", 72}};\n    // TODO: add cara, update ben, then print the five values\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <map>\n#include <string>\n\nint main() {\n    std::map<std::string, int> grades = {{\"ana\", 88}, {\"ben\", 72}};\n    grades[\"cara\"] = 95;\n    grades[\"ben\"] = 79;\n\n    std::cout << grades.at(\"ben\") << '\\n';\n    std::cout << grades.count(\"dan\") << '\\n';\n    std::cout << grades.size() << '\\n';\n    std::cout << grades[\"dan\"] << '\\n';\n    std::cout << grades.size() << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "79\n0\n3\n0\n4"
+          }
+        ],
+        "hints": [
+          "`grades[\"cara\"] = 95;` adds a student and the same form updates one.",
+          "`count` and `size` do not change the map, but `grades[\"dan\"]` adds dan with 0."
+        ]
+      }
+    },
+    {
+      "title": "Looping in sorted order",
+      "body": "A range-for over a map visits every entry. Each element is a `std::pair<const Key, Value>`: `.first` is the key and `.second` is the value. The key is `const` because changing it would break the map's order.\n\n```cpp\nfor (const auto& entry : ages) {\n    std::cout << entry.first << ' ' << entry.second << '\\n';\n}\n```\n\nStructured bindings name both parts at once, which reads better:\n\n```cpp\nfor (const auto& [name, age] : ages) {\n    std::cout << name << ' ' << age << '\\n';\n}\n```\n\nA `std::map` keeps its entries in a sorted tree (a red-black tree in g++), so it always iterates in **sorted key order**, no matter the order you inserted in. Keys compare with `<`: numbers go ascending and strings by character code, so `\"Zoe\"` comes before `\"ana\"`. Each entry lives in its own heap node, so unlike a vector, adding or erasing other keys never moves it.\n\nUse `const auto&` so each pair is read in place. `for (auto entry : ages)` copies every pair, strings included. Use `auto&` when you want to change values: `for (auto& [name, age] : ages) { ++age; }`.",
+      "example": {
+        "title": "Word counts",
+        "prompt": "Print every entry of a word count map in sorted order with structured bindings, then the total.",
+        "code": "#include <iostream>\n#include <map>\n#include <string>\n\nint main() {\n    const std::map<std::string, int> wordCounts = {{\"pear\", 3}, {\"fig\", 5}, {\"kiwi\", 2}};\n\n    int total = 0;\n    for (const auto& [word, count] : wordCounts) {\n        std::cout << word << \": \" << count << '\\n';\n        total += count;\n    }\n    std::cout << \"Total: \" << total << '\\n';\n    return 0;\n}\n",
+        "output": "fig: 5\nkiwi: 2\npear: 3\nTotal: 10",
+        "explanation": "The map was written as pear, fig, kiwi, but the loop prints fig, kiwi, pear because a `std::map` keeps its keys sorted. Each element is a pair, and `[word, count]` binds `word` to the key and `count` to the value without copying. The loop also adds every value to `total`."
+      },
+      "practice": {
+        "title": "City temperatures",
+        "prompt": "Print a map of city temperatures in sorted order, then their average.\n\n1. Start from `temps`, which the starter fills with Oslo 4, Lima 19, and Cairo 28.\n2. Loop over it with `const auto& entry` and print each entry as `city: temp` using `.first` and `.second`.\n3. Add up the temperatures in the same loop.\n4. Print `Average: ` and the average with 1 decimal place.\n\nExpected output:\n\n```text\nCairo: 28\nLima: 19\nOslo: 4\nAverage: 17.0\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n#include <map>\n#include <string>\n\nint main() {\n    const std::map<std::string, int> temps = {{\"Oslo\", 4}, {\"Lima\", 19}, {\"Cairo\", 28}};\n    int sum = 0;\n    // TODO: print each city: temp line and add to sum\n    // TODO: print the average with 1 decimal place\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n#include <map>\n#include <string>\n\nint main() {\n    const std::map<std::string, int> temps = {{\"Oslo\", 4}, {\"Lima\", 19}, {\"Cairo\", 28}};\n    int sum = 0;\n    for (const auto& entry : temps) {\n        std::cout << entry.first << \": \" << entry.second << '\\n';\n        sum += entry.second;\n    }\n    const double average = static_cast<double>(sum) / temps.size();\n    std::cout << std::fixed << std::setprecision(1);\n    std::cout << \"Average: \" << average << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Cairo: 28\nLima: 19\nOslo: 4\nAverage: 17.0"
+          }
+        ],
+        "hints": [
+          "`entry.first` is the city and `entry.second` is the temperature.",
+          "Divide with `static_cast<double>(sum) / temps.size()` so the result is not truncated.",
+          "Set `std::fixed << std::setprecision(1)` before printing the average."
+        ]
+      }
+    },
+    {
+      "title": "Finding, inserting, and erasing keys",
+      "body": "`find(key)` looks a key up without ever inserting. It returns an iterator to the entry, or `end()` when the key is missing. `it->second` is shorthand for `(*it).second`. Scope the iterator to the check with C++17's if with initializer:\n\n```cpp\nif (auto it = ages.find(\"ana\"); it != ages.end()) {\n    std::cout << it->first << ' ' << it->second << '\\n';\n}\n```\n\nThis matters for `const` maps. `operator[]` may insert, so `ages[\"ana\"]` on a `const` map or a `const&` parameter does not compile (g++ says it *discards qualifiers*). Read those with `find`, `at`, or `count`.\n\n`insert` adds a pair only if the key is new. It never overwrites, and it returns a pair you can unpack: an iterator to the entry and a bool saying whether it inserted.\n\n```cpp\nauto [it, inserted] = ages.insert({\"ana\", 99});  // inserted is false\n```\n\nC++17 also has `try_emplace(k, v)`, which also never overwrites, and `insert_or_assign(k, v)`, which always writes. `erase(key)` removes a key and returns how many it removed (0 or 1). Finding, inserting, and erasing are all O(log n) in the tree.",
+      "example": {
+        "title": "Age lookup",
+        "prompt": "Look up ages with find, show that insert keeps an existing value, erase a user, and print the rest.",
+        "code": "#include <iostream>\n#include <map>\n#include <string>\n\nvoid printAge(const std::map<std::string, int>& ages, const std::string& name) {\n    if (auto it = ages.find(name); it != ages.end()) {\n        std::cout << it->first << \": \" << it->second << '\\n';\n    } else {\n        std::cout << name << \": unknown\\n\";\n    }\n}\n\nint main() {\n    std::map<std::string, int> ages = {{\"sam\", 31}, {\"lee\", 25}, {\"ivy\", 42}};\n    printAge(ages, \"sam\");\n    printAge(ages, \"zoe\");\n\n    auto [it, inserted] = ages.insert({\"sam\", 40});\n    std::cout << std::boolalpha << inserted << ' ' << it->second << '\\n';\n\n    ages.erase(\"lee\");\n    for (const auto& [name, age] : ages) {\n        std::cout << name << ' ' << age << '\\n';\n    }\n    return 0;\n}\n",
+        "output": "sam: 31\nzoe: unknown\nfalse 31\nivy 42\nsam 31",
+        "explanation": "`printAge` takes the map by `const&`, so it uses `find` instead of `[]`. For `sam` the iterator points at the entry and `it->second` is 31. For `zoe` it equals `end()`, so the else branch runs and nothing is inserted. `insert({\"sam\", 40})` found sam already there, so `inserted` is false and `it` points at the old entry, still 31. `erase(\"lee\")` removed lee, leaving ivy and sam in sorted order."
+      },
+      "practice": {
+        "title": "Product stock",
+        "prompt": "Look up product stock safely, try a duplicate insert, and remove a product.\n\n1. Write `void printStock(const std::map<std::string, int>& stock, const std::string& code)` that prints `code: amount` when the code exists and `code: no such product` when it does not. Use `find`.\n2. Call it for `C300`, then for `D400`.\n3. Insert `{\"A100\", 50}` with `auto [it, inserted] = ...` and print `inserted` (as `true` or `false`), a space, and `it->second`.\n4. Erase `B200`.\n5. Print every remaining entry as `code amount`.\n\nExpected output:\n\n```text\nC300: 7\nD400: no such product\nfalse 12\nA100 12\nC300 7\n```",
+        "starter": "#include <iostream>\n#include <map>\n#include <string>\n\nvoid printStock(const std::map<std::string, int>& stock, const std::string& code) {\n    // TODO: use find to print the amount or no such product\n}\n\nint main() {\n    std::map<std::string, int> stock = {{\"A100\", 12}, {\"B200\", 0}, {\"C300\", 7}};\n    // TODO: look up C300 and D400, insert A100, erase B200, print the rest\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <map>\n#include <string>\n\nvoid printStock(const std::map<std::string, int>& stock, const std::string& code) {\n    if (auto it = stock.find(code); it != stock.end()) {\n        std::cout << it->first << \": \" << it->second << '\\n';\n    } else {\n        std::cout << code << \": no such product\\n\";\n    }\n}\n\nint main() {\n    std::map<std::string, int> stock = {{\"A100\", 12}, {\"B200\", 0}, {\"C300\", 7}};\n    printStock(stock, \"C300\");\n    printStock(stock, \"D400\");\n\n    auto [it, inserted] = stock.insert({\"A100\", 50});\n    std::cout << std::boolalpha << inserted << ' ' << it->second << '\\n';\n\n    stock.erase(\"B200\");\n    for (const auto& [code, amount] : stock) {\n        std::cout << code << ' ' << amount << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "C300: 7\nD400: no such product\nfalse 12\nA100 12\nC300 7"
+          }
+        ],
+        "hints": [
+          "`[]` does not compile on a `const&` map. Look the code up with `find` and compare the result with `stock.end()`.",
+          "`insert` returns an iterator and a bool. Unpack them with `auto [it, inserted]` and print the bool with `std::boolalpha`.",
+          "`erase` takes the key to remove. A range-for then prints what is left in sorted order."
+        ]
+      }
+    },
+    {
+      "title": "Counting and unordered_map",
+      "body": "Counting is where `[]` inserting a default shines. `++counts[key]` starts a new key at 0 and adds 1, so one line counts anything:\n\n```cpp\nstd::map<char, int> counts;\nfor (char c : text) {\n    ++counts[c];\n}\n```\n\n`std::unordered_map` from `<unordered_map>` has the same interface (`[]`, `at`, `find`, `count`, `insert`, `erase`) but is a hash table: each key is hashed to a bucket, so operations are O(1) on average instead of O(log n) (O(n) in the rare worst case when many keys share a bucket). The price is order. Its iteration order is **unspecified** and can change between compilers or as it grows, so never print it directly. Copy the keys into a vector and sort them first:\n\n```cpp\nstd::vector<std::string> keys;\nfor (const auto& entry : counts) {\n    keys.push_back(entry.first);\n}\nstd::sort(keys.begin(), keys.end());\n```\n\nPick `std::map` when you need sorted order or the smallest or largest key. Pick `std::unordered_map` for the fastest lookups when order does not matter.",
+      "example": {
+        "title": "Letter and word counts",
+        "prompt": "Count the letters of mississippi with std::map, then count words with std::unordered_map and print them sorted.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <map>\n#include <string>\n#include <unordered_map>\n#include <vector>\n\nint main() {\n    const std::string text = \"mississippi\";\n    std::map<char, int> letters;\n    for (char c : text) {\n        ++letters[c];\n    }\n    for (const auto& [letter, count] : letters) {\n        std::cout << letter << ' ' << count << '\\n';\n    }\n\n    const std::vector<std::string> words = {\"to\", \"be\", \"or\", \"not\", \"to\", \"be\"};\n    std::unordered_map<std::string, int> wordCounts;\n    for (const auto& word : words) {\n        ++wordCounts[word];\n    }\n    std::vector<std::string> keys;\n    for (const auto& entry : wordCounts) {\n        keys.push_back(entry.first);\n    }\n    std::sort(keys.begin(), keys.end());\n    for (const auto& word : keys) {\n        std::cout << word << ' ' << wordCounts.at(word) << '\\n';\n    }\n    return 0;\n}\n",
+        "output": "i 4\nm 1\np 2\ns 4\nbe 2\nnot 1\nor 1\nto 2",
+        "explanation": "`++letters[c]` creates each new letter at 0 and bumps it, and the `std::map` prints the letters in sorted order. The words go into a `std::unordered_map`, whose loop order is unpredictable, so the loop only collects each key with `entry.first`. After `std::sort` the keys are alphabetical, and `at` reads each count, safe because every key in `keys` came from the map."
+      },
+      "practice": {
+        "title": "Date digits and colors",
+        "prompt": "Count the characters of a date in sorted order, then count colors with a hash map.\n\n1. Count each character of `2024-10-17` with `std::map<char, int>` and `++`.\n2. Print each character and its count, one per line, separated by a space.\n3. Count the colors in the vector with `std::unordered_map<std::string, int>`.\n4. Copy its keys into a vector, sort them, and print `color count` lines in that order.\n\nExpected output:\n\n```text\n- 2\n0 2\n1 2\n2 2\n4 1\n7 1\ngold 1\nplum 2\nteal 3\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <map>\n#include <string>\n#include <unordered_map>\n#include <vector>\n\nint main() {\n    const std::string date = \"2024-10-17\";\n    const std::vector<std::string> colors = {\"teal\", \"plum\", \"teal\", \"gold\", \"plum\", \"teal\"};\n    // TODO: count and print the characters of date with std::map\n    // TODO: count colors with std::unordered_map, then print them sorted by name\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <map>\n#include <string>\n#include <unordered_map>\n#include <vector>\n\nint main() {\n    const std::string date = \"2024-10-17\";\n    const std::vector<std::string> colors = {\"teal\", \"plum\", \"teal\", \"gold\", \"plum\", \"teal\"};\n\n    std::map<char, int> chars;\n    for (char c : date) {\n        ++chars[c];\n    }\n    for (const auto& [c, count] : chars) {\n        std::cout << c << ' ' << count << '\\n';\n    }\n\n    std::unordered_map<std::string, int> colorCounts;\n    for (const auto& color : colors) {\n        ++colorCounts[color];\n    }\n    std::vector<std::string> names;\n    for (const auto& entry : colorCounts) {\n        names.push_back(entry.first);\n    }\n    std::sort(names.begin(), names.end());\n    for (const auto& name : names) {\n        std::cout << name << ' ' << colorCounts.at(name) << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "- 2\n0 2\n1 2\n2 2\n4 1\n7 1\ngold 1\nplum 2\nteal 3"
+          }
+        ],
+        "hints": [
+          "`++chars[c];` inside a range-for counts every character.",
+          "The std::map loop already prints in sorted order. `-` comes before the digits.",
+          "Push each key of the unordered_map into a vector, `std::sort` it, then read counts with `at`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `std::map<K, V> m = {{k, v}, ...};` from `<map>` stores unique keys with their values.\n- `m[k] = v` inserts or updates. Reading `m[k]` on a missing key inserts a default value.\n- `at` reads an existing key, `count` returns 0 or 1, and `size` counts entries.\n- A range-for yields `std::pair<const K, V>`: use `.first` and `.second` or `const auto& [key, value]`.\n- `std::map` iterates in sorted key order with O(log n) operations.\n- `find` returns an iterator or `end()`, and it works on a `const` map where `[]` does not compile.\n- `insert` never overwrites and returns `{iterator, inserted}`. `erase(key)` removes a key.\n- `++counts[key]` counts anything.\n- `std::unordered_map` is a hash table with O(1) average operations and no order: sort its keys before printing."
+}

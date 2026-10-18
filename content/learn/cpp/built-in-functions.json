@@ -1,0 +1,91 @@
+{
+  "id": "built-in-functions",
+  "title": "Built-in Math and Algorithm Functions",
+  "section": "Functions",
+  "summary": "Use the standard library's ready-made functions: cmath math, std::min and std::max, and whole-vector helpers like sort.",
+  "intro": "You do not have to write square roots, maximums, or sorting yourself. The standard library ships tested versions in `<cmath>`, `<algorithm>`, and `<numeric>`, and learning the common ones makes your code shorter and safer. You call them exactly like the functions you wrote in the last lesson, with the `std::` prefix because they live in namespace `std`.",
+  "steps": [
+    {
+      "title": "Math functions from cmath",
+      "body": "`<cmath>` holds the everyday math functions. Most of them return a `double`, even when you pass integers. The exception is `std::abs`, which keeps the type it gets: `std::abs(-7)` is the `int` 7.\n\n```cpp\nstd::sqrt(144)      // 12, square root\nstd::pow(2, 10)     // 1024, 2 to the power 10\nstd::abs(-7)        // 7, absolute value\nstd::hypot(3, 4)    // 5, the sqrt of 3*3 + 4*4\n```\n\n`std::floor` rounds down, `std::ceil` rounds up, and `std::round` goes to the nearest whole number, with halves moving away from zero: `std::round(2.5)` is 3 and `std::round(-2.5)` is -3. Down means toward negative infinity, so `std::floor(-2.5)` is -3.\n\nWhole-valued doubles print without decimals by default (12, not 12.000000). But `std::pow` returns a `double` even for integer arguments, and default output keeps only 6 significant digits, so `std::pow(2, 20)` prints `1.04858e+06`. Use `std::fixed << std::setprecision(0)` to see all the digits. For whole-number powers prefer a loop over `int` or `long long`: casting a `double` back to an integer truncates, so a result stored as 999.9999 becomes 999.\n\nAlways write `std::abs`, never plain `abs`, which may pick the C `int` version and drop the decimals.",
+      "example": {
+        "title": "Math function tour",
+        "prompt": "Call the common cmath functions and print their results with default formatting.",
+        "code": "#include <cmath>\n#include <iostream>\n\nint main() {\n    std::cout << std::sqrt(144) << '\\n';\n    std::cout << std::pow(2, 10) << '\\n';\n    std::cout << std::pow(2, 20) << '\\n';\n    std::cout << std::abs(-7) << '\\n';\n    std::cout << std::floor(2.7) << ' ' << std::ceil(2.1) << ' ' << std::round(2.5) << '\\n';\n    std::cout << std::hypot(3, 4) << '\\n';\n    return 0;\n}\n",
+        "output": "12\n1024\n1.04858e+06\n7\n2 3 3\n5",
+        "explanation": "Every result except `std::abs(-7)` is a `double`. The whole-valued ones print without decimals, but `std::pow(2, 20)` is 1048576, which has 7 digits, so default output switches to scientific notation. `std::floor(2.7)` drops down to 2, `std::ceil(2.1)` climbs to 3, and `std::round(2.5)` moves the half away from zero to 3. `std::hypot(3, 4)` is the length of the diagonal of a 3 by 4 rectangle."
+      },
+      "practice": {
+        "title": "Negative rounding and distance",
+        "prompt": "Print a few cmath results, including how rounding treats negative numbers.\n\n1. Print `std::pow(3, 4)` on the first line.\n2. Print `std::abs(-12.5)` on the second line.\n3. Print `std::floor(-2.5)`, `std::ceil(-2.5)`, and `std::round(-2.5)` on the third line, separated by single spaces.\n4. Print the distance from (`x1`, `y1`) to (`x2`, `y2`) using `std::hypot` on the differences.\n5. Print `std::sqrt(2)` with exactly 3 decimal places.\n\nExpected output:\n\n```text\n81\n12.5\n-3 -2 -3\n5\n1.414\n```",
+        "starter": "#include <cmath>\n#include <iomanip>\n#include <iostream>\n\nint main() {\n    const int x1 = 1;\n    const int y1 = 2;\n    const int x2 = 4;\n    const int y2 = 6;\n\n    // TODO: print std::pow(3, 4), then std::abs(-12.5), each on its own line\n    // TODO: print floor, ceil, and round of -2.5 on one line\n    // TODO: print the distance from (x1, y1) to (x2, y2) with std::hypot\n    // TODO: print std::sqrt(2) with 3 decimals\n    return 0;\n}\n",
+        "solution": "#include <cmath>\n#include <iomanip>\n#include <iostream>\n\nint main() {\n    const int x1 = 1;\n    const int y1 = 2;\n    const int x2 = 4;\n    const int y2 = 6;\n\n    std::cout << std::pow(3, 4) << '\\n';\n    std::cout << std::abs(-12.5) << '\\n';\n    std::cout << std::floor(-2.5) << ' ' << std::ceil(-2.5) << ' ' << std::round(-2.5) << '\\n';\n    std::cout << std::hypot(x2 - x1, y2 - y1) << '\\n';\n    std::cout << std::fixed << std::setprecision(3) << std::sqrt(2) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "81\n12.5\n-3 -2 -3\n5\n1.414"
+          }
+        ],
+        "hints": [
+          "Floor moves toward negative infinity, so -2.5 floors to -3 and ceils to -2.",
+          "`std::hypot` takes the horizontal and the vertical distance between the two points.",
+          "Put `std::fixed << std::setprecision(3)` just before `std::sqrt(2)`."
+        ]
+      }
+    },
+    {
+      "title": "min, max, clamp, and gcd",
+      "body": "`std::min` and `std::max` from `<algorithm>` return the smaller or larger of two values, so you no longer need a hand-written `maxOf` like the one in the Functions lesson. For three or more, put the values in braces, which makes an initializer list. `std::max` has an overload that takes one:\n\n```cpp\nstd::max(8, 3)            // 8\nstd::max({4, 19, 7, 11})  // 19\n```\n\nBoth arguments must have the **same type**. `std::max(3, 2.5)` does not compile, because one is an `int` and one is a `double`. Write `std::max(3.0, 2.5)` instead. The same trap hits `int` mixed with `long long`.\n\n`std::clamp(value, lo, hi)` (C++17) pins a value inside a range: below `lo` gives `lo`, above `hi` gives `hi`, otherwise the value itself. It replaces a nested min and max. Keep `lo` no greater than `hi`, or the result is undefined.\n\n`<numeric>` adds `std::gcd` and `std::lcm` (both C++17): the greatest common divisor and least common multiple of two integers.\n\n```cpp\nstd::clamp(150, 0, 100)  // 100\nstd::gcd(48, 18)         // 6\nstd::lcm(4, 6)           // 12\n```",
+      "example": {
+        "title": "Picking and limiting values",
+        "prompt": "Print the min and max of two numbers, the max of four, a clamped value, and a gcd and lcm.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <numeric>\n\nint main() {\n    std::cout << std::min(8, 3) << ' ' << std::max(8, 3) << '\\n';\n    std::cout << std::max({4, 19, 7, 11}) << '\\n';\n    std::cout << std::clamp(150, 0, 100) << '\\n';\n    std::cout << std::gcd(48, 18) << ' ' << std::lcm(4, 6) << '\\n';\n    return 0;\n}\n",
+        "output": "3 8\n19\n100\n6 12",
+        "explanation": "`std::min(8, 3)` and `std::max(8, 3)` compare two ints. The braces in `std::max({4, 19, 7, 11})` pass a whole list, and 19 wins. 150 is above the range 0 to 100, so `std::clamp` returns 100. 6 is the largest number dividing both 48 and 18, and 12 is the smallest number both 4 and 6 divide."
+      },
+      "practice": {
+        "title": "Smaller, larger, and limited",
+        "prompt": "Use min, max, clamp, gcd, and lcm on new values.\n\n1. Print `std::min(2.5, 1.75)` and `std::max(2.5, 1.75)` on the first line, separated by a space.\n2. Print the smallest of 9, 4, 12, 6, and 5 using one `std::min` call with braces.\n3. Print -20 clamped to the range 0 to 255.\n4. Print `std::gcd(84, 36)` and `std::lcm(6, 8)` on the last line, separated by a space.\n\nExpected output:\n\n```text\n1.75 2.5\n4\n0\n12 24\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <numeric>\n\nint main() {\n    // TODO: print the min and max of 2.5 and 1.75 on one line\n    // TODO: print the smallest of 9, 4, 12, 6, 5\n    // TODO: print -20 clamped to the range 0 to 255\n    // TODO: print the gcd of 84 and 36 and the lcm of 6 and 8 on one line\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <numeric>\n\nint main() {\n    std::cout << std::min(2.5, 1.75) << ' ' << std::max(2.5, 1.75) << '\\n';\n    std::cout << std::min({9, 4, 12, 6, 5}) << '\\n';\n    std::cout << std::clamp(-20, 0, 255) << '\\n';\n    std::cout << std::gcd(84, 36) << ' ' << std::lcm(6, 8) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "1.75 2.5\n4\n0\n12 24"
+          }
+        ],
+        "hints": [
+          "Both arguments are doubles here, so `std::min(2.5, 1.75)` compiles.",
+          "Wrap the five values in braces: `std::min({9, 4, 12, 6, 5})`.",
+          "The argument order is `std::clamp(value, lo, hi)`."
+        ]
+      }
+    },
+    {
+      "title": "Whole-vector helpers",
+      "body": "`<algorithm>` and `<numeric>` also work on a whole vector at once. You pass `v.begin(), v.end()`, which means \"from the first element to the end\". The Iterators lesson explains what these are.\n\n```cpp\nstd::sort(v.begin(), v.end());              // ascending, in place\nstd::reverse(v.begin(), v.end());           // flip the order\nstd::count(v.begin(), v.end(), 2)           // how many 2s\n*std::max_element(v.begin(), v.end())       // largest value\nstd::accumulate(v.begin(), v.end(), 0)      // sum, from <numeric>\n```\n\n`std::max_element` and `std::min_element` return the *position* of the value, and the `*` in front reads the value there. Never use them on an empty vector, because there is no element to read.\n\n`std::accumulate` adds onto its start value, and **the start value sets the result type**. Start from `0` for an `int` sum, `0LL` when it may pass 2 billion, and `0.0` for doubles or an average. With `0`, every partial sum is an `int`, so doubles get truncated.\n\n`std::iota(v.begin(), v.end(), 1)` fills 1, 2, 3, and so on, and `std::fill(v.begin(), v.end(), 0)` sets every element to 0. `<numeric>` also has `std::partial_sum`, the library version of the running totals you wrote by hand.",
+      "example": {
+        "title": "Number stats",
+        "prompt": "Sum, average, count, and find the extremes of a vector, then sort, reverse, iota, and fill.",
+        "code": "#include <algorithm>\n#include <cstddef>\n#include <iomanip>\n#include <iostream>\n#include <numeric>\n#include <vector>\n\nvoid printVector(std::vector<int> values) {\n    for (std::size_t i = 0; i < values.size(); ++i) {\n        if (i > 0) {\n            std::cout << ' ';\n        }\n        std::cout << values[i];\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    std::vector<int> v = {5, 2, 9, 2, 7};\n\n    const int sum = std::accumulate(v.begin(), v.end(), 0);\n    const double average = std::accumulate(v.begin(), v.end(), 0.0) / v.size();\n    std::cout << std::fixed << std::setprecision(2);\n    std::cout << sum << ' ' << average << '\\n';\n    std::cout << std::count(v.begin(), v.end(), 2) << '\\n';\n    std::cout << *std::max_element(v.begin(), v.end()) << ' '\n              << *std::min_element(v.begin(), v.end()) << '\\n';\n\n    std::sort(v.begin(), v.end());\n    printVector(v);\n    std::reverse(v.begin(), v.end());\n    printVector(v);\n\n    std::vector<int> ids(5);\n    std::iota(ids.begin(), ids.end(), 1);\n    printVector(ids);\n    std::fill(ids.begin(), ids.end(), 0);\n    printVector(ids);\n    return 0;\n}\n",
+        "output": "25 5.00\n2\n9 2\n2 2 5 7 9\n9 7 5 2 2\n1 2 3 4 5\n0 0 0 0 0",
+        "explanation": "Starting `std::accumulate` from `0` gives the int sum 25. Starting from `0.0` makes the sum a `double`, so dividing by the size gives 5.00 instead of integer division. `std::count` finds two 2s. `std::sort` and `std::reverse` change `v` in place, so each `printVector` call shows the new order. `ids(5)` starts as five zeros, `std::iota` counts up from 1, and `std::fill` resets every element. `printVector` takes its vector by value, which copies it: fine for five ints."
+      },
+      "practice": {
+        "title": "Score report",
+        "prompt": "Build a report for five scores and number a row of seats using only library helpers.\n\n1. Print the sum of `scores` and their average with exactly 2 decimals on the first line, separated by a space.\n2. Print how many scores equal 92.\n3. Print the highest and lowest score on one line, separated by a space.\n4. Sort `scores` ascending and print them with `printVector`, then reverse them and print again.\n5. Fill `seats` with 101, 102, 103, 104 using `std::iota` and print it, then set every seat to 7 with `std::fill` and print it.\n\nExpected output:\n\n```text\n407 81.40\n2\n92 60\n60 75 88 92 92\n92 92 88 75 60\n101 102 103 104\n7 7 7 7\n```",
+        "starter": "#include <algorithm>\n#include <cstddef>\n#include <iomanip>\n#include <iostream>\n#include <numeric>\n#include <vector>\n\nvoid printVector(std::vector<int> values) {\n    for (std::size_t i = 0; i < values.size(); ++i) {\n        if (i > 0) {\n            std::cout << ' ';\n        }\n        std::cout << values[i];\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    std::vector<int> scores = {88, 92, 75, 92, 60};\n    std::vector<int> seats(4);\n\n    // TODO: print the sum and the average (2 decimals) on one line\n    // TODO: print how many scores are 92\n    // TODO: print the max and min score on one line\n    // TODO: sort scores and print them, then reverse and print again\n    // TODO: fill seats with 101, 102, ... and print, then set all to 7 and print\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <cstddef>\n#include <iomanip>\n#include <iostream>\n#include <numeric>\n#include <vector>\n\nvoid printVector(std::vector<int> values) {\n    for (std::size_t i = 0; i < values.size(); ++i) {\n        if (i > 0) {\n            std::cout << ' ';\n        }\n        std::cout << values[i];\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    std::vector<int> scores = {88, 92, 75, 92, 60};\n    std::vector<int> seats(4);\n\n    const int sum = std::accumulate(scores.begin(), scores.end(), 0);\n    const double average = std::accumulate(scores.begin(), scores.end(), 0.0) / scores.size();\n    std::cout << std::fixed << std::setprecision(2);\n    std::cout << sum << ' ' << average << '\\n';\n    std::cout << std::count(scores.begin(), scores.end(), 92) << '\\n';\n    std::cout << *std::max_element(scores.begin(), scores.end()) << ' '\n              << *std::min_element(scores.begin(), scores.end()) << '\\n';\n\n    std::sort(scores.begin(), scores.end());\n    printVector(scores);\n    std::reverse(scores.begin(), scores.end());\n    printVector(scores);\n\n    std::iota(seats.begin(), seats.end(), 101);\n    printVector(seats);\n    std::fill(seats.begin(), seats.end(), 7);\n    printVector(seats);\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "407 81.40\n2\n92 60\n60 75 88 92 92\n92 92 88 75 60\n101 102 103 104\n7 7 7 7"
+          }
+        ],
+        "hints": [
+          "Every helper takes `scores.begin(), scores.end()` first.",
+          "Start the average's `std::accumulate` from `0.0` so the division is not integer division.",
+          "Descending order is `std::sort` followed by `std::reverse`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `<cmath>`: `std::sqrt`, `std::pow`, `std::abs`, `std::hypot`, `std::floor`, `std::ceil`, `std::round`. They return `double`, except `std::abs` of an `int`, which stays an `int`.\n- `std::round` moves halves away from zero, and `std::floor` goes toward negative infinity.\n- Large `std::pow` results print in scientific notation, and casting a `double` to an integer truncates, so use a loop for whole-number powers.\n- `std::min` and `std::max` need two arguments of the same type. Use braces for three or more.\n- `std::clamp`, `std::gcd`, and `std::lcm` are C++17 helpers.\n- `v.begin(), v.end()` passes the whole vector to `std::sort`, `std::reverse`, `std::count`, `std::fill`, `std::iota`, and `std::accumulate`.\n- The start value of `std::accumulate` sets the result type: `0`, `0LL`, or `0.0`.\n- `*std::max_element` reads the largest value. Never call it on an empty vector."
+}

@@ -1,0 +1,90 @@
+{
+  "id": "decorators",
+  "title": "Closures and Decorators",
+  "section": "Pythonic Python",
+  "summary": "Return functions from functions, then wrap functions with decorators to add behavior.",
+  "intro": "A function can build and return another function that remembers the values around it. That idea, the closure, is what powers decorators: the `@name` lines that add logging, counting, or repeating to a function without touching its body.",
+  "steps": [
+    {
+      "title": "Functions inside functions",
+      "body": "A `def` can sit inside another `def`. The outer function can then return the inner one, without parentheses, so the caller gets a function back:\n\n```python\ndef make_adder(n):\n    def add(x):\n        return x + n\n\n    return add\n\n\nadd_five = make_adder(5)\nprint(add_five(2))  # 7\n```\n\nThe inner function is a **closure**: it remembers `n` even after `make_adder` has returned. Each call to `make_adder` makes a fresh closure with its own `n`.\n\nReading an outer variable just works. To change one, declare it with `nonlocal`. Without it, `count += 1` inside the inner function makes `count` a local name, so calling it fails:\n\n```python\n# count += 1  # UnboundLocalError: cannot access local variable 'count' where it is not associated with a value\n```\n\n**Gotcha:** a closure reads a variable's value when it runs, not when it was made. Lambdas built in a loop all see the last value. Fix it with a default argument, which is evaluated right away:\n\n```python\nprint([f() for f in [lambda: i for i in range(3)]])  # [2, 2, 2]\nprint([f() for f in [lambda i=i: i for i in range(3)]])  # [0, 1, 2]\n```",
+      "example": {
+        "title": "Multipliers and counters",
+        "prompt": "Write make_multiplier(n) that returns a function, and make_counter() that counts calls with nonlocal, then call each a few times.",
+        "code": "def make_multiplier(n):\n    def multiply(x):\n        return x * n\n\n    return multiply\n\n\ndef make_counter():\n    count = 0\n\n    def counter():\n        nonlocal count\n        count += 1\n        return count\n\n    return counter\n\n\ndouble = make_multiplier(2)\ntriple = make_multiplier(3)\nprint(double(5), triple(5))\nprint(double(triple(4)))\n\ntick = make_counter()\ntock = make_counter()\nprint(tick(), tick(), tick())\nprint(tock())\n",
+        "output": "10 15\n24\n1 2 3\n1",
+        "explanation": "`make_multiplier(2)` returns the inner `multiply` with `n` set to 2, and `make_multiplier(3)` returns a separate closure with `n` set to 3. `double(triple(4))` is `(4 * 3) * 2`. In `make_counter`, `nonlocal count` lets `counter` update the outer `count`, so it survives between calls. `tick` and `tock` each got their own `count`, which is why `tock()` starts again at 1."
+      },
+      "practice": {
+        "title": "Greeters and accumulators",
+        "prompt": "Build two closure factories: one that greets and one that keeps a running total.\n\n1. Make `make_greeter(greeting)` return an inner function `greet(name)` that returns `\"<greeting>, <name>!\"`.\n2. Make `make_accumulator()` start `total` at 0 and return an inner function `add(amount)` that adds `amount` to `total` with `nonlocal` and returns the new total.\n3. Keep the calls at the bottom as they are.\n\nExpected output:\n\n```text\nHello, Ana!\nHowdy, Ben!\n10 15 35\n7\n```",
+        "starter": "def make_greeter(greeting):\n    def greet(name):\n        # TODO: return the greeting, a comma, a space, the name, and \"!\"\n        return \"\"\n\n    return greet\n\n\ndef make_accumulator():\n    total = 0\n\n    def add(amount):\n        # TODO: update total with nonlocal and return the new total\n        return 0\n\n    return add\n\n\nhello = make_greeter(\"Hello\")\nhowdy = make_greeter(\"Howdy\")\nprint(hello(\"Ana\"))\nprint(howdy(\"Ben\"))\n\ntally = make_accumulator()\nother = make_accumulator()\nprint(tally(10), tally(5), tally(20))\nprint(other(7))\n",
+        "solution": "def make_greeter(greeting):\n    def greet(name):\n        return f\"{greeting}, {name}!\"\n\n    return greet\n\n\ndef make_accumulator():\n    total = 0\n\n    def add(amount):\n        nonlocal total\n        total += amount\n        return total\n\n    return add\n\n\nhello = make_greeter(\"Hello\")\nhowdy = make_greeter(\"Howdy\")\nprint(hello(\"Ana\"))\nprint(howdy(\"Ben\"))\n\ntally = make_accumulator()\nother = make_accumulator()\nprint(tally(10), tally(5), tally(20))\nprint(other(7))\n",
+        "tests": [
+          {
+            "output": "Hello, Ana!\nHowdy, Ben!\n10 15 35\n7"
+          }
+        ],
+        "hints": [
+          "`greet` can read `greeting` directly, so one f-string with both names is enough.",
+          "Declare `nonlocal total` at the top of `add`, then update `total` and return it."
+        ]
+      }
+    },
+    {
+      "title": "Writing a decorator",
+      "body": "A **decorator** is a function that takes a function and returns a new one, usually a `wrapper` closure that runs extra code around the original. Give the wrapper `*args, **kwargs` to collect whatever the caller passes, then spread it back out with `func(*args, **kwargs)`, the same stars from the last lesson. That way it works for any signature:\n\n```python\ndef log(func):\n    def wrapper(*args, **kwargs):\n        print(\"before\")\n        return func(*args, **kwargs)\n\n    return wrapper\n```\n\nWriting `@log` on the line above a `def` is shorthand for `f = log(f)`. It runs once, when the `def` runs, and from then on the name points to the wrapper. Forget the `return` inside the wrapper and every call gives back `None`.\n\nThe wrapper replaces the original, so `f.__name__` would say `\"wrapper\"`. Add `@functools.wraps(func)` above the wrapper (after `import functools`) to copy the original's name and docstring onto it.\n\nFunctions are objects, so a wrapper can carry its own state as an attribute. Set `wrapper.calls = 0` before returning it, then do `wrapper.calls += 1` inside. Every call to the decorated function shares that one counter.",
+      "example": {
+        "title": "Announce each call",
+        "prompt": "Write a decorator that prints a line before and after each call and counts calls, apply it to add(a, b), and print its results, name, and call count.",
+        "code": "import functools\n\n\ndef announce(func):\n    @functools.wraps(func)\n    def wrapper(*args, **kwargs):\n        wrapper.calls += 1\n        print(f\"Calling {func.__name__}\")\n        result = func(*args, **kwargs)\n        print(f\"Done {func.__name__}\")\n        return result\n\n    wrapper.calls = 0\n    return wrapper\n\n\n@announce\ndef add(a, b):\n    return a + b\n\n\nprint(add(2, 3))\nprint(add(10, b=5))\nprint(add.__name__, add.calls)\n",
+        "output": "Calling add\nDone add\n5\nCalling add\nDone add\n15\nadd 2",
+        "explanation": "`@announce` replaces `add` with `wrapper`. Each call bumps `wrapper.calls`, prints a line, calls the real `add` with the same arguments, prints again, and returns the result, which the outer `print()` shows. `add(10, b=5)` works because `*args` collects `10` and `**kwargs` collects `b=5`. Thanks to `functools.wraps`, `add.__name__` is still `add`, and `add.calls` is the counter stored on the wrapper."
+      },
+      "practice": {
+        "title": "Shout the result",
+        "prompt": "Write a decorator that shouts a function's string result and counts its calls.\n\n1. Make `shout(func)` define a `wrapper(*args, **kwargs)` decorated with `@functools.wraps(func)`.\n2. Inside the wrapper, add 1 to `wrapper.calls` and return the function's result in uppercase.\n3. Set `wrapper.calls = 0` and return the wrapper.\n4. Put `@shout` above `greet`, then print `greet.__name__` and `greet.calls` separated by a space.\n\nExpected output:\n\n```text\nHELLO, ANA!\nHELLO, BEN?\ngreet 2\n```",
+        "starter": "import functools\n\n\ndef shout(func):\n    # TODO: wrap func: count calls in wrapper.calls, return the uppercased result\n    return func\n\n\n# TODO: decorate greet with @shout\ndef greet(name, punctuation=\"!\"):\n    return f\"hello, {name}{punctuation}\"\n\n\nprint(greet(\"ana\"))\nprint(greet(\"ben\", punctuation=\"?\"))\n# TODO: print greet.__name__ and greet.calls\n",
+        "solution": "import functools\n\n\ndef shout(func):\n    @functools.wraps(func)\n    def wrapper(*args, **kwargs):\n        wrapper.calls += 1\n        return func(*args, **kwargs).upper()\n\n    wrapper.calls = 0\n    return wrapper\n\n\n@shout\ndef greet(name, punctuation=\"!\"):\n    return f\"hello, {name}{punctuation}\"\n\n\nprint(greet(\"ana\"))\nprint(greet(\"ben\", punctuation=\"?\"))\nprint(greet.__name__, greet.calls)\n",
+        "tests": [
+          {
+            "output": "HELLO, ANA!\nHELLO, BEN?\ngreet 2"
+          }
+        ],
+        "hints": [
+          "Follow `announce` from the example: same wrapper shape, same `wrapper.calls` counter.",
+          "Inside the wrapper, call `func(*args, **kwargs)` and return the uppercased version of what it gives back.",
+          "Put `@shout` on the line right above `def greet`."
+        ]
+      }
+    },
+    {
+      "title": "Decorators with arguments and stacking",
+      "body": "To give a decorator settings, add one more layer. A **decorator factory** takes the settings and returns a decorator, which takes the function and returns the wrapper. The wrapper is a closure over both:\n\n```python\ndef repeat(times):\n    def decorator(func):\n        ...  # define wrapper(*args, **kwargs) here\n        return wrapper\n\n    return decorator\n```\n\n`@repeat(3)` first calls `repeat(3)`, then applies the decorator it returns. The parentheses matter: a bare `@repeat` would pass the function itself in as `times`.\n\nYou can **stack** decorators. The one closest to the `def` wraps first, and the top one wraps the result:\n\n```python\n@announce\n@repeat(2)\ndef hello():\n    print(\"Hello!\")\n\n\n# same as: hello = announce(repeat(2)(hello))\n```\n\nWhen you call `hello()`, the outermost wrapper runs first. So `announce` prints once, then the `repeat` wrapper runs the original twice. Swap the two lines and `announce` would print on each of the two calls instead.",
+      "example": {
+        "title": "Repeat and announce",
+        "prompt": "Write a repeat(times) decorator factory, stack announce over repeat(2) on hello(), and show the order things print.",
+        "code": "import functools\n\n\ndef repeat(times):\n    def decorator(func):\n        @functools.wraps(func)\n        def wrapper(*args, **kwargs):\n            result = None\n            for _ in range(times):\n                result = func(*args, **kwargs)\n            return result\n\n        return wrapper\n\n    return decorator\n\n\ndef announce(func):\n    @functools.wraps(func)\n    def wrapper(*args, **kwargs):\n        print(f\"Calling {func.__name__}\")\n        return func(*args, **kwargs)\n\n    return wrapper\n\n\n@announce\n@repeat(2)\ndef hello():\n    print(\"Hello!\")\n\n\n@repeat(3)\ndef cheer(team):\n    print(f\"Go {team}!\")\n\n\nhello()\ncheer(\"Owls\")\nprint(hello.__name__)\n",
+        "output": "Calling hello\nHello!\nHello!\nGo Owls!\nGo Owls!\nGo Owls!\nhello",
+        "explanation": "`repeat(2)` returns a decorator that remembers `times = 2`, and that decorator wraps `hello` first. `announce` then wraps the result. Calling `hello()` runs the `announce` wrapper, which prints once and calls the `repeat` wrapper, which runs the original twice. `cheer` uses a factory on its own and passes its argument through. Both layers use `functools.wraps`, so the name survives all the way out."
+      },
+      "practice": {
+        "title": "Stacked prefixes",
+        "prompt": "Write a decorator factory that puts a label in front of a function's string result, then stack it.\n\n1. Make `prefix(text)` return a decorator whose wrapper returns `text`, a space, and then the decorated function's result.\n2. Use `@functools.wraps(func)` on the wrapper.\n3. Keep the decorators and calls at the bottom as they are. `status` has `@prefix(\"A:\")` stacked over `@prefix(\"B:\")`.\n\nExpected output:\n\n```text\nA: B: db is up\nNote: save often\nstatus\n```",
+        "starter": "import functools\n\n\ndef prefix(text):\n    # TODO: return a decorator whose wrapper returns text, a space, and the result\n    return lambda func: func\n\n\n@prefix(\"A:\")\n@prefix(\"B:\")\ndef status(name):\n    return f\"{name} is up\"\n\n\n@prefix(\"Note:\")\ndef tip():\n    return \"save often\"\n\n\nprint(status(\"db\"))\nprint(tip())\nprint(status.__name__)\n",
+        "solution": "import functools\n\n\ndef prefix(text):\n    def decorator(func):\n        @functools.wraps(func)\n        def wrapper(*args, **kwargs):\n            return f\"{text} {func(*args, **kwargs)}\"\n\n        return wrapper\n\n    return decorator\n\n\n@prefix(\"A:\")\n@prefix(\"B:\")\ndef status(name):\n    return f\"{name} is up\"\n\n\n@prefix(\"Note:\")\ndef tip():\n    return \"save often\"\n\n\nprint(status(\"db\"))\nprint(tip())\nprint(status.__name__)\n",
+        "tests": [
+          {
+            "output": "A: B: db is up\nNote: save often\nstatus"
+          }
+        ],
+        "hints": [
+          "Use three layers like `repeat`: `prefix(text)` returns `decorator(func)`, which returns `wrapper(*args, **kwargs)`.",
+          "The wrapper builds an f-string that puts `text` and a space before the result of calling `func`.",
+          "`B:` wraps first because it is closest to the `def`, so `A:` ends up in front."
+        ]
+      }
+    }
+  ],
+  "recap": "- A nested `def` can be returned without parentheses. It is a closure that remembers the outer variables.\n- Use `nonlocal name` to update an outer variable from the inner function.\n- Closures read a variable when they run, so loop lambdas need `lambda i=i: i`.\n- A decorator takes a function and returns a `wrapper(*args, **kwargs)` that calls it. `@deco` means `f = deco(f)`.\n- `@functools.wraps(func)` keeps the original `__name__`.\n- State such as `wrapper.calls` can live on the wrapper itself.\n- A decorator factory such as `repeat(times)` returns a decorator, used as `@repeat(3)`.\n- Stacked decorators wrap from the bottom up and run from the top down."
+}

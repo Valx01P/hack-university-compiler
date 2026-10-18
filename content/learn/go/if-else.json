@@ -1,0 +1,88 @@
+{
+  "id": "if-else",
+  "title": "If, Else If, Else",
+  "section": "Control Flow",
+  "summary": "Choose between branches with else and else if, and order the conditions so the right branch wins.",
+  "intro": "An `if` alone can only skip code. Add `else` and `else if` and your program picks exactly one path out of several.",
+  "steps": [
+    {
+      "title": "else",
+      "body": "An `else` block runs when the `if` condition is false. Exactly one of the two blocks runs, never both and never neither.\n\n```go\nif n%2 == 0 {\n\tfmt.Println(\"even\")\n} else {\n\tfmt.Println(\"odd\")\n}\n```\n\nKeep `} else {` on one line. Go adds a semicolon at the end of any line that ends in `}`, so an `else` on the next line is a separate statement and fails to compile with `syntax error: unexpected else, expecting }`. gofmt always writes it the joined way.\n\nEach block is its own scope: a variable made with `:=` inside a branch is gone after the closing brace. A variable from an `if` init statement is the exception you can lean on: it is visible in the `else` too.\n\n```go\nif r := n % 3; r == 0 {\n\tfmt.Println(\"divisible\")\n} else {\n\tfmt.Println(\"remainder\", r)\n}\n```",
+      "example": {
+        "title": "Odd or even, pass or fail",
+        "prompt": "Print whether 7 is odd or even, then print Pass or Fail for a score of 72 with a pass mark of 60.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tn := 7\n\tif n%2 == 0 {\n\t\tfmt.Println(n, \"is even\")\n\t} else {\n\t\tfmt.Println(n, \"is odd\")\n\t}\n\n\tscore := 72\n\tif score >= 60 {\n\t\tfmt.Println(\"Pass\")\n\t} else {\n\t\tfmt.Println(\"Fail\")\n\t}\n}\n",
+        "output": "7 is odd\nPass",
+        "explanation": "`7%2` is 1, so `n%2 == 0` is false and the `else` block prints `7 is odd`. For the score, `72 >= 60` is true, so the `if` block prints `Pass` and the `else` block is skipped."
+      },
+      "practice": {
+        "title": "Debt and stock",
+        "prompt": "Print an account status and a stock status, each chosen with an if and an else.\n\n1. With `balance := -15`, print `In debt` when the balance is below 0, otherwise `In credit`.\n2. With `stock := 0`, print `Sold out` when the stock is 0, otherwise `Available`.\n3. Remove the `_ =` lines and the placeholder `fmt.Println()` once you use the variables.\n\nExpected output:\n\n```text\nIn debt\nSold out\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tbalance := -15\n\tstock := 0\n\t_ = balance\n\t_ = stock\n\n\t// TODO: print In debt when balance is below 0, otherwise In credit\n\t// TODO: print Sold out when stock is 0, otherwise Available\n\tfmt.Println() // placeholder that keeps the fmt import in use, replace it\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tbalance := -15\n\tif balance < 0 {\n\t\tfmt.Println(\"In debt\")\n\t} else {\n\t\tfmt.Println(\"In credit\")\n\t}\n\n\tstock := 0\n\tif stock == 0 {\n\t\tfmt.Println(\"Sold out\")\n\t} else {\n\t\tfmt.Println(\"Available\")\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "In debt\nSold out"
+          }
+        ],
+        "hints": [
+          "Each status needs one `if` and one `else`: the `if` block prints the first word and the `else` block prints the other.",
+          "The conditions are `balance < 0` and `stock == 0`. Keep each `} else {` on the line of the closing brace."
+        ]
+      }
+    },
+    {
+      "title": "else if chains",
+      "body": "To choose between more than two paths, chain `else if` between the `if` and the final `else`. Go tests the conditions from top to bottom and runs only the first block whose condition is true. Everything after it is skipped, even conditions that would also be true. Separate `if` statements behave differently: Go checks every one of them, so several could run. The final `else` catches whatever is left, and you can leave it out.\n\n```go\nif temp >= 30 {\n\tfmt.Println(\"hot\")\n} else if temp >= 15 {\n\tfmt.Println(\"mild\")\n} else {\n\tfmt.Println(\"cold\")\n}\n```\n\nBecause the first match wins, order matters. With `>=` checks, start at the highest threshold. If you test `temp >= 15` first, a temperature of 35 stops there and prints `mild`. With `<` checks it is the other way around: start at the lowest. Put the most specific condition first and the broadest last.\n\nTo use the result after the chain, declare the variable before it with `var grade string` and assign it with `=` in each branch. A `:=` inside a branch would make a new variable that disappears at the closing brace.",
+      "example": {
+        "title": "Letter grade",
+        "prompt": "Turn a score of 83 into a letter grade: 90 and up is A, 80 and up is B, 70 and up is C, anything lower is F.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tscore := 83\n\n\tvar grade string\n\tif score >= 90 {\n\t\tgrade = \"A\"\n\t} else if score >= 80 {\n\t\tgrade = \"B\"\n\t} else if score >= 70 {\n\t\tgrade = \"C\"\n\t} else {\n\t\tgrade = \"F\"\n\t}\n\n\tfmt.Println(\"Grade:\", grade)\n}\n",
+        "output": "Grade: B",
+        "explanation": "`83 >= 90` is false, so Go moves on. `83 >= 80` is true, so `grade` becomes `\"B\"` and the rest of the chain is skipped, including `83 >= 70`, which is also true. `grade` was declared before the chain, so it still exists for the final `fmt.Println`."
+      },
+      "practice": {
+        "title": "Shipping tier",
+        "prompt": "Turn a parcel weight into a shipping tier with an if, else if, else chain.\n\n1. Use `weight := 3.2` (kilograms).\n2. Set `tier` to `Small` under 1, `Medium` under 5, `Large` under 20, and `Freight` otherwise.\n3. Print `Tier:` followed by a space and the tier.\n\nExpected output:\n\n```text\nTier: Medium\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tweight := 3.2 // kg\n\t_ = weight\n\n\tvar tier string\n\t// TODO: set tier with an if, else if, else chain on weight\n\n\tfmt.Println(\"Tier:\", tier)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tweight := 3.2 // kg\n\n\tvar tier string\n\tif weight < 1 {\n\t\ttier = \"Small\"\n\t} else if weight < 5 {\n\t\ttier = \"Medium\"\n\t} else if weight < 20 {\n\t\ttier = \"Large\"\n\t} else {\n\t\ttier = \"Freight\"\n\t}\n\n\tfmt.Println(\"Tier:\", tier)\n}\n",
+        "tests": [
+          {
+            "output": "Tier: Medium"
+          }
+        ],
+        "hints": [
+          "These checks use `<`, so start with the smallest limit: `if weight < 1 {`.",
+          "Assign with `tier = \"Medium\"`, not `:=`, so the outer `tier` changes."
+        ]
+      }
+    },
+    {
+      "title": "Nested conditions",
+      "body": "Any block can hold another `if`, so you can nest a decision inside an `if` or an `else`. Nesting fits rules that refine each other, like leap years: divisible by 4, except that a century must also be divisible by 400.\n\n```go\nif year%4 == 0 {\n\tif year%100 == 0 {\n\t\t// a century: check 400\n\t} else {\n\t\t// a leap year\n\t}\n}\n```\n\nDeep nesting is hard to read, so you can often fold it into one condition. An `if a { if b { ... } }` with no `else` is the same as `if a && b { ... }`. When either of two paths leads to the same result, join them with `||`. The whole leap year rule becomes:\n\n```go\nyear%4 == 0 && (year%100 != 0 || year%400 == 0)\n```\n\nKeep the parentheses. `&&` binds tighter than `||`, so without them Go reads `(year%4 == 0 && year%100 != 0) || year%400 == 0`, which here happens to agree but often does not. Parentheses make the grouping you mean explicit.",
+      "example": {
+        "title": "Leap years",
+        "prompt": "Decide whether 1900 is a leap year with nested ifs, then decide for 2024 with a single condition.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tyear := 1900\n\tif year%4 == 0 {\n\t\tif year%100 == 0 {\n\t\t\tif year%400 == 0 {\n\t\t\t\tfmt.Println(year, \"is a leap year\")\n\t\t\t} else {\n\t\t\t\tfmt.Println(year, \"is not a leap year\")\n\t\t\t}\n\t\t} else {\n\t\t\tfmt.Println(year, \"is a leap year\")\n\t\t}\n\t} else {\n\t\tfmt.Println(year, \"is not a leap year\")\n\t}\n\n\tyear = 2024\n\tif year%4 == 0 && (year%100 != 0 || year%400 == 0) {\n\t\tfmt.Println(year, \"is a leap year\")\n\t} else {\n\t\tfmt.Println(year, \"is not a leap year\")\n\t}\n}\n",
+        "output": "1900 is not a leap year\n2024 is a leap year",
+        "explanation": "1900 is divisible by 4, so Go enters the outer block. It is also divisible by 100, so it enters the next one. It is not divisible by 400, so the innermost `else` runs. For 2024, `year%4 == 0` is true and `year%100 != 0` is true, so `||` short-circuits and the whole condition is true."
+      },
+      "practice": {
+        "title": "Free shipping",
+        "prompt": "Shipping is free from 25 dollars for members and from 50 dollars for everyone else. Decide two orders, first with nested ifs and then with one condition.\n\n1. With `member := true` and `order := 30`, write `if member { ... } else { ... }` with an if/else on `order` inside each branch (25 for members, 50 otherwise).\n2. Then with `member = false` and `order = 40`, decide with one if/else on `order >= 50 || (member && order >= 25)`.\n3. Print each result with `fmt.Printf` as `Order <amount>: free shipping` or `Order <amount>: pay shipping`.\n4. Remove the `_ =` lines and the placeholder `fmt.Println()`.\n\nExpected output:\n\n```text\nOrder 30: free shipping\nOrder 40: pay shipping\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmember := true\n\torder := 30\n\t_ = member\n\t_ = order\n\t// TODO: decide with nested ifs: if member { ... } else { ... },\n\t// each holding an if/else on order (25 for members, 50 otherwise)\n\n\tmember = false\n\torder = 40\n\t// TODO: decide again with one if/else on the single condition\n\t// order >= 50 || (member && order >= 25)\n\n\tfmt.Println() // placeholder that keeps the fmt import in use, replace it\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmember := true\n\torder := 30\n\tif member {\n\t\tif order >= 25 {\n\t\t\tfmt.Printf(\"Order %d: free shipping\\n\", order)\n\t\t} else {\n\t\t\tfmt.Printf(\"Order %d: pay shipping\\n\", order)\n\t\t}\n\t} else {\n\t\tif order >= 50 {\n\t\t\tfmt.Printf(\"Order %d: free shipping\\n\", order)\n\t\t} else {\n\t\t\tfmt.Printf(\"Order %d: pay shipping\\n\", order)\n\t\t}\n\t}\n\n\tmember = false\n\torder = 40\n\tif order >= 50 || (member && order >= 25) {\n\t\tfmt.Printf(\"Order %d: free shipping\\n\", order)\n\t} else {\n\t\tfmt.Printf(\"Order %d: pay shipping\\n\", order)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "Order 30: free shipping\nOrder 40: pay shipping"
+          }
+        ],
+        "hints": [
+          "Inside `if member {` write `if order >= 25 {` with an `else`. Inside the outer `else`, do the same with 50.",
+          "In the `fmt.Printf` format, `%d` stands for the amount and `\\n` ends the line. `fmt.Println(\"Order\", order, \":\")` would put a space before the colon."
+        ]
+      }
+    }
+  ],
+  "recap": "- `if cond { } else { }` runs exactly one of the two blocks.\n- Keep `} else {` on one line, or automatic semicolon insertion breaks the code.\n- In an `else if` chain only the first true branch runs, so put the most specific condition first.\n- Declare a result with `var` before the chain and assign it with `=` in each branch.\n- Nest an `if` inside an `if` or `else` when rules refine each other.\n- Nested ifs with no `else` fold into `&&`, alternative paths fold into `||`, and parentheses keep the grouping clear."
+}

@@ -1,0 +1,114 @@
+{
+  "id": "array-loops",
+  "title": "Looping Over Arrays and Lists",
+  "section": "Arrays and Lists",
+  "summary": "Visit every element with index for loops, the enhanced for loop, while loops, and an Iterator, for arrays and ArrayLists.",
+  "intro": "Almost everything you do with an array or a list means visiting its elements one by one. Java gives you four ways: the index `for` loop, the enhanced for loop, a `while` loop that can stop early, and an `Iterator` that can remove as it goes. Each one fits a different job.",
+  "steps": [
+    {
+      "title": "Index for loop",
+      "body": "An index loop counts `i` from `0` up to `a.length - 1` and reads `a[i]` on each pass. Use `i < a.length`, never `<=`, or the last pass reads past the end and throws.\n\n```java\nint[] a = {4, 9, 2};\nfor (int i = 0; i < a.length; i++) {\n    System.out.println(i + \": \" + a[i]);\n}\n```\n\nThree patterns cover most array work:\n\n- **Sum:** start at `0` and add each element.\n- **Count:** start at `0` and add 1 when an `if` matches.\n- **Max or min:** start with a real candidate and replace it when you find a better one.\n\nStart a max at `a[0]`, or at `Integer.MIN_VALUE` so any element beats it. Never start it at `0`: in an array of only negative numbers, `0` wins and is not even in the array. A min works the same way with `a[0]` or `Integer.MAX_VALUE`. Starting at `a[0]` needs at least one element, so it fails on an empty array.",
+      "example": {
+        "title": "Sum, max, and count",
+        "prompt": "Find the sum, the max, and the count of values over 50 in an int array with one index loop.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        int[] values = {42, 77, 13, 91, 50, 68};\n\n        int sum = 0;\n        int max = values[0];\n        int over50 = 0;\n        for (int i = 0; i < values.length; i++) {\n            sum += values[i];\n            if (values[i] > max) {\n                max = values[i];\n            }\n            if (values[i] > 50) {\n                over50++;\n            }\n        }\n\n        System.out.println(\"Sum: \" + sum);\n        System.out.println(\"Max: \" + max);\n        System.out.println(\"Over 50: \" + over50);\n    }\n}\n",
+        "output": "Sum: 341\nMax: 91\nOver 50: 3",
+        "explanation": "One loop does all three jobs. Every pass adds `values[i]` to `sum`, replaces `max` when the element is bigger, and bumps `over50` when it is above 50. `max` starts at `values[0]`, so it always holds a real element. 50 itself is not counted because the test is `> 50`, not `>= 50`."
+      },
+      "practice": {
+        "title": "Daily balances",
+        "prompt": "Find the total, the minimum, and the number of negative values in an array of daily balances.\n\n1. Loop over `balances` with `for (int i = 0; i < balances.length; i++)`.\n2. Add each value to `total`.\n3. Replace `min` when `balances[i]` is smaller (it already starts at `balances[0]`).\n4. Add 1 to `negatives` for each value below 0.\n5. Keep the three print lines from the starter.\n\nExpected output:\n\n```text\nTotal: 155\nMin: -60\nNegative days: 3\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        int[] balances = {120, -35, 80, -10, 45, -60, 15};\n\n        int total = 0;\n        int min = balances[0];\n        int negatives = 0;\n        // TODO: loop over balances with an index for loop\n        // add each value to total, keep the smallest in min,\n        // and count the values below 0 in negatives\n\n        System.out.println(\"Total: \" + total);\n        System.out.println(\"Min: \" + min);\n        System.out.println(\"Negative days: \" + negatives);\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        int[] balances = {120, -35, 80, -10, 45, -60, 15};\n\n        int total = 0;\n        int min = balances[0];\n        int negatives = 0;\n        for (int i = 0; i < balances.length; i++) {\n            total += balances[i];\n            if (balances[i] < min) {\n                min = balances[i];\n            }\n            if (balances[i] < 0) {\n                negatives++;\n            }\n        }\n\n        System.out.println(\"Total: \" + total);\n        System.out.println(\"Min: \" + min);\n        System.out.println(\"Negative days: \" + negatives);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Total: 155\nMin: -60\nNegative days: 3"
+          }
+        ],
+        "hints": [
+          "Use one loop with two separate `if` statements inside, one for the min and one for the count.",
+          "The min check mirrors the max check from the example, with `<` in place of `>`."
+        ]
+      }
+    },
+    {
+      "title": "Enhanced for",
+      "body": "The enhanced for loop (often called for-each) hands you each element in order, with no index to manage:\n\n```java\nfor (int x : nums) {\n    sum += x;\n}\nfor (String s : names) {\n    System.out.println(s);\n}\n```\n\nRead it as \"for each `x` in `nums`\". The type before the colon is the element type. It reads cleaner and cannot run off the end of the array.\n\nThe catch: the loop variable is a **copy** of the element. Assigning to it changes the copy, not the array:\n\n```java\nfor (int x : nums) {\n    x = 0; // nums is unchanged\n}\n```\n\nFor a `String[]` the variable is a copy of the reference, so `s = \"Zed\"` leaves the array alone too.\n\nUse the index form when you need the position `i` or when you must write into the array (`nums[i] = 0`). Use for-each whenever you only read.",
+      "example": {
+        "title": "Names and scores",
+        "prompt": "Greet each name, count the scores of at least 50, then show that assigning the for-each variable changes nothing while an index loop really zeroes the array.",
+        "code": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] names = {\"Ana\", \"Ben\", \"Cleo\"};\n        int[] scores = {72, 45, 88, 50};\n\n        for (String name : names) {\n            System.out.println(\"Hello, \" + name);\n        }\n\n        int passing = 0;\n        for (int s : scores) {\n            if (s >= 50) {\n                passing++;\n            }\n        }\n        System.out.println(\"Passing: \" + passing);\n\n        for (int s : scores) {\n            s = 0; // changes only the copy\n        }\n        System.out.println(\"After s = 0: \" + Arrays.toString(scores));\n\n        for (int i = 0; i < scores.length; i++) {\n            scores[i] = 0;\n        }\n        System.out.println(\"After index loop: \" + Arrays.toString(scores));\n    }\n}\n",
+        "output": "Hello, Ana\nHello, Ben\nHello, Cleo\nPassing: 3\nAfter s = 0: [72, 45, 88, 50]\nAfter index loop: [0, 0, 0, 0]",
+        "explanation": "The first two loops only read, so for-each fits. In the third loop `s` is a fresh copy of each score, so `s = 0` throws the copy away and the array prints unchanged. The index loop writes through `scores[i]`, which is the real slot in the array, so every score becomes 0."
+      },
+      "practice": {
+        "title": "Cities and temperatures",
+        "prompt": "Print each city, count the hot days, then warm every temperature by one degree.\n\n1. Print `City: ` followed by each city, using `for (String city : cities)`.\n2. Count the temperatures above 25 into `hot` with `for (int t : temps)`.\n3. Add 1 to every element of `temps` with an index loop, since for-each cannot write into the array.\n4. Keep the two print lines from the starter.\n\nExpected output:\n\n```text\nCity: Lima\nCity: Oslo\nCity: Cairo\nHot days: 2\n[23, 32, 26, 19, 30]\n```",
+        "starter": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] cities = {\"Lima\", \"Oslo\", \"Cairo\"};\n        int[] temps = {22, 31, 25, 18, 29};\n\n        // TODO: print \"City: \" and each city with an enhanced for\n\n        int hot = 0;\n        // TODO: count the temps above 25 with for (int t : temps)\n        System.out.println(\"Hot days: \" + hot);\n\n        // TODO: add 1 to every temperature with an index loop\n        System.out.println(Arrays.toString(temps));\n    }\n}\n",
+        "solution": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        String[] cities = {\"Lima\", \"Oslo\", \"Cairo\"};\n        int[] temps = {22, 31, 25, 18, 29};\n\n        for (String city : cities) {\n            System.out.println(\"City: \" + city);\n        }\n\n        int hot = 0;\n        for (int t : temps) {\n            if (t > 25) {\n                hot++;\n            }\n        }\n        System.out.println(\"Hot days: \" + hot);\n\n        for (int i = 0; i < temps.length; i++) {\n            temps[i]++;\n        }\n        System.out.println(Arrays.toString(temps));\n    }\n}\n",
+        "tests": [
+          {
+            "output": "City: Lima\nCity: Oslo\nCity: Cairo\nHot days: 2\n[23, 32, 26, 19, 30]"
+          }
+        ],
+        "hints": [
+          "25 itself is not above 25, so use `t > 25`.",
+          "Inside an index loop, `temps[i]` is the real slot, so `++` on it changes the array."
+        ]
+      }
+    },
+    {
+      "title": "while over an array",
+      "body": "A plain `for` loop visits everything. When you want to stop at the first match, a `while` loop with two conditions says it directly:\n\n```java\nint i = 0;\nwhile (i < a.length && a[i] != target) {\n    i++;\n}\n```\n\nThe loop ends for one of two reasons: `i` ran off the end (no match), or `a[i]` matched. Check which one afterward with `i < a.length`.\n\nOrder matters. `&&` short-circuits, so when `i < a.length` is false Java never reads `a[i]`. Swap the two tests and, when nothing matches, the last check reads `a[a.length]`, which throws `ArrayIndexOutOfBoundsException`. Always put the index check first.\n\nA `for` loop with `break` does the same job. The `while` form keeps the stopping rule in one place, and `i` is still in scope after the loop, so you can use it as the answer.",
+      "example": {
+        "title": "First negative number",
+        "prompt": "Find the index of the first negative number in two arrays with a while loop, printing -1 when there is none.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        int[] readings = {4, 9, 0, -3, 7, -1};\n        int[] levels = {5, 2, 8};\n\n        int i = 0;\n        while (i < readings.length && readings[i] >= 0) {\n            i++;\n        }\n        int first = i < readings.length ? i : -1;\n        System.out.println(\"First negative in readings: \" + first);\n\n        i = 0;\n        while (i < levels.length && levels[i] >= 0) {\n            i++;\n        }\n        first = i < levels.length ? i : -1;\n        System.out.println(\"First negative in levels: \" + first);\n    }\n}\n",
+        "output": "First negative in readings: 3\nFirst negative in levels: -1",
+        "explanation": "The loop keeps going while the index is in range and the value is not negative. In `readings` it stops at index 3 and never looks at the later `-1`. In `levels` nothing matches, so `i` reaches `levels.length` and the ternary turns that into -1. Because `i < levels.length` comes first, the loop never reads `levels[3]`."
+      },
+      "practice": {
+        "title": "First failing score",
+        "prompt": "Find the index of the first score below 40 in two classes, printing -1 when there is none.\n\n1. Start an index at 0 and loop `while` it is in range and the score at it is at least 40.\n2. After the loop, if the index is still in range, store it in `firstA`. Otherwise `firstA` stays -1.\n3. Reset the index to 0 and do the same for `classB` into `firstB`.\n4. Keep the two print lines from the starter.\n\nExpected output:\n\n```text\nFirst fail in classA: 2\nFirst fail in classB: -1\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        int[] classA = {72, 55, 38, 90, 31};\n        int[] classB = {65, 48, 80};\n\n        int firstA = -1;\n        // TODO: find the index of the first score below 40 in classA with a while loop\n        System.out.println(\"First fail in classA: \" + firstA);\n\n        int firstB = -1;\n        // TODO: do the same for classB\n        System.out.println(\"First fail in classB: \" + firstB);\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        int[] classA = {72, 55, 38, 90, 31};\n        int[] classB = {65, 48, 80};\n\n        int firstA = -1;\n        int i = 0;\n        while (i < classA.length && classA[i] >= 40) {\n            i++;\n        }\n        if (i < classA.length) {\n            firstA = i;\n        }\n        System.out.println(\"First fail in classA: \" + firstA);\n\n        int firstB = -1;\n        i = 0;\n        while (i < classB.length && classB[i] >= 40) {\n            i++;\n        }\n        if (i < classB.length) {\n            firstB = i;\n        }\n        System.out.println(\"First fail in classB: \" + firstB);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "First fail in classA: 2\nFirst fail in classB: -1"
+          }
+        ],
+        "hints": [
+          "Copy the example's loop condition: the index check first, then the score test with `>= 40`.",
+          "When the loop ends with `i` still below `classA.length`, it stopped on a match, so `i` is the answer."
+        ]
+      }
+    },
+    {
+      "title": "Looping over an ArrayList",
+      "body": "Both loops work on a `List` too. The index form uses `size()` and `get(i)`. For-each works the same as with arrays:\n\n```java\nfor (int i = 0; i < list.size(); i++) {\n    System.out.println(list.get(i));\n}\nfor (int x : list) { ... }     // unboxes each Integer\nfor (Integer x : list) { ... } // keeps the wrapper\n```\n\n`for (int x : list)` throws `NullPointerException` if the list holds a `null`, so use `Integer` when nulls are possible.\n\nNever call `list.remove` or `list.add` inside a for-each over that same list. The loop's next pass usually throws `ConcurrentModificationException`, and when it does not, it silently skips elements. To remove while looping, use an `Iterator` (`import java.util.Iterator;`):\n\n```java\nIterator<Integer> it = list.iterator();\nwhile (it.hasNext()) {\n    int x = it.next();\n    if (x < 0) {\n        it.remove(); // removes x safely\n    }\n}\n```\n\n`hasNext()` asks if another element is left, `next()` returns it and moves on, and `it.remove()` deletes the element `next()` just returned. Call `next()` exactly once per pass, and `it.remove()` at most once after it.",
+      "example": {
+        "title": "Price list",
+        "prompt": "Sum a list of prices with for-each, print each price with its 1-based position using an index loop, then remove every price under 5 with an Iterator.",
+        "code": "import java.util.ArrayList;\nimport java.util.Iterator;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> prices = new ArrayList<>(List.of(12, 3, 8, 4, 20));\n\n        int total = 0;\n        for (int price : prices) {\n            total += price;\n        }\n        System.out.println(\"Total: \" + total);\n\n        for (int i = 0; i < prices.size(); i++) {\n            System.out.println((i + 1) + \": \" + prices.get(i));\n        }\n\n        Iterator<Integer> it = prices.iterator();\n        while (it.hasNext()) {\n            int price = it.next();\n            if (price < 5) {\n                it.remove();\n            }\n        }\n        System.out.println(\"Kept: \" + prices);\n    }\n}\n",
+        "output": "Total: 47\n1: 12\n2: 3\n3: 8\n4: 4\n5: 20\nKept: [12, 8, 20]",
+        "explanation": "For-each unboxes each `Integer` into `price` and adds it up. The index loop needs `i` for the position, so it prints `i + 1` (positions start at 1) next to `prices.get(i)`. The Iterator walks the list once, and `it.remove()` drops 3 and 4 without breaking the loop. The list is a mutable copy made with `new ArrayList<>(List.of(...))`, because a plain `List.of` list cannot shrink."
+      },
+      "practice": {
+        "title": "Rating cleanup",
+        "prompt": "Average a list of ratings, list the high ones by position, then drop the lowest ones.\n\n1. Add up the ratings into `sum` with `for (int r : ratings)`. The starter already prints the average to two decimals.\n2. With an index loop and `get(i)`, print `Position N: rating` for each rating above 3, where N is `i + 1`.\n3. Remove every rating below 2 with an `Iterator`, `hasNext()`, `next()`, and `it.remove()`.\n4. Keep the print lines from the starter.\n\nExpected output:\n\n```text\nAverage: 2.86\nPosition 1: 4\nPosition 3: 5\nPosition 7: 4\nKept: [4, 5, 3, 2, 4]\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.Iterator;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> ratings = new ArrayList<>(List.of(4, 1, 5, 3, 2, 1, 4));\n\n        int sum = 0;\n        // TODO: add up the ratings with an enhanced for\n        System.out.printf(\"Average: %.2f%n\", (double) sum / ratings.size());\n\n        // TODO: print \"Position N: rating\" for each rating above 3 with an index loop\n\n        // TODO: remove every rating below 2 with an Iterator\n        System.out.println(\"Kept: \" + ratings);\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.Iterator;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Integer> ratings = new ArrayList<>(List.of(4, 1, 5, 3, 2, 1, 4));\n\n        int sum = 0;\n        for (int r : ratings) {\n            sum += r;\n        }\n        System.out.printf(\"Average: %.2f%n\", (double) sum / ratings.size());\n\n        for (int i = 0; i < ratings.size(); i++) {\n            int rating = ratings.get(i);\n            if (rating > 3) {\n                System.out.println(\"Position \" + (i + 1) + \": \" + rating);\n            }\n        }\n\n        Iterator<Integer> it = ratings.iterator();\n        while (it.hasNext()) {\n            int r = it.next();\n            if (r < 2) {\n                it.remove();\n            }\n        }\n        System.out.println(\"Kept: \" + ratings);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Average: 2.86\nPosition 1: 4\nPosition 3: 5\nPosition 7: 4\nKept: [4, 5, 3, 2, 4]"
+          }
+        ],
+        "hints": [
+          "Positions start at 1, so print `(i + 1)`, in parentheses so it adds before joining the text.",
+          "Inside the Iterator loop, store `int r = it.next();` once, then test `r < 2` and call `it.remove()`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `for (int i = 0; i < a.length; i++)` gives you the index, so you can read and write `a[i]`.\n- Sum and count start at 0. Start a max at `a[0]` or `Integer.MIN_VALUE`, never at 0.\n- `for (int x : a)` and `for (String s : names)` read each element, but the loop variable is a copy.\n- Use the index form when you need `i` or must change the array.\n- `while (i < a.length && condition)` stops at the first match. Put the index check first.\n- Lists use `size()` and `get(i)` in index loops, and for-each works the same as with arrays.\n- Removing inside a for-each usually throws `ConcurrentModificationException`. Use an `Iterator` and `it.remove()`."
+}

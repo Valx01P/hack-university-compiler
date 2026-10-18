@@ -1,0 +1,90 @@
+{
+  "id": "match-case",
+  "title": "Match Statements (Python's Switch)",
+  "section": "Control Flow",
+  "summary": "Branch on a value with match and case, Python's answer to the switch statement.",
+  "intro": "Python had no switch statement until 3.10 added `match`. It checks one value against a list of cases and runs the first one that fits, with no fallthrough and no `break`.",
+  "steps": [
+    {
+      "title": "Matching literal values",
+      "body": "`match` compares one value against a series of `case` patterns and runs the block of the first one that fits. It does the job of an `if`/`elif` chain that compares one variable with `==` again and again.\n\n```python\nmatch code:\n    case 200:\n        print(\"OK\")\n    case 404:\n        print(\"Not Found\")\n    case _:\n        print(\"Unknown status\")\n```\n\nA literal pattern such as `200` or `\"red\"` matches when the value is equal to it, just like `==`. The underscore in `case _:` matches anything, so it works as the default. Put it last.\n\nUnlike switch in C or Java, there is no fallthrough. At most one case block runs, then Python jumps past the whole `match`, so you never write `break`. If no case matches and there is no `case _:`, nothing runs and there is no error.",
+      "example": {
+        "title": "HTTP status messages",
+        "prompt": "Turn the status codes 200, 404, and 999 into messages, with a default for codes it does not know.",
+        "code": "code = 200\nmatch code:\n    case 200:\n        print(f\"{code}: OK\")\n    case 404:\n        print(f\"{code}: Not Found\")\n    case _:\n        print(f\"{code}: Unknown status\")\n\ncode = 404\nmatch code:\n    case 200:\n        print(f\"{code}: OK\")\n    case 404:\n        print(f\"{code}: Not Found\")\n    case _:\n        print(f\"{code}: Unknown status\")\n\ncode = 999\nmatch code:\n    case 200:\n        print(f\"{code}: OK\")\n    case 404:\n        print(f\"{code}: Not Found\")\n    case _:\n        print(f\"{code}: Unknown status\")\n",
+        "output": "200: OK\n404: Not Found\n999: Unknown status",
+        "explanation": "Each `match` checks `code` against the cases from the top. 200 and 404 hit their literal cases. 999 matches neither, so it lands in `case _:`. Only one block runs per `match`, which is why there is no `break`. The variable is reassigned before each copy of the `match` so every branch gets a turn."
+      },
+      "practice": {
+        "title": "Traffic light actions",
+        "prompt": "Map traffic light colors to an action with a match statement.\n\n1. Set `color` to `\"red\"`, then match it: `\"red\"` prints `red: Stop`, `\"green\"` prints `green: Go`, and `case _:` prints the color followed by `: Unknown color`.\n2. Reassign `color` to `\"green\"` and repeat the same match.\n3. Reassign `color` to `\"blue\"` and repeat the same match.\n\nExpected output:\n\n```text\nred: Stop\ngreen: Go\nblue: Unknown color\n```",
+        "starter": "color = \"red\"\n# TODO: match color and print its action\n\ncolor = \"green\"\n# TODO: the same match again\n\ncolor = \"blue\"\n# TODO: the same match again\n",
+        "solution": "color = \"red\"\nmatch color:\n    case \"red\":\n        print(f\"{color}: Stop\")\n    case \"green\":\n        print(f\"{color}: Go\")\n    case _:\n        print(f\"{color}: Unknown color\")\n\ncolor = \"green\"\nmatch color:\n    case \"red\":\n        print(f\"{color}: Stop\")\n    case \"green\":\n        print(f\"{color}: Go\")\n    case _:\n        print(f\"{color}: Unknown color\")\n\ncolor = \"blue\"\nmatch color:\n    case \"red\":\n        print(f\"{color}: Stop\")\n    case \"green\":\n        print(f\"{color}: Go\")\n    case _:\n        print(f\"{color}: Unknown color\")\n",
+        "tests": [
+          {
+            "output": "red: Stop\ngreen: Go\nblue: Unknown color"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the status code example and swap the numbers for the strings `\"red\"` and `\"green\"`.",
+          "Use `f\"{color}: Stop\"` so the color appears at the start of the line.",
+          "`case _:` catches `\"blue\"` because it matches anything."
+        ]
+      }
+    },
+    {
+      "title": "Alternatives with |",
+      "body": "Join several patterns with `|` to run one block for any of them. Read `|` as \"or\". Inside a case you must write `|`: `case 6 or 7:` is a SyntaxError.\n\n```python\nmatch day:\n    case 6 | 7:\n        print(\"weekend\")\n    case 1 | 2 | 3 | 4 | 5:\n        print(\"weekday\")\n```\n\nCases are tried from top to bottom and the first match wins, so order matters when patterns overlap. Here `0` never reaches the second case:\n\n```python\nmatch n:\n    case 0:\n        print(\"zero\")\n    case 0 | 1:\n        print(\"zero or one\")  # only 1 gets here\n```\n\nPython runs overlaps like that one without any warning. It only rejects a catch-all that sits above other cases: `case _:` there would swallow everything, so it is a SyntaxError:\n\n```python\n# case _:\n# SyntaxError: wildcard makes remaining patterns unreachable\n```",
+      "example": {
+        "title": "Weekend or weekday",
+        "prompt": "Classify the day numbers 6, 3, and 9 as weekend, weekday, or invalid, where 1 to 5 are weekdays and 6 and 7 are the weekend.",
+        "code": "day = 6\nmatch day:\n    case 6 | 7:\n        print(f\"Day {day}: weekend\")\n    case 1 | 2 | 3 | 4 | 5:\n        print(f\"Day {day}: weekday\")\n    case _:\n        print(f\"Day {day}: invalid\")\n\nday = 3\nmatch day:\n    case 6 | 7:\n        print(f\"Day {day}: weekend\")\n    case 1 | 2 | 3 | 4 | 5:\n        print(f\"Day {day}: weekday\")\n    case _:\n        print(f\"Day {day}: invalid\")\n\nday = 9\nmatch day:\n    case 6 | 7:\n        print(f\"Day {day}: weekend\")\n    case 1 | 2 | 3 | 4 | 5:\n        print(f\"Day {day}: weekday\")\n    case _:\n        print(f\"Day {day}: invalid\")\n",
+        "output": "Day 6: weekend\nDay 3: weekday\nDay 9: invalid",
+        "explanation": "`6 | 7` matches if `day` equals 6 or 7, so 6 hits the first case. 3 fails the first case and matches one of the five alternatives in the second. 9 fails both, so the cases run out and `case _:` takes it."
+      },
+      "practice": {
+        "title": "File types",
+        "prompt": "Classify file extensions with a match statement and alternatives.\n\n1. Set `ext` to `\"jpg\"`, then match it: `\"jpg\"`, `\"png\"`, or `\"gif\"` print the extension followed by `: image`, `\"txt\"` or `\"md\"` print it followed by `: text`, and anything else prints it followed by `: other`.\n2. Reassign `ext` to `\"md\"` and repeat the same match.\n3. Reassign `ext` to `\"exe\"` and repeat the same match.\n\nExpected output:\n\n```text\njpg: image\nmd: text\nexe: other\n```",
+        "starter": "ext = \"jpg\"\n# TODO: match ext and print its kind\n\next = \"md\"\n# TODO: the same match again\n\next = \"exe\"\n# TODO: the same match again\n",
+        "solution": "ext = \"jpg\"\nmatch ext:\n    case \"jpg\" | \"png\" | \"gif\":\n        print(f\"{ext}: image\")\n    case \"txt\" | \"md\":\n        print(f\"{ext}: text\")\n    case _:\n        print(f\"{ext}: other\")\n\next = \"md\"\nmatch ext:\n    case \"jpg\" | \"png\" | \"gif\":\n        print(f\"{ext}: image\")\n    case \"txt\" | \"md\":\n        print(f\"{ext}: text\")\n    case _:\n        print(f\"{ext}: other\")\n\next = \"exe\"\nmatch ext:\n    case \"jpg\" | \"png\" | \"gif\":\n        print(f\"{ext}: image\")\n    case \"txt\" | \"md\":\n        print(f\"{ext}: text\")\n    case _:\n        print(f\"{ext}: other\")\n",
+        "tests": [
+          {
+            "output": "jpg: image\nmd: text\nexe: other"
+          }
+        ],
+        "hints": [
+          "One case can list several strings: `case \"jpg\" | \"png\" | \"gif\":`.",
+          "Use `case \"txt\" | \"md\":` for text and `case _:` for the rest."
+        ]
+      }
+    },
+    {
+      "title": "Captures and guards",
+      "body": "A bare name in a case is a capture pattern. It matches any value and binds it to that name, so the block can use it:\n\n```python\nmatch speed:\n    case s:\n        print(f\"OK at {s}\")\n```\n\nAdd a guard with `if` after the pattern to match only when a condition is true. Python binds the name, checks the guard, and moves on to the next case if it is false.\n\n```python\ncase s if s > SPEED_LIMIT:\n    print(f\"Speeding at {s}\")\n```\n\nThe big gotcha: a bare name always captures, even when a variable with that name exists. `case SPEED_LIMIT:` does not compare with the constant. It matches everything and rebinds `SPEED_LIMIT`. Python rejects it when more cases follow:\n\n```python\n# case SPEED_LIMIT:\n# SyntaxError: name capture 'SPEED_LIMIT' makes remaining patterns unreachable\n```\n\nAs the last case it is allowed, and it silently overwrites the constant with the value. To compare with a constant, capture and guard: `case s if s == SPEED_LIMIT:`. A final unguarded capture works like `case _:` but also hands you the value by name.",
+      "example": {
+        "title": "Speed check",
+        "prompt": "Compare the speeds 130, 120, and 50 with a speed limit of 120 using guarded capture patterns.",
+        "code": "SPEED_LIMIT = 120\n\nspeed = 130\nmatch speed:\n    case s if s > SPEED_LIMIT:\n        print(f\"Speeding at {s}\")\n    case s if s == SPEED_LIMIT:\n        print(f\"At the limit: {s}\")\n    case s:\n        print(f\"OK at {s}\")\n\nspeed = 120\nmatch speed:\n    case s if s > SPEED_LIMIT:\n        print(f\"Speeding at {s}\")\n    case s if s == SPEED_LIMIT:\n        print(f\"At the limit: {s}\")\n    case s:\n        print(f\"OK at {s}\")\n\nspeed = 50\nmatch speed:\n    case s if s > SPEED_LIMIT:\n        print(f\"Speeding at {s}\")\n    case s if s == SPEED_LIMIT:\n        print(f\"At the limit: {s}\")\n    case s:\n        print(f\"OK at {s}\")\n",
+        "output": "Speeding at 130\nAt the limit: 120\nOK at 50",
+        "explanation": "Every case captures the speed as `s`. For 130 the first guard `s > SPEED_LIMIT` is true. For 120 it is false, so Python tries the next case, whose guard compares with the constant through `==`. For 50 both guards fail and the last `case s:` catches it like a default, with the value in hand."
+      },
+      "practice": {
+        "title": "Temperature labels",
+        "prompt": "Label temperatures with guarded capture patterns.\n\n1. Keep the constants `FREEZING = 0` and `HOT = 30`.\n2. Set `temp` to `-3`, then match it: capture it as `t` and print `t` followed by `: Freezing` if it is below `FREEZING`, followed by `: Hot` if it is above `HOT`, and use a final `case t:` that prints it followed by `: Mild`.\n3. Reassign `temp` to `18` and repeat the same match.\n4. Reassign `temp` to `40` and repeat the same match.\n\nExpected output:\n\n```text\n-3: Freezing\n18: Mild\n40: Hot\n```",
+        "starter": "FREEZING = 0\nHOT = 30\n\ntemp = -3\n# TODO: match temp with guarded captures and print its label\n\ntemp = 18\n# TODO: the same match again\n\ntemp = 40\n# TODO: the same match again\n",
+        "solution": "FREEZING = 0\nHOT = 30\n\ntemp = -3\nmatch temp:\n    case t if t < FREEZING:\n        print(f\"{t}: Freezing\")\n    case t if t > HOT:\n        print(f\"{t}: Hot\")\n    case t:\n        print(f\"{t}: Mild\")\n\ntemp = 18\nmatch temp:\n    case t if t < FREEZING:\n        print(f\"{t}: Freezing\")\n    case t if t > HOT:\n        print(f\"{t}: Hot\")\n    case t:\n        print(f\"{t}: Mild\")\n\ntemp = 40\nmatch temp:\n    case t if t < FREEZING:\n        print(f\"{t}: Freezing\")\n    case t if t > HOT:\n        print(f\"{t}: Hot\")\n    case t:\n        print(f\"{t}: Mild\")\n",
+        "tests": [
+          {
+            "output": "-3: Freezing\n18: Mild\n40: Hot"
+          }
+        ],
+        "hints": [
+          "Start with `case t if t < FREEZING:`.",
+          "Never write `case HOT:`. A bare name captures everything. Compare in a guard instead: `case t if t > HOT:`.",
+          "The last case is a plain `case t:` with no guard."
+        ]
+      }
+    }
+  ],
+  "recap": "- `match value:` tries each `case` from top to bottom and runs only the first match.\n- `case 200:` and `case \"red\":` match literal values with `==`.\n- `case _:` is the default. Put it last.\n- No fallthrough, so no `break`.\n- `case 6 | 7:` matches any of several alternatives.\n- `case n:` captures the value into `n`, and `case n if n < 0:` adds a guard.\n- A bare name always captures. Compare with a constant in a guard: `case s if s == LIMIT:`.\n- `if`/`elif` chains, and dictionary lookups from a later lesson, are the older ways to branch on a value."
+}

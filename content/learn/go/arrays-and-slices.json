@@ -1,0 +1,116 @@
+{
+  "id": "arrays-and-slices",
+  "title": "Arrays and Slices",
+  "section": "Arrays and Slices",
+  "summary": "Store fixed-size data in arrays and growing data in slices with append and make, then slice, join, and sort them.",
+  "intro": "Most programs work with lists of values. Go gives you two tools: arrays, which have a fixed length and copy on assignment, and slices, which grow with `append` and share their elements. You will use slices nearly everywhere, so this lesson ends with cutting, joining, and sorting them.",
+  "steps": [
+    {
+      "title": "Arrays",
+      "body": "An array holds a fixed number of values of one type. `[5]int` means exactly five ints, and that length never changes. Write the values in a literal, or use `[...]` to let the compiler count them:\n\n```go\ndays := [3]string{\"mon\", \"tue\", \"wed\"}\nlaps := [...]int{62, 59, 61} // type is [3]int\nvar counts [4]int           // [0 0 0 0]\n```\n\nA new array starts with zero values, so `counts` holds four zeros. Read and write with `a[i]`, counting from 0. `len(a)` gives the length, so the last element is `a[len(a)-1]`. An index past the end does not compile when it is a constant, and panics at run time otherwise.\n\nArrays are values. `b := a` copies every element into new memory, so changing `b` leaves `a` alone. The length is part of the type: `[3]int` and `[4]int` are different types and cannot be assigned to each other. `fmt.Println` prints an array as `[1 2 3]`.",
+      "example": {
+        "title": "Temperature backup",
+        "prompt": "Store five temperatures in an array, fix one, copy the array, and show that the copy is independent.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttemps := [5]int{18, 21, 19, 24, 22}\n\ttemps[2] = 20\n\n\tbackup := temps\n\tbackup[0] = 0\n\n\tfmt.Println(\"temps:\", temps)\n\tfmt.Println(\"backup:\", backup)\n\tfmt.Println(\"days:\", len(temps))\n\tfmt.Println(\"last:\", temps[len(temps)-1])\n\n\tvar counts [3]int\n\tfmt.Println(\"counts:\", counts)\n}\n",
+        "output": "temps: [18 21 20 24 22]\nbackup: [0 21 20 24 22]\ndays: 5\nlast: 22\ncounts: [0 0 0]",
+        "explanation": "`temps[2] = 20` overwrites the third value. `backup := temps` copies all five ints, so `backup[0] = 0` changes only the copy and `temps` still starts with 18. `temps[len(temps)-1]` is `temps[4]`, the last element. `counts` was never given values, so it holds three zeros."
+      },
+      "practice": {
+        "title": "Lap times",
+        "prompt": "Record four lap times in an array, fix the last one, and make an independent copy.\n\n1. Keep the given `laps := [...]int{62, 59, 61, 60}` and remove the placeholder lines.\n2. Change the last lap to 58 using `laps[len(laps)-1]`.\n3. Copy the array with `best := laps`, then set `best[1] = 57`.\n4. Print `laps:` and `laps`, then `best:` and `best`, then `count:` and `len(laps)`.\n5. Declare `var pits [2]int` without values and print `pits:` and `pits`.\n\nExpected output:\n\n```text\nlaps: [62 59 61 58]\nbest: [62 57 61 58]\ncount: 4\npits: [0 0]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tlaps := [...]int{62, 59, 61, 60}\n\t// TODO: set the last lap to 58 with laps[len(laps)-1]\n\t// TODO: copy laps into best, then set best[1] to 57\n\t// TODO: print laps, best, and the length\n\t// TODO: declare pits as an array of 2 ints and print it\n\t_ = laps\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tlaps := [...]int{62, 59, 61, 60}\n\tlaps[len(laps)-1] = 58\n\n\tbest := laps\n\tbest[1] = 57\n\n\tfmt.Println(\"laps:\", laps)\n\tfmt.Println(\"best:\", best)\n\tfmt.Println(\"count:\", len(laps))\n\n\tvar pits [2]int\n\tfmt.Println(\"pits:\", pits)\n}\n",
+        "tests": [
+          {
+            "output": "laps: [62 59 61 58]\nbest: [62 57 61 58]\ncount: 4\npits: [0 0]"
+          }
+        ],
+        "hints": [
+          "`laps[len(laps)-1] = 58` writes the last element.",
+          "Change `best` only after copying, so `laps` keeps 59 at index 1.",
+          "`var pits [2]int` needs no values: a new array starts with zeros."
+        ]
+      }
+    },
+    {
+      "title": "Slices",
+      "body": "A slice is a list that can grow. Its type has no length: `[]string`. Real Go code uses slices far more than arrays.\n\n```go\ncart := []string{\"milk\"}\ncart = append(cart, \"eggs\")       // one value\ncart = append(cart, \"jam\", \"tea\") // several at once\n```\n\n`append` returns the new slice, so always assign it back. Writing `append(cart, \"eggs\")` alone does not compile, because the result is unused. A nil slice (`var ids []int`) has length 0 and works with `append` right away, so there is no need to create it first.\n\n`make([]int, n)` makes a slice of `n` zero values that you can index straight away. `len(s)` is the current number of elements.\n\nGotcha: a slice does not hold its elements. It is a small view that points at them in memory. `alias := cart` copies the view, not the elements, so both names share the same values and a change to an element through one shows through the other. That is the opposite of arrays. Do not count on this after an `append`, though: it may move the elements to new memory, which a later lesson explains.",
+      "example": {
+        "title": "Shopping cart",
+        "prompt": "Grow a cart with append, show that a second name shares its items, and make a slice of zeros.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tcart := []string{\"milk\", \"eggs\"}\n\tcart = append(cart, \"bread\")\n\tcart = append(cart, \"jam\", \"tea\")\n\tfmt.Println(cart, len(cart))\n\n\talias := cart\n\talias[0] = \"oat milk\"\n\tfmt.Println(cart)\n\n\tqty := make([]int, 3)\n\tqty[1] = 2\n\tfmt.Println(qty)\n}\n",
+        "output": "[milk eggs bread jam tea] 5\n[oat milk eggs bread jam tea]\n[0 2 0]",
+        "explanation": "Each `append` returns a longer slice, which is stored back in `cart`. `alias := cart` does not copy the five strings: both names see the same elements, so changing `alias[0]` changes `cart[0]` too. `make([]int, 3)` gives `[0 0 0]`, and `qty[1] = 2` fills the middle one."
+      },
+      "practice": {
+        "title": "Playlist",
+        "prompt": "Build a playlist from an empty slice, then show that a second name shares its songs.\n\n1. Remove the placeholder lines. Starting from `var playlist []string`, append `Intro`, `Rise`, and `Echo` one at a time, then `Drift` and `Glow` in one call.\n2. Print `playlist` and its length on one line.\n3. Set `shared := playlist`, change `shared[4]` to `Dawn`, and print `playlist`.\n4. Make `plays := make([]int, 4)`, set its last element to 9, and print it.\n\nExpected output:\n\n```text\n[Intro Rise Echo Drift Glow] 5\n[Intro Rise Echo Drift Dawn]\n[0 0 0 9]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar playlist []string\n\t_ = playlist\n\t// TODO: append Intro, Rise, Echo one at a time, then Drift and Glow in one call\n\t// TODO: print playlist and its length\n\t// TODO: set shared := playlist, change shared[4] to Dawn, print playlist\n\t// TODO: make plays with 4 zeros, set the last one to 9, print it\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar playlist []string\n\tplaylist = append(playlist, \"Intro\")\n\tplaylist = append(playlist, \"Rise\")\n\tplaylist = append(playlist, \"Echo\")\n\tplaylist = append(playlist, \"Drift\", \"Glow\")\n\tfmt.Println(playlist, len(playlist))\n\n\tshared := playlist\n\tshared[4] = \"Dawn\"\n\tfmt.Println(playlist)\n\n\tplays := make([]int, 4)\n\tplays[len(plays)-1] = 9\n\tfmt.Println(plays)\n}\n",
+        "tests": [
+          {
+            "output": "[Intro Rise Echo Drift Glow] 5\n[Intro Rise Echo Drift Dawn]\n[0 0 0 9]"
+          }
+        ],
+        "hints": [
+          "Write `playlist = append(playlist, \"Intro\")`. A nil slice is fine to append to.",
+          "Pass two values to one `append` call for Drift and Glow.",
+          "The last element of `plays` is `plays[len(plays)-1]`."
+        ]
+      }
+    },
+    {
+      "title": "Slicing and joining",
+      "body": "`s[low:high]` takes a piece of a slice: it includes index `low` and stops before `high`, so it has `high - low` elements. Leave out either end to mean the start or the end:\n\n```go\ns := []int{10, 20, 30, 40, 50}\nfmt.Println(s[1:3])       // [20 30]\nfmt.Println(s[:2])        // first two: [10 20]\nfmt.Println(s[len(s)-2:]) // last two: [40 50]\ns = s[:len(s)-1]          // drop the last: [10 20 30 40]\n```\n\nTo join two slices, spread the second one into `append` with `...`: `a = append(a, b...)`. Without the dots, Go tries to append the whole slice as one element and the program does not compile.\n\nGotchas: a slice expression does not copy anything. The piece shares its elements with the original, so writing to `s[1:3][0]` changes `s[1]`. Keep both bounds between 0 and `len(s)`. Going past the length does not always panic. After you drop an element, `s[:len(s)+1]` quietly brings it back, so treat `len(s)` as the limit.",
+      "example": {
+        "title": "Score ranges",
+        "prompt": "Print the lowest two, top three, and middle scores, then drop the last score and join two new ones.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tscores := []int{64, 70, 82, 88, 95}\n\tfmt.Println(\"low two:\", scores[:2])\n\tfmt.Println(\"top three:\", scores[len(scores)-3:])\n\tfmt.Println(\"middle:\", scores[1:4])\n\n\tscores = scores[:len(scores)-1]\n\textra := []int{100, 99}\n\tscores = append(scores, extra...)\n\tfmt.Println(\"joined:\", scores)\n}\n",
+        "output": "low two: [64 70]\ntop three: [82 88 95]\nmiddle: [70 82 88]\njoined: [64 70 82 88 100 99]",
+        "explanation": "`scores[:2]` is indexes 0 and 1. `scores[len(scores)-3:]` starts at index 2 and runs to the end. `scores[1:4]` takes indexes 1, 2, and 3 but not 4. Reslicing to `len(scores)-1` drops 95, and `append(scores, extra...)` adds both values from `extra` in order."
+      },
+      "practice": {
+        "title": "Name list",
+        "prompt": "Take pieces of a list of names, then drop the last name and join two more.\n\n1. Keep the given `names` and `more`, and remove the placeholder lines. Print `first:` and the first three names.\n2. Print `last:` and the last two names, using `len(names)`.\n3. Print `middle:` and `names[1:3]`.\n4. Drop the last name, join `[]string{\"Zed\", \"Kim\"}` onto the end with `...`, and print `joined:` and `names`.\n\nExpected output:\n\n```text\nfirst: [Ava Eve Leo]\nlast: [Max Tom]\nmiddle: [Eve Leo]\njoined: [Ava Eve Leo Max Zed Kim]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tnames := []string{\"Ava\", \"Eve\", \"Leo\", \"Max\", \"Tom\"}\n\tmore := []string{\"Zed\", \"Kim\"}\n\t// TODO: print the first three, the last two, and names[1:3]\n\t// TODO: drop the last name, join more onto names, and print it\n\t_ = names\n\t_ = more\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tnames := []string{\"Ava\", \"Eve\", \"Leo\", \"Max\", \"Tom\"}\n\tmore := []string{\"Zed\", \"Kim\"}\n\tfmt.Println(\"first:\", names[:3])\n\tfmt.Println(\"last:\", names[len(names)-2:])\n\tfmt.Println(\"middle:\", names[1:3])\n\n\tnames = names[:len(names)-1]\n\tnames = append(names, more...)\n\tfmt.Println(\"joined:\", names)\n}\n",
+        "tests": [
+          {
+            "output": "first: [Ava Eve Leo]\nlast: [Max Tom]\nmiddle: [Eve Leo]\njoined: [Ava Eve Leo Max Zed Kim]"
+          }
+        ],
+        "hints": [
+          "The last two names are `names[len(names)-2:]`.",
+          "Drop the last with `names = names[:len(names)-1]`, then `names = append(names, more...)`."
+        ]
+      }
+    },
+    {
+      "title": "Sorting",
+      "body": "The `sort` package sorts slices from smallest to largest. Add it to your imports:\n\n```go\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n```\n\nUse the function that matches the element type: `sort.Ints` for `[]int`, `sort.Float64s` for `[]float64`, and `sort.Strings` for `[]string`. They sort **in place** and return nothing, so call them on their own line. `s = sort.Ints(s)` does not compile. Because slices share their elements, any other name for the same slice sees the new order too.\n\nAfter sorting, `s[0]` is the smallest value and `s[len(s)-1]` the largest.\n\nGotcha: strings sort by byte order, not alphabetically. Every uppercase letter comes before every lowercase one, so `\"Zoo\"` sorts before `\"apple\"`.",
+      "example": {
+        "title": "Sorted results",
+        "prompt": "Sort a slice of ints, floats, and strings in place, then print the lowest and highest score.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\tscores := []int{70, 95, 82, 64, 88}\n\tprices := []float64{4.5, 1.25, 3.75}\n\twords := []string{\"pear\", \"Apple\", \"fig\"}\n\n\tsort.Ints(scores)\n\tsort.Float64s(prices)\n\tsort.Strings(words)\n\n\tfmt.Println(scores)\n\tfmt.Println(prices)\n\tfmt.Println(words)\n\tfmt.Println(\"lowest:\", scores[0])\n\tfmt.Println(\"highest:\", scores[len(scores)-1])\n}\n",
+        "output": "[64 70 82 88 95]\n[1.25 3.75 4.5]\n[Apple fig pear]\nlowest: 64\nhighest: 95",
+        "explanation": "Each sort function rearranges its slice in place, so printing the same variables afterwards shows the sorted order. `Apple` comes first because uppercase `A` has a smaller byte value than any lowercase letter. Once `scores` is sorted, the ends of the slice are the lowest and highest scores."
+      },
+      "practice": {
+        "title": "Sorted lists",
+        "prompt": "Sort three slices and report the lightest and heaviest weight.\n\n1. Add `\"sort\"` to the imports and remove the placeholder lines.\n2. Sort `laps`, `weights`, and `cities` in place with the matching sort function.\n3. Print each slice on its own line.\n4. Print `lightest:` and `heaviest:` with the smallest and largest weight, formatted with `%.2f`.\n\nExpected output:\n\n```text\n[58 59 61 64]\n[0.75 1.5 2.5]\n[Oslo lima rome]\nlightest: 0.75\nheaviest: 2.50\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tlaps := []int{61, 58, 64, 59}\n\tweights := []float64{2.5, 0.75, 1.5}\n\tcities := []string{\"rome\", \"Oslo\", \"lima\"}\n\t// TODO: import \"sort\" and sort all three slices\n\t// TODO: print the slices, then the lightest and heaviest weight with %.2f\n\t_ = laps\n\t_ = weights\n\t_ = cities\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\tlaps := []int{61, 58, 64, 59}\n\tweights := []float64{2.5, 0.75, 1.5}\n\tcities := []string{\"rome\", \"Oslo\", \"lima\"}\n\n\tsort.Ints(laps)\n\tsort.Float64s(weights)\n\tsort.Strings(cities)\n\n\tfmt.Println(laps)\n\tfmt.Println(weights)\n\tfmt.Println(cities)\n\tfmt.Printf(\"lightest: %.2f\\n\", weights[0])\n\tfmt.Printf(\"heaviest: %.2f\\n\", weights[len(weights)-1])\n}\n",
+        "tests": [
+          {
+            "output": "[58 59 61 64]\n[0.75 1.5 2.5]\n[Oslo lima rome]\nlightest: 0.75\nheaviest: 2.50"
+          }
+        ],
+        "hints": [
+          "Use `sort.Ints`, `sort.Float64s`, and `sort.Strings`, each on its own line.",
+          "After sorting, the lightest is `weights[0]` and the heaviest is `weights[len(weights)-1]`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `[N]T` is an array: fixed length, zero values to start, and assignment copies every element.\n- `[]T` is a slice: grow it with `s = append(s, x)`, always assigning the result back, and make zeros with `make([]T, n)`.\n- Assigning a slice shares its elements, it does not copy them.\n- `s[low:high]` includes `low` and excludes `high`. Join with `append(a, b...)`.\n- `sort.Ints`, `sort.Float64s`, and `sort.Strings` sort in place, uppercase before lowercase."
+}

@@ -1,0 +1,153 @@
+{
+  "id": "trees",
+  "title": "Binary Trees and BSTs",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Build binary trees, traverse them depth first and level by level, and insert into and search a BST.",
+  "intro": "A binary tree is a linked structure where each node points to up to two children. Recursion handles most tree questions in a few lines, a binary search tree keeps values ordered for fast lookups, and a queue walks a tree level by level.",
+  "steps": [
+    {
+      "title": "Tree nodes and DFS traversals",
+      "body": "A binary tree node holds a value and up to two children. `None` means \"no child here\", just like `None` ends a linked list.\n\n```python\nclass TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\nroot = TreeNode(1, TreeNode(2), TreeNode(3))\n```\n\nA depth-first traversal visits every node with recursion. The three orders differ only in *when* you record the current node:\n\n- **Preorder**: node, then left subtree, then right subtree.\n- **Inorder**: left subtree, then node, then right subtree.\n- **Postorder**: left subtree, then right subtree, then node.\n\n```python\ndef inorder(node, out):\n    if node is None:\n        return\n    inorder(node.left, out)\n    out.append(node.val)\n    inorder(node.right, out)\n```\n\nPass one list `out` down through every call and append to it. Every call shares that same list, so the values pile up in visit order. Avoid a default like `out=[]`: it is created once, when `def` runs, so a second traversal would still hold the first one's values.\n\nPractices write trees in *level order*: `\"1 2 3 null 4\"` lists nodes top to bottom, left to right, with `null` for a missing child. A missing node gets no child slots, so in `\"1 null 2 3\"` the 3 is the left child of 2. The starters give you a finished `build_tree(tokens)` helper that turns those tokens into nodes.",
+      "example": {
+        "title": "Three traversals of a small tree",
+        "prompt": "Build a 5-node tree by hand and print its preorder, inorder, and postorder traversals.",
+        "code": "class TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef preorder(node, out):\n    if node is None:\n        return\n    out.append(node.val)\n    preorder(node.left, out)\n    preorder(node.right, out)\n\n\ndef inorder(node, out):\n    if node is None:\n        return\n    inorder(node.left, out)\n    out.append(node.val)\n    inorder(node.right, out)\n\n\ndef postorder(node, out):\n    if node is None:\n        return\n    postorder(node.left, out)\n    postorder(node.right, out)\n    out.append(node.val)\n\n\n#        1\n#       / \\\n#      2   3\n#     / \\\n#    4   5\nroot = TreeNode(1, TreeNode(2, TreeNode(4), TreeNode(5)), TreeNode(3))\n\nfor name, visit in [(\"Preorder\", preorder), (\"Inorder\", inorder),\n                    (\"Postorder\", postorder)]:\n    values = []\n    visit(root, values)\n    print(f\"{name}:\", *values)\n",
+        "output": "Preorder: 1 2 4 5 3\nInorder: 4 2 5 1 3\nPostorder: 4 5 2 3 1",
+        "explanation": "Each function returns at once on `None`, so the recursion stops at missing children. The only difference between the three is where `out.append(node.val)` sits: before both recursive calls (preorder), between them (inorder), or after them (postorder). The loop passes each function a fresh `values` list, and every recursive call appends to that same list."
+      },
+      "practice": {
+        "title": "Traversals from level order",
+        "prompt": "Read a tree in level order and print its three depth-first traversals.\n\n1. Complete `preorder`, `inorder`, and `postorder` so each appends values to `out` in its order.\n2. Return early when `node` is `None`.\n3. Leave the given reading and printing code as it is.\n\nInput:\n\n```text\n4 2 6 1 3 5 7\n```\n\nExpected output:\n\n```text\nPreorder: 4 2 1 3 6 5 7\nInorder: 1 2 3 4 5 6 7\nPostorder: 1 3 2 5 7 6 4\n```",
+        "starter": "from collections import deque\n\n\nclass TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef build_tree(tokens):\n    \"\"\"Build a tree from level-order tokens where \"null\" is a missing child.\"\"\"\n    if not tokens or tokens[0] == \"null\":\n        return None\n    root = TreeNode(int(tokens[0]))\n    queue = deque([root])\n    i = 1\n    while queue and i < len(tokens):\n        node = queue.popleft()\n        if tokens[i] != \"null\":\n            node.left = TreeNode(int(tokens[i]))\n            queue.append(node.left)\n        i += 1\n        if i < len(tokens) and tokens[i] != \"null\":\n            node.right = TreeNode(int(tokens[i]))\n            queue.append(node.right)\n        i += 1\n    return root\n\n\ndef preorder(node, out):\n    # TODO: node, then left subtree, then right subtree\n    pass\n\n\ndef inorder(node, out):\n    # TODO: left subtree, then node, then right subtree\n    pass\n\n\ndef postorder(node, out):\n    # TODO: left subtree, then right subtree, then node\n    pass\n\n\nroot = build_tree(input().split())\nfor name, visit in [(\"Preorder\", preorder), (\"Inorder\", inorder),\n                    (\"Postorder\", postorder)]:\n    values = []\n    visit(root, values)\n    print(f\"{name}:\", *values)\n",
+        "solution": "from collections import deque\n\n\nclass TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef build_tree(tokens):\n    \"\"\"Build a tree from level-order tokens where \"null\" is a missing child.\"\"\"\n    if not tokens or tokens[0] == \"null\":\n        return None\n    root = TreeNode(int(tokens[0]))\n    queue = deque([root])\n    i = 1\n    while queue and i < len(tokens):\n        node = queue.popleft()\n        if tokens[i] != \"null\":\n            node.left = TreeNode(int(tokens[i]))\n            queue.append(node.left)\n        i += 1\n        if i < len(tokens) and tokens[i] != \"null\":\n            node.right = TreeNode(int(tokens[i]))\n            queue.append(node.right)\n        i += 1\n    return root\n\n\ndef preorder(node, out):\n    if node is None:\n        return\n    out.append(node.val)\n    preorder(node.left, out)\n    preorder(node.right, out)\n\n\ndef inorder(node, out):\n    if node is None:\n        return\n    inorder(node.left, out)\n    out.append(node.val)\n    inorder(node.right, out)\n\n\ndef postorder(node, out):\n    if node is None:\n        return\n    postorder(node.left, out)\n    postorder(node.right, out)\n    out.append(node.val)\n\n\nroot = build_tree(input().split())\nfor name, visit in [(\"Preorder\", preorder), (\"Inorder\", inorder),\n                    (\"Postorder\", postorder)]:\n    values = []\n    visit(root, values)\n    print(f\"{name}:\", *values)\n",
+        "tests": [
+          {
+            "stdin": "4 2 6 1 3 5 7\n",
+            "output": "Preorder: 4 2 1 3 6 5 7\nInorder: 1 2 3 4 5 6 7\nPostorder: 1 3 2 5 7 6 4"
+          },
+          {
+            "stdin": "1 null 2 3\n",
+            "output": "Preorder: 1 2 3\nInorder: 1 3 2\nPostorder: 3 2 1"
+          },
+          {
+            "stdin": "9\n",
+            "output": "Preorder: 9\nInorder: 9\nPostorder: 9"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the example: a `None` check, then two recursive calls and one `append`.",
+          "Only the position of `out.append(node.val)` changes between the three functions."
+        ]
+      }
+    },
+    {
+      "title": "Recursive tree properties",
+      "body": "Most tree questions have the same shape: ask both subtrees for an answer, then combine their answers with the current node. `None` is the base case, and it returns the answer for an empty tree.\n\n```python\ndef size(node):\n    if node is None:\n        return 0\n    return 1 + size(node.left) + size(node.right)\n```\n\nThe same pattern gives the usual properties:\n\n- **Height**: `1 + max(height(left), height(right))`. Here height counts the *nodes* on the longest root-to-leaf path, so an empty tree is 0 and a single node is 1. Some books count edges instead, which is one less.\n- **Sum**: `node.val + tree_sum(left) + tree_sum(right)`.\n- **Leaf count**: a leaf has no children, so it returns 1. Any other node returns the leaves of its left subtree plus those of its right.\n\nCheck `node is None` first in every function. Reading `node.left` on `None` raises `AttributeError`. Recursion goes as deep as the tree is tall, so a chain of more than about 1000 nodes needs `sys.setrecursionlimit()` or a loop.",
+      "example": {
+        "title": "Measuring a tree",
+        "prompt": "Compute a tree's height, node count, sum of values, and leaf count.",
+        "code": "from collections import deque\n\n\nclass TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef build_tree(tokens):\n    \"\"\"Build a tree from level-order tokens where \"null\" is a missing child.\"\"\"\n    if not tokens or tokens[0] == \"null\":\n        return None\n    root = TreeNode(int(tokens[0]))\n    queue = deque([root])\n    i = 1\n    while queue and i < len(tokens):\n        node = queue.popleft()\n        if tokens[i] != \"null\":\n            node.left = TreeNode(int(tokens[i]))\n            queue.append(node.left)\n        i += 1\n        if i < len(tokens) and tokens[i] != \"null\":\n            node.right = TreeNode(int(tokens[i]))\n            queue.append(node.right)\n        i += 1\n    return root\n\n\ndef height(node):\n    if node is None:\n        return 0\n    return 1 + max(height(node.left), height(node.right))\n\n\ndef size(node):\n    if node is None:\n        return 0\n    return 1 + size(node.left) + size(node.right)\n\n\ndef tree_sum(node):\n    if node is None:\n        return 0\n    return node.val + tree_sum(node.left) + tree_sum(node.right)\n\n\ndef count_leaves(node):\n    if node is None:\n        return 0\n    if node.left is None and node.right is None:\n        return 1\n    return count_leaves(node.left) + count_leaves(node.right)\n\n\nroot = build_tree(\"5 3 8 1 4 null 9 null null 2\".split())\nprint(\"Height:\", height(root))\nprint(\"Size:\", size(root))\nprint(\"Sum:\", tree_sum(root))\nprint(\"Leaves:\", count_leaves(root))\n",
+        "output": "Height: 4\nSize: 7\nSum: 32\nLeaves: 3",
+        "explanation": "The tree is 5 with children 3 and 8. Node 3 has children 1 and 4, node 4 has a left child 2, and node 8 has a right child 9. Every function returns 0 for `None` and combines the answers of both subtrees. The longest path 5, 3, 4, 2 has 4 nodes. The leaves are 1, 2, and 9, so `count_leaves` returns 1 for each of them and adds the rest up."
+      },
+      "practice": {
+        "title": "Height and leaves",
+        "prompt": "Read a tree in level order and print its height and number of leaves.\n\n1. Complete `height` so it returns the number of nodes on the longest root-to-leaf path, and 0 for `None`.\n2. Complete `count_leaves` so it returns 1 for a node with no children and adds both subtrees otherwise.\n3. The input `null` is an empty tree and prints `Height: 0` and `Leaves: 0`.\n\nInput:\n\n```text\n1 2 3 4 5 6 7\n```\n\nExpected output:\n\n```text\nHeight: 3\nLeaves: 4\n```",
+        "starter": "from collections import deque\n\n\nclass TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef build_tree(tokens):\n    \"\"\"Build a tree from level-order tokens where \"null\" is a missing child.\"\"\"\n    if not tokens or tokens[0] == \"null\":\n        return None\n    root = TreeNode(int(tokens[0]))\n    queue = deque([root])\n    i = 1\n    while queue and i < len(tokens):\n        node = queue.popleft()\n        if tokens[i] != \"null\":\n            node.left = TreeNode(int(tokens[i]))\n            queue.append(node.left)\n        i += 1\n        if i < len(tokens) and tokens[i] != \"null\":\n            node.right = TreeNode(int(tokens[i]))\n            queue.append(node.right)\n        i += 1\n    return root\n\n\ndef height(node):\n    # TODO: 0 for None, else 1 + the taller subtree's height\n    return 0\n\n\ndef count_leaves(node):\n    # TODO: 0 for None, 1 for a leaf, else the sum of both subtrees\n    return 0\n\n\nroot = build_tree(input().split())\nprint(\"Height:\", height(root))\nprint(\"Leaves:\", count_leaves(root))\n",
+        "solution": "from collections import deque\n\n\nclass TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef build_tree(tokens):\n    \"\"\"Build a tree from level-order tokens where \"null\" is a missing child.\"\"\"\n    if not tokens or tokens[0] == \"null\":\n        return None\n    root = TreeNode(int(tokens[0]))\n    queue = deque([root])\n    i = 1\n    while queue and i < len(tokens):\n        node = queue.popleft()\n        if tokens[i] != \"null\":\n            node.left = TreeNode(int(tokens[i]))\n            queue.append(node.left)\n        i += 1\n        if i < len(tokens) and tokens[i] != \"null\":\n            node.right = TreeNode(int(tokens[i]))\n            queue.append(node.right)\n        i += 1\n    return root\n\n\ndef height(node):\n    if node is None:\n        return 0\n    return 1 + max(height(node.left), height(node.right))\n\n\ndef count_leaves(node):\n    if node is None:\n        return 0\n    if node.left is None and node.right is None:\n        return 1\n    return count_leaves(node.left) + count_leaves(node.right)\n\n\nroot = build_tree(input().split())\nprint(\"Height:\", height(root))\nprint(\"Leaves:\", count_leaves(root))\n",
+        "tests": [
+          {
+            "stdin": "1 2 3 4 5 6 7\n",
+            "output": "Height: 3\nLeaves: 4"
+          },
+          {
+            "stdin": "null\n",
+            "output": "Height: 0\nLeaves: 0"
+          },
+          {
+            "stdin": "1 2 null 3 null 4\n",
+            "output": "Height: 4\nLeaves: 1"
+          }
+        ],
+        "hints": [
+          "Start both functions with `if node is None: return 0`.",
+          "Height is `1 + max(...)` of the two subtree heights.",
+          "A leaf is a node where `node.left is None and node.right is None`."
+        ]
+      }
+    },
+    {
+      "title": "Binary search trees",
+      "body": "A **binary search tree** (BST) keeps one rule at every node: everything in the left subtree is smaller, and everything in the right subtree is larger. That rule lets you skip a whole subtree at each step.\n\nInsert walks down to an empty spot and returns the (possibly new) subtree root, so the parent can relink it. A value equal to the node's is a duplicate and is ignored.\n\n```python\ndef insert(node, val):\n    if node is None:\n        return TreeNode(val)\n    if val < node.val:\n        node.left = insert(node.left, val)\n    elif val > node.val:\n        node.right = insert(node.right, val)\n    return node\n\nroot = None\nfor v in values:\n    root = insert(root, v)\n```\n\nSearch follows the same left or right choice and returns `False` when it falls off the tree. Because of the rule, an **inorder traversal of a BST comes out sorted**. The minimum is the leftmost node and the maximum is the rightmost, so follow `node.left` or `node.right` until the next one is `None`. Both walks need a non-empty tree, because `None` has no `.left`.\n\nEach operation costs O(height). A balanced tree has height about log n, but inserting already sorted values builds a chain where every step is O(n). Forgetting `root = insert(root, v)` is a classic bug: `root` stays `None`, so every insert is lost.",
+      "example": {
+        "title": "A BST of scores",
+        "prompt": "Insert values with one duplicate into a BST, search for one present and one missing key, and print the inorder traversal, the minimum, and the maximum.",
+        "code": "class TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef insert(node, val):\n    if node is None:\n        return TreeNode(val)\n    if val < node.val:\n        node.left = insert(node.left, val)\n    elif val > node.val:\n        node.right = insert(node.right, val)\n    return node\n\n\ndef contains(node, target):\n    if node is None:\n        return False\n    if target == node.val:\n        return True\n    if target < node.val:\n        return contains(node.left, target)\n    return contains(node.right, target)\n\n\ndef inorder(node, out):\n    if node is None:\n        return\n    inorder(node.left, out)\n    out.append(node.val)\n    inorder(node.right, out)\n\n\ndef min_value(node):\n    while node.left is not None:\n        node = node.left\n    return node.val\n\n\ndef max_value(node):\n    while node.right is not None:\n        node = node.right\n    return node.val\n\n\nroot = None\nfor value in [50, 30, 70, 20, 40, 60, 80, 30]:\n    root = insert(root, value)\n\nvalues = []\ninorder(root, values)\nprint(\"Inorder:\", *values)\nfor key in [60, 65]:\n    print(f\"Has {key}:\", contains(root, key))\nprint(\"Min:\", min_value(root))\nprint(\"Max:\", max_value(root))\n",
+        "output": "Inorder: 20 30 40 50 60 70 80\nHas 60: True\nHas 65: False\nMin: 20\nMax: 80",
+        "explanation": "50 becomes the root, and every later value walks left when smaller and right when larger. The second 30 reaches the node holding 30, matches neither `<` nor `>`, and is dropped. Searching 65 goes right at 50, left at 70, right at 60, then hits `None` and returns `False`. Inorder prints the values sorted, and the leftmost and rightmost nodes give 20 and 80."
+      },
+      "practice": {
+        "title": "Build and query a BST",
+        "prompt": "Read values into a BST, then report its sorted order, a lookup, and its smallest and largest values.\n\n1. Complete `insert` so it ignores duplicates and returns the subtree root.\n2. Complete `contains` so it returns `True` or `False` by searching only one side at each node.\n3. Complete `min_value` and `max_value` by walking left or right.\n4. The first input line holds the values to insert and the second holds the query. The given code prints the results.\n\nInput:\n\n```text\n8 3 10 1 6 14 4 7 13 6\n7\n```\n\nExpected output:\n\n```text\nInorder: 1 3 4 6 7 8 10 13 14\nHas 7: True\nMin: 1\nMax: 14\n```",
+        "starter": "class TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef insert(node, val):\n    # TODO: return a new node for None, recurse left or right, ignore duplicates\n    return None\n\n\ndef contains(node, target):\n    # TODO: False for None, True on a match, else search one side\n    return False\n\n\ndef inorder(node, out):\n    if node is None:\n        return\n    inorder(node.left, out)\n    out.append(node.val)\n    inorder(node.right, out)\n\n\ndef min_value(node):\n    # TODO: walk left until there is no left child\n    return 0\n\n\ndef max_value(node):\n    # TODO: walk right until there is no right child\n    return 0\n\n\nroot = None\nfor value in map(int, input().split()):\n    root = insert(root, value)\nquery = int(input())\n\nvalues = []\ninorder(root, values)\nprint(\"Inorder:\", *values)\nprint(f\"Has {query}:\", contains(root, query))\nprint(\"Min:\", min_value(root))\nprint(\"Max:\", max_value(root))\n",
+        "solution": "class TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef insert(node, val):\n    if node is None:\n        return TreeNode(val)\n    if val < node.val:\n        node.left = insert(node.left, val)\n    elif val > node.val:\n        node.right = insert(node.right, val)\n    return node\n\n\ndef contains(node, target):\n    if node is None:\n        return False\n    if target == node.val:\n        return True\n    if target < node.val:\n        return contains(node.left, target)\n    return contains(node.right, target)\n\n\ndef inorder(node, out):\n    if node is None:\n        return\n    inorder(node.left, out)\n    out.append(node.val)\n    inorder(node.right, out)\n\n\ndef min_value(node):\n    while node.left is not None:\n        node = node.left\n    return node.val\n\n\ndef max_value(node):\n    while node.right is not None:\n        node = node.right\n    return node.val\n\n\nroot = None\nfor value in map(int, input().split()):\n    root = insert(root, value)\nquery = int(input())\n\nvalues = []\ninorder(root, values)\nprint(\"Inorder:\", *values)\nprint(f\"Has {query}:\", contains(root, query))\nprint(\"Min:\", min_value(root))\nprint(\"Max:\", max_value(root))\n",
+        "tests": [
+          {
+            "stdin": "8 3 10 1 6 14 4 7 13 6\n7\n",
+            "output": "Inorder: 1 3 4 6 7 8 10 13 14\nHas 7: True\nMin: 1\nMax: 14"
+          },
+          {
+            "stdin": "5 5 5\n2\n",
+            "output": "Inorder: 5\nHas 2: False\nMin: 5\nMax: 5"
+          },
+          {
+            "stdin": "40 20 60 30 50\n55\n",
+            "output": "Inorder: 20 30 40 50 60\nHas 55: False\nMin: 20\nMax: 60"
+          }
+        ],
+        "hints": [
+          "In `insert`, assign the result of the recursive call back: `node.left = insert(node.left, val)`.",
+          "A duplicate matches neither `val < node.val` nor `val > node.val`, so an `if` and an `elif` with no `else` skip it. Every path ends with `return node`.",
+          "For the minimum, keep stepping to the left child while there is one, then return that node's value."
+        ]
+      }
+    },
+    {
+      "title": "Level-order traversal",
+      "body": "Depth-first traversals dive down one branch at a time. **Level-order** traversal is breadth-first search on a tree: it visits the root, then every node one level down, and so on, left to right.\n\nIt is the level-by-level loop from the BFS lesson: a `deque` as the queue and a snapshot of `len(queue)` at the start of each round, so exactly that many nodes belong to the current level. A tree has no cycles and every node has one parent, so you need no visited set.\n\n```python\nresult = []\nqueue = deque([root])\nwhile queue:\n    level = []\n    for _ in range(len(queue)):\n        node = queue.popleft()\n        level.append(node.val)\n        if node.left is not None:\n            queue.append(node.left)\n        if node.right is not None:\n            queue.append(node.right)\n    result.append(level)\n```\n\nReturn `[]` early when `root` is `None`, or the loop would call `.val` on `None`. Use `popleft()`, not `list.pop(0)`, which shifts every item and makes BFS slow on big trees. Test children with `is not None`, the same check the recursive functions use.\n\nCollecting each level as its own list makes level questions easy: the level count is the height, `level[-1]` is the rightmost node, and `max(level)` is the largest value on that level.",
+      "example": {
+        "title": "Printing each level",
+        "prompt": "Print each level of a tree on its own line.",
+        "code": "from collections import deque\n\n\nclass TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef build_tree(tokens):\n    \"\"\"Build a tree from level-order tokens where \"null\" is a missing child.\"\"\"\n    if not tokens or tokens[0] == \"null\":\n        return None\n    root = TreeNode(int(tokens[0]))\n    queue = deque([root])\n    i = 1\n    while queue and i < len(tokens):\n        node = queue.popleft()\n        if tokens[i] != \"null\":\n            node.left = TreeNode(int(tokens[i]))\n            queue.append(node.left)\n        i += 1\n        if i < len(tokens) and tokens[i] != \"null\":\n            node.right = TreeNode(int(tokens[i]))\n            queue.append(node.right)\n        i += 1\n    return root\n\n\ndef level_order(root):\n    if root is None:\n        return []\n    result = []\n    queue = deque([root])\n    while queue:\n        level = []\n        for _ in range(len(queue)):\n            node = queue.popleft()\n            level.append(node.val)\n            if node.left is not None:\n                queue.append(node.left)\n            if node.right is not None:\n                queue.append(node.right)\n        result.append(level)\n    return result\n\n\nroot = build_tree(\"1 2 3 4 null 5 6 null 7\".split())\nfor depth, level in enumerate(level_order(root), start=1):\n    print(f\"Level {depth}:\", *level)\n",
+        "output": "Level 1: 1\nLevel 2: 2 3\nLevel 3: 4 5 6\nLevel 4: 7",
+        "explanation": "The queue starts with the root. Each pass of `while queue:` reads `len(queue)` once, pops exactly that many nodes, and queues their children for the next pass. Node 4 has only a right child, 7, so the last level holds just 7. `enumerate(..., start=1)` numbers the levels."
+      },
+      "practice": {
+        "title": "Right side view",
+        "prompt": "Read a tree in level order and print the value you would see at the right end of each level.\n\n1. Complete `right_side_view` with the level-by-level BFS from the example.\n2. After each level, append its last value to the result.\n3. Return `[]` for an empty tree, so the input `null` prints just `Right view:`.\n\nInput:\n\n```text\n1 2 3 null 5 null 4\n```\n\nExpected output:\n\n```text\nRight view: 1 3 4\n```",
+        "starter": "from collections import deque\n\n\nclass TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef build_tree(tokens):\n    \"\"\"Build a tree from level-order tokens where \"null\" is a missing child.\"\"\"\n    if not tokens or tokens[0] == \"null\":\n        return None\n    root = TreeNode(int(tokens[0]))\n    queue = deque([root])\n    i = 1\n    while queue and i < len(tokens):\n        node = queue.popleft()\n        if tokens[i] != \"null\":\n            node.left = TreeNode(int(tokens[i]))\n            queue.append(node.left)\n        i += 1\n        if i < len(tokens) and tokens[i] != \"null\":\n            node.right = TreeNode(int(tokens[i]))\n            queue.append(node.right)\n        i += 1\n    return root\n\n\ndef right_side_view(root):\n    # TODO: BFS level by level and keep the last value of each level\n    return []\n\n\nroot = build_tree(input().split())\nprint(\"Right view:\", *right_side_view(root))\n",
+        "solution": "from collections import deque\n\n\nclass TreeNode:\n    def __init__(self, val, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\n\ndef build_tree(tokens):\n    \"\"\"Build a tree from level-order tokens where \"null\" is a missing child.\"\"\"\n    if not tokens or tokens[0] == \"null\":\n        return None\n    root = TreeNode(int(tokens[0]))\n    queue = deque([root])\n    i = 1\n    while queue and i < len(tokens):\n        node = queue.popleft()\n        if tokens[i] != \"null\":\n            node.left = TreeNode(int(tokens[i]))\n            queue.append(node.left)\n        i += 1\n        if i < len(tokens) and tokens[i] != \"null\":\n            node.right = TreeNode(int(tokens[i]))\n            queue.append(node.right)\n        i += 1\n    return root\n\n\ndef right_side_view(root):\n    if root is None:\n        return []\n    result = []\n    queue = deque([root])\n    while queue:\n        level = []\n        for _ in range(len(queue)):\n            node = queue.popleft()\n            level.append(node.val)\n            if node.left is not None:\n                queue.append(node.left)\n            if node.right is not None:\n                queue.append(node.right)\n        result.append(level[-1])\n    return result\n\n\nroot = build_tree(input().split())\nprint(\"Right view:\", *right_side_view(root))\n",
+        "tests": [
+          {
+            "stdin": "1 2 3 null 5 null 4\n",
+            "output": "Right view: 1 3 4"
+          },
+          {
+            "stdin": "1 2 3 4\n",
+            "output": "Right view: 1 3 4"
+          },
+          {
+            "stdin": "null\n",
+            "output": "Right view:"
+          }
+        ],
+        "hints": [
+          "Start with `if root is None: return []`.",
+          "Inside `while queue:`, loop `for _ in range(len(queue))` to process one level.",
+          "The rightmost value of a level is `level[-1]`."
+        ]
+      }
+    }
+  ],
+  "recap": "- A `TreeNode` holds `val`, `left`, and `right`. `None` marks a missing child.\n- Preorder records a node before its subtrees, inorder between them, and postorder after them.\n- Pass one list down the recursion and append to it to collect values.\n- Tree properties return 0 for `None` and combine the answers of both subtrees.\n- Height counts the nodes on the longest root-to-leaf path: 0 for an empty tree.\n- In a BST, smaller values go left and larger go right. Insert returns the subtree root and ignores duplicates.\n- Inorder of a BST is sorted. The minimum is the leftmost node and the maximum the rightmost.\n- Level order is BFS with a `deque`, and `for _ in range(len(queue))` processes one level at a time."
+}

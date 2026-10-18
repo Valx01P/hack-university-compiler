@@ -1,0 +1,155 @@
+{
+  "id": "async-await",
+  "title": "Promises and async/await",
+  "section": "Async JavaScript",
+  "summary": "Schedule work with setTimeout, chain promises with then and catch, write async/await code, and run tasks in parallel with Promise.all.",
+  "intro": "Slow work like timers and network calls does not have to freeze your program. Node schedules the work, keeps running, and comes back when the result is ready. This lesson shows how to run code later, chain results with promises, write the same logic readably with `async` and `await`, and run several tasks at once.",
+  "steps": [
+    {
+      "title": "setTimeout and the event loop",
+      "body": "`setTimeout(callback, ms)` asks Node to run `callback` once, at least `ms` milliseconds later. It returns right away, so the rest of your code keeps going.\n\n```javascript\nsetTimeout(() => {\n  console.log(\"later\");\n}, 20);\nconsole.log(\"now\");\n```\n\nThis prints `now`, then `later`. JavaScript runs one thing at a time: all synchronous code finishes first, and only then does the **event loop** run waiting callbacks. Even `setTimeout(fn, 0)` waits for the current code to finish.\n\nTimers fire in order of their delays, not in the order you created them. Keep delays clearly apart (10 ms or more) when their order matters, since a timer is a minimum wait, not an exact one. The program does not exit at its last line: Node keeps running until the last scheduled callback has run.\n\nGotcha: a callback reads its variables when it runs, not when it was scheduled. Declare loop variables with `const` or `let` so each timer keeps its own value.",
+      "example": {
+        "title": "Three timers",
+        "prompt": "Read lines of `label delay`, schedule one timer per line, and watch synchronous code finish before any timer fires.",
+        "stdin": "slow 50\nfast 10\nmedium 30\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst timers = input.trim().split(\"\\n\").map((line) => {\n  const [label, delayText] = line.trim().split(/\\s+/);\n  return { label, delay: Number(delayText) };\n});\n\nconsole.log(\"start\");\nfor (const { label, delay } of timers) {\n  setTimeout(() => {\n    console.log(`${label} after ${delay} ms`);\n  }, delay);\n}\nconsole.log(`scheduled ${timers.length} timers`);\n",
+        "output": "start\nscheduled 3 timers\nfast after 10 ms\nmedium after 30 ms\nslow after 50 ms",
+        "explanation": "The loop only schedules the timers, so `start` and `scheduled 3 timers` print first: all synchronous code finishes before any callback runs. Then the timers fire by delay, not by input order: 10 ms, 30 ms, 50 ms. Each callback remembers its own `label` and `delay` because the loop declares them with `const`. Node exits after the 50 ms timer, the last one scheduled."
+      },
+      "practice": {
+        "title": "Meal reminders",
+        "prompt": "Schedule one reminder per input line and a final timer that runs after all of them.\n\n1. The starter reads each line into `{ label, delay }` and prints `start` and `end`.\n2. Between those two lines, schedule a timer for each task that prints its `label` after `delay` ms.\n3. Schedule one more timer that prints `all done` 10 ms after the largest delay (`Math.max(...)` finds it).\n\nInput:\n\n```text\nlunch 40\nbreakfast 10\ndinner 70\n```\n\nExpected output:\n\n```text\nstart\nend\nbreakfast\nlunch\ndinner\nall done\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst tasks = input.trim().split(\"\\n\").map((line) => {\n  const [label, delayText] = line.trim().split(/\\s+/);\n  return { label, delay: Number(delayText) };\n});\n\nconsole.log(\"start\");\n// TODO: schedule a timer for each task that prints its label after its delay\n// TODO: schedule one more timer that prints \"all done\" 10 ms after the largest delay\nconsole.log(\"end\");\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst tasks = input.trim().split(\"\\n\").map((line) => {\n  const [label, delayText] = line.trim().split(/\\s+/);\n  return { label, delay: Number(delayText) };\n});\n\nconsole.log(\"start\");\nfor (const { label, delay } of tasks) {\n  setTimeout(() => {\n    console.log(label);\n  }, delay);\n}\nconst largest = Math.max(...tasks.map((task) => task.delay));\nsetTimeout(() => {\n  console.log(\"all done\");\n}, largest + 10);\nconsole.log(\"end\");\n",
+        "tests": [
+          {
+            "stdin": "lunch 40\nbreakfast 10\ndinner 70\n",
+            "output": "start\nend\nbreakfast\nlunch\ndinner\nall done"
+          },
+          {
+            "stdin": "alarm 20\n",
+            "output": "start\nend\nalarm\nall done"
+          },
+          {
+            "stdin": "third 60\nfirst 20\nlast 90\nsecond 40\n",
+            "output": "start\nend\nfirst\nsecond\nthird\nlast\nall done"
+          }
+        ],
+        "hints": [
+          "`end` prints before every label because the loop only schedules timers. The labels come later, ordered by delay.",
+          "Spread the delays into `Math.max`: map each task to its `delay` first."
+        ]
+      }
+    },
+    {
+      "title": "Promises with then, catch, and finally",
+      "body": "A **promise** stands for a value that arrives later. Wrap timer-based work in `new Promise`, and call `resolve(value)` when it succeeds or `reject(error)` when it fails:\n\n```javascript\nfunction delay(value, ms) {\n  return new Promise((resolve) => {\n    setTimeout(() => resolve(value), ms);\n  });\n}\n\nfunction failAfter(message, ms) {\n  return new Promise((_, reject) => {\n    setTimeout(() => reject(new Error(message)), ms);\n  });\n}\n```\n\n`failAfter(\"offline\", 10).catch((error) => console.log(error.message))` prints `offline`. A `reject` and a `throw` inside `then` land in the same `catch`.\n\n- `promise.then((value) => ...)` returns a new promise, so calls chain. Each `then` receives what the one before it returned, so always `return` (a missing `return` passes `undefined`).\n- Throwing inside a `then` skips every remaining `then` and jumps to the next `catch`.\n- `promise.catch((error) => ...)` handles the rejection.\n- `promise.finally(() => ...)` runs either way, which suits cleanup. It receives no value.\n\n`Promise.resolve(value)` and `Promise.reject(error)` make a promise that is already settled. Even then, `then` callbacks never run right away: they wait for the current synchronous code to finish, and they run before any timer callback. A rejection that nothing catches crashes Node, so end every chain with `catch`.",
+      "example": {
+        "title": "Odd numbers fail",
+        "prompt": "Send each input number through a delayed promise chain that rejects odd numbers, doubles, then adds 1.",
+        "stdin": "4 7\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst numbers = input.trim().split(/\\s+/).map(Number);\n\nfunction delay(value, ms) {\n  return new Promise((resolve) => {\n    setTimeout(() => resolve(value), ms);\n  });\n}\n\nfor (const [i, n] of numbers.entries()) {\n  delay(n, 20 * (i + 1))\n    .then((value) => {\n      if (value % 2 !== 0) {\n        throw new Error(`${value} is odd`);\n      }\n      return value;\n    })\n    .then((value) => value * 2)\n    .then((value) => value + 1)\n    .then((result) => console.log(`result: ${result}`))\n    .catch((error) => console.log(`error: ${error.message}`))\n    .finally(() => console.log(\"cleanup\"));\n}\nconsole.log(\"chains started\");\n",
+        "output": "chains started\nresult: 9\ncleanup\nerror: 7 is odd\ncleanup",
+        "explanation": "The loop builds both chains and moves on, so `chains started` prints first. The second chain waits 20 ms longer, so the two finish in input order. For 4, each `then` gets the value the previous one returned: 4, then 8, then 9. For 7, the first `then` throws, the remaining `then` calls are skipped, and `catch` prints the message. `finally` prints `cleanup` in both cases."
+      },
+      "practice": {
+        "title": "Negative numbers fail",
+        "prompt": "Send each input number through a delayed promise chain that rejects negative numbers, squares, then subtracts 1.\n\n1. For each number `n` at index `i`, start with `delay(n, 20 * (i + 1))`.\n2. In the first `then`, throw `new Error(\"negative input\")` when the value is below 0, otherwise return it.\n3. Add a `then` that squares the value and one that subtracts 1, then print `result: <value>`.\n4. End the chain with `catch` printing `error: <message>` and `finally` printing `cleanup`.\n\nInput:\n\n```text\n3 -2\n```\n\nExpected output:\n\n```text\nchains started\nresult: 8\ncleanup\nerror: negative input\ncleanup\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst numbers = input.trim().split(/\\s+/).map(Number);\n\nfunction delay(value, ms) {\n  return new Promise((resolve) => {\n    setTimeout(() => resolve(value), ms);\n  });\n}\n\nfor (const [i, n] of numbers.entries()) {\n  // TODO: chain delay(n, 20 * (i + 1)) through then, catch, and finally\n}\nconsole.log(\"chains started\");\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst numbers = input.trim().split(/\\s+/).map(Number);\n\nfunction delay(value, ms) {\n  return new Promise((resolve) => {\n    setTimeout(() => resolve(value), ms);\n  });\n}\n\nfor (const [i, n] of numbers.entries()) {\n  delay(n, 20 * (i + 1))\n    .then((value) => {\n      if (value < 0) {\n        throw new Error(\"negative input\");\n      }\n      return value;\n    })\n    .then((value) => value ** 2)\n    .then((value) => value - 1)\n    .then((result) => console.log(`result: ${result}`))\n    .catch((error) => console.log(`error: ${error.message}`))\n    .finally(() => console.log(\"cleanup\"));\n}\nconsole.log(\"chains started\");\n",
+        "tests": [
+          {
+            "stdin": "3 -2\n",
+            "output": "chains started\nresult: 8\ncleanup\nerror: negative input\ncleanup"
+          },
+          {
+            "stdin": "0 5 -1\n",
+            "output": "chains started\nresult: -1\ncleanup\nresult: 24\ncleanup\nerror: negative input\ncleanup"
+          },
+          {
+            "stdin": "-4\n",
+            "output": "chains started\nerror: negative input\ncleanup"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the example chain and change the check and the two math steps.",
+          "0 is not negative, so it goes through: 0 squared is 0, minus 1 is -1."
+        ]
+      }
+    },
+    {
+      "title": "async and await",
+      "body": "An `async` function always returns a promise. Its `return` value resolves that promise, and a `throw` inside it rejects it. Inside, `await promise` pauses the function until the promise settles, then gives back its value or throws its error, so plain `try`/`catch` handles rejections. CommonJS has no top-level `await`: put the code in `async function main()` and call `main();`.\n\n```javascript\nconst sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));\n```\n\nGotcha 1: inside `try`, write `return await work()`. A bare `return work()` hands back the promise before it settles, so its rejection skips your local `catch` and lands on the caller.\n\nGotcha 2: `forEach` does not wait for async callbacks.\n\n```javascript\n[30, 10, 20].forEach(async (ms) => {\n  await sleep(ms);\n  console.log(`waited ${ms}`);\n});\nconsole.log(\"finished\");\n```\n\nThis prints `finished` first, then `waited 10`, `waited 20`, and `waited 30`. To run tasks one after another, put `await` inside a `for...of` loop.",
+      "example": {
+        "title": "Install steps",
+        "prompt": "Read steps as `name ms`, run them one after another with `await`, and skip any step slower than 100 ms instead of crashing.",
+        "stdin": "connect 20\ndownload 300\nverify 10\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst steps = input.trim().split(\"\\n\").map((line) => {\n  const [name, msText] = line.trim().split(/\\s+/);\n  return { name, ms: Number(msText) };\n});\n\nconst sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));\n\nasync function runStep(name, ms) {\n  if (ms > 100) {\n    throw new Error(\"too slow\");\n  }\n  await sleep(ms);\n  return `${name} done`;\n}\n\nasync function safeStep(name, ms) {\n  try {\n    return await runStep(name, ms);\n  } catch (error) {\n    return `${name} skipped (${error.message})`;\n  }\n}\n\nasync function main() {\n  for (const { name, ms } of steps) {\n    console.log(await safeStep(name, ms));\n  }\n  console.log(\"all steps finished\");\n}\n\nmain();\n",
+        "output": "connect done\ndownload skipped (too slow)\nverify done\nall steps finished",
+        "explanation": "`runStep` is async, so its `throw` becomes a rejected promise rather than a crash. `safeStep` uses `return await`, which makes the rejection happen inside its `try`, so its own `catch` turns it into a `skipped` line. In `main`, `await` inside `for...of` finishes each step before starting the next, so lines print in input order even though `verify` is faster than `connect`."
+      },
+      "practice": {
+        "title": "Task runner",
+        "prompt": "Run tasks in input order with async/await and report each one as ok or failed.\n\n1. In `runTask`, await `sleep(ms)`, then throw `new Error(\"task failed\")` when `name` is `fail`, otherwise return `<name> ok`.\n2. In `safeTask`, `return await runTask(name, ms)` inside `try` and return `<name> error (<message>)` from `catch`.\n3. In `main`, loop over `tasks` with `for...of`, await `safeTask` for each, and print what it returns before the final line.\n\nInput:\n\n```text\nload 30\nfail 10\nsave 20\n```\n\nExpected output:\n\n```text\nload ok\nfail error (task failed)\nsave ok\nall tasks finished\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst tasks = input.trim().split(\"\\n\").map((line) => {\n  const [name, msText] = line.trim().split(/\\s+/);\n  return { name, ms: Number(msText) };\n});\n\nconst sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));\n\nasync function runTask(name, ms) {\n  // TODO: sleep for ms, throw \"task failed\" when the name is fail, else return \"<name> ok\"\n  return \"\";\n}\n\nasync function safeTask(name, ms) {\n  // TODO: return await runTask inside try, return \"<name> error (<message>)\" from catch\n  return \"\";\n}\n\nasync function main() {\n  // TODO: await safeTask for each task in order and print what it returns\n  console.log(\"all tasks finished\");\n}\n\nmain();\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst tasks = input.trim().split(\"\\n\").map((line) => {\n  const [name, msText] = line.trim().split(/\\s+/);\n  return { name, ms: Number(msText) };\n});\n\nconst sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));\n\nasync function runTask(name, ms) {\n  await sleep(ms);\n  if (name === \"fail\") {\n    throw new Error(\"task failed\");\n  }\n  return `${name} ok`;\n}\n\nasync function safeTask(name, ms) {\n  try {\n    return await runTask(name, ms);\n  } catch (error) {\n    return `${name} error (${error.message})`;\n  }\n}\n\nasync function main() {\n  for (const { name, ms } of tasks) {\n    console.log(await safeTask(name, ms));\n  }\n  console.log(\"all tasks finished\");\n}\n\nmain();\n",
+        "tests": [
+          {
+            "stdin": "load 30\nfail 10\nsave 20\n",
+            "output": "load ok\nfail error (task failed)\nsave ok\nall tasks finished"
+          },
+          {
+            "stdin": "ping 20\npong 10\n",
+            "output": "ping ok\npong ok\nall tasks finished"
+          },
+          {
+            "stdin": "fail 10\nretry 20\nfail 10\n",
+            "output": "fail error (task failed)\nretry ok\nfail error (task failed)\nall tasks finished"
+          }
+        ],
+        "hints": [
+          "Each task must finish before the next starts, so `fail 10` still prints after `load 30`.",
+          "Without `await` after `return`, the rejection skips `safeTask`'s `catch` and crashes the program."
+        ]
+      }
+    },
+    {
+      "title": "Running promises together",
+      "body": "Awaiting tasks one by one adds up their times. To run them in parallel, start every promise first, then await them:\n\n```javascript\n// inside an async function\nconst first = sleep(30);\nconst second = sleep(20);\nawait first;\nawait second; // about 30 ms in total, not 50\n```\n\n`Promise.all` is the usual way to do this. Pair it with `map` and an async callback: `await Promise.all(items.map(async (item) => ...))`. It resolves to an array of results in **input order**, not finishing order. It rejects as soon as one promise rejects, with that error. The other tasks keep running, but their results are lost.\n\n- `Promise.allSettled(promises)` never rejects. It waits for every promise and reports each one as `{ status: \"fulfilled\", value }` or `{ status: \"rejected\", reason }`.\n- `Promise.race(promises)` settles like the first promise to settle, whether it resolved or rejected, so wrap it in `try`/`catch` as well.\n\nGotcha: with promises started by hand, one that rejects before you reach its `await` crashes Node. `Promise.all` and its relatives watch every promise at once, so prefer them.",
+      "example": {
+        "title": "Health check",
+        "prompt": "Read services as `name ms up` or `name ms down`, check them in parallel, and compare what `allSettled`, `all`, and `race` report.",
+        "stdin": "db 30 up\ncache 10 up\napi 20 down\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst services = input.trim().split(\"\\n\").map((line) => {\n  const [name, msText, state] = line.trim().split(/\\s+/);\n  return { name, ms: Number(msText), up: state === \"up\" };\n});\n\nconst sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));\n\nasync function check({ name, ms, up }) {\n  await sleep(ms);\n  if (!up) {\n    throw new Error(`${name} timed out`);\n  }\n  return name;\n}\n\nasync function main() {\n  const results = await Promise.allSettled(services.map((service) => check(service)));\n  for (const [i, result] of results.entries()) {\n    const { name, ms } = services[i];\n    if (result.status === \"fulfilled\") {\n      console.log(`${name}: up (${ms} ms)`);\n    } else {\n      console.log(`${name}: down (${result.reason.message})`);\n    }\n  }\n\n  try {\n    const names = await Promise.all(services.map((service) => check(service)));\n    console.log(`all: ok (${names.join(\", \")})`);\n  } catch (error) {\n    console.log(`all: failed (${error.message})`);\n  }\n\n  try {\n    const fastest = await Promise.race(services.map((service) => check(service)));\n    console.log(`first: ${fastest}`);\n  } catch (error) {\n    console.log(`first: failed (${error.message})`);\n  }\n}\n\nmain();\n",
+        "output": "db: up (30 ms)\ncache: up (10 ms)\napi: down (api timed out)\nall: failed (api timed out)\nfirst: cache",
+        "explanation": "`map` starts all three checks at once, so the `allSettled` round takes about 30 ms, not 60. `allSettled` waits for all of them and keeps input order, so `db` prints first even though `cache` finished first. `Promise.all` rejects at 20 ms with the first error, `api timed out`. Had every service been up, it would print the names in input order. `Promise.race` settles with `cache`, the first to finish. It still sits in `try`, because a fastest service that is down makes the race reject."
+      },
+      "practice": {
+        "title": "Status page",
+        "prompt": "Check every service in parallel and summarize the results with allSettled, all, and race.\n\n1. Run `Promise.allSettled` over all checks and print `<name>: up` or `<name>: down (<reason message>)` for each service, in input order.\n2. Print `up: <count>`, the number of fulfilled results.\n3. Run `Promise.all` over fresh checks and print `all: ok (<names>)` with the names in input order joined by `, `, or `all: failed (<message>)` when it rejects.\n4. Run `Promise.race` over fresh checks and print `first: <name>`, or `first: failed (<message>)` when the fastest service is down.\n\nInput:\n\n```text\nweb 20 up\nmail 40 down\ndns 10 up\n```\n\nExpected output:\n\n```text\nweb: up\nmail: down (mail timed out)\ndns: up\nup: 2\nall: failed (mail timed out)\nfirst: dns\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst services = input.trim().split(\"\\n\").map((line) => {\n  const [name, msText, state] = line.trim().split(/\\s+/);\n  return { name, ms: Number(msText), up: state === \"up\" };\n});\n\nconst sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));\n\nasync function check({ name, ms, up }) {\n  await sleep(ms);\n  if (!up) {\n    throw new Error(`${name} timed out`);\n  }\n  return name;\n}\n\nasync function main() {\n  // TODO: allSettled: print \"<name>: up\" or \"<name>: down (<reason>)\" in input order\n  // TODO: print \"up: <count>\"\n  // TODO: Promise.all: print \"all: ok (<names>)\" or \"all: failed (<reason>)\"\n  // TODO: Promise.race: print \"first: <name>\" or \"first: failed (<reason>)\"\n}\n\nmain();\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst services = input.trim().split(\"\\n\").map((line) => {\n  const [name, msText, state] = line.trim().split(/\\s+/);\n  return { name, ms: Number(msText), up: state === \"up\" };\n});\n\nconst sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));\n\nasync function check({ name, ms, up }) {\n  await sleep(ms);\n  if (!up) {\n    throw new Error(`${name} timed out`);\n  }\n  return name;\n}\n\nasync function main() {\n  const results = await Promise.allSettled(services.map((service) => check(service)));\n  for (const [i, result] of results.entries()) {\n    const { name } = services[i];\n    if (result.status === \"fulfilled\") {\n      console.log(`${name}: up`);\n    } else {\n      console.log(`${name}: down (${result.reason.message})`);\n    }\n  }\n  const upCount = results.filter((result) => result.status === \"fulfilled\").length;\n  console.log(`up: ${upCount}`);\n\n  try {\n    const names = await Promise.all(services.map((service) => check(service)));\n    console.log(`all: ok (${names.join(\", \")})`);\n  } catch (error) {\n    console.log(`all: failed (${error.message})`);\n  }\n\n  try {\n    const fastest = await Promise.race(services.map((service) => check(service)));\n    console.log(`first: ${fastest}`);\n  } catch (error) {\n    console.log(`first: failed (${error.message})`);\n  }\n}\n\nmain();\n",
+        "tests": [
+          {
+            "stdin": "web 20 up\nmail 40 down\ndns 10 up\n",
+            "output": "web: up\nmail: down (mail timed out)\ndns: up\nup: 2\nall: failed (mail timed out)\nfirst: dns"
+          },
+          {
+            "stdin": "auth 30 up\nqueue 10 up\n",
+            "output": "auth: up\nqueue: up\nup: 2\nall: ok (auth, queue)\nfirst: queue"
+          },
+          {
+            "stdin": "search 10 down\nlogs 30 up\n",
+            "output": "search: down (search timed out)\nlogs: up\nup: 1\nall: failed (search timed out)\nfirst: failed (search timed out)"
+          }
+        ],
+        "hints": [
+          "`services.map((service) => check(service))` starts every check at once. Call it again for each of the three combinators.",
+          "Each result lines up with the service at the same index. A rejected one has `reason`, an `Error` with a `message`.",
+          "Wrap both `Promise.all` and `Promise.race` in `try`/`catch`, since either can reject."
+        ]
+      }
+    }
+  ],
+  "recap": "- `setTimeout(callback, ms)` runs a callback later. All synchronous code finishes first, timers fire in order of delay, and Node exits after the last callback.\n- `new Promise((resolve, reject) => ...)` wraps work that finishes later.\n- Each `then` gets what the previous one returned. A throw jumps to the next `catch`, and `finally` runs either way.\n- An `async` function returns a promise. `await` pauses it until a promise settles, and `try`/`catch` handles rejections.\n- No top-level `await` in CommonJS: write `async function main()` and call `main();`.\n- Inside `try`, write `return await promise` so the local `catch` sees the rejection.\n- `sleep(ms)` is `new Promise((resolve) => setTimeout(resolve, ms))`.\n- `await` in `for...of` runs tasks in sequence. `forEach` does not wait.\n- `Promise.all(items.map(async (item) => ...))` runs tasks in parallel, resolves to results in input order, and rejects on the first failure.\n- `Promise.allSettled` reports every `status` with its `value` or `reason`. `Promise.race` settles like the fastest promise.\n- Catch every rejection, because an unhandled one crashes Node."
+}

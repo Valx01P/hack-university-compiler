@@ -1,0 +1,155 @@
+{
+  "id": "graphs",
+  "title": "Graphs",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Represent graphs as adjacency lists and run DFS, BFS shortest paths, and Dijkstra.",
+  "intro": "Road maps, social networks, and course prerequisites are all graphs: nodes joined by edges. This lesson stores them as adjacency lists, runs the DFS and BFS you used on grids to find components and fewest edges, and adds Dijkstra for the cheapest weighted route.",
+  "steps": [
+    {
+      "title": "Adjacency lists",
+      "body": "A graph is a set of nodes joined by edges. Number the nodes `0` to `n - 1` and keep, for each node, the list of its neighbors. That is an adjacency list: a `List<List<Integer>>` with one `new ArrayList<>()` per node.\n\n```java\nList<List<Integer>> adj = new ArrayList<>();\nfor (int i = 0; i < n; i++) {\n    adj.add(new ArrayList<>());\n}\nadj.get(u).add(v);   // edge u to v\nadj.get(v).add(u);   // undirected: add the reverse too\n```\n\nAn undirected edge (a friendship, a two-way road) goes in both lists. A directed edge (a follow, a one-way street) goes only in `u`'s list. The degree of a node is how many edges touch it: `adj.get(u).size()`. In a directed graph that size is the out-degree, and the in-degree needs its own `int[]` counter.\n\nNeighbors land in the order the edges were read. Sort each list with `Collections.sort` so traversals and printed output follow a fixed order.\n\nAvoid `List<Integer>[] adj = new ArrayList[n]`. That array uses a raw type, so javac prints an unchecked note, and `new ArrayList<Integer>[n]` does not compile at all. A list of lists has neither problem.",
+      "example": {
+        "title": "Neighbors and degrees",
+        "prompt": "Read `n` nodes and `m` undirected edges, build the adjacency list, and print each node's sorted neighbors and degree.",
+        "code": "import java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int m = sc.nextInt();\n        List<List<Integer>> adj = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            adj.add(new ArrayList<>());\n        }\n        for (int i = 0; i < m; i++) {\n            int u = sc.nextInt();\n            int v = sc.nextInt();\n            adj.get(u).add(v);\n            adj.get(v).add(u);\n        }\n        for (List<Integer> neighbors : adj) {\n            Collections.sort(neighbors);\n        }\n        for (int i = 0; i < n; i++) {\n            System.out.println(i + \": \" + adj.get(i) + \" degree \" + adj.get(i).size());\n        }\n    }\n}\n",
+        "stdin": "5 4\n0 3\n3 1\n1 0\n2 1\n",
+        "output": "0: [1, 3] degree 2\n1: [0, 2, 3] degree 3\n2: [1] degree 1\n3: [0, 1] degree 2\n4: [] degree 0",
+        "explanation": "The first loop gives every node its own empty list, so node `4` exists even with no edges. Each edge `u v` is added to both lists because the graph is undirected. Sorting every list fixes the order, so `1` prints `[0, 2, 3]` no matter how the edges were listed. The degree is the list's `size()`, and an isolated node prints `[]` with degree `0`."
+      },
+      "practice": {
+        "title": "Who follows whom",
+        "prompt": "Read a directed graph of follows and print each node's out-degree and in-degree.\n\n1. Read `n` and `m`, then `m` lines `from to`, each meaning `from` follows `to`.\n2. Build a `List<List<Integer>>` and add each edge only to `from`'s list.\n3. Count each node's in-degree in an `int[]`.\n4. Sort every list, then print one line per node in the form `i -> [list] out X, in Y`.\n\nInput:\n\n```text\n4 5\n0 2\n0 1\n1 2\n2 3\n3 0\n```\n\nExpected output:\n\n```text\n0 -> [1, 2] out 2, in 1\n1 -> [2] out 1, in 1\n2 -> [3] out 1, in 2\n3 -> [0] out 1, in 1\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int m = sc.nextInt();\n        // TODO: create the adjacency list and an int[] for in-degrees\n        for (int i = 0; i < m; i++) {\n            int from = sc.nextInt();\n            int to = sc.nextInt();\n            // TODO: add the directed edge and count the in-degree\n        }\n        // TODO: sort each list, then print one line per node\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int m = sc.nextInt();\n        List<List<Integer>> adj = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            adj.add(new ArrayList<>());\n        }\n        int[] inDegree = new int[n];\n        for (int i = 0; i < m; i++) {\n            int from = sc.nextInt();\n            int to = sc.nextInt();\n            adj.get(from).add(to);\n            inDegree[to]++;\n        }\n        for (List<Integer> follows : adj) {\n            Collections.sort(follows);\n        }\n        for (int i = 0; i < n; i++) {\n            System.out.println(i + \" -> \" + adj.get(i) + \" out \" + adj.get(i).size() + \", in \" + inDegree[i]);\n        }\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "4 5\n0 2\n0 1\n1 2\n2 3\n3 0\n",
+            "output": "0 -> [1, 2] out 2, in 1\n1 -> [2] out 1, in 1\n2 -> [3] out 1, in 2\n3 -> [0] out 1, in 1"
+          },
+          {
+            "stdin": "3 2\n2 0\n2 1\n",
+            "output": "0 -> [] out 0, in 1\n1 -> [] out 0, in 1\n2 -> [0, 1] out 2, in 0"
+          },
+          {
+            "stdin": "1 0\n",
+            "output": "0 -> [] out 0, in 0"
+          }
+        ],
+        "hints": [
+          "A directed edge goes in one list only: `adj.get(from).add(to)`.",
+          "The out-degree is `adj.get(i).size()`. For the in-degree, do `inDegree[to]++` as you read each edge."
+        ]
+      }
+    },
+    {
+      "title": "DFS and components",
+      "body": "This is the grid DFS from the Depth-First Search lesson with one change: the neighbors come from `adj.get(node)` instead of four directions, so there are no bounds to check. Keep a `boolean[] visited` so each node is entered once. Without it, every undirected edge leads straight back to the node you came from, and the recursion never ends.\n\n```java\nstatic int dfs(int node, List<List<Integer>> adj, boolean[] visited) {\n    visited[node] = true;\n    int size = 1;\n    for (int next : adj.get(node)) {\n        if (!visited[next]) {\n            size += dfs(next, adj, visited);\n        }\n    }\n    return size;\n}\n```\n\nMark the node before you look at its neighbors. The for-each loop unboxes each `Integer` neighbor into an `int`. Returning `1` plus what each recursive call found gives the number of nodes this call reached.\n\nIn an undirected graph, a connected component is a largest group of nodes that can all reach each other. To count them, loop over every node and launch a DFS from each one that is still unvisited, just as you counted islands. Each launch finds one whole component, so the number of launches is the component count, and each return value is that component's size.\n\nRecursion depth grows with the component, so the limit of about 2,000 frames from the Recursion lesson applies here too.",
+      "example": {
+        "title": "Components in discovery order",
+        "prompt": "Count the connected components of an undirected graph and print each component's size in the order DFS finds them.",
+        "code": "import java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int m = sc.nextInt();\n        List<List<Integer>> adj = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            adj.add(new ArrayList<>());\n        }\n        for (int i = 0; i < m; i++) {\n            int u = sc.nextInt();\n            int v = sc.nextInt();\n            adj.get(u).add(v);\n            adj.get(v).add(u);\n        }\n        for (List<Integer> neighbors : adj) {\n            Collections.sort(neighbors);\n        }\n\n        boolean[] visited = new boolean[n];\n        List<Integer> sizes = new ArrayList<>();\n        for (int start = 0; start < n; start++) {\n            if (!visited[start]) {\n                sizes.add(dfs(start, adj, visited));\n            }\n        }\n        System.out.println(\"Components: \" + sizes.size());\n        System.out.println(\"Sizes: \" + sizes);\n    }\n\n    static int dfs(int node, List<List<Integer>> adj, boolean[] visited) {\n        visited[node] = true;\n        int size = 1;\n        for (int next : adj.get(node)) {\n            if (!visited[next]) {\n                size += dfs(next, adj, visited);\n            }\n        }\n        return size;\n    }\n}\n",
+        "stdin": "7 4\n0 4\n4 6\n2 3\n6 0\n",
+        "output": "Components: 4\nSizes: [3, 1, 2, 1]",
+        "explanation": "The loop tries nodes `0` to `6`. Node `0` is unvisited, so `dfs` sweeps `0`, `4`, and `6` and returns `3`. Node `1` has no edges, so its DFS returns `1`. Node `2` reaches `3` for a size of `2`, and node `5` is alone. Nodes `3`, `4`, and `6` are already visited when the loop reaches them, so they start nothing. Four launches mean four components."
+      },
+      "practice": {
+        "title": "Island groups",
+        "prompt": "Read a map of islands joined by bridges and print the sizes of the island groups in ascending order.\n\n1. Write `dfs(node, adj, visited)` so it marks `node`, recurses into unvisited neighbors, and returns how many nodes it reached.\n2. Launch `dfs` from every unvisited node and add each result to a `List<Integer>`.\n3. Sort the list with `Collections.sort`.\n4. Print `Islands: ` with the number of groups, then `Sizes: ` with the sorted list.\n\nInput:\n\n```text\n8 5\n0 1\n1 2\n2 0\n3 7\n5 4\n```\n\nExpected output:\n\n```text\nIslands: 4\nSizes: [1, 2, 2, 3]\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int m = sc.nextInt();\n        List<List<Integer>> adj = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            adj.add(new ArrayList<>());\n        }\n        for (int i = 0; i < m; i++) {\n            int u = sc.nextInt();\n            int v = sc.nextInt();\n            adj.get(u).add(v);\n            adj.get(v).add(u);\n        }\n        for (List<Integer> neighbors : adj) {\n            Collections.sort(neighbors);\n        }\n        // TODO: launch dfs from every unvisited node, collect the sizes, sort them, and print both lines\n    }\n\n    static int dfs(int node, List<List<Integer>> adj, boolean[] visited) {\n        // TODO: mark node, visit unvisited neighbors, and return the component size\n        return 0;\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int m = sc.nextInt();\n        List<List<Integer>> adj = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            adj.add(new ArrayList<>());\n        }\n        for (int i = 0; i < m; i++) {\n            int u = sc.nextInt();\n            int v = sc.nextInt();\n            adj.get(u).add(v);\n            adj.get(v).add(u);\n        }\n        for (List<Integer> neighbors : adj) {\n            Collections.sort(neighbors);\n        }\n\n        boolean[] visited = new boolean[n];\n        List<Integer> sizes = new ArrayList<>();\n        for (int start = 0; start < n; start++) {\n            if (!visited[start]) {\n                sizes.add(dfs(start, adj, visited));\n            }\n        }\n        Collections.sort(sizes);\n        System.out.println(\"Islands: \" + sizes.size());\n        System.out.println(\"Sizes: \" + sizes);\n    }\n\n    static int dfs(int node, List<List<Integer>> adj, boolean[] visited) {\n        visited[node] = true;\n        int size = 1;\n        for (int next : adj.get(node)) {\n            if (!visited[next]) {\n                size += dfs(next, adj, visited);\n            }\n        }\n        return size;\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "8 5\n0 1\n1 2\n2 0\n3 7\n5 4\n",
+            "output": "Islands: 4\nSizes: [1, 2, 2, 3]"
+          },
+          {
+            "stdin": "3 0\n",
+            "output": "Islands: 3\nSizes: [1, 1, 1]"
+          },
+          {
+            "stdin": "4 4\n0 1\n1 2\n2 3\n3 0\n",
+            "output": "Islands: 1\nSizes: [4]"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the example's `dfs`: mark, set `size = 1`, add each recursive result, return `size`.",
+          "Sort the sizes after all the launches, just before printing."
+        ]
+      }
+    },
+    {
+      "title": "BFS shortest path",
+      "body": "BFS works on a graph just as it did on a grid: the queue hands back nodes in rings, every node 1 edge away, then 2, then 3. In an unweighted graph that order gives the fewest edges from the start to every node. The queue now holds plain node numbers, and `dist` is a one-dimensional `int[]`, so a single `Arrays.fill` works.\n\n```java\nint[] dist = new int[n];\nArrays.fill(dist, -1);   // -1 means not visited yet\nQueue<Integer> queue = new ArrayDeque<>();\ndist[start] = 0;\nqueue.offer(start);\nwhile (!queue.isEmpty()) {\n    int node = queue.poll();\n    for (int next : adj.get(node)) {\n        if (dist[next] == -1) {\n            dist[next] = dist[node] + 1;\n            queue.offer(next);\n        }\n    }\n}\n```\n\nThe `dist` array does two jobs. It holds the answers, and `dist[v] == -1` is the visited check, so you need no `boolean[]`. Set the start's distance before the loop, or the start looks unvisited and gets a distance of 2 later.\n\nSet a node's distance when you enqueue it, not when you poll it, or the same node can enter the queue several times. Nodes still at `-1` at the end are unreachable, which is exactly what to print for them. DFS cannot replace BFS here: it finds *a* path, not the shortest one.",
+      "example": {
+        "title": "Edges from node 0",
+        "prompt": "Read an undirected graph and print the fewest edges from node `0` to every node, or `-1` when a node is unreachable.",
+        "code": "import java.util.ArrayDeque;\nimport java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Queue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int m = sc.nextInt();\n        List<List<Integer>> adj = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            adj.add(new ArrayList<>());\n        }\n        for (int i = 0; i < m; i++) {\n            int u = sc.nextInt();\n            int v = sc.nextInt();\n            adj.get(u).add(v);\n            adj.get(v).add(u);\n        }\n        for (List<Integer> neighbors : adj) {\n            Collections.sort(neighbors);\n        }\n\n        int[] dist = new int[n];\n        Arrays.fill(dist, -1);\n        Queue<Integer> queue = new ArrayDeque<>();\n        dist[0] = 0;\n        queue.offer(0);\n        while (!queue.isEmpty()) {\n            int node = queue.poll();\n            for (int next : adj.get(node)) {\n                if (dist[next] == -1) {\n                    dist[next] = dist[node] + 1;\n                    queue.offer(next);\n                }\n            }\n        }\n        for (int i = 0; i < n; i++) {\n            System.out.println(i + \": \" + dist[i]);\n        }\n    }\n}\n",
+        "stdin": "6 6\n0 1\n0 2\n1 3\n2 3\n3 4\n4 1\n",
+        "output": "0: 0\n1: 1\n2: 1\n3: 2\n4: 2\n5: -1",
+        "explanation": "Node `0` starts at distance `0` and is the only node in the queue. Polling it sets nodes `1` and `2` to `1`. Polling `1` sets `3` and `4` to `2`, because both are one edge from `1`. When `2` and `3` are polled, every neighbor already has a distance, so nothing changes. Node `5` has no edges and keeps its `-1`."
+      },
+      "practice": {
+        "title": "Subway hops",
+        "prompt": "Read a subway map and print the fewest hops between two stations, or `-1` when no route exists.\n\n1. The starter reads `n`, `m`, the `m` two-way links, and then the stations `from` and `to`.\n2. Fill an `int[] dist` with `-1`, set `dist[from]` to `0`, and offer `from` to a `Queue<Integer>`.\n3. Poll stations and give each neighbor still at `-1` the distance `dist[station] + 1`, then offer it.\n4. Print `Hops: ` followed by `dist[to]`.\n\nInput:\n\n```text\n7 7\n0 1\n1 2\n2 3\n3 4\n0 5\n5 3\n4 6\n0 6\n```\n\nExpected output:\n\n```text\nHops: 4\n```",
+        "starter": "import java.util.ArrayDeque;\nimport java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Queue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int m = sc.nextInt();\n        List<List<Integer>> adj = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            adj.add(new ArrayList<>());\n        }\n        for (int i = 0; i < m; i++) {\n            int u = sc.nextInt();\n            int v = sc.nextInt();\n            adj.get(u).add(v);\n            adj.get(v).add(u);\n        }\n        for (List<Integer> neighbors : adj) {\n            Collections.sort(neighbors);\n        }\n        int from = sc.nextInt();\n        int to = sc.nextInt();\n        // TODO: run BFS from `from` with an int[] dist filled with -1\n        // TODO: print \"Hops: \" followed by dist[to]\n    }\n}\n",
+        "solution": "import java.util.ArrayDeque;\nimport java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Queue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int m = sc.nextInt();\n        List<List<Integer>> adj = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            adj.add(new ArrayList<>());\n        }\n        for (int i = 0; i < m; i++) {\n            int u = sc.nextInt();\n            int v = sc.nextInt();\n            adj.get(u).add(v);\n            adj.get(v).add(u);\n        }\n        for (List<Integer> neighbors : adj) {\n            Collections.sort(neighbors);\n        }\n        int from = sc.nextInt();\n        int to = sc.nextInt();\n\n        int[] dist = new int[n];\n        Arrays.fill(dist, -1);\n        Queue<Integer> queue = new ArrayDeque<>();\n        dist[from] = 0;\n        queue.offer(from);\n        while (!queue.isEmpty()) {\n            int station = queue.poll();\n            for (int next : adj.get(station)) {\n                if (dist[next] == -1) {\n                    dist[next] = dist[station] + 1;\n                    queue.offer(next);\n                }\n            }\n        }\n        System.out.println(\"Hops: \" + dist[to]);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "7 7\n0 1\n1 2\n2 3\n3 4\n0 5\n5 3\n4 6\n0 6\n",
+            "output": "Hops: 4"
+          },
+          {
+            "stdin": "5 3\n0 1\n1 2\n3 4\n0 4\n",
+            "output": "Hops: -1"
+          },
+          {
+            "stdin": "3 2\n0 1\n1 2\n2 2\n",
+            "output": "Hops: 0"
+          }
+        ],
+        "hints": [
+          "Use the example's BFS loop unchanged, only starting from `from` instead of `0`.",
+          "An unreachable station never leaves `-1`, and `from == to` gives `0`, so `dist[to]` is already the answer."
+        ]
+      }
+    },
+    {
+      "title": "Dijkstra with a PriorityQueue",
+      "body": "With weighted edges (distances, prices) the fewest edges is not always the cheapest route. Dijkstra's algorithm finds the cheapest one when no weight is negative. Store each edge as `{neighbor, weight}` in a `List<List<int[]>>`, and keep a `PriorityQueue<int[]>` of `{node, distance}` that always hands back the closest node.\n\n```java\nPriorityQueue<int[]> pq = new PriorityQueue<>((a, b) -> Integer.compare(a[1], b[1]));\nint[] dist = new int[n];\nArrays.fill(dist, Integer.MAX_VALUE);   // infinity\ndist[start] = 0;\npq.offer(new int[]{start, 0});\n```\n\nEach pass polls `{u, d}`. If `d > dist[u]`, a cheaper route to `u` was found after this entry went in, so skip the stale entry with `continue`. Otherwise relax every edge: if `d + w < dist[v]`, store the new distance and offer `{v, dist[v]}`. Java's `PriorityQueue` cannot lower an entry's key, so offering a fresh entry and skipping stale ones is the standard approach.\n\nTwo gotchas. Compare with `Integer.compare`, never `a[1] - b[1]`, which overflows for large values. And relax only from a polled distance, which is always finite: `Integer.MAX_VALUE + w` wraps to a negative number that looks like a shortcut. If real totals can pass about 2 billion, store distances as `long`. At the end, print `-1` for any node still at `Integer.MAX_VALUE`.",
+      "example": {
+        "title": "Shortest distances from node 0",
+        "prompt": "Read a weighted undirected graph and print the shortest distance from node `0` to every node, or `-1` when a node is unreachable.",
+        "code": "import java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.PriorityQueue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int m = sc.nextInt();\n        List<List<int[]>> adj = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            adj.add(new ArrayList<>());\n        }\n        for (int i = 0; i < m; i++) {\n            int u = sc.nextInt();\n            int v = sc.nextInt();\n            int w = sc.nextInt();\n            adj.get(u).add(new int[]{v, w});\n            adj.get(v).add(new int[]{u, w});\n        }\n\n        int[] dist = new int[n];\n        Arrays.fill(dist, Integer.MAX_VALUE);\n        PriorityQueue<int[]> pq = new PriorityQueue<>((a, b) -> Integer.compare(a[1], b[1]));\n        dist[0] = 0;\n        pq.offer(new int[]{0, 0});\n        while (!pq.isEmpty()) {\n            int[] top = pq.poll();\n            int u = top[0];\n            int d = top[1];\n            if (d > dist[u]) {\n                continue;\n            }\n            for (int[] edge : adj.get(u)) {\n                int v = edge[0];\n                int w = edge[1];\n                if (d + w < dist[v]) {\n                    dist[v] = d + w;\n                    pq.offer(new int[]{v, dist[v]});\n                }\n            }\n        }\n        for (int i = 0; i < n; i++) {\n            int shown = dist[i] == Integer.MAX_VALUE ? -1 : dist[i];\n            System.out.println(i + \": \" + shown);\n        }\n    }\n}\n",
+        "stdin": "6 6\n0 1 7\n0 2 2\n2 1 3\n1 3 1\n2 3 8\n3 4 2\n",
+        "output": "0: 0\n1: 5\n2: 2\n3: 6\n4: 8\n5: -1",
+        "explanation": "Polling node `0` offers `{1, 7}` and `{2, 2}`. Node `2` comes out first and finds cheaper routes: `1` drops to `2 + 3 = 5` and `3` gets `10`. Node `1` at `5` then lowers `3` to `6`. The old entries `{1, 7}` and `{3, 10}` are still in the queue, and when they come out `d > dist[u]` skips them. Node `5` has no edges, so it stays at `Integer.MAX_VALUE` and prints `-1`."
+      },
+      "practice": {
+        "title": "Cheapest trip",
+        "prompt": "Read a map of two-way roads with prices and print the cheapest travel cost between two cities, or `-1` when no route exists.\n\n1. The starter reads `n`, `m`, the `m` roads `u v price`, and then the cities `from` and `to`.\n2. Fill an `int[] cost` with `Integer.MAX_VALUE`, set `cost[from]` to `0`, and offer `{from, 0}` to a `PriorityQueue<int[]>` ordered by cost with `Integer.compare`.\n3. Poll entries, skip stale ones, and relax each road from the polled cost.\n4. Print `Cost: ` followed by `cost[to]`, or `-1` if it is still `Integer.MAX_VALUE`.\n\nInput:\n\n```text\n5 6\n0 1 4\n0 2 1\n2 1 2\n1 3 5\n2 3 9\n3 4 3\n0 4\n```\n\nExpected output:\n\n```text\nCost: 11\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.PriorityQueue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int m = sc.nextInt();\n        List<List<int[]>> adj = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            adj.add(new ArrayList<>());\n        }\n        for (int i = 0; i < m; i++) {\n            int u = sc.nextInt();\n            int v = sc.nextInt();\n            int w = sc.nextInt();\n            adj.get(u).add(new int[]{v, w});\n            adj.get(v).add(new int[]{u, w});\n        }\n        int from = sc.nextInt();\n        int to = sc.nextInt();\n        // TODO: run Dijkstra from `from` with a PriorityQueue<int[]> of {city, cost}\n        // TODO: print \"Cost: \" followed by the cheapest cost to `to`, or -1 if unreachable\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.PriorityQueue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int m = sc.nextInt();\n        List<List<int[]>> adj = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            adj.add(new ArrayList<>());\n        }\n        for (int i = 0; i < m; i++) {\n            int u = sc.nextInt();\n            int v = sc.nextInt();\n            int w = sc.nextInt();\n            adj.get(u).add(new int[]{v, w});\n            adj.get(v).add(new int[]{u, w});\n        }\n        int from = sc.nextInt();\n        int to = sc.nextInt();\n\n        int[] cost = new int[n];\n        Arrays.fill(cost, Integer.MAX_VALUE);\n        PriorityQueue<int[]> pq = new PriorityQueue<>((a, b) -> Integer.compare(a[1], b[1]));\n        cost[from] = 0;\n        pq.offer(new int[]{from, 0});\n        while (!pq.isEmpty()) {\n            int[] top = pq.poll();\n            int city = top[0];\n            int c = top[1];\n            if (c > cost[city]) {\n                continue;\n            }\n            for (int[] road : adj.get(city)) {\n                int next = road[0];\n                int price = road[1];\n                if (c + price < cost[next]) {\n                    cost[next] = c + price;\n                    pq.offer(new int[]{next, cost[next]});\n                }\n            }\n        }\n        int answer = cost[to] == Integer.MAX_VALUE ? -1 : cost[to];\n        System.out.println(\"Cost: \" + answer);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "5 6\n0 1 4\n0 2 1\n2 1 2\n1 3 5\n2 3 9\n3 4 3\n0 4\n",
+            "output": "Cost: 11"
+          },
+          {
+            "stdin": "4 2\n0 1 10\n2 3 1\n0 3\n",
+            "output": "Cost: -1"
+          },
+          {
+            "stdin": "3 2\n0 1 5\n1 2 5\n1 1\n",
+            "output": "Cost: 0"
+          }
+        ],
+        "hints": [
+          "Follow the example's loop exactly, starting from `from` instead of `0`.",
+          "Right after each poll, compare the polled cost with `cost[city]` and `continue` when the polled one is larger.",
+          "Convert `Integer.MAX_VALUE` to `-1` only when you print."
+        ]
+      }
+    }
+  ],
+  "recap": "- Build `List<List<Integer>> adj` with one `new ArrayList<>()` per node. Add undirected edges both ways and directed edges once.\n- A node's degree is `adj.get(u).size()`. Sort each neighbor list for a fixed order.\n- DFS: mark `visited[node]` first, recurse into unvisited neighbors, and return the size reached. One launch per unvisited node counts the components.\n- BFS: `Queue<Integer> queue = new ArrayDeque<>()` with `int[] dist` filled with `-1`. Set the distance when you enqueue, and `-1` left at the end means unreachable.\n- Dijkstra: `List<List<int[]>>` of `{neighbor, weight}` and a `PriorityQueue<int[]>` ordered with `Integer.compare`. Skip stale entries, relax only from polled distances, and print `-1` for `Integer.MAX_VALUE`."
+}

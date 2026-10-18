@@ -1,0 +1,118 @@
+{
+  "id": "itertools-functools",
+  "title": "itertools and functools",
+  "section": "Standard Library",
+  "summary": "Generate combinations, running totals, and groups with itertools, and reduce, specialize, and cache with functools.",
+  "intro": "Many loops you would write by hand already exist in the standard library. `itertools` builds combinations, running totals, groups, and chunks as lazy iterators, and `functools` folds a list into one value, presets function arguments, and caches results.",
+  "steps": [
+    {
+      "title": "Combinatorics",
+      "body": "`itertools` builds every arrangement of some items for you, so you never write the nested loops by hand.\n\n```python\nimport itertools\n\nitertools.product(\"AB\", \"xy\")          # Ax Ay Bx By: one from each\nitertools.product(\"AB\", repeat=2)      # AA AB BA BB: same as product(\"AB\", \"AB\")\nitertools.permutations(\"ABC\", 2)       # AB AC BA BC CA CB: order matters\nitertools.combinations(\"ABC\", 2)       # AB AC BC: order ignored\nitertools.combinations_with_replacement(\"AB\", 2)  # AA AB BB\n```\n\nEach one yields tuples in a fixed order based on the input positions: the last slot changes fastest, like an odometer. Leave out `r` in `permutations()` to get full-length orderings.\n\nThe results are lazy iterators. Loop over them, or wrap them in `list()` before printing, because `print(itertools.product(\"AB\", repeat=2))` shows `<itertools.product object at 0x...>`. They are also used up after one pass, and items are picked by position, so a repeated value in the input gives repeated tuples. To count results, use `len(list(...))`.",
+      "example": {
+        "title": "Codes, orders, and scoops",
+        "prompt": "Build codes with product, count the menu options, list the orderings of three names, show the pairs of four numbers, and print every two-scoop cone.",
+        "code": "import itertools\n\nsizes = [\"small\", \"large\"]\ndrinks = [\"tea\", \"coffee\", \"cocoa\"]\nnames = [\"Ana\", \"Ben\", \"Cy\"]\nflavors = [\"mint\", \"lemon\", \"berry\"]\n\ncodes = [\"\".join(p) for p in itertools.product(\"AB\", repeat=2)]\nprint(\"Codes:\", *codes)\nprint(\"Menu options:\", len(list(itertools.product(sizes, drinks))))\n\nfor order in itertools.permutations(names):\n    print(\" > \".join(order))\n\nprint(list(itertools.combinations([1, 2, 3, 4], 2)))\n\nfor a, b in itertools.combinations_with_replacement(flavors, 2):\n    print(f\"{a} + {b}\")\n",
+        "output": "Codes: AA AB BA BB\nMenu options: 6\nAna > Ben > Cy\nAna > Cy > Ben\nBen > Ana > Cy\nBen > Cy > Ana\nCy > Ana > Ben\nCy > Ben > Ana\n[(1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)]\nmint + mint\nmint + lemon\nmint + berry\nlemon + lemon\nlemon + berry\nberry + berry",
+        "explanation": "`product(\"AB\", repeat=2)` pairs the string with itself, and joining each tuple turns `('A', 'B')` into `AB`. `product(sizes, drinks)` takes one item from each list, so 2 times 3 gives 6. `permutations(names)` has no `r`, so it yields all 6 full orderings, in order of the input positions. `combinations()` ignores order, so `(2, 1)` never appears, and `list()` shows the tuples. `combinations_with_replacement()` also allows `mint + mint`, but never `lemon + mint` after `mint + lemon`."
+      },
+      "practice": {
+        "title": "Outfits and pairs",
+        "prompt": "Use the combinatoric tools to count outfits, build codes, find pairs, and count coin picks.\n\n1. Print `Outfits:` and the number of shirt and pants combinations, counted with `itertools.product()`.\n2. Print `Codes:` and each 2-letter permutation of `\"XYZ\"` joined into a string, separated by spaces.\n3. Loop over `itertools.combinations(nums, 2)` and print each pair that sums to 10 as `a + b = 10`, in the order they come out.\n4. Print `Coin picks:` and the number of ways to pick 2 coins from `coins` when the same kind can be picked twice.\n\nExpected output:\n\n```text\nOutfits: 6\nCodes: XY XZ YX YZ ZX ZY\n1 + 9 = 10\n4 + 6 = 10\n3 + 7 = 10\nCoin picks: 6\n```",
+        "starter": "import itertools\n\nshirts = [\"red\", \"blue\", \"white\"]\npants = [\"jeans\", \"khakis\"]\nnums = [1, 9, 4, 6, 3, 7, 5]\ncoins = [\"penny\", \"nickel\", \"dime\"]\n\n# TODO: print the number of outfits\n# TODO: print the 2-letter permutations of \"XYZ\"\n# TODO: print every pair from nums that sums to 10\n# TODO: print the number of 2-coin picks with repeats allowed\n",
+        "solution": "import itertools\n\nshirts = [\"red\", \"blue\", \"white\"]\npants = [\"jeans\", \"khakis\"]\nnums = [1, 9, 4, 6, 3, 7, 5]\ncoins = [\"penny\", \"nickel\", \"dime\"]\n\nprint(\"Outfits:\", len(list(itertools.product(shirts, pants))))\n\ncodes = [\"\".join(p) for p in itertools.permutations(\"XYZ\", 2)]\nprint(\"Codes:\", *codes)\n\nfor a, b in itertools.combinations(nums, 2):\n    if a + b == 10:\n        print(f\"{a} + {b} = 10\")\n\npicks = list(itertools.combinations_with_replacement(coins, 2))\nprint(\"Coin picks:\", len(picks))\n",
+        "tests": [
+          {
+            "output": "Outfits: 6\nCodes: XY XZ YX YZ ZX ZY\n1 + 9 = 10\n4 + 6 = 10\n3 + 7 = 10\nCoin picks: 6"
+          }
+        ],
+        "hints": [
+          "An itertools result has no `len()`, so wrap it in `list()` first, as the example does for the menu.",
+          "`permutations()` takes the number of slots as its second argument, and `\"\".join()` turns a tuple of letters into one string.",
+          "Unpack each pair as `a, b` in the loop and test `a + b == 10` before printing."
+        ]
+      }
+    },
+    {
+      "title": "Running totals, pairs, and batches",
+      "body": "Three more tools replace common loops:\n\n```python\nimport itertools\n\nnums = [3, 1, 4, 1]\nlist(itertools.accumulate(nums))        # [3, 4, 8, 9]: running totals\nlist(itertools.accumulate(nums, max))   # [3, 3, 4, 4]: largest so far\nlist(itertools.pairwise(nums))          # [(3, 1), (1, 4), (4, 1)]\nlist(itertools.batched(\"abcde\", 2))     # [('a', 'b'), ('c', 'd'), ('e',)]\n```\n\n- `accumulate(nums)` adds as it goes. Pass any two-argument function, such as `max`, `min`, or a lambda, to combine differently.\n- `pairwise(xs)` yields each item with its right neighbor, a cleaner `zip(xs, xs[1:])`. A list of n items gives n - 1 pairs.\n- `batched(xs, n)` cuts items into tuples of n. The last chunk is shorter when the items do not divide evenly.\n\n`batched()` is new in Python 3.12. The `strict=True` option that rejects a short last chunk arrived in 3.13, so it does not exist on this runtime. Like every itertools result, these are lazy: unpack them with `*` or wrap them in `list()` to print them.",
+      "example": {
+        "title": "Account and weather log",
+        "prompt": "Print running totals of deposits, the record high so far, the daily changes, and pack seven items into boxes of three.",
+        "code": "import itertools\n\ndeposits = [50, 20, 75, 10]\nhighs = [21, 24, 19, 26, 25]\nitems = [\"cup\", \"pen\", \"map\", \"hat\", \"jar\", \"key\", \"box\"]\n\nprint(\"Balance:\", *itertools.accumulate(deposits))\nprint(\"Record high:\", *itertools.accumulate(highs, max))\n\nchanges = [b - a for a, b in itertools.pairwise(highs)]\nprint(\"Changes:\", *changes)\ndrops = sum(1 for a, b in itertools.pairwise(highs) if b < a)\nprint(\"Drops:\", drops)\n\nfor i, box in enumerate(itertools.batched(items, 3), start=1):\n    print(f\"Box {i}:\", \", \".join(box))\n",
+        "output": "Balance: 50 70 145 155\nRecord high: 21 24 24 26 26\nChanges: 3 -5 7 -1\nDrops: 2\nBox 1: cup, pen, map\nBox 2: hat, jar, key\nBox 3: box",
+        "explanation": "`accumulate(deposits)` yields 50, then 50 + 20, and so on. With `max` it keeps the largest value seen so far, so 24 repeats until 26 beats it. `pairwise(highs)` yields `(21, 24)`, `(24, 19)`, and so on, and the comprehension subtracts each pair. Counting with `sum(1 for ... if b < a)` finds the 2 days that got colder. `batched(items, 3)` yields tuples of 3, and the seventh item ends up alone in the last box."
+      },
+      "practice": {
+        "title": "Score tracker",
+        "prompt": "Summarize a list of scores and split a roster into teams.\n\n1. Print `Totals:` and the running totals of `scores`, separated by spaces.\n2. Print `Lowest so far:` and the running minimum of `scores`.\n3. Print `Rises:` and the number of times a score is higher than the one before it, using `itertools.pairwise()`.\n4. Split `names` into teams of 3 with `itertools.batched()` and print each as `Team N:` followed by the names joined with `, `, counting from 1.\n\nExpected output:\n\n```text\nTotals: 8 13 22 25 32 38\nLowest so far: 8 5 5 3 3 3\nRises: 2\nTeam 1: Ana, Ben, Cy\nTeam 2: Dee, Eli, Fay\nTeam 3: Gus, Hal\n```",
+        "starter": "import itertools\n\nscores = [8, 5, 9, 3, 7, 6]\nnames = [\"Ana\", \"Ben\", \"Cy\", \"Dee\", \"Eli\", \"Fay\", \"Gus\", \"Hal\"]\n\n# TODO: print the running totals\n# TODO: print the running minimum\n# TODO: count and print the rises\n# TODO: print the names in teams of 3\n",
+        "solution": "import itertools\n\nscores = [8, 5, 9, 3, 7, 6]\nnames = [\"Ana\", \"Ben\", \"Cy\", \"Dee\", \"Eli\", \"Fay\", \"Gus\", \"Hal\"]\n\nprint(\"Totals:\", *itertools.accumulate(scores))\nprint(\"Lowest so far:\", *itertools.accumulate(scores, min))\n\nrises = sum(1 for a, b in itertools.pairwise(scores) if b > a)\nprint(\"Rises:\", rises)\n\nfor i, team in enumerate(itertools.batched(names, 3), start=1):\n    print(f\"Team {i}:\", \", \".join(team))\n",
+        "tests": [
+          {
+            "output": "Totals: 8 13 22 25 32 38\nLowest so far: 8 5 5 3 3 3\nRises: 2\nTeam 1: Ana, Ben, Cy\nTeam 2: Dee, Eli, Fay\nTeam 3: Gus, Hal"
+          }
+        ],
+        "hints": [
+          "`accumulate()` takes the combining function as its second argument, just as the example passes `max`.",
+          "Count the rises the way the example counts drops, with the comparison flipped.",
+          "Number the teams with `enumerate(..., start=1)` around `itertools.batched()`."
+        ]
+      }
+    },
+    {
+      "title": "Grouping and chaining",
+      "body": "`groupby()` walks through items and groups *consecutive* equal ones. Each step gives a key and a group iterator:\n\n```python\nfor ch, group in itertools.groupby(\"aabccc\"):\n    print(ch, len(list(group)))   # a 2, b 1, c 3\n```\n\nRead each group inside the loop. The group shares the underlying iterator, so once `groupby()` moves on it is empty:\n\n```python\npairs = list(itertools.groupby(\"aab\"))\nprint(len(list(pairs[0][1])))     # 0, not 2\n```\n\nOnly neighbors are grouped, so `\"abab\"` makes four groups. Sort first when equal items are scattered, and pass `key=` to group by a property: `itertools.groupby(sorted(words, key=len), key=len)`.\n\n`chain(a, b, c)` yields every item of `a`, then `b`, then `c`, without building a new list.\n\n`count(start, step)` counts forever, so never call `list()` on it. `islice(iterable, n)` takes just the first n items, which makes any endless iterator safe to use:\n\n```python\nlist(itertools.islice(itertools.count(1), 3))   # [1, 2, 3]\n```",
+      "example": {
+        "title": "Runs, schedules, and evens",
+        "prompt": "Print the run lengths of a string, join two schedules, and take the first five even numbers from an endless counter.",
+        "code": "import itertools\n\ntext = \"aaabccdd\"\nfor ch, group in itertools.groupby(text):\n    print(f\"{ch}: {len(list(group))}\")\n\nmorning = [\"math\", \"art\"]\nafternoon = [\"gym\", \"music\", \"lab\"]\nprint(list(itertools.chain(morning, afternoon)))\n\nevens = itertools.islice(itertools.count(0, 2), 5)\nprint(list(evens))\n",
+        "output": "a: 3\nb: 1\nc: 2\nd: 2\n['math', 'art', 'gym', 'music', 'lab']\n[0, 2, 4, 6, 8]",
+        "explanation": "`groupby(text)` yields `a` with a group of three items, then `b`, `c`, and `d`. `len(list(group))` reads the group right away, while it still has its items. `chain(morning, afternoon)` yields the five subjects in order, and `list()` collects them. `count(0, 2)` would yield 0, 2, 4, ... forever, but `islice()` stops after 5 items."
+      },
+      "practice": {
+        "title": "Packed text and multiples",
+        "prompt": "Compress a string into run lengths, chain three lists, and take the first multiples of 7.\n\n1. Use `itertools.groupby()` to turn `text` into each letter followed by its run length, joined into one string with no spaces, and print it.\n2. Print the list made by chaining `reds`, `greens`, and `yellows` with `itertools.chain()`.\n3. Print the list of the first 4 multiples of 7, taken from an endless `itertools.count()` with `itertools.islice()`.\n\nExpected output:\n\n```text\na3b2c1\n['cherry', 'plum', 'kiwi', 'lemon', 'banana']\n[7, 14, 21, 28]\n```",
+        "starter": "import itertools\n\ntext = \"aaabbc\"\nreds = [\"cherry\", \"plum\"]\ngreens = [\"kiwi\"]\nyellows = [\"lemon\", \"banana\"]\n\n# TODO: print text compressed into letters and run lengths\n# TODO: print the three lists chained into one list\n# TODO: print the first 4 multiples of 7\n",
+        "solution": "import itertools\n\ntext = \"aaabbc\"\nreds = [\"cherry\", \"plum\"]\ngreens = [\"kiwi\"]\nyellows = [\"lemon\", \"banana\"]\n\nparts = [f\"{ch}{len(list(group))}\" for ch, group in itertools.groupby(text)]\nprint(\"\".join(parts))\n\nprint(list(itertools.chain(reds, greens, yellows)))\n\nsevens = itertools.islice(itertools.count(7, 7), 4)\nprint(list(sevens))\n",
+        "tests": [
+          {
+            "output": "a3b2c1\n['cherry', 'plum', 'kiwi', 'lemon', 'banana']\n[7, 14, 21, 28]"
+          }
+        ],
+        "hints": [
+          "Build one piece per group, such as `a3`, from the key and `len(list(group))`, and read the group right away.",
+          "Collect the pieces in a list and glue them with `\"\".join()`.",
+          "`itertools.count(start, step)` can start at 7 and step by 7, and `islice()` stops it after 4 items."
+        ]
+      }
+    },
+    {
+      "title": "functools: reduce, partial, cache",
+      "body": "`functools` holds tools that work on functions.\n\n`reduce(func, xs)` folds a list into one value from the left: `reduce(f, [a, b, c])` is `f(f(a, b), c)`. Give a starting value as a third argument when the list can be empty:\n\n```python\nfunctools.reduce(lambda a, b: a + b, [], 0)   # 0\n# functools.reduce(lambda a, b: a + b, [])\n# TypeError: reduce() of empty iterable with no initial value\n```\n\nFor plain sums, products, and maximums, `sum()`, `math.prod()`, and `max()` read better. Use `reduce()` for custom rules.\n\n`partial(func, ...)` returns a new function with some arguments already filled in. `int(text, base)` parses text in another base, so `int(\"1011\", 2)` is 11 and `int(\"ff\", 16)` is 255. `functools.partial(int, base=2)` makes a binary parser.\n\n`@functools.cache` remembers each result by its arguments. A repeated call returns the saved value without running the body. Arguments must be hashable, so a list argument fails:\n\n```python\n@functools.cache\ndef square(n):\n    return n * n\n\n# square([1, 2])  # TypeError: unhashable type: 'list'\n```\n\nOlder code spells it `@functools.lru_cache(maxsize=None)`, which works the same way. Plain `@functools.lru_cache` keeps only the 128 most recent results. `cache_info()` reports hits and misses.",
+      "example": {
+        "title": "Product, binary, and a cache",
+        "prompt": "Multiply a list with reduce, parse binary text with a partial, and watch a cached function skip a repeated call.",
+        "code": "import functools\n\n\n@functools.cache\ndef square(n):\n    print(f\"computing {n}\")\n    return n * n\n\n\nnums = [2, 3, 4]\nprint(\"Product:\", functools.reduce(lambda a, b: a * b, nums))\n\nfrom_binary = functools.partial(int, base=2)\nprint(\"1011 ->\", from_binary(\"1011\"))\n\nfor n in [4, 4, 5]:\n    print(f\"square({n}) = {square(n)}\")\nprint(square.cache_info())\n",
+        "output": "Product: 24\n1011 -> 11\ncomputing 4\nsquare(4) = 16\nsquare(4) = 16\ncomputing 5\nsquare(5) = 25\nCacheInfo(hits=1, misses=2, maxsize=None, currsize=2)",
+        "explanation": "`reduce()` computes `(2 * 3) * 4`, which is 24. In everyday code `math.prod(nums)` says this more directly, so save `reduce()` for rules no built-in covers. `from_binary` is `int` with `base=2` already set, so `from_binary(\"1011\")` is `int(\"1011\", base=2)`. The first `square(4)` runs the body and prints `computing 4` before its line. The second `square(4)` comes from the cache, so nothing extra prints. `square(5)` is new and runs again. `cache_info()` counts 1 hit and 2 misses, and because it returns a namedtuple it prints with field names."
+      },
+      "practice": {
+        "title": "Digits, hex, and cached scores",
+        "prompt": "Build a number with reduce, parse hex text with a partial, and cache a word scoring function.\n\n1. Print `Number:` and the digits in `digits` combined into one number with `functools.reduce()` and a lambda: each step multiplies the number so far by 10 and adds the next digit.\n2. Make `from_hex` with `functools.partial()` so it parses base 16 text, and print `ff ->` followed by `from_hex(\"ff\")`.\n3. Add `@functools.cache` to `word_score` so the repeated `cab` is not scored again.\n\nExpected output:\n\n```text\nNumber: 4072\nff -> 255\nscoring cab\ncab = 6\nscoring bad\nbad = 7\ncab = 6\n```",
+        "starter": "import functools\n\n\n# TODO: cache this function so each word is scored only once\ndef word_score(word):\n    print(f\"scoring {word}\")\n    return sum(ord(ch) - ord(\"a\") + 1 for ch in word)\n\n\ndigits = [4, 0, 7, 2]\nnumber = 0  # TODO: combine the digits with functools.reduce\nprint(\"Number:\", number)\n\n# TODO: make from_hex with functools.partial and print \"ff ->\" and its value\n\nfor word in [\"cab\", \"bad\", \"cab\"]:\n    print(f\"{word} = {word_score(word)}\")\n",
+        "solution": "import functools\n\n\n@functools.cache\ndef word_score(word):\n    print(f\"scoring {word}\")\n    return sum(ord(ch) - ord(\"a\") + 1 for ch in word)\n\n\ndigits = [4, 0, 7, 2]\nnumber = functools.reduce(lambda a, b: a * 10 + b, digits)\nprint(\"Number:\", number)\n\nfrom_hex = functools.partial(int, base=16)\nprint(\"ff ->\", from_hex(\"ff\"))\n\nfor word in [\"cab\", \"bad\", \"cab\"]:\n    print(f\"{word} = {word_score(word)}\")\n",
+        "tests": [
+          {
+            "output": "Number: 4072\nff -> 255\nscoring cab\ncab = 6\nscoring bad\nbad = 7\ncab = 6"
+          }
+        ],
+        "hints": [
+          "The lambda gets the number built so far and the next digit, like `rev = rev * 10 + digit` from the while loops lesson.",
+          "`from_hex` is `int` with `base` filled in, just like `from_binary` in the example.",
+          "A decorator goes on the line right above `def`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `product`, `permutations`, `combinations`, and `combinations_with_replacement` yield tuples in a fixed order.\n- itertools results are lazy and single-use: loop over them or wrap them in `list()` to print.\n- `accumulate(nums)` gives running totals, and `accumulate(nums, max)` a running maximum.\n- `pairwise(xs)` gives neighbor pairs, and `batched(xs, n)` gives chunks of n (3.12, no `strict=` here).\n- `groupby()` groups only consecutive equal items: sort first, and read each group inside the loop.\n- `chain()` joins iterables, and `islice(count(), n)` takes the first n of an endless sequence.\n- `functools.reduce()` folds a list, `functools.partial()` fixes arguments, and `int(text, base)` parses binary and hex.\n- `@functools.cache` (or `@functools.lru_cache(maxsize=None)`) memoizes calls with hashable arguments."
+}

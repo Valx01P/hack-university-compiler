@@ -1,0 +1,118 @@
+{
+  "id": "exceptions",
+  "title": "Exceptions and Error Handling",
+  "section": "Bits and Errors",
+  "summary": "Catch errors with try and except, run cleanup with else and finally, and raise your own exceptions.",
+  "intro": "Bad input, a zero divisor, or a missing key raises an exception that stops your program. Here you catch those errors, decide what runs afterward, and raise errors of your own.",
+  "steps": [
+    {
+      "title": "try and except",
+      "body": "A failing line raises an *exception*. Uncaught, it stops the program. Wrap risky code in `try:` and handle a specific error in `except`. Python checks the clauses top to bottom and runs the first match. `int(\"abc\")` raises `ValueError` and `100 // 0` raises `ZeroDivisionError`.\n\n```python\ntry:\n    print(100 // int(text))\nexcept ValueError:\n    print(\"not a number\")\nexcept ZeroDivisionError:\n    print(\"cannot divide by zero\")\n```\n\nTo handle several errors the same way, list them in a tuple and name the error with `as e`. `type(e).__name__` gives its class name, such as `ValueError`. The parentheses are required in 3.12: `except ValueError, ZeroDivisionError:` is a SyntaxError.\n\n```python\nexcept (ValueError, ZeroDivisionError) as e:\n    print(type(e).__name__)\n```\n\nTo read every input line, `import sys` and loop with `for line in sys.stdin:`. Each line keeps its newline, so strip it.\n\n- `KeyError`, `IndexError`, and `TypeError` are the other everyday errors: a missing dict key, a list index past the end, and a wrong type such as `\"a\" + 1`.\n- `str(e)` is the message, and its wording can change between Python versions, so check the error type, not the text.\n- Avoid a bare `except:`. It catches everything, even a typo's `NameError` and Ctrl+C, so bugs hide.",
+      "example": {
+        "title": "Safe division",
+        "prompt": "Divide 100 by each input line, explain each failure, then name the error type of every bad line.",
+        "code": "import sys\n\nlines = [line.strip() for line in sys.stdin]\n\nfor line in lines:\n    try:\n        print(f\"100 // {line} = {100 // int(line)}\")\n    except ValueError:\n        print(f\"{line}: not a number\")\n    except ZeroDivisionError:\n        print(f\"{line}: cannot divide by zero\")\n\nfor line in lines:\n    try:\n        result = 100 // int(line)\n    except (ValueError, ZeroDivisionError) as e:\n        print(f\"{line} -> {type(e).__name__}\")\n",
+        "stdin": "20\nabc\n0\n7\n",
+        "output": "100 // 20 = 5\nabc: not a number\n0: cannot divide by zero\n100 // 7 = 14\nabc -> ValueError\n0 -> ZeroDivisionError",
+        "explanation": "`int(\"abc\")` raises `ValueError` and `100 // 0` raises `ZeroDivisionError`, so each goes to its own except clause and the loop moves on. The second loop catches both with one tuple clause, and `type(e).__name__` names the error. Good lines print nothing there."
+      },
+      "practice": {
+        "title": "Minutes per lap",
+        "prompt": "Add up 60 // n for every line that works and report the lines that fail.\n\n1. Read every line with `sys.stdin` and strip it.\n2. In a try, add `60 // int(line)` to a running total.\n3. Count `ValueError` lines and `ZeroDivisionError` lines in two separate except clauses.\n4. Print `total: T`, then `not numbers: N`, then `zeros: Z`.\n5. Loop again with one `except (ValueError, ZeroDivisionError) as e` and print `LINE -> ErrorName` for each bad line, in input order.\n\nInput:\n\n```text\n12\nten\n0\n5\n3.5\n```\n\nExpected output:\n\n```text\ntotal: 17\nnot numbers: 2\nzeros: 1\nten -> ValueError\n0 -> ZeroDivisionError\n3.5 -> ValueError\n```",
+        "starter": "import sys\n\nlines = [line.strip() for line in sys.stdin]\ntotal = 0\nnot_numbers = 0\nzeros = 0\n\nfor line in lines:\n    # TODO: add 60 // int(line) to total\n    # count ValueError in not_numbers and ZeroDivisionError in zeros\n    pass\n\nprint(f\"total: {total}\")\nprint(f\"not numbers: {not_numbers}\")\nprint(f\"zeros: {zeros}\")\n\n# TODO: loop again and print each bad line with type(e).__name__\n",
+        "solution": "import sys\n\nlines = [line.strip() for line in sys.stdin]\ntotal = 0\nnot_numbers = 0\nzeros = 0\n\nfor line in lines:\n    try:\n        total += 60 // int(line)\n    except ValueError:\n        not_numbers += 1\n    except ZeroDivisionError:\n        zeros += 1\n\nprint(f\"total: {total}\")\nprint(f\"not numbers: {not_numbers}\")\nprint(f\"zeros: {zeros}\")\n\nfor line in lines:\n    try:\n        result = 60 // int(line)\n    except (ValueError, ZeroDivisionError) as e:\n        print(f\"{line} -> {type(e).__name__}\")\n",
+        "tests": [
+          {
+            "stdin": "12\nten\n0\n5\n3.5\n",
+            "output": "total: 17\nnot numbers: 2\nzeros: 1\nten -> ValueError\n0 -> ZeroDivisionError\n3.5 -> ValueError"
+          },
+          {
+            "stdin": "-7\n4\n0\n0\n",
+            "output": "total: 6\nnot numbers: 0\nzeros: 2\n0 -> ZeroDivisionError\n0 -> ZeroDivisionError"
+          },
+          {
+            "stdin": "6\n10\n",
+            "output": "total: 16\nnot numbers: 0\nzeros: 0"
+          }
+        ],
+        "hints": [
+          "Put only the risky line, `total += 60 // int(line)`, inside the try.",
+          "Remember `//` floors: `60 // -7` is `-9`.",
+          "In the second loop, the try only needs `60 // int(line)` so the error can happen."
+        ]
+      }
+    },
+    {
+      "title": "else and finally",
+      "body": "A try can end with two more clauses. `else:` runs only when the try raised nothing, so keep the try small and put the follow-up work there. `finally:` always runs, error or not, which makes it the place for cleanup.\n\n```python\ntry:\n    price = prices[fruit]\nexcept KeyError:\n    print(\"missing\")\nelse:\n    print(price)\nfinally:\n    print(\"checked\")\n```\n\nThis style is called EAFP: easier to ask forgiveness than permission. Just try it and handle the failure. The other style is LBYL: look before you leap, and check first.\n\n```python\nif fruit in prices:\n    print(prices[fruit])\nelse:\n    print(\"missing\")\n```\n\nBoth are fine. LBYL reads well for one simple check like `key in d`. EAFP shines when the check would repeat the work, such as testing whether text is a valid int.\n\nOne gotcha: a `KeyError` message is the key's repr, so `str(KeyError(\"pear\"))` is `'pear'` with the quotes.",
+      "example": {
+        "title": "Price lookup",
+        "prompt": "Look up a found and a missing fruit with try, except, else, and finally, then repeat the lookups by checking first.",
+        "code": "prices = {\"apple\": 3, \"banana\": 1}\n\nfor fruit in [\"apple\", \"pear\"]:\n    try:\n        price = prices[fruit]\n    except KeyError:\n        print(f\"except: no price for {fruit}\")\n    else:\n        print(f\"else: {fruit} costs {price}\")\n    finally:\n        print(f\"finally: checked {fruit}\")\n\nfor fruit in [\"apple\", \"pear\"]:\n    if fruit in prices:\n        print(f\"check: {fruit} costs {prices[fruit]}\")\n    else:\n        print(f\"check: no price for {fruit}\")\n",
+        "output": "else: apple costs 3\nfinally: checked apple\nexcept: no price for pear\nfinally: checked pear\ncheck: apple costs 3\ncheck: no price for pear",
+        "explanation": "For `apple` the try succeeds, so else runs and then finally. For `pear` the lookup raises `KeyError`, so except runs instead of else, and finally still runs. The message uses `fruit`, not the error text, so it never depends on how Python words a `KeyError`. The second loop gets the same answers by checking `fruit in prices` first."
+      },
+      "practice": {
+        "title": "Pick an item",
+        "prompt": "Look up a list item by index both ways: EAFP with try, then LBYL with a check.\n\n1. Read the items from the first line and the index (never negative) from the second.\n2. Try `items[index]`. Print `item: X` from the else branch, or `index out of range` on `IndexError`.\n3. Print `done` from a finally clause.\n4. Answer again with `if index < len(items):`, printing `check: X` or `check: index out of range`.\n\nInput:\n\n```text\nred green blue\n1\n```\n\nExpected output:\n\n```text\nitem: green\ndone\ncheck: green\n```",
+        "starter": "items = input().split()\nindex = int(input())\n\n# TODO: try items[index]\n# print \"item: X\" in else, \"index out of range\" on IndexError, \"done\" in finally\n\n# TODO: answer again with if index < len(items), prefixing each line with \"check: \"\n",
+        "solution": "items = input().split()\nindex = int(input())\n\ntry:\n    item = items[index]\nexcept IndexError:\n    print(\"index out of range\")\nelse:\n    print(f\"item: {item}\")\nfinally:\n    print(\"done\")\n\nif index < len(items):\n    print(f\"check: {items[index]}\")\nelse:\n    print(\"check: index out of range\")\n",
+        "tests": [
+          {
+            "stdin": "red green blue\n1\n",
+            "output": "item: green\ndone\ncheck: green"
+          },
+          {
+            "stdin": "red green blue\n3\n",
+            "output": "index out of range\ndone\ncheck: index out of range"
+          },
+          {
+            "stdin": "solo\n0\n",
+            "output": "item: solo\ndone\ncheck: solo"
+          }
+        ],
+        "hints": [
+          "Keep only `item = items[index]` inside the try and print from else.",
+          "An index equal to `len(items)` is already out of range."
+        ]
+      }
+    },
+    {
+      "title": "Raising and custom exceptions",
+      "body": "Your own code can signal a problem with `raise`. Pick a built-in type that fits and pass a message.\n\n```python\nif amount < 0:\n    raise ValueError(\"amount cannot be negative\")\n```\n\nFor errors specific to your program, define your own exception class. Naming `Exception` in parentheses after the class name makes your class a kind of `Exception`, so `raise` and `except` accept it. The inheritance lesson covers this syntax in full. The body can be just `pass`. Callers then catch it by name, and `print(e)` shows the message you raised.\n\n```python\nclass InsufficientFunds(Exception):\n    pass\n\n\ntry:\n    raise InsufficientFunds(\"need 500, have 70\")\nexcept InsufficientFunds as e:\n    print(e)  # need 500, have 70\n```\n\nSometimes a function wants to note a failure but let the caller decide what to do. Inside an except block, a bare `raise` re-raises the same exception after your logging.\n\n```python\nexcept InsufficientFunds:\n    print(\"log: overdraft\")\n    raise\n```\n\nTo swap in a different error while keeping the original, write `raise NewError(\"...\") from e`. The cause is recorded, but only a traceback shows it, so `print(e)` prints just the new message.",
+      "example": {
+        "title": "Bank withdrawals",
+        "prompt": "Withdraw three amounts, raising ValueError for a negative amount and a custom InsufficientFunds for an overdraft, which a helper logs and re-raises.",
+        "code": "class InsufficientFunds(Exception):\n    pass\n\n\ndef withdraw(balance: int, amount: int) -> int:\n    if amount < 0:\n        raise ValueError(f\"amount cannot be negative: {amount}\")\n    if amount > balance:\n        raise InsufficientFunds(f\"need {amount}, have {balance}\")\n    return balance - amount\n\n\ndef logged_withdraw(balance: int, amount: int) -> int:\n    try:\n        return withdraw(balance, amount)\n    except InsufficientFunds:\n        print(f\"log: overdraft of {amount}\")\n        raise\n\n\nbalance = 100\nfor amount in [30, -5, 500]:\n    try:\n        balance = logged_withdraw(balance, amount)\n    except ValueError as e:\n        print(f\"rejected: {e}\")\n    except InsufficientFunds as e:\n        print(f\"declined: {e}\")\n    else:\n        print(f\"withdrew {amount}, balance {balance}\")\n",
+        "output": "withdrew 30, balance 70\nrejected: amount cannot be negative: -5\nlog: overdraft of 500\ndeclined: need 500, have 70",
+        "explanation": "`withdraw()` raises instead of printing, so the caller decides what to say. `logged_withdraw()` catches only `InsufficientFunds`, logs it, and re-raises the same error with a bare `raise`. The `ValueError` passes straight through it. The caller's except clauses print each message with `{e}`, which is exactly the text given to `raise`, and else reports the successful withdrawals."
+      },
+      "practice": {
+        "title": "Age checker",
+        "prompt": "Validate ages, one per line, with a custom exception and a logged re-raise.\n\n1. Define `class AgeOutOfRange(Exception)` with a `pass` body.\n2. In `check_age(text)`, convert with `int()`. On `ValueError`, print `log: bad input` and re-raise with a bare `raise`.\n3. If the age is outside 0 to 130, raise `AgeOutOfRange` with the message `N is outside 0 to 130`. Otherwise return it.\n4. For each stripped input line, call `check_age()` and print `ok N` from an else clause, `invalid` on `ValueError`, or the `AgeOutOfRange` message on that error.\n\nInput:\n\n```text\n25\nabc\n150\n0\n-3\n```\n\nExpected output:\n\n```text\nok 25\nlog: bad input\ninvalid\n150 is outside 0 to 130\nok 0\n-3 is outside 0 to 130\n```",
+        "starter": "import sys\n\n# TODO: define AgeOutOfRange as a subclass of Exception\n\n\ndef check_age(text: str) -> int:\n    # TODO: convert with int(), print \"log: bad input\" and re-raise on ValueError\n    # TODO: raise AgeOutOfRange(\"N is outside 0 to 130\") when the age is out of range\n    return 0\n\n\nfor line in sys.stdin:\n    # TODO: call check_age(line.strip()) and print \"ok N\", \"invalid\",\n    # or the AgeOutOfRange message\n    pass\n",
+        "solution": "import sys\n\n\nclass AgeOutOfRange(Exception):\n    pass\n\n\ndef check_age(text: str) -> int:\n    try:\n        age = int(text)\n    except ValueError:\n        print(\"log: bad input\")\n        raise\n    if not 0 <= age <= 130:\n        raise AgeOutOfRange(f\"{age} is outside 0 to 130\")\n    return age\n\n\nfor line in sys.stdin:\n    try:\n        age = check_age(line.strip())\n    except ValueError:\n        print(\"invalid\")\n    except AgeOutOfRange as e:\n        print(e)\n    else:\n        print(f\"ok {age}\")\n",
+        "tests": [
+          {
+            "stdin": "25\nabc\n150\n0\n-3\n",
+            "output": "ok 25\nlog: bad input\ninvalid\n150 is outside 0 to 130\nok 0\n-3 is outside 0 to 130"
+          },
+          {
+            "stdin": "130\n131\n",
+            "output": "ok 130\n131 is outside 0 to 130"
+          },
+          {
+            "stdin": "12.5\n\n7\n",
+            "output": "log: bad input\ninvalid\nlog: bad input\ninvalid\nok 7"
+          }
+        ],
+        "hints": [
+          "Wrap only `int(text)` in the try inside `check_age()`, then do the range test after it.",
+          "A chained comparison like `0 <= age <= 130` tests the range. Put `not` in front to catch ages outside it.",
+          "An empty line is invalid too: `int(\"\")` raises `ValueError`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `try:` runs risky code and `except ValueError:` handles one error type. Clauses are checked top to bottom.\n- `except (A, B) as e:` catches several types (parentheses required), and `type(e).__name__` names the error.\n- `for line in sys.stdin:` reads every input line. Strip each one.\n- `else:` runs only when nothing was raised, and `finally:` always runs.\n- EAFP tries and handles the failure, while LBYL checks first with `if key in d`.\n- `raise ValueError(\"msg\")` signals a problem, and `class MyError(Exception): pass` defines your own.\n- `print(e)` shows the raised message, and a bare `raise` re-raises after logging.\n- Avoid a bare `except:` and do not depend on the exact wording of `str(e)`."
+}

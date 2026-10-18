@@ -1,0 +1,118 @@
+{
+  "id": "sorting",
+  "title": "Sorting, Searching and Heaps",
+  "section": "Standard Library",
+  "summary": "Sort by several keys, keep ties in order with stable sorts, binary search sorted data, and build priority queues with container/heap.",
+  "intro": "You already sort with `sort.Ints` and `sort.Slice`, and you break ties by comparing a second key. This lesson covers the rest of the toolbox: stable sorts, binary search on sorted data, the `sort.Interface` that `sort.Sort` works with, and `container/heap` for priority queues.",
+  "steps": [
+    {
+      "title": "Tie-breakers and stable sorts",
+      "body": "You already know the multi-key pattern from sorting structs: compare the main key first, and compare the next key only when the main keys are equal. Each key can go its own direction:\n\n```go\nsort.Slice(ps, func(i, j int) bool {\n\tif ps[i].Score != ps[j].Score {\n\t\treturn ps[i].Score > ps[j].Score\n\t}\n\treturn ps[i].Name < ps[j].Name\n})\n```\n\nYou need that tie-breaker because `sort.Slice` is **not stable**: elements that compare equal can come out in any order, and that order can change when the data changes.\n\nSometimes the input order is the tie-breaker you want, such as tasks in the order they were added. No field records that order, so there is nothing to compare. `sort.SliceStable` has the same signature but keeps equal elements in their original order:\n\n```go\nsort.SliceStable(tasks, func(i, j int) bool {\n\treturn tasks[i].Priority < tasks[j].Priority\n})\n```\n\nBoth sort in place by swapping elements of the slice's backing array, so every slice sharing that array sees the new order. Stable sorting does a bit more work, so use it only when the original order matters.",
+      "example": {
+        "title": "Leaderboard and task list",
+        "prompt": "Sort players by score from highest to lowest with ties by name, then stable-sort tasks by priority so equal priorities keep their input order.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype Player struct {\n\tName  string\n\tScore int\n}\n\ntype Task struct {\n\tName     string\n\tPriority int\n}\n\nfunc main() {\n\tplayers := []Player{{\"Mia\", 90}, {\"Ben\", 75}, {\"Ava\", 90}, {\"Leo\", 82}, {\"Zoe\", 75}}\n\tsort.Slice(players, func(i, j int) bool {\n\t\tif players[i].Score != players[j].Score {\n\t\t\treturn players[i].Score > players[j].Score // main key: high score first\n\t\t}\n\t\treturn players[i].Name < players[j].Name // tie-breaker: name A to Z\n\t})\n\tfor _, p := range players {\n\t\tfmt.Printf(\"%-4s %d\\n\", p.Name, p.Score)\n\t}\n\n\ttasks := []Task{{\"email\", 2}, {\"deploy\", 1}, {\"lunch\", 3}, {\"review\", 1}, {\"backup\", 2}}\n\tsort.SliceStable(tasks, func(i, j int) bool {\n\t\treturn tasks[i].Priority < tasks[j].Priority\n\t})\n\tfor _, t := range tasks {\n\t\tfmt.Println(t.Priority, t.Name)\n\t}\n}\n",
+        "output": "Ava  90\nMia  90\nLeo  82\nBen  75\nZoe  75\n1 deploy\n1 review\n2 email\n2 backup\n3 lunch",
+        "explanation": "Ava and Mia both have 90, so the less function falls through to the name comparison and Ava comes first. Ben and Zoe tie at 75 the same way. For tasks, `sort.SliceStable` compares only `Priority`, so deploy stays before review and email stays before backup, exactly as they appeared in the input, even though that is not alphabetical."
+      },
+      "practice": {
+        "title": "Product shelf and order queue",
+        "prompt": "Sort products by category and price, then stable-sort orders by day.\n\n1. Add `\"sort\"` to the imports.\n2. Sort `products` with `sort.Slice` by `Category` from A to Z, and by `Price` from low to high when the categories are equal.\n3. Sort `orders` with `sort.SliceStable` by `Day` from low to high, so orders from the same day keep their input order.\n4. Keep the given print loops.\n\nExpected output:\n\n```text\nfood   milk  1\nfood   apple 2\nfood   bread 4\noffice pen   3\noffice lamp  25\noffice desk  120\nday 1: cake\nday 1: bun\nday 2: tea\nday 2: soup\nday 3: jam\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Product struct {\n\tName     string\n\tCategory string\n\tPrice    int\n}\n\ntype Order struct {\n\tItem string\n\tDay  int\n}\n\nfunc main() {\n\tproducts := []Product{\n\t\t{\"pen\", \"office\", 3},\n\t\t{\"apple\", \"food\", 2},\n\t\t{\"desk\", \"office\", 120},\n\t\t{\"bread\", \"food\", 4},\n\t\t{\"lamp\", \"office\", 25},\n\t\t{\"milk\", \"food\", 1},\n\t}\n\t// TODO: sort products by Category (A to Z), then by Price (low to high)\n\tfor _, p := range products {\n\t\tfmt.Printf(\"%-6s %-5s %d\\n\", p.Category, p.Name, p.Price)\n\t}\n\n\torders := []Order{{\"tea\", 2}, {\"cake\", 1}, {\"soup\", 2}, {\"jam\", 3}, {\"bun\", 1}}\n\t// TODO: stable-sort orders by Day so orders from the same day keep their input order\n\tfor _, o := range orders {\n\t\tfmt.Printf(\"day %d: %s\\n\", o.Day, o.Item)\n\t}\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype Product struct {\n\tName     string\n\tCategory string\n\tPrice    int\n}\n\ntype Order struct {\n\tItem string\n\tDay  int\n}\n\nfunc main() {\n\tproducts := []Product{\n\t\t{\"pen\", \"office\", 3},\n\t\t{\"apple\", \"food\", 2},\n\t\t{\"desk\", \"office\", 120},\n\t\t{\"bread\", \"food\", 4},\n\t\t{\"lamp\", \"office\", 25},\n\t\t{\"milk\", \"food\", 1},\n\t}\n\tsort.Slice(products, func(i, j int) bool {\n\t\tif products[i].Category != products[j].Category {\n\t\t\treturn products[i].Category < products[j].Category\n\t\t}\n\t\treturn products[i].Price < products[j].Price\n\t})\n\tfor _, p := range products {\n\t\tfmt.Printf(\"%-6s %-5s %d\\n\", p.Category, p.Name, p.Price)\n\t}\n\n\torders := []Order{{\"tea\", 2}, {\"cake\", 1}, {\"soup\", 2}, {\"jam\", 3}, {\"bun\", 1}}\n\tsort.SliceStable(orders, func(i, j int) bool {\n\t\treturn orders[i].Day < orders[j].Day\n\t})\n\tfor _, o := range orders {\n\t\tfmt.Printf(\"day %d: %s\\n\", o.Day, o.Item)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "food   milk  1\nfood   apple 2\nfood   bread 4\noffice pen   3\noffice lamp  25\noffice desk  120\nday 1: cake\nday 1: bun\nday 2: tea\nday 2: soup\nday 3: jam"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the players sort: compare `Category` first and return early when the categories differ.",
+          "When the categories are equal, fall through to a comparison of `Price` with `<`.",
+          "For orders, the less function inside `sort.SliceStable` needs only one comparison, on `Day`."
+        ]
+      }
+    },
+    {
+      "title": "Binary search",
+      "body": "On a **sorted** slice, binary search finds a value in about log2(n) steps instead of checking every element. `sort.SearchInts` and `sort.SearchStrings` return the index where the value is, or where it *would be inserted* to keep the slice sorted:\n\n```go\nids := []int{3, 8, 15, 23, 42}\nsort.SearchInts(ids, 23) // 3\nsort.SearchInts(ids, 10) // 2, the slot before 15\nsort.SearchInts(ids, 99) // 5, which is len(ids)\n```\n\nThe result never says whether the value was found. Confirm a match yourself, and check the index first so you never read past the end:\n\n```go\ni := sort.SearchInts(ids, 23)\nfound := i < len(ids) && ids[i] == 23\n```\n\n`sort.Search(n, f)` is the general form. It returns the first index in `0..n-1` where `f(i)` is true, or `n` when there is none. `f` must be false for a while and then true for the rest, which holds for `>=` on ascending data:\n\n```go\nk := sort.Search(len(ids), func(i int) bool { return ids[i] >= 20 })\n```\n\nWhen a value appears more than once, you get the index of its first copy. The data must be sorted from low to high. On unsorted data these functions can return a wrong index without any error.",
+      "example": {
+        "title": "Looking up ids and names",
+        "prompt": "Search a sorted id list and a sorted name list, confirm each match, and find the first id of at least 20.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\tids := []int{3, 8, 15, 23, 42}\n\n\ti := sort.SearchInts(ids, 23)\n\tfmt.Printf(\"23: index %d, found %t\\n\", i, i < len(ids) && ids[i] == 23)\n\n\ti = sort.SearchInts(ids, 10)\n\tfmt.Printf(\"10: index %d, found %t\\n\", i, i < len(ids) && ids[i] == 10)\n\n\tnames := []string{\"ana\", \"bo\", \"cy\", \"dee\"}\n\tj := sort.SearchStrings(names, \"cy\")\n\tfmt.Printf(\"cy: index %d, found %t\\n\", j, j < len(names) && names[j] == \"cy\")\n\n\tk := sort.Search(len(ids), func(i int) bool { return ids[i] >= 20 })\n\tif k < len(ids) {\n\t\tfmt.Printf(\"first id >= 20: %d at index %d\\n\", ids[k], k)\n\t}\n}\n",
+        "output": "23: index 3, found true\n10: index 2, found false\ncy: index 2, found true\nfirst id >= 20: 23 at index 3",
+        "explanation": "23 sits at index 3, so the check `ids[3] == 23` confirms it. 10 is missing: the search returns 2, the slot between 8 and 15, and the check fails. `SearchStrings` works the same way on strings in byte order. `sort.Search` asks `ids[i] >= 20` and returns 3, the first index where that becomes true, and `k < len(ids)` guards the read."
+      },
+      "practice": {
+        "title": "Score lookups",
+        "prompt": "Search sorted scores and fruit names, then count the low scores with sort.Search.\n\n1. Add `\"sort\"` to the imports.\n2. Search `scores` for 70 and then for 80 with `sort.SearchInts`. Print each as `<value>: index <i>, found <true or false>`, confirming the match with `i < len(scores) && scores[i] == value`.\n3. Search `fruits` for `\"grape\"` with `sort.SearchStrings` and print it the same way.\n4. Set `below` with `sort.Search` to the first index whose score is at least 75. In sorted data that index equals the number of scores below 75.\n5. Remove the two `_ =` lines once the data is used.\n\nExpected output:\n\n```text\n70: index 2, found true\n80: index 4, found false\ngrape: index 2, found false\nbelow 75: 3\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tscores := []int{55, 61, 70, 78, 92}\n\tfruits := []string{\"apple\", \"fig\", \"kiwi\", \"plum\"}\n\n\t// TODO: search scores for 70 and for 80 with sort.SearchInts and print a line for each\n\t// TODO: search fruits for \"grape\" with sort.SearchStrings and print its line\n\t_ = fruits\n\t_ = scores\n\n\tbelow := 0 // TODO: count the scores below 75 with sort.Search\n\tfmt.Println(\"below 75:\", below)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\tscores := []int{55, 61, 70, 78, 92}\n\tfruits := []string{\"apple\", \"fig\", \"kiwi\", \"plum\"}\n\n\ti := sort.SearchInts(scores, 70)\n\tfmt.Printf(\"70: index %d, found %t\\n\", i, i < len(scores) && scores[i] == 70)\n\n\ti = sort.SearchInts(scores, 80)\n\tfmt.Printf(\"80: index %d, found %t\\n\", i, i < len(scores) && scores[i] == 80)\n\n\tj := sort.SearchStrings(fruits, \"grape\")\n\tfmt.Printf(\"grape: index %d, found %t\\n\", j, j < len(fruits) && fruits[j] == \"grape\")\n\n\t// the first index with a score of at least 75 equals the count of scores below 75\n\tbelow := sort.Search(len(scores), func(i int) bool { return scores[i] >= 75 })\n\tfmt.Println(\"below 75:\", below)\n}\n",
+        "tests": [
+          {
+            "output": "70: index 2, found true\n80: index 4, found false\ngrape: index 2, found false\nbelow 75: 3"
+          }
+        ],
+        "hints": [
+          "Follow the example line by line: call `sort.SearchInts`, then print with `%d` and `%t`.",
+          "`sort.SearchStrings` works the same way on `fruits`.",
+          "For `below`, the function you pass to `sort.Search` should first become true at a score of at least 75."
+        ]
+      }
+    },
+    {
+      "title": "sort.Interface",
+      "body": "`sort.Sort` works on any value that has three methods, the `sort.Interface`:\n\n```go\nLen() int           // how many elements\nLess(i, j int) bool // should i come before j?\nSwap(i, j int)      // exchange i and j\n```\n\nDeclare a named slice type and give it those methods. Value receivers are fine: the receiver is a copy of the slice header, but it points at the same backing array, so `Swap` changes the caller's elements.\n\n```go\ntype ByAge []Person\n\nsort.Sort(ByAge(people))\n```\n\nThe conversion `ByAge(people)` copies only the slice header, never the elements. It is the same backing array viewed through a type that has the methods. `sort.Sort` is not stable either, so give `Less` a tie-breaker when keys can repeat.\n\nThe package ships ready-made types: `sort.IntSlice`, `sort.StringSlice`, and `sort.Float64Slice`. `sort.Reverse` wraps any `sort.Interface` and flips its `Less`, which gives a descending sort:\n\n```go\nsort.Sort(sort.Reverse(sort.IntSlice(nums)))\n```",
+      "example": {
+        "title": "People by age",
+        "prompt": "Sort people by age with a ByAge type, then sort numbers from largest to smallest.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype Person struct {\n\tName string\n\tAge  int\n}\n\ntype ByAge []Person\n\nfunc (a ByAge) Len() int           { return len(a) }\nfunc (a ByAge) Less(i, j int) bool { return a[i].Age < a[j].Age }\nfunc (a ByAge) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }\n\nfunc main() {\n\tpeople := []Person{{\"Ana\", 34}, {\"Raj\", 19}, {\"Kim\", 52}, {\"Tom\", 27}}\n\tsort.Sort(ByAge(people)) // the conversion shares people's backing array\n\tfor _, p := range people {\n\t\tfmt.Println(p.Name, p.Age)\n\t}\n\n\tnums := []int{4, 17, 9, 1, 12}\n\tsort.Sort(sort.Reverse(sort.IntSlice(nums)))\n\tfmt.Println(nums)\n}\n",
+        "output": "Raj 19\nTom 27\nAna 34\nKim 52\n[17 12 9 4 1]",
+        "explanation": "`ByAge` has `Len`, `Less`, and `Swap`, so it satisfies `sort.Interface` and `sort.Sort` accepts it. Sorting `ByAge(people)` reorders the shared backing array, so the loop over `people` sees ages 19, 27, 34, 52. `sort.IntSlice(nums)` gives `nums` the three methods, `sort.Reverse` swaps the arguments of `Less`, and the numbers come out largest first."
+      },
+      "practice": {
+        "title": "Words by length",
+        "prompt": "Sort words by length with your own type, then sort names in reverse alphabetical order.\n\n1. Add `\"sort\"` to the imports.\n2. Give `ByLength` the methods `Len`, `Less` (the shorter word comes first), and `Swap`.\n3. Sort `words` with `sort.Sort(ByLength(words))`. Every word has a different length, so there are no ties.\n4. Sort `names` from Z to A with `sort.Sort(sort.Reverse(sort.StringSlice(names)))`.\n\nExpected output:\n\n```text\n[fig pear kiwis banana avocado]\n[Zoe Noah Liam Emma Ava]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype ByLength []string\n\n// TODO: give ByLength the methods Len, Less (shorter word first), and Swap\n\nfunc main() {\n\twords := []string{\"avocado\", \"fig\", \"pear\", \"banana\", \"kiwis\"}\n\t// TODO: sort words by length with sort.Sort\n\tfmt.Println(words)\n\n\tnames := []string{\"Liam\", \"Ava\", \"Noah\", \"Emma\", \"Zoe\"}\n\t// TODO: sort names Z to A with sort.Reverse and sort.StringSlice\n\tfmt.Println(names)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype ByLength []string\n\nfunc (s ByLength) Len() int           { return len(s) }\nfunc (s ByLength) Less(i, j int) bool { return len(s[i]) < len(s[j]) }\nfunc (s ByLength) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }\n\nfunc main() {\n\twords := []string{\"avocado\", \"fig\", \"pear\", \"banana\", \"kiwis\"}\n\tsort.Sort(ByLength(words))\n\tfmt.Println(words)\n\n\tnames := []string{\"Liam\", \"Ava\", \"Noah\", \"Emma\", \"Zoe\"}\n\tsort.Sort(sort.Reverse(sort.StringSlice(names)))\n\tfmt.Println(names)\n}\n",
+        "tests": [
+          {
+            "output": "[fig pear kiwis banana avocado]\n[Zoe Noah Liam Emma Ava]"
+          }
+        ],
+        "hints": [
+          "Copy the three `ByAge` methods and use `ByLength` as the receiver type.",
+          "In `Less`, compare the lengths of the two words with `len`.",
+          "`sort.StringSlice(names)` gives `names` the three methods, and `sort.Reverse` flips the order."
+        ]
+      }
+    },
+    {
+      "title": "Heaps with container/heap",
+      "body": "A min-heap keeps the smallest element at index 0 and lets you add or remove elements in O(log n). That makes a min-heap a **priority queue**: always pop the most urgent item next. Go has no generic heap type. Instead `import \"container/heap\"` and give your slice type `heap.Interface`, which is `sort.Interface` plus two methods:\n\n```go\nPush(x interface{}) // add x at the end\nPop() interface{}   // remove and return the last element\n```\n\n`Push` and `Pop` change the slice's length, so they need **pointer receivers** (`func (h *IntHeap) Push`). Then always go through the package functions, never call `h.Pop()` yourself:\n\n- `heap.Init(h)` arranges an existing slice into a heap.\n- `heap.Push(h, x)` appends with your `Push`, then moves `x` up to its place.\n- `heap.Pop(h)` swaps the top to the end, restores the heap, then calls your `Pop`.\n\nValues go in and out as `interface{}`, so assert them back to their type: `heap.Pop(h).(int)`. `Less` decides the order: `<` gives a min-heap, `>` a max-heap.",
+      "example": {
+        "title": "Min-heap of ints",
+        "prompt": "Build a min-heap from 5, 2, and 8, push 1, then pop every value.",
+        "code": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\ntype IntHeap []int\n\nfunc (h IntHeap) Len() int           { return len(h) }\nfunc (h IntHeap) Less(i, j int) bool { return h[i] < h[j] }\nfunc (h IntHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }\n\nfunc (h *IntHeap) Push(x interface{}) {\n\t*h = append(*h, x.(int))\n}\n\nfunc (h *IntHeap) Pop() interface{} {\n\told := *h\n\tn := len(old)\n\tx := old[n-1] // heap.Pop already moved the smallest value to the end\n\t*h = old[:n-1]\n\treturn x\n}\n\nfunc main() {\n\th := &IntHeap{5, 2, 8}\n\theap.Init(h)\n\theap.Push(h, 1)\n\tfmt.Println(\"smallest:\", (*h)[0])\n\n\tvar popped []int\n\tfor h.Len() > 0 {\n\t\tpopped = append(popped, heap.Pop(h).(int))\n\t}\n\tfmt.Println(\"popped:\", popped)\n}\n",
+        "output": "smallest: 1\npopped: [1 2 5 8]",
+        "explanation": "`heap.Init` rearranges 5, 2, 8 so the smallest sits at `(*h)[0]`. The parentheses matter: `h` is a pointer, so you dereference it before indexing. `heap.Push(h, 1)` appends 1 through the pointer method and moves it to the top. Each `heap.Pop` moves the smallest value to the end and then calls your `Pop`, which shrinks `*h` by one and returns that value. The assertion `.(int)` turns the `interface{}` back into an int."
+      },
+      "practice": {
+        "title": "Top priorities",
+        "prompt": "Build a max-heap and pop the three highest priorities.\n\n1. Add `\"container/heap\"` to the imports.\n2. Finish `Less` so the larger value comes first, and finish `Push` and `Pop` like the example's.\n3. Push 3, 9, 4, 7, and 1 onto `h` with `heap.Push`.\n4. Pop three values with `heap.Pop`, assert each to `int`, and append it to `top`.\n\nExpected output:\n\n```text\ntop three: [9 7 4]\nleft: 2\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype MaxHeap []int\n\nfunc (h MaxHeap) Len() int      { return len(h) }\nfunc (h MaxHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }\n\nfunc (h MaxHeap) Less(i, j int) bool {\n\t// TODO: put the larger value first\n\treturn false\n}\n\nfunc (h *MaxHeap) Push(x interface{}) {\n\t// TODO: append x as an int to *h\n}\n\nfunc (h *MaxHeap) Pop() interface{} {\n\t// TODO: remove and return the last element of *h\n\treturn nil\n}\n\nfunc main() {\n\th := &MaxHeap{}\n\tvar top []int\n\t// TODO: push 3, 9, 4, 7, and 1 with heap.Push\n\t// TODO: pop three values with heap.Pop and append them to top\n\tfmt.Println(\"top three:\", top)\n\tfmt.Println(\"left:\", h.Len())\n}\n",
+        "solution": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\ntype MaxHeap []int\n\nfunc (h MaxHeap) Len() int      { return len(h) }\nfunc (h MaxHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }\n\nfunc (h MaxHeap) Less(i, j int) bool {\n\treturn h[i] > h[j]\n}\n\nfunc (h *MaxHeap) Push(x interface{}) {\n\t*h = append(*h, x.(int))\n}\n\nfunc (h *MaxHeap) Pop() interface{} {\n\told := *h\n\tn := len(old)\n\tx := old[n-1]\n\t*h = old[:n-1]\n\treturn x\n}\n\nfunc main() {\n\th := &MaxHeap{}\n\tvar top []int\n\tfor _, p := range []int{3, 9, 4, 7, 1} {\n\t\theap.Push(h, p)\n\t}\n\tfor i := 0; i < 3; i++ {\n\t\ttop = append(top, heap.Pop(h).(int))\n\t}\n\tfmt.Println(\"top three:\", top)\n\tfmt.Println(\"left:\", h.Len())\n}\n",
+        "tests": [
+          {
+            "output": "top three: [9 7 4]\nleft: 2"
+          }
+        ],
+        "hints": [
+          "A max-heap is a min-heap whose `Less` uses the opposite comparison.",
+          "Only `Less` changes, so `Push` and `Pop` look exactly like the `IntHeap` versions.",
+          "Pop inside a loop that runs three times and assert each result with `.(int)`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Compare the main key first, then a tie-breaker, in a `sort.Slice` less function.\n- `sort.Slice` is not stable. `sort.SliceStable` keeps equal elements in input order.\n- `sort.SearchInts` and `sort.SearchStrings` return the insertion index. Confirm a match with `i < len(s) && s[i] == x`.\n- `sort.Search(n, f)` returns the first index where `f` is true, or `n`.\n- `sort.Sort` takes any type with `Len`, `Less`, and `Swap`. `sort.Reverse` flips the order.\n- `sort.IntSlice` and `sort.StringSlice` add those methods to plain slices.\n- `container/heap` needs `sort.Interface` plus pointer-receiver `Push` and `Pop`.\n- Use `heap.Init`, `heap.Push`, and `heap.Pop`, and assert results with `.(int)`."
+}

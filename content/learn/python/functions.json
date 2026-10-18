@@ -1,0 +1,118 @@
+{
+  "id": "functions",
+  "title": "Functions",
+  "section": "Functions",
+  "summary": "Package code with def, return values, use defaults and keywords, and see how arguments share objects with the caller.",
+  "intro": "So far every program has been one flat script. Functions let you name a piece of logic, give it inputs, get a result back, and reuse it. From now on, programs define their functions first and call them below.",
+  "steps": [
+    {
+      "title": "Defining and calling",
+      "body": "A function packages code under a name so you can reuse it. `def` starts it, the parameters go in parentheses, and the indented block is the body. `return` hands a value back to the caller and ends the function at once.\n\n```python\ndef area(width: float, height: float) -> float:\n    \"\"\"Return the area of a width by height rectangle.\"\"\"\n    return width * height\n\n\nprint(area(3, 4))  # 12\n```\n\n- A call such as `area(3, 4)` fills the parameters with the arguments, in order.\n- The triple-quoted string right under `def` is the **docstring**. It says what the function does.\n- Type hints such as `width: float` and `-> float` are optional notes for readers and tools. Python does not check them.\n- A stub with nothing to do yet uses `pass` as its body.\n\nPython runs the file top to bottom, and `def` creates the function only when that line runs. So define a function above the first line that calls it:\n\n```python\n# print(cube(2))  # NameError: name 'cube' is not defined\n# def cube(n):\n#     return n ** 3\n```\n\nNames assigned inside a function are **local**. They never change an outside variable with the same name. Writing `global count` inside a function lets it rebind a module variable, but that is rarely needed: return the new value instead. Without `global`, `count += 1` in a function fails with `UnboundLocalError: cannot access local variable 'count' where it is not associated with a value`.",
+      "example": {
+        "title": "Area and greeting",
+        "prompt": "Define area() and greet(), call each twice, and leave farewell() as a stub.",
+        "code": "def area(width: float, height: float) -> float:\n    \"\"\"Return the area of a width by height rectangle.\"\"\"\n    return width * height\n\n\ndef greet(name: str) -> str:\n    \"\"\"Return a friendly greeting for name.\"\"\"\n    return f\"Hello, {name}!\"\n\n\ndef farewell(name: str):\n    pass  # not written yet\n\n\nprint(area(3, 4))\nprint(area(2.5, 2))\nprint(greet(\"Ana\"))\nprint(greet(\"Ben\"))\n",
+        "output": "12\n5.0\nHello, Ana!\nHello, Ben!",
+        "explanation": "Each `def` only creates the function. Nothing runs until the calls at the bottom, which come after every definition. `area(3, 4)` puts 3 in `width` and 4 in `height`, and `return` sends back 12. `area(2.5, 2)` mixes a float with an int, so the result is the float 5.0. `farewell` is never called, so its `pass` body is harmless."
+      },
+      "practice": {
+        "title": "Perimeter and shout",
+        "prompt": "Write two small functions, call each twice, and add a stub for later.\n\n1. Make `perimeter(width, height)` return `2 * (width + height)`.\n2. Define `shout(text)` with a docstring. It returns `text` uppercased with `!` added at the end.\n3. Define a stub `whisper(text)` whose body is `pass`.\n4. Keep every definition above the calls, then print `shout(\"hello\")` and `shout(\"go team\")` after the two perimeter lines.\n\nExpected output:\n\n```text\n14\n8.0\nHELLO!\nGO TEAM!\n```",
+        "starter": "def perimeter(width: float, height: float) -> float:\n    \"\"\"Return the perimeter of a width by height rectangle.\"\"\"\n    # TODO: return 2 times the sum of width and height\n    return 0\n\n\n# TODO: define shout(text) with a docstring, returning text uppercased plus \"!\"\n\n\n# TODO: define a stub whisper(text) whose body is pass\n\n\nprint(perimeter(3, 4))\nprint(perimeter(2.5, 1.5))\n# TODO: print shout(\"hello\"), then shout(\"go team\")\n",
+        "solution": "def perimeter(width: float, height: float) -> float:\n    \"\"\"Return the perimeter of a width by height rectangle.\"\"\"\n    return 2 * (width + height)\n\n\ndef shout(text: str) -> str:\n    \"\"\"Return text in capital letters with an exclamation mark.\"\"\"\n    return text.upper() + \"!\"\n\n\ndef whisper(text: str):\n    pass\n\n\nprint(perimeter(3, 4))\nprint(perimeter(2.5, 1.5))\nprint(shout(\"hello\"))\nprint(shout(\"go team\"))\n",
+        "tests": [
+          {
+            "output": "14\n8.0\nHELLO!\nGO TEAM!"
+          }
+        ],
+        "hints": [
+          "Each finished function body is one `return` line.",
+          "Start with `def shout(text: str) -> str:` and put the docstring on the next line, indented.",
+          "A stub is `def whisper(text):` with `pass` indented on the line below."
+        ]
+      }
+    },
+    {
+      "title": "Returning several values, or none",
+      "body": "A function can hand back several values at once: `return a, b`. The caller unpacks them into names, just like `x, y = 1, 2`. The number of names must match the number of values.\n\n```python\ndef split_name(full: str):\n    first, last = full.split()\n    return first, last\n\n\nfirst, last = split_name(\"Ada Lovelace\")\n```\n\n`return` also ends the function right away, which makes an **early return** a clean way to handle a special case first. The rest of the body then deals only with the normal case, with no extra nesting:\n\n```python\ndef first_letter(word: str) -> str:\n    if not word:\n        return \"?\"  # special case, stop here\n    return word[0]\n```\n\nA function that reaches the end of its body without a `return`, or runs a bare `return`, gives back `None`. That is why `print()` inside a function is not the same as returning a value: the caller gets `None`. It is also why `lst = lst.sort()` leaves you with `None`, since `sort()` returns `None`.",
+      "example": {
+        "title": "Smallest and largest",
+        "prompt": "Find the smallest and largest number with an early return for an empty list, then show what a printing function returns.",
+        "code": "def min_max(nums: list[int]):\n    \"\"\"Return the smallest and largest number, or None, None if empty.\"\"\"\n    if not nums:\n        return None, None\n    smallest = largest = nums[0]\n    for n in nums[1:]:\n        if n < smallest:\n            smallest = n\n        elif n > largest:\n            largest = n\n    return smallest, largest\n\n\ndef show_title(title: str):\n    print(f\"== {title} ==\")\n\n\nlow, high = min_max([4, 9, 1])\nprint(f\"min {low}, max {high}\")\nlow, high = min_max([])\nprint(f\"min {low}, max {high}\")\nresult = show_title(\"Report\")\nprint(result)\n",
+        "output": "min 1, max 9\nmin None, max None\n== Report ==\nNone",
+        "explanation": "For an empty list, `if not nums:` is true and `return None, None` ends the function before `nums[0]` could fail. Otherwise one loop updates both trackers and `return smallest, largest` sends two values that `low, high = ...` unpacks. `show_title` prints but has no `return`, so `result` is `None`. Its own line prints first, during the call."
+      },
+      "practice": {
+        "title": "Count and average",
+        "prompt": "Return a count and an average together, with an early return for an empty list.\n\n1. In `count_and_average(nums)`, return `0, 0.0` right away when `nums` is empty.\n2. Otherwise return the count and the average (`sum(nums) / len(nums)`).\n3. Unpack the results for `[3, 4, 8]` and `[]` and print `count C, average A` with A to 2 decimals.\n4. Store what `announce(\"all done\")` returns in `result` and print it.\n\nExpected output:\n\n```text\ncount 3, average 5.00\ncount 0, average 0.00\nNote: all done\nNone\n```",
+        "starter": "def count_and_average(nums: list[int]):\n    \"\"\"Return how many numbers there are and their average.\"\"\"\n    # TODO: return 0, 0.0 right away for an empty list\n    # TODO: otherwise return the count and the average\n    return 0, 0.0\n\n\ndef announce(text: str):\n    print(f\"Note: {text}\")\n\n\n# TODO: unpack count_and_average([3, 4, 8]) and print its line\n# TODO: unpack count_and_average([]) and print its line\n# TODO: store what announce(\"all done\") returns, then print it\n",
+        "solution": "def count_and_average(nums: list[int]):\n    \"\"\"Return how many numbers there are and their average.\"\"\"\n    if not nums:\n        return 0, 0.0\n    return len(nums), sum(nums) / len(nums)\n\n\ndef announce(text: str):\n    print(f\"Note: {text}\")\n\n\ncount, average = count_and_average([3, 4, 8])\nprint(f\"count {count}, average {average:.2f}\")\ncount, average = count_and_average([])\nprint(f\"count {count}, average {average:.2f}\")\nresult = announce(\"all done\")\nprint(result)\n",
+        "tests": [
+          {
+            "output": "count 3, average 5.00\ncount 0, average 0.00\nNote: all done\nNone"
+          }
+        ],
+        "hints": [
+          "Start with `if not nums:` and `return 0, 0.0` inside it.",
+          "Unpack with `count, average = count_and_average([3, 4, 8])` and print with `{average:.2f}`.",
+          "`announce` has no `return`, so `print(result)` shows `None`."
+        ]
+      }
+    },
+    {
+      "title": "Default and keyword arguments",
+      "body": "A **default value** makes a parameter optional. If the caller leaves it out, the default is used. A **keyword argument** names the parameter at the call, so order no longer matters and the call reads clearly.\n\n```python\ndef power(base: int, exp: int = 2) -> int:\n    return base ** exp\n\n\npower(5)               # 25, exp uses its default\npower(2, 10)           # 1024, both positional\npower(exp=3, base=4)   # 64, keywords in any order\npower(3, exp=3)        # 27, positional first, then keywords\n```\n\nPEP 8 writes `exp=2` with no spaces, but `exp: int = 2` with spaces once there is a type hint. The rules Python enforces:\n\n- Parameters with defaults come after the required ones.\n- At a call, positional arguments come before keyword arguments.\n- Every required parameter needs a value, and each gets only one.\n\n```python\n# def f(x=1, y):  # SyntaxError: parameter without a default follows parameter with a default\n# power(exp=3, 2)  # SyntaxError: positional argument follows keyword argument\n# power()  # TypeError: power() missing 1 required positional argument: 'base'\n# power(2, base=3)  # TypeError: power() got multiple values for argument 'base'\n```\n\nYou have used keywords already: `print(a, b, sep=\", \")` and `sort(reverse=True)` work exactly this way.",
+      "example": {
+        "title": "Power and greeting",
+        "prompt": "Call two functions with their defaults, positionally, and with keywords in a different order.",
+        "code": "def power(base: int, exp: int = 2) -> int:\n    \"\"\"Return base raised to exp, squaring by default.\"\"\"\n    return base ** exp\n\n\ndef greet(name: str, greeting: str = \"Hello\") -> str:\n    \"\"\"Return a greeting line for name.\"\"\"\n    return f\"{greeting}, {name}!\"\n\n\nprint(power(5))\nprint(power(2, 10))\nprint(power(exp=3, base=4))\nprint(greet(\"Ana\"))\nprint(greet(\"Ben\", \"Hi\"))\nprint(greet(greeting=\"Welcome\", name=\"Cy\"))\n",
+        "output": "25\n1024\n64\nHello, Ana!\nHi, Ben!\nWelcome, Cy!",
+        "explanation": "`power(5)` leaves out `exp`, so it is 2 and the result is 25. `power(2, 10)` fills both by position. `power(exp=3, base=4)` names each parameter, so the order does not matter. `greet` works the same way with a string default: `\"Hello\"` unless the caller passes another greeting."
+      },
+      "practice": {
+        "title": "Repeat with a separator",
+        "prompt": "Give a function two defaults and call it four different ways.\n\n1. Change the signature to `repeat(text, times=2, sep=\" \")`.\n2. Return `sep.join([text] * times)`.\n3. Print `repeat(\"ha\")`, then `repeat(\"go\", 3, \"-\")`.\n4. Print `repeat(sep=\", \", text=\"hip\", times=3)`, then `repeat(\"hey\", sep=\"!\")`.\n\nExpected output:\n\n```text\nha ha\ngo-go-go\nhip, hip, hip\nhey!hey\n```",
+        "starter": "# TODO: give times a default of 2 and sep a default of \" \"\ndef repeat(text: str, times: int, sep: str) -> str:\n    \"\"\"Return times copies of text joined by sep.\"\"\"\n    # TODO: return sep.join([text] * times)\n    return \"\"\n\n\n# TODO: print repeat(\"ha\") using both defaults\n# TODO: print repeat(\"go\", 3, \"-\") with positional arguments\n# TODO: print repeat(sep=\", \", text=\"hip\", times=3) with keywords\n# TODO: print repeat(\"hey\", sep=\"!\") using the default times\n",
+        "solution": "def repeat(text: str, times: int = 2, sep: str = \" \") -> str:\n    \"\"\"Return times copies of text joined by sep.\"\"\"\n    return sep.join([text] * times)\n\n\nprint(repeat(\"ha\"))\nprint(repeat(\"go\", 3, \"-\"))\nprint(repeat(sep=\", \", text=\"hip\", times=3))\nprint(repeat(\"hey\", sep=\"!\"))\n",
+        "tests": [
+          {
+            "output": "ha ha\ngo-go-go\nhip, hip, hip\nhey!hey"
+          }
+        ],
+        "hints": [
+          "With type hints the defaults read `times: int = 2` and `sep: str = \" \"`.",
+          "`[text] * times` is a list holding `times` copies of `text`.",
+          "`repeat(\"hey\", sep=\"!\")` skips `times`, so it uses 2."
+        ]
+      }
+    },
+    {
+      "title": "Mutable arguments and defaults",
+      "body": "Passing an argument never copies it. The parameter is a second name for the caller's object, the same aliasing you saw with `b = a` for lists. So:\n\n- Mutating a list parameter (`lst.append(x)`, `lst[0] = x`) changes the caller's list.\n- Rebinding the parameter (`lst = []`) only points the local name at a new list. The caller's list is untouched.\n- An int or string cannot change in place, so `n += 1` or `text += \"!\"` inside a function builds a new local value. Return it instead.\n\nTo really empty the caller's list, mutate it: `lst.clear()`.\n\nThe classic trap: a default value is evaluated **once**, when `def` runs, not on every call. A list default is one shared list, so items leak from call to call:\n\n```python\ndef add_item(item, items=[]):  # one list for every call\n    items.append(item)\n    return items\n```\n\nThe fix is `None` as the default and a fresh list created inside:\n\n```python\ndef add_item(item, items=None):\n    if items is None:\n        items = []\n    items.append(item)\n    return items\n```\n\nTest with `is None`, not `if not items:`, so a caller's empty list is still used.",
+      "example": {
+        "title": "Shared lists and the default trap",
+        "prompt": "Show which changes reach the caller, then show a list default leaking between calls and its fix.",
+        "code": "def append_item(lst):\n    lst.append(\"milk\")\n\n\ndef reset(lst):\n    lst = []\n\n\ndef bump(n):\n    n += 1\n\n\ndef add_item_buggy(item, items=[]):\n    items.append(item)\n    return items\n\n\ndef add_item(item, items=None):\n    if items is None:\n        items = []\n    items.append(item)\n    return items\n\n\ngroceries = [\"eggs\"]\nappend_item(groceries)\nprint(groceries)\nreset(groceries)\nprint(groceries)\ncount = 5\nbump(count)\nprint(count)\nprint(add_item_buggy(\"a\"))\nprint(add_item_buggy(\"b\"))\nprint(add_item(\"a\"))\nprint(add_item(\"b\"))\n",
+        "output": "['eggs', 'milk']\n['eggs', 'milk']\n5\n['a']\n['a', 'b']\n['a']\n['b']",
+        "explanation": "`append_item` mutates the very list `groceries` names, so `milk` shows up. `reset` only rebinds its local `lst`, and `bump` builds a new local int, so the caller sees no change from either. `add_item_buggy` keeps one default list made when `def` ran, so the second call still holds `'a'`. `add_item` makes a new list on each call that gets `None`."
+      },
+      "practice": {
+        "title": "Scores and tags",
+        "prompt": "Change a caller's list from inside a function, see that rebinding does not, and fix a shared list default.\n\n1. In `add_score(scores, value)`, append `value` to `scores`.\n2. In `clear_scores(scores)`, rebind `scores = []` (the caller's list stays as it is).\n3. Change `add_tag` to `add_tag(tag, tags=None)` and create a new list inside when `tags is None`.\n4. Keep the calls and prints at the bottom as they are.\n\nExpected output:\n\n```text\n[10, 20, 30]\n[10, 20, 30]\n['red']\n['blue']\n['big', 'green']\n```",
+        "starter": "def add_score(scores, value):\n    # TODO: append value to the caller's list\n    pass\n\n\ndef clear_scores(scores):\n    # TODO: rebind scores to a new empty list\n    pass\n\n\ndef add_tag(tag, tags=[]):\n    # TODO: use None as the default and create the list inside\n    tags.append(tag)\n    return tags\n\n\npoints = [10, 20]\nadd_score(points, 30)\nprint(points)\nclear_scores(points)\nprint(points)\nprint(add_tag(\"red\"))\nprint(add_tag(\"blue\"))\nprint(add_tag(\"green\", [\"big\"]))\n",
+        "solution": "def add_score(scores, value):\n    scores.append(value)\n\n\ndef clear_scores(scores):\n    scores = []\n\n\ndef add_tag(tag, tags=None):\n    if tags is None:\n        tags = []\n    tags.append(tag)\n    return tags\n\n\npoints = [10, 20]\nadd_score(points, 30)\nprint(points)\nclear_scores(points)\nprint(points)\nprint(add_tag(\"red\"))\nprint(add_tag(\"blue\"))\nprint(add_tag(\"green\", [\"big\"]))\n",
+        "tests": [
+          {
+            "output": "[10, 20, 30]\n[10, 20, 30]\n['red']\n['blue']\n['big', 'green']"
+          }
+        ],
+        "hints": [
+          "`scores.append(value)` mutates the shared list.",
+          "`scores = []` only changes the local name, so the second print still shows 30.",
+          "Inside `add_tag`, write `if tags is None:` then `tags = []` before appending."
+        ]
+      }
+    }
+  ],
+  "recap": "- `def name(params):` defines a function. Define it before the line that calls it.\n- `return value` sends a result back and ends the function. No `return` means the caller gets `None`.\n- A docstring describes the function. Type hints are optional, and Python does not check them. `pass` fills an empty stub.\n- `return a, b` sends two values. Unpack them with `x, y = f()`.\n- Return early to handle a special case first.\n- Defaults make parameters optional and come after required ones. Keywords let you pass arguments by name in any order.\n- Arguments are shared, not copied. Mutating a list parameter changes the caller's list, but rebinding the parameter does not, and an int or string cannot change in place.\n- Defaults are evaluated once. Use `None` as the default and create the list inside."
+}

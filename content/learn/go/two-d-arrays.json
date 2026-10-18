@@ -1,0 +1,115 @@
+{
+  "id": "two-d-arrays",
+  "title": "2D Arrays and Grids",
+  "section": "Arrays and Slices",
+  "summary": "Build grids with 2D arrays and slices of slices, loop over rows and columns, and exit nested loops with labels.",
+  "intro": "Game boards, seating charts, spreadsheets, and images are all grids: rows of columns. In Go a grid is a fixed 2D array like `[3][3]int` or a slice of slices like `[][]int`, and you work with it through two nested loops.",
+  "steps": [
+    {
+      "title": "Grids and nested loops",
+      "body": "A grid is a list of rows. In Go the usual form is a slice of slices, `[][]int`, written as a literal with one inner `{...}` per row:\n\n```go\ngrid := [][]int{\n\t{1, 2, 3},\n\t{4, 5, 6},\n}\nfmt.Println(grid[1][2]) // row 1, column 2: 6\n```\n\n`grid[r]` is a whole row and `grid[r][c]` is one cell. Row first, column second. `len(grid)` is the number of rows and `len(grid[r])` the number of columns in row `r`.\n\nTo visit every cell, nest two loops: the outer one walks the rows, the inner one walks the columns of the current row. Reset per-row values such as a sum at the top of the outer loop body.\n\nWhen the size is fixed, use a 2D array, `[2][3]int`: 2 rows of 3 ints. It is one contiguous block of 6 ints, copied whole on assignment like any array. A `[][]int` is instead a slice of separate row slices, so its rows can even have different lengths. Both index and loop the same way.",
+      "example": {
+        "title": "Row sums",
+        "prompt": "Print the grid's size and one cell, then each row's sum for a slice grid and for a fixed 2D array.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tgrid := [][]int{\n\t\t{1, 2, 3},\n\t\t{4, 5, 6},\n\t\t{7, 8, 9},\n\t}\n\tfmt.Println(\"Rows:\", len(grid), \"Cols:\", len(grid[0]))\n\tfmt.Println(\"grid[1][2] =\", grid[1][2])\n\tfor r := 0; r < len(grid); r++ {\n\t\tsum := 0\n\t\tfor c := 0; c < len(grid[r]); c++ {\n\t\t\tsum += grid[r][c]\n\t\t}\n\t\tfmt.Printf(\"Row %d: %d\\n\", r, sum)\n\t}\n\n\tsmall := [2][3]int{{2, 4, 6}, {1, 3, 5}}\n\tfor r := 0; r < len(small); r++ {\n\t\tsum := 0\n\t\tfor c := 0; c < len(small[r]); c++ {\n\t\t\tsum += small[r][c]\n\t\t}\n\t\tfmt.Printf(\"Row %d: %d\\n\", r, sum)\n\t}\n}\n",
+        "output": "Rows: 3 Cols: 3\ngrid[1][2] = 6\nRow 0: 6\nRow 1: 15\nRow 2: 24\nRow 0: 12\nRow 1: 9",
+        "explanation": "The outer loop runs `r` over the rows using `len(grid)`. For each row, `sum` starts at 0 and the inner loop adds `grid[r][c]` for every column up to `len(grid[r])`. The same two loops work unchanged on `small`, a `[2][3]int`, because `len` reports 2 rows and 3 columns for it too."
+      },
+      "practice": {
+        "title": "Best day each week",
+        "prompt": "Print the size of a sales grid and the largest sale in each week.\n\n1. Keep the given `sales` array: 3 weeks (rows) of 4 days (columns). Remove the `_ = sales` and `fmt.Println()` placeholder lines.\n2. Print `Weeks:` and `Days:` with `len(sales)` and `len(sales[0])` in one `fmt.Println`.\n3. Loop over the rows with an index loop. Start `best` at the row's first value, then loop over the columns and keep the largest.\n4. After the inner loop, print `Week r: best` with `fmt.Printf`.\n\nExpected output:\n\n```text\nWeeks: 3 Days: 4\nWeek 0: 9\nWeek 1: 8\nWeek 2: 10\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tsales := [3][4]int{\n\t\t{3, 9, 4, 7},\n\t\t{8, 2, 6, 5},\n\t\t{1, 5, 10, 4},\n\t}\n\t_ = sales\n\t// TODO: print the number of weeks (rows) and days (columns)\n\t// TODO: print the largest value in each week (row)\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tsales := [3][4]int{\n\t\t{3, 9, 4, 7},\n\t\t{8, 2, 6, 5},\n\t\t{1, 5, 10, 4},\n\t}\n\tfmt.Println(\"Weeks:\", len(sales), \"Days:\", len(sales[0]))\n\tfor r := 0; r < len(sales); r++ {\n\t\tbest := sales[r][0]\n\t\tfor c := 1; c < len(sales[r]); c++ {\n\t\t\tif sales[r][c] > best {\n\t\t\t\tbest = sales[r][c]\n\t\t\t}\n\t\t}\n\t\tfmt.Printf(\"Week %d: %d\\n\", r, best)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "Weeks: 3 Days: 4\nWeek 0: 9\nWeek 1: 8\nWeek 2: 10"
+          }
+        ],
+        "hints": [
+          "Declare `best := sales[r][0]` inside the outer loop so it resets for every week.",
+          "Start the inner loop at `c := 1`, because `best` already holds column 0, and replace `best` whenever a cell is larger."
+        ]
+      }
+    },
+    {
+      "title": "Rows, columns, and diagonals",
+      "body": "When you only need the values, nest two `range` loops. The outer one gives each row, the inner one each value in that row:\n\n```go\nfor _, row := range grid {\n\tfor _, v := range row {\n\t\ttotal += v\n\t}\n}\n```\n\nIn a `[][]int`, `row` shares its elements with the grid. In a fixed `[R][C]int`, `row` is a copy of the whole row array. Either way `v` is a copy, so assigning to `v` changes nothing. Write through `grid[r][c]` to change a cell.\n\nTo work **per column**, swap the loops: put the column loop outside and the row loop inside. Then each inner loop walks down one column.\n\n```go\nfor c := 0; c < len(grid[0]); c++ {\n\tfor r := 0; r < len(grid); r++ {\n\t\t// grid[r][c] walks down column c\n\t}\n}\n```\n\nIn a square `n` by `n` grid, the main diagonal runs from top left to bottom right: `grid[i][i]`. The anti-diagonal runs from top right to bottom left: `grid[i][n-1-i]`. Both need only one loop over `i`. Using `len(grid[0])` assumes every row has the same length, which is true for a proper grid.",
+      "example": {
+        "title": "Totals and the diagonal",
+        "prompt": "Print the grid's total, each column's sum, and the main diagonal's sum.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tgrid := [][]int{\n\t\t{1, 2, 3},\n\t\t{4, 5, 6},\n\t\t{7, 8, 9},\n\t}\n\n\ttotal := 0\n\tfor _, row := range grid {\n\t\tfor _, v := range row {\n\t\t\ttotal += v\n\t\t}\n\t}\n\tfmt.Println(\"Total:\", total)\n\n\tfmt.Print(\"Column sums:\")\n\tfor c := 0; c < len(grid[0]); c++ {\n\t\tsum := 0\n\t\tfor r := 0; r < len(grid); r++ {\n\t\t\tsum += grid[r][c]\n\t\t}\n\t\tfmt.Print(\" \", sum)\n\t}\n\tfmt.Println()\n\n\tdiag := 0\n\tfor i := 0; i < len(grid); i++ {\n\t\tdiag += grid[i][i]\n\t}\n\tfmt.Println(\"Diagonal:\", diag)\n}\n",
+        "output": "Total: 45\nColumn sums: 12 15 18\nDiagonal: 15",
+        "explanation": "The nested `range` loops add all 9 values. For the column sums, `c` is the outer variable, so each inner loop adds `grid[0][c]`, `grid[1][c]`, and `grid[2][c]` before printing. `fmt.Print` keeps the sums on one line and the final `fmt.Println()` ends it. The diagonal loop adds `grid[0][0]`, `grid[1][1]`, and `grid[2][2]`: 1 + 5 + 9."
+      },
+      "practice": {
+        "title": "Column peaks",
+        "prompt": "Print a grid's total, each column's maximum, and its anti-diagonal sum.\n\n1. Keep the given `grid` and remove the placeholder lines.\n2. Add up every value with nested `range` loops and print `Total:` with the result.\n3. Print `Column max:`, then loop over columns on the outside. Start `best` at `grid[0][c]`, keep the largest value down the column, and print it after a space with `fmt.Print`. End the line with `fmt.Println()`.\n4. Set `n := len(grid)`, add `grid[i][n-1-i]` for every `i`, and print `Anti-diagonal:` with the sum.\n\nExpected output:\n\n```text\nTotal: 52\nColumn max: 7 10 12\nAnti-diagonal: 25\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tgrid := [][]int{\n\t\t{5, 1, 8},\n\t\t{2, 10, 4},\n\t\t{7, 3, 12},\n\t}\n\t_ = grid\n\t// TODO: print \"Total:\" with nested range loops\n\t// TODO: print \"Column max:\" with the column loop on the outside\n\t// TODO: print \"Anti-diagonal:\" using grid[i][n-1-i]\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tgrid := [][]int{\n\t\t{5, 1, 8},\n\t\t{2, 10, 4},\n\t\t{7, 3, 12},\n\t}\n\n\ttotal := 0\n\tfor _, row := range grid {\n\t\tfor _, v := range row {\n\t\t\ttotal += v\n\t\t}\n\t}\n\tfmt.Println(\"Total:\", total)\n\n\tfmt.Print(\"Column max:\")\n\tfor c := 0; c < len(grid[0]); c++ {\n\t\tbest := grid[0][c]\n\t\tfor r := 1; r < len(grid); r++ {\n\t\t\tif grid[r][c] > best {\n\t\t\t\tbest = grid[r][c]\n\t\t\t}\n\t\t}\n\t\tfmt.Print(\" \", best)\n\t}\n\tfmt.Println()\n\n\tn := len(grid)\n\tanti := 0\n\tfor i := 0; i < n; i++ {\n\t\tanti += grid[i][n-1-i]\n\t}\n\tfmt.Println(\"Anti-diagonal:\", anti)\n}\n",
+        "tests": [
+          {
+            "output": "Total: 52\nColumn max: 7 10 12\nAnti-diagonal: 25"
+          }
+        ],
+        "hints": [
+          "Inside the column loop, start the row loop at `r := 1`, because `best` already holds row 0.",
+          "For a 3 by 3 grid the anti-diagonal cells are `grid[0][2]`, `grid[1][1]`, and `grid[2][0]`."
+        ]
+      }
+    },
+    {
+      "title": "Building a grid with make",
+      "body": "When the data comes from a formula instead of a literal, build the grid with `make`. It takes two steps, because a `[][]int` is a slice of separate rows:\n\n```go\ngrid := make([][]int, rows) // a slice of nil rows\nfor r := range grid {\n\tgrid[r] = make([]int, cols) // allocate each row\n}\n```\n\nThe first `make` only creates the outer slice, holding `rows` nil row slices. Every row is still empty, so `grid[0][0] = 1` before the second `make` panics with *index out of range*. Allocate each row, then fill it. Each row is its own block of memory, which is why rows can differ in length.\n\nNew cells start at 0. Loop with `for r := range grid` and `for c := range grid[r]` to get the indexes, and assign each cell from its position, such as `grid[r][c] = r * c`.\n\nTo print a grid row by row, range over the rows and `fmt.Println(row)` each one. It prints a row like `[1 2 3]`. Printing the whole grid at once gives `[[1 2 3] [4 5 6]]` on one line, which is hard to read.",
+      "example": {
+        "title": "Multiplication table",
+        "prompt": "Build a 3 by 4 multiplication table with make and print it one row per line.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\trows, cols := 3, 4\n\ttable := make([][]int, rows)\n\tfor r := range table {\n\t\ttable[r] = make([]int, cols)\n\t\tfor c := range table[r] {\n\t\t\ttable[r][c] = (r + 1) * (c + 1)\n\t\t}\n\t}\n\tfor _, row := range table {\n\t\tfmt.Println(row)\n\t}\n}\n",
+        "output": "[1 2 3 4]\n[2 4 6 8]\n[3 6 9 12]",
+        "explanation": "`make([][]int, rows)` creates 3 nil rows. Inside the loop, `make([]int, cols)` gives row `r` its 4 zeroed cells, and the inner loop fills each with `(r + 1) * (c + 1)`, so the labels start at 1 instead of 0. The last loop prints each row slice with `fmt.Println`."
+      },
+      "practice": {
+        "title": "Checkerboard",
+        "prompt": "Build a 4 by 4 checkerboard of 0s and 1s and print it one row per line.\n\n1. Keep `size := 4` and remove the placeholder lines.\n2. Create `board` with `make([][]int, size)`, then give every row its own `make([]int, size)`.\n3. Set each cell to `(r + c) % 2`.\n4. Print each row with `fmt.Println`.\n\nExpected output:\n\n```text\n[0 1 0 1]\n[1 0 1 0]\n[0 1 0 1]\n[1 0 1 0]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tsize := 4\n\t_ = size\n\t// TODO: make a size x size grid, allocating every row with make\n\t// TODO: set each cell to (r + c) % 2\n\t// TODO: print the grid one row per line\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tsize := 4\n\tboard := make([][]int, size)\n\tfor r := range board {\n\t\tboard[r] = make([]int, size)\n\t\tfor c := range board[r] {\n\t\t\tboard[r][c] = (r + c) % 2\n\t\t}\n\t}\n\tfor _, row := range board {\n\t\tfmt.Println(row)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "[0 1 0 1]\n[1 0 1 0]\n[0 1 0 1]\n[1 0 1 0]"
+          }
+        ],
+        "hints": [
+          "Allocate the row inside the outer loop: `board[r] = make([]int, size)`.",
+          "`(r + c) % 2` is 0 when `r + c` is even and 1 when it is odd, which makes the pattern alternate."
+        ]
+      }
+    },
+    {
+      "title": "Labeled break",
+      "body": "A plain `break` leaves only the innermost loop. When a search finds its value in the inner loop, the outer loop would keep going. To stop both, name the outer loop with a **label** and break that:\n\n```go\nouter:\n\tfor r := 0; r < len(grid); r++ {\n\t\tfor c := 0; c < len(grid[r]); c++ {\n\t\t\tif grid[r][c] == target {\n\t\t\t\tbreak outer\n\t\t\t}\n\t\t}\n\t}\n```\n\nA label is a name and a colon right before the loop. gofmt moves it one indent to the left. Labels must be unique inside a function, and an unused label is a compile error, just like an unused variable. `continue outer` also works and skips to the next row.\n\nTo report a value that is missing, set `found := false` before the loops, set it to `true` where you break, and check it after the loops.\n\nA label also fixes a classic trap: inside a `switch`, a plain `break` only leaves the `switch`, and the loop carries on. Write `break loop` with a label on the loop to leave the loop itself.",
+      "example": {
+        "title": "Grid search",
+        "prompt": "Find the first value over 5, report that nothing is over 9, and stop a loop from inside a switch.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tgrid := [][]int{\n\t\t{1, 2, 3},\n\t\t{4, 5, 6},\n\t\t{7, 8, 9},\n\t}\n\nouter:\n\tfor r := 0; r < len(grid); r++ {\n\t\tfor c := 0; c < len(grid[r]); c++ {\n\t\t\tif grid[r][c] > 5 {\n\t\t\t\tfmt.Printf(\"Found %d at row %d, col %d\\n\", grid[r][c], r, c)\n\t\t\t\tbreak outer\n\t\t\t}\n\t\t}\n\t}\n\n\tfound := false\nsearch:\n\tfor _, row := range grid {\n\t\tfor _, v := range row {\n\t\t\tif v > 9 {\n\t\t\t\tfound = true\n\t\t\t\tbreak search\n\t\t\t}\n\t\t}\n\t}\n\tif !found {\n\t\tfmt.Println(\"Not found\")\n\t}\n\nloop:\n\tfor _, v := range []int{4, 7, -1, 9} {\n\t\tswitch {\n\t\tcase v < 0:\n\t\t\tbreak loop\n\t\t}\n\t\tfmt.Println(v)\n\t}\n}\n",
+        "output": "Found 6 at row 1, col 2\nNot found\n4\n7",
+        "explanation": "The first search reaches 6 at row 1, column 2, prints it, and `break outer` ends both loops, so 7, 8, and 9 are never checked. The second search never sets `found`, so `!found` is true and `Not found` prints. In the last loop, `break loop` inside the `switch` leaves the `for` loop at -1, so only 4 and 7 print. A plain `break` there would only exit the `switch`, and all four values, -1 included, would print."
+      },
+      "practice": {
+        "title": "Find a seat",
+        "prompt": "Search a seating grid of 0s (free) and 1s (taken) for the first free seat and for a VIP seat, then call tickets until the end marker.\n\n1. Keep the given `seats` grid and `tickets` slice, and remove the placeholder lines.\n2. Label the outer row loop, search row by row for the first 0, print `Free seat at row r, col c` with `fmt.Printf`, and stop both loops with the labeled break.\n3. Set `found := false`, search with nested `range` loops under a second label for a 2, and set `found` to `true` and break out if you find one.\n4. After the loops, print `No VIP seats` when `found` is still false.\n5. Range over `tickets` under a third label. Inside, use a `switch` whose `case t == 0:` leaves the loop with a labeled break, and after the `switch` print `Ticket` and the number.\n\nExpected output:\n\n```text\nFree seat at row 1, col 2\nNo VIP seats\nTicket 12\nTicket 7\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tseats := [][]int{\n\t\t{1, 1, 1, 1},\n\t\t{1, 1, 0, 1},\n\t\t{0, 1, 1, 0},\n\t}\n\ttickets := []int{12, 7, 0, 4}\n\t_ = seats\n\t_ = tickets\n\t// TODO: find the first free seat (0), print it, and stop both loops with a labeled break\n\t// TODO: search for a VIP seat (2) with a found flag and print \"No VIP seats\" if there is none\n\t// TODO: print each ticket, leaving the loop from inside a switch when a ticket is 0\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tseats := [][]int{\n\t\t{1, 1, 1, 1},\n\t\t{1, 1, 0, 1},\n\t\t{0, 1, 1, 0},\n\t}\n\ttickets := []int{12, 7, 0, 4}\n\nfree:\n\tfor r := 0; r < len(seats); r++ {\n\t\tfor c := 0; c < len(seats[r]); c++ {\n\t\t\tif seats[r][c] == 0 {\n\t\t\t\tfmt.Printf(\"Free seat at row %d, col %d\\n\", r, c)\n\t\t\t\tbreak free\n\t\t\t}\n\t\t}\n\t}\n\n\tfound := false\nvip:\n\tfor _, row := range seats {\n\t\tfor _, v := range row {\n\t\t\tif v == 2 {\n\t\t\t\tfound = true\n\t\t\t\tbreak vip\n\t\t\t}\n\t\t}\n\t}\n\tif !found {\n\t\tfmt.Println(\"No VIP seats\")\n\t}\n\nqueue:\n\tfor _, t := range tickets {\n\t\tswitch {\n\t\tcase t == 0:\n\t\t\tbreak queue\n\t\t}\n\t\tfmt.Println(\"Ticket\", t)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "Free seat at row 1, col 2\nNo VIP seats\nTicket 12\nTicket 7"
+          }
+        ],
+        "hints": [
+          "Put a label such as `free:` on its own line right before the outer `for`, then write `break free` after the `Printf`.",
+          "Each labeled loop needs its own label name, for example `free`, `vip`, and `queue`.",
+          "A plain `break` inside the `switch` only leaves the `switch`, so label the tickets loop and break to that label."
+        ]
+      }
+    }
+  ],
+  "recap": "- `[][]int{{1, 2}, {3, 4}}` is a slice of row slices. `[2][2]int` is a fixed 2D array stored as one block.\n- `grid[r][c]` is row `r`, column `c`. `len(grid)` counts rows and `len(grid[r])` counts columns.\n- Nest loops to visit every cell: rows outside for row work, columns outside for column work.\n- The main diagonal is `grid[i][i]` and the anti-diagonal is `grid[i][n-1-i]`.\n- Build with `make([][]int, rows)`, then `make([]int, cols)` for every row, or indexing panics.\n- `break outer` leaves both loops. A plain `break` inside a `switch` only leaves the `switch`.\n- Use a `found` flag to report a value that is not there."
+}

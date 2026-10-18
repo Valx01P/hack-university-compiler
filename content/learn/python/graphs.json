@@ -1,0 +1,154 @@
+{
+  "id": "graphs",
+  "title": "Graphs",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Represent graphs with adjacency lists and solve connectivity, ordering, and shortest-path problems.",
+  "intro": "Road maps, course prerequisites, and friend networks are all graphs: nodes joined by edges. This lesson stores them as adjacency lists, then answers the three classic questions: what is connected, what order works, and what is the shortest path.",
+  "steps": [
+    {
+      "title": "Adjacency lists",
+      "body": "A graph is a set of nodes joined by edges. The usual way to store one is the *adjacency list* you used in the BFS lesson: a dict that maps each node to the list of its neighbors. `defaultdict(list)` creates the empty list the first time you touch a node, so building it from an edge list is one loop:\n\n```python\ngraph = defaultdict(list)\nfor u, v in edges:\n    graph[u].append(v)\n    graph[v].append(u)  # undirected: add both directions\n```\n\nIn a *directed* graph an edge `u -> v` is a one-way street, so you add it once, with `graph[u].append(v)` only.\n\nA node's degree is `len(graph[node])`: its number of neighbors, or its out-degree when the graph is directed. Neighbors are stored in the order the edges arrived, so print `sorted(graph[node])` for stable output.\n\nGotcha: looping `for node in graph` skips nodes that have no edges, because they were never added. When nodes are numbered 1 to `n`, loop over `range(1, n + 1)` instead. Reading `graph[node]` on a missing node quietly inserts an empty list, which is harmless here.",
+      "example": {
+        "title": "Neighbors and degrees",
+        "prompt": "Build an undirected graph from an edge list, print each node's sorted neighbors and degree, then print every node's out-degree when the same edges are directed.",
+        "code": "from collections import defaultdict\n\nn = 5\nedges = [(1, 3), (2, 3), (1, 2), (4, 2), (1, 4)]\n\ngraph = defaultdict(list)\nfor u, v in edges:\n    graph[u].append(v)\n    graph[v].append(u)\n\nfor node in range(1, n + 1):\n    neighbors = sorted(graph[node])\n    print(f\"{node} (degree {len(neighbors)}):\", *neighbors)\n\ndirected = defaultdict(list)\nfor u, v in edges:\n    directed[u].append(v)\n\nprint(\"Out-degrees:\", *[len(directed[node]) for node in range(1, n + 1)])\n",
+        "output": "1 (degree 3): 2 3 4\n2 (degree 3): 1 3 4\n3 (degree 2): 1 2\n4 (degree 2): 1 2\n5 (degree 0):\nOut-degrees: 3 1 0 1 0",
+        "explanation": "The first loop adds every edge twice, so node 1 hears about 3, 2, and 4 and node 3 hears about 1 and 2. `sorted(graph[node])` puts the neighbors in order, and `len()` of that list is the degree. Node 5 has no edges, but `range(1, n + 1)` still visits it and `graph[5]` gives an empty list, so it prints degree 0 with no neighbors. The directed version adds each edge once, so `len(directed[node])` counts only the edges that leave a node: node 1 has three, node 3 has none."
+      },
+      "practice": {
+        "title": "Degrees from input",
+        "prompt": "Read a graph's edges and describe it both as an undirected and as a directed graph.\n\n1. Read `n m` on the first line, then `m` lines of `u v`. Nodes are numbered 1 to `n`.\n2. Build the undirected graph. For each node from 1 to `n`, print `Node X, degree D:` followed by its sorted neighbors, separated by spaces.\n3. Build the directed graph, where each edge goes from `u` to `v`. Print `Out-degrees:` followed by the out-degree of each node from 1 to `n`.\n4. Print `Sinks:` followed by the nodes with out-degree 0, in increasing order. If there are none, print just `Sinks:`.\n\nInput:\n\n```text\n6 6\n2 1\n3 1\n2 5\n5 4\n3 2\n1 4\n```\n\nExpected output:\n\n```text\nNode 1, degree 3: 2 3 4\nNode 2, degree 3: 1 3 5\nNode 3, degree 2: 1 2\nNode 4, degree 2: 1 5\nNode 5, degree 2: 2 4\nNode 6, degree 0:\nOut-degrees: 1 2 2 0 1 0\nSinks: 4 6\n```",
+        "starter": "from collections import defaultdict\n\nn, m = map(int, input().split())\nedges = [tuple(map(int, input().split())) for _ in range(m)]\n\n# TODO: build the undirected graph, then print each node's degree and sorted neighbors\n# TODO: build the directed graph, then print the \"Out-degrees:\" and \"Sinks:\" lines\n",
+        "solution": "from collections import defaultdict\n\nn, m = map(int, input().split())\nedges = [tuple(map(int, input().split())) for _ in range(m)]\n\ngraph = defaultdict(list)\nfor u, v in edges:\n    graph[u].append(v)\n    graph[v].append(u)\n\nfor node in range(1, n + 1):\n    neighbors = sorted(graph[node])\n    print(f\"Node {node}, degree {len(neighbors)}:\", *neighbors)\n\ndirected = defaultdict(list)\nfor u, v in edges:\n    directed[u].append(v)\n\nout_degrees = [len(directed[node]) for node in range(1, n + 1)]\nprint(\"Out-degrees:\", *out_degrees)\nprint(\"Sinks:\", *[node for node in range(1, n + 1) if not directed[node]])\n",
+        "tests": [
+          {
+            "stdin": "6 6\n2 1\n3 1\n2 5\n5 4\n3 2\n1 4\n",
+            "output": "Node 1, degree 3: 2 3 4\nNode 2, degree 3: 1 3 5\nNode 3, degree 2: 1 2\nNode 4, degree 2: 1 5\nNode 5, degree 2: 2 4\nNode 6, degree 0:\nOut-degrees: 1 2 2 0 1 0\nSinks: 4 6"
+          },
+          {
+            "stdin": "1 0\n",
+            "output": "Node 1, degree 0:\nOut-degrees: 0\nSinks: 1"
+          },
+          {
+            "stdin": "3 3\n1 2\n2 3\n3 1\n",
+            "output": "Node 1, degree 2: 2 3\nNode 2, degree 2: 1 3\nNode 3, degree 2: 1 2\nOut-degrees: 1 1 1\nSinks:"
+          }
+        ],
+        "hints": [
+          "Use one `defaultdict(list)` for the undirected graph and another for the directed one.",
+          "Put `*neighbors` after the label inside `print()`, so the neighbors come out separated by spaces.",
+          "A sink has an empty list in the directed graph, so test it with `not directed[node]`."
+        ]
+      }
+    },
+    {
+      "title": "Connected components",
+      "body": "A *connected component* is a group of nodes you can reach from each other. Counting them works like counting islands in the recursion lesson: loop over every node and start a search from each one that is not in the `visited` set yet. Every new start is a new component.\n\nThe search itself is depth-first search with a plain list as a stack. It is the BFS loop with a list in place of the deque: `pop()` takes the newest item instead of `popleft()` taking the oldest. `append()` pushes, and `while stack:` runs until the stack is empty:\n\n```python\nvisited.add(start)\nstack = [start]\nwhile stack:\n    node = stack.pop()\n    for nbr in graph[node]:\n        if nbr not in visited:\n            visited.add(nbr)\n            stack.append(nbr)\n```\n\nMark a node visited when you *push* it, not when you pop it. Otherwise two of its neighbors can both push it before it is popped, and it gets counted twice. Count the pops to get the component's size.\n\nWhy not the recursive DFS from the recursion lesson? A chain of a few thousand nodes would go deeper than Python's default recursion limit of 1000 and raise `RecursionError`. An explicit stack has no such limit.",
+      "example": {
+        "title": "Counting components",
+        "prompt": "Count the connected components of a 7-node graph with an iterative DFS and print the size of each one.",
+        "code": "from collections import defaultdict\n\n\ndef component_sizes(n, graph):\n    visited = set()\n    sizes = []\n    for start in range(1, n + 1):\n        if start in visited:\n            continue\n        visited.add(start)\n        stack = [start]\n        size = 0\n        while stack:\n            node = stack.pop()\n            size += 1\n            for nbr in graph[node]:\n                if nbr not in visited:\n                    visited.add(nbr)\n                    stack.append(nbr)\n        sizes.append(size)\n    return sizes\n\n\nedges = [(1, 2), (2, 3), (3, 1), (4, 5), (5, 6)]\ngraph = defaultdict(list)\nfor u, v in edges:\n    graph[u].append(v)\n    graph[v].append(u)\n\nsizes = component_sizes(7, graph)\nprint(f\"Components: {len(sizes)}\")\nprint(\"Sizes:\", *sizes)\n",
+        "output": "Components: 3\nSizes: 3 3 1",
+        "explanation": "The outer loop tries nodes 1 to 7. Node 1 is new, so the stack search reaches 2 and 3 and the component has size 3. Nodes 2 and 3 are already visited, so the loop skips them. Node 4 starts a second component of 4, 5, and 6. Node 7 has no edges, so its search pops only itself: a component of size 1. The triangle 1, 2, 3 has a loop, but the `visited` check stops the search from going around it forever."
+      },
+      "practice": {
+        "title": "Largest component",
+        "prompt": "Read an undirected graph and report how many components it has and how big the largest one is.\n\n1. The starter reads `n m`, then `m` lines of `u v`, and builds the undirected graph for you.\n2. Write `component_sizes(n, graph)`: loop over nodes 1 to `n`, start an iterative DFS from each unvisited node, and append each component's size to a list.\n3. Mark a node visited when you push it, so no node is counted twice.\n4. The starter prints `Components:` and `Largest:` from the list you return.\n\nInput:\n\n```text\n8 5\n1 2\n3 4\n4 5\n5 6\n6 3\n```\n\nExpected output:\n\n```text\nComponents: 4\nLargest: 4\n```",
+        "starter": "from collections import defaultdict\n\n\ndef component_sizes(n, graph):\n    # TODO: return a list with the size of each connected component\n    return []\n\n\nn, m = map(int, input().split())\ngraph = defaultdict(list)\nfor _ in range(m):\n    u, v = map(int, input().split())\n    graph[u].append(v)\n    graph[v].append(u)\n\nsizes = component_sizes(n, graph)\nprint(f\"Components: {len(sizes)}\")\nprint(f\"Largest: {max(sizes, default=0)}\")\n",
+        "solution": "from collections import defaultdict\n\n\ndef component_sizes(n, graph):\n    visited = set()\n    sizes = []\n    for start in range(1, n + 1):\n        if start in visited:\n            continue\n        visited.add(start)\n        stack = [start]\n        size = 0\n        while stack:\n            node = stack.pop()\n            size += 1\n            for nbr in graph[node]:\n                if nbr not in visited:\n                    visited.add(nbr)\n                    stack.append(nbr)\n        sizes.append(size)\n    return sizes\n\n\nn, m = map(int, input().split())\ngraph = defaultdict(list)\nfor _ in range(m):\n    u, v = map(int, input().split())\n    graph[u].append(v)\n    graph[v].append(u)\n\nsizes = component_sizes(n, graph)\nprint(f\"Components: {len(sizes)}\")\nprint(f\"Largest: {max(sizes, default=0)}\")\n",
+        "tests": [
+          {
+            "stdin": "8 5\n1 2\n3 4\n4 5\n5 6\n6 3\n",
+            "output": "Components: 4\nLargest: 4"
+          },
+          {
+            "stdin": "4 0\n",
+            "output": "Components: 4\nLargest: 1"
+          },
+          {
+            "stdin": "5 4\n1 2\n2 3\n3 4\n4 5\n",
+            "output": "Components: 1\nLargest: 5"
+          }
+        ],
+        "hints": [
+          "Keep one `visited` set for the whole function, not one per component.",
+          "Inside `while stack:`, pop a node, add 1 to `size`, and push its unvisited neighbors.",
+          "Nodes with no edges are components of size 1, and the outer `range(1, n + 1)` loop finds them."
+        ]
+      }
+    },
+    {
+      "title": "Topological sort",
+      "body": "A *directed acyclic graph* (DAG) has one-way edges and no cycles, so no path leads from a node back to itself. Courses with prerequisites form one. A *topological order* lists every node so that each edge `a -> b` has `a` before `b`.\n\nKahn's algorithm builds that order by counting. A node's *in-degree* is the number of edges pointing at it, and a node with in-degree 0 has nothing left to wait for:\n\n1. Count every node's in-degree.\n2. Put every node with in-degree 0 in a ready list.\n3. Take a ready node, add it to the order, and subtract 1 from each neighbor's in-degree. A neighbor that drops to 0 becomes ready.\n\nMany orders can be valid. Keep the ready nodes in a heap and `heapq.heappop()` always takes the smallest, so the answer is unique and testable. A `deque` would also work but can give a different valid order.\n\nIf the graph has a cycle, the nodes on it and every node after them never reach in-degree 0. The loop ends early, so `len(order) < n` tells you there is a cycle.",
+      "example": {
+        "title": "Course plans",
+        "prompt": "Order two course plans with Kahn's algorithm, always taking the smallest ready course next, and report the plan that has a cycle.",
+        "code": "import heapq\nfrom collections import defaultdict\n\n\ndef topo_order(n, edges):\n    graph = defaultdict(list)\n    indegree = [0] * (n + 1)\n    for before, after in edges:\n        graph[before].append(after)\n        indegree[after] += 1\n    ready = [node for node in range(1, n + 1) if indegree[node] == 0]\n    heapq.heapify(ready)\n    order = []\n    while ready:\n        node = heapq.heappop(ready)\n        order.append(node)\n        for nxt in graph[node]:\n            indegree[nxt] -= 1\n            if indegree[nxt] == 0:\n                heapq.heappush(ready, nxt)\n    return order\n\n\nplans = [\n    [(3, 1), (3, 2), (1, 4), (2, 4), (5, 2)],\n    [(1, 2), (2, 3), (3, 1), (4, 5)],\n]\nn = 5\nfor i, edges in enumerate(plans, start=1):\n    order = topo_order(n, edges)\n    if len(order) < n:\n        print(f\"Plan {i}: cycle\")\n    else:\n        print(f\"Plan {i}:\", \" -> \".join(map(str, order)))\n",
+        "output": "Plan 1: 3 -> 1 -> 5 -> 2 -> 4\nPlan 2: cycle",
+        "explanation": "In plan 1, courses 3 and 5 start with in-degree 0, so the heap holds both. `heappop()` takes 3, which frees course 1. Now 1 is smaller than 5, so it comes next even though 5 was ready first. Taking 5 frees 2, and taking 2 frees 4. In plan 2, courses 1, 2, and 3 wait on each other, so only 4 and 5 ever become ready. The order has 2 courses instead of 5, which reveals the cycle."
+      },
+      "practice": {
+        "title": "Task scheduler",
+        "prompt": "Read tasks and their dependencies and print the order to do them in.\n\n1. The starter reads `n m`, then `m` lines of `a b`, meaning task `a` must come before task `b`. Tasks are numbered 1 to `n`.\n2. Write `topo_order(n, edges)` with Kahn's algorithm: count in-degrees, heap the tasks with in-degree 0, and pop the smallest ready task each time.\n3. If fewer than `n` tasks were ordered, print `cycle`.\n4. Otherwise print the tasks in order on one line, separated by spaces.\n\nInput:\n\n```text\n6 6\n3 1\n3 2\n1 4\n2 4\n6 2\n4 5\n```\n\nExpected output:\n\n```text\n3 1 6 2 4 5\n```",
+        "starter": "import heapq\nfrom collections import defaultdict\n\n\ndef topo_order(n, edges):\n    # TODO: Kahn's algorithm with a heap of ready tasks, smallest first\n    return []\n\n\nn, m = map(int, input().split())\nedges = [tuple(map(int, input().split())) for _ in range(m)]\n\norder = topo_order(n, edges)\n# TODO: print \"cycle\" if fewer than n tasks were ordered, else the order\n",
+        "solution": "import heapq\nfrom collections import defaultdict\n\n\ndef topo_order(n, edges):\n    graph = defaultdict(list)\n    indegree = [0] * (n + 1)\n    for before, after in edges:\n        graph[before].append(after)\n        indegree[after] += 1\n    ready = [node for node in range(1, n + 1) if indegree[node] == 0]\n    heapq.heapify(ready)\n    order = []\n    while ready:\n        node = heapq.heappop(ready)\n        order.append(node)\n        for nxt in graph[node]:\n            indegree[nxt] -= 1\n            if indegree[nxt] == 0:\n                heapq.heappush(ready, nxt)\n    return order\n\n\nn, m = map(int, input().split())\nedges = [tuple(map(int, input().split())) for _ in range(m)]\n\norder = topo_order(n, edges)\nif len(order) < n:\n    print(\"cycle\")\nelse:\n    print(*order)\n",
+        "tests": [
+          {
+            "stdin": "6 6\n3 1\n3 2\n1 4\n2 4\n6 2\n4 5\n",
+            "output": "3 1 6 2 4 5"
+          },
+          {
+            "stdin": "4 4\n1 2\n2 3\n3 2\n3 4\n",
+            "output": "cycle"
+          },
+          {
+            "stdin": "3 0\n",
+            "output": "1 2 3"
+          }
+        ],
+        "hints": [
+          "Use `indegree = [0] * (n + 1)` so task numbers can be indexes.",
+          "`heapq.heapify(ready)` turns the starting list into a heap, and `heapq.heappush()` adds tasks as they become ready.",
+          "`print(*order)` prints the tasks separated by spaces."
+        ]
+      }
+    },
+    {
+      "title": "Dijkstra's shortest paths",
+      "body": "BFS finds shortest paths when every edge costs the same. In a *weighted* graph each edge has its own cost, such as a distance. Store `(neighbor, weight)` pairs in the adjacency list: `graph[u].append((v, w))`.\n\nDijkstra's algorithm finds the cheapest path from one source to every node. Start every distance at `math.inf`, which means \"not reached yet\" and is larger than any real distance. Set the source to 0 and push `(0, source)` on a heap. Then repeat: pop the closest node and try each edge out of it. When `d + w` beats a neighbor's best distance, update it and push the new `(dist, node)` pair. The heap compares tuples by their first item, so the smallest distance always comes out first.\n\nA node can sit in the heap several times, once per improvement. Only the newest entry matters, so skip the old ones:\n\n```python\nd, node = heapq.heappop(heap)\nif d > dist[node]:\n    continue  # stale entry\n```\n\nNodes still at `math.inf` at the end are unreachable. Dijkstra needs weights of 0 or more, because it trusts that the closest node in the heap can never get cheaper. A negative edge breaks that promise.",
+      "example": {
+        "title": "Shortest roads from A",
+        "prompt": "Print the shortest distance from A to every node of a small one-way road map, and unreachable for a node with no path.",
+        "code": "import heapq\nimport math\nfrom collections import defaultdict\n\n\ndef dijkstra(graph, nodes, source):\n    dist = {node: math.inf for node in nodes}\n    dist[source] = 0\n    heap = [(0, source)]\n    while heap:\n        d, node = heapq.heappop(heap)\n        if d > dist[node]:\n            continue\n        for nbr, w in graph[node]:\n            if d + w < dist[nbr]:\n                dist[nbr] = d + w\n                heapq.heappush(heap, (dist[nbr], nbr))\n    return dist\n\n\nroads = [(\"A\", \"B\", 4), (\"A\", \"C\", 1), (\"C\", \"B\", 2),\n         (\"B\", \"D\", 5), (\"C\", \"D\", 8), (\"E\", \"D\", 1)]\ngraph = defaultdict(list)\nfor u, v, w in roads:\n    graph[u].append((v, w))\n\ndist = dijkstra(graph, [\"A\", \"B\", \"C\", \"D\", \"E\"], \"A\")\nfor node, d in dist.items():\n    print(f\"{node}: {d if d != math.inf else 'unreachable'}\")\n",
+        "output": "A: 0\nB: 3\nC: 1\nD: 8\nE: unreachable",
+        "explanation": "The roads are one-way, so each one is added once as a `(neighbor, weight)` pair. From A, the heap first pops A and pushes B at 4 and C at 1. C pops next and finds a cheaper B at 3, so `(3, \"B\")` is pushed while `(4, \"B\")` stays behind as a stale entry. Later the `d > dist[node]` check throws that stale entry away. D first gets 9 through C, then 8 through B. No road leads into E, so its distance stays `math.inf` and it prints as unreachable."
+      },
+      "practice": {
+        "title": "Distances from node 1",
+        "prompt": "Read a weighted directed graph and print the shortest distance from node 1 to every node.\n\n1. The starter reads `n m`, then `m` lines of `u v w`: a one-way edge from `u` to `v` with weight `w`. Add each one to `graph` as a `(v, w)` pair.\n2. Finish `shortest_from(graph, n, source)` with Dijkstra's algorithm and a heap of `(dist, node)` pairs. Skip stale heap entries.\n3. For each node from 1 to `n`, print `node: distance`, or `node: -1` when the node is unreachable.\n\nInput:\n\n```text\n5 7\n1 2 7\n1 3 2\n3 2 3\n2 4 1\n3 4 9\n4 5 2\n5 1 1\n```\n\nExpected output:\n\n```text\n1: 0\n2: 5\n3: 2\n4: 6\n5: 8\n```",
+        "starter": "import heapq\nimport math\nfrom collections import defaultdict\n\n\ndef shortest_from(graph, n, source):\n    dist = [math.inf] * (n + 1)\n    # TODO: run Dijkstra from source, skipping stale heap entries\n    return dist\n\n\nn, m = map(int, input().split())\ngraph = defaultdict(list)\nfor _ in range(m):\n    u, v, w = map(int, input().split())\n    # TODO: add the one-way edge u -> v with weight w\n\ndist = shortest_from(graph, n, 1)\nfor node in range(1, n + 1):\n    # TODO: print \"node: distance\", or -1 when the node is unreachable\n    pass\n",
+        "solution": "import heapq\nimport math\nfrom collections import defaultdict\n\n\ndef shortest_from(graph, n, source):\n    dist = [math.inf] * (n + 1)\n    dist[source] = 0\n    heap = [(0, source)]\n    while heap:\n        d, node = heapq.heappop(heap)\n        if d > dist[node]:\n            continue\n        for nbr, w in graph[node]:\n            if d + w < dist[nbr]:\n                dist[nbr] = d + w\n                heapq.heappush(heap, (dist[nbr], nbr))\n    return dist\n\n\nn, m = map(int, input().split())\ngraph = defaultdict(list)\nfor _ in range(m):\n    u, v, w = map(int, input().split())\n    graph[u].append((v, w))\n\ndist = shortest_from(graph, n, 1)\nfor node in range(1, n + 1):\n    print(f\"{node}: {dist[node] if dist[node] != math.inf else -1}\")\n",
+        "tests": [
+          {
+            "stdin": "5 7\n1 2 7\n1 3 2\n3 2 3\n2 4 1\n3 4 9\n4 5 2\n5 1 1\n",
+            "output": "1: 0\n2: 5\n3: 2\n4: 6\n5: 8"
+          },
+          {
+            "stdin": "4 2\n1 2 5\n3 4 1\n",
+            "output": "1: 0\n2: 5\n3: -1\n4: -1"
+          },
+          {
+            "stdin": "1 0\n",
+            "output": "1: 0"
+          }
+        ],
+        "hints": [
+          "Set `dist[source] = 0` and start with `heap = [(0, source)]`.",
+          "After `d, node = heapq.heappop(heap)`, skip the entry with `continue` when `d > dist[node]`.",
+          "An unreachable node still holds `math.inf`, so compare with it before printing."
+        ]
+      }
+    }
+  ],
+  "recap": "- `defaultdict(list)` builds an adjacency list. Add undirected edges both ways and directed edges once.\n- A node's degree is `len(graph[node])`. Loop over `range(1, n + 1)` so nodes without edges are not skipped, and sort neighbors before printing.\n- Count components by starting an iterative DFS from every unvisited node. Mark nodes visited when you push them.\n- Kahn's algorithm repeatedly takes a node with in-degree 0. A heap of ready nodes gives the smallest-first order.\n- If fewer than `n` nodes come out of Kahn's algorithm, the graph has a cycle.\n- Dijkstra pops `(dist, node)` pairs from a heap, skips stale entries, and leaves unreachable nodes at `math.inf`."
+}

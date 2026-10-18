@@ -1,0 +1,118 @@
+{
+  "id": "input",
+  "title": "Reading Input with Scanner",
+  "section": "Input",
+  "summary": "Read numbers, words, and lines from standard input with Scanner, and load them into arrays and lists.",
+  "intro": "Until now every program had its data written in the code. From here on, programs read their data from standard input, so the same code works on any input. Java's everyday tool for that is `Scanner`. Each practice now runs against several inputs, so your code must work for all of them, not just the one shown.",
+  "steps": [
+    {
+      "title": "Reading tokens",
+      "body": "`Scanner` splits standard input into *tokens*: chunks of text separated by spaces, tabs, or newlines. Import it, create one `Scanner` at the top of `main`, and ask for each token as the type you expect:\n\n```java\nimport java.util.Scanner;\n\nScanner sc = new Scanner(System.in);\nString name = sc.next();      // one word, stops at whitespace\nint age = sc.nextInt();\ndouble price = sc.nextDouble();\nlong big = sc.nextLong();     // for values beyond int, like 9000000000\n```\n\nBecause whitespace is just a separator, `5 7` on one line and `5` and `7` on two lines read exactly the same. Each call skips any spaces or newlines, then reads the next token.\n\nGotchas:\n\n- `next()` returns one word only. `Ada Lovelace` takes two `next()` calls.\n- If the token does not fit the type (`abc` for `nextInt`, or 9000000000 for `nextInt`), Scanner throws `InputMismatchException`. Use `nextLong` for big whole numbers.\n- `nextDouble()` follows the machine's locale. Here that is en_US, so it reads `2.5`, but a German locale expects `2,5`.\n- Never print prompts like `Enter a number:`. Checked programs compare stdout exactly, so a prompt is just wrong output.\n- Create one `Scanner` for `System.in` and reuse it. A second one can swallow input the first already buffered.",
+      "example": {
+        "title": "Name and numbers",
+        "prompt": "Read a name, two ints, and a long, then print the name, the sum and product of the ints, and the long doubled.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String name = sc.next();\n        int a = sc.nextInt();\n        int b = sc.nextInt();\n        long steps = sc.nextLong();\n\n        System.out.println(name + \" read \" + a + \" and \" + b);\n        System.out.println(\"Sum: \" + (a + b));\n        System.out.println(\"Product: \" + a * b);\n        System.out.println(\"Steps doubled: \" + steps * 2);\n    }\n}\n",
+        "stdin": "Mia 6\n7\n9000000000\n",
+        "output": "Mia read 6 and 7\nSum: 13\nProduct: 42\nSteps doubled: 18000000000",
+        "explanation": "`next()` reads the word `Mia`, then two `nextInt()` calls read 6 and 7 even though they sit on different lines. 9000000000 is too big for an `int`, so `nextLong()` reads it, and `steps * 2` stays a `long`. Nothing is printed before the input is read: no prompts."
+      },
+      "practice": {
+        "title": "Line total",
+        "prompt": "Read one order line and print its total.\n\n1. Read the product name with `next()`, the quantity with `nextInt()`, and the unit price with `nextDouble()`.\n2. Multiply the quantity by the price.\n3. Print one line: the name, a space, `x` and the quantity, then ` = ` and the total with exactly 2 decimals, like `Pencil x12 = 4.20`.\n4. The values may be spread over one or several lines. Do not print any prompts.\n\nInput:\n\n```text\nPencil 12 0.35\n```\n\nExpected output:\n\n```text\nPencil x12 = 4.20\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // TODO: read the name, the quantity, and the price\n        // TODO: print the line total\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String product = sc.next();\n        int quantity = sc.nextInt();\n        double price = sc.nextDouble();\n\n        double total = quantity * price;\n        System.out.printf(\"%s x%d = %.2f%n\", product, quantity, total);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "Pencil 12 0.35\n",
+            "output": "Pencil x12 = 4.20"
+          },
+          {
+            "stdin": "Notebook\n3\n2.5\n",
+            "output": "Notebook x3 = 7.50"
+          },
+          {
+            "stdin": "Stapler   1\n  12.99\n",
+            "output": "Stapler x1 = 12.99"
+          }
+        ],
+        "hints": [
+          "Read the values in order: `next()`, then `nextInt()`, then `nextDouble()`. Whitespace and newlines between them do not matter.",
+          "Use `printf` with `%s` for the name, `%d` for the quantity, and `%.2f` for the total, and end the format with `%n`."
+        ]
+      }
+    },
+    {
+      "title": "Reading whole lines",
+      "body": "`nextLine()` returns everything up to the end of the current line, spaces included, and drops the newline. Use it when a value can hold spaces, like a full name or a sentence.\n\nThe classic trap: `nextInt()` reads the number but leaves the newline after it in the input. The next `nextLine()` then returns the empty rest of that line, not the line you wanted. The fix is one extra `nextLine()` to throw away the leftover:\n\n```java\nint age = sc.nextInt();\nsc.nextLine();                         // consume the rest of the age line\nString name = sc.nextLine().strip();   // now reads the real next line\n```\n\nMixing is only a problem in that direction. `next()` and `nextInt()` skip leading whitespace on their own, so they work fine after a `nextLine()`.\n\nLines often carry stray spaces at the start or end. Call `strip()` on what you read so `  Ada  ` becomes `Ada` before you print or compare it.",
+      "example": {
+        "title": "Age then full name",
+        "prompt": "Read an age with nextInt, then a full name with nextLine, and print a short profile.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int age = sc.nextInt();\n        sc.nextLine();\n        String name = sc.nextLine().strip();\n\n        System.out.println(\"Name: \" + name);\n        System.out.println(\"Age next year: \" + (age + 1));\n        System.out.println(\"Shout: \" + name.toUpperCase());\n    }\n}\n",
+        "stdin": "36\n   Ada Lovelace  \n",
+        "output": "Name: Ada Lovelace\nAge next year: 37\nShout: ADA LOVELACE",
+        "explanation": "`nextInt()` reads 36 and stops before the newline. The bare `sc.nextLine()` consumes that leftover newline, so the next `nextLine()` returns the name line. `strip()` removes the spaces around it. Without the extra call, `name` would be the empty string."
+      },
+      "practice": {
+        "title": "Repeat a sentence",
+        "prompt": "Read a count and a sentence, then print the sentence that many times with line numbers.\n\n1. The starter reads the count with `nextInt()`.\n2. Consume the rest of the count line with one `nextLine()` call.\n3. Read the sentence with `nextLine()` and `strip()` it. Keep any spaces inside it.\n4. Print it `count` times, each line starting with its number, a dot, and a space, like `1. `.\n\nInput:\n\n```text\n3\nPractice makes progress\n```\n\nExpected output:\n\n```text\n1. Practice makes progress\n2. Practice makes progress\n3. Practice makes progress\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int count = sc.nextInt();\n        // TODO: skip the rest of the count line, then read and strip the sentence\n        // TODO: print the numbered lines\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int count = sc.nextInt();\n        sc.nextLine();\n        String sentence = sc.nextLine().strip();\n\n        for (int i = 1; i <= count; i++) {\n            System.out.println(i + \". \" + sentence);\n        }\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "3\nPractice makes progress\n",
+            "output": "1. Practice makes progress\n2. Practice makes progress\n3. Practice makes progress"
+          },
+          {
+            "stdin": "1\n   Hello, Scanner!   \n",
+            "output": "1. Hello, Scanner!"
+          },
+          {
+            "stdin": "2   \nKeep  two  spaces\n",
+            "output": "1. Keep  two  spaces\n2. Keep  two  spaces"
+          }
+        ],
+        "hints": [
+          "If your lines show only the number and the dot, the sentence came back empty. You forgot to consume the newline that `nextInt()` left behind.",
+          "Call `sc.nextLine()` once on its own and ignore the result. Then read the sentence, strip it, and print it in a `for` loop from 1 to `count`."
+        ]
+      }
+    },
+    {
+      "title": "Reading many values",
+      "body": "When the input starts with a count, read `n` first, then loop `n` times. Use an `int[]` when you know the size, or an `ArrayList` when you want to grow it:\n\n```java\nint n = sc.nextInt();\nint[] a = new int[n];\nfor (int i = 0; i < n; i++) {\n    a[i] = sc.nextInt();\n}\n```\n\nWhen there is no count, read until the input ends. `hasNextInt()` looks at the next token without consuming it and returns `false` at the end of input, or when the next token is not an int:\n\n```java\nList<Integer> nums = new ArrayList<>();\nwhile (sc.hasNextInt()) {\n    nums.add(sc.nextInt());\n}\n```\n\nThe same pattern works for other shapes. `while (sc.hasNext())` with `next()` reads words, and `hasNextLine()` with `nextLine()` reads whole lines:\n\n```java\nwhile (sc.hasNextLine()) {\n    String line = sc.nextLine().strip();\n    if (line.isBlank()) {\n        continue;\n    }\n    System.out.println(line);\n}\n```\n\nAlways check `hasNext...` before reading when the amount is unknown. Calling `nextInt()` with nothing left throws `NoSuchElementException`.",
+      "example": {
+        "title": "Scores and bonus points",
+        "prompt": "Read n and n scores into an int array, print the max and average, then sum any remaining ints as bonus points.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] scores = new int[n];\n        for (int i = 0; i < n; i++) {\n            scores[i] = sc.nextInt();\n        }\n\n        int max = scores[0];\n        int total = 0;\n        for (int s : scores) {\n            max = Math.max(max, s);\n            total += s;\n        }\n        System.out.println(\"Max: \" + max);\n        System.out.printf(\"Average: %.2f%n\", (double) total / n);\n\n        int bonus = 0;\n        while (sc.hasNextInt()) {\n            bonus += sc.nextInt();\n        }\n        System.out.println(\"Bonus: \" + bonus);\n    }\n}\n",
+        "stdin": "4\n80 95 72 88\n5\n10\n",
+        "output": "Max: 95\nAverage: 83.75\nBonus: 15",
+        "explanation": "The first token says 4 scores follow, so the `for` loop reads exactly 4 ints into the array. Casting `total` to `double` before dividing keeps the .75. The `while (sc.hasNextInt())` loop then reads whatever is left, 5 and 10, and stops when the input ends."
+      },
+      "practice": {
+        "title": "Count, sum, reverse",
+        "prompt": "Read every int in the input into a list, then report on it.\n\n1. Loop with `while (sc.hasNextInt())` and add each `nextInt()` to `nums`. There is no count first, and the ints may be on any number of lines.\n2. Print `Count: ` and the number of ints.\n3. Print `Sum: ` and their sum.\n4. Reverse the list and print `Reversed: ` followed by the list. Empty input prints a count and sum of 0 and `[]`.\n\nInput:\n\n```text\n3 8 -2\n5\n```\n\nExpected output:\n\n```text\nCount: 4\nSum: 14\nReversed: [5, -2, 8, 3]\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        List<Integer> nums = new ArrayList<>();\n        // TODO: read ints until the input ends and add them to nums\n        // TODO: print the count, the sum, and the reversed list\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        List<Integer> nums = new ArrayList<>();\n        while (sc.hasNextInt()) {\n            nums.add(sc.nextInt());\n        }\n\n        int sum = 0;\n        for (int x : nums) {\n            sum += x;\n        }\n        Collections.reverse(nums);\n\n        System.out.println(\"Count: \" + nums.size());\n        System.out.println(\"Sum: \" + sum);\n        System.out.println(\"Reversed: \" + nums);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "3 8 -2\n5\n",
+            "output": "Count: 4\nSum: 14\nReversed: [5, -2, 8, 3]"
+          },
+          {
+            "stdin": "10\n20\n30\n40\n50\n",
+            "output": "Count: 5\nSum: 150\nReversed: [50, 40, 30, 20, 10]"
+          },
+          {
+            "stdin": "",
+            "output": "Count: 0\nSum: 0\nReversed: []"
+          }
+        ],
+        "hints": [
+          "`hasNextInt()` is false at the end of input, so the loop also handles an empty input.",
+          "Add up the values with an enhanced `for`. `Collections.reverse` reverses a list in place, and printing a list shows it as `[a, b, c]`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `import java.util.Scanner;` then one `Scanner sc = new Scanner(System.in);` per program.\n- `next()` reads one word. `nextInt()`, `nextLong()`, and `nextDouble()` read numbers. Tokens can sit on one line or many.\n- Use `nextLong()` for whole numbers beyond `int`.\n- Never print prompts in checked programs.\n- `nextLine()` reads the rest of a line. After `nextInt()`, call `nextLine()` once to consume the leftover newline.\n- `strip()` lines you read to drop stray spaces.\n- Read `n`, then loop `n` times into an `int[]` or an `ArrayList`.\n- With no count, loop on `hasNextInt()`, `hasNext()`, or `hasNextLine()` until the input ends."
+}

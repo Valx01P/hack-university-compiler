@@ -1,0 +1,121 @@
+{
+  "id": "input-collections",
+  "title": "Input with BufferedReader and Collections",
+  "section": "Input",
+  "summary": "Read input fast with BufferedReader and feed it into arrays, maps, sets, and your own classes.",
+  "intro": "`Scanner` reads one token at a time, which gets slow on big inputs. `BufferedReader` reads a whole line at once, and you split and parse it yourself. This lesson shows that pipeline and loads the pieces into arrays, maps, sets, and objects.",
+  "steps": [
+    {
+      "title": "BufferedReader and split",
+      "body": "The setup takes three imports from `java.io`, one reader wrapped around `System.in`, and a `throws` clause on `main`:\n\n```java\nimport java.io.BufferedReader;\nimport java.io.IOException;\nimport java.io.InputStreamReader;\n\npublic static void main(String[] args) throws IOException {\n    BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n    String line = br.readLine();               // null when input has ended\n    String[] parts = line.strip().split(\"\\\\s+\");\n    int count = Integer.parseInt(parts[0]);\n    long big = Long.parseLong(parts[1]);      // values beyond int\n}\n```\n\n`readLine` can throw `IOException`, a checked exception, so `main` must declare `throws IOException`. The Exceptions lesson explains why. Use one reader per program, just like one `Scanner`: mixing `Scanner` and `BufferedReader` on `System.in` loses input, because each one buffers lines the other never sees.\n\nAlways `strip()` first. `Integer.parseInt(\" 5\")` throws `NumberFormatException` because a space is not a digit, so a count line with a stray space breaks without it. Splitting has the same trap: `\"  5 7\".split(\"\\\\s+\")` gives `[\"\", \"5\", \"7\"]`, and parsing that empty first token throws too. After `strip()`, `split(\"\\\\s+\")` treats each run of spaces as one separator.\n\n`readLine` returns `null` once input is used up, and calling `strip()` on `null` crashes. Only chain `br.readLine().strip()` when you know the line is there.",
+      "example": {
+        "title": "Sorted file sizes",
+        "prompt": "Read a count on the first line and that many file sizes on the second, then print the sizes sorted and their total.",
+        "code": "import java.io.BufferedReader;\nimport java.io.IOException;\nimport java.io.InputStreamReader;\nimport java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        int n = Integer.parseInt(br.readLine().strip());\n        String[] parts = br.readLine().strip().split(\"\\\\s+\");\n\n        long[] sizes = new long[n];\n        long total = 0;\n        for (int i = 0; i < n; i++) {\n            sizes[i] = Long.parseLong(parts[i]);\n            total += sizes[i];\n        }\n\n        Arrays.sort(sizes);\n        System.out.println(\"Sorted: \" + Arrays.toString(sizes));\n        System.out.println(\"Total: \" + total);\n    }\n}\n",
+        "stdin": "4\n  3000000000 15 7   250\n",
+        "output": "Sorted: [7, 15, 250, 3000000000]\nTotal: 3000000272",
+        "explanation": "The first `readLine` holds the count, so `strip()` and `Integer.parseInt` turn it into `n`. The second line has extra spaces at both ends and in the middle. `strip()` removes the outer ones and `split(\"\\\\s+\")` swallows the inner run, so `parts` holds exactly four tokens. 3000000000 does not fit in an `int`, which is why each token goes through `Long.parseLong` into a `long[]`. `Arrays.sort` orders the array and `Arrays.toString` prints it."
+      },
+      "practice": {
+        "title": "Temperature report",
+        "prompt": "Read a count and that many whole-number temperatures, then report on them.\n\n1. Read the count from the first line and the temperatures from the second, splitting with `strip().split(\"\\\\s+\")`.\n2. Parse each token with `Integer.parseInt` and track the minimum, the maximum, and the sum.\n3. Compute the average as a `double` and count the temperatures strictly above it.\n4. Print `Min: `, `Max: `, and `Above average: ` with their values, one per line.\n\nInput:\n\n```text\n5\n 12 -2 7  14 9 \n```\n\nExpected output:\n\n```text\nMin: -2\nMax: 14\nAbove average: 3\n```",
+        "starter": "import java.io.BufferedReader;\nimport java.io.IOException;\nimport java.io.InputStreamReader;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        // TODO: create a BufferedReader, read the count, then read and split the temperature line\n        // TODO: parse each temperature, then print Min, Max, and Above average\n    }\n}\n",
+        "solution": "import java.io.BufferedReader;\nimport java.io.IOException;\nimport java.io.InputStreamReader;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        int n = Integer.parseInt(br.readLine().strip());\n        String[] parts = br.readLine().strip().split(\"\\\\s+\");\n\n        int[] temps = new int[n];\n        int min = Integer.MAX_VALUE;\n        int max = Integer.MIN_VALUE;\n        int sum = 0;\n        for (int i = 0; i < n; i++) {\n            temps[i] = Integer.parseInt(parts[i]);\n            min = Math.min(min, temps[i]);\n            max = Math.max(max, temps[i]);\n            sum += temps[i];\n        }\n\n        double average = (double) sum / n;\n        int above = 0;\n        for (int t : temps) {\n            if (t > average) {\n                above++;\n            }\n        }\n\n        System.out.println(\"Min: \" + min);\n        System.out.println(\"Max: \" + max);\n        System.out.println(\"Above average: \" + above);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "5\n 12 -2 7  14 9 \n",
+            "output": "Min: -2\nMax: 14\nAbove average: 3"
+          },
+          {
+            "stdin": "1\n5\n",
+            "output": "Min: 5\nMax: 5\nAbove average: 0"
+          },
+          {
+            "stdin": "4\n20 21 22 23\n",
+            "output": "Min: 20\nMax: 23\nAbove average: 2"
+          }
+        ],
+        "hints": [
+          "The temperature line can start and end with spaces, so strip it before you split.",
+          "Cast before you divide, as in `(double) sum / n`, so the average keeps its fraction.",
+          "Loop over the parsed values a second time to count those strictly above the average."
+        ]
+      }
+    },
+    {
+      "title": "Input into maps and sets",
+      "body": "When you do not know how many lines are coming, read until `readLine` returns `null`. This is the `BufferedReader` version of `while (sc.hasNextLine())`. The assignment sits inside the condition, so each pass reads one line and stops at the end:\n\n```java\nString line;\nwhile ((line = br.readLine()) != null) {\n    if (line.isBlank()) {\n        continue;                         // empty or only spaces\n    }\n    for (String word : line.strip().split(\"\\\\s+\")) {\n        String key = word.toLowerCase();  // \"The\" and \"the\" match\n        counts.put(key, counts.getOrDefault(key, 0) + 1);\n    }\n}\n```\n\nSkip blank lines first. `\"\".split(\"\\\\s+\")` returns one empty token, so a blank line would count `\"\"` as a word.\n\nPick the collection by what you print. A `TreeMap` keeps keys sorted, so looping over `entrySet()` prints in alphabetical order. A `TreeSet` keeps unique values sorted, and `println(set)` shows `[a, b]`. Normalize keys with `toLowerCase()` before you store them, or `Ana` and `ana` become two entries. A `HashMap` would also count correctly, but its order is unspecified, so use it only when you print a total.",
+      "example": {
+        "title": "Word counts",
+        "prompt": "Read lines of text until input ends, skip blank lines, count each lower-cased word, and list the words used once.",
+        "code": "import java.io.BufferedReader;\nimport java.io.IOException;\nimport java.io.InputStreamReader;\nimport java.util.Map;\nimport java.util.Set;\nimport java.util.TreeMap;\nimport java.util.TreeSet;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        Map<String, Integer> counts = new TreeMap<>();\n\n        String line;\n        while ((line = br.readLine()) != null) {\n            if (line.isBlank()) {\n                continue;\n            }\n            for (String word : line.strip().split(\"\\\\s+\")) {\n                String key = word.toLowerCase();\n                counts.put(key, counts.getOrDefault(key, 0) + 1);\n            }\n        }\n\n        Set<String> once = new TreeSet<>();\n        for (Map.Entry<String, Integer> entry : counts.entrySet()) {\n            int count = entry.getValue();\n            System.out.println(entry.getKey() + \": \" + count);\n            if (count == 1) {\n                once.add(entry.getKey());\n            }\n        }\n        System.out.println(\"Used once: \" + once);\n    }\n}\n",
+        "stdin": "The cat saw the dog\n\nthe DOG ran\n   \n",
+        "output": "cat: 1\ndog: 2\nran: 1\nsaw: 1\nthe: 3\nUsed once: [cat, ran, saw]",
+        "explanation": "The `while` loop reads one line per pass and ends when `readLine` returns `null`. The empty line and the line of spaces both hit `continue`. `toLowerCase()` folds `The`, `the`, and `DOG` into the same keys. The `TreeMap` hands back its entries in alphabetical order, and the `TreeSet` collects the words with a count of 1, printed sorted with `[...]`."
+      },
+      "practice": {
+        "title": "Repeat visitors",
+        "prompt": "Read visitor names, one per line, until input ends and report who came back.\n\n1. Loop with `while ((line = br.readLine()) != null)` and skip blank lines.\n2. Strip each name, lower-case it, and count it in a `TreeMap`.\n3. Add every name with a count above 1 to a `TreeSet`.\n4. Print `Unique visitors: ` with the map's size, then `Repeat visitors: ` with the set.\n\nInput:\n\n```text\nAna\nben\n\nCara\nana\nBen\nDev\nANA\n```\n\nExpected output:\n\n```text\nUnique visitors: 4\nRepeat visitors: [ana, ben]\n```",
+        "starter": "import java.io.BufferedReader;\nimport java.io.IOException;\nimport java.io.InputStreamReader;\nimport java.util.Map;\nimport java.util.Set;\nimport java.util.TreeMap;\nimport java.util.TreeSet;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        // TODO: read lines until input ends, skip blank ones, and count each lower-cased name\n        // TODO: collect names seen more than once in a TreeSet, then print both lines\n    }\n}\n",
+        "solution": "import java.io.BufferedReader;\nimport java.io.IOException;\nimport java.io.InputStreamReader;\nimport java.util.Map;\nimport java.util.Set;\nimport java.util.TreeMap;\nimport java.util.TreeSet;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        Map<String, Integer> visits = new TreeMap<>();\n\n        String line;\n        while ((line = br.readLine()) != null) {\n            if (line.isBlank()) {\n                continue;\n            }\n            String name = line.strip().toLowerCase();\n            visits.put(name, visits.getOrDefault(name, 0) + 1);\n        }\n\n        Set<String> repeats = new TreeSet<>();\n        for (Map.Entry<String, Integer> entry : visits.entrySet()) {\n            int count = entry.getValue();\n            if (count > 1) {\n                repeats.add(entry.getKey());\n            }\n        }\n        System.out.println(\"Unique visitors: \" + visits.size());\n        System.out.println(\"Repeat visitors: \" + repeats);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "Ana\nben\n\nCara\nana\nBen\nDev\nANA\n",
+            "output": "Unique visitors: 4\nRepeat visitors: [ana, ben]"
+          },
+          {
+            "stdin": "Zoe\nyuki\n",
+            "output": "Unique visitors: 2\nRepeat visitors: []"
+          },
+          {
+            "stdin": "  Max  \n\n\nmax\n   \nLeo\n",
+            "output": "Unique visitors: 2\nRepeat visitors: [max]"
+          }
+        ],
+        "hints": [
+          "Each line holds one name, so `line.strip().toLowerCase()` is the key, no split needed.",
+          "The number of unique visitors is just `visits.size()`.",
+          "An empty `TreeSet` prints as `[]`, which is the right output when nobody returns."
+        ]
+      }
+    },
+    {
+      "title": "Input into objects",
+      "body": "Real input often describes records: one line per item, with several fields. Read the count, then turn each line into an object:\n\n```java\nfor (int i = 0; i < n; i++) {\n    String[] parts = br.readLine().strip().split(\"\\\\s+\");\n    players.add(new Player(parts[0], Integer.parseInt(parts[1])));\n}\n```\n\nEvery field arrives as a `String`, so parse the numeric ones with `Integer.parseInt`, `Long.parseLong`, or `Double.parseDouble` before passing them to the constructor.\n\nStore the objects in a `List` and sort with a comparator. The printed order must be fixed, so add a tie-breaker for equal keys:\n\n```java\nplayers.sort(Comparator.comparingInt(Player::getScore).reversed()\n        .thenComparing(Player::getName));\n```\n\n`reversed()` flips the chain built so far, so call it before `thenComparing` when only the first key should descend. For a `double` key, use `comparingDouble` or `thenComparingDouble`, which work like their `int` versions. Finally, override `toString` so `println(player)` prints readable text instead of `Player@1b6d3586`.",
+      "example": {
+        "title": "Leaderboard",
+        "prompt": "Read a count and that many lines of name and score, build Player objects, and print them ranked by score from high to low, ties by name.",
+        "code": "import java.io.BufferedReader;\nimport java.io.IOException;\nimport java.io.InputStreamReader;\nimport java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        int n = Integer.parseInt(br.readLine().strip());\n\n        List<Player> players = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = br.readLine().strip().split(\"\\\\s+\");\n            players.add(new Player(parts[0], Integer.parseInt(parts[1])));\n        }\n\n        players.sort(Comparator.comparingInt(Player::getScore).reversed()\n                .thenComparing(Player::getName));\n        for (int i = 0; i < players.size(); i++) {\n            System.out.println((i + 1) + \". \" + players.get(i));\n        }\n    }\n}\n\nclass Player {\n    private final String name;\n    private final int score;\n\n    public Player(String name, int score) {\n        this.name = name;\n        this.score = score;\n    }\n\n    public String getName() {\n        return name;\n    }\n\n    public int getScore() {\n        return score;\n    }\n\n    @Override\n    public String toString() {\n        return name + \" (\" + score + \")\";\n    }\n}\n",
+        "stdin": "4\nAna 90\n  Ben   75\nCara 90\nDev 82\n",
+        "output": "1. Ana (90)\n2. Cara (90)\n3. Dev (82)\n4. Ben (75)",
+        "explanation": "Each line splits into a name and a score, and `Integer.parseInt` turns the score into an `int` for the constructor. The line for Ben has extra spaces, but `strip().split(\"\\\\s+\")` still yields two tokens. The comparator sorts by score descending, and Ana and Cara tie at 90, so `thenComparing(Player::getName)` puts Ana first. Concatenating `players.get(i)` calls the overridden `toString`."
+      },
+      "practice": {
+        "title": "Product catalog",
+        "prompt": "Read a count and that many lines of item, category, and price, then print the products in catalog order.\n\n1. For each line, split it into three fields and build a `Product` with `Double.parseDouble` for the price.\n2. Add each product to `products`.\n3. Sort by category alphabetically, then by price from low to high, then by name alphabetically.\n4. Make `toString` return `category: name price` with the price to 2 decimal places, and print one product per line.\n\nInput:\n\n```text\n5\nmilk dairy 1.20\napple fruit 0.50\ncheese dairy 4.50\nyogurt dairy 1.20\npear fruit 0.75\n```\n\nExpected output:\n\n```text\ndairy: milk 1.20\ndairy: yogurt 1.20\ndairy: cheese 4.50\nfruit: apple 0.50\nfruit: pear 0.75\n```",
+        "starter": "import java.io.BufferedReader;\nimport java.io.IOException;\nimport java.io.InputStreamReader;\nimport java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        int n = Integer.parseInt(br.readLine().strip());\n\n        List<Product> products = new ArrayList<>();\n        // TODO: read n lines, parse each into a Product, and add it to products\n        // TODO: sort by category, then price, then name, and print each product\n    }\n}\n\nclass Product {\n    private final String name;\n    private final String category;\n    private final double price;\n\n    public Product(String name, String category, double price) {\n        this.name = name;\n        this.category = category;\n        this.price = price;\n    }\n\n    public String getName() {\n        return name;\n    }\n\n    public String getCategory() {\n        return category;\n    }\n\n    public double getPrice() {\n        return price;\n    }\n\n    @Override\n    public String toString() {\n        // TODO: return \"category: name price\" with the price to 2 decimals\n        return \"\";\n    }\n}\n",
+        "solution": "import java.io.BufferedReader;\nimport java.io.IOException;\nimport java.io.InputStreamReader;\nimport java.util.ArrayList;\nimport java.util.Comparator;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        int n = Integer.parseInt(br.readLine().strip());\n\n        List<Product> products = new ArrayList<>();\n        for (int i = 0; i < n; i++) {\n            String[] parts = br.readLine().strip().split(\"\\\\s+\");\n            products.add(new Product(parts[0], parts[1], Double.parseDouble(parts[2])));\n        }\n\n        products.sort(Comparator.comparing(Product::getCategory)\n                .thenComparingDouble(Product::getPrice)\n                .thenComparing(Product::getName));\n        for (Product p : products) {\n            System.out.println(p);\n        }\n    }\n}\n\nclass Product {\n    private final String name;\n    private final String category;\n    private final double price;\n\n    public Product(String name, String category, double price) {\n        this.name = name;\n        this.category = category;\n        this.price = price;\n    }\n\n    public String getName() {\n        return name;\n    }\n\n    public String getCategory() {\n        return category;\n    }\n\n    public double getPrice() {\n        return price;\n    }\n\n    @Override\n    public String toString() {\n        return \"%s: %s %.2f\".formatted(category, name, price);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "5\nmilk dairy 1.20\napple fruit 0.50\ncheese dairy 4.50\nyogurt dairy 1.20\npear fruit 0.75\n",
+            "output": "dairy: milk 1.20\ndairy: yogurt 1.20\ndairy: cheese 4.50\nfruit: apple 0.50\nfruit: pear 0.75"
+          },
+          {
+            "stdin": "1\n  tea   drinks  3  \n",
+            "output": "drinks: tea 3.00"
+          },
+          {
+            "stdin": "3\nrice grain 2.00\nbarley grain 2\noats grain 1.5\n",
+            "output": "grain: oats 1.50\ngrain: barley 2.00\ngrain: rice 2.00"
+          }
+        ],
+        "hints": [
+          "The fields arrive in the order item, category, price, so the price is `parts[2]`.",
+          "Start with `Comparator.comparing(Product::getCategory)`, then add one tie-breaker for the price and one for the name.",
+          "`formatted` takes the same format codes as `printf`: `%s` for each text field and `%.2f` for the price."
+        ]
+      }
+    }
+  ],
+  "recap": "- `new BufferedReader(new InputStreamReader(System.in))` reads input line by line, and `main` declares `throws IOException`.\n- Split with `line.strip().split(\"\\\\s+\")`, then parse tokens with `Integer.parseInt`, `Long.parseLong`, or `Double.parseDouble`.\n- `readLine` returns `null` at the end: loop with `while ((line = br.readLine()) != null)` and skip blank lines with `isBlank()`.\n- Count in a `TreeMap` and collect unique values in a `TreeSet` for sorted output. Lower-case keys first.\n- Build one object per line, sort the list with a comparator that breaks ties, and print with `toString`."
+}

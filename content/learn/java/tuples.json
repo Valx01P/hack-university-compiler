@@ -1,0 +1,88 @@
+{
+  "id": "tuples",
+  "title": "Tuples: What Java Uses Instead",
+  "section": "Collections",
+  "summary": "Java has no tuples, so group values with small arrays and Map.Entry, and see why classes come next.",
+  "intro": "Many languages let you bundle a few values into a tuple like `(3, 4)` or `(\"Lima\", 10700)`. Java 15 has no tuple type. This lesson shows the three stand-ins Java programmers actually reach for: a small `int[]` to return two numbers, `Map.Entry` for a labeled pair, and a `List<int[]>` for many pairs, plus the equality trap that comes with arrays. Each one has weak spots, which is why small classes take over this job later in the course.",
+  "steps": [
+    {
+      "title": "Returning two values with an array",
+      "body": "Python can write `return lo, hi` and unpack the pair. Java has no tuple type and no unpacking, and records (named data carriers) only arrive in Java 16. When a method must hand back two values of the same type, the simplest fix is a small array:\n\n```java\nstatic int[] minMax(int[] a) {\n    // ... find min and max ...\n    return new int[]{min, max};\n}\n```\n\n`new int[]{min, max}` builds the array right in the `return`. You need the `new int[]` part: the short `{min, max}` form works only when declaring an array variable, so `return {min, max};` does not compile. The caller stores the result once and reads each part by position:\n\n```java\nint[] result = minMax(temps);\nint low = result[0];\nint high = result[1];\n```\n\nGotcha: positions have no names, so nothing stops you from mixing up `result[0]` and `result[1]`. Keep the order obvious from the method name and state it in a comment. Call the method once and keep the array, instead of calling it twice to get each part. This trick only works when both values share a type. For a name and a number you need the next step.",
+      "example": {
+        "title": "Min and max together",
+        "prompt": "Write minMax that returns the smallest and largest value as one int array, then print both parts.",
+        "code": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] temps = {18, 25, 9, 31, 22};\n        int[] result = minMax(temps);\n        System.out.println(\"Min: \" + result[0]);\n        System.out.println(\"Max: \" + result[1]);\n\n        int[] scores = {70, 85, 64};\n        int[] range = minMax(scores);\n        System.out.println(\"Scores \" + Arrays.toString(range) + \", spread \" + (range[1] - range[0]));\n    }\n\n    // Returns {min, max} of a non-empty array.\n    static int[] minMax(int[] a) {\n        int min = a[0];\n        int max = a[0];\n        for (int x : a) {\n            if (x < min) {\n                min = x;\n            }\n            if (x > max) {\n                max = x;\n            }\n        }\n        return new int[]{min, max};\n    }\n}\n",
+        "output": "Min: 9\nMax: 31\nScores [64, 85], spread 21",
+        "explanation": "`minMax` tracks both extremes in one pass and packs them with `return new int[]{min, max}`. `main` keeps the returned array in a variable and reads `result[0]` as the min and `result[1]` as the max. The second call shows that the pair is a normal array: `Arrays.toString(range)` prints it, and `range[1] - range[0]` uses both parts in one expression."
+      },
+      "practice": {
+        "title": "Quotient and remainder",
+        "prompt": "Write a divide method that returns the quotient and remainder together, and print them for three pairs.\n\n1. Make `divide(int a, int b)` return `new int[]{a / b, a % b}`.\n2. In the loop, call `divide` once with `dividends[i]` and `divisors[i]` and keep the result.\n3. Print `a / b = q remainder r`, where `a` and `b` are the two inputs, `q` is `result[0]`, and `r` is `result[1]`.\n\nExpected output:\n\n```text\n17 / 5 = 3 remainder 2\n20 / 4 = 5 remainder 0\n-7 / 2 = -3 remainder -1\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        int[] dividends = {17, 20, -7};\n        int[] divisors = {5, 4, 2};\n        for (int i = 0; i < dividends.length; i++) {\n            // TODO: call divide once, then print the line using result[0] and result[1]\n        }\n    }\n\n    // Returns {quotient, remainder} of a / b.\n    static int[] divide(int a, int b) {\n        // TODO: return the quotient and the remainder in a new int[]\n        return new int[]{0, 0};\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        int[] dividends = {17, 20, -7};\n        int[] divisors = {5, 4, 2};\n        for (int i = 0; i < dividends.length; i++) {\n            int[] result = divide(dividends[i], divisors[i]);\n            System.out.println(dividends[i] + \" / \" + divisors[i] + \" = \" + result[0] + \" remainder \" + result[1]);\n        }\n    }\n\n    // Returns {quotient, remainder} of a / b.\n    static int[] divide(int a, int b) {\n        return new int[]{a / b, a % b};\n    }\n}\n",
+        "tests": [
+          {
+            "output": "17 / 5 = 3 remainder 2\n20 / 4 = 5 remainder 0\n-7 / 2 = -3 remainder -1"
+          }
+        ],
+        "hints": [
+          "The method body is one line: build the array right in the `return`.",
+          "Integer division truncates toward zero, so `-7 / 2` is `-3` and `-7 % 2` is `-1`. Java does this for you."
+        ]
+      }
+    },
+    {
+      "title": "Map.Entry as a pair",
+      "body": "When the two values have different types, such as a name and a number, use `Map.Entry`. You met it while looping over `entrySet()`. `Map.entry(key, value)` builds one on its own, with no map at all:\n\n```java\nMap.Entry<String, Integer> city = Map.entry(\"Lima\", 10_700);\nSystem.out.println(city.getKey());   // Lima\nSystem.out.println(city.getValue()); // 10700\nSystem.out.println(city);            // Lima=10700\n```\n\nAn entry prints as `key=value`, so a `List<Map.Entry<String, Integer>>` prints by value too: `[Lima=10700, Cairo=21300]`. Unlike a map, a list of entries keeps your order and allows repeated keys.\n\n`getValue()` returns an `Integer`. Comparing it with `<` or `>` unboxes it and works, but `==` between two `Integer` values compares references, so use `equals` for equality.\n\nEntries from `Map.entry` are immutable: calling `setValue` throws `UnsupportedOperationException`, and a `null` key or value throws too. To change a pair, replace it in the list with `list.set(i, Map.entry(key, newValue))`.",
+      "example": {
+        "title": "City populations",
+        "prompt": "Store (city, population in thousands) pairs in a list of Map.Entry, print the list, then print the total and the largest city.",
+        "code": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Map.Entry<String, Integer>> cities = new ArrayList<>();\n        cities.add(Map.entry(\"Lima\", 10_700));\n        cities.add(Map.entry(\"Cairo\", 21_300));\n        cities.add(Map.entry(\"Seoul\", 9_900));\n        cities.add(Map.entry(\"Lagos\", 15_400));\n        System.out.println(cities);\n\n        int total = 0;\n        Map.Entry<String, Integer> largest = cities.get(0);\n        for (Map.Entry<String, Integer> city : cities) {\n            total += city.getValue();\n            if (city.getValue() > largest.getValue()) {\n                largest = city;\n            }\n        }\n        System.out.println(\"Total: \" + total + \" thousand\");\n        System.out.println(\"Largest: \" + largest.getKey() + \" with \" + largest.getValue() + \" thousand\");\n        System.out.println(\"As an entry: \" + largest);\n    }\n}\n",
+        "output": "[Lima=10700, Cairo=21300, Seoul=9900, Lagos=15400]\nTotal: 57300 thousand\nLargest: Cairo with 21300 thousand\nAs an entry: Cairo=21300",
+        "explanation": "Each `Map.entry` call makes one immutable pair, and the list keeps them in the order they were added, so `println(cities)` prints every pair as `key=value`. The loop adds each `getValue()` to the total and keeps the entry with the biggest value, starting from the first one. `getKey()` and `getValue()` pull the two halves back out, and printing the entry itself shows `Cairo=21300`."
+      },
+      "practice": {
+        "title": "Cheapest item",
+        "prompt": "Store (item, price) pairs in a list of Map.Entry, then print the list, the total, and the cheapest item.\n\n1. Build a `List<Map.Entry<String, Integer>>` with `pen` 3, `notebook` 7, `backpack` 25, `ruler` 2, and `marker` 4, in that order, and print it.\n2. Loop over the entries to sum the prices and find the entry with the smallest price.\n3. Print `Total: ` with the sum, then `Cheapest: ` with the item name, ` at `, and its price.\n\nExpected output:\n\n```text\n[pen=3, notebook=7, backpack=25, ruler=2, marker=4]\nTotal: 41\nCheapest: ruler at 2\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        // TODO: build a List<Map.Entry<String, Integer>> of the five items and print it\n        // TODO: loop over the entries to find the total and the cheapest item\n        // TODO: print the Total and Cheapest lines\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Map;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<Map.Entry<String, Integer>> items = new ArrayList<>();\n        items.add(Map.entry(\"pen\", 3));\n        items.add(Map.entry(\"notebook\", 7));\n        items.add(Map.entry(\"backpack\", 25));\n        items.add(Map.entry(\"ruler\", 2));\n        items.add(Map.entry(\"marker\", 4));\n        System.out.println(items);\n\n        int total = 0;\n        Map.Entry<String, Integer> cheapest = items.get(0);\n        for (Map.Entry<String, Integer> item : items) {\n            total += item.getValue();\n            if (item.getValue() < cheapest.getValue()) {\n                cheapest = item;\n            }\n        }\n        System.out.println(\"Total: \" + total);\n        System.out.println(\"Cheapest: \" + cheapest.getKey() + \" at \" + cheapest.getValue());\n    }\n}\n",
+        "tests": [
+          {
+            "output": "[pen=3, notebook=7, backpack=25, ruler=2, marker=4]\nTotal: 41\nCheapest: ruler at 2"
+          }
+        ],
+        "hints": [
+          "Add each pair with `items.add(Map.entry(\"pen\", 3))`, then `System.out.println(items)` prints the whole list.",
+          "Start `cheapest` at the first entry and replace it whenever an entry has a smaller `getValue()`."
+        ]
+      }
+    },
+    {
+      "title": "Lists of pairs",
+      "body": "A list of pairs of ints, such as grid points or moves, is a `List<int[]>`. `List<int>` is not allowed, but `int[]` is an object, so it works as the element type. Add each pair as a fresh two-slot array and read it back by position:\n\n```java\nList<int[]> points = new ArrayList<>();\npoints.add(new int[]{3, 4});\nfor (int[] p : points) {\n    System.out.println(\"(\" + p[0] + \", \" + p[1] + \")\");\n}\n```\n\nPrint one pair with `p[0]` and `p[1]` or with `Arrays.toString(p)`. Never print the whole list: `println(points)` shows a hash like `[I@6d06d69c` for every pair, because arrays do not print their contents.\n\nThe bigger gotcha is equality. Arrays compare by reference, so `points.contains(new int[]{3, 4})` is `false` and `indexOf` returns `-1` even when an equal pair is in the list. A `HashSet<int[]>` has the same problem and never finds a duplicate pair. To search, loop and compare with `Arrays.equals(p, target)`, which checks the contents.",
+      "example": {
+        "title": "Points and distances",
+        "prompt": "Store points as a List of int arrays, print each point with its Manhattan distance from the origin, and show why contains cannot find a pair.",
+        "code": "import java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        List<int[]> points = new ArrayList<>();\n        points.add(new int[]{3, 4});\n        points.add(new int[]{-2, 5});\n        points.add(new int[]{0, -7});\n        points.add(new int[]{1, 2});\n\n        for (int[] p : points) {\n            int distance = Math.abs(p[0]) + Math.abs(p[1]);\n            System.out.println(\"(\" + p[0] + \", \" + p[1] + \") distance \" + distance);\n        }\n\n        System.out.println(\"contains: \" + points.contains(new int[]{1, 2}));\n        System.out.println(\"indexOf: \" + points.indexOf(new int[]{1, 2}));\n\n        int[] target = {1, 2};\n        int foundAt = -1;\n        for (int i = 0; i < points.size(); i++) {\n            if (Arrays.equals(points.get(i), target)) {\n                foundAt = i;\n                break;\n            }\n        }\n        System.out.println(\"Arrays.equals finds \" + Arrays.toString(target) + \" at index \" + foundAt);\n    }\n}\n",
+        "output": "(3, 4) distance 7\n(-2, 5) distance 7\n(0, -7) distance 7\n(1, 2) distance 3\ncontains: false\nindexOf: -1\nArrays.equals finds [1, 2] at index 3",
+        "explanation": "Each `new int[]{x, y}` is one pair, and the enhanced for loop hands you one `int[]` at a time. The Manhattan distance is `Math.abs(p[0]) + Math.abs(p[1])`. `contains` and `indexOf` compare references, and the fresh `new int[]{1, 2}` is a different array from the one in the list, so they report `false` and `-1`. The manual loop with `Arrays.equals` compares contents and finds the pair at index 3."
+      },
+      "practice": {
+        "title": "Walking the grid",
+        "prompt": "Store (row, col) moves in a List of int arrays and apply them to a starting position, printing where you are after each move.\n\n1. Build a `List<int[]>` of the moves `{-1, 0}`, `{0, 1}`, `{0, 1}`, `{1, 0}`, and `{0, -2}`, in that order.\n2. Starting from `row` and `col`, loop over the moves, add `move[0]` to `row` and `move[1]` to `col`, then print `Move ` with `Arrays.toString(move)`, ` -> `, and the position as `(row, col)`.\n3. After the loop, print `Back at start: ` followed by whether `{row, col}` equals `start`, using `Arrays.equals`.\n\nExpected output:\n\n```text\nMove [-1, 0] -> (1, 2)\nMove [0, 1] -> (1, 3)\nMove [0, 1] -> (1, 4)\nMove [1, 0] -> (2, 4)\nMove [0, -2] -> (2, 2)\nBack at start: true\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] start = {2, 2};\n        int row = start[0];\n        int col = start[1];\n        // TODO: build a List<int[]> of the five moves\n        // TODO: apply each move to row and col and print the Move line\n        // TODO: print whether the final position equals start\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] start = {2, 2};\n        int row = start[0];\n        int col = start[1];\n\n        List<int[]> moves = new ArrayList<>();\n        moves.add(new int[]{-1, 0});\n        moves.add(new int[]{0, 1});\n        moves.add(new int[]{0, 1});\n        moves.add(new int[]{1, 0});\n        moves.add(new int[]{0, -2});\n\n        for (int[] move : moves) {\n            row += move[0];\n            col += move[1];\n            System.out.println(\"Move \" + Arrays.toString(move) + \" -> (\" + row + \", \" + col + \")\");\n        }\n\n        int[] end = {row, col};\n        System.out.println(\"Back at start: \" + Arrays.equals(end, start));\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Move [-1, 0] -> (1, 2)\nMove [0, 1] -> (1, 3)\nMove [0, 1] -> (1, 4)\nMove [1, 0] -> (2, 4)\nMove [0, -2] -> (2, 2)\nBack at start: true"
+          }
+        ],
+        "hints": [
+          "Add each move with `moves.add(new int[]{-1, 0})` and loop with `for (int[] move : moves)`.",
+          "Put the final row and col in a new two-slot array and pass it and `start` to `Arrays.equals`. Using `==` would print `false`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Java 15 has no tuple type and no unpacking. Records come in Java 16, and small classes fill the gap later in this course.\n- Return two same-typed values with `return new int[]{a, b}` and read them as `result[0]` and `result[1]`. Keep the order obvious.\n- `Map.entry(key, value)` makes a `Map.Entry<K, V>` pair of any two types. Read it with `getKey()` and `getValue()`.\n- An entry prints as `key=value`, so a `List<Map.Entry<String, Integer>>` prints cleanly. Entries from `Map.entry` are immutable.\n- A `List<int[]>` holds many int pairs. Add `new int[]{x, y}` and loop with `for (int[] p : list)`.\n- Print a pair with `p[0]` and `p[1]` or `Arrays.toString(p)`, never `println(list)`.\n- `int[]` has no value equality: `contains`, `indexOf`, and `HashSet` never find an equal pair. Compare with `Arrays.equals`."
+}

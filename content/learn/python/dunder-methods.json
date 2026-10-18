@@ -1,0 +1,118 @@
+{
+  "id": "dunder-methods",
+  "title": "Dunder Methods",
+  "section": "More Object-Oriented Programming",
+  "summary": "Make your classes work with ==, <, +, len(), [], in, and for loops.",
+  "intro": "Built-in types work with `==`, `<`, `+`, `len()`, `[]`, `in`, and `for` because each operator calls a special method. Define the same methods, named with double underscores and called dunder methods, and your own classes join in: they sort, add, index, and loop like lists and numbers.",
+  "steps": [
+    {
+      "title": "Equality and ordering",
+      "body": "Python's operators call special methods whose names start and end with two underscores, called dunder methods. `a == b` calls `a.__eq__(b)` and `a < b` calls `a.__lt__(b)`. Without `__eq__`, `==` only checks whether both sides are the same object.\n\n```python\ndef __eq__(self, other):\n    if not isinstance(other, Version):\n        return NotImplemented\n    return (self.major, self.minor) == (other.major, other.minor)\n```\n\nComparing tuples does the work, item by item. Return `NotImplemented` (not `False`) when `other` is a type you do not handle. Python then tries the other side, and `==` finally falls back to identity, so `Version(1, 2) == \"1.2\"` is just `False`. An ordering operator raises instead:\n\n```python\n# Version(1, 2) < \"1.2\"\n# TypeError: '<' not supported between instances of 'Version' and 'str'\n```\n\n`sorted()`, `min()`, and `max()` only need `__lt__`. Put `@functools.total_ordering` above the class and it builds `<=`, `>`, and `>=` from `__eq__` and `__lt__`. `!=` comes free: it inverts `__eq__`.\n\nGotcha: defining `__eq__` sets `__hash__` to `None`, so instances can no longer be set items or dict keys. Add a `__hash__` built from the same fields when you need that:\n\n```python\n# {Version(1, 2)}  # TypeError: unhashable type: 'Version'\ndef __hash__(self):\n    return hash((self.major, self.minor))\n```",
+      "example": {
+        "title": "Sorting versions",
+        "prompt": "Give a Version class equality and ordering, then sort, compare, and find the newest version.",
+        "code": "import functools\n\n\n@functools.total_ordering\nclass Version:\n    def __init__(self, major, minor):\n        self.major = major\n        self.minor = minor\n\n    def __eq__(self, other):\n        if not isinstance(other, Version):\n            return NotImplemented\n        return (self.major, self.minor) == (other.major, other.minor)\n\n    def __lt__(self, other):\n        if not isinstance(other, Version):\n            return NotImplemented\n        return (self.major, self.minor) < (other.major, other.minor)\n\n    def __repr__(self):\n        return f\"Version({self.major}, {self.minor})\"\n\n\nversions = [Version(2, 0), Version(1, 10), Version(1, 2)]\nprint(sorted(versions))\nprint(Version(1, 2) == Version(1, 2))\nprint(Version(2, 0) >= Version(1, 10))\nprint(max(versions))\nprint(Version(1, 2) == \"1.2\")\n",
+        "output": "[Version(1, 2), Version(1, 10), Version(2, 0)]\nTrue\nTrue\nVersion(2, 0)\nFalse",
+        "explanation": "Both methods compare `(major, minor)` tuples of ints, so version 1.10 sorts after 1.2. Comparing the text `\"1.10\"` with `\"1.2\"` would get that wrong. `sorted()` and `max()` call `__lt__`. Two separate `Version(1, 2)` objects are equal because `__eq__` compares their fields. The class never defines `>=`: `@functools.total_ordering` built it from `__lt__` and `__eq__`. Comparing with the string `\"1.2\"` returns `NotImplemented`. The string cannot compare itself with a `Version` either, so `==` falls back to identity and gives `False` instead of crashing."
+      },
+      "practice": {
+        "title": "Player rankings",
+        "prompt": "Rank the players that the starter reads from input by score and then by name.\n\n1. Add `@functools.total_ordering` to `Player`.\n2. Write `__eq__` and `__lt__` to compare `(score, name)` tuples, and return `NotImplemented` when `other` is not a `Player`.\n3. Print each player of `sorted(players)` on its own line. Equal scores go by name, A to Z.\n4. Print `Top: ` followed by `max(players)`. On a score tie, the name later in the alphabet counts as higher.\n5. Print `Equal: ` followed by `players[0] == players[1]`.\n6. Print `At least: ` followed by `players[0] >= players[1]`.\n7. Print `Name match: ` followed by `players[0] == players[0].name`.\n\nInput:\n\n```text\n5\nmia 72\nleo 88\nava 72\nzed 95\nkai 88\n```\n\nExpected output:\n\n```text\nava 72\nmia 72\nkai 88\nleo 88\nzed 95\nTop: zed 95\nEqual: False\nAt least: False\nName match: False\n```",
+        "starter": "import functools\n\n\n# TODO: add @functools.total_ordering on the line below\nclass Player:\n    def __init__(self, name, score):\n        self.name = name\n        self.score = score\n\n    def __eq__(self, other):\n        # TODO: compare (score, name) tuples, NotImplemented for non-players\n        return False\n\n    def __lt__(self, other):\n        # TODO: compare (score, name) tuples, NotImplemented for non-players\n        return False\n\n    def __str__(self):\n        return f\"{self.name} {self.score}\"\n\n\nplayers = []\nfor _ in range(int(input())):\n    name, score = input().split()\n    players.append(Player(name, int(score)))\n\n# TODO: print the sorted players, then the Top, Equal, At least, Name match lines\n",
+        "solution": "import functools\n\n\n@functools.total_ordering\nclass Player:\n    def __init__(self, name, score):\n        self.name = name\n        self.score = score\n\n    def __eq__(self, other):\n        if not isinstance(other, Player):\n            return NotImplemented\n        return (self.score, self.name) == (other.score, other.name)\n\n    def __lt__(self, other):\n        if not isinstance(other, Player):\n            return NotImplemented\n        return (self.score, self.name) < (other.score, other.name)\n\n    def __str__(self):\n        return f\"{self.name} {self.score}\"\n\n\nplayers = []\nfor _ in range(int(input())):\n    name, score = input().split()\n    players.append(Player(name, int(score)))\n\nfor player in sorted(players):\n    print(player)\nprint(f\"Top: {max(players)}\")\nprint(f\"Equal: {players[0] == players[1]}\")\nprint(f\"At least: {players[0] >= players[1]}\")\nprint(f\"Name match: {players[0] == players[0].name}\")\n",
+        "tests": [
+          {
+            "stdin": "5\nmia 72\nleo 88\nava 72\nzed 95\nkai 88\n",
+            "output": "ava 72\nmia 72\nkai 88\nleo 88\nzed 95\nTop: zed 95\nEqual: False\nAt least: False\nName match: False"
+          },
+          {
+            "stdin": "3\nsam 60\nsam 60\namy 60\n",
+            "output": "amy 60\nsam 60\nsam 60\nTop: sam 60\nEqual: True\nAt least: True\nName match: False"
+          },
+          {
+            "stdin": "2\nbob 50\nal 50\n",
+            "output": "al 50\nbob 50\nTop: bob 50\nEqual: False\nAt least: True\nName match: False"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the `Version` methods, comparing `(self.score, self.name)` with `(other.score, other.name)`.",
+          "Start both methods with `if not isinstance(other, Player): return NotImplemented`.",
+          "`>=` only works once `@functools.total_ordering` sits on the line above `class Player:`."
+        ]
+      }
+    },
+    {
+      "title": "Arithmetic operators",
+      "body": "Arithmetic operators call dunder methods too: `a + b` calls `a.__add__(b)`, `a - b` calls `__sub__`, and `a * k` calls `__mul__`. Each one should build and return a **new** object, the way `3 + 4` makes a new int and leaves 3 alone:\n\n```python\ndef __add__(self, other):\n    if not isinstance(other, Vector):\n        return NotImplemented\n    return Vector(self.x + other.x, self.y + other.y)\n```\n\nNever change `self.x` inside `__add__`. Then `a + b` would quietly change `a`, and every other name for that object would see it. Without an `__iadd__` method, `a += b` uses `__add__` and rebinds `a` to the new object, so other names still see the old one.\n\nFor `__mul__`, check that the other value is a number. `isinstance()` accepts a tuple of types: `isinstance(k, (int, float))`. Putting the number first, as in `3 * v`, tries the int's `__mul__`, which returns `NotImplemented`. Python then looks for `v.__rmul__`, and without it you get:\n\n```python\n# 3 * Vector(1, 2)  # TypeError: unsupported operand type(s) for *: 'int' and 'Vector'\n```\n\nWrite `__rmul__ = __mul__` inside the class when you want both orders. Give the class a `__repr__` so results print readably.",
+      "example": {
+        "title": "Vector math",
+        "prompt": "Give a Vector class addition, subtraction, and scaling by a number, and show that the original vectors never change.",
+        "code": "class Vector:\n    def __init__(self, x, y):\n        self.x = x\n        self.y = y\n\n    def __add__(self, other):\n        if not isinstance(other, Vector):\n            return NotImplemented\n        return Vector(self.x + other.x, self.y + other.y)\n\n    def __sub__(self, other):\n        if not isinstance(other, Vector):\n            return NotImplemented\n        return Vector(self.x - other.x, self.y - other.y)\n\n    def __mul__(self, k):\n        if not isinstance(k, (int, float)):\n            return NotImplemented\n        return Vector(self.x * k, self.y * k)\n\n    def __repr__(self):\n        return f\"Vector({self.x}, {self.y})\"\n\n\na = Vector(3, 4)\nb = Vector(1, 2)\nprint(a + b)\nprint(a - b)\nprint(a * 3)\nprint(a * 0.5)\nprint(a, b)\n\nc = a\nc += b\nprint(c, a)\n",
+        "output": "Vector(4, 6)\nVector(2, 2)\nVector(9, 12)\nVector(1.5, 2.0)\nVector(3, 4) Vector(1, 2)\nVector(4, 6) Vector(3, 4)",
+        "explanation": "Every operator method returns a brand new `Vector`, so after four calculations `a` and `b` still print their original values. `a * 0.5` passes the `isinstance` check because floats are allowed. The last part shows why returning a new object matters: `c` and `a` start as the same object, `c += b` falls back to `__add__` and points `c` at the result, and `a` is untouched."
+      },
+      "practice": {
+        "title": "Money math",
+        "prompt": "Add, subtract, and multiply amounts of money stored as whole cents, using the two amounts and the multiplier the starter reads.\n\n1. Write `__str__` to return text like `$12.50`: the dollars are `cents // 100` and the cents are `cents % 100`, padded to 2 digits.\n2. Write `__add__` and `__sub__` to return a new `Money`, or `NotImplemented` when `other` is not a `Money`.\n3. Write `__mul__` to return a new `Money` when `k` is an `int`, or `NotImplemented` otherwise.\n4. Print `Sum: ` followed by `a + b`.\n5. Print `Difference: ` followed by `a - b`. The first amount is never smaller than the second.\n6. Print `Times k: ` followed by `a * k`, with the multiplier in place of k.\n7. Print `Unchanged: ` followed by `a` and `b`, separated by a space.\n\nInput:\n\n```text\n1250 375\n3\n```\n\nExpected output:\n\n```text\nSum: $16.25\nDifference: $8.75\nTimes 3: $37.50\nUnchanged: $12.50 $3.75\n```",
+        "starter": "class Money:\n    def __init__(self, cents):\n        self.cents = cents\n\n    def __add__(self, other):\n        # TODO: return a new Money, or NotImplemented\n        return Money(0)\n\n    def __sub__(self, other):\n        # TODO: return a new Money, or NotImplemented\n        return Money(0)\n\n    def __mul__(self, k):\n        # TODO: return a new Money for an int k, or NotImplemented\n        return Money(0)\n\n    def __str__(self):\n        # TODO: return text like $12.50\n        return \"\"\n\n\na_cents, b_cents = map(int, input().split())\nk = int(input())\na = Money(a_cents)\nb = Money(b_cents)\n\n# TODO: print the Sum, Difference, Times, and Unchanged lines\n",
+        "solution": "class Money:\n    def __init__(self, cents):\n        self.cents = cents\n\n    def __add__(self, other):\n        if not isinstance(other, Money):\n            return NotImplemented\n        return Money(self.cents + other.cents)\n\n    def __sub__(self, other):\n        if not isinstance(other, Money):\n            return NotImplemented\n        return Money(self.cents - other.cents)\n\n    def __mul__(self, k):\n        if not isinstance(k, int):\n            return NotImplemented\n        return Money(self.cents * k)\n\n    def __str__(self):\n        return f\"${self.cents // 100}.{self.cents % 100:02}\"\n\n\na_cents, b_cents = map(int, input().split())\nk = int(input())\na = Money(a_cents)\nb = Money(b_cents)\n\nprint(f\"Sum: {a + b}\")\nprint(f\"Difference: {a - b}\")\nprint(f\"Times {k}: {a * k}\")\nprint(f\"Unchanged: {a} {b}\")\n",
+        "tests": [
+          {
+            "stdin": "1250 375\n3\n",
+            "output": "Sum: $16.25\nDifference: $8.75\nTimes 3: $37.50\nUnchanged: $12.50 $3.75"
+          },
+          {
+            "stdin": "1005 5\n0\n",
+            "output": "Sum: $10.10\nDifference: $10.00\nTimes 0: $0.00\nUnchanged: $10.05 $0.05"
+          },
+          {
+            "stdin": "499 499\n2\n",
+            "output": "Sum: $9.98\nDifference: $0.00\nTimes 2: $9.98\nUnchanged: $4.99 $4.99"
+          }
+        ],
+        "hints": [
+          "Zero padding from f-strings fits the cents: `{n:02}` turns `5` into `05`.",
+          "`__add__` returns `Money(self.cents + other.cents)` and leaves `self` alone.",
+          "In `__mul__`, check `isinstance(k, int)` first, the way `Vector` checks for numbers."
+        ]
+      }
+    },
+    {
+      "title": "Container protocol",
+      "body": "Four more methods let a class act like a container:\n\n- `len(obj)` calls `__len__`, which must return an int.\n- `obj[i]` calls `__getitem__(i)`.\n- `x in obj` calls `__contains__(x)`, which returns a bool.\n- `for x in obj` calls `__iter__`, which must return an iterator.\n\nThe easiest `__iter__` is a generator: put `yield` inside it and calling it hands back a generator, which is an iterator. Most of these methods just pass the work to a list the object keeps:\n\n```python\ndef __getitem__(self, index):\n    return self.songs[index]\n\ndef __iter__(self):\n    for song in self.songs:\n        yield song\n```\n\nBecause `__getitem__` hands `index` straight to the list, negative indexes and slices work for free: `p[1:3]` passes a slice and gets a new list back. `yield from self.songs` is a shorter `__iter__`.\n\nTwo side effects are worth knowing. Once `__len__` exists, an object with length 0 is falsy, so `if not playlist:` works. And with `__iter__`, anything that takes an iterable accepts your object: `list()`, `sorted()`, `enumerate()`, comprehensions, and `\" \".join()`. Without `__contains__`, `in` falls back to looping through `__iter__`, which works but checks every item.",
+      "example": {
+        "title": "Playlist",
+        "prompt": "Make a Playlist class support len(), indexing, slicing, in, and for loops.",
+        "code": "class Playlist:\n    def __init__(self, name, songs):\n        self.name = name\n        self.songs = list(songs)\n\n    def __len__(self):\n        return len(self.songs)\n\n    def __getitem__(self, index):\n        return self.songs[index]\n\n    def __contains__(self, title):\n        return title in self.songs\n\n    def __iter__(self):\n        for song in self.songs:\n            yield song\n\n\nroad = Playlist(\"Road trip\", [\"Drive\", \"Highway\", \"Sunset\", \"Home\"])\nprint(len(road))\nprint(road[0], road[-1])\nprint(road[1:3])\nprint(\"Sunset\" in road, \"Rain\" in road)\nfor i, song in enumerate(road, start=1):\n    print(f\"{i}. {song}\")\nprint(bool(Playlist(\"Empty\", [])))\n",
+        "output": "4\nDrive Home\n['Highway', 'Sunset']\nTrue False\n1. Drive\n2. Highway\n3. Sunset\n4. Home\nFalse",
+        "explanation": "`len(road)` calls `__len__`, and `road[0]`, `road[-1]`, and `road[1:3]` all go through `__getitem__`, which lets the list handle the index or slice. `in` calls `__contains__`. `enumerate(road, start=1)` asks for an iterator, gets the generator from `__iter__`, and numbers each song it yields. The empty playlist has length 0, so `bool()` gives `False` even though the class never defines truthiness itself."
+      },
+      "practice": {
+        "title": "Deck of cards",
+        "prompt": "Make a deck of cards support `len()`, indexing, `in`, and `for` loops, with the cards on the first input line and a card to look for on the second.\n\n1. Write `__len__`, `__getitem__`, and `__contains__` by passing the work to `self.cards`.\n2. Write `__iter__` with `yield`.\n3. Print `Cards: ` followed by `len(deck)`.\n4. Print `Top: ` followed by `deck[0]`, then `Bottom: ` followed by `deck[-1]`.\n5. Print `Has X: ` followed by whether the card to look for is in the deck, with that card in place of X.\n6. Print `Hand: ` followed by `deck[:3]` joined with spaces.\n7. Loop over `deck` and print `Spades: ` followed by the cards that end in `S`, joined with spaces, in deck order.\n\nInput:\n\n```text\nAS 7H KD 2C 9S\nKD\n```\n\nExpected output:\n\n```text\nCards: 5\nTop: AS\nBottom: 9S\nHas KD: True\nHand: AS 7H KD\nSpades: AS 9S\n```",
+        "starter": "class Deck:\n    def __init__(self, cards):\n        self.cards = cards\n\n    def __len__(self):\n        # TODO: return the number of cards\n        return 0\n\n    def __getitem__(self, index):\n        # TODO: return the card or slice of cards at index\n        return \"\"\n\n    def __contains__(self, card):\n        # TODO: return whether card is in the deck\n        return False\n\n    def __iter__(self):\n        # TODO: yield each card\n        yield from ()\n\n\ndeck = Deck(input().split())\nwanted = input().strip()\n\n# TODO: print the Cards, Top, Bottom, Has, Hand, and Spades lines\n",
+        "solution": "class Deck:\n    def __init__(self, cards):\n        self.cards = cards\n\n    def __len__(self):\n        return len(self.cards)\n\n    def __getitem__(self, index):\n        return self.cards[index]\n\n    def __contains__(self, card):\n        return card in self.cards\n\n    def __iter__(self):\n        for card in self.cards:\n            yield card\n\n\ndeck = Deck(input().split())\nwanted = input().strip()\n\nprint(f\"Cards: {len(deck)}\")\nprint(f\"Top: {deck[0]}\")\nprint(f\"Bottom: {deck[-1]}\")\nprint(f\"Has {wanted}: {wanted in deck}\")\nprint(f\"Hand: {' '.join(deck[:3])}\")\nspades = [card for card in deck if card.endswith(\"S\")]\nprint(f\"Spades: {' '.join(spades)}\")\n",
+        "tests": [
+          {
+            "stdin": "AS 7H KD 2C 9S\nKD\n",
+            "output": "Cards: 5\nTop: AS\nBottom: 9S\nHas KD: True\nHand: AS 7H KD\nSpades: AS 9S"
+          },
+          {
+            "stdin": "QH\n3C\n",
+            "output": "Cards: 1\nTop: QH\nBottom: QH\nHas 3C: False\nHand: QH\nSpades:"
+          },
+          {
+            "stdin": "10S JS 4D 10H\n10H\n",
+            "output": "Cards: 4\nTop: 10S\nBottom: 10H\nHas 10H: True\nHand: 10S JS 4D\nSpades: 10S JS"
+          }
+        ],
+        "hints": [
+          "Each of `__len__`, `__getitem__`, and `__contains__` is one line that uses `self.cards`.",
+          "`__iter__` loops over `self.cards` and yields each card.",
+          "A comprehension over `deck` that keeps cards where `card.endswith(\"S\")` runs your `__iter__`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `__eq__` powers `==` and `!=`. `__lt__` is all `sorted()`, `min()`, and `max()` need.\n- Compare tuples of fields, such as `(self.score, self.name)`, to order by several fields at once.\n- `@functools.total_ordering` builds `<=`, `>`, and `>=` from `__eq__` and `__lt__`.\n- Return `NotImplemented` for types you do not handle. `==` then falls back to an identity check, and `<` raises `TypeError`.\n- Defining `__eq__` makes instances unhashable until you add `__hash__`.\n- `__add__`, `__sub__`, and `__mul__` should return a new object and leave `self` unchanged. `3 * v` needs `__rmul__`.\n- `__len__`, `__getitem__`, `__contains__`, and `__iter__` make `len()`, `[]`, `in`, and `for` work. A generator with `yield` is the easiest `__iter__`."
+}

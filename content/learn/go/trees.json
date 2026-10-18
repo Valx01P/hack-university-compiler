@@ -1,0 +1,138 @@
+{
+  "id": "trees",
+  "title": "Binary Trees",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Build binary trees from pointers, traverse them recursively and level by level, and insert and search in a binary search tree.",
+  "intro": "A binary tree is a set of nodes where each node points to at most two children. In Go you build one from a struct with two pointer fields, then let recursion, and later a queue, do the walking.",
+  "steps": [
+    {
+      "title": "Building and traversing",
+      "body": "A binary tree node holds a value and two pointers, one per child. A nil pointer means there is no child on that side.\n\n```go\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n```\n\nBuild a small tree by hand with nested literals. Each `&TreeNode{...}` creates a node and gives you its address, and fields you leave out stay nil. The compiler picks the stack or the heap for each node, and a node stays valid while something points to it.\n\n```go\nroot := &TreeNode{Val: 1, Left: &TreeNode{Val: 2}, Right: &TreeNode{Val: 3}}\n```\n\nA traversal visits every node with recursion: handle the node and call yourself on `n.Left` and `n.Right`. A nil node does nothing, which is the base case. The three classic orders differ only in when you record the value:\n\n- **preorder**: the node, then the left subtree, then the right\n- **inorder**: the left subtree, the node, then the right\n- **postorder**: the left subtree, the right, then the node\n\nCollect values into a slice and print it once. Each function takes `out *[]int`, like `results` in backtracking: a plain `[]int` parameter is a copy of the header, so the caller would never see the new length after `append`. Through the pointer, every recursive call grows the caller's slice: `*out = append(*out, n.Val)`.",
+      "example": {
+        "title": "Seven node tree",
+        "prompt": "Build a 7-node tree by hand and print its preorder, inorder, and postorder traversals.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n\nfunc preorder(n *TreeNode, out *[]int) {\n\tif n != nil {\n\t\t*out = append(*out, n.Val)\n\t\tpreorder(n.Left, out)\n\t\tpreorder(n.Right, out)\n\t}\n}\n\nfunc inorder(n *TreeNode, out *[]int) {\n\tif n != nil {\n\t\tinorder(n.Left, out)\n\t\t*out = append(*out, n.Val)\n\t\tinorder(n.Right, out)\n\t}\n}\n\nfunc postorder(n *TreeNode, out *[]int) {\n\tif n != nil {\n\t\tpostorder(n.Left, out)\n\t\tpostorder(n.Right, out)\n\t\t*out = append(*out, n.Val)\n\t}\n}\n\nfunc main() {\n\troot := &TreeNode{\n\t\tVal:   1,\n\t\tLeft:  &TreeNode{Val: 2, Left: &TreeNode{Val: 4}, Right: &TreeNode{Val: 5}},\n\t\tRight: &TreeNode{Val: 3, Left: &TreeNode{Val: 6}, Right: &TreeNode{Val: 7}},\n\t}\n\tvar pre, in, post []int\n\tpreorder(root, &pre)\n\tinorder(root, &in)\n\tpostorder(root, &post)\n\tfmt.Println(\"preorder:\", pre)\n\tfmt.Println(\"inorder:\", in)\n\tfmt.Println(\"postorder:\", post)\n}\n",
+        "output": "preorder: [1 2 4 5 3 6 7]\ninorder: [4 2 5 1 6 3 7]\npostorder: [4 5 2 6 7 3 1]",
+        "explanation": "The literal nests the children inside their parents, so the code mirrors the tree: 1 on top, 2 and 3 below it, and 4 to 7 as the bottom row. Each traversal starts with a nil `[]int`, which `append` accepts, and passes its address. In `preorder`, node 1 is recorded first, then the whole left subtree (2 4 5), then the right (3 6 7). Moving the `append` line between or after the two calls gives the other orders. The leaves have nil children, so those calls return at once."
+      },
+      "practice": {
+        "title": "Six node tree",
+        "prompt": "Build a 6-node tree by hand and print its three traversals.\n\n1. Make the root 10 with a left child 20 and a right child 30.\n2. Give 20 the children 40 (left) and 50 (right).\n3. Give 30 only a right child, 60.\n4. Fill in `preorder`, `inorder`, and `postorder` so each one appends values through `out`.\n5. Keep the three print lines as they are.\n\nExpected output:\n\n```text\npreorder: [10 20 40 50 30 60]\ninorder: [40 20 50 10 30 60]\npostorder: [40 50 20 60 30 10]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n\nfunc preorder(n *TreeNode, out *[]int) {\n\t// TODO: append n.Val, then visit the left and right subtrees\n}\n\nfunc inorder(n *TreeNode, out *[]int) {\n\t// TODO: visit the left subtree, append n.Val, then visit the right subtree\n}\n\nfunc postorder(n *TreeNode, out *[]int) {\n\t// TODO: visit the left and right subtrees, then append n.Val\n}\n\nfunc main() {\n\t// TODO: give 10 its children 20 and 30, then add 40, 50, and 60\n\troot := &TreeNode{Val: 10}\n\tvar pre, in, post []int\n\tpreorder(root, &pre)\n\tinorder(root, &in)\n\tpostorder(root, &post)\n\tfmt.Println(\"preorder:\", pre)\n\tfmt.Println(\"inorder:\", in)\n\tfmt.Println(\"postorder:\", post)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n\nfunc preorder(n *TreeNode, out *[]int) {\n\tif n != nil {\n\t\t*out = append(*out, n.Val)\n\t\tpreorder(n.Left, out)\n\t\tpreorder(n.Right, out)\n\t}\n}\n\nfunc inorder(n *TreeNode, out *[]int) {\n\tif n != nil {\n\t\tinorder(n.Left, out)\n\t\t*out = append(*out, n.Val)\n\t\tinorder(n.Right, out)\n\t}\n}\n\nfunc postorder(n *TreeNode, out *[]int) {\n\tif n != nil {\n\t\tpostorder(n.Left, out)\n\t\tpostorder(n.Right, out)\n\t\t*out = append(*out, n.Val)\n\t}\n}\n\nfunc main() {\n\troot := &TreeNode{\n\t\tVal:   10,\n\t\tLeft:  &TreeNode{Val: 20, Left: &TreeNode{Val: 40}, Right: &TreeNode{Val: 50}},\n\t\tRight: &TreeNode{Val: 30, Right: &TreeNode{Val: 60}},\n\t}\n\tvar pre, in, post []int\n\tpreorder(root, &pre)\n\tinorder(root, &in)\n\tpostorder(root, &post)\n\tfmt.Println(\"preorder:\", pre)\n\tfmt.Println(\"inorder:\", in)\n\tfmt.Println(\"postorder:\", post)\n}\n",
+        "tests": [
+          {
+            "output": "preorder: [10 20 40 50 30 60]\ninorder: [40 20 50 10 30 60]\npostorder: [40 50 20 60 30 10]"
+          }
+        ],
+        "hints": [
+          "Leave `Left` out of the literal for 30, so it stays nil.",
+          "Wrap each body in `if n != nil { ... }` so a missing child stops the recursion.",
+          "The three functions differ only in where `*out = append(*out, n.Val)` goes."
+        ]
+      }
+    },
+    {
+      "title": "Recursive measures",
+      "body": "Most tree questions share one recursive shape: get the answer for the left subtree, get it for the right, and combine both with the current node. The base case is nil, and for counts and sums it returns 0.\n\n```go\nfunc countNodes(n *TreeNode) int {\n\tif n == nil {\n\t\treturn 0\n\t}\n\treturn 1 + countNodes(n.Left) + countNodes(n.Right)\n}\n```\n\nThe **height** is the number of nodes on the longest path down from the root: 1 plus the taller subtree's height. Go 1.16 has no built-in `max`, so write a `maxInt` helper. A **leaf** is a node whose `Left` and `Right` are both nil. To count leaves, return 1 for a leaf and the sum of both subtrees for any other node.\n\nWhen 0 is a wrong answer for nil, return a neutral value instead. For a maximum, nil returns `math.MinInt64`, so any real value beats it. To find even values test `v%2 == 0`. The test `v%2 == 1` misses negative odd values, because `-3 % 2` is `-1` in Go.\n\nOnly one path from the root is active at a time, so the call stack grows with the height, not the node count.",
+      "example": {
+        "title": "Tree statistics",
+        "prompt": "For the tree from step 1, print its height, its node count, the sum of its values, and its leaf count.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n\nfunc maxInt(a, b int) int {\n\tif a > b {\n\t\treturn a\n\t}\n\treturn b\n}\n\nfunc height(n *TreeNode) int {\n\tif n == nil {\n\t\treturn 0\n\t}\n\treturn 1 + maxInt(height(n.Left), height(n.Right))\n}\n\nfunc countNodes(n *TreeNode) int {\n\tif n == nil {\n\t\treturn 0\n\t}\n\treturn 1 + countNodes(n.Left) + countNodes(n.Right)\n}\n\nfunc sumValues(n *TreeNode) int {\n\tif n == nil {\n\t\treturn 0\n\t}\n\treturn n.Val + sumValues(n.Left) + sumValues(n.Right)\n}\n\nfunc countLeaves(n *TreeNode) int {\n\tif n == nil {\n\t\treturn 0\n\t}\n\tif n.Left == nil && n.Right == nil {\n\t\treturn 1\n\t}\n\treturn countLeaves(n.Left) + countLeaves(n.Right)\n}\n\nfunc main() {\n\troot := &TreeNode{\n\t\tVal:   1,\n\t\tLeft:  &TreeNode{Val: 2, Left: &TreeNode{Val: 4}, Right: &TreeNode{Val: 5}},\n\t\tRight: &TreeNode{Val: 3, Left: &TreeNode{Val: 6}, Right: &TreeNode{Val: 7}},\n\t}\n\tfmt.Println(\"height:\", height(root))\n\tfmt.Println(\"nodes:\", countNodes(root))\n\tfmt.Println(\"sum:\", sumValues(root))\n\tfmt.Println(\"leaves:\", countLeaves(root))\n}\n",
+        "output": "height: 3\nnodes: 7\nsum: 28\nleaves: 4",
+        "explanation": "Each function returns 0 for nil and builds its answer from the two subtree answers. `height` adds 1 to the taller side, so a leaf is 1 + max(0, 0) = 1 and the root is 3. `countNodes` adds 1 per node and `sumValues` adds `n.Val` per node. `countLeaves` returns 1 as soon as both children are nil, so the four bottom nodes count and the inner nodes only pass their children's counts up."
+      },
+      "practice": {
+        "title": "Below zero",
+        "prompt": "Measure a tree of below-zero temperature readings.\n\n1. Add `math` to the imports.\n2. Write `height`: 0 for nil, otherwise 1 plus the taller subtree's height.\n3. Write `countLeaves`: 0 for nil, 1 for a node with two nil children, otherwise the leaves of both subtrees.\n4. Write `maxValue`: `math.MinInt64` for nil, otherwise the largest of the node's value and both subtree maximums.\n5. Write `countEven`: 0 for nil, otherwise the even values in both subtrees plus 1 when the node itself is even.\n\nExpected output:\n\n```text\nheight: 4\nleaves: 3\nmax: -3\nevens: 4\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n\nfunc maxInt(a, b int) int {\n\tif a > b {\n\t\treturn a\n\t}\n\treturn b\n}\n\nfunc height(n *TreeNode) int {\n\treturn 0 // TODO: 0 for nil, else 1 plus the taller subtree's height\n}\n\nfunc countLeaves(n *TreeNode) int {\n\treturn 0 // TODO: count the nodes with two nil children\n}\n\nfunc maxValue(n *TreeNode) int {\n\treturn 0 // TODO: return math.MinInt64 for nil, else the largest of the three values\n}\n\nfunc countEven(n *TreeNode) int {\n\treturn 0 // TODO: count the nodes whose value is even\n}\n\nfunc main() {\n\troot := &TreeNode{\n\t\tVal:   -7,\n\t\tLeft:  &TreeNode{Val: -12, Left: &TreeNode{Val: -3}, Right: &TreeNode{Val: -8, Left: &TreeNode{Val: -6}}},\n\t\tRight: &TreeNode{Val: -4, Right: &TreeNode{Val: -15}},\n\t}\n\tfmt.Println(\"height:\", height(root))\n\tfmt.Println(\"leaves:\", countLeaves(root))\n\tfmt.Println(\"max:\", maxValue(root))\n\tfmt.Println(\"evens:\", countEven(root))\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"math\"\n)\n\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n\nfunc maxInt(a, b int) int {\n\tif a > b {\n\t\treturn a\n\t}\n\treturn b\n}\n\nfunc height(n *TreeNode) int {\n\tif n == nil {\n\t\treturn 0\n\t}\n\treturn 1 + maxInt(height(n.Left), height(n.Right))\n}\n\nfunc countLeaves(n *TreeNode) int {\n\tif n == nil {\n\t\treturn 0\n\t}\n\tif n.Left == nil && n.Right == nil {\n\t\treturn 1\n\t}\n\treturn countLeaves(n.Left) + countLeaves(n.Right)\n}\n\nfunc maxValue(n *TreeNode) int {\n\tif n == nil {\n\t\treturn math.MinInt64 // any real value beats it\n\t}\n\treturn maxInt(n.Val, maxInt(maxValue(n.Left), maxValue(n.Right)))\n}\n\nfunc countEven(n *TreeNode) int {\n\tif n == nil {\n\t\treturn 0\n\t}\n\tcount := countEven(n.Left) + countEven(n.Right)\n\tif n.Val%2 == 0 {\n\t\tcount++\n\t}\n\treturn count\n}\n\nfunc main() {\n\troot := &TreeNode{\n\t\tVal:   -7,\n\t\tLeft:  &TreeNode{Val: -12, Left: &TreeNode{Val: -3}, Right: &TreeNode{Val: -8, Left: &TreeNode{Val: -6}}},\n\t\tRight: &TreeNode{Val: -4, Right: &TreeNode{Val: -15}},\n\t}\n\tfmt.Println(\"height:\", height(root))\n\tfmt.Println(\"leaves:\", countLeaves(root))\n\tfmt.Println(\"max:\", maxValue(root))\n\tfmt.Println(\"evens:\", countEven(root))\n}\n",
+        "tests": [
+          {
+            "output": "height: 4\nleaves: 3\nmax: -3\nevens: 4"
+          }
+        ],
+        "hints": [
+          "Every reading is negative, so a nil that returns 0 would make the maximum 0.",
+          "`height` uses `maxInt` once, as in the example. `maxValue` calls it twice: once to pick the larger subtree maximum, once to compare that with `n.Val`.",
+          "`-12 % 2` is 0 and `-3 % 2` is -1, so test `n.Val%2 == 0`."
+        ]
+      }
+    },
+    {
+      "title": "Binary search trees",
+      "body": "A **binary search tree** (BST) keeps one rule at every node: smaller values go in the left subtree and larger values in the right. To insert, walk down and hang a new node on the nil spot you reach.\n\n```go\nfunc insert(n *TreeNode, v int) *TreeNode {\n\tif n == nil {\n\t\treturn &TreeNode{Val: v}\n\t}\n\tif v < n.Val {\n\t\tn.Left = insert(n.Left, v)\n\t} else if v > n.Val {\n\t\tn.Right = insert(n.Right, v)\n\t}\n\treturn n\n}\n```\n\n`insert` returns the root because inserting into an empty tree creates one, so always write `root = insert(root, v)`. A value equal to `n.Val` matches neither branch, so a repeat is ignored.\n\nSearch needs no recursion: start at the root and step left or right until you reach the value or nil. Each step skips a whole subtree, so a balanced tree needs about log n steps. Sorted input builds a one-sided chain, and then search is as slow as a list.\n\nThree facts follow from the rule:\n\n- an inorder traversal visits the values in sorted order\n- the minimum is the leftmost node: from a non-nil root, follow `Left` until it is nil\n- the maximum is the rightmost node: follow `Right` until it is nil",
+      "example": {
+        "title": "Build and query",
+        "prompt": "Read values on line 1 and queries on line 2, insert the values into an empty BST, then print its sorted order, its minimum and maximum, and whether each query is in the tree.",
+        "code": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strconv\"\n\t\"strings\"\n)\n\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n\nfunc insert(n *TreeNode, v int) *TreeNode {\n\tif n == nil {\n\t\treturn &TreeNode{Val: v}\n\t}\n\tif v < n.Val {\n\t\tn.Left = insert(n.Left, v)\n\t} else if v > n.Val {\n\t\tn.Right = insert(n.Right, v)\n\t}\n\treturn n // v == n.Val: already in the tree, so change nothing\n}\n\nfunc inorder(n *TreeNode, out *[]int) {\n\tif n != nil {\n\t\tinorder(n.Left, out)\n\t\t*out = append(*out, n.Val)\n\t\tinorder(n.Right, out)\n\t}\n}\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tvar root *TreeNode\n\tvar queries, sorted []int\n\tfor i := 0; i < 2 && scanner.Scan(); i++ {\n\t\tfor _, f := range strings.Fields(scanner.Text()) {\n\t\t\tv, err := strconv.Atoi(f)\n\t\t\tif err != nil {\n\t\t\t\tfmt.Println(err)\n\t\t\t\treturn\n\t\t\t}\n\t\t\tif i == 0 {\n\t\t\t\troot = insert(root, v) // line 1: values\n\t\t\t} else {\n\t\t\t\tqueries = append(queries, v) // line 2: queries\n\t\t\t}\n\t\t}\n\t}\n\tinorder(root, &sorted)\n\tfmt.Println(\"inorder:\", sorted)\n\tlo, hi := root, root\n\tfor lo.Left != nil {\n\t\tlo = lo.Left\n\t}\n\tfor hi.Right != nil {\n\t\thi = hi.Right\n\t}\n\tfmt.Println(\"min:\", lo.Val, \"max:\", hi.Val)\n\tfor _, q := range queries {\n\t\tn := root\n\t\tfor n != nil && n.Val != q {\n\t\t\tif q < n.Val {\n\t\t\t\tn = n.Left\n\t\t\t} else {\n\t\t\t\tn = n.Right\n\t\t\t}\n\t\t}\n\t\tif n != nil {\n\t\t\tfmt.Println(q, \"found\")\n\t\t} else {\n\t\t\tfmt.Println(q, \"missing\")\n\t\t}\n\t}\n}\n",
+        "stdin": "50 30 70 20 40 60 80 30\n60 65",
+        "output": "inorder: [20 30 40 50 60 70 80]\nmin: 20 max: 80\n60 found\n65 missing",
+        "explanation": "The outer loop reads at most two lines, and `i` says which one: line 1 goes into the tree and line 2 onto the query list. A bad number stops the program with its error. The second 30 reaches the node 30 and matches neither branch, so the tree keeps seven nodes. The inorder slice comes out sorted, `lo` walks left to 20 and `hi` walks right to 80. Each query walks down from the root: 60 is found on the right, and 65 falls off at nil below 60, so `n` ends nil and the program prints `missing`."
+      },
+      "practice": {
+        "title": "Range and lookups",
+        "prompt": "Build a BST from the input, then print its sorted values, its range, and a lookup result for each query.\n\n1. Line 1 holds at least one value and line 2 the queries. The starter already reads them and calls `insert`.\n2. Write `insert`: smaller values go left, larger go right, and repeats are ignored.\n3. Write `inorder`, then print `inorder:` and the sorted slice with `fmt.Println`.\n4. Walk to the leftmost and rightmost nodes and print `range: MIN to MAX`.\n5. For each query, walk down from the root and print the query followed by `found` or `missing`.\n\nInput:\n\n```text\n45 20 70 10 30 60 90 35 20\n35 50 90\n```\n\nExpected output:\n\n```text\ninorder: [10 20 30 35 45 60 70 90]\nrange: 10 to 90\n35 found\n50 missing\n90 found\n```",
+        "starter": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strconv\"\n\t\"strings\"\n)\n\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n\nfunc insert(n *TreeNode, v int) *TreeNode {\n\treturn nil // TODO: new node for nil, go left for smaller, right for larger, ignore repeats\n}\n\nfunc inorder(n *TreeNode, out *[]int) {\n\t// TODO: left subtree, then n.Val, then right subtree\n}\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tvar root *TreeNode\n\tvar queries, sorted []int\n\tfor i := 0; i < 2 && scanner.Scan(); i++ {\n\t\tfor _, f := range strings.Fields(scanner.Text()) {\n\t\t\tv, err := strconv.Atoi(f)\n\t\t\tif err != nil {\n\t\t\t\tfmt.Println(err)\n\t\t\t\treturn\n\t\t\t}\n\t\t\tif i == 0 {\n\t\t\t\troot = insert(root, v)\n\t\t\t} else {\n\t\t\t\tqueries = append(queries, v)\n\t\t\t}\n\t\t}\n\t}\n\tinorder(root, &sorted)\n\t_ = queries\n\t// TODO: print the inorder slice\n\t// TODO: walk to the leftmost and rightmost nodes and print the range\n\t// TODO: walk from the root for each query and print found or missing\n}\n",
+        "solution": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strconv\"\n\t\"strings\"\n)\n\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n\nfunc insert(n *TreeNode, v int) *TreeNode {\n\tif n == nil {\n\t\treturn &TreeNode{Val: v}\n\t}\n\tif v < n.Val {\n\t\tn.Left = insert(n.Left, v)\n\t} else if v > n.Val {\n\t\tn.Right = insert(n.Right, v)\n\t}\n\treturn n\n}\n\nfunc inorder(n *TreeNode, out *[]int) {\n\tif n != nil {\n\t\tinorder(n.Left, out)\n\t\t*out = append(*out, n.Val)\n\t\tinorder(n.Right, out)\n\t}\n}\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tvar root *TreeNode\n\tvar queries, sorted []int\n\tfor i := 0; i < 2 && scanner.Scan(); i++ {\n\t\tfor _, f := range strings.Fields(scanner.Text()) {\n\t\t\tv, err := strconv.Atoi(f)\n\t\t\tif err != nil {\n\t\t\t\tfmt.Println(err)\n\t\t\t\treturn\n\t\t\t}\n\t\t\tif i == 0 {\n\t\t\t\troot = insert(root, v)\n\t\t\t} else {\n\t\t\t\tqueries = append(queries, v)\n\t\t\t}\n\t\t}\n\t}\n\tinorder(root, &sorted)\n\tfmt.Println(\"inorder:\", sorted)\n\tlo, hi := root, root\n\tfor lo.Left != nil {\n\t\tlo = lo.Left\n\t}\n\tfor hi.Right != nil {\n\t\thi = hi.Right\n\t}\n\tfmt.Printf(\"range: %d to %d\\n\", lo.Val, hi.Val)\n\tfor _, q := range queries {\n\t\tn := root\n\t\tfor n != nil && n.Val != q {\n\t\t\tif q < n.Val {\n\t\t\t\tn = n.Left\n\t\t\t} else {\n\t\t\t\tn = n.Right\n\t\t\t}\n\t\t}\n\t\tif n != nil {\n\t\t\tfmt.Println(q, \"found\")\n\t\t} else {\n\t\t\tfmt.Println(q, \"missing\")\n\t\t}\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "45 20 70 10 30 60 90 35 20\n35 50 90",
+            "output": "inorder: [10 20 30 35 45 60 70 90]\nrange: 10 to 90\n35 found\n50 missing\n90 found"
+          },
+          {
+            "stdin": "9 8 7 6 5 5\n5 10",
+            "output": "inorder: [5 6 7 8 9]\nrange: 5 to 9\n5 found\n10 missing"
+          },
+          {
+            "stdin": "1\n1 0",
+            "output": "inorder: [1]\nrange: 1 to 1\n1 found\n0 missing"
+          }
+        ],
+        "hints": [
+          "`insert` returns `&TreeNode{Val: v}` for nil. Otherwise it sets `n.Left` or `n.Right` from the recursive call and returns `n`.",
+          "For the minimum, start a pointer at the root and move it to `Left` while `Left` is not nil. The maximum mirrors it on the right.",
+          "For a query, keep stepping while the node is not nil and does not hold the query. Ending on nil means `missing`."
+        ]
+      }
+    },
+    {
+      "title": "Level-order traversal",
+      "body": "Recursion goes deep before it goes wide. To visit a tree **level by level**, run the BFS from the BFS lesson with a queue of `*TreeNode`: take a node off the front, then add its children to the back. Skip nil children, so the queue only ever holds real nodes.\n\n```go\nqueue := []*TreeNode{root}\nfor len(queue) > 0 {\n\tn := queue[0]\n\tqueue = queue[1:]\n\tif n.Left != nil {\n\t\tqueue = append(queue, n.Left)\n\t}\n\tif n.Right != nil {\n\t\tqueue = append(queue, n.Right)\n\t}\n}\n```\n\nTo know where one level ends, use the rounds from the rotting oranges example: save `size := len(queue)` at the start of each round and take exactly that many nodes. The children added during the round belong to the next level, and they wait behind the current ones.\n\nStart only when the root is not nil, because an empty tree has no levels and `[]*TreeNode{nil}` would crash on `n.Val`. The queue stores pointers, so adding a node copies 8 bytes, never the node itself, and `queue[1:]` copies no elements, just as in the BFS lesson.",
+      "example": {
+        "title": "Print each level",
+        "prompt": "Read values until the input ends, build the BST, and print each level on its own line.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n\t\"strings\"\n)\n\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n\nfunc insert(n *TreeNode, v int) *TreeNode {\n\tif n == nil {\n\t\treturn &TreeNode{Val: v}\n\t}\n\tif v < n.Val {\n\t\tn.Left = insert(n.Left, v)\n\t} else if v > n.Val {\n\t\tn.Right = insert(n.Right, v)\n\t}\n\treturn n\n}\n\nfunc main() {\n\tvar root *TreeNode\n\tfor {\n\t\tvar v int\n\t\tif _, err := fmt.Scan(&v); err != nil {\n\t\t\tbreak\n\t\t}\n\t\troot = insert(root, v)\n\t}\n\tif root == nil {\n\t\treturn // empty input: no levels to print\n\t}\n\tqueue := []*TreeNode{root}\n\tfor len(queue) > 0 {\n\t\tsize := len(queue) // the nodes of exactly one level\n\t\tvar level []string\n\t\tfor i := 0; i < size; i++ {\n\t\t\tn := queue[0]\n\t\t\tqueue = queue[1:]\n\t\t\tlevel = append(level, strconv.Itoa(n.Val))\n\t\t\tif n.Left != nil {\n\t\t\t\tqueue = append(queue, n.Left)\n\t\t\t}\n\t\t\tif n.Right != nil {\n\t\t\t\tqueue = append(queue, n.Right)\n\t\t\t}\n\t\t}\n\t\tfmt.Println(strings.Join(level, \" \"))\n\t}\n}\n",
+        "stdin": "50 30 70 20 40 60 80",
+        "output": "50\n30 70\n20 40 60 80",
+        "explanation": "`fmt.Scan` reads values until the input ends and each one goes through `insert`. The queue starts with 50. In the first round `size` is 1, so only 50 is taken, and 30 and 70 join the queue. The second round takes those two and queues their four children, and the third round takes the four leaves, whose nil children are skipped. Each round collects its values with `strconv.Itoa` and prints them once with `strings.Join`."
+      },
+      "practice": {
+        "title": "Level sums",
+        "prompt": "Build a BST from the input and print the sum of each level.\n\n1. The starter reads every value until the input ends and inserts it, ignoring repeats.\n2. Run BFS from the root with a queue of `*TreeNode`, taking `len(queue)` nodes per level.\n3. Add up the values on each level and print `level N: SUM`, counting levels from 1.\n\nInput:\n\n```text\n40 20 60 10 30 50 70 25\n```\n\nExpected output:\n\n```text\nlevel 1: 40\nlevel 2: 80\nlevel 3: 160\nlevel 4: 25\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n\nfunc insert(n *TreeNode, v int) *TreeNode {\n\tif n == nil {\n\t\treturn &TreeNode{Val: v}\n\t}\n\tif v < n.Val {\n\t\tn.Left = insert(n.Left, v)\n\t} else if v > n.Val {\n\t\tn.Right = insert(n.Right, v)\n\t}\n\treturn n\n}\n\nfunc main() {\n\tvar root *TreeNode\n\tfor {\n\t\tvar v int\n\t\tif _, err := fmt.Scan(&v); err != nil {\n\t\t\tbreak\n\t\t}\n\t\troot = insert(root, v)\n\t}\n\tif root == nil {\n\t\treturn\n\t}\n\t// TODO: run BFS one level at a time and print \"level N: SUM\" for each level\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype TreeNode struct {\n\tVal         int\n\tLeft, Right *TreeNode\n}\n\nfunc insert(n *TreeNode, v int) *TreeNode {\n\tif n == nil {\n\t\treturn &TreeNode{Val: v}\n\t}\n\tif v < n.Val {\n\t\tn.Left = insert(n.Left, v)\n\t} else if v > n.Val {\n\t\tn.Right = insert(n.Right, v)\n\t}\n\treturn n\n}\n\nfunc main() {\n\tvar root *TreeNode\n\tfor {\n\t\tvar v int\n\t\tif _, err := fmt.Scan(&v); err != nil {\n\t\t\tbreak\n\t\t}\n\t\troot = insert(root, v)\n\t}\n\tif root == nil {\n\t\treturn\n\t}\n\tqueue := []*TreeNode{root}\n\tfor depth := 1; len(queue) > 0; depth++ {\n\t\tsize, sum := len(queue), 0\n\t\tfor i := 0; i < size; i++ {\n\t\t\tn := queue[0]\n\t\t\tqueue = queue[1:]\n\t\t\tsum += n.Val\n\t\t\tif n.Left != nil {\n\t\t\t\tqueue = append(queue, n.Left)\n\t\t\t}\n\t\t\tif n.Right != nil {\n\t\t\t\tqueue = append(queue, n.Right)\n\t\t\t}\n\t\t}\n\t\tfmt.Printf(\"level %d: %d\\n\", depth, sum)\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "40 20 60 10 30 50 70 25",
+            "output": "level 1: 40\nlevel 2: 80\nlevel 3: 160\nlevel 4: 25"
+          },
+          {
+            "stdin": "5 4 3 3 2 8",
+            "output": "level 1: 5\nlevel 2: 12\nlevel 3: 3\nlevel 4: 2"
+          },
+          {
+            "stdin": "7",
+            "output": "level 1: 7"
+          }
+        ],
+        "hints": [
+          "Start with `queue := []*TreeNode{root}` and a level counter at 1.",
+          "Save `size := len(queue)` and reset the sum before the inner loop, then print after it.",
+          "Only append `n.Left` and `n.Right` when they are not nil."
+        ]
+      }
+    }
+  ],
+  "recap": "- `type TreeNode struct` with `Val int` and `Left, Right *TreeNode`. Nil means no child.\n- Preorder records the node before its subtrees, inorder between them, postorder after them. Collect into a slice through `out *[]int` and print once.\n- Recursive measures return 0 for nil and combine both subtrees. Height is 1 plus the taller side, and a leaf has two nil children.\n- In a BST smaller values go left and larger go right. Write `root = insert(root, v)`, and equal values are ignored.\n- Search walks left or right in a loop until it finds the value or nil. Inorder is sorted, the leftmost node is the minimum, the rightmost the maximum.\n- Level order uses a queue of `*TreeNode`, takes `len(queue)` nodes per level, and skips nil children."
+}

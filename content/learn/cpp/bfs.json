@@ -1,0 +1,118 @@
+{
+  "id": "bfs",
+  "title": "Breadth-First Search",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Explore level by level with a queue to find shortest paths in grids and in spaces of states.",
+  "intro": "Depth-first search dives as deep as it can. Breadth-first search spreads out evenly, one step at a time, like ripples on water. That makes it the tool for **fewest steps** questions: the shortest way through a maze, how long a fire takes to spread, or the fewest moves to reach a number. All it needs is a `std::queue`.",
+  "steps": [
+    {
+      "title": "BFS with a queue on a grid",
+      "body": "Breadth-first search (BFS) explores in rings: first every cell 1 step from the start, then every cell 2 steps away, and so on. A `std::queue` from `<queue>` keeps that order because cells leave in the order they arrived. So the first time BFS reaches a cell, it has found a shortest path to it, as long as every move costs the same.\n\n```cpp\nstd::vector<std::vector<int>> dist(rows, std::vector<int>(cols, -1));\nstd::queue<std::pair<int, int>> q;\ndist[sr][sc] = 0;\nq.push({sr, sc});\nwhile (!q.empty()) {\n    auto [r, c] = q.front();  // copy, then pop\n    q.pop();\n    // for each in-bounds, open neighbor (nr, nc) with dist -1:\n    //     dist[nr][nc] = dist[r][c] + 1;\n    //     q.push({nr, nc});\n}\n```\n\nThe `dist` grid does two jobs: -1 means not visited, anything else is the step count. Set it when you **push**, not when you pop, or one cell can enter the queue many times. Copy the front with `auto [r, c] = q.front();` before `pop()`: a `const auto&` would refer to an element that `pop()` destroys. The queue keeps its cells on the heap, so BFS handles grids far too big for recursive DFS and its 8 MB stack.",
+      "example": {
+        "title": "Shortest path through a maze",
+        "prompt": "Find the fewest steps from S to E in a hard-coded maze with BFS and print it, or -1 if E cannot be reached.",
+        "code": "#include <iostream>\n#include <queue>\n#include <string>\n#include <utility>\n#include <vector>\n\nconst int DR[4] = {-1, 1, 0, 0};\nconst int DC[4] = {0, 0, -1, 1};\n\nint main() {\n    const std::vector<std::string> maze = {\n        \"S.#.....\",\n        \".##.##.#\",\n        \"....#...\",\n        \"##.##.#.\",\n        \"......#E\",\n    };\n    const int rows = static_cast<int>(maze.size());\n    const int cols = static_cast<int>(maze[0].size());\n\n    std::vector<std::vector<int>> dist(rows, std::vector<int>(cols, -1));\n    std::queue<std::pair<int, int>> q;\n    int endR = 0;\n    int endC = 0;\n    for (int r = 0; r < rows; ++r) {\n        for (int c = 0; c < cols; ++c) {\n            if (maze[r][c] == 'S') {\n                dist[r][c] = 0;\n                q.push({r, c});\n            } else if (maze[r][c] == 'E') {\n                endR = r;\n                endC = c;\n            }\n        }\n    }\n\n    while (!q.empty()) {\n        auto [r, c] = q.front();\n        q.pop();\n        for (int d = 0; d < 4; ++d) {\n            const int nr = r + DR[d];\n            const int nc = c + DC[d];\n            if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) {\n                continue;\n            }\n            if (maze[nr][nc] == '#' || dist[nr][nc] != -1) {\n                continue;\n            }\n            dist[nr][nc] = dist[r][c] + 1;\n            q.push({nr, nc});\n        }\n    }\n    std::cout << dist[endR][endC] << '\\n';\n    return 0;\n}\n",
+        "output": "15",
+        "explanation": "`dist` starts at -1 everywhere, and the loop over the maze sets `dist` of `S` to 0 and pushes it, while remembering where `E` is. Each pass copies the front cell, pops it, and tries the four directions from `DR` and `DC`, the same direction arrays the flood fill used. A neighbor is skipped when it is off the grid, a wall, or already has a distance. Otherwise it gets its parent's distance plus 1 and joins the back of the queue. Cells leave the queue in order of distance, so `dist[endR][endC]` ends as 15, the shortest route. Two different routes tie at 15, and BFS still gives the one correct length. If `E` were walled off, nothing would ever set its entry and it would print -1."
+      },
+      "practice": {
+        "title": "Corner to corner",
+        "prompt": "Read a maze and print the fewest steps from the top-left corner to the bottom-right corner.\n\n1. The first line holds the number of rows and columns, then one line per row of `.` (open) and `#` (wall). Both corners are open. The starter reads the grid for you.\n2. Run BFS from cell (0, 0) with a `dist` grid of -1 and a `std::queue<std::pair<int, int>>`, moving up, down, left, and right.\n3. Print `dist` of the bottom-right cell, which stays -1 when it cannot be reached.\n\nInput:\n\n```text\n4 5\n..#..\n#.#.#\n.....\n.##..\n```\n\nExpected output:\n\n```text\n7\n```",
+        "starter": "#include <iostream>\n#include <queue>\n#include <string>\n#include <utility>\n#include <vector>\n\nconst int DR[4] = {-1, 1, 0, 0};\nconst int DC[4] = {0, 0, -1, 1};\n\nint main() {\n    int rows = 0;\n    int cols = 0;\n    std::cin >> rows >> cols;\n    std::vector<std::string> grid(rows);\n    for (int r = 0; r < rows; ++r) {\n        std::cin >> grid[r];\n    }\n    std::vector<std::vector<int>> dist(rows, std::vector<int>(cols, -1));\n    std::queue<std::pair<int, int>> q;\n\n    // TODO: BFS from (0, 0), then print dist of the bottom-right cell\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <queue>\n#include <string>\n#include <utility>\n#include <vector>\n\nconst int DR[4] = {-1, 1, 0, 0};\nconst int DC[4] = {0, 0, -1, 1};\n\nint main() {\n    int rows = 0;\n    int cols = 0;\n    std::cin >> rows >> cols;\n    std::vector<std::string> grid(rows);\n    for (int r = 0; r < rows; ++r) {\n        std::cin >> grid[r];\n    }\n    std::vector<std::vector<int>> dist(rows, std::vector<int>(cols, -1));\n    std::queue<std::pair<int, int>> q;\n\n    dist[0][0] = 0;\n    q.push({0, 0});\n    while (!q.empty()) {\n        auto [r, c] = q.front();\n        q.pop();\n        for (int d = 0; d < 4; ++d) {\n            const int nr = r + DR[d];\n            const int nc = c + DC[d];\n            if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) {\n                continue;\n            }\n            if (grid[nr][nc] == '#' || dist[nr][nc] != -1) {\n                continue;\n            }\n            dist[nr][nc] = dist[r][c] + 1;\n            q.push({nr, nc});\n        }\n    }\n    std::cout << dist[rows - 1][cols - 1] << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "4 5\n..#..\n#.#.#\n.....\n.##..\n",
+            "output": "7"
+          },
+          {
+            "stdin": "3 4\n..#.\n.##.\n..#.\n",
+            "output": "-1"
+          },
+          {
+            "stdin": "1 1\n.\n",
+            "output": "0"
+          }
+        ],
+        "hints": [
+          "Start with `dist[0][0] = 0;` and `q.push({0, 0});`, then loop `while (!q.empty())`.",
+          "Skip a neighbor when it is off the grid, when `grid[nr][nc] == '#'`, or when `dist[nr][nc] != -1`.",
+          "For any other neighbor, set `dist[nr][nc] = dist[r][c] + 1;` and push it right away."
+        ]
+      }
+    },
+    {
+      "title": "Levels and multi-source BFS",
+      "body": "BFS naturally moves one level at a time. To act once per level, read the queue size before the inner loop. Exactly that many cells belong to the current level, and everything they push belongs to the next one.\n\n```cpp\nwhile (!q.empty()) {\n    const std::size_t levelSize = q.size();  // fixed before the loop\n    for (std::size_t i = 0; i < levelSize; ++i) {\n        auto [r, c] = q.front();\n        q.pop();\n        // push unvisited neighbors\n    }\n    ++level;\n}\n```\n\nSaving the size first matters: `q.size()` changes with every pop and push, so using it as the loop condition would mix the current level with the next one.\n\n**Multi-source BFS** starts from several cells at once. Push every source with distance 0 before the loop starts. The waves then spread together, and each cell is reached first by its nearest source, so `dist` holds the distance to the nearest one. It costs the same as one BFS, not one BFS per source. A grid of chars can also be its own visited marker: change `.` to `F` when you push. Cells that are never reached keep their old value, so check for them afterwards when that matters.",
+      "example": {
+        "title": "Forest fire",
+        "prompt": "Fire starts in every F cell and spreads to the four neighbors each minute. Print how many cells catch fire each minute and how many minutes pass until every open cell has burned.",
+        "code": "#include <cstddef>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <utility>\n#include <vector>\n\nconst int DR[4] = {-1, 1, 0, 0};\nconst int DC[4] = {0, 0, -1, 1};\n\nint main() {\n    std::vector<std::string> forest = {\n        \"F...#.\",\n        \"..#...\",\n        \"....#F\",\n        \"#.....\",\n    };\n    const int rows = static_cast<int>(forest.size());\n    const int cols = static_cast<int>(forest[0].size());\n\n    std::queue<std::pair<int, int>> q;\n    for (int r = 0; r < rows; ++r) {\n        for (int c = 0; c < cols; ++c) {\n            if (forest[r][c] == 'F') {\n                q.push({r, c});\n            }\n        }\n    }\n\n    int minutes = 0;\n    while (!q.empty()) {\n        const std::size_t levelSize = q.size();\n        int burned = 0;\n        for (std::size_t i = 0; i < levelSize; ++i) {\n            auto [r, c] = q.front();\n            q.pop();\n            for (int d = 0; d < 4; ++d) {\n                const int nr = r + DR[d];\n                const int nc = c + DC[d];\n                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && forest[nr][nc] == '.') {\n                    forest[nr][nc] = 'F';\n                    q.push({nr, nc});\n                    ++burned;\n                }\n            }\n        }\n        if (burned > 0) {\n            ++minutes;\n            std::cout << \"Minute \" << minutes << \": \" << burned << \" cells\\n\";\n        }\n    }\n    std::cout << \"All burned after \" << minutes << \" minutes\\n\";\n    return 0;\n}\n",
+        "output": "Minute 1: 4 cells\nMinute 2: 6 cells\nMinute 3: 4 cells\nMinute 4: 4 cells\nAll burned after 4 minutes",
+        "explanation": "The double loop pushes every `F` cell before BFS starts, so all fires spread at the same time. Each pass of the `while` loop is one minute: `levelSize` freezes how many burning cells belong to this minute, and the cells they light join the queue for the next minute. A cell is set to `F` as it is pushed, so no cell burns twice and the grid needs no separate visited array. The last pass pops the final cells but lights nothing, so `burned > 0` keeps it from counting as a minute. The 4, 6, 4, and 4 newly burned cells add up to all 18 `.` cells, so the forest burns down in 4 minutes."
+      },
+      "practice": {
+        "title": "Distance to water",
+        "prompt": "Read a grid of land and water and print every cell's distance to the nearest water.\n\n1. The first line holds the number of rows and columns, then one line per row of `.` (land) and `W` (water). There is at least one `W`. The starter reads the grid and prints `dist` for you.\n2. Set `dist` of every `W` cell to 0 and push it before BFS starts.\n3. Process the queue one level at a time with a `level` counter, saving `q.size()` before each level.\n4. Every unvisited cell in the four directions gets `dist` equal to the level it is reached in, so cells next to water get 1.\n\nInput:\n\n```text\n3 5\nW....\n.....\n....W\n```\n\nExpected output:\n\n```text\n0 1 2 3 2\n1 2 3 2 1\n2 3 2 1 0\n```",
+        "starter": "#include <cstddef>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <utility>\n#include <vector>\n\nconst int DR[4] = {-1, 1, 0, 0};\nconst int DC[4] = {0, 0, -1, 1};\n\nint main() {\n    int rows = 0;\n    int cols = 0;\n    std::cin >> rows >> cols;\n    std::vector<std::string> grid(rows);\n    for (int r = 0; r < rows; ++r) {\n        std::cin >> grid[r];\n    }\n    std::vector<std::vector<int>> dist(rows, std::vector<int>(cols, -1));\n    std::queue<std::pair<int, int>> q;\n\n    // TODO: push every W cell with distance 0, then run BFS one level at a time\n\n    for (int r = 0; r < rows; ++r) {\n        for (int c = 0; c < cols; ++c) {\n            if (c > 0) {\n                std::cout << ' ';\n            }\n            std::cout << dist[r][c];\n        }\n        std::cout << '\\n';\n    }\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <utility>\n#include <vector>\n\nconst int DR[4] = {-1, 1, 0, 0};\nconst int DC[4] = {0, 0, -1, 1};\n\nint main() {\n    int rows = 0;\n    int cols = 0;\n    std::cin >> rows >> cols;\n    std::vector<std::string> grid(rows);\n    for (int r = 0; r < rows; ++r) {\n        std::cin >> grid[r];\n    }\n    std::vector<std::vector<int>> dist(rows, std::vector<int>(cols, -1));\n    std::queue<std::pair<int, int>> q;\n\n    for (int r = 0; r < rows; ++r) {\n        for (int c = 0; c < cols; ++c) {\n            if (grid[r][c] == 'W') {\n                dist[r][c] = 0;\n                q.push({r, c});\n            }\n        }\n    }\n    int level = 0;\n    while (!q.empty()) {\n        const std::size_t levelSize = q.size();\n        ++level;\n        for (std::size_t i = 0; i < levelSize; ++i) {\n            auto [r, c] = q.front();\n            q.pop();\n            for (int d = 0; d < 4; ++d) {\n                const int nr = r + DR[d];\n                const int nc = c + DC[d];\n                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && dist[nr][nc] == -1) {\n                    dist[nr][nc] = level;\n                    q.push({nr, nc});\n                }\n            }\n        }\n    }\n\n    for (int r = 0; r < rows; ++r) {\n        for (int c = 0; c < cols; ++c) {\n            if (c > 0) {\n                std::cout << ' ';\n            }\n            std::cout << dist[r][c];\n        }\n        std::cout << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "3 5\nW....\n.....\n....W\n",
+            "output": "0 1 2 3 2\n1 2 3 2 1\n2 3 2 1 0"
+          },
+          {
+            "stdin": "3 3\n...\n.W.\n...\n",
+            "output": "2 1 2\n1 0 1\n2 1 2"
+          },
+          {
+            "stdin": "1 6\nW....W\n",
+            "output": "0 1 2 2 1 0"
+          }
+        ],
+        "hints": [
+          "Loop over every cell first and, for each `W`, set `dist[r][c] = 0;` and `q.push({r, c});`.",
+          "Copy the example's level loop: save `q.size()` in `levelSize`, add 1 to `level`, then pop exactly `levelSize` cells.",
+          "There are no walls here, so a neighbor only needs to be in bounds with `dist[nr][nc] == -1`. Set it to `level` and push it right away."
+        ]
+      }
+    },
+    {
+      "title": "BFS on states",
+      "body": "BFS works on anything you can describe as **states** joined by **moves** that each cost one step. A state can be a number, a word, or a whole puzzle position. The neighbors of a state are the states one move away, and BFS finds the fewest moves to the goal.\n\n```cpp\nstd::vector<bool> visited(limit + 1, false);  // one flag per state\nstd::queue<std::pair<int, int>> q;            // {state, moves so far}\nvisited[start] = true;\nq.push({start, 0});\n```\n\nWhen the states are whole numbers in a known range, `std::vector<bool>` indexed by the number is a compact visited set: it packs one bit per state. As with the flood fill's `visited` grid, index it directly and never bind `auto&` to its elements.\n\nThe catch is that a state space can be infinite: `x * 2` keeps growing forever. So **bound it**. Work out a limit that a shortest answer never needs to pass and skip any move that leaves the range. Check the bound before you index `visited`, because reading past the end is undefined behavior. The bound also limits memory: the vector and the queue hold at most `limit + 1` states.",
+      "example": {
+        "title": "Add one or double",
+        "prompt": "Find the fewest moves to turn one number into another using x + 1 and x * 2, for three pairs.",
+        "code": "#include <iostream>\n#include <queue>\n#include <utility>\n#include <vector>\n\n// Fewest moves from start to target using x + 1 and x * 2 (start <= target).\nint fewestMoves(int start, int target) {\n    const int limit = target;  // both moves only grow, so bigger values are dead ends\n    std::vector<bool> visited(limit + 1, false);\n    std::queue<std::pair<int, int>> q;  // {value, moves so far}\n    visited[start] = true;\n    q.push({start, 0});\n    while (!q.empty()) {\n        auto [x, moves] = q.front();\n        q.pop();\n        if (x == target) {\n            return moves;\n        }\n        const int nextValues[] = {x + 1, x * 2};\n        for (int next : nextValues) {\n            if (next <= limit && !visited[next]) {\n                visited[next] = true;\n                q.push({next, moves + 1});\n            }\n        }\n    }\n    return -1;\n}\n\nint main() {\n    std::cout << \"3 to 10: \" << fewestMoves(3, 10) << '\\n';\n    std::cout << \"1 to 20: \" << fewestMoves(1, 20) << '\\n';\n    std::cout << \"5 to 5: \" << fewestMoves(5, 5) << '\\n';\n    return 0;\n}\n",
+        "output": "3 to 10: 3\n1 to 20: 5\n5 to 5: 0",
+        "explanation": "Each state is a number and each move is `x + 1` or `x * 2`. Both moves only make the number bigger, so any value above `target` can never come back down: `limit` is just `target`, and `visited` has one flag per value from 0 to `target`. The queue stores pairs of {value, moves}, so the move count travels with each state. Because BFS pops states in order of moves, the first time it pops `target` that count is the minimum: 3, 4, 5, 10 is 3 moves, and 1, 2, 4, 5, 10, 20 is 5. When `start` already equals `target`, the first pop returns 0. The check `next <= limit` runs before `visited[next]`, so the vector is never indexed out of range."
+      },
+      "practice": {
+        "title": "Subtract one or double",
+        "prompt": "Read a start and a target and print the fewest moves to turn the start into the target using `x - 1` and `x * 2`.\n\n1. The input is two whole numbers from 1 to 10000: start, then target. The starter reads them and prints the result of `fewestMoves`.\n2. Fill in `fewestMoves` with BFS over numbers, where each state's neighbors are `x - 1` and `x * 2`.\n3. Only keep values from 1 to `limit`, which is 2 times the bigger of start and target. Mark a value in `visited` when you push it.\n4. Return the move count the first time you pop the target.\n\nInput:\n\n```text\n3 11\n```\n\nExpected output:\n\n```text\n3\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <queue>\n#include <utility>\n#include <vector>\n\nint fewestMoves(int start, int target) {\n    const int limit = 2 * std::max(start, target);\n    std::vector<bool> visited(limit + 1, false);\n    std::queue<std::pair<int, int>> q;  // {value, moves so far}\n    // TODO: BFS from start using x - 1 and x * 2, staying within 1 to limit\n    return 0;\n}\n\nint main() {\n    int start = 0;\n    int target = 0;\n    std::cin >> start >> target;\n    std::cout << fewestMoves(start, target) << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <queue>\n#include <utility>\n#include <vector>\n\nint fewestMoves(int start, int target) {\n    const int limit = 2 * std::max(start, target);\n    std::vector<bool> visited(limit + 1, false);\n    std::queue<std::pair<int, int>> q;  // {value, moves so far}\n    visited[start] = true;\n    q.push({start, 0});\n    while (!q.empty()) {\n        auto [x, moves] = q.front();\n        q.pop();\n        if (x == target) {\n            return moves;\n        }\n        const int nextValues[] = {x - 1, x * 2};\n        for (int next : nextValues) {\n            if (next >= 1 && next <= limit && !visited[next]) {\n                visited[next] = true;\n                q.push({next, moves + 1});\n            }\n        }\n    }\n    return -1;\n}\n\nint main() {\n    int start = 0;\n    int target = 0;\n    std::cin >> start >> target;\n    std::cout << fewestMoves(start, target) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "3 11\n",
+            "output": "3"
+          },
+          {
+            "stdin": "10 1\n",
+            "output": "9"
+          },
+          {
+            "stdin": "5 5\n",
+            "output": "0"
+          }
+        ],
+        "hints": [
+          "Copy the example's loop and change the moves to `{x - 1, x * 2}`.",
+          "Check `next >= 1 && next <= limit` before reading `visited[next]`.",
+          "Going above the target can help: 3 doubles to 6, then 12, then drops to 11."
+        ]
+      }
+    }
+  ],
+  "recap": "- BFS finds the fewest steps when every move costs the same.\n- Use a `std::queue<std::pair<int, int>>`: push the start, then pop the front and push unvisited neighbors until the queue is empty.\n- Copy the front before popping: `auto [r, c] = q.front(); q.pop();`.\n- A `dist` grid filled with -1 is both the visited marker and the answer.\n- Mark a cell visited when you push it, not when you pop it.\n- Save `q.size()` before the inner loop to process one level at a time.\n- Multi-source BFS pushes every source with distance 0 first, giving each cell its distance to the nearest source.\n- BFS works on any states joined by moves. Bound the state range and use a `std::vector<bool>` sized to it as the visited set.\n- The queue lives on the heap, so BFS handles grids too large for recursive DFS."
+}

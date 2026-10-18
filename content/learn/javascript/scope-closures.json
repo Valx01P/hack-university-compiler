@@ -1,0 +1,114 @@
+{
+  "id": "scope-closures",
+  "title": "Scope, Closures, and Generators",
+  "section": "Functions",
+  "summary": "Learn where variables live with let, const, and var, how closures remember state, and how generators pause and resume.",
+  "intro": "Every variable lives somewhere: a block, a function, or the file. Knowing where explains shadowing, the old `var` traps, and closures, functions that remember the variables around them. Generators finish the lesson: functions that pause and keep their local state between values.",
+  "steps": [
+    {
+      "title": "Block scope",
+      "body": "Every block of code in braces makes a scope: an `if` block, a loop body, a function body, or even bare `{ }`. A `let` or `const` declared inside lives only there and is gone after the closing brace.\n\n```javascript\nlet count = 0;\n{\n  const step = 4;\n  count += step; // inner code can change outer variables\n}\nconsole.log(count); // 4\n// console.log(step) here would throw a ReferenceError\n```\n\nCode inside a scope can read and change variables from the scopes around it. JavaScript looks for a name in the innermost scope first, then walks outward until it finds it.\n\nWhen an inner scope declares a variable with the same name as an outer one, the inner one **shadows** it. Inside the block the name means the new variable, and the outer one is left untouched. Parameters and local variables follow the same rule: they belong to their function, each call gets fresh ones, and nothing outside can see them.\n\nDeclare each variable in the smallest block that needs it.",
+      "example": {
+        "title": "Levels of scope",
+        "prompt": "Shadow a level variable at global, function, and block scope, then change an outer count from inside a block.",
+        "code": "const level = \"global\";\n\nfunction showLevels(deep) {\n  const level = \"function\";\n  console.log(`function: ${level}`);\n  if (deep) {\n    const level = \"block\";\n    console.log(`block: ${level}`);\n  }\n  console.log(`function again: ${level}`);\n}\n\nconsole.log(`global: ${level}`);\nshowLevels(true);\nconsole.log(`global again: ${level}`);\n\nlet count = 0;\n{\n  const step = 4;\n  count += step;\n}\ncount++;\nconsole.log(`count: ${count}`);\n",
+        "output": "global: global\nfunction: function\nblock: block\nfunction again: function\nglobal again: global\ncount: 5",
+        "explanation": "Each `const level` creates a new variable in its own scope, so the innermost one wins while it exists. When the `if` block ends, its `level` is gone and the function's `level` is visible again. The global `level` is never touched. The bare block has no `count` of its own, so `count += step` changes the outer variable, while `step` disappears at the closing brace."
+      },
+      "practice": {
+        "title": "Shadowed colors",
+        "prompt": "Shadow a color variable inside a function and inside an if block, then change an outer total from inside a loop.\n\n1. Inside `paint`, declare a local `color` set to `\"blue\"` and print `function: blue`.\n2. Inside the `if (deep)` block, declare another `color` set to `\"green\"` and print `block: green`.\n3. After the `if` block, still inside `paint`, print `function again: ` followed by the function's `color`.\n4. Replace the last TODO with a `for` loop from 1 to 4 that adds each number to the outer `total`.\n\nExpected output:\n\n```text\nglobal: red\nfunction: blue\nblock: green\nfunction again: blue\nglobal again: red\ntotal: 10\n```",
+        "starter": "const color = \"red\";\n\nfunction paint(deep) {\n  // TODO: declare a local color \"blue\" and print it\n  // TODO: if deep, declare a block color \"green\" and print it\n  // TODO: after the if block, print the function's color again\n}\n\nconsole.log(`global: ${color}`);\npaint(true);\nconsole.log(`global again: ${color}`);\n\nlet total = 0;\n// TODO: loop i from 1 to 4 and add each i to total\nconsole.log(`total: ${total}`);\n",
+        "solution": "const color = \"red\";\n\nfunction paint(deep) {\n  const color = \"blue\";\n  console.log(`function: ${color}`);\n  if (deep) {\n    const color = \"green\";\n    console.log(`block: ${color}`);\n  }\n  console.log(`function again: ${color}`);\n}\n\nconsole.log(`global: ${color}`);\npaint(true);\nconsole.log(`global again: ${color}`);\n\nlet total = 0;\nfor (let i = 1; i <= 4; i++) {\n  total += i;\n}\nconsole.log(`total: ${total}`);\n",
+        "tests": [
+          {
+            "output": "global: red\nfunction: blue\nblock: green\nfunction again: blue\nglobal again: red\ntotal: 10"
+          }
+        ],
+        "hints": [
+          "Use `const color = ...` in both the function and the block. Each one shadows the color outside it.",
+          "Declare the loop counter with `let` inside the `for` and update `total` with `total += i`."
+        ]
+      }
+    },
+    {
+      "title": "var, hoisting, and the temporal dead zone",
+      "body": "Before `let` and `const`, JavaScript only had `var`, and you will still meet it in old code. It differs in three ways.\n\n- `var` is function-scoped: it ignores `if` and loop blocks, so a `var` declared inside an `if` is visible in the whole function.\n- `var` declarations are **hoisted**: the name exists from the top of its function (or file), so reading it before its line gives `undefined` instead of an error.\n- A `for (var i ...)` loop has one shared `i`. Arrows created in the loop all see its final value. A `for (let i ...)` loop gets a fresh `i` for every iteration.\n\n```javascript\nconsole.log(x); // undefined, because var x is hoisted\nvar x = 5;\n```\n\n`let` and `const` are hoisted too, but you cannot use them until their declaration line has run. That stretch is the **temporal dead zone**, and touching the name there throws a `ReferenceError`. That is a feature: a silent bug becomes a loud one. It is also why calling an arrow stored in a `const` too early throws, as you saw with arrow functions.\n\nIn a Node file even a top-level `var` stays inside that file. The real global leak is assigning to a name you never declared. Never write `var` in new code: use `const` by default and `let` when you reassign.",
+      "example": {
+        "title": "The var loop bug",
+        "prompt": "Show hoisting and function scope with var, then compare arrows stored from a var loop and a let loop.",
+        "code": "function inspect(ready) {\n  console.log(`before: ${note}`);\n  var note = \"hoisted\";\n  if (ready) {\n    var status = \"done\";\n  }\n  console.log(`after if: ${status}`);\n}\n\ninspect(true);\n\nconst varFns = [];\nfor (var i = 0; i < 3; i++) {\n  varFns.push(() => i);\n}\nvarFns.forEach((fn) => console.log(`var loop: ${fn()}`));\n\nconst letFns = [];\nfor (let j = 0; j < 3; j++) {\n  letFns.push(() => j);\n}\nletFns.forEach((fn) => console.log(`let loop: ${fn()}`));\n",
+        "output": "before: undefined\nafter if: done\nvar loop: 3\nvar loop: 3\nvar loop: 3\nlet loop: 0\nlet loop: 1\nlet loop: 2",
+        "explanation": "`var note` is hoisted to the top of `inspect`, so the first line reads `undefined`. `var status` ignores the `if` block, so it is still visible after it. The `var` loop has a single `i` that all three arrows share, and by the time they run the loop has pushed it to 3. The `let` loop makes a new `j` for each pass, so each arrow remembers its own value."
+      },
+      "practice": {
+        "title": "Step labels",
+        "prompt": "Store one arrow per label with a let loop, then show how var behaves inside a function.\n\n1. Write a `for (let i = 0; i < labels.length; i++)` loop that pushes `() => labels[i]` into `printers`. The loop at the bottom calls each one.\n2. In `search`, print `before: ${item}` on the first line, then declare `var item = \"key\"`.\n3. Inside the `if (found)` block, declare `var place = \"drawer\"`.\n4. After the `if` block, print `after if: ${place}`.\n\nExpected output:\n\n```text\nStep 1\nStep 2\nStep 3\nbefore: undefined\nafter if: drawer\n```",
+        "starter": "const labels = [\"Step 1\", \"Step 2\", \"Step 3\"];\n\nfunction search(found) {\n  // TODO: print `before: ${item}` and then declare var item = \"key\"\n  // TODO: inside if (found), declare var place = \"drawer\"\n  // TODO: after the if block, print `after if: ${place}`\n}\n\nconst printers = [];\n// TODO: use a let loop to push one arrow per label that returns labels[i]\n\nfor (const printer of printers) {\n  console.log(printer());\n}\n\nsearch(true);\n",
+        "solution": "const labels = [\"Step 1\", \"Step 2\", \"Step 3\"];\n\nfunction search(found) {\n  console.log(`before: ${item}`);\n  var item = \"key\";\n  if (found) {\n    var place = \"drawer\";\n  }\n  console.log(`after if: ${place}`);\n}\n\nconst printers = [];\nfor (let i = 0; i < labels.length; i++) {\n  printers.push(() => labels[i]);\n}\n\nfor (const printer of printers) {\n  console.log(printer());\n}\n\nsearch(true);\n",
+        "tests": [
+          {
+            "output": "Step 1\nStep 2\nStep 3\nbefore: undefined\nafter if: drawer"
+          }
+        ],
+        "hints": [
+          "With `let`, each arrow keeps its own `i`. Try `var` instead and every arrow reads `labels[3]`, which is `undefined`.",
+          "The `var` declarations go inside `search`. Because they are hoisted, reading `item` early prints `undefined` instead of crashing."
+        ]
+      }
+    },
+    {
+      "title": "Closures",
+      "body": "A function created inside another function keeps access to the outer function's variables, even after the outer function has returned. That pairing of a function and the variables it remembers is a **closure**.\n\n```javascript\nfunction makeCounter() {\n  let count = 0;\n  return () => {\n    count++;\n    return count;\n  };\n}\n```\n\n`makeCounter` is a **function factory**: it builds and returns a new function. The returned arrow still sees `count`, so each call bumps it. Nothing else in the program can reach `count`, which makes it private state.\n\nEvery call to the factory runs its body again, so each returned function gets its own separate `count`. Two counters never share a total.\n\nFactories can also take arguments that the returned function remembers:\n\n```javascript\nfunction makeMultiplier(k) {\n  return (x) => x * k;\n}\nconst double = makeMultiplier(2);\nconsole.log(double(21)); // 42\n```\n\nA closure keeps the variable itself, not a copy of its value. That explains the `var` loop bug: every arrow shared the same `i`.",
+      "example": {
+        "title": "Counters and multipliers",
+        "prompt": "Build two independent counters with a factory and a tripling function with makeMultiplier.",
+        "code": "function makeCounter() {\n  let count = 0;\n  return () => {\n    count++;\n    return count;\n  };\n}\n\nfunction makeMultiplier(k) {\n  return (x) => x * k;\n}\n\nconst first = makeCounter();\nconst second = makeCounter();\nconsole.log(`first: ${first()} ${first()} ${first()}`);\nconsole.log(`second: ${second()}`);\n\nconst triple = makeMultiplier(3);\nconsole.log(`triple(7): ${triple(7)}`);\nconsole.log(`triple(10): ${triple(10)}`);\n",
+        "output": "first: 1 2 3\nsecond: 1\ntriple(7): 21\ntriple(10): 30",
+        "explanation": "Each call to `makeCounter` creates a fresh `count`, and the arrow it returns closes over that one variable. Calling `first` three times bumps its own count to 3, while `second` starts from 0 and prints 1. `makeMultiplier(3)` returns an arrow that remembers `k` as 3, so it triples whatever it gets."
+      },
+      "practice": {
+        "title": "Accumulators and greeters",
+        "prompt": "Write two function factories that keep private state.\n\n1. In `makeAccumulator(start)`, declare `let total = start`.\n2. Return an arrow that takes `amount`, adds it to `total`, and returns the new total.\n3. In `makeGreeter(greeting)`, return an arrow that takes `name` and returns `${greeting}, ${name}`.\n4. Leave the calls at the bottom as they are. The two accumulators must keep separate totals.\n\nExpected output:\n\n```text\nwallet: 15 20\nbank: 101 150\nwallet: 50\nHi, Ada\nHi, Grace\n```",
+        "starter": "function makeAccumulator(start) {\n  // TODO: keep a private total that starts at start\n  // TODO: return an arrow that adds its amount to the total and returns the new total\n  return () => 0;\n}\n\nfunction makeGreeter(greeting) {\n  // TODO: return an arrow that takes a name and returns `${greeting}, ${name}`\n  return () => \"\";\n}\n\nconst wallet = makeAccumulator(10);\nconst bank = makeAccumulator(100);\nconsole.log(`wallet: ${wallet(5)} ${wallet(5)}`);\nconsole.log(`bank: ${bank(1)} ${bank(49)}`);\nconsole.log(`wallet: ${wallet(30)}`);\n\nconst sayHi = makeGreeter(\"Hi\");\nconsole.log(sayHi(\"Ada\"));\nconsole.log(sayHi(\"Grace\"));\n",
+        "solution": "function makeAccumulator(start) {\n  let total = start;\n  return (amount) => {\n    total += amount;\n    return total;\n  };\n}\n\nfunction makeGreeter(greeting) {\n  return (name) => `${greeting}, ${name}`;\n}\n\nconst wallet = makeAccumulator(10);\nconst bank = makeAccumulator(100);\nconsole.log(`wallet: ${wallet(5)} ${wallet(5)}`);\nconsole.log(`bank: ${bank(1)} ${bank(49)}`);\nconsole.log(`wallet: ${wallet(30)}`);\n\nconst sayHi = makeGreeter(\"Hi\");\nconsole.log(sayHi(\"Ada\"));\nconsole.log(sayHi(\"Grace\"));\n",
+        "tests": [
+          {
+            "output": "wallet: 15 20\nbank: 101 150\nwallet: 50\nHi, Ada\nHi, Grace"
+          }
+        ],
+        "hints": [
+          "Follow `makeCounter`: the variable lives in the factory and the arrow changes it.",
+          "Each `makeAccumulator` call runs `let total = start` again, so `wallet` and `bank` never share a total."
+        ]
+      }
+    },
+    {
+      "title": "Generators",
+      "body": "A generator is a function that can pause. Declare it with `function*` and hand out values with `yield`.\n\n```javascript\nfunction* letters() {\n  yield \"a\";\n  yield \"b\";\n}\nconsole.log([...letters()].join(\", \")); // a, b\n```\n\nCalling `letters()` runs none of its body. It returns a generator that waits. Each time a value is requested, the body runs until the next `yield`, hands out that value, and pauses there. Local variables keep their values between yields, just like a closure's private state.\n\nTwo common ways to pull values:\n\n- `for (const x of gen)` reads one value per pass.\n- `[...gen]` collects every value into an array.\n\nUnder the hood each request calls `gen.next()`, which returns the value plus a `done` flag. `for...of` and spread call it for you.\n\nA generator can run forever with `while (true)`. That is safe because values are only made when asked for. Read it with a `for...of` loop that stops with `break`. Never spread an infinite generator: `[...gen]` would loop until memory runs out.\n\nA generator is used up after one pass. Reading it again gives nothing, so call the function again for a fresh one.",
+      "example": {
+        "title": "Ranges and powers of two",
+        "prompt": "Collect a finite range generator with spread, then read an infinite generator until six values are taken.",
+        "code": "function* range(start, end, step) {\n  for (let i = start; i < end; i += step) {\n    yield i;\n  }\n}\n\nfunction* powersOfTwo() {\n  let value = 1;\n  while (true) {\n    yield value;\n    value *= 2;\n  }\n}\n\nconsole.log(`range: ${[...range(0, 10, 3)].join(\", \")}`);\n\nconst powers = [];\nfor (const power of powersOfTwo()) {\n  powers.push(power);\n  if (powers.length === 6) {\n    break;\n  }\n}\nconsole.log(`powers: ${powers.join(\", \")}`);\n",
+        "output": "range: 0, 3, 6, 9\npowers: 1, 2, 4, 8, 16, 32",
+        "explanation": "`range` pauses at each `yield`, and spread keeps asking for values until the loop inside ends at 12, which is past 10. `powersOfTwo` never ends on its own, but its `value` survives between yields and doubles each time. The `for...of` loop asks for one value per pass and the `break` after six stops it, so the endless loop is never a problem."
+      },
+      "practice": {
+        "title": "Countdown and squares",
+        "prompt": "Write a finite and an infinite generator and read each one the right way.\n\n1. Make `countdown(from)` yield `from`, then `from - 1`, and so on down to 1.\n2. Make `squares()` yield 1, 4, 9, 16, and so on forever, using a local counter and `while (true)`.\n3. Replace the last TODO with a `for...of` loop over `squares()` that stops with `break` as soon as a square is above 50 and otherwise pushes the square into `small`. Do not push the square that stops the loop.\n\nExpected output:\n\n```text\ncountdown: 5, 4, 3, 2, 1\nsquares: 1, 4, 9, 16, 25, 36, 49\n```",
+        "starter": "function* countdown(from) {\n  // TODO: yield from, then from - 1, and so on down to 1\n}\n\nfunction* squares() {\n  // TODO: yield 1, 4, 9, 16, ... forever with while (true)\n}\n\nconsole.log(`countdown: ${[...countdown(5)].join(\", \")}`);\n\nconst small = [];\n// TODO: read squares() with for...of and break once a square is above 50\nconsole.log(`squares: ${small.join(\", \")}`);\n",
+        "solution": "function* countdown(from) {\n  for (let i = from; i >= 1; i--) {\n    yield i;\n  }\n}\n\nfunction* squares() {\n  let n = 1;\n  while (true) {\n    yield n * n;\n    n++;\n  }\n}\n\nconsole.log(`countdown: ${[...countdown(5)].join(\", \")}`);\n\nconst small = [];\nfor (const square of squares()) {\n  if (square > 50) {\n    break;\n  }\n  small.push(square);\n}\nconsole.log(`squares: ${small.join(\", \")}`);\n",
+        "tests": [
+          {
+            "output": "countdown: 5, 4, 3, 2, 1\nsquares: 1, 4, 9, 16, 25, 36, 49"
+          }
+        ],
+        "hints": [
+          "A counting-down `for` loop with `yield i` inside is all `countdown` needs.",
+          "Check `square > 50` before pushing, so 64 is never added."
+        ]
+      }
+    }
+  ],
+  "recap": "- A block in braces makes a scope. `let` and `const` live only inside their block.\n- Inner scopes can read and change outer variables. A same-named inner variable shadows the outer one.\n- `var` ignores blocks and is hoisted as `undefined`. `let` and `const` throw a `ReferenceError` until their declaration runs.\n- A `var` loop shares one variable, a `let` loop gets a fresh one per pass. Never use `var` in new code.\n- A closure keeps access to its creator's variables. Each factory call makes independent private state.\n- `function*` and `yield` make a generator that pauses between values. Read it with `for...of` or `[...gen]`.\n- Stop an infinite generator with `break`, never spread it."
+}

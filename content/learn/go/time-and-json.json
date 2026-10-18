@@ -1,0 +1,116 @@
+{
+  "id": "time-and-json",
+  "title": "Time and JSON",
+  "section": "Standard Library",
+  "summary": "Measure durations and work with dates in the time package, then turn structs into JSON and back with encoding/json.",
+  "intro": "Two packages show up in almost every real Go program: `time` for durations and dates, and `encoding/json` for talking to other programs. This lesson covers adding and printing durations, building and formatting dates without the clock, and encoding and decoding JSON with struct tags.",
+  "steps": [
+    {
+      "title": "Durations",
+      "body": "Add `import \"time\"` and you get `time.Duration`, a length of time. Under the hood it is an `int64` that counts nanoseconds, so `time.Second` is just the number 1000000000 with a nicer type. Build durations by multiplying the unit constants:\n\n```go\nwarmup := 10 * time.Minute\nrun := 1*time.Hour + 5*time.Minute\nfmt.Println(run) // 1h5m0s\n```\n\nDurations print in a readable form such as `1h30m0s`. They add with `+` and compare with `<` and `>`, like any number. `d.Minutes()` and `d.Hours()` return the whole length as a `float64`, so `1h30m0s` gives 90 minutes or 1.5 hours. Print them with a precision such as `%.1f`.\n\nGotcha: `10 * time.Minute` works because 10 is an untyped constant, but an `int` variable cannot be multiplied by a Duration (mismatched types). Convert it first:\n\n```go\nlaps := 4\ncooldown := time.Duration(laps) * 90 * time.Second // 6m0s\n```",
+      "example": {
+        "title": "Workout length",
+        "prompt": "Add up a workout of a warmup, a run, and a cool-down of 4 laps at 90 seconds each, then report the total.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"time\"\n)\n\nfunc main() {\n\twarmup := 10 * time.Minute\n\trun := 1*time.Hour + 5*time.Minute\n\tlaps := 4\n\tcooldown := time.Duration(laps) * 90 * time.Second\n\n\ttotal := warmup + run + cooldown\n\tfmt.Println(\"one second in ns:\", int64(time.Second))\n\tfmt.Println(\"cool-down:\", cooldown)\n\tfmt.Println(\"total:\", total)\n\tfmt.Printf(\"minutes: %.1f\\n\", total.Minutes())\n\tfmt.Println(\"over an hour:\", total > time.Hour)\n}\n",
+        "output": "one second in ns: 1000000000\ncool-down: 6m0s\ntotal: 1h21m0s\nminutes: 81.0\nover an hour: true",
+        "explanation": "`int64(time.Second)` shows the raw nanosecond count behind every Duration. `laps` is an `int` variable, so `time.Duration(laps)` converts it before multiplying by `90 * time.Second`. Adding three Durations gives another Duration, which prints as `1h21m0s`. `total.Minutes()` is a `float64`, and `total > time.Hour` compares two Durations to a bool."
+      },
+      "practice": {
+        "title": "Movie night",
+        "prompt": "Add up a movie night and report how long it takes.\n\n1. Convert `breaks` to a Duration and multiply by 5 minutes to get the break time.\n2. Add `trailer`, `movie`, and the break time into `total`.\n3. Print `breaks:` and the break time, then `total:` and the total.\n4. Print `hours:` and `total.Hours()` with `%.2f`.\n5. Print `over 3 hours:` and whether the total is longer than 3 hours.\n6. Remove the two given print lines and the `_ = breaks` line.\n\nExpected output:\n\n```text\nbreaks: 15m0s\ntotal: 2h42m0s\nhours: 2.70\nover 3 hours: false\n```",
+        "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"time\"\n)\n\nfunc main() {\n\ttrailer := 12 * time.Minute\n\tmovie := 2*time.Hour + 15*time.Minute\n\tbreaks := 3\n\t_ = breaks\n\n\t// TODO: turn breaks into a Duration of 5 minutes each\n\t// TODO: add up trailer, movie, and the breaks\n\t// TODO: print the breaks, the total, the hours with %.2f, and whether it is over 3 hours\n\tfmt.Println(\"trailer:\", trailer)\n\tfmt.Println(\"movie:\", movie)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"time\"\n)\n\nfunc main() {\n\ttrailer := 12 * time.Minute\n\tmovie := 2*time.Hour + 15*time.Minute\n\tbreaks := 3\n\tpauses := time.Duration(breaks) * 5 * time.Minute\n\n\ttotal := trailer + movie + pauses\n\tfmt.Println(\"breaks:\", pauses)\n\tfmt.Println(\"total:\", total)\n\tfmt.Printf(\"hours: %.2f\\n\", total.Hours())\n\tfmt.Println(\"over 3 hours:\", total > 3*time.Hour)\n}\n",
+        "tests": [
+          {
+            "output": "breaks: 15m0s\ntotal: 2h42m0s\nhours: 2.70\nover 3 hours: false"
+          }
+        ],
+        "hints": [
+          "`breaks` is an `int`, so `breaks * time.Minute` does not compile. Convert it the same way the example converts `laps`.",
+          "Compare the total with `3*time.Hour` using `>`."
+        ]
+      }
+    },
+    {
+      "title": "Dates and formatting",
+      "body": "`time.Date(year, month, day, hour, min, sec, nsec, loc)` builds one moment. Months have named constants such as `time.March`, and `time.UTC` keeps the result the same on every machine. Never print `time.Now()` in checked output: it changes every run.\n\nTo format a time, Go has no `YYYY` letters. You write the layout using one fixed reference time, `Mon Jan 2 15:04:05 2006`, and Go swaps in the real values:\n\n```go\nloan := time.Date(2024, time.March, 15, 9, 30, 0, 0, time.UTC)\nfmt.Println(loan.Format(\"2006-01-02\"))     // 2024-03-15\nfmt.Println(loan.Format(\"Mon Jan 2 15:04\")) // Fri Mar 15 09:30\n```\n\nUse `2006` for the year, `01` or `Jan` for the month, `02` or `2` for the day, `15:04` for a 24 hour clock, and `Mon` for the short weekday. The numbers must be exactly these: `2006-02-01` swaps the month and the day, and letters like `YYYY` are copied as plain text.\n\n- `t.AddDate(years, months, days)` moves by calendar units. Negative values go back. Overflow rolls over: January 31, 2024 plus one month is March 2.\n- `t.Add(d)` moves by a Duration.\n- `t.Sub(u)` returns the Duration between two times.\n- `t.Weekday()` prints as a name such as `Friday`.\n\nA `time.Time` is a value. `AddDate` and `Add` return a new time and leave `t` unchanged, so save the result in a variable.",
+      "example": {
+        "title": "Library due date",
+        "prompt": "A book borrowed on March 15, 2024 at 09:30 is due 21 days later. Print the dates, the weekday, the loan length, and when the desk closes 8 hours after the loan.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"time\"\n)\n\nfunc main() {\n\tloan := time.Date(2024, time.March, 15, 9, 30, 0, 0, time.UTC)\n\tdue := loan.AddDate(0, 0, 21)\n\n\tfmt.Println(\"borrowed:\", loan.Format(\"2006-01-02\"))\n\tfmt.Println(\"due:\", due.Format(\"2006-01-02\"))\n\tfmt.Println(\"weekday:\", due.Weekday())\n\tfmt.Println(\"label:\", due.Format(\"Mon Jan 2, 2006 15:04\"))\n\tfmt.Println(\"loan length:\", due.Sub(loan))\n\tfmt.Println(\"desk closes:\", loan.Add(8*time.Hour).Format(\"15:04\"))\n}\n",
+        "output": "borrowed: 2024-03-15\ndue: 2024-04-05\nweekday: Friday\nlabel: Fri Apr 5, 2024 09:30\nloan length: 504h0m0s\ndesk closes: 17:30",
+        "explanation": "`AddDate(0, 0, 21)` moves 21 calendar days forward, across the end of March. Each `Format` layout is the reference time written the way you want: `2006-01-02` for an ISO date and `Mon Jan 2, 2006 15:04` for a label. `due.Sub(loan)` is a Duration, printed in hours as `504h0m0s`. `loan.Add(8*time.Hour)` returns a new time, and `15:04` keeps only the clock."
+      },
+      "practice": {
+        "title": "Event reminder",
+        "prompt": "Schedule a reminder 3 days before an event and print its details.\n\n1. Make `reminder` with `event.AddDate(0, 0, -3)`.\n2. Print `reminder:` and the reminder in the layout `2006-01-02`.\n3. Print `weekday:` and the reminder's weekday.\n4. Print `label:` and the reminder in the layout `Jan 2, 2006 at 15:04`.\n5. Print `notice:` and `event.Sub(reminder)`.\n6. Print `ends:` and the time 90 minutes after the event in the layout `15:04`.\n7. Remove the given `event:` print line.\n\nExpected output:\n\n```text\nreminder: 2024-06-09\nweekday: Sunday\nlabel: Jun 9, 2024 at 18:00\nnotice: 72h0m0s\nends: 19:30\n```",
+        "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"time\"\n)\n\nfunc main() {\n\tevent := time.Date(2024, time.June, 12, 18, 0, 0, 0, time.UTC)\n\n\t// TODO: make reminder 3 days before event with AddDate\n\t// TODO: print the reminder date, weekday, label, notice, and end time\n\tfmt.Println(\"event:\", event.Format(\"2006-01-02\"))\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"time\"\n)\n\nfunc main() {\n\tevent := time.Date(2024, time.June, 12, 18, 0, 0, 0, time.UTC)\n\treminder := event.AddDate(0, 0, -3)\n\n\tfmt.Println(\"reminder:\", reminder.Format(\"2006-01-02\"))\n\tfmt.Println(\"weekday:\", reminder.Weekday())\n\tfmt.Println(\"label:\", reminder.Format(\"Jan 2, 2006 at 15:04\"))\n\tfmt.Println(\"notice:\", event.Sub(reminder))\n\tfmt.Println(\"ends:\", event.Add(90*time.Minute).Format(\"15:04\"))\n}\n",
+        "tests": [
+          {
+            "output": "reminder: 2024-06-09\nweekday: Sunday\nlabel: Jun 9, 2024 at 18:00\nnotice: 72h0m0s\nends: 19:30"
+          }
+        ],
+        "hints": [
+          "A negative day count moves back in time.",
+          "`Add` takes a Duration, so build 90 minutes the way the example builds 8 hours, then format the result with `15:04`."
+        ]
+      }
+    },
+    {
+      "title": "Encoding JSON",
+      "body": "`encoding/json` turns Go values into JSON text. `json.Marshal(v)` returns `([]byte, error)`, and `string(data)` shows those bytes as text.\n\nStruct tags rename fields. A tag is a raw string in backticks after the field type:\n\n```go\ntype User struct {\n\tName     string `json:\"name\"`\n\tEmail    string `json:\"email,omitempty\"`\n\tpassword string\n}\n```\n\nWrite the tag exactly like that, with no space after `json:`. A misspelled tag is silently ignored and the field keeps its Go name.\n\n- Fields appear in declaration order, under the tag name (or the field name when there is no tag).\n- `omitempty` skips a field that is `\"\"`, `0`, `false`, nil, or an empty slice or map.\n- Only exported (capitalized) fields are encoded. The json package cannot see `password`, so it never leaks into the output.\n- Map keys come out sorted, so a map encodes the same way every run.\n\n`json.MarshalIndent(v, \"\", \"  \")` puts each field on its own line, which is easier to read. The second argument is a prefix for every line (usually empty) and the third is the indent for each level. The result is a new byte slice. `string(data)` copies it into a string, which is fine for small documents.",
+      "example": {
+        "title": "Users to JSON",
+        "prompt": "Encode a user with no email, an indented user, and a map of stock counts as JSON.",
+        "code": "package main\n\nimport (\n\t\"encoding/json\"\n\t\"fmt\"\n)\n\ntype User struct {\n\tName     string `json:\"name\"`\n\tAge      int    `json:\"age\"`\n\tEmail    string `json:\"email,omitempty\"`\n\tAdmin    bool   `json:\"admin\"`\n\tpassword string\n}\n\nfunc main() {\n\tada := User{Name: \"Ada\", Age: 36, password: \"secret\"}\n\tdata, err := json.Marshal(ada)\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t\treturn\n\t}\n\tfmt.Println(string(data))\n\n\tbob := User{Name: \"Bob\", Age: 29, Email: \"bob@example.com\", Admin: true}\n\tpretty, err := json.MarshalIndent(bob, \"\", \"  \")\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t\treturn\n\t}\n\tfmt.Println(string(pretty))\n\n\tstock := map[string]int{\"pears\": 2, \"apples\": 5}\n\tdata, err = json.Marshal(stock)\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t\treturn\n\t}\n\tfmt.Println(string(data))\n}\n",
+        "output": "{\"name\":\"Ada\",\"age\":36,\"admin\":false}\n{\n  \"name\": \"Bob\",\n  \"age\": 29,\n  \"email\": \"bob@example.com\",\n  \"admin\": true\n}\n{\"apples\":5,\"pears\":2}",
+        "explanation": "Ada has no email, so `omitempty` drops that key, while `admin` stays as `false` because it has no `omitempty`. `password` is unexported, so it never appears. `MarshalIndent` puts each field on its own line with two spaces of indent. The map's keys come out sorted, so `apples` is first even though `pears` was written first. `data, err =` reuses the existing variables with plain assignment."
+      },
+      "practice": {
+        "title": "Products to JSON",
+        "prompt": "Encode products and a map of amenities as JSON.\n\n1. Add `\"encoding/json\"` to the imports.\n2. Give `Product` the tags `json:\"name\"`, `json:\"price\"`, and `json:\"tags,omitempty\"`.\n3. Marshal `pen` and print it as a string.\n4. Print `notebook` with `json.MarshalIndent(notebook, \"\", \"  \")`.\n5. Marshal `amenities` and print it.\n6. Check every `err` and print `error:` and the error if one is not nil.\n7. Remove the `_ =` lines and the given `fmt.Println(pen.Name)`.\n\nExpected output:\n\n```text\n{\"name\":\"Pen\",\"price\":1.5}\n{\n  \"name\": \"Notebook\",\n  \"price\": 3.25,\n  \"tags\": [\n    \"paper\",\n    \"a5\"\n  ]\n}\n{\"ac\":false,\"wifi\":true}\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// TODO: add json tags: name, price, and tags with omitempty\ntype Product struct {\n\tName  string\n\tPrice float64\n\tTags  []string\n}\n\nfunc main() {\n\tpen := Product{Name: \"Pen\", Price: 1.5}\n\tnotebook := Product{Name: \"Notebook\", Price: 3.25, Tags: []string{\"paper\", \"a5\"}}\n\tamenities := map[string]bool{\"wifi\": true, \"ac\": false}\n\t_ = notebook\n\t_ = amenities\n\n\t// TODO: import \"encoding/json\", then marshal pen, indent notebook, and marshal amenities\n\tfmt.Println(pen.Name)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"encoding/json\"\n\t\"fmt\"\n)\n\ntype Product struct {\n\tName  string   `json:\"name\"`\n\tPrice float64  `json:\"price\"`\n\tTags  []string `json:\"tags,omitempty\"`\n}\n\nfunc main() {\n\tpen := Product{Name: \"Pen\", Price: 1.5}\n\tdata, err := json.Marshal(pen)\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t\treturn\n\t}\n\tfmt.Println(string(data))\n\n\tnotebook := Product{Name: \"Notebook\", Price: 3.25, Tags: []string{\"paper\", \"a5\"}}\n\tpretty, err := json.MarshalIndent(notebook, \"\", \"  \")\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t\treturn\n\t}\n\tfmt.Println(string(pretty))\n\n\tamenities := map[string]bool{\"wifi\": true, \"ac\": false}\n\tdata, err = json.Marshal(amenities)\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t\treturn\n\t}\n\tfmt.Println(string(data))\n}\n",
+        "tests": [
+          {
+            "output": "{\"name\":\"Pen\",\"price\":1.5}\n{\n  \"name\": \"Notebook\",\n  \"price\": 3.25,\n  \"tags\": [\n    \"paper\",\n    \"a5\"\n  ]\n}\n{\"ac\":false,\"wifi\":true}"
+          }
+        ],
+        "hints": [
+          "Each tag is a raw string in backticks after the field type, just like the `User` struct in the example.",
+          "Pen has a nil `Tags` slice, so `omitempty` leaves `tags` out.",
+          "Print the bytes with `fmt.Println(string(data))`."
+        ]
+      }
+    },
+    {
+      "title": "Decoding JSON",
+      "body": "`json.Unmarshal(data, &v)` goes the other way: it reads JSON bytes and fills `v`. It returns only an `error`, so check it right away. Turn a JSON string into bytes with `[]byte(s)`, and use a raw string so the quotes need no escapes.\n\n```go\nvar u User\nerr := json.Unmarshal([]byte(`{\"name\":\"Grace\"}`), &u)\n```\n\nPass a pointer. Unmarshal needs the address so it can write into your variable. Passing `u` itself only gives it a copy, and it returns an error instead.\n\n- Keys match the tag names (case-insensitively). JSON keys with no matching field are ignored.\n- Fields missing from the JSON are left alone, so a fresh variable keeps its zero values.\n- Decoding into a nil `map[string]int` is fine: Unmarshal makes the map for you.\n- Bad JSON returns an error, such as `unexpected end of JSON input` for a cut-off document. A value of the wrong type, like a string for an `int` field, is an error too.",
+      "example": {
+        "title": "JSON to users",
+        "prompt": "Decode a user, a map of stock counts, and a cut-off document that fails.",
+        "code": "package main\n\nimport (\n\t\"encoding/json\"\n\t\"fmt\"\n)\n\ntype User struct {\n\tName  string `json:\"name\"`\n\tAge   int    `json:\"age\"`\n\tEmail string `json:\"email,omitempty\"`\n\tAdmin bool   `json:\"admin\"`\n}\n\nfunc main() {\n\tvar u User\n\terr := json.Unmarshal([]byte(`{\"name\":\"Grace\",\"age\":45,\"admin\":true,\"team\":\"navy\"}`), &u)\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t\treturn\n\t}\n\tfmt.Println(u.Name, u.Age, u.Admin, u.Email == \"\")\n\n\tvar stock map[string]int\n\terr = json.Unmarshal([]byte(`{\"pears\":3,\"apples\":5}`), &stock)\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t\treturn\n\t}\n\tfmt.Println(stock, stock[\"apples\"])\n\n\tvar broken User\n\terr = json.Unmarshal([]byte(`{\"name\":`), &broken)\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t}\n}\n",
+        "output": "Grace 45 true true\nmap[apples:5 pears:3] 5\nerror: unexpected end of JSON input",
+        "explanation": "`&u` lets Unmarshal write into `u`. The unknown `team` key is skipped, and `email` is missing, so `u.Email` stays `\"\"`. `stock` starts as a nil map and Unmarshal creates it, so it prints sorted with `apples` reading 5. The last document stops after `\"name\":`, so Unmarshal returns `unexpected end of JSON input`."
+      },
+      "practice": {
+        "title": "Read a config",
+        "prompt": "Decode a config, a map of votes, and a broken list.\n\n1. Print `cfg` with `fmt.Printf(\"%+v\\n\", cfg)`.\n2. Declare `var votes map[string]int` and decode `{\"red\":2,\"blue\":7}` into it.\n3. Print `votes` and `votes[\"blue\"]` with one `fmt.Println`.\n4. Declare `var nums []int` and decode the broken `[1, 2` into it.\n5. When that fails, print `error:` and the error.\n\nExpected output:\n\n```text\n{Host:localhost Port:8080 Debug:true}\nmap[blue:7 red:2] 7\nerror: unexpected end of JSON input\n```",
+        "starter": "package main\n\nimport (\n\t\"encoding/json\"\n\t\"fmt\"\n)\n\ntype Config struct {\n\tHost  string `json:\"host\"`\n\tPort  int    `json:\"port\"`\n\tDebug bool   `json:\"debug\"`\n}\n\nfunc main() {\n\tvar cfg Config\n\terr := json.Unmarshal([]byte(`{\"host\":\"localhost\",\"port\":8080,\"debug\":true,\"extra\":1}`), &cfg)\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t\treturn\n\t}\n\t// TODO: print cfg with %+v\n\n\t// TODO: decode {\"red\":2,\"blue\":7} into a map[string]int, print it and its \"blue\" value\n\n\t// TODO: decode the broken [1, 2 into a []int and print \"error:\" and the error\n}\n",
+        "solution": "package main\n\nimport (\n\t\"encoding/json\"\n\t\"fmt\"\n)\n\ntype Config struct {\n\tHost  string `json:\"host\"`\n\tPort  int    `json:\"port\"`\n\tDebug bool   `json:\"debug\"`\n}\n\nfunc main() {\n\tvar cfg Config\n\terr := json.Unmarshal([]byte(`{\"host\":\"localhost\",\"port\":8080,\"debug\":true,\"extra\":1}`), &cfg)\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t\treturn\n\t}\n\tfmt.Printf(\"%+v\\n\", cfg)\n\n\tvar votes map[string]int\n\terr = json.Unmarshal([]byte(`{\"red\":2,\"blue\":7}`), &votes)\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t\treturn\n\t}\n\tfmt.Println(votes, votes[\"blue\"])\n\n\tvar nums []int\n\terr = json.Unmarshal([]byte(`[1, 2`), &nums)\n\tif err != nil {\n\t\tfmt.Println(\"error:\", err)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "{Host:localhost Port:8080 Debug:true}\nmap[blue:7 red:2] 7\nerror: unexpected end of JSON input"
+          }
+        ],
+        "hints": [
+          "The `extra` key has no field in `Config`, so it is ignored.",
+          "Write the JSON as a raw string and pass `&votes` and `&nums`.",
+          "Reuse `err` with `=`, then check `if err != nil`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `time.Duration` is an `int64` of nanoseconds. Build one with `10 * time.Minute`, and convert an `int` variable with `time.Duration(n)` first.\n- Durations print like `1h30m0s`, add with `+`, compare with `<` and `>`, and give `float64` from `Minutes()` and `Hours()`.\n- Build dates with `time.Date(..., time.UTC)`. Never print `time.Now()` in checked output, since it changes every run.\n- Format layouts use the reference time `Mon Jan 2 15:04:05 2006`.\n- `AddDate` moves by calendar units and `Add` by a Duration. Both return a new time. `Sub` returns a Duration.\n- `json.Marshal` and `json.MarshalIndent` return bytes and an error. Tags rename fields, `omitempty` drops empty values such as `\"\"`, `0`, and nil, and only exported fields are encoded.\n- `json.Unmarshal(data, &v)` needs a pointer, ignores unknown keys, leaves fields missing from the JSON untouched, and returns an error for bad JSON."
+}

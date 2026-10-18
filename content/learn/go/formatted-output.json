@@ -1,0 +1,90 @@
+{
+  "id": "formatted-output",
+  "title": "Printing Variables",
+  "section": "Basics",
+  "summary": "Mix text and values in output with Println, string concatenation, Printf verbs, field widths, and Sprintf.",
+  "intro": "Real programs print values, not just fixed text. Go gives you `fmt.Println` with several arguments, `+` to join strings, and `fmt.Printf` and `fmt.Sprintf` with verbs that control exactly how each value looks.",
+  "steps": [
+    {
+      "title": "Println and +",
+      "body": "You already know that `fmt.Println` joins its arguments with single spaces and ends the line. The arguments can be any mix of text and values, not only strings. Numbers, strings, and bools all work, so this is the quickest way to label a value.\n\n```go\nfmt.Println(\"Score:\", 42) // Score: 42\n```\n\nTo glue strings together with no space added, use `+`. It builds a new string. Go strings never change, so `+` copies the pieces into fresh memory and leaves the originals alone.\n\n```go\nname := \"Sam\"\ngreeting := \"Hi, \" + name + \"!\" // Hi, Sam!\n```\n\nThe gotcha: `+` only joins a string with another string. It never turns a number into text for you, so this is a compile error, not a runtime surprise:\n\n```go\nfmt.Println(\"Age: \" + 30) // does not compile\n```\n\nWrapping the number in `string(...)` does not help either: `string` of an int gives the character with that code, not its digits. When a line mixes text and numbers, pass them as separate `Println` arguments, or use `Printf` from the next step.",
+      "example": {
+        "title": "Name card",
+        "prompt": "Print a name and an age with one Println call, then print a greeting built with +.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tname := \"Mia\"\n\tage := 28\n\tfmt.Println(\"Name:\", name, \"Age:\", age)\n\tfmt.Println(\"Hello, \" + name + \"!\")\n\t// fmt.Println(\"Age: \" + age) would not compile: age is an int\n}\n",
+        "output": "Name: Mia Age: 28\nHello, Mia!",
+        "explanation": "`Println` gets four arguments and puts a space between each, so the int `age` prints right next to its label. The greeting uses `+` because every piece is a string, and `+` adds no spaces, so the comma and the space live inside the quotes."
+      },
+      "practice": {
+        "title": "Weather line",
+        "prompt": "Print a city and its temperature, then a welcome line.\n\n1. Keep `city := \"Oslo\"` and `temp := -3`.\n2. Print `City: Oslo Temp: -3` with one `fmt.Println` of four arguments.\n3. Print `Welcome to Oslo!` with a string built from `city` using `+`.\n\nExpected output:\n\n```text\nCity: Oslo Temp: -3\nWelcome to Oslo!\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tcity := \"Oslo\"\n\ttemp := -3\n\t// TODO: change this line to print \"City: Oslo Temp: -3\" with one fmt.Println\n\tfmt.Println(city, temp)\n\t// TODO: print \"Welcome to Oslo!\" built with +\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tcity := \"Oslo\"\n\ttemp := -3\n\tfmt.Println(\"City:\", city, \"Temp:\", temp)\n\tfmt.Println(\"Welcome to \" + city + \"!\")\n}\n",
+        "tests": [
+          {
+            "output": "City: Oslo Temp: -3\nWelcome to Oslo!"
+          }
+        ],
+        "hints": [
+          "`Println` adds the spaces for you: `fmt.Println(\"City:\", city, ...)`.",
+          "`temp` is an int, so it cannot go in a `+` chain. It only belongs in the first line."
+        ]
+      }
+    },
+    {
+      "title": "Printf verbs",
+      "body": "`fmt.Printf` takes a format string and fills each `%` verb with the next value, in order. It never adds a newline, so end every format with `\\n`.\n\n```go\nfmt.Printf(\"%s is %d\\n\", \"Ana\", 9) // Ana is 9\n```\n\n| Verb | Prints |\n| --- | --- |\n| `%s` | a string |\n| `%q` | a string in double quotes |\n| `%d` | an integer |\n| `%f` | a float, 6 decimals (`4.500000`) |\n| `%.2f` | a float, 2 decimals (`4.50`) |\n| `%t` | a bool |\n| `%v` | any value in its default format |\n| `%T` | the type of a value |\n| `%%` | a literal `%` sign |\n\n`%.2f` rounds to 2 decimals, which suits money. Avoid values exactly halfway, because Go rounds those to even: `%.1f` of 8.25 prints 8.2. A lone `%` starts a verb, so write `%%` for a percent sign.\n\nA wrong verb or a missing value is not a compile error. The program compiles, runs anyway, and prints a marker in place of the value, such as `%!d(string=Tea)` for a string given to `%d`, or `%!s(MISSING)` when you run out of values. If you see `%!`, check that verbs and values line up.",
+      "example": {
+        "title": "Receipt line by line",
+        "prompt": "Print each value of an order with the verb that fits it, then show what a wrong verb prints.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\titem := \"Tea\"\n\tqty := 3\n\tprice := 4.5\n\tpaid := true\n\tfmt.Printf(\"Item: %s\\n\", item)\n\tfmt.Printf(\"Quoted: %q\\n\", item)\n\tfmt.Printf(\"Qty: %d\\n\", qty)\n\tfmt.Printf(\"Price: %.2f\\n\", price)\n\tfmt.Printf(\"Paid: %t\\n\", paid)\n\tfmt.Printf(\"All: %v %v %v\\n\", qty, price, paid)\n\tfmt.Printf(\"Discount: %d%%\\n\", 10)\n\tfmt.Printf(\"Type: %T\\n\", price)\n\tfmt.Printf(\"Oops: %d\\n\", item) // wrong verb for a string\n}\n",
+        "output": "Item: Tea\nQuoted: \"Tea\"\nQty: 3\nPrice: 4.50\nPaid: true\nAll: 3 4.5 true\nDiscount: 10%\nType: float64\nOops: %!d(string=Tea)",
+        "explanation": "Each `Printf` swaps its verbs for the values after the format, left to right. `%.2f` prints 4.5 with two decimals while `%v` prints it as plain `4.5`. In `%d%%` the `%d` takes 10 and `%%` prints one percent sign without using a value. `%T` reports `float64`, the default type for 4.5. The last line hands a string to `%d`, so Go prints a `%!d(...)` marker in its place. The program still compiles and runs."
+      },
+      "practice": {
+        "title": "Movie log",
+        "prompt": "Print a movie's details with Printf, one verb per line.\n\n1. Print `Title: Dune` with `%s`, then `Quoted: \"Dune\"` with `%q`.\n2. Print `Year: 2021` with `%d` and `Rating: 8.7` with `%.1f`.\n3. Print `Watched: true` with `%t`, then `All: 2021 8.7 true` with three `%v`.\n4. Print `Score: 95%` with `%d` and `%%`, then `Type: int` with `%T` of `year`.\n5. End every format string with `\\n`.\n\nExpected output:\n\n```text\nTitle: Dune\nQuoted: \"Dune\"\nYear: 2021\nRating: 8.7\nWatched: true\nAll: 2021 8.7 true\nScore: 95%\nType: int\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttitle := \"Dune\"\n\tyear := 2021\n\trating := 8.7\n\twatched := true\n\t// TODO: replace this line with eight fmt.Printf calls, one per output line\n\tfmt.Println(title, year, rating, watched)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttitle := \"Dune\"\n\tyear := 2021\n\trating := 8.7\n\twatched := true\n\tfmt.Printf(\"Title: %s\\n\", title)\n\tfmt.Printf(\"Quoted: %q\\n\", title)\n\tfmt.Printf(\"Year: %d\\n\", year)\n\tfmt.Printf(\"Rating: %.1f\\n\", rating)\n\tfmt.Printf(\"Watched: %t\\n\", watched)\n\tfmt.Printf(\"All: %v %v %v\\n\", year, rating, watched)\n\tfmt.Printf(\"Score: %d%%\\n\", 95)\n\tfmt.Printf(\"Type: %T\\n\", year)\n}\n",
+        "tests": [
+          {
+            "output": "Title: Dune\nQuoted: \"Dune\"\nYear: 2021\nRating: 8.7\nWatched: true\nAll: 2021 8.7 true\nScore: 95%\nType: int"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the example: one `fmt.Printf(\"Label: %verb\\n\", value)` per line.",
+          "A lone `%` would start a verb. Write `%%` to print one percent sign.",
+          "If you see `%!` in your output, a verb and its value do not match."
+        ]
+      }
+    },
+    {
+      "title": "Widths and Sprintf",
+      "body": "A number between `%` and the verb sets a minimum width. Values shorter than the width get padded with spaces, which lines up columns.\n\n```go\nfmt.Printf(\"[%5d]\\n\", 42)    // [   42] right-aligned\nfmt.Printf(\"[%-6s]\\n\", \"Go\") // [Go    ] left-aligned\nfmt.Printf(\"[%05d]\\n\", 42)   // [00042] zero-padded\nfmt.Printf(\"[%8.2f]\\n\", 3.5) // [    3.50]\n```\n\nEvery value right-aligns by default, strings included, and a `-` flips that to the left, which suits names. A leading `0` pads with zeros instead of spaces. With floats, `%8.2f` combines width and precision: 8 columns in total counting the point, 2 of them decimals. Width is a minimum, so a longer value is never cut. It just pushes the columns out.\n\n`fmt.Sprintf` takes the same format and values but returns the string instead of printing it. Use it to build text you want to store, join with `+`, or print later.\n\n```go\nlabel := fmt.Sprintf(\"ID-%03d\", 7) // \"ID-007\"\n```",
+      "example": {
+        "title": "Price table",
+        "prompt": "Print a header and three aligned price rows, then build an order number with Sprintf.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Printf(\"%-8s%7s\\n\", \"Item\", \"Price\")\n\tfmt.Printf(\"%-8s%7.2f\\n\", \"Tea\", 4.5)\n\tfmt.Printf(\"%-8s%7.2f\\n\", \"Coffee\", 12.25)\n\tfmt.Printf(\"%-8s%7.2f\\n\", \"Cake\", 105.0)\n\torder := fmt.Sprintf(\"Order #%05d\", 42)\n\tfmt.Println(order)\n}\n",
+        "output": "Item      Price\nTea        4.50\nCoffee    12.25\nCake     105.00\nOrder #00042",
+        "explanation": "`%-8s` pads every name on the right to 8 columns, so each price starts in the same place. `%7.2f` right-aligns the price in 7 columns with 2 decimals, so the decimal points line up, and the header uses `%7s` to match. `105.0` is written as a float because `%f` needs one. `Sprintf` returns `Order #00042` as a string, padded to 5 digits by `%05d`, and `Println` prints it."
+      },
+      "practice": {
+        "title": "Scoreboard",
+        "prompt": "Print an aligned scoreboard with points and accuracy, then build a player tag with Sprintf.\n\n1. Keep the header line from the starter.\n2. Print rows for `Ana` 120 87.5, `Bruno` 95 64.0, and `Chen` 7 92.3, with names in `%-10s`, points in `%5d`, and accuracy in `%8.1f`.\n3. Build the string `Player 007` from the number 7 with `fmt.Sprintf` and `%03d`, store it in a variable, and print it with `fmt.Println`.\n\nExpected output:\n\n```text\nPlayer      Pts     Acc\nAna         120    87.5\nBruno        95    64.0\nChen          7    92.3\nPlayer 007\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Printf(\"%-10s%5s%8s\\n\", \"Player\", \"Pts\", \"Acc\")\n\t// TODO: print the three score rows with %-10s, %5d, and %8.1f\n\t// TODO: build \"Player 007\" with fmt.Sprintf and %03d, then print it\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Printf(\"%-10s%5s%8s\\n\", \"Player\", \"Pts\", \"Acc\")\n\tfmt.Printf(\"%-10s%5d%8.1f\\n\", \"Ana\", 120, 87.5)\n\tfmt.Printf(\"%-10s%5d%8.1f\\n\", \"Bruno\", 95, 64.0)\n\tfmt.Printf(\"%-10s%5d%8.1f\\n\", \"Chen\", 7, 92.3)\n\tplayer := fmt.Sprintf(\"Player %03d\", 7)\n\tfmt.Println(player)\n}\n",
+        "tests": [
+          {
+            "output": "Player      Pts     Acc\nAna         120    87.5\nBruno        95    64.0\nChen          7    92.3\nPlayer 007"
+          }
+        ],
+        "hints": [
+          "Reuse the header's format for each row, but swap `%5s` for `%5d` because the points are ints, and `%8s` for `%8.1f` because the accuracy is a float.",
+          "Write Bruno's accuracy as `64.0`, not `64`, because `%f` needs a float.",
+          "`Sprintf` returns a string, so assign it with `:=` and pass that variable to `Println`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `fmt.Println(\"Label:\", value)` puts a space between arguments and ends the line.\n- `+` joins strings only. `\"Age: \" + 30` does not compile.\n- `Printf` verbs: `%s` `%q` `%d` `%f` `%.2f` `%t` `%v` `%T`, and `%%` for a percent sign.\n- `Printf` never adds a newline, so end formats with `\\n`.\n- A mismatched or missing value prints a `%!` marker instead of failing to compile.\n- `%5d` right-aligns, `%-10s` left-aligns, `%05d` zero-pads, `%8.2f` sets width and precision.\n- `fmt.Sprintf` returns the formatted string instead of printing it."
+}

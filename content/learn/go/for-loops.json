@@ -1,0 +1,89 @@
+{
+  "id": "for-loops",
+  "title": "For Loops",
+  "section": "Control Flow",
+  "summary": "Repeat work with Go's three-part for loop, count by custom steps, and control loops with break and continue.",
+  "intro": "Go has a single loop keyword, `for`. In this lesson you count with its three-part form, move the counter by any step, and use `break` and `continue` to change the flow. The next lesson shows the other shapes `for` can take.",
+  "steps": [
+    {
+      "title": "Counting loops",
+      "body": "Go has exactly one loop keyword: `for`. Its counting form has three parts separated by semicolons.\n\n```go\nsum := 0\nfor i := 1; i <= 5; i++ {\n\tsum += i\n}\nfmt.Println(sum) // 15\n```\n\n- **init** `i := 1` runs once, before the first pass.\n- **condition** `i <= 5` is checked before every pass. When it is false, the loop ends.\n- **post** `i++` runs after every pass.\n\nLike `if`, the header has no parentheses and the braces are required. The variable `i` exists only inside the loop, so using it after the closing brace does not compile. To keep a result, declare it *before* the loop and update it inside, as `sum += i` does.\n\nIn Go 1.16, `i` is one `int` in memory that the loop updates in place on every pass. No new variable is created per pass.\n\nGo 1.16 cannot range over a number (`for i := range 5` arrived in Go 1.22), so counting always uses the three-part loop. To repeat something `n` times, write `for i := 0; i < n; i++`. Watch the bound: `<` stops before `n`, `<=` includes it.",
+      "example": {
+        "title": "Sum of one to five",
+        "prompt": "Print the numbers 1 to 5 on separate lines, then print their sum.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tsum := 0\n\tfor i := 1; i <= 5; i++ {\n\t\tfmt.Println(i)\n\t\tsum += i\n\t}\n\t// i does not exist here, but sum does\n\tfmt.Println(\"Sum:\", sum)\n}\n",
+        "output": "1\n2\n3\n4\n5\nSum: 15",
+        "explanation": "`sum` is declared before the loop so it survives after it. The loop starts `i` at 1, runs while `i <= 5`, and adds 1 after each pass. Each pass prints `i` and adds it to `sum`, so after five passes `sum` holds 1 + 2 + 3 + 4 + 5 = 15. When `i` becomes 6 the condition is false and the loop ends."
+      },
+      "practice": {
+        "title": "Sum of squares",
+        "prompt": "Print the squares of 1 to 6, then print their total.\n\n1. Loop `i` from 1 to 6 with a three-part `for` loop.\n2. Print `i * i` on its own line.\n3. Add each square to `total`. The starter already prints `Total:` and the total after the loop.\n\nExpected output:\n\n```text\n1\n4\n9\n16\n25\n36\nTotal: 91\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttotal := 0\n\t// TODO: loop i from 1 to 6, print i * i, and add it to total\n\tfmt.Println(\"Total:\", total)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttotal := 0\n\tfor i := 1; i <= 6; i++ {\n\t\tsquare := i * i\n\t\tfmt.Println(square)\n\t\ttotal += square\n\t}\n\tfmt.Println(\"Total:\", total)\n}\n",
+        "tests": [
+          {
+            "output": "1\n4\n9\n16\n25\n36\nTotal: 91"
+          }
+        ],
+        "hints": [
+          "Use the example's loop shape, but change the bound so the loop includes 6.",
+          "Inside the loop, compute `i * i` once, print it, and add it to `total` with `+=`."
+        ]
+      }
+    },
+    {
+      "title": "Custom steps",
+      "body": "The post statement can be any increment, decrement, or assignment, so the counter can move however you need.\n\n- `i += 2` steps by two: `for i := 0; i <= 10; i += 2` gives 0, 2, 4, 6, 8, 10.\n- `i--` counts down: `for i := 5; i >= 1; i--` gives 5, 4, 3, 2, 1.\n- `i *= 2` doubles: `for i := 1; i < 100; i *= 2` gives 1, 2, 4, ..., 64.\n\n```go\nfor i := 10; i >= 0; i -= 5 {\n\tfmt.Println(i) // 10, 5, 0\n}\n```\n\nChange the condition to match the direction. A countdown needs `>=` or `>`. With `i <= 0` instead, the loop above would never run, because 10 fails the condition before the first pass.\n\nTwo real traps:\n\n- A multiplying loop must start at 1, not 0. Zero times anything is zero, so `i` never grows and the loop never ends.\n- Counting down to 0 with an unsigned type such as `uint` never ends either. `i >= 0` is always true for a `uint`, and `i--` at 0 wraps around to a huge number. Use `int` for counters.",
+      "example": {
+        "title": "Evens, countdown, doubling",
+        "prompt": "Print the even numbers 0 to 10, a countdown from 5 to 1 followed by `Liftoff!`, and the powers of two below 100, one value per line.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfor i := 0; i <= 10; i += 2 {\n\t\tfmt.Println(i)\n\t}\n\n\tfor i := 5; i >= 1; i-- {\n\t\tfmt.Println(i)\n\t}\n\tfmt.Println(\"Liftoff!\")\n\n\tfor i := 1; i < 100; i *= 2 {\n\t\tfmt.Println(i)\n\t}\n}\n",
+        "output": "0\n2\n4\n6\n8\n10\n5\n4\n3\n2\n1\nLiftoff!\n1\n2\n4\n8\n16\n32\n64",
+        "explanation": "Each loop has its own `i`, so reusing the name is fine. The first adds 2 after each pass and stops after 10. The second starts high, subtracts 1, and runs while `i >= 1`, so `Liftoff!` prints right after 1. The third starts at 1 and doubles: 64 doubles to 128, which fails `i < 100`, so 128 is never printed."
+      },
+      "practice": {
+        "title": "Odds, countdown, tripling",
+        "prompt": "Print three number sequences, one value per line.\n\n1. Print the odd numbers 1 to 9 with `i += 2`.\n2. Count down from 10 to 0 in steps of 2 with `i -= 2`, then print `Done!`.\n3. Print the powers of three below 100 (1, 3, 9, and so on) with `i *= 3`.\n\nExpected output:\n\n```text\n1\n3\n5\n7\n9\n10\n8\n6\n4\n2\n0\nDone!\n1\n3\n9\n27\n81\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\t// TODO: print the odd numbers 1 to 9\n\n\t// TODO: count down from 10 to 0 in steps of 2\n\tfmt.Println(\"Done!\")\n\n\t// TODO: print the powers of three below 100\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfor i := 1; i <= 9; i += 2 {\n\t\tfmt.Println(i)\n\t}\n\n\tfor i := 10; i >= 0; i -= 2 {\n\t\tfmt.Println(i)\n\t}\n\tfmt.Println(\"Done!\")\n\n\tfor i := 1; i < 100; i *= 3 {\n\t\tfmt.Println(i)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "1\n3\n5\n7\n9\n10\n8\n6\n4\n2\n0\nDone!\n1\n3\n9\n27\n81"
+          }
+        ],
+        "hints": [
+          "Each sequence is its own `for` loop. Only the start, the condition, and the post statement change.",
+          "The countdown includes 0, so its condition is `i >= 0`.",
+          "A multiplying loop starts at 1, never 0, and keeps going only while the value is below 100."
+        ]
+      }
+    },
+    {
+      "title": "break and continue",
+      "body": "Two keywords change a loop's flow from inside the body.\n\n- `continue` skips the rest of this pass. The post statement still runs, then the condition is checked again.\n- `break` leaves the loop right away. The program carries on after the loop's closing brace.\n\n```go\nfor i := 1; i <= 100; i++ {\n\tif i > 4 {\n\t\tbreak // stop the whole loop\n\t}\n\tif i%2 == 0 {\n\t\tcontinue // skip the print for even i\n\t}\n\tfmt.Println(i) // 1, 3\n}\n```\n\nBecause `continue` still runs `i++`, a three-part loop never skips its counter update. Use `break` when the condition in the header is not the only way to finish, such as stopping early once you have seen enough.\n\nBoth affect only the innermost `for` that contains them. One gotcha: inside a `switch` within a loop, `break` leaves the `switch`, not the loop. Use an `if` when you need to break out of the loop. `continue` has no such trap: inside a `switch` it still moves the loop to its next pass.",
+      "example": {
+        "title": "Skip threes, stop after ten",
+        "prompt": "Loop from 1 to 20, skip multiples of 3, and stop once the number passes 10.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfor i := 1; i <= 20; i++ {\n\t\tif i > 10 {\n\t\t\tbreak\n\t\t}\n\t\tif i%3 == 0 {\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Println(i)\n\t}\n}\n",
+        "output": "1\n2\n4\n5\n7\n8\n10",
+        "explanation": "The header allows up to 20, but when `i` reaches 11 the first `if` runs `break` and the loop ends. For 3, 6, and 9, `i%3 == 0` is true, so `continue` jumps to `i++` before the print. Every other number reaches `fmt.Println`."
+      },
+      "practice": {
+        "title": "Odd numbers up to 13",
+        "prompt": "Loop from 1 to 30, but print only the odd numbers up to 13.\n\n1. Keep the loop from 1 to 30 that the starter gives you.\n2. Use `break` to leave the loop once `i` is greater than 13.\n3. Use `continue` to skip even numbers.\n4. Print each remaining number on its own line.\n\nExpected output:\n\n```text\n1\n3\n5\n7\n9\n11\n13\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfor i := 1; i <= 30; i++ {\n\t\t// TODO: break once i passes 13\n\t\t// TODO: skip even numbers with continue\n\t\tfmt.Println(i)\n\t}\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfor i := 1; i <= 30; i++ {\n\t\tif i > 13 {\n\t\t\tbreak\n\t\t}\n\t\tif i%2 == 0 {\n\t\t\tcontinue\n\t\t}\n\t\tfmt.Println(i)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "1\n3\n5\n7\n9\n11\n13"
+          }
+        ],
+        "hints": [
+          "Put two `if` checks at the top of the loop body, before the print.",
+          "A number is even when `i%2 == 0`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `for init; condition; post { }` is Go's counting loop. Go has no `while` keyword and Go 1.16 cannot range over a number.\n- The loop variable exists only inside the loop. Declare totals like `sum` before it.\n- The post statement can be `i++`, `i--`, `i += 2`, `i -= 2`, or `i *= 2`. Match the condition to the direction.\n- Start a multiplying counter at 1, and use `int`, not `uint`, for countdowns to 0.\n- `continue` skips to the post statement. `break` leaves the innermost loop, but inside a `switch` it only leaves the `switch`."
+}

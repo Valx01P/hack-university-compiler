@@ -1,0 +1,91 @@
+{
+  "id": "infinity-null",
+  "title": "Infinity, Sentinels, and Null",
+  "section": "Basics",
+  "summary": "Represent infinity with numeric_limits, mark not-found-yet values with sentinels, and model a value that may be missing with std::optional.",
+  "intro": "Some values mean \"bigger than anything\", \"nothing seen yet\", or \"missing\". C++ gives you floating-point infinity, extreme integer sentinels, and `std::optional` for each of these.",
+  "steps": [
+    {
+      "title": "Floating-point infinity",
+      "body": "A `double` can hold infinity. Get it from `<limits>` and flip its sign with unary minus to get negative infinity. Infinity is a handy starting value for \"nothing found yet\", because every finite number is smaller than it.\n\n```cpp\nconst double best = std::numeric_limits<double>::infinity();\nconst double worst = -best;  // negative infinity\n```\n\n`std::cout` prints them as `inf` and `-inf`. Arithmetic keeps them infinite: `best + 100` is still `inf`. g++ follows the IEEE 754 floating-point rules, so dividing a nonzero double by `0.0` gives infinity with the matching sign: `1.0 / 0.0` is `inf` and `-1.0 / 0.0` is `-inf`. Integer division by zero is different: `1 / 0` is undefined behavior, so never run it.\n\nTo test for infinity, use `std::isinf(x)` from `<cmath>`. Some operations have no sensible answer: `best - best`, `best * 0`, and `0.0 / 0.0` are NaN, \"not a number\". NaN prints as `nan` or `-nan` depending on how it was made, so never print it. Test it with `std::isnan(x)` instead.\n\n```cpp\nstd::cout << std::boolalpha << std::isinf(best) << '\\n';  // true\nstd::cout << std::isnan(best - best) << '\\n';  // true\n```",
+      "example": {
+        "title": "Best and worst",
+        "prompt": "Create positive and negative infinity, do arithmetic with them, and test them with isinf and isnan.",
+        "code": "#include <cmath>\n#include <iostream>\n#include <limits>\n\nint main() {\n    const double best = std::numeric_limits<double>::infinity();\n    const double worst = -best;\n\n    std::cout << best << ' ' << worst << '\\n';\n    std::cout << best + 100 << ' ' << worst * 2 << ' ' << 1.0 / 0.0 << '\\n';\n\n    std::cout << std::boolalpha;\n    std::cout << std::isinf(best) << ' ' << std::isinf(42.0) << ' '\n              << std::isnan(best - best) << '\\n';\n    return 0;\n}\n",
+        "output": "inf -inf\ninf -inf inf\ntrue false true",
+        "explanation": "`worst` is `-best`, so it is negative infinity. Adding 100 or doubling leaves infinity unchanged, and `1.0 / 0.0` is `inf`. `std::isinf` is true for `best` and false for 42.0. `best - best` is NaN, so the program tests it with `std::isnan` instead of printing it. The last statement continues onto a second line. That is fine, because only the semicolon ends a statement."
+      },
+      "practice": {
+        "title": "Cheapest and highest",
+        "prompt": "Store infinity and negative infinity in two doubles, then print and test them.\n\n1. Store infinity in `const double cheapest` and negative infinity in `const double highest`.\n2. Print `cheapest` and `highest` on one line, separated by a space.\n3. Print `cheapest - 1000` and `-1.0 / 0.0` on the next line, separated by a space.\n4. Using `std::boolalpha`, print `std::isinf(cheapest)`, `std::isinf(3.5)`, and `std::isnan(highest - highest)` on the last line, separated by spaces.\n\nExpected output:\n\n```text\ninf -inf\ninf -inf\ntrue false true\n```",
+        "starter": "#include <cmath>\n#include <iostream>\n#include <limits>\n\nint main() {\n    // TODO: store infinity in cheapest and negative infinity in highest\n    // TODO: print both, then cheapest - 1000 and -1.0 / 0.0\n    // TODO: print std::isinf(cheapest), std::isinf(3.5), std::isnan(highest - highest)\n    return 0;\n}\n",
+        "solution": "#include <cmath>\n#include <iostream>\n#include <limits>\n\nint main() {\n    const double cheapest = std::numeric_limits<double>::infinity();\n    const double highest = -cheapest;\n\n    std::cout << cheapest << ' ' << highest << '\\n';\n    std::cout << cheapest - 1000 << ' ' << -1.0 / 0.0 << '\\n';\n\n    std::cout << std::boolalpha;\n    std::cout << std::isinf(cheapest) << ' ' << std::isinf(3.5) << ' '\n              << std::isnan(highest - highest) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "inf -inf\ninf -inf\ntrue false true"
+          }
+        ],
+        "hints": [
+          "Negative infinity is just `-cheapest`.",
+          "Subtracting from infinity still gives `inf`. A negative number divided by `0.0` gives `-inf`.",
+          "Turn on `std::boolalpha` once before printing the three tests."
+        ]
+      }
+    },
+    {
+      "title": "Sentinels and the extremes of double",
+      "body": "Integers have no infinity, so code uses a **sentinel**: an extreme value that means \"nothing seen yet\". `<climits>` names the extremes: `INT_MAX` (2147483647), `INT_MIN` (-2147483648), and `LLONG_MAX` for `long long`. They equal `std::numeric_limits<int>::max()` and friends, just shorter. A running minimum starts at `INT_MAX` so the first real value replaces it. You will do that once you learn comparisons.\n\nThe gotcha: `INT_MAX + 1` overflows, which is undefined behavior. A sentinel at the very edge breaks as soon as you add to it. That is why many programs pick a smaller \"infinity\" that leaves headroom:\n\n```cpp\nconst int INF = 1'000'000'000;  // INF + INF still fits in an int\n```\n\nFor doubles, watch the names. `std::numeric_limits<double>::lowest()` is the most negative double. For `int`, `min()` is the most negative value, but `std::numeric_limits<double>::min()` is the smallest positive normal double, about 2.2e-308, a tiny number just above zero. Start a running maximum at `min()` and a list of all negative values gives a silently wrong answer. Use `lowest()` or negative infinity instead. These huge values print in scientific notation, so print them before any `std::fixed`.",
+      "example": {
+        "title": "Shortest and longest markers",
+        "prompt": "Print integer sentinels, the two easily confused double limits, and a safe INF doubled.",
+        "code": "#include <climits>\n#include <iostream>\n#include <limits>\n\nint main() {\n    // Sentinels: replaced by the first real value later\n    int shortest = INT_MAX;\n    int longest = INT_MIN;\n    std::cout << shortest << ' ' << longest << '\\n';\n\n    std::cout << std::numeric_limits<double>::lowest() << ' '\n              << std::numeric_limits<double>::min() << '\\n';\n\n    const int INF = 1'000'000'000;\n    std::cout << INF + INF << '\\n';\n    return 0;\n}\n",
+        "output": "2147483647 -2147483648\n-1.79769e+308 2.22507e-308\n2000000000",
+        "explanation": "`shortest` starts at `INT_MAX` and `longest` at `INT_MIN`, so any real length would replace them. `lowest()` is about -1.8e308, while `min()` is a tiny positive number, which is why it is a trap for a running maximum. `INF + INF` is two billion, still below `INT_MAX`, so it does not overflow. `INT_MAX + INT_MAX` would, so the program never runs it."
+      },
+      "practice": {
+        "title": "Price limits",
+        "prompt": "Print a long long sentinel, the range of double, and a safe INF with headroom.\n\n1. Set `long long cheapest` to `LLONG_MAX` and print it on its own line.\n2. Print `std::numeric_limits<double>::max()` and `std::numeric_limits<double>::lowest()` on one line, separated by a space.\n3. Define `const int INF = 1'000'000'000` and print `INF + INF / 2` on the last line.\n\nExpected output:\n\n```text\n9223372036854775807\n1.79769e+308 -1.79769e+308\n1500000000\n```",
+        "starter": "#include <climits>\n#include <iostream>\n#include <limits>\n\nint main() {\n    // TODO: set long long cheapest to LLONG_MAX and print it\n    // TODO: print the max() and lowest() of double on one line\n    // TODO: define const int INF = 1'000'000'000 and print INF + INF / 2\n    return 0;\n}\n",
+        "solution": "#include <climits>\n#include <iostream>\n#include <limits>\n\nint main() {\n    long long cheapest = LLONG_MAX;\n    std::cout << cheapest << '\\n';\n\n    std::cout << std::numeric_limits<double>::max() << ' '\n              << std::numeric_limits<double>::lowest() << '\\n';\n\n    const int INF = 1'000'000'000;\n    std::cout << INF + INF / 2 << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "9223372036854775807\n1.79769e+308 -1.79769e+308\n1500000000"
+          }
+        ],
+        "hints": [
+          "`LLONG_MAX` comes from `<climits>`, `numeric_limits` from `<limits>`.",
+          "Do not set `std::fixed`: the default format prints the double limits in scientific notation.",
+          "Division binds tighter than addition, so `INF + INF / 2` is `INF + (INF / 2)`, one and a half billion."
+        ]
+      }
+    },
+    {
+      "title": "Missing values with std::optional",
+      "body": "In C++ an `int` or `std::string` variable always holds a value. There is no null for them. Only pointers can be null, and the null pointer is `nullptr` (covered in the Pointers lesson). To say \"a value that might be missing\", use `std::optional<T>` from `<optional>`.\n\n```cpp\nstd::optional<int> score;                 // empty\nstd::optional<int> other = std::nullopt;  // also empty\nscore = 88;                               // now holds 88\n```\n\n- `has_value()` returns `true` when a value is inside.\n- `value()` returns the value.\n- `*score` also reads the value.\n- `value_or(x)` returns the value, or `x` when the optional is empty.\n\nThe gotcha: `*score` on an empty optional is undefined behavior, and `value()` on an empty optional throws an exception that stops the program (exceptions come in a later lesson). So check `has_value()` first, or use `value_or()` when a fallback makes sense. You also cannot print an optional directly with `<<`: print what one of these returns. Unlike a sentinel, an empty optional can never be mistaken for a real value.",
+      "example": {
+        "title": "Best score so far",
+        "prompt": "Start an optional score empty, read it safely, then give it a value and read it again.",
+        "code": "#include <iostream>\n#include <optional>\n\nint main() {\n    std::optional<int> bestScore;\n    std::cout << std::boolalpha;\n    std::cout << bestScore.has_value() << ' ' << bestScore.value_or(-1) << '\\n';\n\n    bestScore = 88;\n    std::cout << bestScore.has_value() << ' ' << bestScore.value() << ' '\n              << *bestScore << '\\n';\n    return 0;\n}\n",
+        "output": "false -1\ntrue 88 88",
+        "explanation": "`bestScore` starts empty, so `has_value()` is false and `value_or(-1)` returns the fallback -1. After `bestScore = 88`, the optional holds 88, and both `value()` and `*bestScore` read it. Reading with `*` is only safe because `has_value()` is now true."
+      },
+      "practice": {
+        "title": "Player nickname",
+        "prompt": "Model a nickname that may be missing with an optional string.\n\n1. Declare `std::optional<std::string> nickname` and set it to `std::nullopt`.\n2. Print `has_value()` and `value_or(\"none\")` on one line, separated by a space.\n3. Assign `\"Ace\"` to `nickname`.\n4. Print `has_value()` and `*nickname` on the next line, separated by a space.\n\nExpected output:\n\n```text\nfalse none\ntrue Ace\n```",
+        "starter": "#include <iostream>\n#include <optional>\n#include <string>\n\nint main() {\n    std::cout << std::boolalpha;\n    // TODO: declare an empty std::optional<std::string> nickname using std::nullopt\n    // TODO: print has_value() and value_or(\"none\")\n    // TODO: assign \"Ace\", then print has_value() and *nickname\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <optional>\n#include <string>\n\nint main() {\n    std::optional<std::string> nickname = std::nullopt;\n    std::cout << std::boolalpha;\n    std::cout << nickname.has_value() << ' ' << nickname.value_or(\"none\") << '\\n';\n\n    nickname = \"Ace\";\n    std::cout << nickname.has_value() << ' ' << *nickname << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "false none\ntrue Ace"
+          }
+        ],
+        "hints": [
+          "`std::boolalpha` is already on, so booleans print as `true` and `false`.",
+          "Write `= std::nullopt` after the declaration to start it empty. Assign later with `nickname = \"Ace\"`, just like a plain variable.",
+          "Only use `*nickname` after the assignment, when the optional is not empty."
+        ]
+      }
+    }
+  ],
+  "recap": "- `std::numeric_limits<double>::infinity()` is `inf`, and unary minus makes `-inf`.\n- `1.0 / 0.0` is `inf`, but integer division by zero is undefined behavior.\n- `std::isinf` and `std::isnan` from `<cmath>` test special doubles. Never print NaN.\n- `INT_MAX`, `INT_MIN`, and `LLONG_MAX` from `<climits>` make sentinels, but going past them overflows.\n- `const int INF = 1'000'000'000` leaves headroom for addition.\n- `lowest()` is the most negative double. For doubles, `min()` is a tiny positive number.\n- `std::optional<T>` holds a value or nothing. Check `has_value()` before `*opt` or `value()`, or use `value_or()` for a fallback."
+}

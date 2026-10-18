@@ -1,0 +1,158 @@
+{
+  "id": "user-input",
+  "title": "Reading User Input",
+  "section": "Input",
+  "summary": "Read stdin with input() and sys.stdin, convert it, and feed it into lists, dicts, sets, and objects.",
+  "intro": "Until now every program had its data written into the code. Real programs read it: from a user, a file, or a test. In Python that starts with `input()`, and from here on your practice programs read stdin and are checked against several inputs.",
+  "steps": [
+    {
+      "title": "One value per line",
+      "body": "`input()` reads one line from stdin and returns it as a `str`, without the trailing newline. Each call reads the next line, so two values on two lines take two calls.\n\n```python\nname = input().strip()   # \"  Ana  \" becomes \"Ana\"\nage = int(input())       # \"29\" becomes 29\nheight = float(input())  # \"1.68\" becomes 1.68\n```\n\nThe result is always text, even when it looks like a number. Convert it before doing math:\n\n```python\n# print(input() + 1)  # TypeError: can only concatenate str (not \"int\") to str\n# int(\"3.5\")  # ValueError: invalid literal for int() with base 10: '3.5'\n```\n\nUse `float()` for anything that may have decimals. `.strip()` removes stray spaces at both ends, which users and test files often leave behind. `int()` and `float()` already ignore them.\n\nNever pass a prompt such as `input(\"Age: \")`. The prompt is printed to stdout, so it ends up in your output and the check fails. Call `input()` with nothing inside.",
+      "example": {
+        "title": "Birthday greeting",
+        "prompt": "Read a name and an age on two lines, then greet the person and print next year's age.",
+        "code": "name = input().strip()\nage = int(input())\n\nprint(f\"Hello, {name}!\")\nprint(f\"Next year you will be {age + 1}.\")\n",
+        "stdin": "  Ana  \n29\n",
+        "output": "Hello, Ana!\nNext year you will be 30.",
+        "explanation": "The first `input()` returns `\"  Ana  \"` and `.strip()` trims it to `\"Ana\"`. The second returns the text `\"29\"`, and `int()` turns it into a number so `age + 1` can do math. Neither call passes a prompt, so the only output is what the two `print()` calls write."
+      },
+      "practice": {
+        "title": "Price with tax",
+        "prompt": "Read an item and its price, then print the price with 8% tax.\n\n1. Read the item name from the first line and strip it.\n2. Read the price from the second line as a float.\n3. Print `Item: ` followed by the name.\n4. Print `With tax: ` followed by `price * TAX_MULTIPLIER` to 2 decimals.\n\nInput:\n\n```text\nNotebook\n4.00\n```\n\nExpected output:\n\n```text\nItem: Notebook\nWith tax: 4.32\n```",
+        "starter": "TAX_MULTIPLIER = 1.08\n\n# TODO: read the item name and strip it\n# TODO: read the price as a float\n# TODO: print the item and the price with tax to 2 decimals\n",
+        "solution": "TAX_MULTIPLIER = 1.08\n\nitem = input().strip()\nprice = float(input())\n\nprint(f\"Item: {item}\")\nprint(f\"With tax: {price * TAX_MULTIPLIER:.2f}\")\n",
+        "tests": [
+          {
+            "stdin": "Notebook\n4.00\n",
+            "output": "Item: Notebook\nWith tax: 4.32"
+          },
+          {
+            "stdin": "  Desk lamp  \n25\n",
+            "output": "Item: Desk lamp\nWith tax: 27.00"
+          },
+          {
+            "stdin": "Pen\n0.5\n",
+            "output": "Item: Pen\nWith tax: 0.54"
+          }
+        ],
+        "hints": [
+          "Call `input()` with no prompt, once per line.",
+          "`float(input())` reads the price. It also accepts `25` with no decimals.",
+          "Put the whole expression inside the f-string braces and add `:.2f` after it."
+        ]
+      }
+    },
+    {
+      "title": "A line of values",
+      "body": "When several values share a line, `input().split()` breaks it on whitespace into a list of strings. Convert every piece with `map()`:\n\n```python\nnums = list(map(int, input().split()))  # \"4 8 15\" -> [4, 8, 15]\nnums = [int(x) for x in input().split()]  # the same result\n```\n\nWhen you know exactly how many values the line holds, unpack them directly. `map()` is lazy, but unpacking pulls each value out:\n\n```python\nlow, high = map(int, input().split())  # \"10 20\" -> 10, 20\n```\n\nThe number of names must match the number of values:\n\n```python\n# a, b = \"1 2 3\".split()  # ValueError: too many values to unpack (expected 2)\n```\n\nConvert before you compare. Strings compare alphabetically, so `max([\"9\", \"10\"])` is `\"9\"`, while `max([9, 10])` is `10`. `split()` with no argument also ignores extra spaces between values and at both ends of the line.",
+      "example": {
+        "title": "Range report",
+        "prompt": "Read low and high on the first line and a list of integers on the second, then report the count, sum, maximum, and how many fall between low and high.",
+        "code": "low, high = map(int, input().split())\nnums = list(map(int, input().split()))\n\ninside = sum(1 for n in nums if low <= n <= high)\n\nprint(f\"Count: {len(nums)}\")\nprint(f\"Sum: {sum(nums)}\")\nprint(f\"Max: {max(nums)}\")\nprint(f\"Between {low} and {high}: {inside}\")\n",
+        "stdin": "10 20\n5 12 20 31 18 7\n",
+        "output": "Count: 6\nSum: 93\nMax: 31\nBetween 10 and 20: 3",
+        "explanation": "`input().split()` turns `\"10 20\"` into `[\"10\", \"20\"]`, and `map(int, ...)` converts each piece as the two names unpack it. The second line becomes a real list with `list(map(...))` because it is used several times. The generator inside `sum()` adds 1 for each of 12, 20, and 18, since the chained comparison includes both ends."
+      },
+      "practice": {
+        "title": "Outside the range",
+        "prompt": "Read a range and a list of integers, then describe the list.\n\n1. Read `low` and `high` from the first line with `map(int, input().split())`.\n2. Read the integers on the second line into a list. The line holds at least one integer.\n3. Print `Sorted:` followed by the numbers in ascending order, with one space before each number.\n4. Print `Spread: ` followed by the largest number minus the smallest.\n5. Print `Outside {low} to {high}: {count}`, where `count` is how many numbers are below `low` or above `high`. The bounds themselves count as inside.\n\nInput:\n\n```text\n5 20\n22 3 15 40 8\n```\n\nExpected output:\n\n```text\nSorted: 3 8 15 22 40\nSpread: 37\nOutside 5 to 20: 3\n```",
+        "starter": "# TODO: read low and high from the first line\n# TODO: read the integers from the second line into a list\n# TODO: print the sorted numbers, the spread, and the outside count\n",
+        "solution": "low, high = map(int, input().split())\nnums = list(map(int, input().split()))\n\noutside = sum(1 for n in nums if not low <= n <= high)\n\nprint(\"Sorted:\", *sorted(nums))\nprint(f\"Spread: {max(nums) - min(nums)}\")\nprint(f\"Outside {low} to {high}: {outside}\")\n",
+        "tests": [
+          {
+            "stdin": "5 20\n22 3 15 40 8\n",
+            "output": "Sorted: 3 8 15 22 40\nSpread: 37\nOutside 5 to 20: 3"
+          },
+          {
+            "stdin": "0 100\n42\n",
+            "output": "Sorted: 42\nSpread: 0\nOutside 0 to 100: 0"
+          },
+          {
+            "stdin": "-5 5\n  -9   5 -5  12 0  \n",
+            "output": "Sorted: -9 -5 0 5 12\nSpread: 21\nOutside -5 to 5: 2"
+          }
+        ],
+        "hints": [
+          "Read both lines exactly the way the example does.",
+          "`print(\"Sorted:\", *sorted(nums))` prints the label and then each number with a space.",
+          "Flip the example's test: a number is outside when `not low <= n <= high`."
+        ]
+      }
+    },
+    {
+      "title": "Reading until a stop line",
+      "body": "Sometimes you do not know how many lines are coming, so the input ends with a stop line. The walrus operator `:=` assigns a value inside an expression, which lets you read and test in the same line:\n\n```python\nwhile (line := input()) != \"end\":\n    print(line.upper())\n```\n\nKeep the parentheses. Without them, `while line := input() != \"end\":` still runs, but `line` holds the `bool` result of the comparison, not the line.\n\nEach line is a plain string, so split it and file the parts away in a dict for counts and a set for distinct values. Print the set as `sorted(s)`, because set order is not stable.\n\nWhen there is no stop line, read until the input runs out instead. Calling `input()` after the last line stops the program with an `EOFError`, while `sys.stdin` simply ends the loop:\n\n```python\nimport sys\n\nfor line in sys.stdin:\n    line = line.strip()  # each line keeps its newline\n```\n\nTo grab every whitespace-separated token at once, use `tokens = sys.stdin.read().split()`.",
+      "example": {
+        "title": "People per city",
+        "prompt": "Read lines of name and city until a line that says end, then print each city in sorted order with its head count and the number of distinct cities.",
+        "code": "counts = {}\ncities = set()\n\nwhile (line := input()) != \"end\":\n    _, city = line.split()\n    counts[city] = counts.get(city, 0) + 1\n    cities.add(city)\n\nfor city in sorted(counts):\n    print(city, counts[city])\nprint(f\"Distinct cities: {len(cities)}\")\n",
+        "stdin": "ana Lima\nben Oslo\ncara Lima\ndev Austin\neli Oslo\nfay Lima\nend\n",
+        "output": "Austin 1\nLima 3\nOslo 2\nDistinct cities: 3",
+        "explanation": "Each pass of the `while` reads a line into `line` and compares it with `\"end\"` in one step. `line.split()` unpacks into `_` for the unused name and `city`, `counts.get(city, 0) + 1` counts the city, and `cities.add(city)` ignores repeats. When the stop line arrives, the loop ends without processing it. `sorted(counts)` gives the cities in alphabetical order."
+      },
+      "practice": {
+        "title": "Word tally",
+        "prompt": "Read one word per line until a line that says end, then report the words.\n\n1. Read each line with `input().strip()` inside a walrus `while` loop that stops at `end`.\n2. Count each word in the `counts` dict and add it to the `words` set.\n3. Print `Distinct: ` followed by the size of the set.\n4. Print each word and its count, separated by a space, in sorted word order.\n\nInput:\n\n```text\npear\napple\nkiwi\npear\napple\npear\nend\n```\n\nExpected output:\n\n```text\nDistinct: 3\napple 2\nkiwi 1\npear 3\n```",
+        "starter": "counts = {}\nwords = set()\n\n# TODO: read stripped words until the line \"end\", counting each and adding it to words\n\nprint(f\"Distinct: {len(words)}\")\n# TODO: print each word and its count in sorted word order\n",
+        "solution": "counts = {}\nwords = set()\n\nwhile (word := input().strip()) != \"end\":\n    counts[word] = counts.get(word, 0) + 1\n    words.add(word)\n\nprint(f\"Distinct: {len(words)}\")\nfor word in sorted(counts):\n    print(word, counts[word])\n",
+        "tests": [
+          {
+            "stdin": "pear\napple\nkiwi\npear\napple\npear\nend\n",
+            "output": "Distinct: 3\napple 2\nkiwi 1\npear 3"
+          },
+          {
+            "stdin": "end\n",
+            "output": "Distinct: 0"
+          },
+          {
+            "stdin": "  fig \nfig\n date\nend\n",
+            "output": "Distinct: 2\ndate 1\nfig 2"
+          }
+        ],
+        "hints": [
+          "Use the example's loop with `input().strip()` in place of `input()` and `word` in place of `line`.",
+          "`counts[word] = counts.get(word, 0) + 1` counts a word.",
+          "Loop over `sorted(counts)` to print in word order."
+        ]
+      }
+    },
+    {
+      "title": "A counted block of lines into objects",
+      "body": "Many inputs start with a count `n`, followed by exactly `n` lines. Read the count, then loop that many times. The loop variable is not needed, so name it `_`:\n\n```python\nn = int(input())\nfor _ in range(n):\n    name, score = input().split()\n```\n\nParse each line into an object and keep the objects in a list. Every value from `split()` is a string, so convert numeric fields before you build the object.\n\nSort and search the list with `key=`, which tells Python which attribute to compare:\n\n```python\nby_score = sorted(players, key=lambda p: p.score)\nbest = max(players, key=lambda p: p.score)\n```\n\nSorting is stable, so objects with equal keys keep their input order. That stays true with `reverse=True`. `min()` and `max()` return the first of tied objects. Without `key=`, Python cannot compare two objects and `sorted(players)` stops with a `TypeError`, so always say which attribute to use. Give the class a `__str__` so each object prints as readable text.",
+      "example": {
+        "title": "Movie timeline",
+        "prompt": "Read a count, then that many lines of a one-word title and a year into Movie objects, print them by year with ties in input order, then the oldest and newest.",
+        "code": "class Movie:\n    def __init__(self, title, year):\n        self.title = title\n        self.year = year\n\n    def __str__(self):\n        return f\"{self.title} ({self.year})\"\n\n\nn = int(input())\nmovies = []\nfor _ in range(n):\n    title, year = input().split()\n    movies.append(Movie(title, int(year)))\n\nfor movie in sorted(movies, key=lambda m: m.year):\n    print(movie)\nprint(f\"Oldest: {min(movies, key=lambda m: m.year)}\")\nprint(f\"Newest: {max(movies, key=lambda m: m.year)}\")\n",
+        "stdin": "5\nAlien 1979\nHeat 1995\nJaws 1975\nUp 2009\nCasino 1995\n",
+        "output": "Jaws (1975)\nAlien (1979)\nHeat (1995)\nCasino (1995)\nUp (2009)\nOldest: Jaws (1975)\nNewest: Up (2009)",
+        "explanation": "`int(input())` reads the count 5, and `for _ in range(n)` reads exactly five more lines. Each line unpacks into `title` and `year`, and `int(year)` makes the year a number before the `Movie` is built. `key=lambda m: m.year` sorts by year, and stability keeps Heat before Casino because Heat came first. `min()` and `max()` use the same key, and the f-string prints each result through `__str__`."
+      },
+      "practice": {
+        "title": "Payroll report",
+        "prompt": "Read a count, then that many lines of name and salary into Employee objects, and report on them.\n\n1. Read `n`, then `n` lines of `name salary`. Append an `Employee` with an int salary to `staff` for each.\n2. Print every employee as `name salary`, one per line, from highest to lowest salary, with ties in input order.\n3. Print `Top: ` followed by the name of the highest paid employee. On a tie, use the one that came first.\n4. Print `Payroll: ` followed by the sum of all salaries.\n\nInput:\n\n```text\n4\nmaya 5200\nleo 4800\nnora 6100\nomar 5200\n```\n\nExpected output:\n\n```text\nnora 6100\nmaya 5200\nomar 5200\nleo 4800\nTop: nora\nPayroll: 21300\n```",
+        "starter": "class Employee:\n    def __init__(self, name, salary):\n        self.name = name\n        self.salary = salary\n\n    def __str__(self):\n        return f\"{self.name} {self.salary}\"\n\n\nstaff = []\n# TODO: read n, then n lines of \"name salary\" into Employee objects in staff\n# TODO: print the employees from highest to lowest salary\n# TODO: print the top earner's name and the total payroll\n",
+        "solution": "class Employee:\n    def __init__(self, name, salary):\n        self.name = name\n        self.salary = salary\n\n    def __str__(self):\n        return f\"{self.name} {self.salary}\"\n\n\nn = int(input())\nstaff = []\nfor _ in range(n):\n    name, salary = input().split()\n    staff.append(Employee(name, int(salary)))\n\nfor employee in sorted(staff, key=lambda e: e.salary, reverse=True):\n    print(employee)\ntop = max(staff, key=lambda e: e.salary)\nprint(f\"Top: {top.name}\")\nprint(f\"Payroll: {sum(e.salary for e in staff)}\")\n",
+        "tests": [
+          {
+            "stdin": "4\nmaya 5200\nleo 4800\nnora 6100\nomar 5200\n",
+            "output": "nora 6100\nmaya 5200\nomar 5200\nleo 4800\nTop: nora\nPayroll: 21300"
+          },
+          {
+            "stdin": "1\nzoe 3900\n",
+            "output": "zoe 3900\nTop: zoe\nPayroll: 3900"
+          },
+          {
+            "stdin": "3\nkai 7000\nben 4500\nada 7000\n",
+            "output": "kai 7000\nada 7000\nben 4500\nTop: kai\nPayroll: 18500"
+          }
+        ],
+        "hints": [
+          "Read the count with `int(input())`, then loop with `for _ in range(n):`.",
+          "`sorted(staff, key=lambda e: e.salary, reverse=True)` keeps ties in input order.",
+          "`max(staff, key=lambda e: e.salary)` returns the first of tied employees."
+        ]
+      }
+    }
+  ],
+  "recap": "- `input()` returns one line as a `str` without the newline. Convert it with `int()` or `float()`.\n- `.strip()` removes stray spaces at both ends.\n- Never pass a prompt to `input()`: it would be printed to stdout.\n- `list(map(int, input().split()))` reads a line of numbers, and `a, b = map(int, input().split())` unpacks a known count.\n- `while (line := input()) != \"end\":` reads until a stop line. `for line in sys.stdin:` reads to the end of input.\n- Read a count with `n = int(input())`, then `for _ in range(n):`.\n- Parse each line into an object, keep a list, and use `key=lambda o: o.attr` with `sorted()`, `min()`, and `max()`."
+}

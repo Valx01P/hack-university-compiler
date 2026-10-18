@@ -1,0 +1,158 @@
+{
+  "id": "graphs",
+  "title": "Graphs: Traversal, Ordering, and Shortest Paths",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Represent graphs with adjacency lists, find components with DFS, shortest hops with BFS, task orders with topological sort, and weighted paths with Dijkstra.",
+  "intro": "Road maps, friendships, course prerequisites, and network links are all graphs: nodes joined by edges. Four classic algorithms answer most questions about them, and each one is built from containers you already know: DFS for what is connected, BFS for the fewest hops, topological sort for a valid order, and Dijkstra for the cheapest weighted path.",
+  "steps": [
+    {
+      "title": "Adjacency lists and DFS components",
+      "body": "A graph is a set of nodes joined by edges. Number the nodes 0 to n-1 and store an *adjacency list*: `adj[u]` holds every neighbor of `u`. An undirected edge goes both ways, so add it to both lists.\n\n```cpp\nstd::vector<std::vector<int>> adj(n);\nfor (int i = 0; i < m; ++i) {\n    int u = 0;\n    int v = 0;\n    std::cin >> u >> v;\n    adj[u].push_back(v);\n    adj[v].push_back(u);\n}\n```\n\nEach inner vector owns its own heap buffer, so memory is O(n + m), far less than an n by n matrix when edges are few. The degree of `u` is `adj[u].size()`. Neighbors appear in input order, so `std::sort` each list whenever the visiting order reaches the output.\n\nDFS works like the recursive flood fill, with `adj[u]` in place of the four grid directions. It marks a node in a `std::vector<bool> visited`, then recurses into every unvisited neighbor:\n\n```cpp\nvoid dfs(int u, const std::vector<std::vector<int>>& adj, std::vector<bool>& visited) {\n    visited[u] = true;\n    for (int v : adj[u]) {\n        if (!visited[v]) {\n            dfs(v, adj, visited);\n        }\n    }\n}\n```\n\nLoop over the nodes in `main` and call `dfs` on each one that is still unvisited. Each of those calls reaches exactly one *connected component*, so counting them counts the components.\n\n> Gotcha: each nested call is a stack frame. With the 8 MB stack here, the `dfs` in the example crashes on a single path of about 80,000 nodes, so very deep graphs need an iterative DFS with your own `std::stack`.",
+      "example": {
+        "title": "Degrees and components",
+        "prompt": "Read an undirected graph, print every node's degree, then find the connected components with DFS and print each one's nodes in ascending order.",
+        "code": "#include <algorithm>\n#include <cstddef>\n#include <iostream>\n#include <utility>\n#include <vector>\n\nvoid dfs(int u, const std::vector<std::vector<int>>& adj, std::vector<bool>& visited, std::vector<int>& comp) {\n    visited[u] = true;\n    comp.push_back(u);\n    for (int v : adj[u]) {\n        if (!visited[v]) {\n            dfs(v, adj, visited, comp);\n        }\n    }\n}\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<std::vector<int>> adj(n);\n    for (int i = 0; i < m; ++i) {\n        int u = 0;\n        int v = 0;\n        std::cin >> u >> v;\n        adj[u].push_back(v);\n        adj[v].push_back(u);\n    }\n    for (auto& neighbors : adj) {\n        std::sort(neighbors.begin(), neighbors.end());\n    }\n\n    std::cout << \"degrees:\";\n    for (const auto& neighbors : adj) {\n        std::cout << ' ' << neighbors.size();\n    }\n    std::cout << '\\n';\n\n    std::vector<bool> visited(n, false);\n    std::vector<std::vector<int>> components;\n    for (int start = 0; start < n; ++start) {\n        if (!visited[start]) {\n            std::vector<int> comp;\n            dfs(start, adj, visited, comp);\n            std::sort(comp.begin(), comp.end());\n            components.push_back(std::move(comp));\n        }\n    }\n\n    std::cout << \"components: \" << components.size() << '\\n';\n    for (const auto& comp : components) {\n        for (std::size_t i = 0; i < comp.size(); ++i) {\n            if (i > 0) {\n                std::cout << ' ';\n            }\n            std::cout << comp[i];\n        }\n        std::cout << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "7 5\n0 3\n1 6\n3 5\n5 0\n6 4\n",
+        "output": "degrees: 2 1 0 2 1 2 2\ncomponents: 3\n0 3 5\n1 4 6\n2",
+        "explanation": "Each edge lands in both lists, so the edges `3 5` and `5 0` give `adj[5]` the neighbors 3 and 0, and the sort turns that into 0 3. Starting at node 0, DFS reaches 3 and then 5. Node 1 is next unvisited and its DFS walks 1, 6, 4, which is why `comp` is sorted before printing. Node 2 has no edges, so it forms a component by itself. `std::move(comp)` hands the vector's heap buffer to `components` instead of copying every element."
+      },
+      "practice": {
+        "title": "Can s reach t",
+        "prompt": "Read an undirected graph and two nodes s and t, then report on s and its component.\n\n1. The starter reads `n` and `m`. Read the `m` edges `u v` and add each edge to `adj` both ways.\n2. The starter then reads `s` and `t`.\n3. Finish `dfs` so it marks `u`, recurses into every unvisited neighbor, and returns how many nodes it visited, counting `u` itself.\n4. Run `dfs` once from `s`.\n5. Print `degree: D` with the degree of s, then `reachable: yes` or `reachable: no` depending on whether t was visited, then `size: K` with the size of the component of s, each on its own line.\n\nInput:\n\n```text\n8 6\n0 1\n1 2\n2 0\n1 3\n4 5\n6 7\n1 3\n```\n\nExpected output:\n\n```text\ndegree: 3\nreachable: yes\nsize: 4\n```",
+        "starter": "#include <iostream>\n#include <vector>\n\nint dfs(int u, const std::vector<std::vector<int>>& adj, std::vector<bool>& visited) {\n    // TODO: mark u, recurse into unvisited neighbors, and return how many nodes this call visited\n    return 0;\n}\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<std::vector<int>> adj(n);\n    // TODO: read the m edges and add each one both ways\n    int s = 0;\n    int t = 0;\n    std::cin >> s >> t;\n\n    std::vector<bool> visited(n, false);\n    // TODO: run dfs from s, then print the degree, reachable, and size lines\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <vector>\n\nint dfs(int u, const std::vector<std::vector<int>>& adj, std::vector<bool>& visited) {\n    visited[u] = true;\n    int count = 1;\n    for (int v : adj[u]) {\n        if (!visited[v]) {\n            count += dfs(v, adj, visited);\n        }\n    }\n    return count;\n}\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<std::vector<int>> adj(n);\n    for (int i = 0; i < m; ++i) {\n        int u = 0;\n        int v = 0;\n        std::cin >> u >> v;\n        adj[u].push_back(v);\n        adj[v].push_back(u);\n    }\n    int s = 0;\n    int t = 0;\n    std::cin >> s >> t;\n\n    std::vector<bool> visited(n, false);\n    const int size = dfs(s, adj, visited);\n    std::cout << \"degree: \" << adj[s].size() << '\\n';\n    std::cout << \"reachable: \" << (visited[t] ? \"yes\" : \"no\") << '\\n';\n    std::cout << \"size: \" << size << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "8 6\n0 1\n1 2\n2 0\n1 3\n4 5\n6 7\n1 3\n",
+            "output": "degree: 3\nreachable: yes\nsize: 4"
+          },
+          {
+            "stdin": "8 6\n0 1\n1 2\n2 0\n1 3\n4 5\n6 7\n4 0\n",
+            "output": "degree: 1\nreachable: no\nsize: 2"
+          },
+          {
+            "stdin": "4 2\n0 1\n1 2\n3 0\n",
+            "output": "degree: 0\nreachable: no\nsize: 1"
+          }
+        ],
+        "hints": [
+          "One DFS from `s` visits exactly the component of s, so afterwards `visited[t]` tells you whether t is reachable.",
+          "For the size, start a counter at 1 for `u` itself and add what each recursive call returns.",
+          "The degree is `adj[s].size()`. An isolated node has degree 0 and a component of size 1."
+        ]
+      }
+    },
+    {
+      "title": "BFS shortest paths",
+      "body": "BFS on a graph is the grid BFS from the BFS lesson with node numbers in place of cells: a `std::queue<int>` and a `dist` vector that starts at -1 for unvisited. The first time BFS reaches a node, it got there by a path with the fewest edges. The new part is a `parent` vector that records who discovered each node, so you can rebuild the path itself.\n\n```cpp\nstd::vector<int> dist(n, -1);\nstd::vector<int> parent(n, -1);\nstd::queue<int> q;\ndist[src] = 0;\nq.push(src);\nwhile (!q.empty()) {\n    int u = q.front();\n    q.pop();\n    for (int v : adj[u]) {\n        if (dist[v] == -1) {\n            dist[v] = dist[u] + 1;\n            parent[v] = u;\n            q.push(v);\n        }\n    }\n}\n```\n\nSet `dist` and `parent` when you push, not when you pop. Each node then enters the queue once and keeps the parent that found it first. A node still at -1 after the loop is unreachable, so check `dist[target]` before you build a path.\n\nTo rebuild the path, walk `parent` back from the target until you hit -1, then `std::reverse` the result. When several shortest paths tie, sorted adjacency lists plus parent-on-first-discovery give the *lexicographically smallest* one: the path with the smaller node at the first place they differ. Unsorted lists still give a shortest path, just not a predictable one.",
+      "example": {
+        "title": "Fewest hops from 0 to n-1",
+        "prompt": "Read an undirected graph, sort each adjacency list, and print the fewest hops from node 0 to node n-1 and the lexicographically smallest path of that length.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <queue>\n#include <vector>\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<std::vector<int>> adj(n);\n    for (int i = 0; i < m; ++i) {\n        int u = 0;\n        int v = 0;\n        std::cin >> u >> v;\n        adj[u].push_back(v);\n        adj[v].push_back(u);\n    }\n    for (auto& neighbors : adj) {\n        std::sort(neighbors.begin(), neighbors.end());\n    }\n\n    const int src = 0;\n    const int target = n - 1;\n    std::vector<int> dist(n, -1);\n    std::vector<int> parent(n, -1);\n    std::queue<int> q;\n    dist[src] = 0;\n    q.push(src);\n    while (!q.empty()) {\n        int u = q.front();\n        q.pop();\n        for (int v : adj[u]) {\n            if (dist[v] == -1) {\n                dist[v] = dist[u] + 1;\n                parent[v] = u;\n                q.push(v);\n            }\n        }\n    }\n\n    std::vector<int> path;\n    for (int v = target; v != -1; v = parent[v]) {\n        path.push_back(v);\n    }\n    std::reverse(path.begin(), path.end());\n    std::cout << \"distance: \" << dist[target] << '\\n';\n    std::cout << \"path:\";\n    for (int v : path) {\n        std::cout << ' ' << v;\n    }\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "stdin": "6 7\n0 2\n0 1\n2 4\n3 1\n2 3\n4 5\n3 5\n",
+        "output": "distance: 3\npath: 0 1 3 5",
+        "explanation": "Three paths reach node 5 in three hops: `0 1 3 5`, `0 2 3 5`, and `0 2 4 5`. The input lists `0 2` before `0 1`, but sorting makes `adj[0]` hold 1 then 2, so node 1 is dequeued first and becomes the parent of 3. Without the sort, node 2 would be dequeued first, claim 3 and 4, and the program would print `0 2 4 5`. The walk from 5 collects 5, 3, 1, 0, and `std::reverse` turns it around."
+      },
+      "practice": {
+        "title": "Shortest route between two nodes",
+        "prompt": "Read an undirected graph, a source, and a target, and print the shortest path between them.\n\n1. The starter reads the graph, sorts each adjacency list, and reads `src` and `target`.\n2. Run BFS from `src` with a `dist` vector of -1 and a `parent` vector, setting both when a node is first discovered.\n3. If `target` was never reached, print `-1` and nothing else.\n4. Otherwise print `distance: D`, then `path:` followed by the nodes from `src` to `target`, each after a single space. When paths tie, print the lexicographically smallest one.\n\nInput:\n\n```text\n6 7\n5 3\n5 1\n3 0\n1 0\n0 2\n1 4\n4 2\n5 2\n```\n\nExpected output:\n\n```text\ndistance: 3\npath: 5 1 0 2\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <queue>\n#include <vector>\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<std::vector<int>> adj(n);\n    for (int i = 0; i < m; ++i) {\n        int u = 0;\n        int v = 0;\n        std::cin >> u >> v;\n        adj[u].push_back(v);\n        adj[v].push_back(u);\n    }\n    for (auto& neighbors : adj) {\n        std::sort(neighbors.begin(), neighbors.end());\n    }\n    int src = 0;\n    int target = 0;\n    std::cin >> src >> target;\n\n    // TODO: run BFS from src with dist and parent vectors\n    // TODO: print -1 if target is unreachable, otherwise the distance and path lines\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <queue>\n#include <vector>\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<std::vector<int>> adj(n);\n    for (int i = 0; i < m; ++i) {\n        int u = 0;\n        int v = 0;\n        std::cin >> u >> v;\n        adj[u].push_back(v);\n        adj[v].push_back(u);\n    }\n    for (auto& neighbors : adj) {\n        std::sort(neighbors.begin(), neighbors.end());\n    }\n    int src = 0;\n    int target = 0;\n    std::cin >> src >> target;\n\n    std::vector<int> dist(n, -1);\n    std::vector<int> parent(n, -1);\n    std::queue<int> q;\n    dist[src] = 0;\n    q.push(src);\n    while (!q.empty()) {\n        int u = q.front();\n        q.pop();\n        for (int v : adj[u]) {\n            if (dist[v] == -1) {\n                dist[v] = dist[u] + 1;\n                parent[v] = u;\n                q.push(v);\n            }\n        }\n    }\n\n    if (dist[target] == -1) {\n        std::cout << -1 << '\\n';\n    } else {\n        std::vector<int> path;\n        for (int v = target; v != -1; v = parent[v]) {\n            path.push_back(v);\n        }\n        std::reverse(path.begin(), path.end());\n        std::cout << \"distance: \" << dist[target] << '\\n';\n        std::cout << \"path:\";\n        for (int v : path) {\n            std::cout << ' ' << v;\n        }\n        std::cout << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "6 7\n5 3\n5 1\n3 0\n1 0\n0 2\n1 4\n4 2\n5 2\n",
+            "output": "distance: 3\npath: 5 1 0 2"
+          },
+          {
+            "stdin": "5 3\n0 1\n1 2\n3 4\n0 4\n",
+            "output": "-1"
+          },
+          {
+            "stdin": "3 2\n0 1\n1 2\n2 2\n",
+            "output": "distance: 0\npath: 2"
+          }
+        ],
+        "hints": [
+          "Copy the BFS loop from the example and change only where it starts.",
+          "Walk back with `for (int v = target; v != -1; v = parent[v])`, then reverse the vector.",
+          "When `src` equals `target`, BFS sets `dist[src] = 0` and the path is just that one node."
+        ]
+      }
+    },
+    {
+      "title": "Topological sort",
+      "body": "In a directed graph the edge `a b` goes one way, so only `adj[a].push_back(b)`. A *topological order* lists every node so that each edge points forward, like taking courses after their prerequisites.\n\nKahn's algorithm tracks each node's *in-degree*, the number of edges coming into it. A node with in-degree 0 is ready. Take a ready node, append it to the order, and remove its outgoing edges by lowering each neighbor's in-degree. A neighbor that drops to 0 becomes ready.\n\n```cpp\nstd::priority_queue<int, std::vector<int>, std::greater<int>> ready;\nfor (int u = 0; u < n; ++u) {\n    if (indeg[u] == 0) {\n        ready.push(u);\n    }\n}\nwhile (!ready.empty()) {\n    int u = ready.top();\n    ready.pop();\n    order.push_back(u);\n    for (int v : adj[u]) {\n        --indeg[v];\n        if (indeg[v] == 0) {\n            ready.push(v);\n        }\n    }\n}\n```\n\nMost graphs have many valid orders. A min-heap always takes the smallest ready node, so you get the smallest valid order (the lexicographically smallest one) no matter how the edges were listed. A plain `std::queue` also gives a valid order, but which one depends on the input.\n\nIf the order ends with fewer than n nodes, the rest never reached in-degree 0. Each of them sits on a cycle or depends on a node that does, so no valid order exists.",
+      "example": {
+        "title": "Course order",
+        "prompt": "Read 6 courses and their prerequisite edges (`a b` means a before b), and print the order that always takes the smallest ready course, or `cycle` if some courses never become ready.",
+        "code": "#include <cstddef>\n#include <functional>\n#include <iostream>\n#include <queue>\n#include <vector>\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<std::vector<int>> adj(n);\n    std::vector<int> indeg(n, 0);\n    for (int i = 0; i < m; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        adj[a].push_back(b);\n        ++indeg[b];\n    }\n\n    std::priority_queue<int, std::vector<int>, std::greater<int>> ready;\n    for (int u = 0; u < n; ++u) {\n        if (indeg[u] == 0) {\n            ready.push(u);\n        }\n    }\n    std::vector<int> order;\n    while (!ready.empty()) {\n        int u = ready.top();\n        ready.pop();\n        order.push_back(u);\n        for (int v : adj[u]) {\n            --indeg[v];\n            if (indeg[v] == 0) {\n                ready.push(v);\n            }\n        }\n    }\n\n    if (static_cast<int>(order.size()) < n) {\n        std::cout << \"cycle\" << '\\n';\n    } else {\n        for (std::size_t i = 0; i < order.size(); ++i) {\n            if (i > 0) {\n                std::cout << ' ';\n            }\n            std::cout << order[i];\n        }\n        std::cout << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "6 6\n5 2\n5 0\n4 0\n4 1\n2 3\n3 1\n",
+        "output": "4 5 0 2 3 1",
+        "explanation": "Courses 4 and 5 start with in-degree 0, so the heap holds both and 4 comes out first. Taking 4 lowers 0 and 1 to in-degree 1. Taking 5 frees 2 and 0, and the heap picks 0 before 2. Then 2 frees 3, and 3 frees 1. All 6 courses made it into the order, so there is no cycle. `static_cast<int>(order.size())` keeps the comparison with `n` between two signed values."
+      },
+      "practice": {
+        "title": "Task scheduler",
+        "prompt": "Read n tasks and their dependencies, and print an order that runs every task after the tasks it depends on.\n\n1. Tasks are numbered 0 to n-1 and the starter reads `n` and `m`. Read the `m` edges `a b`, meaning task a must run before task b. Add each edge one way and count in-degrees.\n2. Push every task with in-degree 0 into a min-heap.\n3. Repeatedly take the smallest ready task, append it to the order, and lower its neighbors' in-degrees, pushing any that reach 0.\n4. If every task made it into the order, print the order on one line separated by single spaces. Otherwise print `impossible`.\n\nInput:\n\n```text\n5 5\n3 1\n0 1\n1 4\n2 4\n0 2\n```\n\nExpected output:\n\n```text\n0 2 3 1 4\n```",
+        "starter": "#include <cstddef>\n#include <functional>\n#include <iostream>\n#include <queue>\n#include <vector>\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<std::vector<int>> adj(n);\n    std::vector<int> indeg(n, 0);\n    // TODO: read the m edges a b, add each one way, and count in-degrees\n    // TODO: run Kahn's algorithm with a min-heap, then print the order or impossible\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <functional>\n#include <iostream>\n#include <queue>\n#include <vector>\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<std::vector<int>> adj(n);\n    std::vector<int> indeg(n, 0);\n    for (int i = 0; i < m; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        adj[a].push_back(b);\n        ++indeg[b];\n    }\n\n    std::priority_queue<int, std::vector<int>, std::greater<int>> ready;\n    for (int u = 0; u < n; ++u) {\n        if (indeg[u] == 0) {\n            ready.push(u);\n        }\n    }\n    std::vector<int> order;\n    while (!ready.empty()) {\n        int u = ready.top();\n        ready.pop();\n        order.push_back(u);\n        for (int v : adj[u]) {\n            --indeg[v];\n            if (indeg[v] == 0) {\n                ready.push(v);\n            }\n        }\n    }\n\n    if (static_cast<int>(order.size()) < n) {\n        std::cout << \"impossible\" << '\\n';\n    } else {\n        for (std::size_t i = 0; i < order.size(); ++i) {\n            if (i > 0) {\n                std::cout << ' ';\n            }\n            std::cout << order[i];\n        }\n        std::cout << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "5 5\n3 1\n0 1\n1 4\n2 4\n0 2\n",
+            "output": "0 2 3 1 4"
+          },
+          {
+            "stdin": "4 4\n0 1\n1 2\n2 1\n2 3\n",
+            "output": "impossible"
+          },
+          {
+            "stdin": "3 0\n",
+            "output": "0 1 2"
+          }
+        ],
+        "hints": [
+          "The min-heap type is `std::priority_queue<int, std::vector<int>, std::greater<int>>`.",
+          "Copy `ready.top()` into an `int` before calling `pop()`.",
+          "A cycle shows up as `order.size()` smaller than `n` once the heap is empty."
+        ]
+      }
+    },
+    {
+      "title": "Dijkstra for weighted graphs",
+      "body": "With weights, the fewest edges is not always the cheapest path. Dijkstra's algorithm finds the cheapest distance from a source to every node when no weight is negative. Store neighbors as `(neighbor, weight)` pairs and keep a min-heap of `(distance, node)` pairs so the closest known node is always on top.\n\n```cpp\nusing Item = std::pair<long long, int>;\nstd::priority_queue<Item, std::vector<Item>, std::greater<Item>> pq;\ndist[src] = 0;\npq.push({0, src});\nwhile (!pq.empty()) {\n    auto [d, u] = pq.top();  // copy, then pop\n    pq.pop();\n    if (d > dist[u]) {\n        continue;  // stale entry\n    }\n    for (const auto& [v, w] : adj[u]) {\n        if (d + w < dist[v]) {\n            dist[v] = d + w;\n            pq.push({dist[v], v});\n        }\n    }\n}\n```\n\n*Relaxing* an edge asks whether going through `u` beats the best distance known for `v`. A heap cannot lower an entry it already holds, so an improved node is pushed again and the old entry stays behind. When a popped `d` is larger than `dist[u]`, that entry is stale: skip it.\n\nDistances are `long long` because a sum of many weights can pass 2 billion. They start at `INF = LLONG_MAX`, and nothing is ever added to `INF`, because only popped nodes, which have real distances, relax edges. Nodes still at `INF` at the end are unreachable. Negative weights break Dijkstra, because a popped distance is assumed final.",
+      "example": {
+        "title": "Cheapest distances from node 0",
+        "prompt": "Read a weighted directed graph and print the shortest distance from node 0 to every node, or `INF` when a node cannot be reached.",
+        "code": "#include <climits>\n#include <functional>\n#include <iostream>\n#include <queue>\n#include <utility>\n#include <vector>\n\nusing Item = std::pair<long long, int>;\n\nconst long long INF = LLONG_MAX;\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<std::vector<std::pair<int, int>>> adj(n);\n    for (int i = 0; i < m; ++i) {\n        int u = 0;\n        int v = 0;\n        int w = 0;\n        std::cin >> u >> v >> w;\n        adj[u].push_back({v, w});\n    }\n\n    const int src = 0;\n    std::vector<long long> dist(n, INF);\n    std::priority_queue<Item, std::vector<Item>, std::greater<Item>> pq;\n    dist[src] = 0;\n    pq.push({0, src});\n    while (!pq.empty()) {\n        auto [d, u] = pq.top();\n        pq.pop();\n        if (d > dist[u]) {\n            continue;\n        }\n        for (const auto& [v, w] : adj[u]) {\n            if (d + w < dist[v]) {\n                dist[v] = d + w;\n                pq.push({dist[v], v});\n            }\n        }\n    }\n\n    for (int u = 0; u < n; ++u) {\n        std::cout << u << \": \";\n        if (dist[u] == INF) {\n            std::cout << \"INF\";\n        } else {\n            std::cout << dist[u];\n        }\n        std::cout << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "5 6\n0 1 4\n0 2 1\n2 1 2\n1 3 1\n2 3 5\n4 3 7\n",
+        "output": "0: 0\n1: 3\n2: 1\n3: 4\n4: INF",
+        "explanation": "Node 0 pushes `(4, 1)` and `(1, 2)`. Node 2 pops first and improves node 1 from 4 to 3 through the edge of weight 2, so `(3, 1)` joins the heap and `(4, 1)` becomes stale. Later `(4, 1)` and `(6, 3)` pop with `d > dist[u]` and are skipped. The edge `4 3 7` only goes out of node 4, so nothing reaches 4 and it prints `INF`. `auto [d, u] = pq.top();` copies the pair before `pop()` destroys it."
+      },
+      "practice": {
+        "title": "Shortest distances from a source",
+        "prompt": "Read a weighted undirected graph and a source, and print the shortest distance from the source to every node.\n\n1. The starter reads `n` and `m`. Read the `m` edges `u v w` and add each one both ways as `(neighbor, weight)` pairs.\n2. The starter then reads `src` and fills `dist` with `INF`.\n3. Run Dijkstra from `src` with a min-heap of `Item` pairs, skipping stale entries.\n4. For each node from 0 to n-1, print `node: distance`, or `node: INF` if it cannot be reached.\n\nInput:\n\n```text\n6 6\n0 1 7\n0 2 9\n1 2 10\n1 3 15\n2 3 11\n2 4 2\n1\n```\n\nExpected output:\n\n```text\n0: 7\n1: 0\n2: 10\n3: 15\n4: 12\n5: INF\n```",
+        "starter": "#include <climits>\n#include <functional>\n#include <iostream>\n#include <queue>\n#include <utility>\n#include <vector>\n\nusing Item = std::pair<long long, int>;\n\nconst long long INF = LLONG_MAX;\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<std::vector<std::pair<int, int>>> adj(n);\n    // TODO: read the m edges u v w and add each one both ways\n    int src = 0;\n    std::cin >> src;\n\n    std::vector<long long> dist(n, INF);\n    // TODO: run Dijkstra from src, then print each node's distance or INF\n    return 0;\n}\n",
+        "solution": "#include <climits>\n#include <functional>\n#include <iostream>\n#include <queue>\n#include <utility>\n#include <vector>\n\nusing Item = std::pair<long long, int>;\n\nconst long long INF = LLONG_MAX;\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<std::vector<std::pair<int, int>>> adj(n);\n    for (int i = 0; i < m; ++i) {\n        int u = 0;\n        int v = 0;\n        int w = 0;\n        std::cin >> u >> v >> w;\n        adj[u].push_back({v, w});\n        adj[v].push_back({u, w});\n    }\n    int src = 0;\n    std::cin >> src;\n\n    std::vector<long long> dist(n, INF);\n    std::priority_queue<Item, std::vector<Item>, std::greater<Item>> pq;\n    dist[src] = 0;\n    pq.push({0, src});\n    while (!pq.empty()) {\n        auto [d, u] = pq.top();\n        pq.pop();\n        if (d > dist[u]) {\n            continue;\n        }\n        for (const auto& [v, w] : adj[u]) {\n            if (d + w < dist[v]) {\n                dist[v] = d + w;\n                pq.push({dist[v], v});\n            }\n        }\n    }\n\n    for (int u = 0; u < n; ++u) {\n        std::cout << u << \": \";\n        if (dist[u] == INF) {\n            std::cout << \"INF\";\n        } else {\n            std::cout << dist[u];\n        }\n        std::cout << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "6 6\n0 1 7\n0 2 9\n1 2 10\n1 3 15\n2 3 11\n2 4 2\n1\n",
+            "output": "0: 7\n1: 0\n2: 10\n3: 15\n4: 12\n5: INF"
+          },
+          {
+            "stdin": "4 3\n0 1 1000000000\n1 2 1000000000\n2 3 1000000000\n0\n",
+            "output": "0: 0\n1: 1000000000\n2: 2000000000\n3: 3000000000"
+          },
+          {
+            "stdin": "3 3\n0 1 5\n1 2 5\n0 2 20\n2\n",
+            "output": "0: 10\n1: 5\n2: 0"
+          }
+        ],
+        "hints": [
+          "Undirected means two `push_back` calls: `adj[u].push_back({v, w});` and `adj[v].push_back({u, w});`.",
+          "Pop with `auto [d, u] = pq.top(); pq.pop();` and `continue` when `d > dist[u]`.",
+          "Keep `dist` as `long long`: three edges of weight one billion already pass the `int` limit."
+        ]
+      }
+    }
+  ],
+  "recap": "- Number nodes 0 to n-1 and store `std::vector<std::vector<int>> adj(n)`. Add undirected edges both ways and directed edges one way.\n- The degree of `u` is `adj[u].size()`. Sort each list when the visiting order reaches the output.\n- Recursive DFS with a `std::vector<bool> visited` finds one connected component per start node. Deep graphs can overflow the stack.\n- BFS with `dist` set to -1 gives the fewest hops. Set `dist` and `parent` on first discovery, then walk parents back and reverse to get the path. A node still at -1 is unreachable.\n- Sorted neighbors plus parent-on-first-discovery give the lexicographically smallest shortest path.\n- Kahn's algorithm takes ready nodes with in-degree 0 from a min-heap. Fewer than n nodes in the order means a cycle.\n- Dijkstra uses `(neighbor, weight)` lists, a min-heap of `(distance, node)` pairs with `std::greater`, `long long` distances, and an `INF` sentinel.\n- Copy the top before popping, relax each edge, and skip stale entries where `d > dist[u]`. Weights must not be negative."
+}

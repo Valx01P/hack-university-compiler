@@ -1,0 +1,155 @@
+{
+  "id": "user-input",
+  "title": "Reading Input with cin and getline",
+  "section": "Input",
+  "summary": "Read numbers, words, whole lines, and input of unknown length from standard input with std::cin and std::getline.",
+  "intro": "Until now every program used data written in its code. Real programs read it: from a user, a file, or a judge feeding test cases. In C++ that is `std::cin` for values and `std::getline` for whole lines. From this lesson on, practices run once per test with different input, so your program has to work for all of them.",
+  "steps": [
+    {
+      "title": "Reading values with std::cin",
+      "body": "`std::cin` from `<iostream>` reads from standard input, the text fed to your program. `std::cin >> x` skips any spaces, tabs, and newlines, then reads one token and converts it to the type of `x`.\n\n```cpp\nstd::string name;\nint age = 0;\ndouble height = 0.0;\nstd::cin >> name >> age >> height;   // input: Ada 36 1.65\n```\n\nChaining `>>` reads several values left to right. Whitespace between them does not matter, so `Ada 36 1.65` on one line and the same three values on three lines read the same way. A `std::string` read with `>>` stops at the first space, so it holds one word.\n\n- Initialize every variable before reading into it. A read that fails at the end of input leaves the variable unchanged, and an uninitialized one would hold garbage.\n- Never print a prompt such as `Enter your age:`. The checker compares all of stdout, so a prompt is wrong output.\n\n`std::string` starts empty, so it needs no initializer.",
+      "example": {
+        "title": "Next birthday",
+        "prompt": "Read a name and an age, then print the age the person turns next year.",
+        "code": "#include <iostream>\n#include <string>\n\nint main() {\n    std::string name;\n    int age = 0;\n    std::cin >> name >> age;\n    std::cout << name << \" will be \" << age + 1 << \" next year.\\n\";\n    return 0;\n}\n",
+        "stdin": "Ada 36\n",
+        "output": "Ada will be 37 next year.",
+        "explanation": "The first `>>` skips nothing and reads `Ada` into `name`, stopping at the space. The second `>>` skips that space, reads `36`, and converts it to an `int`, so `age + 1` is real arithmetic. The program prints nothing before reading because a prompt would become part of the checked output."
+      },
+      "practice": {
+        "title": "Order line",
+        "prompt": "Read a product name, a quantity, and a unit price, then print the order line with its total.\n\n1. Read a one-word `std::string` name, an `int` quantity, and a `double` price with one chained `std::cin` statement.\n2. Compute the total as quantity times price.\n3. Print `<quantity> x <name> = <total>` with the total to 2 decimal places.\n\nInput:\n\n```text\npen 3 1.50\n```\n\nExpected output:\n\n```text\n3 x pen = 4.50\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n#include <string>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    // TODO: read the name, quantity, and price, then print the order line\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n#include <string>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    std::string name;\n    int quantity = 0;\n    double price = 0.0;\n    std::cin >> name >> quantity >> price;\n    const double total = quantity * price;\n    std::cout << quantity << \" x \" << name << \" = \" << total << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "pen 3 1.50\n",
+            "output": "3 x pen = 4.50"
+          },
+          {
+            "stdin": "notebook 2 3.25\n",
+            "output": "2 x notebook = 6.50"
+          },
+          {
+            "stdin": "eraser\n5\n0.40\n",
+            "output": "5 x eraser = 2.00"
+          }
+        ],
+        "hints": [
+          "Declare a `std::string`, an `int`, and a `double`, each with an initial value, then read all three in one statement by chaining `>>`.",
+          "`quantity * price` mixes `int` and `double`, so the result is a `double`. The `std::fixed` and `std::setprecision(2)` already in the starter format it."
+        ]
+      }
+    },
+    {
+      "title": "Reading n values into a vector",
+      "body": "Most problems give a count first, then that many values. Read `n`, then loop `n` times.\n\n```cpp\nint n = 0;\nstd::cin >> n;\nstd::vector<int> v;\nfor (int i = 0; i < n; ++i) {\n    int x = 0;\n    std::cin >> x;\n    v.push_back(x);\n}\n```\n\nWhen you know `n` up front you can also size the vector first and read straight into each slot:\n\n```cpp\nstd::vector<int> v(n);                 // n zeros on the heap\nfor (std::size_t i = 0; i < v.size(); ++i) {\n    std::cin >> v[i];\n}\n```\n\nDo not mix the two: `std::vector<int> v(n)` followed by `push_back` gives you `n` zeros plus `n` values. The sized form allocates the heap buffer once, while `push_back` may reallocate as the vector grows.\n\nKeep reading and processing separate. Read everything into the vector first, then compute on it with loops or `<algorithm>` functions. That makes the logic easy to test and reuse.",
+      "example": {
+        "title": "Sum, min, and max",
+        "prompt": "Read a count n and then n integers, and print their sum, minimum, and maximum.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <numeric>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> values;\n    for (int i = 0; i < n; ++i) {\n        int x = 0;\n        std::cin >> x;\n        values.push_back(x);\n    }\n\n    const int sum = std::accumulate(values.begin(), values.end(), 0);\n    const int smallest = *std::min_element(values.begin(), values.end());\n    const int largest = *std::max_element(values.begin(), values.end());\n    std::cout << \"sum \" << sum << '\\n';\n    std::cout << \"min \" << smallest << '\\n';\n    std::cout << \"max \" << largest << '\\n';\n    return 0;\n}\n",
+        "stdin": "5\n4 8 15 16 23\n",
+        "output": "sum 66\nmin 4\nmax 23",
+        "explanation": "The first read takes `5`. The loop then reads five more tokens, and it does not care that they sit on the next line because `>>` skips the newline. Only after all values are in the vector does the program compute: `std::accumulate` adds them from a start of `0`, and `*std::min_element` and `*std::max_element` read the smallest and largest. Those are safe here because n is at least 1, so the vector is not empty."
+      },
+      "practice": {
+        "title": "Temperature report",
+        "prompt": "Read a count n and then n temperatures, and print their average and how many were below zero.\n\n1. Read `n`, then read `n` temperatures as `double` values into a `std::vector<double>`.\n2. Compute the average of all temperatures.\n3. Count the temperatures strictly below `0` (a reading of `0.0` does not count).\n4. Print `average <value>` with 1 decimal place, then `below zero <count>` on the next line.\n\nInput:\n\n```text\n5\n-3.5 2.0 7.5 -1.0 4.0\n```\n\nExpected output:\n\n```text\naverage 1.8\nbelow zero 2\n```\n\nYou can assume n is at least 1.",
+        "starter": "#include <cstddef>\n#include <iomanip>\n#include <iostream>\n#include <vector>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(1);\n    int n = 0;\n    std::cin >> n;\n    // TODO: read n temperatures, then print the average and the count below zero\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <iomanip>\n#include <iostream>\n#include <vector>\n\nint main() {\n    std::cout << std::fixed << std::setprecision(1);\n    int n = 0;\n    std::cin >> n;\n    std::vector<double> temps(n);\n    for (std::size_t i = 0; i < temps.size(); ++i) {\n        std::cin >> temps[i];\n    }\n\n    double sum = 0.0;\n    int belowZero = 0;\n    for (double t : temps) {\n        sum += t;\n        if (t < 0.0) {\n            ++belowZero;\n        }\n    }\n    std::cout << \"average \" << sum / n << '\\n';\n    std::cout << \"below zero \" << belowZero << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "5\n-3.5 2.0 7.5 -1.0 4.0\n",
+            "output": "average 1.8\nbelow zero 2"
+          },
+          {
+            "stdin": "1\n-4.2\n",
+            "output": "average -4.2\nbelow zero 1"
+          },
+          {
+            "stdin": "4\n0.0 3.5 10.0 1.2\n",
+            "output": "average 3.7\nbelow zero 0"
+          }
+        ],
+        "hints": [
+          "`std::vector<double> temps(n);` makes n slots, and `std::cin >> temps[i]` fills each one.",
+          "After reading, loop once with a `double` sum and an `int` counter. `sum / n` is a `double` because `sum` is."
+        ]
+      }
+    },
+    {
+      "title": "Reading until the input ends",
+      "body": "Sometimes there is no count: you read until the input runs out. Put the read itself in the loop condition.\n\n```cpp\nint x = 0;\nwhile (std::cin >> x) {\n    // use x\n}\n```\n\n`std::cin >> x` returns `std::cin`, and a stream converts to `true` while it is healthy. When a read fails, because the input ended or the next token is not a number, the stream converts to `false` and the loop stops. The failed read does not give you a new value, so the body never sees it.\n\nThis works for any type: `while (std::cin >> word)` reads words until the end, across as many lines as there are.\n\n> Gotcha: do not write `while (!std::cin.eof())` and read inside. `eof()` only turns true after a read has tried to go past the end, so with a trailing newline that loop runs one extra time with a stale value.\n\nSpeed tip: for very large inputs, put `std::ios::sync_with_stdio(false);` as the first line of `main`. It stops C++ streams from syncing with C's `scanf` and `printf`, which makes `std::cin` much faster. After that, do not mix the two styles.",
+      "example": {
+        "title": "Count and sum",
+        "prompt": "Read integers until the input ends, then print how many there were and their sum.",
+        "code": "#include <iostream>\n\nint main() {\n    int count = 0;\n    int sum = 0;\n    int x = 0;\n    while (std::cin >> x) {\n        ++count;\n        sum += x;\n    }\n    std::cout << \"count \" << count << '\\n';\n    std::cout << \"sum \" << sum << '\\n';\n    return 0;\n}\n",
+        "stdin": "3 9 4 1\n",
+        "output": "count 4\nsum 17",
+        "explanation": "Each pass of the loop first tries to read. The four reads of `3`, `9`, `4`, and `1` succeed, so the body runs four times. The fifth read finds only the end of input, the stream turns `false`, and the loop exits without touching `count` or `sum`. No vector is needed because each value is used once and then forgotten."
+      },
+      "practice": {
+        "title": "Longest word",
+        "prompt": "Read words until the input ends, then print how many there were and the longest one.\n\n1. Read one word at a time with `while (std::cin >> word)`.\n2. Count every word.\n3. Keep the longest word seen so far. On a tie keep the earlier word, so only replace it when the new word is strictly longer.\n4. Print `count <n>`, then `longest <word>` on the next line.\n\nInput:\n\n```text\nthe quick brown fox jumps\n```\n\nExpected output:\n\n```text\ncount 5\nlongest quick\n```\n\nThe words may span several lines, and there is at least one word.",
+        "starter": "#include <iostream>\n#include <string>\n\nint main() {\n    int count = 0;\n    std::string longest;\n    std::string word;\n    // TODO: read words until the input ends, counting them and keeping the longest\n    std::cout << \"count \" << count << '\\n';\n    std::cout << \"longest \" << longest << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n\nint main() {\n    int count = 0;\n    std::string longest;\n    std::string word;\n    while (std::cin >> word) {\n        ++count;\n        if (word.size() > longest.size()) {\n            longest = word;\n        }\n    }\n    std::cout << \"count \" << count << '\\n';\n    std::cout << \"longest \" << longest << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "the quick brown fox jumps\n",
+            "output": "count 5\nlongest quick"
+          },
+          {
+            "stdin": "hello\n",
+            "output": "count 1\nlongest hello"
+          },
+          {
+            "stdin": "a bb\nccc dd\neee\n",
+            "output": "count 5\nlongest ccc"
+          }
+        ],
+        "hints": [
+          "The loop shape is the same as the example, with a `std::string` instead of an `int`.",
+          "Compare with `>`, not `>=`. Using `>=` would let a later word of the same length win the tie."
+        ]
+      }
+    },
+    {
+      "title": "Whole lines with std::getline",
+      "body": "`>>` stops at a space, so it cannot read `Grace Hopper` as one value. `std::getline(std::cin, line)` from `<string>` reads everything up to the end of the line, spaces included, and throws away the newline.\n\nThe trap is mixing the two. `std::cin >> n` stops right before the newline after the number and leaves it in the input. A `getline` after it reads that leftover newline and returns an empty line.\n\n```cpp\nint n = 0;\nstd::cin >> n >> std::ws;   // read n, then skip the leftover newline\nstd::string line;\nstd::getline(std::cin, line);\n```\n\n`std::ws` skips all whitespace up to the next real character. Use it whenever a `getline` follows a `>>`. Note that it also skips leading spaces and blank lines, so use it only where those do not matter.\n\nTo read every remaining line, put `getline` in the loop condition. Like `>>`, it returns the stream, which turns `false` once no lines are left. A last line without a final newline is still read:\n\n```cpp\nstd::string line;\nwhile (std::getline(std::cin, line)) {\n    std::cout << line.size() << '\\n';\n}\n```",
+      "example": {
+        "title": "Long names",
+        "prompt": "Read a minimum length, then full names one per line until the input ends, and print each name that has at least that many characters, with its length.",
+        "code": "#include <cstddef>\n#include <iostream>\n#include <string>\n\nint main() {\n    std::size_t minLength = 0;\n    std::cin >> minLength >> std::ws;\n    std::string name;\n    while (std::getline(std::cin, name)) {\n        if (name.size() >= minLength) {\n            std::cout << name << \" (\" << name.size() << \")\\n\";\n        }\n    }\n    return 0;\n}\n",
+        "stdin": "12\nGrace Hopper\nAlan Turing\nAda Lovelace\nKatherine Johnson\n",
+        "output": "Grace Hopper (12)\nAda Lovelace (12)\nKatherine Johnson (17)",
+        "explanation": "`std::cin >> minLength` reads `12` and stops before the newline. `std::ws` eats that newline, so the first `getline` starts at `Grace`. Each `getline` then reads one whole line, space included, which is why the lengths count the space. `Alan Turing` has 11 characters, so it is skipped. When no lines are left, `getline` turns the stream `false` and the loop ends. Without `>> std::ws` the first line read would be the empty rest of the `12` line. The same `>> std::ws` works before a loop that reads a known count of lines."
+      },
+      "practice": {
+        "title": "Comment thread",
+        "prompt": "Read a title line, a starting number, and then comment lines until the input ends, then print the title in uppercase and the comments numbered.\n\n1. Read the whole first line as the title with `std::getline`.\n2. Read the starting number with `>>`, then skip the leftover newline with `std::ws`.\n3. Print the title in uppercase.\n4. Read every remaining line with `while (std::getline(std::cin, comment))` and print it as `<number>. <comment>`, numbering from the starting number and adding 1 for each comment.\n\nInput:\n\n```text\nLearn C++ fast\n1\nGreat lesson!\nToo short, more please\n```\n\nExpected output:\n\n```text\nLEARN C++ FAST\n1. Great lesson!\n2. Too short, more please\n```\n\nThere may be no comment lines at all, and then only the title is printed.",
+        "starter": "#include <cctype>\n#include <iostream>\n#include <string>\n\nint main() {\n    std::string title;\n    int number = 0;\n    // TODO: read the title, the starting number, and every comment line, then print them\n    return 0;\n}\n",
+        "solution": "#include <cctype>\n#include <iostream>\n#include <string>\n\nint main() {\n    std::string title;\n    int number = 0;\n    std::getline(std::cin, title);\n    std::cin >> number >> std::ws;\n\n    for (char& c : title) {\n        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));\n    }\n    std::cout << title << '\\n';\n\n    std::string comment;\n    while (std::getline(std::cin, comment)) {\n        std::cout << number << \". \" << comment << '\\n';\n        ++number;\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "Learn C++ fast\n1\nGreat lesson!\nToo short, more please\n",
+            "output": "LEARN C++ FAST\n1. Great lesson!\n2. Too short, more please"
+          },
+          {
+            "stdin": "hello world\n5\n",
+            "output": "HELLO WORLD"
+          },
+          {
+            "stdin": "Day 3 recap\n11\nSee you tomorrow\nok\nThe getline part was tricky",
+            "output": "DAY 3 RECAP\n11. See you tomorrow\n12. ok\n13. The getline part was tricky"
+          }
+        ],
+        "hints": [
+          "The title comes first, so a plain `std::getline(std::cin, title)` reads it. Only the `>> number` read leaves a newline behind, so put `std::ws` right after it.",
+          "Uppercase in place with `for (char& c : title)` and `std::toupper(static_cast<unsigned char>(c))`, cast back to `char`.",
+          "Inside the `while` loop, print the current number with the comment, then increase it with `++number`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `std::cin >> x` skips whitespace and reads one token as the type of `x`. Chain `>>` to read several values.\n- A `std::string` read with `>>` holds one word.\n- Initialize variables before reading and never print prompts.\n- Read a count `n`, then loop `n` times with `push_back`, or size the vector with `std::vector<int> v(n)` and read into `v[i]`.\n- Read everything first, then process it.\n- `while (std::cin >> x)` reads until the input ends, because the stream converts to `false` when a read fails.\n- `std::getline(std::cin, line)` reads a whole line with its spaces.\n- `>>` leaves the newline behind, so write `std::cin >> n >> std::ws` before a `getline`.\n- `while (std::getline(std::cin, line))` reads every remaining line.\n- `std::ios::sync_with_stdio(false);` speeds up large inputs."
+}

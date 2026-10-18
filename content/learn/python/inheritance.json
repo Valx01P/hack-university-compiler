@@ -1,0 +1,121 @@
+{
+  "id": "inheritance",
+  "title": "Inheritance and Polymorphism",
+  "section": "More Object-Oriented Programming",
+  "summary": "Reuse and extend classes with inheritance, super(), overriding, and abstract base classes.",
+  "intro": "Classes often share most of their code. Inheritance lets a new class start from an existing one and change only what differs. Then one loop can treat many related types the same way, and abstract base classes make sure every subclass fills in what it must.",
+  "steps": [
+    {
+      "title": "Subclasses and super()",
+      "body": "Put the parent class in parentheses to make a subclass. The child inherits every method of the parent, so you write only what is new. This is an *is-a* relationship: a dog is an animal.\n\n```python\nclass Dog(Animal):\n    def __init__(self, name, breed):\n        super().__init__(name)  # let Animal set self.name\n        self.breed = breed      # the new attribute\n```\n\n`super()` lets you call the parent's version of a method on this object. Calling `super().__init__(name)` runs the parent's setup, so the child also gets the attributes the parent sets, then it adds its own. A subclass can also add brand new methods that the parent does not have.\n\nIf the child defines no `__init__` at all, Python uses the parent's. The gotcha: once the child defines its own `__init__`, the parent's no longer runs by itself. Forget the `super()` call and the parent's attributes never exist:\n\n```python\nclass Dog(Animal):\n    def __init__(self, name, breed):\n        self.breed = breed  # forgot super().__init__(name)\n\n# Dog(\"Rex\", \"Pug\").describe()  # AttributeError: 'Dog' object has no attribute 'name'\n```",
+      "example": {
+        "title": "Dog from Animal",
+        "prompt": "Read a dog's name and breed, then build a Dog that inherits from Animal and adds a breed and a new method.",
+        "code": "class Animal:\n    def __init__(self, name: str):\n        self.name = name\n\n    def describe(self) -> str:\n        return f\"{self.name} is an animal\"\n\n\nclass Dog(Animal):\n    def __init__(self, name: str, breed: str):\n        super().__init__(name)\n        self.breed = breed\n\n    def fetch(self) -> str:\n        return f\"{self.name} fetches the ball\"\n\n\nname = input().strip()\nbreed = input().strip()\nanimal = Animal(\"Tom\")\ndog = Dog(name, breed)\nprint(animal.describe())\nprint(dog.describe())\nprint(f\"Breed: {dog.breed}\")\nprint(dog.fetch())\n",
+        "stdin": "Rex\nBeagle\n",
+        "output": "Tom is an animal\nRex is an animal\nBreed: Beagle\nRex fetches the ball",
+        "explanation": "`Dog(Animal)` makes `Dog` a subclass. Its `__init__` hands `name` to `super().__init__(name)`, so `Animal` sets `self.name`, then `Dog` adds `self.breed`. `Dog` never defines `describe()`, so `dog.describe()` runs the inherited one from `Animal`. `fetch()` exists only on `Dog`: a plain `Animal` such as `animal` does not have it."
+      },
+      "practice": {
+        "title": "Electric car",
+        "prompt": "Build an ElectricCar that inherits from Vehicle and adds a battery.\n\n1. Make `ElectricCar` a subclass of `Vehicle`.\n2. In its `__init__`, call `super().__init__(make)`, then store `battery_kwh` on the object.\n3. Make `range_km()` return the battery size times 6.\n4. Read the make (strip spaces) and the battery size, then print `info()` for the Ford van and for the car.\n5. Print `Battery: <kWh> kWh` and `Range: <km> km`.\n\nInput:\n\n```text\nTesla\n75\n```\n\nExpected output:\n\n```text\nFord with 4 wheels\nTesla with 4 wheels\nBattery: 75 kWh\nRange: 450 km\n```",
+        "starter": "class Vehicle:\n    def __init__(self, make: str):\n        self.make = make\n        self.wheels = 4\n\n    def info(self) -> str:\n        return f\"{self.make} with {self.wheels} wheels\"\n\n\n# TODO: make ElectricCar a subclass of Vehicle\nclass ElectricCar:\n    def __init__(self, make: str, battery_kwh: int):\n        # TODO: call super().__init__(make), then store battery_kwh\n        pass\n\n    def range_km(self) -> int:\n        # TODO: return the battery size times 6\n        return 0\n\n\nmake = input().strip()\nbattery = int(input())\nvan = Vehicle(\"Ford\")\ncar = ElectricCar(make, battery)\nprint(van.info())\n# TODO: print car.info(), the Battery line, and the Range line\n",
+        "solution": "class Vehicle:\n    def __init__(self, make: str):\n        self.make = make\n        self.wheels = 4\n\n    def info(self) -> str:\n        return f\"{self.make} with {self.wheels} wheels\"\n\n\nclass ElectricCar(Vehicle):\n    def __init__(self, make: str, battery_kwh: int):\n        super().__init__(make)\n        self.battery_kwh = battery_kwh\n\n    def range_km(self) -> int:\n        return self.battery_kwh * 6\n\n\nmake = input().strip()\nbattery = int(input())\nvan = Vehicle(\"Ford\")\ncar = ElectricCar(make, battery)\nprint(van.info())\nprint(car.info())\nprint(f\"Battery: {car.battery_kwh} kWh\")\nprint(f\"Range: {car.range_km()} km\")\n",
+        "tests": [
+          {
+            "stdin": "Tesla\n75\n",
+            "output": "Ford with 4 wheels\nTesla with 4 wheels\nBattery: 75 kWh\nRange: 450 km"
+          },
+          {
+            "stdin": "  Rivian  \n135\n",
+            "output": "Ford with 4 wheels\nRivian with 4 wheels\nBattery: 135 kWh\nRange: 810 km"
+          },
+          {
+            "stdin": "Mini\n0\n",
+            "output": "Ford with 4 wheels\nMini with 4 wheels\nBattery: 0 kWh\nRange: 0 km"
+          }
+        ],
+        "hints": [
+          "Write `class ElectricCar(Vehicle):` so it inherits `info()`.",
+          "Call `super().__init__(make)` first: that is what sets `self.make` and `self.wheels`.",
+          "Use f-strings such as `f\"Battery: {car.battery_kwh} kWh\"`."
+        ]
+      }
+    },
+    {
+      "title": "Overriding and polymorphism",
+      "body": "A subclass *overrides* a method by defining one with the same name. Python looks on the object's own class first, then walks up to the parent, so the child's version wins.\n\nTo extend the parent's method instead of replacing it, call it with `super()` and build on the result:\n\n```python\nclass Square(Shape):\n    def describe(self):\n        return super().describe() + \"\\n  all sides equal\"\n```\n\nThis lookup also happens inside the parent. If `Shape.describe()` calls `self.area()`, a square gets the square's `area()`. That is *polymorphism*: one loop calls the same method on different types, and each object answers in its own way. No `if` on the type is needed.\n\n```python\nfor shape in shapes:\n    print(shape.describe())\n```\n\n`isinstance(obj, Class)` is True for the object's class and every parent of it. `issubclass(Child, Parent)` asks the same question about two classes, and a class counts as a subclass of itself:\n\n```python\nprint(isinstance(Square(2), Shape))  # True\nprint(issubclass(Shape, Square))     # False\n```\n\nPrefer overriding to long `isinstance` chains. Use `isinstance` when you really need to pick out one kind, such as counting them.",
+      "example": {
+        "title": "Shapes in one loop",
+        "prompt": "Read shapes, then print each one's description and whether it is a Circle, using one loop over mixed types.",
+        "code": "import math\n\n\nclass Shape:\n    def __init__(self, name: str):\n        self.name = name\n\n    def area(self) -> float:\n        return 0.0\n\n    def describe(self) -> str:\n        return f\"{self.name}: area {self.area():.2f}\"\n\n\nclass Circle(Shape):\n    def __init__(self, radius: float):\n        super().__init__(\"Circle\")\n        self.radius = radius\n\n    def area(self) -> float:\n        return math.pi * self.radius ** 2\n\n\nclass Square(Shape):\n    def __init__(self, side: float):\n        super().__init__(\"Square\")\n        self.side = side\n\n    def area(self) -> float:\n        return self.side ** 2\n\n    def describe(self) -> str:\n        return super().describe() + f\"\\n  all 4 sides are {self.side}\"\n\n\nshapes = []\nfor _ in range(int(input())):\n    kind, size = input().split()\n    if kind == \"circle\":\n        shapes.append(Circle(float(size)))\n    else:\n        shapes.append(Square(float(size)))\n\nfor shape in shapes:\n    print(shape.describe())\n    print(f\"  is a Circle: {isinstance(shape, Circle)}\")\nprint(f\"Square is a Shape: {issubclass(Square, Shape)}\")\n",
+        "stdin": "3\ncircle 1\nsquare 2.5\ncircle 0.5\n",
+        "output": "Circle: area 3.14\n  is a Circle: True\nSquare: area 6.25\n  all 4 sides are 2.5\n  is a Circle: False\nCircle: area 0.79\n  is a Circle: True\nSquare is a Shape: True",
+        "explanation": "`Circle` and `Square` both override `area()`. `Shape.describe()` calls `self.area()`, so each object uses its own formula even though `Circle` inherits `describe()` unchanged. `Square` overrides `describe()` too, but calls `super().describe()` first and adds a second line. `isinstance` picks out the circles, and `issubclass(Square, Shape)` is True because `Square` inherits from `Shape`."
+      },
+      "practice": {
+        "title": "Payroll",
+        "prompt": "Print a payroll where each kind of employee computes its own pay.\n\n1. In `Manager`, override `title()` to return `super().title()` plus ` (Manager)`, and override `pay()` to return the salary plus 1000.\n2. In `Engineer`, override only `pay()`: the salary plus 500.\n3. In one loop over `staff`, print `<title>: <pay>`, add up the pay, and count managers with `isinstance`.\n4. Print `Total: <total>`, then `Managers: <count>`.\n5. Print `Manager is an Employee: ` followed by `issubclass(Manager, Employee)`.\n\nInput:\n\n```text\n3\nmanager Ana 5000\nengineer Ben 4000\nstaff Cy 3000\n```\n\nExpected output:\n\n```text\nAna (Manager): 6000\nBen: 4500\nCy: 3000\nTotal: 13500\nManagers: 1\nManager is an Employee: True\n```",
+        "starter": "class Employee:\n    def __init__(self, name: str, salary: int):\n        self.name = name\n        self.salary = salary\n\n    def title(self) -> str:\n        return self.name\n\n    def pay(self) -> int:\n        return self.salary\n\n\nclass Manager(Employee):\n    # TODO: override title() to add \" (Manager)\" to super().title()\n    # TODO: override pay() to add a 1000 bonus to the salary\n    pass\n\n\nclass Engineer(Employee):\n    # TODO: override pay() to add a 500 bonus to the salary\n    pass\n\n\nstaff = []\nfor _ in range(int(input())):\n    role, name, salary = input().split()\n    if role == \"manager\":\n        staff.append(Manager(name, int(salary)))\n    elif role == \"engineer\":\n        staff.append(Engineer(name, int(salary)))\n    else:\n        staff.append(Employee(name, int(salary)))\n\n# TODO: in one loop, print each \"title: pay\" line, add up the pay,\n# and count the managers with isinstance()\n# TODO: print the Total, Managers, and issubclass lines\n",
+        "solution": "class Employee:\n    def __init__(self, name: str, salary: int):\n        self.name = name\n        self.salary = salary\n\n    def title(self) -> str:\n        return self.name\n\n    def pay(self) -> int:\n        return self.salary\n\n\nclass Manager(Employee):\n    def title(self) -> str:\n        return super().title() + \" (Manager)\"\n\n    def pay(self) -> int:\n        return self.salary + 1000\n\n\nclass Engineer(Employee):\n    def pay(self) -> int:\n        return self.salary + 500\n\n\nstaff = []\nfor _ in range(int(input())):\n    role, name, salary = input().split()\n    if role == \"manager\":\n        staff.append(Manager(name, int(salary)))\n    elif role == \"engineer\":\n        staff.append(Engineer(name, int(salary)))\n    else:\n        staff.append(Employee(name, int(salary)))\n\ntotal = 0\nmanagers = 0\nfor person in staff:\n    pay = person.pay()\n    print(f\"{person.title()}: {pay}\")\n    total += pay\n    if isinstance(person, Manager):\n        managers += 1\nprint(f\"Total: {total}\")\nprint(f\"Managers: {managers}\")\nprint(f\"Manager is an Employee: {issubclass(Manager, Employee)}\")\n",
+        "tests": [
+          {
+            "stdin": "3\nmanager Ana 5000\nengineer Ben 4000\nstaff Cy 3000\n",
+            "output": "Ana (Manager): 6000\nBen: 4500\nCy: 3000\nTotal: 13500\nManagers: 1\nManager is an Employee: True"
+          },
+          {
+            "stdin": "4\nengineer Dee 4200\nmanager Eli 6000\nmanager Fay 5500\nstaff Gus 2800\n",
+            "output": "Dee: 4700\nEli (Manager): 7000\nFay (Manager): 6500\nGus: 2800\nTotal: 21000\nManagers: 2\nManager is an Employee: True"
+          },
+          {
+            "stdin": "0\n",
+            "output": "Total: 0\nManagers: 0\nManager is an Employee: True"
+          }
+        ],
+        "hints": [
+          "In `Manager`, define `title(self)` and build on the string that `super().title()` returns.",
+          "Call `person.title()` and `person.pay()` in the loop: each object runs its own version.",
+          "With no employees, the loop does nothing and the total and count stay 0."
+        ]
+      }
+    },
+    {
+      "title": "Abstract base classes",
+      "body": "An *abstract base class* (ABC) is a parent that only describes what its children must do. Inherit from `ABC` and mark the required methods with `@abstractmethod`. The body is often just `pass`, because every subclass supplies the real one:\n\n```python\nfrom abc import ABC, abstractmethod\n\n\nclass Shape(ABC):\n    @abstractmethod\n    def area(self) -> float:\n        pass\n```\n\nPython refuses to create an object of a class that still has abstract methods. `Shape()` raises `TypeError`, and so does any subclass that forgot to implement one of them. The error's wording changed in 3.12, so catch it and print your own line:\n\n```python\ntry:\n    Shape()\nexcept TypeError:\n    print(\"cannot create Shape\")\n```\n\nGotcha: the check only works when the class inherits from `ABC`. Without it, `@abstractmethod` does nothing.\n\nAn ABC can still have normal methods that call the abstract ones, so shared logic lives in one place.\n\nYou do not always need a base class. Python uses *duck typing*: any object with an `area()` method works in a loop that calls `area()`. An ABC just makes the contract explicit and catches a missing method early.\n\nInheritance means *is-a*. When one thing merely *has* another, such as a car that has an engine, store it as an attribute instead (`self.engine = Engine()`). This *composition* is often a better fit.",
+      "example": {
+        "title": "Abstract Shape",
+        "prompt": "Make Shape abstract, show that it and an incomplete subclass cannot be created, then report the area of each shape read from input.",
+        "code": "import math\nfrom abc import ABC, abstractmethod\n\n\nclass Shape(ABC):\n    @abstractmethod\n    def area(self) -> float:\n        pass\n\n    def report(self) -> str:\n        return f\"{type(self).__name__}: {self.area():.2f}\"\n\n\nclass Rectangle(Shape):\n    def __init__(self, width: float, height: float):\n        self.width = width\n        self.height = height\n\n    def area(self) -> float:\n        return self.width * self.height\n\n\nclass Circle(Shape):\n    def __init__(self, radius: float):\n        self.radius = radius\n\n    def area(self) -> float:\n        return math.pi * self.radius ** 2\n\n\nclass Blob(Shape):\n    pass\n\n\ntry:\n    Shape()\nexcept TypeError:\n    print(\"cannot create Shape\")\n\ntry:\n    Blob()\nexcept TypeError:\n    print(\"cannot create Blob: area() is missing\")\n\nshapes = []\nfor _ in range(int(input())):\n    match input().split():\n        case [\"rect\", width, height]:\n            shapes.append(Rectangle(float(width), float(height)))\n        case [\"circle\", radius]:\n            shapes.append(Circle(float(radius)))\n\ntotal = 0.0\nfor shape in shapes:\n    print(shape.report())\n    total += shape.area()\nprint(f\"Total area: {total:.2f}\")\n",
+        "stdin": "3\nrect 3 4\ncircle 1\nrect 2.5 2\n",
+        "output": "cannot create Shape\ncannot create Blob: area() is missing\nRectangle: 12.00\nCircle: 3.14\nRectangle: 5.00\nTotal area: 20.14",
+        "explanation": "`Shape` inherits from `ABC` and marks `area()` abstract, so `Shape()` raises `TypeError`, which the program catches and replaces with its own line. `Blob` inherits but never writes `area()`, so it is still abstract and fails the same way. `Rectangle` and `Circle` implement `area()` and can be created. The normal method `report()` lives once in `Shape`: it calls each object's own `area()` and names the class with `type(self).__name__`."
+      },
+      "practice": {
+        "title": "Payment methods",
+        "prompt": "Make PaymentMethod an abstract base class and print a receipt for each payment.\n\n1. Make `PaymentMethod` inherit from `ABC` and mark `pay()` with `@abstractmethod`, with `pass` as its body.\n2. Try `PaymentMethod()` and `Crypto()`. Catch each `TypeError` and print `cannot create PaymentMethod` and `cannot create Crypto: pay() is missing`.\n3. Make `Card.pay(amount)` return `paid <amount> with card ending <last4>` and `Cash.pay(amount)` return `paid <amount> in cash`, with the amount to 2 decimals.\n4. Print `receipt(amount)` for each payment, then `Total: <sum>` with 2 decimals.\n\nInput:\n\n```text\n3\ncard 4242 19.99\ncash 5.50\ncard 1881 120\n```\n\nExpected output:\n\n```text\ncannot create PaymentMethod\ncannot create Crypto: pay() is missing\nReceipt: paid 19.99 with card ending 4242\nReceipt: paid 5.50 in cash\nReceipt: paid 120.00 with card ending 1881\nTotal: 145.49\n```",
+        "starter": "from abc import ABC, abstractmethod\n\n\n# TODO: make PaymentMethod an ABC and mark pay() with @abstractmethod\nclass PaymentMethod:\n    def pay(self, amount: float) -> str:\n        return \"\"\n\n    def receipt(self, amount: float) -> str:\n        return f\"Receipt: {self.pay(amount)}\"\n\n\nclass Card(PaymentMethod):\n    def __init__(self, last4: str):\n        self.last4 = last4\n\n    # TODO: implement pay(amount) for a card\n\n\nclass Cash(PaymentMethod):\n    # TODO: implement pay(amount) for cash\n    pass\n\n\nclass Crypto(PaymentMethod):\n    pass\n\n\n# TODO: try PaymentMethod() and Crypto(), catch each TypeError,\n# and print the two \"cannot create\" lines\n\npayments = []\nfor _ in range(int(input())):\n    match input().split():\n        case [\"card\", last4, amount]:\n            payments.append((Card(last4), float(amount)))\n        case [\"cash\", amount]:\n            payments.append((Cash(), float(amount)))\n\ntotal = 0.0\nfor method, amount in payments:\n    # TODO: print the receipt line and add the amount to total\n    pass\n# TODO: print the total with 2 decimals\n",
+        "solution": "from abc import ABC, abstractmethod\n\n\nclass PaymentMethod(ABC):\n    @abstractmethod\n    def pay(self, amount: float) -> str:\n        pass\n\n    def receipt(self, amount: float) -> str:\n        return f\"Receipt: {self.pay(amount)}\"\n\n\nclass Card(PaymentMethod):\n    def __init__(self, last4: str):\n        self.last4 = last4\n\n    def pay(self, amount: float) -> str:\n        return f\"paid {amount:.2f} with card ending {self.last4}\"\n\n\nclass Cash(PaymentMethod):\n    def pay(self, amount: float) -> str:\n        return f\"paid {amount:.2f} in cash\"\n\n\nclass Crypto(PaymentMethod):\n    pass\n\n\ntry:\n    PaymentMethod()\nexcept TypeError:\n    print(\"cannot create PaymentMethod\")\n\ntry:\n    Crypto()\nexcept TypeError:\n    print(\"cannot create Crypto: pay() is missing\")\n\npayments = []\nfor _ in range(int(input())):\n    match input().split():\n        case [\"card\", last4, amount]:\n            payments.append((Card(last4), float(amount)))\n        case [\"cash\", amount]:\n            payments.append((Cash(), float(amount)))\n\ntotal = 0.0\nfor method, amount in payments:\n    print(method.receipt(amount))\n    total += amount\nprint(f\"Total: {total:.2f}\")\n",
+        "tests": [
+          {
+            "stdin": "3\ncard 4242 19.99\ncash 5.50\ncard 1881 120\n",
+            "output": "cannot create PaymentMethod\ncannot create Crypto: pay() is missing\nReceipt: paid 19.99 with card ending 4242\nReceipt: paid 5.50 in cash\nReceipt: paid 120.00 with card ending 1881\nTotal: 145.49"
+          },
+          {
+            "stdin": "2\ncash 3.25\ncash 10\n",
+            "output": "cannot create PaymentMethod\ncannot create Crypto: pay() is missing\nReceipt: paid 3.25 in cash\nReceipt: paid 10.00 in cash\nTotal: 13.25"
+          },
+          {
+            "stdin": "0\n",
+            "output": "cannot create PaymentMethod\ncannot create Crypto: pay() is missing\nTotal: 0.00"
+          }
+        ],
+        "hints": [
+          "Look at how the example's `Shape` uses `ABC` and `@abstractmethod`.",
+          "Use one `try` / `except TypeError:` block for each class you try to create.",
+          "Format the amount with `{amount:.2f}` inside each `pay()`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `class Child(Parent):` inherits every method of the parent.\n- Call `super().__init__(...)` in the child's `__init__` so the parent sets its attributes, then add new ones.\n- Override a method by redefining it, and extend it with `super().method()`.\n- One loop can call the same method on different types: each runs its own version.\n- `isinstance(obj, Class)` is True for parent classes too. `issubclass(Child, Parent)` asks the same about two classes.\n- `ABC` plus `@abstractmethod` forces subclasses to implement methods. Creating an object of a class with a missing abstract method raises `TypeError`.\n- Duck typing needs no base class, and composition (has-a) often beats inheritance (is-a)."
+}

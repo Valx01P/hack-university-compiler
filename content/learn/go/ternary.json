@@ -1,0 +1,62 @@
+{
+  "id": "ternary",
+  "title": "No Ternary Operator",
+  "section": "Control Flow",
+  "summary": "Go has no ?: operator, so learn the idiomatic if/else assignment, default-then-override, and switch patterns instead.",
+  "intro": "Many languages let you write `cond ? a : b` to pick a value. Go leaves it out on purpose. Nested ternaries get hard to read, and Go prefers one clear way to write things. This lesson shows the three patterns Go programmers use instead.",
+  "steps": [
+    {
+      "title": "Assign in if/else",
+      "body": "Go has no `condition ? a : b` operator, and `if` is a statement, not an expression, so `label := if x { ... }` does not compile either. Instead, declare the variable first, then assign it in each branch:\n\n```go\nvar label string\nif n%2 == 0 {\n\tlabel = \"even\"\n} else {\n\tlabel = \"odd\"\n}\n```\n\nYou already used this shape for the letter grade chain in the if-else lesson. It is the standard replacement for a ternary. `var label string` creates the variable with its zero value `\"\"`, and each branch replaces it. Use `=` inside the branches, not `:=`. Writing `label := \"even\"` inside the braces declares a brand new `label` that hides the outer one and disappears at the closing brace. Here the compiler catches it as `label declared but not used`, but if the branch also used the inner `label`, the program would compile and the outer `label` would silently stay `\"\"`.\n\nAssigning a string is cheap: Go copies a small header (a pointer to the text and its length), never the characters themselves.",
+      "example": {
+        "title": "Parity and plurals",
+        "prompt": "Pick a word for a number's parity and a singular or plural word for a count, then print both.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tn := 14\n\tvar parity string\n\tif n%2 == 0 {\n\t\tparity = \"even\"\n\t} else {\n\t\tparity = \"odd\"\n\t}\n\tfmt.Println(n, \"is\", parity)\n\n\tcount := 1\n\tvar word string\n\tif count == 1 {\n\t\tword = \"item\"\n\t} else {\n\t\tword = \"items\"\n\t}\n\tfmt.Println(count, word)\n}\n",
+        "output": "14 is even\n1 item",
+        "explanation": "`var parity string` starts as `\"\"`. Since `14%2 == 0` is true, the first branch assigns `\"even\"`. The same pattern picks `\"item\"` because `count` is exactly 1. `fmt.Println` joins its arguments with spaces."
+      },
+      "practice": {
+        "title": "Pass or fail",
+        "prompt": "Pick a result for a score and a singular or plural word for a point difference.\n\n1. Declare `var result string` and set it to `PASS` when `score` is 60 or more, otherwise `FAIL`. Print it.\n2. Declare `var word string` and set it to `point` when `diff` is 1, otherwise `points`.\n3. Print `diff` and the word on one line, separated by a space.\n\nExpected output:\n\n```text\nFAIL\n2 points\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tscore := 58\n\tdiff := 2\n\t// TODO: declare var result string, set it to PASS or FAIL with if/else, and print it\n\t// TODO: pick point or points for diff with if/else, then print diff and the word\n\t_ = score\n\t_ = diff\n\tfmt.Println() // placeholder that keeps the fmt import in use, replace it\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tscore := 58\n\tvar result string\n\tif score >= 60 {\n\t\tresult = \"PASS\"\n\t} else {\n\t\tresult = \"FAIL\"\n\t}\n\tfmt.Println(result)\n\n\tdiff := 2\n\tvar word string\n\tif diff == 1 {\n\t\tword = \"point\"\n\t} else {\n\t\tword = \"points\"\n\t}\n\tfmt.Println(diff, word)\n}\n",
+        "tests": [
+          {
+            "output": "FAIL\n2 points"
+          }
+        ],
+        "hints": [
+          "Declare the variable before the if, then use `=` (not `:=`) in both branches.",
+          "The condition for PASS is `score >= 60`."
+        ]
+      }
+    },
+    {
+      "title": "Default, then override",
+      "body": "When one outcome is the usual case, start the variable at that default and override it with a single `if`. There is no `else` to write:\n\n```go\nfee := 5\nif total >= 50 {\n\tfee = 0\n}\n```\n\nThe same trick finds the larger or smaller of two values. Assume the first one wins, then switch when the second beats it:\n\n```go\nbigger := a\nif b > a {\n\tbigger = b\n}\n```\n\nGo 1.16 has no built-in `max` or `min` (they arrived in Go 1.21), so this is the pattern you will write. Later, the functions lessons wrap it in helpers like `maxInt`.\n\nWith three or more outcomes, a chain of overrides gets confusing. Use a `switch` with no value: the first true case wins, so with `<` and `<=` checks order the ranges from low to high, as in the if-else lesson, and let `default` catch the rest.\n\n```go\nswitch {\ncase t < 10:\n\tlabel = \"cold\"\ncase t <= 25:\n\tlabel = \"mild\"\ndefault:\n\tlabel = \"hot\"\n}\n```",
+      "example": {
+        "title": "Status, larger value, and level",
+        "prompt": "Pick an open or closed status, the larger of two numbers, and a low, ok, or high label, then print all three.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\thour := 10\n\tstatus := \"closed\"\n\tif hour >= 9 && hour < 17 {\n\t\tstatus = \"open\"\n\t}\n\tfmt.Println(status)\n\n\ta, b := 7, 12\n\tbigger := a\n\tif b > a {\n\t\tbigger = b\n\t}\n\tfmt.Println(bigger)\n\n\treading := 72\n\tvar level string\n\tswitch {\n\tcase reading < 60:\n\t\tlevel = \"low\"\n\tcase reading <= 80:\n\t\tlevel = \"ok\"\n\tdefault:\n\t\tlevel = \"high\"\n\t}\n\tfmt.Println(level)\n}\n",
+        "output": "open\n12\nok",
+        "explanation": "`status` starts as `\"closed\"` and the one `if` overrides it because 10 is between 9 and 17. `bigger` starts at 7 and becomes 12 because `b > a`. In the switch, `72 < 60` is false and `72 <= 80` is true, so `level` is `\"ok\"` and the remaining cases are skipped."
+      },
+      "practice": {
+        "title": "Fee, smaller, speed",
+        "prompt": "Pick a shipping fee, the smaller of two numbers, and a speed label, then print all three.\n\n1. Start `fee` at 5 and override it with 0 when `total` is 50 or more. Print `fee`.\n2. Start `smaller` at `x` and override it with `y` when `y` is less than `x`. Print `smaller`.\n3. Use a switch with no value to label `speed` as `slow` (under 40), `normal` (40 to 90), or `fast` (over 90). Print the label.\n\nExpected output:\n\n```text\n0\n4\nfast\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttotal := 64\n\tx, y := 9, 4\n\tspeed := 95\n\t// TODO: start fee at 5, set it to 0 when total is 50 or more, and print it\n\t// TODO: start smaller at x, override it with y when y is smaller, and print it\n\t// TODO: label speed as slow, normal, or fast with a switch, and print the label\n\t_ = total\n\t_ = x\n\t_ = y\n\t_ = speed\n\tfmt.Println() // placeholder that keeps the fmt import in use, replace it\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttotal := 64\n\tfee := 5\n\tif total >= 50 {\n\t\tfee = 0\n\t}\n\tfmt.Println(fee)\n\n\tx, y := 9, 4\n\tsmaller := x\n\tif y < x {\n\t\tsmaller = y\n\t}\n\tfmt.Println(smaller)\n\n\tspeed := 95\n\tvar label string\n\tswitch {\n\tcase speed < 40:\n\t\tlabel = \"slow\"\n\tcase speed <= 90:\n\t\tlabel = \"normal\"\n\tdefault:\n\t\tlabel = \"fast\"\n\t}\n\tfmt.Println(label)\n}\n",
+        "tests": [
+          {
+            "output": "0\n4\nfast"
+          }
+        ],
+        "hints": [
+          "Each of the first two parts is one `:=` line followed by one `if` with no `else`.",
+          "In the switch, check `speed < 40` first, then `speed <= 90`, and use `default` for fast."
+        ]
+      }
+    }
+  ],
+  "recap": "- Go has no `cond ? a : b`, and `if` is a statement, so it cannot produce a value.\n- Two outcomes: declare with `var x T`, then assign with `=` in if/else.\n- One usual outcome: start at the default and override it with one `if`.\n- Larger or smaller of two values: `bigger := a`, then `if b > a { bigger = b }`.\n- Three or more outcomes: a `switch` with no value, `<` ranges ordered low to high, `default` last.\n- Inside a branch use `=`, not `:=`, or you create a new variable that hides the outer one."
+}

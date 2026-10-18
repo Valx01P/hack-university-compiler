@@ -1,0 +1,118 @@
+{
+  "id": "context-managers",
+  "title": "Context Managers and with",
+  "section": "Bits and Errors",
+  "summary": "Use with to guarantee cleanup, and write your own context managers with classes or @contextmanager.",
+  "intro": "Some things must always be undone: a file must be closed, a tag must be closed, a setting must be restored. A `with` block runs that cleanup for you, even when an error escapes the block.",
+  "steps": [
+    {
+      "title": "with open()",
+      "body": "A `with` block opens a resource and promises to clean it up. For files that means closing them, which also saves any writes still waiting in memory. The file closes when the block ends, even if an error is raised inside it, just as if you had put the close in a `finally:` clause yourself.\n\n```python\nwith open(\"log.txt\", \"w\", encoding=\"utf-8\") as f:\n    f.write(\"first\\n\")      # write() adds no newline: put \\n yourself\nprint(f.closed)              # True, the block closed it\n```\n\nThe mode picks what you can do:\n\n- `\"r\"` reads (the default). A missing file raises `FileNotFoundError`.\n- `\"w\"` writes, creating the file or **erasing** what was there.\n- `\"a\"` appends to the end and keeps the old contents.\n\nPass `encoding=\"utf-8\"` every time so the result does not depend on the machine. To read, `f.read()` returns the whole file as one string. Looping `for line in f:` gives one line at a time, and each line keeps its `\\n`, so strip it before printing.\n\n```python\nwith open(\"log.txt\", \"r\", encoding=\"utf-8\") as f:\n    for line in f:\n        print(line.rstrip(\"\\n\"))\n```\n\nReading moves through the file, so after `f.read()` nothing is left to read. Open the file again for a second pass. The name `f` still exists after the block, but its file is closed, so reading from it raises `ValueError`.",
+      "example": {
+        "title": "A notes file",
+        "prompt": "Write three notes, append a fourth, read the file back whole and line by line, and check that it is closed even after an error.",
+        "code": "with open(\"notes.txt\", \"w\", encoding=\"utf-8\") as f:\n    f.write(\"buy milk\\n\")\n    f.write(\"call Ana\\n\")\n    f.write(\"fix bike\\n\")\n\nwith open(\"notes.txt\", \"a\", encoding=\"utf-8\") as f:\n    f.write(\"water plants\\n\")\nprint(\"closed:\", f.closed)\n\nwith open(\"notes.txt\", \"r\", encoding=\"utf-8\") as f:\n    text = f.read()\nprint(text, end=\"\")\nprint(\"chars:\", len(text))\n\nwith open(\"notes.txt\", \"r\", encoding=\"utf-8\") as f:\n    for i, line in enumerate(f, start=1):\n        note = line.rstrip(\"\\n\")\n        print(f\"{i}. {note}\")\n\ntry:\n    with open(\"notes.txt\", \"r\", encoding=\"utf-8\") as f:\n        raise ValueError(\"bad note\")\nexcept ValueError:\n    print(\"after error, closed:\", f.closed)\n",
+        "output": "closed: True\nbuy milk\ncall Ana\nfix bike\nwater plants\nchars: 40\n1. buy milk\n2. call Ana\n3. fix bike\n4. water plants\nafter error, closed: True",
+        "explanation": "The first block uses `\"w\"`, so it creates `notes.txt` and every `write()` needs its own `\\n`. The `\"a\"` block adds a fourth line without erasing the others. After a block ends, `f.closed` is `True`. `f.read()` returns the whole file as one string, which already ends in a newline, so `print()` uses `end=\"\"`. The loop reads one line at a time, and `rstrip(\"\\n\")` removes the trailing newline. The last block raises inside `with`, yet the file is still closed when the `except` runs."
+      },
+      "practice": {
+        "title": "A names file",
+        "prompt": "Save a list of names to a file, add one more, and read them back.\n\n1. Line 1 of input holds names separated by spaces. Line 2 holds one extra name. Both are already read for you.\n2. Open `names.txt` with mode `\"w\"` and write each name on its own line.\n3. Open it again with mode `\"a\"` and append the extra name on its own line.\n4. Open it with mode `\"r\"`, loop over its lines, and collect each name without its newline.\n5. Print `count: N`, then print the names in reverse order, one per line.\n\nInput:\n\n```text\nAl Bo Cy\nDan\n```\n\nExpected output:\n\n```text\ncount: 4\nDan\nCy\nBo\nAl\n```",
+        "starter": "names = input().split()\nextra = input().strip()\n\n# TODO: write each name on its own line to names.txt with mode \"w\"\n# TODO: append extra to names.txt with mode \"a\"\n# TODO: read names.txt back line by line into a list\n# TODO: print the count, then the names in reverse order\n",
+        "solution": "names = input().split()\nextra = input().strip()\n\nwith open(\"names.txt\", \"w\", encoding=\"utf-8\") as f:\n    for name in names:\n        f.write(f\"{name}\\n\")\n\nwith open(\"names.txt\", \"a\", encoding=\"utf-8\") as f:\n    f.write(f\"{extra}\\n\")\n\nsaved = []\nwith open(\"names.txt\", \"r\", encoding=\"utf-8\") as f:\n    for line in f:\n        saved.append(line.rstrip(\"\\n\"))\n\nprint(f\"count: {len(saved)}\")\nfor name in reversed(saved):\n    print(name)\n",
+        "tests": [
+          {
+            "stdin": "Al Bo Cy\nDan\n",
+            "output": "count: 4\nDan\nCy\nBo\nAl"
+          },
+          {
+            "stdin": "Mia\nNoah\n",
+            "output": "count: 2\nNoah\nMia"
+          },
+          {
+            "stdin": "Zoe Ray Ann Lee Kim\nOli\n",
+            "output": "count: 6\nOli\nKim\nLee\nAnn\nRay\nZoe"
+          }
+        ],
+        "hints": [
+          "Write `f\"{name}\\n\"` so each name lands on its own line.",
+          "Mode `\"a\"` keeps the names already in the file.",
+          "Use `line.rstrip(\"\\n\")` before appending, then loop over `reversed(saved)`."
+        ]
+      }
+    },
+    {
+      "title": "A context manager class",
+      "body": "Any class with `__enter__` and `__exit__` works with `with`. Python calls `__enter__` when the block starts and binds what it **returns** to the name after `as`. It calls `__exit__` when the block ends, however it ends.\n\n```python\nclass Door:\n    def __enter__(self):\n        print(\"open\")\n        return self          # with Door() as d: makes d this object\n\n    def __exit__(self, exc_type, exc, tb):\n        print(\"close\")\n        return False         # let any exception keep going\n```\n\nAfter `self`, `__exit__` gets three arguments: the exception's type, the exception itself, and its traceback. All three are `None` when the block finished normally. Returning `False` lets an exception propagate to the code outside. Returning `True` would swallow it silently, which is rarely what you want.\n\nWatch out: if `__enter__` returns nothing, the name after `as` is `None`.\n\n`with` blocks nest like any other block, and the inner one exits first. Two managers can also share one line: `with A() as a, B() as b:`.",
+      "example": {
+        "title": "Nested sections",
+        "prompt": "Print start and end markers around nested blocks, and show that the end marker still prints when an error escapes.",
+        "code": "class Section:\n    def __init__(self, name):\n        self.name = name\n\n    def __enter__(self):\n        print(f\"start: {self.name}\")\n        return self\n\n    def __exit__(self, exc_type, exc, tb):\n        status = \"ok\" if exc_type is None else exc_type.__name__\n        print(f\"end: {self.name} ({status})\")\n        return False\n\n\nwith Section(\"outer\"):\n    with Section(\"inner\") as s:\n        print(f\"inside {s.name}\")\n\ntry:\n    with Section(\"risky\"):\n        raise ValueError(\"bad value\")\nexcept ValueError as e:\n    print(f\"caught: {e}\")\n",
+        "output": "start: outer\nstart: inner\ninside inner\nend: inner (ok)\nend: outer (ok)\nstart: risky\nend: risky (ValueError)\ncaught: bad value",
+        "explanation": "`with Section(\"inner\") as s` calls `__enter__`, which prints the start line and returns the object, so `s.name` works. The inner block ends first, so its end line comes before the outer one. When `raise` runs, Python skips the rest of the block and calls `__exit__` with `exc_type` set to `ValueError`. `exc_type` is the error's class, the same thing `type(e)` gives you, so `exc_type.__name__` names it just like `type(e).__name__` in the exceptions lesson. Because `__exit__` returns `False`, the error keeps going and the `except` outside catches it."
+      },
+      "practice": {
+        "title": "HTML tags",
+        "prompt": "Write a Tag class that wraps a block in an opening and a closing tag.\n\n1. In `__enter__`, print `<name>` and return `self`.\n2. In `__exit__`, print `</name>` and return `False`.\n3. Nest `Tag(\"div\")` around `Tag(\"p\") as t`, and inside print `t.name`, a colon, a space, and the input line.\n4. Inside `Tag(\"b\")`, raise `ValueError(\"oops\")`. Catch it outside the block and print `caught: oops`.\n\nInput:\n\n```text\nHello there\n```\n\nExpected output:\n\n```text\n<div>\n<p>\np: Hello there\n</p>\n</div>\n<b>\n</b>\ncaught: oops\n```",
+        "starter": "class Tag:\n    def __init__(self, name):\n        self.name = name\n\n    def __enter__(self):\n        # TODO: print the opening tag\n        return self\n\n    def __exit__(self, exc_type, exc, tb):\n        # TODO: print the closing tag\n        return False\n\n\nline = input()\n# TODO: nest Tag(\"div\") around Tag(\"p\") as t and print the line inside\n# TODO: raise ValueError(\"oops\") inside Tag(\"b\") and catch it outside\n",
+        "solution": "class Tag:\n    def __init__(self, name):\n        self.name = name\n\n    def __enter__(self):\n        print(f\"<{self.name}>\")\n        return self\n\n    def __exit__(self, exc_type, exc, tb):\n        print(f\"</{self.name}>\")\n        return False\n\n\nline = input()\nwith Tag(\"div\"):\n    with Tag(\"p\") as t:\n        print(f\"{t.name}: {line}\")\n\ntry:\n    with Tag(\"b\"):\n        raise ValueError(\"oops\")\nexcept ValueError as e:\n    print(f\"caught: {e}\")\n",
+        "tests": [
+          {
+            "stdin": "Hello there\n",
+            "output": "<div>\n<p>\np: Hello there\n</p>\n</div>\n<b>\n</b>\ncaught: oops"
+          },
+          {
+            "stdin": "x\n",
+            "output": "<div>\n<p>\np: x\n</p>\n</div>\n<b>\n</b>\ncaught: oops"
+          },
+          {
+            "stdin": "with blocks nest\n",
+            "output": "<div>\n<p>\np: with blocks nest\n</p>\n</div>\n<b>\n</b>\ncaught: oops"
+          }
+        ],
+        "hints": [
+          "Use f-strings such as `f\"<{self.name}>\"` and `f\"</{self.name}>\"`.",
+          "The `as t` name gets whatever `__enter__` returns.",
+          "Put the whole `with Tag(\"b\"):` block inside `try`, and use `except ValueError as e:`."
+        ]
+      }
+    },
+    {
+      "title": "@contextmanager",
+      "body": "Writing a class is a lot of ceremony for setup and cleanup. `@contextmanager` turns a generator function into a context manager. Code before `yield` is the setup, code after it is the cleanup, and the value you yield is bound by `as`.\n\n```python\nfrom contextlib import contextmanager\n\n\n@contextmanager\ndef opened(label):\n    print(\"open\", label)\n    try:\n        yield label.upper()   # with opened(\"db\") as x: makes x \"DB\"\n    finally:\n        print(\"close\", label)\n```\n\nIf the block raises, the error appears at the `yield`. Without `try`/`finally` the cleanup line never runs, so always wrap the `yield`. As in the exceptions lesson, `finally:` runs whether the block succeeded or raised. The generator must yield exactly once.\n\n`suppress` from the same module ignores one error type:\n\n```python\nfrom contextlib import suppress\n\nstock = {\"apple\": 4}\nwith suppress(KeyError):\n    print(stock[\"plum\"])     # KeyError is ignored\n    print(\"skipped\")         # the rest of the block is skipped too\n```\n\nIt is shorter than `try`/`except`/`pass`, but it skips everything after the failing line, so keep the block small.",
+      "example": {
+        "title": "Tags as a generator",
+        "prompt": "Rebuild the tag manager with @contextmanager, nest two tags, and skip missing dict keys with suppress.",
+        "code": "from contextlib import contextmanager, suppress\n\n\n@contextmanager\ndef tag(name):\n    print(f\"<{name}>\")\n    try:\n        yield name\n    finally:\n        print(f\"</{name}>\")\n\n\nwith tag(\"ul\"):\n    with tag(\"li\") as current:\n        print(f\"inside {current}\")\n\ntry:\n    with tag(\"em\"):\n        raise ValueError(\"bad\")\nexcept ValueError:\n    print(\"caught ValueError\")\n\nprices = {\"apple\": 3, \"pear\": 2}\nfor fruit in [\"apple\", \"plum\", \"pear\"]:\n    with suppress(KeyError):\n        print(f\"{fruit}: {prices[fruit]}\")\nprint(\"done\")\n",
+        "output": "<ul>\n<li>\ninside li\n</li>\n</ul>\n<em>\n</em>\ncaught ValueError\napple: 3\npear: 2\ndone",
+        "explanation": "Each `with tag(...)` runs the function up to `yield`, so the opening tag prints first. `yield name` binds `\"li\"` to `current`. When the block ends, the function resumes after `yield` and the `finally` prints the closing tag. The `\"em\"` block raises, and `finally` still prints `</em>` before the error reaches `except`. In the loop, `prices[\"plum\"]` raises `KeyError`, `suppress` ignores it, and the loop moves on to `\"pear\"`."
+      },
+      "practice": {
+        "title": "Score banner",
+        "prompt": "Write a banner context manager and use it to total the whole numbers in a line, skipping tokens that are not ints.\n\n1. Line 1 of input is the title and line 2 holds tokens separated by spaces. Both are already read for you.\n2. Write `@contextmanager` `banner(title)` that prints `=== ` plus the title plus ` ===` before the block (`=== Scores ===` for the title `Scores`) and `=== end ===` after it, with the `yield` inside `try`/`finally`.\n3. Inside `with banner(title):`, loop over the tokens and convert each with `int()` inside `with suppress(ValueError):`.\n4. Print each number that converts and add it to `total`.\n5. After the loop, still inside the banner, print `total: N`.\n\nInput:\n\n```text\nScores\n10 x 25 7.5 5\n```\n\nExpected output:\n\n```text\n=== Scores ===\n10\n25\n5\ntotal: 40\n=== end ===\n```",
+        "starter": "from contextlib import contextmanager, suppress\n\n\n@contextmanager\ndef banner(title):\n    # TODO: print the header, then yield inside try/finally and print the footer\n    yield\n\n\ntitle = input().strip()\ntokens = input().split()\ntotal = 0\nwith banner(title):\n    # TODO: convert each token with int() inside suppress(ValueError)\n    # TODO: print each number, add it to total, then print the total\n    pass\n",
+        "solution": "from contextlib import contextmanager, suppress\n\n\n@contextmanager\ndef banner(title):\n    print(f\"=== {title} ===\")\n    try:\n        yield\n    finally:\n        print(\"=== end ===\")\n\n\ntitle = input().strip()\ntokens = input().split()\ntotal = 0\nwith banner(title):\n    for token in tokens:\n        with suppress(ValueError):\n            n = int(token)\n            print(n)\n            total += n\n    print(f\"total: {total}\")\n",
+        "tests": [
+          {
+            "stdin": "Scores\n10 x 25 7.5 5\n",
+            "output": "=== Scores ===\n10\n25\n5\ntotal: 40\n=== end ==="
+          },
+          {
+            "stdin": "Empty\nabc 1.5 ten\n",
+            "output": "=== Empty ===\ntotal: 0\n=== end ==="
+          },
+          {
+            "stdin": "Daily steps\n-3 8 12\n",
+            "output": "=== Daily steps ===\n-3\n8\n12\ntotal: 17\n=== end ==="
+          }
+        ],
+        "hints": [
+          "Print the header before `try:`, then `yield`, then the footer in `finally:`.",
+          "`int(\"7.5\")` raises `ValueError`, so `suppress` skips that token.",
+          "Put the `with suppress(ValueError):` block inside the `for` loop so one bad token does not stop the rest."
+        ]
+      }
+    }
+  ],
+  "recap": "- `with open(path, \"w\", encoding=\"utf-8\") as f:` closes the file when the block ends, even after an error.\n- Modes: `\"r\"` reads, `\"w\"` erases then writes, `\"a\"` appends.\n- `f.write()` adds no newline. `f.read()` returns everything, and `for line in f:` gives lines that keep their `\\n`.\n- A class with `__enter__` and `__exit__(self, exc_type, exc, tb)` works with `with`. `as` binds what `__enter__` returns.\n- Return `False` from `__exit__` so exceptions keep going.\n- Nested `with` blocks exit inner first.\n- `@contextmanager`: setup before `yield`, cleanup after it, inside `try`/`finally`. The yielded value is bound by `as`.\n- `with suppress(ErrorType):` ignores that error and skips the rest of the block."
+}

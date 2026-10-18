@@ -1,0 +1,91 @@
+{
+  "id": "math-operators",
+  "title": "Math Operators and Integer Division",
+  "section": "Basics",
+  "summary": "Do arithmetic with + - * / %, avoid the integer division trap, and update variables with compound operators.",
+  "intro": "C++ math looks like school math until you divide two whole numbers. This lesson covers the five arithmetic operators, what happens when `int` meets `double`, and the shortcuts every loop and counter uses.",
+  "steps": [
+    {
+      "title": "Arithmetic and integer division",
+      "body": "`+`, `-`, and `*` work as you expect. `/` depends on the types: when both sides are `int`, the result is an `int` and the fraction is thrown away. `%` gives the remainder and only works on integers (`7.5 % 2` does not compile).\n\n```cpp\nstd::cout << 17 / 5 << '\\n';   // 3, not 3.4\nstd::cout << 17 % 5 << '\\n';   // 2\nstd::cout << 12 * 3 - 4 << '\\n'; // 32\n```\n\nTogether, `/` and `%` split a total into whole groups and what is left over, like minutes into hours and minutes.\n\nInteger division truncates toward zero, so `-7 / 2` is `-3`, not `-4`. The sign of `%` follows the left operand: `-7 % 2` is `-1` and `7 % -2` is `1`.\n\n`*`, `/`, and `%` bind tighter than `+` and `-`, and operators of the same level group left to right, so `20 / 2 * 5` is `(20 / 2) * 5`, which is 50. Use parentheses when you want a different order, or just to make it obvious.\n\nTwo gotchas: `^` is not a power operator in C++ (`2 ^ 10` is 8), and dividing or taking `%` by zero is undefined behavior, so never do it.",
+      "example": {
+        "title": "Cookies and minutes",
+        "prompt": "Share 17 cookies among 5 kids, turn 135 minutes into hours and minutes, show negative division, and compare two groupings of the same numbers.",
+        "code": "#include <iostream>\n\nint main() {\n    const int cookies = 17;\n    const int kids = 5;\n    std::cout << cookies / kids << \" each, \" << cookies % kids << \" left\\n\";\n\n    const int totalMinutes = 135;\n    std::cout << totalMinutes / 60 << \" h \" << totalMinutes % 60 << \" min\\n\";\n\n    std::cout << -7 / 2 << ' ' << -7 % 2 << '\\n';\n\n    std::cout << (4 + 10) / 2 << ' ' << 4 + 10 / 2 << '\\n';\n    return 0;\n}\n",
+        "output": "3 each, 2 left\n2 h 15 min\n-3 -1\n7 9",
+        "explanation": "`17 / 5` keeps only the whole part (3) and `17 % 5` is what is left (2). The same pair splits 135 minutes into 2 hours and 15 minutes. `-7 / 2` truncates toward zero to `-3`, and the remainder takes the sign of `-7`. Without parentheses `/` binds tighter than `+`, so `10 / 2` is grouped first and `4 + 10 / 2` is 9 while `(4 + 10) / 2` is 7."
+      },
+      "practice": {
+        "title": "Egg cartons",
+        "prompt": "Use integer division and remainder to pack eggs, convert seconds, and compare groupings.\n\n1. Print how many full cartons of `cartonSize` the `eggs` fill and how many eggs are left, as `3 cartons, 5 left`.\n2. Print `totalSeconds` as minutes and seconds, as `8 min 20 s`.\n3. Print `-23 / 6` and `-23 % 6` separated by a space.\n4. Print `(6 + 12) / 3` and `6 + 12 / 3` separated by a space.\n\nExpected output:\n\n```text\n3 cartons, 5 left\n8 min 20 s\n-3 -5\n6 10\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    const int eggs = 23;\n    const int cartonSize = 6;\n    const int totalSeconds = 500;\n\n    // TODO: print full cartons and leftover eggs, then minutes and seconds,\n    // then -23 / 6 and -23 % 6, then (6 + 12) / 3 and 6 + 12 / 3\n\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    const int eggs = 23;\n    const int cartonSize = 6;\n    const int totalSeconds = 500;\n\n    std::cout << eggs / cartonSize << \" cartons, \" << eggs % cartonSize << \" left\\n\";\n    std::cout << totalSeconds / 60 << \" min \" << totalSeconds % 60 << \" s\\n\";\n    std::cout << -23 / 6 << ' ' << -23 % 6 << '\\n';\n    std::cout << (6 + 12) / 3 << ' ' << 6 + 12 / 3 << '\\n';\n\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "3 cartons, 5 left\n8 min 20 s\n-3 -5\n6 10"
+          }
+        ],
+        "hints": [
+          "Full cartons are `eggs / cartonSize` and leftovers are `eggs % cartonSize`.",
+          "A minute has 60 seconds, so use `/ 60` and `% 60`.",
+          "Division truncates toward zero and `%` keeps the sign of the left side."
+        ]
+      }
+    },
+    {
+      "title": "Mixing int and double",
+      "body": "When one side of an operator is a `double`, the other side is converted to `double` first and the result is a `double`. So to get an exact average of `int` values, convert one of them with `static_cast<double>`. It makes a new value and leaves the variable as it was.\n\n```cpp\nconst int sum = 7;\nstd::cout << sum / 2 << '\\n';                      // 3\nstd::cout << static_cast<double>(sum) / 2 << '\\n'; // 3.5\n```\n\nCasting the other way, `static_cast<int>(d)` drops the fraction and truncates toward zero: `3.99` becomes `3` and `-2.7` becomes `-2`. It does not round. Assigning a `double` to an `int` with `=` truncates the same way, and g++ does not warn by default, so write the cast to make the conversion visible. Prefer `static_cast` over the old C-style `(int)d` cast.\n\nOrder matters inside a formula. `5 / 9 * (f - 32)` groups as `(5 / 9) * (f - 32)`, and `5 / 9` is `int / int`, which is `0`, so the whole term is `0` even when `f` is a `double`. Put the `double` first, as in `(f - 32) * 5 / 9`, or write `5.0 / 9`.",
+      "example": {
+        "title": "Average and Celsius",
+        "prompt": "Average three int scores three ways, then convert 98.6 degrees Fahrenheit to Celsius with two formulas.",
+        "code": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    const int sum = 85 + 90 + 78;\n    std::cout << sum / 3 << '\\n';\n\n    const double average = static_cast<double>(sum) / 3;\n    std::cout << std::fixed << std::setprecision(2);\n    std::cout << average << '\\n';\n    std::cout << static_cast<int>(average) << '\\n';\n\n    const double f = 98.6;\n    std::cout << std::setprecision(1);\n    std::cout << 5 / 9 * (f - 32) << '\\n';  // 5 / 9 is 0 first\n    std::cout << (f - 32) * 5 / 9 << '\\n';  // double from the start\n    return 0;\n}\n",
+        "output": "84\n84.33\n84\n0.0\n37.0",
+        "explanation": "`sum / 3` is integer division, so 253 / 3 gives 84. Casting `sum` to `double` makes the division exact (84.333...), printed as 84.33. `static_cast<int>` cuts that back to 84. In the first Celsius formula `5 / 9` is 0, so the result is 0.0. In the second, `f - 32` is already a `double`, so every step keeps its fraction and the result is 37.0."
+      },
+      "practice": {
+        "title": "Temperatures and miles",
+        "prompt": "Compute averages, a percentage, and a distance, watching where integer division sneaks in.\n\n1. Print `sum / 4`, the integer average.\n2. Print the exact average using `static_cast<double>`.\n3. Print `45 / 60 * 100`, then `45 * 100 / 60`, each on its own line.\n4. Print `km` converted to miles (`km * MILES_PER_KM`).\n5. Print the miles as a whole number with `static_cast<int>`.\n\nExpected output:\n\n```text\n21\n21.75\n0\n75\n3.11\n3\n```\n\nThe starter already sets 2 decimals, which only affects the `double` values.",
+        "starter": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    const int sum = 21 + 19 + 24 + 23;\n    const double km = 5.0;\n    const double MILES_PER_KM = 0.621371;\n    std::cout << std::fixed << std::setprecision(2);\n\n    // TODO: print sum / 4, then the exact average,\n    // then 45 / 60 * 100 and 45 * 100 / 60,\n    // then km in miles and in whole miles\n\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    const int sum = 21 + 19 + 24 + 23;\n    const double km = 5.0;\n    const double MILES_PER_KM = 0.621371;\n    std::cout << std::fixed << std::setprecision(2);\n\n    std::cout << sum / 4 << '\\n';\n    std::cout << static_cast<double>(sum) / 4 << '\\n';\n\n    std::cout << 45 / 60 * 100 << '\\n';\n    std::cout << 45 * 100 / 60 << '\\n';\n\n    const double miles = km * MILES_PER_KM;\n    std::cout << miles << '\\n';\n    std::cout << static_cast<int>(miles) << '\\n';\n\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "21\n21.75\n0\n75\n3.11\n3"
+          }
+        ],
+        "hints": [
+          "Cast before dividing: `static_cast<double>(sum) / 4`.",
+          "`45 / 60` is 0, so multiplying first keeps the answer.",
+          "Store `km * MILES_PER_KM` in a `double`, then print it and its `static_cast<int>`."
+        ]
+      }
+    },
+    {
+      "title": "Compound assignment, ++ and --",
+      "body": "Updating a variable from its own value is so common that C++ has a shortcut for every operator: `x += 5` means `x = x + 5`. The same works for `-=`, `*=`, `/=`, and `%=`. The usual rules still apply, so `/=` on an `int` truncates.\n\n```cpp\nint total = 10;\ntotal += 5;   // 15\ntotal *= 2;   // 30\ntotal %= 7;   // 2\n```\n\n`++` adds 1 and `--` subtracts 1. Each has two forms that change the variable the same way but give different values when used inside an expression:\n\n- `++i` (prefix) adds 1, then gives the new value.\n- `i++` (postfix) gives the old value, then adds 1.\n\n```cpp\nint lives = 3;\nconst int was = lives--;  // was is 3, lives is 2\nconst int now = --lives;  // now is 1, lives is 1\n```\n\nWhen you only want the change and ignore the value, as on a line by itself, write `++i`. It says exactly what you mean and never needs to keep a copy of the old value. Never change the same variable twice in one expression, as in `i++ + i++`, because the result is undefined behavior.",
+      "example": {
+        "title": "Bank balance",
+        "prompt": "Update a balance with compound operators and count each transaction, then compare postfix and prefix increments.",
+        "code": "#include <iostream>\n\nint main() {\n    int balance = 100;\n    int transactions = 0;\n\n    balance += 50;\n    ++transactions;\n    std::cout << \"deposit \" << balance << '\\n';\n    balance -= 30;\n    ++transactions;\n    std::cout << \"withdraw \" << balance << '\\n';\n    balance *= 2;\n    ++transactions;\n    std::cout << \"double \" << balance << '\\n';\n    balance /= 4;\n    ++transactions;\n    std::cout << \"split \" << balance << '\\n';\n    std::cout << \"transactions \" << transactions << '\\n';\n\n    int a = 5;\n    const int b = a++;\n    std::cout << b << ' ' << a << '\\n';\n    const int c = ++a;\n    std::cout << c << ' ' << a << '\\n';\n    return 0;\n}\n",
+        "output": "deposit 150\nwithdraw 120\ndouble 240\nsplit 60\ntransactions 4\n5 6\n7 7",
+        "explanation": "Each compound operator updates `balance` in place: 100 + 50, minus 30, times 2, then 240 / 4 is 60. `++transactions` stands alone, so the prefix form is the natural choice. `const int b = a++;` copies the old value 5 into `b` and then bumps `a` to 6. `const int c = ++a;` bumps `a` to 7 first, so `c` gets 7."
+      },
+      "practice": {
+        "title": "Game score",
+        "prompt": "Update a game score with compound operators, count the moves, and see what postfix returns.\n\n1. Add 40 with `+=`, add 1 to `moves`, and print `add ` and the score.\n2. Triple it with `*=` and print `triple ` and the score, counting the move.\n3. Subtract 25 with `-=` and print `lose ` and the score, counting the move.\n4. Halve it with `/=` and print `halve ` and the score, counting the move.\n5. Keep the remainder after dividing by 7 with `%=` and print `remainder ` and the score, counting the move.\n6. Print `moves ` and the move count.\n7. Store `moves++` in `const int before`, then print `before` and `moves` separated by a space.\n\nExpected output:\n\n```text\nadd 40\ntriple 120\nlose 95\nhalve 47\nremainder 5\nmoves 5\n5 6\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    int score = 0;\n    int moves = 0;\n\n    // TODO: change score with += -= *= /= %=, count each move with ++,\n    // and print after each step as the prompt shows\n\n    // TODO: store moves++ in before, then print before and moves\n\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    int score = 0;\n    int moves = 0;\n\n    score += 40;\n    ++moves;\n    std::cout << \"add \" << score << '\\n';\n    score *= 3;\n    ++moves;\n    std::cout << \"triple \" << score << '\\n';\n    score -= 25;\n    ++moves;\n    std::cout << \"lose \" << score << '\\n';\n    score /= 2;\n    ++moves;\n    std::cout << \"halve \" << score << '\\n';\n    score %= 7;\n    ++moves;\n    std::cout << \"remainder \" << score << '\\n';\n    std::cout << \"moves \" << moves << '\\n';\n\n    const int before = moves++;\n    std::cout << before << ' ' << moves << '\\n';\n\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "add 40\ntriple 120\nlose 95\nhalve 47\nremainder 5\nmoves 5\n5 6"
+          }
+        ],
+        "hints": [
+          "Each step is two statements: one compound operator on `score` and one `++moves`.",
+          "`95 / 2` is 47 because both sides are `int`.",
+          "`moves++` gives the old value 5 and then makes `moves` 6."
+        ]
+      }
+    }
+  ],
+  "recap": "- `int / int` truncates toward zero, and `%` keeps the sign of the left operand.\n- `%` only works on integers, and dividing by zero is undefined behavior.\n- `*`, `/`, `%` bind tighter than `+` and `-`. Use parentheses to change the grouping.\n- If either side is a `double`, the math is done in `double`. Use `static_cast<double>(x)` to get there.\n- `static_cast<int>(d)` and assigning a `double` to an `int` both truncate toward zero. They never round.\n- In formulas, put the `double` first: `(f - 32) * 5 / 9`, not `5 / 9 * (f - 32)`.\n- `x += 5` is `x = x + 5`, and `++i` gives the new value while `i++` gives the old one.\n- `^` is not a power operator: `2 ^ 10` is 8."
+}

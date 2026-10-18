@@ -1,0 +1,114 @@
+{
+  "id": "functions",
+  "title": "Functions",
+  "section": "Functions",
+  "summary": "Define and call functions with parameters, return values, default arguments, and overloads, and organize them with namespaces.",
+  "intro": "So far every program has lived inside `main`. Functions let you name a piece of work, give it inputs, and reuse it. This lesson covers defining and calling functions, `void` functions and default arguments, overloading, and declarations, headers, and namespaces.",
+  "steps": [
+    {
+      "title": "Defining and calling functions",
+      "body": "A function packages a calculation under a name so you write it once and call it anywhere. A definition has four parts: the return type, the name, the parameter list, and the body.\n\n```cpp\nint square(int x) {      // returns an int, takes one int\n    return x * x;        // return hands a value back and leaves\n}\n```\n\nCall it by name with arguments in parentheses, and use the result like any value: `int s = square(7);` or `std::cout << square(7);`. Separate several parameters with commas, each with its own type: `double triangleArea(double base, double height)`.\n\nDefine functions **above** `main`. The compiler reads top to bottom, so a function must be known before the line that calls it.\n\nParameters are **copies** (pass by value). Each call gets a fresh stack frame holding its own copies of the arguments, and the frame disappears when the function returns:\n\n```cpp\nint addTen(int n) {\n    n += 10;             // changes the copy only\n    return n;\n}\n// int score = 5; addTen(score) is 15, but score is still 5\n```\n\nGotcha: a non-void function that reaches its closing brace without a `return` is undefined behavior. Every path must return a value. Only `main` is exempt: reaching its end returns 0.",
+      "example": {
+        "title": "Square and triangle",
+        "prompt": "Define `square` and `triangleArea` above `main`, then print their results.",
+        "code": "#include <iomanip>\n#include <iostream>\n\nint square(int x) {\n    return x * x;\n}\n\ndouble triangleArea(double base, double height) {\n    return base * height / 2.0;\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    std::cout << \"square(7) = \" << square(7) << '\\n';\n    std::cout << \"triangle area = \" << triangleArea(3.0, 5.0) << '\\n';\n    const int sum = square(3) + square(4);\n    std::cout << \"sum of squares = \" << sum << '\\n';\n    return 0;\n}\n",
+        "output": "square(7) = 49\ntriangle area = 7.50\nsum of squares = 25",
+        "explanation": "`square(7)` copies 7 into `x`, computes 49, and the call expression becomes 49. `triangleArea(3.0, 5.0)` copies both arguments in order, so `base` is 3.0 and `height` is 5.0, and returns 7.5. `std::fixed` only changes how doubles print, so the int results still show as 49 and 25. The last line shows that results are ordinary values: two calls feed one `+`."
+      },
+      "practice": {
+        "title": "Cube and rectangle",
+        "prompt": "Write two small functions and print their results.\n\n1. Make `cube` return `x * x * x`.\n2. Make `rectangleArea` return `w * h`.\n3. In `main`, print `rectangle area = ` followed by `rectangleArea(2.5, 4.0)`.\n4. Print `sum of cubes = ` followed by `cube(2) + cube(3)`.\n\nExpected output:\n\n```text\ncube(4) = 64\nrectangle area = 10.00\nsum of cubes = 35\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n\nint cube(int x) {\n    // TODO: return x cubed\n    return 0;\n}\n\ndouble rectangleArea(double w, double h) {\n    // TODO: return the area of a w by h rectangle\n    return 0.0;\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    std::cout << \"cube(4) = \" << cube(4) << '\\n';\n    // TODO: print the rectangle area for 2.5 by 4.0, then the sum of cube(2) and cube(3)\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\nint cube(int x) {\n    return x * x * x;\n}\n\ndouble rectangleArea(double w, double h) {\n    return w * h;\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    std::cout << \"cube(4) = \" << cube(4) << '\\n';\n    std::cout << \"rectangle area = \" << rectangleArea(2.5, 4.0) << '\\n';\n    const int sum = cube(2) + cube(3);\n    std::cout << \"sum of cubes = \" << sum << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "cube(4) = 64\nrectangle area = 10.00\nsum of cubes = 35"
+          }
+        ],
+        "hints": [
+          "Each function body is a single `return` statement with the formula.",
+          "The sum line works like the example's `sum of squares` line, with `cube` in place of `square`."
+        ]
+      }
+    },
+    {
+      "title": "Void functions and default arguments",
+      "body": "Some functions do a job instead of computing a value. Give them the return type `void`: they print or change something and hand nothing back.\n\n```cpp\nvoid greet(std::string name) {\n    std::cout << \"Hi, \" << name << '\\n';\n}\n```\n\nA void function ends at its closing brace, but a bare `return;` leaves early. That makes a clean guard at the top: check for a bad case, bail out, and keep the main work unindented.\n\n```cpp\nif (name.empty()) {\n    return;              // nothing printed\n}\n```\n\nA **default argument** fills in a parameter the caller leaves out: `void printBanner(std::string title, char border = '*')`. Now `printBanner(\"Menu\")` uses `'*'` and `printBanner(\"Menu\", '=')` overrides it.\n\nRules and gotchas:\n\n- Defaults go at the end of the list. `void f(int a = 1, int b)` does not compile, because arguments fill parameters left to right.\n- You cannot skip a middle argument. With two defaults, setting the second means passing the first too.\n- A `std::string` parameter is a full copy of the text. That is fine for now, and the References lesson shows how to avoid it.",
+      "example": {
+        "title": "Banners",
+        "prompt": "Print bordered titles with a void function whose border defaults to a star, skipping empty titles.",
+        "code": "#include <iostream>\n#include <string>\n\nvoid printBanner(std::string title, char border = '*') {\n    if (title.empty()) {\n        return;\n    }\n    const std::string line(title.size(), border);\n    std::cout << line << '\\n';\n    std::cout << title << '\\n';\n    std::cout << line << '\\n';\n}\n\nint main() {\n    printBanner(\"Menu\");\n    printBanner(\"Settings\", '=');\n    printBanner(\"\");\n    printBanner(\"End\", '-');\n    return 0;\n}\n",
+        "output": "****\nMenu\n****\n========\nSettings\n========\n---\nEnd\n---",
+        "explanation": "`printBanner(\"Menu\")` leaves out the border, so `border` takes the default `'*'`. The second call passes `'='` and overrides it. `std::string(title.size(), border)` builds a border exactly as long as the title. The empty title hits `return;` on the first check, so that call prints nothing at all, and the next call carries on normally."
+      },
+      "practice": {
+        "title": "Receipt lines",
+        "prompt": "Print receipt lines with a void function whose quantity defaults to 1.\n\n1. Give `qty` a default value of 1 in the parameter list.\n2. If `qty` is 0, return early without printing anything.\n3. Otherwise print the item, ` x `, the quantity, ` = `, and `price * qty` with 2 decimals, as in `Coffee x 2 = 7.00`.\n4. In `main`, after the Coffee call, call it for Bagel at 2.25 with no qty, Juice at 4.00 with qty 0, and Muffin at 2.75 with qty 3, in that order.\n\nExpected output:\n\n```text\nCoffee x 2 = 7.00\nBagel x 1 = 2.25\nMuffin x 3 = 8.25\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n#include <string>\n\n// TODO: give qty a default value of 1\nvoid printReceiptLine(std::string item, double price, int qty) {\n    // TODO: return early when qty is 0, otherwise print \"item x qty = total\"\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    printReceiptLine(\"Coffee\", 3.50, 2);\n    // TODO: call printReceiptLine for Bagel, Juice, and Muffin\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n#include <string>\n\nvoid printReceiptLine(std::string item, double price, int qty = 1) {\n    if (qty == 0) {\n        return;\n    }\n    std::cout << item << \" x \" << qty << \" = \" << price * qty << '\\n';\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    printReceiptLine(\"Coffee\", 3.50, 2);\n    printReceiptLine(\"Bagel\", 2.25);\n    printReceiptLine(\"Juice\", 4.00, 0);\n    printReceiptLine(\"Muffin\", 2.75, 3);\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Coffee x 2 = 7.00\nBagel x 1 = 2.25\nMuffin x 3 = 8.25"
+          }
+        ],
+        "hints": [
+          "Write `int qty = 1` in the parameter list. It is already last, so a default is allowed.",
+          "Guard against a quantity of 0 the same way `printBanner` guards against an empty title. Then chain the pieces with `<<`, letting `std::fixed` format the total."
+        ]
+      }
+    },
+    {
+      "title": "Overloading",
+      "body": "**Overloads** are several functions with the same name but different parameter types or a different number of parameters. Use them when one idea, such as \"describe this\" or \"the max of these\", applies to different inputs.\n\n```cpp\nvoid describe(int value);\nvoid describe(double value);\nint maxOf(int a, int b);\nint maxOf(int a, int b, int c);\n```\n\nThe compiler picks the overload at compile time by matching the arguments: `describe(5)` calls the int version, `describe(2.5)` the double version, and `maxOf(1, 2, 3)` the three-parameter one. An exact match wins over one that needs a conversion.\n\nGotchas:\n\n- The return type alone cannot tell overloads apart. `int f(int)` and `double f(int)` together do not compile, because a call `f(3)` looks identical for both.\n- If two overloads match equally well, the call is ambiguous and does not compile. With only `describe(int)` and `describe(double)`, `describe(5LL)` is ambiguous.\n- Conversions can surprise you. With only `describe(int)` and `describe(double)`, `describe('A')` promotes the char to int and prints 65.\n- A string literal such as `\"hi\"` is not a `std::string`. If a `bool` overload exists, `f(\"hi\")` picks it over `f(std::string)`, so pass `std::string(\"hi\")` to be sure.",
+      "example": {
+        "title": "Describe and max",
+        "prompt": "Overload `describe` for three types and `maxOf` for two and three numbers.",
+        "code": "#include <iostream>\n#include <string>\n\nvoid describe(int value) {\n    std::cout << \"int: \" << value << '\\n';\n}\n\nvoid describe(double value) {\n    std::cout << \"double: \" << value << '\\n';\n}\n\nvoid describe(std::string value) {\n    std::cout << \"string: \" << value << '\\n';\n}\n\nint maxOf(int a, int b) {\n    return a > b ? a : b;\n}\n\nint maxOf(int a, int b, int c) {\n    return maxOf(maxOf(a, b), c);\n}\n\nint main() {\n    describe(5);\n    describe(2.5);\n    describe(std::string(\"hi\"));\n    std::cout << \"max of 2: \" << maxOf(4, 9) << '\\n';\n    std::cout << \"max of 3: \" << maxOf(12, 3, 7) << '\\n';\n    return 0;\n}\n",
+        "output": "int: 5\ndouble: 2.5\nstring: hi\nmax of 2: 9\nmax of 3: 12",
+        "explanation": "Each `describe` call has an argument of a different type, so the compiler matches it to a different function: 5 is an int, 2.5 is a double, and `std::string(\"hi\")` is a string. The two `maxOf` functions differ in parameter count. The three-parameter version reuses the two-parameter one twice, which is a common way to build one overload on top of another."
+      },
+      "practice": {
+        "title": "Area and label",
+        "prompt": "Add an overload for area and one for label.\n\n1. Write `double area(double w, double h)` that returns `w * h`.\n2. Write `void label(bool value)` that prints `flag true` or `flag false`.\n3. In `main`, print `rectangle: ` followed by `area(3.0, 4.5)` right after the square line.\n4. Keep the calls `label(7)` and `label(true)`.\n\nExpected output:\n\n```text\nsquare: 6.25\nrectangle: 13.50\nnumber 7\nflag true\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n\ndouble area(double side) {\n    return side * side;\n}\n\n// TODO: overload area for a rectangle: double area(double w, double h)\n\nvoid label(int n) {\n    std::cout << \"number \" << n << '\\n';\n}\n\n// TODO: overload label for a bool that prints \"flag true\" or \"flag false\"\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    std::cout << \"square: \" << area(2.5) << '\\n';\n    // TODO: print \"rectangle: \" and area(3.0, 4.5)\n    label(7);\n    label(true);\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\ndouble area(double side) {\n    return side * side;\n}\n\ndouble area(double w, double h) {\n    return w * h;\n}\n\nvoid label(int n) {\n    std::cout << \"number \" << n << '\\n';\n}\n\nvoid label(bool value) {\n    std::cout << \"flag \" << (value ? \"true\" : \"false\") << '\\n';\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    std::cout << \"square: \" << area(2.5) << '\\n';\n    std::cout << \"rectangle: \" << area(3.0, 4.5) << '\\n';\n    label(7);\n    label(true);\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "square: 6.25\nrectangle: 13.50\nnumber 7\nflag true"
+          }
+        ],
+        "hints": [
+          "Run the starter first: without a bool overload, `label(true)` converts true to the int 1 and prints `number 1`.",
+          "Pick the word with a ternary: `(value ? \"true\" : \"false\")`."
+        ]
+      }
+    },
+    {
+      "title": "Declarations, headers, and namespaces",
+      "body": "A function must be **declared** before it is called, but it can be **defined** later. A declaration (prototype) is the signature ending in a semicolon, with no body:\n\n```cpp\ndouble toFahrenheit(double c);   // declaration: \"this exists\"\n```\n\nWith it above `main`, the definition can go below `main`. The compiler checks calls against the declaration, and the linker connects them to the body.\n\nThat is what **header files** are for in bigger projects. A `temperature.h` holds declarations, a `.cpp` file holds the definitions, and `#include \"temperature.h\"` pastes the declarations into every file that needs them. Quotes are for your own headers and angle brackets for the standard library, as in `#include <iostream>`. This course keeps each program in one file.\n\nGotcha: a default argument goes on the declaration only. Repeating it on the definition does not compile.\n\nA **namespace** groups related names so they cannot clash with names elsewhere:\n\n```cpp\nnamespace geometry {\n    const double PI = 3.14159265358979;\n    double area(double r) {\n        return PI * r * r;\n    }\n}\n```\n\nOutside it, reach in with the scope resolution operator `::`, as in `geometry::area(2.0)`. That is exactly what `std::` means: the standard library lives in namespace `std`.\n\nThis is why the course never writes `using namespace std;`. It dumps hundreds of std names into your scope, so your own `count` or `max` can collide with the library's and fail to compile or quietly call the wrong one.",
+      "example": {
+        "title": "Temperatures and circles",
+        "prompt": "Declare `toFahrenheit` above `main` and define it below, and call `area` from `namespace geometry`.",
+        "code": "#include <iomanip>\n#include <iostream>\n\ndouble toFahrenheit(double c);\n\nnamespace geometry {\n    const double PI = 3.14159265358979;\n\n    double area(double r) {\n        return PI * r * r;\n    }\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    std::cout << \"100 C = \" << toFahrenheit(100.0) << \" F\\n\";\n    std::cout << \"37 C = \" << toFahrenheit(37.0) << \" F\\n\";\n    std::cout << \"PI = \" << geometry::PI << '\\n';\n    std::cout << \"circle area = \" << geometry::area(2.0) << '\\n';\n    return 0;\n}\n\ndouble toFahrenheit(double c) {\n    return c * 9.0 / 5.0 + 32.0;\n}\n",
+        "output": "100 C = 212.00 F\n37 C = 98.60 F\nPI = 3.14\ncircle area = 12.57",
+        "explanation": "The declaration above `main` tells the compiler that `toFahrenheit` takes a double and returns a double, so the calls in `main` compile even though the body comes later. Inside `namespace geometry`, `area` uses `PI` directly. From `main`, both need the `geometry::` prefix. Writing `9.0 / 5.0` keeps the math in doubles, since `9 / 5` would be integer division and give 1."
+      },
+      "practice": {
+        "title": "Minutes and perimeters",
+        "prompt": "Use a declaration above main and a function inside a namespace.\n\n1. Declare `int toSeconds(int minutes);` above `main` and finish its definition below `main` so it returns `minutes * 60`.\n2. In `main`, print `5 minutes = 300 seconds` and `90 minutes = 5400 seconds` using `toSeconds`.\n3. Wrap `perimeter` in `namespace shapes` and make it return `2.0 * (w + h)`.\n4. Call it as `shapes::perimeter(3.0, 4.5)`.\n\nExpected output:\n\n```text\n5 minutes = 300 seconds\n90 minutes = 5400 seconds\nperimeter = 15.00\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n\n// TODO: declare toSeconds here so main can call it\n\n// TODO: put perimeter inside namespace shapes and return 2.0 * (w + h)\ndouble perimeter(double w, double h) {\n    return 0.0;\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    // TODO: print the 5 minute and 90 minute lines with toSeconds\n    std::cout << \"perimeter = \" << perimeter(3.0, 4.5) << '\\n';\n    return 0;\n}\n\nint toSeconds(int minutes) {\n    // TODO: return minutes converted to seconds\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\nint toSeconds(int minutes);\n\nnamespace shapes {\n    double perimeter(double w, double h) {\n        return 2.0 * (w + h);\n    }\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    std::cout << \"5 minutes = \" << toSeconds(5) << \" seconds\\n\";\n    std::cout << \"90 minutes = \" << toSeconds(90) << \" seconds\\n\";\n    std::cout << \"perimeter = \" << shapes::perimeter(3.0, 4.5) << '\\n';\n    return 0;\n}\n\nint toSeconds(int minutes) {\n    return minutes * 60;\n}\n",
+        "tests": [
+          {
+            "output": "5 minutes = 300 seconds\n90 minutes = 5400 seconds\nperimeter = 15.00"
+          }
+        ],
+        "hints": [
+          "The declaration is the first line of the definition with a semicolon instead of a body: `int toSeconds(int minutes);`.",
+          "Once `perimeter` is inside `namespace shapes { }`, the old call no longer compiles. Change it to `shapes::perimeter(3.0, 4.5)`."
+        ]
+      }
+    }
+  ],
+  "recap": "- A function is a return type, a name, a parameter list, and a body. `return` hands back a value.\n- Define functions above `main`, or declare them above and define them below.\n- Parameters are copies: changing one inside the function does not change the caller's variable.\n- `void` functions return nothing, and a bare `return;` leaves early.\n- Default arguments go at the end of the parameter list.\n- Overloads share a name and differ in parameter types or count. The return type alone is not enough.\n- Headers hold declarations and `#include` pastes them in.\n- `namespace name { }` groups names, and `name::function` reaches in. Avoid `using namespace std;`."
+}

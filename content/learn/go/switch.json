@@ -1,0 +1,88 @@
+{
+  "id": "switch",
+  "title": "Switch Statements",
+  "section": "Control Flow",
+  "summary": "Pick one of many cases with switch, group values in a case, switch on conditions, and use fallthrough on purpose.",
+  "intro": "A long chain of `else if` that compares one value again and again is hard to read. Go's `switch` says the same thing in a flat list of cases, and it never falls into the next case by accident.",
+  "steps": [
+    {
+      "title": "Switch on a value",
+      "body": "`switch value` compares the value with each `case` from top to bottom and runs the first one that matches. A case can list several values separated by commas, and `default` runs when nothing matches.\n\n```go\nswitch day {\ncase \"sat\", \"sun\":\n\tfmt.Println(\"Weekend\")\ncase \"wed\":\n\tfmt.Println(\"Midweek\")\ndefault:\n\tfmt.Println(\"Weekday\")\n}\n```\n\nUnlike some other languages, a Go case **does not fall through** into the next one. When its body ends, the whole switch ends, so you never write `break` at the end of a case. Each case value must fit the type of the switch value, so `case \"4\"` next to an `int` does not compile. Listing the same constant twice in one switch is a compile error too (`duplicate case`).\n\n`default` can sit anywhere in the list, but it only runs after every other case fails, so put it last where readers expect it.",
+      "example": {
+        "title": "Weekend or weekday",
+        "prompt": "Print the day, then whether it is a weekend, midweek, or a regular weekday.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tday := \"sun\"\n\tfmt.Println(\"Day:\", day)\n\n\tswitch day {\n\tcase \"sat\", \"sun\":\n\t\tfmt.Println(\"Weekend\")\n\tcase \"wed\":\n\t\tfmt.Println(\"Midweek\")\n\tdefault:\n\t\tfmt.Println(\"Weekday\")\n\t}\n}\n",
+        "output": "Day: sun\nWeekend",
+        "explanation": "The switch compares `day` with `\"sat\"` and `\"sun\"` first. `\"sun\"` matches, so it prints `Weekend` and the switch ends right there. The `\"wed\"` case and `default` are skipped without any `break`. With `day := \"mon\"`, no case would match and `default` would print `Weekday`."
+      },
+      "practice": {
+        "title": "Season of the month",
+        "prompt": "Print the month number, then the season it falls in.\n\n1. Keep the line that prints `Month: 4`.\n2. Switch on `month`.\n3. Print `Winter` for 12, 1, 2, `Spring` for 3, 4, 5, and `Summer` for 6, 7, 8, each group in one case.\n4. Print `Autumn` in the `default` case.\n\nExpected output:\n\n```text\nMonth: 4\nSpring\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmonth := 4\n\tfmt.Println(\"Month:\", month)\n\n\t// TODO: switch on month and print its season\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmonth := 4\n\tfmt.Println(\"Month:\", month)\n\n\tswitch month {\n\tcase 12, 1, 2:\n\t\tfmt.Println(\"Winter\")\n\tcase 3, 4, 5:\n\t\tfmt.Println(\"Spring\")\n\tcase 6, 7, 8:\n\t\tfmt.Println(\"Summer\")\n\tdefault:\n\t\tfmt.Println(\"Autumn\")\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "Month: 4\nSpring"
+          }
+        ],
+        "hints": [
+          "List several values in one case with commas: `case 3, 4, 5:`.",
+          "You do not need `break`. Each case ends the switch on its own."
+        ]
+      }
+    },
+    {
+      "title": "Switch on conditions",
+      "body": "Leave out the value and each case becomes a bool condition. This is the idiomatic Go replacement for a long `if` / `else if` chain.\n\n```go\nswitch {\ncase score >= 90:\n\tfmt.Println(\"A\")\ncase score >= 80:\n\tfmt.Println(\"B\")\ndefault:\n\tfmt.Println(\"F\")\n}\n```\n\nCases are checked top to bottom and **the first true case wins**, even if later ones are true as well. A score of 95 passes `score >= 80` too, but it never gets there. So order the cases from the strictest to the loosest, just like an else-if chain.\n\nA switch can also start with an init statement, like `if` can. The variable exists only inside the switch:\n\n```go\nswitch r := n % 3; r {\ncase 0:\n\tfmt.Println(\"divides evenly\")\ndefault:\n\tfmt.Println(\"remainder\", r)\n}\n```\n\nA plain `break` inside a case leaves only the switch, which matters once switches sit inside loops.",
+      "example": {
+        "title": "Letter grade and remainder",
+        "prompt": "Turn a score into a letter grade with a switch on conditions, then report a remainder with a switch that has an init statement.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tscore := 77\n\tfmt.Println(\"Score:\", score)\n\n\tswitch {\n\tcase score >= 90:\n\t\tfmt.Println(\"A\")\n\tcase score >= 80:\n\t\tfmt.Println(\"B\")\n\tcase score >= 70:\n\t\tfmt.Println(\"C\")\n\tdefault:\n\t\tfmt.Println(\"F\")\n\t}\n\n\tswitch r := 10 % 3; r {\n\tcase 0:\n\t\tfmt.Println(\"divides evenly\")\n\tdefault:\n\t\tfmt.Println(\"remainder\", r)\n\t}\n}\n",
+        "output": "Score: 77\nC\nremainder 1",
+        "explanation": "The first switch has no value, so Go checks each condition in order. `77 >= 90` and `77 >= 80` are false, `77 >= 70` is true, so it prints `C` and stops. The second switch first runs `r := 10 % 3`, which gives 1, then switches on `r`. No case is `1`, so `default` prints `remainder 1`. Outside that switch, `r` does not exist."
+      },
+      "practice": {
+        "title": "Temperature label",
+        "prompt": "Label a temperature with a switch on conditions, then report a day offset with a switch that has an init statement.\n\n1. Keep the line that prints `Temp: -2`.\n2. Write a switch with no value: below 0 prints `Freezing`, below 15 prints `Cold`, below 25 prints `Mild`, otherwise `Hot`.\n3. Write `switch d := 17 % 7; d {` with `case 0:` printing `same day` and a `default` that prints the word `day`, a space, and the value of `d`.\n\nExpected output:\n\n```text\nTemp: -2\nFreezing\nday 3\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttemp := -2\n\tfmt.Println(\"Temp:\", temp)\n\n\t// TODO: switch on conditions to print Freezing, Cold, Mild, or Hot\n\n\t// TODO: switch d := 17 % 7; d { ... } to print same day or day 3\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttemp := -2\n\tfmt.Println(\"Temp:\", temp)\n\n\tswitch {\n\tcase temp < 0:\n\t\tfmt.Println(\"Freezing\")\n\tcase temp < 15:\n\t\tfmt.Println(\"Cold\")\n\tcase temp < 25:\n\t\tfmt.Println(\"Mild\")\n\tdefault:\n\t\tfmt.Println(\"Hot\")\n\t}\n\n\tswitch d := 17 % 7; d {\n\tcase 0:\n\t\tfmt.Println(\"same day\")\n\tdefault:\n\t\tfmt.Println(\"day\", d)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "Temp: -2\nFreezing\nday 3"
+          }
+        ],
+        "hints": [
+          "Start with `case temp < 0:`. The first true case wins, so `temp < 15` only runs for 0 through 14.",
+          "In the second switch, `fmt.Println(\"day\", d)` prints `day 3`."
+        ]
+      }
+    },
+    {
+      "title": "fallthrough",
+      "body": "Sometimes you *want* one case to continue into the next. Put `fallthrough` as the last statement of a case and Go runs the next case's body too.\n\n```go\nswitch tier {\ncase \"gold\":\n\tfmt.Println(\"Free shipping\")\n\tfallthrough\ncase \"silver\":\n\tfmt.Println(\"Priority support\")\n}\n```\n\nThree rules to remember:\n\n- `fallthrough` does **not** check the next case. With `tier` set to `\"gold\"`, the `\"silver\"` body runs even though `tier` is not `\"silver\"`.\n- It must be the last statement in its case. You cannot put it inside an `if` or follow it with more code.\n- The final case cannot use it, because there is no next case. That is a compile error: `cannot fallthrough final case in switch`.\n\nUse it sparingly. It fits tiers where a higher level includes everything below it. When you only want several values to share one body, list them in one case instead.",
+      "example": {
+        "title": "Membership perks",
+        "prompt": "Print every perk a gold member gets, where each tier includes the perks of the tiers below it.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttier := \"gold\"\n\tfmt.Println(\"Tier:\", tier)\n\n\tswitch tier {\n\tcase \"gold\":\n\t\tfmt.Println(\"Free shipping\")\n\t\tfallthrough\n\tcase \"silver\":\n\t\tfmt.Println(\"Priority support\")\n\t\tfallthrough\n\tcase \"bronze\":\n\t\tfmt.Println(\"Member discount\")\n\t}\n}\n",
+        "output": "Tier: gold\nFree shipping\nPriority support\nMember discount",
+        "explanation": "`tier` matches `\"gold\"`, which prints `Free shipping` and then falls through. The `\"silver\"` body runs without its case being checked and falls through again. The `\"bronze\"` body runs last and has no `fallthrough`, so the switch ends. A silver member would start at the second case and get two perks."
+      },
+      "practice": {
+        "title": "Level unlocks",
+        "prompt": "Print every item a player has unlocked, where each level also unlocks the items of the levels below it.\n\n1. Keep the line that prints `Level: 2`.\n2. Switch on `level` with the cases `3`, `2`, and `1`, in that order.\n3. Case 3 prints `Unlocked: Dragon armor`, case 2 prints `Unlocked: Steel sword`, and case 1 prints `Unlocked: Wooden shield`.\n4. End cases 3 and 2 with `fallthrough`. Case 1 is last, so it has none.\n\nExpected output:\n\n```text\nLevel: 2\nUnlocked: Steel sword\nUnlocked: Wooden shield\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tlevel := 2\n\tfmt.Println(\"Level:\", level)\n\n\t// TODO: switch on level, using fallthrough so lower unlocks also print\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tlevel := 2\n\tfmt.Println(\"Level:\", level)\n\n\tswitch level {\n\tcase 3:\n\t\tfmt.Println(\"Unlocked: Dragon armor\")\n\t\tfallthrough\n\tcase 2:\n\t\tfmt.Println(\"Unlocked: Steel sword\")\n\t\tfallthrough\n\tcase 1:\n\t\tfmt.Println(\"Unlocked: Wooden shield\")\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "Level: 2\nUnlocked: Steel sword\nUnlocked: Wooden shield"
+          }
+        ],
+        "hints": [
+          "Put `fallthrough` on its own line after the `fmt.Println` in cases 3 and 2.",
+          "Level 2 starts at `case 2:`, so the Dragon armor line never prints."
+        ]
+      }
+    }
+  ],
+  "recap": "- `switch v { case a: ... }` runs the first case that equals `v`.\n- `case \"sat\", \"sun\":` matches any of the listed values.\n- `default` runs when no case matches.\n- Cases never fall through on their own, so no `break` is needed.\n- `switch { case x > 0: }` checks conditions in order, and the first true case wins.\n- `switch r := n % 3; r { }` declares a variable that lives only in the switch.\n- `fallthrough` runs the next case's body without checking it. It must be last in its case and cannot appear in the final case."
+}

@@ -1,0 +1,116 @@
+{
+  "id": "string-loops",
+  "title": "Looping Over Strings",
+  "section": "Strings",
+  "summary": "Walk through strings character by character to count, classify, transform, split, and check them.",
+  "intro": "Most string work is a loop over characters: count some, test each one, change them, or collect them into words. This lesson covers range-for and index loops over a `std::string`, the `<cctype>` tests and case conversions, character arithmetic, and hand-written splitting, reversing, and palindrome checks.",
+  "steps": [
+    {
+      "title": "Visiting every character",
+      "body": "A `std::string` is a sequence of `char`s, so you loop over it like a vector. Use range-for when you only need each character:\n\n```cpp\nfor (char c : s) {\n    if (c == 'e') {\n        ++count;\n    }\n}\n```\n\n`char c` is a 1 byte copy of each character, which is cheap. Use an index loop when you need the position, or to look at a neighbor:\n\n```cpp\nfor (std::size_t i = 0; i < s.size(); ++i) {\n    std::cout << i << ':' << s[i] << '\\n';\n}\n```\n\nTo transform text, start from an empty string and append with `+=`, one character per iteration. The string keeps its characters in a buffer it owns and grows that buffer as needed, so appending in a loop is fast.\n\n> Gotcha: compare a `char` with a char literal in single quotes. `c == 'a'` works, but `c == \"a\"` compares a char with a string literal and does not compile.",
+      "example": {
+        "title": "Vowels and underscores",
+        "prompt": "Count the vowels in a phrase and build a copy with every space replaced by an underscore.",
+        "code": "#include <cstddef>\n#include <iostream>\n#include <string>\n\nint main() {\n    const std::string text = \"programming in c plus plus\";\n\n    int vowels = 0;\n    for (char c : text) {\n        if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u') {\n            ++vowels;\n        }\n    }\n    std::cout << \"Vowels: \" << vowels << '\\n';\n\n    std::string underscored;\n    for (std::size_t i = 0; i < text.size(); ++i) {\n        if (text[i] == ' ') {\n            underscored += '_';\n        } else {\n            underscored += text[i];\n        }\n    }\n    std::cout << underscored << '\\n';\n    return 0;\n}\n",
+        "output": "Vowels: 6\nprogramming_in_c_plus_plus",
+        "explanation": "The range-for hands each character to `c` in order, and the `||` chain counts o, a, i, i, u, u for a total of 6. The index loop reads `text[i]` at every position from 0 up to `text.size() - 1`. `underscored` starts empty and grows by one character per iteration: `'_'` for a space, otherwise the original character. `text` is `const` and never changes."
+      },
+      "practice": {
+        "title": "Letter count and replacement",
+        "prompt": "Count one letter in a word and build a copy of another word with one letter replaced.\n\n1. Loop over `word` with `for (char c : word)` and count how many characters equal `'s'`.\n2. Print `s count: ` followed by the count.\n3. Loop over `fruit` by index and build `replaced`, appending `'4'` for every `'a'` and the original character otherwise.\n4. Print `replaced`.\n\nExpected output:\n\n```text\ns count: 4\nb4n4n4\n```",
+        "starter": "#include <cstddef>\n#include <iostream>\n#include <string>\n\nint main() {\n    const std::string word = \"mississippi\";\n    int count = 0;\n    // TODO: count the 's' characters in word\n    std::cout << \"s count: \" << count << '\\n';\n\n    const std::string fruit = \"banana\";\n    std::string replaced;\n    // TODO: build replaced from fruit, turning every 'a' into '4'\n    std::cout << replaced << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <iostream>\n#include <string>\n\nint main() {\n    const std::string word = \"mississippi\";\n    int count = 0;\n    for (char c : word) {\n        if (c == 's') {\n            ++count;\n        }\n    }\n    std::cout << \"s count: \" << count << '\\n';\n\n    const std::string fruit = \"banana\";\n    std::string replaced;\n    for (std::size_t i = 0; i < fruit.size(); ++i) {\n        if (fruit[i] == 'a') {\n            replaced += '4';\n        } else {\n            replaced += fruit[i];\n        }\n    }\n    std::cout << replaced << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "s count: 4\nb4n4n4"
+          }
+        ],
+        "hints": [
+          "Use `if (c == 's')` inside the range-for and `++count;` when it matches.",
+          "In the index loop, append `'4'` when `fruit[i] == 'a'` and `fruit[i]` otherwise."
+        ]
+      }
+    },
+    {
+      "title": "Character tests and case conversion",
+      "body": "`#include <cctype>` gives you tests for one character:\n\n| Function | True for |\n| --- | --- |\n| `std::isalpha` | letters |\n| `std::isdigit` | `0` to `9` |\n| `std::isspace` | space, tab, newline, other whitespace |\n| `std::isupper` / `std::islower` | upper or lowercase letters |\n| `std::isalnum` | letters or digits |\n| `std::ispunct` | punctuation such as `!` `,` `+` |\n\nTwo gotchas. First, pass `static_cast<unsigned char>(c)`. A `char` is signed here, and a negative value is undefined behavior for these functions. Second, the tests return an `int`, not a `bool`: `std::isupper('A')` is 256 on this system. Use them in conditions, where nonzero means true. Never write `std::isupper(uc) == true`: `true` becomes 1, and 256 is not 1, so the test fails.\n\n`std::toupper` and `std::tolower` also return an `int`, so `std::cout << std::toupper('a')` prints 65. Cast the result back with `static_cast<char>`. Non-letters come back unchanged.\n\nTo change a string in place, loop with a reference: `for (char& c : s)` makes `c` another name for the character inside `s`, so assigning to `c` writes into the string's own memory.\n\n```cpp\nfor (char& c : s) {\n    c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));\n}\n```",
+      "example": {
+        "title": "Classify and uppercase",
+        "prompt": "Count the letters, digits, and spaces in a string, then convert it to uppercase in place.",
+        "code": "#include <cctype>\n#include <iostream>\n#include <string>\n\nint main() {\n    std::string s = \"Hello World 2024!\";\n\n    int letters = 0;\n    int digits = 0;\n    int spaces = 0;\n    for (char c : s) {\n        const unsigned char uc = static_cast<unsigned char>(c);\n        if (std::isalpha(uc)) {\n            ++letters;\n        } else if (std::isdigit(uc)) {\n            ++digits;\n        } else if (std::isspace(uc)) {\n            ++spaces;\n        }\n    }\n    std::cout << \"Letters: \" << letters << '\\n';\n    std::cout << \"Digits: \" << digits << '\\n';\n    std::cout << \"Spaces: \" << spaces << '\\n';\n\n    for (char& c : s) {\n        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));\n    }\n    std::cout << s << '\\n';\n    return 0;\n}\n",
+        "output": "Letters: 10\nDigits: 4\nSpaces: 2\nHELLO WORLD 2024!",
+        "explanation": "Each character is cast to `unsigned char` once, then the `else if` chain puts it in at most one bucket. The `!` matches none of the three tests, so it is not counted. The second loop uses `char& c`, so each assignment overwrites the character inside `s`. `std::toupper` turns letters into uppercase and returns digits, spaces, and `!` unchanged. `s` is not `const` because the loop modifies it."
+      },
+      "practice": {
+        "title": "Classify and lowercase",
+        "prompt": "Count uppercase letters, digits, and punctuation in a string, then lowercase it in place.\n\n1. Loop over `s` and count characters where `std::isupper`, `std::isdigit`, or `std::ispunct` is true, passing `static_cast<unsigned char>(c)`.\n2. Print the three counts as shown.\n3. Loop with `for (char& c : s)` and replace each character with `std::tolower` of it, cast back to `char`.\n4. Print `s`.\n\nExpected output:\n\n```text\nUppercase: 3\nDigits: 3\nPunctuation: 3\nc++17 rocks, version 2\n```",
+        "starter": "#include <cctype>\n#include <iostream>\n#include <string>\n\nint main() {\n    std::string s = \"C++17 Rocks, Version 2\";\n\n    int uppercase = 0;\n    int digits = 0;\n    int punctuation = 0;\n    // TODO: count uppercase letters, digits, and punctuation in s\n    std::cout << \"Uppercase: \" << uppercase << '\\n';\n    std::cout << \"Digits: \" << digits << '\\n';\n    std::cout << \"Punctuation: \" << punctuation << '\\n';\n\n    // TODO: convert s to lowercase in place\n    std::cout << s << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <cctype>\n#include <iostream>\n#include <string>\n\nint main() {\n    std::string s = \"C++17 Rocks, Version 2\";\n\n    int uppercase = 0;\n    int digits = 0;\n    int punctuation = 0;\n    for (char c : s) {\n        const unsigned char uc = static_cast<unsigned char>(c);\n        if (std::isupper(uc)) {\n            ++uppercase;\n        } else if (std::isdigit(uc)) {\n            ++digits;\n        } else if (std::ispunct(uc)) {\n            ++punctuation;\n        }\n    }\n    std::cout << \"Uppercase: \" << uppercase << '\\n';\n    std::cout << \"Digits: \" << digits << '\\n';\n    std::cout << \"Punctuation: \" << punctuation << '\\n';\n\n    for (char& c : s) {\n        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));\n    }\n    std::cout << s << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Uppercase: 3\nDigits: 3\nPunctuation: 3\nc++17 rocks, version 2"
+          }
+        ],
+        "hints": [
+          "Copy the example's `else if` chain and swap in `std::isupper`, `std::isdigit`, and `std::ispunct`.",
+          "The comma and both `+` signs are punctuation. The spaces are not.",
+          "Reuse the example's uppercase loop with `std::tolower` in place of `std::toupper`."
+        ]
+      }
+    },
+    {
+      "title": "Characters are numbers",
+      "body": "A `char` is a small integer: one byte holding a character code. `'A'` is 65, `'a'` is 97, and `'0'` is 48. Letters and digits sit in consecutive codes, so subtraction gives useful numbers:\n\n```cpp\nconst int pos = 'e' - 'a';    // 4, the letter's position from 0 to 25\nconst int value = '7' - '0';  // 7, the digit's value\n```\n\nTo see a code, cast it: `static_cast<int>('A')` is 65. Printing a plain `char` shows the character instead.\n\nArithmetic on chars produces an `int`, so `std::cout << 'a' + 1` prints 98. Cast back to get a letter: `static_cast<char>('a' + 1)` is `'b'`.\n\nA Caesar shift moves each letter `k` places. Convert to a position, add, wrap with `% 26`, and convert back:\n\n```cpp\nconst int pos = (c - 'a' + k) % 26;\nshifted += static_cast<char>('a' + pos);\n```\n\nWithout `% 26`, `'z' + 3` lands on `'}'`, which is not a letter. This formula assumes lowercase letters and a shift of 0 or more.",
+      "example": {
+        "title": "Digit sum and Caesar shift",
+        "prompt": "Sum the digits in a code, print the character code of A, and shift a word three letters forward.",
+        "code": "#include <cctype>\n#include <iostream>\n#include <string>\n\nint main() {\n    const std::string code = \"a1b2c3\";\n    int digitSum = 0;\n    for (char c : code) {\n        if (std::isdigit(static_cast<unsigned char>(c))) {\n            digitSum += c - '0';\n        }\n    }\n    std::cout << \"Digit sum: \" << digitSum << '\\n';\n\n    std::cout << \"Code of A: \" << static_cast<int>('A') << '\\n';\n\n    const std::string word = \"zebra\";\n    const int shift = 3;\n    std::string shifted;\n    for (char c : word) {\n        const int pos = (c - 'a' + shift) % 26;\n        shifted += static_cast<char>('a' + pos);\n    }\n    std::cout << \"Shifted: \" << shifted << '\\n';\n    return 0;\n}\n",
+        "output": "Digit sum: 6\nCode of A: 65\nShifted: cheud",
+        "explanation": "`c - '0'` turns `'1'`, `'2'`, `'3'` into 1, 2, 3, which add up to 6. Without the subtraction you would add the codes 49, 50, 51 instead. `static_cast<int>('A')` prints the code 65 rather than the letter. For `'z'` the position is 25, plus 3 is 28, and `28 % 26` is 2, so it wraps to `'c'`. The other letters shift without wrapping: e to h, b to e, r to u, a to d."
+      },
+      "practice": {
+        "title": "Digits, codes, and a shift",
+        "prompt": "Sum the digits in a phrase, print a character code, and Caesar-shift a word.\n\n1. Loop over `phrase` and add `c - '0'` to `digitSum` for every digit.\n2. Print `Code of a: ` followed by the code of `'a'` using `static_cast<int>`.\n3. Shift each letter of `word` forward by `shift`, wrapping with `% 26`, and append it to `shifted`.\n4. Print the three lines as shown.\n\nExpected output:\n\n```text\nDigit sum: 7\nCode of a: 97\nShifted: zab\n```",
+        "starter": "#include <cctype>\n#include <iostream>\n#include <string>\n\nint main() {\n    const std::string phrase = \"4 apples, 3 pears\";\n    int digitSum = 0;\n    // TODO: add the value of each digit in phrase to digitSum\n    std::cout << \"Digit sum: \" << digitSum << '\\n';\n\n    // TODO: print the code of 'a'\n\n    const std::string word = \"xyz\";\n    const int shift = 2;\n    std::string shifted;\n    // TODO: build shifted by moving each letter of word forward by shift\n    std::cout << \"Shifted: \" << shifted << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <cctype>\n#include <iostream>\n#include <string>\n\nint main() {\n    const std::string phrase = \"4 apples, 3 pears\";\n    int digitSum = 0;\n    for (char c : phrase) {\n        if (std::isdigit(static_cast<unsigned char>(c))) {\n            digitSum += c - '0';\n        }\n    }\n    std::cout << \"Digit sum: \" << digitSum << '\\n';\n\n    std::cout << \"Code of a: \" << static_cast<int>('a') << '\\n';\n\n    const std::string word = \"xyz\";\n    const int shift = 2;\n    std::string shifted;\n    for (char c : word) {\n        const int pos = (c - 'a' + shift) % 26;\n        shifted += static_cast<char>('a' + pos);\n    }\n    std::cout << \"Shifted: \" << shifted << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Digit sum: 7\nCode of a: 97\nShifted: zab"
+          }
+        ],
+        "hints": [
+          "Only add `c - '0'` when `std::isdigit(static_cast<unsigned char>(c))` is true.",
+          "`'y' - 'a'` is 24, plus 2 is 26, and `26 % 26` is 0, which is `'a'`."
+        ]
+      }
+    },
+    {
+      "title": "Splitting, reversing, and palindromes",
+      "body": "**Splitting.** Scan the characters and build the current word. At a space, push the word into a `std::vector<std::string>` and start over with `current.clear()`, which empties the string. After the loop, the last word is still in `current` because no space followed it, so push it too:\n\n```cpp\nfor (char c : sentence) {\n    if (c == ' ') {\n        if (!current.empty()) {\n            words.push_back(current);\n            current.clear();\n        }\n    } else {\n        current += c;\n    }\n}\nif (!current.empty()) {\n    words.push_back(current);\n}\n```\n\n`push_back` copies `current` into the vector, so clearing `current` afterward does not touch the stored word. The `empty()` checks skip doubled spaces.\n\n**Reversing.** Loop from the last index down to 0 and append. Use an `int` index: a `std::size_t` is never below 0, so `i >= 0` stays true and the loop reads past the start of the string.\n\n**Palindromes.** Put `i` at the front and `j` at the back, compare, and move them toward each other until they meet. Stop at the first mismatch. Keep `j` an `int` so it cannot wrap around on an empty string.",
+      "example": {
+        "title": "Words, a reversal, and palindromes",
+        "prompt": "Split a sentence into words with their lengths, reverse a word with a backwards loop, and check two words for palindromes.",
+        "code": "#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::string sentence = \"the quick brown fox\";\n    std::vector<std::string> words;\n    std::string current;\n    for (char c : sentence) {\n        if (c == ' ') {\n            if (!current.empty()) {\n                words.push_back(current);\n                current.clear();\n            }\n        } else {\n            current += c;\n        }\n    }\n    if (!current.empty()) {\n        words.push_back(current);\n    }\n    for (const auto& word : words) {\n        std::cout << word << ' ' << word.size() << '\\n';\n    }\n\n    const std::string original = \"stressed\";\n    std::string reversed;\n    for (int i = static_cast<int>(original.size()) - 1; i >= 0; --i) {\n        reversed += original[i];\n    }\n    std::cout << reversed << '\\n';\n\n    const std::vector<std::string> candidates = {\"level\", \"hello\"};\n    for (const auto& word : candidates) {\n        int i = 0;\n        int j = static_cast<int>(word.size()) - 1;\n        bool isPalindrome = true;\n        while (i < j) {\n            if (word[i] != word[j]) {\n                isPalindrome = false;\n                break;\n            }\n            ++i;\n            --j;\n        }\n        std::cout << word << (isPalindrome ? \" is a palindrome\" : \" is not a palindrome\") << '\\n';\n    }\n    return 0;\n}\n",
+        "output": "the 3\nquick 5\nbrown 5\nfox 3\ndesserts\nlevel is a palindrome\nhello is not a palindrome",
+        "explanation": "The split loop collects letters into `current` and pushes `the`, `quick`, and `brown` at each space. `fox` has no space after it, so the check after the loop pushes it. The reverse loop starts at index 7 and appends `d`, `e`, `s`, ... down to index 0. For `level`, the pairs l/l and e/e match and the loop stops when `i` and `j` meet at the middle `v`. For `hello`, `h` and `o` differ on the first comparison, so `isPalindrome` becomes false and `break` ends the loop."
+      },
+      "practice": {
+        "title": "Reverse words and palindromes",
+        "prompt": "Split a sentence into words, print them in reverse order, reverse a word, and check two words for palindromes.\n\n1. Split `sentence` on spaces into `words`, pushing the last word after the loop.\n2. Print the words from last to first on one line, separated by single spaces.\n3. Build `reversed` from `original` with a backwards index loop and print it.\n4. For each word in `candidates`, compare characters with `i` moving forward from the front and `j` moving back from the end.\n5. Print `<word> is a palindrome` or `<word> is not a palindrome`.\n\nExpected output:\n\n```text\nblue green red\nreward\nracecar is a palindrome\nrocket is not a palindrome\n```",
+        "starter": "#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::string sentence = \"red green blue\";\n    std::vector<std::string> words;\n    std::string current;\n    // TODO: split sentence into words\n\n    // TODO: print words from last to first, separated by spaces\n    std::cout << '\\n';\n\n    const std::string original = \"drawer\";\n    std::string reversed;\n    // TODO: build reversed with a backwards loop over original\n    std::cout << reversed << '\\n';\n\n    const std::vector<std::string> candidates = {\"racecar\", \"rocket\"};\n    for (const auto& word : candidates) {\n        bool isPalindrome = false;\n        // TODO: set isPalindrome with a two-index check\n        std::cout << word << (isPalindrome ? \" is a palindrome\" : \" is not a palindrome\") << '\\n';\n    }\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::string sentence = \"red green blue\";\n    std::vector<std::string> words;\n    std::string current;\n    for (char c : sentence) {\n        if (c == ' ') {\n            if (!current.empty()) {\n                words.push_back(current);\n                current.clear();\n            }\n        } else {\n            current += c;\n        }\n    }\n    if (!current.empty()) {\n        words.push_back(current);\n    }\n\n    for (int i = static_cast<int>(words.size()) - 1; i >= 0; --i) {\n        std::cout << words[i];\n        if (i > 0) {\n            std::cout << ' ';\n        }\n    }\n    std::cout << '\\n';\n\n    const std::string original = \"drawer\";\n    std::string reversed;\n    for (int i = static_cast<int>(original.size()) - 1; i >= 0; --i) {\n        reversed += original[i];\n    }\n    std::cout << reversed << '\\n';\n\n    const std::vector<std::string> candidates = {\"racecar\", \"rocket\"};\n    for (const auto& word : candidates) {\n        int i = 0;\n        int j = static_cast<int>(word.size()) - 1;\n        bool isPalindrome = true;\n        while (i < j) {\n            if (word[i] != word[j]) {\n                isPalindrome = false;\n                break;\n            }\n            ++i;\n            --j;\n        }\n        std::cout << word << (isPalindrome ? \" is a palindrome\" : \" is not a palindrome\") << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "blue green red\nreward\nracecar is a palindrome\nrocket is not a palindrome"
+          }
+        ],
+        "hints": [
+          "After the split loop, push `current` one more time so `blue` is not lost.",
+          "Both backwards loops start at `static_cast<int>(size) - 1` and run while `i >= 0`. Print a space between words only when `i > 0`.",
+          "Start with `isPalindrome = true` and set it to false at the first mismatch."
+        ]
+      }
+    }
+  ],
+  "recap": "- `for (char c : s)` reads each character, and `s[i]` with `i < s.size()` gives you the position too.\n- Build a new string by starting empty and appending with `+=`.\n- `<cctype>` tests (`std::isalpha`, `std::isdigit`, `std::isspace`, `std::isupper`, `std::islower`, `std::isalnum`, `std::ispunct`) take `static_cast<unsigned char>(c)` and return a nonzero `int` for true.\n- `std::toupper` and `std::tolower` return an `int`: cast back with `static_cast<char>`.\n- `for (char& c : s)` changes the string in place.\n- `c - 'a'` is a letter's position, `c - '0'` is a digit's value, and `static_cast<char>('a' + k)` turns a position back into a letter.\n- Wrap around the alphabet with `% 26`.\n- Split by building the current word, and push the last word after the loop.\n- Reverse and check palindromes with `int` indices so they never wrap."
+}

@@ -1,0 +1,115 @@
+{
+  "id": "stack-heap",
+  "title": "The Stack, the Heap, new and delete",
+  "section": "Memory",
+  "summary": "See where variables live, allocate and free heap memory with new and delete, and watch how std::vector manages its buffer.",
+  "intro": "Every variable lives somewhere. Locals sit in a fast, small, automatically managed area called the stack, and anything that must outlive a function or grow large goes on the heap. In this lesson you will see both, manage heap memory by hand with `new` and `delete`, and then watch `std::vector` do that work for you.",
+  "steps": [
+    {
+      "title": "The stack: scope and lifetime",
+      "body": "Every function call gets a **stack frame**: a block of memory that holds its parameters and local variables. The frame appears when the call starts and is popped when it returns. Creating or popping a frame just moves one pointer, which is why stack memory is so fast. Each local is destroyed at the closing brace of the block that declares it.\n\nAn inner block may declare a name that already exists outside. The inner variable **shadows** the outer one until its brace closes. It is legal but easy to misread, so use it sparingly.\n\n```cpp\nint level = 1;\n{\n    int level = 2; // a second, separate variable\n}\n// level is 1 again\n```\n\nEach call gets a fresh frame, so a plain local restarts every time. A `static` local is created once, lives outside the stack for the whole program, and keeps its value between calls.\n\n```cpp\nint countCalls() {\n    static int calls = 0; // initialized once, not on every call\n    ++calls;\n    return calls;\n}\n```\n\nNever return a pointer or reference to a local: its frame is gone after `return`, so the caller holds a dangling address (undefined behavior). The stack is also small, 8 MB here. A local array bigger than that, such as `int big[3'000'000];` (12 MB), crashes the program, often before anything prints. Big buffers belong in a `std::vector`, whose elements live on the heap.",
+      "example": {
+        "title": "Static versus fresh counters",
+        "prompt": "Count calls with a static local and a plain local, then shadow a variable in an inner block.",
+        "code": "#include <iostream>\n\nint countCalls() {\n    static int calls = 0;\n    ++calls;\n    return calls;\n}\n\nint freshCount() {\n    int calls = 0;\n    ++calls;\n    return calls;\n}\n\nint main() {\n    for (int i = 0; i < 3; ++i) {\n        std::cout << countCalls() << (i < 2 ? ' ' : '\\n');\n    }\n    for (int i = 0; i < 3; ++i) {\n        std::cout << freshCount() << (i < 2 ? ' ' : '\\n');\n    }\n    int level = 1;\n    {\n        int level = 2;\n        std::cout << \"inside: \" << level << '\\n';\n    }\n    std::cout << \"after: \" << level << '\\n';\n    return 0;\n}\n",
+        "output": "1 2 3\n1 1 1\ninside: 2\nafter: 1",
+        "explanation": "`calls` in `countCalls` is static, so it is set to 0 once and the same variable is incremented on every call: 1, 2, 3. `freshCount` gets a new frame each call, so its `calls` starts at 0 every time and always returns 1. Inside the braces, the inner `level` hides the outer one and prints 2. At the closing brace the inner `level` is destroyed and the name refers to the outer variable again, which was never changed. The ternary prints a space between numbers and a newline after the last."
+      },
+      "practice": {
+        "title": "Ticket counters",
+        "prompt": "Compare a static ticket counter with a plain local one, then shadow a variable in an inner block.\n\n1. Write `int nextTicket()` with `static int ticket = 100;` that adds 1 to `ticket` and returns it.\n2. Write `int plainTicket()` that does the same with a plain local `int ticket = 100;`.\n3. Call `nextTicket()` three times and print the results on one line separated by spaces, then do the same with `plainTicket()`.\n4. Declare `int room = 3;`, then open an inner block, declare `int room = 7;` inside it, and print `inside: ` followed by `room`.\n5. After the block's closing brace, print `after: ` followed by `room`.\n\nExpected output:\n\n```text\n101 102 103\n101 101 101\ninside: 7\nafter: 3\n```",
+        "starter": "#include <iostream>\n\nint nextTicket() {\n    // TODO: keep a static ticket starting at 100, add 1, and return it\n    return 0;\n}\n\nint plainTicket() {\n    // TODO: use a plain local ticket starting at 100, add 1, and return it\n    return 0;\n}\n\nint main() {\n    // TODO: print nextTicket() three times on one line, then plainTicket() three times\n    // TODO: declare room = 3, shadow it with 7 in an inner block, and print inside: and after:\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint nextTicket() {\n    static int ticket = 100;\n    ++ticket;\n    return ticket;\n}\n\nint plainTicket() {\n    int ticket = 100;\n    ++ticket;\n    return ticket;\n}\n\nint main() {\n    for (int i = 0; i < 3; ++i) {\n        std::cout << nextTicket() << (i < 2 ? ' ' : '\\n');\n    }\n    for (int i = 0; i < 3; ++i) {\n        std::cout << plainTicket() << (i < 2 ? ' ' : '\\n');\n    }\n    int room = 3;\n    {\n        int room = 7;\n        std::cout << \"inside: \" << room << '\\n';\n    }\n    std::cout << \"after: \" << room << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "101 102 103\n101 101 101\ninside: 7\nafter: 3"
+          }
+        ],
+        "hints": [
+          "Only the `static` keyword differs between the two functions.",
+          "The static `ticket` is set to 100 once, so the first call returns 101 and later calls keep counting."
+        ]
+      }
+    },
+    {
+      "title": "new and delete",
+      "body": "`new T(value)` creates one object of type `T` on the **heap**, such as `new int(5)` or `new double(2.5)`, and returns its address. A heap object is not tied to any block: it lives until you free it with `delete`. That is how a function can hand back an object that outlives its own stack frame.\n\n```cpp\nint* p = new int(5); // the int is on the heap, p itself is on the stack\n++*p;                // ++(*p): the int becomes 6\ndelete p;            // free the int\np = nullptr;         // p no longer holds a stale address\n```\n\nEvery `new` needs exactly one `delete`:\n\n- Forget the `delete` and you have a **memory leak**. The memory stays reserved until the program ends, and a program that leaks inside a loop keeps growing.\n- `delete` twice on the same address (**double delete**) is undefined behavior.\n- Reading or writing through the pointer after `delete` (**use after free**) is undefined behavior. It may crash or silently corrupt other data.\n\nSetting the pointer to `nullptr` right after `delete` guards that pointer: deleting a null pointer does nothing, and `if (p)` tells you it is empty. Any other pointer that copied the old address still dangles. Note that `delete p` frees the object, not the variable `p`, which still exists until its own block ends.",
+      "example": {
+        "title": "A heap counter",
+        "prompt": "Create a counter on the heap in a helper function, increment it twice from main, then free it.",
+        "code": "#include <iostream>\n\nint* makeCounter(int start) {\n    return new int(start);\n}\n\nint main() {\n    int* counter = makeCounter(10);\n    ++*counter;\n    ++*counter;\n    std::cout << \"counter: \" << *counter << '\\n';\n    delete counter;\n    counter = nullptr;\n    if (counter == nullptr) {\n        std::cout << \"freed\" << '\\n';\n    }\n    return 0;\n}\n",
+        "output": "counter: 12\nfreed",
+        "explanation": "`makeCounter` allocates an int holding 10 on the heap and returns its address. Its own frame is popped, but the heap int survives because only `delete` frees it. `++*counter` dereferences first and then increments, so two of them make 12. `delete counter` releases the int, and `counter = nullptr` makes sure the stale address can never be used by accident."
+      },
+      "practice": {
+        "title": "A heap balance",
+        "prompt": "Create a bank balance on the heap, deposit into it through the pointer, then free it.\n\n1. Make `double* makeBalance(double amount)` return `new double(amount)`.\n2. In `main`, get a balance of `100.0` from `makeBalance`.\n3. Add `25.5` through the pointer and print `balance: ` followed by the value (the starter already sets 2 decimals).\n4. `delete` the balance and set the pointer to `nullptr`.\n5. If the pointer is `nullptr`, print `freed`.\n\nExpected output:\n\n```text\nbalance: 125.50\nfreed\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n\ndouble* makeBalance(double amount) {\n    // TODO: return a new heap double holding amount\n    return nullptr;\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    // TODO: get a balance of 100.0 from makeBalance, deposit 25.5, and print it\n    // TODO: delete it, set the pointer to nullptr, and print freed\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\ndouble* makeBalance(double amount) {\n    return new double(amount);\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(2);\n    double* balance = makeBalance(100.0);\n    *balance += 25.5;\n    std::cout << \"balance: \" << *balance << '\\n';\n    delete balance;\n    balance = nullptr;\n    if (balance == nullptr) {\n        std::cout << \"freed\" << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "balance: 125.50\nfreed"
+          }
+        ],
+        "hints": [
+          "Work through the pointer with `*`, just like `++*counter` in the example.",
+          "Call `delete balance;` before `balance = nullptr;`, otherwise the memory leaks."
+        ]
+      }
+    },
+    {
+      "title": "Dynamic arrays with new[] and delete[]",
+      "body": "`new int[n]` allocates `n` ints in one contiguous heap block and returns a pointer to the first one. Unlike `int a[5]`, the count can be a value computed while the program runs. Index the result like any array. Watch the brackets: `new int(5)` is one int holding 5, while `new int[5]` is five ints.\n\n```cpp\nconst int n = 6;\nint* squares = new int[n]; // 6 ints holding garbage\nint* zeros = new int[4]();  // () zero-initializes: 0 0 0 0\ndelete[] squares;\ndelete[] zeros;\n```\n\nThree rules to remember:\n\n- Plain `new int[n]` leaves the elements uninitialized. Fill them before reading, or add `()` to start them at zero.\n- Free an array with `delete[]`, never plain `delete`. Mixing them up is undefined behavior.\n- The pointer does not remember how many elements it points to. Keep `n` in a variable and pass it along with the pointer, as in `printArray(squares, n)`.\n\nThat is exactly the bookkeeping `std::vector` does for you: it allocates its own heap buffer, remembers the size, and frees the buffer automatically when it goes out of scope. Use `std::vector` in real code and raw `new[]` only when you need to see the mechanics.",
+      "example": {
+        "title": "Squares on the heap",
+        "prompt": "Fill a heap array of 6 squares and print it, then print a zero-initialized heap array of 4 ints.",
+        "code": "#include <iostream>\n\nvoid printArray(const int* arr, int n) {\n    for (int i = 0; i < n; ++i) {\n        std::cout << arr[i] << (i < n - 1 ? ' ' : '\\n');\n    }\n}\n\nint main() {\n    const int n = 6;\n    int* squares = new int[n];\n    for (int i = 0; i < n; ++i) {\n        squares[i] = i * i;\n    }\n    printArray(squares, n);\n    delete[] squares;\n    squares = nullptr;\n\n    int* zeros = new int[4]();\n    printArray(zeros, 4);\n    delete[] zeros;\n    zeros = nullptr;\n    return 0;\n}\n",
+        "output": "0 1 4 9 16 25\n0 0 0 0",
+        "explanation": "`new int[n]` reserves 6 uninitialized ints, and the loop writes `i * i` into each before anything reads them. `printArray` takes the pointer and the count separately, because the pointer alone cannot tell how long the block is. `new int[4]()` starts every element at 0. Each block is released with `delete[]` because it came from `new[]`, and each pointer is then set to `nullptr`."
+      },
+      "practice": {
+        "title": "Half steps on the heap",
+        "prompt": "Fill a heap array of doubles, print it, then print a zero-initialized heap array.\n\n1. Allocate `n` (5) doubles with `new double[n]` and fill element `i` with `(i + 1) * 0.5`.\n2. Print them with `printArray` (the starter already sets 1 decimal), then free them with `delete[]` and set the pointer to `nullptr`.\n3. Allocate 3 zero-initialized doubles with `new double[3]()`.\n4. Print them with `printArray`, then free them with `delete[]` and set the pointer to `nullptr`.\n\nExpected output:\n\n```text\n0.5 1.0 1.5 2.0 2.5\n0.0 0.0 0.0\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n\nvoid printArray(const double* arr, int n) {\n    for (int i = 0; i < n; ++i) {\n        std::cout << arr[i] << (i < n - 1 ? ' ' : '\\n');\n    }\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(1);\n    const int n = 5;\n    // TODO: allocate n doubles with new[], fill them with 0.5 1.0 1.5 2.0 2.5, print, and delete[]\n    // TODO: allocate 3 zeroed doubles with new double[3](), print, and delete[]\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\nvoid printArray(const double* arr, int n) {\n    for (int i = 0; i < n; ++i) {\n        std::cout << arr[i] << (i < n - 1 ? ' ' : '\\n');\n    }\n}\n\nint main() {\n    std::cout << std::fixed << std::setprecision(1);\n    const int n = 5;\n    double* steps = new double[n];\n    for (int i = 0; i < n; ++i) {\n        steps[i] = (i + 1) * 0.5;\n    }\n    printArray(steps, n);\n    delete[] steps;\n    steps = nullptr;\n\n    double* zeros = new double[3]();\n    printArray(zeros, 3);\n    delete[] zeros;\n    zeros = nullptr;\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "0.5 1.0 1.5 2.0 2.5\n0.0 0.0 0.0"
+          }
+        ],
+        "hints": [
+          "Follow the squares example: allocate, fill in a loop, print, then free.",
+          "Element `i` holds `(i + 1) * 0.5`, so index 0 holds 0.5 and index 4 holds 2.5.",
+          "Memory from `new[]` must be freed with `delete[]`, not `delete`."
+        ]
+      }
+    },
+    {
+      "title": "How std::vector uses the heap",
+      "body": "A `std::vector<int>` object is small: `sizeof(v)` is 24 bytes here, three pointers (start of the buffer, end of the elements, end of the buffer) no matter how many elements it holds. The elements live in a heap buffer.\n\n- `size()` is how many elements are stored.\n- `capacity()` is how many fit before the buffer is full.\n\nWhen you `push_back` into a full vector, it allocates a buffer twice as large (1, 2, 4, 8, 16 here), moves the elements over, and frees the old buffer. This **reallocation** invalidates every pointer and reference to the old elements, so never keep `&v[0]` across a `push_back`.\n\n```cpp\nstd::vector<int> v;\nv.reserve(100);    // capacity 100, no reallocation up to 100 elements\nv.clear();         // size 0, capacity stays 100\nv.shrink_to_fit(); // asks to release unused space: capacity 0 here\n```\n\nCall `reserve(n)` when you know the count up front, so the vector allocates once. It changes the capacity, not the size, so `v[0]` is still out of bounds until you push. `clear()` keeps the buffer for reuse, and `shrink_to_fit()` gives it back.\n\nCopying is a deep copy: `std::vector<int> b = v;` allocates a second buffer and copies every element, so changing `b` leaves `v` alone. That differs from a Python list or a Java array, where assignment shares one object.",
+      "example": {
+        "title": "Watching capacity grow and shrink",
+        "prompt": "Push 1 to 9 into an empty vector while printing size and capacity, print the vector's own size in bytes, show that a copy is independent, then clear and shrink the original.",
+        "code": "#include <iostream>\n#include <vector>\n\nint main() {\n    std::vector<int> v;\n    for (int i = 1; i <= 9; ++i) {\n        v.push_back(i);\n        std::cout << v.size() << ' ' << v.capacity() << '\\n';\n    }\n    std::cout << \"sizeof: \" << sizeof(v) << '\\n';\n    std::vector<int> b = v;\n    b[0] = 99;\n    std::cout << \"v[0] b[0]: \" << v[0] << ' ' << b[0] << '\\n';\n    v.clear();\n    std::cout << \"after clear: \" << v.size() << ' ' << v.capacity() << '\\n';\n    v.shrink_to_fit();\n    std::cout << \"after shrink: \" << v.size() << ' ' << v.capacity() << '\\n';\n    return 0;\n}\n",
+        "output": "1 1\n2 2\n3 4\n4 4\n5 8\n6 8\n7 8\n8 8\n9 16\nsizeof: 24\nv[0] b[0]: 1 99\nafter clear: 0 16\nafter shrink: 0 0",
+        "explanation": "Each line is `size capacity`. The capacity jumps from 1 to 2 to 4 to 8 to 16 only when a push finds the buffer full: those are the reallocations, where the elements move to a new, bigger buffer. Between jumps, pushes just fill spare slots. `sizeof(v)` stays 24 because the vector object only holds three pointers to its heap buffer. `b = v` builds a second buffer, so setting `b[0]` to 99 leaves `v[0]` at 1. `clear()` sets the size to 0 but keeps all 16 slots, and `shrink_to_fit()` then frees the unused buffer."
+      },
+      "practice": {
+        "title": "Reserve, clear, and shrink",
+        "prompt": "Reserve space up front, watch the capacity grow, then clear and shrink the vector.\n\n1. Call `v.reserve(4)`, then push 1 to 10 into `v`, printing `size capacity` after each push.\n2. Copy `v` into `std::vector<int> backup`.\n3. Call `v.clear()` and print `after clear: ` followed by the size and capacity.\n4. Print `backup: ` followed by `backup.size()`.\n5. Call `v.shrink_to_fit()` and print `after shrink: ` followed by the size and capacity.\n\nExpected output:\n\n```text\n1 4\n2 4\n3 4\n4 4\n5 8\n6 8\n7 8\n8 8\n9 16\n10 16\nafter clear: 0 16\nbackup: 10\nafter shrink: 0 0\n```",
+        "starter": "#include <iostream>\n#include <vector>\n\nint main() {\n    std::vector<int> v;\n    // TODO: reserve 4 slots, then push 1 to 10, printing size and capacity after each push\n    // TODO: copy v into backup, clear v, and print after clear: and backup:\n    // TODO: shrink v to fit and print after shrink:\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <vector>\n\nint main() {\n    std::vector<int> v;\n    v.reserve(4);\n    for (int i = 1; i <= 10; ++i) {\n        v.push_back(i);\n        std::cout << v.size() << ' ' << v.capacity() << '\\n';\n    }\n    std::vector<int> backup = v;\n    v.clear();\n    std::cout << \"after clear: \" << v.size() << ' ' << v.capacity() << '\\n';\n    std::cout << \"backup: \" << backup.size() << '\\n';\n    v.shrink_to_fit();\n    std::cout << \"after shrink: \" << v.size() << ' ' << v.capacity() << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "1 4\n2 4\n3 4\n4 4\n5 8\n6 8\n7 8\n8 8\n9 16\n10 16\nafter clear: 0 16\nbackup: 10\nafter shrink: 0 0"
+          }
+        ],
+        "hints": [
+          "With 4 slots reserved, the first reallocation happens on the 5th push.",
+          "`clear()` empties `v` but keeps its 16 slots, and `backup` has its own buffer, so it still holds 10 elements."
+        ]
+      }
+    }
+  ],
+  "recap": "- Locals live in the function's stack frame and are destroyed at their block's closing brace. An inner block can shadow an outer name.\n- Each call gets a fresh frame, while a `static` local keeps its value between calls.\n- Never return a pointer or reference to a local. The stack is 8 MB here, so big buffers go in a `std::vector`.\n- `new T(value)` puts one object on the heap until `delete p` frees it. Set `p = nullptr` afterwards.\n- A missing `delete` leaks memory. Double delete and use after free are undefined behavior.\n- `new T[n]` allocates an array (`new T[n]()` zeroes it), `delete[]` frees it, and you must keep `n` yourself.\n- A vector is 24 bytes of pointers to a heap buffer. `capacity()` doubles on reallocation, which invalidates pointers to elements.\n- `reserve` allocates up front without changing the size, `clear` keeps the capacity, `shrink_to_fit` releases it, and `b = a` copies the whole buffer."
+}

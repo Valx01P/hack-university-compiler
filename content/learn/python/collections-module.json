@@ -1,0 +1,118 @@
+{
+  "id": "collections-module",
+  "title": "The collections Module",
+  "section": "Standard Library",
+  "summary": "Count with Counter, group with defaultdict, queue with deque, and name fields with namedtuple.",
+  "intro": "The `collections` module adds four containers you will reach for constantly: `Counter` for tallies, `defaultdict` for grouping, `deque` for fast queues, and `namedtuple` for labeled records. Each one replaces a few lines of dict or list code with one clear call.",
+  "steps": [
+    {
+      "title": "Counter",
+      "body": "`from module import name` pulls one name out of a module, so you write `Counter` instead of `collections.Counter`. `Counter(iterable)` counts how often each item appears. It is a dict that maps item to count:\n\n```python\nfrom collections import Counter\n\ncounts = Counter([\"red\", \"blue\", \"red\"])\nprint(counts[\"red\"])        # 2\nprint(counts[\"green\"])      # 0, no KeyError\nprint(counts.most_common(1))  # [('red', 2)]\n```\n\n- `most_common(n)` returns the top `n` as `(item, count)` tuples. Tied items keep first-seen order.\n- A missing key counts as 0, and reading it does not add it.\n- `update(iterable)` adds counts. It does not replace them like `dict.update()`.\n- `total()` is the sum of all counts.\n- `print(counts)` lists items from most to least common.\n\nCounting a string counts its characters, so pass `text.split()` to count words. Counters also combine: `+` adds counts, and `-` subtracts and drops anything that falls to 0 or below.\n\n```python\nprint(Counter(\"aab\") + Counter(\"bc\"))  # Counter({'a': 2, 'b': 2, 'c': 1})\nprint(Counter(\"aab\") - Counter(\"ab\"))  # Counter({'a': 1})\n```",
+      "example": {
+        "title": "Letters in mississippi",
+        "prompt": "Count the letters of a word, show the most common ones, then add more letters.",
+        "code": "from collections import Counter\n\ncounts = Counter(\"mississippi\")\nprint(counts)\nprint(counts.most_common(2))\nprint(\"z:\", counts[\"z\"])\n\ncounts.update(\"miss\")\nfor letter, n in counts.most_common(2):\n    print(letter, n)\nprint(\"Total:\", counts.total())\n",
+        "output": "Counter({'i': 4, 's': 4, 'p': 2, 'm': 1})\n[('i', 4), ('s', 4)]\nz: 0\ns 6\ni 5\nTotal: 15",
+        "explanation": "`i` and `s` both appear 4 times, and `most_common(2)` keeps them in first-seen order, `i` first. `counts[\"z\"]` is 0 instead of a KeyError. `update(\"miss\")` adds one `m`, one `i`, and two `s`, so `s` moves to the top with 6. Each `most_common()` item is a tuple, so the loop unpacks it. `total()` is 11 + 4 = 15."
+      },
+      "practice": {
+        "title": "Word counter",
+        "prompt": "Count the words in two sentences with a Counter.\n\n1. Build `counts` from the words of `first` (use `split()`).\n2. Print `Top 3:`, then the three most common words, one per line as the word, a space, and its count. Ties keep first-seen order.\n3. Add the words of `second` with `update()`.\n4. Print `bird:` and the count of the missing word `bird`.\n5. Print `Total:` and the total number of words.\n\nExpected output:\n\n```text\nTop 3:\nthe 3\ndog 2\ncat 1\nbird: 0\nTotal: 13\n```",
+        "starter": "from collections import Counter\n\nfirst = \"the cat saw the dog and the dog ran\"\nsecond = \"the cat ran home\"\n\n# TODO: count the words of first and print the top 3\n# TODO: add the words of second, then print the bird count and the total\n",
+        "solution": "from collections import Counter\n\nfirst = \"the cat saw the dog and the dog ran\"\nsecond = \"the cat ran home\"\n\ncounts = Counter(first.split())\nprint(\"Top 3:\")\nfor word, n in counts.most_common(3):\n    print(word, n)\n\ncounts.update(second.split())\nprint(\"bird:\", counts[\"bird\"])\nprint(\"Total:\", counts.total())\n",
+        "tests": [
+          {
+            "output": "Top 3:\nthe 3\ndog 2\ncat 1\nbird: 0\nTotal: 13"
+          }
+        ],
+        "hints": [
+          "`Counter(first.split())` counts words. `Counter(first)` would count letters.",
+          "`cat`, `saw`, `and`, and `ran` all appear once, and `cat` is seen first, so it is third.",
+          "A Counter gives 0 for a missing word, and `total()` adds up every count."
+        ]
+      }
+    },
+    {
+      "title": "defaultdict",
+      "body": "A `defaultdict` is a dict that builds a value for a missing key instead of raising KeyError. You give it a factory, something it calls with no arguments to make that fresh default, usually a type such as `list`:\n\n```python\nfrom collections import defaultdict\n\ngroups = defaultdict(list)   # missing key -> []\ngroups[\"a\"].append(\"ant\")    # no setdefault needed\ntally = defaultdict(int)     # missing key -> 0\ntally[\"x\"] += 1\nseen = defaultdict(set)      # missing key -> set()\nseen[\"k\"].add(3)\n```\n\nPass the type itself, not a value:\n\n```python\n# defaultdict([])  # TypeError: first argument must be callable or None\n```\n\nTwo gotchas:\n\n- Just reading `groups[\"zzz\"]` inserts that key with an empty list. Use `key in groups` or `groups.get(key)` to check without adding.\n- `print(groups)` shows `defaultdict(<class 'list'>, {...})`. Use `print(dict(groups))` for a plain dict.\n\nSets have no stable order, so never print a set group. Print `sorted(group)` instead.",
+      "example": {
+        "title": "Grouping words",
+        "prompt": "Group words by length, count them by first letter, and collect each letter's distinct lengths.",
+        "code": "from collections import defaultdict\n\nwords = [\"apple\", \"bat\", \"avocado\", \"cherry\", \"bean\", \"cat\", \"apricot\"]\n\nby_length = defaultdict(list)\nfor word in words:\n    by_length[len(word)].append(word)\nprint(dict(by_length))\n\nper_letter = defaultdict(int)\nfor word in words:\n    per_letter[word[0]] += 1\nprint(dict(per_letter))\n\nlengths = defaultdict(set)\nfor word in words:\n    lengths[word[0]].add(len(word))\nfor letter in sorted(lengths):\n    print(letter, sorted(lengths[letter]))\n",
+        "output": "{5: ['apple'], 3: ['bat', 'cat'], 7: ['avocado', 'apricot'], 6: ['cherry'], 4: ['bean']}\n{'a': 3, 'b': 2, 'c': 2}\na [5, 7]\nb [3, 4]\nc [3, 6]",
+        "explanation": "The first time a length shows up, `by_length` creates an empty list for it, so `append()` always works. `per_letter[word[0]] += 1` starts each new letter at 0. The set version drops the repeated length 7 for `a`. Keys appear in the order they were first added, and each set prints through `sorted()` so the output never changes between runs."
+      },
+      "practice": {
+        "title": "Class and shop groups",
+        "prompt": "Group students and shop items with three kinds of defaultdict.\n\n1. Group student names by grade letter with `defaultdict(list)` and print it as a plain dict.\n2. Count the items in each category with `defaultdict(int)` and print it as a plain dict.\n3. Collect each category's distinct colors with `defaultdict(set)`.\n4. For each category in alphabetical order, print the category, a space, and its colors as a sorted list.\n\nExpected output:\n\n```text\n{'B': ['Ana', 'Cara'], 'A': ['Ben', 'Eli'], 'C': ['Dev']}\n{'clothing': 3, 'kitchen': 3, 'toys': 1}\nclothing ['blue', 'red']\nkitchen ['green', 'white']\ntoys ['green']\n```",
+        "starter": "from collections import defaultdict\n\ngrades = [(\"Ana\", \"B\"), (\"Ben\", \"A\"), (\"Cara\", \"B\"), (\"Dev\", \"C\"), (\"Eli\", \"A\")]\nitems = [\n    (\"clothing\", \"blue\"), (\"kitchen\", \"white\"), (\"clothing\", \"red\"),\n    (\"toys\", \"green\"), (\"kitchen\", \"white\"), (\"clothing\", \"blue\"),\n    (\"kitchen\", \"green\"),\n]\n\n# TODO: group names by grade with defaultdict(list)\n# TODO: count items per category with defaultdict(int)\n# TODO: collect distinct colors per category with defaultdict(set)\n",
+        "solution": "from collections import defaultdict\n\ngrades = [(\"Ana\", \"B\"), (\"Ben\", \"A\"), (\"Cara\", \"B\"), (\"Dev\", \"C\"), (\"Eli\", \"A\")]\nitems = [\n    (\"clothing\", \"blue\"), (\"kitchen\", \"white\"), (\"clothing\", \"red\"),\n    (\"toys\", \"green\"), (\"kitchen\", \"white\"), (\"clothing\", \"blue\"),\n    (\"kitchen\", \"green\"),\n]\n\nby_grade = defaultdict(list)\nfor name, grade in grades:\n    by_grade[grade].append(name)\nprint(dict(by_grade))\n\nper_category = defaultdict(int)\nfor category, _ in items:\n    per_category[category] += 1\nprint(dict(per_category))\n\ncolors = defaultdict(set)\nfor category, color in items:\n    colors[category].add(color)\nfor category in sorted(colors):\n    print(category, sorted(colors[category]))\n",
+        "tests": [
+          {
+            "output": "{'B': ['Ana', 'Cara'], 'A': ['Ben', 'Eli'], 'C': ['Dev']}\n{'clothing': 3, 'kitchen': 3, 'toys': 1}\nclothing ['blue', 'red']\nkitchen ['green', 'white']\ntoys ['green']"
+          }
+        ],
+        "hints": [
+          "Unpack each pair in the loop: `for name, grade in grades:`.",
+          "`dict(by_grade)` prints a plain dict in first-seen key order.",
+          "Loop over `sorted(colors)` and print `sorted(colors[category])`."
+        ]
+      }
+    },
+    {
+      "title": "deque",
+      "body": "A `deque` (say \"deck\") is a double-ended queue. Adding or removing at either end is O(1). A list is fast only at the right end: `lst.pop(0)` shifts every other item, so it is O(n). Use a deque whenever you take items off the front.\n\n```python\nfrom collections import deque\n\nq = deque([2, 3])\nq.append(4)       # right end: [2, 3, 4]\nq.appendleft(1)   # left end:  [1, 2, 3, 4]\nq.pop()           # removes and returns 4\nq.popleft()       # removes and returns 1\n```\n\n- An empty deque is falsy, so `while q:` runs until it is empty. Popping an empty one is an error: `# deque().popleft()  # IndexError: pop from an empty deque`.\n- `rotate(n)` moves the last `n` items to the front. `rotate(-n)` moves the first `n` to the back.\n- `deque(maxlen=n)` keeps only the last `n` items: adding to a full one drops an item from the opposite end, so `append()` drops the oldest.\n- `q[0]` and `q[-1]` peek at the ends. Indexing the middle is slow, so a deque is not a list replacement.\n- `print(q)` shows `deque([...])`, so print `list(q)` to see just the items.",
+      "example": {
+        "title": "Print queue",
+        "prompt": "Queue print jobs, jump one to the front, and track recent events.",
+        "code": "from collections import deque\n\nqueue = deque([\"report\", \"photo\"])\nqueue.append(\"invoice\")\nqueue.appendleft(\"urgent\")\nprint(list(queue))\n\nundo = deque([\"a.txt\", \"b.txt\", \"c.txt\"])\nprint(\"Undo:\", undo.pop())\n\nwhile queue:\n    print(\"Printing\", queue.popleft())\nprint(\"Queue now:\", list(queue))\n\nnames = deque([\"Ana\", \"Ben\", \"Cy\", \"Dee\"])\nnames.rotate(1)\nprint(list(names))\n\nevents = deque(maxlen=3)\nfor event in [\"login\", \"view\", \"edit\", \"save\", \"logout\"]:\n    events.append(event)\nprint(list(events))\n",
+        "output": "['urgent', 'report', 'photo', 'invoice']\nUndo: c.txt\nPrinting urgent\nPrinting report\nPrinting photo\nPrinting invoice\nQueue now: []\n['Dee', 'Ana', 'Ben', 'Cy']\n['edit', 'save', 'logout']",
+        "explanation": "`appendleft()` puts the urgent job ahead of the rest. `pop()` takes from the right end, like a stack. The `while queue:` loop serves jobs first in, first out and stops once the deque is empty and falsy. `rotate(1)` moves `Dee` from the back to the front. `events` holds at most 3 items, so `login` and `view` fall off the left as newer events arrive."
+      },
+      "practice": {
+        "title": "Ticket line",
+        "prompt": "Run a ticket line with a deque.\n\n1. Put `Vic` at the front of `line` with `appendleft()`, then do the same for `Zoe`, and print the line as a list.\n2. Remove the last walk-in with `pop()` and print `Left:` and that name.\n3. Serve everyone with `popleft()` until the line is empty, printing `Serving` and the name each time, and add each name to `served`.\n4. Print `Last served:` and `served` as a list.\n5. Rotate `seats` by -1 and print it as a list.\n\nExpected output:\n\n```text\n['Zoe', 'Vic', 'Ana', 'Ben', 'Cy', 'Dee']\nLeft: Dee\nServing Zoe\nServing Vic\nServing Ana\nServing Ben\nServing Cy\nLast served: ['Ben', 'Cy']\n['A2', 'A3', 'A4', 'A1']\n```",
+        "starter": "from collections import deque\n\nline = deque([\"Ana\", \"Ben\", \"Cy\", \"Dee\"])\nserved = deque(maxlen=2)\nseats = deque([\"A1\", \"A2\", \"A3\", \"A4\"])\n\n# TODO: add the VIPs, remove the last walk-in, and serve the line\n# TODO: print the last served, then rotate the seats by -1\n",
+        "solution": "from collections import deque\n\nline = deque([\"Ana\", \"Ben\", \"Cy\", \"Dee\"])\nserved = deque(maxlen=2)\nseats = deque([\"A1\", \"A2\", \"A3\", \"A4\"])\n\nline.appendleft(\"Vic\")\nline.appendleft(\"Zoe\")\nprint(list(line))\nprint(\"Left:\", line.pop())\n\nwhile line:\n    name = line.popleft()\n    print(\"Serving\", name)\n    served.append(name)\nprint(\"Last served:\", list(served))\n\nseats.rotate(-1)\nprint(list(seats))\n",
+        "tests": [
+          {
+            "output": "['Zoe', 'Vic', 'Ana', 'Ben', 'Cy', 'Dee']\nLeft: Dee\nServing Zoe\nServing Vic\nServing Ana\nServing Ben\nServing Cy\nLast served: ['Ben', 'Cy']\n['A2', 'A3', 'A4', 'A1']"
+          }
+        ],
+        "hints": [
+          "`appendleft()` always adds at the very front, so the last VIP added stands first.",
+          "Inside `while line:`, save `line.popleft()` in a variable so you can print it and append it.",
+          "`served` has `maxlen=2`, so only the last two names stay."
+        ]
+      }
+    },
+    {
+      "title": "namedtuple",
+      "body": "`namedtuple` makes a small tuple class whose fields have names. It is a quick way to label data without writing a class:\n\n```python\nfrom collections import namedtuple\n\nPoint = namedtuple(\"Point\", [\"x\", \"y\"])\np = Point(2, 5)\nprint(p)          # Point(x=2, y=5)\nprint(p.x, p[1])  # 2 5\nx, y = p          # unpacks like any tuple\n```\n\n- Read fields by name (`p.x`) or by index (`p[0]`). It is still a tuple, so `p == (2, 5)` is True.\n- It prints with a readable repr that shows every field, and that repr appears inside printed lists too.\n- It is immutable: `# p.x = 9  # AttributeError: can't set attribute`.\n- `p._replace(x=9)` returns a changed copy and leaves `p` alone.\n- `p._asdict()` returns a dict of field names to values.\n\nThe leading underscore on `_replace` and `_asdict` only keeps them from clashing with your field names. They are normal public methods.",
+      "example": {
+        "title": "Points",
+        "prompt": "Build a point, read its fields, measure it, and move it.",
+        "code": "import math\nfrom collections import namedtuple\n\nPoint = namedtuple(\"Point\", [\"x\", \"y\"])\n\np = Point(2, 5)\nprint(p)\nprint(p.x, p.y)\nprint(p[0], p[1])\n\nx, y = p\nprint(f\"Distance: {math.sqrt(x ** 2 + y ** 2):.2f}\")\n\nmoved = p._replace(y=-1)\nprint(moved, p)\nprint(moved._asdict())\n",
+        "output": "Point(x=2, y=5)\n2 5\n2 5\nDistance: 5.39\nPoint(x=2, y=-1) Point(x=2, y=5)\n{'x': 2, 'y': -1}",
+        "explanation": "`print(p)` shows each field by name. `p.x` and `p[0]` are the same value. Unpacking gives plain numbers for the distance, sqrt(4 + 25), shown to 2 decimals. `_replace(y=-1)` builds a new point while `p` stays `Point(x=2, y=5)`. `_asdict()` turns the fields into a dict in field order."
+      },
+      "practice": {
+        "title": "Employee record",
+        "prompt": "Store an employee in a namedtuple and give them a raise.\n\n1. Define `Employee` with the fields `name`, `dept`, and `salary`, and create `emp` for Maya in Design earning 72000.\n2. Print `emp`, then its name and dept by field name, then its name and salary by index (`0` and `2`).\n3. Unpack `emp` into `name, dept, salary` and print `Maya earns 72,000` with an f-string and the `:,` format.\n4. Make `raised` with `_replace()`, adding 5000 to the salary, and print `raised._asdict()`.\n5. Print `Old salary:` and `emp.salary` to show it did not change.\n\nExpected output:\n\n```text\nEmployee(name='Maya', dept='Design', salary=72000)\nMaya Design\nMaya 72000\nMaya earns 72,000\n{'name': 'Maya', 'dept': 'Design', 'salary': 77000}\nOld salary: 72000\n```",
+        "starter": "from collections import namedtuple\n\n# TODO: define Employee and create emp\n# TODO: print emp, its fields, the unpacked line, the raise, and the old salary\n",
+        "solution": "from collections import namedtuple\n\nEmployee = namedtuple(\"Employee\", [\"name\", \"dept\", \"salary\"])\n\nemp = Employee(\"Maya\", \"Design\", 72000)\nprint(emp)\nprint(emp.name, emp.dept)\nprint(emp[0], emp[2])\n\nname, dept, salary = emp\nprint(f\"{name} earns {salary:,}\")\n\nraised = emp._replace(salary=salary + 5000)\nprint(raised._asdict())\nprint(\"Old salary:\", emp.salary)\n",
+        "tests": [
+          {
+            "output": "Employee(name='Maya', dept='Design', salary=72000)\nMaya Design\nMaya 72000\nMaya earns 72,000\n{'name': 'Maya', 'dept': 'Design', 'salary': 77000}\nOld salary: 72000"
+          }
+        ],
+        "hints": [
+          "Pass `namedtuple()` the type name and a list of the three field names, then create `emp` with the values in field order.",
+          "`_replace()` takes the field to change as a keyword argument, and it can use the unpacked `salary`.",
+          "`_replace()` builds a new record, so `emp` keeps its old salary."
+        ]
+      }
+    }
+  ],
+  "recap": "- `from collections import Counter` imports one name from a module.\n- `Counter(iterable)` counts items. Missing keys are 0, `most_common(n)` keeps ties in first-seen order, `update()` adds counts, and `total()` sums them.\n- `defaultdict(list)`, `defaultdict(int)`, and `defaultdict(set)` create a fresh default for a missing key. Print `dict(dd)`, and print set groups with `sorted()`.\n- `deque` is O(1) at both ends with `append()`, `appendleft()`, `pop()`, and `popleft()`. `list.pop(0)` is O(n).\n- `while q:` drains a deque, `rotate(n)` shifts it, and `maxlen=n` keeps the last `n` items. Print `list(q)`.\n- `namedtuple(\"Name\", [\"a\", \"b\"])` makes an immutable record with fields by name or index, a readable repr, `_replace()` for a changed copy, and `_asdict()` for a dict."
+}

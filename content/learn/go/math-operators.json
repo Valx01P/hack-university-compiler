@@ -1,0 +1,91 @@
+{
+  "id": "math-operators",
+  "title": "Math Operators",
+  "section": "Basics",
+  "summary": "Do arithmetic with integers and floats, convert between numeric types, and watch for integer division, XOR, and overflow.",
+  "intro": "Go has the usual math operators, but its strict types change the results in ways that surprise newcomers. Learn where integer division, type conversions, and overflow bite.",
+  "steps": [
+    {
+      "title": "Arithmetic and integer division",
+      "body": "Go has five arithmetic operators: `+`, `-`, `*`, `/`, and `%` (remainder). When both sides are `int`, `/` throws away the fractional part, truncating toward zero. `%` gives the remainder, and its sign follows the left operand.\n\n```go\nfmt.Println(17/5, 17%5)   // 3 2\nfmt.Println(-17/5, -17%5) // -3 -2\nfmt.Println(17.0 / 5.0)   // 3.4\n```\n\nUse `float64` values when you want the decimals. `%` only works on integers. Dividing an int by zero crashes the program at run time, and a constant zero such as `n / 0` does not even compile.\n\n`*`, `/`, and `%` bind tighter than `+` and `-`, so `2 + 3*4` is 14. Parentheses override that: `(2 + 3) * 4` is 20. gofmt hints at the grouping by writing `x := 2 + 3*4`, with no spaces around the tighter operator.\n\n> Gotcha: Go has no `**` power operator, and `^` is bitwise XOR, not a power. `2 ^ 3` is 1, not 8. Powers come later with the math package.",
+      "example": {
+        "title": "Sharing cookies",
+        "prompt": "Split 17 cookies between 5 kids with integer and float division, then compare precedence and XOR.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tcookies, kids := 17, 5\n\tfmt.Println(\"Each kid gets:\", cookies/kids)\n\tfmt.Println(\"Left over:\", cookies%kids)\n\tfmt.Println(\"Negative:\", -cookies/kids, -cookies%kids)\n\ta, b := 17.0, 5.0\n\tfmt.Printf(\"Exact share: %.2f\\n\", a/b)\n\tfmt.Println(2+3*4, (2+3)*4)\n\tfmt.Println(\"2 ^ 3 =\", 2^3)\n}\n",
+        "output": "Each kid gets: 3\nLeft over: 2\nNegative: -3 -2\nExact share: 3.40\n14 20\n2 ^ 3 = 1",
+        "explanation": "`cookies/kids` is integer division, so 17 / 5 drops the .4 and gives 3, and `%` gives the 2 left over. With a negative left side, `/` truncates toward zero (-3, not -4) and `%` keeps the sign of the left operand (-2). The `17.0` and `5.0` literals make `a` and `b` float64 values, so `a/b` keeps the decimals. `3*4` runs before the `+`, while the parentheses force the addition first. `2^3` compares bits: 10 XOR 11 is 01, which is 1."
+      },
+      "practice": {
+        "title": "Minutes to hours",
+        "prompt": "Convert 135 minutes into hours and minutes, then check precedence and XOR.\n\n1. Print `Hours:` followed by `minutes/60`.\n2. Print `Minutes:` followed by `minutes%60`.\n3. Print `Negative:` followed by `-minutes/60` and `-minutes%60`, separated by a space.\n4. Print `Exact hours:` followed by `m/h` with 2 decimal places.\n5. Print the values of `10 - 4/2` and `(10 - 4) / 2` on one line, separated by a space.\n6. Print `3 ^ 1 =` followed by the value of `3 ^ 1`.\n\nExpected output:\n\n```text\nHours: 2\nMinutes: 15\nNegative: -2 -15\nExact hours: 2.25\n8 3\n3 ^ 1 = 2\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tminutes := 135\n\tm, h := 135.0, 60.0\n\t_, _, _ = minutes, m, h\n\t// TODO: print the six lines described in the instructions\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tminutes := 135\n\tfmt.Println(\"Hours:\", minutes/60)\n\tfmt.Println(\"Minutes:\", minutes%60)\n\tfmt.Println(\"Negative:\", -minutes/60, -minutes%60)\n\tm, h := 135.0, 60.0\n\tfmt.Printf(\"Exact hours: %.2f\\n\", m/h)\n\tfmt.Println(10-4/2, (10-4)/2)\n\tfmt.Println(\"3 ^ 1 =\", 3^1)\n}\n",
+        "tests": [
+          {
+            "output": "Hours: 2\nMinutes: 15\nNegative: -2 -15\nExact hours: 2.25\n8 3\n3 ^ 1 = 2"
+          }
+        ],
+        "hints": [
+          "`fmt.Println` with a label and a value puts the space between them for you.",
+          "For the float line, use `fmt.Printf` with `%.2f` and end the format with `\\n`.",
+          "`^` is XOR: write 3 and 1 in binary and keep only the bits that differ."
+        ]
+      }
+    },
+    {
+      "title": "Converting between types",
+      "body": "As the variables lesson showed, Go never converts between types for you, and that includes mixing `int` and `float64` in one expression. `total / hours` with an `int` and a `float64` does not compile. You convert explicitly with `T(x)`, which turns a value into type `T`.\n\n```go\nn := 7\nf := float64(n) / 2 // 3.5\nprice := 19.99\nwhole := int(price) // 19, truncated toward zero\n```\n\n`int(f)` drops the decimals toward zero, so -2.7 becomes -2. It never rounds. A conversion makes a new value of the new type: the original variable keeps its type and value.\n\n> Gotcha: `int(3.99)` on a constant does not compile, because Go refuses to lose part of a constant. Convert a variable instead.\n\n> Gotcha: an untyped constant takes the type of the variable next to it. With `total := 259`, `total / 4.0` turns `4.0` into the int 4, so it is still integer division and prints 64. `total / 3.5` does not compile at all. Convert the variable to get decimals: `float64(total) / 4.0`.",
+      "example": {
+        "title": "Average score",
+        "prompt": "Average three int scores as a float, show the integer division trap, and truncate a price.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttotal := 88 + 92 + 79\n\tfmt.Printf(\"Average: %.2f\\n\", float64(total)/3)\n\tfmt.Println(\"Int division:\", total/4.0)\n\tfmt.Printf(\"Float division: %.2f\\n\", float64(total)/4.0)\n\tprice := 19.99\n\tfmt.Println(\"Whole dollars:\", int(price))\n}\n",
+        "output": "Average: 86.33\nInt division: 64\nFloat division: 64.75\nWhole dollars: 19",
+        "explanation": "`total` is an int (259). `float64(total)` makes a float64 copy, so dividing by 3 keeps the decimals and `%.2f` rounds to 86.33. In `total/4.0` the constant `4.0` becomes an int, so the result is 64. Converting `total` first gives 64.75. `int(price)` cuts 19.99 down to 19."
+      },
+      "practice": {
+        "title": "Trip speed",
+        "prompt": "Compute a trip's average speed, show the integer division trap, and truncate a weight.\n\n1. Print `Speed:` followed by `distance` divided by `hours`, with 2 decimal places.\n2. Print `Int division:` followed by `distance/4.0`.\n3. Print `Float division:` followed by `distance` converted to float64 and divided by `4.0`, with 2 decimal places.\n4. Print `Whole kilos:` followed by `weight` converted to an int.\n\nExpected output:\n\n```text\nSpeed: 71.43\nInt division: 62\nFloat division: 62.50\nWhole kilos: 72\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tdistance := 250\n\thours := 3.5\n\tweight := 72.8\n\t_, _, _ = distance, hours, weight\n\t// TODO: print the four lines described in the instructions\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tdistance := 250\n\thours := 3.5\n\tfmt.Printf(\"Speed: %.2f\\n\", float64(distance)/hours)\n\tfmt.Println(\"Int division:\", distance/4.0)\n\tfmt.Printf(\"Float division: %.2f\\n\", float64(distance)/4.0)\n\tweight := 72.8\n\tfmt.Println(\"Whole kilos:\", int(weight))\n}\n",
+        "tests": [
+          {
+            "output": "Speed: 71.43\nInt division: 62\nFloat division: 62.50\nWhole kilos: 72"
+          }
+        ],
+        "hints": [
+          "`distance` is an int and `hours` is a float64, so convert `distance` with `float64(distance)` before dividing.",
+          "`distance/4.0` compiles because `4.0` becomes an int, so it prints a whole number.",
+          "`int(weight)` truncates 72.8 to 72."
+        ]
+      }
+    },
+    {
+      "title": "Compound assignment and overflow",
+      "body": "Compound assignment updates a variable in place: `x += 5` means `x = x + 5`. The same works for `-=`, `*=`, `/=`, and `%=`, and `/=` on an int still truncates.\n\n```go\ncount := 10\ncount += 5 // 15\ncount /= 4 // 3\ncount++    // 4\ncount--    // 3\n```\n\n`x++` and `x--` add or subtract 1. In Go they are statements, not expressions: there is no `++x`, and `y = x++` does not compile.\n\n**Overflow:** `int` is 64 bits on this platform, so it holds values up to about 9.2 quintillion. Smaller sized integers hold far less: an `int8` is one byte holding -128 to 127, and a `uint8` holds 0 to 255. When arithmetic goes past the limit, Go keeps only the bits that fit, so the value wraps around silently with no error. Every integer type does this, `int` included, but small types make it easy to see. A constant that is too big, like `var b int8 = 128`, is caught at compile time instead.",
+      "example": {
+        "title": "Bank balance",
+        "prompt": "Update a balance with compound assignment, printing after each step, then overflow an int8.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tbalance := 100\n\tbalance += 50\n\tfmt.Println(\"Deposit:\", balance)\n\tbalance -= 30\n\tfmt.Println(\"Withdraw:\", balance)\n\tbalance *= 2\n\tfmt.Println(\"Doubled:\", balance)\n\tbalance /= 3\n\tfmt.Println(\"Split:\", balance)\n\n\tvar b int8 = 127\n\tb++ // one past the int8 maximum wraps around\n\tfmt.Println(\"int8 after 127:\", b)\n}\n",
+        "output": "Deposit: 150\nWithdraw: 120\nDoubled: 240\nSplit: 80\nint8 after 127: -128",
+        "explanation": "Each compound operator reads `balance`, applies the operation, and stores the result back: 100 + 50, then - 30, then * 2, then / 3. `b` is an int8 at its maximum, 127. `b++` would make 128, which does not fit in one signed byte, so the value wraps around to the minimum, -128."
+      },
+      "practice": {
+        "title": "Game score",
+        "prompt": "Update a game score with compound assignment, then overflow a uint8.\n\n1. Multiply `score` by 3 with `*=` and print `Tripled: ` followed by `score`.\n2. Add 7 with `+=` and print `Bonus: ` followed by `score`.\n3. Take the remainder after dividing by 8 with `%=` and print `Remainder: ` followed by `score`.\n4. Subtract 1 with `--` and print `Penalty: ` followed by `score`.\n5. Add 10 to `light` with `+=` and print `uint8 after 250 + 10: ` followed by `light`.\n\nExpected output:\n\n```text\nTripled: 30\nBonus: 37\nRemainder: 5\nPenalty: 4\nuint8 after 250 + 10: 4\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tscore := 10\n\tvar light uint8 = 250\n\t_, _ = score, light\n\t// TODO: update score four times, printing after each step\n\t// TODO: add 10 to light and print it\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tscore := 10\n\tscore *= 3\n\tfmt.Println(\"Tripled:\", score)\n\tscore += 7\n\tfmt.Println(\"Bonus:\", score)\n\tscore %= 8\n\tfmt.Println(\"Remainder:\", score)\n\tscore--\n\tfmt.Println(\"Penalty:\", score)\n\n\tvar light uint8 = 250\n\tlight += 10 // 260 does not fit in a uint8, so it wraps to 4\n\tfmt.Println(\"uint8 after 250 + 10:\", light)\n}\n",
+        "tests": [
+          {
+            "output": "Tripled: 30\nBonus: 37\nRemainder: 5\nPenalty: 4\nuint8 after 250 + 10: 4"
+          }
+        ],
+        "hints": [
+          "Write each update on its own line, then a `fmt.Println` right after it.",
+          "`score--` is a statement on its own line.",
+          "A uint8 holds 0 to 255, so 250 + 10 = 260 wraps to 260 - 256 = 4."
+        ]
+      }
+    }
+  ],
+  "recap": "- `int / int` truncates toward zero, and `%` takes the sign of the left operand.\n- Use `float64` values to keep decimals.\n- `*`, `/`, and `%` bind tighter than `+` and `-`. Parentheses override.\n- `^` is XOR, not a power, and Go has no `**`.\n- Convert with `T(x)`: `float64(n)` for decimals, `int(f)` to truncate a variable.\n- A constant like `4.0` next to an int variable becomes an int.\n- `+=`, `-=`, `*=`, `/=`, `%=` update in place. `x++` and `x--` are statements.\n- `int` is 64 bits here. Every integer type wraps around silently on overflow, which is easiest to see with `int8` and `uint8`."
+}

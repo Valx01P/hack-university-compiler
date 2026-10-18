@@ -1,0 +1,156 @@
+{
+  "id": "linked-lists",
+  "title": "Linked Lists",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Build singly linked lists from pointers, insert and delete nodes, reverse a list, and use fast and slow pointers.",
+  "intro": "A linked list stores values in separate nodes joined by pointers instead of in one array. You already know structs and pointers, so this lesson puts them together: build and walk a list, insert and delete nodes, reverse a list in place, and solve classic problems with fast and slow pointers.",
+  "steps": [
+    {
+      "title": "Nodes and traversal",
+      "body": "A singly linked list is a chain of nodes. Each node holds a value and a pointer to the next node, and `nil` marks the end:\n\n```go\ntype Node struct {\n\tVal  int\n\tNext *Node\n}\n```\n\nThe list itself is just a `*Node` pointing at the first node. A `nil` head is an empty list. `&Node{Val: v, Next: head}` builds a new node in front of the old head, so prepending is one line and takes constant time:\n\n```go\nvar head *Node\nhead = &Node{Val: 2, Next: head}\nhead = &Node{Val: 1, Next: head} // 1 -> 2\n```\n\nWalk the list by following `Next` until you reach `nil`:\n\n```go\nfor n := head; n != nil; n = n.Next {\n\tfmt.Println(n.Val)\n}\n```\n\nUnlike a slice, which keeps its elements side by side in one array, every node is a separate allocation, usually on the heap. Walking a list jumps around memory, and reaching item i takes i steps. Never print a node with `fmt.Println(n)` or `%v`: `Next` is an address that changes every run, so print `n.Val`. Go ships a doubly linked list in `container/list`, but building one by hand is how you learn the pointer moves.",
+      "example": {
+        "title": "Build and walk a list",
+        "prompt": "Read numbers until the input ends, build a list by prepending from the last value to the first, then print it, its length, and its sum.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Node struct {\n\tVal  int\n\tNext *Node\n}\n\nfunc printList(head *Node) {\n\tfor n := head; n != nil; n = n.Next {\n\t\tif n != head {\n\t\t\tfmt.Print(\" -> \")\n\t\t}\n\t\tfmt.Print(n.Val)\n\t}\n\tfmt.Println()\n}\n\nfunc main() {\n\tvar nums []int\n\tfor {\n\t\tvar x int\n\t\tif _, err := fmt.Scan(&x); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tnums = append(nums, x)\n\t}\n\n\tvar head *Node // nil: an empty list\n\tfor i := len(nums) - 1; i >= 0; i-- {\n\t\thead = &Node{Val: nums[i], Next: head}\n\t}\n\n\tlength, sum := 0, 0\n\tfor n := head; n != nil; n = n.Next {\n\t\tlength++\n\t\tsum += n.Val\n\t}\n\tprintList(head)\n\tfmt.Println(\"length:\", length)\n\tfmt.Println(\"sum:\", sum)\n}\n",
+        "stdin": "1 2 3 4",
+        "output": "1 -> 2 -> 3 -> 4\nlength: 4\nsum: 10",
+        "explanation": "Prepending flips the order, so the loop starts at the last value and the list comes out as 1, 2, 3, 4. `head` starts as `nil`, and each `&Node{...}` points at the previous head. `printList` prints ` -> ` before every node except the head. The second walk counts nodes and adds their values, stopping when `n` becomes `nil`."
+      },
+      "practice": {
+        "title": "Largest value in a list",
+        "prompt": "Build a list from the input and report its length and largest value.\n\n1. Declare `type Node struct` with `Val int` and `Next *Node`.\n2. Write `printList(head *Node)` that prints the values joined by ` -> ` on one line.\n3. Build the list from `nums` by prepending from the last value to the first, so it keeps the input order.\n4. Walk the list once to find its length and its largest value. Start the largest at `head.Val`, since values can be negative.\n5. Print the list, then `length: <n>`, then `max: <value>`. The input always has at least one number.\n\nInput:\n\n```text\n5 9 2 7\n```\n\nExpected output:\n\n```text\n5 -> 9 -> 2 -> 7\nlength: 4\nmax: 9\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// TODO: declare the Node type with Val int and Next *Node\n\n// TODO: write printList(head *Node) that prints the values joined by \" -> \"\n\nfunc main() {\n\tvar nums []int\n\tfor {\n\t\tvar x int\n\t\tif _, err := fmt.Scan(&x); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tnums = append(nums, x)\n\t}\n\n\t// TODO: build the list by prepending from the last value to the first\n\t// TODO: walk the list to find its length and largest value, then print them\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Node struct {\n\tVal  int\n\tNext *Node\n}\n\nfunc printList(head *Node) {\n\tfor n := head; n != nil; n = n.Next {\n\t\tif n != head {\n\t\t\tfmt.Print(\" -> \")\n\t\t}\n\t\tfmt.Print(n.Val)\n\t}\n\tfmt.Println()\n}\n\nfunc main() {\n\tvar nums []int\n\tfor {\n\t\tvar x int\n\t\tif _, err := fmt.Scan(&x); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tnums = append(nums, x)\n\t}\n\n\tvar head *Node\n\tfor i := len(nums) - 1; i >= 0; i-- {\n\t\thead = &Node{Val: nums[i], Next: head}\n\t}\n\n\tlength, largest := 0, head.Val\n\tfor n := head; n != nil; n = n.Next {\n\t\tlength++\n\t\tif n.Val > largest {\n\t\t\tlargest = n.Val\n\t\t}\n\t}\n\tprintList(head)\n\tfmt.Println(\"length:\", length)\n\tfmt.Println(\"max:\", largest)\n}\n",
+        "tests": [
+          {
+            "stdin": "5 9 2 7",
+            "output": "5 -> 9 -> 2 -> 7\nlength: 4\nmax: 9"
+          },
+          {
+            "stdin": "-4 -8 -1",
+            "output": "-4 -> -8 -> -1\nlength: 3\nmax: -1"
+          },
+          {
+            "stdin": "42",
+            "output": "42\nlength: 1\nmax: 42"
+          }
+        ],
+        "hints": [
+          "Copy the Node type, `printList`, and the prepend loop from the example.",
+          "Inside the walk, add `if n.Val > largest { largest = n.Val }` next to `length++`."
+        ]
+      }
+    },
+    {
+      "title": "Inserting and deleting",
+      "body": "Appending to the end would mean walking the whole list each time. Keep a `tail` pointer instead, and appending is constant time:\n\n```go\nn := &Node{Val: x}\nif head == nil {\n\thead = n\n} else {\n\ttail.Next = n\n}\ntail = n\n```\n\nTo insert after a node `n`, point the new node at `n.Next`, then point `n` at the new node. One line does both:\n\n```go\nn.Next = &Node{Val: 0, Next: n.Next}\n```\n\nDeleting means relinking around a node: `prev.Next = cur.Next`. Once nothing points at the removed node, the garbage collector frees it. The first node has no `prev`, which usually needs a special case. A **dummy head** removes it: a fake node in front of the list gives every real node a predecessor.\n\n```go\ndummy := &Node{Next: head}\nprev, cur := dummy, head\n// ... unlink with prev.Next = cur.Next ...\nhead = dummy.Next\n```\n\nTwo gotchas. Only move `prev` forward when you keep `cur`. And if you delete the last node, `tail` still points at it, so update `tail` before appending again.",
+      "example": {
+        "title": "Insert after the first even value",
+        "prompt": "Read numbers and append each with a tail pointer, insert 0 after the first even value, delete every 3 using a dummy head, and print the list or empty.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Node struct {\n\tVal  int\n\tNext *Node\n}\n\nfunc printList(head *Node) {\n\tif head == nil {\n\t\tfmt.Println(\"empty\")\n\t\treturn\n\t}\n\tfor n := head; n != nil; n = n.Next {\n\t\tif n != head {\n\t\t\tfmt.Print(\" -> \")\n\t\t}\n\t\tfmt.Print(n.Val)\n\t}\n\tfmt.Println()\n}\n\nfunc main() {\n\tvar head, tail *Node\n\tfor {\n\t\tvar x int\n\t\tif _, err := fmt.Scan(&x); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tn := &Node{Val: x}\n\t\tif head == nil {\n\t\t\thead = n\n\t\t} else {\n\t\t\ttail.Next = n\n\t\t}\n\t\ttail = n\n\t}\n\n\tfor n := head; n != nil; n = n.Next {\n\t\tif n.Val%2 == 0 {\n\t\t\tn.Next = &Node{Val: 0, Next: n.Next}\n\t\t\tbreak // the new 0 is even too, so without break this inserts forever\n\t\t}\n\t}\n\n\tdummy := &Node{Next: head}\n\tprev, cur := dummy, head\n\tfor cur != nil {\n\t\tif cur.Val == 3 {\n\t\t\tprev.Next = cur.Next // nothing in the list points at cur now\n\t\t} else {\n\t\t\tprev = cur\n\t\t}\n\t\tcur = cur.Next\n\t}\n\thead = dummy.Next\n\tprintList(head)\n}\n",
+        "stdin": "3 1 2 3 4",
+        "output": "1 -> 2 -> 0 -> 4",
+        "explanation": "The list is built as 3, 1, 2, 3, 4. The first even value is 2, so 0 goes right after it, and `break` stops the walk. Without it the loop would meet the new 0, which is even too, and keep inserting forever. The delete loop starts with `prev` on the dummy, so removing the leading 3 needs no special case. `head = dummy.Next` picks up the new first node, which is `nil` when every node was deleted."
+      },
+      "practice": {
+        "title": "Insert 99 and drop negatives",
+        "prompt": "Build a list from the input, insert one node, and remove the negative values.\n\n1. Append each number with a `tail` pointer so the list keeps the input order.\n2. Insert a node with value 99 right after the first value greater than 10, if there is one.\n3. Delete every negative value using a dummy head node.\n4. Print the list with `printList`, which prints `empty` for an empty list.\n\nInput:\n\n```text\n5 -2 12 -7 3\n```\n\nExpected output:\n\n```text\n5 -> 12 -> 99 -> 3\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Node struct {\n\tVal  int\n\tNext *Node\n}\n\nfunc printList(head *Node) {\n\tif head == nil {\n\t\tfmt.Println(\"empty\")\n\t\treturn\n\t}\n\tfor n := head; n != nil; n = n.Next {\n\t\tif n != head {\n\t\t\tfmt.Print(\" -> \")\n\t\t}\n\t\tfmt.Print(n.Val)\n\t}\n\tfmt.Println()\n}\n\nfunc main() {\n\tvar head *Node\n\tfor {\n\t\tvar x int\n\t\tif _, err := fmt.Scan(&x); err != nil {\n\t\t\tbreak\n\t\t}\n\t\t_ = x\n\t\t// TODO: append a node for x using a tail pointer\n\t}\n\n\t// TODO: insert 99 after the first value greater than 10\n\t// TODO: delete every negative value using a dummy head node\n\tprintList(head)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Node struct {\n\tVal  int\n\tNext *Node\n}\n\nfunc printList(head *Node) {\n\tif head == nil {\n\t\tfmt.Println(\"empty\")\n\t\treturn\n\t}\n\tfor n := head; n != nil; n = n.Next {\n\t\tif n != head {\n\t\t\tfmt.Print(\" -> \")\n\t\t}\n\t\tfmt.Print(n.Val)\n\t}\n\tfmt.Println()\n}\n\nfunc main() {\n\tvar head, tail *Node\n\tfor {\n\t\tvar x int\n\t\tif _, err := fmt.Scan(&x); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tn := &Node{Val: x}\n\t\tif head == nil {\n\t\t\thead = n\n\t\t} else {\n\t\t\ttail.Next = n\n\t\t}\n\t\ttail = n\n\t}\n\n\tfor n := head; n != nil; n = n.Next {\n\t\tif n.Val > 10 {\n\t\t\tn.Next = &Node{Val: 99, Next: n.Next}\n\t\t\tbreak\n\t\t}\n\t}\n\n\tdummy := &Node{Next: head}\n\tprev, cur := dummy, head\n\tfor cur != nil {\n\t\tif cur.Val < 0 {\n\t\t\tprev.Next = cur.Next\n\t\t} else {\n\t\t\tprev = cur\n\t\t}\n\t\tcur = cur.Next\n\t}\n\thead = dummy.Next\n\tprintList(head)\n}\n",
+        "tests": [
+          {
+            "stdin": "5 -2 12 -7 3",
+            "output": "5 -> 12 -> 99 -> 3"
+          },
+          {
+            "stdin": "-1 -2 -3",
+            "output": "empty"
+          },
+          {
+            "stdin": "-5 20 -1",
+            "output": "20 -> 99"
+          }
+        ],
+        "hints": [
+          "Declare `tail` next to `head` (`var head, tail *Node`) and use the example's append block in place of `_ = x`.",
+          "Insert with `n.Next = &Node{Val: 99, Next: n.Next}` and then `break`.",
+          "In the delete loop, unlink with `prev.Next = cur.Next` when `cur.Val < 0`, and finish with `head = dummy.Next`."
+        ]
+      }
+    },
+    {
+      "title": "Reversing a list",
+      "body": "Reversing in place flips every `Next` pointer to point backwards. No new nodes are allocated: you only rewrite links. Walk with two pointers: `prev` (the reversed part, starting at `nil`) and `cur` (the part still to do):\n\n```go\nvar prev *Node\ncur := head\nfor cur != nil {\n\tnext := cur.Next // save the rest first\n\tcur.Next = prev  // flip the link\n\tprev = cur\n\tcur = next\n}\nhead = prev\n```\n\nThe order matters. Once you write `cur.Next = prev`, the old `cur.Next` is gone, and so is the rest of the list. That is why `next` is saved first. When the loop ends, `cur` is `nil` and `prev` is the old tail, which is the new head.\n\nGo evaluates the whole right side, and the `cur` in `cur.Next` on the left, before it assigns anything. So the loop body also fits on one line:\n\n```go\ncur.Next, prev, cur = prev, cur, cur.Next\n```\n\nIt works, but a reader has to replay the assignment in their head to trust it. Prefer the four-line version, where each line does one thing.",
+      "example": {
+        "title": "Reverse in place",
+        "prompt": "Read numbers into a list, print it, reverse it in place, and print it again.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Node struct {\n\tVal  int\n\tNext *Node\n}\n\nfunc printList(head *Node) {\n\tfor n := head; n != nil; n = n.Next {\n\t\tif n != head {\n\t\t\tfmt.Print(\" -> \")\n\t\t}\n\t\tfmt.Print(n.Val)\n\t}\n\tfmt.Println()\n}\n\nfunc reverse(head *Node) *Node {\n\tvar prev *Node\n\tcur := head\n\tfor cur != nil {\n\t\tnext := cur.Next // save the rest before cutting the link\n\t\tcur.Next = prev\n\t\tprev = cur\n\t\tcur = next\n\t}\n\treturn prev\n}\n\nfunc main() {\n\tvar head, tail *Node\n\tfor {\n\t\tvar x int\n\t\tif _, err := fmt.Scan(&x); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tn := &Node{Val: x}\n\t\tif head == nil {\n\t\t\thead = n\n\t\t} else {\n\t\t\ttail.Next = n\n\t\t}\n\t\ttail = n\n\t}\n\n\tfmt.Print(\"before: \")\n\tprintList(head)\n\thead = reverse(head)\n\tfmt.Print(\"after: \")\n\tprintList(head)\n}\n",
+        "stdin": "1 2 3 4 5",
+        "output": "before: 1 -> 2 -> 3 -> 4 -> 5\nafter: 5 -> 4 -> 3 -> 2 -> 1",
+        "explanation": "`reverse` visits each node once. It saves `cur.Next`, points `cur` back at `prev`, then moves both pointers one step forward. The first node ends up pointing at `nil`, so it becomes the new tail. `reverse` returns `prev`, and `main` must store it in `head`, because the old head is now the last node."
+      },
+      "practice": {
+        "title": "Reverse and report the head",
+        "prompt": "Reverse a list built from the input and print the new head's value.\n\n1. Finish `reverse` so it reverses the list in place with `prev` and `cur` and returns the new head.\n2. Keep the given print of the reversed list.\n3. Print `head: <value>` with the new head's value. The input always has at least one number.\n\nInput:\n\n```text\n4 8 15 16\n```\n\nExpected output:\n\n```text\nreversed: 16 -> 15 -> 8 -> 4\nhead: 16\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Node struct {\n\tVal  int\n\tNext *Node\n}\n\nfunc printList(head *Node) {\n\tfor n := head; n != nil; n = n.Next {\n\t\tif n != head {\n\t\t\tfmt.Print(\" -> \")\n\t\t}\n\t\tfmt.Print(n.Val)\n\t}\n\tfmt.Println()\n}\n\nfunc reverse(head *Node) *Node {\n\t// TODO: reverse the list in place with prev and cur, then return the new head\n\treturn head\n}\n\nfunc main() {\n\tvar head, tail *Node\n\tfor {\n\t\tvar x int\n\t\tif _, err := fmt.Scan(&x); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tn := &Node{Val: x}\n\t\tif head == nil {\n\t\t\thead = n\n\t\t} else {\n\t\t\ttail.Next = n\n\t\t}\n\t\ttail = n\n\t}\n\n\thead = reverse(head)\n\tfmt.Print(\"reversed: \")\n\tprintList(head)\n\t// TODO: print the new head's value as head: <value>\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Node struct {\n\tVal  int\n\tNext *Node\n}\n\nfunc printList(head *Node) {\n\tfor n := head; n != nil; n = n.Next {\n\t\tif n != head {\n\t\t\tfmt.Print(\" -> \")\n\t\t}\n\t\tfmt.Print(n.Val)\n\t}\n\tfmt.Println()\n}\n\nfunc reverse(head *Node) *Node {\n\tvar prev *Node\n\tcur := head\n\tfor cur != nil {\n\t\tnext := cur.Next\n\t\tcur.Next = prev\n\t\tprev = cur\n\t\tcur = next\n\t}\n\treturn prev\n}\n\nfunc main() {\n\tvar head, tail *Node\n\tfor {\n\t\tvar x int\n\t\tif _, err := fmt.Scan(&x); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tn := &Node{Val: x}\n\t\tif head == nil {\n\t\t\thead = n\n\t\t} else {\n\t\t\ttail.Next = n\n\t\t}\n\t\ttail = n\n\t}\n\n\thead = reverse(head)\n\tfmt.Print(\"reversed: \")\n\tprintList(head)\n\tfmt.Println(\"head:\", head.Val)\n}\n",
+        "tests": [
+          {
+            "stdin": "4 8 15 16",
+            "output": "reversed: 16 -> 15 -> 8 -> 4\nhead: 16"
+          },
+          {
+            "stdin": "42",
+            "output": "reversed: 42\nhead: 42"
+          },
+          {
+            "stdin": "-3 0 3",
+            "output": "reversed: 3 -> 0 -> -3\nhead: 3"
+          }
+        ],
+        "hints": [
+          "Start with `var prev *Node` and `cur := head`, and loop while `cur != nil`.",
+          "Save `next := cur.Next` before `cur.Next = prev`, then move `prev` and `cur` forward and return `prev`."
+        ]
+      }
+    },
+    {
+      "title": "Fast and slow pointers",
+      "body": "Many list problems are solved by two pointers moving at different speeds. Move `slow` one node and `fast` two nodes per step. When `fast` reaches the end, `slow` is in the middle:\n\n```go\nslow, fast := head, head\nfor fast != nil && fast.Next != nil {\n\tslow, fast = slow.Next, fast.Next.Next\n}\n```\n\nFor an even length this stops on the second middle. To stop on the first one, loop while `fast.Next != nil && fast.Next.Next != nil`, which needs a non-nil `head`.\n\nTo find the k-th node from the end without counting, move `lead` k nodes ahead, then move `lead` and `trail` together. When `lead` falls off the end, `trail` is k nodes behind it.\n\nIf a node links back to an earlier one, the list has a **cycle** and never reaches `nil`, so a plain `for n != nil` walk loops forever. Never walk a list that may have a cycle that way. Floyd's algorithm uses the same two speeds: inside a cycle the fast pointer gains one node per step, so it must land on the slow one. Compare the pointers with `==`, which checks for the same node, not the same value.",
+      "example": {
+        "title": "Middle, k-th from end, and a cycle",
+        "prompt": "Read the values on line 1 and k and p on line 2, print the middle value and the k-th value from the end, then link the tail to the node at index p (unless p is -1) and report whether the list has a cycle.",
+        "code": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strconv\"\n\t\"strings\"\n)\n\ntype Node struct {\n\tVal  int\n\tNext *Node\n}\n\nfunc middle(head *Node) int {\n\tslow, fast := head, head\n\tfor fast != nil && fast.Next != nil {\n\t\tslow, fast = slow.Next, fast.Next.Next\n\t}\n\treturn slow.Val\n}\n\nfunc kthFromEnd(head *Node, k int) int {\n\tlead, trail := head, head\n\tfor i := 0; i < k; i++ {\n\t\tlead = lead.Next\n\t}\n\tfor lead != nil {\n\t\tlead, trail = lead.Next, trail.Next\n\t}\n\treturn trail.Val\n}\n\nfunc hasCycle(head *Node) bool {\n\tslow, fast := head, head\n\tfor fast != nil && fast.Next != nil {\n\t\tslow, fast = slow.Next, fast.Next.Next\n\t\tif slow == fast {\n\t\t\treturn true\n\t\t}\n\t}\n\treturn false\n}\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tvar lines [][]int\n\tfor scanner.Scan() {\n\t\tvar nums []int\n\t\tfor _, f := range strings.Fields(scanner.Text()) {\n\t\t\tn, err := strconv.Atoi(f)\n\t\t\tif err != nil {\n\t\t\t\tfmt.Println(err)\n\t\t\t\treturn\n\t\t\t}\n\t\t\tnums = append(nums, n)\n\t\t}\n\t\tlines = append(lines, nums)\n\t}\n\tvals, k, p := lines[0], lines[1][0], lines[1][1]\n\n\tvar head *Node\n\tnodes := make([]*Node, len(vals))\n\tfor i := len(vals) - 1; i >= 0; i-- {\n\t\thead = &Node{Val: vals[i], Next: head}\n\t\tnodes[i] = head\n\t}\n\n\tfmt.Println(\"middle:\", middle(head))\n\tfmt.Println(\"kth from end:\", kthFromEnd(head, k))\n\tif p != -1 {\n\t\tnodes[len(nodes)-1].Next = nodes[p] // the tail now points back\n\t}\n\tfmt.Println(\"cycle:\", hasCycle(head))\n}\n",
+        "stdin": "1 2 3 4 5\n2 1",
+        "output": "middle: 3\nkth from end: 4\ncycle: true",
+        "explanation": "`middle` stops `slow` on 3 when `fast` reaches the last node. `kthFromEnd` moves `lead` to 3, then both pointers move until `lead` is `nil`, which leaves `trail` on 4. Both walk until a pointer reaches `nil`, so they run before the cycle exists. The `nodes` slice keeps a pointer to every node, so linking the tail to index 1 is one assignment. Now the list never ends, but `hasCycle` does not need it to: `fast` catches `slow` inside the loop and it returns true."
+      },
+      "practice": {
+        "title": "First middle and cycle check",
+        "prompt": "Use fast and slow pointers to answer three questions about a list.\n\n1. Finish `middle` so it returns the middle value, using the first of the two middles for even lengths.\n2. Finish `kthFromEnd` with a `lead` pointer k nodes ahead of `trail`. k is between 1 and the list length.\n3. Finish `hasCycle` with Floyd's algorithm: return true when fast meets slow.\n4. Keep the given `main`, which reads the values on line 1 and `k p` on line 2 and links the tail to index p unless p is -1.\n\nInput:\n\n```text\n1 2 3 4 5 6\n1 -1\n```\n\nExpected output:\n\n```text\nmiddle: 3\nkth from end: 6\ncycle: false\n```",
+        "starter": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strconv\"\n\t\"strings\"\n)\n\ntype Node struct {\n\tVal  int\n\tNext *Node\n}\n\nfunc middle(head *Node) int {\n\t// TODO: move slow one node and fast two, then return the first middle value\n\treturn 0\n}\n\nfunc kthFromEnd(head *Node, k int) int {\n\t// TODO: move lead k nodes ahead, then move lead and trail together\n\treturn 0\n}\n\nfunc hasCycle(head *Node) bool {\n\t// TODO: return true when fast meets slow\n\treturn false\n}\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tvar lines [][]int\n\tfor scanner.Scan() {\n\t\tvar nums []int\n\t\tfor _, f := range strings.Fields(scanner.Text()) {\n\t\t\tn, err := strconv.Atoi(f)\n\t\t\tif err != nil {\n\t\t\t\tfmt.Println(err)\n\t\t\t\treturn\n\t\t\t}\n\t\t\tnums = append(nums, n)\n\t\t}\n\t\tlines = append(lines, nums)\n\t}\n\tvals, k, p := lines[0], lines[1][0], lines[1][1]\n\n\tvar head *Node\n\tnodes := make([]*Node, len(vals))\n\tfor i := len(vals) - 1; i >= 0; i-- {\n\t\thead = &Node{Val: vals[i], Next: head}\n\t\tnodes[i] = head\n\t}\n\n\tfmt.Println(\"middle:\", middle(head))\n\tfmt.Println(\"kth from end:\", kthFromEnd(head, k))\n\tif p != -1 {\n\t\tnodes[len(nodes)-1].Next = nodes[p]\n\t}\n\tfmt.Println(\"cycle:\", hasCycle(head))\n}\n",
+        "solution": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strconv\"\n\t\"strings\"\n)\n\ntype Node struct {\n\tVal  int\n\tNext *Node\n}\n\nfunc middle(head *Node) int {\n\tslow, fast := head, head\n\tfor fast.Next != nil && fast.Next.Next != nil {\n\t\tslow, fast = slow.Next, fast.Next.Next\n\t}\n\treturn slow.Val\n}\n\nfunc kthFromEnd(head *Node, k int) int {\n\tlead, trail := head, head\n\tfor i := 0; i < k; i++ {\n\t\tlead = lead.Next\n\t}\n\tfor lead != nil {\n\t\tlead, trail = lead.Next, trail.Next\n\t}\n\treturn trail.Val\n}\n\nfunc hasCycle(head *Node) bool {\n\tslow, fast := head, head\n\tfor fast != nil && fast.Next != nil {\n\t\tslow, fast = slow.Next, fast.Next.Next\n\t\tif slow == fast {\n\t\t\treturn true\n\t\t}\n\t}\n\treturn false\n}\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tvar lines [][]int\n\tfor scanner.Scan() {\n\t\tvar nums []int\n\t\tfor _, f := range strings.Fields(scanner.Text()) {\n\t\t\tn, err := strconv.Atoi(f)\n\t\t\tif err != nil {\n\t\t\t\tfmt.Println(err)\n\t\t\t\treturn\n\t\t\t}\n\t\t\tnums = append(nums, n)\n\t\t}\n\t\tlines = append(lines, nums)\n\t}\n\tvals, k, p := lines[0], lines[1][0], lines[1][1]\n\n\tvar head *Node\n\tnodes := make([]*Node, len(vals))\n\tfor i := len(vals) - 1; i >= 0; i-- {\n\t\thead = &Node{Val: vals[i], Next: head}\n\t\tnodes[i] = head\n\t}\n\n\tfmt.Println(\"middle:\", middle(head))\n\tfmt.Println(\"kth from end:\", kthFromEnd(head, k))\n\tif p != -1 {\n\t\tnodes[len(nodes)-1].Next = nodes[p]\n\t}\n\tfmt.Println(\"cycle:\", hasCycle(head))\n}\n",
+        "tests": [
+          {
+            "stdin": "1 2 3 4 5 6\n1 -1",
+            "output": "middle: 3\nkth from end: 6\ncycle: false"
+          },
+          {
+            "stdin": "10 20 30 40\n4 0",
+            "output": "middle: 20\nkth from end: 10\ncycle: true"
+          },
+          {
+            "stdin": "7\n1 0",
+            "output": "middle: 7\nkth from end: 7\ncycle: true"
+          }
+        ],
+        "hints": [
+          "For the first middle, loop while `fast.Next != nil && fast.Next.Next != nil`.",
+          "In `kthFromEnd`, a counting loop moves `lead` k times, then a second loop moves both until `lead` is `nil`.",
+          "`hasCycle` works like the example's: the second-middle loop (`fast != nil && fast.Next != nil`) plus a `slow == fast` check after each move."
+        ]
+      }
+    }
+  ],
+  "recap": "- `type Node struct` holds `Val int` and `Next *Node`, and `nil` ends the list.\n- `head = &Node{Val: v, Next: head}` prepends in constant time.\n- Walk with `for n := head; n != nil; n = n.Next`.\n- A `tail` pointer makes appending constant time.\n- Insert after `n` with `n.Next = &Node{Val: v, Next: n.Next}`.\n- A dummy head lets you delete the first node like any other, then `head = dummy.Next`.\n- `prev.Next = cur.Next` unlinks a node, and the garbage collector frees it once nothing points at it.\n- Reverse with `prev` and `cur`, saving `next := cur.Next` before `cur.Next = prev`.\n- The one-line `cur.Next, prev, cur = prev, cur, cur.Next` also works but is harder to read.\n- Slow moves one node and fast moves two: find the middle or detect a cycle.\n- Never walk a list that may have a cycle with a plain `for n != nil` loop.\n- Keep `lead` k nodes ahead of `trail` to find the k-th node from the end.\n- Never print a node or its `Next`, print `Val`."
+}

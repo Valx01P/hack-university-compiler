@@ -1,0 +1,89 @@
+{
+  "id": "while-loops",
+  "title": "While Loops with for",
+  "section": "Control Flow",
+  "summary": "Use for with only a condition as a while loop, process the digits of a number, and break out of infinite loops.",
+  "intro": "Go has no `while` or `do-while` keyword. The `for` keyword covers both: drop the init and post parts and you have a while loop, drop the condition too and you have a loop that runs until you `break`.",
+  "steps": [
+    {
+      "title": "for as while",
+      "body": "When you do not know in advance how many passes you need, write `for` with only a condition. It runs the body again and again while the condition is true. This is Go's while loop.\n\n```go\nsavings := 100\nfor savings < 1000 {\n\tsavings *= 2\n}\n```\n\nThe condition is checked *before* every pass, including the first. If it starts out false, the body never runs.\n\nThere is no post statement doing the counting for you, so the body itself must move the loop toward its exit: change the variable the condition tests. Forget that line and the loop never ends. Here a run like that is killed after 10 seconds.\n\nIf you also want to count passes, keep a separate counter and add 1 to it inside the body.",
+      "example": {
+        "title": "Doubling savings",
+        "prompt": "Double the savings each year while they are below 1000 and count the years.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tsavings := 100\n\tyears := 0\n\tfor savings < 1000 {\n\t\tsavings *= 2\n\t\tyears++\n\t}\n\tfmt.Printf(\"Years: %d, savings: %d\\n\", years, savings)\n}\n",
+        "output": "Years: 4, savings: 1600",
+        "explanation": "The condition `savings < 1000` is checked before each pass. Savings go 200, 400, 800, 1600, and `years` grows by one each time. When savings reach 1600 the condition is false, the loop ends, and both variables keep their final values because they were declared before the loop."
+      },
+      "practice": {
+        "title": "Halving steps",
+        "prompt": "Halve a number with integer division until it drops below 10, counting the steps.\n\n1. Keep the given `n := 1000` and `steps := 0`.\n2. Write a `for` loop with only a condition that runs while `n` is at least 10.\n3. In the body, halve `n` with `/=` and add 1 to `steps`.\n4. Keep the given `Printf` line after the loop.\n\nExpected output:\n\n```text\nSteps: 7, n: 7\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tn := 1000\n\tsteps := 0\n\t// TODO: halve n while it is at least 10, counting the steps\n\tfmt.Printf(\"Steps: %d, n: %d\\n\", steps, n)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tn := 1000\n\tsteps := 0\n\tfor n >= 10 {\n\t\tn /= 2\n\t\tsteps++\n\t}\n\tfmt.Printf(\"Steps: %d, n: %d\\n\", steps, n)\n}\n",
+        "tests": [
+          {
+            "output": "Steps: 7, n: 7"
+          }
+        ],
+        "hints": [
+          "\"At least 10\" means `>=`, so a value of exactly 10 still gets halved.",
+          "`n /= 2` on an int truncates, so 125 becomes 62."
+        ]
+      }
+    },
+    {
+      "title": "Digit loops",
+      "body": "A while loop is the natural way to walk through the digits of a number, because you do not know how many digits there are. Two integer operations do the work:\n\n- `n % 10` is the last digit (4825 % 10 is 5).\n- `n /= 10` drops the last digit (4825 becomes 482).\n\n```go\nfor n > 0 {\n\tdigit := n % 10\n\t// use digit\n\tn /= 10\n}\n```\n\nInteger division truncates, so after the last digit `n` becomes 0 and `for n > 0` stops. The digits come out right to left.\n\nThe loop eats `n`. An `int` is a plain value, so `n := num` makes an independent copy: loop over the copy if you still need the original later. Two edge cases to know: 0 has no passes at all, and a negative number fails `n > 0` right away (and `%` keeps the sign of the left side).",
+      "example": {
+        "title": "Digit count and sum",
+        "prompt": "Count the digits of 4825 and add them up.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tn := 4825\n\tcount, sum := 0, 0\n\tfor n > 0 {\n\t\tsum += n % 10\n\t\tn /= 10\n\t\tcount++\n\t}\n\tfmt.Printf(\"Digits: %d, sum: %d\\n\", count, sum)\n}\n",
+        "output": "Digits: 4, sum: 19",
+        "explanation": "Each pass adds the last digit to `sum`, then drops it. `n` goes 4825, 482, 48, 4, 0, so the body runs four times and `sum` is 5 + 2 + 8 + 4 = 19. When `n` hits 0 the condition fails and the loop ends."
+      },
+      "practice": {
+        "title": "Reverse a number",
+        "prompt": "Reverse the digits of 1234 using the same loop shape.\n\n1. Keep the given `n := 1234` and `rev := 0`, and remove the `_ = n` line.\n2. Loop while `n > 0`.\n3. In the body, set `rev = rev*10 + n%10`, then drop the last digit of `n` with `n /= 10`.\n4. Keep the given `Printf` line after the loop.\n\nExpected output:\n\n```text\nReversed: 4321\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tn := 1234\n\trev := 0\n\t_ = n\n\t// TODO: build rev from the digits of n, last digit first\n\tfmt.Printf(\"Reversed: %d\\n\", rev)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tn := 1234\n\trev := 0\n\tfor n > 0 {\n\t\trev = rev*10 + n%10\n\t\tn /= 10\n\t}\n\tfmt.Printf(\"Reversed: %d\\n\", rev)\n}\n",
+        "tests": [
+          {
+            "output": "Reversed: 4321"
+          }
+        ],
+        "hints": [
+          "Multiplying `rev` by 10 shifts its digits left and makes room for the new digit.",
+          "`rev` goes 4, 43, 432, 4321 while `n` goes 123, 12, 1, 0."
+        ]
+      }
+    },
+    {
+      "title": "Infinite loops",
+      "body": "`for { }` with no condition at all loops forever. You end it from the inside with `break`, which jumps to the first line after the loop.\n\nThis shape is useful when the exit test belongs in the middle or at the end of the body. Go has no do-while, so this is how you write one: the body runs once before the check.\n\n```go\nfor {\n\t// work that must happen at least once\n\tif done {\n\t\tbreak\n\t}\n}\n```\n\nEvery `for { }` needs a `break` that is sure to run, or the program hangs. As the for-loops lesson showed, `break` inside a `switch` only leaves the `switch`. Here that is worse than a skipped exit: if the only `break` sits in a `switch`, the loop never ends. Write the exit test as an `if`.\n\nLoops often track the largest value seen so far. It is the default-then-override pattern from the ternary lesson, repeated on every pass. Start `maxVal` at the first value, then compare each new one:\n\n```go\nif n > maxVal {\n\tmaxVal = n\n}\n```",
+      "example": {
+        "title": "Collatz from 6",
+        "prompt": "Print the Collatz sequence from 6 (halve when even, otherwise 3n + 1) until it reaches 1, then print the step count and the largest value.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tn := 6\n\tsteps := 0\n\tmaxVal := n\n\tfor {\n\t\tfmt.Print(n)\n\t\tif n == 1 {\n\t\t\tbreak\n\t\t}\n\t\tfmt.Print(\" -> \")\n\t\tif n%2 == 0 {\n\t\t\tn /= 2\n\t\t} else {\n\t\t\tn = 3*n + 1\n\t\t}\n\t\tsteps++\n\t\tif n > maxVal {\n\t\t\tmaxVal = n\n\t\t}\n\t}\n\tfmt.Println()\n\tfmt.Printf(\"Steps: %d\\n\", steps)\n\tfmt.Printf(\"Max: %d\\n\", maxVal)\n}\n",
+        "output": "6 -> 3 -> 10 -> 5 -> 16 -> 8 -> 4 -> 2 -> 1\nSteps: 8\nMax: 16",
+        "explanation": "Each pass prints `n` first, so the starting 6 and the final 1 both appear. That is the do-while part: the print runs before the exit check. When `n` is 1 the `break` leaves the loop before the arrow is printed. Otherwise `n` moves to its next value, `steps` counts the move, and `maxVal` keeps the biggest value so far. `fmt.Println()` then ends the sequence line."
+      },
+      "practice": {
+        "title": "Collatz from 7",
+        "prompt": "Print the Collatz sequence from 7 the same way, then its step count and largest value.\n\n1. Keep the given `n := 7`, `steps := 0`, and `maxVal := n`.\n2. Inside `for { }`, print `n` with `fmt.Print`, then `break` if `n` is 1, otherwise print the separator `\" -> \"` (a space, an arrow, and a space).\n3. Halve `n` when it is even, otherwise set it to `3*n + 1`. Add 1 to `steps` and update `maxVal` when `n` is larger.\n4. After the loop, end the line with `fmt.Println()` and keep the two given `Printf` lines.\n\nExpected output:\n\n```text\n7 -> 22 -> 11 -> 34 -> 17 -> 52 -> 26 -> 13 -> 40 -> 20 -> 10 -> 5 -> 16 -> 8 -> 4 -> 2 -> 1\nSteps: 16\nMax: 52\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tn := 7\n\tsteps := 0\n\tmaxVal := n\n\t// TODO: print the sequence inside for { }, counting steps and tracking maxVal\n\tfmt.Printf(\"Steps: %d\\n\", steps)\n\tfmt.Printf(\"Max: %d\\n\", maxVal)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tn := 7\n\tsteps := 0\n\tmaxVal := n\n\tfor {\n\t\tfmt.Print(n)\n\t\tif n == 1 {\n\t\t\tbreak\n\t\t}\n\t\tfmt.Print(\" -> \")\n\t\tif n%2 == 0 {\n\t\t\tn /= 2\n\t\t} else {\n\t\t\tn = 3*n + 1\n\t\t}\n\t\tsteps++\n\t\tif n > maxVal {\n\t\t\tmaxVal = n\n\t\t}\n\t}\n\tfmt.Println()\n\tfmt.Printf(\"Steps: %d\\n\", steps)\n\tfmt.Printf(\"Max: %d\\n\", maxVal)\n}\n",
+        "tests": [
+          {
+            "output": "7 -> 22 -> 11 -> 34 -> 17 -> 52 -> 26 -> 13 -> 40 -> 20 -> 10 -> 5 -> 16 -> 8 -> 4 -> 2 -> 1\nSteps: 16\nMax: 52"
+          }
+        ],
+        "hints": [
+          "Print `n` before the `if n == 1` check, so the final 1 is printed too.",
+          "`n%2 == 0` is true for even numbers.",
+          "Compare with `maxVal` after `n` changes, so each new value gets checked."
+        ]
+      }
+    }
+  ],
+  "recap": "- `for condition { }` is Go's while loop. The condition is checked before every pass.\n- The body must change what the condition tests, or the loop never ends.\n- `n % 10` is the last digit and `n /= 10` drops it. Loop `for n > 0` to visit every digit.\n- `for { }` loops forever until a `break`. Code placed before the `if` that breaks runs at least once, which is how you write a do-while.\n- `break` inside a `switch` leaves only the `switch`.\n- Track a maximum with `if n > maxVal { maxVal = n }`."
+}

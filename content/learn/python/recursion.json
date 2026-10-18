@@ -1,0 +1,152 @@
+{
+  "id": "recursion",
+  "title": "Recursion and DFS",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Solve problems with functions that call themselves, memoize with @cache, and explore with depth-first search.",
+  "intro": "A recursive function solves a problem by calling itself on a smaller piece of it. You will write base and recursive cases, speed up repeated work with memoization, flood fill a grid with depth-first search, and generate subsets and combinations with backtracking.",
+  "steps": [
+    {
+      "title": "Base case and recursive case",
+      "body": "A recursive function calls itself on a smaller version of the same problem. Every one needs two parts:\n\n- A **base case** that answers directly and stops the recursion.\n- A **recursive case** that calls the function on a smaller input and builds on the result.\n\n```python\ndef factorial(n):\n    if n <= 1:                    # base case\n        return 1\n    return n * factorial(n - 1)   # smaller input: n - 1\n```\n\nEach call waits on the **call stack** until the call it made returns. `factorial(3)` waits for `factorial(2)`, which waits for `factorial(1)`. The base case returns first, then the answers flow back up in reverse order.\n\nPython has no tail-call optimization, so every pending call keeps a stack frame. The default limit is 1000 frames, and going deeper raises an error:\n\n```python\n# factorial(5000)  # RecursionError: maximum recursion depth exceeded\n```\n\nWhen you truly need deeper plain recursion, raise the limit with `sys.setrecursionlimit()`. If the input could be huge, a loop is usually the better tool.\n\n```python\nimport sys\n\nsys.setrecursionlimit(10_000)\n```",
+      "example": {
+        "title": "Factorial and digit sums",
+        "prompt": "Compute factorials and digit sums with recursive functions, then trace the call stack of a small recursion.",
+        "code": "def factorial(n: int) -> int:\n    if n <= 1:  # base case\n        return 1\n    return n * factorial(n - 1)  # recursive case on n - 1\n\n\ndef sum_digits(n: int) -> int:\n    if n < 10:  # one digit left\n        return n\n    return n % 10 + sum_digits(n // 10)\n\n\ndef trace(n: int, depth: int = 0) -> None:\n    pad = \"  \" * depth\n    if n == 0:\n        print(f\"{pad}base case\")\n        return\n    print(f\"{pad}call {n}\")\n    trace(n - 1, depth + 1)\n    print(f\"{pad}back in {n}\")\n\n\nfor n in [0, 5, 20]:\n    print(f\"{n}! = {factorial(n)}\")\nfor n in [7, 9045]:\n    print(f\"sum_digits({n}) = {sum_digits(n)}\")\ntrace(3)\n",
+        "output": "0! = 1\n5! = 120\n20! = 2432902008176640000\nsum_digits(7) = 7\nsum_digits(9045) = 18\ncall 3\n  call 2\n    call 1\n      base case\n    back in 1\n  back in 2\nback in 3",
+        "explanation": "`factorial` stops at `n <= 1`, so `0!` is 1 straight away. For 5 it builds `5 * 4 * 3 * 2 * 1` as the calls return. Python ints never overflow, so `20!` prints exactly. `sum_digits` peels off the last digit with `% 10` and recurses on the rest with `// 10` until one digit is left. `trace` prints before and after its recursive call: each `call` line pushes a frame, the base case is the deepest one, and the `back in` lines show the frames finishing in reverse order."
+      },
+      "practice": {
+        "title": "Recursive power",
+        "prompt": "Read a base and a non-negative exponent and compute the power with a recursive function.\n\n1. Finish `power(base, exp)`: return 1 when `exp` is 0, the base case.\n2. Otherwise return `base * power(base, exp - 1)`, the recursive case on a smaller exponent.\n3. Keep the scaffold, which reads `base` and `exp` from one line and prints `base^exp = result`.\n\nInput:\n\n```text\n2 10\n```\n\nExpected output:\n\n```text\n2^10 = 1024\n```",
+        "starter": "def power(base: int, exp: int) -> int:\n    # TODO: return 1 when exp is 0, otherwise base times power(base, exp - 1)\n    return 0\n\n\nbase, exp = map(int, input().split())\nprint(f\"{base}^{exp} = {power(base, exp)}\")\n",
+        "solution": "def power(base: int, exp: int) -> int:\n    if exp == 0:  # base case\n        return 1\n    return base * power(base, exp - 1)\n\n\nbase, exp = map(int, input().split())\nprint(f\"{base}^{exp} = {power(base, exp)}\")\n",
+        "tests": [
+          {
+            "stdin": "2 10\n",
+            "output": "2^10 = 1024"
+          },
+          {
+            "stdin": "7 0\n",
+            "output": "7^0 = 1"
+          },
+          {
+            "stdin": "3 40\n",
+            "output": "3^40 = 12157665459056928801"
+          }
+        ],
+        "hints": [
+          "Check for `exp == 0` before you recurse, or the calls never stop.",
+          "Each call lowers `exp` by 1, so it always reaches 0."
+        ]
+      }
+    },
+    {
+      "title": "Memoization",
+      "body": "Some recursions solve the same subproblem again and again. Plain `fib(n)` calls `fib(n - 1)` and `fib(n - 2)`, and both of those call `fib(n - 3)`. These **overlapping subproblems** make the number of calls grow exponentially.\n\n**Memoization** stores each answer the first time and reuses it. The easy way is `@functools.cache`:\n\n```python\nimport functools\n\n@functools.cache\ndef fib(n):\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n```\n\nThe manual version keeps a dict of answers you already know:\n\n```python\ndef fib(n, memo):\n    if n < 2:\n        return n\n    if n not in memo:\n        memo[n] = fib(n - 1, memo) + fib(n - 2, memo)\n    return memo[n]\n```\n\nPass the dict in, such as `fib(90, {})`. A `memo={}` default is created once, when `def` runs, so it would quietly keep its answers between separate calls: the mutable default trap.\n\nWatch the depth on 3.12.0. Recursion through `@cache` fails near depth 500, even after `sys.setrecursionlimit()`. Keep cached recursion to a few hundred levels and use a dict memo (with a raised limit) or a loop for deeper inputs.",
+      "example": {
+        "title": "Fibonacci three ways",
+        "prompt": "Count the calls a plain recursive fib(25) makes, then compute fib(90) with @functools.cache and with a dict memo.",
+        "code": "import functools\n\ncalls = 0\n\n\ndef fib_plain(n: int) -> int:\n    global calls\n    calls += 1\n    if n < 2:\n        return n\n    return fib_plain(n - 1) + fib_plain(n - 2)\n\n\n@functools.cache\ndef fib_cached(n: int) -> int:\n    if n < 2:\n        return n\n    return fib_cached(n - 1) + fib_cached(n - 2)\n\n\ndef fib_memo(n: int, memo: dict[int, int]) -> int:\n    if n < 2:\n        return n\n    if n not in memo:\n        memo[n] = fib_memo(n - 1, memo) + fib_memo(n - 2, memo)\n    return memo[n]\n\n\nprint(f\"plain: fib(25) = {fib_plain(25)} in {calls:,} calls\")\nprint(f\"cache: fib(90) = {fib_cached(90)}\")\nmemo = {}\nprint(f\"memo:  fib(90) = {fib_memo(90, memo)} with {len(memo)} saved answers\")\n",
+        "output": "plain: fib(25) = 75025 in 242,785 calls\ncache: fib(90) = 2880067194370816120\nmemo:  fib(90) = 2880067194370816120 with 89 saved answers",
+        "explanation": "`fib_plain` adds 1 to the global `calls` each time it runs. It needs 242,785 calls for `fib(25)` because it solves the same small cases over and over, and `fib(90)` that way would never finish. `@functools.cache` remembers every result, so `fib_cached(90)` computes each `n` once. `fib_memo` does the same by hand: it checks the dict first and stores each new answer, which leaves 89 saved answers for 2 through 90."
+      },
+      "practice": {
+        "title": "Climbing stairs",
+        "prompt": "Read n and count the ways to climb n stairs taking 1, 2, or 3 steps at a time.\n\n1. Decorate `ways(n)` with `@functools.cache`.\n2. Return 0 when `n` is negative and 1 when `n` is 0 (standing at the top is one way).\n3. Otherwise return `ways(n - 1) + ways(n - 2) + ways(n - 3)`.\n4. Keep the scaffold, which reads `n` (at most 300) and prints the count.\n\nInput:\n\n```text\n4\n```\n\nExpected output:\n\n```text\nWays to climb 4 stairs: 7\n```",
+        "starter": "import functools\n\n\n# TODO: decorate ways with @functools.cache\ndef ways(n: int) -> int:\n    # TODO: 0 ways below the ground, 1 way at n == 0,\n    # otherwise add the ways after a 1, 2, or 3 step\n    return 0\n\n\nn = int(input())\nprint(f\"Ways to climb {n} stairs: {ways(n)}\")\n",
+        "solution": "import functools\n\n\n@functools.cache\ndef ways(n: int) -> int:\n    if n < 0:\n        return 0\n    if n == 0:\n        return 1\n    return ways(n - 1) + ways(n - 2) + ways(n - 3)\n\n\nn = int(input())\nprint(f\"Ways to climb {n} stairs: {ways(n)}\")\n",
+        "tests": [
+          {
+            "stdin": "4\n",
+            "output": "Ways to climb 4 stairs: 7"
+          },
+          {
+            "stdin": "0\n",
+            "output": "Ways to climb 0 stairs: 1"
+          },
+          {
+            "stdin": "300\n",
+            "output": "Ways to climb 300 stairs: 15350287614359738671843506567023635268924281173051801861566524609184461020990367"
+          }
+        ],
+        "hints": [
+          "The last step was 1, 2, or 3 stairs, so add the ways to reach each of those spots.",
+          "Without the cache, `n = 300` would take forever. With it, each `n` is solved once."
+        ]
+      }
+    },
+    {
+      "title": "DFS on a grid",
+      "body": "Depth-first search (DFS) explores as far as it can before backing up, and recursion makes it short. On a grid, a recursive **flood fill** visits one cell, then calls itself on each neighbor. List the four moves as `(dr, dc)` tuples:\n\n```python\nDIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]\n```\n\nEach call checks three things first:\n\n1. **Bounds:** `0 <= r < rows and 0 <= c < cols`, so `grid[r][c]` never goes off the edge. A negative index would silently wrap to the other side.\n2. **The cell matters:** it is land, such as `\"#\"`.\n3. **Not visited yet:** the `(r, c)` tuple is not in a `visited` set. Without this the search bounces between two cells until it hits `RecursionError`.\n\nMark the cell in `visited` *before* the recursive calls. Then make the function return the region's size: 1 for this cell plus whatever each neighbor's call returns.\n\nTo **count connected regions**, loop over every cell and start a new DFS from each unvisited land cell. Each start is a new region. A region of n cells can recurse n levels deep, so raise the limit with `sys.setrecursionlimit()` when big regions are possible.",
+      "example": {
+        "title": "Count the islands",
+        "prompt": "Count the islands of # cells in a grid with a recursive flood fill, and print each island's size in the order found.",
+        "code": "DIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]\n\n\ndef dfs(grid: list[str], visited: set, r: int, c: int) -> int:\n    if not (0 <= r < len(grid) and 0 <= c < len(grid[0])):\n        return 0  # off the grid\n    if grid[r][c] != \"#\" or (r, c) in visited:\n        return 0  # water or already visited\n    visited.add((r, c))\n    size = 1\n    for dr, dc in DIRECTIONS:\n        size += dfs(grid, visited, r + dr, c + dc)\n    return size\n\n\ngrid = [\n    \"##..#\",\n    \"#...#\",\n    \"..#..\",\n    \".###.\",\n    \"#...#\",\n]\nvisited = set()\nsizes = []\nfor r in range(len(grid)):\n    for c in range(len(grid[0])):\n        if grid[r][c] == \"#\" and (r, c) not in visited:\n            sizes.append(dfs(grid, visited, r, c))\nprint(f\"Islands: {len(sizes)}\")\nprint(\"Sizes:\", *sizes)\n",
+        "output": "Islands: 5\nSizes: 3 2 4 1 1",
+        "explanation": "The loops scan the grid row by row. The first unvisited `#` at (0, 0) starts a DFS that spreads through (1, 0) and (0, 1), marking each cell in `visited`, and returns 3. Cells already in `visited` are skipped by the `if` in the loop, so the island is counted once. The cells at (2, 2) and row 3 form one island of 4, because (2, 2) touches (3, 2) vertically. Diagonal neighbors such as (4, 0) and (3, 1) do not connect, since `DIRECTIONS` only moves up, down, left, and right."
+      },
+      "practice": {
+        "title": "Largest island",
+        "prompt": "Read a grid of `#` and `.` rows until the end of input and print the size of its largest island.\n\n1. Finish `dfs(grid, visited, r, c)`: return 0 when `(r, c)` is off the grid, is not `#`, or is already in `visited`.\n2. Otherwise add `(r, c)` to `visited` and return 1 plus the `dfs` of each neighbor in `DIRECTIONS`.\n3. Loop over every cell and append the `dfs` size of each unvisited `#` cell to `sizes`.\n4. Keep the scaffold, which prints `Largest island: N` and prints 0 when the grid has no land.\n\nInput:\n\n```text\n#..##\n#..#.\n.....\n.###.\n.#.##\n```\n\nExpected output:\n\n```text\nLargest island: 6\n```",
+        "starter": "import sys\n\nsys.setrecursionlimit(5_000)\nDIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]\n\n\ndef dfs(grid: list[str], visited: set, r: int, c: int) -> int:\n    # TODO: return 0 off the grid, on water, or on a visited cell.\n    # Otherwise mark (r, c) as visited and return 1 plus each neighbor's dfs.\n    return 0\n\n\ngrid = [line.strip() for line in sys.stdin if line.strip()]\nvisited = set()\nsizes = []\n# TODO: start a dfs from every unvisited \"#\" cell and append its size to sizes\nprint(f\"Largest island: {max(sizes, default=0)}\")\n",
+        "solution": "import sys\n\nsys.setrecursionlimit(5_000)\nDIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1)]\n\n\ndef dfs(grid: list[str], visited: set, r: int, c: int) -> int:\n    if not (0 <= r < len(grid) and 0 <= c < len(grid[0])):\n        return 0\n    if grid[r][c] != \"#\" or (r, c) in visited:\n        return 0\n    visited.add((r, c))\n    size = 1\n    for dr, dc in DIRECTIONS:\n        size += dfs(grid, visited, r + dr, c + dc)\n    return size\n\n\ngrid = [line.strip() for line in sys.stdin if line.strip()]\nvisited = set()\nsizes = []\nfor r in range(len(grid)):\n    for c in range(len(grid[0])):\n        if grid[r][c] == \"#\" and (r, c) not in visited:\n            sizes.append(dfs(grid, visited, r, c))\nprint(f\"Largest island: {max(sizes, default=0)}\")\n",
+        "tests": [
+          {
+            "stdin": "#..##\n#..#.\n.....\n.###.\n.#.##\n",
+            "output": "Largest island: 6"
+          },
+          {
+            "stdin": "....\n....\n....\n",
+            "output": "Largest island: 0"
+          },
+          {
+            "stdin": "##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n##############################\n",
+            "output": "Largest island: 900"
+          }
+        ],
+        "hints": [
+          "Check the bounds first, so `grid[r][c]` is only read for a real cell.",
+          "Add the cell to `visited` before you call `dfs` on its neighbors.",
+          "Copy the double loop from the example. Only the final print is different."
+        ]
+      }
+    },
+    {
+      "title": "Backtracking",
+      "body": "**Backtracking** builds answers one choice at a time with a shared `path` list. Each level follows the same three moves:\n\n1. **Choose:** `path.append(x)`.\n2. **Explore:** recurse to make the remaining choices.\n3. **Unchoose:** `path.pop()`, so the next option starts from the same path.\n\n```python\ndef subsets(nums, start, path, result):\n    result.append(path[:])          # save a copy\n    for i in range(start, len(nums)):\n        path.append(nums[i])        # choose\n        subsets(nums, i + 1, path, result)  # explore\n        path.pop()                  # unchoose\n```\n\nSave `path[:]`, never `path` itself. There is only one `path` list, and it is empty again when the recursion ends, so `result.append(path)` would leave you with a list of empty lists.\n\nStarting the loop at `start` and recursing with `i + 1` only moves forward, so each subset comes out once, with its items in the same order as in `nums`. A **combination** of k items is a subset of size k: save it and return as soon as `len(path) == k`. The library version is `itertools.combinations`, but backtracking also lets you skip choices that break a rule.",
+      "example": {
+        "title": "Every subset",
+        "prompt": "Print every subset of [1, 2, 3] with backtracking, in the order the recursion finds them, then the count and the pairs.",
+        "code": "def subsets(nums: list[int], start: int, path: list[int], result: list) -> None:\n    result.append(path[:])  # save a copy of the current path\n    for i in range(start, len(nums)):\n        path.append(nums[i])  # choose\n        subsets(nums, i + 1, path, result)  # explore\n        path.pop()  # unchoose\n\n\nresult = []\nsubsets([1, 2, 3], 0, [], result)\nfor subset in result:\n    print(subset)\nprint(f\"{len(result)} subsets\")\npairs = [s for s in result if len(s) == 2]\nprint(\"Pairs:\", *pairs)\n",
+        "output": "[]\n[1]\n[1, 2]\n[1, 2, 3]\n[1, 3]\n[2]\n[2, 3]\n[3]\n8 subsets\nPairs: [1, 2] [1, 3] [2, 3]",
+        "explanation": "Each call first saves a copy of `path`, so the empty subset comes first. The loop then chooses 1, explores everything that starts with `[1]`, and pops 1 before choosing 2. That is why `[1, 3]` comes after `[1, 2, 3]`. Recursing with `i + 1` means a later call never picks an earlier number, so `[2, 1]` never appears. Three numbers give 2 * 2 * 2 = 8 subsets. The pairs are the subsets of size 2, the 2-number combinations."
+      },
+      "practice": {
+        "title": "Combinations of 1 to n",
+        "prompt": "Read n and k (both at least 1) and print every combination of k numbers from 1 to n with backtracking.\n\n1. Finish `combine(n, k, start, path, result)`: when `len(path) == k`, append `path[:]` to `result` and return.\n2. Otherwise loop `x` from `start` to `n`: append `x`, recurse with `x + 1` as the new start, then pop.\n3. Keep the scaffold, which prints each combination as space-separated numbers in the order found (increasing order), then `Total: N`.\n4. When k is larger than n there are no combinations, so only `Total: 0` prints.\n\nInput:\n\n```text\n4 2\n```\n\nExpected output:\n\n```text\n1 2\n1 3\n1 4\n2 3\n2 4\n3 4\nTotal: 6\n```",
+        "starter": "def combine(n: int, k: int, start: int, path: list[int], result: list) -> None:\n    # TODO: save a copy of path and return when it holds k numbers.\n    # Otherwise choose each x from start to n, explore, then unchoose.\n    pass\n\n\nn, k = map(int, input().split())\nresult = []\ncombine(n, k, 1, [], result)\nfor combo in result:\n    print(*combo)\nprint(f\"Total: {len(result)}\")\n",
+        "solution": "def combine(n: int, k: int, start: int, path: list[int], result: list) -> None:\n    if len(path) == k:\n        result.append(path[:])\n        return\n    for x in range(start, n + 1):\n        path.append(x)\n        combine(n, k, x + 1, path, result)\n        path.pop()\n\n\nn, k = map(int, input().split())\nresult = []\ncombine(n, k, 1, [], result)\nfor combo in result:\n    print(*combo)\nprint(f\"Total: {len(result)}\")\n",
+        "tests": [
+          {
+            "stdin": "4 2\n",
+            "output": "1 2\n1 3\n1 4\n2 3\n2 4\n3 4\nTotal: 6"
+          },
+          {
+            "stdin": "5 3\n",
+            "output": "1 2 3\n1 2 4\n1 2 5\n1 3 4\n1 3 5\n1 4 5\n2 3 4\n2 3 5\n2 4 5\n3 4 5\nTotal: 10"
+          },
+          {
+            "stdin": "2 3\n",
+            "output": "Total: 0"
+          }
+        ],
+        "hints": [
+          "The example saves every path. Here you save only paths of length k.",
+          "Use `range(start, n + 1)` so `n` itself can be chosen.",
+          "Append `path[:]`, a copy, because `path` keeps changing."
+        ]
+      }
+    }
+  ],
+  "recap": "- Every recursive function needs a base case that stops it and a recursive case on a smaller input.\n- Pending calls wait on the call stack. Past 1000 frames Python raises `RecursionError`, and `sys.setrecursionlimit()` raises the limit for plain recursion.\n- Overlapping subproblems call for memoization: `@functools.cache` or a dict memo passed in.\n- On 3.12.0, `@cache` recursion fails near depth 500, so deep inputs use a dict memo or a loop.\n- Grid DFS: loop over `(dr, dc)` directions, check bounds, skip water and visited cells, mark the cell, and return 1 plus the neighbors' sizes.\n- Count regions by starting a new DFS from each unvisited land cell.\n- Backtracking: choose with `path.append()`, explore, unchoose with `path.pop()`, and save `path[:]`."
+}

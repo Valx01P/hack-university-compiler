@@ -1,0 +1,128 @@
+{
+  "id": "channels",
+  "title": "Channels",
+  "section": "Concurrency",
+  "summary": "Send values between goroutines with channels, close and range over them, buffer them, and connect stages into pipelines.",
+  "intro": "Goroutines with a WaitGroup can run work at the same time, but they still hand results back through shared memory. A channel passes the values themselves from one goroutine to another and synchronizes them while it does. A Go proverb sums it up: do not communicate by sharing memory, share memory by communicating. This lesson covers sending and receiving, closing and ranging, buffered channels, and pipelines of stages.",
+  "steps": [
+    {
+      "title": "Send and receive",
+      "body": "A channel is a typed pipe between goroutines. `make(chan int)` creates one, `ch <- v` sends a value, and `v := <-ch` receives one.\n\n```go\nresults := make(chan int)\ngo func() { results <- 42 }()\nv := <-results // waits until the goroutine sends\n```\n\nA channel made this way is *unbuffered*: a send waits until another goroutine receives, and a receive waits until someone sends. That handoff synchronizes the two goroutines, so you do not need a WaitGroup to wait for a result you receive.\n\nLike a map, a channel value is a small handle to data on the heap. Passing `results` to a function copies the handle, so every goroutine talks through the same pipe. Always create it with `make`: a nil channel from `var ch chan int` blocks every send and receive forever.\n\nValues from several senders arrive in any order, so combine them in a way that ignores order, such as a total or a minimum.\n\nThe big gotcha is a deadlock. If every goroutine is stuck waiting on a channel, Go stops the program with `fatal error: all goroutines are asleep - deadlock!`. A lone `ch <- 1` in `main` with no other goroutine is enough.",
+      "example": {
+        "title": "Sum in two halves",
+        "prompt": "Let two goroutines each sum half of a slice, send the partial sums on one channel, and print the total.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc sum(nums []int, out chan int) {\n\ttotal := 0\n\tfor _, n := range nums {\n\t\ttotal += n\n\t}\n\tout <- total\n}\n\nfunc main() {\n\tnums := []int{4, 8, 15, 16, 23, 42}\n\tmid := len(nums) / 2\n\n\tresults := make(chan int)\n\tgo sum(nums[:mid], results)\n\tgo sum(nums[mid:], results)\n\n\ta := <-results\n\tb := <-results\n\tfmt.Println(\"total:\", a+b)\n}\n",
+        "output": "total: 108",
+        "explanation": "`main` starts two goroutines, one per half, and both send on the same `results` channel. Each `<-results` in `main` waits until one partial sum arrives (27 or 81). Either half can finish first, so `a` and `b` may swap between runs, but `a+b` is always 108. Each receive waits for a send, so `main` cannot reach the print before both goroutines have handed over their sums."
+      },
+      "practice": {
+        "title": "Minimum in two halves",
+        "prompt": "Find the smallest value in a slice by letting two goroutines each search one half.\n\n1. In `minOf`, find the smallest value in `nums` and send it on `out`.\n2. In `main`, make a `chan int` called `results`.\n3. Start `minOf` in a goroutine for `values[:mid]` and another for `values[mid:]`.\n4. Receive two values and print the smaller one as `smallest: N` (use the given `minInt`, and add `import \"fmt\"`).\n\nExpected output:\n\n```text\nsmallest: 3\n```",
+        "starter": "package main\n\nfunc minInt(a, b int) int {\n\tif a < b {\n\t\treturn a\n\t}\n\treturn b\n}\n\nfunc minOf(nums []int, out chan int) {\n\t// TODO: find the smallest value in nums and send it on out\n}\n\nfunc main() {\n\tvalues := []int{31, 7, 19, 42, 3, 25, 11, 8}\n\tmid := len(values) / 2\n\t// TODO: make results, start minOf on each half, receive two values\n\t// TODO: print \"smallest: N\" with the smaller one (add import \"fmt\")\n\t_ = mid\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc minInt(a, b int) int {\n\tif a < b {\n\t\treturn a\n\t}\n\treturn b\n}\n\nfunc minOf(nums []int, out chan int) {\n\tsmallest := nums[0]\n\tfor _, n := range nums[1:] {\n\t\tsmallest = minInt(smallest, n)\n\t}\n\tout <- smallest\n}\n\nfunc main() {\n\tvalues := []int{31, 7, 19, 42, 3, 25, 11, 8}\n\tmid := len(values) / 2\n\n\tresults := make(chan int)\n\tgo minOf(values[:mid], results)\n\tgo minOf(values[mid:], results)\n\n\ta := <-results\n\tb := <-results\n\tfmt.Printf(\"smallest: %d\\n\", minInt(a, b))\n}\n",
+        "tests": [
+          {
+            "output": "smallest: 3"
+          }
+        ],
+        "hints": [
+          "Start `smallest` at `nums[0]` and compare it with every other value, then finish with `out <- smallest`.",
+          "`go minOf(values[:mid], results)` starts one half. Receive with `a := <-results` twice.",
+          "Remove `_ = mid` once you use `mid`, and add `import \"fmt\"` for the print."
+        ]
+      }
+    },
+    {
+      "title": "Closing and ranging",
+      "body": "`close(ch)` tells receivers that no more values will come. Then `for v := range ch` receives until the channel is closed *and* drained, and stops by itself.\n\n```go\nfor v := range ch { // ends after close\n\tfmt.Println(v)\n}\nv, ok := <-ch // 0 false once closed and empty\n```\n\nA receive on a closed, empty channel never waits: it returns the zero value at once. The comma-ok form tells that apart from a real 0, because `ok` is false.\n\nOnly the sender closes, because only the sender knows it is done. Sending on a closed channel panics, and so does closing it twice. Forget to close, and a `range` waits forever, which is a deadlock.\n\nA common shape is a *generator*: a function that makes a channel, starts a goroutine that fills and closes it, and returns it right away as `<-chan int`, a receive-only channel.\n\n```go\nfunc count(n int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor i := 1; i <= n; i++ {\n\t\t\tout <- i\n\t\t}\n\t}()\n\treturn out\n}\n```\n\nThe caller can only receive from a `<-chan int`. The compiler rejects a send or a `close` on it.",
+      "example": {
+        "title": "Square generator",
+        "prompt": "Read n, generate the squares of 1 to n on a channel, print them on one line, then show what a receive on the closed channel returns.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n\t\"strings\"\n)\n\nfunc squares(n int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor i := 1; i <= n; i++ {\n\t\t\tout <- i * i\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\n\tch := squares(n)\n\tvar parts []string\n\tfor v := range ch {\n\t\tparts = append(parts, strconv.Itoa(v))\n\t}\n\tfmt.Println(strings.Join(parts, \" \"))\n\n\tv, ok := <-ch\n\tfmt.Println(v, ok)\n}\n",
+        "stdin": "5",
+        "output": "1 4 9 16 25\n0 false",
+        "explanation": "`squares` returns its channel immediately while its goroutine sends 1, 4, 9, 16, and 25. Every value comes from one sender, so they arrive in order. The deferred `close(out)` runs when the goroutine finishes, which ends the `range` in `main`. One more receive on the closed, empty channel gives `0 false` instead of waiting."
+      },
+      "practice": {
+        "title": "Fibonacci generator",
+        "prompt": "Write a generator that sends the Fibonacci numbers below a limit read from input.\n\n1. In `fibBelow`, start with `a, b := 0, 1` and send `a` while `a < limit`, then move on with `a, b = b, a+b`.\n2. Close `out` when the loop ends (`defer close(out)` works well).\n3. In `main`, store `fibBelow(limit)` in `ch`, range over `ch`, and print the numbers on one line separated by spaces (add `strconv` and `strings` to the imports).\n4. Receive once more from `ch` with `v, ok := <-ch` and print `v` and `ok` with `fmt.Println`.\n\nInput:\n\n```text\n50\n```\n\nExpected output:\n\n```text\n0 1 1 2 3 5 8 13 21 34\n0 false\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc fibBelow(limit int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\t// TODO: send each Fibonacci number below limit, then close out\n\t}()\n\treturn out\n}\n\nfunc main() {\n\tvar limit int\n\tfmt.Scan(&limit)\n\t// TODO: store fibBelow(limit) in ch, range over it, print the numbers on one line\n\t// TODO: receive once more with v, ok := <-ch and print v and ok\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n\t\"strings\"\n)\n\nfunc fibBelow(limit int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\ta, b := 0, 1\n\t\tfor a < limit {\n\t\t\tout <- a\n\t\t\ta, b = b, a+b\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc main() {\n\tvar limit int\n\tfmt.Scan(&limit)\n\n\tch := fibBelow(limit)\n\tvar parts []string\n\tfor v := range ch {\n\t\tparts = append(parts, strconv.Itoa(v))\n\t}\n\tfmt.Println(strings.Join(parts, \" \"))\n\n\tv, ok := <-ch\n\tfmt.Println(v, ok)\n}\n",
+        "tests": [
+          {
+            "stdin": "50",
+            "output": "0 1 1 2 3 5 8 13 21 34\n0 false"
+          },
+          {
+            "stdin": "1",
+            "output": "0\n0 false"
+          },
+          {
+            "stdin": "0",
+            "output": "\n0 false"
+          }
+        ],
+        "hints": [
+          "Inside the goroutine, start with `defer close(out)`, then loop with `for a < limit`, sending `a` before the `a, b = b, a+b` step.",
+          "Keep the channel in a variable (`ch := fibBelow(limit)`) so you can receive from it again after the loop.",
+          "Collect `strconv.Itoa(v)` into a `[]string` and print `strings.Join(parts, \" \")`."
+        ]
+      }
+    },
+    {
+      "title": "Buffered channels",
+      "body": "`make(chan T, n)` gives the channel a buffer that holds up to `n` values. A send only waits when the buffer is full, and a receive only waits when it is empty.\n\n```go\njobs := make(chan string, 2)\njobs <- \"a\" // fits, no receiver needed\njobs <- \"b\" // fits\n// jobs <- \"c\" would wait: the buffer is full\n```\n\n`len(ch)` is how many values sit in the buffer right now, and `cap(ch)` is its size. An unbuffered channel has capacity 0. With other goroutines running, `len` can change right after you read it, so do not rely on it.\n\nThe buffer is a first-in, first-out queue: values come out in the order they went in. Between goroutines, it lets a sender run ahead of a slow receiver. Inside one goroutine a slice is the simpler queue, but a buffer lets the examples here fill a channel from `main` alone. `close` works the same way: buffered values stay, and `range` drains them before it stops.\n\nThe gotcha: a buffer only delays a deadlock. If `main` sends one value more than the capacity and nobody else receives, the program still crashes. Never add a buffer to hide a missing receiver.",
+      "example": {
+        "title": "Cafe orders",
+        "prompt": "Queue three orders in a buffered channel, serve one, and watch the length and capacity change.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\torders := make(chan string, 3)\n\torders <- \"tea\"\n\torders <- \"cake\"\n\torders <- \"soup\"\n\tfmt.Println(len(orders), cap(orders))\n\n\tfmt.Println(\"serving\", <-orders)\n\tfmt.Println(len(orders), cap(orders))\n\n\tclose(orders)\n\tfor o := range orders {\n\t\tfmt.Println(\"serving\", o)\n\t}\n\tfmt.Println(len(orders), cap(orders))\n}\n",
+        "output": "3 3\nserving tea\n2 3\nserving cake\nserving soup\n0 3",
+        "explanation": "All three sends fit in the buffer, so `main` never waits, even with no other goroutine. The first receive takes `tea`, the oldest value, and the length drops to 2 while the capacity stays 3. After `close`, the `range` still drains `cake` and `soup` in order, and the buffer ends empty."
+      },
+      "practice": {
+        "title": "Ticket queue",
+        "prompt": "Use a buffered channel as a queue of ticket numbers at a service desk.\n\n1. In `main`, make `tickets := make(chan int, 4)` and send every number in `numbers` (add `import \"fmt\"` for the prints).\n2. Print `len(tickets)` and `cap(tickets)` on one line.\n3. Receive two tickets and print each as `now serving N`.\n4. Print the length and capacity again.\n5. Close the channel, then range over it and print each remaining ticket as `waiting N`.\n\nExpected output:\n\n```text\n4 4\nnow serving 101\nnow serving 102\n2 4\nwaiting 103\nwaiting 104\n```",
+        "starter": "package main\n\nfunc main() {\n\tnumbers := []int{101, 102, 103, 104}\n\t// TODO: make tickets with room for 4 ints and send every number\n\t// TODO: print len and cap, serve two tickets, print len and cap again\n\t// TODO: close tickets and print the rest as \"waiting N\"\n\t_ = numbers\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tnumbers := []int{101, 102, 103, 104}\n\ttickets := make(chan int, 4)\n\tfor _, n := range numbers {\n\t\ttickets <- n\n\t}\n\tfmt.Println(len(tickets), cap(tickets))\n\n\tfmt.Println(\"now serving\", <-tickets)\n\tfmt.Println(\"now serving\", <-tickets)\n\tfmt.Println(len(tickets), cap(tickets))\n\n\tclose(tickets)\n\tfor t := range tickets {\n\t\tfmt.Println(\"waiting\", t)\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "4 4\nnow serving 101\nnow serving 102\n2 4\nwaiting 103\nwaiting 104"
+          }
+        ],
+        "hints": [
+          "Send in a loop: `for _, n := range numbers { tickets <- n }` written over three lines.",
+          "`fmt.Println(\"now serving\", <-tickets)` receives and prints in one line.",
+          "Add `import \"fmt\"`, and remove `_ = numbers` once your loop uses `numbers`."
+        ]
+      }
+    },
+    {
+      "title": "Pipelines",
+      "body": "A *pipeline* chains goroutines with channels. Each stage takes a `<-chan T`, starts a goroutine, and returns a new `<-chan T` with its results.\n\n```go\nfunc square(in <-chan int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor n := range in {\n\t\t\tout <- n * n\n\t\t}\n\t}()\n\treturn out\n}\n```\n\nBecause each stage ranges over its input and closes its output when that loop ends, closing the first channel shuts the whole pipeline down in turn. Nested calls read inside out: `square(gen(1, 2, 3))` feeds `gen` into `square`.\n\nA stage does not have to send one value per input. A filter stage sends only the values that pass a test.\n\nEach stage handles its values one at a time in one goroutine, so results come out in the same order the numbers went in. All stages run at the same time: while `square` works on 2, `gen` can already be sending 3. With unbuffered channels only a few values are in flight at once, however long the input is.\n\nRead the final channel until it closes. If you stop early, the stages block on their next send and never finish.",
+      "example": {
+        "title": "Square pipeline",
+        "prompt": "Connect a gen stage to a square stage and print the squares of 1 to 5 in order.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n\t\"strings\"\n)\n\nfunc gen(nums ...int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor _, n := range nums {\n\t\t\tout <- n\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc square(in <-chan int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor n := range in {\n\t\t\tout <- n * n\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc main() {\n\tvar parts []string\n\tfor v := range square(gen(1, 2, 3, 4, 5)) {\n\t\tparts = append(parts, strconv.Itoa(v))\n\t}\n\tfmt.Println(strings.Join(parts, \" \"))\n}\n",
+        "output": "1 4 9 16 25",
+        "explanation": "`gen` sends 1 to 5 and closes its channel. `square` ranges over that channel, sends each square, and closes its own output once `gen`'s channel is drained. `main` ranges over the last channel, so its loop ends right after `square` closes. One goroutine per stage keeps the values in order: `1 4 9 16 25`."
+      },
+      "practice": {
+        "title": "Even doubles",
+        "prompt": "Connect three stages so that only the even numbers from 1 to 10 come out, doubled.\n\n1. Keep the given `gen` stage.\n2. Write `onlyEven(in <-chan int) <-chan int`: in its own goroutine, send only the even values from `in`, then close its output.\n3. Write `double(in <-chan int) <-chan int` the same way, sending each value times 2.\n4. In `main`, range over `double(onlyEven(gen(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)))` and print the results on one line separated by spaces.\n\nExpected output:\n\n```text\n4 8 12 16 20\n```",
+        "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n\t\"strings\"\n)\n\nfunc gen(nums ...int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor _, n := range nums {\n\t\t\tout <- n\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc onlyEven(in <-chan int) <-chan int {\n\t// TODO: start a goroutine that sends only even values, then closes\n\treturn in\n}\n\nfunc double(in <-chan int) <-chan int {\n\t// TODO: start a goroutine that sends each value times 2, then closes\n\treturn in\n}\n\nfunc main() {\n\t// TODO: pass gen's channel through onlyEven, then double\n\tresults := gen(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)\n\n\tvar parts []string\n\tfor v := range results {\n\t\tparts = append(parts, strconv.Itoa(v))\n\t}\n\tfmt.Println(strings.Join(parts, \" \"))\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n\t\"strings\"\n)\n\nfunc gen(nums ...int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor _, n := range nums {\n\t\t\tout <- n\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc onlyEven(in <-chan int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor n := range in {\n\t\t\tif n%2 == 0 {\n\t\t\t\tout <- n\n\t\t\t}\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc double(in <-chan int) <-chan int {\n\tout := make(chan int)\n\tgo func() {\n\t\tdefer close(out)\n\t\tfor n := range in {\n\t\t\tout <- n * 2\n\t\t}\n\t}()\n\treturn out\n}\n\nfunc main() {\n\tresults := double(onlyEven(gen(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)))\n\n\tvar parts []string\n\tfor v := range results {\n\t\tparts = append(parts, strconv.Itoa(v))\n\t}\n\tfmt.Println(strings.Join(parts, \" \"))\n}\n",
+        "tests": [
+          {
+            "output": "4 8 12 16 20"
+          }
+        ],
+        "hints": [
+          "Copy the shape of `square`: make `out`, start a goroutine with `defer close(out)`, range over `in`, and return `out`.",
+          "In `onlyEven`, send `n` only when `n%2 == 0`.",
+          "The innermost call runs first: `double(onlyEven(gen(...)))`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `make(chan T)` creates an unbuffered channel. `ch <- v` sends and `v := <-ch` receives, and each waits for the other side.\n- When every goroutine is stuck waiting on a channel, the program crashes with a deadlock error.\n- A nil channel (`var ch chan int`) blocks forever, so create channels with `make`.\n- The sender calls `close(ch)` when done. `for v := range ch` stops after close, and `v, ok := <-ch` then gives the zero value and false.\n- Sending on or closing a closed channel panics, so only the sender closes.\n- A generator returns a receive-only `<-chan T` and fills it from its own goroutine.\n- `make(chan T, n)` buffers n values in first-in, first-out order. `len(ch)` and `cap(ch)` report the fill and the size.\n- A pipeline stage takes a `<-chan T`, returns a new one, closes it when its input ends, and keeps the input order."
+}

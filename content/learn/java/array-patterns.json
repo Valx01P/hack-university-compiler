@@ -1,0 +1,114 @@
+{
+  "id": "array-patterns",
+  "title": "Looping Arrays in Interesting Ways",
+  "section": "Arrays and Lists",
+  "summary": "Skip elements, walk backwards, use two pointers, and compare neighbors.",
+  "intro": "A plain loop visits every element once, front to back. Real problems often need something else: every other element, the array backwards, both ends at once, or each element next to the one before it. This lesson covers those patterns with small changes to the loop header and body.",
+  "steps": [
+    {
+      "title": "Skipping elements",
+      "body": "A loop does not have to visit every element one by one. Two tools change that.\n\n**Step by more than 1.** `i += 2` jumps two indexes each pass. Start at 0 for the even indexes, or at 1 for the odd ones:\n\n```java\nfor (int i = 0; i < a.length; i += 2) {\n    System.out.println(a[i]); // a[0], a[2], a[4], ...\n}\n```\n\n**Skip with continue.** `continue` ends the current pass and jumps to the next one. Put the skip test first, so the rest of the body only handles the values you keep:\n\n```java\nfor (int x : a) {\n    if (x % 2 != 0) {\n        continue; // odd, skip it\n    }\n    System.out.println(x);\n}\n```\n\nGotcha: test odd with `x % 2 != 0`, never `x % 2 == 1`. In Java the remainder takes the sign of the left side, so `-3 % 2` is `-1`, and `x % 2 == 1` quietly misses every negative odd number. `x % 2 == 0` for even is safe either way.",
+      "example": {
+        "title": "Even indexes and even values",
+        "prompt": "Print the elements at even indexes, then print only the even values, using continue to skip the odd ones.",
+        "code": "public class Main {\n    public static void main(String[] args) {\n        int[] nums = {4, 7, -3, 10, 15, 8, -6, 1};\n\n        System.out.print(\"Even indexes:\");\n        for (int i = 0; i < nums.length; i += 2) {\n            System.out.print(\" \" + nums[i]);\n        }\n        System.out.println();\n\n        System.out.print(\"Even values:\");\n        for (int x : nums) {\n            if (x % 2 != 0) {\n                continue; // skips 7, -3, 15, and 1\n            }\n            System.out.print(\" \" + x);\n        }\n        System.out.println();\n    }\n}\n",
+        "output": "Even indexes: 4 -3 15 -6\nEven values: 4 10 8 -6",
+        "explanation": "The first loop starts at index 0 and adds 2 each pass, so it reads indexes 0, 2, 4, and 6. The second loop visits every value but hits `continue` for the odd ones, so the print below it never runs for them. `-3 % 2` is `-1`, which is not 0, so `-3` is skipped too. Each value prints with a leading space after the label, and `println()` ends the line."
+      },
+      "practice": {
+        "title": "Odd indexes and multiples of 3",
+        "prompt": "Sum the values at odd indexes, then print only the multiples of 3.\n\n1. Loop over `values` from index 1 with `i += 2` and add each element to `oddIndexSum`.\n2. Loop over every value and use `continue` to skip any value where `x % 3 != 0`.\n3. Print each kept value with a space before it, so it lands on the `Multiples of 3:` line. Keep the other print lines from the starter.\n\nExpected output:\n\n```text\nOdd index sum: 17\nMultiples of 3: 9 12 21 18 -3\n```",
+        "starter": "public class Main {\n    public static void main(String[] args) {\n        int[] values = {5, 9, 12, 4, 21, 7, 18, -3};\n\n        int oddIndexSum = 0;\n        // TODO: add the values at indexes 1, 3, 5, ... with i += 2\n        System.out.println(\"Odd index sum: \" + oddIndexSum);\n\n        System.out.print(\"Multiples of 3:\");\n        // TODO: print each multiple of 3, using continue to skip the rest\n        System.out.println();\n    }\n}\n",
+        "solution": "public class Main {\n    public static void main(String[] args) {\n        int[] values = {5, 9, 12, 4, 21, 7, 18, -3};\n\n        int oddIndexSum = 0;\n        for (int i = 1; i < values.length; i += 2) {\n            oddIndexSum += values[i];\n        }\n        System.out.println(\"Odd index sum: \" + oddIndexSum);\n\n        System.out.print(\"Multiples of 3:\");\n        for (int x : values) {\n            if (x % 3 != 0) {\n                continue;\n            }\n            System.out.print(\" \" + x);\n        }\n        System.out.println();\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Odd index sum: 17\nMultiples of 3: 9 12 21 18 -3"
+          }
+        ],
+        "hints": [
+          "Start `i` at 1 instead of 0 and keep stepping with `i += 2`.",
+          "`-3 % 3` is `0`, so `-3` is a multiple of 3 and stays in."
+        ]
+      }
+    },
+    {
+      "title": "Reverse order",
+      "body": "To walk an array backwards, start at the last index and count down to 0. Use `>= 0`, not `> 0`, or you never read `a[0]`:\n\n```java\nfor (int i = a.length - 1; i >= 0; i--) {\n    System.out.print(a[i] + \" \");\n}\n```\n\nThe same loop builds a reversed copy: `add` each element to a new `ArrayList` as you go.\n\n**Removing from a list.** `list.remove(i)` deletes index `i` and shifts every later element one place left. Walk backwards and that shift only touches elements you already checked. It is the index loop alternative to the `Iterator` from the last lesson:\n\n```java\nfor (int i = list.size() - 1; i >= 0; i--) {\n    if (list.get(i) < 0) {\n        list.remove(i);\n    }\n}\n```\n\nGotcha: a forward loop that removes skips the element right after each removal. Remove at index 3 and the next element slides into index 3, but `i++` moves on to 4, so two negatives in a row leave the second one behind. `i` is an `int` here, so `remove(i)` removes by index, not by value.",
+      "example": {
+        "title": "Backwards temperatures",
+        "prompt": "Print an array backwards, build a reversed ArrayList from it, then remove every negative value from that list with a backward index loop.",
+        "code": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] temps = {3, -2, -5, 7, 0, 4};\n\n        System.out.print(\"Backwards:\");\n        for (int i = temps.length - 1; i >= 0; i--) {\n            System.out.print(\" \" + temps[i]);\n        }\n        System.out.println();\n\n        List<Integer> reversed = new ArrayList<>();\n        for (int i = temps.length - 1; i >= 0; i--) {\n            reversed.add(temps[i]);\n        }\n        System.out.println(\"Reversed list: \" + reversed);\n\n        for (int i = reversed.size() - 1; i >= 0; i--) {\n            if (reversed.get(i) < 0) {\n                reversed.remove(i);\n            }\n        }\n        System.out.println(\"No negatives: \" + reversed);\n    }\n}\n",
+        "output": "Backwards: 4 0 7 -5 -2 3\nReversed list: [4, 0, 7, -5, -2, 3]\nNo negatives: [4, 0, 7, 3]",
+        "explanation": "All three loops start at the last index and run `i--` down to 0. The second one adds `temps[i]` to the list, so the last element lands first. The third loop checks `reversed` from index 5 down: it removes `-2` at index 4, then `-5` at index 3, and each removal only shifts the already checked elements to its right. A forward loop would remove `-5` at index 3, slide `-2` into index 3, then move on to index 4 and miss it."
+      },
+      "practice": {
+        "title": "Floors from the top",
+        "prompt": "Print floors from top to bottom, collect the even ones, then drop every floor above 8.\n\n1. Print the `floors` array backwards after the `Top to bottom:` label, each value with a space before it.\n2. Walk `floors` backwards again and `add` only the even floors to `evenFloors`.\n3. Walk `evenFloors` backwards by index and `remove(i)` every floor greater than 8.\n\nExpected output:\n\n```text\nTop to bottom: 12 10 9 5 4 2 1\nEven floors: [12, 10, 4, 2]\nUp to 8: [4, 2]\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] floors = {1, 2, 4, 5, 9, 10, 12};\n\n        System.out.print(\"Top to bottom:\");\n        // TODO: print floors from the last index down to 0\n        System.out.println();\n\n        List<Integer> evenFloors = new ArrayList<>();\n        // TODO: walk floors backwards and add only the even ones\n        System.out.println(\"Even floors: \" + evenFloors);\n\n        // TODO: walk evenFloors backwards and remove every floor above 8\n        System.out.println(\"Up to 8: \" + evenFloors);\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.List;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] floors = {1, 2, 4, 5, 9, 10, 12};\n\n        System.out.print(\"Top to bottom:\");\n        for (int i = floors.length - 1; i >= 0; i--) {\n            System.out.print(\" \" + floors[i]);\n        }\n        System.out.println();\n\n        List<Integer> evenFloors = new ArrayList<>();\n        for (int i = floors.length - 1; i >= 0; i--) {\n            if (floors[i] % 2 == 0) {\n                evenFloors.add(floors[i]);\n            }\n        }\n        System.out.println(\"Even floors: \" + evenFloors);\n\n        for (int i = evenFloors.size() - 1; i >= 0; i--) {\n            if (evenFloors.get(i) > 8) {\n                evenFloors.remove(i);\n            }\n        }\n        System.out.println(\"Up to 8: \" + evenFloors);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Top to bottom: 12 10 9 5 4 2 1\nEven floors: [12, 10, 4, 2]\nUp to 8: [4, 2]"
+          }
+        ],
+        "hints": [
+          "Every loop here has the header shape `for (int i = size - 1; i >= 0; i--)`, using `floors.length` or `evenFloors.size()`.",
+          "12 and 10 sit next to each other. Walking backwards removes both, but a forward loop would miss 10."
+        ]
+      }
+    },
+    {
+      "title": "Two pointers",
+      "body": "Two pointers are two indexes into the same array. Here they start at opposite ends and walk toward each other. They meet in the middle, so the loop runs only about half as many times as the array is long.\n\n```java\nint left = 0;\nint right = a.length - 1;\nwhile (left < right) {\n    int temp = a[left];\n    a[left] = a[right];\n    a[right] = temp;\n    left++;\n    right--;\n}\n```\n\nThat reverses `a` in place, with no second array. The swap needs `temp`: writing `a[left] = a[right]` first overwrites the value you still need.\n\nThe same walk fits in one `for` header. Declare both indexes, then update both with a comma:\n\n```java\nfor (int i = 0, j = a.length - 1; i < j; i++, j--) {\n    // compare or swap a[i] and a[j]\n}\n```\n\n`left < right` stops the moment the pointers meet. With an odd length the middle element has no partner and stays put. A common bug is looping `i` over the whole array and swapping `a[i]` with `a[a.length - 1 - i]`: every pair swaps twice and the array ends up unchanged.",
+      "example": {
+        "title": "Reverse in place and back",
+        "prompt": "Reverse an int array in place with two pointers and a while loop, print it, then reverse it back with the two-index for header and print it again.",
+        "code": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] scores = {10, 20, 30, 40, 50};\n\n        int left = 0;\n        int right = scores.length - 1;\n        while (left < right) {\n            int temp = scores[left];\n            scores[left] = scores[right];\n            scores[right] = temp;\n            left++;\n            right--;\n        }\n        System.out.println(\"Reversed: \" + Arrays.toString(scores));\n\n        for (int i = 0, j = scores.length - 1; i < j; i++, j--) {\n            int temp = scores[i];\n            scores[i] = scores[j];\n            scores[j] = temp;\n        }\n        System.out.println(\"Restored: \" + Arrays.toString(scores));\n    }\n}\n",
+        "output": "Reversed: [50, 40, 30, 20, 10]\nRestored: [10, 20, 30, 40, 50]",
+        "explanation": "The `while` loop swaps indexes 0 and 4, then 1 and 3. Now `left` and `right` are both 2, so `left < right` is false and the middle value 30 stays where it is. The `for` loop does the same two swaps with `i` and `j` declared and updated in its header, which reverses the array a second time and puts it back in order."
+      },
+      "practice": {
+        "title": "Same both ways",
+        "prompt": "Check whether two int arrays read the same forwards and backwards.\n\n1. For `first`, walk `left` and `right` inward with `while (left < right)` and set `firstSame` to `false` and `break` as soon as `first[left] != first[right]`.\n2. For `second`, do the same check with the two-index header `for (int i = 0, j = second.length - 1; i < j; i++, j--)` and set `secondSame`.\n3. Keep the two print lines from the starter.\n\nExpected output:\n\n```text\n[3, 8, 1, 8, 3] reads the same: true\n[4, 6, 6, 5] reads the same: false\n```",
+        "starter": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] first = {3, 8, 1, 8, 3};\n        int[] second = {4, 6, 6, 5};\n\n        boolean firstSame = true;\n        // TODO: compare first from both ends with left, right, and while (left < right)\n\n        boolean secondSame = true;\n        // TODO: compare second from both ends with the two-index for header\n\n        System.out.println(Arrays.toString(first) + \" reads the same: \" + firstSame);\n        System.out.println(Arrays.toString(second) + \" reads the same: \" + secondSame);\n    }\n}\n",
+        "solution": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] first = {3, 8, 1, 8, 3};\n        int[] second = {4, 6, 6, 5};\n\n        boolean firstSame = true;\n        int left = 0;\n        int right = first.length - 1;\n        while (left < right) {\n            if (first[left] != first[right]) {\n                firstSame = false;\n                break;\n            }\n            left++;\n            right--;\n        }\n\n        boolean secondSame = true;\n        for (int i = 0, j = second.length - 1; i < j; i++, j--) {\n            if (second[i] != second[j]) {\n                secondSame = false;\n                break;\n            }\n        }\n\n        System.out.println(Arrays.toString(first) + \" reads the same: \" + firstSame);\n        System.out.println(Arrays.toString(second) + \" reads the same: \" + secondSame);\n    }\n}\n",
+        "tests": [
+          {
+            "output": "[3, 8, 1, 8, 3] reads the same: true\n[4, 6, 6, 5] reads the same: false"
+          }
+        ],
+        "hints": [
+          "Start by assuming the array matches, then look for one pair that proves it does not.",
+          "In the while loop, move both pointers at the end of the body with `left++` and `right--`."
+        ]
+      }
+    },
+    {
+      "title": "Neighbors and running totals",
+      "body": "Many problems compare each element with the one before it. Start at `i = 1` so `a[i - 1]` always exists. Starting at 0 would read `a[-1]` and throw.\n\n```java\nfor (int i = 1; i < a.length; i++) {\n    int change = a[i] - a[i - 1];\n}\n```\n\nThere are `a.length - 1` neighbor pairs, so this loop runs one time fewer than the array has elements.\n\n**Prefix sums.** A running total array holds, at each index, the sum of everything up to and including it. Make a new array of the same length, copy the first value, then add each element to the total before it:\n\n```java\nint[] running = new int[a.length];\nrunning[0] = a[0];\nfor (int i = 1; i < a.length; i++) {\n    running[i] = running[i - 1] + a[i];\n}\n```\n\nWhy bother: once it is built, the sum of any stretch from index `from` to index `to` is `running[to] - running[from - 1]` (or just `running[to]` when `from` is 0), with no second loop. `running[0] = a[0]` throws on an empty array, so check `a.length > 0` first when the array could be empty. Watch for overflow: a running total grows fast, so switch to `long[]` when the values are large.",
+      "example": {
+        "title": "Warmer days and running rain",
+        "prompt": "Count how many days were warmer than the day before, then build a running total of daily rain and use it for a range sum.",
+        "code": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] temps = {18, 21, 20, 23, 25, 22, 26};\n        int[] rain = {3, 0, 5, 2, 4};\n\n        int warmerDays = 0;\n        for (int i = 1; i < temps.length; i++) {\n            if (temps[i] > temps[i - 1]) {\n                warmerDays++;\n            }\n        }\n        System.out.println(\"Warmer than the day before: \" + warmerDays);\n\n        int[] running = new int[rain.length];\n        running[0] = rain[0];\n        for (int i = 1; i < rain.length; i++) {\n            running[i] = running[i - 1] + rain[i];\n        }\n        System.out.println(\"Running rain: \" + Arrays.toString(running));\n        System.out.println(\"Days 2 to 4: \" + (running[3] - running[0]));\n    }\n}\n",
+        "output": "Warmer than the day before: 4\nRunning rain: [3, 3, 8, 10, 14]\nDays 2 to 4: 7",
+        "explanation": "The first loop compares each day with the one before: 21 > 18, 23 > 20, 25 > 23, and 26 > 22 count, so 4 days were warmer. The second loop fills `running` so each slot is the previous total plus that day's rain. Days 2 to 4 are indexes 1 to 3, so their sum is `running[3] - running[0]`, which is 10 - 3 = 7, the same as 0 + 5 + 2."
+      },
+      "practice": {
+        "title": "Largest rise and step totals",
+        "prompt": "Find the largest rise between neighboring days and build a running total of daily steps.\n\n1. Loop from `i = 1` and keep the largest `temps[i] - temps[i - 1]` in `largestRise`.\n2. Fill `totals` so `totals[0]` is `steps[0]` and each later slot is the previous total plus that day's steps.\n3. Keep the two print lines from the starter.\n\nExpected output:\n\n```text\nLargest rise: 8\nStep totals: [4000, 10500, 13700, 21700, 26800]\n```",
+        "starter": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] temps = {12, 15, 11, 19, 17, 24, 20};\n        int[] steps = {4000, 6500, 3200, 8000, 5100};\n\n        int largestRise = Integer.MIN_VALUE;\n        // TODO: compare each temps[i] with temps[i - 1], starting at i = 1\n\n        int[] totals = new int[steps.length];\n        // TODO: fill totals with the running sum of steps\n\n        System.out.println(\"Largest rise: \" + largestRise);\n        System.out.println(\"Step totals: \" + Arrays.toString(totals));\n    }\n}\n",
+        "solution": "import java.util.Arrays;\n\npublic class Main {\n    public static void main(String[] args) {\n        int[] temps = {12, 15, 11, 19, 17, 24, 20};\n        int[] steps = {4000, 6500, 3200, 8000, 5100};\n\n        int largestRise = Integer.MIN_VALUE;\n        for (int i = 1; i < temps.length; i++) {\n            int rise = temps[i] - temps[i - 1];\n            if (rise > largestRise) {\n                largestRise = rise;\n            }\n        }\n\n        int[] totals = new int[steps.length];\n        totals[0] = steps[0];\n        for (int i = 1; i < steps.length; i++) {\n            totals[i] = totals[i - 1] + steps[i];\n        }\n\n        System.out.println(\"Largest rise: \" + largestRise);\n        System.out.println(\"Step totals: \" + Arrays.toString(totals));\n    }\n}\n",
+        "tests": [
+          {
+            "output": "Largest rise: 8\nStep totals: [4000, 10500, 13700, 21700, 26800]"
+          }
+        ],
+        "hints": [
+          "The rises are 3, -4, 8, -2, 7, and -4. Starting at `Integer.MIN_VALUE` works even when every change is a drop.",
+          "Set `totals[0] = steps[0];` before the loop, then start the loop at `i = 1`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `i += 2` visits every other index. Start at 1 for the odd indexes.\n- `continue` skips the rest of the current pass.\n- Test odd with `x % 2 != 0`, because `-3 % 2` is `-1`.\n- `for (int i = a.length - 1; i >= 0; i--)` walks backwards, including index 0.\n- Remove from a list by index while walking backwards. A forward loop skips the element after each removal.\n- Two pointers start at `0` and `a.length - 1` and move inward `while (left < right)`, or in one header with `i++, j--`.\n- Swap with a `temp` variable so you do not overwrite a value you still need.\n- Start at `i = 1` to compare `a[i]` with `a[i - 1]`.\n- A prefix sum array stores running totals: `running[i] = running[i - 1] + a[i]`."
+}

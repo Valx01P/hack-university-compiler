@@ -1,0 +1,118 @@
+{
+  "id": "list-patterns",
+  "title": "Slicing and Smart Loops",
+  "section": "Lists",
+  "summary": "Skip items, go in reverse, slice lists, walk pairs with zip(), and move two pointers.",
+  "intro": "A plain `for item in lst:` visits every item once, front to back. Real problems want more: every other item, the list backwards, a piece of it, two lists at once, or both ends moving inward. This lesson covers the patterns you will reach for most.",
+  "steps": [
+    {
+      "title": "Steps and reverse with range()",
+      "body": "`range(start, stop, step)` gives you indexes, so you choose which items to visit. A step of 2 skips every other item:\n\n```python\nfor i in range(0, len(lst), 2):   # indexes 0, 2, 4, ...\n    print(lst[i])\nfor i in range(1, len(lst), 2):   # indexes 1, 3, 5, ...\n    print(lst[i])\n```\n\nTo walk backwards, start at the last index and count down. The stop is `-1` because stop is never included, so the loop ends after index 0:\n\n```python\nfor i in range(len(lst) - 1, -1, -1):\n    print(lst[i])\n```\n\nWhen you only need the items, not the indexes, `reversed(lst)` is cleaner. It reads the list from the back without changing or copying it.\n\n```python\nfor x in reversed(lst):\n    print(x)\n```\n\nGotcha: `reversed()` is lazy. `print(reversed(lst))` shows something like `<list_reverseiterator object at 0x...>`, not the items. Wrap it in `list()` to get a reversed copy you can print: `print(list(reversed(lst)))`. Unlike `lst.reverse()`, none of this changes the original list.",
+      "example": {
+        "title": "Letters forwards and back",
+        "prompt": "Print the letters at even indexes, then at odd indexes, then all of them backwards twice, and finally a reversed copy.",
+        "code": "letters = [\"a\", \"b\", \"c\", \"d\", \"e\", \"f\", \"g\", \"h\"]\n\nprint(\"Even:\", end=\" \")\nfor i in range(0, len(letters), 2):\n    print(letters[i], end=\" \")\nprint()\n\nprint(\"Odd:\", end=\" \")\nfor i in range(1, len(letters), 2):\n    print(letters[i], end=\" \")\nprint()\n\nprint(\"Back:\", end=\" \")\nfor i in range(len(letters) - 1, -1, -1):\n    print(letters[i], end=\" \")\nprint()\n\nprint(\"Reversed:\", end=\" \")\nfor letter in reversed(letters):\n    print(letter, end=\" \")\nprint()\n\nprint(list(reversed(letters)))\nprint(letters)\n",
+        "output": "Even: a c e g\nOdd: b d f h\nBack: h g f e d c b a\nReversed: h g f e d c b a\n['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a']\n['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']",
+        "explanation": "Each loop prints its items on one row with `end=\" \"`, and the bare `print()` ends the row. `range(0, 8, 2)` gives 0, 2, 4, 6 and `range(1, 8, 2)` gives 1, 3, 5, 7. `range(7, -1, -1)` counts 7 down to 0. `reversed(letters)` visits the same items in the same order without indexes. The last line proves the original list is unchanged."
+      },
+      "practice": {
+        "title": "Numbers in reverse",
+        "prompt": "Walk a list of seven numbers by odd index and backwards.\n\n1. Start from `nums = [3, 8, 1, 9, 4, 7, 2]`.\n2. After `Odd:`, print the items at indexes 1, 3, 5 with `range()` on the same row.\n3. After `Back:`, print every item from last to first with `range()` counting down.\n4. After `Reversed:`, print every item from last to first with `reversed(nums)`.\n5. Print `list(reversed(nums))`.\n\nExpected output:\n\n```text\nOdd: 8 9 7\nBack: 2 7 4 9 1 8 3\nReversed: 2 7 4 9 1 8 3\n[2, 7, 4, 9, 1, 8, 3]\n```",
+        "starter": "nums = [3, 8, 1, 9, 4, 7, 2]\n\nprint(\"Odd:\", end=\" \")\n# TODO: print the items at odd indexes, then end the row with print()\n\nprint(\"Back:\", end=\" \")\n# TODO: print the items backwards with range(), then end the row\n\nprint(\"Reversed:\", end=\" \")\n# TODO: print the items backwards with reversed(), then end the row\n\n# TODO: print a reversed copy of nums as a list\n",
+        "solution": "nums = [3, 8, 1, 9, 4, 7, 2]\n\nprint(\"Odd:\", end=\" \")\nfor i in range(1, len(nums), 2):\n    print(nums[i], end=\" \")\nprint()\n\nprint(\"Back:\", end=\" \")\nfor i in range(len(nums) - 1, -1, -1):\n    print(nums[i], end=\" \")\nprint()\n\nprint(\"Reversed:\", end=\" \")\nfor n in reversed(nums):\n    print(n, end=\" \")\nprint()\n\nprint(list(reversed(nums)))\n",
+        "tests": [
+          {
+            "output": "Odd: 8 9 7\nBack: 2 7 4 9 1 8 3\nReversed: 2 7 4 9 1 8 3\n[2, 7, 4, 9, 1, 8, 3]"
+          }
+        ],
+        "hints": [
+          "Odd indexes start at 1: `range(1, len(nums), 2)`.",
+          "Count down with `range(len(nums) - 1, -1, -1)`. The stop is -1 so index 0 is included.",
+          "Use `print(n, end=\" \")` inside each loop and `print()` after it."
+        ]
+      }
+    },
+    {
+      "title": "Slicing",
+      "body": "A slice `lst[start:stop]` gives a **new list** with the items from `start` up to, but not including, `stop`. Leave a bound out to mean \"from the beginning\" or \"to the end\". Negative bounds count from the back.\n\n```python\nnums = [10, 20, 30, 40, 50]\nnums[1:3]    # [20, 30]\nnums[:3]     # [10, 20, 30]  first three\nnums[3:]     # [40, 50]      from index 3 on\nnums[-2:]    # [40, 50]      last two\n```\n\nA third number is the step, just like `range()`. With a negative step, omitted bounds start at the back, so `[::-1]` is a reversed copy:\n\n```python\nnums[::2]    # [10, 30, 50]  every other item\nnums[1::2]   # [20, 40]      every other, from index 1\nnums[::-1]   # [50, 40, 30, 20, 10]\n```\n\nSlices never raise IndexError: `nums[3:100]` simply stops at the end.\n\nBecause a slice is a new list, `lst[:]` copies the whole list, the same shallow copy as `lst.copy()`. Changing the copy leaves the original alone, unlike `b = a`, which is just a second name.\n\nAssigning to a slice replaces that range in place. The new items do not have to match in number, so the list can grow or shrink:\n\n```python\nnums[1:3] = [0]   # [10, 0, 40, 50]\n```",
+      "example": {
+        "title": "Calendar slices",
+        "prompt": "Slice the twelve month names several ways, then copy the list and replace two months with one slice assignment.",
+        "code": "months = [\"Jan\", \"Feb\", \"Mar\", \"Apr\", \"May\", \"Jun\",\n          \"Jul\", \"Aug\", \"Sep\", \"Oct\", \"Nov\", \"Dec\"]\n\nprint(months[3:6])\nprint(months[:3])\nprint(months[9:])\nprint(months[-2:])\nprint(months[::3])\nprint(months[::-1])\n\nbackup = months[:]\nmonths[1:3] = [\"FEB\", \"MAR\"]\nprint(months)\nprint(backup[1:3])\n",
+        "output": "['Apr', 'May', 'Jun']\n['Jan', 'Feb', 'Mar']\n['Oct', 'Nov', 'Dec']\n['Nov', 'Dec']\n['Jan', 'Apr', 'Jul', 'Oct']\n['Dec', 'Nov', 'Oct', 'Sep', 'Aug', 'Jul', 'Jun', 'May', 'Apr', 'Mar', 'Feb', 'Jan']\n['Jan', 'FEB', 'MAR', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']\n['Feb', 'Mar']",
+        "explanation": "`months[3:6]` takes indexes 3, 4, 5, the second quarter. `[:3]` and `[9:]` leave out one bound, and `[-2:]` counts from the back. `[::3]` keeps every third month starting at index 0, and `[::-1]` reverses. `backup` is a separate copy, so the slice assignment changes only `months`, and `backup[1:3]` still holds the old names."
+      },
+      "practice": {
+        "title": "Number slices",
+        "prompt": "Slice a list of ten numbers, then change a copy with a slice assignment.\n\n1. Start from `nums = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]`.\n2. Print the middle four items (indexes 3 to 6), the first three, the last three, every other item starting at index 1, and the whole list reversed, one slice per line.\n3. Make `edited = nums[:]` and replace the middle four items of `edited` with `[0, 0]` in one slice assignment.\n4. Print `nums`, then `edited`.\n\nExpected output:\n\n```text\n[20, 25, 30, 35]\n[5, 10, 15]\n[40, 45, 50]\n[10, 20, 30, 40, 50]\n[50, 45, 40, 35, 30, 25, 20, 15, 10, 5]\n[5, 10, 15, 20, 25, 30, 35, 40, 45, 50]\n[5, 10, 15, 0, 0, 40, 45, 50]\n```",
+        "starter": "nums = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]\n\n# TODO: print the five slices in order\n\n# TODO: copy nums into edited with [:], replace its middle four with [0, 0]\n\nprint(nums)\n",
+        "solution": "nums = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]\n\nprint(nums[3:7])\nprint(nums[:3])\nprint(nums[-3:])\nprint(nums[1::2])\nprint(nums[::-1])\n\nedited = nums[:]\nedited[3:7] = [0, 0]\nprint(nums)\nprint(edited)\n",
+        "tests": [
+          {
+            "output": "[20, 25, 30, 35]\n[5, 10, 15]\n[40, 45, 50]\n[10, 20, 30, 40, 50]\n[50, 45, 40, 35, 30, 25, 20, 15, 10, 5]\n[5, 10, 15, 20, 25, 30, 35, 40, 45, 50]\n[5, 10, 15, 0, 0, 40, 45, 50]"
+          }
+        ],
+        "hints": [
+          "The middle four are `nums[3:7]`: stop is one past the last index you want.",
+          "Every other item from index 1 is `nums[1::2]`. Use a negative start for the last three.",
+          "`edited[3:7] = [0, 0]` swaps four items for two, so `edited` gets shorter."
+        ]
+      }
+    },
+    {
+      "title": "Pairs with zip()",
+      "body": "`zip(a, b)` walks two lists side by side, handing you one item from each per pass. Unpack the pair straight into two names:\n\n```python\nfor name, age in zip(names, ages):\n    print(name, age)\n```\n\nThat beats `for i in range(len(names))` with `names[i]` and `ages[i]`: there is no index to get wrong.\n\nGotcha: `zip` stops at the **shortest** list. Extra items in the longer one are silently skipped, with no error. When the lengths must match, `zip(a, b, strict=True)` raises a ValueError instead.\n\nZip a list with a slice of itself to get **adjacent pairs**. `lst[1:]` is the same list shifted by one, so each pass sees an item and the one after it:\n\n```python\nfor prev, cur in zip(lst, lst[1:]):\n    print(cur - prev)\n```\n\nA list of n items gives n - 1 pairs, because the shifted copy is one shorter.\n\nLike `reversed()`, `zip()` is lazy. `print(zip(a, b))` shows `<zip object at 0x...>`. Wrap it in `list()` to see the pairs: `print(list(zip([1, 2], [3, 4])))` prints `[(1, 3), (2, 4)]`. The parentheses mark tuples, which you meet later.",
+      "example": {
+        "title": "Scores and temperature changes",
+        "prompt": "Print each student with their score, then the change between consecutive days and how many days got warmer.",
+        "code": "students = [\"Ana\", \"Ben\", \"Cleo\", \"Dev\"]\nscores = [91, 78, 85]\n\nfor name, score in zip(students, scores):\n    print(f\"{name}: {score}\")\n\ntemps = [18, 21, 19, 24, 24, 26]\nwarmer = 0\nfor today, tomorrow in zip(temps, temps[1:]):\n    change = tomorrow - today\n    print(f\"{today} to {tomorrow}: {change}\")\n    if change > 0:\n        warmer += 1\nprint(\"Warmer days:\", warmer)\n",
+        "output": "Ana: 91\nBen: 78\nCleo: 85\n18 to 21: 3\n21 to 19: -2\n19 to 24: 5\n24 to 24: 0\n24 to 26: 2\nWarmer days: 3",
+        "explanation": "`scores` has only three items, so `zip` stops after Cleo and Dev is skipped. `zip(temps, temps[1:])` pairs 18 with 21, 21 with 19, and so on: five pairs from six readings. Each pass subtracts and counts the pairs where the temperature went up. The 24 to 24 pair is 0, so it is not counted."
+      },
+      "practice": {
+        "title": "Prices and rising stock",
+        "prompt": "Pair products with prices, then count how often a stock price rose.\n\n1. Loop over `zip(products, prices)` and print `product: $price` with the price to 2 decimal places. The extra product has no price and is skipped.\n2. Loop over adjacent pairs of `stock` with `zip(stock, stock[1:])`.\n3. Add 1 to `rises` each time a price is higher than the day before. Equal prices do not count.\n4. Print `Rises: N`.\n\nExpected output:\n\n```text\npen: $1.50\nbook: $12.00\nlamp: $24.99\nmug: $6.25\nRises: 3\n```",
+        "starter": "products = [\"pen\", \"book\", \"lamp\", \"mug\", \"desk\"]\nprices = [1.5, 12.0, 24.99, 6.25]\n\n# TODO: print each product with its price\n\nstock = [100, 104, 101, 101, 107, 110]\nrises = 0\n# TODO: count the days the price went up\n\nprint(\"Rises:\", rises)\n",
+        "solution": "products = [\"pen\", \"book\", \"lamp\", \"mug\", \"desk\"]\nprices = [1.5, 12.0, 24.99, 6.25]\n\nfor product, price in zip(products, prices):\n    print(f\"{product}: ${price:.2f}\")\n\nstock = [100, 104, 101, 101, 107, 110]\nrises = 0\nfor yesterday, today in zip(stock, stock[1:]):\n    if today > yesterday:\n        rises += 1\n\nprint(\"Rises:\", rises)\n",
+        "tests": [
+          {
+            "output": "pen: $1.50\nbook: $12.00\nlamp: $24.99\nmug: $6.25\nRises: 3"
+          }
+        ],
+        "hints": [
+          "Unpack each pair: `for product, price in zip(products, prices):`.",
+          "Format the price with `{price:.2f}` after a literal `$`.",
+          "Use `>` so a day with the same price is not a rise."
+        ]
+      }
+    },
+    {
+      "title": "Two pointers",
+      "body": "Two pointers start at opposite ends of a list and move toward each other. `left` begins at 0, `right` at the last index, and the loop runs `while left < right:`. When they meet or cross, every pair has been visited.\n\nTo reverse a list **in place**, swap the two ends and step inward. Python swaps in one line, because the right side is evaluated before anything is assigned:\n\n```python\nleft, right = 0, len(lst) - 1\nwhile left < right:\n    lst[left], lst[right] = lst[right], lst[left]\n    left += 1\n    right -= 1\n```\n\nWith an odd length the middle item is never touched, which is exactly right.\n\nThe same walk checks whether a list reads the same both ways. Compare the pair, and `break` at the first mismatch: there is no point checking the rest.\n\n```python\nsame = True\nleft, right = 0, len(lst) - 1\nwhile left < right:\n    if lst[left] != lst[right]:\n        same = False\n        break\n    left += 1\n    right -= 1\n```\n\n`lst == lst[::-1]` gives the same answer in one line, but it first builds a whole reversed copy. Two pointers need no extra list and stop at the first mismatch. Do not forget to move both pointers, or the loop never ends.",
+      "example": {
+        "title": "Reverse and mirror check",
+        "prompt": "Reverse a list in place with two pointers, then check whether two lists read the same both ways.",
+        "code": "nums = [1, 2, 3, 4, 5, 6]\nleft, right = 0, len(nums) - 1\nwhile left < right:\n    nums[left], nums[right] = nums[right], nums[left]\n    left += 1\n    right -= 1\nprint(nums)\n\nvalues = [1, 2, 3, 2, 1]\nsame = True\nleft, right = 0, len(values) - 1\nwhile left < right:\n    if values[left] != values[right]:\n        same = False\n        break\n    left += 1\n    right -= 1\nprint(values, same)\n\nvalues = [1, 2, 3]\nsame = True\nleft, right = 0, len(values) - 1\nwhile left < right:\n    if values[left] != values[right]:\n        same = False\n        break\n    left += 1\n    right -= 1\nprint(values, same)\n",
+        "output": "[6, 5, 4, 3, 2, 1]\n[1, 2, 3, 2, 1] True\n[1, 2, 3] False",
+        "explanation": "The reverse loop swaps indexes 0 and 5, then 1 and 4, then 2 and 3, and stops when `left` reaches 3. For `[1, 2, 3, 2, 1]` every pair matches, the pointers meet at the middle, and `same` stays True. For `[1, 2, 3]` the first pair is 1 and 3, so `same` becomes False and `break` ends the loop at once."
+      },
+      "practice": {
+        "title": "Names and mirrored numbers",
+        "prompt": "Reverse a list of names in place, then test two lists for reading the same both ways.\n\n1. Reverse `names` in place with `left` and `right` pointers that swap and move inward, without slicing or `reverse()`.\n2. For `[4, 7, 7, 4]`, compare pairs from both ends and set `same` to False and `break` at the first mismatch.\n3. Repeat the check for `[4, 7, 1]`.\n4. Keep the given `print()` lines so each result prints after its step.\n\nExpected output:\n\n```text\n['Eve', 'Di', 'Cy', 'Bo', 'Ada']\n[4, 7, 7, 4] True\n[4, 7, 1] False\n```",
+        "starter": "names = [\"Ada\", \"Bo\", \"Cy\", \"Di\", \"Eve\"]\n# TODO: reverse names in place with left and right pointers\nprint(names)\n\nvalues = [4, 7, 7, 4]\nsame = True\n# TODO: set same to False and stop if a pair does not match\nprint(values, same)\n\nvalues = [4, 7, 1]\nsame = True\n# TODO: run the same check again\nprint(values, same)\n",
+        "solution": "names = [\"Ada\", \"Bo\", \"Cy\", \"Di\", \"Eve\"]\nleft, right = 0, len(names) - 1\nwhile left < right:\n    names[left], names[right] = names[right], names[left]\n    left += 1\n    right -= 1\nprint(names)\n\nvalues = [4, 7, 7, 4]\nsame = True\nleft, right = 0, len(values) - 1\nwhile left < right:\n    if values[left] != values[right]:\n        same = False\n        break\n    left += 1\n    right -= 1\nprint(values, same)\n\nvalues = [4, 7, 1]\nsame = True\nleft, right = 0, len(values) - 1\nwhile left < right:\n    if values[left] != values[right]:\n        same = False\n        break\n    left += 1\n    right -= 1\nprint(values, same)\n",
+        "tests": [
+          {
+            "output": "['Eve', 'Di', 'Cy', 'Bo', 'Ada']\n[4, 7, 7, 4] True\n[4, 7, 1] False"
+          }
+        ],
+        "hints": [
+          "Start with `left, right = 0, len(names) - 1` and loop `while left < right:`.",
+          "Swap with `names[left], names[right] = names[right], names[left]`, then move both pointers.",
+          "Reset `left` and `right` before each check, since the last loop moved them."
+        ]
+      }
+    }
+  ],
+  "recap": "- `range(0, len(lst), 2)` and `range(1, len(lst), 2)` visit even and odd indexes. `range(len(lst) - 1, -1, -1)` walks backwards.\n- `for x in reversed(lst):` reads from the back. Wrap it in `list()` to print it.\n- `lst[start:stop:step]` makes a new list. Stop is excluded, bounds can be omitted or negative, and `lst[::-1]` reverses.\n- `lst[:]` copies a list. `lst[i:j] = [...]` replaces a range and can change the length.\n- `zip(a, b)` pairs items and stops at the shorter list. `zip(lst, lst[1:])` gives adjacent pairs.\n- Two pointers move inward `while left < right:`, swapping with `lst[i], lst[j] = lst[j], lst[i]` or breaking at the first mismatch."
+}

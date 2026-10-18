@@ -1,0 +1,154 @@
+{
+  "id": "bitwise",
+  "title": "Bitwise Operations",
+  "section": "Bits and Errors",
+  "summary": "Work with the binary form of integers using & | ^ ~ << >> and bitmasks.",
+  "intro": "Every int is a row of bits, and Python lets you read and change them directly. Bit tricks pack many flags into one number, test odd or even in one step, and list every subset of a small set.",
+  "steps": [
+    {
+      "title": "Binary representation",
+      "body": "Every int is stored in binary. `bin()` shows those bits as a string with a `0b` prefix, and `int(text, 2)` parses binary text back into a number.\n\n```python\nprint(bin(13))           # 0b1101\nprint(int(\"1101\", 2))    # 13\nprint(f\"{13:b}\")         # 1101, no prefix\nprint(f\"{13:08b}\")       # 00001101, padded to 8 bits\nprint(0b1101, 0xFF)      # 13 255, literals in binary and hex\nprint(hex(255))          # 0xff\n```\n\nThe format spec `08b` means binary, at least 8 characters wide, padded with zeros. Fixed width keeps columns of bits lined up, which matters when you compare numbers bit by bit. The width is a minimum, so a bigger number is never cut off: `f\"{300:08b}\"` is `100101100`.\n\nTwo methods count bits for you. `n.bit_length()` is how many bits `n` needs (13 needs 4), and `n.bit_count()` counts the 1 bits (13 has 3). For 0 both are 0.\n\nNegative numbers print with a minus sign, not as a block of 1 bits:\n\n```python\nprint(bin(-5))           # -0b101\n```",
+      "example": {
+        "title": "Thirteen in binary",
+        "prompt": "Show 13 in binary and hex, count its bits, parse a binary string, and print two literals.",
+        "code": "n = 13\nprint(\"bin:\", bin(n))\nprint(\"padded:\", f\"{n:08b}\")\nprint(\"hex:\", hex(n))\nprint(\"bits:\", n.bit_length())\nprint(\"ones:\", n.bit_count())\nprint(\"parsed:\", int(\"1101\", 2))\nprint(\"literals:\", 0b1010, 0xFF)\n",
+        "output": "bin: 0b1101\npadded: 00001101\nhex: 0xd\nbits: 4\nones: 3\nparsed: 13\nliterals: 10 255",
+        "explanation": "`bin()` and `hex()` return strings with a `0b` or `0x` prefix, while `f\"{n:08b}\"` gives bare bits padded to 8 places. 13 is `1101`, so it needs 4 bits and 3 of them are 1. `int(\"1101\", 2)` reads the text in base 2, and `0b1010` and `0xFF` are just other ways to write the ints 10 and 255."
+      },
+      "practice": {
+        "title": "Byte inspector",
+        "prompt": "Read an integer from 0 to 255 and describe its bits.\n\n1. Read the integer `n` from one line of input.\n2. Print `bin:` and `bin(n)`.\n3. Print `padded:` and `n` as 8-bit binary with leading zeros.\n4. Print `hex:` and `hex(n)`.\n5. Print `bits:` and `n.bit_length()`.\n6. Print `ones:` and the number of 1 bits.\n\nInput:\n\n```text\n200\n```\n\nExpected output:\n\n```text\nbin: 0b11001000\npadded: 11001000\nhex: 0xc8\nbits: 8\nones: 3\n```",
+        "starter": "n = int(input())\n# TODO: print the bin, padded, hex, bits, and ones lines\n",
+        "solution": "n = int(input())\nprint(\"bin:\", bin(n))\nprint(\"padded:\", f\"{n:08b}\")\nprint(\"hex:\", hex(n))\nprint(\"bits:\", n.bit_length())\nprint(\"ones:\", n.bit_count())\n",
+        "tests": [
+          {
+            "stdin": "200\n",
+            "output": "bin: 0b11001000\npadded: 11001000\nhex: 0xc8\nbits: 8\nones: 3"
+          },
+          {
+            "stdin": "5\n",
+            "output": "bin: 0b101\npadded: 00000101\nhex: 0x5\nbits: 3\nones: 2"
+          },
+          {
+            "stdin": "0\n",
+            "output": "bin: 0b0\npadded: 00000000\nhex: 0x0\nbits: 0\nones: 0"
+          }
+        ],
+        "hints": [
+          "Each line is `print(\"label:\", value)`, the same as in the example.",
+          "`f\"{n:08b}\"` pads to 8 bits. For 0 it gives `00000000`.",
+          "The example's `ones:` line uses an int method that counts the 1 bits."
+        ]
+      }
+    },
+    {
+      "title": "AND, OR, XOR, NOT",
+      "body": "Bitwise operators compare two ints one bit position at a time:\n\n```python\nprint(12 & 10)    # 8:  1100 & 1010 is 1000, 1 where both bits are 1\nprint(12 | 10)    # 14: 1100 | 1010 is 1110, 1 where either bit is 1\nprint(12 ^ 10)    # 6:  1100 ^ 1010 is 0110, 1 where the bits differ\n```\n\n`~x` flips every bit. Python ints have no fixed width: they act as if a negative number had infinitely many 1 bits on the left. So `~x` is always `-x - 1`, and `~12` is `-13`. To see the flipped bits of one byte, keep only the low 8 bits with `& 0xFF`:\n\n```python\nprint(~12)                    # -13\nprint(f\"{~12 & 0xFF:08b}\")    # 11110011\n```\n\nTwo everyday tricks:\n\n- `n & 1` is 1 for odd numbers and 0 for even ones, because the last bit decides.\n- `a ^ a == 0` and `a ^ 0 == a`. XOR all the numbers in a list where every value appears twice except one, and the pairs cancel, leaving the single one.\n\nThe augmented forms `&=`, `|=`, and `^=` work like `+=`. Watch out: `^` is XOR, not power. `2 ^ 3` is 1, so write `2 ** 3` for 8.",
+      "example": {
+        "title": "Combining 12 and 10",
+        "prompt": "Combine 12 and 10 with each operator, flip 12, test two numbers for odd, and find the number that appears once.",
+        "code": "a, b = 12, 10\nprint(f\"a & b: {a & b:08b} = {a & b}\")\nprint(f\"a | b: {a | b:08b} = {a | b}\")\nprint(f\"a ^ b: {a ^ b:08b} = {a ^ b}\")\nprint(f\"~a: {~a} = {-a - 1}, low byte {~a & 0xFF:08b}\")\nfor n in [7, 8]:\n    print(n, \"odd\" if n & 1 else \"even\")\n\nnums = [4, 9, 2, 4, 2]\nunique = 0\nfor x in nums:\n    unique ^= x\nprint(\"unique:\", unique)\n",
+        "output": "a & b: 00001000 = 8\na | b: 00001110 = 14\na ^ b: 00000110 = 6\n~a: -13 = -13, low byte 11110011\n7 odd\n8 even\nunique: 9",
+        "explanation": "Each line formats the result with `:08b` so the bits line up with `12 = 00001100` and `10 = 00001010`. `~a` is `-13`, the same as `-a - 1`, and masking with `0xFF` shows its low byte `11110011`. `7 & 1` is 1, a truthy value, so 7 is odd. XOR-ing the list cancels both 4s and both 2s, leaving 9."
+      },
+      "practice": {
+        "title": "Bit combiner",
+        "prompt": "Combine two bytes with each bitwise operator, then find the lonely number in a list.\n\n1. Read `a` and `b` from the first line and a list of numbers from the second. Every number appears twice except one.\n2. Print `and:`, `or:`, and `xor:` followed by `a & b`, `a | b`, and `a ^ b` as 8-bit binary.\n3. Print `not a:` followed by `~a & 0xFF` as 8-bit binary.\n4. XOR every number in the list to find the unique one.\n5. Print `unique:`, the number, then `odd` or `even` using `& 1`.\n\nInput:\n\n```text\n12 10\n3 8 5 3 5\n```\n\nExpected output:\n\n```text\nand: 00001000\nor: 00001110\nxor: 00000110\nnot a: 11110011\nunique: 8 even\n```",
+        "starter": "a, b = map(int, input().split())\nnums = list(map(int, input().split()))\n# TODO: print and, or, xor, and not a as 8-bit binary\n# TODO: XOR every number to find the unique one, then print it with odd or even\n",
+        "solution": "a, b = map(int, input().split())\nnums = list(map(int, input().split()))\nprint(f\"and: {a & b:08b}\")\nprint(f\"or: {a | b:08b}\")\nprint(f\"xor: {a ^ b:08b}\")\nprint(f\"not a: {~a & 0xFF:08b}\")\nunique = 0\nfor x in nums:\n    unique ^= x\nprint(\"unique:\", unique, \"odd\" if unique & 1 else \"even\")\n",
+        "tests": [
+          {
+            "stdin": "12 10\n3 8 5 3 5\n",
+            "output": "and: 00001000\nor: 00001110\nxor: 00000110\nnot a: 11110011\nunique: 8 even"
+          },
+          {
+            "stdin": "0 255\n7 1 7\n",
+            "output": "and: 00000000\nor: 11111111\nxor: 11111111\nnot a: 11111111\nunique: 1 odd"
+          },
+          {
+            "stdin": "5 5\n6\n",
+            "output": "and: 00000101\nor: 00000101\nxor: 00000000\nnot a: 11111010\nunique: 6 even"
+          }
+        ],
+        "hints": [
+          "Put the whole operation inside the braces with `:08b` after it, as the example does.",
+          "Start `unique` at 0, because `0 ^ x` is `x`, then XOR each number into it.",
+          "`unique & 1` is 1 for odd numbers and 0 for even ones, so it works as the condition of a conditional expression."
+        ]
+      }
+    },
+    {
+      "title": "Shifts and masks",
+      "body": "`x << k` shifts the bits left by `k` places, which multiplies by `2 ** k`. `x >> k` shifts right and drops the low bits, which floor-divides by `2 ** k`. Ints never overflow, so `1 << 100` is fine, and `-7 >> 1` is `-4` because it floors like `//`. The shift count cannot be negative.\n\n```python\nprint(3 << 4, 100 >> 2, -7 >> 1)    # 48 25 -4\n# print(1 << -1)  # ValueError: negative shift count\n```\n\n`1 << i` is a mask with only bit `i` set (bit 0 is the rightmost). Combine it with the operators from the last step to treat an int as a row of on/off flags:\n\n```python\n(n >> i) & 1        # test bit i: 1 or 0\nn | (1 << i)        # set bit i\nn & ~(1 << i)       # clear bit i\nn ^ (1 << i)        # toggle bit i\n```\n\nA power of two has exactly one 1 bit, and `n - 1` turns that bit off and every bit below it on. So `n > 0 and n & (n - 1) == 0` checks for one. The `n > 0` part rules out 0.\n\nPrecedence: `&` binds tighter than `==` in Python, unlike C, so `n & 1 == 1` means `(n & 1) == 1`. But `+` and `-` bind tighter than shifts, so `1 << i + 1` is `1 << (i + 1)`. When in doubt, add parentheses.",
+      "example": {
+        "title": "Permission flags",
+        "prompt": "Shift two numbers, flip permission bits one at a time, test each bit, and check two numbers for a power of two.",
+        "code": "print(3 << 4, 100 >> 2)\n\nREAD, WRITE, EXEC = 0, 1, 2\nperms = 0\nperms |= 1 << READ\nperms |= 1 << EXEC\nprint(f\"set read and exec: {perms:08b}\")\nperms &= ~(1 << READ)\nprint(f\"clear read: {perms:08b}\")\nperms ^= 1 << WRITE\nprint(f\"toggle write: {perms:08b}\")\nfor name, bit in [(\"read\", READ), (\"write\", WRITE), (\"exec\", EXEC)]:\n    print(name, (perms >> bit) & 1 == 1)\n\nfor n in [64, 96]:\n    print(n, n > 0 and n & (n - 1) == 0)\n",
+        "output": "48 25\nset read and exec: 00000101\nclear read: 00000100\ntoggle write: 00000110\nread False\nwrite True\nexec True\n64 True\n96 False",
+        "explanation": "`3 << 4` is `3 * 16` and `100 >> 2` is `100 // 4`. Each permission is a bit position, so `1 << EXEC` is `00000100`. `|=` turns bits on, `&= ~mask` turns one off, and `^=` flips one. `(perms >> bit) & 1 == 1` runs as `((perms >> bit) & 1) == 1`, giving True or False. 64 is `1000000`, so `64 & 63` is 0, while 96 is `1100000` and keeps a 1 bit after `96 & 95`."
+      },
+      "practice": {
+        "title": "Bit editor",
+        "prompt": "Read a number and a bit position, then test and change that bit.\n\n1. Read `n` (0 to 255) and `i` (0 to 7) from one line of input.\n2. Print `bit i:` with the real position in place of `i` (such as `bit 2:`), then True if bit `i` is set and False if not.\n3. Print `set:`, `cleared:`, and `toggled:` with `n` after setting, clearing, and toggling bit `i`, each as 8-bit binary.\n4. Print `double:` with `n << 1` and `half:` with `n >> 1`.\n5. Print `power of two:` and True or False.\n\nInput:\n\n```text\n12 2\n```\n\nExpected output:\n\n```text\nbit 2: True\nset: 00001100\ncleared: 00001000\ntoggled: 00001000\ndouble: 24\nhalf: 6\npower of two: False\n```",
+        "starter": "n, i = map(int, input().split())\n# TODO: test bit i, then print n with bit i set, cleared, and toggled\n# TODO: print n << 1, n >> 1, and the power of two check\n",
+        "solution": "n, i = map(int, input().split())\nprint(f\"bit {i}:\", (n >> i) & 1 == 1)\nprint(f\"set: {n | (1 << i):08b}\")\nprint(f\"cleared: {n & ~(1 << i):08b}\")\nprint(f\"toggled: {n ^ (1 << i):08b}\")\nprint(\"double:\", n << 1)\nprint(\"half:\", n >> 1)\nprint(\"power of two:\", n > 0 and n & (n - 1) == 0)\n",
+        "tests": [
+          {
+            "stdin": "12 2\n",
+            "output": "bit 2: True\nset: 00001100\ncleared: 00001000\ntoggled: 00001000\ndouble: 24\nhalf: 6\npower of two: False"
+          },
+          {
+            "stdin": "16 4\n",
+            "output": "bit 4: True\nset: 00010000\ncleared: 00000000\ntoggled: 00000000\ndouble: 32\nhalf: 8\npower of two: True"
+          },
+          {
+            "stdin": "0 3\n",
+            "output": "bit 3: False\nset: 00001000\ncleared: 00000000\ntoggled: 00001000\ndouble: 0\nhalf: 0\npower of two: False"
+          }
+        ],
+        "hints": [
+          "`1 << i` is a mask with only bit `i` set. The test line shifts `n` right by `i` instead, then keeps the last bit with `& 1`.",
+          "Set, clear, and toggle use the same operators as the example's `|=`, `&= ~`, and `^=`, just inside an f-string instead of an assignment.",
+          "Keep the `n > 0` part of the power of two check, or 0 would count as one."
+        ]
+      }
+    },
+    {
+      "title": "Subsets with bitmasks",
+      "body": "A list of `n` items has `2 ** n` subsets, and the ints from 0 to `2 ** n - 1` describe them all: bit `i` of the mask says whether item `i` is in. `range(1 << n)` walks every mask.\n\n```python\nfor mask in range(1 << n):\n    subset = [items[i] for i in range(n) if (mask >> i) & 1]\n```\n\nMask `0` is the empty subset and mask `(1 << n) - 1`, all 1 bits, is the full list. Because bit 0 is the rightmost bit, the printed binary reads in the opposite order from the list: mask `011` holds items 0 and 1. `mask.bit_count()` tells you the subset's size without building it.\n\nThis brute force is the simplest way to try every combination, but the count doubles with each item: 20 items already means about a million masks. Keep `n` small.",
+      "example": {
+        "title": "Every subset of three letters",
+        "prompt": "Print every subset of three letters in mask order, then count the subsets with exactly two items.",
+        "code": "items = [\"a\", \"b\", \"c\"]\nn = len(items)\npairs = 0\nfor mask in range(1 << n):\n    subset = [items[i] for i in range(n) if (mask >> i) & 1]\n    print(f\"{mask:03b}\", subset)\n    if mask.bit_count() == 2:\n        pairs += 1\nprint(\"pairs:\", pairs)\n",
+        "output": "000 []\n001 ['a']\n010 ['b']\n011 ['a', 'b']\n100 ['c']\n101 ['a', 'c']\n110 ['b', 'c']\n111 ['a', 'b', 'c']\npairs: 3",
+        "explanation": "Three items give `1 << 3`, so masks 0 to 7. For each mask the comprehension keeps item `i` when bit `i` is 1, so `011` picks `a` and `b`. `bit_count()` counts the chosen items, and three masks (`011`, `101`, `110`) have two."
+      },
+      "practice": {
+        "title": "Subset sums",
+        "prompt": "Find every subset of a list of numbers that adds up to a target.\n\n1. Read the numbers from the first line and the target from the second.\n2. Loop over every mask from 0 to `(1 << n) - 1` and build the subset it picks.\n3. When the subset sums to the target, print it as a list (in mask order) and count it. The empty subset sums to 0.\n4. Print `count:` and the number of matching subsets.\n\nInput:\n\n```text\n1 2 3 4\n5\n```\n\nExpected output:\n\n```text\n[2, 3]\n[1, 4]\ncount: 2\n```",
+        "starter": "nums = list(map(int, input().split()))\ntarget = int(input())\nn = len(nums)\ncount = 0\n# TODO: loop over every mask, build its subset, and print the ones that sum to target\nprint(\"count:\", count)\n",
+        "solution": "nums = list(map(int, input().split()))\ntarget = int(input())\nn = len(nums)\ncount = 0\nfor mask in range(1 << n):\n    subset = [nums[i] for i in range(n) if (mask >> i) & 1]\n    if sum(subset) == target:\n        print(subset)\n        count += 1\nprint(\"count:\", count)\n",
+        "tests": [
+          {
+            "stdin": "1 2 3 4\n5\n",
+            "output": "[2, 3]\n[1, 4]\ncount: 2"
+          },
+          {
+            "stdin": "2 2 2\n4\n",
+            "output": "[2, 2]\n[2, 2]\n[2, 2]\ncount: 3"
+          },
+          {
+            "stdin": "3 5\n0\n",
+            "output": "[]\ncount: 1"
+          }
+        ],
+        "hints": [
+          "Use the same loop and comprehension as the example, with `nums` in place of `items`.",
+          "Compare `sum(subset)` with the target before you print and count it.",
+          "Equal numbers at different positions are different subsets, so `2 2 2` with target 4 has three."
+        ]
+      }
+    }
+  ],
+  "recap": "- `bin(n)`, `hex(n)`, and `f\"{n:08b}\"` show bits. `int(text, 2)` parses them, and `0b1010` and `0xFF` are literals.\n- `n.bit_length()` is the bits needed and `n.bit_count()` the number of 1 bits.\n- `&` keeps bits set in both, `|` in either, `^` in exactly one.\n- `~x` is `-x - 1`. Mask with `& 0xFF` to see 8 flipped bits.\n- `n & 1` tests odd. `a ^ a == 0`, so XOR cancels pairs.\n- `<<` multiplies and `>>` floor-divides by powers of 2.\n- Test, set, clear, toggle bit `i`: `(n >> i) & 1`, `n | (1 << i)`, `n & ~(1 << i)`, `n ^ (1 << i)`.\n- `n > 0 and n & (n - 1) == 0` checks for a power of two. `&` binds tighter than `==` in Python.\n- `for mask in range(1 << n):` enumerates every subset, and item `i` is in when `(mask >> i) & 1`."
+}

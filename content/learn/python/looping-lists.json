@@ -1,0 +1,117 @@
+{
+  "id": "looping-lists",
+  "title": "Looping Over Lists",
+  "section": "Lists",
+  "summary": "Visit every item with for and while loops, with or without indexes, and build new lists.",
+  "intro": "Most list work is a loop: add things up, find the best one, number them, change them, search them, or pick some out. This lesson covers the loop shapes you will write every day.",
+  "steps": [
+    {
+      "title": "Looping over items with for",
+      "body": "A list holds many values, and `for item in lst:` visits each one in order. Each pass binds the loop variable to the next item, so you work with the values directly and never touch an index.\n\n```python\nfor city in [\"Lima\", \"Oslo\", \"Pune\"]:\n    print(city)\n```\n\nTwo patterns cover most loops. A **running total** starts at 0 before the loop and grows with `+=`. A **running maximum** starts at `-math.inf`, which every number beats, so the first item always replaces it. For a minimum, start at `math.inf` and keep anything smaller.\n\n```python\nimport math\n\nhighest = -math.inf\nfor n in [3, 9, 4]:\n    if n > highest:\n        highest = n\nprint(highest)  # 9\n```\n\nIf the list is empty, the loop never runs and `highest` stays `-inf`, so only trust it when the list has items.\n\nWhen you only need the total, `sum(lst)` does the loop for you.\n\nGotcha: since 3.12, `sum()` adds floats more accurately than a `+=` loop, so the two can disagree in the last digit. Format float totals with `:.2f` instead of printing them raw.\n\n```python\n# A += loop over [0.1] * 10 gives 0.9999999999999999\nprint(sum([0.1] * 10))  # 1.0\n```",
+      "example": {
+        "title": "Step counter",
+        "prompt": "Total five days of step counts, find the best day, check the total with sum(), and print the daily average.",
+        "code": "import math\n\nsteps = [4200, 8150, 6300, 9875, 7020]\n\ntotal = 0\nbest = -math.inf\nfor count in steps:\n    total += count\n    if count > best:\n        best = count\n\nprint(f\"Total steps: {total}\")\nprint(f\"Best day: {best}\")\nprint(f\"sum() agrees: {total == sum(steps)}\")\nprint(f\"Daily average: {total / len(steps):.1f}\")\n",
+        "output": "Total steps: 35545\nBest day: 9875\nsum() agrees: True\nDaily average: 7109.0",
+        "explanation": "`total` starts at 0 and `best` starts at `-math.inf`, both before the loop. Each pass adds `count` to the total and replaces `best` when `count` is bigger. The first day always beats `-math.inf`, so `best` ends up as a real count. `sum(steps)` computes the same total in one call, and `total / len(steps)` is a float, so it gets `:.1f`."
+      },
+      "practice": {
+        "title": "Coldest reading",
+        "prompt": "Loop over a list of temperatures to find their total and the coldest reading.\n\n1. Loop over `temps` with `for temp in temps:`.\n2. Add each reading to `total`.\n3. Keep the smallest reading in `coldest`, which starts at `math.inf`.\n4. Keep the `Total:` and `Coldest:` print lines from the starter.\n5. Print `sum() agrees: ` followed by `True` or `False`, whether `total` equals `sum(temps)`.\n6. Print `Average: ` followed by `total / len(temps)` with 2 decimal places.\n\nExpected output:\n\n```text\nTotal: 13\nColdest: -8\nsum() agrees: True\nAverage: 2.17\n```",
+        "starter": "import math\n\ntemps = [12, -3, 7, -8, 0, 5]\n\ntotal = 0\ncoldest = math.inf\n# TODO: loop over temps, add each one to total, and keep the smallest in coldest\n\nprint(f\"Total: {total}\")\nprint(f\"Coldest: {coldest}\")\n# TODO: print whether total equals sum(temps), then the average with 2 decimals\n",
+        "solution": "import math\n\ntemps = [12, -3, 7, -8, 0, 5]\n\ntotal = 0\ncoldest = math.inf\nfor temp in temps:\n    total += temp\n    if temp < coldest:\n        coldest = temp\n\nprint(f\"Total: {total}\")\nprint(f\"Coldest: {coldest}\")\nprint(f\"sum() agrees: {total == sum(temps)}\")\nprint(f\"Average: {total / len(temps):.2f}\")\n",
+        "tests": [
+          {
+            "output": "Total: 13\nColdest: -8\nsum() agrees: True\nAverage: 2.17"
+          }
+        ],
+        "hints": [
+          "Inside the loop, `total += temp` keeps the running total.",
+          "Use `if temp < coldest:` to replace the coldest so far.",
+          "Put `:.2f` after the expression inside the f-string braces, as the example does with `:.1f`."
+        ]
+      }
+    },
+    {
+      "title": "Indexes with range(len()) and enumerate()",
+      "body": "Sometimes you need each item's position too. `enumerate(lst)` hands the loop an index and an item on every pass, and you unpack them into two names, just like `a, b = 1, 2`.\n\n```python\nnames = [\"Ana\", \"Ben\"]\nfor i, name in enumerate(names):\n    print(i, name)  # 0 Ana, then 1 Ben\nfor rank, name in enumerate(names, start=1):\n    print(rank, name)  # 1 Ana, then 2 Ben\n```\n\n`start=1` only changes the numbers you get, not which items you visit. Use it for lists people read.\n\nTo **change** items, you need the index. Assigning to the loop variable only rebinds that name, so the list stays the same:\n\n```python\nnums = [1, 2, 3]\nfor n in nums:\n    n *= 10  # changes n, not the list\nfor i in range(len(nums)):\n    nums[i] *= 10  # changes the list\nprint(nums)  # [10, 20, 30]\n```\n\n`range(len(nums))` gives every valid index, 0 to `len(nums) - 1`. When you read both the index and the item, `enumerate()` is clearer than `nums[i]`. Use `range(len())` when you write `lst[i] = ...`.\n\n`enumerate()` is lazy: it hands out its pairs only as a loop asks for them, so `print(enumerate(names))` shows `<enumerate object at 0x...>`, not the pairs.",
+      "example": {
+        "title": "Cafe menu",
+        "prompt": "Print a numbered menu, list each item's 0-based index, then double every price in place.",
+        "code": "menu = [\"Coffee\", \"Bagel\", \"Muffin\"]\nprices = [3, 5, 4]\n\nfor number, item in enumerate(menu, start=1):\n    print(f\"{number}. {item}\")\n\nfor i, item in enumerate(menu):\n    print(f\"menu[{i}] is {item}\")\n\nfor i in range(len(prices)):\n    prices[i] *= 2\n\nprint(\"Doubled:\", *prices)\n",
+        "output": "1. Coffee\n2. Bagel\n3. Muffin\nmenu[0] is Coffee\nmenu[1] is Bagel\nmenu[2] is Muffin\nDoubled: 6 10 8",
+        "explanation": "`enumerate(menu, start=1)` pairs each item with 1, 2, 3, and `number, item` unpacks each pair. Without `start`, the count begins at 0, which matches the real indexes. The last loop walks the indexes of `prices` and writes back through `prices[i]`, so the list itself changes."
+      },
+      "practice": {
+        "title": "Leaderboard bonus",
+        "prompt": "Print a ranked leaderboard, show each player's position, then give every score a bonus.\n\n1. Loop with `enumerate(players, start=1)` and print the rank, a period, a space, and the name, such as `1. Chloe`.\n2. Loop with `enumerate(players)` and print each 0-based index and name, such as `players[0] is Chloe`.\n3. Loop with `range(len(scores))` and add 5 to every score in place.\n4. Keep the final line that prints the updated scores.\n\nExpected output:\n\n```text\n1. Chloe\n2. Ana\n3. Ben\n4. Dev\nplayers[0] is Chloe\nplayers[1] is Ana\nplayers[2] is Ben\nplayers[3] is Dev\nWith bonus: 97 93 80 65\n```",
+        "starter": "players = [\"Chloe\", \"Ana\", \"Ben\", \"Dev\"]\nscores = [92, 88, 75, 60]\n\n# TODO: print the leaderboard numbered from 1 with enumerate(start=1)\n\n# TODO: print each 0-based position with enumerate()\n\n# TODO: add 5 to every score in place with range(len(scores))\n\nprint(\"With bonus:\", *scores)\n",
+        "solution": "players = [\"Chloe\", \"Ana\", \"Ben\", \"Dev\"]\nscores = [92, 88, 75, 60]\n\nfor rank, player in enumerate(players, start=1):\n    print(f\"{rank}. {player}\")\n\nfor i, player in enumerate(players):\n    print(f\"players[{i}] is {player}\")\n\nfor i in range(len(scores)):\n    scores[i] += 5\n\nprint(\"With bonus:\", *scores)\n",
+        "tests": [
+          {
+            "output": "1. Chloe\n2. Ana\n3. Ben\n4. Dev\nplayers[0] is Chloe\nplayers[1] is Ana\nplayers[2] is Ben\nplayers[3] is Dev\nWith bonus: 97 93 80 65"
+          }
+        ],
+        "hints": [
+          "Unpack two names in the loop header: `for rank, player in ...`.",
+          "The second loop has no `start`, so it counts from 0.",
+          "Write back through `scores[i]` so the list itself changes. Adding to a loop variable would not."
+        ]
+      }
+    },
+    {
+      "title": "Searching with a while loop",
+      "body": "A `while` loop with your own index gives you full control: you decide when to move on and when to stop. Start at 0, keep going while `i < len(lst)`, and add 1 at the end of each pass.\n\n```python\ni = 0\nwhile i < len(nums):\n    print(nums[i])\n    i += 1\n```\n\nThis shines in searches. Set the answer to `-1` first. Counting up from 0 never produces -1, so it means \"not found\". Check for it before you use the answer, because `lst[-1]` is the last item, not an error. When an item matches, save its index and `break`, so you skip the rest of the list.\n\nYou can also put the test in the condition. `and` checks `i < len(nums)` first and stops when it is false, so `nums[i]` never runs past the end:\n\n```python\ni = 0\nwhile i < len(nums) and nums[i] != 0:\n    i += 1\n# i == len(nums) means no 0 was found\n```\n\nGotchas: forget `i += 1` and the loop never ends. Use `<`, not `<=`, because `nums[len(nums)]` is an IndexError. `lst.index(x)` only finds an equal value, while this loop can test any condition.",
+      "example": {
+        "title": "First overdraft",
+        "prompt": "Find the index of the first negative balance in one list that has one, then in a list that has none.",
+        "code": "balances = [120, 45, -30, 80, -5]\n\nfound = -1\ni = 0\nwhile i < len(balances):\n    if balances[i] < 0:\n        found = i\n        break\n    i += 1\nprint(\"First negative at index\", found)\n\nbalances = [60, 15, 200]\n\nfound = -1\ni = 0\nwhile i < len(balances):\n    if balances[i] < 0:\n        found = i\n        break\n    i += 1\nprint(\"First negative at index\", found)\n",
+        "output": "First negative at index 2\nFirst negative at index -1",
+        "explanation": "In the first list the loop checks 120 and 45, finds -30 at index 2, saves it, and breaks without looking at 80 or -5. In the second list no balance is negative, so `i` reaches `len(balances)`, the condition turns false, and `found` keeps its starting value of -1."
+      },
+      "practice": {
+        "title": "Sensor alarm",
+        "prompt": "Search a list of sensor readings for the first one above a limit, once with a limit of 100 and once with 500.\n\n1. Write a `while i < len(readings):` loop under each TODO.\n2. When `readings[i]` is greater than `limit`, save `i` in `found` and break.\n3. Otherwise add 1 to `i`.\n4. Keep the print lines, which show -1 when nothing matched.\n\nExpected output:\n\n```text\nFirst above 100 at index 3\nFirst above 500 at index -1\n```",
+        "starter": "readings = [72, 95, 100, 130, 88, 140]\n\nlimit = 100\nfound = -1\ni = 0\n# TODO: while loop that stops at the first reading above limit\nprint(f\"First above {limit} at index {found}\")\n\nlimit = 500\nfound = -1\ni = 0\n# TODO: the same search again\nprint(f\"First above {limit} at index {found}\")\n",
+        "solution": "readings = [72, 95, 100, 130, 88, 140]\n\nlimit = 100\nfound = -1\ni = 0\nwhile i < len(readings):\n    if readings[i] > limit:\n        found = i\n        break\n    i += 1\nprint(f\"First above {limit} at index {found}\")\n\nlimit = 500\nfound = -1\ni = 0\nwhile i < len(readings):\n    if readings[i] > limit:\n        found = i\n        break\n    i += 1\nprint(f\"First above {limit} at index {found}\")\n",
+        "tests": [
+          {
+            "output": "First above 100 at index 3\nFirst above 500 at index -1"
+          }
+        ],
+        "hints": [
+          "100 is not above 100, so the first match is 130.",
+          "Put `i += 1` after the `if` block, inside the loop.",
+          "The second search is the same loop: `found` stays -1 when no reading is above 500."
+        ]
+      }
+    },
+    {
+      "title": "Building a new list",
+      "body": "To make a new list from an old one, start with an empty list and `append()` inside the loop. Add an `if` to keep only some items, which is called **filtering**. Leave out the `if` to transform every item.\n\n```python\nprices = [12, 3, 8, 2]\ncheap = []\nfor price in prices:\n    if price < 5:\n        cheap.append(price)\nprint(cheap)  # [3, 2]\n```\n\nThe original list is left alone, so you can still use it afterwards.\n\nGotcha: never remove items from a list while you loop over it. Each removal shifts the later items left, and the loop skips the one that moved into the current slot:\n\n```python\nnums = [1, 2, 2, 3]\nfor n in nums:\n    if n == 2:\n        nums.remove(n)\nprint(nums)  # [1, 2, 3]: one 2 survived\n```\n\nBuild a new list of the items you want to keep instead.",
+      "example": {
+        "title": "Passing scores",
+        "prompt": "Build a list of the passing scores (60 or more) and a list of every score squared.",
+        "code": "scores = [72, 45, 90, 58, 60, 83]\n\npassing = []\nfor score in scores:\n    if score >= 60:\n        passing.append(score)\n\nsquares = []\nfor score in scores:\n    squares.append(score ** 2)\n\nprint(\"Passing:\", *passing)\nprint(\"Squared:\", *squares)\nprint(f\"{len(passing)} of {len(scores)} passed\")\n",
+        "output": "Passing: 72 90 60 83\nSquared: 5184 2025 8100 3364 3600 6889\n4 of 6 passed",
+        "explanation": "`passing` starts empty and only grows when the `if` is true, so 45 and 58 are left out. `squares` has no `if`, so it gets one item for every score, in the same order. `scores` itself never changes."
+      },
+      "practice": {
+        "title": "Evens and triples",
+        "prompt": "Build a list of the even numbers and a list of every number tripled.\n\n1. Loop over `numbers` and append each even number to `evens`.\n2. Loop over `numbers` again and append each number times 3 to `tripled`.\n3. Keep the three print lines at the end.\n\nExpected output:\n\n```text\nEvens: 4 10 16 0\nTripled: 12 21 30 39 48 0 63\n4 of 7 are even\n```",
+        "starter": "numbers = [4, 7, 10, 13, 16, 0, 21]\n\nevens = []\n# TODO: append every even number to evens\n\ntripled = []\n# TODO: append every number times 3 to tripled\n\nprint(\"Evens:\", *evens)\nprint(\"Tripled:\", *tripled)\nprint(f\"{len(evens)} of {len(numbers)} are even\")\n",
+        "solution": "numbers = [4, 7, 10, 13, 16, 0, 21]\n\nevens = []\nfor n in numbers:\n    if n % 2 == 0:\n        evens.append(n)\n\ntripled = []\nfor n in numbers:\n    tripled.append(n * 3)\n\nprint(\"Evens:\", *evens)\nprint(\"Tripled:\", *tripled)\nprint(f\"{len(evens)} of {len(numbers)} are even\")\n",
+        "tests": [
+          {
+            "output": "Evens: 4 10 16 0\nTripled: 12 21 30 39 48 0 63\n4 of 7 are even"
+          }
+        ],
+        "hints": [
+          "A number is even when `n % 2 == 0`. That includes 0.",
+          "Filtering needs an `if` before `append()`. Tripling does not."
+        ]
+      }
+    }
+  ],
+  "recap": "- `for item in lst:` visits every item. Set totals and best-so-far values before the loop.\n- Start a maximum at `-math.inf` and a minimum at `math.inf`.\n- `sum(lst)` totals a list. Format float totals, because 3.12's `sum()` can differ from a `+=` loop.\n- `enumerate(lst)` gives index and item, `enumerate(lst, start=1)` numbers from 1.\n- Change items through `lst[i] = ...` with `range(len(lst))`. Assigning to the loop variable changes nothing.\n- A `while i < len(lst):` search starts its answer at -1 and breaks at the first match. Check for -1 before using the answer as an index.\n- Build new lists with `[]` and `append()`. Never remove items from the list you are looping over."
+}

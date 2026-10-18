@@ -1,0 +1,88 @@
+{
+  "id": "multiple-assignment",
+  "title": "Multiple Assignment",
+  "section": "Basics",
+  "summary": "Declare and assign several variables in one line, swap and rotate values without a temporary variable, and group declarations in var blocks.",
+  "intro": "Go lets you put several names on the left of `=` or `:=` and several values on the right. That makes related declarations shorter and turns swaps into one line.",
+  "steps": [
+    {
+      "title": "Several at once",
+      "body": "List the names on the left and the values on the right, separated by commas. Values pair up by position, so the counts must match.\n\n```go\na, b := 1, 2\nvar x, y int = 10, 20\nn, s := 5, \"five\"\n```\n\nWith `:=` each variable gets the type of its own value, so one line can mix an `int` and a `string`. With `var x, y int = ...` every name shares the one type you wrote. Here `int` is optional because `10` and `20` default to `int` anyway, but the form matters when you want a different type, such as `float64`.\n\nTo declare a group of related variables, use a `var ( ... )` block, the same shape as the `const` block you already know. gofmt lines up the `=` signs.\n\n```go\nvar (\n\tname  = \"Ada\"\n\tready = true\n)\n```\n\nEvery variable still has to be used, or the program will not compile.",
+      "example": {
+        "title": "Game window settings",
+        "prompt": "Declare the settings of a game window three different ways, then print them all on one line.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar (\n\t\ttitle      = \"Space Run\"\n\t\tfullscreen = false\n\t)\n\tvar width, height int = 1280, 720\n\tplayer, lives := \"Ada\", 3\n\tfmt.Println(title, fullscreen, width, height, player, lives)\n}\n",
+        "output": "Space Run false 1280 720 Ada 3",
+        "explanation": "The `var` block declares `title` as a `string` and `fullscreen` as a `bool`, inferred from their values. The next line gives `width` and `height` the type `int` together. Then `:=` declares `player` as a `string` and `lives` as an `int` in one go. `fmt.Println` joins all six values with spaces."
+      },
+      "practice": {
+        "title": "Recipe card",
+        "prompt": "Declare a recipe with multiple declarations and print it on one line.\n\n1. In a `var ( ... )` block, declare `dish` as `\"pancakes\"` and `vegan` as `true`.\n2. On one line, declare `servings` as `4` and `minutes` as `20` with `var` and the type `int`.\n3. On one line, declare `chef` as `\"Sam\"` and `rating` as `4.5` with `:=`.\n4. Print all six values in that order with one `fmt.Println`.\n\nExpected output:\n\n```text\npancakes true 4 20 Sam 4.5\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\t// TODO: declare dish and vegan in a var ( ... ) block\n\t// TODO: declare servings and minutes on one line with var and the type int\n\t// TODO: declare chef and rating on one line with :=\n\n\t// TODO: print all six values with one fmt.Println\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar (\n\t\tdish  = \"pancakes\"\n\t\tvegan = true\n\t)\n\tvar servings, minutes int = 4, 20\n\tchef, rating := \"Sam\", 4.5\n\tfmt.Println(dish, vegan, servings, minutes, chef, rating)\n}\n",
+        "tests": [
+          {
+            "output": "pancakes true 4 20 Sam 4.5"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the game window example and change the names and values.",
+          "`rating` becomes a `float64` because `4.5` has a decimal point. `chef, rating := \"Sam\", 4.5` is fine even though the types differ."
+        ]
+      }
+    },
+    {
+      "title": "Swap and rotate",
+      "body": "Plain `=` works with several names too, and it gives you a swap in one line:\n\n```go\na, b = b, a\n```\n\nThis works because Go evaluates the whole right side first, then assigns. It reads `b` and `a`, holds both values, and only then writes them into `a` and `b`. Two separate lines would break:\n\n```go\na = b // the old a is gone\nb = a // b gets its own value back\n```\n\nThe same rule rotates three values with no temporary variable. Each name on the left receives the value of the name in the same position on the right:\n\n```go\na, b, c = b, c, a // rotate left: 1 2 3 becomes 2 3 1\na, b, c = c, a, b // rotate right: 1 2 3 becomes 3 1 2\n```\n\nIn memory each variable keeps its own slot. The swap copies values between the slots, and for strings that copy is cheap: Go copies a small header that points at the text, not the text itself. The variables must already exist and the types must fit, since `=` never declares anything.",
+      "example": {
+        "title": "Race results",
+        "prompt": "Swap two names, then rotate three runners one place right, printing before and after each change.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfirst, second := \"Ana\", \"Ben\"\n\tfmt.Println(first, second)\n\tfirst, second = second, first\n\tfmt.Println(first, second)\n\n\tgold, silver, bronze := \"Kim\", \"Lou\", \"Max\"\n\tfmt.Println(gold, silver, bronze)\n\t// Rotate one place right: the last runner moves to the front\n\tgold, silver, bronze = bronze, gold, silver\n\tfmt.Println(gold, silver, bronze)\n}\n",
+        "output": "Ana Ben\nBen Ana\nKim Lou Max\nMax Kim Lou",
+        "explanation": "`first, second = second, first` reads `\"Ben\"` and `\"Ana\"` before writing either variable, so nothing is lost. For the rotation the right side reads `Max Kim Lou`, then `gold`, `silver` and `bronze` take those values in order, so every runner moves one place right and the last one wraps to the front."
+      },
+      "practice": {
+        "title": "Swap numbers, rotate colors",
+        "prompt": "Swap two numbers and rotate three colors one place left, each with a single assignment.\n\n1. Swap `x` and `y` with one assignment, between the two prints that are already there.\n2. Rotate `left`, `middle` and `right` one place left with one assignment, so the first color moves to the end.\n3. Keep the four `fmt.Println` lines so the values print before and after each change.\n\nExpected output:\n\n```text\n3 8\n8 3\nred green blue\ngreen blue red\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tx, y := 3, 8\n\tfmt.Println(x, y)\n\t// TODO: swap x and y with one assignment\n\tfmt.Println(x, y)\n\n\tleft, middle, right := \"red\", \"green\", \"blue\"\n\tfmt.Println(left, middle, right)\n\t// TODO: rotate the three colors one place left with one assignment\n\tfmt.Println(left, middle, right)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tx, y := 3, 8\n\tfmt.Println(x, y)\n\tx, y = y, x\n\tfmt.Println(x, y)\n\n\tleft, middle, right := \"red\", \"green\", \"blue\"\n\tfmt.Println(left, middle, right)\n\t// Rotate one place left: the first color moves to the end\n\tleft, middle, right = middle, right, left\n\tfmt.Println(left, middle, right)\n}\n",
+        "tests": [
+          {
+            "output": "3 8\n8 3\nred green blue\ngreen blue red"
+          }
+        ],
+        "hints": [
+          "A swap is `x, y = y, x`. Use `=`, not `:=`, because both variables already exist.",
+          "After the rotation `left` should hold the old `middle`, `middle` the old `right`, and `right` the old `left`."
+        ]
+      }
+    },
+    {
+      "title": "Redeclaring with :=",
+      "body": "`:=` declares variables, so it needs at least one new name on its left. If every name already exists in the same scope, the compiler stops you:\n\n```go\nx, y := 1, 2\nx, y := 3, 4 // error: no new variables on left side of :=\n```\n\nUse `=` for that. When at least one name is new, `:=` is allowed, and the names that already exist in the same scope are simply assigned, not declared again:\n\n```go\nx, y := 1, 2\ny, z := 30, 40 // z is new, y is assigned 30\n```\n\nSince `y` is the same variable, its type cannot change: assigning a string to it here would fail. The blank identifier `_` never counts as new, so `_, x := 5, 6` fails when `x` already exists. Later you will lean on this rule to write `v, err :=` several times in a row with the same `err`.\n\nOne catch: the rule only applies within the same scope. Inside an inner block, `:=` makes a brand new variable that hides the outer one. A later lesson shows that.",
+      "example": {
+        "title": "Reusing a name",
+        "prompt": "Declare two variables, then use := again with one old name and one new name.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tx, y := 1, 2\n\tfmt.Println(x, y)\n\t// z is new, so := is allowed and y is only reassigned\n\ty, z := 30, 40\n\tfmt.Println(x, y, z)\n}\n",
+        "output": "1 2\n1 30 40",
+        "explanation": "The first `:=` declares `x` and `y`. The second `:=` is legal because `z` is new. `y` already exists in the same scope, so it is reassigned to `30` instead of being declared again, and `x` is untouched."
+      },
+      "practice": {
+        "title": "Fruit basket",
+        "prompt": "Update one fruit count and add a new fruit with a single :=.\n\n1. Below the first print, write one `:=` that sets `pears` to `8` and declares `plums` as `6`.\n2. Change the last `fmt.Println` to print `apples`, `pears` and `plums`.\n\nExpected output:\n\n```text\n5 3\n5 8 6\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tapples, pears := 5, 3\n\tfmt.Println(apples, pears)\n\t// TODO: with one :=, set pears to 8 and declare plums as 6\n\n\t// TODO: print apples, pears and plums\n\tfmt.Println(apples, pears)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tapples, pears := 5, 3\n\tfmt.Println(apples, pears)\n\tpears, plums := 8, 6\n\tfmt.Println(apples, pears, plums)\n}\n",
+        "tests": [
+          {
+            "output": "5 3\n5 8 6"
+          }
+        ],
+        "hints": [
+          "Put the existing name and the new name together on the left: `pears, plums := ...`.",
+          "Plain `=` would not work here, because `plums` does not exist yet. The new name is what makes `:=` legal."
+        ]
+      }
+    }
+  ],
+  "recap": "- `a, b := 1, 2` declares several variables at once, and each gets the type of its own value.\n- `var x, y int = 10, 20` gives every name the same type.\n- A `var ( ... )` block groups related declarations.\n- The whole right side is evaluated before anything is assigned, so `a, b = b, a` swaps and `a, b, c = b, c, a` rotates.\n- `:=` needs at least one new name on the left. Names that already exist in the same scope are just assigned."
+}

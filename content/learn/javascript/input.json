@@ -1,0 +1,120 @@
+{
+  "id": "input",
+  "title": "Reading Input",
+  "section": "Input",
+  "summary": "Read everything sent to your program on stdin, split it into lines and numbers, and print results from it.",
+  "intro": "Until now every program had its data written in the code. Real programs read data from outside. Here you read everything sent to standard input (stdin), split it into lines and numbers, and print results from it.",
+  "steps": [
+    {
+      "title": "Reading all of stdin",
+      "body": "`require` loads a module. `require(\"fs\")` gives you Node's built-in file system module, and its `readFileSync` reads a whole file at once. File descriptor `0` is stdin, and `\"utf8\"` asks for a string instead of raw bytes.\n\n```javascript\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\n```\n\nRead stdin once, at the top of the program. Whatever was sent arrives as one string, usually ending in a newline. `trim()` removes that newline and any spaces at either end.\n\nInput is always text, even when it looks like a number. Convert it with `Number()` before doing math, or `+` will join strings instead of adding.\n\n```javascript\nconst n = Number(input.trim()); // \"21\\n\" becomes 21\n```\n\nPrint only the results. Nobody is typing at a keyboard, so a prompt such as `Enter a number:` would just become wrong output.\n\n**The gotcha:** `%` keeps the sign of the left side, so `-3 % 2` is `-1`, not `1`. Test parity with `n % 2 === 0`, which works for negative numbers too.",
+      "example": {
+        "title": "Double a number",
+        "prompt": "Read one integer from stdin, then print it doubled and whether it is even or odd.",
+        "stdin": "21\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst n = Number(input.trim());\n\nconsole.log(`${n} doubled is ${n * 2}`);\nif (n % 2 === 0) {\n  console.log(`${n} is even`);\n} else {\n  console.log(`${n} is odd`);\n}\n",
+        "output": "21 doubled is 42\n21 is odd",
+        "explanation": "`readFileSync(0, \"utf8\")` returns `\"21\\n\"`. `trim()` drops the newline and `Number()` turns `\"21\"` into `21`, so `n * 2` is real math. `21 % 2` is `1`, so the even check fails and the else branch prints `21 is odd`."
+      },
+      "practice": {
+        "title": "Square a number",
+        "prompt": "Read one integer from stdin and print its square and whether it is even or odd.\n\n1. Read all of stdin and convert it to a number `n` with `trim()` and `Number()`.\n2. Print `<n> squared is <square>`.\n3. Print `<n> is even` or `<n> is odd`. Negative numbers must work too.\n4. Print nothing else, no prompts.\n\nInput:\n\n```text\n7\n```\n\nExpected output:\n\n```text\n7 squared is 49\n7 is odd\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\n\n// TODO: trim the input and convert it to a number n\n// TODO: print \"<n> squared is <square>\", then \"<n> is even\" or \"<n> is odd\"\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst n = Number(input.trim());\n\nconsole.log(`${n} squared is ${n ** 2}`);\nif (n % 2 === 0) {\n  console.log(`${n} is even`);\n} else {\n  console.log(`${n} is odd`);\n}\n",
+        "tests": [
+          {
+            "stdin": "7\n",
+            "output": "7 squared is 49\n7 is odd"
+          },
+          {
+            "stdin": "12\n",
+            "output": "12 squared is 144\n12 is even"
+          },
+          {
+            "stdin": "-3",
+            "output": "-3 squared is 9\n-3 is odd"
+          }
+        ],
+        "hints": [
+          "Trim the input, then convert it with `Number()`, just like the example.",
+          "`n ** 2` is the square.",
+          "Check `n % 2 === 0` for even. Comparing with `1` fails for `-3`, because `-3 % 2` is `-1`."
+        ]
+      }
+    },
+    {
+      "title": "Reading lines",
+      "body": "When input has several values on separate lines, split the trimmed text on `\"\\n\"` to get an array of lines.\n\n```javascript\nconst lines = input.trim().split(\"\\n\"); // [\"Ada\", \"36\"]\n```\n\nTrim first. Input usually ends with a newline, and splitting without trimming leaves an empty string as the last line.\n\nWhen you know how many lines there are, destructure them into named variables in one step. Each one is still text, so convert the numeric ones.\n\n```javascript\nconst [name, ageText] = lines;\nconst age = Number(ageText);\n```\n\nA line keeps everything on it, spaces included, so a value like `Blue Pen` stays in one piece. Splitting on lines only cuts at the line breaks.",
+      "example": {
+        "title": "Years until 100",
+        "prompt": "Read a name and an age on two lines, then print how many lines were read and how many years remain until 100.",
+        "stdin": "Ada\n36\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst [name, ageText] = lines;\nconst age = Number(ageText);\n\nconsole.log(`Read ${lines.length} lines`);\nconsole.log(`${name} is ${age}, ${100 - age} years until 100`);\n",
+        "output": "Read 2 lines\nAda is 36, 64 years until 100",
+        "explanation": "`input.trim()` removes the final newline, so `split(\"\\n\")` gives exactly `[\"Ada\", \"36\"]`. Destructuring names the two lines. `ageText` is the string `\"36\"`, and `Number()` turns it into `36` so `100 - age` is `64`."
+      },
+      "practice": {
+        "title": "Order line",
+        "prompt": "Read an item name, a price, and a quantity on three lines and print the order total.\n\n1. Split the input into lines and destructure them into `item`, `priceText`, and `quantityText`.\n2. Convert the price and quantity with `Number()`.\n3. Print `<quantity> x <item> = $<total>`, with the total (price times quantity) formatted to 2 decimal places.\n\nInput:\n\n```text\nBlue Pen\n1.50\n3\n```\n\nExpected output:\n\n```text\n3 x Blue Pen = $4.50\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\n\n// TODO: split the input into lines and destructure item, priceText, and quantityText\n// TODO: convert the price and quantity, then print \"<quantity> x <item> = $<total>\"\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [item, priceText, quantityText] = input.trim().split(\"\\n\");\nconst price = Number(priceText);\nconst quantity = Number(quantityText);\nconst total = price * quantity;\n\nconsole.log(`${quantity} x ${item} = $${total.toFixed(2)}`);\n",
+        "tests": [
+          {
+            "stdin": "Blue Pen\n1.50\n3\n",
+            "output": "3 x Blue Pen = $4.50"
+          },
+          {
+            "stdin": "Notebook\n0.99\n4\n",
+            "output": "4 x Notebook = $3.96"
+          },
+          {
+            "stdin": "Stapler\n12.25\n1",
+            "output": "1 x Stapler = $12.25"
+          }
+        ],
+        "hints": [
+          "Split the trimmed input on `\"\\n\"` and destructure three names from the result, like the example does with two.",
+          "`total.toFixed(2)` gives two decimals. Write `$${...}` to print a dollar sign before the value."
+        ]
+      }
+    },
+    {
+      "title": "Counts and numbers on a line",
+      "body": "Many inputs start with a count: the first line says how many lines follow. Read it, then take the rest with `slice`. `lines.slice(1)` gives every line after the first, and `slice(1, n + 1)` keeps exactly `n` of them.\n\n```javascript\nconst n = Number(lines[0]);\nconst rows = lines.slice(1, n + 1); // the n lines after the count\n```\n\nTo turn a line of numbers into an array, trim it, split on `/\\s+/` (one or more whitespace characters: spaces, tabs, or newlines), and map each piece through `Number`.\n\n```javascript\nconst nums = line.trim().split(/\\s+/).map(Number); // \"9  4\" becomes [9, 4]\n```\n\nDo not use `split(\" \")`: a doubled space makes an empty token, and `Number(\"\")` is `0`, a silent wrong value.\n\nAlways write `.map(Number)`, never `.map(parseInt)`. `map` calls its callback with the value *and* the index, and `parseInt` reads its second argument as the radix (number base). So `[\"10\", \"10\", \"10\"].map(parseInt)` gives `[10, NaN, 2]`: base 0 means default, base 1 is invalid, and `\"10\"` in base 2 is 2.\n\nWhen line breaks do not matter, read every token at once. Because `\\s` also matches newlines, `\"3\\n4 5\\n6\"` becomes `[3, 4, 5, 6]`.\n\n```javascript\nconst tokens = input.trim().split(/\\s+/).map(Number);\n```",
+      "example": {
+        "title": "Line sums",
+        "prompt": "Read a count n, then n lines of numbers, and print each line's sum and max followed by the grand total.",
+        "stdin": "3\n3 8 1\n9  4\n10 2 5 7\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst n = Number(lines[0]);\n\nlet total = 0;\nfor (const [i, line] of lines.slice(1, n + 1).entries()) {\n  const nums = line.trim().split(/\\s+/).map(Number);\n  const sum = nums.reduce((acc, x) => acc + x, 0);\n  total += sum;\n  console.log(`Line ${i + 1}: sum ${sum}, max ${Math.max(...nums)}`);\n}\nconsole.log(`Total: ${total}`);\n",
+        "output": "Line 1: sum 12, max 8\nLine 2: sum 13, max 9\nLine 3: sum 24, max 10\nTotal: 49",
+        "explanation": "`lines[0]` is the count. `lines.slice(1, n + 1)` keeps the next three lines, and `entries()` gives each one with its index. `split(/\\s+/)` treats the doubled space in `9  4` as one gap, so `map(Number)` gives `[9, 4]` instead of `[9, 0, 4]`. `reduce` adds each line, `Math.max(...nums)` finds its largest value, and `total` collects every sum."
+      },
+      "practice": {
+        "title": "Student averages",
+        "prompt": "Read a count n and then n lines of test scores, one student per line, and report each student's average.\n\n1. Read `n` from the first line.\n2. For each of the next `n` lines, turn the scores into an array of numbers. A line can hold any number of scores.\n3. Print `Student <number>: <average>` with the average to 2 decimal places, numbering students from 1 in input order.\n4. Finally print `Above 80: <count>`, the number of students whose average is strictly greater than 80.\n\nInput:\n\n```text\n3\n90 85 77\n60 70 80\n100 95\n```\n\nExpected output:\n\n```text\nStudent 1: 84.00\nStudent 2: 70.00\nStudent 3: 97.50\nAbove 80: 2\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\n// TODO: read the count n from the first line\n// TODO: for each of the next n lines, turn the scores into numbers and print the average\n// TODO: print how many students averaged above 80\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst n = Number(lines[0]);\n\nlet above = 0;\nfor (const [i, line] of lines.slice(1, n + 1).entries()) {\n  const scores = line.trim().split(/\\s+/).map(Number);\n  const average = scores.reduce((acc, x) => acc + x, 0) / scores.length;\n  if (average > 80) {\n    above++;\n  }\n  console.log(`Student ${i + 1}: ${average.toFixed(2)}`);\n}\nconsole.log(`Above 80: ${above}`);\n",
+        "tests": [
+          {
+            "stdin": "3\n90 85 77\n60 70 80\n100 95\n",
+            "output": "Student 1: 84.00\nStudent 2: 70.00\nStudent 3: 97.50\nAbove 80: 2"
+          },
+          {
+            "stdin": "2\n80 80 80\n81  79 83\n",
+            "output": "Student 1: 80.00\nStudent 2: 81.00\nAbove 80: 1"
+          },
+          {
+            "stdin": "4\n55\n88 92 \n70 71 73\n99 100 98 97",
+            "output": "Student 1: 55.00\nStudent 2: 90.00\nStudent 3: 71.33\nStudent 4: 98.50\nAbove 80: 2"
+          }
+        ],
+        "hints": [
+          "Loop over `lines.slice(1, n + 1).entries()` to get each line with its index.",
+          "`line.trim().split(/\\s+/).map(Number)` gives the scores. Divide their sum by `scores.length`.",
+          "An average of exactly 80 does not count, so test `average > 80`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `require(\"fs\").readFileSync(0, \"utf8\")` reads all of stdin as one string. Read it once, at the top.\n- `trim()` removes the trailing newline. Input is always text, so convert with `Number()`.\n- Print only results, never prompts.\n- `input.trim().split(\"\\n\")` gives the lines, and `const [a, b] = lines` names them.\n- A count on the first line tells you how many lines follow. `lines.slice(1)` gives the rest.\n- `line.trim().split(/\\s+/).map(Number)` turns a line of numbers into an array. Never `split(\" \")`, never `.map(parseInt)`.\n- `input.trim().split(/\\s+/)` reads every token at once when line breaks do not matter."
+}

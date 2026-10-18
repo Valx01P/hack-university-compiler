@@ -1,0 +1,114 @@
+{
+  "id": "pointers",
+  "title": "Pointers and Memory",
+  "section": "Memory",
+  "summary": "Take addresses with &, read and write through pointers with *, let functions change your variables, and see where values live.",
+  "intro": "Go copies values everywhere: in assignments, in function calls, in range loops. A pointer lets several places share **one** variable instead. This lesson shows how to make and use pointers, and what Go does with memory behind the scenes.",
+  "steps": [
+    {
+      "title": "Addresses and dereferencing",
+      "body": "Every variable lives somewhere in memory. A **pointer** holds that location, so you can reach the variable from somewhere else.\n\n- `&x` gives the address of `x`.\n\n- A pointer to an `int` has the type `*int`.\n\n- `*p` reads the value `p` points to, and `*p = v` writes through it.\n\n```go\nx := 10\np := &x // p is a *int\n*p += 5 // x is now 15\nx = 30  // *p is now 30 too\n```\n\n`x` and `*p` are two names for **one** variable (aliasing), so a change through either name shows up in both. Compare pointers with `==`: two pointers are equal when they point at the same variable (or are both `nil`), not when the values match. Compare `*p == *q` to compare the values.\n\nThe zero value of a pointer is `nil`. Check `p == nil` before you use a pointer that might be empty, because `*p` on a nil pointer panics and stops the program.\n\n> Never print a pointer itself. `fmt.Println(p)` shows an address like `0xc000012080`, and it changes on every run. Print `*p`, or compare pointers with `==`.",
+      "example": {
+        "title": "Two names for x",
+        "prompt": "Change `x` through a pointer, change it directly, and compare two pointers to it.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tx := 10\n\tfmt.Println(\"x starts at\", x)\n\tp := &x\n\tfmt.Printf(\"p is a %T\\n\", p)\n\t*p += 5\n\tfmt.Println(x, *p)\n\tx = 30\n\tfmt.Println(\"through p:\", *p)\n\tq := &x\n\tfmt.Println(\"p == q:\", p == q)\n\tvar none *int\n\tfmt.Println(\"none is nil:\", none == nil)\n}\n",
+        "output": "x starts at 10\np is a *int\n15 15\nthrough p: 30\np == q: true\nnone is nil: true",
+        "explanation": "`p := &x` stores the address of `x`, and `%T` shows its type, `*int`. `*p += 5` writes into `x` itself, so `x` and `*p` both print 15. Setting `x = 30` is visible through `p` for the same reason. `q := &x` points at the same variable, so `p == q` is true. A pointer declared with `var` starts as `nil`."
+      },
+      "practice": {
+        "title": "Double the score",
+        "prompt": "Double a score through a pointer, then compare two pointers.\n\n1. Keep the starter lines. Then set `ptr := &score` and print `ptr is a` followed by its type, using `%T`.\n2. Double the score through the pointer with `*ptr *= 2`, then print `score` and `*ptr` on one line.\n3. Point `other` at `backup` and print `same variable:` followed by `ptr == other`.\n4. Print `same value:` followed by `*ptr == *other`.\n\nExpected output:\n\n```text\nscore starts at 50\nptr is a *int\n100 100\nsame variable: false\nsame value: true\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tscore := 50\n\tfmt.Println(\"score starts at\", score)\n\tbackup := 100\n\t_ = backup\n\t// TODO: point ptr at score, print its type, double score through ptr, then compare with other\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tscore := 50\n\tfmt.Println(\"score starts at\", score)\n\tbackup := 100\n\tptr := &score\n\tfmt.Printf(\"ptr is a %T\\n\", ptr)\n\t*ptr *= 2\n\tfmt.Println(score, *ptr)\n\tother := &backup\n\tfmt.Println(\"same variable:\", ptr == other)\n\tfmt.Println(\"same value:\", *ptr == *other)\n}\n",
+        "tests": [
+          {
+            "output": "score starts at 50\nptr is a *int\n100 100\nsame variable: false\nsame value: true"
+          }
+        ],
+        "hints": [
+          "`&score` is the address of `score`, and `*ptr` is the variable it points at, so `*ptr *= 2` changes `score`.",
+          "`ptr == other` compares addresses, so it is false. `*ptr == *other` compares the two values, both 100."
+        ]
+      }
+    },
+    {
+      "title": "Pointers as parameters",
+      "body": "Go passes every argument **by value**: the function gets its own copy. Changing an `int` parameter changes only that copy, and the caller never sees it.\n\nTo let a function change your variable, give it the address. The parameter type is `*int`, and the caller passes `&x`:\n\n```go\nfunc reset(n *int) {\n\t*n = 0\n}\n\nreset(&lives) // lives is now 0\n```\n\nThe pointer itself is still copied, but the copy holds the same address, so `*n = 0` writes into the caller's `lives`. Because `*a` and `*b` are ordinary variables, swapping through two pointers is one line: `*a, *b = *b, *a`.\n\nSome values must never be copied once you start using them, such as a `strings.Builder`. Hand them to helpers as a pointer, `func addLine(sb *strings.Builder, s string)`, and call `addLine(&sb, \"hi\")`.\n\n> Forgetting the `&` is a compile error, not a silent bug: `reset(lives)` fails because an `int` is not a `*int`.",
+      "example": {
+        "title": "Reset and swap",
+        "prompt": "Show that a copy cannot change the caller's variable, then reset one and swap two through pointers.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc resetCopy(n int) {\n\tn = 0 // changes only the copy\n}\n\nfunc reset(n *int) {\n\t*n = 0\n}\n\nfunc swap(a, b *int) {\n\t*a, *b = *b, *a\n}\n\nfunc main() {\n\tlives := 3\n\tresetCopy(lives)\n\tfmt.Println(\"after resetCopy:\", lives)\n\treset(&lives)\n\tfmt.Println(\"after reset:\", lives)\n\tx, y := 1, 2\n\tswap(&x, &y)\n\tfmt.Println(\"swapped:\", x, y)\n}\n",
+        "output": "after resetCopy: 3\nafter reset: 0\nswapped: 2 1",
+        "explanation": "`resetCopy(lives)` copies 3 into `n` and zeroes the copy, so `lives` stays 3. `reset(&lives)` passes the address, and `*n = 0` writes into `lives` itself. `swap` gets the addresses of `x` and `y`, and the multiple assignment reads both values before writing either, so they trade places."
+      },
+      "practice": {
+        "title": "Bonus points",
+        "prompt": "Add a bonus through a pointer and put two numbers in order.\n\n1. Fill in `addBonus(score *int, bonus int)` so it adds `bonus` to the caller's variable.\n2. Fill in `order(a, b *int)` so it swaps the values when `*a` is greater than `*b`, leaving the smaller value in `a`.\n3. In `main`, keep the `addBonusCopy` lines, then call `addBonus(&points, 10)` and print `after addBonus:` followed by `points`.\n4. Call `order(&lo, &hi)` and print `ordered:` followed by `lo` and `hi`.\n\nExpected output:\n\n```text\nafter addBonusCopy: 90\nafter addBonus: 100\nordered: 3 8\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc addBonusCopy(score int) {\n\tscore += 10 // changes only the copy\n}\n\nfunc addBonus(score *int, bonus int) {\n\t// TODO: add bonus to the caller's variable\n}\n\nfunc order(a, b *int) {\n\t// TODO: leave the smaller value in a and the larger in b\n}\n\nfunc main() {\n\tpoints := 90\n\taddBonusCopy(points)\n\tfmt.Println(\"after addBonusCopy:\", points)\n\tlo, hi := 8, 3\n\t_, _ = lo, hi\n\t// TODO: call addBonus and order with addresses, printing after each call\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc addBonusCopy(score int) {\n\tscore += 10 // changes only the copy\n}\n\nfunc addBonus(score *int, bonus int) {\n\t*score += bonus\n}\n\nfunc order(a, b *int) {\n\tif *a > *b {\n\t\t*a, *b = *b, *a\n\t}\n}\n\nfunc main() {\n\tpoints := 90\n\taddBonusCopy(points)\n\tfmt.Println(\"after addBonusCopy:\", points)\n\taddBonus(&points, 10)\n\tfmt.Println(\"after addBonus:\", points)\n\tlo, hi := 8, 3\n\torder(&lo, &hi)\n\tfmt.Println(\"ordered:\", lo, hi)\n}\n",
+        "tests": [
+          {
+            "output": "after addBonusCopy: 90\nafter addBonus: 100\nordered: 3 8"
+          }
+        ],
+        "hints": [
+          "Inside `addBonus`, `score` is a pointer. Change the variable it points at with `*score`, not `score` itself.",
+          "In `order`, compare the values `*a` and `*b`, and swap them only when they are out of order."
+        ]
+      }
+    },
+    {
+      "title": "New, make, and the heap",
+      "body": "In C, returning the address of a local variable is a bug. In Go it is safe and common:\n\n```go\nfunc newCounter(start int) *int {\n\tcount := start\n\treturn &count\n}\n```\n\nThe compiler runs **escape analysis**. A value that never leaves its function can live on the fast **stack** and vanishes when the function returns. A value whose address outlives the call, like `count` here, is placed on the **heap** instead. You never choose: the compiler decides, even for values made with `new` or `make`. The **garbage collector** frees heap memory some time after nothing points to it anymore, so there is no `free`.\n\nTwo built-ins allocate:\n\n- `new(T)` makes a zero `T` and returns a `*T`. `p := new(int)` gives a pointer to 0.\n\n- `make` builds slices, maps, and channels and returns the value itself, not a pointer. `make([]int, 3)` is a `[]int` holding `[0 0 0]`.\n\n> Go has no pointer arithmetic: `p++` on a pointer does not compile. `*p++` adds one to the value instead. To walk through memory, use a slice and an index.",
+      "example": {
+        "title": "Counters on the heap",
+        "prompt": "Return the address of a local from a function, then compare `new` with `make`.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc newCounter(start int) *int {\n\tcount := start\n\treturn &count // safe: count moves to the heap\n}\n\nfunc main() {\n\tc := newCounter(10)\n\t*c++\n\t*c++\n\tfmt.Println(\"counter:\", *c)\n\tother := newCounter(10)\n\tfmt.Println(\"other:\", *other)\n\tfmt.Println(\"same counter:\", c == other)\n\tp := new(int)\n\tfmt.Println(\"new(int):\", *p)\n\ts := make([]int, 3)\n\tfmt.Println(\"make([]int, 3):\", s)\n\tfmt.Printf(\"types: %T %T\\n\", p, s)\n}\n",
+        "output": "counter: 12\nother: 10\nsame counter: false\nnew(int): 0\nmake([]int, 3): [0 0 0]\ntypes: *int []int",
+        "explanation": "Each call to `newCounter` creates a fresh `count`, and returning `&count` makes it escape to the heap, so `c` stays valid after the call. `*c++` adds one to the counter twice. `other` comes from a separate call, so it is a different variable and `c == other` is false. `new(int)` returns a pointer to a zero `int`, while `make` returns the slice itself, as `%T` shows."
+      },
+      "practice": {
+        "title": "Score, level, and slots",
+        "prompt": "Allocate values with a constructor function, `new`, and `make`.\n\n1. Fill in `newScore(base int) *int` so it copies `base` into a local and returns its address.\n2. Call `newScore(100)`, add 25 through the pointer, and print `score:` followed by the value.\n3. Set `level := new(int)`, store 4 through it, and print `level:` followed by the value.\n4. Keep the `slots` lines, then print `types:` followed by the types of `level` and `slots`, using `%T %T`.\n\nExpected output:\n\n```text\nscore: 125\nlevel: 4\nslots: [0 0]\ntypes: *int []int\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc newScore(base int) *int {\n\t// TODO: copy base into a local variable and return its address\n\treturn nil\n}\n\nfunc main() {\n\t// TODO: call newScore(100), add 25 through the pointer, and print \"score:\"\n\t// TODO: make level with new(int), set it to 4, and print \"level:\"\n\tslots := make([]int, 2)\n\tfmt.Println(\"slots:\", slots)\n\t// TODO: print \"types:\" with the types of level and slots\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc newScore(base int) *int {\n\tscore := base\n\treturn &score\n}\n\nfunc main() {\n\tscore := newScore(100)\n\t*score += 25\n\tfmt.Println(\"score:\", *score)\n\tlevel := new(int)\n\t*level = 4\n\tfmt.Println(\"level:\", *level)\n\tslots := make([]int, 2)\n\tfmt.Println(\"slots:\", slots)\n\tfmt.Printf(\"types: %T %T\\n\", level, slots)\n}\n",
+        "tests": [
+          {
+            "output": "score: 125\nlevel: 4\nslots: [0 0]\ntypes: *int []int"
+          }
+        ],
+        "hints": [
+          "In `newScore`, declare a local variable that holds `base`, then return its address with `&`. It is safe because the compiler moves it to the heap.",
+          "Write through the pointers with `*`, for example `*level = 4`, and print the values they point at, never the pointers."
+        ]
+      }
+    },
+    {
+      "title": "Pointers in loops",
+      "body": "A `[]*int` is a slice of pointers: each element is an address you dereference with `*ptrs[i]`.\n\nFilling one from a range loop hides a classic Go 1.16 trap. The loop has **one** variable `v` that it overwrites on every iteration, and `v` is only a copy of the element. So `&v` is the same address every time:\n\n```go\nfor _, v := range nums {\n\tptrs = append(ptrs, &v) // every pointer is &v\n}\n```\n\nAfter the loop, every pointer sees the last value. Go 1.22 gives each iteration a new variable, but this course runs Go 1.16.\n\nTo point at the elements themselves, loop over the indexes and take `&nums[i]`:\n\n```go\nfor i := range nums {\n\tgood = append(good, &nums[i])\n}\n```\n\nNow each pointer aims at a different element of `nums`, and `*good[1] = 20` changes `nums[1]` itself.",
+      "example": {
+        "title": "The shared loop variable",
+        "prompt": "Collect pointers with `&v` and with `&nums[i]`, and show which ones see the real elements.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tnums := []int{1, 2, 3}\n\tfmt.Println(\"nums:\", nums)\n\tvar ptrs []*int\n\tfor _, v := range nums {\n\t\tptrs = append(ptrs, &v) // the same v every time\n\t}\n\tfmt.Println(*ptrs[0], *ptrs[1], *ptrs[2], ptrs[0] == ptrs[1])\n\tvar good []*int\n\tfor i := range nums {\n\t\tgood = append(good, &nums[i])\n\t}\n\tfmt.Println(*good[0], *good[1], *good[2], good[0] == good[1])\n\t*good[1] = 20\n\tfmt.Println(\"nums:\", nums)\n}\n",
+        "output": "nums: [1 2 3]\n3 3 3 true\n1 2 3 false\nnums: [1 20 3]",
+        "explanation": "Every `&v` is the address of the single loop variable, which holds 3 when the loop ends, so all three print 3 and `ptrs[0] == ptrs[1]` is true. `&nums[i]` gives three distinct addresses inside the slice, so they print 1 2 3 and are not equal. Writing `*good[1] = 20` stores into `nums[1]`, which the last line shows."
+      },
+      "practice": {
+        "title": "Rename through a pointer",
+        "prompt": "Collect pointers to a slice of names two ways and rename one name through a pointer.\n\n1. Declare `var ptrs []*string`, append `&n` for each `n` in a range loop over `names`, then print the three dereferenced values and `ptrs[0] == ptrs[2]` on one line.\n2. Declare `var good []*string`, append `&names[i]` for each index, then print the three dereferenced values and `good[0] == good[2]` on one line.\n3. Set `*good[1] = \"Bea\"` and print `names:` followed by `names`.\n\nExpected output:\n\n```text\nnames: [Ana Ben Cy]\nCy Cy Cy true\nAna Ben Cy false\nnames: [Ana Bea Cy]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tnames := []string{\"Ana\", \"Ben\", \"Cy\"}\n\tfmt.Println(\"names:\", names)\n\t// TODO: collect &n for each n in a range loop into ptrs and print the values and ptrs[0] == ptrs[2]\n\t// TODO: collect &names[i] into good, print the values and good[0] == good[2]\n\t// TODO: rename Ben to Bea through good[1], then print the names line again\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tnames := []string{\"Ana\", \"Ben\", \"Cy\"}\n\tfmt.Println(\"names:\", names)\n\tvar ptrs []*string\n\tfor _, n := range names {\n\t\tptrs = append(ptrs, &n) // the same n every time\n\t}\n\tfmt.Println(*ptrs[0], *ptrs[1], *ptrs[2], ptrs[0] == ptrs[2])\n\tvar good []*string\n\tfor i := range names {\n\t\tgood = append(good, &names[i])\n\t}\n\tfmt.Println(*good[0], *good[1], *good[2], good[0] == good[2])\n\t*good[1] = \"Bea\"\n\tfmt.Println(\"names:\", names)\n}\n",
+        "tests": [
+          {
+            "output": "names: [Ana Ben Cy]\nCy Cy Cy true\nAna Ben Cy false\nnames: [Ana Bea Cy]"
+          }
+        ],
+        "hints": [
+          "Dereference each pointer with `*` to print its value, and compare the first and last pointers with `==`.",
+          "For the second slice, loop over the indexes with `for i := range names` and take the address of the element itself."
+        ]
+      }
+    }
+  ],
+  "recap": "- `&x` is the address of `x`, `*int` is a pointer type, `*p` reads and `*p = v` writes.\n- Pointers are equal with `==` when they point at the same variable. Never print a pointer, print `*p`.\n- Dereferencing a `nil` pointer panics.\n- Functions get copies of their arguments. Pass `&x` to a `*int` parameter so a function can change `x`.\n- `new(T)` returns a `*T` to a zero value. `make` returns the slice, map, or channel itself.\n- Returning `&local` is safe: escape analysis moves it to the heap, and the garbage collector frees it some time after nothing points to it.\n- Go has no pointer arithmetic.\n- In Go 1.16, `&v` of a range variable is the same address every time. Take `&s[i]` instead."
+}

@@ -1,0 +1,118 @@
+{
+  "id": "class-features",
+  "title": "Private Fields, Getters, Setters, and Static",
+  "section": "Object-Oriented Programming",
+  "summary": "Hide state in #private fields, expose computed properties with get and set, share members with static, and keep this inside callbacks.",
+  "intro": "A plain class lets any code change any field. These features give you control: `#private` fields hide state, getters and setters guard it, `static` members belong to the class, and a few habits keep `this` pointing at the right object.",
+  "steps": [
+    {
+      "title": "Private fields and methods",
+      "body": "A field whose name starts with `#` is **private**: only code inside the class body can read or write it. Declare it in the class body, with a starting value (`#code = 1234;`) or bare (`#width;`) when the constructor fills it in, then use it through `this`. Using a `#name` the class never declared is also a `SyntaxError`. Methods can be private too.\n\n```javascript\nclass Safe {\n  #code = 1234;\n\n  #matches(guess) {\n    return guess === this.#code;\n  }\n\n  open(guess) {\n    return this.#matches(guess) ? \"open\" : \"locked\";\n  }\n}\n```\n\nWhy bother? A public field can be set to anything from anywhere, like `account.balance = -5` in the last lesson. A private one changes only through the public methods you write, so those methods can check every change.\n\nWriting `safe.#code` outside the class is a `SyntaxError`. Node rejects the whole file before a single line runs, so the mistake never sneaks into a running program. Plain `safe.code` is a different name and just reads `undefined`.\n\nPrivate fields also stay out of `JSON.stringify`, which lists only public fields. That makes it a handy way to see what an object exposes. Never `console.log` an instance to check this, because Node's inspect format is made for debugging, not for checked output.",
+      "example": {
+        "title": "A wallet with a private balance",
+        "prompt": "Keep a wallet's balance private, let a private check guard spending, and show that JSON.stringify hides the balance.",
+        "code": "class Wallet {\n  #balance = 0;\n\n  constructor(owner) {\n    this.owner = owner;\n  }\n\n  #canSpend(amount) {\n    return amount > 0 && amount <= this.#balance;\n  }\n\n  deposit(amount) {\n    if (amount > 0) {\n      this.#balance += amount;\n    }\n  }\n\n  spend(amount) {\n    if (this.#canSpend(amount)) {\n      this.#balance -= amount;\n    }\n  }\n\n  getBalance() {\n    return this.#balance;\n  }\n}\n\nconst wallet = new Wallet(\"Ada\");\nwallet.deposit(50);\nconsole.log(`After deposit 50: ${wallet.getBalance()}`);\nwallet.spend(80);\nconsole.log(`After spend 80: ${wallet.getBalance()}`);\nwallet.spend(30);\nconsole.log(`After spend 30: ${wallet.getBalance()}`);\nconsole.log(JSON.stringify(wallet));\n",
+        "output": "After deposit 50: 50\nAfter spend 80: 50\nAfter spend 30: 20\n{\"owner\":\"Ada\"}",
+        "explanation": "`#balance` can only change through `deposit` and `spend`. `spend(80)` asks the private `#canSpend` first, which says no because only 50 is there, so the balance stays put. `JSON.stringify(wallet)` lists the public `owner` only: the private balance never appears."
+      },
+      "practice": {
+        "title": "A capped counter",
+        "prompt": "Build a counter that keeps its count private and never goes above 10.\n\n1. Declare a private field `#count` that starts at 0.\n2. Write a private method `#clamp(n)` that returns `n`, or 10 when `n` is bigger than 10.\n3. Write `increment(amount)` so it adds `amount` to the count and stores the result of `#clamp`.\n4. Write `reset()` to set the count back to 0 and `getCount()` to return it.\n\nThe printing code is already written. `JSON.stringify(counter)` should show only the public `name`.\n\nExpected output:\n\n```text\nAfter +4: 4\nAfter +5: 9\nAfter +3: 10\nAfter reset: 0\n{\"name\":\"clicks\"}\n```",
+        "starter": "class Counter {\n  // TODO: declare the private field #count\n\n  constructor(name) {\n    this.name = name;\n  }\n\n  // TODO: write the private method #clamp(n)\n\n  increment(amount) {\n    // TODO: add amount and keep the count at most 10\n  }\n\n  reset() {\n    // TODO: set the count back to 0\n  }\n\n  getCount() {\n    // TODO: return the private count\n    return 0;\n  }\n}\n\nconst counter = new Counter(\"clicks\");\ncounter.increment(4);\nconsole.log(`After +4: ${counter.getCount()}`);\ncounter.increment(5);\nconsole.log(`After +5: ${counter.getCount()}`);\ncounter.increment(3);\nconsole.log(`After +3: ${counter.getCount()}`);\ncounter.reset();\nconsole.log(`After reset: ${counter.getCount()}`);\nconsole.log(JSON.stringify(counter));\n",
+        "solution": "class Counter {\n  #count = 0;\n\n  constructor(name) {\n    this.name = name;\n  }\n\n  #clamp(n) {\n    return n > 10 ? 10 : n;\n  }\n\n  increment(amount) {\n    this.#count = this.#clamp(this.#count + amount);\n  }\n\n  reset() {\n    this.#count = 0;\n  }\n\n  getCount() {\n    return this.#count;\n  }\n}\n\nconst counter = new Counter(\"clicks\");\ncounter.increment(4);\nconsole.log(`After +4: ${counter.getCount()}`);\ncounter.increment(5);\nconsole.log(`After +5: ${counter.getCount()}`);\ncounter.increment(3);\nconsole.log(`After +3: ${counter.getCount()}`);\ncounter.reset();\nconsole.log(`After reset: ${counter.getCount()}`);\nconsole.log(JSON.stringify(counter));\n",
+        "tests": [
+          {
+            "output": "After +4: 4\nAfter +5: 9\nAfter +3: 10\nAfter reset: 0\n{\"name\":\"clicks\"}"
+          }
+        ],
+        "hints": [
+          "Declare the field in the class body like `#balance = 0;` in the example, and read it with `this.#count`.",
+          "Call the private method with `this.#clamp(...)`, just like a public one.",
+          "In `increment`, pass the new total `this.#count + amount` to `#clamp` and store what it returns."
+        ]
+      }
+    },
+    {
+      "title": "Getters and setters",
+      "body": "A **getter** is a method that is read like a property. A **setter** runs when you assign to that property. Together they let a private field look like a normal field, with no `getBalance()` method needed, while the class keeps control.\n\n```javascript\nclass Box {\n  #size = 1;\n\n  get size() {\n    return this.#size;\n  }\n\n  set size(value) {\n    if (value > 0) {\n      this.#size = value;\n    }\n  }\n\n  get volume() {\n    return this.#size ** 3;\n  }\n}\n\nconst box = new Box();\nbox.size = 3;    // runs the setter\nbox.size = -5;   // ignored by the setter\nbox.volume;      // 27, no parentheses\n```\n\nUse a setter to clamp or ignore bad values instead of storing them. `volume` is a **computed property**: its value is worked out from private fields on every read, and with no setter it is read-only.\n\nGotchas:\n\n- A setter with no getter reads as `undefined`, so define them in pairs.\n- Assigning to a getter-only property, such as `box.volume = 8`, is silently ignored at the top level of this script. Inside class code it throws a `TypeError`, because class bodies run in strict mode.\n- Inside the class, call your own setter with `this.size = ...` so its checks still run.\n- Inside `get size()`, read `this.#size`, never `this.size`, which calls the getter again until the stack overflows.",
+      "example": {
+        "title": "Celsius and Fahrenheit",
+        "prompt": "Store one private Celsius value and expose it as both celsius and fahrenheit, clamping anything below absolute zero.",
+        "code": "class Temperature {\n  #celsius = 0;\n\n  get celsius() {\n    return this.#celsius;\n  }\n\n  set celsius(c) {\n    this.#celsius = c < -273.15 ? -273.15 : c;\n  }\n\n  get fahrenheit() {\n    return this.#celsius * 9 / 5 + 32;\n  }\n\n  set fahrenheit(f) {\n    this.celsius = (f - 32) * 5 / 9;\n  }\n\n  reading() {\n    return `${this.celsius.toFixed(2)} C / ${this.fahrenheit.toFixed(2)} F`;\n  }\n}\n\nconst temp = new Temperature();\ntemp.celsius = 25;\nconsole.log(temp.reading());\ntemp.fahrenheit = 212;\nconsole.log(temp.reading());\ntemp.celsius = -300;\nconsole.log(temp.reading());\ntemp.fahrenheit = 50;\nconsole.log(temp.reading());\n",
+        "output": "25.00 C / 77.00 F\n100.00 C / 212.00 F\n-273.15 C / -459.67 F\n10.00 C / 50.00 F",
+        "explanation": "Only `#celsius` is stored. `fahrenheit` is computed from it on every read, and `set fahrenheit` converts and then assigns `this.celsius`, so the clamp in `set celsius` runs either way. Setting -300 stores -273.15. Every read is a plain property access, such as `this.celsius`, with no parentheses."
+      },
+      "practice": {
+        "title": "A guarded rectangle",
+        "prompt": "Give a rectangle a guarded width and two computed properties.\n\n1. Write `get width()` to return the private `#width`.\n2. Write `set width(w)` so it stores `w` only when `w` is 0 or more, and ignores negative values.\n3. Write `get area()` to return width times height.\n4. Write `get perimeter()` to return twice the sum of width and height.\n\nThe assignments and printing are already written. The `-5` assignment must change nothing.\n\nExpected output:\n\n```text\nwidth 4, area 12, perimeter 14\nwidth 10, area 30, perimeter 26\nwidth 10, area 30, perimeter 26\nwidth 7, area 21, perimeter 20\n```",
+        "starter": "class Rectangle {\n  #width;\n  #height;\n\n  constructor(width, height) {\n    this.#width = width;\n    this.#height = height;\n  }\n\n  get width() {\n    // TODO: return the private width\n    return 0;\n  }\n\n  set width(w) {\n    // TODO: store w only when it is 0 or more\n  }\n\n  get area() {\n    // TODO: return width times height\n    return 0;\n  }\n\n  get perimeter() {\n    // TODO: return twice the sum of width and height\n    return 0;\n  }\n}\n\nconst rect = new Rectangle(4, 3);\nconst show = () => {\n  console.log(`width ${rect.width}, area ${rect.area}, perimeter ${rect.perimeter}`);\n};\nshow();\nrect.width = 10;\nshow();\nrect.width = -5;\nshow();\nrect.width = 7;\nshow();\n",
+        "solution": "class Rectangle {\n  #width;\n  #height;\n\n  constructor(width, height) {\n    this.#width = width;\n    this.#height = height;\n  }\n\n  get width() {\n    return this.#width;\n  }\n\n  set width(w) {\n    if (w >= 0) {\n      this.#width = w;\n    }\n  }\n\n  get area() {\n    return this.#width * this.#height;\n  }\n\n  get perimeter() {\n    return 2 * (this.#width + this.#height);\n  }\n}\n\nconst rect = new Rectangle(4, 3);\nconst show = () => {\n  console.log(`width ${rect.width}, area ${rect.area}, perimeter ${rect.perimeter}`);\n};\nshow();\nrect.width = 10;\nshow();\nrect.width = -5;\nshow();\nrect.width = 7;\nshow();\n",
+        "tests": [
+          {
+            "output": "width 4, area 12, perimeter 14\nwidth 10, area 30, perimeter 26\nwidth 10, area 30, perimeter 26\nwidth 7, area 21, perimeter 20"
+          }
+        ],
+        "hints": [
+          "A getter is `get width() { return this.#width; }` and is read as `rect.width`.",
+          "In the setter, store `w` only inside an `if` that checks it is 0 or more, so negative values do nothing.",
+          "Like `volume` in the lesson, `area` and `perimeter` read the private fields `this.#width` and `this.#height` directly."
+        ]
+      }
+    },
+    {
+      "title": "Static members",
+      "body": "A `static` member belongs to the class itself, not to each instance. You call a static method on the class name, much like `Math.max()`.\n\n```javascript\nclass Temperature {\n  static instances = 0;\n\n  constructor(celsius) {\n    this.celsius = celsius;\n    Temperature.instances++;\n  }\n\n  static fromFahrenheit(f) {\n    return new Temperature((f - 32) * 5 / 9);\n  }\n}\n\nconst boiling = Temperature.fromFahrenheit(212);\nboiling.celsius;          // 100\nTemperature.instances;    // 1\n```\n\nTwo common uses:\n\n- **Factory methods** such as `Temperature.fromFahrenheit(212)` build an instance from a different kind of input. They read better than a constructor with a flag.\n- **Helpers** that work on several instances at once, such as `Point.distance(a, b)`.\n\nA **static field** like `static count = 0` is one value shared by every instance. Update it from the constructor with `ClassName.count++`, so every `new` counts, including the ones a factory makes.\n\nThe gotcha: statics are not on instances. `boiling.instances` is `undefined`, and `boiling.fromFahrenheit` is not a function. Always go through the class name.",
+      "example": {
+        "title": "Counting users",
+        "prompt": "Count every user in a static field, create a guest with a static factory, and show that the count lives on the class.",
+        "code": "class User {\n  static count = 0;\n\n  constructor(name, role) {\n    this.name = name;\n    this.role = role;\n    User.count++;\n  }\n\n  static guest() {\n    return new User(\"Guest\", \"visitor\");\n  }\n\n  describe() {\n    return `${this.name} (${this.role})`;\n  }\n}\n\nconst ada = new User(\"Ada\", \"admin\");\nconst lin = new User(\"Lin\", \"editor\");\nconst guest = User.guest();\nconsole.log([ada, lin, guest].map((user) => user.describe()).join(\", \"));\nconsole.log(`Users created: ${User.count}`);\nconsole.log(`ada.count: ${ada.count}`);\n",
+        "output": "Ada (admin), Lin (editor), Guest (visitor)\nUsers created: 3\nada.count: undefined",
+        "explanation": "`User.count` is one shared number. Each constructor call adds 1, including the call inside `User.guest()`, so three users give 3. `ada.count` is `undefined` because static fields live on the class, not on its instances."
+      },
+      "practice": {
+        "title": "Points and distances",
+        "prompt": "Add static members to a point class and measure distances with them.\n\n1. Add a static field `created` that starts at 0, and add 1 to it in the constructor with `Point.created++`.\n2. Write `static origin()` to return a new point at (0, 0).\n3. Write `static distance(a, b)` to return the distance between two points with `Math.hypot`.\n\nThe printing code is already written.\n\nExpected output:\n\n```text\nFrom (0, 0) to (6, 8): 10\nFrom (0, 0) to (3, 4): 5\nPoints created: 3\n```",
+        "starter": "class Point {\n  // TODO: declare the static field created\n\n  constructor(x, y) {\n    this.x = x;\n    this.y = y;\n    // TODO: count this point\n  }\n\n  static origin() {\n    // TODO: return a new point at (0, 0)\n    return null;\n  }\n\n  static distance(a, b) {\n    // TODO: return the distance from a to b with Math.hypot\n    return 0;\n  }\n\n  toString() {\n    return `(${this.x}, ${this.y})`;\n  }\n}\n\nconst start = Point.origin();\nconst target = new Point(6, 8);\nconst corner = new Point(3, 4);\nconsole.log(`From ${start} to ${target}: ${Point.distance(start, target)}`);\nconsole.log(`From ${start} to ${corner}: ${Point.distance(start, corner)}`);\nconsole.log(`Points created: ${Point.created}`);\n",
+        "solution": "class Point {\n  static created = 0;\n\n  constructor(x, y) {\n    this.x = x;\n    this.y = y;\n    Point.created++;\n  }\n\n  static origin() {\n    return new Point(0, 0);\n  }\n\n  static distance(a, b) {\n    return Math.hypot(b.x - a.x, b.y - a.y);\n  }\n\n  toString() {\n    return `(${this.x}, ${this.y})`;\n  }\n}\n\nconst start = Point.origin();\nconst target = new Point(6, 8);\nconst corner = new Point(3, 4);\nconsole.log(`From ${start} to ${target}: ${Point.distance(start, target)}`);\nconsole.log(`From ${start} to ${corner}: ${Point.distance(start, corner)}`);\nconsole.log(`Points created: ${Point.created}`);\n",
+        "tests": [
+          {
+            "output": "From (0, 0) to (6, 8): 10\nFrom (0, 0) to (3, 4): 5\nPoints created: 3"
+          }
+        ],
+        "hints": [
+          "Declare the field in the class body like `static count = 0;` in the example.",
+          "`origin` is a factory: it returns a new point, just like `User.guest()` returns a new user.",
+          "`Math.hypot` takes the difference in x and the difference in y between the two points."
+        ]
+      }
+    },
+    {
+      "title": "Keeping this in callbacks",
+      "body": "`this` is not fixed when you write a method. It is set by how the method is **called**: in `cart.describe()`, `this` is whatever sits before the dot.\n\nThat has two consequences.\n\n**Arrow callbacks work.** An arrow function has no `this` of its own, so inside a method it uses the method's `this`. That is why `this.items.forEach((item) => { this.total += item.price; })` updates the right object.\n\n**Detached methods break.** `const f = cart.describe;` copies the function without the object. Calling `f()` has nothing before the dot, so `this` is `undefined` (class code is strict) and reading `this.owner` throws a `TypeError`. The same happens when you pass `cart.describe` as a callback. Two fixes:\n\n```javascript\nconst viaArrow = () => cart.describe();\nconst viaBind = cart.describe.bind(cart);\n```\n\n`bind(obj)` returns a new function whose `this` is always `obj`.\n\nA third option is a **class field that holds an arrow**. The arrow is created per instance while `this` is that instance, so it keeps it even when stored in a variable:\n\n```javascript\nsummary = () => `${this.owner} pays ${this.total}`;\n```",
+      "example": {
+        "title": "A cart that keeps its this",
+        "prompt": "Sum a cart with an arrow callback, then call a bound method and an arrow field from plain variables.",
+        "code": "class Cart {\n  total = 0;\n  summary = () => `${this.owner} pays ${this.total}`;\n\n  constructor(owner, items) {\n    this.owner = owner;\n    this.items = items;\n  }\n\n  addUp() {\n    this.total = 0;\n    this.items.forEach((item) => {\n      this.total += item.price;\n    });\n  }\n\n  describe() {\n    return `${this.owner}'s cart has ${this.items.length} items`;\n  }\n}\n\nconst cart = new Cart(\"Ada\", [\n  { name: \"pen\", price: 3 },\n  { name: \"book\", price: 12 },\n  { name: \"mug\", price: 8 },\n]);\ncart.addUp();\nconst describe = cart.describe.bind(cart);\nconsole.log(describe());\nconst summary = cart.summary;\nconsole.log(summary());\n",
+        "output": "Ada's cart has 3 items\nAda pays 23",
+        "explanation": "The `forEach` callback is an arrow, so its `this` is the cart that `addUp` was called on. `describe` was detached into a variable, but `bind(cart)` fixed its `this` for good. `summary` is an arrow stored in a field, so it already holds on to its cart and works without `bind`."
+      },
+      "practice": {
+        "title": "Classroom labels",
+        "prompt": "Keep `this` working in a classroom's callbacks and detached methods.\n\n1. Write `labels()` to return `this.students.map(...)` with an arrow callback that builds `NAME sits in ROOM` from `this.room`.\n2. Write `report()` to return `Report for room ROOM`.\n3. Make `count` an arrow field that returns the number of students.\n4. At the bottom, store `room.report` bound to `room` in `report`, so calling `report()` still works.\n\nExpected output:\n\n```text\nAna sits in B12\nBen sits in B12\nCleo sits in B12\nReport for room B12\nStudents: 3\n```",
+        "starter": "class Classroom {\n  // TODO: make count an arrow field that returns the number of students\n  count = () => 0;\n\n  constructor(room, students) {\n    this.room = room;\n    this.students = students;\n  }\n\n  labels() {\n    // TODO: map each student to \"NAME sits in ROOM\"\n    return [];\n  }\n\n  report() {\n    // TODO: return \"Report for room ROOM\"\n    return \"\";\n  }\n}\n\nconst room = new Classroom(\"B12\", [\"Ana\", \"Ben\", \"Cleo\"]);\nconsole.log(room.labels().join(\"\\n\"));\n// TODO: bind room.report to room so it keeps its this\nconst report = room.report;\nconsole.log(report());\nconst count = room.count;\nconsole.log(`Students: ${count()}`);\n",
+        "solution": "class Classroom {\n  count = () => this.students.length;\n\n  constructor(room, students) {\n    this.room = room;\n    this.students = students;\n  }\n\n  labels() {\n    return this.students.map((name) => `${name} sits in ${this.room}`);\n  }\n\n  report() {\n    return `Report for room ${this.room}`;\n  }\n}\n\nconst room = new Classroom(\"B12\", [\"Ana\", \"Ben\", \"Cleo\"]);\nconsole.log(room.labels().join(\"\\n\"));\nconst report = room.report.bind(room);\nconsole.log(report());\nconst count = room.count;\nconsole.log(`Students: ${count()}`);\n",
+        "tests": [
+          {
+            "output": "Ana sits in B12\nBen sits in B12\nCleo sits in B12\nReport for room B12\nStudents: 3"
+          }
+        ],
+        "hints": [
+          "Inside `labels`, an arrow callback can read `this.room` directly.",
+          "`room.report.bind(room)` returns a copy of `report` that always runs on `room`.",
+          "Write the arrow field like `summary` in the example: the name, `=`, then an arrow that reads `this.students`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `#field` and `#method()` are private: only the class body can use them, and `obj.#field` outside is a `SyntaxError` before the program runs.\n- Public methods are the only way to change private state, and `JSON.stringify` shows public fields only.\n- `get prop()` is read without parentheses, and `set prop(value)` runs on assignment. Define them in pairs and let the setter clamp or ignore bad values.\n- Writing to a getter-only property is ignored at the top level but throws a `TypeError` inside class code.\n- `static` methods and fields live on the class: call `ClassName.method()` and count with `ClassName.count++`.\n- `this` comes from how a method is called. Arrow callbacks inside methods keep it, detached methods lose it.\n- Fix a detached method with `obj.method.bind(obj)` or an arrow wrapper, or make it an arrow field."
+}

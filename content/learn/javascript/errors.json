@@ -1,0 +1,121 @@
+{
+  "id": "errors",
+  "title": "Error Handling",
+  "section": "Bits and Errors",
+  "summary": "Catch runtime errors with try/catch, throw your own errors with clear messages, and clean up with finally.",
+  "intro": "Real input is messy: broken JSON, missing fields, numbers out of range. Instead of letting one bad line crash the whole program, you catch the error, report it, and keep going.",
+  "steps": [
+    {
+      "title": "try and catch",
+      "body": "When something goes wrong at run time, JavaScript *throws* an error. If nothing catches it, the program stops on that line, Node prints a stack trace to stderr, and the program exits with a failure code. Wrap risky code in `try` and handle the failure in `catch`:\n\n```javascript\ntry {\n  const data = JSON.parse(text);\n  console.log(data.user.name);\n} catch (error) {\n  console.log(`caught a ${error.name}`);\n}\nconsole.log(\"still running\");\n```\n\nWhen a line inside `try` throws, the rest of the block is skipped and `catch` runs with the error object. After the catch block the program carries on as normal. Every error has `error.name` (its type) and `error.message` (the details).\n\nThe built-in errors you will meet most:\n\n- `SyntaxError`: `JSON.parse` got text that is not valid JSON.\n- `TypeError`: reading a property of `null` or `undefined`, or calling something that is not a function.\n- `RangeError`: a value outside the allowed range, such as `\"ab\".repeat(-1)`.\n- `ReferenceError`: using a name that was never declared.\n\nA typo in your own code is a SyntaxError too, but Node finds it before the program starts, so no `try` can catch it. Print `error.name` for built-in errors, not `error.message`: Node's wording can change between versions. Keep each `try` block small so you know which line it guards.",
+      "example": {
+        "title": "Reading user names",
+        "prompt": "Read one JSON object per line and print the user's name, or the name of the error when the line cannot be read, then print done.",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nfor (const line of lines) {\n  try {\n    const data = JSON.parse(line);\n    console.log(`name: ${data.user.name}`);\n  } catch (error) {\n    console.log(`error: ${error.name}`);\n  }\n}\nconsole.log(\"done\");\n",
+        "stdin": "{\"user\":{\"name\":\"Ada\"}}\n{\"user\":null}\n{\"user\":\n{\"user\":{\"name\":\"Linus\"}}\n",
+        "output": "name: Ada\nerror: TypeError\nerror: SyntaxError\nname: Linus\ndone",
+        "explanation": "Each line gets its own `try`, so one bad line cannot stop the loop. `{\"user\":null}` parses fine, but `data.user.name` reads a property of `null` and throws a TypeError. The third line is cut off, so `JSON.parse` throws a SyntaxError before anything prints. After each catch the loop moves on, and `done` prints at the end."
+      },
+      "practice": {
+        "title": "First items",
+        "prompt": "Read one JSON snippet per line and print its first item, or the name of the error, then count the good and bad lines.\n\n1. For each line, parse it with `JSON.parse` and print `first: <value>` using `data.items[0]`.\n2. If anything throws, print `error: <error name>` instead.\n3. Count the lines that printed a value as good and the ones that failed as bad.\n4. After the loop print `good: <good>, bad: <bad>`.\n\nInput:\n\n```text\n{\"items\":[3,5]}\n{\"items\":null}\n[1,2\n```\n\nExpected output:\n\n```text\nfirst: 3\nerror: TypeError\nerror: SyntaxError\ngood: 1, bad: 2\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nlet good = 0;\nlet bad = 0;\nfor (const line of lines) {\n  // TODO: parse the line and print its first item, then count it as good\n  // TODO: catch any error, print its name, and count it as bad\n}\nconsole.log(`good: ${good}, bad: ${bad}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nlet good = 0;\nlet bad = 0;\nfor (const line of lines) {\n  try {\n    const data = JSON.parse(line);\n    console.log(`first: ${data.items[0]}`);\n    good++;\n  } catch (error) {\n    console.log(`error: ${error.name}`);\n    bad++;\n  }\n}\nconsole.log(`good: ${good}, bad: ${bad}`);\n",
+        "tests": [
+          {
+            "stdin": "{\"items\":[3,5]}\n{\"items\":null}\n[1,2\n",
+            "output": "first: 3\nerror: TypeError\nerror: SyntaxError\ngood: 1, bad: 2"
+          },
+          {
+            "stdin": "{\"items\":[7]}\n{\"items\":[10,20,30]}\n{\"count\":2}\n",
+            "output": "first: 7\nfirst: 10\nerror: TypeError\ngood: 2, bad: 1"
+          },
+          {
+            "stdin": "null\n{oops}\n",
+            "output": "error: TypeError\nerror: SyntaxError\ngood: 0, bad: 2"
+          }
+        ],
+        "hints": [
+          "Put both the `JSON.parse` call and the `console.log` inside one `try` block.",
+          "Increase `good` right after printing inside `try`, and increase `bad` inside `catch`.",
+          "Reading `items[0]` from `null` or from a missing `items` throws a TypeError."
+        ]
+      }
+    },
+    {
+      "title": "Throwing your own errors",
+      "body": "You can throw errors yourself with `throw`. Pick the error type that says what went wrong and give it a clear message:\n\n```javascript\nfunction setVolume(level) {\n  if (typeof level !== \"number\" || Number.isNaN(level)) {\n    throw new TypeError(\"level must be a number\");\n  }\n  if (level < 0 || level > 10) {\n    throw new RangeError(\"level must be 0 to 10\");\n  }\n  return level;\n}\n```\n\n- `new Error(message)` is the general kind.\n- `new TypeError(message)` means the value has the wrong type.\n- `new RangeError(message)` means the type is right but the value is out of range.\n\nValidate arguments at the top of a function, before any real work. The rest of the function can then trust its inputs, and callers get a clear failure instead of a wrong answer. `throw` leaves the function at once, like `return`, and the nearest `catch` up the call chain receives the error.\n\nWatch out: `Number(\"abc\")` is `NaN`, and `typeof NaN` is still `\"number\"`, so a type check needs `Number.isNaN` too. Messages you wrote yourself never change, so printing `${error.name}: ${error.message}` is safe. Always throw an `Error` object, never a bare string: a string has no name or message.",
+      "example": {
+        "title": "Bank withdrawals",
+        "prompt": "Read a starting balance, then one withdrawal per line, and print the new balance or the error each withdrawal raised.",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [startText, ...amounts] = input.trim().split(\"\\n\");\n\nfunction withdraw(balance, amount) {\n  if (typeof amount !== \"number\" || Number.isNaN(amount)) {\n    throw new TypeError(\"amount must be a number\");\n  }\n  if (amount <= 0) {\n    throw new RangeError(\"amount must be positive\");\n  }\n  if (amount > balance) {\n    throw new RangeError(\"insufficient funds\");\n  }\n  return balance - amount;\n}\n\nlet balance = Number(startText);\nfor (const text of amounts) {\n  try {\n    balance = withdraw(balance, Number(text));\n    console.log(`balance: ${balance}`);\n  } catch (error) {\n    console.log(`${error.name}: ${error.message}`);\n  }\n}\n",
+        "stdin": "100\n30\nabc\n500\n-5\n20\n",
+        "output": "balance: 70\nTypeError: amount must be a number\nRangeError: insufficient funds\nRangeError: amount must be positive\nbalance: 50",
+        "explanation": "`withdraw` checks its arguments first and throws before changing anything. `Number(\"abc\")` is `NaN`, so the first check throws a TypeError. 500 is more than 70, so the last check throws a RangeError. Without the check for `amount <= 0`, a withdrawal of -5 would quietly add money. A failed withdrawal skips the assignment, so the balance stays at 70 until the last line takes 20."
+      },
+      "practice": {
+        "title": "Checking ages",
+        "prompt": "Read one age per line and print it, or the error that explains why it is not valid.\n\n1. Write `parseAge(text)` that converts `text` with `Number`.\n2. If the result is `NaN`, throw a `TypeError` with the message `age must be a number`.\n3. If the age is below 0 or above 150, throw a `RangeError` with the message `age must be 0 to 150`.\n4. Otherwise return the age.\n5. For each line print `age: <age>`, or `<error name>: <error message>` when `parseAge` throws.\n\nInput:\n\n```text\n36\nabc\n200\n```\n\nExpected output:\n\n```text\nage: 36\nTypeError: age must be a number\nRangeError: age must be 0 to 150\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nfunction parseAge(text) {\n  // TODO: convert text with Number, throw a TypeError for NaN\n  // and a RangeError outside 0 to 150, then return the age\n  return 0;\n}\n\nfor (const line of lines) {\n  // TODO: call parseAge(line) inside try and print the age,\n  // or catch the error and print its name and message\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nfunction parseAge(text) {\n  const age = Number(text);\n  if (Number.isNaN(age)) {\n    throw new TypeError(\"age must be a number\");\n  }\n  if (age < 0 || age > 150) {\n    throw new RangeError(\"age must be 0 to 150\");\n  }\n  return age;\n}\n\nfor (const line of lines) {\n  try {\n    console.log(`age: ${parseAge(line)}`);\n  } catch (error) {\n    console.log(`${error.name}: ${error.message}`);\n  }\n}\n",
+        "tests": [
+          {
+            "stdin": "36\nabc\n200\n",
+            "output": "age: 36\nTypeError: age must be a number\nRangeError: age must be 0 to 150"
+          },
+          {
+            "stdin": "0\n150\n-1\n",
+            "output": "age: 0\nage: 150\nRangeError: age must be 0 to 150"
+          },
+          {
+            "stdin": "12x\n7\n",
+            "output": "TypeError: age must be a number\nage: 7"
+          }
+        ],
+        "hints": [
+          "Use `Number.isNaN(age)` for the type check, since `NaN` is still a number to `typeof`.",
+          "Write `throw new RangeError(\"age must be 0 to 150\")` for the range check. 0 and 150 are allowed.",
+          "In the loop, call `parseAge(line)` inside `try` and print `${error.name}: ${error.message}` in `catch`."
+        ]
+      }
+    },
+    {
+      "title": "finally, rethrowing, and causes",
+      "body": "`finally` runs after `try` and `catch` no matter what happened: success, a caught error, or an error that escapes. Use it for cleanup, such as closing a file or logging that a step ended. When an error escapes, `finally` runs first and then an outer `catch` receives it.\n\nCatch only what you can handle. `error instanceof RangeError` is true when the error was made with `new RangeError`, so check the type and rethrow everything else:\n\n```javascript\ntry {\n  handle(order);\n} catch (error) {\n  if (error instanceof RangeError) {\n    console.log(\"skipped\");\n  } else {\n    throw error;\n  }\n} finally {\n  console.log(\"closed\");\n}\n```\n\nPut an outer `try` around this one to catch what was rethrown. To add context, wrap the low-level error instead of rethrowing it as is: `throw new Error(\"cannot read order 3\", { cause: error })`. The outer catch reads the original back from `error.cause`.\n\nWhen you do not need the error object, leave out the binding:\n\n```javascript\nfunction isJson(text) {\n  try {\n    JSON.parse(text);\n    return true;\n  } catch {\n    return false;\n  }\n}\n```\n\nCatching every error silently hides real bugs, so use that form only when any failure means the same thing, as it does here.",
+      "example": {
+        "title": "Order intake",
+        "prompt": "Read orders as item and quantity lines, reject bad quantities, close every order, and stop with a fatal message when an order cannot be read at all.",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nfunction parseOrder(line) {\n  const [item, qtyText] = line.trim().split(/\\s+/);\n  if (qtyText === undefined) {\n    throw new TypeError(\"missing quantity\");\n  }\n  const qty = Number(qtyText);\n  if (!Number.isInteger(qty) || qty < 1) {\n    throw new RangeError(`bad quantity ${qtyText}`);\n  }\n  return { item, qty };\n}\n\ntry {\n  for (const [i, line] of lines.entries()) {\n    try {\n      const order = parseOrder(line);\n      console.log(`order ${i + 1}: ${order.qty} x ${order.item}`);\n    } catch (error) {\n      if (error instanceof RangeError) {\n        console.log(`rejected: ${error.message}`);\n      } else {\n        throw new Error(`cannot read order ${i + 1}`, { cause: error });\n      }\n    } finally {\n      console.log(`closed order ${i + 1}`);\n    }\n  }\n  console.log(\"all orders read\");\n} catch (error) {\n  console.log(`fatal: ${error.message} (cause: ${error.cause.name})`);\n}\n",
+        "stdin": "pen 2\ncup 0\nbook\nlamp 1\n",
+        "output": "order 1: 2 x pen\nclosed order 1\nrejected: bad quantity 0\nclosed order 2\nclosed order 3\nfatal: cannot read order 3 (cause: TypeError)",
+        "explanation": "The inner catch only handles RangeError, so `cup 0` is rejected and the loop goes on. `book` has no quantity, which throws a TypeError. The inner catch wraps it in a new Error with the original as its `cause`. `finally` still prints `closed order 3` before the wrapped error reaches the outer catch, which reads `error.cause.name`. The loop is over at that point, so `lamp 1` and `all orders read` never run."
+      },
+      "practice": {
+        "title": "Loading configs",
+        "prompt": "Read one JSON config per line, skip broken JSON, and stop with a fatal message on any other error.\n\n1. Write `loadConfig(text)` that parses `text` with `JSON.parse` and throws a `RangeError` when `port` is not a whole number from 1 to 65535. Otherwise return the config.\n2. In an outer `try`, loop over `lines.entries()` and call `loadConfig` in an inner `try` that prints `port: <port>`.\n3. In the inner `catch`, print `bad json` for a `SyntaxError`. Wrap any other error with `new Error(\"cannot load config <n>\", { cause: error })`, where n counts lines from 1.\n4. Give the inner `try` a `finally` that prints `done`.\n5. After the loop print `all configs loaded`. In the outer `catch` print `fatal: <message> (cause: <cause name>)`.\n\nInput:\n\n```text\n{\"port\":8080}\n{\"port\":\n{\"port\":70000}\n{\"port\":443}\n```\n\nExpected output:\n\n```text\nport: 8080\ndone\nbad json\ndone\ndone\nfatal: cannot load config 3 (cause: RangeError)\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nfunction loadConfig(text) {\n  // TODO: parse text with JSON.parse, throw a RangeError when port\n  // is not a whole number from 1 to 65535, then return the config\n  return null;\n}\n\n// TODO: in an outer try, loop over lines.entries()\n// TODO: inner try prints the port, inner catch handles only SyntaxError,\n// wraps anything else with a cause, and finally prints done\n// TODO: after the loop print all configs loaded, outer catch prints the fatal line\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nfunction loadConfig(text) {\n  const config = JSON.parse(text);\n  if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) {\n    throw new RangeError(\"port out of range\");\n  }\n  return config;\n}\n\ntry {\n  for (const [i, line] of lines.entries()) {\n    try {\n      const config = loadConfig(line);\n      console.log(`port: ${config.port}`);\n    } catch (error) {\n      if (error instanceof SyntaxError) {\n        console.log(\"bad json\");\n      } else {\n        throw new Error(`cannot load config ${i + 1}`, { cause: error });\n      }\n    } finally {\n      console.log(\"done\");\n    }\n  }\n  console.log(\"all configs loaded\");\n} catch (error) {\n  console.log(`fatal: ${error.message} (cause: ${error.cause.name})`);\n}\n",
+        "tests": [
+          {
+            "stdin": "{\"port\":8080}\n{\"port\":\n{\"port\":70000}\n{\"port\":443}\n",
+            "output": "port: 8080\ndone\nbad json\ndone\ndone\nfatal: cannot load config 3 (cause: RangeError)"
+          },
+          {
+            "stdin": "{\"port\":80}\n{\"port\":3000}\n",
+            "output": "port: 80\ndone\nport: 3000\ndone\nall configs loaded"
+          },
+          {
+            "stdin": "not json\nnull\n{\"port\":1}\n",
+            "output": "bad json\ndone\ndone\nfatal: cannot load config 2 (cause: TypeError)"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the order example: the outer `try` wraps the whole loop.",
+          "Check `error instanceof SyntaxError` in the inner catch and throw the wrapped error in the else branch.",
+          "A line of `null` parses fine, but reading `port` from it throws a TypeError, which becomes the cause."
+        ]
+      }
+    }
+  ],
+  "recap": "- An uncaught error stops the program, prints a stack trace to stderr, and exits with a failure code.\n- `try { ... } catch (error) { ... }` handles it, and the program continues after the catch.\n- Print `error.name` for built-in errors: SyntaxError, TypeError, RangeError, ReferenceError.\n- `throw new TypeError(message)` or `new RangeError(message)` after checking arguments at the top of a function.\n- `finally` always runs, and it runs before an outer catch receives an escaping error.\n- Check `error instanceof RangeError`, handle what you can, and rethrow the rest.\n- `new Error(message, { cause: error })` adds context, and `error.cause` reads it back.\n- `catch { ... }` without a binding when the error object does not matter."
+}

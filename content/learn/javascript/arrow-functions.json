@@ -1,0 +1,91 @@
+{
+  "id": "arrow-functions",
+  "title": "Arrow Functions and Callbacks",
+  "section": "Functions",
+  "summary": "Write compact arrow functions, pass functions around as values, and run a callback for each array item with forEach.",
+  "intro": "In JavaScript a function is a value like a number or a string. You can store it, pass it to another function, and get it back. Arrow functions make that short to write.",
+  "steps": [
+    {
+      "title": "Function expressions and arrow functions",
+      "body": "A function is a value, so you can store one in a `const`. A **function expression** is the `function` keyword used as a value, usually with no name after it:\n\n```javascript\nconst add = function (a, b) {\n  return a + b;\n};\n```\n\nAn **arrow function** is the shorter form you will see everywhere. When the body is one expression, drop the braces and `return`: the value is returned automatically (an implicit return).\n\n```javascript\nconst double = (x) => x * 2;\nconst shout = (text) => {\n  const loud = text.toUpperCase();\n  return `${loud}!`;\n};\n```\n\nOnce you add braces you have a block body, and then you must write `return` yourself. Forget it and the arrow returns `undefined`. JavaScript lets you drop the parentheses around a single parameter, but this course always keeps them.\n\n**The gotcha:** only `function` declarations can be called before their line. A function stored in a `const` cannot be used until that line has run, so calling it earlier throws a `ReferenceError`. Define arrows before the code that calls them.\n\nArrows also do not get their own `this`. That matters in the classes lessons, so just remember it for now.",
+      "example": {
+        "title": "Three small arrows",
+        "prompt": "Write double, add, and shout as arrow functions and print a call to each.",
+        "code": "const double = (x) => x * 2;\nconst add = (a, b) => a + b;\nconst shout = (text) => {\n  const loud = text.toUpperCase();\n  return `${loud}!`;\n};\n\nconsole.log(`double(21) = ${double(21)}`);\nconsole.log(`add(2, 3) = ${add(2, 3)}`);\nconsole.log(`shout(\"hey\") = ${shout(\"hey\")}`);\n",
+        "output": "double(21) = 42\nadd(2, 3) = 5\nshout(\"hey\") = HEY!",
+        "explanation": "`double` and `add` are one expression each, so they return it without writing `return`. `shout` needs two steps, so it uses a block body with an explicit `return`. All three are defined before the `console.log` lines that call them."
+      },
+      "practice": {
+        "title": "Name tools",
+        "prompt": "Write three arrow functions and print a call to each.\n\n1. Write `half` so `half(x)` returns `x` divided by 2, with an implicit return.\n2. Write `isEven` so `isEven(n)` returns `true` when `n` is even, with an implicit return.\n3. Write `initials` so `initials(first, last)` returns the first letter of each name followed by a dot, using a block body with `return`.\n\nExpected output:\n\n```text\nhalf(9) = 4.5\nisEven(4) = true\ninitials(\"Ada\", \"Lovelace\") = A.L.\n```",
+        "starter": "// TODO: return x divided by 2\nconst half = (x) => 0;\n\n// TODO: return true when n is even\nconst isEven = (n) => false;\n\n// TODO: use a block body that returns the two initials, like \"A.L.\"\nconst initials = (first, last) => {\n  return \"\";\n};\n\nconsole.log(`half(9) = ${half(9)}`);\nconsole.log(`isEven(4) = ${isEven(4)}`);\nconsole.log(`initials(\"Ada\", \"Lovelace\") = ${initials(\"Ada\", \"Lovelace\")}`);\n",
+        "solution": "const half = (x) => x / 2;\nconst isEven = (n) => n % 2 === 0;\nconst initials = (first, last) => {\n  const a = first[0];\n  const b = last[0];\n  return `${a}.${b}.`;\n};\n\nconsole.log(`half(9) = ${half(9)}`);\nconsole.log(`isEven(4) = ${isEven(4)}`);\nconsole.log(`initials(\"Ada\", \"Lovelace\") = ${initials(\"Ada\", \"Lovelace\")}`);\n",
+        "tests": [
+          {
+            "output": "half(9) = 4.5\nisEven(4) = true\ninitials(\"Ada\", \"Lovelace\") = A.L."
+          }
+        ],
+        "hints": [
+          "An implicit return is just the expression after the arrow, like `(x) => x * 2` in the example.",
+          "`%` gives the remainder, and an even number leaves 0. A comparison with `===` is already `true` or `false`.",
+          "`first[0]` is the first letter of `first`. Join the two letters and their dots with a template literal."
+        ]
+      }
+    },
+    {
+      "title": "Functions as values",
+      "body": "Because functions are values, you can put them in variables and arrays and pass them to other functions. A function you pass as an argument is called a **callback**. The receiving function decides when to call it, by writing `fn(value)`.\n\n```javascript\nconst square = (x) => x * x;\nconst applyTwice = (fn, x) => fn(fn(x));\nconsole.log(applyTwice(square, 3)); // 81\n```\n\nPass the function itself, `square`, not `square(3)`. With the parentheses you would pass the result of calling it, a number, and `fn(...)` would then throw a `TypeError` because a number is not a function.\n\nThis lets you write one loop that works with any rule. The caller supplies the rule as a callback.\n\nA function can also **return** a function. Then you call the result straight away with a second pair of parentheses:\n\n```javascript\nconst pick = (name) => (name === \"double\" ? double : square);\nconsole.log(pick(\"square\")(4)); // 16\n```",
+      "example": {
+        "title": "Apply and transform",
+        "prompt": "Pass functions to applyTwice and transformAll, loop over an array of functions, and pick a function by name.",
+        "code": "const double = (x) => x * 2;\nconst square = (x) => x * x;\n\nconst applyTwice = (fn, x) => fn(fn(x));\n\nconst transformAll = (arr, fn) => {\n  const result = [];\n  for (const item of arr) {\n    result.push(fn(item));\n  }\n  return result;\n};\n\nconst pick = (name) => (name === \"double\" ? double : square);\n\nconsole.log(`applyTwice(double, 5) = ${applyTwice(double, 5)}`);\nconsole.log(`transformAll: ${transformAll([1, 2, 3], square).join(\", \")}`);\n\nconst tools = [double, square];\nfor (const tool of tools) {\n  console.log(`tool(3) = ${tool(3)}`);\n}\nconsole.log(`pick(\"square\")(4) = ${pick(\"square\")(4)}`);\n",
+        "output": "applyTwice(double, 5) = 20\ntransformAll: 1, 4, 9\ntool(3) = 6\ntool(3) = 9\npick(\"square\")(4) = 16",
+        "explanation": "`applyTwice` calls its callback, then calls it again on the result: 5 becomes 10, then 20. `transformAll` calls `fn` once per item and pushes each result into a new array. The `tools` array holds two functions, so the loop calls each one with 3. `pick` returns a function, and the second `(4)` calls it."
+      },
+      "practice": {
+        "title": "Apply n times and keep if",
+        "prompt": "Write two functions that take a callback and call it.\n\n1. Write `applyN(fn, x, n)` so it calls `fn` on `x` a total of `n` times, feeding each result into the next call, and returns the final value.\n2. Write `keepIf(arr, test)` so it returns a new array with only the items for which `test(item)` is `true`, in their original order.\n3. Leave the printing lines as they are.\n\nExpected output:\n\n```text\napplyN(addTen, 0, 3) = 30\nkeepIf: 8, 12\n```",
+        "starter": "const addTen = (x) => x + 10;\nconst isBig = (x) => x > 5;\n\nconst applyN = (fn, x, n) => {\n  // TODO: call fn n times, starting from x, and return the result\n  return 0;\n};\n\nconst keepIf = (arr, test) => {\n  // TODO: return a new array with the items where test(item) is true\n  return [];\n};\n\nconsole.log(`applyN(addTen, 0, 3) = ${applyN(addTen, 0, 3)}`);\nconsole.log(`keepIf: ${keepIf([3, 8, 12, 5], isBig).join(\", \")}`);\n",
+        "solution": "const addTen = (x) => x + 10;\nconst isBig = (x) => x > 5;\n\nconst applyN = (fn, x, n) => {\n  let result = x;\n  for (let i = 0; i < n; i++) {\n    result = fn(result);\n  }\n  return result;\n};\n\nconst keepIf = (arr, test) => {\n  const kept = [];\n  for (const item of arr) {\n    if (test(item)) {\n      kept.push(item);\n    }\n  }\n  return kept;\n};\n\nconsole.log(`applyN(addTen, 0, 3) = ${applyN(addTen, 0, 3)}`);\nconsole.log(`keepIf: ${keepIf([3, 8, 12, 5], isBig).join(\", \")}`);\n",
+        "tests": [
+          {
+            "output": "applyN(addTen, 0, 3) = 30\nkeepIf: 8, 12"
+          }
+        ],
+        "hints": [
+          "In `applyN`, keep a `let result = x;` and update it inside a `for` loop that runs `n` times.",
+          "Each pass calls `fn` on the current `result` and stores the return value back in `result`.",
+          "In `keepIf`, loop with `for...of` and `push` the item only when `test(item)` is `true`."
+        ]
+      }
+    },
+    {
+      "title": "forEach callbacks",
+      "body": "`arr.forEach(callback)` calls your callback once for each element, in order. The callback receives the value, the index, and the whole array. Declare only the parameters you need.\n\n```javascript\nconst names = [\"Ana\", \"Ben\"];\nnames.forEach((name, index, list) => {\n  console.log(`${index + 1} of ${list.length}: ${name}`);\n});\n```\n\nUse `forEach` for side effects: printing, or updating a `let` declared outside the loop. It always returns `undefined`, so `const x = arr.forEach(...)` is a bug.\n\n**The gotcha:** `forEach` cannot stop early. `break` is a SyntaxError inside the callback, and `return` only ends the call for the current item, so the loop goes on with the next one. When you need to stop at the first match, use `for...of` with `break`:\n\n```javascript\nfor (const [i, name] of names.entries()) {\n  if (name === \"Ben\") {\n    console.log(`Found at ${i}`);\n    break;\n  }\n}\n```",
+      "example": {
+        "title": "Grocery list",
+        "prompt": "Number a grocery list with forEach, add up the prices, then find the first item that costs more than 3.",
+        "code": "const groceries = [\"Milk\", \"Eggs\", \"Bread\", \"Apples\"];\nconst prices = [2.5, 3.25, 4, 1.75];\n\ngroceries.forEach((item, index) => {\n  console.log(`${index + 1}. ${item}`);\n});\n\nlet total = 0;\nprices.forEach((price) => {\n  total += price;\n});\nconsole.log(`Total: ${total.toFixed(2)}`);\n\nfor (const [i, price] of prices.entries()) {\n  if (price > 3) {\n    console.log(`First over 3: ${groceries[i]}`);\n    break;\n  }\n}\n",
+        "output": "1. Milk\n2. Eggs\n3. Bread\n4. Apples\nTotal: 11.50\nFirst over 3: Eggs",
+        "explanation": "The first callback uses the index to print a 1-based number. The second only needs the value, and adds it to `total`, which lives outside the callback. Searching needs to stop at the first match, so it uses `for...of` with `break` instead of `forEach`."
+      },
+      "practice": {
+        "title": "Lap times",
+        "prompt": "Print each lap time, find the fastest lap, then find the first lap under 60 seconds.\n\n1. Use `forEach` to print each lap as `Lap N: Ss`, numbering from 1.\n2. Use `forEach` to update `fastest` and `fastestLap` with the smallest time and its lap number. On a tie, keep the earlier lap. The starter already prints the `Fastest:` line.\n3. Use `for...of` with `break` to print `First under 60s: Lap N` for the first lap under 60 seconds.\n\nExpected output:\n\n```text\nLap 1: 62s\nLap 2: 58s\nLap 3: 65s\nLap 4: 57s\nLap 5: 60s\nFastest: Lap 4 (57s)\nFirst under 60s: Lap 2\n```",
+        "starter": "const laps = [62, 58, 65, 57, 60];\n\n// TODO: use forEach to print \"Lap N: Ss\" for each lap\n\nlet fastest = Infinity;\nlet fastestLap = 0;\n// TODO: use forEach to update fastest and fastestLap\n\nconsole.log(`Fastest: Lap ${fastestLap} (${fastest}s)`);\n\n// TODO: use for...of with break to print the first lap under 60s\n",
+        "solution": "const laps = [62, 58, 65, 57, 60];\n\nlaps.forEach((seconds, index) => {\n  console.log(`Lap ${index + 1}: ${seconds}s`);\n});\n\nlet fastest = Infinity;\nlet fastestLap = 0;\nlaps.forEach((seconds, index) => {\n  if (seconds < fastest) {\n    fastest = seconds;\n    fastestLap = index + 1;\n  }\n});\n\nconsole.log(`Fastest: Lap ${fastestLap} (${fastest}s)`);\n\nfor (const [i, seconds] of laps.entries()) {\n  if (seconds < 60) {\n    console.log(`First under 60s: Lap ${i + 1}`);\n    break;\n  }\n}\n",
+        "tests": [
+          {
+            "output": "Lap 1: 62s\nLap 2: 58s\nLap 3: 65s\nLap 4: 57s\nLap 5: 60s\nFastest: Lap 4 (57s)\nFirst under 60s: Lap 2"
+          }
+        ],
+        "hints": [
+          "The callback gets `(seconds, index)`. Print `index + 1` as the lap number.",
+          "Use `seconds < fastest` (not `<=`) so a tie keeps the earlier lap.",
+          "Loop with `for (const [i, seconds] of laps.entries())` and `break` after printing."
+        ]
+      }
+    }
+  ],
+  "recap": "- `const f = function (x) { ... };` is a function expression.\n- `const f = (x) => x * 2;` is an arrow with an implicit return. A block body `(x) => { ...; return y; }` needs `return`.\n- Functions stored in `const` cannot be called before their line runs, so define them first.\n- Functions can live in variables and arrays. A callback is a function passed as an argument, and the receiver calls it with `fn(value)`.\n- Pass `square`, not `square(3)`. A function can also return another function.\n- `arr.forEach((item, index, array) => { ... })` runs the callback for each element and returns `undefined`.\n- `forEach` cannot stop early. Use `for...of` with `break` when you need to."
+}

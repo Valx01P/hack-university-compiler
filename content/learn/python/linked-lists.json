@@ -1,0 +1,154 @@
+{
+  "id": "linked-lists",
+  "title": "Linked Lists",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Build a singly linked list from Node objects and practice traversal, insertion, deletion, reversal, and fast and slow pointers.",
+  "intro": "A linked list is a chain of nodes where each node knows only the next one. Python never needs you to build one, but the classic interview problems do, and building it makes references concrete: every Python variable is a name pointing at an object, exactly like `next`.",
+  "steps": [
+    {
+      "title": "Nodes and traversal",
+      "body": "Python has no built-in linked list, and for real queues you use `deque`. Building one yourself shows how references work, which is how every Python variable works. Each node holds a value and a reference to the next node. `None` marks the end.\n\n```python\nclass Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\nhead = Node(3, Node(1, Node(4)))  # 3 -> 1 -> 4 -> None\n```\n\nTo build a list from values, go through them backwards and put each new node in front, so the first value ends up at the head:\n\n```python\nhead = None\nfor val in reversed(values):\n    head = Node(val, head)\n```\n\nTo walk the list, start a separate name at the head and follow `next` until you fall off the end. A node is always truthy and `None` is falsy, so the loop stops when `node` becomes `None`. `head` still points at the first node.\n\n```python\nnode = head\nwhile node:\n    print(node.val)\n    node = node.next\n```\n\nNever print a node itself: `Node` has no `__str__`, so you would see a memory address. Collect `str(node.val)` in a list and join it with `\" -> \".join(...)`.",
+      "example": {
+        "title": "Three node list",
+        "prompt": "Build a linked list from [3, 1, 4], print it with arrows, and print its length.",
+        "code": "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n\ndef build(values):\n    head = None\n    for val in reversed(values):\n        head = Node(val, head)\n    return head\n\n\nhead = build([3, 1, 4])\n\nparts = []\nlength = 0\nnode = head\nwhile node:\n    parts.append(str(node.val))\n    length += 1\n    node = node.next\n\nprint(\" -> \".join(parts))\nprint(f\"Length: {length}\")\n",
+        "output": "3 -> 1 -> 4\nLength: 3",
+        "explanation": "`build()` walks the values backwards: 4 becomes a node pointing at `None`, then 1 points at 4, then 3 points at 1 and becomes the head. The `while node:` loop visits 3, 1, and 4, collecting each value as text and counting it. After 4, `node.next` is `None`, so the loop ends and `\" -> \".join(parts)` puts the arrows between the values."
+      },
+      "practice": {
+        "title": "Linked list sum",
+        "prompt": "Build a linked list from the numbers the starter reads, then print it and its sum.\n\n1. Finish `build(values)` so it returns the head of a list holding `values` in order. Go over `reversed(values)` and put each value in front with `head = Node(val, head)`.\n2. Walk the list with `while node:`, collecting each value as text and adding it to a total.\n3. Print the values joined with ` -> `.\n4. Print `Sum: ` followed by the total.\n\nInput:\n\n```text\n5 2 8\n```\n\nExpected output:\n\n```text\n5 -> 2 -> 8\nSum: 15\n```",
+        "starter": "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n\ndef build(values):\n    # TODO: go over the values backwards, putting each new node in front\n    return None\n\n\nvalues = list(map(int, input().split()))\nhead = build(values)\n\n# TODO: walk the list with while node:, collecting each value as text and the sum\n# TODO: print the values joined with \" -> \", then print \"Sum: \" and the sum\n",
+        "solution": "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n\ndef build(values):\n    head = None\n    for val in reversed(values):\n        head = Node(val, head)\n    return head\n\n\nvalues = list(map(int, input().split()))\nhead = build(values)\n\nparts = []\ntotal = 0\nnode = head\nwhile node:\n    parts.append(str(node.val))\n    total += node.val\n    node = node.next\n\nprint(\" -> \".join(parts))\nprint(f\"Sum: {total}\")\n",
+        "tests": [
+          {
+            "stdin": "5 2 8\n",
+            "output": "5 -> 2 -> 8\nSum: 15"
+          },
+          {
+            "stdin": "7\n",
+            "output": "7\nSum: 7"
+          },
+          {
+            "stdin": "-3 10 -3 6\n",
+            "output": "-3 -> 10 -> -3 -> 6\nSum: 10"
+          }
+        ],
+        "hints": [
+          "`build()` is the same as in the example: start with `head = None` and return `head` after the loop.",
+          "Before the walk, set `parts = []`, `total = 0`, and `node = head`.",
+          "Inside the walk, add `str(node.val)` to `parts` and `node.val` to the total, then move on with `node = node.next`."
+        ]
+      }
+    },
+    {
+      "title": "Inserting and deleting with a dummy head",
+      "body": "Inserting at the head is O(1): `head = Node(val, head)` puts the new node in front. Appending at the tail walks to the last node first, so it is O(n). An empty list has no last node, so it needs its own case. Write both as functions that return the head, and always reassign it: `head = push_back(head, 4)`.\n\n```python\ndef push_back(head, val):\n    if head is None:  # empty: the new node is the head\n        return Node(val)\n    tail = head\n    while tail.next:\n        tail = tail.next\n    tail.next = Node(val)\n    return head\n```\n\nTo delete a node, stop at the node *before* it, called `prev`, and skip over it with `prev.next = prev.next.next`. Once nothing else refers to the removed node, Python frees it.\n\nThe first node has no `prev`, which normally means a special case. A dummy node in front of the head removes it: every real node now has a node before it.\n\n```python\ndef delete_first(head, target):\n    dummy = Node(0, head)\n    prev = dummy\n    while prev.next:\n        if prev.next.val == target:\n            prev.next = prev.next.next\n            break\n        prev = prev.next\n    return dummy.next\n```\n\nReturn `dummy.next`, not `head`: if the first node was deleted, `head` still points at it, while `dummy.next` is the real new head.",
+      "example": {
+        "title": "Edit a list",
+        "prompt": "Insert at the head, append at the tail, then delete the first node with a value, once at the head and once in the middle, printing the list after each change.",
+        "code": "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n\ndef to_text(head):\n    parts = []\n    node = head\n    while node:\n        parts.append(str(node.val))\n        node = node.next\n    return \" -> \".join(parts)\n\n\ndef push_front(head, val):\n    return Node(val, head)\n\n\ndef push_back(head, val):\n    if head is None:\n        return Node(val)\n    tail = head\n    while tail.next:\n        tail = tail.next\n    tail.next = Node(val)\n    return head\n\n\ndef delete_first(head, target):\n    dummy = Node(0, head)\n    prev = dummy\n    while prev.next:\n        if prev.next.val == target:\n            prev.next = prev.next.next\n            break\n        prev = prev.next\n    return dummy.next\n\n\nhead = Node(2, Node(3))\nhead = push_front(head, 1)\nprint(to_text(head))\nhead = push_back(head, 4)\nprint(to_text(head))\nhead = delete_first(head, 1)\nprint(to_text(head))\nhead = delete_first(head, 3)\nprint(to_text(head))\n",
+        "output": "1 -> 2 -> 3\n1 -> 2 -> 3 -> 4\n2 -> 3 -> 4\n2 -> 4",
+        "explanation": "`push_front` puts 1 in front of 2, and `push_back` walks to 3 and hangs 4 after it. Deleting 1 works because the dummy sits before it: `prev` is the dummy, so `dummy.next` skips to 2, and returning `dummy.next` gives the new head. Deleting 3 is the same code: `prev` stops on 2 and links it straight to 4."
+      },
+      "practice": {
+        "title": "Delete every match",
+        "prompt": "Read numbers and a target, delete every node holding the target, and print what is left.\n\n1. Write `delete_all(head, target)` with a dummy node in front of `head` and a `prev` pointer.\n2. When `prev.next` holds the target, skip it and keep `prev` where it is, because the new `prev.next` is not checked yet.\n3. Otherwise move `prev` forward one node.\n4. Return `dummy.next`.\n5. Print the remaining list joined with ` -> `, or `empty` when no nodes are left.\n\nInput:\n\n```text\n3 1 3 3 2 3\n3\n```\n\nExpected output:\n\n```text\n1 -> 2\n```",
+        "starter": "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n\ndef build(values):\n    head = None\n    for val in reversed(values):\n        head = Node(val, head)\n    return head\n\n\ndef to_text(head):\n    parts = []\n    node = head\n    while node:\n        parts.append(str(node.val))\n        node = node.next\n    return \" -> \".join(parts)\n\n\ndef delete_all(head, target):\n    # TODO: walk prev from a dummy node and skip every node whose val is target\n    return None\n\n\nvalues = list(map(int, input().split()))\ntarget = int(input())\nhead = delete_all(build(values), target)\n# TODO: print \"empty\" instead when no nodes are left\nprint(to_text(head))\n",
+        "solution": "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n\ndef build(values):\n    head = None\n    for val in reversed(values):\n        head = Node(val, head)\n    return head\n\n\ndef to_text(head):\n    parts = []\n    node = head\n    while node:\n        parts.append(str(node.val))\n        node = node.next\n    return \" -> \".join(parts)\n\n\ndef delete_all(head, target):\n    dummy = Node(0, head)\n    prev = dummy\n    while prev.next:\n        if prev.next.val == target:\n            prev.next = prev.next.next\n        else:\n            prev = prev.next\n    return dummy.next\n\n\nvalues = list(map(int, input().split()))\ntarget = int(input())\nhead = delete_all(build(values), target)\nprint(to_text(head) if head else \"empty\")\n",
+        "tests": [
+          {
+            "stdin": "3 1 3 3 2 3\n3\n",
+            "output": "1 -> 2"
+          },
+          {
+            "stdin": "4 4\n4\n",
+            "output": "empty"
+          },
+          {
+            "stdin": "1 2 3\n9\n",
+            "output": "1 -> 2 -> 3"
+          }
+        ],
+        "hints": [
+          "Start with `dummy = Node(0, head)` and `prev = dummy`, then loop `while prev.next:`.",
+          "Unlike the example, do not `break` after a deletion. Use `if ... else` so `prev` only moves when nothing was deleted.",
+          "`delete_all` returns `None` when every node is gone, and `None` is falsy."
+        ]
+      }
+    },
+    {
+      "title": "Reversing",
+      "body": "To reverse a list in place, flip every `next` link to point backwards. Three names do it: `prev` is the reversed part so far, `curr` is the node being flipped, and `nxt` is the rest of the list.\n\n```python\nwhile curr:\n    nxt = curr.next\n    curr.next = prev\n    prev = curr\n    curr = nxt\n```\n\nSave `nxt = curr.next` *before* changing `curr.next`. Once `curr.next` points backwards, the only reference to the rest of the list is gone. When the loop ends, `curr` is `None` and `prev` is the new head. The old head is now the tail, and its `next` is `None`.\n\nYou can write the loop body as one line, because the right side is evaluated first. The targets are then assigned left to right, so the order matters:\n\n```python\ncurr.next, prev, curr = prev, curr, curr.next  # works\n# curr, curr.next, prev = curr.next, prev, curr\n# AttributeError: 'NoneType' object has no attribute 'next'\n```\n\nThe second version moves `curr` first, so `curr.next = ...` changes the wrong node. The four-line loop is easier to read and harder to break.",
+      "example": {
+        "title": "Reverse four nodes",
+        "prompt": "Reverse 1 -> 2 -> 3 -> 4 in place, print it, and show that the old head is now the tail.",
+        "code": "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n\ndef build(values):\n    head = None\n    for val in reversed(values):\n        head = Node(val, head)\n    return head\n\n\ndef to_text(head):\n    parts = []\n    node = head\n    while node:\n        parts.append(str(node.val))\n        node = node.next\n    return \" -> \".join(parts)\n\n\ndef reverse(head):\n    prev = None\n    curr = head\n    while curr:\n        nxt = curr.next  # save the rest before the link changes\n        curr.next = prev\n        prev = curr\n        curr = nxt\n    return prev\n\n\nhead = build([1, 2, 3, 4])\nold_head = head\nhead = reverse(head)\nprint(to_text(head))\nprint(f\"Old head: {old_head.val}, next: {old_head.next}\")\n",
+        "output": "4 -> 3 -> 2 -> 1\nOld head: 1, next: None",
+        "explanation": "On the first pass `nxt` saves node 2, node 1 is pointed at `None`, and `prev` and `curr` step forward. Each pass flips one more link. After node 4 is flipped, `curr` is `None` and `prev` is node 4, the new head. `old_head` still names node 1, which is now the tail with `next` set to `None`."
+      },
+      "practice": {
+        "title": "Reverse the input",
+        "prompt": "Read numbers, reverse the linked list in place, and print it with its new head and tail.\n\n1. Write `reverse(head)` with `prev`, `curr`, and `nxt`, saving `nxt = curr.next` before you change `curr.next`.\n2. Return the new head.\n3. Print the reversed list joined with ` -> `.\n4. Print `New head: ` followed by the new head's value.\n5. Print `Tail: ` followed by the old head's value, which is now the tail.\n\nInput:\n\n```text\n5 7 9\n```\n\nExpected output:\n\n```text\n9 -> 7 -> 5\nNew head: 9\nTail: 5\n```",
+        "starter": "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n\ndef build(values):\n    head = None\n    for val in reversed(values):\n        head = Node(val, head)\n    return head\n\n\ndef to_text(head):\n    parts = []\n    node = head\n    while node:\n        parts.append(str(node.val))\n        node = node.next\n    return \" -> \".join(parts)\n\n\ndef reverse(head):\n    # TODO: flip every link with prev, curr, and nxt, then return the new head\n    return None\n\n\nvalues = list(map(int, input().split()))\nhead = build(values)\nold_head = head\nhead = reverse(head)\nprint(to_text(head))\n# TODO: print \"New head: \" and \"Tail: \" with their values\n",
+        "solution": "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n\ndef build(values):\n    head = None\n    for val in reversed(values):\n        head = Node(val, head)\n    return head\n\n\ndef to_text(head):\n    parts = []\n    node = head\n    while node:\n        parts.append(str(node.val))\n        node = node.next\n    return \" -> \".join(parts)\n\n\ndef reverse(head):\n    prev = None\n    curr = head\n    while curr:\n        nxt = curr.next  # save the rest before the link changes\n        curr.next = prev\n        prev = curr\n        curr = nxt\n    return prev\n\n\nvalues = list(map(int, input().split()))\nhead = build(values)\nold_head = head\nhead = reverse(head)\nprint(to_text(head))\nprint(f\"New head: {head.val}\")\nprint(f\"Tail: {old_head.val}\")\n",
+        "tests": [
+          {
+            "stdin": "5 7 9\n",
+            "output": "9 -> 7 -> 5\nNew head: 9\nTail: 5"
+          },
+          {
+            "stdin": "42\n",
+            "output": "42\nNew head: 42\nTail: 42"
+          },
+          {
+            "stdin": "1 2 2 3 8\n",
+            "output": "8 -> 3 -> 2 -> 2 -> 1\nNew head: 8\nTail: 1"
+          }
+        ],
+        "hints": [
+          "Start with `prev = None` and `curr = head`, and loop `while curr:`.",
+          "Inside the loop, save `nxt`, point `curr.next` back at `prev`, then step `prev` and `curr` forward. Return `prev`.",
+          "`old_head` still points at the first node you built, so `old_head.val` is the tail."
+        ]
+      }
+    },
+    {
+      "title": "Fast and slow pointers",
+      "body": "Two pointers that move at different speeds answer questions in one pass. `slow` moves 1 step and `fast` moves 2. When `fast` reaches the end, `slow` is halfway, which finds the middle without counting first:\n\n```python\ndef middle(head):\n    slow = fast = head\n    while fast and fast.next:\n        slow = slow.next\n        fast = fast.next.next\n    return slow\n```\n\nThe test `fast and fast.next` stops before `fast.next.next` could touch `None`. With an even length, `slow` lands on the second of the two middle nodes.\n\nA cycle happens when some node's `next` points back to an earlier node. Then `while node:` never ends, so never print a list that might loop. Floyd cycle detection uses the same two pointers: without a cycle, `fast` falls off the end. With one, both end up circling the loop. Each pass `fast` gains exactly one node on `slow`, so it cannot jump over it and they meet on the same node.\n\n```python\nif slow is fast:\n    return True\n```\n\nUse `is` because the question is whether both names point at the same node object. Comparing values with `slow.val == fast.val` is wrong: two different nodes can hold the same value.",
+      "example": {
+        "title": "Middle and cycle check",
+        "prompt": "Find the middle of a 5-node and a 4-node list, then check for a cycle in a list without one and in a list whose tail links back to its second node.",
+        "code": "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n\ndef build(values):\n    head = None\n    for val in reversed(values):\n        head = Node(val, head)\n    return head\n\n\ndef middle(head):\n    slow = fast = head\n    while fast and fast.next:\n        slow = slow.next\n        fast = fast.next.next\n    return slow\n\n\ndef has_cycle(head):\n    slow = fast = head\n    while fast and fast.next:\n        slow = slow.next\n        fast = fast.next.next\n        if slow is fast:\n            return True\n    return False\n\n\nhead = build([10, 20, 30, 40, 50])\nprint(f\"Middle: {middle(head).val}\")\nprint(f\"Cycle: {has_cycle(head)}\")\n\nlooped = build([1, 2, 3, 4])\nprint(f\"Middle: {middle(looped).val}\")\ntail = looped\nwhile tail.next:\n    tail = tail.next\ntail.next = looped.next  # 4 links back to 2\nprint(f\"Cycle: {has_cycle(looped)}\")\n",
+        "output": "Middle: 30\nCycle: False\nMiddle: 3\nCycle: True",
+        "explanation": "In the 5-node list `fast` visits 10, 30, and 50 while `slow` visits 10, 20, and 30. Then `fast.next` is `None`, so the middle is 30. In the 4-node list `fast` visits 1 and 3, then jumps past 4 to `None`, so `slow` stops on 3, the second middle. The middle is found before the cycle is made, because a loop would keep `fast` running forever. Once 4 links back to 2, `fast` never reaches `None`, so it circles until it lands on the same node as `slow`."
+      },
+      "practice": {
+        "title": "Middle and loop",
+        "prompt": "Read numbers and a position, print the middle value, then make a cycle at that position and check for it.\n\n1. Write `middle_value(head)` with `slow` and `fast` pointers. With an even length, return the second middle.\n2. Write `has_cycle(head)` with Floyd cycle detection.\n3. Print `Middle: ` followed by the middle value, before any cycle exists.\n4. Read `pos` from the second line. When it is not `-1`, link the tail to the node at index `pos` (0 is the head).\n5. Print `Cycle: ` followed by `True` or `False`.\n\nInput:\n\n```text\n1 2 3 4 5 6\n2\n```\n\nExpected output:\n\n```text\nMiddle: 4\nCycle: True\n```",
+        "starter": "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n\ndef build(values):\n    head = None\n    for val in reversed(values):\n        head = Node(val, head)\n    return head\n\n\ndef middle_value(head):\n    # TODO: move slow 1 step and fast 2 steps, then return slow's value\n    return 0\n\n\ndef has_cycle(head):\n    # TODO: return True when slow and fast meet on the same node\n    return False\n\n\nvalues = list(map(int, input().split()))\npos = int(input())\nhead = build(values)\nprint(f\"Middle: {middle_value(head)}\")\n\n# TODO: when pos is not -1, link the tail to the node at index pos\n\nprint(f\"Cycle: {has_cycle(head)}\")\n",
+        "solution": "class Node:\n    def __init__(self, val, next=None):\n        self.val = val\n        self.next = next\n\n\ndef build(values):\n    head = None\n    for val in reversed(values):\n        head = Node(val, head)\n    return head\n\n\ndef middle_value(head):\n    slow = fast = head\n    while fast and fast.next:\n        slow = slow.next\n        fast = fast.next.next\n    return slow.val\n\n\ndef has_cycle(head):\n    slow = fast = head\n    while fast and fast.next:\n        slow = slow.next\n        fast = fast.next.next\n        if slow is fast:\n            return True\n    return False\n\n\nvalues = list(map(int, input().split()))\npos = int(input())\nhead = build(values)\nprint(f\"Middle: {middle_value(head)}\")\n\nif pos != -1:\n    tail = head\n    while tail.next:\n        tail = tail.next\n    target = head\n    for _ in range(pos):\n        target = target.next\n    tail.next = target\n\nprint(f\"Cycle: {has_cycle(head)}\")\n",
+        "tests": [
+          {
+            "stdin": "1 2 3 4 5 6\n2\n",
+            "output": "Middle: 4\nCycle: True"
+          },
+          {
+            "stdin": "7 8 9\n-1\n",
+            "output": "Middle: 8\nCycle: False"
+          },
+          {
+            "stdin": "5\n0\n",
+            "output": "Middle: 5\nCycle: True"
+          }
+        ],
+        "hints": [
+          "Both functions start with `slow = fast = head` and loop `while fast and fast.next:`.",
+          "Inside `has_cycle`, return `True` as soon as `slow is fast` after a move.",
+          "Walk `tail` to the last node, walk `target` forward `pos` steps from `head`, then set `tail.next = target`."
+        ]
+      }
+    }
+  ],
+  "recap": "- A `Node` holds `val` and `next`, and `None` marks the end.\n- Build from values with `head = Node(val, head)` over `reversed(values)`.\n- Walk with `while node:` and `node = node.next`, then print with `\" -> \".join(parts)`.\n- Insert at the head is O(1). Appending at the tail walks to the last node.\n- Delete by linking `prev.next = prev.next.next`. A dummy node before the head removes the special case, so return `dummy.next`.\n- Reverse with `prev`, `curr`, and `nxt`, saving `nxt = curr.next` before changing `curr.next`.\n- `slow` moves 1 step and `fast` moves 2: `slow` ends at the middle, and they meet only when there is a cycle.\n- For real programs, `collections.deque` is Python's practical linked structure."
+}

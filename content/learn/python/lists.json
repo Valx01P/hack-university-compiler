@@ -1,0 +1,118 @@
+{
+  "id": "lists",
+  "title": "Lists: Python's Dynamic Arrays",
+  "section": "Lists",
+  "summary": "Store ordered values in a list, grow and shrink it, search and sort it, and understand references and copies.",
+  "intro": "Most programs work with many values at once: scores, names, tasks. A list keeps them in order under one name, and it can grow, shrink, search, and sort itself.",
+  "steps": [
+    {
+      "title": "Creating and indexing",
+      "body": "A list holds values in order inside square brackets. Indexes start at 0, and negative indexes count from the end, so `-1` is the last item. `len()` gives the number of items.\n\n```python\ncolors = [\"red\", \"green\", \"blue\"]\nprint(colors[0], colors[-1], len(colors))  # red blue 3\ncolors[1] = \"lime\"  # replace by index\n```\n\nThe last valid index is `len(lst) - 1`. One past it crashes:\n\n```python\n# print(colors[len(colors)])  # IndexError: list index out of range\n```\n\nPython's core language has no fixed-size array. A list is a dynamic array that grows as needed. When you know the size up front, `[0] * n` makes a list of `n` zeros that you fill by index. (`array.array` stores typed numbers compactly, and tuples, a later lesson, cannot change at all.)\n\nThree ways to print a list:\n\n```python\nprint(colors)             # ['red', 'lime', 'blue']\nprint(*colors)            # red lime blue\nprint(*colors, sep=\", \")  # red, lime, blue\n```\n\n`print(lst)` shows the brackets, plus quotes around strings. The `*` spreads the items into separate arguments, so `print()` treats them like `print(a, b, c)`.",
+      "example": {
+        "title": "Planet list",
+        "prompt": "Read a list of planets by index, replace one, print it three ways, and fill a preallocated list.",
+        "code": "planets = [\"Mercury\", \"Venus\", \"Earth\", \"Mars\"]\nprint(\"First:\", planets[0])\nprint(\"Last:\", planets[-1])\nprint(\"Count:\", len(planets))\n\nplanets[2] = \"Home\"\nprint(planets)\nprint(*planets)\nprint(*planets, sep=\", \")\n\nslots = [0] * 3\nslots[0] = 10\nslots[-1] = 30\nprint(slots)\n",
+        "output": "First: Mercury\nLast: Mars\nCount: 4\n['Mercury', 'Venus', 'Home', 'Mars']\nMercury Venus Home Mars\nMercury, Venus, Home, Mars\n[10, 0, 30]",
+        "explanation": "`planets[0]` is the first item and `planets[-1]` the last. `len()` counts 4 items. Assigning to `planets[2]` replaces `\"Earth\"`. `print(planets)` shows the list with brackets and quotes, `*planets` passes each item separately, and `sep=\", \"` changes what goes between them. `[0] * 3` makes three zeros, and two of them get new values by index."
+      },
+      "practice": {
+        "title": "Score sheet",
+        "prompt": "Track a list of test scores, fix one, and print it three ways.\n\n1. Start with `scores = [72, 85, 90, 64, 88]`.\n2. Print `First:`, `Last:`, and `Count:` lines using `scores[0]`, `scores[-1]`, and `len()`.\n3. Change the third score to `93` by index.\n4. Print the list with `print(scores)`, then `print(*scores)`, then with `sep=\", \"`.\n5. Make `bonus = [0] * 4`, set index `1` to `5` and the last slot to `10`, then print `bonus`.\n\nExpected output:\n\n```text\nFirst: 72\nLast: 88\nCount: 5\n[72, 85, 93, 64, 88]\n72 85 93 64 88\n72, 85, 93, 64, 88\n[0, 5, 0, 10]\n```",
+        "starter": "scores = [72, 85, 90, 64, 88]\n\n# TODO: print \"First:\", \"Last:\", and \"Count:\" lines\n\n# TODO: change the third score to 93\n\n# TODO: print the list three ways\n\n# TODO: make bonus, a list of 4 zeros, set index 1 to 5 and the last slot to 10\n# then print it\n",
+        "solution": "scores = [72, 85, 90, 64, 88]\nprint(\"First:\", scores[0])\nprint(\"Last:\", scores[-1])\nprint(\"Count:\", len(scores))\n\nscores[2] = 93\nprint(scores)\nprint(*scores)\nprint(*scores, sep=\", \")\n\nbonus = [0] * 4\nbonus[1] = 5\nbonus[-1] = 10\nprint(bonus)\n",
+        "tests": [
+          {
+            "output": "First: 72\nLast: 88\nCount: 5\n[72, 85, 93, 64, 88]\n72 85 93 64 88\n72, 85, 93, 64, 88\n[0, 5, 0, 10]"
+          }
+        ],
+        "hints": [
+          "The third item is at index 2, because indexes start at 0.",
+          "`print(*scores, sep=\", \")` puts a comma and a space between items.",
+          "`bonus[-1] = 10` sets the last slot."
+        ]
+      }
+    },
+    {
+      "title": "Adding and removing",
+      "body": "Lists grow and shrink in place. These methods change the list itself:\n\n```python\nitems = [\"a\"]\nitems.append(\"b\")          # add to the end: ['a', 'b']\nitems.insert(0, \"z\")       # add at index 0: ['z', 'a', 'b']\nitems.extend([\"c\", \"d\"])   # add every item of another list\nlast = items.pop()         # remove and return the last item: 'd'\nfirst = items.pop(0)       # remove and return the item at index 0: 'z'\nitems.remove(\"b\")          # delete the first \"b\" (by value)\ndel items[0]               # delete by index (a statement, not a method)\n```\n\n`append([\"c\", \"d\"])` would add one item, a nested list. Use `extend()` to add each item.\n\nAn empty list is falsy, so `if not items:` checks for empty, and `while items:` keeps going until the list runs out. `items.clear()` empties a list in one call. Careful: `pop()` on an empty list raises `IndexError`, and `remove()` of a missing value raises `ValueError`.\n\nWhy does the end matter? A list is a dynamic array of references. Python reserves extra room, so `append()` and `pop()` are amortized O(1): fast no matter how long the list is. `insert(0, x)` and `pop(0)` must shift every other item, which is O(n): the work grows with the length. That is fine for small lists, but slow for big ones.",
+      "example": {
+        "title": "Playlist editor",
+        "prompt": "Add songs to a playlist in three ways, remove songs in three ways, then play the rest until the list is empty.",
+        "code": "playlist = [\"Intro\", \"Skyline\"]\nplaylist.append(\"Echoes\")\nprint(playlist)\nplaylist.insert(0, \"Opening\")\nprint(playlist)\nplaylist.extend([\"Drift\", \"Finale\"])\nprint(playlist)\n\nprint(\"Popped:\", playlist.pop())\nprint(\"Popped:\", playlist.pop(1))\nprint(playlist)\nplaylist.remove(\"Echoes\")\nprint(playlist)\ndel playlist[0]\nprint(playlist)\n\nwhile playlist:\n    print(\"Playing:\", playlist.pop())\nif not playlist:\n    print(\"Playlist is empty\")\n",
+        "output": "['Intro', 'Skyline', 'Echoes']\n['Opening', 'Intro', 'Skyline', 'Echoes']\n['Opening', 'Intro', 'Skyline', 'Echoes', 'Drift', 'Finale']\nPopped: Finale\nPopped: Intro\n['Opening', 'Skyline', 'Echoes', 'Drift']\n['Opening', 'Skyline', 'Drift']\n['Skyline', 'Drift']\nPlaying: Drift\nPlaying: Skyline\nPlaylist is empty",
+        "explanation": "`append()` adds at the end, `insert(0, ...)` at the front, and `extend()` adds each song of another list. `pop()` removes and returns `\"Finale\"`, and `pop(1)` removes and returns `\"Intro\"`. `remove()` deletes by value, and `del` deletes by index. The `while playlist:` loop runs while the list is truthy, popping from the end, so songs play last to first. Once it is empty, `not playlist` is `True`."
+      },
+      "practice": {
+        "title": "To-do list",
+        "prompt": "Grow and shrink a to-do list, printing it after each change.\n\n1. Start with `todo = [\"Laundry\"]`, append `\"Groceries\"` and then `\"Call mom\"`, and print the list.\n2. Insert `\"Pay rent\"` at index 0 and print the list.\n3. Extend it with `[\"Dishes\", \"Gym\"]` and print the list.\n4. Print `Removed:` and the result of `todo.pop(1)`, then print the list.\n5. Remove `\"Dishes\"` by name and print the list.\n6. Delete the last item with `del todo[-1]` and print the list.\n7. While `todo` has items, print `Done:` and `todo.pop(0)`.\n8. If `todo` is empty, print `All done`.\n\nExpected output:\n\n```text\n['Laundry', 'Groceries', 'Call mom']\n['Pay rent', 'Laundry', 'Groceries', 'Call mom']\n['Pay rent', 'Laundry', 'Groceries', 'Call mom', 'Dishes', 'Gym']\nRemoved: Laundry\n['Pay rent', 'Groceries', 'Call mom', 'Dishes', 'Gym']\n['Pay rent', 'Groceries', 'Call mom', 'Gym']\n['Pay rent', 'Groceries', 'Call mom']\nDone: Pay rent\nDone: Groceries\nDone: Call mom\nAll done\n```",
+        "starter": "todo = [\"Laundry\"]\n# TODO: append \"Groceries\" and then \"Call mom\", print the list\n\n# TODO: insert \"Pay rent\" at index 0, print the list\n\n# TODO: extend with [\"Dishes\", \"Gym\"], print the list\n\n# TODO: pop index 1 and print \"Removed:\" with it, then print the list\n\n# TODO: remove \"Dishes\", print the list\n\n# TODO: delete the last item with del, print the list\n\n# TODO: while todo has items, print \"Done:\" with todo.pop(0)\n\n# TODO: if todo is empty, print \"All done\"\n",
+        "solution": "todo = [\"Laundry\"]\ntodo.append(\"Groceries\")\ntodo.append(\"Call mom\")\nprint(todo)\ntodo.insert(0, \"Pay rent\")\nprint(todo)\ntodo.extend([\"Dishes\", \"Gym\"])\nprint(todo)\n\nprint(\"Removed:\", todo.pop(1))\nprint(todo)\ntodo.remove(\"Dishes\")\nprint(todo)\ndel todo[-1]\nprint(todo)\n\nwhile todo:\n    print(\"Done:\", todo.pop(0))\nif not todo:\n    print(\"All done\")\n",
+        "tests": [
+          {
+            "output": "['Laundry', 'Groceries', 'Call mom']\n['Pay rent', 'Laundry', 'Groceries', 'Call mom']\n['Pay rent', 'Laundry', 'Groceries', 'Call mom', 'Dishes', 'Gym']\nRemoved: Laundry\n['Pay rent', 'Groceries', 'Call mom', 'Dishes', 'Gym']\n['Pay rent', 'Groceries', 'Call mom', 'Gym']\n['Pay rent', 'Groceries', 'Call mom']\nDone: Pay rent\nDone: Groceries\nDone: Call mom\nAll done"
+          }
+        ],
+        "hints": [
+          "`pop(1)` returns the item it removes, so you can print it directly.",
+          "`remove()` takes a value, while `del todo[-1]` takes an index.",
+          "Inside `while todo:`, use `todo.pop(0)` so tasks finish front to back."
+        ]
+      }
+    },
+    {
+      "title": "Searching and sorting",
+      "body": "`in` and `not in` check whether a value is in a list and give a bool. `index(x)` returns the position of the first match, and `count(x)` counts matches.\n\n```python\nnums = [4, 7, 4, 1]\nprint(7 in nums, 9 not in nums)  # True True\nprint(nums.index(4), nums.count(4))  # 0 2\n```\n\n`index()` crashes when the value is missing, so check with `in` first:\n\n```python\n# nums.index(9)  # ValueError: 9 is not in list\nif 9 in nums:\n    print(nums.index(9))\n```\n\nThere are two ways to sort. `sorted(lst)` returns a **new** sorted list and leaves the original alone. `lst.sort()` sorts the list **in place**. Add `reverse=True` to either for descending order. `lst.reverse()` flips the current order in place without sorting. Strings sort alphabetically, with capitals before lowercase.\n\nGotcha: `sort()` and `reverse()` return `None`. Writing `nums = nums.sort()` sorts the list and then throws it away, leaving `nums` set to `None`. Call `nums.sort()` on its own line, or use `sorted()` when you want a new list.",
+      "example": {
+        "title": "Guest list",
+        "prompt": "Search a guest list, then compare sorted() with reverse(), sort(), and sort(reverse=True).",
+        "code": "guests = [\"Mia\", \"Leo\", \"Ava\", \"Leo\", \"Zoe\"]\nprint(\"Ava\" in guests)\nprint(\"Sam\" not in guests)\nif \"Ava\" in guests:\n    print(\"Ava is at index\", guests.index(\"Ava\"))\nprint(\"Leo count:\", guests.count(\"Leo\"))\n\nprint(sorted(guests))\nprint(guests)\n\nguests.reverse()\nprint(guests)\nguests.sort()\nprint(guests)\nguests.sort(reverse=True)\nprint(guests)\n",
+        "output": "True\nTrue\nAva is at index 2\nLeo count: 2\n['Ava', 'Leo', 'Leo', 'Mia', 'Zoe']\n['Mia', 'Leo', 'Ava', 'Leo', 'Zoe']\n['Zoe', 'Leo', 'Ava', 'Leo', 'Mia']\n['Ava', 'Leo', 'Leo', 'Mia', 'Zoe']\n['Zoe', 'Mia', 'Leo', 'Leo', 'Ava']",
+        "explanation": "`in` and `not in` give a bool, so `print()` shows `True` or `False`. The `if` guard makes `index()` safe. `count(\"Leo\")` finds both copies. `sorted(guests)` makes a new list, which is why printing `guests` right after shows the original order. `reverse()`, `sort()`, and `sort(reverse=True)` all change `guests` itself."
+      },
+      "practice": {
+        "title": "Shoe sizes",
+        "prompt": "Search and sort a list of shoe sizes.\n\n1. Start with `sizes = [9, 8, 11, 10, 8, 12, 8]`.\n2. Print whether `9` is in `sizes`, then whether `13` is not in `sizes`.\n3. If `10` is in `sizes`, print `10 is at index` and its index.\n4. Print `8 count:` and the number of 8s.\n5. Print `sorted(sizes)`, then print `sizes` to show it did not change.\n6. Reverse `sizes` in place and print it.\n7. Sort it ascending and print it, then sort it descending and print it.\n\nExpected output:\n\n```text\nTrue\nTrue\n10 is at index 3\n8 count: 3\n[8, 8, 8, 9, 10, 11, 12]\n[9, 8, 11, 10, 8, 12, 8]\n[8, 12, 8, 10, 11, 8, 9]\n[8, 8, 8, 9, 10, 11, 12]\n[12, 11, 10, 9, 8, 8, 8]\n```",
+        "starter": "sizes = [9, 8, 11, 10, 8, 12, 8]\n# TODO: print whether 9 is in sizes, then whether 13 is not in sizes\n\n# TODO: if 10 is in sizes, print \"10 is at index\" and its index\n\n# TODO: print \"8 count:\" and the number of 8s\n\n# TODO: print a sorted copy, then the original\n\n# TODO: reverse sizes in place and print it\n\n# TODO: sort ascending and print, then sort descending and print\n",
+        "solution": "sizes = [9, 8, 11, 10, 8, 12, 8]\nprint(9 in sizes)\nprint(13 not in sizes)\nif 10 in sizes:\n    print(\"10 is at index\", sizes.index(10))\nprint(\"8 count:\", sizes.count(8))\n\nprint(sorted(sizes))\nprint(sizes)\n\nsizes.reverse()\nprint(sizes)\nsizes.sort()\nprint(sizes)\nsizes.sort(reverse=True)\nprint(sizes)\n",
+        "tests": [
+          {
+            "output": "True\nTrue\n10 is at index 3\n8 count: 3\n[8, 8, 8, 9, 10, 11, 12]\n[9, 8, 11, 10, 8, 12, 8]\n[8, 12, 8, 10, 11, 8, 9]\n[8, 8, 8, 9, 10, 11, 12]\n[12, 11, 10, 9, 8, 8, 8]"
+          }
+        ],
+        "hints": [
+          "`print(9 in sizes)` prints `True` or `False`.",
+          "`sorted(sizes)` gives a new list, while `sizes.sort()` changes `sizes`.",
+          "Call `sizes.reverse()` and `sizes.sort()` on their own lines, then print `sizes`."
+        ]
+      }
+    },
+    {
+      "title": "References, copies, and is vs ==",
+      "body": "A variable does not hold a list. It holds a reference to one. `b = a` copies the reference, not the list, so both names point at the same object and a change through either one shows in both. This is called aliasing.\n\n```python\na = [1, 2]\nb = a        # same list, two names\nc = a.copy()  # a new list with the same items, list(a) works too\n```\n\n`==` compares contents. `is` compares identity: are these the same object? Above, `a == c` is `True` but `a is c` is `False`.\n\n`a + b` always builds a new list. `+=` is different: on a list it extends the existing object in place, so every alias sees the change.\n\n```python\na += [3]      # same object grows, b sees it\na = a + [4]   # new list, a now points at it, b does not change\n```\n\nCopies are shallow: the new list holds the same references to its items. With numbers and strings that does not matter, but a list of lists shares its inner lists.\n\nKeep `is` for `None` and same-object checks. Never use it to compare numbers or strings: the result depends on caching, and 3.12 warns about `x is 5`.",
+      "example": {
+        "title": "Aliases and copies",
+        "prompt": "Compare an alias and a copy of a list, then see how += and + treat an alias.",
+        "code": "a = [1, 2, 3]\nb = a\nc = a.copy()\nprint(\"a == c:\", a == c)\nprint(\"a is c:\", a is c)\nprint(\"a is b:\", a is b)\n\nb.append(4)\nprint(\"a:\", a)\nprint(\"c:\", c)\n\na += [9]\nprint(\"b:\", b)\na = a + [10]\nprint(\"a:\", a)\nprint(\"b:\", b)\nprint(\"a is b:\", a is b)\n",
+        "output": "a == c: True\na is c: False\na is b: True\na: [1, 2, 3, 4]\nc: [1, 2, 3]\nb: [1, 2, 3, 4, 9]\na: [1, 2, 3, 4, 9, 10]\nb: [1, 2, 3, 4, 9]\na is b: False",
+        "explanation": "`b` is another name for `a`, so `b.append(4)` changes `a` too. `c` is a separate copy: equal to `a` at first, never the same object, and untouched by the append. `a += [9]` grows the shared list, so `b` sees `9`. `a = a + [10]` builds a new list and points `a` at it, so `b` stays behind and `a is b` becomes `False`."
+      },
+      "practice": {
+        "title": "Shopping backup",
+        "prompt": "Show the difference between a copy and an alias of a shopping list.\n\n1. Start with `shopping = [\"milk\", \"eggs\"]`. Make `backup` a copy with `list()` and `current` an alias with `=`.\n2. Print `shopping == backup:`, `shopping is backup:`, and `shopping is current:` with each result.\n3. Append `\"bread\"` through `current`, then print `shopping:`, `backup:`, and `current:` lines.\n4. Add `[\"jam\"]` to `current` with `+=` and print `shopping:` again.\n5. Rebind `current = current + [\"tea\"]`, then print `shopping:`, `current:`, and `shopping is current:` with its result.\n\nExpected output:\n\n```text\nshopping == backup: True\nshopping is backup: False\nshopping is current: True\nshopping: ['milk', 'eggs', 'bread']\nbackup: ['milk', 'eggs']\ncurrent: ['milk', 'eggs', 'bread']\nshopping: ['milk', 'eggs', 'bread', 'jam']\nshopping: ['milk', 'eggs', 'bread', 'jam']\ncurrent: ['milk', 'eggs', 'bread', 'jam', 'tea']\nshopping is current: False\n```",
+        "starter": "shopping = [\"milk\", \"eggs\"]\nbackup = []  # TODO: make backup a copy of shopping with list()\ncurrent = []  # TODO: make current an alias of shopping\n\n# TODO: print the checks shopping == backup, shopping is backup, shopping is current\n\n# TODO: append \"bread\" through current, then print the three lists\n\n# TODO: add [\"jam\"] to current with +=, then print shopping\n\n# TODO: rebind current to current + [\"tea\"], then print shopping, current,\n# and shopping is current\n",
+        "solution": "shopping = [\"milk\", \"eggs\"]\nbackup = list(shopping)\ncurrent = shopping\nprint(\"shopping == backup:\", shopping == backup)\nprint(\"shopping is backup:\", shopping is backup)\nprint(\"shopping is current:\", shopping is current)\n\ncurrent.append(\"bread\")\nprint(\"shopping:\", shopping)\nprint(\"backup:\", backup)\nprint(\"current:\", current)\n\ncurrent += [\"jam\"]\nprint(\"shopping:\", shopping)\ncurrent = current + [\"tea\"]\nprint(\"shopping:\", shopping)\nprint(\"current:\", current)\nprint(\"shopping is current:\", shopping is current)\n",
+        "tests": [
+          {
+            "output": "shopping == backup: True\nshopping is backup: False\nshopping is current: True\nshopping: ['milk', 'eggs', 'bread']\nbackup: ['milk', 'eggs']\ncurrent: ['milk', 'eggs', 'bread']\nshopping: ['milk', 'eggs', 'bread', 'jam']\nshopping: ['milk', 'eggs', 'bread', 'jam']\ncurrent: ['milk', 'eggs', 'bread', 'jam', 'tea']\nshopping is current: False"
+          }
+        ],
+        "hints": [
+          "`backup = list(shopping)` makes a copy, and `current = shopping` makes an alias.",
+          "A copy is equal to the original but is not the same object. `backup` was made before `\"bread\"` was added, so it keeps two items.",
+          "`current += [\"jam\"]` changes `shopping` too, but `current = current + [\"tea\"]` points `current` at a new list."
+        ]
+      }
+    }
+  ],
+  "recap": "- `lst[0]` is the first item, `lst[-1]` the last, and `len(lst)` the count. `[0] * n` makes `n` zeros.\n- `print(lst)` shows brackets and quotes, and `print(*lst, sep=\", \")` prints just the items.\n- `append()`, `insert()`, and `extend()` add. `pop()`, `remove()`, and `del` remove.\n- An empty list is falsy, so `while items:` runs until it is empty.\n- `append()` and `pop()` are fast at the end, while `insert(0, x)` and `pop(0)` shift every item.\n- Check `x in lst` before `lst.index(x)`. `count(x)` counts matches.\n- `sorted()` returns a new list. `sort()` and `reverse()` change the list and return `None`.\n- `b = a` is an alias. `a.copy()` and `list(a)` make a shallow copy.\n- `==` compares contents and `is` checks for the same object.\n- `a += [x]` changes the shared list, while `a = a + [x]` builds a new one."
+}

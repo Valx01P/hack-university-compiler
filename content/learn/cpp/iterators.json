@@ -1,0 +1,118 @@
+{
+  "id": "iterators",
+  "title": "Iterators",
+  "section": "Iterators and Algorithms",
+  "summary": "Walk containers with iterators, find, insert, and erase by position, and binary search sorted vectors.",
+  "intro": "You already passed `v.begin()` and `v.end()` to `std::sort` in Built-in Functions. Those are iterators: small objects that point into a container. This lesson shows how to walk with them, jump to a position, insert and erase, and search sorted data fast.",
+  "steps": [
+    {
+      "title": "begin, end, and walking",
+      "body": "An iterator is a small object that points at one element of a container, much like a pointer. Every container hands out two:\n\n- `v.begin()` points at the first element.\n- `v.end()` points **one past** the last element. It marks the stop and holds no element, so never write `*v.end()`.\n\n`*it` reads (or writes) the element and `++it` moves to the next one. Loop until you reach `end()`:\n\n```cpp\nfor (std::vector<int>::iterator it = v.begin(); it != v.end(); ++it) {\n    *it *= 2;\n}\n```\n\nSpelling out `std::vector<int>::iterator` is long, so people write `auto it = v.begin()`. It also matters for correctness: a `const` container (or a `const&` parameter) hands out a `const_iterator` that can read but not write, and a spelled-out `iterator` will not compile there. `auto` picks the right type. `v.cbegin()` and `v.cend()` ask for a `const_iterator` on purpose.\n\nA `std::string` has the same `begin()` and `end()`, and `*it` is a `char`. Use `it != v.end()` as the condition: `!=` works for every container, while `<` only works for iterators that can jump. Compare `it != v.begin()` to put a space before every element but the first.",
+      "example": {
+        "title": "Doubles, colors, and characters",
+        "prompt": "Double a vector in place, print a list of colors from a const reference, and print the characters of a string with spaces between them, all with iterator loops.",
+        "code": "#include <iostream>\n#include <string>\n#include <vector>\n\nvoid printAll(const std::vector<std::string>& colors) {\n    // colors is const, so begin() gives a const_iterator: auto picks it\n    for (auto it = colors.begin(); it != colors.end(); ++it) {\n        std::cout << *it << '\\n';\n    }\n}\n\nint main() {\n    std::vector<int> nums = {3, 5, 8};\n    for (std::vector<int>::iterator it = nums.begin(); it != nums.end(); ++it) {\n        *it *= 2;  // writes through the iterator into the vector\n    }\n    for (auto it = nums.begin(); it != nums.end(); ++it) {\n        if (it != nums.begin()) {\n            std::cout << ' ';\n        }\n        std::cout << *it;\n    }\n    std::cout << '\\n';\n\n    const std::vector<std::string> colors = {\"red\", \"green\", \"blue\"};\n    printAll(colors);\n\n    const std::string lang = \"C++\";\n    for (auto it = lang.begin(); it != lang.end(); ++it) {\n        if (it != lang.begin()) {\n            std::cout << ' ';\n        }\n        std::cout << *it;\n    }\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "output": "6 10 16\nred\ngreen\nblue\nC + +",
+        "explanation": "The first loop names the type in full: `std::vector<int>::iterator`. `*it *= 2` changes the element the iterator points at, so the vector itself becomes 6, 10, 16. The print loop starts a space before every element except the one at `begin()`. Inside `printAll`, `colors` is a `const&`, so `colors.begin()` returns a `const_iterator` and `auto` takes that type for you. The last loop walks the `std::string` the same way, and each `*it` is one `char`. Every loop stops when `it` reaches `end()`, which is one past the last element and is never read."
+      },
+      "practice": {
+        "title": "Bump, total, and bracket",
+        "prompt": "Change, sum, and print a container using only iterator loops.\n\n1. Add 1 to every element of `nums` with an iterator loop.\n2. Finish `int total(const std::vector<int>& v)` so it sums `v` with an `auto` iterator loop. The starter already prints `total(nums)`.\n3. Print each character of `code` inside square brackets with an iterator loop, all on one line.\n\nExpected output:\n\n```text\n24\n[c][o][d][e]\n```",
+        "starter": "#include <iostream>\n#include <string>\n#include <vector>\n\nint total(const std::vector<int>& v) {\n    // TODO: sum v with an auto iterator loop\n    return 0;\n}\n\nint main() {\n    std::vector<int> nums = {4, 9, 1, 6};\n    // TODO: add 1 to every element with an iterator loop\n    std::cout << total(nums) << '\\n';\n\n    const std::string code = \"code\";\n    // TODO: print each character of code as [c] with an iterator loop\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n#include <vector>\n\nint total(const std::vector<int>& v) {\n    int sum = 0;\n    for (auto it = v.begin(); it != v.end(); ++it) {\n        sum += *it;\n    }\n    return sum;\n}\n\nint main() {\n    std::vector<int> nums = {4, 9, 1, 6};\n    for (std::vector<int>::iterator it = nums.begin(); it != nums.end(); ++it) {\n        *it += 1;\n    }\n    std::cout << total(nums) << '\\n';\n\n    const std::string code = \"code\";\n    for (auto it = code.begin(); it != code.end(); ++it) {\n        std::cout << '[' << *it << ']';\n    }\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "24\n[c][o][d][e]"
+          }
+        ],
+        "hints": [
+          "Copy the shape `for (auto it = v.begin(); it != v.end(); ++it)` and use `*it` inside the body.",
+          "`*it += 1` changes the element in `nums`. In `total`, add `*it` to a `sum` that starts at 0.",
+          "Print the brackets around each character with `std::cout << '[' << *it << ']'`."
+        ]
+      }
+    },
+    {
+      "title": "Positions, find, and reverse iterators",
+      "body": "Vector and string iterators can jump, not just step. `v.begin() + i` points at index `i`, and subtracting two iterators gives the distance between them, so `it - v.begin()` turns an iterator back into an index. `std::distance(v.begin(), it)` from `<iterator>` gives the same number and works on every container, even ones that cannot jump (there it counts one step at a time).\n\n`std::find(first, last, value)` from `<algorithm>` scans the range in order and returns an iterator to the first match. When nothing matches it returns `last`, which is usually `end()`. Always check before you read:\n\n```cpp\nauto it = std::find(v.begin(), v.end(), 42);\nif (it != v.end()) {\n    std::cout << (it - v.begin()) << '\\n';\n}\n```\n\n> Gotcha: when the value is missing, `*it` dereferences `end()`, which is undefined behavior. Test against `end()` first.\n\n`rbegin()` and `rend()` are reverse iterators. `rbegin()` points at the last element, `++` moves toward the front, and `rend()` sits one before the first. The loop looks exactly like a forward loop, so printing backwards needs no index math.",
+      "example": {
+        "title": "Fruit finder",
+        "prompt": "Read a fruit by position, find one fruit's index, report a missing fruit, and print the list backwards.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::vector<std::string> fruits = {\"apple\", \"banana\", \"kiwi\", \"mango\"};\n    std::cout << \"second: \" << *(fruits.begin() + 1) << '\\n';\n\n    auto it = std::find(fruits.begin(), fruits.end(), \"kiwi\");\n    if (it != fruits.end()) {\n        std::cout << \"kiwi at index \" << (it - fruits.begin()) << '\\n';\n    }\n\n    auto missing = std::find(fruits.begin(), fruits.end(), \"plum\");\n    if (missing == fruits.end()) {\n        std::cout << \"plum not found\\n\";\n    }\n\n    for (auto rit = fruits.rbegin(); rit != fruits.rend(); ++rit) {\n        if (rit != fruits.rbegin()) {\n            std::cout << ' ';\n        }\n        std::cout << *rit;\n    }\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "output": "second: banana\nkiwi at index 2\nplum not found\nmango kiwi banana apple",
+        "explanation": "`fruits.begin() + 1` jumps straight to index 1, and `*` reads `banana`. `std::find` returns an iterator to `kiwi`, and subtracting `begin()` turns it into the index 2. For `plum` there is no match, so `std::find` returns `end()` and the program reports it instead of reading through it. The reverse loop starts at `rbegin()` (the last fruit) and each `++rit` moves one step toward the front until it reaches `rend()`."
+      },
+      "practice": {
+        "title": "Zero finder",
+        "prompt": "Jump to a position, find values, and walk a string backwards with iterators.\n\n1. Print `index 3 holds ` followed by the element at `values.begin() + 3`.\n2. Find the first `0` in `values` with `std::find` and print `first 0 at index ` followed by its index from `std::distance`.\n3. Search for `7` and print `7 not found` when `std::find` returns `end()`.\n4. Print `word` backwards with an `rbegin()` and `rend()` loop.\n\nExpected output:\n\n```text\nindex 3 holds 8\nfirst 0 at index 2\n7 not found\ndesserts\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <iterator>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::vector<int> values = {5, 3, 0, 8, 0, 2};\n    const std::string word = \"stressed\";\n    // TODO: print the element at values.begin() + 3\n    // TODO: find the first 0 and print its index with std::distance\n    // TODO: search for 7 and report that it is missing\n    // TODO: print word backwards with rbegin() and rend()\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <iterator>\n#include <string>\n#include <vector>\n\nint main() {\n    const std::vector<int> values = {5, 3, 0, 8, 0, 2};\n    const std::string word = \"stressed\";\n    std::cout << \"index 3 holds \" << *(values.begin() + 3) << '\\n';\n\n    auto zero = std::find(values.begin(), values.end(), 0);\n    if (zero != values.end()) {\n        std::cout << \"first 0 at index \" << std::distance(values.begin(), zero) << '\\n';\n    }\n\n    auto seven = std::find(values.begin(), values.end(), 7);\n    if (seven == values.end()) {\n        std::cout << \"7 not found\\n\";\n    }\n\n    for (auto rit = word.rbegin(); rit != word.rend(); ++rit) {\n        std::cout << *rit;\n    }\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "index 3 holds 8\nfirst 0 at index 2\n7 not found\ndesserts"
+          }
+        ],
+        "hints": [
+          "`*(values.begin() + 3)` reads index 3. Keep the parentheses so the `+` happens before the `*`.",
+          "Store the result of `std::find` in an `auto` variable and compare it with `values.end()` before you use it.",
+          "The reverse loop is `for (auto rit = word.rbegin(); rit != word.rend(); ++rit)`."
+        ]
+      }
+    },
+    {
+      "title": "Inserting and erasing",
+      "body": "Vectors insert and erase by iterator, not by index:\n\n```cpp\nv.insert(v.begin() + i, x);                // x lands at index i\nv.erase(v.begin() + i);                    // remove index i\nv.erase(v.begin() + a, v.begin() + b);     // remove indexes a to b - 1\n```\n\nA range is always half open: `first` is removed, `last` is not. So `v.erase(v.end() - 1)` removes the last element and `v.erase(v.end() - 2, v.end())` removes the last two.\n\n**Memory:** a vector keeps its elements side by side, so every insert or erase shifts all the later elements to open or close the gap. That costs O(n). An insert can also outgrow the capacity and move everything to a new buffer. Either way, iterators at or after the change (or all of them, after a reallocation) are **invalidated** and must not be used again.\n\nTo erase while walking, use the iterator `erase` returns. It points at the element after the removed one, so you skip `++it` on that pass:\n\n```cpp\nfor (auto it = v.begin(); it != v.end();) {\n    if (*it < 0) {\n        it = v.erase(it);\n    } else {\n        ++it;\n    }\n}\n```\n\n> Gotcha: `v.erase(it)` followed by `++it` uses a dead iterator. This loop is O(n) per erase on a vector. The next lesson shows the faster erase-remove idiom, and this loop is how you erase while walking a map or a set.",
+      "example": {
+        "title": "Roster edits",
+        "prompt": "Insert and erase names by position, erase a range, and remove every negative number with the erase loop, printing after each change.",
+        "code": "#include <iostream>\n#include <string>\n#include <vector>\n\nvoid print(const std::vector<int>& v) {\n    for (auto it = v.begin(); it != v.end(); ++it) {\n        if (it != v.begin()) {\n            std::cout << ' ';\n        }\n        std::cout << *it;\n    }\n    std::cout << '\\n';\n}\n\nvoid print(const std::vector<std::string>& v) {\n    for (auto it = v.begin(); it != v.end(); ++it) {\n        if (it != v.begin()) {\n            std::cout << ' ';\n        }\n        std::cout << *it;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    std::vector<std::string> names = {\"Ann\", \"Cid\", \"Dee\", \"Eve\", \"Fay\"};\n    names.insert(names.begin() + 1, \"Bob\");\n    print(names);\n    names.erase(names.begin() + 3);\n    print(names);\n    names.erase(names.begin(), names.begin() + 2);\n    print(names);\n\n    std::vector<int> nums = {4, -2, 7, -5, -1, 3};\n    for (auto it = nums.begin(); it != nums.end();) {\n        if (*it < 0) {\n            it = nums.erase(it);  // it now points at the next element\n        } else {\n            ++it;\n        }\n    }\n    print(nums);\n    return 0;\n}\n",
+        "output": "Ann Bob Cid Dee Eve Fay\nAnn Bob Cid Eve Fay\nCid Eve Fay\n4 7 3",
+        "explanation": "`insert(names.begin() + 1, \"Bob\")` shifts Cid, Dee, Eve, and Fay one slot right and puts Bob at index 1. `erase(names.begin() + 3)` removes Dee and shifts the rest left. The range `begin()` to `begin() + 2` covers indexes 0 and 1, so Ann and Bob go. In the loop, each erase returns an iterator to the element that slid into the gap, so the back-to-back -5 and -1 are both checked. Only a kept element moves `it` forward with `++it`. The two `print` overloads walk with `auto` iterators because their parameters are `const&`."
+      },
+      "practice": {
+        "title": "Number edits",
+        "prompt": "Insert into and erase from a vector by position, then filter it with the erase loop.\n\n1. Insert `99` at the front of `nums`, then print it.\n2. Insert another `99` at index 2, then print.\n3. Erase the last element with `nums.end() - 1`, then print.\n4. Erase the last two elements as one range, then print.\n5. Remove every even number with the `it = nums.erase(it)` loop, then print.\n\nExpected output:\n\n```text\n99 10 21 32 43 54 65\n99 10 99 21 32 43 54 65\n99 10 99 21 32 43 54\n99 10 99 21 32\n99 99 21\n```",
+        "starter": "#include <iostream>\n#include <vector>\n\nvoid print(const std::vector<int>& v) {\n    for (auto it = v.begin(); it != v.end(); ++it) {\n        if (it != v.begin()) {\n            std::cout << ' ';\n        }\n        std::cout << *it;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    std::vector<int> nums = {10, 21, 32, 43, 54, 65};\n    // TODO: insert, erase, and filter nums, calling print(nums) after each change\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <vector>\n\nvoid print(const std::vector<int>& v) {\n    for (auto it = v.begin(); it != v.end(); ++it) {\n        if (it != v.begin()) {\n            std::cout << ' ';\n        }\n        std::cout << *it;\n    }\n    std::cout << '\\n';\n}\n\nint main() {\n    std::vector<int> nums = {10, 21, 32, 43, 54, 65};\n    nums.insert(nums.begin(), 99);\n    print(nums);\n    nums.insert(nums.begin() + 2, 99);\n    print(nums);\n    nums.erase(nums.end() - 1);\n    print(nums);\n    nums.erase(nums.end() - 2, nums.end());\n    print(nums);\n\n    for (auto it = nums.begin(); it != nums.end();) {\n        if (*it % 2 == 0) {\n            it = nums.erase(it);\n        } else {\n            ++it;\n        }\n    }\n    print(nums);\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "99 10 21 32 43 54 65\n99 10 99 21 32 43 54 65\n99 10 99 21 32 43 54\n99 10 99 21 32\n99 99 21"
+          }
+        ],
+        "hints": [
+          "`nums.insert(nums.begin(), 99)` puts 99 at index 0. Use `nums.begin() + 2` for index 2.",
+          "The range for the last two elements is `nums.end() - 2` to `nums.end()`.",
+          "In the loop, write `it = nums.erase(it)` when `*it % 2 == 0`, and `++it` only in the else branch."
+        ]
+      }
+    },
+    {
+      "title": "Binary search on sorted vectors",
+      "body": "`std::find` checks every element: O(n). On **sorted** data, the binary searches in `<algorithm>` halve the range at each step and need only O(log n) comparisons, about 20 for a million elements.\n\n- `std::binary_search(first, last, x)` returns a `bool`: is `x` there?\n- `std::lower_bound(first, last, x)` returns an iterator to the first element `>= x`. That is where `x` is, or where it would be inserted to keep the order.\n- `std::upper_bound(first, last, x)` returns an iterator to the first element `> x`.\n\nSubtract `begin()` to get an index. `lower_bound` returns `end()` when every element is smaller than `x`, and `upper_bound` does when no element is larger, so check before reading `*it`. Everything from `lower_bound` up to (not including) `upper_bound` equals `x`, so their difference counts the copies:\n\n```cpp\nauto count = std::upper_bound(v.begin(), v.end(), 3)\n           - std::lower_bound(v.begin(), v.end(), 3);\n```\n\nTo find `x` and its position at once, use `lower_bound` and test `it != v.end() && *it == x`.\n\n> Gotcha: the data must be sorted first, usually with `std::sort`. On unsorted data these functions do not fail loudly. They just return wrong answers.",
+      "example": {
+        "title": "Searching sorted numbers",
+        "prompt": "Check whether two values exist, print lower and upper bound indexes, and count a repeated value in a sorted vector.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <vector>\n\nint main() {\n    const std::vector<int> nums = {1, 3, 3, 3, 7, 9};  // already sorted\n    std::cout << std::boolalpha;\n    std::cout << \"has 7: \" << std::binary_search(nums.begin(), nums.end(), 7) << '\\n';\n    std::cout << \"has 4: \" << std::binary_search(nums.begin(), nums.end(), 4) << '\\n';\n\n    auto low3 = std::lower_bound(nums.begin(), nums.end(), 3);\n    auto low4 = std::lower_bound(nums.begin(), nums.end(), 4);\n    auto high3 = std::upper_bound(nums.begin(), nums.end(), 3);\n    std::cout << \"lower_bound(3): \" << (low3 - nums.begin()) << '\\n';\n    std::cout << \"lower_bound(4): \" << (low4 - nums.begin()) << '\\n';\n    std::cout << \"upper_bound(3): \" << (high3 - nums.begin()) << '\\n';\n    std::cout << \"count of 3: \" << (high3 - low3) << '\\n';\n    return 0;\n}\n",
+        "output": "has 7: true\nhas 4: false\nlower_bound(3): 1\nlower_bound(4): 4\nupper_bound(3): 4\ncount of 3: 3",
+        "explanation": "`std::binary_search` only answers yes or no, and `std::boolalpha` prints that as `true` or `false`. The first element `>= 3` is the 3 at index 1. No element equals 4, so `lower_bound(4)` lands on 7 at index 4: the spot where 4 would go. The first element `> 3` is also that 7, so `upper_bound(3)` is index 4. The three 3s sit between the two bounds, and `high3 - low3` counts them."
+      },
+      "practice": {
+        "title": "Score lookup",
+        "prompt": "Sort a list of scores, then answer questions about it with binary searches.\n\n1. Sort `scores` with `std::sort`.\n2. Print `has 90: ` and `has 85: ` with `std::binary_search`, using `std::boolalpha`.\n3. Print `insert 75 at: ` followed by the index `std::lower_bound` gives for 75.\n4. Print `count of 80: ` followed by `upper_bound` minus `lower_bound` for 80.\n\nExpected output:\n\n```text\nhas 90: true\nhas 85: false\ninsert 75 at: 2\ncount of 80: 3\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <vector>\n\nint main() {\n    std::vector<int> scores = {80, 65, 90, 80, 72, 80};\n    // TODO: sort scores first, binary searches need sorted data\n    // TODO: print has 90 and has 85 with std::binary_search\n    // TODO: print where 75 would be inserted and how many 80s there are\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <vector>\n\nint main() {\n    std::vector<int> scores = {80, 65, 90, 80, 72, 80};\n    std::sort(scores.begin(), scores.end());\n\n    std::cout << std::boolalpha;\n    std::cout << \"has 90: \" << std::binary_search(scores.begin(), scores.end(), 90) << '\\n';\n    std::cout << \"has 85: \" << std::binary_search(scores.begin(), scores.end(), 85) << '\\n';\n\n    auto spot = std::lower_bound(scores.begin(), scores.end(), 75);\n    std::cout << \"insert 75 at: \" << (spot - scores.begin()) << '\\n';\n\n    auto low = std::lower_bound(scores.begin(), scores.end(), 80);\n    auto high = std::upper_bound(scores.begin(), scores.end(), 80);\n    std::cout << \"count of 80: \" << (high - low) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "has 90: true\nhas 85: false\ninsert 75 at: 2\ncount of 80: 3"
+          }
+        ],
+        "hints": [
+          "Call `std::sort(scores.begin(), scores.end())` before any search. The sorted list is 65 72 80 80 80 90.",
+          "Subtract `scores.begin()` from the iterator `std::lower_bound` returns to get an index.",
+          "The count is `std::upper_bound(...) - std::lower_bound(...)` with 80 as the value."
+        ]
+      }
+    }
+  ],
+  "recap": "- `begin()` points at the first element and `end()` one past the last. Never dereference `end()`.\n- Walk with `for (auto it = v.begin(); it != v.end(); ++it)` and read or write through `*it`.\n- A `const` container gives a `const_iterator`, so let `auto` pick the type. `cbegin()` and `cend()` ask for one directly.\n- `v.begin() + i` jumps to index `i`, and `it - v.begin()` or `std::distance` turns an iterator back into an index.\n- `std::find` returns `end()` when the value is missing, so check before reading.\n- `rbegin()` and `rend()` walk backwards with the same loop shape.\n- `insert` and `erase` take iterators, shift later elements in O(n), and invalidate iterators at or after the change (all of them if the vector reallocates). Continue with `it = v.erase(it)`.\n- On sorted data, `std::binary_search`, `std::lower_bound`, and `std::upper_bound` search in O(log n), and upper minus lower counts a value."
+}

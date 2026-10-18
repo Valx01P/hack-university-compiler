@@ -1,0 +1,158 @@
+{
+  "id": "dfs",
+  "title": "Depth-First Search and Backtracking",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Explore grids and choices depth-first with recursion: flood fill, counting islands, subsets, and permutations.",
+  "intro": "Depth-first search follows one path as far as it goes, then backs up and tries the next. With recursion it takes only a few lines, and it solves two big families of problems: exploring connected cells on a grid, and backtracking through every combination of choices.",
+  "steps": [
+    {
+      "title": "Flood fill on a grid",
+      "body": "Depth-first search (DFS) goes as deep as it can in one direction before it backs up. On a grid that means: handle this cell, then have the method call itself on the four neighbors. Turn each row into a `char[]` with `toCharArray()` so cells can change, and print a row back with `new String(row)`.\n\n```java\nstatic int fill(char[][] grid, int r, int c) {\n    if (r < 0 || r >= grid.length || c < 0 || c >= grid[r].length) {\n        return 0;                 // off the grid\n    }\n    if (grid[r][c] != '.') {\n        return 0;                 // wall, or already filled\n    }\n    grid[r][c] = '*';             // mark before recursing\n    return 1 + fill(grid, r + 1, c) + fill(grid, r - 1, c)\n            + fill(grid, r, c + 1) + fill(grid, r, c - 1);\n}\n```\n\nCheck bounds first: `||` short-circuits, so `grid[r][c]` is never read off the edge. Mark the cell *before* the recursive calls, or two neighbors call each other until the stack overflows. Each call returns how many cells it filled, so the first call returns the region's size.\n\nMarking changes the grid. When the grid must stay intact, keep a `boolean[][] visited` of the same size and test `visited[r][c]` instead.",
+      "example": {
+        "title": "Fill a room",
+        "prompt": "Read a grid of open cells `.` and walls `#`, then a start cell. Mark every open cell connected to the start with `*`, and print the region's size and the grid.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int rows = sc.nextInt();\n        char[][] grid = new char[rows][];\n        for (int r = 0; r < rows; r++) {\n            grid[r] = sc.next().toCharArray();\n        }\n        int startRow = sc.nextInt();\n        int startCol = sc.nextInt();\n\n        int size = fill(grid, startRow, startCol);\n        System.out.println(\"Size: \" + size);\n        for (char[] row : grid) {\n            System.out.println(new String(row));\n        }\n    }\n\n    static int fill(char[][] grid, int r, int c) {\n        if (r < 0 || r >= grid.length || c < 0 || c >= grid[r].length) {\n            return 0;\n        }\n        if (grid[r][c] != '.') {\n            return 0;\n        }\n        grid[r][c] = '*';\n        return 1 + fill(grid, r + 1, c) + fill(grid, r - 1, c)\n                + fill(grid, r, c + 1) + fill(grid, r, c - 1);\n    }\n}\n",
+        "stdin": "4\n...#....\n.#.#.##.\n.#..#...\n##.##.#.\n0 0\n",
+        "output": "Size: 9\n***#....\n*#*#.##.\n*#**#...\n##*##.#.",
+        "explanation": "Each row token becomes a `char[]`, so `grid` is a `char[][]` the method can edit. `fill` rejects cells off the grid first, then cells that are not `.` (walls and cells it already marked). It marks the cell `*` and adds 1 to whatever its four neighbors fill. The walls at (0, 3), (1, 3), (2, 4), and (3, 3) cut the region off from the open cells on the right, so those stay `.`. `new String(row)` turns each `char[]` back into text for printing."
+      },
+      "practice": {
+        "title": "Paint bucket",
+        "prompt": "Build a paint bucket tool that recolors the region around a start cell.\n\n1. Read the grid, the start row and column, and the paint character (the starter does this).\n2. Save the start cell's character as `target`. A region is every cell with that character connected up, down, left, or right.\n3. If `paint` equals `target`, change nothing: marking with the same character would never stop the recursion.\n4. Otherwise fill the region with `paint`, counting the cells you change.\n5. Print each row with `new String(row)`, then `Changed: ` and the count.\n\nInput:\n\n```text\n4\naab..\nabbb.\na..b.\naaab.\n3 0 x\n```\n\nExpected output:\n\n```text\nxxb..\nxbbb.\nx..b.\nxxxb.\nChanged: 7\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int rows = sc.nextInt();\n        char[][] grid = new char[rows][];\n        for (int r = 0; r < rows; r++) {\n            grid[r] = sc.next().toCharArray();\n        }\n        int startRow = sc.nextInt();\n        int startCol = sc.nextInt();\n        char paint = sc.next().charAt(0);\n\n        // TODO: remember the start cell's character, fill its region with paint\n        // (skip the fill when they are equal), print the grid, then Changed: count\n    }\n\n    static int fill(char[][] grid, int r, int c, char target, char paint) {\n        // TODO: bounds check, stop on cells that are not target, paint, recurse 4 ways\n        return 0;\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int rows = sc.nextInt();\n        char[][] grid = new char[rows][];\n        for (int r = 0; r < rows; r++) {\n            grid[r] = sc.next().toCharArray();\n        }\n        int startRow = sc.nextInt();\n        int startCol = sc.nextInt();\n        char paint = sc.next().charAt(0);\n\n        char target = grid[startRow][startCol];\n        int changed = 0;\n        if (target != paint) {\n            changed = fill(grid, startRow, startCol, target, paint);\n        }\n        for (char[] row : grid) {\n            System.out.println(new String(row));\n        }\n        System.out.println(\"Changed: \" + changed);\n    }\n\n    static int fill(char[][] grid, int r, int c, char target, char paint) {\n        if (r < 0 || r >= grid.length || c < 0 || c >= grid[r].length) {\n            return 0;\n        }\n        if (grid[r][c] != target) {\n            return 0;\n        }\n        grid[r][c] = paint;\n        return 1 + fill(grid, r + 1, c, target, paint) + fill(grid, r - 1, c, target, paint)\n                + fill(grid, r, c + 1, target, paint) + fill(grid, r, c - 1, target, paint);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "4\naab..\nabbb.\na..b.\naaab.\n3 0 x\n",
+            "output": "xxb..\nxbbb.\nx..b.\nxxxb.\nChanged: 7"
+          },
+          {
+            "stdin": "3\n.ab\n..b\nbbb\n0 2 b\n",
+            "output": ".ab\n..b\nbbb\nChanged: 0"
+          },
+          {
+            "stdin": "3\n.ab\n..b\nbbb\n1 1 o\n",
+            "output": "oab\noob\nbbb\nChanged: 3"
+          }
+        ],
+        "hints": [
+          "Pass `target` and `paint` into `fill` so it knows what to replace and with what.",
+          "Replace the `!= '.'` test from the example with `!= target`, and mark with `paint`.",
+          "Test `target != paint` before the first call. Otherwise every painted cell still matches `target` and the recursion never stops."
+        ]
+      }
+    },
+    {
+      "title": "Counting islands",
+      "body": "To count separate regions, scan every cell. When you find land that no earlier DFS reached, launch a new DFS from it. Each launch swallows one whole island, so the number of launches is the number of islands.\n\n```java\nboolean[][] visited = new boolean[grid.length][grid[0].length];\nList<Integer> sizes = new ArrayList<>();\nfor (int r = 0; r < grid.length; r++) {\n    for (int c = 0; c < grid[r].length; c++) {\n        if (grid[r][c] == '#' && !visited[r][c]) {\n            sizes.add(dfs(grid, visited, r, c));  // one launch, one island\n        }\n    }\n}\n```\n\nThis time `dfs` marks a `boolean[][] visited` (all `false` to start), so the map itself stays unchanged. It returns the size of its island the same way the flood fill did: 1 for this cell plus what the four neighbors add. To track the largest region, update `largest = Math.max(largest, size)` after each launch.\n\nOnly up, down, left, and right connect. Two land cells that touch only at a corner are separate islands. Every cell is scanned once and every land cell is marked once, so the work grows with the size of the grid. The recursion goes as deep as the island is big, so keep islands under about 2,000 cells, the depth limit from the Recursion lesson.",
+      "example": {
+        "title": "Island sizes",
+        "prompt": "Read a map of land `#` and water `.`, then print how many islands it has and each island's size in the order the scan finds them.",
+        "code": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int rows = sc.nextInt();\n        char[][] grid = new char[rows][];\n        for (int r = 0; r < rows; r++) {\n            grid[r] = sc.next().toCharArray();\n        }\n\n        boolean[][] visited = new boolean[rows][grid[0].length];\n        List<Integer> sizes = new ArrayList<>();\n        for (int r = 0; r < rows; r++) {\n            for (int c = 0; c < grid[r].length; c++) {\n                if (grid[r][c] == '#' && !visited[r][c]) {\n                    sizes.add(dfs(grid, visited, r, c));\n                }\n            }\n        }\n        System.out.println(\"Islands: \" + sizes.size());\n        System.out.println(\"Sizes: \" + sizes);\n    }\n\n    static int dfs(char[][] grid, boolean[][] visited, int r, int c) {\n        if (r < 0 || r >= grid.length || c < 0 || c >= grid[r].length) {\n            return 0;\n        }\n        if (grid[r][c] != '#' || visited[r][c]) {\n            return 0;\n        }\n        visited[r][c] = true;\n        return 1 + dfs(grid, visited, r + 1, c) + dfs(grid, visited, r - 1, c)\n                + dfs(grid, visited, r, c + 1) + dfs(grid, visited, r, c - 1);\n    }\n}\n",
+        "stdin": "4\n##..#\n#...#\n..#..\n#..##\n",
+        "output": "Islands: 5\nSizes: [3, 2, 1, 1, 2]",
+        "explanation": "The nested loops scan row by row, left to right. The first unvisited `#` at (0, 0) launches a DFS that marks its 3 connected cells, so the scan skips them later. The next launches start at (0, 4), (2, 2), (3, 0), and (3, 3). Each launch adds one size to the list, so `sizes.size()` is the island count. The cells at (2, 2) and (3, 3) touch only at a corner, so they belong to different islands."
+      },
+      "practice": {
+        "title": "Largest island",
+        "prompt": "Count the islands on a map and find the biggest one.\n\n1. The starter reads the map and creates `visited`.\n2. Write `dfs` so it returns the size of the island it explores, using `visited` instead of changing the map.\n3. Scan every cell and launch `dfs` on each unvisited `#`, counting the launches.\n4. Track the largest size with `Math.max`. With no land at all it stays 0.\n5. Print `Islands: ` and the count, then `Largest: ` and the largest size.\n\nInput:\n\n```text\n5\n#..##\n##..#\n...#.\n.###.\n#....\n```\n\nExpected output:\n\n```text\nIslands: 4\nLargest: 4\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int rows = sc.nextInt();\n        char[][] grid = new char[rows][];\n        for (int r = 0; r < rows; r++) {\n            grid[r] = sc.next().toCharArray();\n        }\n\n        boolean[][] visited = new boolean[rows][grid[0].length];\n        // TODO: scan every cell, launch dfs on unvisited land, count the launches,\n        // and keep the largest size, then print Islands: and Largest:\n    }\n\n    static int dfs(char[][] grid, boolean[][] visited, int r, int c) {\n        // TODO: bounds check, skip water and visited cells, mark, add up 4 neighbors\n        return 0;\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int rows = sc.nextInt();\n        char[][] grid = new char[rows][];\n        for (int r = 0; r < rows; r++) {\n            grid[r] = sc.next().toCharArray();\n        }\n\n        boolean[][] visited = new boolean[rows][grid[0].length];\n        int islands = 0;\n        int largest = 0;\n        for (int r = 0; r < rows; r++) {\n            for (int c = 0; c < grid[r].length; c++) {\n                if (grid[r][c] == '#' && !visited[r][c]) {\n                    islands++;\n                    largest = Math.max(largest, dfs(grid, visited, r, c));\n                }\n            }\n        }\n        System.out.println(\"Islands: \" + islands);\n        System.out.println(\"Largest: \" + largest);\n    }\n\n    static int dfs(char[][] grid, boolean[][] visited, int r, int c) {\n        if (r < 0 || r >= grid.length || c < 0 || c >= grid[r].length) {\n            return 0;\n        }\n        if (grid[r][c] != '#' || visited[r][c]) {\n            return 0;\n        }\n        visited[r][c] = true;\n        return 1 + dfs(grid, visited, r + 1, c) + dfs(grid, visited, r - 1, c)\n                + dfs(grid, visited, r, c + 1) + dfs(grid, visited, r, c - 1);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "5\n#..##\n##..#\n...#.\n.###.\n#....\n",
+            "output": "Islands: 4\nLargest: 4"
+          },
+          {
+            "stdin": "3\n#.#\n.#.\n#.#\n",
+            "output": "Islands: 5\nLargest: 1"
+          },
+          {
+            "stdin": "2\n....\n....\n",
+            "output": "Islands: 0\nLargest: 0"
+          }
+        ],
+        "hints": [
+          "The `dfs` from the example works as is.",
+          "Increment the island count right where you launch `dfs`, since one launch covers one island.",
+          "Diagonal neighbors do not connect, so a checkerboard of `#` is all single-cell islands."
+        ]
+      }
+    },
+    {
+      "title": "Backtracking subsets",
+      "body": "Backtracking is DFS over choices instead of cells. For subsets, every number has two branches: take it or leave it. Keep the current choices in one `List<Integer> path` and follow **choose, explore, unchoose**:\n\n```java\nstatic void subsets(int[] nums, int i, List<Integer> path, List<List<Integer>> results) {\n    if (i == nums.length) {\n        results.add(new ArrayList<>(path));   // save a copy\n        return;\n    }\n    path.add(nums[i]);                        // choose\n    subsets(nums, i + 1, path, results);      // explore with it\n    path.remove(path.size() - 1);             // unchoose\n    subsets(nums, i + 1, path, results);      // explore without it\n}\n```\n\nTaking a number before skipping it gives include-first order: the full set comes out first and the empty set `[]` last.\n\nTwo gotchas. `results.add(path)` stores a reference to the one shared list, which is empty again when the search ends, so every result would print `[]`. Copy it with `new ArrayList<>(path)`. And `path.remove(path.size() - 1)` removes by index because its argument is an `int`. Undoing the choice is what lets one list serve every branch. With n numbers there are 2 to the n subsets (8 for 3 numbers), so keep n small.",
+      "example": {
+        "title": "All subsets",
+        "prompt": "Read a count and that many numbers, then print every subset in include-first order and how many there are.",
+        "code": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n\n        List<Integer> path = new ArrayList<>();\n        List<List<Integer>> results = new ArrayList<>();\n        subsets(nums, 0, path, results);\n        for (List<Integer> subset : results) {\n            System.out.println(subset);\n        }\n        System.out.println(\"Subsets: \" + results.size());\n    }\n\n    static void subsets(int[] nums, int i, List<Integer> path, List<List<Integer>> results) {\n        if (i == nums.length) {\n            results.add(new ArrayList<>(path));\n            return;\n        }\n        path.add(nums[i]);\n        subsets(nums, i + 1, path, results);\n        path.remove(path.size() - 1);\n        subsets(nums, i + 1, path, results);\n    }\n}\n",
+        "stdin": "3\n1 2 3\n",
+        "output": "[1, 2, 3]\n[1, 2]\n[1, 3]\n[1]\n[2, 3]\n[2]\n[3]\n[]\nSubsets: 8",
+        "explanation": "At index 0 the search first adds 1 and goes deeper, then adds 2, then 3. At index 3 it has made a choice for every number, so it saves a copy of `[1, 2, 3]`. Returning, it removes 3 and explores without it to save `[1, 2]`, and so on back up the tree. Each subset prints by value because `List<Integer>` has a `toString`. Three numbers give 8 subsets, ending with `[]`."
+      },
+      "practice": {
+        "title": "Subsets that hit a target",
+        "prompt": "Find every subset of the numbers whose sum equals the target.\n\n1. The starter reads `n`, the `n` numbers, and the target.\n2. Write `search` with an extra `sum` parameter: pass `sum + nums[i]` when you choose a number and `sum` when you skip it.\n3. When `i` reaches the end, save a copy of `path` only if `sum` equals `target`.\n4. Explore including each number before skipping it, so matches come out in include-first order.\n5. Print each matching subset on its own line, then `Matches: ` and the count. The empty subset `[]` sums to 0.\n\nInput:\n\n```text\n4\n3 1 2 4\n6\n```\n\nExpected output:\n\n```text\n[3, 1, 2]\n[2, 4]\nMatches: 2\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n        int target = sc.nextInt();\n\n        List<Integer> path = new ArrayList<>();\n        List<List<Integer>> results = new ArrayList<>();\n        // TODO: call search, print each matching subset, then Matches: count\n    }\n\n    static void search(int[] nums, int i, int sum, int target, List<Integer> path, List<List<Integer>> results) {\n        // TODO: at the end, save a copy of path if sum equals target\n        // otherwise choose nums[i], explore, unchoose, then explore without it\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n        int target = sc.nextInt();\n\n        List<Integer> path = new ArrayList<>();\n        List<List<Integer>> results = new ArrayList<>();\n        search(nums, 0, 0, target, path, results);\n        for (List<Integer> subset : results) {\n            System.out.println(subset);\n        }\n        System.out.println(\"Matches: \" + results.size());\n    }\n\n    static void search(int[] nums, int i, int sum, int target, List<Integer> path, List<List<Integer>> results) {\n        if (i == nums.length) {\n            if (sum == target) {\n                results.add(new ArrayList<>(path));\n            }\n            return;\n        }\n        path.add(nums[i]);\n        search(nums, i + 1, sum + nums[i], target, path, results);\n        path.remove(path.size() - 1);\n        search(nums, i + 1, sum, target, path, results);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "4\n3 1 2 4\n6\n",
+            "output": "[3, 1, 2]\n[2, 4]\nMatches: 2"
+          },
+          {
+            "stdin": "3\n5 2 7\n0\n",
+            "output": "[]\nMatches: 1"
+          },
+          {
+            "stdin": "3\n4 6 8\n5\n",
+            "output": "Matches: 0"
+          }
+        ],
+        "hints": [
+          "The shape is the example's `subsets` with a `sum` riding along in each call.",
+          "Only the base case changes: wrap the `results.add` in `if (sum == target)`.",
+          "With target 0 and positive numbers, only the empty subset matches, so you print `[]`."
+        ]
+      }
+    },
+    {
+      "title": "Permutations",
+      "body": "A permutation uses every item once, in some order. At each position, try every item the path does not hold yet. A `boolean[] used` remembers which ones those are:\n\n```java\nstatic void permute(char[] letters, boolean[] used, StringBuilder sb, List<String> results) {\n    if (sb.length() == letters.length) {\n        results.add(sb.toString());\n        return;\n    }\n    for (int i = 0; i < letters.length; i++) {\n        if (used[i]) {\n            continue;\n        }\n        used[i] = true;                        // choose\n        sb.append(letters[i]);\n        permute(letters, used, sb, results);   // explore\n        sb.deleteCharAt(sb.length() - 1);      // unchoose\n        used[i] = false;\n    }\n}\n```\n\nThe loop tries items left to right, so a sorted input gives permutations in lexicographic order. Sort first with `Arrays.sort(letters)` or `Arrays.sort(names)`. Undo both the builder and `used[i]`, or later branches see stale choices.\n\nFor whole words, use a `List<String> path` with `add` and `path.remove(path.size() - 1)` instead of a `StringBuilder`. `String.join(\" -> \", path)` joins any list of strings. n items have n! orderings (24 for 4), so keep inputs tiny. Repeated items would print repeated permutations, so these inputs are distinct.",
+      "example": {
+        "title": "Letter arrangements",
+        "prompt": "Read a word with distinct letters and print every arrangement of its letters in sorted order, then the count.",
+        "code": "import java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        char[] letters = sc.next().toCharArray();\n        Arrays.sort(letters);\n\n        List<String> results = new ArrayList<>();\n        permute(letters, new boolean[letters.length], new StringBuilder(), results);\n        for (String word : results) {\n            System.out.println(word);\n        }\n        System.out.println(\"Count: \" + results.size());\n    }\n\n    static void permute(char[] letters, boolean[] used, StringBuilder sb, List<String> results) {\n        if (sb.length() == letters.length) {\n            results.add(sb.toString());\n            return;\n        }\n        for (int i = 0; i < letters.length; i++) {\n            if (used[i]) {\n                continue;\n            }\n            used[i] = true;\n            sb.append(letters[i]);\n            permute(letters, used, sb, results);\n            sb.deleteCharAt(sb.length() - 1);\n            used[i] = false;\n        }\n    }\n}\n",
+        "stdin": "cab\n",
+        "output": "abc\nacb\nbac\nbca\ncab\ncba\nCount: 6",
+        "explanation": "`Arrays.sort` turns `cab` into `abc`, so the loop tries `a` first, then `b`, then `c` at every level. The first path takes `a`, `b`, `c` and saves `abc`. Backing up, `deleteCharAt` drops the `c` and `used` frees it, then the loop at the second level moves on to `c` and finds `acb`. Each arrangement starting with `a` comes out before any starting with `b`, so the list is already sorted. Three letters give 3! = 6 arrangements."
+      },
+      "practice": {
+        "title": "Task orderings",
+        "prompt": "List every order in which a set of tasks could run.\n\n1. The starter reads `n` and the `n` task names.\n2. Sort the names with `Arrays.sort` so the orderings come out in sorted order.\n3. Write `order` with `boolean[] used` and a `List<String> path`: choose an unused task, explore, then remove it and free it.\n4. When `path` holds every task, save `String.join(\" -> \", path)`.\n5. Print each ordering on its own line, then `Orderings: ` and the count.\n\nInput:\n\n```text\n3\nwrite test deploy\n```\n\nExpected output:\n\n```text\ndeploy -> test -> write\ndeploy -> write -> test\ntest -> deploy -> write\ntest -> write -> deploy\nwrite -> deploy -> test\nwrite -> test -> deploy\nOrderings: 6\n```",
+        "starter": "import java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String[] tasks = new String[n];\n        for (int i = 0; i < n; i++) {\n            tasks[i] = sc.next();\n        }\n\n        List<String> results = new ArrayList<>();\n        // TODO: sort tasks, call order, print each ordering, then Orderings: count\n    }\n\n    static void order(String[] tasks, boolean[] used, List<String> path, List<String> results) {\n        // TODO: when path holds every task, save String.join(\" -> \", path)\n        // otherwise try each unused task: choose, explore, unchoose\n    }\n}\n",
+        "solution": "import java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        String[] tasks = new String[n];\n        for (int i = 0; i < n; i++) {\n            tasks[i] = sc.next();\n        }\n        Arrays.sort(tasks);\n\n        List<String> results = new ArrayList<>();\n        order(tasks, new boolean[n], new ArrayList<>(), results);\n        for (String line : results) {\n            System.out.println(line);\n        }\n        System.out.println(\"Orderings: \" + results.size());\n    }\n\n    static void order(String[] tasks, boolean[] used, List<String> path, List<String> results) {\n        if (path.size() == tasks.length) {\n            results.add(String.join(\" -> \", path));\n            return;\n        }\n        for (int i = 0; i < tasks.length; i++) {\n            if (used[i]) {\n                continue;\n            }\n            used[i] = true;\n            path.add(tasks[i]);\n            order(tasks, used, path, results);\n            path.remove(path.size() - 1);\n            used[i] = false;\n        }\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "3\nwrite test deploy\n",
+            "output": "deploy -> test -> write\ndeploy -> write -> test\ntest -> deploy -> write\ntest -> write -> deploy\nwrite -> deploy -> test\nwrite -> test -> deploy\nOrderings: 6"
+          },
+          {
+            "stdin": "1\nsolo\n",
+            "output": "solo\nOrderings: 1"
+          },
+          {
+            "stdin": "2\nship build\n",
+            "output": "build -> ship\nship -> build\nOrderings: 2"
+          }
+        ],
+        "hints": [
+          "Call it as `order(tasks, new boolean[n], new ArrayList<>(), results)`.",
+          "After the recursive call, undo both choices: `path.remove(path.size() - 1)` and `used[i] = false`.",
+          "One task has exactly one ordering: just its name."
+        ]
+      }
+    }
+  ],
+  "recap": "- Load a grid with `grid[r] = sc.next().toCharArray()` and print a row with `new String(row)`.\n- A grid DFS checks bounds first, stops on cells it must skip, marks the cell, then recurses in four directions.\n- Mark with a character or a `boolean[][] visited` before recursing, or the search never ends.\n- Count regions by launching a DFS from every unvisited cell: launches are regions, and each DFS can return its size.\n- Backtracking is choose, explore, unchoose on one shared `path`, undone with `path.remove(path.size() - 1)`.\n- Save results with `new ArrayList<>(path)`, never the shared list itself.\n- Permutations use `boolean[] used`, and sorting the input first gives lexicographic order."
+}

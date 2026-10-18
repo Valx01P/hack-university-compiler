@@ -1,0 +1,155 @@
+{
+  "id": "bitwise",
+  "title": "Bitwise Operations",
+  "section": "Bits and Errors",
+  "summary": "Read and change the bits of integers with binary literals and the bitwise operators &, |, ^, ~, <<, >>, and >>>.",
+  "intro": "Every integer is a row of bits, and JavaScript has operators that read and change those bits directly. You will convert between binary, hex, and decimal, combine numbers bit by bit, shift bits around, and pack several on and off flags into one number.",
+  "steps": [
+    {
+      "title": "Binary and hexadecimal",
+      "body": "Every integer is stored as bits. You can write one directly in base 2 with `0b` or in base 16 with `0x`:\n\n```javascript\nconst mask = 0b1010; // 10\nconst max = 0xff;    // 255\n```\n\nTo go the other way, `n.toString(2)` gives the binary digits and `n.toString(16)` the hex digits in lowercase. Leading zeros are dropped, so pad to a fixed width with `padStart(8, \"0\")`:\n\n```javascript\n(5).toString(2);                  // \"101\"\n(5).toString(2).padStart(8, \"0\"); // \"00000101\"\n(200).toString(16);               // \"c8\"\n```\n\nWrap a number literal in parentheses before calling a method on it. `5.toString(2)` is a SyntaxError because `5.` reads as a decimal.\n\n`parseInt(text, 2)` and `parseInt(text, 16)` read digit strings back into numbers. Hex digits work in either case, so `parseInt(\"FF\", 16)` is 255. Parsing stops at the first invalid digit: `parseInt(\"102\", 2)` is 2.\n\nEight bits hold 0 to 255, exactly two hex digits. This lesson keeps inputs in that range because a negative number's `toString(2)` is a minus sign plus digits (`(-5).toString(2)` is `\"-101\"`), not the bits the machine stores.",
+      "example": {
+        "title": "Byte viewer",
+        "prompt": "Read numbers on the first line and print each as 8-bit binary and hex, then convert a binary and a hex string from the second line to decimal and compare them with literals.",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [numberLine, textLine] = input.trim().split(\"\\n\");\nconst numbers = numberLine.trim().split(/\\s+/).map(Number);\nconst [binText, hexText] = textLine.trim().split(/\\s+/);\n\nfor (const n of numbers) {\n  const bits = n.toString(2).padStart(8, \"0\");\n  console.log(`${n}: ${bits}, ${n.toString(16)}`);\n}\n\nconst fromBin = parseInt(binText, 2);\nconst fromHex = parseInt(hexText, 16);\nconsole.log(`${binText} in binary = ${fromBin}`);\nconsole.log(`${hexText} in hex = ${fromHex}`);\nconsole.log(`0b101101 === ${fromBin}: ${0b101101 === fromBin}`);\nconsole.log(`0xff === ${fromHex}: ${0xff === fromHex}`);\n",
+        "stdin": "5 12 200\n101101 ff\n",
+        "output": "5: 00000101, 5\n12: 00001100, c\n200: 11001000, c8\n101101 in binary = 45\nff in hex = 255\n0b101101 === 45: true\n0xff === 255: true",
+        "explanation": "`toString(2)` turns 5 into `\"101\"`, and `padStart(8, \"0\")` adds zeros on the left until the string has 8 characters. `toString(16)` gives `c8` for 200 (12 * 16 + 8). `parseInt` with a radix reads the strings back, and the literals `0b101101` and `0xff` are just other ways to write the same numbers, so both comparisons are true."
+      },
+      "practice": {
+        "title": "Hex dump",
+        "prompt": "Print each number as 8-bit binary and 2-digit uppercase hex, then convert two strings to decimal.\n\n1. For each number on the first line (0 to 255), print `n: bits, hex` where bits is 8 binary digits and hex is 2 uppercase hex digits, such as `7: 00000111, 07`.\n2. Print `<binText> in binary = <value>` using the first string on the second line.\n3. Print `<hexText> in hex = <value>` using the second string on the second line.\n\nInput:\n\n```text\n7 64 255\n1111 7f\n```\n\nExpected output:\n\n```text\n7: 00000111, 07\n64: 01000000, 40\n255: 11111111, FF\n1111 in binary = 15\n7f in hex = 127\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [numberLine, textLine] = input.trim().split(\"\\n\");\nconst numbers = numberLine.trim().split(/\\s+/).map(Number);\nconst [binText, hexText] = textLine.trim().split(/\\s+/);\n\n// TODO: print each number as `n: 8-bit binary, 2-digit uppercase hex`\nconsole.log(`${numbers.length} numbers`);\n\n// TODO: convert binText (base 2) and hexText (base 16) to decimal and print them\nconsole.log(`${binText} ${hexText}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [numberLine, textLine] = input.trim().split(\"\\n\");\nconst numbers = numberLine.trim().split(/\\s+/).map(Number);\nconst [binText, hexText] = textLine.trim().split(/\\s+/);\n\nfor (const n of numbers) {\n  const bits = n.toString(2).padStart(8, \"0\");\n  const hex = n.toString(16).toUpperCase().padStart(2, \"0\");\n  console.log(`${n}: ${bits}, ${hex}`);\n}\n\nconsole.log(`${binText} in binary = ${parseInt(binText, 2)}`);\nconsole.log(`${hexText} in hex = ${parseInt(hexText, 16)}`);\n",
+        "tests": [
+          {
+            "stdin": "7 64 255\n1111 7f\n",
+            "output": "7: 00000111, 07\n64: 01000000, 40\n255: 11111111, FF\n1111 in binary = 15\n7f in hex = 127"
+          },
+          {
+            "stdin": "0 10 171\n10000000 A0\n",
+            "output": "0: 00000000, 00\n10: 00001010, 0A\n171: 10101011, AB\n10000000 in binary = 128\nA0 in hex = 160"
+          },
+          {
+            "stdin": "128\n0 1\n",
+            "output": "128: 10000000, 80\n0 in binary = 0\n1 in hex = 1"
+          }
+        ],
+        "hints": [
+          "Chain the conversions: `n.toString(16).toUpperCase().padStart(2, \"0\")`.",
+          "`parseInt(binText, 2)` and `parseInt(hexText, 16)` give the decimal values."
+        ]
+      }
+    },
+    {
+      "title": "AND, OR, XOR, and NOT",
+      "body": "These operators compare two numbers one bit position at a time.\n\n- `a & b` (AND) keeps a bit only when it is set in both.\n- `a | b` (OR) keeps a bit when it is set in either.\n- `a ^ b` (XOR) keeps a bit when the two differ.\n- `~a` (NOT) flips every bit.\n\n```text\n  00001101  13      00001101  13      00001101  13\n& 00001010  10    | 00001010  10    ^ 00001010  10\n= 00001000   8    = 00001111  15    = 00000111   7\n```\n\nFirst, JavaScript converts both operands to 32-bit signed integers. Decimals are cut off and values past 32 bits wrap around: `7.9 | 0` is 7 and `(2 ** 32 + 5) | 0` is 5. So `~13` is -14, not 242: all 32 bits flip, including the sign bit, and for whole numbers in that range `~n` equals `-n - 1`.\n\nTwo common tricks: `n & 1` is the lowest bit, so it is 1 for odd numbers. Write `(n & 1) === 0` with parentheses, because `===` binds tighter than `&`: without them, `n & 1 === 0` means `n & false`, which is always 0. And since `x ^ x` is 0 and `x ^ 0` is x, XOR-ing every value in a list (with `^=` or reduce) cancels each pair and leaves the unpaired value.",
+      "example": {
+        "title": "Bit table",
+        "prompt": "Read a and b, print AND, OR, and XOR as 8-bit binary with decimals, print NOT a and the parity of both, then find the unpaired value on the second line.",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [pairLine, listLine] = input.trim().split(\"\\n\");\nconst [a, b] = pairLine.trim().split(/\\s+/).map(Number);\nconst values = listLine.trim().split(/\\s+/).map(Number);\n\nconst bin8 = (n) => n.toString(2).padStart(8, \"0\");\nconst parity = (n) => ((n & 1) === 1 ? \"odd\" : \"even\");\n\nconsole.log(`a     = ${bin8(a)} (${a})`);\nconsole.log(`b     = ${bin8(b)} (${b})`);\nconsole.log(`a & b = ${bin8(a & b)} (${a & b})`);\nconsole.log(`a | b = ${bin8(a | b)} (${a | b})`);\nconsole.log(`a ^ b = ${bin8(a ^ b)} (${a ^ b})`);\nconsole.log(`~a = ${~a}`);\nconsole.log(`${a} is ${parity(a)}, ${b} is ${parity(b)}`);\n\nconst unpaired = values.reduce((acc, v) => acc ^ v, 0);\nconsole.log(`unpaired: ${unpaired}`);\n",
+        "stdin": "13 10\n4 1 2 1 2\n",
+        "output": "a     = 00001101 (13)\nb     = 00001010 (10)\na & b = 00001000 (8)\na | b = 00001111 (15)\na ^ b = 00000111 (7)\n~a = -14\n13 is odd, 10 is even\nunpaired: 4",
+        "explanation": "`bin8` pads each result to 8 bits so the columns line up and you can check each operator bit by bit. `~a` prints in decimal because it is negative. `parity` looks only at the lowest bit. `reduce` starts at 0 and XORs in every value: the two 1s cancel, the two 2s cancel, and 4 is left."
+      },
+      "practice": {
+        "title": "Bit table for b",
+        "prompt": "Print the bit table for a and b, NOT b, the parity of both, and the unpaired value.\n\n1. Print the `a`, `b`, `a & b`, `a | b`, and `a ^ b` lines exactly like the example, with the labels padded so the `=` signs line up, then 8-bit binary and the decimal in parentheses.\n2. Print `~b = ` followed by `~b` in decimal.\n3. Print `<a> is <odd or even>, <b> is <odd or even>`, deciding with `& 1`.\n4. XOR every number on the second line together (each appears twice except one) and print `unpaired: <value>`.\n\nInput:\n\n```text\n6 3\n7 3 9 3 7\n```\n\nExpected output:\n\n```text\na     = 00000110 (6)\nb     = 00000011 (3)\na & b = 00000010 (2)\na | b = 00000111 (7)\na ^ b = 00000101 (5)\n~b = -4\n6 is even, 3 is odd\nunpaired: 9\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [pairLine, listLine] = input.trim().split(\"\\n\");\nconst [a, b] = pairLine.trim().split(/\\s+/).map(Number);\nconst values = listLine.trim().split(/\\s+/).map(Number);\n\nconst bin8 = (n) => n.toString(2).padStart(8, \"0\");\n\n// TODO: print the a, b, a & b, a | b, and a ^ b lines\nconsole.log(`a     = ${bin8(a)} (${a})`);\n\n// TODO: print ~b, whether a and b are odd, and the unpaired value\nconsole.log(`${b} ${values.length}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [pairLine, listLine] = input.trim().split(\"\\n\");\nconst [a, b] = pairLine.trim().split(/\\s+/).map(Number);\nconst values = listLine.trim().split(/\\s+/).map(Number);\n\nconst bin8 = (n) => n.toString(2).padStart(8, \"0\");\nconst parity = (n) => ((n & 1) === 1 ? \"odd\" : \"even\");\n\nconsole.log(`a     = ${bin8(a)} (${a})`);\nconsole.log(`b     = ${bin8(b)} (${b})`);\nconsole.log(`a & b = ${bin8(a & b)} (${a & b})`);\nconsole.log(`a | b = ${bin8(a | b)} (${a | b})`);\nconsole.log(`a ^ b = ${bin8(a ^ b)} (${a ^ b})`);\nconsole.log(`~b = ${~b}`);\nconsole.log(`${a} is ${parity(a)}, ${b} is ${parity(b)}`);\n\nlet unpaired = 0;\nfor (const v of values) {\n  unpaired ^= v;\n}\nconsole.log(`unpaired: ${unpaired}`);\n",
+        "tests": [
+          {
+            "stdin": "6 3\n7 3 9 3 7\n",
+            "output": "a     = 00000110 (6)\nb     = 00000011 (3)\na & b = 00000010 (2)\na | b = 00000111 (7)\na ^ b = 00000101 (5)\n~b = -4\n6 is even, 3 is odd\nunpaired: 9"
+          },
+          {
+            "stdin": "255 0\n5\n",
+            "output": "a     = 11111111 (255)\nb     = 00000000 (0)\na & b = 00000000 (0)\na | b = 11111111 (255)\na ^ b = 11111111 (255)\n~b = -1\n255 is odd, 0 is even\nunpaired: 5"
+          },
+          {
+            "stdin": "170 85\n8 8 1 2 2\n",
+            "output": "a     = 10101010 (170)\nb     = 01010101 (85)\na & b = 00000000 (0)\na | b = 11111111 (255)\na ^ b = 11111111 (255)\n~b = -86\n170 is even, 85 is odd\nunpaired: 1"
+          }
+        ],
+        "hints": [
+          "Copy the example's five table lines, then change `~a` to `~b`.",
+          "Start `unpaired` at 0, because `x ^ 0` is x."
+        ]
+      }
+    },
+    {
+      "title": "Shifts, set bits, and powers of two",
+      "body": "Shifts slide every bit left or right by k places.\n\n- `x << k` adds k zeros on the right, which multiplies by 2 to the k while the result fits in 32 bits: `13 << 2` is 52.\n- `x >> k` drops k bits on the right, which divides by 2 to the k and rounds down. It copies the sign bit in, so `-16 >> 2` is -4.\n- `x >>> k` shifts in zeros instead (unsigned shift), so negatives turn positive.\n\nShifts still work on 32 bits. `1 << 31` lands on the sign bit and gives -2147483648, and `x >>> 0` reads the same 32 bits as unsigned (2147483648). The shift count also wraps at 32, so `1 << 32` is 1, not 0. For wider values, BigInt supports the same operators: `1n << 40n`.\n\nCombined with `&`, shifts give three classic tools:\n\n```javascript\nconst bit = (n >> k) & 1;                      // bit k of n, 0 or 1\nn &= n - 1;                                    // clears the lowest set bit\nconst isPowerOfTwo = n > 0 && (n & (n - 1)) === 0;\n```\n\nRepeating `n &= n - 1` until n is 0 counts the set bits, one pass per 1 bit. A power of two has exactly one set bit, so clearing it leaves 0, and `n > 0` rules out 0 itself.",
+      "example": {
+        "title": "Shift report",
+        "prompt": "Read n and k, print both shifts, the 8 bits of n, its set-bit count, and whether it is a power of two, then show the 32-bit edge cases.",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [n, k] = input.trim().split(/\\s+/).map(Number);\n\nconsole.log(`${n} << ${k} = ${n << k}`);\nconsole.log(`${n} >> ${k} = ${n >> k}`);\n\nlet bits = \"\";\nfor (let i = 7; i >= 0; i--) {\n  bits += (n >> i) & 1;\n}\nconsole.log(`bits: ${bits}`);\n\nlet rest = n;\nlet count = 0;\nwhile (rest > 0) {\n  rest &= rest - 1;\n  count++;\n}\nconsole.log(`set bits: ${count}`);\n\nconst isPowerOfTwo = n > 0 && (n & (n - 1)) === 0;\nconsole.log(`power of two: ${isPowerOfTwo ? \"yes\" : \"no\"}`);\n\nconsole.log(`1 << 31 = ${1 << 31}, as unsigned ${(1 << 31) >>> 0}`);\nconsole.log(`-16 >> 2 = ${-16 >> 2}, -16 >>> 28 = ${-16 >>> 28}`);\n",
+        "stdin": "13 2\n",
+        "output": "13 << 2 = 52\n13 >> 2 = 3\nbits: 00001101\nset bits: 3\npower of two: no\n1 << 31 = -2147483648, as unsigned 2147483648\n-16 >> 2 = -4, -16 >>> 28 = 15",
+        "explanation": "The loop reads bit 7 down to bit 0 by shifting each one into the lowest place and masking it with `& 1`. Adding the number to a string appends its digit. The while loop works on a copy, `rest`, and clears one set bit per pass: 1101, 1100, 1000, 0, so 3 passes. The last two lines show the 32-bit limit: `1 << 31` is negative until `>>> 0` reads it as unsigned, and `>>>` fills a negative number with zeros instead of copying its sign."
+      },
+      "practice": {
+        "title": "Bit inspector",
+        "prompt": "Read n (0 to 255) and k, then report the shifts and bit facts about n.\n\n1. Print `<n> << <k> = <value>`, then `<n> >> <k> = <value>`, then `bit <k>: <0 or 1>` with bit k of n read by `(n >> k) & 1`.\n2. Build the 8 bits of n from bit 7 down to bit 0 with `(n >> i) & 1` and print `bits: <bits>`.\n3. Count the set bits by repeating `rest &= rest - 1` on a copy of n and print `set bits: <count>`.\n4. Print `power of two: yes` or `power of two: no`.\n\nInput:\n\n```text\n200 3\n```\n\nExpected output:\n\n```text\n200 << 3 = 1600\n200 >> 3 = 25\nbit 3: 1\nbits: 11001000\nset bits: 3\npower of two: no\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [n, k] = input.trim().split(/\\s+/).map(Number);\n\n// TODO: print n << k, n >> k, and bit k of n\nconsole.log(`${n} ${k}`);\n\n// TODO: build the 8 bits of n from bit 7 down to bit 0 and print them\n// TODO: count the set bits with n &= n - 1 on a copy of n and print the count\n// TODO: print whether n is a power of two (yes or no)\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [n, k] = input.trim().split(/\\s+/).map(Number);\n\nconsole.log(`${n} << ${k} = ${n << k}`);\nconsole.log(`${n} >> ${k} = ${n >> k}`);\nconsole.log(`bit ${k}: ${(n >> k) & 1}`);\n\nlet bits = \"\";\nfor (let i = 7; i >= 0; i--) {\n  bits += (n >> i) & 1;\n}\nconsole.log(`bits: ${bits}`);\n\nlet rest = n;\nlet count = 0;\nwhile (rest > 0) {\n  rest &= rest - 1;\n  count++;\n}\nconsole.log(`set bits: ${count}`);\n\nconst isPowerOfTwo = n > 0 && (n & (n - 1)) === 0;\nconsole.log(`power of two: ${isPowerOfTwo ? \"yes\" : \"no\"}`);\n",
+        "tests": [
+          {
+            "stdin": "200 3\n",
+            "output": "200 << 3 = 1600\n200 >> 3 = 25\nbit 3: 1\nbits: 11001000\nset bits: 3\npower of two: no"
+          },
+          {
+            "stdin": "64 1\n",
+            "output": "64 << 1 = 128\n64 >> 1 = 32\nbit 1: 0\nbits: 01000000\nset bits: 1\npower of two: yes"
+          },
+          {
+            "stdin": "0 4\n",
+            "output": "0 << 4 = 0\n0 >> 4 = 0\nbit 4: 0\nbits: 00000000\nset bits: 0\npower of two: no"
+          }
+        ],
+        "hints": [
+          "`(n >> k) & 1` moves bit k into the lowest place and keeps only that bit.",
+          "For the 8 bits, use the same idea with a loop that counts i down from 7 to 0 and appends each bit to a string.",
+          "0 has no set bits and is not a power of two, which is why the test needs `n > 0`."
+        ]
+      }
+    },
+    {
+      "title": "Flags",
+      "body": "Each power of two owns one bit, so one number can hold several on and off switches. Unix file permissions work this way:\n\n```javascript\nconst READ = 4;  // 100\nconst WRITE = 2; // 010\nconst EXEC = 1;  // 001\n```\n\nFour operations cover everything:\n\n- Set: `perms |= WRITE` turns the bit on, even if it was already on.\n- Clear: `perms &= ~WRITE` keeps every bit except WRITE.\n- Toggle: `perms ^= EXEC` flips the bit.\n- Test: `(perms & READ) !== 0` is true when the bit is on.\n\nClear with `&= ~FLAG`, not `^=`. XOR turns a flag back on when it was already off.\n\nWhen the flag name arrives as text, look it up in an object built with shorthand properties: with `const flagByName = { READ, WRITE, EXEC }`, `flagByName[\"WRITE\"]` is 2. To display flags, print `perms.toString(2).padStart(3, \"0\")`, or build an rwx string with one letter or dash per bit, the way `ls -l` does: 5 is `r-x`.",
+      "example": {
+        "title": "Permission log",
+        "prompt": "Read a count and that many commands, apply each one to a set of permission flags, and print the flags after each command as 3-bit binary and as rwx.",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst count = Number(lines[0]);\n\nconst READ = 4;\nconst WRITE = 2;\nconst EXEC = 1;\nconst flagByName = { READ, WRITE, EXEC };\n\nfunction toRwx(flags) {\n  const r = (flags & READ) !== 0 ? \"r\" : \"-\";\n  const w = (flags & WRITE) !== 0 ? \"w\" : \"-\";\n  const x = (flags & EXEC) !== 0 ? \"x\" : \"-\";\n  return `${r}${w}${x}`;\n}\n\nlet perms = 0;\nfor (const line of lines.slice(1, count + 1)) {\n  const [action, name] = line.trim().split(/\\s+/);\n  const flag = flagByName[name];\n  if (action === \"grant\") {\n    perms |= flag;\n  } else if (action === \"revoke\") {\n    perms &= ~flag;\n  } else if (action === \"toggle\") {\n    perms ^= flag;\n  }\n  const bits = perms.toString(2).padStart(3, \"0\");\n  console.log(`${action} ${name}: ${bits} ${toRwx(perms)}`);\n}\n",
+        "stdin": "4\ngrant READ\ngrant WRITE\ntoggle EXEC\nrevoke WRITE\n",
+        "output": "grant READ: 100 r--\ngrant WRITE: 110 rw-\ntoggle EXEC: 111 rwx\nrevoke WRITE: 101 r-x",
+        "explanation": "`flagByName[name]` turns the word into its bit. grant ORs it in, revoke ANDs with every other bit, and toggle flips it. After the four commands the flags go 100, 110, 111, 101. `toRwx` tests each bit and picks a letter or a dash."
+      },
+      "practice": {
+        "title": "Permission checks",
+        "prompt": "Apply grant, revoke, toggle, and check commands to permission flags, answering each check and printing the final flags.\n\n1. Start with no flags and apply the commands in order: grant sets the flag, revoke clears it, toggle flips it.\n2. For `check NAME`, print `NAME: yes` if the flag is set or `NAME: no` if not. The other commands print nothing.\n3. Finish `toRwx` so it returns r, w, and x for set bits and a dash for each missing one.\n4. The starter prints the last line: `final: <3-bit binary> <rwx>`.\n\nInput:\n\n```text\n5\ngrant READ\ngrant EXEC\ncheck WRITE\ntoggle READ\ncheck EXEC\n```\n\nExpected output:\n\n```text\nWRITE: no\nEXEC: yes\nfinal: 001 --x\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst count = Number(lines[0]);\n\nconst READ = 4;\nconst WRITE = 2;\nconst EXEC = 1;\nconst flagByName = { READ, WRITE, EXEC };\n\nfunction toRwx(flags) {\n  // TODO: return \"r\" or \"-\", then \"w\" or \"-\", then \"x\" or \"-\" for flags\n  return \"\";\n}\n\nlet perms = 0;\nfor (const line of lines.slice(1, count + 1)) {\n  const [action, name] = line.trim().split(/\\s+/);\n  const flag = flagByName[name];\n  // TODO: grant sets the flag, revoke clears it, toggle flips it\n  // TODO: check prints `NAME: yes` or `NAME: no`\n}\n\nconst bits = perms.toString(2).padStart(3, \"0\");\nconsole.log(`final: ${bits} ${toRwx(perms)}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst count = Number(lines[0]);\n\nconst READ = 4;\nconst WRITE = 2;\nconst EXEC = 1;\nconst flagByName = { READ, WRITE, EXEC };\n\nfunction toRwx(flags) {\n  const r = (flags & READ) !== 0 ? \"r\" : \"-\";\n  const w = (flags & WRITE) !== 0 ? \"w\" : \"-\";\n  const x = (flags & EXEC) !== 0 ? \"x\" : \"-\";\n  return `${r}${w}${x}`;\n}\n\nlet perms = 0;\nfor (const line of lines.slice(1, count + 1)) {\n  const [action, name] = line.trim().split(/\\s+/);\n  const flag = flagByName[name];\n  if (action === \"grant\") {\n    perms |= flag;\n  } else if (action === \"revoke\") {\n    perms &= ~flag;\n  } else if (action === \"toggle\") {\n    perms ^= flag;\n  } else if (action === \"check\") {\n    console.log(`${name}: ${(perms & flag) !== 0 ? \"yes\" : \"no\"}`);\n  }\n}\n\nconst bits = perms.toString(2).padStart(3, \"0\");\nconsole.log(`final: ${bits} ${toRwx(perms)}`);\n",
+        "tests": [
+          {
+            "stdin": "5\ngrant READ\ngrant EXEC\ncheck WRITE\ntoggle READ\ncheck EXEC\n",
+            "output": "WRITE: no\nEXEC: yes\nfinal: 001 --x"
+          },
+          {
+            "stdin": "6\ngrant WRITE\ntoggle WRITE\ncheck WRITE\ngrant READ\ngrant READ\ncheck READ\n",
+            "output": "WRITE: no\nREAD: yes\nfinal: 100 r--"
+          },
+          {
+            "stdin": "4\ntoggle EXEC\ntoggle READ\nrevoke EXEC\nrevoke EXEC\n",
+            "output": "final: 100 r--"
+          }
+        ],
+        "hints": [
+          "Add an `else if (action === \"check\")` branch to the example's if chain.",
+          "`(perms & flag) !== 0` tells you whether the flag is set."
+        ]
+      }
+    }
+  ],
+  "recap": "- `0b1010` and `0xff` are binary and hex literals. `n.toString(2)` with `padStart(8, \"0\")` shows bits, and `parseInt(text, 2)` reads them back.\n- `&` keeps shared bits, `|` keeps any set bit, `^` keeps differing bits, and `~n` is `-n - 1` for whole numbers.\n- Operands become 32-bit signed integers, so `1 << 31` is negative and `x >>> 0` reads a value as unsigned.\n- `<<` multiplies by powers of two, `>>` divides and keeps the sign, and `>>>` shifts in zeros.\n- `(n >> k) & 1` reads bit k, `n &= n - 1` clears the lowest set bit, and `(n & (n - 1)) === 0` spots powers of two.\n- Flags: set with `|=`, clear with `&= ~FLAG`, toggle with `^=`, and test with `(flags & FLAG) !== 0`."
+}

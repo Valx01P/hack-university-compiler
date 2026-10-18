@@ -1,0 +1,91 @@
+{
+  "id": "generators",
+  "title": "Generators and yield",
+  "section": "Pythonic Python",
+  "summary": "Produce values lazily with yield and generator expressions instead of building whole lists.",
+  "intro": "A list holds every value at once. A generator makes one value at a time, only when you ask for the next one. That saves memory, lets a sequence go on forever, and makes `sum()`, `max()`, `any()`, and `all()` work without a temporary list.",
+  "steps": [
+    {
+      "title": "yield",
+      "body": "A function whose body contains `yield` is a generator function. Calling it runs none of its code. It returns a generator, an object that hands out values one at a time:\n\n```python\ndef steps():\n    print(\"start\")\n    yield 1\n    print(\"middle\")\n    yield 2\n\n\ngen = steps()     # nothing printed yet\nprint(next(gen))  # start, then 1\nprint(next(gen))  # middle, then 2\n```\n\n`next(gen)` runs the body until the next `yield`, returns that value, and pauses right there. The next call resumes from the same spot with every local variable intact.\n\nA `for` loop calls `next()` for you and stops when the generator runs out. `list(gen)` collects every remaining value. Once a generator is finished, a bare `next(gen)` raises an error, so pass a default to get that value instead:\n\n```python\nprint(next(gen, \"done\"))  # done\n# next(gen)  # StopIteration\n```\n\nPrinting a generator shows a memory address, not its values. Loop over it or wrap it in `list()`:\n\n```python\n# print(steps())  # <generator object steps at 0x7f3a...>\n```",
+      "example": {
+        "title": "Countdown",
+        "prompt": "Write a countdown generator, then loop over it, collect it with list(), and pull values with next().",
+        "code": "def countdown(n):\n    while n > 0:\n        yield n\n        n -= 1\n\n\nfor n in countdown(3):\n    print(n)\n\nprint(list(countdown(5)))\n\ngen = countdown(2)\nprint(next(gen))\nprint(next(gen))\nprint(next(gen, \"done\"))\n",
+        "output": "3\n2\n1\n[5, 4, 3, 2, 1]\n2\n1\ndone",
+        "explanation": "Each `yield n` hands out the current value and pauses the loop inside `countdown`. The `for` loop resumes it three times, then stops when the `while` condition fails and the function ends. `list(countdown(5))` pulls every value into a list. The last generator gives 2 and 1 through `next()`, and the third call has nothing left, so it returns the default `\"done\"` instead of raising an error."
+      },
+      "practice": {
+        "title": "Even numbers",
+        "prompt": "Write a generator of even numbers and read it three ways.\n\n1. Make `evens(limit)` yield 2, 4, 6, and so on, up to and including `limit`.\n2. Loop over `evens(8)` and print the numbers on one line, separated by spaces.\n3. Print `list(evens(10))`.\n4. Make `gen = evens(4)`, print `next(gen)` twice, then print `next(gen, \"done\")`.\n\nExpected output:\n\n```text\n2 4 6 8\n[2, 4, 6, 8, 10]\n2\n4\ndone\n```",
+        "starter": "def evens(limit):\n    # TODO: yield 2, 4, 6, ... up to and including limit\n    yield from ()  # placeholder: yields nothing\n\n\n# TODO: loop over evens(8) and print the numbers on one line\nprint(list(evens(10)))\n\ngen = evens(4)\n# TODO: print next(gen) twice, then next(gen, \"done\")\n",
+        "solution": "def evens(limit):\n    for n in range(2, limit + 1, 2):\n        yield n\n\n\nfor n in evens(8):\n    print(n, end=\" \")\nprint()\n\nprint(list(evens(10)))\n\ngen = evens(4)\nprint(next(gen))\nprint(next(gen))\nprint(next(gen, \"done\"))\n",
+        "tests": [
+          {
+            "output": "2 4 6 8\n[2, 4, 6, 8, 10]\n2\n4\ndone"
+          }
+        ],
+        "hints": [
+          "Inside `evens`, loop over a `range()` that starts at 2 and steps by 2. Add 1 to the stop so `limit` itself is included.",
+          "Use `print(n, end=\" \")` in the loop, then a bare `print()` to end the line.",
+          "After two values, `evens(4)` is finished, so `next(gen, \"done\")` returns `\"done\"`."
+        ]
+      }
+    },
+    {
+      "title": "Infinite and lazy sequences",
+      "body": "A generator makes each value only when someone asks for it. That laziness means it can run forever: put `yield` inside `while True` and let the consumer decide when to stop with `break`.\n\n```python\ndef naturals():\n    n = 1\n    while True:\n        yield n\n        n += 1\n\n\nfor n in naturals():\n    if n > 3:\n        break\n    print(n)  # 1, 2, 3\n```\n\nOnly four values were ever computed, even though the generator has no end. The gotcha: never call `list()` on an infinite generator. It keeps asking for values until the program runs out of time or memory.\n\nTo hand out every value of another generator, write `yield from`. It replaces a small loop that yields each item:\n\n```python\ndef both(a, b):\n    yield from countdown(a)  # same as: for x in countdown(a): yield x\n    yield from countdown(b)\n```\n\nA plain `return` inside a generator ends it, just like reaching the last line.",
+      "example": {
+        "title": "Fibonacci and chained countdowns",
+        "prompt": "Print the first 10 Fibonacci numbers from an endless generator, then chain two countdowns with yield from.",
+        "code": "def fibonacci():\n    a, b = 0, 1\n    while True:\n        yield a\n        a, b = b, a + b\n\n\ndef countdown(n):\n    while n > 0:\n        yield n\n        n -= 1\n\n\ndef countdowns():\n    yield from countdown(3)\n    yield from countdown(2)\n\n\nfor i, term in enumerate(fibonacci()):\n    if i == 10:\n        break\n    print(term, end=\" \")\nprint()\n\nprint(list(countdowns()))\n",
+        "output": "0 1 1 2 3 5 8 13 21 34\n[3, 2, 1, 2, 1]",
+        "explanation": "`fibonacci()` never ends on its own, but it only computes a term when the loop asks for one. `enumerate` numbers the terms, and `break` stops the loop after ten. Nothing asks for more, so the generator is simply left paused and then thrown away. `countdowns()` first passes along every value of `countdown(3)`, then every value of `countdown(2)`. `list()` is safe there because both generators finish."
+      },
+      "practice": {
+        "title": "Powers and a round trip",
+        "prompt": "Write an endless generator and a generator that chains two others.\n\n1. Make `powers_of_two()` yield 1, 2, 4, 8, and so on, forever.\n2. Loop over `powers_of_two()`, and when a power is above 1000, print `First above 1000: ` followed by it, then break.\n3. Make `up_and_down(n)` yield from `count_up(n)`, then from `countdown(n)`.\n4. Print `list(up_and_down(3))`.\n\nExpected output:\n\n```text\nFirst above 1000: 1024\n[1, 2, 3, 3, 2, 1]\n```",
+        "starter": "def powers_of_two():\n    # TODO: yield 1, 2, 4, 8, ... forever\n    yield from ()  # placeholder: yields nothing\n\n\ndef count_up(n):\n    for i in range(1, n + 1):\n        yield i\n\n\ndef countdown(n):\n    while n > 0:\n        yield n\n        n -= 1\n\n\ndef up_and_down(n):\n    # TODO: yield from count_up(n), then from countdown(n)\n    yield from ()  # placeholder: yields nothing\n\n\n# TODO: print the first power of two above 1000, then break\nprint(list(up_and_down(3)))\n",
+        "solution": "def powers_of_two():\n    power = 1\n    while True:\n        yield power\n        power *= 2\n\n\ndef count_up(n):\n    for i in range(1, n + 1):\n        yield i\n\n\ndef countdown(n):\n    while n > 0:\n        yield n\n        n -= 1\n\n\ndef up_and_down(n):\n    yield from count_up(n)\n    yield from countdown(n)\n\n\nfor power in powers_of_two():\n    if power > 1000:\n        print(f\"First above 1000: {power}\")\n        break\n\nprint(list(up_and_down(3)))\n",
+        "tests": [
+          {
+            "output": "First above 1000: 1024\n[1, 2, 3, 3, 2, 1]"
+          }
+        ],
+        "hints": [
+          "Copy the shape of `fibonacci`: set a starting value, then inside `while True` yield it and update it.",
+          "In the consumer loop, check whether the power is above 1000, print the line, and `break`.",
+          "`up_and_down` is just like `countdowns` in the example: one `yield from` per generator, in order."
+        ]
+      }
+    },
+    {
+      "title": "Generator expressions",
+      "body": "A generator expression looks like a list comprehension with parentheses instead of brackets. It makes values lazily, without building a list in memory:\n\n```python\nsquares = (x * x for x in range(1, 4))\nprint(list(squares))  # [1, 4, 9]\n```\n\nIts most common use is feeding a function that loops over its argument. When it is the only argument, drop the extra parentheses:\n\n```python\ntotal = sum(len(w) for w in words)\nlongest = max(len(w) for w in words)\nhas_z = any(w.startswith(\"z\") for w in words)\nall_lower = all(w.islower() for w in words)\nshort = sum(1 for w in words if len(w) < 5)\n```\n\nAn `if` at the end filters, just like in a list comprehension, so `sum(1 for ...)` counts the matches.\n\n`any()` and `all()` stop as soon as the answer is known, so the rest of the values are never made. `max()` of an empty generator is an error, so add `default=0` when the input might be empty. With a second argument the generator needs its own parentheses: `max((len(w) for w in words), default=0)`.\n\nThe big gotcha: a generator can be consumed only once. After one pass it is empty, and a second `sum()` gives 0 with no warning. If you need the values twice, build a list, or write the generator expression again.",
+      "example": {
+        "title": "Word checks",
+        "prompt": "Sum squares, test a list of words with any(), all(), max(), and a counting sum(), and show that a stored generator is empty the second time.",
+        "code": "words = [\"apple\", \"zebra\", \"Kiwi\", \"fig\"]\n\nprint(f\"Sum of squares: {sum(x * x for x in range(1, 101))}\")\nprint(f\"Any z word: {any(w.startswith('z') for w in words)}\")\nprint(f\"All lowercase: {all(w.islower() for w in words)}\")\nprint(f\"Longest: {max(len(w) for w in words)}\")\nprint(f\"Short words: {sum(1 for w in words if len(w) < 5)}\")\n\nlengths = (len(w) for w in words)\nprint(f\"First sum: {sum(lengths)}\")\nprint(f\"Second sum: {sum(lengths)}\")\n",
+        "output": "Sum of squares: 338350\nAny z word: True\nAll lowercase: False\nLongest: 5\nShort words: 2\nFirst sum: 17\nSecond sum: 0",
+        "explanation": "Each function pulls values straight from its generator expression, so no list of 100 squares is ever built. `any()` finds `\"zebra\"` and answers `True`. `all()` hits `\"Kiwi\"` and answers `False`. `sum(1 for ...)` adds 1 for each word shorter than 5, which are `\"Kiwi\"` and `\"fig\"`. `lengths` is stored in a variable, and the first `sum()` uses up all four lengths (5 + 5 + 4 + 3). The second `sum()` finds the generator already empty and returns 0."
+      },
+      "practice": {
+        "title": "Trail words",
+        "prompt": "Answer questions about a list of words with generator expressions.\n\n1. Count the words longer than 4 characters with `sum(1 for ...)`.\n2. Find the length of the longest word with `max()` and a generator expression.\n3. Check whether every word is alphabetic with `all()` and `isalpha()`.\n4. Store a generator expression of the words longer than 4 characters in `long_words`, then call `list()` on it twice.\n5. Print each result with the labels shown.\n\nExpected output:\n\n```text\nLong words: 4\nLongest: 8\nAll alphabetic: False\nFirst list: ['river', 'mountain', 'route66', 'forest']\nSecond list: []\n```",
+        "starter": "words = [\"river\", \"sky\", \"mountain\", \"route66\", \"lake\", \"forest\"]\n\nlong_count = 0  # TODO: count words longer than 4 characters with sum(1 for ...)\nlongest = 0  # TODO: use max() with a generator expression\nall_alpha = True  # TODO: use all() with a generator expression\nprint(f\"Long words: {long_count}\")\nprint(f\"Longest: {longest}\")\nprint(f\"All alphabetic: {all_alpha}\")\n\nlong_words = (w for w in [])  # TODO: keep the words longer than 4 characters\nprint(f\"First list: {list(long_words)}\")\nprint(f\"Second list: {list(long_words)}\")\n",
+        "solution": "words = [\"river\", \"sky\", \"mountain\", \"route66\", \"lake\", \"forest\"]\n\nlong_count = sum(1 for w in words if len(w) > 4)\nlongest = max(len(w) for w in words)\nall_alpha = all(w.isalpha() for w in words)\nprint(f\"Long words: {long_count}\")\nprint(f\"Longest: {longest}\")\nprint(f\"All alphabetic: {all_alpha}\")\n\nlong_words = (w for w in words if len(w) > 4)\nprint(f\"First list: {list(long_words)}\")\nprint(f\"Second list: {list(long_words)}\")\n",
+        "tests": [
+          {
+            "output": "Long words: 4\nLongest: 8\nAll alphabetic: False\nFirst list: ['river', 'mountain', 'route66', 'forest']\nSecond list: []"
+          }
+        ],
+        "hints": [
+          "Copy the example's `Short words` line, and flip the length test to keep words longer than 4.",
+          "`max()` and `all()` each take one generator expression, written like a comprehension without the brackets.",
+          "The second `list(long_words)` is empty because the first one used up the generator."
+        ]
+      }
+    }
+  ],
+  "recap": "- A `def` with `yield` returns a generator. Calling it runs no code yet.\n- `next(gen)` runs to the next `yield` and pauses there. `next(gen, default)` returns the default when it runs out.\n- A `for` loop and `list(gen)` pull every value. Printing a generator shows only a memory address.\n- Generators are lazy, so `while True` with `yield` is fine as long as the consumer stops with `break`. Never call `list()` on an endless one.\n- `yield from other()` passes along every value of another generator.\n- `(expr for x in xs)` is a lazy comprehension. Pass it straight to `sum()`, `max()`, `any()`, or `all()`.\n- A generator can be consumed only once. The second pass finds it empty."
+}

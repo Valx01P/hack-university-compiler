@@ -1,0 +1,118 @@
+{
+  "id": "heapq-bisect",
+  "title": "Heaps and Binary Search",
+  "section": "Standard Library",
+  "summary": "Keep a priority queue with heapq, and search sorted lists in O(log n) by hand and with bisect.",
+  "intro": "Two small modules solve two common problems fast. `heapq` always hands you the smallest item next, which is how priority queues and top k lists work. Binary search finds a value in a sorted list in at most 20 steps even with a million items, and `bisect` does it for you.",
+  "steps": [
+    {
+      "title": "Min-heaps with heapq",
+      "body": "`heapq` turns a plain list into a *min-heap*: the smallest item is always at index 0, and pushing or popping costs only O(log n). That makes it the tool for \"give me the smallest next\" problems.\n\n```python\nimport heapq\n\nheap = []\nheapq.heappush(heap, 5)\nheapq.heappush(heap, 2)\nprint(heap[0])               # 2, peek without removing\nprint(heapq.heappop(heap))   # 2, removes it\n```\n\n`heapq.heapify(lst)` rearranges an existing list into a heap in place, in O(n). It returns `None`, like `sort()`.\n\nA heap is not a sorted list. Only `heap[0]` is guaranteed to be the smallest. The rest is arranged just enough to find the next smallest quickly, so `print(heap)` can show `[1, 4, 2, 9, 8, 7]`. Pop items to get them in order. `while heap:` keeps popping until the list is empty, so it never pops an empty heap: `# heapq.heappop([])  # IndexError: index out of range`.\n\nPython 3.12 has no public max-heap functions. Push negated values instead, and negate again when you pop:\n\n```python\nheapq.heappush(max_heap, -level)\nlargest = -heapq.heappop(max_heap)\n```\n\nChange a heap only with the `heapq` functions. A plain `append()` skips the rearranging, so `heap[0]` may stop being the smallest.",
+      "example": {
+        "title": "Task durations",
+        "prompt": "Pop task durations smallest first, heapify a stock list and take its two smallest, then find the largest level with negated values.",
+        "code": "import heapq\n\ndurations = []\nfor minutes in [30, 10, 45, 20]:\n    heapq.heappush(durations, minutes)\nwhile durations:\n    print(heapq.heappop(durations), end=\" \")\nprint()\n\nstock = [9, 4, 7, 1, 8, 2]\nheapq.heapify(stock)\nprint(stock)\nprint(\"Smallest:\", stock[0])\nprint(\"Two smallest:\", heapq.heappop(stock), heapq.heappop(stock))\n\nmax_heap = []\nfor level in [3, 11, 6]:\n    heapq.heappush(max_heap, -level)\nprint(\"Largest:\", -heapq.heappop(max_heap))\n",
+        "output": "10 20 30 45\n[1, 4, 2, 9, 8, 7]\nSmallest: 1\nTwo smallest: 1 2\nLargest: 11",
+        "explanation": "Each `heappush` keeps `durations` a valid heap, so `while durations:` pops 10, 20, 30, 45 in order and stops when the list is empty. `heapify(stock)` rearranges the list in place: 1 is at index 0, but the list is not sorted. Each `heappop` removes the current smallest, so the two pops give 1 and 2. Pushing -3, -11, -6 puts -11 on top, and negating the popped value gives back the largest level, 11."
+      },
+      "practice": {
+        "title": "Prices and deliveries",
+        "prompt": "Use heaps to order delivery times and pick out the cheapest and most expensive prices.\n\n1. Push each value in `times` onto `deliveries` with `heapq.heappush()`, then pop them all with `while deliveries:` and print them on one line separated by spaces.\n2. Heapify `prices` and print the list.\n3. Print `Cheapest:` followed by `prices[0]`.\n4. Print `Two cheapest:` followed by two pops from `prices`.\n5. Push every price in `menu` negated onto `most_expensive`, then print `Most expensive:` followed by the popped value negated back.\n\nExpected output:\n\n```text\n15 25 40 50\n[3, 6, 17, 9, 14, 22]\nCheapest: 3\nTwo cheapest: 3 6\nMost expensive: 31\n```",
+        "starter": "import heapq\n\ntimes = [40, 15, 50, 25]\ndeliveries = []\n# TODO: push each time onto deliveries, then pop them all with while deliveries:\n\nprices = [14, 6, 22, 9, 3, 17]\n# TODO: heapify prices, print it, print the cheapest, then pop the two cheapest\n\nmenu = [12, 31, 7, 18]\nmost_expensive = []\n# TODO: push each price negated, then pop and print the most expensive\n",
+        "solution": "import heapq\n\ntimes = [40, 15, 50, 25]\ndeliveries = []\nfor minutes in times:\n    heapq.heappush(deliveries, minutes)\nwhile deliveries:\n    print(heapq.heappop(deliveries), end=\" \")\nprint()\n\nprices = [14, 6, 22, 9, 3, 17]\nheapq.heapify(prices)\nprint(prices)\nprint(\"Cheapest:\", prices[0])\nprint(\"Two cheapest:\", heapq.heappop(prices), heapq.heappop(prices))\n\nmenu = [12, 31, 7, 18]\nmost_expensive = []\nfor price in menu:\n    heapq.heappush(most_expensive, -price)\nprint(\"Most expensive:\", -heapq.heappop(most_expensive))\n",
+        "tests": [
+          {
+            "output": "15 25 40 50\n[3, 6, 17, 9, 14, 22]\nCheapest: 3\nTwo cheapest: 3 6\nMost expensive: 31"
+          }
+        ],
+        "hints": [
+          "Follow the example: a `for` loop of `heappush` calls, then a `while deliveries:` loop that pops and prints with `end=\" \"`, and a bare `print()` after it.",
+          "`heapq.heapify(prices)` changes the list in place and returns `None`, so call it on its own line before printing.",
+          "For the maximum, push each price negated, then negate the value you pop to get the real price back."
+        ]
+      }
+    },
+    {
+      "title": "Priority queues and top k",
+      "body": "A deque serves items in the order they arrived. A *priority queue* hands out the most urgent item first. With `heapq` you push `(priority, item)` tuples. Tuples compare item by item, so the heap orders by priority, and when two priorities tie it compares the next item, here the name:\n\n```python\ntasks = []\nheapq.heappush(tasks, (2, \"write tests\"))\nheapq.heappush(tasks, (2, \"deploy\"))\npriority, task = heapq.heappop(tasks)   # 2, \"deploy\"\n```\n\nIf the next items cannot be compared, such as two dicts, a tie crashes the push or pop. Put an increasing counter between the priority and the item so the comparison never reaches the item. Equal priorities then come out in the order they went in:\n\n```python\njobs = [(1, {\"id\": 7})]\n# heapq.heappush(jobs, (1, {\"id\": 8}))\n# TypeError: '<' not supported between instances of 'dict' and 'dict'\n\njobs = []\nfor order, job in enumerate([{\"id\": 7}, {\"id\": 8}]):\n    heapq.heappush(jobs, (1, order, job))\n```\n\nFor a one-off \"top k\" question you do not need to build a heap yourself. `heapq.nlargest(k, xs)` and `heapq.nsmallest(k, xs)` return a sorted list of the k largest or smallest items. Both take `key=` like `sorted()`, and tied keys keep their original order:\n\n```python\nheapq.nsmallest(2, products, key=lambda p: p[1])\n```\n\nFor k of 1 use `max()` or `min()`. When k is close to the whole list, `sorted()` is just as good.",
+      "example": {
+        "title": "Task queue",
+        "prompt": "Run tasks in priority order with ties broken by name, then print the top 3 scores and the 2 cheapest products.",
+        "code": "import heapq\n\ntasks = []\nheapq.heappush(tasks, (2, \"write tests\"))\nheapq.heappush(tasks, (1, \"fix bug\"))\nheapq.heappush(tasks, (2, \"deploy\"))\nheapq.heappush(tasks, (3, \"update docs\"))\nwhile tasks:\n    priority, task = heapq.heappop(tasks)\n    print(priority, task)\n\nscores = [72, 95, 88, 61, 95, 79]\nprint(heapq.nlargest(3, scores))\n\nproducts = [(\"pen\", 1.5), (\"book\", 12.0), (\"mug\", 6.25), (\"clip\", 0.75)]\nfor name, price in heapq.nsmallest(2, products, key=lambda p: p[1]):\n    print(f\"{name}: {price:.2f}\")\n",
+        "output": "1 fix bug\n2 deploy\n2 write tests\n3 update docs\n[95, 95, 88]\nclip: 0.75\npen: 1.50",
+        "explanation": "Each tuple compares by priority first. Two tasks have priority 2, so the heap compares their names and `\"deploy\"` comes before `\"write tests\"`. Unpacking the popped tuple into `priority, task` makes the print easy. `nlargest(3, scores)` returns a new list, largest first, and keeps both 95s. `nsmallest` with `key=lambda p: p[1]` compares products by price instead of by name, and returns whole tuples, ready to unpack."
+      },
+      "practice": {
+        "title": "Clinic queue",
+        "prompt": "Serve patients shortest wait first, then pick the top scores and the lightest parcels.\n\n1. Pop every `(minutes, patient)` tuple from `waiting` with `while waiting:` and print the minutes and the name separated by a space. Patients with the same wait come out in alphabetical order.\n2. Print the 2 highest values in `scores` with `heapq.nlargest()`.\n3. Use `heapq.nsmallest()` with a `key=` to get the 2 lightest parcels, and print each as `name: weight` with the weight to 2 decimal places.\n\nExpected output:\n\n```text\n5 Malik\n15 Ana\n15 Rosa\n30 Theo\n[91, 91]\nsocks: 0.60\nmug: 1.10\n```",
+        "starter": "import heapq\n\nwaiting = []\nheapq.heappush(waiting, (15, \"Rosa\"))\nheapq.heappush(waiting, (5, \"Malik\"))\nheapq.heappush(waiting, (15, \"Ana\"))\nheapq.heappush(waiting, (30, \"Theo\"))\n# TODO: pop and print each patient, shortest wait first\n\nscores = [64, 91, 77, 85, 58, 91]\n# TODO: print the 2 highest scores\n\nparcels = [(\"lamp\", 3.4), (\"books\", 7.25), (\"socks\", 0.6), (\"mug\", 1.1)]\n# TODO: print the 2 lightest parcels as name: weight with 2 decimals\n",
+        "solution": "import heapq\n\nwaiting = []\nheapq.heappush(waiting, (15, \"Rosa\"))\nheapq.heappush(waiting, (5, \"Malik\"))\nheapq.heappush(waiting, (15, \"Ana\"))\nheapq.heappush(waiting, (30, \"Theo\"))\nwhile waiting:\n    minutes, patient = heapq.heappop(waiting)\n    print(minutes, patient)\n\nscores = [64, 91, 77, 85, 58, 91]\nprint(heapq.nlargest(2, scores))\n\nparcels = [(\"lamp\", 3.4), (\"books\", 7.25), (\"socks\", 0.6), (\"mug\", 1.1)]\nfor name, weight in heapq.nsmallest(2, parcels, key=lambda p: p[1]):\n    print(f\"{name}: {weight:.2f}\")\n",
+        "tests": [
+          {
+            "output": "5 Malik\n15 Ana\n15 Rosa\n30 Theo\n[91, 91]\nsocks: 0.60\nmug: 1.10"
+          }
+        ],
+        "hints": [
+          "Pop inside `while waiting:` and unpack each tuple into two names, as the example does with `priority, task`.",
+          "`nlargest()` already returns a list, so you can print its result directly.",
+          "Use the same `key=` as the example so parcels compare by weight, then format the weight with `:.2f`."
+        ]
+      }
+    },
+    {
+      "title": "Binary search by hand",
+      "body": "On a *sorted* list, binary search beats checking every item: look at the middle, then drop the half that cannot hold the target.\n\nBounds `lo` and `hi` mark the part still in play:\n\n```python\ndef binary_search(nums, target):\n    lo, hi = 0, len(nums) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if nums[mid] == target:\n            return mid\n        if nums[mid] < target:\n            lo = mid + 1   # target is to the right\n        else:\n            hi = mid - 1   # target is to the left\n    return -1\n```\n\nUse `//` so `mid` is an int index. Python ints never overflow, so `lo + hi` is safe. The `+ 1` and `- 1` matter: without them the range can stop shrinking and the loop never ends. When `lo` passes `hi` the range is empty, so the target is missing and you return -1.\n\nEach step halves the range, so the work is O(log n). A list of a million items needs at most 20 steps, because 2 to the 20th power is just over a million. Strings compare alphabetically, so the same code searches a sorted list of words.\n\nIt only works on sorted data. On an unsorted list it can miss items that are there.",
+      "example": {
+        "title": "Search a sorted list",
+        "prompt": "Write binary_search(nums, target) that returns the index or -1 and the number of steps, then search for a present value, a missing value, and a value in a million items.",
+        "code": "def binary_search(nums, target):\n    lo, hi = 0, len(nums) - 1\n    steps = 0\n    while lo <= hi:\n        steps += 1\n        mid = (lo + hi) // 2\n        if nums[mid] == target:\n            return mid, steps\n        if nums[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid - 1\n    return -1, steps\n\n\nnums = [3, 8, 15, 21, 34, 42, 57, 63, 78, 91]\nfor target in [57, 40]:\n    index, steps = binary_search(nums, target)\n    print(f\"{target}: index {index} in {steps} steps\")\n\nevens = list(range(0, 2_000_000, 2))\nindex, steps = binary_search(evens, 1_234_568)\nprint(f\"{len(evens):,} items: index {index} in {steps} steps\")\n",
+        "output": "57: index 6 in 4 steps\n40: index -1 in 3 steps\n1,000,000 items: index 617284 in 17 steps",
+        "explanation": "For 57 the middles are 34, 63, 42, then 57, so it takes 4 steps. For 40 the range shrinks to nothing after 3 steps, `lo` passes `hi`, and the function returns -1. `steps` goes up once per pass of the loop. In the list of a million even numbers the search needs only 17 steps, and never more than 20, while a plain loop could check all million."
+      },
+      "practice": {
+        "title": "Find a word",
+        "prompt": "Binary search a sorted list of words and report how many steps it took.\n\n1. Finish `find_word(words, target)` with `lo` and `hi` bounds and a `while lo <= hi:` loop using `mid = (lo + hi) // 2`.\n2. Add 1 to `steps` on every pass of the loop.\n3. Return `mid, steps` when the word is found, and `-1, steps` after the loop when it is missing.\n4. Keep the loop at the bottom, which prints the result for `mango` and `fig`.\n\nExpected output:\n\n```text\nmango: index 6 in 2 steps\nfig: index -1 in 4 steps\n```",
+        "starter": "def find_word(words, target):\n    steps = 0\n    # TODO: binary search for target, counting each pass of the loop in steps\n    return -1, steps\n\n\nwords = [\n    \"apple\", \"banana\", \"cherry\", \"grape\", \"kiwi\",\n    \"lemon\", \"mango\", \"peach\", \"plum\",\n]\nfor target in [\"mango\", \"fig\"]:\n    index, steps = find_word(words, target)\n    print(f\"{target}: index {index} in {steps} steps\")\n",
+        "solution": "def find_word(words, target):\n    lo, hi = 0, len(words) - 1\n    steps = 0\n    while lo <= hi:\n        steps += 1\n        mid = (lo + hi) // 2\n        if words[mid] == target:\n            return mid, steps\n        if words[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid - 1\n    return -1, steps\n\n\nwords = [\n    \"apple\", \"banana\", \"cherry\", \"grape\", \"kiwi\",\n    \"lemon\", \"mango\", \"peach\", \"plum\",\n]\nfor target in [\"mango\", \"fig\"]:\n    index, steps = find_word(words, target)\n    print(f\"{target}: index {index} in {steps} steps\")\n",
+        "tests": [
+          {
+            "output": "mango: index 6 in 2 steps\nfig: index -1 in 4 steps"
+          }
+        ],
+        "hints": [
+          "Start with `lo, hi = 0, len(words) - 1`.",
+          "Strings compare alphabetically, so `words[mid] < target` tells you the target is to the right.",
+          "Move with `lo = mid + 1` or `hi = mid - 1`, never just `mid`, so the range always shrinks."
+        ]
+      }
+    },
+    {
+      "title": "Binary search with bisect",
+      "body": "The `bisect` module does binary search for you on a sorted list:\n\n- `bisect.bisect_left(lst, x)` gives the first position where `x` fits, before any equal items.\n- `bisect.bisect_right(lst, x)` gives the position after any equal items. Plain `bisect.bisect()` is the same function.\n- `bisect.insort(lst, x)` inserts `x` at the right spot so the list stays sorted.\n\n```python\nnums = [10, 25, 25, 31]\nbisect.bisect_left(nums, 25)    # 1\nbisect.bisect_right(nums, 25)   # 3\n```\n\nThe difference between the two is how many copies of `x` the list holds. To test if `x` is there, check `i < len(nums) and nums[i] == x` with `i = bisect_left(nums, x)`.\n\nTwo bisects count the values in a range in O(log n): `bisect_right(nums, hi) - bisect_left(nums, lo)` counts every value from `lo` to `hi`, both ends included.\n\n`bisect_right` over a list of cutoffs also maps a number to a bucket. A value equal to a cutoff lands in the higher bucket:\n\n```python\nlabels[bisect.bisect_right(cutoffs, x)]\n```\n\nThe search takes O(log n), but `insort` still shifts items to make room, so an insert costs O(n). The list must already be sorted. `bisect` never checks, and on unsorted data it quietly gives wrong positions.",
+      "example": {
+        "title": "Positions, ranges, and buckets",
+        "prompt": "Find where 25 fits, insert 27, count the values from 10 to 30, and label ages with a list of cutoffs.",
+        "code": "import bisect\n\nnums = [10, 18, 25, 25, 31, 40]\nprint(\"left:\", bisect.bisect_left(nums, 25))\nprint(\"right:\", bisect.bisect_right(nums, 25))\n\nbisect.insort(nums, 27)\nprint(nums)\ncount = bisect.bisect_right(nums, 30) - bisect.bisect_left(nums, 10)\nprint(\"From 10 to 30:\", count)\n\ncutoffs = [13, 65]\nlabels = [\"child\", \"adult\", \"senior\"]\nfor age in [12, 13, 64, 65]:\n    print(age, labels[bisect.bisect_right(cutoffs, age)])\n",
+        "output": "left: 2\nright: 4\n[10, 18, 25, 25, 27, 31, 40]\nFrom 10 to 30: 5\n12 child\n13 adult\n64 adult\n65 senior",
+        "explanation": "25 appears at indexes 2 and 3, so `bisect_left` returns 2 and `bisect_right` returns 4. `insort` puts 27 between the 25s and 31. For the range, `bisect_right(nums, 30)` is 5, the count of values up to 30, and `bisect_left(nums, 10)` is 0, the count below 10, so 5 values fall from 10 to 30. For the ages, `bisect_right` counts how many cutoffs are less than or equal to the age, and that count is the label's index. Age 13 equals a cutoff, so it moves up to `adult`."
+      },
+      "practice": {
+        "title": "Letter grades",
+        "prompt": "Turn scores into letter grades with bisect, then keep a score list sorted and count a range.\n\n1. For each score in the loop, print the score and its grade from `grades[bisect.bisect_right(cutoffs, score)]`. A score equal to a cutoff gets the higher grade.\n2. Insert 78 into `scores` with `bisect.insort()` and print the list.\n3. Print `From 70 to 89:` followed by how many scores are from 70 to 89, both included, counted with two bisects.\n\nExpected output:\n\n```text\n59 F\n60 D\n70 C\n95 A\n[55, 62, 70, 74, 78, 81, 89, 93]\nFrom 70 to 89: 5\n```",
+        "starter": "import bisect\n\ncutoffs = [60, 70, 80, 90]\ngrades = [\"F\", \"D\", \"C\", \"B\", \"A\"]\nfor score in [59, 60, 70, 95]:\n    # TODO: print the score and its grade\n    pass\n\nscores = [55, 62, 70, 74, 81, 89, 93]\n# TODO: insert 78 keeping scores sorted, print scores, then count 70 to 89\n",
+        "solution": "import bisect\n\ncutoffs = [60, 70, 80, 90]\ngrades = [\"F\", \"D\", \"C\", \"B\", \"A\"]\nfor score in [59, 60, 70, 95]:\n    print(score, grades[bisect.bisect_right(cutoffs, score)])\n\nscores = [55, 62, 70, 74, 81, 89, 93]\nbisect.insort(scores, 78)\nprint(scores)\ncount = bisect.bisect_right(scores, 89) - bisect.bisect_left(scores, 70)\nprint(\"From 70 to 89:\", count)\n",
+        "tests": [
+          {
+            "output": "59 F\n60 D\n70 C\n95 A\n[55, 62, 70, 74, 78, 81, 89, 93]\nFrom 70 to 89: 5"
+          }
+        ],
+        "hints": [
+          "`bisect_right` counts how many cutoffs are at or below the score, and that count is the index into `grades`.",
+          "`bisect.insort()` changes the list in place and returns `None`, so call it on its own line before printing.",
+          "Subtract the number of scores below 70, from `bisect_left`, from the number of scores up to 89, from `bisect_right`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `heapq.heappush()` and `heapq.heappop()` keep the smallest item at `heap[0]`. `heapq.heapify()` turns a list into a heap in place.\n- A heap is a plain list that is not fully sorted. Pop with `while heap:` to get items in order.\n- For a max-heap, push negated values and negate them again when you pop.\n- Push `(priority, item)` tuples. Ties compare the next item, so add a counter when items cannot be compared.\n- `heapq.nlargest(k, xs)` and `heapq.nsmallest(k, xs, key=...)` return the top k as a sorted list.\n- Binary search keeps `lo` and `hi`, checks `mid = (lo + hi) // 2`, and moves to `mid + 1` or `mid - 1`. It returns -1 when `lo` passes `hi`.\n- Each step halves the range: at most 20 steps for a million items, but only on a sorted list.\n- `bisect_left` gives the first position where `x` fits and `bisect_right` the position after equal items. `insort` inserts in order.\n- `bisect_right(xs, hi) - bisect_left(xs, lo)` counts a range, and `labels[bisect.bisect_right(cutoffs, x)]` picks a bucket."
+}

@@ -1,0 +1,88 @@
+{
+  "id": "args-kwargs",
+  "title": "*args, **kwargs, and Unpacking",
+  "section": "Pythonic Python",
+  "summary": "Accept any number of positional or keyword arguments, and spread lists and dicts into calls.",
+  "intro": "Some functions should take any number of values, like `print()` and `max()` do. One star collects extra positional arguments into a tuple, two stars collect keyword arguments into a dict, and the same stars spread lists and dicts back out into calls and literals.",
+  "steps": [
+    {
+      "title": "*args",
+      "body": "Put `*` before a parameter name and Python collects every extra positional argument into a **tuple**. The name `args` is only a convention: pick one that says what the values are.\n\n```python\ndef show(*args):\n    print(args)\n\n\nshow(1, \"a\")  # (1, 'a')\nshow()        # ()\n```\n\nRequired parameters go first. They take the leading arguments, and the starred one gets whatever is left:\n\n```python\ndef greet(greeting, *names):\n    for name in names:\n        print(greeting, name)\n```\n\n`greet(\"Hi\", \"Ana\", \"Ben\")` sets `greeting` to `\"Hi\"` and `names` to `(\"Ana\", \"Ben\")`. Leaving out a required argument is still an error.\n\nA starred parameter may receive nothing at all, so it is an empty tuple. Like any tuple it cannot be changed, so build a new list if you need one. Empty tuples are falsy, which makes `if not args:` the usual guard. Without it, built-ins that need at least one value fail:\n\n```python\n# max(())  # ValueError: max() iterable argument is empty\n```\n\nThis is how `print()` itself accepts any number of values.",
+      "example": {
+        "title": "Biggest and log",
+        "prompt": "Write show(*args), which prints the tuple it collects, biggest(*nums), which returns None for no arguments, and log(level, *messages), then call each with different numbers of arguments.",
+        "code": "def show(*args):\n    print(args)\n\n\ndef biggest(*nums):\n    if not nums:\n        return None\n    return max(nums)\n\n\ndef log(level, *messages):\n    for message in messages:\n        print(f\"[{level}] {message}\")\n\n\nshow(4, \"x\", True)\nprint(biggest(4, 9, 2))\nprint(biggest(7))\nprint(biggest())\nlog(\"INFO\", \"server started\", \"port 8080\")\nlog(\"WARN\", \"disk almost full\")\nlog(\"DEBUG\")\nprint(\"done\")\n",
+        "output": "(4, 'x', True)\n9\n7\nNone\n[INFO] server started\n[INFO] port 8080\n[WARN] disk almost full\ndone",
+        "explanation": "`show` prints its `args` tuple to prove what Python built. `biggest` receives its numbers as the tuple `nums`, so `max(nums)` works on it directly. The call with no arguments makes `nums` the empty tuple, `if not nums:` catches it, and the function returns `None` instead of crashing in `max()`. `log` takes one required `level`, then loops over the rest. `log(\"DEBUG\")` passes only the level, so `messages` is empty and the loop prints nothing."
+      },
+      "practice": {
+        "title": "Average and join",
+        "prompt": "Write two functions that accept any number of positional arguments.\n\n1. Make `average(*nums)` return `0` when it gets no numbers, and otherwise the sum divided by the count.\n2. Make `join_words(sep, *words)` return the words joined with `sep` between them.\n3. Keep the print lines at the bottom, which call each function with different numbers of arguments.\n\nExpected output:\n\n```text\n6.00\n3.50\n0.00\nred-green-blue\nhello world\n[]\n```",
+        "starter": "def average(*nums):\n    # TODO: return 0 when there are no numbers, else their average\n    return 0\n\n\ndef join_words(sep, *words):\n    # TODO: join every word with sep between them\n    return \"\"\n\n\nprint(f\"{average(4, 8, 6):.2f}\")\nprint(f\"{average(3, 4):.2f}\")\nprint(f\"{average():.2f}\")\nprint(join_words(\"-\", \"red\", \"green\", \"blue\"))\nprint(join_words(\" \", \"hello\", \"world\"))\nprint(f\"[{join_words('/')}]\")\n",
+        "solution": "def average(*nums):\n    if not nums:\n        return 0\n    return sum(nums) / len(nums)\n\n\ndef join_words(sep, *words):\n    return sep.join(words)\n\n\nprint(f\"{average(4, 8, 6):.2f}\")\nprint(f\"{average(3, 4):.2f}\")\nprint(f\"{average():.2f}\")\nprint(join_words(\"-\", \"red\", \"green\", \"blue\"))\nprint(join_words(\" \", \"hello\", \"world\"))\nprint(f\"[{join_words('/')}]\")\n",
+        "tests": [
+          {
+            "output": "6.00\n3.50\n0.00\nred-green-blue\nhello world\n[]"
+          }
+        ],
+        "hints": [
+          "An empty tuple is falsy, so check for the no-numbers call before doing any math.",
+          "`sum()`, `len()`, and `sep.join()` all accept a tuple, just like they accept a list."
+        ]
+      }
+    },
+    {
+      "title": "**kwargs and keyword-only parameters",
+      "body": "Put `**` before a parameter name and Python collects every extra keyword argument into a **dict**. Keys are the argument names as strings. Since dicts keep insertion order, looping over `kwargs.items()` follows the order the caller wrote them:\n\n```python\ndef tag(**kwargs):\n    print(kwargs)\n\n\ntag(b=2, a=1)  # {'b': 2, 'a': 1}\n```\n\nA bare `*` in the parameter list makes every parameter after it **keyword-only**. Callers must name it, which keeps a flag like `True` from sliding into the wrong slot by position:\n\n```python\ndef save(path, *, overwrite=False):\n    pass\n\n\nsave(\"a.txt\", overwrite=True)\n# save(\"a.txt\", True)  # TypeError: save() takes 1 positional argument but 2 were given\n```\n\nParameters after `*args` are keyword-only too: `def f(a, *args, b)`. The full order is: normal parameters (with or without defaults), then `*args` or a bare `*`, then keyword-only parameters, then `**kwargs` last. A named parameter wins over `**kwargs`, so `kwargs` never holds a key that matches one.",
+      "example": {
+        "title": "Describe an item",
+        "prompt": "Write describe(title, *, upper=False, **info), which prints the title and each detail in the order it was passed, uppercased when upper=True.",
+        "code": "def describe(title, *, upper=False, **info):\n    print(f\"{title} ({len(info)} details)\")\n    for key, value in info.items():\n        shown = str(value).upper() if upper else value\n        print(f\"  {key}: {shown}\")\n\n\ndescribe(\"Laptop\", brand=\"Acme\", ram=16, color=\"silver\")\ndescribe(\"Phone\", color=\"black\", brand=\"Zed\", upper=True)\ndescribe(\"Mystery box\")\n",
+        "output": "Laptop (3 details)\n  brand: Acme\n  ram: 16\n  color: silver\nPhone (2 details)\n  color: BLACK\n  brand: ZED\nMystery box (0 details)",
+        "explanation": "`title` is a normal parameter. The bare `*` makes `upper` keyword-only, so it can only be set with `upper=True`. Every other keyword lands in the dict `info`, which is why `len(info)` counts the details and `info.items()` loops over them. The Phone call lists `color` before `brand`, and the output follows that order. `upper` is never in `info`, because a named parameter takes its keyword first. With no keywords at all, `info` is an empty dict."
+      },
+      "practice": {
+        "title": "Build a profile",
+        "prompt": "Write a function that builds a user profile from keyword arguments.\n\n1. Make `build_profile(name, *, active=True, **details)` start a dict with the key `\"name\"`.\n2. Add every detail in the order the caller passed them.\n3. Add the key `\"active\"` last, then return the dict.\n4. Keep the two print lines. The second passes `active=False`.\n\nExpected output:\n\n```text\n{'name': 'ana', 'city': 'Lima', 'role': 'admin', 'active': True}\n{'name': 'ben', 'team': 'red', 'active': False}\n```",
+        "starter": "def build_profile(name, *, active=True, **details):\n    # TODO: start a dict with the name, add every detail, then add active\n    return {}\n\n\nprint(build_profile(\"ana\", city=\"Lima\", role=\"admin\"))\nprint(build_profile(\"ben\", active=False, team=\"red\"))\n",
+        "solution": "def build_profile(name, *, active=True, **details):\n    profile = {\"name\": name}\n    profile.update(details)\n    profile[\"active\"] = active\n    return profile\n\n\nprint(build_profile(\"ana\", city=\"Lima\", role=\"admin\"))\nprint(build_profile(\"ben\", active=False, team=\"red\"))\n",
+        "tests": [
+          {
+            "output": "{'name': 'ana', 'city': 'Lima', 'role': 'admin', 'active': True}\n{'name': 'ben', 'team': 'red', 'active': False}"
+          }
+        ],
+        "hints": [
+          "`details` is already a dict in the caller's order, and a dict method you know copies every pair of one dict into another.",
+          "Add `\"active\"` only after the details are in, so it lands last."
+        ]
+      }
+    },
+    {
+      "title": "Unpacking into calls and literals",
+      "body": "Stars also work in the other direction, in a call. `f(*lst)` spreads a list or tuple into positional arguments, and `f(**d)` spreads a dict into keyword arguments, matching keys to parameter names. You already use the first form with `print(*lst)`. Forget the star and the whole list arrives as one argument: `total([1, 2])` for `def total(*nums)` makes `nums` the tuple `([1, 2],)`.\n\n```python\ndef area(w, h):\n    return w * h\n\n\nprint(area(*[3, 4]))            # 12\nprint(area(**{\"h\": 5, \"w\": 2}))  # 10\n```\n\nThe counts and names must fit the function:\n\n```python\n# area(*[3])  # TypeError: area() missing 1 required positional argument: 'h'\n# area(**{\"w\": 1, \"d\": 2})  # TypeError: area() got an unexpected keyword argument 'd'\n```\n\nInside literals, stars merge. `[*a, *b]` builds a new list from both, and you can mix in single items: `[0, *a, 9]`. `{**d1, **d2}` builds a new dict where **later keys win**: a key keeps its first position but takes the last value. It gives the same result as `d1 | d2`, and the originals are not changed.",
+      "example": {
+        "title": "Spread and merge",
+        "prompt": "Call a three-parameter function with *coords and with **options, then merge lists with [*a, *b] and dicts with {**defaults, **user}.",
+        "code": "def point(x, y, z):\n    return f\"({x}, {y}, {z})\"\n\n\ncoords = [3, -1, 7]\noptions = {\"z\": 0, \"x\": 5, \"y\": 2}\nprint(point(*coords))\nprint(point(**options))\n\nevens = [2, 4]\nodds = [1, 3, 5]\nprint([*evens, *odds])\nprint([0, *odds, 9])\n\ndefaults = {\"theme\": \"light\", \"size\": 12, \"lang\": \"en\"}\nuser = {\"size\": 14, \"theme\": \"dark\"}\nprint({**defaults, **user})\nprint(defaults)\n",
+        "output": "(3, -1, 7)\n(5, 2, 0)\n[2, 4, 1, 3, 5]\n[0, 1, 3, 5, 9]\n{'theme': 'dark', 'size': 14, 'lang': 'en'}\n{'theme': 'light', 'size': 12, 'lang': 'en'}",
+        "explanation": "`*coords` passes 3, -1, and 7 as `x`, `y`, and `z` in order. `**options` passes `z=0, x=5, y=2`, and names decide the slots, so the dict's order does not matter. `[*evens, *odds]` copies both lists into a new one, and `[0, *odds, 9]` adds items around a spread. In `{**defaults, **user}`, `user` comes last, so its `theme` and `size` win, while the keys keep the order from `defaults`. The last line shows `defaults` itself is unchanged."
+      },
+      "practice": {
+        "title": "Book cards and settings",
+        "prompt": "Use unpacking to call a function and to merge lists and dicts.\n\n1. Print `make_card` called with `values` spread as positional arguments.\n2. Print `make_card` called with `record` spread as keyword arguments.\n3. Print one list made of `base_tags`, then `\"favorite\"`, then `extra_tags`.\n4. Print `defaults` merged with `user`, where `user` wins.\n\nExpected output:\n\n```text\nDune by Frank Herbert (1965)\nThe Hobbit by J.R.R. Tolkien (1937)\n['fiction', 'classic', 'favorite', 'sci-fi']\n{'font': 'serif', 'size': 13, 'dark': True}\n```",
+        "starter": "def make_card(title, author, year):\n    return f\"{title} by {author} ({year})\"\n\n\nvalues = [\"Dune\", \"Frank Herbert\", 1965]\nrecord = {\"year\": 1937, \"title\": \"The Hobbit\", \"author\": \"J.R.R. Tolkien\"}\nbase_tags = [\"fiction\", \"classic\"]\nextra_tags = [\"sci-fi\"]\ndefaults = {\"font\": \"serif\", \"size\": 11, \"dark\": False}\nuser = {\"dark\": True, \"size\": 13}\n\n# TODO: print make_card called with values spread by position\n# TODO: print make_card called with record spread by keyword\n# TODO: print base_tags, then \"favorite\", then extra_tags as one list\n# TODO: print defaults merged with user, user winning\n",
+        "solution": "def make_card(title, author, year):\n    return f\"{title} by {author} ({year})\"\n\n\nvalues = [\"Dune\", \"Frank Herbert\", 1965]\nrecord = {\"year\": 1937, \"title\": \"The Hobbit\", \"author\": \"J.R.R. Tolkien\"}\nbase_tags = [\"fiction\", \"classic\"]\nextra_tags = [\"sci-fi\"]\ndefaults = {\"font\": \"serif\", \"size\": 11, \"dark\": False}\nuser = {\"dark\": True, \"size\": 13}\n\nprint(make_card(*values))\nprint(make_card(**record))\nprint([*base_tags, \"favorite\", *extra_tags])\nprint({**defaults, **user})\n",
+        "tests": [
+          {
+            "output": "Dune by Frank Herbert (1965)\nThe Hobbit by J.R.R. Tolkien (1937)\n['fiction', 'classic', 'favorite', 'sci-fi']\n{'font': 'serif', 'size': 13, 'dark': True}"
+          }
+        ],
+        "hints": [
+          "One star spreads a list by position, and two stars spread a dict by parameter name.",
+          "Inside a list literal, plain items can sit between starred lists. Dicts merge the same way with two stars, and the one written last wins."
+        ]
+      }
+    }
+  ],
+  "recap": "- `def f(*args)` collects extra positional arguments into a tuple. Required parameters come before it.\n- `if not args:` handles a call with no extra arguments.\n- `def f(**kwargs)` collects extra keyword arguments into a dict, in the caller's order.\n- Parameters after a bare `*` or after `*args` are keyword-only.\n- `f(*lst)` spreads positional arguments and `f(**d)` spreads keyword arguments.\n- `[*a, *b]` merges lists. `{**d1, **d2}` merges dicts, and later keys win."
+}

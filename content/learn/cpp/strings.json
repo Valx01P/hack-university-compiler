@@ -1,0 +1,118 @@
+{
+  "id": "strings",
+  "title": "std::string Essentials",
+  "section": "Strings",
+  "summary": "Create, measure, search, slice, edit, compare, and convert text with the most useful std::string methods.",
+  "intro": "Names, emails, file names, and dates are all text. In C++ you hold text in `std::string`, a mutable string that manages its own memory. This lesson covers the methods you will use every day: measuring and joining, `find` and `substr`, editing in place, and converting to and from numbers.",
+  "steps": [
+    {
+      "title": "Creating, measuring, and joining",
+      "body": "`std::string` from `<string>` holds text that can grow, shrink, and change. Create one from a literal, then ask it about itself.\n\n```cpp\nstd::string s = \"code\";\ns.size();    // 4, same as s.length()\ns.empty();   // false\ns[0];        // 'c', a char\ns.front();   // 'c'\ns.back();    // 'e'\n```\n\nJoin text with `+`, which builds a new string, or `+=`, which appends to the end of an existing one. A `char` such as `'@'` joins too. `std::string(n, c)` builds a string of `n` copies of the char `c`, handy for underlines.\n\n> Gotcha: a literal like `\"a\"` is a `const char` array, not a `std::string`, so `\"a\" + \"b\"` does not compile. Every `+` needs a `std::string` on at least one side. `first + \" \" + last` works because it runs left to right as `(first + \" \") + last`.\n\nIn memory, a `std::string` object is 32 bytes here. Up to 15 chars fit inside the object itself, and longer text lives on the heap, which the string frees for you. Like `v[i]`, `s[i]` is not bounds-checked, and `front()` or `back()` on an empty string is undefined behavior, so check `empty()` first.",
+      "example": {
+        "title": "Name card",
+        "prompt": "Build a full name with + and +=, measure it, read its first and last chars, and underline it.",
+        "code": "#include <iostream>\n#include <string>\n\nint main() {\n    const std::string first = \"Grace\";\n    const std::string last = \"Hopper\";\n    std::string name = first + \" \";\n    name += last;\n    std::cout << name << '\\n';\n    std::cout << \"Length: \" << name.length() << '\\n';\n    std::cout << \"First: \" << name[0] << '\\n';\n    std::cout << \"Last: \" << name.back() << '\\n';\n    std::cout << std::boolalpha << \"Empty: \" << name.empty() << '\\n';\n    std::cout << std::string(name.size(), '=') << '\\n';\n    return 0;\n}\n",
+        "output": "Grace Hopper\nLength: 12\nFirst: G\nLast: r\nEmpty: false\n============",
+        "explanation": "`first + \" \"` works because `first` is a `std::string`, and `+=` then appends `last` to the same string. `Grace Hopper` has 12 chars, so `length()` is 12, `name[0]` is `G`, and `back()` is `r`. `std::string(name.size(), '=')` repeats `=` 12 times, so the underline matches the name exactly."
+      },
+      "practice": {
+        "title": "Email card",
+        "prompt": "Build an email address from two parts, measure it, and underline it.\n\n1. Build `email` from `user`, the char `'@'`, and `domain` with `+`, then print it.\n2. Print `Length: ` followed by its size.\n3. Print `First: ` and `Last: ` followed by its first and last chars, each on its own line.\n4. Print `Empty: ` followed by `empty()` as true or false.\n5. Print a line of `-` exactly as long as the email with `std::string(n, c)`.\n\nExpected output:\n\n```text\nada@example.com\nLength: 15\nFirst: a\nLast: m\nEmpty: false\n---------------\n```",
+        "starter": "#include <iostream>\n#include <string>\n\nint main() {\n    const std::string user = \"ada\";\n    const std::string domain = \"example.com\";\n    // TODO: build the email with + and '@', then print it, its length, first and last chars, Empty, and a line of -\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n\nint main() {\n    const std::string user = \"ada\";\n    const std::string domain = \"example.com\";\n    const std::string email = user + '@' + domain;\n    std::cout << email << '\\n';\n    std::cout << \"Length: \" << email.size() << '\\n';\n    std::cout << \"First: \" << email.front() << '\\n';\n    std::cout << \"Last: \" << email.back() << '\\n';\n    std::cout << std::boolalpha << \"Empty: \" << email.empty() << '\\n';\n    std::cout << std::string(email.size(), '-') << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "ada@example.com\nLength: 15\nFirst: a\nLast: m\nEmpty: false\n---------------"
+          }
+        ],
+        "hints": [
+          "`user + '@' + domain` works because `user` is a `std::string`, so each `+` returns a new string.",
+          "`email.front()` and `email.back()` give the first and last chars.",
+          "`std::string(email.size(), '-')` builds the line."
+        ]
+      }
+    },
+    {
+      "title": "Searching and slicing",
+      "body": "`s.find(x)` returns the index of the first match of a string or char, and `s.rfind(x)` the index of the last match. When there is no match, both return `std::string::npos`, the largest `std::size_t`.\n\n```cpp\nstd::string s = \"a-b-c\";\nstd::size_t dash = s.find('-');        // 1\nstd::size_t next = s.find('-', dash + 1); // 3, search starts at 2\nstd::size_t last = s.rfind('-');       // 3\ns.find(\"zz\") == std::string::npos;     // true: not found\n```\n\nStore the result in `std::size_t` or `auto`, never in an `int`. `npos` is too big for an `int`, so it turns into -1 and mixes signed with unsigned math, which invites bugs.\n\n`s.substr(pos, len)` copies `len` chars from `pos` into a new string, and `s.substr(pos)` copies to the end. Text between two positions `a` and `b` is `s.substr(a + 1, b - a - 1)`.\n\nC++17 has no `starts_with`. Use `s.rfind(prefix, 0) == 0`: searching backward from position 0 can only match at the very start. For a suffix, check `s.size() >= suf.size() && s.substr(s.size() - suf.size()) == suf`.\n\n> Gotcha: `substr` with a start past the end throws an exception and stops the program, but a length past the end just stops there. Only slice at positions you know are valid.",
+      "example": {
+        "title": "File name parts",
+        "prompt": "Pull the year and extension out of a file name, then check for a word and a prefix.",
+        "code": "#include <cstddef>\n#include <iostream>\n#include <string>\n\nint main() {\n    const std::string file = \"report_2024_final.txt\";\n    const std::size_t first = file.find('_');\n    const std::size_t second = file.find('_', first + 1);\n    std::cout << \"First _ at: \" << first << '\\n';\n    std::cout << \"Second _ at: \" << second << '\\n';\n    std::cout << \"Year: \" << file.substr(first + 1, second - first - 1) << '\\n';\n\n    const std::size_t dot = file.rfind('.');\n    std::cout << \"Extension: \" << file.substr(dot + 1) << '\\n';\n\n    std::cout << std::boolalpha;\n    std::cout << \"Has draft: \" << (file.find(\"draft\") != std::string::npos) << '\\n';\n    std::cout << \"Starts with report: \" << (file.rfind(\"report\", 0) == 0) << '\\n';\n    return 0;\n}\n",
+        "output": "First _ at: 6\nSecond _ at: 11\nYear: 2024\nExtension: txt\nHas draft: false\nStarts with report: true",
+        "explanation": "The first `_` is at index 6. Searching again from index 7 skips it and finds the second `_` at 11. The year starts right after the first `_` and is `11 - 6 - 1 = 4` chars long, so `substr(7, 4)` is `2024`. `rfind('.')` finds the last dot, and `substr(dot + 1)` runs to the end, giving `txt`. `find(\"draft\")` misses and returns `npos`, so the check prints false, and `rfind(\"report\", 0)` matches at index 0, so the prefix check prints true."
+      },
+      "practice": {
+        "title": "Email parts",
+        "prompt": "Pull the first name, last name, and top-level domain out of an email address.\n\n1. Find the first `.` and print `Dot at: ` followed by its index.\n2. Find `@` searching from just after that dot and print `@ at: ` followed by its index.\n3. Print `First: ` followed by the text before the dot, then `Last: ` followed by the text between the dot and the `@`, each on its own line.\n4. Find the last `.` with rfind and print `Domain: ` followed by everything after it.\n5. With `std::cout << std::boolalpha`, print `Has army: ` followed by whether `army` appears, then `Starts with grace: ` followed by whether the email starts with `grace`.\n\nExpected output:\n\n```text\nDot at: 5\n@ at: 12\nFirst: grace\nLast: hopper\nDomain: mil\nHas army: false\nStarts with grace: true\n```",
+        "starter": "#include <cstddef>\n#include <iostream>\n#include <string>\n\nint main() {\n    const std::string email = \"grace.hopper@navy.mil\";\n    // TODO: find the first '.', then the '@' searching from just after it, and print both positions\n    // TODO: print the first name, last name, and the part after the last '.'\n    // TODO: print whether \"army\" appears and whether email starts with \"grace\"\n    return 0;\n}\n",
+        "solution": "#include <cstddef>\n#include <iostream>\n#include <string>\n\nint main() {\n    const std::string email = \"grace.hopper@navy.mil\";\n    const std::size_t dot = email.find('.');\n    const std::size_t at = email.find('@', dot + 1);\n    std::cout << \"Dot at: \" << dot << '\\n';\n    std::cout << \"@ at: \" << at << '\\n';\n    std::cout << \"First: \" << email.substr(0, dot) << '\\n';\n    std::cout << \"Last: \" << email.substr(dot + 1, at - dot - 1) << '\\n';\n\n    const std::size_t lastDot = email.rfind('.');\n    std::cout << \"Domain: \" << email.substr(lastDot + 1) << '\\n';\n\n    std::cout << std::boolalpha;\n    std::cout << \"Has army: \" << (email.find(\"army\") != std::string::npos) << '\\n';\n    std::cout << \"Starts with grace: \" << (email.rfind(\"grace\", 0) == 0) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Dot at: 5\n@ at: 12\nFirst: grace\nLast: hopper\nDomain: mil\nHas army: false\nStarts with grace: true"
+          }
+        ],
+        "hints": [
+          "Store each `find` result in a `const std::size_t`.",
+          "The first name is `email.substr(0, dot)`, and the last name has length `at - dot - 1`.",
+          "Compare `email.find(\"army\")` with `std::string::npos`, and check the prefix with `email.rfind(\"grace\", 0) == 0`."
+        ]
+      }
+    },
+    {
+      "title": "Editing in place",
+      "body": "A `std::string` is mutable: these methods change the string in place instead of building a new one.\n\n```cpp\nstd::string s = \"cat\";\ns.insert(0, \"a \");     // \"a cat\": insert text before index 0\ns.replace(2, 3, \"dog\"); // \"a dog\": swap 3 chars at index 2 for \"dog\"\ns.erase(0, 2);         // \"dog\": remove 2 chars starting at index 0\ns.push_back('s');      // \"dogs\": append one char\ns.pop_back();          // \"dog\": remove the last char\n```\n\nPositions often come from `find`, so you can edit text without counting by hand: `s.replace(s.find(\"cat\"), 3, \"dog\")`. The replacement can be longer or shorter than what it replaces, and the rest of the string shifts to fit.\n\nEach edit shifts everything after it, so find positions *after* the previous edit, not before. Inserting near the front of a long string moves every later char, which is fine for short text.\n\n> Gotcha: `pop_back()` on an empty string is undefined behavior, and an `insert`, `erase`, or `replace` position past the end throws. Make sure the position came from a successful `find` before you use it.",
+      "example": {
+        "title": "Greeting edits",
+        "prompt": "Edit a greeting in place with insert, replace, erase, and push_back, printing it after each edit.",
+        "code": "#include <cstddef>\n#include <iostream>\n#include <string>\n\nint main() {\n    std::string text = \"Hello World\";\n    std::cout << text << '\\n';\n\n    text.insert(5, \", big\");\n    std::cout << text << '\\n';\n\n    const std::string target = \"World\";\n    const std::size_t pos = text.find(target);\n    text.replace(pos, target.size(), \"C++\");\n    std::cout << text << '\\n';\n\n    text.erase(text.find(\"big \"), 4);\n    std::cout << text << '\\n';\n\n    text.push_back('!');\n    std::cout << text << '\\n';\n    return 0;\n}\n",
+        "output": "Hello World\nHello, big World\nHello, big C++\nHello, C++\nHello, C++!",
+        "explanation": "`insert(5, \", big\")` puts the text right after `Hello`. `find` then locates `World` at its new index, and `replace` swaps those 5 chars for the 3 chars `C++`, so the string shrinks. `erase` removes the 4 chars of `big ` at the index `find` reports, and `push_back` appends `!`. Every call changed the same `text` object, which is why it is not `const`."
+      },
+      "practice": {
+        "title": "Date fixer",
+        "prompt": "Turn `2024-1-5` into `2025-01-06` by editing the string in place.\n\n1. Insert `0` at index 5 to make `2024-01-5`.\n2. Insert `0` just after the last `-`, found with rfind, to make `2024-01-05`.\n3. Replace the 4 chars at index 0 with `2025`.\n4. Call pop_back, then push_back the char `'6'`.\n5. Print `date` after each of the five edits, below the starting line the starter prints.\n\nExpected output:\n\n```text\n2024-1-5\n2024-01-5\n2024-01-05\n2025-01-05\n2025-01-0\n2025-01-06\n```",
+        "starter": "#include <iostream>\n#include <string>\n\nint main() {\n    std::string date = \"2024-1-5\";\n    std::cout << date << '\\n';\n    // TODO: make each edit in order and print date after each one\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n\nint main() {\n    std::string date = \"2024-1-5\";\n    std::cout << date << '\\n';\n\n    date.insert(5, \"0\");\n    std::cout << date << '\\n';\n\n    date.insert(date.rfind('-') + 1, \"0\");\n    std::cout << date << '\\n';\n\n    date.replace(0, 4, \"2025\");\n    std::cout << date << '\\n';\n\n    date.pop_back();\n    std::cout << date << '\\n';\n\n    date.push_back('6');\n    std::cout << date << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "2024-1-5\n2024-01-5\n2024-01-05\n2025-01-05\n2025-01-0\n2025-01-06"
+          }
+        ],
+        "hints": [
+          "`date.insert(5, \"0\")` puts the new char before index 5.",
+          "After the first insert, `date.rfind('-') + 1` is the index of the day.",
+          "`date.replace(0, 4, \"2025\")` swaps the year, then `pop_back()` and `push_back('6')` change the last digit."
+        ]
+      }
+    },
+    {
+      "title": "Comparing and converting",
+      "body": "`==` and `!=` compare the contents of two strings, char by char. `<` and `>` compare alphabetically by char code, and every uppercase letter comes before every lowercase one, so `\"Zebra\" < \"apple\"` is true. Digits compare as chars too, so the string `\"10\"` sorts before `\"9\"`.\n\n```cpp\nstd::string a = \"apple\";\na == \"apple\";   // true: one side is a std::string\na < \"banana\";   // true\n```\n\n> Gotcha: with two bare literals, `\"apple\" < \"banana\"` compares memory addresses, not text. Keep at least one side a `std::string`.\n\nConvert between text and numbers with functions from `<string>`:\n\n```cpp\nint n = std::stoi(\"42\");        // 42\ndouble d = std::stod(\"3.75\");   // 3.75\nstd::string s = std::to_string(7); // \"7\"\n```\n\n`std::to_string` on a `double` always gives 6 decimals: `std::to_string(3.5)` is `\"3.500000\"`, and it ignores `std::setprecision`. When decimals matter, print the `double` itself with `std::fixed` and `std::setprecision`. `std::stoi(\"42abc\")` stops at the first non-digit and gives 42, while text with no number at the start, like `\"abc\"`, throws, so only convert text you know is numeric for now.",
+      "example": {
+        "title": "Fruit and totals",
+        "prompt": "Compare strings, parse numbers out of text, and turn numbers back into text.",
+        "code": "#include <iomanip>\n#include <iostream>\n#include <string>\n\nint main() {\n    const std::string apple = \"apple\";\n    const std::string banana = \"banana\";\n    const std::string zebra = \"Zebra\";\n    const std::string capitalApple = \"Apple\";\n    std::cout << std::boolalpha;\n    std::cout << \"apple < banana: \" << (apple < banana) << '\\n';\n    std::cout << \"Zebra < apple: \" << (zebra < apple) << '\\n';\n    std::cout << \"apple == Apple: \" << (apple == capitalApple) << '\\n';\n\n    const int count = std::stoi(\"42\") + 8;\n    const double price = std::stod(\"3.75\");\n    std::cout << std::fixed << std::setprecision(1);\n    std::cout << \"Count: \" << count << '\\n';\n    std::cout << \"Doubled: \" << price * 2 << '\\n';\n\n    const std::string label = \"Total: \" + std::to_string(count);\n    std::cout << label << '\\n';\n    std::cout << std::to_string(3.5) << '\\n';\n    return 0;\n}\n",
+        "output": "apple < banana: true\nZebra < apple: true\napple == Apple: false\nCount: 50\nDoubled: 7.5\nTotal: 50\n3.500000",
+        "explanation": "`a` comes before `b`, so `apple < banana` is true. `Z` is an uppercase letter, and uppercase sorts before lowercase, so `Zebra < apple` is true too. `apple == Apple` is false because `a` and `A` are different chars. `std::stoi(\"42\")` gives the int 42, so `count` is 50, and `std::stod(\"3.75\")` gives 3.75, doubled to 7.5. `std::to_string(count)` turns 50 into text so `+` can join it, and `std::to_string(3.5)` prints its fixed 6 decimals no matter what `setprecision` says."
+      },
+      "practice": {
+        "title": "Usernames and years",
+        "prompt": "Compare two usernames, parse two numbers, and build a label.\n\n1. Print `alice == Alice: `, `alice < Alice: `, and `Alice < alice: ` each on its own line and followed by that comparison of `lower` and `upper`.\n2. Parse `\"1999\"` with std::stoi into `year` and `\"0.25\"` with std::stod into `rate`.\n3. Using `std::fixed << std::setprecision(1)`, print `Year: ` followed by `year` and `Times 4: ` followed by `rate * 4`.\n4. Print the label `\"Year \" + std::to_string(year + 1)`.\n5. Print `std::to_string(0.25)`.\n\nExpected output:\n\n```text\nalice == Alice: false\nalice < Alice: false\nAlice < alice: true\nYear: 1999\nTimes 4: 1.0\nYear 2000\n0.250000\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n#include <string>\n\nint main() {\n    const std::string lower = \"alice\";\n    const std::string upper = \"Alice\";\n    std::cout << std::boolalpha;\n    // TODO: print the three comparisons\n    // TODO: parse \"1999\" and \"0.25\", print Year and Times 4, then the label and std::to_string(0.25)\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n#include <string>\n\nint main() {\n    const std::string lower = \"alice\";\n    const std::string upper = \"Alice\";\n    std::cout << std::boolalpha;\n    std::cout << \"alice == Alice: \" << (lower == upper) << '\\n';\n    std::cout << \"alice < Alice: \" << (lower < upper) << '\\n';\n    std::cout << \"Alice < alice: \" << (upper < lower) << '\\n';\n\n    const int year = std::stoi(\"1999\");\n    const double rate = std::stod(\"0.25\");\n    std::cout << std::fixed << std::setprecision(1);\n    std::cout << \"Year: \" << year << '\\n';\n    std::cout << \"Times 4: \" << rate * 4 << '\\n';\n\n    const std::string label = \"Year \" + std::to_string(year + 1);\n    std::cout << label << '\\n';\n    std::cout << std::to_string(0.25) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "alice == Alice: false\nalice < Alice: false\nAlice < alice: true\nYear: 1999\nTimes 4: 1.0\nYear 2000\n0.250000"
+          }
+        ],
+        "hints": [
+          "Wrap each comparison in parentheses: `(lower == upper)`.",
+          "`A` sorts before `a`, so only `upper < lower` is true.",
+          "`std::to_string(0.25)` always gives 6 decimals, whatever `setprecision` says."
+        ]
+      }
+    }
+  ],
+  "recap": "- `std::string` from `<string>` is mutable text: `size()` or `length()`, `empty()`, `s[i]`, `front()`, and `back()`.\n- Join with `+` and `+=`, but never two bare literals. `std::string(n, c)` repeats a char.\n- `find` and `rfind` return an index or `std::string::npos`, so store it in `std::size_t` or `auto`.\n- `s.find(c, pos + 1)` finds the next match, and `substr(pos, len)` or `substr(pos)` copies a piece.\n- C++17 has no `starts_with`: `s.rfind(prefix, 0) == 0` checks a prefix.\n- `insert`, `erase`, `replace`, `push_back`, and `pop_back` edit the string in place.\n- `==` compares contents, and `<` sorts by char code with uppercase first.\n- `std::stoi` and `std::stod` parse text, `std::to_string` makes text, and on a `double` it always shows 6 decimals."
+}

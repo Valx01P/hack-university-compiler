@@ -1,0 +1,91 @@
+{
+  "id": "two-d-arrays",
+  "title": "2D Arrays",
+  "section": "Arrays",
+  "summary": "Model grids and tables as arrays of arrays, walk them with nested loops, and build them without sharing rows by accident.",
+  "intro": "Boards, seating charts, spreadsheets, and images are all grids. In JavaScript a grid is simply an array of arrays: one inner array per row.",
+  "steps": [
+    {
+      "title": "Grids as arrays of arrays",
+      "body": "A grid is an array whose items are arrays. Each inner array is one row, so write the literal one row per line:\n\n```javascript\nconst grid = [\n  [1, 2, 3],\n  [4, 5, 6],\n];\n```\n\nThe comma after the last row is optional. It is allowed in any array literal and makes adding a row later easier.\n\nIndex the row first, then the column: `grid[row][col]`. So `grid[1][0]` is `4`. `grid[1]` gives you the whole row, and the second `[0]` picks a cell from it. Assign to a cell the same way: `grid[0][2] = 9;` changes one cell and leaves the rest alone.\n\n`grid.length` counts the rows and `grid[0].length` counts the columns, as long as every row has the same length.\n\nTo print, join each row with `row.join(\" \")`. Do not `console.log(grid)`: Node's inspect format adds brackets and quotes you do not want in checked output.\n\n**The gotcha:** a missing column only gives `undefined` (`grid[0][9]`), but a missing row is `undefined` itself, so `grid[5][0]` throws a TypeError.",
+      "example": {
+        "title": "Tic-tac-toe board",
+        "prompt": "Read the center of a tic-tac-toe board, place an X, then print its size and every row.",
+        "code": "const board = [\n  [\"O\", \".\", \".\"],\n  [\".\", \"X\", \".\"],\n  [\".\", \".\", \"O\"],\n];\n\nconsole.log(`Center: ${board[1][1]}`);\nboard[0][2] = \"X\";\nconsole.log(`Size: ${board.length} x ${board[0].length}`);\n\nfor (const row of board) {\n  console.log(row.join(\" \"));\n}\n",
+        "output": "Center: X\nSize: 3 x 3\nO . X\n. X .\n. . O",
+        "explanation": "`board[1][1]` picks row 1, then column 1 inside it: the center. `board[0][2] = \"X\"` changes one cell of the top row. `board.length` is 3 rows and `board[0].length` is 3 columns. The loop hands over one row array at a time, and `join(\" \")` turns it into one line."
+      },
+      "practice": {
+        "title": "Seating chart",
+        "prompt": "Work with a 2 by 4 seating chart of names.\n\n1. Print the seat at row 1, column 2 as `Seat: <name>`.\n2. Replace the name at row 0, column 1 with `\"empty\"`.\n3. Print the size as `Size: <rows> x <cols>` using `length`.\n4. Print each row with its names joined by single spaces.\n\nExpected output:\n\n```text\nSeat: gus\nSize: 2 x 4\nana empty cal dee\neli fay gus hal\n```",
+        "starter": "const seats = [\n  [\"ana\", \"ben\", \"cal\", \"dee\"],\n  [\"eli\", \"fay\", \"gus\", \"hal\"],\n];\n\n// TODO: print the seat at row 1, column 2 as \"Seat: <name>\"\n\n// TODO: replace the name at row 0, column 1 with \"empty\"\n\n// TODO: print the size as \"Size: <rows> x <cols>\"\n\n// TODO: print each row with its names joined by single spaces\n",
+        "solution": "const seats = [\n  [\"ana\", \"ben\", \"cal\", \"dee\"],\n  [\"eli\", \"fay\", \"gus\", \"hal\"],\n];\n\nconsole.log(`Seat: ${seats[1][2]}`);\nseats[0][1] = \"empty\";\nconsole.log(`Size: ${seats.length} x ${seats[0].length}`);\n\nfor (const row of seats) {\n  console.log(row.join(\" \"));\n}\n",
+        "tests": [
+          {
+            "output": "Seat: gus\nSize: 2 x 4\nana empty cal dee\neli fay gus hal"
+          }
+        ],
+        "hints": [
+          "Rows come first: `seats[1][2]` is row 1, column 2.",
+          "The column count is `seats[0].length`.",
+          "Loop with `for (const row of seats)` and print `row.join(\" \")`."
+        ]
+      }
+    },
+    {
+      "title": "Nested loops over rows and columns",
+      "body": "To visit every cell, put a loop over columns inside a loop over rows. The inner loop runs fully for each row:\n\n```javascript\nfor (let r = 0; r < grid.length; r++) {\n  for (let c = 0; c < grid[r].length; c++) {\n    // grid[r][c]\n  }\n}\n```\n\nReset an accumulator in the outer loop to get one sum per row. For column sums, swap the loops: columns outside, rows inside, reading `grid[r][c]`.\n\nWhen you only need the values, `for...of` reads cleaner: `for (const row of grid)` gives each row, and `for (const cell of row)` gives each value in it. That is the easy way to get a grand total.\n\nOn a square grid of size `n`, the main diagonal runs top-left to bottom-right, where the row equals the column: `grid[i][i]`. The anti-diagonal runs top-right to bottom-left: `grid[i][n - 1 - i]`. One loop over `i` covers both. Only square grids have these diagonals.",
+      "example": {
+        "title": "Matrix sums",
+        "prompt": "Print every row sum, every column sum, the grand total, and both diagonal sums of a 3 by 3 matrix.",
+        "code": "const matrix = [\n  [3, 1, 4],\n  [1, 5, 9],\n  [2, 6, 5],\n];\nconst n = matrix.length;\n\nfor (let r = 0; r < n; r++) {\n  let rowSum = 0;\n  for (let c = 0; c < matrix[r].length; c++) {\n    rowSum += matrix[r][c];\n  }\n  console.log(`Row ${r}: ${rowSum}`);\n}\n\nfor (let c = 0; c < matrix[0].length; c++) {\n  let colSum = 0;\n  for (let r = 0; r < n; r++) {\n    colSum += matrix[r][c];\n  }\n  console.log(`Col ${c}: ${colSum}`);\n}\n\nlet total = 0;\nfor (const row of matrix) {\n  for (const cell of row) {\n    total += cell;\n  }\n}\nconsole.log(`Total: ${total}`);\n\nlet mainSum = 0;\nlet antiSum = 0;\nfor (let i = 0; i < n; i++) {\n  mainSum += matrix[i][i];\n  antiSum += matrix[i][n - 1 - i];\n}\nconsole.log(`Main diagonal: ${mainSum}`);\nconsole.log(`Anti-diagonal: ${antiSum}`);\n",
+        "output": "Row 0: 8\nRow 1: 15\nRow 2: 13\nCol 0: 6\nCol 1: 12\nCol 2: 18\nTotal: 36\nMain diagonal: 13\nAnti-diagonal: 11",
+        "explanation": "Each row sum starts at 0 inside the outer loop, so it resets for every row. The column sums flip the loops so `c` stays fixed while `r` walks down. The total uses `for...of` twice because it needs only values. The last loop reads `matrix[i][i]` and `matrix[i][n - 1 - i]`: 3 + 5 + 5 is 13 and 4 + 5 + 2 is 11."
+      },
+      "practice": {
+        "title": "Store sales",
+        "prompt": "Summarize a 4 by 4 grid of sales where each row is a store and each column is a day.\n\n1. Print each row sum as `Store <number>: <sum>`, numbering stores from 1.\n2. Print each column sum as `Day <number>: <sum>`, numbering days from 1.\n3. Add up every cell with `for...of` and print `Total: <total>`.\n4. Print `Main diagonal: <sum>` and then `Anti-diagonal: <sum>`.\n\nExpected output:\n\n```text\nStore 1: 45\nStore 2: 41\nStore 3: 34\nStore 4: 41\nDay 1: 38\nDay 2: 40\nDay 3: 41\nDay 4: 42\nTotal: 161\nMain diagonal: 55\nAnti-diagonal: 34\n```",
+        "starter": "const sales = [\n  [12, 8, 15, 10],\n  [7, 14, 9, 11],\n  [10, 6, 13, 5],\n  [9, 12, 4, 16],\n];\nconst n = sales.length;\n\n// TODO: print each row sum as \"Store <r + 1>: <sum>\"\n\n// TODO: print each column sum as \"Day <c + 1>: <sum>\"\n\n// TODO: add up every cell with for...of and print \"Total: <total>\"\n\n// TODO: print \"Main diagonal: <sum>\" and \"Anti-diagonal: <sum>\"\n",
+        "solution": "const sales = [\n  [12, 8, 15, 10],\n  [7, 14, 9, 11],\n  [10, 6, 13, 5],\n  [9, 12, 4, 16],\n];\nconst n = sales.length;\n\nfor (let r = 0; r < n; r++) {\n  let rowSum = 0;\n  for (let c = 0; c < sales[r].length; c++) {\n    rowSum += sales[r][c];\n  }\n  console.log(`Store ${r + 1}: ${rowSum}`);\n}\n\nfor (let c = 0; c < sales[0].length; c++) {\n  let colSum = 0;\n  for (let r = 0; r < n; r++) {\n    colSum += sales[r][c];\n  }\n  console.log(`Day ${c + 1}: ${colSum}`);\n}\n\nlet total = 0;\nfor (const row of sales) {\n  for (const amount of row) {\n    total += amount;\n  }\n}\nconsole.log(`Total: ${total}`);\n\nlet mainSum = 0;\nlet antiSum = 0;\nfor (let i = 0; i < n; i++) {\n  mainSum += sales[i][i];\n  antiSum += sales[i][n - 1 - i];\n}\nconsole.log(`Main diagonal: ${mainSum}`);\nconsole.log(`Anti-diagonal: ${antiSum}`);\n",
+        "tests": [
+          {
+            "output": "Store 1: 45\nStore 2: 41\nStore 3: 34\nStore 4: 41\nDay 1: 38\nDay 2: 40\nDay 3: 41\nDay 4: 42\nTotal: 161\nMain diagonal: 55\nAnti-diagonal: 34"
+          }
+        ],
+        "hints": [
+          "Declare `let rowSum = 0;` inside the outer loop so it resets for every store.",
+          "For a column sum, keep `c` fixed in the outer loop and walk `r` in the inner loop.",
+          "The anti-diagonal starts in the last column, `n - 1`, and moves one column left on each row."
+        ]
+      }
+    },
+    {
+      "title": "Building grids safely",
+      "body": "To build a grid of a given size, push a brand new row once per pass of a loop:\n\n```javascript\nconst grid = [];\nfor (let r = 0; r < rows; r++) {\n  grid.push(new Array(cols).fill(0));\n}\n```\n\n**The gotcha:** `new Array(rows).fill([])` looks shorter but is wrong. `fill` puts the *same* array object in every slot, so `grid[0].push(7)` shows up in every row. `new Array(2).fill(new Array(2).fill(0))` has the same bug: the inner array is created once and shared. `grid[0] === grid[1]` is `true`, which proves it. Calling `new Array(cols)` inside the loop creates a fresh row each time.\n\n`JSON.stringify(grid)` turns a whole grid into one line of text, like `[[0,0],[0,0]]`, so `console.log(JSON.stringify(grid))` shows every row at once.\n\nTo transpose, swap rows and columns: a rows by cols grid becomes a cols by rows grid where `t[c][r]` is `grid[r][c]`. Loop over columns outside, build each new row by pushing `grid[r][c]` for every `r`, and push that row. The original grid is untouched.",
+      "example": {
+        "title": "Multiplication grid",
+        "prompt": "Build a 3 by 4 grid where each cell is row times column, show the shared-row bug, and print the transpose.",
+        "code": "const rows = 3;\nconst cols = 4;\n\nconst grid = [];\nfor (let r = 0; r < rows; r++) {\n  const row = new Array(cols).fill(0);\n  for (let c = 0; c < cols; c++) {\n    row[c] = r * c;\n  }\n  grid.push(row);\n}\nconsole.log(JSON.stringify(grid));\n\nconst shared = new Array(3).fill([]);\nshared[0].push(7);\nconsole.log(`Shared: ${JSON.stringify(shared)}`);\nconsole.log(`Same row: ${shared[0] === shared[2]}`);\n\nconst transposed = [];\nfor (let c = 0; c < cols; c++) {\n  const newRow = [];\n  for (let r = 0; r < rows; r++) {\n    newRow.push(grid[r][c]);\n  }\n  transposed.push(newRow);\n}\nfor (const row of transposed) {\n  console.log(row.join(\" \"));\n}\n",
+        "output": "[[0,0,0,0],[0,1,2,3],[0,2,4,6]]\nShared: [[7],[7],[7]]\nSame row: true\n0 0 0\n0 1 2\n0 2 4\n0 3 6",
+        "explanation": "Each pass of the outer loop makes a fresh row with `new Array(cols).fill(0)`, fills it, and pushes it, so no rows are shared. `new Array(3).fill([])` stores one array three times, so pushing 7 into `shared[0]` shows up in every slot, and `shared[0] === shared[2]` is `true`. The transpose loops over columns outside, so the 3 by 4 grid becomes 4 rows of 3."
+      },
+      "practice": {
+        "title": "Sum grid",
+        "prompt": "Build a 4 by 3 grid where each cell is row plus column, show the shared-row bug, and print the transpose.\n\n1. Fill `grid` by pushing one fresh row per `r`, with each cell set to `r + c`. The starter prints it row by row.\n2. Build `shared` with `new Array(2).fill(new Array(2).fill(0))`, set `shared[1][0] = 5`, and print `Shared: ` followed by `JSON.stringify(shared)`.\n3. Fill `transposed` so it has 3 rows of 4, where `transposed[c][r]` is `grid[r][c]`. The starter prints it row by row.\n\nExpected output:\n\n```text\n0 1 2\n1 2 3\n2 3 4\n3 4 5\nShared: [[5,0],[5,0]]\n0 1 2 3\n1 2 3 4\n2 3 4 5\n```",
+        "starter": "const rows = 4;\nconst cols = 3;\n\nconst grid = [];\n// TODO: push one new row per r, with each cell set to r + c\n\nfor (const row of grid) {\n  console.log(row.join(\" \"));\n}\n\n// TODO: build a 2 by 2 grid with new Array(2).fill(new Array(2).fill(0)),\n// set the cell at row 1, column 0 to 5, and print \"Shared: \" plus JSON.stringify of it\n\nconst transposed = [];\n// TODO: fill transposed so that transposed[c][r] is grid[r][c]\n\nfor (const row of transposed) {\n  console.log(row.join(\" \"));\n}\n",
+        "solution": "const rows = 4;\nconst cols = 3;\n\nconst grid = [];\nfor (let r = 0; r < rows; r++) {\n  const row = new Array(cols).fill(0);\n  for (let c = 0; c < cols; c++) {\n    row[c] = r + c;\n  }\n  grid.push(row);\n}\nfor (const row of grid) {\n  console.log(row.join(\" \"));\n}\n\nconst shared = new Array(2).fill(new Array(2).fill(0));\nshared[1][0] = 5;\nconsole.log(`Shared: ${JSON.stringify(shared)}`);\n\nconst transposed = [];\nfor (let c = 0; c < cols; c++) {\n  const newRow = [];\n  for (let r = 0; r < rows; r++) {\n    newRow.push(grid[r][c]);\n  }\n  transposed.push(newRow);\n}\nfor (const row of transposed) {\n  console.log(row.join(\" \"));\n}\n",
+        "tests": [
+          {
+            "output": "0 1 2\n1 2 3\n2 3 4\n3 4 5\nShared: [[5,0],[5,0]]\n0 1 2 3\n1 2 3 4\n2 3 4 5"
+          }
+        ],
+        "hints": [
+          "Create the row with `new Array(cols).fill(0)` inside the loop, never before it.",
+          "Because both slots of `shared` hold the same inner array, the 5 appears in both rows.",
+          "For the transpose, loop `c` from 0 to `cols` outside and push `grid[r][c]` for every `r` inside."
+        ]
+      }
+    }
+  ],
+  "recap": "- A grid is an array of rows: `grid[row][col]` reads or writes one cell.\n- `grid.length` is the row count and `grid[0].length` is the column count.\n- Nested loops visit every cell: rows outside for row sums, columns outside for column sums.\n- The main diagonal is `grid[i][i]` and the anti-diagonal is `grid[i][n - 1 - i]`.\n- Build grids by pushing `new Array(cols).fill(0)` once per row. `new Array(rows).fill([])` shares one row everywhere.\n- Print with `row.join(\" \")` per row or `JSON.stringify(grid)` for the whole grid."
+}

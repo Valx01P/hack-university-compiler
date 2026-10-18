@@ -1,0 +1,118 @@
+{
+  "id": "embedding",
+  "title": "Embedding and Type Switches",
+  "section": "More Object-Oriented Programming",
+  "summary": "Reuse behavior by embedding structs, see why promoted methods never override, compose interfaces, and branch on types with type switches.",
+  "intro": "Go has no inheritance. To reuse a type you embed it, which promotes its fields and methods into the outer type. This lesson shows what embedding gives you, why it is not overriding, how interfaces combine the same way, and how a type switch handles a value that could be one of several types.",
+  "steps": [
+    {
+      "title": "Embedding a struct",
+      "body": "To reuse a struct inside another, **embed** it: list the type with no field name.\n\n```go\ntype Dog struct {\n\tAnimal\n\tBreed string\n}\n```\n\nThe embedded value is a real field whose name is the type name, `Animal`. Its fields and methods are **promoted**, so `d.Name` is short for `d.Animal.Name` and `d.Describe()` is short for `d.Animal.Describe()`. You write less code, and the Dog still gets everything an Animal can do.\n\nIn a struct literal you still name the embedded field by its type:\n\n```go\nd := Dog{Animal: Animal{Name: \"Rex\", Legs: 4}, Breed: \"Lab\"}\n```\n\nIn memory the `Animal` sits inline inside the `Dog`, not behind a pointer. So assigning a `Dog` copies its `Animal` too, and `d.Legs = 3` changes the `Animal` that lives inside `d`. `%+v` shows the nesting, with the embedded field printed under its type name.",
+      "example": {
+        "title": "A dog built from an animal",
+        "prompt": "Embed Animal in Dog, then use the promoted field and method, the explicit inner field, and Dog's own Breed field.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Animal struct {\n\tName string\n\tLegs int\n}\n\ntype Dog struct {\n\tAnimal\n\tBreed string\n}\n\nfunc (a Animal) Describe() string {\n\treturn fmt.Sprintf(\"%s has %d legs\", a.Name, a.Legs)\n}\n\nfunc main() {\n\td := Dog{Animal: Animal{Name: \"Rex\", Legs: 4}, Breed: \"Lab\"}\n\tfmt.Println(\"Name:\", d.Name)\n\tfmt.Println(\"Describe:\", d.Describe())\n\tfmt.Println(\"Breed:\", d.Breed)\n\td.Legs = 3\n\tfmt.Println(\"Inner:\", d.Animal.Describe())\n\tfmt.Printf(\"%+v\\n\", d)\n}\n",
+        "output": "Name: Rex\nDescribe: Rex has 4 legs\nBreed: Lab\nInner: Rex has 3 legs\n{Animal:{Name:Rex Legs:3} Breed:Lab}",
+        "explanation": "`Dog` has two fields: the embedded `Animal` and `Breed`. `d.Name` and `d.Describe()` are promoted from `Animal`, so they read `d.Animal.Name` and call `Describe` on `d.Animal`. `d.Legs = 3` writes the promoted field, which lives inside `d`, and the explicit form `d.Animal.Describe()` sees the change. `%+v` prints the embedded field by its type name: `Animal:{...}`."
+      },
+      "practice": {
+        "title": "A truck built from a vehicle",
+        "prompt": "Embed Vehicle in Truck and use the promoted field and method.\n\n1. In `Truck`, embed `Vehicle` and add a `Payload int` field.\n2. In `main`, build `t` with brand `Volvo`, 6 wheels, and payload 12, naming the embedded field in the literal.\n3. Print `Brand:` with `t.Brand`, `Info:` with `t.Info()`, and `Payload:` with `t.Payload`, using `fmt.Println`.\n4. Set `t.Wheels = 10`, then print `Inner:` with `t.Vehicle.Info()`.\n5. Print `t` with `%+v`.\n\nExpected output:\n\n```text\nBrand: Volvo\nInfo: Volvo on 6 wheels\nPayload: 12\nInner: Volvo on 10 wheels\n{Vehicle:{Brand:Volvo Wheels:10} Payload:12}\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Vehicle struct {\n\tBrand  string\n\tWheels int\n}\n\ntype Truck struct {\n\t// TODO: embed Vehicle and add a Payload int field\n}\n\nfunc (v Vehicle) Info() string {\n\treturn fmt.Sprintf(\"%s on %d wheels\", v.Brand, v.Wheels)\n}\n\nfunc main() {\n\t// TODO: build the truck and print the five lines\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Vehicle struct {\n\tBrand  string\n\tWheels int\n}\n\ntype Truck struct {\n\tVehicle\n\tPayload int\n}\n\nfunc (v Vehicle) Info() string {\n\treturn fmt.Sprintf(\"%s on %d wheels\", v.Brand, v.Wheels)\n}\n\nfunc main() {\n\tt := Truck{Vehicle: Vehicle{Brand: \"Volvo\", Wheels: 6}, Payload: 12}\n\tfmt.Println(\"Brand:\", t.Brand)\n\tfmt.Println(\"Info:\", t.Info())\n\tfmt.Println(\"Payload:\", t.Payload)\n\tt.Wheels = 10\n\tfmt.Println(\"Inner:\", t.Vehicle.Info())\n\tfmt.Printf(\"%+v\\n\", t)\n}\n",
+        "tests": [
+          {
+            "output": "Brand: Volvo\nInfo: Volvo on 6 wheels\nPayload: 12\nInner: Volvo on 10 wheels\n{Vehicle:{Brand:Volvo Wheels:10} Payload:12}"
+          }
+        ],
+        "hints": [
+          "Embedding is just the type name on its own line inside the struct: `Vehicle`.",
+          "Name the embedded field by its type in the literal, the way the example writes `Dog{Animal: Animal{...}, ...}`.",
+          "Promoted names work directly: `t.Brand`, `t.Info()`, and `t.Wheels = 10`."
+        ]
+      }
+    },
+    {
+      "title": "No overriding",
+      "body": "If the outer type declares a method with the same name as a promoted one, the outer method **shadows** it. `d.Speak()` now calls `Dog.Speak`, and the inner one is still there as `d.Animal.Speak()`. If two embedded types at the same depth both have `Speak` and `Dog` has none, `d.Speak()` is an ambiguous selector and does not compile.\n\nThis is not overriding. A promoted method runs on the inner value: `d.Describe()` is really `d.Animal.Describe()`, and inside it the receiver is an `Animal` that knows nothing about the `Dog` around it. So when `Describe` calls `a.Speak()`, it gets Animal's version, never Dog's. This surprises people coming from classes.\n\nEmbedding is also not subtyping. A `Dog` is not an `Animal`, so this does not compile:\n\n```go\nvar a Animal = d // cannot use d (type Dog) as type Animal\n```\n\nWhen code needs to call the outer type's behavior, take an **interface**. A `Dog` satisfies `Speaker` with its own `Speak`, and calling through the interface runs `Dog.Speak`. Go does polymorphism with interfaces and reuse with embedding.",
+      "example": {
+        "title": "Rex says what",
+        "prompt": "Shadow Animal's Speak in Dog, then compare the shadowing method, the inner method, a promoted method, and a call through an interface.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Speaker interface {\n\tSpeak() string\n}\n\ntype Animal struct{ Name string }\n\ntype Dog struct {\n\tAnimal\n\tBreed string\n}\n\nfunc (a Animal) Speak() string {\n\treturn \"...\"\n}\n\n// Describe always calls Animal's Speak, never Dog's\nfunc (a Animal) Describe() string {\n\treturn a.Name + \" says \" + a.Speak()\n}\n\nfunc (d Dog) Speak() string {\n\treturn \"Woof\"\n}\n\nfunc introduce(name string, s Speaker) string {\n\treturn name + \" says \" + s.Speak()\n}\n\nfunc main() {\n\td := Dog{Animal: Animal{Name: \"Rex\"}, Breed: \"Lab\"}\n\tfmt.Println(\"Dog:\", d.Speak())\n\tfmt.Println(\"Animal:\", d.Animal.Speak())\n\tfmt.Println(\"Describe:\", d.Describe())\n\tfmt.Println(\"Interface:\", introduce(d.Name, d))\n}\n",
+        "output": "Dog: Woof\nAnimal: ...\nDescribe: Rex says ...\nInterface: Rex says Woof",
+        "explanation": "`d.Speak()` finds `Dog.Speak` first, so it prints `Woof`, and `d.Animal.Speak()` reaches the inner `...`. `d.Describe()` is promoted, so it runs with `d.Animal` as its receiver and calls `Animal.Speak`, which gives `Rex says ...`. `introduce` takes a `Speaker`, and the `Dog` stored in it uses its own `Speak`, so that line says `Woof`."
+      },
+      "practice": {
+        "title": "Mia's badge",
+        "prompt": "Shadow Employee's Title in Manager and compare the four ways of calling it.\n\n1. Declare `type Titled interface` with a `Title() string` method.\n2. Give `Manager` its own `Title()` that returns `manager`.\n3. Write `badge(name string, t Titled) string`, returning the name, a space, and the title in parentheses.\n4. In `main`, print `Manager:` with `m.Title()`, `Employee:` with `m.Employee.Title()`, `Badge:` with `m.Badge()`, and `Interface:` with `badge(m.Name, m)`, using `fmt.Println`.\n\nExpected output:\n\n```text\nManager: manager\nEmployee: employee\nBadge: Mia (employee)\nInterface: Mia (manager)\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Employee struct{ Name string }\n\ntype Manager struct {\n\tEmployee\n\tTeam int\n}\n\nfunc (e Employee) Title() string {\n\treturn \"employee\"\n}\n\nfunc (e Employee) Badge() string {\n\treturn e.Name + \" (\" + e.Title() + \")\"\n}\n\n// TODO: declare the Titled interface, Manager's Title method, and badge\n\nfunc main() {\n\tm := Manager{Employee: Employee{Name: \"Mia\"}, Team: 4}\n\t_ = m\n\t// TODO: print the four lines\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Titled interface {\n\tTitle() string\n}\n\ntype Employee struct{ Name string }\n\ntype Manager struct {\n\tEmployee\n\tTeam int\n}\n\nfunc (e Employee) Title() string {\n\treturn \"employee\"\n}\n\nfunc (e Employee) Badge() string {\n\treturn e.Name + \" (\" + e.Title() + \")\"\n}\n\nfunc (m Manager) Title() string {\n\treturn \"manager\"\n}\n\nfunc badge(name string, t Titled) string {\n\treturn name + \" (\" + t.Title() + \")\"\n}\n\nfunc main() {\n\tm := Manager{Employee: Employee{Name: \"Mia\"}, Team: 4}\n\tfmt.Println(\"Manager:\", m.Title())\n\tfmt.Println(\"Employee:\", m.Employee.Title())\n\tfmt.Println(\"Badge:\", m.Badge())\n\tfmt.Println(\"Interface:\", badge(m.Name, m))\n}\n",
+        "tests": [
+          {
+            "output": "Manager: manager\nEmployee: employee\nBadge: Mia (employee)\nInterface: Mia (manager)"
+          }
+        ],
+        "hints": [
+          "`m.Badge()` is promoted from `Employee`, so it calls `Employee.Title` and prints `(employee)`. That is the point.",
+          "`func (m Manager) Title() string { ... }` shadows the promoted method for calls on `m`.",
+          "`badge` builds its text the same way `Badge` does, but it calls `t.Title()`, so passing `m` runs `Manager.Title`."
+        ]
+      }
+    },
+    {
+      "title": "Composing interfaces",
+      "body": "Interfaces can embed other interfaces. The result has all of their methods:\n\n```go\ntype Amphibian interface {\n\tWalker\n\tSwimmer\n}\n```\n\nA type satisfies `Amphibian` simply by having both `Walk` and `Swim`. You never declare it. The compiler checks when you assign. The standard library builds `io.ReadWriter` from `io.Reader` and `io.Writer` the same way, which keeps each piece small.\n\nMethods promoted from an embedded struct count too. If `Frog` embeds `Legs`, and `Legs` has `Walk`, then `Frog` has `Walk` and only needs its own `Swim`.\n\nA bigger interface value can be assigned to a smaller one, because an `Amphibian` has every method a `Walker` needs. The concrete value inside does not change, which `%T` shows.\n\nPointer receivers still matter. If `Frog` declared `Swim` on `*Frog`, only `*Frog` would have both methods, so you would store `&Frog{...}` in the `Amphibian`. A promoted method with a value receiver, like `Legs.Walk`, belongs to both `Frog` and `*Frog`.",
+      "example": {
+        "title": "A frog that walks and swims",
+        "prompt": "Combine Walker and Swimmer into Amphibian and satisfy it with a Frog that gets Walk from an embedded Legs struct.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Walker interface {\n\tWalk() string\n}\n\ntype Swimmer interface {\n\tSwim() string\n}\n\ntype Amphibian interface {\n\tWalker\n\tSwimmer\n}\n\ntype Legs struct{ Count int }\n\ntype Frog struct {\n\tLegs\n\tName string\n}\n\nfunc (l Legs) Walk() string {\n\treturn fmt.Sprintf(\"walks on %d legs\", l.Count)\n}\n\nfunc (f Frog) Swim() string {\n\treturn f.Name + \" swims\"\n}\n\nfunc main() {\n\tvar a Amphibian = Frog{Legs: Legs{Count: 4}, Name: \"Fred\"}\n\tfmt.Println(a.Swim() + \" and \" + a.Walk())\n\t// every Amphibian is also a Walker\n\tvar w Walker = a\n\tfmt.Println(\"As a Walker:\", w.Walk())\n\tfmt.Printf(\"Dynamic type: %T\\n\", w)\n}\n",
+        "output": "Fred swims and walks on 4 legs\nAs a Walker: walks on 4 legs\nDynamic type: main.Frog",
+        "explanation": "`Frog` gets `Walk` from the embedded `Legs` and declares `Swim` itself, so it has both methods and the assignment to `Amphibian` compiles. `a.Walk()` runs `Legs.Walk` on the frog's inner `Legs`, which has 4 legs. Assigning `a` to a `Walker` keeps the same frog, and `%T` reports its concrete type, `main.Frog`."
+      },
+      "practice": {
+        "title": "A key value store",
+        "prompt": "Combine Saver and Loader into Store and satisfy it with a MemoryStore that gets Load from an embedded Cache.\n\n1. Declare `type Store interface` that embeds `Saver` and `Loader`.\n2. Declare `MemoryStore` as a struct that embeds `Cache`.\n3. Write `func (m *MemoryStore) Save(key, value string)`, which stores the value in the promoted `data` map.\n4. In `main`, store `&MemoryStore{Cache: Cache{data: map[string]string{}}}` in a `Store` variable and save `theme` as `dark` and `lang` as `go`.\n5. Assign the store to a `Loader` variable, load `theme` and then `font`, and print `key: value`, or `key: missing` when it is not found.\n6. Print `Dynamic type:` and the Loader's type with `%T`.\n\nExpected output:\n\n```text\ntheme: dark\nfont: missing\nDynamic type: *main.MemoryStore\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Saver interface {\n\tSave(key, value string)\n}\n\ntype Loader interface {\n\tLoad(key string) (string, bool)\n}\n\ntype Cache struct {\n\tdata map[string]string\n}\n\n// TODO: declare the Store interface and the MemoryStore struct\n\nfunc (c Cache) Load(key string) (string, bool) {\n\tv, ok := c.data[key]\n\treturn v, ok\n}\n\n// TODO: write MemoryStore's Save method\n\nfunc main() {\n\t// TODO: save two keys through a Store, then load through a Loader\n\tfmt.Println()\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Saver interface {\n\tSave(key, value string)\n}\n\ntype Loader interface {\n\tLoad(key string) (string, bool)\n}\n\ntype Store interface {\n\tSaver\n\tLoader\n}\n\ntype Cache struct {\n\tdata map[string]string\n}\n\ntype MemoryStore struct {\n\tCache\n}\n\nfunc (c Cache) Load(key string) (string, bool) {\n\tv, ok := c.data[key]\n\treturn v, ok\n}\n\nfunc (m *MemoryStore) Save(key, value string) {\n\tm.data[key] = value\n}\n\nfunc main() {\n\tvar s Store = &MemoryStore{Cache: Cache{data: map[string]string{}}}\n\ts.Save(\"theme\", \"dark\")\n\ts.Save(\"lang\", \"go\")\n\tvar l Loader = s\n\tfor _, key := range []string{\"theme\", \"font\"} {\n\t\tif v, ok := l.Load(key); ok {\n\t\t\tfmt.Printf(\"%s: %s\\n\", key, v)\n\t\t} else {\n\t\t\tfmt.Printf(\"%s: missing\\n\", key)\n\t\t}\n\t}\n\tfmt.Printf(\"Dynamic type: %T\\n\", l)\n}\n",
+        "tests": [
+          {
+            "output": "theme: dark\nfont: missing\nDynamic type: *main.MemoryStore"
+          }
+        ],
+        "hints": [
+          "`Store` lists `Saver` and `Loader` on their own lines, like `Amphibian` lists `Walker` and `Swimmer`.",
+          "Inside `Save`, `m.data` is the promoted field from `Cache`, so `m.data[key] = value` works.",
+          "Use `if v, ok := l.Load(key); ok { ... } else { ... }` inside a loop over `[]string{\"theme\", \"font\"}`."
+        ]
+      }
+    },
+    {
+      "title": "Type switches",
+      "body": "A type assertion checks one type. A **type switch** checks several in one go:\n\n```go\nswitch v := x.(type) {\ncase int:\n\treturn v * 2\ncase string:\n\treturn len(v)\n}\n```\n\n`x.(type)` only works in a switch, and `x` must be an interface value. Inside each case, `v` has that case's type, so `v * 2` is int math and `len(v)` counts bytes, with no extra assertion.\n\n- A case with several types, such as `case float32, float64:` (`float32` is the 32-bit float), leaves `v` as `interface{}`, so you can print it but not do math with it.\n- `case nil` matches only an interface holding nothing. A nil `*MyError` stored in an interface is not nil, so it lands in `case error`.\n- `default` catches every other type, and `%T` names it.\n- An interface type works as a case: `case error` matches any value with an `Error() string` method.\n\nCases are tried from top to bottom and the first match wins, so put specific types before broad interface cases. Remember that untyped constants get their default type when stored: `'x'` is an `int32`, `2.5` is a `float64`.",
+      "example": {
+        "title": "Describe anything",
+        "prompt": "Describe each value of a mixed slice with a type switch that covers concrete types, a grouped case, an interface case, nil, and default.",
+        "code": "package main\n\nimport (\n\t\"errors\"\n\t\"fmt\"\n)\n\nfunc describe(x interface{}) string {\n\tswitch v := x.(type) {\n\tcase int:\n\t\treturn fmt.Sprintf(\"int %d, doubled %d\", v, v*2)\n\tcase string:\n\t\treturn fmt.Sprintf(\"string %q with %d bytes\", v, len(v))\n\tcase bool:\n\t\treturn fmt.Sprintf(\"bool %t, negated %t\", v, !v)\n\tcase []int:\n\t\treturn fmt.Sprintf(\"slice of %d ints\", len(v))\n\tcase float32, float64:\n\t\t// two types in one case, so v is still interface{}\n\t\treturn fmt.Sprintf(\"float %v\", v)\n\tcase error:\n\t\treturn \"error: \" + v.Error()\n\tcase nil:\n\t\treturn \"nil\"\n\tdefault:\n\t\treturn fmt.Sprintf(\"other %T\", v)\n\t}\n}\n\nfunc main() {\n\tvalues := []interface{}{42, \"gopher\", true, []int{1, 2, 3}, errors.New(\"disk full\"), nil, 2.5, 'x'}\n\tfor _, x := range values {\n\t\tfmt.Println(describe(x))\n\t}\n}\n",
+        "output": "int 42, doubled 84\nstring \"gopher\" with 6 bytes\nbool true, negated false\nslice of 3 ints\nerror: disk full\nnil\nfloat 2.5\nother int32",
+        "explanation": "Each value lands in the first matching case. In `case int`, `v` is an `int`, so `v*2` works, and in `case []int`, `len(v)` works. `2.5` is a `float64` and hits the grouped case, where `v` stays `interface{}` and prints with `%v`. `errors.New` returns a value with an `Error` method, so `case error` catches it. The rune `'x'` is an `int32`, which no case lists, so `default` prints its type."
+      },
+      "practice": {
+        "title": "Render JSON-like values",
+        "prompt": "Render each value of a JSON-like slice with a type switch.\n\n1. Write `render(x interface{}) string` with `switch v := x.(type)`.\n2. Return a `float64` with `%.1f`, a `string` with `%q`, and a `bool` with `%t`.\n3. Return `null` for `nil` and `list of N` for a `[]interface{}`, where N is its length.\n4. Return `unknown` for every other type. The `7` in the slice is an `int`, because a whole number constant with no decimal point gets type `int`, while `3.0` gets `float64`.\n\nExpected output:\n\n```text\n3.0\n\"hi\"\nfalse\nnull\nlist of 3\n3.1\nunknown\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc render(x interface{}) string {\n\t// TODO: switch on the type of x\n\treturn \"\"\n}\n\nfunc main() {\n\tvalues := []interface{}{3.0, \"hi\", false, nil, []interface{}{1.0, \"a\", true}, 3.14, 7}\n\tfor _, x := range values {\n\t\tfmt.Println(render(x))\n\t}\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc render(x interface{}) string {\n\tswitch v := x.(type) {\n\tcase float64:\n\t\treturn fmt.Sprintf(\"%.1f\", v)\n\tcase string:\n\t\treturn fmt.Sprintf(\"%q\", v)\n\tcase bool:\n\t\treturn fmt.Sprintf(\"%t\", v)\n\tcase nil:\n\t\treturn \"null\"\n\tcase []interface{}:\n\t\treturn fmt.Sprintf(\"list of %d\", len(v))\n\tdefault:\n\t\treturn \"unknown\"\n\t}\n}\n\nfunc main() {\n\tvalues := []interface{}{3.0, \"hi\", false, nil, []interface{}{1.0, \"a\", true}, 3.14, 7}\n\tfor _, x := range values {\n\t\tfmt.Println(render(x))\n\t}\n}\n",
+        "tests": [
+          {
+            "output": "3.0\n\"hi\"\nfalse\nnull\nlist of 3\n3.1\nunknown"
+          }
+        ],
+        "hints": [
+          "Copy the shape of `describe`: one `case` per type, each with its own `return`.",
+          "Inside `case []interface{}:`, `v` is a slice, so `len(v)` works.",
+          "Use `fmt.Sprintf(\"%.1f\", v)` for floats and `default: return \"unknown\"` for the rest."
+        ]
+      }
+    }
+  ],
+  "recap": "- Embed a type by listing it with no field name. Its fields and methods are promoted: `d.Name`, `d.Describe()`.\n- The embedded field is named after its type: `Dog{Animal: Animal{...}}` and `d.Animal.Speak()`.\n- An outer method with the same name shadows the promoted one. Promoted methods run on the inner value, so there is no overriding.\n- A `Dog` is not an `Animal`. Use an interface when code needs the outer type's behavior.\n- Interfaces embed interfaces, and a type satisfies the result by having every method, including promoted ones.\n- `switch v := x.(type)` gives `v` each case's type. Grouped cases leave it `interface{}`, and `case nil`, `case error`, and `default` all work."
+}

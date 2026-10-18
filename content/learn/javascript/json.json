@@ -1,0 +1,118 @@
+{
+  "id": "json",
+  "title": "JSON, Optional Chaining, and Deep Copies",
+  "section": "Standard Library",
+  "summary": "Turn data into JSON text and back, read nested data safely with ?. and ??, and copy nested data without sharing it.",
+  "intro": "JSON is the text format that programs use to save and send data. Here you turn objects into JSON text and back, read nested data that may be missing without crashing, and copy nested data so a change to the copy never leaks into the original.",
+  "steps": [
+    {
+      "title": "JSON.stringify",
+      "body": "`JSON.stringify(value)` turns objects and arrays into one line of JSON text. Pass `null` and `2` as extra arguments to pretty-print with 2-space indentation, which is easier to read in logs and files.\n\n```javascript\nJSON.stringify({ a: 1, b: [2, 3] });          // '{\"a\":1,\"b\":[2,3]}'\nJSON.stringify({ a: 1 }, null, 2);             // '{\\n  \"a\": 1\\n}'\n```\n\nJSON only knows strings, numbers, booleans, `null`, arrays, and plain objects. Everything else changes on the way out:\n\n- Keys whose value is `undefined` or a function are skipped. Inside an array they become `null` instead.\n- `NaN` and `Infinity` become `null`.\n- A Map or a Set becomes `{}`, so convert it first with `Object.fromEntries(map)` or `[...set]`.\n- A BigInt makes `JSON.stringify` throw a TypeError, so convert it with `String(big)` first.\n\n> Gotcha: apart from the BigInt, none of this is an error. Missing keys and `{}` appear silently, so check what you send.",
+      "example": {
+        "title": "Serialize a user",
+        "prompt": "Turn a user object into compact and pretty JSON, and convert a Map and a BigInt before serializing them.",
+        "code": "const user = {\n  name: \"Ada\",\n  age: 36,\n  langs: [\"js\", \"python\"],\n  nickname: undefined,\n  score: NaN,\n  greet: () => \"hi\",\n};\n\nconsole.log(JSON.stringify(user));\nconsole.log(JSON.stringify(user, null, 2));\n\nconst visits = new Map([[\"home\", 3], [\"about\", 1]]);\nconsole.log(JSON.stringify(visits));\nconsole.log(JSON.stringify(Object.fromEntries(visits)));\n\nconst big = 12345678901234567890n;\nconsole.log(JSON.stringify({ id: String(big) }));\n",
+        "output": "{\"name\":\"Ada\",\"age\":36,\"langs\":[\"js\",\"python\"],\"score\":null}\n{\n  \"name\": \"Ada\",\n  \"age\": 36,\n  \"langs\": [\n    \"js\",\n    \"python\"\n  ],\n  \"score\": null\n}\n{}\n{\"home\":3,\"about\":1}\n{\"id\":\"12345678901234567890\"}",
+        "explanation": "The compact line drops `nickname` (undefined) and `greet` (a function), and `score` (NaN) becomes `null`. With `null, 2` the same data spreads over lines with 2 spaces per level. The Map prints as `{}` until `Object.fromEntries` turns it into a plain object. The BigInt goes through `String()` first, so it is saved as text and nothing throws."
+      },
+      "practice": {
+        "title": "Serialize an order",
+        "prompt": "Print an order and its tags as JSON.\n\n1. Print `order` with `JSON.stringify(order)`.\n2. Print `order` again with 2-space indentation.\n3. Print `JSON.stringify(tags)` to see what a Set turns into.\n4. Print `tags` as JSON after converting it with `[...tags]`.\n\nExpected output:\n\n```text\n{\"id\":42,\"items\":[{\"sku\":\"pen\",\"qty\":2},{\"sku\":\"pad\",\"qty\":1}],\"shipping\":null}\n{\n  \"id\": 42,\n  \"items\": [\n    {\n      \"sku\": \"pen\",\n      \"qty\": 2\n    },\n    {\n      \"sku\": \"pad\",\n      \"qty\": 1\n    }\n  ],\n  \"shipping\": null\n}\n{}\n[\"gift\",\"rush\"]\n```",
+        "starter": "const order = {\n  id: 42,\n  items: [\n    { sku: \"pen\", qty: 2 },\n    { sku: \"pad\", qty: 1 },\n  ],\n  coupon: undefined,\n  shipping: Infinity,\n};\nconst tags = new Set([\"gift\", \"rush\"]);\n\n// TODO: print order as compact JSON, then with 2-space indentation\n// TODO: print tags as JSON directly, then converted to an array first\n",
+        "solution": "const order = {\n  id: 42,\n  items: [\n    { sku: \"pen\", qty: 2 },\n    { sku: \"pad\", qty: 1 },\n  ],\n  coupon: undefined,\n  shipping: Infinity,\n};\nconst tags = new Set([\"gift\", \"rush\"]);\n\nconsole.log(JSON.stringify(order));\nconsole.log(JSON.stringify(order, null, 2));\nconsole.log(JSON.stringify(tags));\nconsole.log(JSON.stringify([...tags]));\n",
+        "tests": [
+          {
+            "output": "{\"id\":42,\"items\":[{\"sku\":\"pen\",\"qty\":2},{\"sku\":\"pad\",\"qty\":1}],\"shipping\":null}\n{\n  \"id\": 42,\n  \"items\": [\n    {\n      \"sku\": \"pen\",\n      \"qty\": 2\n    },\n    {\n      \"sku\": \"pad\",\n      \"qty\": 1\n    }\n  ],\n  \"shipping\": null\n}\n{}\n[\"gift\",\"rush\"]"
+          }
+        ],
+        "hints": [
+          "`coupon` is undefined, so it disappears, and `Infinity` becomes `null`.",
+          "The third argument of `JSON.stringify` sets the indentation. Pass `null` as the second.",
+          "A Set has to become an array before JSON can show its values. Spread syntax does that."
+        ]
+      }
+    },
+    {
+      "title": "JSON.parse",
+      "body": "`JSON.parse(text)` reads JSON text and builds real objects and arrays. Numbers, booleans, `null`, arrays, and nested objects come back with their types, so you can do math and loops on them right away.\n\n```javascript\nconst data = JSON.parse('{\"n\":5,\"ok\":true,\"list\":[1,2]}');\ndata.n + 1;       // 6\ndata.list.length; // 2\n```\n\nJSON is stricter than JavaScript: keys and strings must use double quotes, and trailing commas are not allowed. That is why JSON text written in code sits in a single-quoted string, so its double quotes need no escaping.\n\nInvalid JSON such as `{name: \"Ada\"}` or `{'a': 1}` makes `JSON.parse` throw a SyntaxError. You learn to catch errors later, so every JSON string here is valid.\n\nA round trip, `JSON.parse(JSON.stringify(x))`, gives back new objects with the same data, as long as the data only holds JSON types. This is how programs save data and load it again.",
+      "example": {
+        "title": "Load a team",
+        "prompt": "Parse a team from JSON, read its fields and members, add a member, and serialize again.",
+        "code": "const text = '{\"team\":\"Rockets\",\"founded\":2019,\"active\":true,\"coach\":null,\"members\":[{\"name\":\"Ada\",\"role\":\"lead\",\"commits\":40},{\"name\":\"Linus\",\"role\":\"dev\",\"commits\":25}]}';\n\nconst team = JSON.parse(text);\nconsole.log(`Team: ${team.team}`);\nconsole.log(`Types: ${typeof team.founded}, ${typeof team.active}`);\nconsole.log(`Coach: ${team.coach}`);\n\nfor (const member of team.members) {\n  console.log(`${member.name}: ${member.role}`);\n}\nconst total = team.members.reduce((sum, m) => sum + m.commits, 0);\nconsole.log(`Total commits: ${total}`);\n\nteam.members.push({ name: \"Grace\", role: \"tester\", commits: 0 });\nconsole.log(JSON.stringify(team.members.at(-1)));\n\nconst copy = JSON.parse(JSON.stringify(team));\nconsole.log(`Copy has ${copy.members.length} members`);\n",
+        "output": "Team: Rockets\nTypes: number, boolean\nCoach: null\nAda: lead\nLinus: dev\nTotal commits: 65\n{\"name\":\"Grace\",\"role\":\"tester\",\"commits\":0}\nCopy has 3 members",
+        "explanation": "After `JSON.parse`, `founded` is a real number, `active` a real boolean, and `coach` is `null`, not the text `\"null\"`. `members` is an ordinary array of objects, so `for...of` and `reduce` work on it. Pushing a new object changes the parsed data, and `JSON.stringify` turns the last member back into text. The round trip builds a separate copy that still has all 3 members."
+      },
+      "practice": {
+        "title": "Weather report",
+        "prompt": "Parse a weather report and summarize it.\n\n1. Parse `text` into `report` with `JSON.parse`.\n2. Print `City: ` followed by the city.\n3. Print `Average high: ` followed by the average of the `high` values to 1 decimal place.\n4. Find the day with the highest `high` and print it with `JSON.stringify`. If days tie, keep the first one.\n\nExpected output:\n\n```text\nCity: Lisbon\nAverage high: 28.0\n{\"day\":\"Wed\",\"high\":31.5,\"rain\":false}\n```",
+        "starter": "const text = '{\"city\":\"Lisbon\",\"units\":\"C\",\"days\":[{\"day\":\"Mon\",\"high\":24.5,\"rain\":false},{\"day\":\"Tue\",\"high\":28,\"rain\":true},{\"day\":\"Wed\",\"high\":31.5,\"rain\":false}]}';\n\n// TODO: parse text into report and print the city\n// TODO: print the average high to 1 decimal place\n// TODO: find the hottest day and print it as JSON\n",
+        "solution": "const text = '{\"city\":\"Lisbon\",\"units\":\"C\",\"days\":[{\"day\":\"Mon\",\"high\":24.5,\"rain\":false},{\"day\":\"Tue\",\"high\":28,\"rain\":true},{\"day\":\"Wed\",\"high\":31.5,\"rain\":false}]}';\n\nconst report = JSON.parse(text);\nconsole.log(`City: ${report.city}`);\n\nconst total = report.days.reduce((sum, d) => sum + d.high, 0);\nconsole.log(`Average high: ${(total / report.days.length).toFixed(1)}`);\n\nconst hottest = report.days.reduce((best, d) => (d.high > best.high ? d : best), report.days[0]);\nconsole.log(JSON.stringify(hottest));\n",
+        "tests": [
+          {
+            "output": "City: Lisbon\nAverage high: 28.0\n{\"day\":\"Wed\",\"high\":31.5,\"rain\":false}"
+          }
+        ],
+        "hints": [
+          "`report.days` is an ordinary array of objects after parsing.",
+          "Sum with `reduce`, divide by `report.days.length`, then call `toFixed(1)`.",
+          "Find the hottest day with `reduce` too: start from the first day and keep whichever of the two has the bigger `high`."
+        ]
+      }
+    },
+    {
+      "title": "Optional chaining with ?.",
+      "body": "Parsed data often has missing parts. `user.address.city` throws a TypeError when `address` is undefined. Optional chaining asks first: `obj?.prop` gives `undefined` instead of throwing when `obj` is `null` or `undefined`.\n\n```javascript\nuser.address?.city;     // property\nuser.tags?.[0];         // bracket access on an array\nobj?.[key];             // bracket access with a variable\nformat.upper?.(\"hi\");   // call only if the method exists\n```\n\nPair it with `??` to supply a default: `user.address?.city ?? \"unknown\"`. Use `??`, not `||`, so valid values such as `0` and `\"\"` are kept.\n\nA chain stops at the first `null` or `undefined` and the whole expression becomes `undefined`. So in `nobody?.address.city`, nothing after `?.` runs when `nobody` is null. Put `?.` only at the steps that can really be missing. Extra `?.` hides bugs in data that should always be there. Also, `?.()` only skips a missing method: if the property holds something that is not a function, the call still throws a TypeError.",
+      "example": {
+        "title": "Cities and tags",
+        "prompt": "Print each user's city and first tag, using defaults when parts are missing.",
+        "code": "const text = '[{\"name\":\"Ada\",\"address\":{\"city\":\"London\"},\"tags\":[\"admin\",\"dev\"]},{\"name\":\"Linus\",\"tags\":[]},{\"name\":\"Grace\",\"address\":{\"city\":null},\"tags\":null}]';\nconst users = JSON.parse(text);\n\nfunction cityOf(user) {\n  return user.address?.city ?? \"unknown\";\n}\n\nfunction firstTag(user) {\n  return user.tags?.[0] ?? \"none\";\n}\n\nfor (const user of users) {\n  console.log(`${user.name}: ${cityOf(user)}, ${firstTag(user)}`);\n}\n\nconst nobody = null;\nconsole.log(`nobody: ${nobody?.address.city}`);\n\nconst format = { upper: (s) => s.toUpperCase() };\nconsole.log(format.upper?.(\"ok\") ?? \"no upper\");\nconsole.log(format.lower?.(\"OK\") ?? \"no lower\");\n",
+        "output": "Ada: London, admin\nLinus: unknown, none\nGrace: unknown, none\nnobody: undefined\nOK\nno lower",
+        "explanation": "Linus has no `address`, so `user.address?.city` is `undefined` and `??` picks `\"unknown\"`. Grace has an address, but its city is `null`, which `??` also replaces. `tags?.[0]` handles both an empty array (no first item) and `null` tags. `nobody?.address.city` stops at `nobody`, so it prints `undefined` instead of throwing. `format.lower` does not exist, so `?.()` skips the call and `??` supplies the text."
+      },
+      "practice": {
+        "title": "Shipping carriers",
+        "prompt": "Report each order's carrier and first item, even when parts of the order are missing.\n\n1. Complete `carrierOf(order)` so it returns `order.shipping?.tracking?.carrier`, or `\"pending\"` when that is missing.\n2. Complete `firstItem(order)` so it returns the first entry of `order.items`, or `\"none\"` when there is none.\n3. The loop already prints `id: carrier, item` for each order.\n4. Print `labels.short?.(101)`, or `no short` if it is missing.\n5. Print `labels.long?.(101)`, or `no long` if it is missing.\n\nExpected output:\n\n```text\n101: UPS, pen\n102: pending, none\n103: pending, none\n104: DHL, ink\n#101\nno long\n```",
+        "starter": "const text = '[{\"id\":101,\"shipping\":{\"tracking\":{\"carrier\":\"UPS\"}},\"items\":[\"pen\"]},{\"id\":102},{\"id\":103,\"shipping\":{\"method\":\"pickup\"},\"items\":[]},{\"id\":104,\"shipping\":{\"tracking\":{\"carrier\":\"DHL\"}},\"items\":[\"ink\",\"pad\"]}]';\nconst orders = JSON.parse(text);\n\nfunction carrierOf(order) {\n  // TODO: return the carrier, or \"pending\" when any part is missing\n  return \"\";\n}\n\nfunction firstItem(order) {\n  // TODO: return the first item, or \"none\" when there is none\n  return \"\";\n}\n\nfor (const order of orders) {\n  console.log(`${order.id}: ${carrierOf(order)}, ${firstItem(order)}`);\n}\n\nconst labels = { short: (id) => `#${id}` };\n// TODO: call labels.short and labels.long safely with 101 and print each result\n",
+        "solution": "const text = '[{\"id\":101,\"shipping\":{\"tracking\":{\"carrier\":\"UPS\"}},\"items\":[\"pen\"]},{\"id\":102},{\"id\":103,\"shipping\":{\"method\":\"pickup\"},\"items\":[]},{\"id\":104,\"shipping\":{\"tracking\":{\"carrier\":\"DHL\"}},\"items\":[\"ink\",\"pad\"]}]';\nconst orders = JSON.parse(text);\n\nfunction carrierOf(order) {\n  return order.shipping?.tracking?.carrier ?? \"pending\";\n}\n\nfunction firstItem(order) {\n  return order.items?.[0] ?? \"none\";\n}\n\nfor (const order of orders) {\n  console.log(`${order.id}: ${carrierOf(order)}, ${firstItem(order)}`);\n}\n\nconst labels = { short: (id) => `#${id}` };\nconsole.log(labels.short?.(101) ?? \"no short\");\nconsole.log(labels.long?.(101) ?? \"no long\");\n",
+        "tests": [
+          {
+            "output": "101: UPS, pen\n102: pending, none\n103: pending, none\n104: DHL, ink\n#101\nno long"
+          }
+        ],
+        "hints": [
+          "Order 102 has no `shipping` and order 103 has no `tracking`, so both steps need `?.`. Order 102 also has no `items`, and order 103 has an empty list.",
+          "End each chain with `??` and its fallback text. For `items`, put `?.` before the brackets, as `firstTag` does in the example.",
+          "Call a method that may not exist with `?.` placed between its name and the parentheses, then add `??` with the fallback text."
+        ]
+      }
+    },
+    {
+      "title": "Deep copies",
+      "body": "Spread `{ ...obj }` and `Object.assign({}, obj)` copy only the top level. Nested arrays and objects are still shared, so changing them through the copy changes the original too.\n\n`structuredClone(value)` makes a deep copy: every nested array, object, Map, and Set is copied, and it keeps `undefined` values.\n\n```javascript\nconst copy = structuredClone(original);\ncopy.nested.list.push(4); // original is untouched\n```\n\nIt copies data, not classes. A cloned class instance is a plain object with the same public fields, but without its methods or `#private` fields. Cloning a function, or an object that holds one, throws a DataCloneError.\n\nThe older trick `JSON.parse(JSON.stringify(value))` also deep-copies plain JSON data, but it drops `undefined`, turns a Map or Set into `{}`, and throws on a BigInt. Prefer `structuredClone`.",
+      "example": {
+        "title": "Copy settings",
+        "prompt": "Copy nested settings with spread and with structuredClone, change each copy, and see what reaches the original. Then compare a JSON copy with a clone, and clone a class instance.",
+        "code": "const settings = { theme: \"dark\", editor: { fontSize: 14, tabs: [\"main.js\"] } };\nconst prefs = { lang: \"en\", recent: new Set([\"a.js\"]), draft: undefined };\n\nclass Point {\n  constructor(x, y) {\n    this.x = x;\n    this.y = y;\n  }\n\n  describe() {\n    return `(${this.x}, ${this.y})`;\n  }\n}\n\nconst shallow = { ...settings };\nshallow.theme = \"light\";\nshallow.editor.fontSize = 18;\n\nconst deep = structuredClone(settings);\ndeep.editor.tabs.push(\"util.js\");\n\nconsole.log(`theme: ${settings.theme}`);\nconsole.log(`fontSize: ${settings.editor.fontSize}`);\nconsole.log(`tabs: ${settings.editor.tabs.join(\", \")}`);\nconsole.log(`spread shares editor: ${shallow.editor === settings.editor}`);\nconsole.log(`clone shares editor: ${deep.editor === settings.editor}`);\n\nconst jsonCopy = JSON.parse(JSON.stringify(prefs));\nconst cloned = structuredClone(prefs);\nconsole.log(`json: ${JSON.stringify(jsonCopy)}, has draft: ${\"draft\" in jsonCopy}`);\nconsole.log(`clone recent a.js: ${cloned.recent.has(\"a.js\")}, has draft: ${\"draft\" in cloned}`);\n\nconst copy = structuredClone(new Point(3, 4));\nconsole.log(`copy: ${JSON.stringify(copy)}, describe: ${typeof copy.describe}`);\n",
+        "output": "theme: dark\nfontSize: 18\ntabs: main.js\nspread shares editor: true\nclone shares editor: false\njson: {\"lang\":\"en\",\"recent\":{}}, has draft: false\nclone recent a.js: true, has draft: true\ncopy: {\"x\":3,\"y\":4}, describe: undefined",
+        "explanation": "The spread copy has its own `theme`, so `\"light\"` stays in the copy. But `editor` is shared, so the font size change shows in `settings`. The clone has its own `editor` and `tabs`, so pushing `\"util.js\"` leaves the original alone. The JSON copy turns the Set into `{}` and drops `draft`, while `structuredClone` keeps a real Set and the `undefined` key. Cloning `Point` keeps `x` and `y` but loses the `describe` method, so its type is `undefined`."
+      },
+      "practice": {
+        "title": "Copy a gradebook",
+        "prompt": "Copy a gradebook two ways and check what reaches the original.\n\n1. Copy `gradebook` with `Object.assign({}, gradebook)` into `shallow` and push `100` to `shallow.ada`.\n2. Copy `gradebook` with `structuredClone` into `deep` and push `60` to `deep.linus`.\n3. Print `ada: ` and `linus: ` with the lengths of the original's arrays.\n4. Print `assign shares ada: ` with whether `shallow.ada === gradebook.ada`, then `clone shares linus: ` with whether `deep.linus === gradebook.linus`.\n5. Copy `meta` with `JSON.parse(JSON.stringify(meta))` into `jsonCopy` and with `structuredClone` into `cloned`.\n6. On one line, print `json: `, then `JSON.stringify(jsonCopy)`, then `, has term: `, then whether `\"term\" in jsonCopy`.\n7. On one line, print `clone seen ada: `, then whether `cloned.seen.has(\"ada\")`, then `, has term: `, then whether `\"term\" in cloned`.\n\nExpected output:\n\n```text\nada: 3\nlinus: 1\nassign shares ada: true\nclone shares linus: false\njson: {\"owner\":\"kim\",\"seen\":{}}, has term: false\nclone seen ada: true, has term: true\n```",
+        "starter": "const gradebook = { ada: [90, 85], linus: [70] };\n\n// TODO: copy gradebook with Object.assign into shallow and push 100 to shallow.ada\n// TODO: copy gradebook with structuredClone into deep and push 60 to deep.linus\n// TODO: print the original's array lengths and whether each copy shares its array\n\nconst meta = { owner: \"kim\", seen: new Set([\"ada\"]), term: undefined };\n// TODO: copy meta through JSON and with structuredClone, then print both lines\n",
+        "solution": "const gradebook = { ada: [90, 85], linus: [70] };\n\nconst shallow = Object.assign({}, gradebook);\nshallow.ada.push(100);\n\nconst deep = structuredClone(gradebook);\ndeep.linus.push(60);\n\nconsole.log(`ada: ${gradebook.ada.length}`);\nconsole.log(`linus: ${gradebook.linus.length}`);\nconsole.log(`assign shares ada: ${shallow.ada === gradebook.ada}`);\nconsole.log(`clone shares linus: ${deep.linus === gradebook.linus}`);\n\nconst meta = { owner: \"kim\", seen: new Set([\"ada\"]), term: undefined };\nconst jsonCopy = JSON.parse(JSON.stringify(meta));\nconst cloned = structuredClone(meta);\nconsole.log(`json: ${JSON.stringify(jsonCopy)}, has term: ${\"term\" in jsonCopy}`);\nconsole.log(`clone seen ada: ${cloned.seen.has(\"ada\")}, has term: ${\"term\" in cloned}`);\n",
+        "tests": [
+          {
+            "output": "ada: 3\nlinus: 1\nassign shares ada: true\nclone shares linus: false\njson: {\"owner\":\"kim\",\"seen\":{}}, has term: false\nclone seen ada: true, has term: true"
+          }
+        ],
+        "hints": [
+          "`Object.assign` works like spread, so `shallow.ada` is the same array as `gradebook.ada`.",
+          "`structuredClone` gives `deep` its own arrays, so pushing to `deep.linus` leaves the original at 1 grade.",
+          "Check the JSON copy and the clone the same way the example checks `prefs`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `JSON.stringify(value)` makes compact JSON text, and `JSON.stringify(value, null, 2)` pretty-prints it.\n- `undefined` values and functions are skipped, `NaN` and `Infinity` become `null`, and a Map or Set becomes `{}`.\n- Convert first: `Object.fromEntries(map)`, `[...set]`, and `String(big)` for a BigInt, which would otherwise throw a TypeError.\n- `JSON.parse(text)` gives back numbers, booleans, `null`, arrays, and nested objects. JSON needs double-quoted keys and strings.\n- `obj?.prop`, `arr?.[0]`, and `obj.method?.()` give `undefined` instead of throwing, and `?? fallback` supplies a default.\n- Spread and `Object.assign` copy only the top level. `structuredClone(value)` copies nested data too, including Map and Set.\n- A cloned class instance is a plain object without methods or private fields. `JSON.parse(JSON.stringify(x))` drops `undefined` and breaks Map and Set."
+}

@@ -1,0 +1,118 @@
+{
+  "id": "objects",
+  "title": "Objects as Dictionaries",
+  "section": "Collections",
+  "summary": "Store key-value data in plain objects: look up, add, update, delete, loop, count, group, and sort records.",
+  "intro": "A plain object is JavaScript's everyday dictionary: it maps string keys to values. The same `{ }` syntax also describes records, like one user or one book, so you will use objects in almost every program.",
+  "steps": [
+    {
+      "title": "Object literals and keys",
+      "body": "An object stores **key-value pairs**. Write it as `{ key: value }` and read a value with a dot or with brackets.\n\n```javascript\nconst ages = { ada: 36, linus: 54 };\nconsole.log(ages.ada);      // 36\nconsole.log(ages[\"linus\"]); // 54\nconst who = \"ada\";\nconsole.log(ages[who]);     // 36\n```\n\nUse the dot when you know the key as you write the code. Use brackets when the key is in a variable or is not a valid name, like `\"first name\"`.\n\nAssigning to a key adds it or updates it, and `delete` removes it. A missing key reads as `undefined`. A `const` object can still change: `const` only stops the name from pointing at a different object.\n\n```javascript\nages.grace = 85;        // add\nages.ada += 1;          // update\ndelete ages.linus;      // remove\nconsole.log(ages.alan); // undefined\n```\n\nTo test for a key, use `\"grace\" in ages` or `Object.hasOwn(ages, \"grace\")`. Prefer `Object.hasOwn`, because `in` also sees inherited names: `\"toString\" in ages` is `true`.\n\nKeys are strings, so `{ 1: \"a\" }` stores the key `\"1\"`. To build a key from a variable, put the variable in brackets: `{ [name]: value }`. Print a whole object with `JSON.stringify(obj)`.\n\nOne trap: reading a key of `undefined` throws a TypeError, so `user.address.city` crashes when `address` is missing. The JSON lesson shows `user.address?.city`, which reads `undefined` instead.",
+      "example": {
+        "title": "Phone book",
+        "prompt": "Look up, add, update, and delete entries in a phone book, then build a new entry with a computed key.",
+        "code": "const phoneBook = { Ada: \"555-0101\", Grace: \"555-0102\", Alan: \"555-0103\" };\n\nconsole.log(phoneBook.Ada);\nconst who = \"Ada\";\nconsole.log(phoneBook[who]);\n\nphoneBook.Linus = \"555-0104\";\nphoneBook.Grace = \"555-0199\";\ndelete phoneBook.Alan;\n\nconsole.log(phoneBook.Alan);\nconsole.log(\"Alan\" in phoneBook);\nconsole.log(Object.hasOwn(phoneBook, \"Linus\"));\nconsole.log(JSON.stringify(phoneBook));\n\nconst name = \"Ken\";\nconst number = \"555-0105\";\nconst newEntry = { [name]: number };\nconsole.log(JSON.stringify(newEntry));\n",
+        "output": "555-0101\n555-0101\nundefined\nfalse\ntrue\n{\"Ada\":\"555-0101\",\"Grace\":\"555-0199\",\"Linus\":\"555-0104\"}\n{\"Ken\":\"555-0105\"}",
+        "explanation": "`phoneBook.Ada` and `phoneBook[who]` read the same key, one by name and one through a variable. Assigning `Linus` adds a key, assigning `Grace` replaces her number, and `delete` removes `Alan`, so reading `phoneBook.Alan` afterward gives `undefined` and `\"Alan\" in phoneBook` is `false`. The object is `const`, yet its contents changed freely. `{ [name]: number }` uses the value of `name`, `\"Ken\"`, as the key."
+      },
+      "practice": {
+        "title": "Fruit stand",
+        "prompt": "Update a fruit stand's stock and build an order with a computed key.\n\n1. Print `apples: 12` by reading `inventory[fruit]` in a template literal.\n2. Add `kiwis` with `20`, subtract `3` from `bananas`, and delete `plums`.\n3. Print `Has plums: ` followed by the result of `Object.hasOwn(inventory, \"plums\")`.\n4. Print the inventory with `JSON.stringify` (already in the starter).\n5. Build `order` with the computed key `[fruit]` and the value `6`, then print it with `JSON.stringify`.\n\nExpected output:\n\n```text\napples: 12\nHas plums: false\n{\"apples\":12,\"bananas\":5,\"kiwis\":20}\n{\"apples\":6}\n```",
+        "starter": "const inventory = { apples: 12, bananas: 8, plums: 5 };\nconst fruit = \"apples\";\n\n// TODO: print \"apples: 12\" by reading inventory[fruit]\n\n// TODO: add kiwis with 20, sell 3 bananas, and delete plums\n\n// TODO: print \"Has plums: false\" using Object.hasOwn\n\nconsole.log(JSON.stringify(inventory));\n\n// TODO: build order with the computed key [fruit] and the value 6, then print it\n",
+        "solution": "const inventory = { apples: 12, bananas: 8, plums: 5 };\nconst fruit = \"apples\";\n\nconsole.log(`${fruit}: ${inventory[fruit]}`);\n\ninventory.kiwis = 20;\ninventory.bananas -= 3;\ndelete inventory.plums;\n\nconsole.log(`Has plums: ${Object.hasOwn(inventory, \"plums\")}`);\nconsole.log(JSON.stringify(inventory));\n\nconst order = { [fruit]: 6 };\nconsole.log(JSON.stringify(order));\n",
+        "tests": [
+          {
+            "output": "apples: 12\nHas plums: false\n{\"apples\":12,\"bananas\":5,\"kiwis\":20}\n{\"apples\":6}"
+          }
+        ],
+        "hints": [
+          "Read through the variable with `inventory[fruit]`. `inventory.fruit` looks for a key literally named `fruit`.",
+          "Assigning to a new key adds it, `-=` updates an existing number, and `delete` removes a key.",
+          "A computed key goes in square brackets inside the object literal, just like `{ [name]: number }` in the example."
+        ]
+      }
+    },
+    {
+      "title": "Looping over objects",
+      "body": "Three methods turn an object into an array you can loop over or feed to array methods:\n\n- `Object.keys(obj)` gives the keys.\n- `Object.values(obj)` gives the values.\n- `Object.entries(obj)` gives `[key, value]` pairs.\n\nThe everyday loop unpacks each pair right in the `for...of`:\n\n```javascript\nconst stock = { pens: 4, pads: 2 };\nfor (const [item, count] of Object.entries(stock)) {\n  console.log(`${item}: ${count}`);\n}\nconsole.log(Object.keys(stock).length); // 2\n```\n\nAn object has no `length`, so count its keys with `Object.keys(obj).length`. Because `Object.values` returns a real array, `reduce`, `map`, and `filter` all work on it.\n\n`for (const key in obj)` also visits the keys, but you then read `obj[key]` yourself, and it can also visit inherited keys. Prefer `Object.entries`.\n\n**The gotcha:** keys come back in insertion order, except that integer-like keys such as `\"2\"` and `\"10\"` come first, sorted ascending as numbers. So `{ b: 1, 2: \"x\", 1: \"y\" }` lists `1,2,b`. Do not use number-like keys when order matters.",
+      "example": {
+        "title": "Cafe menu",
+        "prompt": "Print every item on a menu with its price, count the items, add up the prices, then show how integer-like keys are ordered.",
+        "code": "const menu = { coffee: 3, bagel: 2.5, juice: 4 };\n\nfor (const [item, price] of Object.entries(menu)) {\n  console.log(`${item}: $${price.toFixed(2)}`);\n}\n\nconsole.log(`Items: ${Object.keys(menu).length}`);\nconst total = Object.values(menu).reduce((sum, price) => sum + price, 0);\nconsole.log(`Total: $${total.toFixed(2)}`);\n\nconst mixed = { b: 1, a: 2, 2: \"x\", 1: \"y\" };\nconsole.log(Object.keys(mixed).join(\",\"));\n",
+        "output": "coffee: $3.00\nbagel: $2.50\njuice: $4.00\nItems: 3\nTotal: $9.50\n1,2,b,a",
+        "explanation": "`Object.entries(menu)` yields `[item, price]` pairs in insertion order, and the loop unpacks each one. `Object.keys(menu).length` counts the keys. `Object.values(menu)` is a plain array of prices, so `reduce` adds them up, and `toFixed(2)` formats the money. In `mixed`, the integer-like keys `1` and `2` jump to the front in ascending order, then `b` and `a` follow in the order they were written. The `$` before `${...}` is a literal dollar sign."
+      },
+      "practice": {
+        "title": "Grade report",
+        "prompt": "Print a grade report from an object, then see how integer-like keys are ordered.\n\n1. Loop over `Object.entries(grades)` and print each pair as `ana -> 88`, in insertion order.\n2. Print `Class size: ` followed by the number of keys.\n3. Print `Average: ` followed by the average grade with 1 decimal place.\n4. Print the keys of `labels` joined with `\",\"`.\n\nExpected output:\n\n```text\nana -> 88\nben -> 93\ncara -> 75\ndev -> 81\neli -> 90\nClass size: 5\nAverage: 85.4\n2,10,z\n```",
+        "starter": "const grades = { ana: 88, ben: 93, cara: 75, dev: 81, eli: 90 };\n\n// TODO: print each \"student -> grade\" line with Object.entries\n\n// TODO: count the keys and print \"Class size: 5\"\n\n// TODO: add up Object.values(grades) and print \"Average: 85.4\"\n\nconst labels = { \"10\": \"ten\", z: \"zed\", \"2\": \"two\" };\n// TODO: print the keys of labels joined with \",\"\n",
+        "solution": "const grades = { ana: 88, ben: 93, cara: 75, dev: 81, eli: 90 };\n\nfor (const [student, grade] of Object.entries(grades)) {\n  console.log(`${student} -> ${grade}`);\n}\n\nconst size = Object.keys(grades).length;\nconsole.log(`Class size: ${size}`);\nconst total = Object.values(grades).reduce((sum, grade) => sum + grade, 0);\nconsole.log(`Average: ${(total / size).toFixed(1)}`);\n\nconst labels = { \"10\": \"ten\", z: \"zed\", \"2\": \"two\" };\nconsole.log(Object.keys(labels).join(\",\"));\n",
+        "tests": [
+          {
+            "output": "ana -> 88\nben -> 93\ncara -> 75\ndev -> 81\neli -> 90\nClass size: 5\nAverage: 85.4\n2,10,z"
+          }
+        ],
+        "hints": [
+          "Unpack each pair into two names right in the `for...of` header, the way the example does with `item` and `price`.",
+          "The class size is `Object.keys(grades).length`. Add up `Object.values(grades)` with `reduce`, starting from `0`.",
+          "Divide the total by the class size and call `toFixed(1)` on the result. For `labels`, `Object.keys` already returns the keys in the order the output shows."
+        ]
+      }
+    },
+    {
+      "title": "Counting and grouping",
+      "body": "Two patterns cover most dictionary work. To **count**, read the current count, default it to `0` with `??`, and add one:\n\n```javascript\nconst counts = {};\nfor (const word of words) {\n  counts[word] = (counts[word] ?? 0) + 1;\n}\n```\n\nTo **group**, give each key an array the first time you see it, then push into that array. `??=` assigns only when the current value is `null` or `undefined`, as it is for a missing key, and the expression gives back the array either way:\n\n```javascript\nconst groups = {};\nfor (const word of words) {\n  (groups[word.length] ??= []).push(word);\n}\n```\n\nNewer JavaScript has `Object.groupBy`, but it does not exist in Node 20, so group by hand like this.\n\n**The gotcha:** a plain object already inherits names such as `constructor` and `toString`. Counting the word `\"constructor\"` reads a built-in function instead of `undefined`, so `?? 0` never kicks in and the count turns into garbage text. The key `\"__proto__\"` breaks it too. That is fine for fixed lowercase data like the words here. For keys that come from input, use a `Map`, which the next lesson teaches.",
+      "example": {
+        "title": "Fruit tally and word groups",
+        "prompt": "Count how many times each fruit appears, then group words by their first letter.",
+        "code": "const fruits = [\"apple\", \"pear\", \"apple\", \"fig\", \"pear\", \"apple\"];\nconst counts = {};\nfor (const fruit of fruits) {\n  counts[fruit] = (counts[fruit] ?? 0) + 1;\n}\nconsole.log(JSON.stringify(counts));\n\nconst words = [\"bat\", \"apple\", \"bee\", \"cat\", \"ant\", \"cow\"];\nconst byLetter = {};\nfor (const word of words) {\n  (byLetter[word[0]] ??= []).push(word);\n}\nfor (const [letter, group] of Object.entries(byLetter)) {\n  console.log(`${letter}: ${group.join(\", \")}`);\n}\n",
+        "output": "{\"apple\":3,\"pear\":2,\"fig\":1}\nb: bat, bee\na: apple, ant\nc: cat, cow",
+        "explanation": "The first time `apple` shows up, `counts.apple` is `undefined`, so `?? 0` supplies `0` and the count becomes `1`. Later visits add to the stored number. For grouping, `word[0]` is the first letter. `byLetter[\"b\"] ??= []` creates the array for `b` on the first `b` word and reuses it after that, and `push` adds the word. Groups print in insertion order: `b` first because `bat` came first."
+      },
+      "practice": {
+        "title": "Votes and parity",
+        "prompt": "Count a list of votes, then group numbers into odd and even.\n\n1. Count each vote in `counts` and print it with `JSON.stringify` (the print is in the starter).\n2. Push each number into `groups.odd` or `groups.even`, creating each array on first use.\n3. Print each group in insertion order as `odd: 3, 5, 7`.\n\nExpected output:\n\n```text\n{\"yes\":3,\"no\":1,\"maybe\":1}\nodd: 3, 5, 7\neven: 8, 12, 6\n```",
+        "starter": "const votes = [\"yes\", \"no\", \"yes\", \"maybe\", \"yes\"];\nconst counts = {};\n// TODO: count each vote in counts\n\nconsole.log(JSON.stringify(counts));\n\nconst numbers = [3, 8, 5, 12, 7, 6];\nconst groups = {};\n// TODO: push each number into groups.odd or groups.even\n\n// TODO: print each group as \"odd: 3, 5, 7\"\n",
+        "solution": "const votes = [\"yes\", \"no\", \"yes\", \"maybe\", \"yes\"];\nconst counts = {};\nfor (const vote of votes) {\n  counts[vote] = (counts[vote] ?? 0) + 1;\n}\nconsole.log(JSON.stringify(counts));\n\nconst numbers = [3, 8, 5, 12, 7, 6];\nconst groups = {};\nfor (const n of numbers) {\n  const key = n % 2 === 0 ? \"even\" : \"odd\";\n  (groups[key] ??= []).push(n);\n}\nfor (const [parity, group] of Object.entries(groups)) {\n  console.log(`${parity}: ${group.join(\", \")}`);\n}\n",
+        "tests": [
+          {
+            "output": "{\"yes\":3,\"no\":1,\"maybe\":1}\nodd: 3, 5, 7\neven: 8, 12, 6"
+          }
+        ],
+        "hints": [
+          "Copy the counting loop from the example: a missing vote reads `undefined`, so `?? 0` starts it at zero before you add one.",
+          "Pick the key with a ternary: `n % 2 === 0 ? \"even\" : \"odd\"`.",
+          "`(groups[key] ??= [])` gives you the array for that key, so call `push` on it. Then loop over `Object.entries(groups)` to print."
+        ]
+      }
+    },
+    {
+      "title": "Arrays of objects",
+      "body": "Objects also work as **records**: each object describes one thing, and an array holds many of them.\n\n```javascript\nconst people = [{ name: \"Ada\", age: 36 }, { name: \"Linus\", age: 54 }];\n```\n\nWhen a variable already has the key's name, write it once. `{ name, age }` is shorthand for `{ name: name, age: age }`.\n\nTo return an object from an arrow, wrap it in parentheses: `(name) => ({ name, visits: 0 })`. Without them, `(n) => { value: n }` reads the braces as a function body and returns `undefined`.\n\nThe array methods you know work on records. Read a field inside the callback:\n\n```javascript\npeople.filter((p) => p.age > 40);     // matching records\npeople.map((p) => p.name);            // just the names\npeople.find((p) => p.name === \"Ada\"); // first match or undefined\npeople.sort((a, b) => a.age - b.age); // youngest first\n```\n\n`sort` changes the array in place, so sort the new array from `filter` or use `toSorted`.\n\nTo find the most common key in a counts object, sort its entries by count and break ties by key with `||`:\n\n```javascript\nObject.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));\n```\n\nWhen the counts differ, `b[1] - a[1]` decides. When they tie, it is `0`, so `||` falls through to `localeCompare`.",
+      "example": {
+        "title": "Team roster",
+        "prompt": "Build visitor records from names, then query a list of employee records.",
+        "code": "const names = [\"ada\", \"bo\", \"cy\"];\nconst visitors = names.map((name) => ({ name, visits: 0 }));\nconsole.log(JSON.stringify(visitors));\n\nconst employees = [\n  { name: \"Ben\", dept: \"sales\", age: 45, salary: 90 },\n  { name: \"Ana\", dept: \"eng\", age: 34, salary: 120 },\n  { name: \"Cid\", dept: \"eng\", age: 41, salary: 135 },\n  { name: \"Dee\", dept: \"ops\", age: 29, salary: 80 },\n  { name: \"Eve\", dept: \"eng\", age: 52, salary: 110 },\n  { name: \"Fay\", dept: \"sales\", age: 38, salary: 95 },\n  { name: \"Gus\", dept: \"sales\", age: 27, salary: 70 },\n];\n\nconst engineers = employees\n  .filter((e) => e.dept === \"eng\")\n  .sort((a, b) => b.salary - a.salary)\n  .map((e) => e.name);\nconsole.log(`Eng by salary: ${engineers.join(\", \")}`);\n\nconst senior = employees.find((e) => e.age > 40);\nconsole.log(`First over 40: ${senior.name}`);\n\nconst deptCounts = {};\nfor (const e of employees) {\n  deptCounts[e.dept] = (deptCounts[e.dept] ?? 0) + 1;\n}\nconst ranked = Object.entries(deptCounts)\n  .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));\nconst [topDept, topCount] = ranked[0];\nconsole.log(`Top dept: ${topDept} (${topCount})`);\n",
+        "output": "[{\"name\":\"ada\",\"visits\":0},{\"name\":\"bo\",\"visits\":0},{\"name\":\"cy\",\"visits\":0}]\nEng by salary: Cid, Ana, Eve\nFirst over 40: Ben\nTop dept: eng (3)",
+        "explanation": "`map` turns each name into a `{ name, visits: 0 }` record, and the parentheses make the arrow return the object. The `filter`, `sort`, `map` chain keeps the `eng` records, orders them by salary from high to low, and keeps only the names. `find` returns the first record with `age > 40`, which is `Ben`. Counting departments gives `sales` and `eng` 3 each. They tie on count, so `localeCompare` puts `eng` first, and destructuring `ranked[0]` gives its name and count."
+      },
+      "practice": {
+        "title": "Bookshelf",
+        "prompt": "Build reading list records, then answer three questions about a list of books.\n\n1. Map `titles` into `{ title, read: false }` records and print them with `JSON.stringify`.\n2. Print `New by pages: ` followed by the titles of books published after 2000, sorted by page count from fewest to most, joined with `\", \"`.\n3. Print `First Le Guin: ` followed by the title of the first book whose author is `\"Le Guin\"`.\n4. Count the books in each genre and print the most common one as `Top genre: fantasy (3)`. Ties go to the alphabetically first genre.\n\nExpected output:\n\n```text\n[{\"title\":\"dune\",\"read\":false},{\"title\":\"emma\",\"read\":false}]\nNew by pages: Gilead, Piranesi, Klara and the Sun, Station Eleven, Jonathan Strange\nFirst Le Guin: A Wizard of Earthsea\nTop genre: fantasy (3)\n```",
+        "starter": "const titles = [\"dune\", \"emma\"];\n// TODO: map titles into { title, read: false } records\nconst readingList = [];\nconsole.log(JSON.stringify(readingList));\n\nconst books = [\n  { title: \"Klara and the Sun\", author: \"Ishiguro\", year: 2021, pages: 303, genre: \"scifi\" },\n  { title: \"Piranesi\", author: \"Clarke\", year: 2020, pages: 272, genre: \"fantasy\" },\n  { title: \"A Wizard of Earthsea\", author: \"Le Guin\", year: 1968, pages: 183, genre: \"fantasy\" },\n  { title: \"The Dispossessed\", author: \"Le Guin\", year: 1974, pages: 387, genre: \"scifi\" },\n  { title: \"Gilead\", author: \"Robinson\", year: 2004, pages: 247, genre: \"literary\" },\n  { title: \"Station Eleven\", author: \"Mandel\", year: 2014, pages: 333, genre: \"scifi\" },\n  { title: \"Jonathan Strange\", author: \"Clarke\", year: 2004, pages: 782, genre: \"fantasy\" },\n];\n\n// TODO: print \"New by pages: ...\" with the titles of books after 2000, fewest pages first\n\n// TODO: print \"First Le Guin: ...\" with the first book whose author is \"Le Guin\"\n\n// TODO: count the genres, sort the entries by count (ties by genre), and print the top one\n",
+        "solution": "const titles = [\"dune\", \"emma\"];\nconst readingList = titles.map((title) => ({ title, read: false }));\nconsole.log(JSON.stringify(readingList));\n\nconst books = [\n  { title: \"Klara and the Sun\", author: \"Ishiguro\", year: 2021, pages: 303, genre: \"scifi\" },\n  { title: \"Piranesi\", author: \"Clarke\", year: 2020, pages: 272, genre: \"fantasy\" },\n  { title: \"A Wizard of Earthsea\", author: \"Le Guin\", year: 1968, pages: 183, genre: \"fantasy\" },\n  { title: \"The Dispossessed\", author: \"Le Guin\", year: 1974, pages: 387, genre: \"scifi\" },\n  { title: \"Gilead\", author: \"Robinson\", year: 2004, pages: 247, genre: \"literary\" },\n  { title: \"Station Eleven\", author: \"Mandel\", year: 2014, pages: 333, genre: \"scifi\" },\n  { title: \"Jonathan Strange\", author: \"Clarke\", year: 2004, pages: 782, genre: \"fantasy\" },\n];\n\nconst recent = books\n  .filter((b) => b.year > 2000)\n  .sort((a, b) => a.pages - b.pages)\n  .map((b) => b.title);\nconsole.log(`New by pages: ${recent.join(\", \")}`);\n\nconst leGuin = books.find((b) => b.author === \"Le Guin\");\nconsole.log(`First Le Guin: ${leGuin.title}`);\n\nconst genreCounts = {};\nfor (const b of books) {\n  genreCounts[b.genre] = (genreCounts[b.genre] ?? 0) + 1;\n}\nconst ranked = Object.entries(genreCounts)\n  .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));\nconst [topGenre, topCount] = ranked[0];\nconsole.log(`Top genre: ${topGenre} (${topCount})`);\n",
+        "tests": [
+          {
+            "output": "[{\"title\":\"dune\",\"read\":false},{\"title\":\"emma\",\"read\":false}]\nNew by pages: Gilead, Piranesi, Klara and the Sun, Station Eleven, Jonathan Strange\nFirst Le Guin: A Wizard of Earthsea\nTop genre: fantasy (3)"
+          }
+        ],
+        "hints": [
+          "Map each title to the shorthand object `{ title, read: false }`, and wrap the object in parentheses so the arrow returns it.",
+          "Chain `filter` on `year`, then `sort` with `a.pages - b.pages`, then `map` to the titles.",
+          "Count genres the way the example counts departments. Then rank the entries with the same two-part comparator as `ranked` in the example and destructure the first one."
+        ]
+      }
+    }
+  ],
+  "recap": "- `{ key: value }` builds an object. Read with `obj.key` or `obj[variable]`. A missing key reads as `undefined`.\n- Assign to add or update a key, and `delete obj.key` removes one. A `const` object can still change.\n- Test for a key with `Object.hasOwn(obj, key)`. `key in obj` also sees inherited names.\n- Keys are strings. `{ [name]: value }` builds a key from a variable. Print objects with `JSON.stringify`.\n- `Object.keys`, `Object.values`, and `Object.entries` turn an object into arrays. Loop with `for (const [key, value] of Object.entries(obj))`.\n- Keys keep insertion order, except integer-like keys come first in ascending order.\n- Count with `counts[k] = (counts[k] ?? 0) + 1` and group with `(groups[k] ??= []).push(item)`. Node 20 has no `Object.groupBy`.\n- Inherited names like `constructor` break counting on plain objects, so count input keys in a `Map` (next lesson).\n- Shorthand `{ name, age }` saves typing. Wrap an object returned from an arrow in parentheses.\n- Query records with `filter`, `map`, `find`, and `sort((a, b) => a.age - b.age)`. Break ties with `||`."
+}
