@@ -11,7 +11,6 @@ import {
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import {
-  StreamLanguage,
   syntaxHighlighting,
   HighlightStyle,
   indentOnInput,
@@ -28,18 +27,7 @@ import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
 import { cpp } from "@codemirror/lang-cpp";
 import { java } from "@codemirror/lang-java";
-import { rust } from "@codemirror/lang-rust";
 import { go } from "@codemirror/lang-go";
-import { sql } from "@codemirror/lang-sql";
-import { perl } from "@codemirror/legacy-modes/mode/perl";
-import { lua } from "@codemirror/legacy-modes/mode/lua";
-import { haskell } from "@codemirror/legacy-modes/mode/haskell";
-import { csharp, kotlin } from "@codemirror/legacy-modes/mode/clike";
-import { swift } from "@codemirror/legacy-modes/mode/swift";
-import { ruby } from "@codemirror/legacy-modes/mode/ruby";
-import { shell } from "@codemirror/legacy-modes/mode/shell";
-import { elixir } from "codemirror-lang-elixir";
-import { php } from "@codemirror/lang-php";
 import { useCodeEditorSettings } from "@/components/code/editor-settings";
 import { completionFor } from "@/lib/code-editor-completions";
 
@@ -50,39 +38,12 @@ function langExt(language: string) {
       return python();
     case "javascript":
       return javascript();
-    case "typescript":
-      return javascript({ typescript: true });
-    case "c":
     case "cpp":
       return cpp();
     case "java":
       return java();
-    case "rust":
-      return rust();
     case "go":
       return go();
-    case "sql":
-      return sql();
-    case "perl":
-      return StreamLanguage.define(perl);
-    case "lua":
-      return StreamLanguage.define(lua);
-    case "haskell":
-      return StreamLanguage.define(haskell);
-    case "csharp":
-      return StreamLanguage.define(csharp);
-    case "kotlin":
-      return StreamLanguage.define(kotlin);
-    case "swift":
-      return StreamLanguage.define(swift);
-    case "ruby":
-      return StreamLanguage.define(ruby);
-    case "elixir":
-      return elixir();
-    case "php":
-      return php();
-    case "bash":
-      return StreamLanguage.define(shell);
     default:
       return [];
   }

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: "Hack University - %s",
   },
   description:
-    "Write, compile, and run code in 19 languages, sandboxed on your own machine.",
+    "Write, compile, and run Python, JavaScript, C++, Java, and Go, sandboxed on your own machine.",
 };
 
 /**

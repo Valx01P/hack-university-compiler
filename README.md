@@ -2,8 +2,8 @@
 
 > The Hack University online compiler, running entirely on your own machine.
 
-Write, compile, and run code in **19 languages** right in the browser. Code runs
-in a local [Piston](https://github.com/engineer-man/piston) sandbox in Docker,
+Write, compile, and run **Python, JavaScript, C++, Java, and Go** right in the
+browser. Code runs in a local [Piston](https://github.com/engineer-man/piston) sandbox in Docker,
 so nothing leaves localhost and there is no server to pay for. Same editor, same
 themes, same look as the original hackuniversity.dev compiler.
 
@@ -11,7 +11,7 @@ themes, same look as the original hackuniversity.dev compiler.
 
 - **Node.js 20.9+**
 - **Docker Desktop** (or any Docker engine that can run privileged containers)
-- About **13 GB** of disk for every language, much less if you only install a few
+- About **5 GB** of disk for the five runtimes (the C++ toolchain is 2.8 GB of it)
 
 On Apple Silicon, turn on **Settings → General → "Use Rosetta for x86_64/amd64
 emulation on Apple Silicon"** in Docker Desktop. The sandbox runtimes are x86_64,
@@ -23,19 +23,19 @@ and Rosetta makes them run close to native speed.
 git clone https://github.com/Valx01P/hack-university-compiler.git
 cd hack-university-compiler
 npm install
-npm run setup   # starts the sandbox and installs every language (one time, ~10 min)
+npm run setup   # starts the sandbox and installs all five languages (one time, ~3 min)
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). The homepage redirects to
-the Python compiler, and every other language is its own route:
-`/javascript`, `/cpp`, `/java`, `/rust`, `/sql`, and so on.
+the Python compiler, and every other language is its own route: `/javascript`,
+`/cpp`, `/java`, and `/go`.
 
-Only need a few languages? Install just those instead of running `setup`:
+Only need some of them? Install just those instead of running `setup`:
 
 ```bash
 npm run piston:up
-npm run piston:install -- python javascript cpp
+npm run piston:install -- python javascript
 ```
 
 ## Scripts
@@ -56,23 +56,12 @@ npm run piston:install -- python javascript cpp
 | --- | --- | --- |
 | `/python` | Python 3 | Python 3.12.0 |
 | `/javascript` | JavaScript | Node 20.11.1 |
-| `/typescript` | TypeScript | TypeScript 5.0.3 |
-| `/c` | C | GCC 10.2.0 |
 | `/cpp` | C++ | GCC 10.2.0 |
-| `/csharp` | C# | .NET 5.0.201 |
 | `/java` | Java | Java 15.0.2 |
-| `/kotlin` | Kotlin | Kotlin 1.8.20 |
-| `/swift` | Swift | Swift 5.3.3 |
 | `/go` | Go | Go 1.16.2 |
-| `/rust` | Rust | Rust 1.68.2 |
-| `/haskell` | Haskell | GHC 9.0.1 |
-| `/lua` | Lua | Lua 5.4.4 |
-| `/elixir` | Elixir | Elixir 1.11.3 |
-| `/perl` | Perl | Perl 5.36.0 |
-| `/ruby` | Ruby | Ruby 3.0.1 |
-| `/php` | PHP | PHP 8.2.3 |
-| `/bash` | Bash | Bash 5.2.0 |
-| `/sql` | SQL | SQLite 3.36.0, with a sample database |
+
+These are the newest versions in Piston's package index. Piston has packages
+for many more languages, see [Adding a language](#adding-a-language).
 
 The badge in the top right of the compiler shows the runtime serving the
 current language, or what to run if the sandbox is offline or the language
@@ -118,7 +107,8 @@ scripts/setup-piston.mjs     runtime installer
    `COMPILER_GROUPS`.
 3. `components/compiler/lang-icon.tsx`: the rail icon.
 4. `components/code/cm-editor.tsx` and `lib/code-editor-completions.ts`: syntax
-   highlighting and completions.
+   highlighting (install the matching `@codemirror/lang-*` package, or use a
+   `@codemirror/legacy-modes` mode) and completions.
 5. `npm run piston:install -- <id>`, then run a hello world.
 
 ## Troubleshooting
@@ -126,7 +116,8 @@ scripts/setup-piston.mjs     runtime installer
 - **"sandbox offline"**: start Docker Desktop, then `npm run piston:up`.
 - **"isn't installed in the local sandbox yet"**: `npm run piston:install -- <id>`.
 - **Slow runs on Apple Silicon**: turn on Rosetta in Docker Desktop (see
-  Requirements). C# and Kotlin take a few seconds to compile even then.
+  Requirements). Java and Go compile on every run, so they take about a second
+  even then.
 - **Port 3000 is taken**: `PORT=3001 npm run dev`.
 - **Windows**: use Docker Desktop with the WSL 2 backend.
 - **Linux**: Piston needs cgroup v2 (the default on modern distros) and a

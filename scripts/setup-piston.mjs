@@ -24,7 +24,7 @@ const wanted = args.filter((a) => !a.startsWith("--"));
 
 // node:http instead of fetch on purpose: a package install holds the request
 // open until the whole toolchain is downloaded, which can outlast fetch's
-// built-in 5 minute header timeout on big packages (swift, haskell, dotnet).
+// built-in 5 minute header timeout on big packages (gcc is about 2.8 GB).
 function api(path, body) {
   const url = new URL(`${PISTON_URL}${path}`);
   const payload = body ? JSON.stringify(body) : undefined;

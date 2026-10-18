@@ -12,17 +12,6 @@ const PISTON_URL = (process.env.PISTON_URL ?? "http://127.0.0.1:2000/api/v2").re
 // request only has to outlast them: compile (60s) + run (10s) + slack.
 const REQUEST_TIMEOUT_MS = 90_000;
 
-// TypeScript on Piston ships without @types/node, so tsc rejects `require`,
-// `process`, etc. Append an ambient shim: `declare` statements are hoisted and
-// file-scoped, so this satisfies the type-checker without shifting any of the
-// user's line numbers.
-const TS_NODE_SHIM =
-  "\n// --- ambient Node shim for TypeScript (no @types/node) ---\n" +
-  "declare const require: (m: string) => any;\n" +
-  "declare const process: any;\n" +
-  "declare const Buffer: any;\n" +
-  "declare const __dirname: string;\n";
-
 type LanguageId = keyof typeof RUNTIMES;
 
 export interface RunResult {
@@ -33,9 +22,10 @@ export interface RunResult {
   signal: string | null;
   /** isolate's verdict: "TO" timed out, "OL"/"EL" stdout/stderr too large. */
   status: string | null;
-  /** Compile phase (compiled languages only); null when there wasn't one. */
+  /** Compile phase (C++ only, Java and Go compile as part of the run); null
+      when there wasn't one. */
   compileCode: number | null;
-  /** Compiler stdout + stderr. tsc and dotnet print their errors to stdout. */
+  /** Compiler stdout + stderr. */
   compileOutput: string;
 }
 
@@ -57,22 +47,6 @@ export class SandboxError extends Error {
 
 function isLanguageId(id: string): id is LanguageId {
   return Object.hasOwn(RUNTIMES, id);
-}
-
-/** dotnet wraps C# compiler errors in MSBuild chatter (template setup,
-    restore, a summary that repeats every error). Keep just the diagnostics,
-    once each, without the project-path suffix. */
-function dotnetDiagnostics(output: string): string {
-  const lines = output
-    .split("\n")
-    .filter((l) => /: (error|warning) [A-Z]+\d+:/.test(l))
-    .map((l) =>
-      l
-        .replace(/\s*\[[^\]]*\.csproj\]\s*$/, "")
-        .replace(/^\/box\/submission\//, "")
-        .trim()
-    );
-  return lines.length ? [...new Set(lines)].join("\n") : output;
 }
 
 /** Numeric, dot-wise version compare (Piston picks the newest on "*"). */
@@ -99,7 +73,6 @@ export async function runCode({
     throw new SandboxError(`Unsupported language "${language}".`, 400);
   }
   const label = getCompilerLang(language)?.label ?? language;
-  const source = language === "typescript" ? code + TS_NODE_SHIM : code;
 
   let res: Response;
   try {
@@ -109,7 +82,7 @@ export async function runCode({
       body: JSON.stringify({
         language: RUNTIMES[language].runtime,
         version: "*",
-        files: [{ content: source }],
+        files: [{ content: code }],
         stdin,
       }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -148,13 +121,12 @@ export async function runCode({
   const compileCode: number | null = data?.compile ? (data.compile.code ?? null) : null;
   let compileOutput: string = data?.compile?.output ?? "";
   if (compileCode) {
-    // Piston's compile scripts (gcc, rust, haskell) chmod the output binary
-    // even when the compiler failed, which tacks a confusing "chmod: cannot
-    // access 'a.out'" line onto the real errors.
+    // Piston's gcc compile script chmods the output binary even when the
+    // compiler failed, which tacks a confusing "chmod: cannot access 'a.out'"
+    // line onto the real errors.
     compileOutput = compileOutput
       .replace(/^chmod: cannot access '[^']+': No such file or directory\n?/gm, "")
       .replace(/^\n+/, "");
-    if (language === "csharp") compileOutput = dotnetDiagnostics(compileOutput);
   }
 
   return {

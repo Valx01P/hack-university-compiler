@@ -8,12 +8,6 @@ import { CodeThemePicker } from "@/components/code/code-theme";
 import { AnchoredPanel } from "@/components/ui/anchored-panel";
 import { LangIcon } from "@/components/compiler/lang-icon";
 import { COMPILER_LANGS, SANDBOX_REFRESH_EVENT, type CompilerLang } from "@/lib/compiler";
-import {
-  buildSqlProgram,
-  parseSqlRun,
-  SQL_SANDBOX_TABLES,
-  type SqlTable,
-} from "@/lib/sql-sandbox";
 
 type RunState =
   | { status: "idle" }
@@ -31,13 +25,7 @@ type RunState =
       compileOutput: string;
     };
 
-type RightTab = "output" | "database";
 type Orient = "horizontal" | "vertical";
-
-const RIGHT_TAB_LABELS: Record<RightTab, string> = {
-  output: "Output",
-  database: "Database",
-};
 
 export function CompilerApp({ lang }: { lang: CompilerLang }) {
   const [code, setCode] = useState(lang.starter);
@@ -47,10 +35,6 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
   // Reset-to-starter confirm popover.
   const [resetOpen, setResetOpen] = useState(false);
   const resetAnchorRef = useRef<HTMLButtonElement>(null);
-  const [rightTab, setRightTab] = useState<RightTab>("output");
-  const isSql = lang.slug === "sql";
-  // For SQL: the database state after the last run (null → show the seed).
-  const [dbTables, setDbTables] = useState<SqlTable[] | null>(null);
   const [orient, setOrient] = useState<Orient>("horizontal");
   const [splitPct, setSplitPct] = useState(55);
   const [full, setFull] = useState(false);
@@ -98,16 +82,12 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
   }
 
   async function execute() {
-    setRightTab("output");
     setRun({ status: "running" });
     try {
-      // SQL runs against the preset sandbox; the wrapper also dumps every table
-      // so we can show the resulting database state.
-      const program = isSql ? buildSqlProgram(code) : code;
       const res = await fetch("/api/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ language: lang.slug, code: program, stdin }),
+        body: JSON.stringify({ language: lang.slug, code, stdin }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -115,15 +95,9 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
         return;
       }
       const r = data.run ?? {};
-      let stdout = r.stdout ?? "";
-      if (isSql) {
-        const parsed = parseSqlRun(stdout);
-        stdout = parsed.output;
-        if (parsed.tables.length) setDbTables(parsed.tables);
-      }
       setRun({
         status: "done",
-        stdout,
+        stdout: r.stdout ?? "",
         stderr: r.stderr ?? "",
         code: r.code ?? null,
         signal: r.signal ?? null,
@@ -197,7 +171,6 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
   }
 
   const horizontal = orient === "horizontal";
-  const tabs: RightTab[] = isSql ? ["output", "database"] : ["output"];
   const iconBtn =
     "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink";
 
@@ -428,25 +401,13 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
             />
           </div>
 
-          {/* Right pane: output (and the database for SQL) */}
+          {/* Right pane: output */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
             <div className="slim-scroll flex shrink-0 items-center gap-1 overflow-x-auto pb-3">
-              {tabs.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setRightTab(t)}
-                  aria-pressed={rightTab === t}
-                  className={`shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider transition-colors ${
-                    rightTab === t
-                      ? "text-ink dark:text-gold"
-                      : "text-ink-faint hover:text-ink dark:hover:text-gold"
-                  }`}
-                >
-                  {RIGHT_TAB_LABELS[t]}
-                </button>
-              ))}
-              {rightTab === "output" && run.status === "done" && (
+              <h2 className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
+                Output
+              </h2>
+              {run.status === "done" && (
                 <button
                   type="button"
                   onClick={() => setRun({ status: "idle" })}
@@ -458,10 +419,7 @@ export function CompilerApp({ lang }: { lang: CompilerLang }) {
             </div>
 
             <div className="slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface">
-              {rightTab === "output" && <OutputPanel run={run} />}
-              {rightTab === "database" && (
-                <DatabasePanel tables={dbTables ?? SQL_SANDBOX_TABLES} live={dbTables !== null} />
-              )}
+              <OutputPanel run={run} />
             </div>
           </div>
         </div>
@@ -519,70 +477,6 @@ function OutputPanel({ run }: { run: RunState }) {
           {run.signal ? `killed by ${run.signal}` : `exit code ${run.code ?? "?"}`}
         </p>
       )}
-    </div>
-  );
-}
-
-/** The preset SQL database: initial seed, or the live state after a run. */
-function DatabasePanel({ tables, live }: { tables: SqlTable[]; live: boolean }) {
-  return (
-    <div className="space-y-5 p-4">
-      <p className="text-xs text-ink-faint">
-        {live
-          ? "Current state after your last run. Your INSERT/UPDATE/DELETE changes are reflected here."
-          : "A sample database is loaded for your queries. Run a query to see how it changes."}
-      </p>
-      {tables.map((t) => (
-        <div key={t.name}>
-          <p className="mb-1.5 font-mono text-xs font-medium text-ink">
-            {t.name}
-            <span className="ml-2 font-sans text-ink-faint">
-              {t.rows.length} row{t.rows.length === 1 ? "" : "s"}
-            </span>
-          </p>
-          <div className="slim-scroll overflow-x-auto rounded-card border border-edge">
-            <table className="w-full border-collapse text-xs">
-              <thead>
-                <tr className="bg-raised">
-                  {t.columns.map((c) => (
-                    <th
-                      key={c}
-                      className="border-b border-edge px-2.5 py-1.5 text-left font-medium text-ink"
-                    >
-                      {c}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {t.rows.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={t.columns.length || 1}
-                      className="px-2.5 py-2 text-ink-faint"
-                    >
-                      (empty)
-                    </td>
-                  </tr>
-                ) : (
-                  t.rows.map((row, ri) => (
-                    <tr key={ri} className="border-b border-edge last:border-0">
-                      {row.map((cell, ci) => (
-                        <td
-                          key={ci}
-                          className="px-2.5 py-1.5 align-top font-mono text-ink-muted"
-                        >
-                          {cell}
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
