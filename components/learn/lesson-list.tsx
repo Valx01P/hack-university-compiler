@@ -82,7 +82,7 @@ export function LessonList({
   let n = 0;
   return (
     <nav aria-label={`${course.title} lessons`} className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 border-b border-edge px-3 pb-3 pt-3">
+      <div className="shrink-0 border-b border-line px-3 pb-3 pt-3">
         <p className="eyebrow">{course.title}</p>
         <p className="mt-2 text-xs text-ink-muted">
           {done} of {lessons.length} lessons complete

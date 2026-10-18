@@ -251,3 +251,62 @@ export function useCodeBackground(): string | null {
   }, []);
   return value;
 }
+
+/**
+ * Layout lines: how visible the big structural lines are (the panel's
+ * outline and bars, the language rail, sidebars and dividers, and the editor,
+ * output, and reference boxes), from 0 (hidden) to 100 (the theme's own).
+ * Stored as a number and applied before first paint by the bootstrap in
+ * app/layout.tsx, as --layout-lines on <html>.
+ */
+export const LAYOUT_LINES_KEY = "hu-layout-lines";
+export const LAYOUT_LINES_EVENT = "hu:layout-lines-changed";
+
+const toLines = (value: unknown): number => {
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 100;
+};
+
+/** Set the layout lines' visibility (0 to 100), persist it, and broadcast. */
+export function setLayoutLines(value: number) {
+  const pct = toLines(value);
+  document.documentElement.style.setProperty("--layout-lines", `${pct}%`);
+  try {
+    if (pct === 100) localStorage.removeItem(LAYOUT_LINES_KEY);
+    else localStorage.setItem(LAYOUT_LINES_KEY, String(pct));
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.dispatchEvent(new Event(LAYOUT_LINES_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+function currentLayoutLines(): number {
+  const v = document.documentElement.style.getPropertyValue("--layout-lines").trim();
+  return v ? toLines(v.replace("%", "")) : 100;
+}
+
+/** Subscribe to the layout lines' visibility (0 to 100), any tab. */
+export function useLayoutLines(): number {
+  const [value, set] = useState(100);
+  useEffect(() => {
+    const refresh = () => set(currentLayoutLines());
+    refresh();
+    // Another tab changed it: mirror the stored choice onto this page too.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== LAYOUT_LINES_KEY) return;
+      document.documentElement.style.setProperty("--layout-lines", `${toLines(e.newValue ?? 100)}%`);
+      refresh();
+    };
+    window.addEventListener(LAYOUT_LINES_EVENT, refresh);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(LAYOUT_LINES_EVENT, refresh);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+  return value;
+}

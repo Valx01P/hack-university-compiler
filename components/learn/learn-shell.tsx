@@ -70,8 +70,8 @@ export function LearnShell({
 
   return (
     <div className="px-3 pt-2 pb-2 lg:h-[calc(100dvh-4rem-1px)] lg:overflow-hidden">
-      <section className="flex min-h-0 flex-col rounded-card border border-edge bg-surface lg:h-full lg:overflow-hidden">
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-edge px-3 py-1.5">
+      <section className="flex min-h-0 flex-col rounded-card border border-line bg-surface lg:h-full lg:overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3 py-1.5">
           <span className="flex min-w-0 items-center gap-0.5">
             <button
               type="button"
@@ -111,7 +111,7 @@ export function LearnShell({
             <Link
               href={`/${lang}`}
               title={`Back to the ${langLabel} compiler`}
-              className="inline-flex items-center gap-1.5 rounded-btn border border-edge px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+              className="inline-flex items-center gap-1.5 rounded-btn border border-line px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
             >
               <SquareTerminal className="size-3.5" aria-hidden />
               Compiler

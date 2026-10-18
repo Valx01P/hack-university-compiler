@@ -5,8 +5,10 @@ import {
   APP_THEMES,
   CONTRAST_LEVELS,
   setContrast,
+  setLayoutLines,
   setTheme,
   useContrast,
+  useLayoutLines,
   useTheme,
 } from "@/lib/theme";
 import { CodeBackgroundPicker } from "@/components/code/code-background";
@@ -26,6 +28,7 @@ export function ThemeToggle() {
   const [open, setOpen] = useState(false);
   const theme = useTheme();
   const contrast = useContrast();
+  const lines = useLayoutLines();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -163,6 +166,37 @@ export function ThemeToggle() {
             <div className="mt-2.5">
               <CodeBackgroundPicker compact />
             </div>
+          </div>
+
+          {/* How visible the layout's big lines are, down to none at all. */}
+          <div role="separator" className="my-1 h-px bg-edge" />
+          <div role="group" aria-label="Layout lines" className="px-3 pb-3 pt-1.5">
+            <label className="flex items-center gap-2.5 text-sm text-ink-muted" htmlFor="layout-lines">
+              <svg
+                viewBox="0 0 24 24"
+                className="size-4 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.5}
+                strokeLinecap="round"
+                aria-hidden
+              >
+                <rect x="3" y="4.5" width="18" height="15" rx="2.5" strokeDasharray="3 2.5" />
+                <path d="M9 4.5v15" />
+              </svg>
+              <span className="flex-1">Layout lines</span>
+              <span className="font-mono text-xs text-ink-faint">{lines === 0 ? "off" : `${lines}%`}</span>
+            </label>
+            <input
+              id="layout-lines"
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={lines}
+              onChange={(e) => setLayoutLines(Number(e.target.value))}
+              className="mt-2.5 w-full accent-ink"
+            />
           </div>
         </div>
       )}

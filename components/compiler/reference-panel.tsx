@@ -106,7 +106,7 @@ export function ReferencePanel({
           <X className="size-4" aria-hidden />
         </button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-edge bg-surface">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-line bg-surface">
         {error ? (
           <p className="p-4 text-sm text-ink-muted">{error}</p>
         ) : !data ? (

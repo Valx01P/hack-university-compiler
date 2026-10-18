@@ -298,7 +298,7 @@ export function CompilerApp({
   const iconBtn =
     "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink";
   const headerBtn =
-    "inline-flex items-center gap-1.5 rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised";
+    "inline-flex items-center gap-1.5 rounded-btn border border-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised";
 
   return (
     <div
@@ -312,7 +312,7 @@ export function CompilerApp({
       {/* Language rail */}
       <nav
         aria-label="Languages"
-        className="slim-scroll flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-edge py-2 sm:w-14"
+        className="slim-scroll flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-line py-2 sm:w-14"
       >
         {COMPILER_LANGS.map((l) => {
           const active = l.slug === lang.slug;
@@ -458,7 +458,7 @@ export function CompilerApp({
                 )}
               </div>
             </div>
-            <div className="code-dark flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-code-edge bg-code-bg">
+            <div className="code-dark flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-code-line bg-code-bg">
               <div className="min-h-0 flex-1">
                 <CmEditor
                   key={challenge ? `challenge:${challenge.id}:${showingAnswer ? "answer" : "code"}` : "scratch"}
@@ -543,7 +543,7 @@ export function CompilerApp({
             }`}
           >
             <div
-              className={`pointer-events-none bg-edge transition-colors group-hover:bg-accent-strong group-focus-visible:bg-accent-strong group-active:bg-accent-strong ${
+              className={`pointer-events-none bg-line transition-colors group-hover:bg-accent-strong group-focus-visible:bg-accent-strong group-active:bg-accent-strong ${
                 horizontal ? "w-px group-hover:w-[2px]" : "h-px w-full group-hover:h-[2px]"
               }`}
             />
@@ -601,7 +601,7 @@ export function CompilerApp({
               role="region"
               aria-labelledby={outputId}
               tabIndex={0}
-              className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface"
+              className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface"
             >
               {checkState ? (
                 <CheckResults

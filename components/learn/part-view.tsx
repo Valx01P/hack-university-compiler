@@ -349,7 +349,7 @@ export function PartView({
             Next at the very start of the course, only Previous at its end. */}
         {hasNav && (
           <div className="pointer-events-none sticky bottom-0 z-10 flex justify-center bg-gradient-to-t from-surface from-40% to-transparent px-4 pb-4 pt-8">
-            <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-card border border-edge bg-surface p-1.5 shadow-(--shadow-card)">
+            <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-card border border-line bg-surface p-1.5 shadow-(--shadow-card)">
               {prev && (
                 <Link
                   href={prev.href}
@@ -367,7 +367,7 @@ export function PartView({
                   aria-label={nextLabel(next)}
                   title={next.title}
                   className={`inline-flex min-w-0 items-center gap-1.5 rounded-btn border px-3 py-1.5 text-sm font-medium ${
-                    partSolved ? "border-edge-strong btn-grad" : "border-edge-strong text-ink transition-colors hover:bg-raised"
+                    partSolved ? "border-edge-strong btn-grad" : "border-line-strong text-ink transition-colors hover:bg-raised"
                   }`}
                 >
                   <span className="min-w-0 truncate">{nextLabel(next)}</span>
@@ -511,7 +511,7 @@ export function PartView({
             </div>
           </div>
 
-          <div className="code-dark flex min-h-[12rem] flex-[3] flex-col overflow-hidden rounded-card border border-code-edge bg-code-bg lg:min-h-0">
+          <div className="code-dark flex min-h-[12rem] flex-[3] flex-col overflow-hidden rounded-card border border-code-line bg-code-bg lg:min-h-0">
             <div className="min-h-0 flex-1">
               <CmEditor
                 key={`${lesson.id}:${tabKey(active)}:${showingAnswer ? "answer" : "code"}`}
@@ -579,7 +579,7 @@ export function PartView({
               role="region"
               aria-labelledby={outputId}
               tabIndex={0}
-              className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface"
+              className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface"
             >
               {panel.mode === "check" ? (
                 <CheckResults check={panel.check} next={next ? { href: next.href, label: nextLabel(next) } : null} />
