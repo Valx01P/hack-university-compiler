@@ -52,6 +52,14 @@ export interface LessonMeta {
   summary: string;
   /** Number of practice problems (one per step). */
   problems: number;
+  /** Each step's title: the lesson's parts, in order. */
+  parts: string[];
+}
+
+/** Just enough of a lesson to link into it: its id and how many parts it has. */
+export interface LessonRef {
+  id: string;
+  parts: number;
 }
 
 export interface Course {
@@ -63,3 +71,6 @@ export interface Course {
 
 /** Stable id of a lesson's practice problem, used for progress. */
 export const problemId = (lessonId: string, step: number) => `${lessonId}/${step}`;
+
+/** Every step of a lesson is its own page, a part. `part` counts from 1. */
+export const partHref = (lang: string, lessonId: string, part: number) => `/${lang}/learn/${lessonId}/${part}`;

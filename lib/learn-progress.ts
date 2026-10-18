@@ -1,11 +1,12 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { partHref, type LessonRef } from "@/lib/learn-types";
 
 /**
  * Learn mode progress, kept in local storage like the rest of the app's state:
- * which practice problems you solved, the lesson you were last on, and your
- * code in each editor tab. A lesson is complete once every one of its practice
+ * which practice problems you solved, the lesson and part you were last on,
+ * and your code in each editor tab. A lesson is complete once every one of its practice
  * problems is solved. A `hu:learn-progress` event keeps every view in sync
  * same-tab, and `storage` syncs across tabs.
  */
@@ -17,6 +18,8 @@ const EVENT = "hu:learn-progress";
 interface Progress {
   solved: string[];
   last?: string;
+  /** The part of `last` you were on, counting from 1. */
+  lastPart?: number;
 }
 
 function readRaw(lang: string): string | null {
@@ -31,7 +34,11 @@ function parse(raw: string | null): Progress {
   try {
     const parsed = raw ? JSON.parse(raw) : null;
     if (parsed && Array.isArray(parsed.solved)) {
-      return { solved: parsed.solved.filter((s: unknown) => typeof s === "string"), last: typeof parsed.last === "string" ? parsed.last : undefined };
+      return {
+        solved: parsed.solved.filter((s: unknown) => typeof s === "string"),
+        last: typeof parsed.last === "string" ? parsed.last : undefined,
+        lastPart: Number.isInteger(parsed.lastPart) ? parsed.lastPart : undefined,
+      };
     }
   } catch {
     /* fall through */
@@ -71,32 +78,35 @@ export function markSolved(lang: string, problemId: string) {
   write(lang, { ...progress, solved: [...progress.solved, problemId] });
 }
 
-export function setLastLesson(lang: string, lessonId: string) {
+export function setLastLesson(lang: string, lessonId: string, part: number) {
   const progress = read(lang);
-  if (progress.last === lessonId) return;
-  write(lang, { ...progress, last: lessonId });
+  if (progress.last === lessonId && progress.lastPart === part) return;
+  write(lang, { ...progress, last: lessonId, lastPart: part });
 }
 
-/** The lesson you were last on in this language, if any. Pass the course's
-    lesson ids to ignore one that no longer exists (renamed or removed). */
-export function lastLesson(lang: string, lessons?: readonly string[]): string | null {
+/** The part you were last on in this language, as a link, while that lesson
+    and part are still in the course (`lessons`). */
+function resumeHref(lang: string, lessons: readonly LessonRef[]): string | null {
   if (typeof window === "undefined") return null;
-  const last = read(lang).last;
-  return last && (!lessons || lessons.includes(last)) ? last : null;
+  const { last, lastPart } = read(lang);
+  const lesson = last ? lessons.find((l) => l.id === last) : undefined;
+  if (!lesson) return null;
+  const part = lastPart && lastPart >= 1 && lastPart <= lesson.parts ? lastPart : 1;
+  return partHref(lang, lesson.id, part);
 }
 
 /**
- * Where Learn picks up in a language: the lesson you were last on while it is
- * still in the course (`lessons`, in course order), else the first lesson, or
- * null without any. The server markup and the hydration render use the first
- * lesson, so they never depend on local storage. After that it follows saved
- * progress live.
+ * Where Learn picks up in a language, as a link: the part you were last on
+ * while it is still in the course (`lessons`, in course order), else the
+ * first lesson, or null without any. The server markup and the hydration
+ * render use the first lesson, so they never depend on local storage. After
+ * that it follows saved progress live.
  */
-export function useResumeLesson(lang: string, lessons: readonly string[]): string | null {
-  const first = lessons[0] ?? null;
+export function useResumeHref(lang: string, lessons: readonly LessonRef[]): string | null {
+  const first = lessons[0] ? partHref(lang, lessons[0].id, 1) : null;
   return useSyncExternalStore(
     subscribe,
-    () => lastLesson(lang, lessons) ?? first,
+    () => resumeHref(lang, lessons) ?? first,
     () => first
   );
 }

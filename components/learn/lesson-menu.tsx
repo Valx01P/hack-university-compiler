@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Menu as MenuIcon } from "lucide-react";
 import { LessonList } from "@/components/learn/lesson-list";
-import type { Course } from "@/lib/learn-types";
+import type { Course, LessonRef } from "@/lib/learn-types";
 
 /**
  * The lesson plan behind a hamburger, for screens too narrow for the sidebar.
@@ -20,13 +20,15 @@ export function LessonMenu({
   langLabel,
   course,
   currentId,
-  lessonIds,
+  currentPart,
+  courses,
 }: {
   lang: string;
   langLabel: string;
   course: Course;
   currentId: string | null;
-  lessonIds: Record<string, string[]>;
+  currentPart: number;
+  courses: Record<string, LessonRef[]>;
 }) {
   const pathname = usePathname();
   const panelId = useId();
@@ -173,7 +175,8 @@ export function LessonMenu({
               langLabel={langLabel}
               course={course}
               currentId={currentId}
-              lessonIds={lessonIds}
+              currentPart={currentPart}
+              courses={courses}
               onNavigate={() => setOpen(false)}
             />
           </div>

@@ -12,7 +12,8 @@ import { LangIcon } from "@/components/compiler/lang-icon";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { COMPILER_LANGS, type CompilerLang } from "@/lib/compiler";
-import { useResumeLesson } from "@/lib/learn-progress";
+import { useResumeHref } from "@/lib/learn-progress";
+import type { LessonRef } from "@/lib/learn-types";
 import { runInSandbox, type RunState } from "@/lib/run-code";
 
 type Orient = "horizontal" | "vertical";
@@ -42,8 +43,8 @@ export function CompilerApp({
   lessons,
 }: {
   lang: CompilerLang;
-  /** Learn lesson ids in course order; empty when this language has no course. */
-  lessons: string[];
+  /** Learn lessons in course order; empty when this language has no course. */
+  lessons: LessonRef[];
 }) {
   // Read while initializing, not in an effect, so the editor opens straight on
   // your code: no starter flash, and ⌘Z can't undo back to the starter. The
@@ -68,10 +69,10 @@ export function CompilerApp({
   const orientRef = useRef(orient);
   orientRef.current = orient;
 
-  // Learn picks up where you left off: the last lesson you opened while it's
-  // still in the course, else the first. The button keeps its size either
-  // way, so nothing shifts.
-  const learnLesson = useResumeLesson(lang.slug, lessons);
+  // Learn picks up where you left off: the last part you opened while it's
+  // still in the course, else the first lesson. The button keeps its size
+  // either way, so nothing shifts.
+  const learnHref = useResumeHref(lang.slug, lessons);
 
   function updateCode(next: string) {
     setCode(next);
@@ -367,14 +368,14 @@ export function CompilerApp({
                     Clear
                   </button>
                 )}
-                {learnLesson && (
+                {learnHref && (
                   // Asks first, so a stray click doesn't leave the compiler.
                   <ConfirmButton
                     tooltip={`Learn ${lang.label} step by step`}
                     title="Open Learn mode?"
                     description={`Short lessons and practice problems for ${lang.label}. Your code here stays saved.`}
                     confirmLabel="Open Learn"
-                    href={`/${lang.slug}/learn/${learnLesson}`}
+                    href={learnHref}
                     className="inline-flex items-center gap-1.5 rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised"
                   >
                     <GraduationCap className="size-3.5" aria-hidden />

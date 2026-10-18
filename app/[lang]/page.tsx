@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { CompilerShell } from "@/components/chrome/compiler-shell";
 import { CompilerApp } from "@/components/compiler/compiler-app";
 import { COMPILER_SLUGS, getCompilerLang } from "@/lib/compiler";
-import { getLessonOrder } from "@/lib/learn";
+import { getLessonRefs } from "@/lib/learn";
 
 // Every language page is prerendered. Anything else is a 404.
 export const dynamicParams = false;
@@ -24,7 +24,7 @@ export default async function CompilerLangPage(props: PageProps<"/[lang]">) {
   const { lang: slug } = await props.params;
   const lang = getCompilerLang(slug);
   if (!lang) notFound();
-  const lessons = (await getLessonOrder(lang.slug)).map((l) => l.id);
+  const lessons = await getLessonRefs(lang.slug);
 
   return (
     <CompilerShell lang={lang.slug}>

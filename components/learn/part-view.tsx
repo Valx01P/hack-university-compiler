@@ -10,24 +10,38 @@ import { ResetCodeButton } from "@/components/code/reset-code-button";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
+import { ResizeHandle } from "@/components/ui/resize-handle";
 import { ScrollPre } from "@/components/ui/scroll-pre";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { CheckResults, checkSummary, type CheckState } from "@/components/learn/check-results";
 import { Highlight } from "@/lib/highlight";
 import type { CompilerLang } from "@/lib/compiler";
-import { problemId, type Lesson, type LessonMeta } from "@/lib/learn-types";
+import { partHref, problemId, type Lesson, type LessonStep } from "@/lib/learn-types";
 import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolvedState } from "@/lib/learn-progress";
 import { normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
 
-type Tab = { kind: "example" | "practice"; step: number };
+/** Where Previous or Next goes: another part of this lesson, or a lesson. */
+export interface PartLink {
+  href: string;
+  title: string;
+  lesson: boolean;
+}
+
+type TabKind = "example" | "practice";
 type Panel = { mode: "run"; run: RunState } | { mode: "check"; check: CheckState };
 
-const tabKey = (t: Tab) => `${t.kind}-${t.step}`;
+const TABS: TabKind[] = ["example", "practice"];
 const CODE_BLOCK =
   "code-dark slim-scroll overflow-x-auto rounded-card border border-code-edge bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink";
 const PLAIN_BLOCK =
   "slim-scroll mt-1.5 overflow-x-auto rounded-card border border-edge bg-raised px-4 py-3 font-mono text-[13px] leading-6 text-ink";
+
+// How much of the width the lesson gets next to the editor. Like the
+// compiler's split it lasts for the session but isn't saved, so a reload
+// never shifts.
+const SPLIT = { min: 30, max: 70, initial: 50 };
+const session = { split: SPLIT.initial };
 
 /** Lesson markdown with the outer margins trimmed, for use inside cards. */
 function Prose({ md, className = "" }: { md: string; className?: string }) {
@@ -39,98 +53,99 @@ function Prose({ md, className = "" }: { md: string; className?: string }) {
 }
 
 /**
- * One lesson in Learn mode: the tutorial on the left (steps, worked examples,
- * practice problems) and the editor on the right, with a tab per example and
- * per practice problem. Examples run and can be edited and reset. Practice
- * problems are checked by running the code against each test.
+ * One part of a lesson in Learn mode: a single idea with its worked example
+ * and practice problem on the left, and the editor on the right with two
+ * tabs, the example and your code. Drag the border between them to resize.
+ * The example runs and can be edited and reset. The practice is checked by
+ * running your code against each test.
  */
-export function LessonView({
+export function PartView({
   lang,
   lesson,
+  parts,
+  part,
+  step,
   position,
   prev,
   next,
 }: {
   lang: CompilerLang;
-  lesson: Lesson;
+  lesson: Pick<Lesson, "id" | "title" | "section" | "intro" | "recap">;
+  /** Every part's title, in order. */
+  parts: string[];
+  /** This part, counting from 0. */
+  part: number;
+  step: LessonStep;
   position: { index: number; total: number };
-  prev: LessonMeta | null;
-  next: LessonMeta | null;
+  prev: PartLink | null;
+  next: PartLink | null;
 }) {
   // Empty in the server markup and the hydration render (the server can't
   // see your progress), so everything that shows progress keeps the same size
-  // either way: a reload never shifts. A lesson reached by a client-side
+  // either way: a reload never shifts. A part reached by a client-side
   // navigation renders your progress from its first frame.
   const { solved } = useSolvedState(lang.slug);
-  const isSolved = (step: number) => solved.has(problemId(lesson.id, step));
-  const complete = lesson.steps.every((_, i) => isSolved(i));
-  const tabs: Tab[] = lesson.steps.flatMap((_, step) => [
-    { kind: "example" as const, step },
-    { kind: "practice" as const, step },
-  ]);
-  const many = lesson.steps.length > 1;
+  const isSolved = (i: number) => solved.has(problemId(lesson.id, i));
+  const complete = parts.every((_, i) => isSolved(i));
+  const partSolved = isSolved(part);
+  const lastPart = part === parts.length - 1;
   const hasNav = Boolean(prev || next);
 
-  const defaultCode = (t: Tab) =>
-    t.kind === "example" ? lesson.steps[t.step].example.code : lesson.steps[t.step].practice.starter;
-  const defaultStdin = (t: Tab) =>
-    t.kind === "example" ? lesson.steps[t.step].example.stdin ?? "" : lesson.steps[t.step].practice.tests[0]?.stdin ?? "";
+  const tabKey = (kind: TabKind) => `${kind}-${part}`;
+  const defaultCode = (kind: TabKind) => (kind === "example" ? step.example.code : step.practice.starter);
+  const defaultStdin = (kind: TabKind) =>
+    kind === "example" ? step.example.stdin ?? "" : step.practice.tests[0]?.stdin ?? "";
 
-  const [active, setActive] = useState<Tab>({ kind: "example", step: 0 });
+  const [active, setActive] = useState<TabKind>("example");
   // Your code per tab, read while initializing (CodeMirror mounts client-side,
   // so the server markup never depends on it).
-  const [codes, setCodes] = useState<Record<string, string>>(() =>
-    Object.fromEntries(tabs.map((t) => [tabKey(t), loadCode(lang.slug, lesson.id, tabKey(t), defaultCode(t))]))
-  );
-  const [stdins, setStdins] = useState<Record<string, string>>(() =>
-    Object.fromEntries(tabs.map((t) => [tabKey(t), defaultStdin(t)]))
-  );
-  const [showStdin, setShowStdin] = useState(() => defaultStdin(active) !== "");
-  const [panels, setPanels] = useState<Record<string, Panel>>({});
+  const [codes, setCodes] = useState<Record<TabKind, string>>(() => ({
+    example: loadCode(lang.slug, lesson.id, tabKey("example"), defaultCode("example")),
+    practice: loadCode(lang.slug, lesson.id, tabKey("practice"), defaultCode("practice")),
+  }));
+  const [stdins, setStdins] = useState<Record<TabKind, string>>(() => ({
+    example: defaultStdin("example"),
+    practice: defaultStdin("practice"),
+  }));
+  const [showStdin, setShowStdin] = useState(() => defaultStdin("example") !== "");
+  const [panels, setPanels] = useState<Partial<Record<TabKind, Panel>>>({});
   // The tab whose run or check is in flight. Runs go one at a time, but only
   // that tab's buttons say "Running…" or "Checking…".
-  const [busyKey, setBusyKey] = useState<string | null>(null);
-  const busy = busyKey !== null;
+  const [busyTab, setBusyTab] = useState<TabKind | null>(null);
+  const busy = busyTab !== null;
   // What a screen reader hears when a run or check ends.
   const [announcement, setAnnouncement] = useState("");
   // Hands keyboard focus back to Run or Check once the run is over.
   const rememberRunButton = useReturnFocus(busy);
   const editorRef = useRef<HTMLDivElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
-  const stripRef = useRef<HTMLDivElement>(null);
-  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const tabRefs = useRef<Partial<Record<TabKind, HTMLButtonElement | null>>>({});
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  const [split, setSplitPct] = useState(session.split);
+  const setSplit = (pct: number) => {
+    const clamped = Math.min(SPLIT.max, Math.max(SPLIT.min, Math.round(pct)));
+    session.split = clamped;
+    setSplitPct(clamped);
+  };
 
   const uid = useId();
-  const tabId = (t: Tab) => `${uid}-tab-${tabKey(t)}`;
+  const tabId = (kind: TabKind) => `${uid}-tab-${kind}`;
   const panelId = `${uid}-panel`;
   const stdinId = `${uid}-stdin`;
   const outputId = `${uid}-output`;
 
-  const key = tabKey(active);
-  const code = codes[key];
-  const stdin = stdins[key];
-  const panel: Panel = panels[key] ?? { mode: "run", run: { status: "idle" } };
+  const code = codes[active];
+  const stdin = stdins[active];
+  const panel: Panel = panels[active] ?? { mode: "run", run: { status: "idle" } };
 
   useEffect(() => {
-    setLastLesson(lang.slug, lesson.id);
-  }, [lang.slug, lesson.id]);
+    setLastLesson(lang.slug, lesson.id, part + 1);
+  }, [lang.slug, lesson.id, part]);
 
-  // Keep the selected tab in view inside the scrolling tab strip (scrollLeft
-  // only: scrollIntoView could also scroll the page).
-  useEffect(() => {
-    const strip = stripRef.current;
-    const tab = tabRefs.current[key];
-    if (!strip || !tab) return;
-    const room = parseFloat(getComputedStyle(strip).paddingLeft) || 0;
-    const s = strip.getBoundingClientRect();
-    const r = tab.getBoundingClientRect();
-    if (r.left < s.left + room) strip.scrollLeft -= s.left + room - r.left;
-    else if (r.right > s.right - room) strip.scrollLeft += r.right - (s.right - room);
-  }, [key]);
-
-  function openTab(t: Tab, { scroll = true }: { scroll?: boolean } = {}) {
-    setActive(t);
-    setShowStdin(stdins[tabKey(t)] !== "");
+  function openTab(kind: TabKind, { scroll = true }: { scroll?: boolean } = {}) {
+    setActive(kind);
+    setShowStdin(stdins[kind] !== "");
     // On narrow screens the editor sits below the lesson: bring it into view,
     // below the sticky header (the column's scroll margin).
     if (scroll && window.innerWidth < 1024) {
@@ -139,10 +154,10 @@ export function LessonView({
     }
   }
 
-  // Arrow keys, Home and End move between tabs (and open them), so the strip
-  // is a single tab stop.
+  // Arrow keys, Home and End move between the tabs (and open them), so the
+  // strip is a single tab stop.
   function onTabKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, i: number) {
-    const last = tabs.length - 1;
+    const last = TABS.length - 1;
     const to =
       e.key === "ArrowRight" ? (i === last ? 0 : i + 1)
       : e.key === "ArrowLeft" ? (i === 0 ? last : i - 1)
@@ -151,32 +166,32 @@ export function LessonView({
       : -1;
     if (to < 0) return;
     e.preventDefault();
-    openTab(tabs[to], { scroll: false });
-    tabRefs.current[tabKey(tabs[to])]?.focus();
+    openTab(TABS[to], { scroll: false });
+    tabRefs.current[TABS[to]]?.focus();
   }
 
-  function updateCode(next: string) {
-    setCodes((c) => ({ ...c, [key]: next }));
+  function updateCode(nextCode: string) {
+    setCodes((c) => ({ ...c, [active]: nextCode }));
     // Code that matches the original isn't saved, so a reset (whose new value
     // comes back through here) really clears the tab, and a later fix to the
     // example or starter still reaches you.
-    if (next === defaultCode(active)) clearCode(lang.slug, lesson.id, key);
-    else saveCode(lang.slug, lesson.id, key, next);
+    if (nextCode === defaultCode(active)) clearCode(lang.slug, lesson.id, tabKey(active));
+    else saveCode(lang.slug, lesson.id, tabKey(active), nextCode);
   }
 
   function resetTab() {
-    setCodes((c) => ({ ...c, [key]: defaultCode(active) }));
-    setStdins((s) => ({ ...s, [key]: defaultStdin(active) }));
-    setPanels((p) => ({ ...p, [key]: { mode: "run", run: { status: "idle" } } }));
-    clearCode(lang.slug, lesson.id, key);
+    setCodes((c) => ({ ...c, [active]: defaultCode(active) }));
+    setStdins((s) => ({ ...s, [active]: defaultStdin(active) }));
+    setPanels((p) => ({ ...p, [active]: { mode: "run", run: { status: "idle" } } }));
+    clearCode(lang.slug, lesson.id, tabKey(active));
   }
 
-  const setPanel = (k: string, p: Panel) => setPanels((all) => ({ ...all, [k]: p }));
+  const setPanel = (kind: TabKind, p: Panel) => setPanels((all) => ({ ...all, [kind]: p }));
 
   /** Start a run or check from its button. */
-  function begin(k: string, e: React.MouseEvent<HTMLButtonElement>) {
+  function begin(kind: TabKind, e: React.MouseEvent<HTMLButtonElement>) {
     rememberRunButton(e);
-    setBusyKey(k);
+    setBusyTab(kind);
     setAnnouncement("");
     // Below lg the output can sit under the fold (a phone in landscape, where
     // the editor keeps its minimum height): bring it into view so the run
@@ -189,32 +204,30 @@ export function LessonView({
 
   async function run(e: React.MouseEvent<HTMLButtonElement>) {
     if (busy) return;
-    const k = key;
-    begin(k, e);
-    setPanel(k, { mode: "run", run: { status: "running" } });
+    const kind = active;
+    begin(kind, e);
+    setPanel(kind, { mode: "run", run: { status: "running" } });
     const result = await runInSandbox(lang.slug, code, stdin);
     const done: RunState = result.ok ? { status: "done", ...result.run } : { status: "error", error: result.error };
-    setPanel(k, { mode: "run", run: done });
+    setPanel(kind, { mode: "run", run: done });
     setAnnouncement(runSummary(done));
-    setBusyKey(null);
+    setBusyTab(null);
   }
 
   async function check(e: React.MouseEvent<HTMLButtonElement>) {
     if (busy) return;
-    const k = key;
-    const step = active.step;
-    const { tests } = lesson.steps[step].practice;
-    begin(k, e);
-    setPanel(k, { mode: "check", check: { status: "checking", total: tests.length } });
+    const { tests } = step.practice;
+    begin("practice", e);
+    setPanel("practice", { mode: "check", check: { status: "checking", total: tests.length } });
     const outcomes = await Promise.all(
       tests.map((t) => runInSandbox(lang.slug, code, t.stdin ?? "", { refreshStatus: false }))
     );
     refreshSandboxStatus();
 
     const finish = (result: CheckState) => {
-      setPanel(k, { mode: "check", check: result });
+      setPanel("practice", { mode: "check", check: result });
       setAnnouncement(checkSummary(result));
-      setBusyKey(null);
+      setBusyTab(null);
     };
     const failed = outcomes.find((o) => !o.ok);
     if (failed && !failed.ok) return finish({ status: "error", error: failed.error });
@@ -235,27 +248,26 @@ export function LessonView({
       };
     });
     const allPassed = results.every((r) => r.passed);
-    if (allPassed) markSolved(lang.slug, problemId(lesson.id, step));
-    const lessonComplete = allPassed && lesson.steps.every((_, i) => i === step || isSolved(i));
+    if (allPassed) markSolved(lang.slug, problemId(lesson.id, part));
+    const lessonComplete = allPassed && parts.every((_, i) => i === part || isSolved(i));
     finish({ status: "done", results, lessonComplete });
   }
 
-  const tabLabel = (t: Tab) =>
-    `${t.kind === "example" ? "Example" : "Your code"}${many ? ` ${t.step + 1}` : ""}`;
+  const tabLabel = (kind: TabKind) => (kind === "example" ? "Example" : "Your code");
+  const nextLabel = (link: PartLink) => `${link.lesson ? "Next lesson" : "Next"}: ${link.title}`;
   const iconBtn =
     "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink";
-  const nextLink = next ? { href: `/${lang.slug}/learn/${next.id}`, title: next.title } : null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      {/* Left: the lesson. Its scroll padding (and, on narrow screens, the
-          focusables' scroll margin) keeps keyboard focus clear of the
-          floating lesson nav. */}
-      <div
-        className={`slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto lg:border-r lg:border-edge ${
-          hasNav ? "lg:scroll-pb-24" : ""
-        }`}
-      >
+    <div
+      ref={gridRef}
+      className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[var(--learn-split)_9px_minmax(0,1fr)]"
+      style={{ "--learn-split": `${split}%` } as React.CSSProperties}
+    >
+      {/* Left: the part. Its scroll padding (and, on narrow screens, the
+          focusables' scroll margin) keeps keyboard focus clear of the floating
+          nav. */}
+      <div className={`slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto ${hasNav ? "lg:scroll-pb-24" : ""}`}>
         <article
           className={`mx-auto w-full max-w-[46rem] flex-1 px-5 pb-10 pt-6 sm:px-7 ${
             hasNav ? "max-lg:[&_:is(a,button,pre,[tabindex])]:scroll-mb-24" : ""
@@ -275,38 +287,66 @@ export function LessonView({
             {complete && <span className="sr-only"> · Complete</span>}
           </p>
           <h1 className="font-display mt-2 text-headline">{lesson.title}</h1>
-          <Prose md={lesson.intro} className="mt-3 text-ink-muted" />
 
-          {lesson.steps.map((step, i) => (
-            <StepSection
-              key={i}
-              index={i}
-              count={lesson.steps.length}
-              step={step}
-              language={lang.slug}
-              solved={isSolved(i)}
-              onOpenExample={() => openTab({ kind: "example", step: i })}
-              onOpenPractice={() => openTab({ kind: "practice", step: i })}
-            />
-          ))}
+          {parts.length > 1 && (
+            <nav aria-label="Parts of this lesson" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="text-xs font-medium uppercase tracking-wider text-ink-faint">
+                Part {part + 1} of {parts.length}
+              </span>
+              <ol className="flex flex-wrap items-center gap-1.5">
+                {parts.map((title, i) => {
+                  const here = i === part;
+                  const done = isSolved(i);
+                  return (
+                    <li key={i}>
+                      <Link
+                        href={partHref(lang.slug, lesson.id, i + 1)}
+                        aria-current={here ? "page" : undefined}
+                        aria-label={`Part ${i + 1}: ${title}${done ? " (solved)" : ""}`}
+                        title={title}
+                        className={`inline-flex size-7 items-center justify-center rounded-full border text-xs font-medium transition-colors ${
+                          here
+                            ? "border-ink text-ink dark:border-gold dark:text-gold"
+                            : "border-edge-strong/60 text-ink-muted hover:border-ink hover:text-ink"
+                        }`}
+                      >
+                        {/* Same size solved or not, so nothing moves when progress loads. */}
+                        {done ? <CompleteIcon className="size-5" /> : i + 1}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ol>
+            </nav>
+          )}
 
-          {lesson.recap && (
+          {part === 0 && <Prose md={lesson.intro} className="mt-4 text-ink-muted" />}
+
+          <PartSection
+            step={step}
+            language={lang.slug}
+            solved={partSolved}
+            onOpenExample={() => openTab("example")}
+            onOpenPractice={() => openTab("practice")}
+          />
+
+          {lastPart && lesson.recap && (
             <section className="mt-12 border-t border-edge pt-6">
-              <p className="eyebrow">Recap</p>
+              <p className="eyebrow">Lesson recap</p>
               <Prose md={lesson.recap} className="mt-3" />
             </section>
           )}
         </article>
 
-        {/* Floating lesson nav: only Next on the first lesson, only Prev on the
-            last, and none at all in a one-lesson course. */}
+        {/* Floating nav through the parts, then on to the next lesson: only
+            Next at the very start of the course, only Previous at its end. */}
         {hasNav && (
           <div className="pointer-events-none sticky bottom-0 z-10 flex justify-center bg-gradient-to-t from-surface from-40% to-transparent px-4 pb-4 pt-8">
             <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-card border border-edge bg-surface p-1.5 shadow-(--shadow-card)">
               {prev && (
                 <Link
-                  href={`/${lang.slug}/learn/${prev.id}`}
-                  aria-label={`Previous lesson: ${prev.title}`}
+                  href={prev.href}
+                  aria-label={`${prev.lesson ? "Previous lesson" : "Previous part"}: ${prev.title}`}
                   title={prev.title}
                   className="inline-flex shrink-0 items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
                 >
@@ -316,14 +356,14 @@ export function LessonView({
               )}
               {next && (
                 <Link
-                  href={`/${lang.slug}/learn/${next.id}`}
-                  aria-label={`Next lesson: ${next.title}`}
+                  href={next.href}
+                  aria-label={nextLabel(next)}
                   title={next.title}
                   className={`inline-flex min-w-0 items-center gap-1.5 rounded-btn border px-3 py-1.5 text-sm font-medium ${
-                    complete ? "border-edge-strong btn-grad" : "border-edge-strong text-ink transition-colors hover:bg-raised"
+                    partSolved ? "border-edge-strong btn-grad" : "border-edge-strong text-ink transition-colors hover:bg-raised"
                   }`}
                 >
-                  <span className="min-w-0 truncate">Next: {next.title}</span>
+                  <span className="min-w-0 truncate">{nextLabel(next)}</span>
                   <ArrowRight className="size-4 shrink-0" aria-hidden />
                 </Link>
               )}
@@ -331,6 +371,22 @@ export function LessonView({
           </div>
         )}
       </div>
+
+      <ResizeHandle
+        label="Resize the lesson and the editor"
+        value={split}
+        min={SPLIT.min}
+        max={SPLIT.max}
+        step={5}
+        bigStep={10}
+        onChange={setSplit}
+        onDrag={(x) => {
+          const r = gridRef.current?.getBoundingClientRect();
+          if (r && r.width > 0) setSplit(((x - r.left) / r.width) * 100);
+        }}
+        onReset={() => setSplit(SPLIT.initial)}
+        className="hidden lg:flex"
+      />
 
       {/* Right: the editor. Below lg it has a floor, so a short screen (a phone
           in landscape) scrolls the page instead of squeezing out the code. */}
@@ -342,36 +398,34 @@ export function LessonView({
             rings inside these scrolling rows, the thicker super-contrast ring
             included. */}
         <div
-          ref={stripRef}
           role="tablist"
           aria-label="Editor tabs"
           className="slim-scroll -mx-1.5 -mb-0.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pb-1.5 pt-1.5"
         >
-          {tabs.map((t, i) => {
-            const k = tabKey(t);
-            const selected = k === key;
+          {TABS.map((kind, i) => {
+            const selected = kind === active;
             return (
               <button
-                key={k}
+                key={kind}
                 ref={(el) => {
-                  tabRefs.current[k] = el;
+                  tabRefs.current[kind] = el;
                 }}
-                id={tabId(t)}
+                id={tabId(kind)}
                 type="button"
                 role="tab"
                 aria-selected={selected}
                 aria-controls={panelId}
                 tabIndex={selected ? 0 : -1}
-                onClick={() => openTab(t)}
+                onClick={() => openTab(kind)}
                 onKeyDown={(e) => onTabKeyDown(e, i)}
                 className={`inline-flex shrink-0 items-center gap-1.5 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider transition-colors ${
                   selected ? "bg-raised text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
                 }`}
               >
-                {tabLabel(t)}
+                {tabLabel(kind)}
                 {/* Same-size marks either way, so tabs never move when progress loads. */}
-                {t.kind === "practice" &&
-                  (isSolved(t.step) ? (
+                {kind === "practice" &&
+                  (partSolved ? (
                     <>
                       <CompleteIcon className="size-3" />
                       <span className="sr-only">(solved)</span>
@@ -388,14 +442,12 @@ export function LessonView({
           <div className="slim-scroll -mx-1.5 -mt-0.5 flex shrink-0 items-center gap-2 overflow-x-auto px-1.5 pb-2 pt-1.5">
             <span className="shrink-0 font-mono text-sm font-medium">{lang.fileName}</span>
             <span className="hidden truncate text-xs text-ink-faint sm:inline">
-              {active.kind === "example"
-                ? lesson.steps[active.step].example.title
-                : lesson.steps[active.step].practice.title}
+              {active === "example" ? step.example.title : step.practice.title}
             </span>
             <div className="ms-auto flex shrink-0 items-center gap-1">
               <ResetCodeButton
-                label={active.kind === "example" ? "Reset to the original example" : "Reset to the starter code"}
-                title={active.kind === "example" ? "Reset this example?" : "Reset to the starter code?"}
+                label={active === "example" ? "Reset to the original example" : "Reset to the starter code"}
+                title={active === "example" ? "Reset this example?" : "Reset to the starter code?"}
                 description="This replaces what's in this tab with the original code."
                 onReset={resetTab}
                 className={iconBtn}
@@ -405,7 +457,7 @@ export function LessonView({
                 className="shrink-0"
                 tools={<CodeThemePicker className="field w-full rounded-btn px-2 py-1.5 text-xs font-medium text-ink" />}
               />
-              {active.kind === "practice" ? (
+              {active === "practice" ? (
                 <>
                   <button
                     type="button"
@@ -421,7 +473,7 @@ export function LessonView({
                     disabled={busy}
                     className="shrink-0 rounded-btn border border-edge-strong px-4 py-1.5 text-sm font-medium btn-grad disabled:opacity-50"
                   >
-                    {busyKey === key && panel.mode === "check" ? "Checking…" : "Check"}
+                    {busyTab === "practice" && panel.mode === "check" ? "Checking…" : "Check"}
                   </button>
                 </>
               ) : (
@@ -431,7 +483,7 @@ export function LessonView({
                   disabled={busy}
                   className="shrink-0 rounded-btn border border-edge-strong px-4 py-1.5 text-sm font-medium btn-grad disabled:opacity-50"
                 >
-                  {busyKey === key ? "Running…" : "▶ Run"}
+                  {busyTab === "example" ? "Running…" : "▶ Run"}
                 </button>
               )}
             </div>
@@ -440,7 +492,7 @@ export function LessonView({
           <div className="code-dark flex min-h-[12rem] flex-[3] flex-col overflow-hidden rounded-card border border-code-edge bg-code-bg lg:min-h-0">
             <div className="min-h-0 flex-1">
               <CmEditor
-                key={`${lesson.id}:${key}`}
+                key={`${lesson.id}:${tabKey(active)}`}
                 value={code}
                 language={lang.slug}
                 onChange={updateCode}
@@ -469,7 +521,7 @@ export function LessonView({
                   id={stdinId}
                   aria-label="Program input (stdin)"
                   value={stdin}
-                  onChange={(e) => setStdins((s) => ({ ...s, [key]: e.target.value }))}
+                  onChange={(e) => setStdins((s) => ({ ...s, [active]: e.target.value }))}
                   rows={2}
                   placeholder="Input passed to your program on stdin..."
                   className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-edge bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
@@ -483,16 +535,16 @@ export function LessonView({
               <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
                 {panel.mode === "check" ? "Results" : "Output"}
               </h2>
-              {active.kind === "practice" && panel.mode === "run" && panel.run.status === "idle" && (
+              {active === "practice" && panel.mode === "run" && panel.run.status === "idle" && (
                 <span className="truncate text-xs text-ink-faint">
-                  Run tries your code. Check runs it against {lesson.steps[active.step].practice.tests.length} test
-                  {lesson.steps[active.step].practice.tests.length === 1 ? "" : "s"}.
+                  Run tries your code. Check runs it against {step.practice.tests.length} test
+                  {step.practice.tests.length === 1 ? "" : "s"}.
                 </span>
               )}
               {((panel.mode === "run" && panel.run.status === "done") || (panel.mode === "check" && panel.check.status === "done")) && (
                 <button
                   type="button"
-                  onClick={() => setPanel(key, { mode: "run", run: { status: "idle" } })}
+                  onClick={() => setPanel(active, { mode: "run", run: { status: "idle" } })}
                   className="ms-auto rounded-btn px-2.5 py-1 text-xs font-medium text-ink-faint transition-colors hover:text-ink"
                 >
                   Clear
@@ -506,7 +558,11 @@ export function LessonView({
               tabIndex={0}
               className="slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-edge bg-surface"
             >
-              {panel.mode === "check" ? <CheckResults check={panel.check} next={nextLink} /> : <OutputPanel run={panel.run} />}
+              {panel.mode === "check" ? (
+                <CheckResults check={panel.check} next={next ? { href: next.href, label: nextLabel(next) } : null} />
+              ) : (
+                <OutputPanel run={panel.run} />
+              )}
             </div>
           </div>
         </div>
@@ -518,18 +574,14 @@ export function LessonView({
   );
 }
 
-function StepSection({
-  index,
-  count,
+function PartSection({
   step,
   language,
   solved,
   onOpenExample,
   onOpenPractice,
 }: {
-  index: number;
-  count: number;
-  step: Lesson["steps"][number];
+  step: LessonStep;
   language: string;
   solved: boolean;
   onOpenExample: () => void;
@@ -557,9 +609,8 @@ function StepSection({
   }, [hintsShown, solution]);
 
   return (
-    <section id={`step-${index + 1}`} className="mt-12 scroll-mt-4">
-      {count > 1 && <p className="eyebrow">Step {index + 1} of {count}</p>}
-      <h2 className="font-display mt-1.5 text-title">{step.title}</h2>
+    <section className="mt-9">
+      <h2 className="font-display text-title">{step.title}</h2>
       <Prose md={step.body} className="mt-3" />
 
       <div className="mt-7 border-l-2 border-edge pl-5">

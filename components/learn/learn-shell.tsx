@@ -1,40 +1,58 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, SquareTerminal } from "lucide-react";
 import { LessonList } from "@/components/learn/lesson-list";
 import { LessonMenu } from "@/components/learn/lesson-menu";
 import { SandboxStatus } from "@/components/chrome/sandbox-status";
-import type { Course } from "@/lib/learn-types";
+import { ResizeHandle } from "@/components/ui/resize-handle";
+import type { Course, LessonRef } from "@/lib/learn-types";
+
+// The lesson list's width. Like the compiler's split it lasts for the session
+// (moving between lessons keeps it) but isn't saved, so a reload never shifts.
+const SIDEBAR = { min: 208, max: 440, initial: 256 };
+const session = { sidebar: SIDEBAR.initial };
 
 /**
  * Learn mode's frame: the same bordered panel as the compiler, with the lesson
  * plan as a sidebar when the screen is wide enough (a hamburger menu
- * otherwise). It lives in the learn layout, so it stays put, scroll and all,
- * while you move between lessons.
+ * otherwise). Drag the border to widen or narrow the list. It lives in the
+ * learn layout, so it stays put, scroll and all, while you move between
+ * lessons.
  */
 export function LearnShell({
   lang,
   langLabel,
   course,
-  lessonIds,
+  courses,
   children,
 }: {
   lang: string;
   langLabel: string;
   course: Course;
-  /** Lesson ids in course order for every language that has a course. */
-  lessonIds: Record<string, string[]>;
+  /** Lessons in course order for every language that has a course. */
+  courses: Record<string, LessonRef[]>;
   children: React.ReactNode;
 }) {
   const pathname = usePathname() ?? "";
   const router = useRouter();
-  const currentId = pathname.split("/")[3] ?? null;
+  const segments = pathname.split("/");
+  const currentId = segments[3] ?? null;
+  // The part you're on, counting from 0.
+  const currentPart = Math.max(0, (Number(segments[4]) || 1) - 1);
   const lessons = course.sections.flatMap((s) => s.lessons);
   const index = lessons.findIndex((l) => l.id === currentId);
   const current = index >= 0 ? lessons[index] : null;
+
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [sidebar, setSidebarWidth] = useState(session.sidebar);
+  const setSidebar = (width: number) => {
+    const clamped = Math.min(SIDEBAR.max, Math.max(SIDEBAR.min, Math.round(width)));
+    session.sidebar = clamped;
+    setSidebarWidth(clamped);
+  };
 
   // Whether a back/forward history entry exists (Navigation API, Chromium).
   const [hist, setHist] = useState({ back: true, fwd: true });
@@ -52,7 +70,7 @@ export function LearnShell({
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-edge px-3 py-1.5">
           <span className="flex min-w-0 items-center gap-0.5">
             <span className="xl:hidden">
-              <LessonMenu lang={lang} langLabel={langLabel} course={course} currentId={currentId} lessonIds={lessonIds} />
+              <LessonMenu lang={lang} langLabel={langLabel} course={course} currentId={currentId} currentPart={currentPart} courses={courses} />
             </span>
             <span className="flex items-center xl:-ml-1">
               <button type="button" onClick={() => router.back()} disabled={!hist.back} aria-label="Go back" title="Go back" className={arrow}>
@@ -65,6 +83,7 @@ export function LearnShell({
             {current && (
               <span className="ml-2 hidden min-w-0 truncate text-xs text-ink-faint sm:inline">
                 {course.title} · {current.section} · Lesson {index + 1} of {lessons.length}
+                {current.parts.length > 1 && ` · Part ${currentPart + 1} of ${current.parts.length}`}
               </span>
             )}
           </span>
@@ -87,10 +106,22 @@ export function LearnShell({
           </span>
         </div>
 
-        <div className="flex min-h-0 flex-1">
-          <aside className="hidden w-64 shrink-0 border-r border-edge xl:flex xl:flex-col">
-            <LessonList lang={lang} langLabel={langLabel} course={course} currentId={currentId} lessonIds={lessonIds} />
+        <div ref={rowRef} className="flex min-h-0 flex-1">
+          <aside style={{ width: sidebar }} className="hidden shrink-0 xl:flex xl:flex-col">
+            <LessonList lang={lang} langLabel={langLabel} course={course} currentId={currentId} currentPart={currentPart} courses={courses} />
           </aside>
+          <ResizeHandle
+            label="Resize the lesson list"
+            value={sidebar}
+            min={SIDEBAR.min}
+            max={SIDEBAR.max}
+            step={16}
+            bigStep={48}
+            onChange={setSidebar}
+            onDrag={(x) => setSidebar(x - (rowRef.current?.getBoundingClientRect().left ?? 0) - 4)}
+            onReset={() => setSidebar(SIDEBAR.initial)}
+            className="hidden xl:flex"
+          />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
         </div>
       </section>

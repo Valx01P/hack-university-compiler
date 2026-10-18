@@ -38,13 +38,15 @@ export function checkSummary(check: CheckState): string {
   }
 }
 
-/** The verdict of a practice check: every test, and what differed. */
+/** The verdict of a practice check: every test, and what differed. Once it
+    passes it points the way on: the next part, or the next lesson after the
+    last part. */
 export function CheckResults({
   check,
   next,
 }: {
   check: CheckState;
-  next: { href: string; title: string } | null;
+  next: { href: string; label: string } | null;
 }) {
   if (check.status === "checking") {
     return (
@@ -77,12 +79,12 @@ export function CheckResults({
             <p className="font-medium text-ink">
               Solved! {results.length === 1 ? "The test passed." : `All ${results.length} tests passed.`}
             </p>
-            {lessonComplete && (
+            {(lessonComplete || next) && (
               <p className="mt-1 text-sm text-ink-muted">
-                Lesson complete.{" "}
+                {lessonComplete && "Lesson complete. "}
                 {next ? (
                   <Link href={next.href} className="font-medium text-ink underline decoration-edge-strong underline-offset-2 transition-colors hover:decoration-ink dark:hover:text-gold">
-                    Next: {next.title} →
+                    {next.label} →
                   </Link>
                 ) : (
                   "That was the last lesson in the course."

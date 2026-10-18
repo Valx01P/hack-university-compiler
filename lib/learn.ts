@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { cache } from "react";
-import type { Course, Lesson, LessonMeta } from "@/lib/learn-types";
+import type { Course, Lesson, LessonMeta, LessonRef } from "@/lib/learn-types";
 import { COMPILER_SLUGS } from "@/lib/compiler";
 
 /**
@@ -51,6 +51,7 @@ export const getCourse = cache(async (lang: string): Promise<Course | null> => {
               section: section.title,
               summary: lesson.summary,
               problems: lesson.steps.length,
+              parts: lesson.steps.map((s) => s.title),
             };
           })
         )
@@ -71,20 +72,33 @@ export async function getLessonOrder(lang: string): Promise<LessonMeta[]> {
   return course ? course.sections.flatMap((s) => s.lessons) : [];
 }
 
-/** Lesson ids in course order for every language that has a Learn mode (a
-    course with at least one lesson), keyed by language in rail order. */
-export async function getLessonIdsByLang(): Promise<Record<string, string[]>> {
-  const all = await Promise.all(
-    COMPILER_SLUGS.map(async (lang) => [lang, (await getLessonOrder(lang)).map((l) => l.id)] as const)
-  );
-  return Object.fromEntries(all.filter(([, ids]) => ids.length > 0));
+/** A course's lessons in order, as links need them. */
+export async function getLessonRefs(lang: string): Promise<LessonRef[]> {
+  return (await getLessonOrder(lang)).map((l) => ({ id: l.id, parts: l.parts.length }));
 }
 
-/** Route params for every prerendered lesson page. */
+/** Lessons in course order for every language that has a Learn mode (a
+    course with at least one lesson), keyed by language in rail order. */
+export async function getLessonRefsByLang(): Promise<Record<string, LessonRef[]>> {
+  const all = await Promise.all(COMPILER_SLUGS.map(async (lang) => [lang, await getLessonRefs(lang)] as const));
+  return Object.fromEntries(all.filter(([, refs]) => refs.length > 0));
+}
+
+/** Route params for every lesson's address (it redirects to part 1). */
 export async function getAllLessonParams(): Promise<{ lang: string; lesson: string }[]> {
   const all = await Promise.all(
     COMPILER_SLUGS.map(async (lang) =>
       (await getLessonOrder(lang)).map((l) => ({ lang, lesson: l.id }))
+    )
+  );
+  return all.flat();
+}
+
+/** Route params for every prerendered part page. */
+export async function getAllPartParams(): Promise<{ lang: string; lesson: string; part: string }[]> {
+  const all = await Promise.all(
+    COMPILER_SLUGS.map(async (lang) =>
+      (await getLessonOrder(lang)).flatMap((l) => l.parts.map((_, i) => ({ lang, lesson: l.id, part: String(i + 1) })))
     )
   );
   return all.flat();
