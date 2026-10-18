@@ -18,7 +18,7 @@ function StatusIcon({ id, progress, className = "size-4" }: { id: string; progre
 
 /**
  * The challenge list: short problems grouped by the same categories as the
- * reference, each marked solved (green check), viewed (eye), or not yet
+ * cheatsheet, each marked solved (green check), viewed (eye), or not yet
  * opened, with difficulty and status filters.
  */
 export function ChallengeList({

@@ -35,7 +35,7 @@ export function useReferenceData(lang: string, enabled: boolean) {
       .then((data) => live && setState({ lang, data, error: null }))
       .catch(() => {
         loaded.delete(lang);
-        if (live) setState({ lang, data: null, error: "Couldn't load the reference. Is the dev server still running?" });
+        if (live) setState({ lang, data: null, error: "Couldn't load the cheatsheet and challenges. Is the dev server still running?" });
       });
     return () => {
       live = false;

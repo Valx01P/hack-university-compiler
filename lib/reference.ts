@@ -4,7 +4,7 @@ import { cache } from "react";
 import type { Challenge, ReferenceCategory, ReferenceData, ReferenceSection } from "@/lib/reference-types";
 
 /**
- * Reads the compiler's Reference content at build time: the cheatsheet
+ * Reads the compiler's cheatsheet and challenges at build time: the cheatsheet
  * sections in content/reference/<lang>/<category>.md and the challenges in
  * content/challenges/<id>.json (each with code for every language).
  * Authoring guides live next to the content.

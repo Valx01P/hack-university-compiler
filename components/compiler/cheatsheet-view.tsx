@@ -23,7 +23,7 @@ function blocks(md: string): string[] {
 }
 
 /**
- * The language reference: every category in roadmap order, a search that
+ * The language's cheatsheet: every category in roadmap order, a search that
  * narrows it to the sections (or the parts of sections) that mention what you
  * typed, and a jump menu.
  */
@@ -54,7 +54,7 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-b border-content-line px-3 py-2">
         <label className="relative flex min-w-0 flex-1 items-center">
-          <span className="sr-only">Search the {langLabel} reference</span>
+          <span className="sr-only">Search the {langLabel} cheatsheet</span>
           <Search className="pointer-events-none absolute left-2.5 size-3.5 text-ink-faint" aria-hidden />
           <input
             type="search"
@@ -91,7 +91,7 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
 
       <div ref={scrollRef} className="slim-scroll relative min-h-0 flex-1 overflow-y-auto px-4 pb-10 pt-2">
         {shown.length === 0 ? (
-          <p className="pt-6 text-sm text-ink-muted">Nothing in the {langLabel} reference mentions “{query}”.</p>
+          <p className="pt-6 text-sm text-ink-muted">Nothing in the {langLabel} cheatsheet mentions “{query}”.</p>
         ) : (
           shown.map((s) => (
             <section key={s.id} id={`ref-${s.id}`} className="border-b border-content-line pb-6 pt-5 last:border-0">
