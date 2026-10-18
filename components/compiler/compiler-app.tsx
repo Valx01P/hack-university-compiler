@@ -7,6 +7,7 @@ import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { CodeThemePicker } from "@/components/code/code-theme";
 import { ResetCodeButton } from "@/components/code/reset-code-button";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import { LangIcon } from "@/components/compiler/lang-icon";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
@@ -367,14 +368,18 @@ export function CompilerApp({
                   </button>
                 )}
                 {learnLesson && (
-                  <Link
+                  // Asks first, so a stray click doesn't leave the compiler.
+                  <ConfirmButton
+                    tooltip={`Learn ${lang.label} step by step`}
+                    title="Open Learn mode?"
+                    description={`Short lessons and practice problems for ${lang.label}. Your code here stays saved.`}
+                    confirmLabel="Open Learn"
                     href={`/${lang.slug}/learn/${learnLesson}`}
-                    title={`Learn ${lang.label} step by step`}
-                    className="inline-flex items-center gap-1.5 rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised dark:hover:text-gold"
+                    className="inline-flex items-center gap-1.5 rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised"
                   >
                     <GraduationCap className="size-3.5" aria-hidden />
                     Learn
-                  </Link>
+                  </ConfirmButton>
                 )}
               </div>
             </div>
