@@ -124,3 +124,10 @@ scripts/setup-piston.mjs     runtime installer
   privileged container.
 - **Free the disk space**: `npm run piston:down`, then
   `docker volume rm hack-university-compiler_piston-packages`.
+
+## Credits
+
+- Code execution by [Piston](https://github.com/engineer-man/piston) (MIT).
+- The Java coffee cup icon is from [Devicon](https://github.com/devicons/devicon)
+  (MIT). The other language icons are from [Simple Icons](https://simpleicons.org)
+  (CC0).
