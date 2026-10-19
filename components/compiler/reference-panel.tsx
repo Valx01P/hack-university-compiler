@@ -68,6 +68,7 @@ export function ReferencePanel({
   buttons,
   challenge,
   next,
+  previous,
   progress,
   onOpenChallenge,
   onLeaveChallenge,
@@ -85,6 +86,7 @@ export function ReferencePanel({
   buttons: React.ReactNode;
   challenge: Challenge | null;
   next: Challenge | null;
+  previous: Challenge | null;
   progress: ChallengeProgress;
   onOpenChallenge: (id: string) => void;
   onLeaveChallenge: () => void;
@@ -164,6 +166,8 @@ export function ReferencePanel({
                     category={data.categories.find((c) => c.id === challenge.category)?.title ?? challenge.category}
                     progress={progress}
                     next={next}
+                    previous={previous}
+                    onPrevious={() => previous && onOpenChallenge(previous.id)}
                     onBack={onLeaveChallenge}
                     onNext={() => next && onOpenChallenge(next.id)}
                   />

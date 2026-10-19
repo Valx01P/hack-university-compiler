@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Eye } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, List } from "lucide-react";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import type { ChallengeProgress } from "@/lib/challenge-progress";
@@ -107,24 +107,28 @@ export function ChallengeList({
 }
 
 /**
- * One challenge: the task, its input and output, hints, and the way on. You
- * write and check it in the editor, which holds this challenge's code until
- * you leave it.
+ * One challenge: the task, its input and output, hints, and the ways back
+ * and on (the previous and next challenges, in list order). You write and
+ * check it in the editor, which holds this challenge's code until you leave it.
  */
 export function ChallengeDetail({
   challenge,
   category,
   progress,
   next,
+  previous,
   onBack,
   onNext,
+  onPrevious,
 }: {
   challenge: Challenge;
   category: string;
   progress: ChallengeProgress;
   next: Challenge | null;
+  previous: Challenge | null;
   onBack: () => void;
   onNext: () => void;
+  onPrevious: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   useEnter(rootRef);
@@ -139,22 +143,36 @@ export function ChallengeDetail({
           onClick={onBack}
           className="inline-flex items-center gap-1.5 rounded-btn px-1.5 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
         >
-          <ArrowLeft className="size-3.5" aria-hidden />
+          <List className="size-3.5" aria-hidden />
           All challenges
         </button>
-        {next && (
-          <button
-            type="button"
-            onClick={onNext}
-            title={next.title}
-            className={`inline-flex min-w-0 items-center gap-1.5 rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium ${
-              solved ? "btn-grad" : "text-ink transition-colors hover:bg-raised"
-            }`}
-          >
-            <span className="truncate">Next: {next.title}</span>
-            <ArrowRight className="size-3.5 shrink-0" aria-hidden />
-          </button>
-        )}
+        <div className="flex min-w-0 items-center gap-1.5">
+          {previous && (
+            <button
+              type="button"
+              onClick={onPrevious}
+              title={previous.title}
+              aria-label={`Previous challenge: ${previous.title}`}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised"
+            >
+              <ArrowLeft className="size-3.5 shrink-0" aria-hidden />
+              Previous
+            </button>
+          )}
+          {next && (
+            <button
+              type="button"
+              onClick={onNext}
+              title={next.title}
+              className={`inline-flex min-w-0 items-center gap-1.5 rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium ${
+                solved ? "btn-grad" : "text-ink transition-colors hover:bg-raised"
+              }`}
+            >
+              <span className="truncate">Next: {next.title}</span>
+              <ArrowRight className="size-3.5 shrink-0" aria-hidden />
+            </button>
+          )}
+        </div>
       </div>
       <div className="slim-scroll min-h-0 flex-1 overflow-y-auto px-4 pb-10 pt-4">
         <p className="eyebrow">

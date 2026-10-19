@@ -105,6 +105,7 @@ export function CompilerApp({
   const challenge = refOpen && challengeId ? refData?.challenges.find((c) => c.id === challengeId) ?? null : null;
   const challengeIndex = challenge && refData ? refData.challenges.indexOf(challenge) : -1;
   const nextChallenge = refData && challengeIndex >= 0 ? refData.challenges[challengeIndex + 1] ?? null : null;
+  const previousChallenge = refData && challengeIndex > 0 ? refData.challenges[challengeIndex - 1] ?? null : null;
   const [challengeCodes, setChallengeCodes] = useState<Record<string, string>>({});
   const [challengeStdins, setChallengeStdins] = useState<Record<string, string>>({});
   const [answerFor, setAnswerFor] = useState<string | null>(null);
@@ -814,6 +815,7 @@ export function CompilerApp({
             buttons={refOpen ? panelButtons : null}
             challenge={challenge}
             next={nextChallenge}
+            previous={previousChallenge}
             progress={progress}
             onOpenChallenge={openChallenge}
             onLeaveChallenge={leaveChallenge}
