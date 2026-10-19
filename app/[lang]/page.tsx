@@ -2,14 +2,16 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CompilerShell } from "@/components/chrome/compiler-shell";
 import { CompilerApp } from "@/components/compiler/compiler-app";
-import { COMPILER_SLUGS, getCompilerLang } from "@/lib/compiler";
+import { getCompilerLang } from "@/lib/compiler";
+import { COMPILER_COURSES, playgroundHref } from "@/lib/courses";
 import { getLessonRefs } from "@/lib/learn";
 
-// Every language page is prerendered. Anything else is a 404.
+// Every course's compiler page is prerendered. Anything else is a 404,
+// including a course registered ahead of its release.
 export const dynamicParams = false;
 
 export function generateStaticParams() {
-  return COMPILER_SLUGS.map((lang) => ({ lang }));
+  return COMPILER_COURSES.filter((c) => getCompilerLang(c.slug)).map((c) => ({ lang: c.slug }));
 }
 
 export async function generateMetadata(
@@ -28,7 +30,8 @@ export default async function CompilerLangPage(props: PageProps<"/[lang]">) {
 
   return (
     <CompilerShell lang={lang.slug}>
-      <CompilerApp lang={lang} lessons={lessons} />
+      {/* Open playground shows once /<course>/playground exists (lib/courses.ts). */}
+      <CompilerApp lang={lang} lessons={lessons} playground={playgroundHref(lang.slug)} />
     </CompilerShell>
   );
 }

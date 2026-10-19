@@ -1,13 +1,13 @@
-import { COMPILER_SLUGS } from "@/lib/compiler";
+import { COMPILER_COURSES } from "@/lib/courses";
 import { getReferenceData } from "@/lib/reference";
 
-// Built once per language, and fetched only when the Reference panel opens,
-// so the compiler page itself stays light.
+// Built once per course with a compiler page, and fetched only when the
+// Reference panel opens, so the compiler page itself stays light.
 export const dynamic = "force-static";
 export const dynamicParams = false;
 
 export function generateStaticParams() {
-  return COMPILER_SLUGS.map((lang) => ({ lang }));
+  return COMPILER_COURSES.map((c) => ({ lang: c.slug }));
 }
 
 export async function GET(_request: Request, context: RouteContext<"/api/reference/[lang]">) {

@@ -3,14 +3,21 @@
 // output, and linting prose against the house style and the Markdown subset
 // the app renders.
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { normalizeOutput } from "../../lib/single-checks.mjs";
 import { sourceFileName } from "../../lib/source-file.mjs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+export { normalizeOutput };
 export const ROOT = fileURLToPath(new URL("../..", import.meta.url));
-export const LANGUAGES = ["python", "javascript", "cpp", "java", "go", "sql"];
 const RUNTIMES = JSON.parse(readFileSync(path.join(ROOT, "lib", "runtimes.json"), "utf8"));
+/** The course registry (content/courses.json, typed in lib/courses.ts). */
+export const COURSES = JSON.parse(readFileSync(path.join(ROOT, "content", "courses.json"), "utf8")).courses;
+// The courses these verifiers can run today, in registry order: those with
+// a compiler page whose single file runs on Piston or PGlite.
+const PISTON = (c) => c.runtime.startsWith("piston:") && Object.hasOwn(RUNTIMES, c.runtime.slice("piston:".length));
+export const LANGUAGES = COURSES.filter((c) => c.page && (PISTON(c) || c.runtime === "pglite")).map((c) => c.slug);
 const PISTON_URL = (process.env.PISTON_URL ?? "http://127.0.0.1:2000/api/v2").replace(/\/+$/, "");
 
 // ---------------------------------------------------------------- running
@@ -184,17 +191,6 @@ export async function run(language, code, stdin) {
   return last;
 }
 
-/** How outputs are compared, here and in the app: trailing whitespace on each
-    line and trailing blank lines don't count, everything else does. */
-export function normalizeOutput(s) {
-  return String(s ?? "")
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .map((l) => l.replace(/\s+$/, ""))
-    .join("\n")
-    .replace(/\n+$/, "");
-}
-
 export const clip = (s, n = 1200) => (s.length > n ? s.slice(0, n) + `… (${s.length - n} more chars)` : s);
 
 export function firstDiff(expected, actual) {
@@ -216,7 +212,10 @@ export function failure(r) {
 // ---------------------------------------------------------------- prose
 
 export const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-export const FENCE_LANGS = new Set(["python", "javascript", "cpp", "java", "go", "sql", "text"]);
+/** Fence languages content may use: every fence a course with a compiler
+    page lists in content/courses.json (runnable there or shown only, the way
+    lib/snippet-harness.mjs reads them), and text. */
+export const FENCE_LANGS = new Set([...COURSES.filter((c) => c.page).flatMap((c) => Object.keys(c.fences ?? {})), "text"]);
 /** Flags after a fence's language, for runnable snippets: norun (shown only),
     error (runs and is meant to fail), harness (hidden wrapper for the next
     snippet). */

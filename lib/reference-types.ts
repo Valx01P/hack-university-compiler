@@ -23,7 +23,8 @@ export interface Challenge {
   category: string;
   difficulty: ChallengeDifficulty;
   statement: string;
-  tests: { stdin?: string; output: string }[];
+  /** `args` is a test's command line, for the courses that take one (Bash). */
+  tests: { stdin?: string; args?: string[]; output: string }[];
   hints: string[];
   /** SQL challenges: the tables and rows every run starts from. A test's
       stdin is more setup SQL on top. Empty for other languages. */

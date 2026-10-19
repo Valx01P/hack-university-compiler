@@ -12,7 +12,17 @@ export interface TestResult {
   actual: string;
   stderr: string;
   passed: boolean;
+  /** For a check on the runner: what was wrong (lib/single-checks.mjs
+      judgeTest), since a test can fail on its exit code with the right
+      output. */
+  problems?: string[];
 }
+
+/** Whether a failed test's output differs from what was expected. */
+const outputWrong = (r: TestResult) => !r.problems || r.problems.includes("wrong output");
+/** Whether it failed on more than its output (its exit code, say), which
+    the output blocks alone can't show. */
+const moreThanOutput = (r: TestResult) => Boolean(r.problems?.some((p) => p !== "wrong output"));
 
 export type CheckState =
   | { status: "checking"; total: number }
@@ -96,6 +106,9 @@ export function CheckResults({
   const { results, lessonComplete } = check;
   const passed = results.filter((r) => r.passed).length;
   const allPassed = passed === results.length;
+  // A test on the runner can fail on more than its output, and then lists
+  // what was wrong.
+  const onlyOutputs = results.every((r) => r.passed || !moreThanOutput(r));
   return (
     <div ref={rootRef}>
       {allPassed ? (
@@ -125,10 +138,14 @@ export function CheckResults({
             )}
           </div>
         </div>
-      ) : (
+      ) : onlyOutputs ? (
         <p data-anim="row" className="p-4 text-sm font-medium text-ink">
           {passed} of {results.length} test{results.length === 1 ? "" : "s"} passed. Compare your
           output with the expected output below.
+        </p>
+      ) : (
+        <p data-anim="row" className="p-4 text-sm font-medium text-ink">
+          {passed} of {results.length} test{results.length === 1 ? "" : "s"} passed.
         </p>
       )}
 
@@ -138,11 +155,23 @@ export function CheckResults({
             {r.passed ? <CompleteIcon className="size-3.5" /> : <span aria-hidden className="text-danger">✗</span>}
             Test {i + 1} {r.passed ? "passed" : "failed"}
           </p>
-          {!r.passed && (
+          {!r.passed && r.problems && moreThanOutput(r) && (
+            <ul className="mt-2.5 list-disc space-y-0.5 pl-5 text-sm text-ink marker:text-ink-faint">
+              {r.problems.map((p, k) => (
+                <li key={k}>{sentence(p)}</li>
+              ))}
+            </ul>
+          )}
+          {/* The expected and actual output show only when they differ. */}
+          {!r.passed && (r.stdin || outputWrong(r) || r.stderr) && (
             <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
               {r.stdin && <OutputBlock test={i + 1} label="Input" text={r.stdin} className="sm:col-span-2" />}
-              <OutputBlock test={i + 1} label="Expected" text={r.expected} />
-              <OutputBlock test={i + 1} label="Your output" text={r.actual || "(no output)"} />
+              {outputWrong(r) && (
+                <>
+                  <OutputBlock test={i + 1} label="Expected" text={r.expected} />
+                  <OutputBlock test={i + 1} label="Your output" text={r.actual || "(no output)"} />
+                </>
+              )}
               {r.stderr && <OutputBlock test={i + 1} label="Errors" text={r.stderr} className="sm:col-span-2" danger />}
             </div>
           )}
@@ -150,6 +179,13 @@ export function CheckResults({
       ))}
     </div>
   );
+}
+
+/** A judge's note as a sentence: "wrong output" reads "Wrong output.", and
+    one that starts with a file name or code keeps it as written. */
+function sentence(text: string): string {
+  const s = /^[a-z]+\s/.test(text) ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+  return /[.!?]$/.test(s) ? s : `${s}.`;
 }
 
 function OutputBlock({

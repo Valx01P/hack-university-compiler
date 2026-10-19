@@ -23,10 +23,12 @@ function warm(runtime: SnippetRuntime) {
 const LABELS: Record<SnippetRuntime, string> = {
   python: "Python",
   javascript: "JavaScript",
+  typescript: "TypeScript",
   cpp: "C++",
   java: "Java",
   go: "Go",
   sql: "SQL",
+  bash: "Bash",
 };
 
 const BLOCK = "font-mono text-[13px] leading-6";

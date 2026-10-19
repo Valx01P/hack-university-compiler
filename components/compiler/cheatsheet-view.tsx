@@ -195,7 +195,7 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
             <section key={s.id} id={`ref-${s.id}`} className="border-b border-content-line pb-6 pt-5 last:border-0">
               <h3 className="font-display text-xl font-medium text-ink">{s.title}</h3>
               <div className="text-[0.92rem] leading-relaxed [&>*:first-child]:mt-2">
-                <LessonMarkdown md={s.md} runnable={{ scope: `ref/${lang}/${s.id}`, setup: lang === "sql" ? SAMPLE_DB_SQL : undefined }} />
+                <LessonMarkdown md={s.md} runnable={{ course: lang, scope: `ref/${lang}/${s.id}`, setup: lang === "sql" ? SAMPLE_DB_SQL : undefined }} />
               </div>
             </section>
           ))
