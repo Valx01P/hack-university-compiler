@@ -15,14 +15,17 @@ function sizeOf(bytes: number): string {
 /**
  * The fixture files a program starts in, opened from the editor's Files
  * strip: each file as a button, and the one you pick shown below, read only.
- * Runs never change them (every run starts from a fresh copy).
+ * Runs never change them (every run starts from a fresh copy). They are the
+ * data the program reads, so they show exactly as they are: the Code
+ * comments setting never hides a line of them (data-own-code keeps comments,
+ * as it does in code you edited), since a `grep TODO` must find what you see.
  */
 export function FixtureFiles({ id, set, files }: { id: string; set: string; files: FixtureFile[] }) {
   const [shown, setShown] = useState<string | null>(null);
   const file = files.find((f) => f.path === shown) ?? null;
   const language = file ? LANGUAGES[file.path.split(".").pop() ?? ""] : undefined;
   return (
-    <div id={id} className="border-t border-code-content-line px-3 py-2 font-mono text-xs text-code-ink">
+    <div id={id} data-own-code="" className="border-t border-code-content-line px-3 py-2 font-mono text-xs text-code-ink">
       <ul aria-label={`The ${set} files, read only`} className="flex flex-wrap gap-1">
         {files.map((f) => (
           <li key={f.path}>
@@ -38,7 +41,12 @@ export function FixtureFiles({ id, set, files }: { id: string; set: string; file
               }`}
             >
               {f.path}
-              {f.executable && <span aria-label=" (executable)">*</span>}
+              {f.executable && (
+                <>
+                  <span aria-hidden>*</span>
+                  <span className="sr-only"> (executable)</span>
+                </>
+              )}
               {f.link && <span className="text-code-gutter"> → {f.link}</span>}
             </button>
           </li>
