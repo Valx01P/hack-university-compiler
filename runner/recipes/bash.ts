@@ -1,9 +1,9 @@
 import path from "node:path";
-import type { Job } from "../jobs.ts";
+import { JobError, type Collected, type Job } from "../jobs.ts";
 import { SCRIPT_JOB } from "../profiles.ts";
 import type { FileEntry, RunRequest, TestSpec } from "../schemas.ts";
 import type { TarEntry } from "../tar.ts";
-import { pistonRun, skippedTest, type RunResponse, type TestResult } from "./types.ts";
+import { brokenTest, pistonRun, skippedTest, type RunResponse, type TestResult } from "./types.ts";
 
 /**
  * The bash recipe (architecture §4.1, outlines/bash.md §3 and §8): `bash
@@ -11,11 +11,12 @@ import { pistonRun, skippedTest, type RunResponse, type TestResult } from "./typ
  * lesson's fixture set around it, and the exit code, stderr, and any files the
  * script leaves read back.
  *
- * Every test starts from a fresh copy: the folder is emptied and the fixture
- * set and main.sh are extracted again. The folder is always the home folder,
- * /home/learner, so a Run and every test see the same `pwd` and `~`, and
- * outputs never depend on which test printed them. A frozen clock runs the
- * script under faketime.
+ * Every test starts from a fresh copy: the folder, /tmp, and /dev/shm are
+ * emptied and the fixture set and main.sh are extracted again, so a lock or a
+ * mktemp file from one test never meets the next. The folder is always the
+ * home folder, /home/learner, so a Run and every test see the same `pwd` and
+ * `~`, and outputs never depend on which test printed them. A frozen clock
+ * runs the script under faketime.
  */
 
 export const IMAGE = "bash";
@@ -116,28 +117,51 @@ export async function runBash(job: Job, req: RunRequest, time: (key: "loadMs" | 
       results.push(skippedTest("deadline", "The check ran out of time before this test."));
       continue;
     }
-    const clock = test.clock === undefined ? req.clock : test.clock;
-    const loadStarted = Date.now();
-    await job.load(HOME, homeFiles(req, test.fixtures ?? req.fixtures, clock), n > 0);
-    if (n === 0) time("loadMs", Date.now() - loadStarted);
-    const step = await job.step(bashCommand({ args: test.args, cwd: test.cwd, wrap: test.wrap, clock }), {
-      workDir: HOME,
-      env: bashEnv({ ...req.env, ...test.env }, clock),
-      stdin: test.stdin ?? "",
-      timeoutMs: limits.runMs,
-      maxBytes: limits.outputBytes,
-    });
-    const result: TestResult = { ...pistonRun(step), files: {}, exists: {} };
-    const paths = collectPaths(test);
-    if (paths.length) {
-      const found = await job.collect(HOME, paths);
-      for (const [p, e] of found) {
-        result.exists[p] = e !== null;
-        result.files[p] = e?.type === "file" ? (e.data ?? Buffer.alloc(0)).toString("utf8") : null;
-      }
-    }
-    results.push(result);
+    results.push(await runTest(job, req, test, n, time));
   }
   time("runMs", Date.now() - started);
   return { results };
+}
+
+/**
+ * One test of a Check. A test whose files the sandbox can't load or read
+ * back is that test's broken result, with the reason on stderr, and the
+ * other tests still run.
+ */
+async function runTest(job: Job, req: RunRequest, test: TestSpec, n: number, time: (key: "loadMs", ms: number) => void): Promise<TestResult> {
+  const limits = SCRIPT_JOB;
+  const clock = test.clock === undefined ? req.clock : test.clock;
+  const started = Date.now();
+  try {
+    // Every test after the first resets the folder, /tmp, and /dev/shm first.
+    await job.load(HOME, homeFiles(req, test.fixtures ?? req.fixtures, clock), n > 0);
+  } catch (err) {
+    if (err instanceof JobError) return brokenTest("This test's files couldn't be loaded", `${err.message}\n`);
+    throw err;
+  }
+  if (n === 0) time("loadMs", Date.now() - started);
+  const step = await job.step(bashCommand({ args: test.args, cwd: test.cwd, wrap: test.wrap, clock }), {
+    workDir: HOME,
+    env: bashEnv({ ...req.env, ...test.env }, clock),
+    stdin: test.stdin ?? "",
+    timeoutMs: limits.runMs,
+    maxBytes: limits.outputBytes,
+  });
+  const result: TestResult = { ...pistonRun(step), files: {}, exists: {} };
+  const paths = collectPaths(test);
+  // A job killed at its deadline has nothing left to read, and the test already says TO.
+  if (!paths.length || job.dead) return result;
+  let found: Map<string, Collected>;
+  try {
+    found = await job.collect(HOME, paths);
+  } catch (err) {
+    if (err instanceof JobError) return brokenTest("This test's files couldn't be read back", `${err.message}\n`);
+    throw err;
+  }
+  for (const [p, c] of found) {
+    result.exists[p] = c.type !== null;
+    result.files[p] = c.type === "file" ? (c.data ?? Buffer.alloc(0)).toString("utf8") : null;
+    if (c.truncated) (result.truncated ??= []).push(p);
+  }
+  return result;
 }

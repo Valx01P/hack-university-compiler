@@ -1,4 +1,4 @@
-import type { Job } from "../jobs.ts";
+import { JobError, type Job } from "../jobs.ts";
 import { SCRIPT_JOB } from "../profiles.ts";
 import type { RunRequest, TestSpec, TypeTests } from "../schemas.ts";
 import type { TarEntry } from "../tar.ts";
@@ -17,10 +17,11 @@ import {
  * The typescript recipe (architecture §4.1, outlines/typescript.md §3 and §8):
  * TypeScript 7.0.2 checks main.ts once, and a type error stops the run like a
  * C++ compile error. Then Node 26.12.0 runs it with type stripping, once per
- * test. Type tests are compiled in that same tsc pass, each case in its own
- * block of a generated type-tests.ts, so every diagnostic lands in exactly one
- * case. Honesty rules (forbid) are judged by lib/single-checks.mjs from the
- * source, not here.
+ * test, each test in a fresh /work (and /tmp), so a file one test writes
+ * never reaches the next. Type tests are compiled in that same tsc pass, each
+ * case in its own block of a generated type-tests.ts, so every diagnostic
+ * lands in exactly one case. Honesty rules (forbid) are judged by
+ * lib/single-checks.mjs from the source, not here.
  */
 
 export const IMAGE = "node";
@@ -192,9 +193,10 @@ export async function runTypeScript(job: Job, req: RunRequest, time: (key: "load
   const layout = req.typeTests ? typeTestsFile(req.typeTests) : null;
   const response: Omit<RunResponse, "timing"> = {};
   const code = Buffer.from(req.files[0].content, req.files[0].encoding === "base64" ? "base64" : "utf8").toString("utf8");
+  const files = workFiles(req, layout);
 
   let started = Date.now();
-  await job.load(WORK_DIR, workFiles(req, layout));
+  await job.load(WORK_DIR, files);
   time("loadMs", Date.now() - started);
 
   started = Date.now();
@@ -234,17 +236,27 @@ export async function runTypeScript(job: Job, req: RunRequest, time: (key: "load
         );
   } else {
     response.results = [];
+    // Whether a test has run in /work yet. tsc writes nothing (noEmit).
+    let used = false;
     for (const [n, test] of req.tests.entries()) {
       if (failed) response.results.push(skippedTest("compile", "main.ts didn't compile, so this test didn't run."));
       else if (job.dead) response.results.push(skippedTest("deadline", "The check ran out of time before this test."));
-      else response.results.push(await runTest(job, req, code, test, n));
+      else {
+        response.results.push(await runTest(job, req, code, test, n, used ? files : null));
+        used = true;
+      }
     }
   }
   time("runMs", Date.now() - started);
   return response;
 }
 
-async function runTest(job: Job, req: RunRequest, code: string, test: TestSpec, n: number): Promise<TestResult> {
+/**
+ * One test of a Check. `reload` is the job's files when an earlier test has
+ * run: /work, /tmp, and /dev/shm are emptied and the files extracted again
+ * first. A test the sandbox can't load is that test's broken result.
+ */
+async function runTest(job: Job, req: RunRequest, code: string, test: TestSpec, n: number, reload: TarEntry[] | null): Promise<TestResult> {
   const limits = SCRIPT_JOB;
   let workDir = WORK_DIR;
   if (test.tryIt !== undefined) {
@@ -253,6 +265,14 @@ async function runTest(job: Job, req: RunRequest, code: string, test: TestSpec, 
       return brokenTest("The try it line is missing", stderr);
     }
     workDir = `${WORK_DIR}/t${n + 1}`;
+  }
+  if (reload) {
+    try {
+      await job.load(WORK_DIR, reload, true);
+    } catch (err) {
+      if (err instanceof JobError) return brokenTest("This test's files couldn't be loaded", `${err.message}\n`);
+      throw err;
+    }
   }
   const step = await job.step(runCmd(test.args), {
     workDir,

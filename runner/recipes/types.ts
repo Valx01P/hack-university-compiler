@@ -31,6 +31,8 @@ export interface TestResult extends PistonRun {
   files: Record<string, string | null>;
   /** Whether anything (a file, folder, or link) exists at each of those paths. */
   exists: Record<string, boolean>;
+  /** Paths whose contents were cut: `files` holds their first 1 MB, so they never match. Only when there are some. */
+  truncated?: string[];
   /** Why the test didn't run: the compile failed, or the job ran out of time. */
   skipped?: "compile" | "deadline";
 }

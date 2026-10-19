@@ -106,6 +106,22 @@ describe("the typescript recipe", { skip }, () => {
     assert.ok((r.timing.totalMs ?? 0) < 1500, `a 3-test check took ${r.timing.totalMs} ms`);
   });
 
+  it("runs each test in a fresh /work and /tmp, so no test sees what another wrote", async () => {
+    const r = await ts(
+      [
+        'import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";',
+        'appendFileSync("log.txt", "x\\n");',
+        'const before = existsSync("/tmp/seen") || existsSync("/dev/shm/seen");',
+        'writeFileSync("/tmp/seen", "1");',
+        'writeFileSync("/dev/shm/seen", "1");',
+        'writeFileSync("main.ts", "console.log(\\"replaced\\");\\n");',
+        'console.log(readFileSync("log.txt", "utf8").split("\\n").length - 1, before);',
+      ].join("\n"),
+      { tests: [{}, {}, {}] }
+    );
+    assert.deepEqual(r.results?.map((t) => t.stdout), ["1 false\n", "1 false\n", "1 false\n"]);
+  });
+
   it("says so when the try it line is gone, and still runs the other tests", async () => {
     const r = await ts('console.log("mine");\n', { tests: [{ tryIt: "console.log(1);" }, {}] });
     assert.equal(r.results?.[0].status, "XX");
@@ -216,4 +232,37 @@ describe("the bash recipe", { skip }, () => {
     assert.ok((r.results?.[0].wall_time ?? 0) < 1000, `the step took ${r.results?.[0].wall_time} ms`);
     assert.equal(r.results?.[1].exists["late.txt"], false);
   });
+
+  it("starts every test fresh: nothing in /tmp, /dev/shm, or home from the test before", async () => {
+    const r = await sh(
+      [
+        'if mkdir /tmp/myjob.lock 2>/dev/null; then echo "got the lock"; else echo "already running"; fi',
+        'ls -A /dev/shm; touch /dev/shm/left "$(mktemp)" here.txt; ls',
+      ].join("\n"),
+      { tests: [{}, {}, {}] }
+    );
+    assert.deepEqual(r.results?.map((t) => t.stdout), Array(3).fill("got the lock\nhere.txt\nmain.sh\n"));
+  });
+
+  it("starts the next test even when one locked its own folder", async () => {
+    const r = await sh('chmod -R a-x . 2>/dev/null\necho "locked $(stat -c %A "$HOME")"\n', { tests: [{}, {}] });
+    assert.deepEqual(r.results?.map((t) => [t.stdout, t.status]), [
+      ["locked drw-r--r--\n", null],
+      ["locked drw-r--r--\n", null],
+    ]);
+  });
+
+  it("reads each file back on its own, so a big one never hides another", async () => {
+    const r = await sh('head -c 2000000 /dev/zero | tr "\\0" a > big.txt\necho 4242 > lock.pid\nmkdir out\n', {
+      tests: [{ files: { "big.txt": "", "small.txt": "" }, absent: ["lock.pid", "out", "gone"] }],
+    });
+    const [t] = r.results ?? [];
+    assert.deepEqual(t.exists, { "big.txt": true, "small.txt": false, "lock.pid": true, out: true, gone: false });
+    assert.equal(t.files["big.txt"]?.length, 1024 * 1024);
+    assert.equal(t.files["lock.pid"], "4242\n");
+    assert.equal(t.files.out, null);
+    assert.deepEqual(t.truncated, ["big.txt"]);
+  });
+
+
 });

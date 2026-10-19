@@ -4,7 +4,7 @@ import type Docker from "dockerode";
 import { LABEL, labelsFor, namePrefix, type Owner } from "./docker.ts";
 import type { Log } from "./log.ts";
 import { jobProfile, type JobLimits } from "./profiles.ts";
-import { packTar, unpackTar, type TarEntry } from "./tar.ts";
+import { packTar, type TarEntry } from "./tar.ts";
 
 /**
  * The job primitive (architecture §4.1): one fresh container per run, check,
@@ -19,6 +19,42 @@ import { packTar, unpackTar, type TarEntry } from "./tar.ts";
  *
  * Jobs share a pool of slots (4 by default) with a FIFO queue.
  */
+
+const MiB = 1024 * 1024;
+
+/** The most of one file a test reads back. Longer files come back cut, and say so. */
+export const FILE_CAP = 1 * MiB;
+
+/** Everywhere a job's processes can write besides its work folder. A test's
+    reset empties them all, so nothing one test leaves reaches the next. */
+const SCRATCH = "/tmp /dev/shm /dev/mqueue";
+
+/**
+ * Prints what is at each path (one letter each: f file, d folder, l symlink,
+ * o something else, n nothing), then each regular file's first bytes as one
+ * base64 line. The listing is tiny and comes first, so nothing that happens to
+ * the contents can make a path look missing, and base64 lines need no length
+ * read from the container. The test is over, so modes can change: a file it
+ * left unreadable is read all the same.
+ */
+const COLLECT = [
+  'chmod u+rwx -- "$1" 2>/dev/null; cd -- "$1" || exit 1; max=$2; shift 2',
+  "chmod -R u+rwX . 2>/dev/null",
+  'for p; do if [ -L "$p" ]; then printf l; elif [ -f "$p" ]; then printf f; elif [ -d "$p" ]; then printf d; elif [ -e "$p" ]; then printf o; else printf n; fi; done; echo',
+  'for p; do if [ ! -L "$p" ] && [ -f "$p" ]; then head -c "$max" -- "$p" | base64 -w 0; echo; fi; done',
+].join("\n");
+
+const KINDS = { f: "file", d: "dir", l: "symlink", o: "other", n: null } as const;
+
+/** What a test left at one path. */
+export interface Collected {
+  /** A regular file, a folder, a symlink, something else (a fifo, say), or nothing. */
+  type: (typeof KINDS)[keyof typeof KINDS];
+  /** A regular file's contents: all of them, or the first FILE_CAP bytes when truncated. */
+  data?: Buffer;
+  /** The file holds more than what came back. */
+  truncated?: boolean;
+}
 
 export class JobPool {
   readonly slots: number;
@@ -225,13 +261,18 @@ export class Job {
     return job;
   }
 
-  /** Extracts files into a folder with `tar -x`, fed on stdin. */
+  /**
+   * Extracts files into a folder with `tar -x`, fed on stdin. A reset first
+   * empties the folder and the scratch places, so a test starts from exactly
+   * its own files, whatever an earlier one wrote and wherever. Modes come back
+   * first, so a test that ran `chmod -R a-x .` still leaves a folder to empty.
+   * Everything a job writes belongs to learner (uid 1000), and only that goes.
+   */
   async load(dir: string, entries: TarEntry[], reset = false): Promise<void> {
-    // A reset first empties the folder (making even unreadable leftovers
-    // readable), so each test starts from exactly its fixture set.
     const script = reset
-      ? 'cd "$1" || exit 1; chmod -R u+rwX . 2>/dev/null; find . -mindepth 1 -delete; exec tar -xpf -'
-      : 'cd "$1" || exit 1; exec tar -xpf -';
+      ? `chmod u+rwx -- "$1" 2>/dev/null; cd -- "$1" || exit 1; chmod -R u+rwX . ${SCRATCH} 2>/dev/null; ` +
+        `find . ${SCRATCH} -mindepth 1 -user 1000 -delete 2>/dev/null; exec tar -xpf -`
+      : 'cd -- "$1" || exit 1; exec tar -xpf -';
     const result = await this.step(["sh", "-c", script, "sh", dir], {
       stdin: packTar(entries),
       timeoutMs: 10_000,
@@ -242,15 +283,38 @@ export class Job {
     }
   }
 
-  /** Reads entries back out of the container: null for each path where nothing exists. */
-  async collect(dir: string, paths: string[], maxBytes = 1024 * 1024): Promise<Map<string, TarEntry | null>> {
-    const found = new Map<string, TarEntry | null>(paths.map((p) => [p, null]));
+  /**
+   * What is at each path, relative to `dir`, with each regular file's
+   * contents up to `cap` bytes. Up to about 9 MB of contents come back in all
+   * (base64 makes them a third bigger). Past that, files say truncated.
+   */
+  async collect(dir: string, paths: string[], cap = FILE_CAP): Promise<Map<string, Collected>> {
+    const found = new Map<string, Collected>();
     if (!paths.length) return found;
-    const result = await this.step(
-      ["tar", "-cf", "-", "--format=pax", "--no-recursion", "--ignore-failed-read", "-C", dir, "--", ...paths],
-      { timeoutMs: 10_000, maxBytes, raw: true }
-    );
-    for (const entry of unpackTar(result.raw ?? Buffer.alloc(0))) if (found.has(entry.path)) found.set(entry.path, entry);
+    const result = await this.step(["sh", "-c", COLLECT, "sh", dir, String(cap + 1), ...paths], {
+      timeoutMs: 10_000,
+      maxBytes: 12 * MiB,
+      raw: true,
+    });
+    const out = (result.raw ?? Buffer.alloc(0)).toString("latin1");
+    const listing = out.slice(0, Math.max(0, out.indexOf("\n")));
+    if (listing.length !== paths.length || !/^[fdlon]*$/.test(listing)) {
+      throw new JobError("job_failed", `Couldn't read back the test's files: ${result.stderr.trim() || result.message || "no listing"}`);
+    }
+    // One line per regular file, in order. A line is whole only when its
+    // newline arrived: the output may have been cut at the step's cap.
+    const lines = out.slice(listing.length + 1).split("\n");
+    let line = 0;
+    for (const [i, p] of paths.entries()) {
+      const type = KINDS[listing[i] as keyof typeof KINDS];
+      if (type !== "file") {
+        found.set(p, { type });
+        continue;
+      }
+      const whole = line < lines.length - 1;
+      const data = Buffer.from(lines[line++] ?? "", "base64");
+      found.set(p, { type, data: data.subarray(0, cap), truncated: !whole || data.length > cap });
+    }
     return found;
   }
 
