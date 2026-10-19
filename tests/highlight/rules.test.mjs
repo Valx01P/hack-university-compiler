@@ -81,6 +81,25 @@ test("directives get their own type and never hide", () => {
   assert.deepEqual(of("directive", "fmt.Println(1) // Output: 1", "go"), []);
 });
 
+test("TODO lines never hide, with the comment lines under them", () => {
+  const python = "def f():\n    # TODO: read n, then print\n    #       the sum of 1 to n\n    pass  # TODO: finish\n# a note\nf()";
+  assert.equal(stripComments(python, "python"), "def f():\n    # TODO: read n, then print\n    #       the sum of 1 to n\n    pass  # TODO: finish\nf()");
+  // A comment under a trailing TODO, at another column, isn't part of it.
+  assert.equal(stripComments("x = 1  # TODO: change\n# a note\ny = 2", "python"), "x = 1  # TODO: change\ny = 2");
+  // A blank line ends the instructions.
+  assert.equal(stripComments("// TODO: do it\n\n// a note\nrun();", "javascript"), "// TODO: do it\n\nrun();");
+  assert.equal(stripComments("-- TODO: select the names\nSELECT 1;", "sql"), "-- TODO: select the names\nSELECT 1;");
+  assert.equal(stripComments("# TODO: print it\necho hi # a note", "bash"), "# TODO: print it\necho hi");
+});
+
+test("JSDoc types stay in JavaScript, where TypeScript reads them", () => {
+  const code = "/**\n * @param {number} a\n * @returns {number}\n */\nfunction twice(a) {\n  return a * 2; // double it\n}";
+  assert.equal(stripComments(code, "javascript"), code.replace(" // double it", ""));
+  // Prose JSDoc hides, and in TypeScript the types are in the code.
+  assert.equal(stripComments("/** Doubles a number. */\nconst twice = (a) => a * 2;", "javascript"), "const twice = (a) => a * 2;");
+  assert.equal(stripComments("/** @param a a number */\nconst twice = (a: number) => a * 2;", "typescript"), "const twice = (a: number) => a * 2;");
+});
+
 test("decorators and annotations are calls", () => {
   const python = "@dataclass(frozen=True)\nclass P:\n    @property\n    def n(self):\n        return a @ b\n    @functools.lru_cache(maxsize=None)\n    def m(self): pass";
   assert.deepEqual(of("fn", python, "python"), ["@dataclass", "@property", "n", "@functools.lru_cache", "m"]);
