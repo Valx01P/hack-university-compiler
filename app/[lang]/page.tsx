@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import { existsSync } from "fs";
-import path from "path";
 import { notFound } from "next/navigation";
 import { CompilerShell } from "@/components/chrome/compiler-shell";
 import { CompilerApp } from "@/components/compiler/compiler-app";
 import { getCompilerLang } from "@/lib/compiler";
-import { COMPILER_COURSES, getCourseEntry } from "@/lib/courses";
+import { COMPILER_COURSES, playgroundHref } from "@/lib/courses";
 import { getLessonRefs } from "@/lib/learn";
 
 // Every course's compiler page is prerendered. Anything else is a 404,
@@ -29,16 +27,11 @@ export default async function CompilerLangPage(props: PageProps<"/[lang]">) {
   const lang = getCompilerLang(slug);
   if (!lang) notFound();
   const lessons = await getLessonRefs(lang.slug);
-  // Open playground leads to /<course>/playground, so it shows once that
-  // route exists (the IDE phase adds it) for a course with a playground.
-  const playground =
-    getCourseEntry(lang.slug)?.playground && existsSync(path.join(process.cwd(), "app", "[lang]", "playground"))
-      ? `/${lang.slug}/playground`
-      : null;
 
   return (
     <CompilerShell lang={lang.slug}>
-      <CompilerApp lang={lang} lessons={lessons} playground={playground} />
+      {/* Open playground shows once /<course>/playground exists (lib/courses.ts). */}
+      <CompilerApp lang={lang} lessons={lessons} playground={playgroundHref(lang.slug)} />
     </CompilerShell>
   );
 }

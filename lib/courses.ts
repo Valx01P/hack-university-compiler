@@ -68,6 +68,17 @@ export const COMPILER_COURSES: readonly CourseEntry[] = COURSES.filter((c) => c.
 /** Whether /<slug> is a course's compiler page. */
 export const isCompilerCourse = (slug: string) => Boolean(BY_SLUG.get(slug)?.page);
 
+/** Whether /<slug>/playground exists. The playground routes arrive with the
+    workspaces in P1, which turns this on when it adds them. Until then no
+    course shows Open playground. */
+export const PLAYGROUND_ROUTE: boolean = false;
+
+/** Where a course's Open playground goes: its playground, once the route
+    exists and the course has one, else null. */
+export function playgroundHref(slug: string): string | null {
+  return PLAYGROUND_ROUTE && BY_SLUG.get(slug)?.playground ? `/${slug}/playground` : null;
+}
+
 export type RuntimeKind = "piston" | "pglite" | "runner" | "browser";
 
 /** A runtime's kind and the id after the colon: piston:python is Piston's
