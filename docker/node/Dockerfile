@@ -50,6 +50,7 @@ RUN set -eu; \
 
 COPY --from=hu-exec /hu-exec /opt/hu/bin/hu-exec
 COPY shared/bin/ /opt/hu/bin/
+COPY node/stdio.mjs /opt/hu/node/stdio.mjs
 
 # Mount points exist in the image and belong to learner, since a volume or
 # tmpfs mounted on a missing path comes up owned by root.

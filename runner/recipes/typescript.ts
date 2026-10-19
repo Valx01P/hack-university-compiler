@@ -56,8 +56,9 @@ export const PACKAGE_JSON = { type: "module" };
 
 export const COMPILE_CMD = ["tsc", "-p", ".", "--pretty", "false"];
 
+/** node runs main.ts with its stdio made blocking first (docker/node/stdio.mjs). */
 export function runCmd(args: readonly string[] = []): string[] {
-  return ["node", "main.ts", ...args];
+  return ["node", "--import", "/opt/hu/node/stdio.mjs", "main.ts", ...args];
 }
 
 /** The environment of every step: the container's, plus the test's own and the clock. */
