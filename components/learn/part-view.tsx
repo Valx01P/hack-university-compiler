@@ -15,6 +15,7 @@ import { ResizeHandle } from "@/components/ui/resize-handle";
 import { ScrollPre } from "@/components/ui/scroll-pre";
 import { LessonMarkdown, type RunnableContext } from "@/components/learn/lesson-md";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
+import { CompilerButton } from "@/components/learn/compiler-button";
 import { CheckResults, checkSummary, type CheckState } from "@/components/learn/check-results";
 import { Highlight } from "@/lib/highlight";
 import { isSql, type CompilerLang } from "@/lib/compiler";
@@ -503,45 +504,50 @@ export function PartView({
         {/* The padding (offset by the negative margins) leaves room for focus
             rings inside these scrolling rows, the thicker super-contrast ring
             included. */}
-        <div
-          role="tablist"
-          aria-label="Editor tabs"
-          className="slim-scroll -mx-1.5 -mb-0.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pb-1.5 pt-1.5"
-        >
-          {TABS.map((kind, i) => {
-            const selected = kind === active;
-            return (
-              <button
-                key={kind}
-                ref={(el) => {
-                  tabRefs.current[kind] = el;
-                }}
-                id={tabId(kind)}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                aria-controls={panelId}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => openTab(kind)}
-                onKeyDown={(e) => onTabKeyDown(e, i)}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider transition-colors ${
-                  selected ? "bg-raised text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
-                }`}
-              >
-                {tabLabel(kind)}
-                {/* Same-size marks either way, so tabs never move when progress loads. */}
-                {kind === "practice" &&
-                  (partSolved ? (
-                    <>
-                      <CompleteIcon className="size-3" />
-                      <span className="sr-only">(solved)</span>
-                    </>
-                  ) : (
-                    <PendingIcon className="size-3" current={selected} />
-                  ))}
-              </button>
-            );
-          })}
+        <div className="-mb-0.5 -mt-1.5 flex shrink-0 items-center gap-2">
+          <div
+            role="tablist"
+            aria-label="Editor tabs"
+            className="slim-scroll -mx-1.5 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1.5 pb-1.5 pt-1.5"
+          >
+            {TABS.map((kind, i) => {
+              const selected = kind === active;
+              return (
+                <button
+                  key={kind}
+                  ref={(el) => {
+                    tabRefs.current[kind] = el;
+                  }}
+                  id={tabId(kind)}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls={panelId}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => openTab(kind)}
+                  onKeyDown={(e) => onTabKeyDown(e, i)}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider transition-colors ${
+                    selected ? "bg-raised text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
+                  }`}
+                >
+                  {tabLabel(kind)}
+                  {/* Same-size marks either way, so tabs never move when progress loads. */}
+                  {kind === "practice" &&
+                    (partSolved ? (
+                      <>
+                        <CompleteIcon className="size-3" />
+                        <span className="sr-only">(solved)</span>
+                      </>
+                    ) : (
+                      <PendingIcon className="size-3" current={selected} />
+                    ))}
+                </button>
+              );
+            })}
+          </div>
+          {/* Full screen covers the top bar and its Compiler button, so the
+              way to the compiler moves here. */}
+          {full && <CompilerButton lang={lang.slug} langLabel={lang.label} className="shrink-0" />}
         </div>
 
         <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className="flex min-h-0 flex-1 flex-col">

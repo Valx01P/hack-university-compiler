@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { PanelLeftClose, PanelLeftOpen, SquareTerminal } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { HistoryArrows } from "@/components/chrome/history-arrows";
 import { SandboxStatus } from "@/components/chrome/sandbox-status";
+import { CompilerButton } from "@/components/learn/compiler-button";
 import { LessonDrawer } from "@/components/learn/lesson-drawer";
 import { LessonList } from "@/components/learn/lesson-list";
-import { ConfirmButton } from "@/components/ui/confirm-button";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { EASE, dur, gsap } from "@/lib/motion";
 import type { Course, LessonRef } from "@/lib/learn-types";
@@ -217,18 +217,7 @@ export function LearnShell({
             <span className="hidden min-w-32 justify-end sm:flex">
               <SandboxStatus lang={lang} />
             </span>
-            {/* Asks first, like the compiler's Learn button. */}
-            <ConfirmButton
-              tooltip={`Back to the ${langLabel} compiler`}
-              title="Back to the compiler?"
-              description="Your lesson progress and the code in each part stay saved."
-              confirmLabel="Open compiler"
-              href={`/${lang}`}
-              className="inline-flex items-center gap-1.5 rounded-btn border border-line px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
-            >
-              <SquareTerminal className="size-3.5" aria-hidden />
-              Compiler
-            </ConfirmButton>
+            <CompilerButton lang={lang} langLabel={langLabel} />
           </span>
         </div>
 
