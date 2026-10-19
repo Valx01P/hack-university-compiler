@@ -739,11 +739,13 @@ export function CompilerApp({
               {/* SQL's playground has no input: the database is the input. */}
               <div className={`shrink-0 border-t border-code-content-line bg-code-bg ${playground ? "hidden" : ""}`}>
                 {lang.args ? (
-                  // The command line goes beside stdin, on the same row.
+                  // The command line goes beside stdin, on the same row. With
+                  // no border of its own, the field shows focus the way the
+                  // stdin toggle does (.code-args-field in globals.css).
                   <div className="flex items-stretch">
                     {stdinToggle}
                     <label
-                      className={`flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${
+                      className={`code-args-field flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${
                         showStdin ? "" : "rounded-br-[calc(var(--radius-card)-1px)]"
                       }`}
                     >
