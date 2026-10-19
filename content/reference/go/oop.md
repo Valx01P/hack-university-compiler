@@ -58,6 +58,33 @@ fmt.Println(d.Animal.Sound()) // ... ("super" call)
 
 ### Type assertion and type switch
 
+```go harness
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+type Shape interface {
+	Area() float64
+	Name() string
+}
+
+type Rect struct{ W, H float64 }
+type Circle struct{ R float64 }
+
+func (r Rect) Area() float64   { return r.W * r.H }
+func (r Rect) Name() string    { return "rect" }
+func (c Circle) Area() float64 { return math.Pi * c.R * c.R }
+func (c Circle) Name() string  { return "circle" }
+
+func main() {
+
+	{{code}}
+}
+```
+
 ```go
 var s Shape = Circle{2}
 c, ok := s.(Circle)  // ok is false if s holds something else
@@ -112,6 +139,23 @@ svc.Run() // [app] running
 
 `sort.Interface` is three methods. `fmt.Stringer` (`String() string`) and `error` (`Error() string`) are the other common ones.
 
+```go harness
+type Shape interface {
+	Area() float64
+	Name() string
+}
+
+type Rect struct{ W, H float64 }
+type Circle struct{ R float64 }
+
+func (r Rect) Area() float64   { return r.W * r.H }
+func (r Rect) Name() string    { return "rect" }
+func (c Circle) Area() float64 { return math.Pi * c.R * c.R }
+func (c Circle) Name() string  { return "circle" }
+
+{{code}}
+```
+
 ```go
 import "sort"
 
@@ -127,6 +171,34 @@ fmt.Println(list) // [{1 2} {1} {3 3}]
 ```
 
 ### Combine interfaces, check at compile time
+
+```go harness
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+type Shape interface {
+	Area() float64
+	Name() string
+}
+
+type Rect struct{ W, H float64 }
+type Circle struct{ R float64 }
+
+func (r Rect) Area() float64   { return r.W * r.H }
+func (r Rect) Name() string    { return "rect" }
+func (c Circle) Area() float64 { return math.Pi * c.R * c.R }
+func (c Circle) Name() string  { return "circle" }
+
+func main() {
+
+	{{code}}
+	fmt.Println("Rect satisfies Shape")
+}
+```
 
 ```go
 type Reader interface{ Read() string }

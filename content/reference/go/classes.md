@@ -22,6 +22,16 @@ fmt.Printf("%+v\n", p)        // {Name:Ann Age:30}
 
 A value receiver gets a copy. A pointer receiver can change the struct.
 
+```go harness
+type Person struct {
+	Name string
+	Age  int
+}
+
+p := Person{Name: "Ann", Age: 30}
+{{code}}
+```
+
 ```go
 func (p Person) Greet() string {
 	return "Hi, " + p.Name
@@ -74,6 +84,16 @@ fmt.Println(acct.Balance()) // 50
 
 ### toString: the String method
 
+```go harness
+type Person struct {
+	Name string
+	Age  int
+}
+
+p := Person{Name: "Ann", Age: 31}
+{{code}}
+```
+
 ```go
 func (p Person) String() string {
 	return fmt.Sprintf("%s (%d)", p.Name, p.Age)
@@ -83,6 +103,15 @@ fmt.Println(p) // Ann (31), Println and %v now use it
 ```
 
 ### A slice of objects in a loop
+
+```go harness
+type Person struct {
+	Name string
+	Age  int
+}
+
+{{code}}
+```
 
 ```go
 import "sort"
@@ -124,6 +153,22 @@ fmt.Println(s.Pop()) // 2
 ```
 
 ### Copies, pointers, equality
+
+```go harness
+package main
+
+import "fmt"
+
+type Person struct {
+	Name string
+	Age  int
+}
+
+func main() {
+
+	{{code}}
+}
+```
 
 ```go
 a := Person{"Ann", 30}

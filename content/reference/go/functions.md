@@ -4,6 +4,14 @@ Declare with `func name(params) returnType`. Types come after names, a function 
 
 ### Declare and call
 
+```go harness
+package main
+
+import "fmt"
+
+{{code}}
+```
+
 ```go
 func add(a int, b int) int {
 	return a + b

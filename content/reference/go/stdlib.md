@@ -122,7 +122,7 @@ fmt.Printf("%+v %v\n", u, err) // {Name:Bob Age:25 Tags:[]} <nil>
 
 ### os
 
-```go
+```go error
 import "os"
 
 fmt.Println(len(os.Args))             // program name plus command-line arguments

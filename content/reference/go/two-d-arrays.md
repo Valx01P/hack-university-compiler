@@ -54,6 +54,18 @@ for r := 0; r < len(grid); r++ {
 
 ### Loop with range
 
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	grid := [][]int{{1, 2, 3}, {4, 5, 6}}
+	{{code}}
+	fmt.Println()
+}
+```
+
 ```go
 for r, row := range grid {
 	for c, v := range row {
@@ -64,6 +76,18 @@ for r, row := range grid {
 ```
 
 ### Column by column
+
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	grid := [][]int{{1, 2, 3}, {4, 5, 6}}
+	{{code}}
+	fmt.Println()
+}
+```
 
 ```go
 for c := 0; c < len(grid[0]); c++ {
@@ -77,6 +101,17 @@ for c := 0; c < len(grid[0]); c++ {
 ```
 
 ### Row sums and the total
+
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	grid := [][]int{{1, 2, 3}, {4, 5, 6}}
+	{{code}}
+}
+```
 
 ```go
 total := 0

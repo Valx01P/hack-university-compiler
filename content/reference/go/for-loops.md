@@ -63,6 +63,18 @@ fmt.Println(nums) // [20 40 60]
 
 Run once per element without naming any variable:
 
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	nums := []int{10, 20, 30}
+	{{code}}
+	fmt.Println()
+}
+```
+
 ```go
 for range nums {
 	fmt.Print("hi ")

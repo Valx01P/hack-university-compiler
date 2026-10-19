@@ -4,6 +4,18 @@ Go assigns several variables in one statement: `a, b := 1, 2`. Every value on th
 
 ### Declare several at once
 
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+
+	{{code}}
+	fmt.Println(host, port)
+}
+```
+
 ```go
 x, y := 1, 2
 var a, b int = 3, 4

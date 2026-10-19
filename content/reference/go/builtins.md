@@ -42,6 +42,24 @@ fmt.Println(minInt(3, 7), maxInt(3, 7)) // 3 7
 
 Max of a slice, in a loop:
 
+```go harness
+package main
+
+import "fmt"
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func main() {
+
+	{{code}}
+}
+```
+
 ```go
 nums := []int{4, 9, 2}
 best := nums[0]
@@ -77,6 +95,17 @@ fmt.Println(math.Pi) // 3.141592653589793
 ### Using math with ints
 
 Convert in, then convert out.
+
+```go harness
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+{{code}}
+```
 
 ```go
 import "math"

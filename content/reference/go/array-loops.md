@@ -74,6 +74,18 @@ fmt.Println(sum, best, evens) // 21 9 1
 
 Average needs a conversion, since `int / int` drops the fraction:
 
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	nums := []int{3, 9, 2, 7}
+	sum := 21 // 3 + 9 + 2 + 7
+	{{code}}
+}
+```
+
 ```go
 avg := float64(sum) / float64(len(nums))
 fmt.Printf("%.2f\n", avg) // 5.25

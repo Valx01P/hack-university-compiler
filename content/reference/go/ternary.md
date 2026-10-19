@@ -55,6 +55,24 @@ fmt.Println(sign) // negative
 
 ### Use it in a loop
 
+```go harness
+package main
+
+import "fmt"
+
+func ifStr(cond bool, a, b string) string {
+	if cond {
+		return a
+	}
+	return b
+}
+
+func main() {
+
+	{{code}}
+}
+```
+
 ```go
 for i := 1; i <= 3; i++ {
 	word := "items"

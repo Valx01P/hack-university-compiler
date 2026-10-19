@@ -67,6 +67,30 @@ fmt.Println(nums) // [4 7 1], after "not a number: x"
 
 ### Lines into structs, a map, and a set
 
+```go harness
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+)
+
+func main() {
+	sc := bufio.NewScanner(os.Stdin)
+	{{code}}
+}
+```
+
+```stdin
+3
+ann 90
+bob 80
+ann 5
+```
+
 ```go
 type Student struct {
 	Name  string
@@ -92,6 +116,26 @@ fmt.Println(len(seen)) // 2
 ```
 
 ### Every line until the end of input
+
+```go harness
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
+)
+
+func main() {
+	sc := bufio.NewScanner(os.Stdin)
+	{{code}}
+}
+```
+
+```stdin
+a,b,c
+```
 
 ```go
 for sc.Scan() { // false at end of input

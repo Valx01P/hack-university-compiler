@@ -4,6 +4,18 @@ Anything beyond "each element once, front to back" is an index loop: you pick th
 
 ### Reverse
 
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	s := []int{10, 20, 30, 40, 50}
+	{{code}}
+	fmt.Println()
+}
+```
+
 ```go
 for i := len(s) - 1; i >= 0; i-- {
 	fmt.Print(s[i], " ")
@@ -12,6 +24,18 @@ for i := len(s) - 1; i >= 0; i-- {
 ```
 
 ### Every other element
+
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	s := []int{10, 20, 30, 40, 50}
+	{{code}}
+	fmt.Println()
+}
+```
 
 ```go
 for i := 0; i < len(s); i += 2 { // even indexes
@@ -40,6 +64,18 @@ for _, v := range nums {
 
 ### Every nth, backwards
 
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	s := []int{10, 20, 30, 40, 50}
+	{{code}}
+	fmt.Println()
+}
+```
+
 ```go
 for i := len(s) - 1; i >= 0; i -= 2 {
 	fmt.Print(s[i], " ")
@@ -48,6 +84,18 @@ for i := len(s) - 1; i >= 0; i -= 2 {
 ```
 
 ### A range of indexes
+
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	s := []int{10, 20, 30, 40, 50}
+	{{code}}
+	fmt.Println()
+}
+```
 
 ```go
 for i := 1; i < 4; i++ { // indexes 1, 2, 3
@@ -64,6 +112,18 @@ for _, v := range s[1:4] { // same thing with a subslice
 ### Neighbors (each element with the next)
 
 Stop one early so `i+1` stays in bounds.
+
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	s := []int{10, 20, 30, 40, 50}
+	{{code}}
+	fmt.Println()
+}
+```
 
 ```go
 for i := 0; i < len(s)-1; i++ {
@@ -96,6 +156,18 @@ for i := 0; i < len(t); i++ {
 
 ### Wrap around with modulo
 
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	s := []int{10, 20, 30, 40, 50}
+	{{code}}
+	fmt.Println()
+}
+```
+
 ```go
 start := 3
 for k := 0; k < len(s); k++ {
@@ -105,6 +177,17 @@ for k := 0; k < len(s); k++ {
 ```
 
 ### Running total (prefix sums)
+
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	s := []int{10, 20, 30, 40, 50}
+	{{code}}
+}
+```
 
 ```go
 prefix := make([]int, len(s)+1)
@@ -116,6 +199,18 @@ fmt.Println(prefix[4] - prefix[1]) // 90, the sum of s[1:4]
 ```
 
 ### Sliding window of size k
+
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	s := []int{10, 20, 30, 40, 50}
+	{{code}}
+	fmt.Println()
+}
+```
 
 ```go
 k, sum := 3, 0

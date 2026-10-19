@@ -15,6 +15,20 @@ var m map[string]int           // nil: reads work, writes panic
 
 ### Add, update, remove
 
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	ages := map[string]int{
+		"alice": 30,
+		"bob":   25,
+	}
+	{{code}}
+}
+```
+
 ```go
 ages["carol"] = 41 // add or overwrite
 ages["bob"]++      // 26
@@ -26,6 +40,18 @@ fmt.Println(len(ages)) // 2
 ### Read and check for a key
 
 A missing key gives the zero value. Use the two-value form to tell "missing" from "stored zero".
+
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	ages := map[string]int{"bob": 26, "carol": 41}
+	{{code}}
+	fmt.Println(age, ok)
+}
+```
 
 ```go
 fmt.Println(ages["bob"]) // 26
@@ -40,6 +66,11 @@ if v, ok := ages["bob"]; ok {
 ### Loop in sorted order
 
 `range` over a map visits keys in a random order on every run. Collect and sort the keys when order matters.
+
+```go harness
+ages := map[string]int{"bob": 26, "carol": 41}
+{{code}}
+```
 
 ```go
 import "sort"
@@ -96,6 +127,19 @@ fmt.Println(grid[Point{0, 0}])             // origin
 
 Map values are not addressable, so copy out, change, and store back (or store pointers).
 
+```go harness
+package main
+
+import "fmt"
+
+type Point struct{ X, Y int }
+
+func main() {
+
+	{{code}}
+}
+```
+
 ```go
 pts := map[string]Point{"p": {1, 2}}
 // pts["p"].X = 9  // compile error: cannot assign
@@ -106,6 +150,11 @@ fmt.Println(pts) // map[p:{9 2}]
 ```
 
 ### Copy and compare
+
+```go harness
+ages := map[string]int{"bob": 26, "carol": 41}
+{{code}}
+```
 
 ```go
 import "reflect"

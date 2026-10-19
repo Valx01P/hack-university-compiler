@@ -123,16 +123,21 @@ Deferred calls run when the function returns, last in first out, even during a p
 ```go
 import "os"
 
-f, err := os.Open("data.txt")
-if err != nil {
-	return err
+func readData() error {
+	f, err := os.Open("data.txt")
+	if err != nil {
+		return err
+	}
+	defer f.Close() // runs when the surrounding function exits
+	return nil
 }
-defer f.Close() // runs when the surrounding function exits
+
+fmt.Println(readData()) // open data.txt: no such file or directory
 ```
 
 ### panic and recover: the catch
 
-```go
+```go error
 func safeDivide(a, b int) (result int, err error) {
 	defer func() {
 		if r := recover(); r != nil {

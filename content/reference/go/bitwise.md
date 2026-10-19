@@ -55,6 +55,17 @@ fmt.Printf("%04b\n", x)  // 1101
 
 ### Common tricks
 
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+	x := 0b1101 // 13, from the block above
+	{{code}}
+}
+```
+
 ```go
 fmt.Println(x&1 == 1)       // odd number
 fmt.Println(16&(16-1) == 0) // true: power of two (for n > 0)
