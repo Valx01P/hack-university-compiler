@@ -3,10 +3,24 @@ import { notFound } from "next/navigation";
 import { PartView, type PartLink } from "@/components/learn/part-view";
 import { getCompilerLang } from "@/lib/compiler";
 import { getAllPartParams, getLesson, getLessonOrder } from "@/lib/learn";
-import { partHref } from "@/lib/learn-types";
+import { getFixtureSet, type FixtureFile } from "@/lib/learn-fixtures";
+import { partHref, singleFileFeatures, type Lesson } from "@/lib/learn-types";
 
 // Every part page is prerendered. Anything else is a 404.
 export const dynamicParams = false;
+
+/** The fixture sets a part's programs start in (its examples' and its
+    practice's, for the editor's Files strip), by name. */
+async function partFixtures(course: string, lesson: Lesson, part: number): Promise<Record<string, FixtureFile[]>> {
+  const { examples, practice } = lesson.steps[part];
+  const names = new Set(
+    [...examples.map((e) => e.fixtures), practice.tests[0]?.fixtures, practice.fixtures, lesson.fixtures].filter(
+      (name): name is string => Boolean(name)
+    )
+  );
+  const sets = await Promise.all([...names].map(async (name) => [name, await getFixtureSet(course, name)] as const));
+  return Object.fromEntries(sets.filter((entry): entry is [string, FixtureFile[]] => entry[1] !== null));
+}
 
 export function generateStaticParams() {
   return getAllPartParams();
@@ -57,17 +71,31 @@ export default async function PartPage(props: PageProps<"/[lang]/learn/[lesson]/
         ? { href: partHref(lang.slug, after.id, 1), title: after.title, lesson: true }
         : null;
 
+  const fixtures = await partFixtures(lang.slug, lesson, part);
+
   return (
     <PartView
       key={`${lesson.id}/${part}`}
       lang={lang}
-      lesson={{ id: lesson.id, title: lesson.title, section: lesson.section, intro: lesson.intro, recap: lesson.recap, setup: lesson.setup }}
+      lesson={{
+        id: lesson.id,
+        title: lesson.title,
+        section: lesson.section,
+        intro: lesson.intro,
+        recap: lesson.recap,
+        setup: lesson.setup,
+        fixtures: lesson.fixtures,
+        clock: lesson.clock,
+        runtime: lesson.runtime,
+      }}
       parts={lesson.steps.map((s) => s.title)}
       part={part}
       step={lesson.steps[part]}
       position={{ index, total: order.length }}
       prev={prev}
       next={next}
+      features={singleFileFeatures(lang.slug, lang.fileName)}
+      fixtures={fixtures}
     />
   );
 }

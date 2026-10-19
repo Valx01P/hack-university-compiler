@@ -430,7 +430,7 @@ export function CompilerApp({
         actual: r.stdout,
         stderr: timedOut ? "Timed out. Your code ran too long (usually an infinite loop). It was stopped." : r.stderr,
         passed: judged ? judged.passed : !timedOut && normalizeOutput(r.stdout) === normalizeOutput(tests[i].output),
-        ...(judged && !judged.passed ? { problems: judged.problems } : {}),
+        ...(judged && !judged.passed ? { detail: { test: tests[i], run: r, problems: judged.problems } } : {}),
       };
     });
     if (results.every((r) => r.passed)) markChallengeSolved(lang.slug, id);

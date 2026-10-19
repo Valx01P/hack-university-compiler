@@ -35,6 +35,7 @@ import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { useCodeEditorSettings } from "@/components/code/editor-settings";
 import { completionSources, SQL_SCHEMA } from "@/lib/code-editor-completions";
 import { bracketColors } from "@/lib/bracket-colors";
+import { positionAt, showDiagnostics, typeErrorUnderlines, type EditorDiagnostic } from "@/lib/editor-diagnostics";
 import { tokenHighlight } from "@/lib/token-highlight";
 import { languageId } from "@/lib/tokenize.mjs";
 
@@ -214,6 +215,8 @@ export function CmEditor({
   variant = "full",
   onRun,
   focusAt = null,
+  diagnostics = null,
+  cursorAt = null,
 }: {
   value: string;
   language: string;
@@ -230,6 +233,12 @@ export function CmEditor({
   /** Focus the editor when it appears, with the cursor at this point on the
       screen (where you clicked the code block it replaced). */
   focusAt?: { x: number; y: number } | null;
+  /** Type errors to underline, found in `doc`: shown only while the editor
+      still holds that code (a run of it), then moved along with your edits. */
+  diagnostics?: { doc: string; items: EditorDiagnostic[] } | null;
+  /** Puts the cursor here (1-based line and column) and focuses the editor,
+      each time it's a new object (a type error's link). */
+  cursorAt?: { line: number; col: number } | null;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -306,6 +315,7 @@ export function CmEditor({
           indentComp.current.of(indentUnit.of(indentUnitFor(settings.tabSize, language))),
           // The same colors as the static code blocks (lib/highlight.tsx).
           tokenHighlight(language),
+          typeErrorUnderlines(),
           langExt(language),
           completionComp.current.of(completion(settings.intellisense, language)),
           Prec.highest(
@@ -374,6 +384,20 @@ export function CmEditor({
     if (value === current) return;
     view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
   }, [value]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    showDiagnostics(view, diagnostics && diagnostics.doc === view.state.doc.toString() ? diagnostics.items : []);
+  }, [diagnostics]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !cursorAt) return;
+    const pos = positionAt(view.state, cursorAt.line, cursorAt.col);
+    view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+    view.focus();
+  }, [cursorAt]);
 
   return (
     <div className={snippet ? "relative" : "relative h-full min-h-0"}>

@@ -143,6 +143,9 @@ export function serveApp({ dev, port, runnerPort, token }) {
       HU_RUNNER_URL: `http://127.0.0.1:${runnerPort}`,
       HU_RUNNER_TOKEN: token,
       NODE_OPTIONS: nodeOptions,
+      // Next.js reports each build and dev session to telemetry.nextjs.org,
+      // and the app stays offline.
+      NEXT_TELEMETRY_DISABLED: "1",
     },
   });
 }

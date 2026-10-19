@@ -12,7 +12,9 @@
 //   - the file matches the schema in content/learn/AUTHORING.md, and its prose
 //     follows the house style and the Markdown subset the app renders
 //   - each practice prompt shows test 1's exact input and expected output
-//   - each example prints exactly its `output`, the same way twice in a row
+//   - each part has 1 to 3 worked examples (`examples`, or the single
+//     `example` lessons had before), and each prints exactly its `output`, the
+//     same way twice in a row
 //   - each practice solution passes every test, the same way twice in a row
 //   - each practice starter compiles and runs, but does not already pass
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -58,6 +60,17 @@ function usage(message) {
 
 // ---------------------------------------------------------------- schema
 
+// A part's worked examples: Example 1 to 3 in the editor
+// (lib/learn-types.ts MAX_EXAMPLES).
+const MAX_EXAMPLES = 3;
+
+/** A step's worked examples, each with where it is in the file: its
+    `examples`, or the single `example` every lesson had before (the app
+    reads both, lib/learn-types.ts normalizeLesson). */
+function examplesOf(step, at) {
+  if (Array.isArray(step?.examples)) return step.examples.map((ex, e) => [`${at}.examples[${e}]`, ex]);
+  return step?.example !== undefined ? [[`${at}.example`, step.example]] : [];
+}
 
 function checkSchema(lesson, id, sectionTitle, errors, warnings) {
   const need = (cond, where, message) => {
@@ -77,11 +90,22 @@ function checkSchema(lesson, id, sectionTitle, errors, warnings) {
     const at = `steps[${i}]`;
     need(nonEmpty(step?.title), `${at}.title`, "required");
     need(nonEmpty(step?.body), `${at}.body`, "required");
-    const ex = step?.example;
-    need(ex && typeof ex === "object", `${at}.example`, "required");
-    if (ex) {
-      for (const k of ["title", "prompt", "code", "output", "explanation"]) need(nonEmpty(ex[k]), `${at}.example.${k}`, "required");
-      need(ex.stdin === undefined || isStr(ex.stdin), `${at}.example.stdin`, "must be a string when present");
+    if (step?.examples !== undefined) {
+      need(step.example === undefined, `${at}.example`, "give examples or example, not both");
+      need(
+        Array.isArray(step.examples) && step.examples.length >= 1 && step.examples.length <= MAX_EXAMPLES,
+        `${at}.examples`,
+        `must have 1 to ${MAX_EXAMPLES} examples`
+      );
+    } else {
+      need(step?.example !== undefined, `${at}.example`, "required (or examples)");
+    }
+    const exs = examplesOf(step, at);
+    for (const [where, ex] of exs) {
+      need(ex && typeof ex === "object" && !Array.isArray(ex), where, "must be an object");
+      if (!ex || typeof ex !== "object") continue;
+      for (const k of ["title", "prompt", "code", "output", "explanation"]) need(nonEmpty(ex[k]), `${where}.${k}`, "required");
+      need(ex.stdin === undefined || isStr(ex.stdin), `${where}.stdin`, "must be a string when present");
     }
     const pr = step?.practice;
     need(pr && typeof pr === "object", `${at}.practice`, "required");
@@ -98,11 +122,12 @@ function checkSchema(lesson, id, sectionTitle, errors, warnings) {
       }
       if (isStr(pr.prompt) && Array.isArray(pr.tests) && pr.tests[0] && isStr(pr.tests[0].output)) checkPrompt(pr, `${at}.practice.prompt`, errors, lesson.__lang);
     }
-    for (const [k, v] of [["example.code", ex?.code], ["practice.starter", pr?.starter], ["practice.solution", pr?.solution]]) {
+    const programs = [...exs.map(([where, ex]) => [`${where}.code`, ex?.code]), [`${at}.practice.starter`, pr?.starter], [`${at}.practice.solution`, pr?.solution]];
+    for (const [where, v] of programs) {
       // A final newline ends the last line, it doesn't start another one.
       const lines = isStr(v) ? v.replace(/\n$/, "").split("\n").length : 0;
-      if (lines >= 80) warnings.push({ where: `${at}.${k}`, message: `${lines} lines, keep programs under 80` });
-      if (isStr(v) && /\t/.test(v) && !/^go$/.test(String(lesson.__lang))) warnings.push({ where: `${at}.${k}`, message: "contains tab characters, indent with spaces" });
+      if (lines >= 80) warnings.push({ where, message: `${lines} lines, keep programs under 80` });
+      if (isStr(v) && /\t/.test(v) && !/^go$/.test(String(lesson.__lang))) warnings.push({ where, message: "contains tab characters, indent with spaces" });
     }
   }
 }
@@ -128,9 +153,11 @@ function proseFields(lesson) {
     fields.push(
       [`${at}.title`, s?.title, false],
       [`${at}.body`, s?.body, true],
-      [`${at}.example.title`, s?.example?.title, false],
-      [`${at}.example.prompt`, s?.example?.prompt, true],
-      [`${at}.example.explanation`, s?.example?.explanation, true],
+      ...examplesOf(s, at).flatMap(([where, ex]) => [
+        [`${where}.title`, ex?.title, false],
+        [`${where}.prompt`, ex?.prompt, true],
+        [`${where}.explanation`, ex?.explanation, true],
+      ]),
       [`${at}.practice.title`, s?.practice?.title, false],
       [`${at}.practice.prompt`, s?.practice?.prompt, true],
       ...(s?.practice?.hints ?? []).map((h, j) => [`${at}.practice.hints[${j}]`, h, true])
@@ -157,21 +184,22 @@ async function verifyLesson(lang, lesson) {
   const input = (stdin) => (lang === "sql" ? [lesson.setup, stdin].filter((x) => isStr(x) && x.trim()).join("\n") : stdin);
   for (const [i, step] of lesson.steps.entries()) {
     const at = `steps[${i}]`;
-    const ex = step.example;
-    jobs.push(
-      (async () => {
-        const [a, b] = await Promise.all([run(lang, ex.code, input(ex.stdin)), run(lang, ex.code, input(ex.stdin))]);
-        for (const r of [a, b]) {
-          const why = failure(r);
-          if (why) return errors.push({ where: `${at}.example.code`, message: why, actual: clip(r.compileError || r.stderr || r.stdout) });
-        }
-        if (a.stderr.trim()) errors.push({ where: `${at}.example.code`, message: "wrote to stderr", actual: clip(a.stderr) });
-        const out = normalizeOutput(a.stdout);
-        if (out !== normalizeOutput(b.stdout)) errors.push({ where: `${at}.example.code`, message: "output differs between two runs (nondeterministic)", expected: clip(out), actual: clip(normalizeOutput(b.stdout)) });
-        const want = normalizeOutput(ex.output);
-        if (out !== want) errors.push({ where: `${at}.example.output`, message: `does not match what the code prints (${firstDiff(want, out)})`, expected: clip(want), actual: clip(out) });
-      })()
-    );
+    for (const [where, ex] of examplesOf(step, at)) {
+      jobs.push(
+        (async () => {
+          const [a, b] = await Promise.all([run(lang, ex.code, input(ex.stdin)), run(lang, ex.code, input(ex.stdin))]);
+          for (const r of [a, b]) {
+            const why = failure(r);
+            if (why) return errors.push({ where: `${where}.code`, message: why, actual: clip(r.compileError || r.stderr || r.stdout) });
+          }
+          if (a.stderr.trim()) errors.push({ where: `${where}.code`, message: "wrote to stderr", actual: clip(a.stderr) });
+          const out = normalizeOutput(a.stdout);
+          if (out !== normalizeOutput(b.stdout)) errors.push({ where: `${where}.code`, message: "output differs between two runs (nondeterministic)", expected: clip(out), actual: clip(normalizeOutput(b.stdout)) });
+          const want = normalizeOutput(ex.output);
+          if (out !== want) errors.push({ where: `${where}.output`, message: `does not match what the code prints (${firstDiff(want, out)})`, expected: clip(want), actual: clip(out) });
+        })()
+      );
+    }
     const pr = step.practice;
     jobs.push(
       (async () => {

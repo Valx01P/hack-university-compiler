@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { cache } from "react";
-import type { Course, Lesson, LessonMeta, LessonRef } from "@/lib/learn-types";
+import { normalizeLesson, type Course, type Lesson, type LessonFile, type LessonMeta, type LessonRef } from "@/lib/learn-types";
 import { COMPILER_COURSES } from "@/lib/courses";
 
 /**
@@ -10,6 +10,10 @@ import { COMPILER_COURSES } from "@/lib/courses";
  * dev).
  */
 const DIR = path.join(process.cwd(), "content", "learn");
+// Drafts outside the repo: a course in LEARN_CONTENT_DIR (the folder
+// scripts/verify-lessons.mjs checks) takes the place of the one here, so a
+// draft can be read in the app before it joins the course.
+const DRAFTS = process.env.LEARN_CONTENT_DIR ? path.resolve(process.env.LEARN_CONTENT_DIR) : null;
 const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 interface CourseIndex {
@@ -27,15 +31,31 @@ async function readJson<T>(file: string): Promise<T | null> {
   }
 }
 
+/** The folder a course is read from: its draft, when there is one. */
+const courseDir = cache(async (lang: string): Promise<string> => {
+  if (DRAFTS) {
+    const draft = path.join(DRAFTS, lang);
+    const found = await fs.access(path.join(draft, "index.json")).then(
+      () => true,
+      () => false
+    );
+    if (found) return draft;
+  }
+  return path.join(DIR, lang);
+});
+
+/** A lesson, with every step's examples in `examples` (a lesson file may
+    still give a step a single `example`). */
 export const getLesson = cache(async (lang: string, id: string): Promise<Lesson | null> => {
   if (!ID_RE.test(lang) || !ID_RE.test(id)) return null;
-  return readJson<Lesson>(path.join(DIR, lang, `${id}.json`));
+  const file = await readJson<LessonFile>(path.join(await courseDir(lang), `${id}.json`));
+  return file && normalizeLesson(file);
 });
 
 /** The course for a language, or null when it has none yet. */
 export const getCourse = cache(async (lang: string): Promise<Course | null> => {
   if (!ID_RE.test(lang)) return null;
-  const index = await readJson<CourseIndex>(path.join(DIR, lang, "index.json"));
+  const index = await readJson<CourseIndex>(path.join(await courseDir(lang), "index.json"));
   if (!index) return null;
   const sections = await Promise.all(
     index.sections.map(async (section) => ({

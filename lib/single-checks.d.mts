@@ -15,6 +15,8 @@ export interface JudgedRun {
   files?: Record<string, string | null>;
   /** Whether anything at all (a file, a folder, a link) is at each path. */
   exists?: Record<string, boolean>;
+  /** Paths whose contents the sandbox cut off at its size cap. */
+  truncated?: string[];
 }
 
 export interface JudgedTest {

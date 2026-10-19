@@ -1,26 +1,39 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { CodeThemePicker } from "@/components/code/code-theme";
 import { ResetCodeButton } from "@/components/code/reset-code-button";
-import { OutputPanel } from "@/components/compiler/output-panel";
+import { ExitBadge, OutputPanel } from "@/components/compiler/output-panel";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
+import { programTypeErrors, TypeCheckStrip } from "@/components/compiler/type-check";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { LessonMarkdown, type RunnableContext } from "@/components/learn/lesson-md";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { CompilerButton } from "@/components/learn/compiler-button";
-import { CheckResults, checkSummary, type CheckState } from "@/components/learn/check-results";
+import { CheckResults, checkSummary, type CheckState, type TestResult } from "@/components/learn/check-results";
+import { FixtureFiles } from "@/components/learn/fixture-files";
 import { Highlight } from "@/lib/highlight";
 import { isSql, type CompilerLang } from "@/lib/compiler";
-import { partHref, problemId, type Lesson, type LessonStep } from "@/lib/learn-types";
+import type { FixtureFile } from "@/lib/learn-fixtures";
+import {
+  partHref,
+  problemId,
+  type ForbidRule,
+  type Lesson,
+  type LessonExample,
+  type LessonStep,
+  type SingleFileFeatures,
+} from "@/lib/learn-types";
 import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolvedState } from "@/lib/learn-progress";
-import { normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
+import { checkInSandbox, normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
+import { joinArgs, splitArgs } from "@/lib/shell-words";
+import { forbiddenUses, judgeTest, judgeTypeTests } from "@/lib/single-checks.mjs";
 import { useEnter } from "@/lib/motion";
 import { useFullScreen } from "@/lib/full-screen";
 import { revealWorkspace, urlCount, urlParam, writeHash, writeUrl } from "@/lib/url-state";
@@ -32,10 +45,20 @@ export interface PartLink {
   lesson: boolean;
 }
 
-type TabKind = "example" | "practice";
-type Panel = { mode: "run"; run: RunState } | { mode: "check"; check: CheckState };
+// Each worked example has a tab of its own, then Your code (the practice).
+type TabKind = "example" | "example2" | "example3" | "practice";
+// What the tab shows below the editor, and the code it ran, for the type
+// errors the editor underlines.
+type Panel = { mode: "run"; run: RunState; code?: string } | { mode: "check"; check: CheckState; code?: string };
 
-const TABS: TabKind[] = ["example", "practice"];
+// One tab per example, MAX_EXAMPLES of them at most (lib/learn-types.ts).
+const EXAMPLE_TABS: TabKind[] = ["example", "example2", "example3"];
+// The address's ?tab for each tab (lib/url-state.ts). Example 1 has none.
+const TAB_PARAM: Record<TabKind, string | null> = { example: null, example2: "ex2", example3: "ex3", practice: "code" };
+// Where each example sits in the part: #example, then #example-2 and
+// #example-3.
+const exampleId = (i: number) => (i === 0 ? "example" : `example-${i + 1}`);
+const TIMED_OUT = "Timed out. Your code ran too long (usually an infinite loop). It was stopped.";
 const CODE_BLOCK =
   "code-dark slim-scroll overflow-x-auto rounded-card border border-code-content-line bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink";
 
@@ -43,8 +66,9 @@ const CODE_BLOCK =
 // compiler's split it lasts for the session but isn't saved, so a reload
 // never shifts.
 const SPLIT = { min: 30, max: 70, initial: 50 };
-// Where #example, #practice, and #recap land: clear of the sticky header
-// when the page scrolls, a little below the top of the lesson column.
+// Where #example (and #example-2, #example-3), #practice, and #recap land:
+// clear of the sticky header when the page scrolls, a little below the top
+// of the lesson column.
 const PLACE_MARGIN = "scroll-mt-[calc(4rem+1rem)] lg:scroll-mt-4";
 // How long Next glows once your practice passes (the .next-glow animation).
 const NEXT_GLOW_MS = 3600;
@@ -60,11 +84,12 @@ function Prose({ md, className = "", runnable }: { md: string; className?: strin
 }
 
 /**
- * One part of a lesson in Learn mode: a single idea with its worked example
- * and practice problem on the left, and the editor on the right with two
- * tabs, the example and your code. Drag the border between them to resize.
- * The example runs and can be edited and reset. The practice is checked by
- * running your code against each test.
+ * One part of a lesson in Learn mode: a single idea with its worked examples
+ * (one to three) and practice problem on the left, and the editor on the
+ * right with a tab for each example and one for your code. Drag the border
+ * between them to resize. The examples run and can be edited and reset. The
+ * practice is checked by running your code against each test (and, on the
+ * runner, its type tests and honesty rules).
  */
 export function PartView({
   lang,
@@ -75,9 +100,11 @@ export function PartView({
   position,
   prev,
   next,
+  features,
+  fixtures = {},
 }: {
   lang: CompilerLang;
-  lesson: Pick<Lesson, "id" | "title" | "section" | "intro" | "recap" | "setup">;
+  lesson: Pick<Lesson, "id" | "title" | "section" | "intro" | "recap" | "setup" | "fixtures" | "clock" | "runtime">;
   /** Every part's title, in order. */
   parts: string[];
   /** This part, counting from 0. */
@@ -86,6 +113,10 @@ export function PartView({
   position: { index: number; total: number };
   prev: PartLink | null;
   next: PartLink | null;
+  /** What this course's editor and checks add (Arguments, Type check...). */
+  features: SingleFileFeatures;
+  /** The fixture sets the part's programs start in, by name. */
+  fixtures?: Record<string, FixtureFile[]>;
 }) {
   // Empty in the server markup and the hydration render (the server can't
   // see your progress), so everything that shows progress keeps the same size
@@ -98,28 +129,46 @@ export function PartView({
   const lastPart = part === parts.length - 1;
   const hasNav = Boolean(prev || next);
 
+  const { examples, practice } = step;
+  const tabs: TabKind[] = [...EXAMPLE_TABS.slice(0, examples.length), "practice"];
+  const exampleOf = (kind: TabKind): LessonExample | null => examples[EXAMPLE_TABS.indexOf(kind)] ?? null;
   const tabKey = (kind: TabKind) => `${kind}-${part}`;
-  const defaultCode = (kind: TabKind) => (kind === "example" ? step.example.code : step.practice.starter);
+  const defaultCode = (kind: TabKind) => exampleOf(kind)?.code ?? practice.starter;
   // SQL programs start from the lesson's tables (its setup), plus the example's
   // or test's own setup. That is SQL's stdin.
   const sql = isSql(lang.slug);
+  const sqlSetup = typeof lesson.setup === "string" ? lesson.setup : undefined;
   const inputFor = (stdin: string | undefined) =>
-    sql ? [lesson.setup, stdin].filter((x) => x && x.trim()).join("\n") : stdin ?? "";
-  const defaultStdin = (kind: TabKind) =>
-    inputFor(kind === "example" ? step.example.stdin : step.practice.tests[0]?.stdin);
+    sql ? [sqlSetup, stdin].filter((x) => x && x.trim()).join("\n") : stdin ?? "";
+  // A tab runs like its example, and Your code like the practice's first
+  // test: the same input, arguments, environment, fixture files, and clock.
+  const runOf = (kind: TabKind) => {
+    const example = exampleOf(kind);
+    const test = practice.tests[0];
+    return example
+      ? { ...example, fixtures: example.fixtures ?? lesson.fixtures, clock: example.clock ?? lesson.clock }
+      : {
+          stdin: test?.stdin,
+          args: test?.args,
+          env: test?.env,
+          fixtures: test?.fixtures ?? practice.fixtures ?? lesson.fixtures,
+          clock: test?.clock ?? practice.clock ?? lesson.clock,
+        };
+  };
+  const defaultStdin = (kind: TabKind) => inputFor(runOf(kind).stdin);
+  const defaultArgs = (kind: TabKind) => joinArgs(runOf(kind).args ?? []);
+  const perTab = <T,>(value: (kind: TabKind) => T) =>
+    Object.fromEntries(tabs.map((kind) => [kind, value(kind)])) as Record<TabKind, T>;
 
-  const [active, setActive] = useState<TabKind>("example");
+  const [active, setActive] = useState<TabKind>(tabs[0]);
   // Your code per tab, read while initializing (CodeMirror mounts client-side,
   // so the server markup never depends on it).
-  const [codes, setCodes] = useState<Record<TabKind, string>>(() => ({
-    example: loadCode(lang.slug, lesson.id, tabKey("example"), defaultCode("example")),
-    practice: loadCode(lang.slug, lesson.id, tabKey("practice"), defaultCode("practice")),
-  }));
-  const [stdins, setStdins] = useState<Record<TabKind, string>>(() => ({
-    example: defaultStdin("example"),
-    practice: defaultStdin("practice"),
-  }));
-  const [showStdin, setShowStdin] = useState(() => defaultStdin("example") !== "");
+  const [codes, setCodes] = useState(() => perTab((kind) => loadCode(lang.slug, lesson.id, tabKey(kind), defaultCode(kind))));
+  const [stdins, setStdins] = useState(() => perTab(defaultStdin));
+  const [showStdin, setShowStdin] = useState(() => defaultStdin(tabs[0]) !== "");
+  // The Arguments field (Bash), as a line: split like a shell splits it.
+  const [argLines, setArgLines] = useState(() => perTab(defaultArgs));
+  const [showFiles, setShowFiles] = useState(false);
   const [panels, setPanels] = useState<Partial<Record<TabKind, Panel>>>({});
   // The tab whose run or check is in flight. Runs go one at a time: every
   // Run and Check is greyed out meanwhile, keeping its label so nothing
@@ -145,7 +194,7 @@ export function PartView({
   const gridRef = useRef<HTMLDivElement>(null);
   // The lesson's code examples run here (on the lesson's tables, for SQL),
   // and keep your edits under the lesson.
-  const runnable: RunnableContext = { course: lang.slug, scope: `learn/${lang.slug}/${lesson.id}`, setup: lesson.setup };
+  const runnable: RunnableContext = { course: lang.slug, scope: `learn/${lang.slug}/${lesson.id}`, setup: sqlSetup };
   // Moving to another part fades the new one in (never on first paint).
   const articleRef = useRef<HTMLElement>(null);
   useEnter(articleRef);
@@ -167,6 +216,7 @@ export function PartView({
   const tabId = (kind: TabKind) => `${uid}-tab-${kind}`;
   const panelId = `${uid}-panel`;
   const stdinId = `${uid}-stdin`;
+  const filesId = `${uid}-files`;
   const outputId = `${uid}-output`;
 
   // The eye on Your code shows the solution in place of your code, read only,
@@ -175,27 +225,60 @@ export function PartView({
   const [answerUnlocked, setAnswerUnlocked] = useState(false);
   const showingAnswer = active === "practice" && answer;
 
-  const code = showingAnswer ? step.practice.solution : codes[active];
+  const code = showingAnswer ? practice.solution : codes[active];
   const stdin = stdins[active];
+  const argLine = argLines[active];
   const panel: Panel = panels[active] ?? { mode: "run", run: { status: "idle" } };
+  // The fixture files this tab's runs start in (Bash), for the Files strip.
+  const fixtureSet = runOf(active).fixtures ?? "";
+  const fixtureFiles = fixtures[fixtureSet] ?? [];
+  const filesRow = fixtureFiles.length > 0;
+  // An Arguments field next to stdin: always for Bash, and for any part
+  // whose programs take arguments.
+  const takesArgs = features.args || tabs.some((kind) => (runOf(kind).args?.length ?? 0) > 0);
+  const typeTestCount = practice.typeTests?.cases.length ?? 0;
+
+  // Type errors from this tab's last run or check, underlined in the editor
+  // while it still holds the code that ran. A type error's link puts the
+  // cursor on its line.
+  const typeErrorOutput =
+    panel.mode === "run" && panel.run.status === "done" && panel.run.compileCode
+      ? panel.run.compileOutput
+      : panel.mode === "check" && panel.check.status === "compile-error"
+        ? panel.check.output
+        : null;
+  const editorDiagnostics = useMemo(
+    () =>
+      features.typeCheck && typeErrorOutput !== null && panel.code !== undefined
+        ? { doc: panel.code, items: programTypeErrors(typeErrorOutput, lang.fileName) }
+        : null,
+    [features.typeCheck, typeErrorOutput, panel.code, lang.fileName]
+  );
+  const [cursorAt, setCursorAt] = useState<{ line: number; col: number } | null>(null);
+  const goTo = (line: number, col: number) => setCursorAt({ line, col });
 
   useEffect(() => {
     setLastLesson(lang.slug, lesson.id, part + 1);
   }, [lang.slug, lesson.id, part]);
 
+  // The places in the part the address can point at.
+  const places = [...examples.map((_, i) => exampleId(i)), "practice", "recap"];
+
   // The address keeps your place (lib/url-state.ts): ?tab=code while you're
-  // on Your code, and #example, #practice, or #recap for where you are in
-  // the part, so a reload comes back to it. A reload that restores the tab
-  // keeps the page hidden until it has (the hints restore with it).
+  // on Your code, ?tab=ex2 or ex3 on another example, and #example,
+  // #example-2, #example-3, #practice, or #recap for where you are in the
+  // part, so a reload comes back to it. A reload that restores the tab keeps
+  // the page hidden until it has (the hints restore with it).
   useLayoutEffect(() => {
-    if (urlParam("tab") === "code") openTab("practice", { scroll: false });
+    const restored = tabs.find((kind) => TAB_PARAM[kind] !== null && TAB_PARAM[kind] === urlParam("tab"));
+    if (restored) openTab(restored, { scroll: false });
     // A reload doesn't scroll the lesson column to the #fragment (the browser
     // restores its old scroll instead), so go there by hand, on the next
     // frame, once the hints restored with it are laid out: the column on
     // wide screens, the page below that. Then show the page.
     requestAnimationFrame(() => {
       const place = window.location.hash.slice(1);
-      const target = ["example", "practice", "recap"].includes(place) ? document.getElementById(place) : null;
+      const target = places.includes(place) ? document.getElementById(place) : null;
       const column = columnRef.current;
       if (target && column && getComputedStyle(column).overflowY === "auto") {
         column.scrollTop += target.getBoundingClientRect().top - column.getBoundingClientRect().top - 16;
@@ -209,7 +292,7 @@ export function PartView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    writeUrl({ tab: active === "practice" ? "code" : null });
+    writeUrl({ tab: TAB_PARAM[active] });
   }, [active]);
   const columnRef = useRef<HTMLDivElement>(null);
   const placeFrame = useRef(0);
@@ -230,7 +313,7 @@ export function PartView({
         ? column.scrollTop > 0 && column.scrollTop + column.clientHeight >= column.scrollHeight - 2
         : window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
       let at = "";
-      for (const id of ["example", "practice", "recap"]) {
+      for (const id of places) {
         const el = document.getElementById(id);
         if (!el) continue;
         const elTop = el.getBoundingClientRect().top;
@@ -256,6 +339,8 @@ export function PartView({
   function openTab(kind: TabKind, { scroll = true }: { scroll?: boolean } = {}) {
     setActive(kind);
     setShowStdin(stdins[kind] !== "");
+    // The tab's editor opens with its cursor where it starts.
+    setCursorAt(null);
     // On narrow screens the editor sits below the lesson: bring it into view,
     // below the sticky header (the column's scroll margin).
     if (scroll && window.innerWidth < 1024) {
@@ -267,7 +352,7 @@ export function PartView({
   // Arrow keys, Home and End move between the tabs (and open them), so the
   // strip is a single tab stop.
   function onTabKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, i: number) {
-    const last = TABS.length - 1;
+    const last = tabs.length - 1;
     const to =
       e.key === "ArrowRight" ? (i === last ? 0 : i + 1)
       : e.key === "ArrowLeft" ? (i === 0 ? last : i - 1)
@@ -276,8 +361,8 @@ export function PartView({
       : -1;
     if (to < 0) return;
     e.preventDefault();
-    openTab(TABS[to], { scroll: false });
-    tabRefs.current[TABS[to]]?.focus();
+    openTab(tabs[to], { scroll: false });
+    tabRefs.current[tabs[to]]?.focus();
   }
 
   function updateCode(nextCode: string) {
@@ -292,6 +377,7 @@ export function PartView({
   function resetTab() {
     setCodes((c) => ({ ...c, [active]: defaultCode(active) }));
     setStdins((s) => ({ ...s, [active]: defaultStdin(active) }));
+    setArgLines((a) => ({ ...a, [active]: defaultArgs(active) }));
     setPanels((p) => ({ ...p, [active]: { mode: "run", run: { status: "idle" } } }));
     clearCode(lang.slug, lesson.id, tabKey(active));
   }
@@ -315,20 +401,31 @@ export function PartView({
   async function run(e: React.MouseEvent<HTMLButtonElement>) {
     if (busy) return;
     const kind = active;
+    const ran = code;
     begin(kind, e);
     setPanel(kind, { mode: "run", run: { status: "running" } });
-    const result = await runInSandbox(lang.slug, code, stdin);
+    // On the runner a run also gets its arguments, environment, fixture
+    // files, and clock. Piston and PGlite runs send just code and stdin.
+    const setup = runOf(kind);
+    const args = splitArgs(argLine);
+    const result = await runInSandbox(
+      lang.slug,
+      ran,
+      stdin,
+      features.runner ? { args: args.length ? args : undefined, env: setup.env, fixtures: setup.fixtures, clock: setup.clock } : {}
+    );
     const done: RunState = result.ok ? { status: "done", ...result.run } : { status: "error", error: result.error };
-    setPanel(kind, { mode: "run", run: done });
-    setAnnouncement(runSummary(done));
+    setPanel(kind, { mode: "run", run: done, code: ran });
+    setAnnouncement(runSummary(done, { typeChecked: features.typeCheck }));
     setBusyTab(null);
   }
 
   async function check(e: React.MouseEvent<HTMLButtonElement>) {
     if (busy) return;
-    const { tests } = step.practice;
+    const { tests } = practice;
     begin("practice", e);
     setPanel("practice", { mode: "check", check: { status: "checking", total: tests.length } });
+    if (features.runner) return checkOnRunner(code);
     const outcomes = await Promise.all(
       tests.map((t) => runInSandbox(lang.slug, code, inputFor(t.stdin), { refreshStatus: false }))
     );
@@ -348,7 +445,7 @@ export function PartView({
     }
     const results = runs.map((r, i) => {
       const timedOut = r.verdict === "TO";
-      const stderr = timedOut ? "Timed out. Your code ran too long (usually an infinite loop). It was stopped." : r.stderr;
+      const stderr = timedOut ? TIMED_OUT : r.stderr;
       return {
         stdin: tests[i].stdin ?? "",
         expected: tests[i].output,
@@ -366,7 +463,78 @@ export function PartView({
     finish({ status: "done", results, lessonComplete });
   }
 
-  const tabLabel = (kind: TabKind) => (kind === "example" ? "Example" : "Your code");
+  /** A check on the runner: every test in one request, judged by
+      lib/single-checks.mjs with everything a test can ask (exit codes,
+      stderr, files), then the type tests and the honesty rules. */
+  async function checkOnRunner(ran: string) {
+    const finish = (result: CheckState) => {
+      setPanel("practice", { mode: "check", check: result, code: ran });
+      setAnnouncement(checkSummary(result));
+      setBusyTab(null);
+    };
+    const outcome = await checkInSandbox(lang.slug, ran, {
+      tests: practice.tests,
+      typeTests: practice.typeTests,
+      fixtures: practice.fixtures ?? lesson.fixtures,
+      clock: practice.clock ?? lesson.clock,
+    });
+    if (!outcome.ok) return finish({ status: "error", error: outcome.error });
+    const compileError = outcome.runs.find((r) => r.compileCode != null && r.compileCode !== 0);
+    if (compileError) {
+      return finish({
+        status: "compile-error",
+        output: compileError.compileOutput || (features.typeCheck ? "" : "Compilation failed."),
+        typeCheck: features.typeCheck ? { fileName: lang.fileName } : undefined,
+      });
+    }
+    const results: TestResult[] = practice.tests.map((test, i) => {
+      const run = outcome.runs[i];
+      const { passed, problems } = judgeTest(test, run);
+      return {
+        stdin: test.stdin ?? "",
+        expected: test.output,
+        actual: run.stdout,
+        stderr: run.verdict === "TO" ? TIMED_OUT : run.stderr,
+        passed,
+        detail: { test, run, problems },
+      };
+    });
+    const typeTests = practice.typeTests
+      ? judgeTypeTests(practice.typeTests, outcome.typeTests).map((t, i) => ({ ...t, code: practice.typeTests!.cases[i].code }))
+      : [];
+    const forbidden = forbiddenUses(ran, practice.forbid ?? []);
+    const allPassed = results.every((r) => r.passed) && typeTests.every((t) => t.passed) && forbidden.length === 0;
+    if (allPassed) {
+      markSolved(lang.slug, problemId(lesson.id, part));
+      setNextGlow((n) => n + 1);
+    }
+    const lessonComplete = allPassed && parts.every((_, i) => i === part || isSolved(i));
+    finish({ status: "done", results, lessonComplete, typeTests, forbidden });
+  }
+
+  // The stdin row under the editor. The code box clips anything outside it,
+  // so the focus ring sits inside the button (rounded like the box's corners
+  // when it's the last row), in the code text color. Beside an Arguments
+  // field it takes half the row.
+  const stdinToggle = (
+    <button
+      type="button"
+      onClick={() => setShowStdin((v) => !v)}
+      aria-expanded={showStdin}
+      aria-controls={showStdin ? stdinId : undefined}
+      className={`code-stdin-toggle flex ${takesArgs ? "min-w-0 flex-1" : "w-full"} items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${
+        showStdin || filesRow ? "" : takesArgs ? "rounded-bl-[calc(var(--radius-card)-1px)]" : "rounded-b-[calc(var(--radius-card)-1px)]"
+      }`}
+    >
+      <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
+      <span>{sql ? "setup (runs first)" : "stdin"}</span>
+      {!showStdin && stdin ? <span className="truncate text-code-gutter">· {stdin.split("\n")[0]}</span> : null}
+    </button>
+  );
+
+  // One example keeps today's "Example". Several are numbered.
+  const tabLabel = (kind: TabKind) =>
+    kind === "practice" ? "Your code" : examples.length > 1 ? `Example ${EXAMPLE_TABS.indexOf(kind) + 1}` : "Example";
   const nextLabel = (link: PartLink) => `${link.lesson ? "Next lesson" : "Next"}: ${link.title}`;
   const iconBtn =
     "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink";
@@ -450,7 +618,7 @@ export function PartView({
             runnable={runnable}
             language={lang.slug}
             solved={partSolved}
-            onOpenExample={() => openTab("example")}
+            onOpenExample={(i) => openTab(EXAMPLE_TABS[i])}
             onOpenPractice={() => openTab("practice")}
           />
 
@@ -531,7 +699,7 @@ export function PartView({
             aria-label="Editor tabs"
             className="slim-scroll -mx-1.5 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1.5 pb-1.5 pt-1.5"
           >
-            {TABS.map((kind, i) => {
+            {tabs.map((kind, i) => {
               const selected = kind === active;
               return (
                 <button
@@ -575,7 +743,7 @@ export function PartView({
           <div className="slim-scroll -mx-1.5 -mt-0.5 flex shrink-0 items-center gap-2 overflow-x-auto px-1.5 pb-2 pt-1.5">
             <span className="shrink-0 font-mono text-sm font-medium">{lang.fileName}</span>
             <span className="hidden truncate text-xs text-ink-faint sm:inline">
-              {active === "example" ? step.example.title : showingAnswer ? "The answer (read only, your code is kept)" : step.practice.title}
+              {exampleOf(active)?.title ?? (showingAnswer ? "The answer (read only, your code is kept)" : practice.title)}
             </span>
             <div className="ms-auto flex shrink-0 items-center gap-1">
               <button
@@ -604,8 +772,8 @@ export function PartView({
               )}
               {!showingAnswer && (
                 <ResetCodeButton
-                  label={active === "example" ? "Reset to the original example" : "Reset to the starter code"}
-                  title={active === "example" ? "Reset this example?" : "Reset to the starter code?"}
+                  label={active === "practice" ? "Reset to the starter code" : "Reset to the original example"}
+                  title={active === "practice" ? "Reset to the starter code?" : "Reset this example?"}
                   description="This replaces what's in this tab with the original code."
                   onReset={resetTab}
                   className={iconBtn}
@@ -643,7 +811,7 @@ export function PartView({
                   type="button"
                   onClick={run}
                   disabled={busy}
-                  aria-busy={busyTab === "example"}
+                  aria-busy={busyTab === active}
                   className="shrink-0 rounded-btn border border-edge-strong px-4 py-1.5 text-sm font-medium btn-grad disabled:opacity-50"
                 >
                   ▶ Run
@@ -661,25 +829,39 @@ export function PartView({
                 onChange={showingAnswer ? () => {} : updateCode}
                 ariaLabel={showingAnswer ? "The answer, read only" : `${tabLabel(active)} editor`}
                 readOnly={showingAnswer}
+                diagnostics={editorDiagnostics}
+                cursorAt={cursorAt}
               />
             </div>
             <div className="shrink-0 border-t border-code-content-line bg-code-bg">
-              {/* The code box clips anything outside it, so this focus ring
-                  sits inside the button (rounded like the box's corners when
-                  it's the last row), in the code text color. */}
-              <button
-                type="button"
-                onClick={() => setShowStdin((v) => !v)}
-                aria-expanded={showStdin}
-                aria-controls={showStdin ? stdinId : undefined}
-                className={`code-stdin-toggle flex w-full items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${
-                  showStdin ? "" : "rounded-b-[calc(var(--radius-card)-1px)]"
-                }`}
-              >
-                <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
-                <span>{sql ? "setup (runs first)" : "stdin"}</span>
-                {!showStdin && stdin ? <span className="truncate text-code-gutter">· {stdin.split("\n")[0]}</span> : null}
-              </button>
+              {takesArgs ? (
+                // The Arguments field sits next to stdin, as on the compiler
+                // page. With no border of its own, the field shows focus the
+                // way the stdin toggle does (.code-args-field in globals.css).
+                <div className="flex items-stretch">
+                  {stdinToggle}
+                  <label
+                    className={`code-args-field flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${
+                      showStdin || filesRow ? "" : "rounded-br-[calc(var(--radius-card)-1px)]"
+                    }`}
+                  >
+                    <span className="shrink-0">args</span>
+                    <input
+                      type="text"
+                      value={argLine}
+                      onChange={(e) => setArgLines((a) => ({ ...a, [active]: e.target.value }))}
+                      spellCheck={false}
+                      autoComplete="off"
+                      autoCapitalize="off"
+                      placeholder={features.args ? "arguments for $1, $2..." : "arguments for your program..."}
+                      aria-label="Arguments passed to your program"
+                      className="code-stdin-input min-w-0 flex-1 self-stretch border-0 bg-transparent pe-3 font-mono text-base font-normal text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-xs"
+                    />
+                  </label>
+                </div>
+              ) : (
+                stdinToggle
+              )}
               {showStdin && (
                 <textarea
                   id={stdinId}
@@ -691,6 +873,28 @@ export function PartView({
                   className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-content-line bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
                 />
               )}
+              {filesRow && (
+                // The files the program starts in (Bash), folded until you
+                // open them.
+                <button
+                  type="button"
+                  onClick={() => setShowFiles((v) => !v)}
+                  aria-expanded={showFiles}
+                  aria-controls={showFiles ? filesId : undefined}
+                  className={`code-stdin-toggle flex w-full items-center gap-1 border-t border-code-content-line px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${
+                    showFiles ? "" : "rounded-b-[calc(var(--radius-card)-1px)]"
+                  }`}
+                >
+                  <span aria-hidden>{showFiles ? "▾" : "▸"}</span>
+                  <span>files</span>
+                  {!showFiles && (
+                    <span className="truncate text-code-gutter">
+                      · {fixtureFiles.length} in {fixtureSet}, read only
+                    </span>
+                  )}
+                </button>
+              )}
+              {filesRow && showFiles && <FixtureFiles key={fixtureSet} id={filesId} set={fixtureSet} files={fixtureFiles} />}
             </div>
           </div>
 
@@ -699,10 +903,12 @@ export function PartView({
               <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
                 {panel.mode === "check" ? "Results" : "Output"}
               </h2>
+              {features.exitBadge && panel.mode === "run" && <ExitBadge run={panel.run} />}
               {active === "practice" && panel.mode === "run" && panel.run.status === "idle" && (
                 <span className="truncate text-xs text-ink-faint">
-                  Run tries your code. Check runs it against {step.practice.tests.length} test
-                  {step.practice.tests.length === 1 ? "" : "s"}.
+                  Run tries your code. Check runs it against {practice.tests.length} test
+                  {practice.tests.length === 1 ? "" : "s"}
+                  {typeTestCount > 0 && ` and ${typeTestCount} type test${typeTestCount === 1 ? "" : "s"}`}.
                 </span>
               )}
               {((panel.mode === "run" && panel.run.status === "done") || (panel.mode === "check" && panel.check.status === "done")) && (
@@ -723,9 +929,20 @@ export function PartView({
               className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface"
             >
               {panel.mode === "check" ? (
-                <CheckResults check={panel.check} next={next ? { href: next.href, label: nextLabel(next) } : null} />
+                <CheckResults check={panel.check} next={next ? { href: next.href, label: nextLabel(next) } : null} onGoTo={goTo} />
               ) : (
-                <OutputPanel run={panel.run} />
+                <>
+                  {features.typeCheck && panel.run.status === "done" && panel.run.compileCode != null && (
+                    <TypeCheckStrip
+                      output={panel.run.compileOutput}
+                      failed={panel.run.compileCode !== 0}
+                      fileName={lang.fileName}
+                      onGoTo={goTo}
+                      className="border-b border-content-line px-4 py-3"
+                    />
+                  )}
+                  <OutputPanel run={panel.run} exitBadge={features.exitBadge} typeChecked={features.typeCheck} />
+                </>
               )}
             </div>
           </div>
@@ -734,6 +951,134 @@ export function PartView({
           {announcement}
         </p>
       </div>
+    </div>
+  );
+}
+
+// The honesty rules, as the practice names them under its prompt.
+const RULES: Record<ForbidRule, React.ReactNode> = {
+  any: <Code>any</Code>,
+  as: (
+    <>
+      <Code>as</Code> (except <Code>as const</Code>)
+    </>
+  ),
+  "non-null": (
+    <>
+      a non-null <Code>!</Code>
+    </>
+  ),
+  "ts-comments": (
+    <>
+      a <Code>@ts-</Code> comment
+    </>
+  ),
+};
+
+/** Code in a sentence, like the lessons' inline code. */
+function Code({ children }: { children: React.ReactNode }) {
+  return (
+    <code className="rounded border border-content-line bg-raised px-1.5 py-0.5 font-mono text-[0.85em] font-medium text-ink">{children}</code>
+  );
+}
+
+/** A worked example in the lesson: what it does, its code, what it runs
+    with, what it prints (or the error it stops with), and why. */
+function ExampleBlock({
+  example,
+  index,
+  count,
+  language,
+  runnable,
+  onOpen,
+}: {
+  example: LessonExample;
+  index: number;
+  count: number;
+  language: string;
+  runnable: RunnableContext;
+  onOpen: () => void;
+}) {
+  const expect = example.expect ?? "run";
+  // A crash that printed nothing shows just its errors.
+  const showOutput = expect !== "runtime-error" || Boolean(example.output);
+  // The exit status rides on the first of those labels.
+  const exit =
+    (example.exitCode ?? 0) !== 0 ? (
+      <span className="ml-2 inline-block rounded-btn border border-line-strong px-1.5 font-mono text-[11px] leading-4 text-ink">
+        exit {example.exitCode}
+      </span>
+    ) : null;
+  return (
+    <div id={exampleId(index)} className={`${index === 0 ? "mt-7" : "mt-8"} border-l-2 border-content-line pl-5 ${PLACE_MARGIN}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="eyebrow">{count > 1 ? `Example ${index + 1}` : "Example"}</p>
+        <button
+          type="button"
+          onClick={onOpen}
+          className="text-xs font-medium text-ink-muted transition-colors hover:text-ink dark:hover:text-gold"
+        >
+          Open in editor →
+        </button>
+      </div>
+      <h3 className="mt-1.5 font-medium text-ink">{example.title}</h3>
+      <Prose md={example.prompt} className="mt-1.5 text-ink-muted" />
+      <CopyableCodeBlock code={example.code} language={language} label="Example code" className="mt-3" preClassName={CODE_BLOCK}>
+        <Highlight code={example.code} language={language} />
+      </CopyableCodeBlock>
+      {example.args && example.args.length > 0 ? (
+        <>
+          <p className="mt-4 text-xs font-medium text-ink-faint">Arguments</p>
+          <CopyableCodeBlock code={joinArgs(example.args)} label="Example arguments" className="mt-1.5" preClassName={CODE_BLOCK} />
+        </>
+      ) : null}
+      {example.env && Object.keys(example.env).length > 0 ? (
+        <>
+          <p className="mt-4 text-xs font-medium text-ink-faint">Environment</p>
+          <CopyableCodeBlock
+            code={Object.entries(example.env)
+              .map(([k, v]) => `${k}=${v}`)
+              .join("\n")}
+            label="Example environment"
+            className="mt-1.5"
+            preClassName={CODE_BLOCK}
+          />
+        </>
+      ) : null}
+      {example.stdin ? (
+        <>
+          <p className="mt-4 text-xs font-medium text-ink-faint">Input</p>
+          <CopyableCodeBlock code={example.stdin} label="Example input" className="mt-1.5" preClassName={CODE_BLOCK} />
+        </>
+      ) : null}
+      {/* Shown like the expected output in a practice prompt: a terminal
+          block you can copy. A type error shows the checker's words instead,
+          and a crash what it printed first, then its error. */}
+      {showOutput ? (
+        <>
+          <p className="mt-4 text-xs font-medium text-ink-faint">
+            {expect === "type-error" ? "Type errors" : "Output"}
+            {exit}
+          </p>
+          <CopyableCodeBlock
+            code={example.output}
+            label={expect === "type-error" ? "Example type errors" : "Example output"}
+            className="mt-1.5"
+            preClassName={CODE_BLOCK}
+          />
+        </>
+      ) : null}
+      {example.errorIncludes ? (
+        <>
+          <p className="mt-4 text-xs font-medium text-ink-faint">
+            Errors
+            {!showOutput && exit}
+          </p>
+          <CopyableCodeBlock code={example.errorIncludes} label="Example errors" className="mt-1.5" preClassName={`${CODE_BLOCK} text-danger!`} />
+        </>
+      ) : null}
+      <p className="mt-4 text-sm font-medium text-ink">How it works</p>
+      <Prose md={example.explanation} className="mt-1 text-ink-muted" runnable={runnable} />
     </div>
   );
 }
@@ -751,11 +1096,13 @@ function PartSection({
   /** The lesson's code examples run (and keep your edits) here. */
   runnable: RunnableContext;
   solved: boolean;
-  onOpenExample: () => void;
+  /** Opens an example's tab (counting from 0). */
+  onOpenExample: (index: number) => void;
   onOpenPractice: () => void;
 }) {
-  const { example, practice } = step;
+  const { examples, practice } = step;
   const hints = practice.hints ?? [];
+  const rules = practice.forbid ?? [];
   const [hintsShown, setHintsShown] = useState(0);
   // The hints you've seen are kept in the address (&hints), so a reload
   // shows them again. Read after hydration: the server can't see it.
@@ -790,35 +1137,17 @@ function PartSection({
       <h2 className="font-display text-title">{step.title}</h2>
       <Prose md={step.body} className="mt-3" runnable={runnable} />
 
-      <div id="example" className={`mt-7 border-l-2 border-content-line pl-5 ${PLACE_MARGIN}`}>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="eyebrow">Example</p>
-          <button
-            type="button"
-            onClick={onOpenExample}
-            className="text-xs font-medium text-ink-muted transition-colors hover:text-ink dark:hover:text-gold"
-          >
-            Open in editor →
-          </button>
-        </div>
-        <h3 className="mt-1.5 font-medium text-ink">{example.title}</h3>
-        <Prose md={example.prompt} className="mt-1.5 text-ink-muted" />
-        <CopyableCodeBlock code={example.code} language={language} label="Example code" className="mt-3" preClassName={CODE_BLOCK}>
-          <Highlight code={example.code} language={language} />
-        </CopyableCodeBlock>
-        {example.stdin ? (
-          <>
-            <p className="mt-4 text-xs font-medium text-ink-faint">Input</p>
-            <CopyableCodeBlock code={example.stdin} label="Example input" className="mt-1.5" preClassName={CODE_BLOCK} />
-          </>
-        ) : null}
-        {/* Shown like the expected output in a practice prompt: a terminal
-            block you can copy. */}
-        <p className="mt-4 text-xs font-medium text-ink-faint">Output</p>
-        <CopyableCodeBlock code={example.output} label="Example output" className="mt-1.5" preClassName={CODE_BLOCK} />
-        <p className="mt-4 text-sm font-medium text-ink">How it works</p>
-        <Prose md={example.explanation} className="mt-1 text-ink-muted" runnable={runnable} />
-      </div>
+      {examples.map((example, i) => (
+        <ExampleBlock
+          key={i}
+          example={example}
+          index={i}
+          count={examples.length}
+          language={language}
+          runnable={runnable}
+          onOpen={() => onOpenExample(i)}
+        />
+      ))}
 
       <div id="practice" className={`mt-8 border-l-2 border-content-line-strong pl-5 ${PLACE_MARGIN}`}>
         <p className="eyebrow">
@@ -834,6 +1163,19 @@ function PartSection({
         </p>
         <h3 className="mt-1.5 font-medium text-ink">{practice.title}</h3>
         <Prose md={practice.prompt} className="mt-1.5" />
+        {/* The honesty rules a TypeScript practice is checked against. */}
+        {rules.length > 0 && (
+          <p className="mt-3 text-sm text-ink-muted">
+            Check also fails code that uses{" "}
+            {rules.map((rule, i) => (
+              <span key={rule}>
+                {i > 0 && (i < rules.length - 1 ? ", " : rules.length > 2 ? ", or " : " or ")}
+                {RULES[rule]}
+              </span>
+            ))}
+            .
+          </p>
+        )}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             type="button"
