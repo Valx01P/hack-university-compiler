@@ -11,7 +11,7 @@ as the original hackuniversity.dev compiler.
 
 ## Requirements
 
-- **Node.js 20.9+**
+- **Node.js 24.12+**
 - **Docker Desktop** (or any Docker engine that can run privileged containers)
 - About **5 GB** of disk for the five runtimes (the C++ toolchain is 2.8 GB of it)
 

@@ -6,7 +6,7 @@
 //
 // Each step is skipped when it's already done, so running it again is quick:
 //
-//   1. Checks for Node 20.9+ and a running Docker (the code sandbox).
+//   1. Checks for Node 24.12+ and a running Docker (the code sandbox).
 //   2. npm install, when node_modules is missing or out of date.
 //   3. Starts the sandbox and installs any missing languages (about 5 GB the
 //      first time, a few minutes).
