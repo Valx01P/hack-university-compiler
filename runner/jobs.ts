@@ -176,7 +176,6 @@ export class Job {
   readonly id: string;
   readonly name: string;
   readonly spec: JobSpec;
-  private readonly docker: Docker;
   private readonly container: Docker.Container;
   private readonly log: Log;
   private killed = false;
@@ -184,8 +183,7 @@ export class Job {
   /** Milliseconds spent creating and starting the container. */
   startMs = 0;
 
-  private constructor(docker: Docker, container: Docker.Container, spec: JobSpec, name: string, log: Log) {
-    this.docker = docker;
+  private constructor(container: Docker.Container, spec: JobSpec, name: string, log: Log) {
     this.container = container;
     this.spec = spec;
     this.name = name;
@@ -216,7 +214,7 @@ export class Job {
       }
       throw err;
     }
-    const job = new Job(docker, container, spec, name, log);
+    const job = new Job(container, spec, name, log);
     try {
       await container.start();
     } catch (err) {
@@ -232,8 +230,8 @@ export class Job {
     // A reset first empties the folder (making even unreadable leftovers
     // readable), so each test starts from exactly its fixture set.
     const script = reset
-      ? 'cd "$1" && chmod -R u+rwX . 2>/dev/null; find . -mindepth 1 -delete && exec tar -xpf -'
-      : 'cd "$1" && exec tar -xpf -';
+      ? 'cd "$1" || exit 1; chmod -R u+rwX . 2>/dev/null; find . -mindepth 1 -delete; exec tar -xpf -'
+      : 'cd "$1" || exit 1; exec tar -xpf -';
     const result = await this.step(["sh", "-c", script, "sh", dir], {
       stdin: packTar(entries),
       timeoutMs: 10_000,
@@ -384,6 +382,11 @@ export class Job {
       // Not even one more process fits (a fork bomb): stop the job.
       await this.kill("output flood");
     }
+  }
+
+  /** Whether the container was killed (its deadline, or the caller gave up). */
+  get dead(): boolean {
+    return this.killed;
   }
 
   /** Kills the container now. Steps in flight end, and the job reports a timeout. */

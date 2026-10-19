@@ -41,6 +41,8 @@ export interface Services {
 
 const JSON_LIMIT = 64 * 1024;
 const RUN_LIMIT = 8 * 1024 * 1024;
+/** Runs waiting beyond the job slots. A verifier raises HU_JOB_SLOTS instead. */
+const MAX_QUEUED = 64;
 
 class HttpError extends Error {
   readonly status: number;
@@ -129,7 +131,9 @@ export function health(deps: ApiDeps) {
 
 /** Docker isn't up: say so the way the app shows it, "Start Docker to run this". */
 async function needDocker(deps: ApiDeps) {
-  if (deps.watch.state === "ready" || (await deps.watch.ready(deps.watch.state === "waking" ? 30_000 : 0))) return;
+  // Docker may have started since the last poll: look again before saying no.
+  if (deps.watch.state !== "ready") await deps.watch.check();
+  if (deps.watch.state === "ready" || (deps.watch.state === "waking" && (await deps.watch.ready(30_000)))) return;
   throw new HttpError(
     503,
     "docker_unavailable",
@@ -153,6 +157,7 @@ async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerR
     if (method !== "POST") throw new HttpError(405, "method_not_allowed", "Use POST.");
     const body = parse(RunRequest, await readJson(req, RUN_LIMIT));
     await needDocker(deps);
+    if (deps.pool.stats.queued >= MAX_QUEUED) throw new HttpError(503, "busy", "The sandbox is busy. Try again in a moment.");
     const image = recipeImage(body.recipe);
     if (deps.images.state(image) !== "ready") await deps.images.refresh();
     if (deps.images.state(image) !== "ready") throw imageMissing(image, deps.images.state(image));

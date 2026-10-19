@@ -33,6 +33,7 @@ const watch = {
   facts: { serverVersion: "29.7.2", apiVersion: "1.55", arch: "aarch64", memTotal: 8_318_976_000, ncpu: 14 },
   docker: {},
   ready: async () => dockerState === "ready",
+  check: async () => dockerState,
   onChange: () => () => {},
 } as unknown as DockerWatch;
 

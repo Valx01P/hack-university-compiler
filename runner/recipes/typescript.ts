@@ -4,6 +4,7 @@ import type { RunRequest, TestSpec, TypeTests } from "../schemas.ts";
 import type { TarEntry } from "../tar.ts";
 import { scanHonesty } from "./honesty.ts";
 import {
+  brokenTest,
   pistonRun,
   skippedTest,
   type Diagnostic,
@@ -235,7 +236,9 @@ export async function runTypeScript(job: Job, req: RunRequest, time: (key: "load
   } else {
     response.results = [];
     for (const [n, test] of req.tests.entries()) {
-      response.results.push(failed ? skippedTest("compile", "main.ts didn't compile, so this test didn't run.") : await runTest(job, req, code, test, n));
+      if (failed) response.results.push(skippedTest("compile", "main.ts didn't compile, so this test didn't run."));
+      else if (job.dead) response.results.push(skippedTest("deadline", "The check ran out of time before this test."));
+      else response.results.push(await runTest(job, req, code, test, n));
     }
   }
   time("runMs", Date.now() - started);
@@ -248,7 +251,7 @@ async function runTest(job: Job, req: RunRequest, code: string, test: TestSpec, 
   if (test.tryIt !== undefined) {
     if (spliceTryIt(code, test.tryIt) === null) {
       const stderr = `This check calls your code after the line ${TRY_IT_MARKER}, and that line is gone. Put it back, then check again.\n`;
-      return { ...skippedTest("compile", "The try it line is missing"), skipped: undefined, status: "XX", stderr, output: stderr };
+      return brokenTest("The try it line is missing", stderr);
     }
     workDir = `${WORK_DIR}/t${n + 1}`;
   }

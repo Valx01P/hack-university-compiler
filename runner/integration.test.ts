@@ -105,6 +105,13 @@ describe("the typescript recipe", { skip }, () => {
     assert.ok((r.timing.totalMs ?? 0) < 1500, `a 3-test check took ${r.timing.totalMs} ms`);
   });
 
+  it("says so when the try it line is gone, and still runs the other tests", async () => {
+    const r = await ts('console.log("mine");\n', { tests: [{ tryIt: "console.log(1);" }, {}] });
+    assert.equal(r.results?.[0].status, "XX");
+    assert.match(r.results?.[0].stderr ?? "", /\/\/ --- try it ---/);
+    assert.equal(r.results?.[1].stdout, "mine\n");
+  });
+
   it("skips the tests when main.ts doesn't compile", async () => {
     const r = await ts("const x: number = 'a';\n", { tests: [{}, {}] });
     assert.deepEqual(r.results?.map((t) => t.skipped), ["compile", "compile"]);

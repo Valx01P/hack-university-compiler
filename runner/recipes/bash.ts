@@ -3,7 +3,7 @@ import type { Job } from "../jobs.ts";
 import { SCRIPT_JOB } from "../profiles.ts";
 import type { FileEntry, RunRequest, TestSpec } from "../schemas.ts";
 import type { TarEntry } from "../tar.ts";
-import { pistonRun, type RunResponse, type TestResult } from "./types.ts";
+import { pistonRun, skippedTest, type RunResponse, type TestResult } from "./types.ts";
 
 /**
  * The bash recipe (architecture §4.1, outlines/bash.md §3 and §8): `bash
@@ -108,6 +108,10 @@ export async function runBash(job: Job, req: RunRequest, time: (key: "loadMs" | 
   const results: TestResult[] = [];
   const started = Date.now();
   for (const [n, test] of req.tests.entries()) {
+    if (job.dead) {
+      results.push(skippedTest("deadline", "The check ran out of time before this test."));
+      continue;
+    }
     const clock = test.clock === undefined ? req.clock : test.clock;
     const loadStarted = Date.now();
     await job.load(HOME, homeFiles(req, test.fixtures ?? req.fixtures, clock), n > 0);

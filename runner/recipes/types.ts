@@ -105,3 +105,8 @@ export function skippedTest(reason: "compile" | "deadline", message: string): Te
     skipped: reason,
   };
 }
+
+/** A test the runner couldn't run as written, with the reason on stderr. */
+export function brokenTest(message: string, stderr: string): TestResult {
+  return { ...skippedTest("compile", message), skipped: undefined, status: "XX", stderr, output: stderr };
+}
