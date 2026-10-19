@@ -105,6 +105,8 @@ export function ConfirmButton({
         title={tooltip ?? label}
         aria-haspopup="dialog"
         aria-expanded={open}
+        // Where confirming goes, so hovering here already prefetches it.
+        data-prefetch-href={href}
         aria-controls={open ? id : undefined}
         className={className}
       >

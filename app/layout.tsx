@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
+import { HoverPrefetch } from "@/components/chrome/hover-prefetch";
 import { SiteHeader } from "@/components/chrome/site-header";
 import { InlineScript } from "@/components/inline-script";
 import "./globals.css";
@@ -41,6 +42,7 @@ export default function RootLayout({
         <InlineScript html={themeBootstrap} />
       </head>
       <body className="min-h-full">
+        <HoverPrefetch />
         <a href="#main" className="skip-link">
           Skip to content
         </a>
