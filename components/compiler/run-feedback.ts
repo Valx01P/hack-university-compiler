@@ -3,11 +3,13 @@
 import { useEffect, useRef } from "react";
 import type { RunState } from "@/lib/run-code";
 
-/** How a run ended, in one line for screen readers (the output is in the panel). */
-export function runSummary(run: RunState): string {
+/** How a run ended, in one line for screen readers (the output is in the
+    panel). A `typeChecked` program (TypeScript) that fails its type check
+    has type errors, which the Type check strip lists. */
+export function runSummary(run: RunState, { typeChecked = false }: { typeChecked?: boolean } = {}): string {
   if (run.status === "error") return run.error;
   if (run.status !== "done") return "";
-  if (run.compileCode != null && run.compileCode !== 0) return "Your code didn't compile.";
+  if (run.compileCode != null && run.compileCode !== 0) return typeChecked ? "Your code has type errors." : "Your code didn't compile.";
   if (run.verdict === "TO") return "Timed out. Your code ran too long.";
   if (run.verdict === "OL" || run.verdict === "EL") return "Output limit reached.";
   if (run.signal) return `Run finished. Killed by ${run.signal}.`;
