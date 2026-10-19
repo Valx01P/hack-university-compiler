@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
 import { SAMPLE_DB_SQL } from "@/lib/sql/sample-db";
 import { cheatsheetBlocks, type CheatsheetHit } from "@/lib/reference-blocks";
+import { cheatsheetPlace, writeCompilerUrl } from "@/lib/compiler-url";
 import type { ReferenceSection } from "@/lib/reference-types";
 import { EASE, dur, gsap } from "@/lib/motion";
 
@@ -53,9 +54,11 @@ function rankedSections(sections: ReferenceSection[], hits: CheatsheetHit[]): Re
  * a jump menu. From three letters on, the search ranks the cheatsheet's
  * blocks by what you mean as well as the words you typed (/api/search, run
  * on this machine), so "list methods" finds adding, removing, and sorting.
+ * Its search and the section at the top are kept in the address while the
+ * panel is open (lib/compiler-url.ts), so a reload comes back to them.
  */
 export function CheatsheetView({ lang, sections, langLabel }: { lang: string; sections: ReferenceSection[]; langLabel: string }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => cheatsheetPlace.q);
   const scrollRef = useRef<HTMLDivElement>(null);
   const q = query.trim().toLowerCase();
   // The latest ranked results, for the query they answer (null: use text).
@@ -88,6 +91,46 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
     if (!ranked) return textMatches(sections, q);
     return ranked.hits ? rankedSections(sections, ranked.hits) : textMatches(sections, ranked.q);
   }, [sections, q, ranked]);
+
+  // Remember the search, and put it in the address while the panel is open.
+  const panelOpen = () => new URLSearchParams(window.location.search).has("panel");
+  useEffect(() => {
+    cheatsheetPlace.q = q;
+    if (q) cheatsheetPlace.at = "";
+    if (panelOpen()) writeCompilerUrl(q ? { q, at: "" } : { q: "" });
+  }, [q]);
+
+  // Back to the section you were reading (a search starts at its top).
+  useLayoutEffect(() => {
+    const box = scrollRef.current;
+    const at = cheatsheetPlace.at;
+    if (!box || !at || q) return;
+    const el = box.querySelector<HTMLElement>(`#ref-${at}`);
+    if (el) box.scrollTop = el.offsetTop - 8;
+    // Once, when the cheatsheet first shows.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // As you read, the section at the top becomes the one to come back to.
+  const scrollFrame = useRef(0);
+  function onScroll() {
+    if (scrollFrame.current) return;
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = 0;
+      const box = scrollRef.current;
+      if (!box || q) return;
+      let top = "";
+      for (const el of box.querySelectorAll<HTMLElement>("section[id^='ref-']")) {
+        if (el.offsetTop - 16 <= box.scrollTop) top = el.id.slice(4);
+        else break;
+      }
+      // At the very top, there's nothing to come back to.
+      if (box.scrollTop < 8) top = "";
+      if (top === cheatsheetPlace.at) return;
+      cheatsheetPlace.at = top;
+      if (panelOpen()) writeCompilerUrl({ at: top });
+    });
+  }
 
   function jump(id: string) {
     const el = scrollRef.current?.querySelector<HTMLElement>(`#ref-${id}`);
@@ -144,7 +187,7 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
         </select>
       </div>
 
-      <div ref={scrollRef} className="slim-scroll relative min-h-0 flex-1 overflow-y-auto px-4 pb-10 pt-2">
+      <div ref={scrollRef} onScroll={onScroll} className="slim-scroll relative min-h-0 flex-1 overflow-y-auto px-4 pb-10 pt-2">
         {shown.length === 0 ? (
           <p className="pt-6 text-sm text-ink-muted">Nothing in the {langLabel} cheatsheet matches “{query}”.</p>
         ) : (

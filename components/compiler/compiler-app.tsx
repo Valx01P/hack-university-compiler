@@ -13,6 +13,7 @@ import { ResizeHandle } from "@/components/ui/resize-handle";
 import { LangIcon } from "@/components/compiler/lang-icon";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { ReferencePanel, useReferenceData, type ReferenceTab } from "@/components/compiler/reference-panel";
+import { cheatsheetPlace, readCompilerUrl, revealWorkspace, writeCompilerUrl } from "@/lib/compiler-url";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { SqlDatabase } from "@/components/compiler/sql-database";
 import { SqlResults } from "@/components/compiler/sql-results";
@@ -33,11 +34,12 @@ import { EASE, dur, gsap } from "@/lib/motion";
 
 type Orient = "horizontal" | "vertical";
 
-// The layout is never saved, so every reload renders the default split with
-// nothing to restore and nothing to shift. It only lives for this page load,
-// which keeps it in place while you switch languages: the split, the
-// cheatsheet or challenges panel, and the challenge you're on (every
-// challenge exists in every language).
+// The split is never saved, so every reload renders the default one with
+// nothing to shift. It lives for this page load, which keeps it in place
+// while you switch languages, along with the cheatsheet or challenges panel
+// and the challenge you're on (every challenge exists in every language).
+// Those are also kept in the address (lib/compiler-url.ts), so a reload
+// opens them again.
 const sessionLayout: {
   orient: Orient;
   splitPct: number;
@@ -230,6 +232,40 @@ export function CompilerApp({
     if (open) setRefMounted(true);
     if (!open) leaveChallenge();
   }
+
+  // A reload with a place in the address opens it again: the panel, its tab,
+  // the challenge, and (for the cheatsheet) the search and section. The
+  // workspace stays hidden until it's all there, so nothing pops in.
+  const restoring = useRef(false);
+  useLayoutEffect(() => {
+    const place = readCompilerUrl();
+    if (!place.panel) return revealWorkspace();
+    cheatsheetPlace.q = place.q;
+    cheatsheetPlace.at = place.at;
+    setRefTab(place.panel);
+    if (place.panel === "challenges" && place.challenge) {
+      sessionLayout.challengeId = place.challenge;
+      setChallengeId(place.challenge);
+    }
+    setRefOpen(true);
+    restoring.current = true;
+    // Once, on load: the address is read before anything changes it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useLayoutEffect(() => {
+    if (!restoring.current || (!refData && !refError)) return;
+    restoring.current = false;
+    // Two frames on, the editor has taken a restored challenge's code.
+    requestAnimationFrame(() => requestAnimationFrame(revealWorkspace));
+  }, [refData, refError]);
+  // And the address follows along.
+  useEffect(() => {
+    writeCompilerUrl(
+      refOpen
+        ? { panel: refTab, challenge: refTab === "challenges" ? challengeId : null, q: cheatsheetPlace.q, at: cheatsheetPlace.at }
+        : { panel: null, challenge: null, q: "", at: "" }
+    );
+  }, [refOpen, refTab, challengeId]);
 
   // The panel slides in from the right when you open it, and back out before
   // the layout returns to side by side.
@@ -436,6 +472,7 @@ export function CompilerApp({
 
   return (
     <div
+      data-workspace
       className={`flex bg-canvas ${
         // In the shell the app fills the panel's content area exactly
         // (definite height on lg); on phones the panel isn't height-capped, so
