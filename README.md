@@ -424,7 +424,8 @@ lib/search/                  the cheatsheet search (served by app/api/search)
 lib/runtimes.json            language id to Piston runtime and package
 lib/piston.ts                server-side Piston client
 lib/runner.ts                server-side client for the local runner (TypeScript, Bash)
-lib/single-checks.mjs        how a run passes a test, shared with the verifiers
+lib/single-checks.mjs        how a run passes a test, type test verdicts, and honesty
+                             rules, shared with the verifiers
 docker-compose.yml           the sandbox and its limits
 scripts/setup-piston.mjs     runtime installer
 scripts/setup-search.mjs     downloads the search model into .models/
