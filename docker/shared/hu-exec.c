@@ -2,7 +2,8 @@
  * hu-exec: the process every step of a Hack University job runs through.
  *
  *   hu-exec --idle               the job container's main process: waits for good
- *   hu-exec --kill               kills every process but PID 1 and hu-exec itself
+ *   hu-exec --kill               kills every process a step started, while the
+ *                                step's own hu-exec stays to report
  *   hu-exec [-t MS] -- CMD...    runs CMD, stops it after MS milliseconds, kills
  *                                whatever it left running, then appends one
  *                                status line to stderr
@@ -55,41 +56,67 @@ static long cgroup_counter(const char *file, const char *key) {
   return found;
 }
 
-/* The command name of a process, or "" when it is gone. */
-static void comm_of(long pid, char *out, size_t size) {
-  char path[64];
-  snprintf(path, sizeof path, "/proc/%ld/comm", pid);
-  out[0] = 0;
+/* What /proc/<pid>/stat says about a process: its state, its parent, and when
+   it started (clock ticks since boot). The command name comes first, in
+   parentheses, and can hold anything, even ") Z", so the fields are read after
+   the last ')'. 0 when the process is gone. */
+static int stat_of(long pid, char *state, long *ppid, unsigned long long *start) {
+  char path[64], line[1024];
+  snprintf(path, sizeof path, "/proc/%ld/stat", pid);
   FILE *f = fopen(path, "r");
-  if (!f) return;
-  if (fgets(out, (int)size, f)) out[strcspn(out, "\n")] = 0;
+  if (!f) return 0;
+  size_t n = fread(line, 1, sizeof line - 1, f);
   fclose(f);
+  line[n] = 0;
+  char *fields = strrchr(line, ')');
+  /* Fields 3 and 4 (state, parent), then 17 more, then 22 (start time). */
+  return fields && sscanf(fields + 1,
+                          " %c %ld %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %llu",
+                          state, ppid, start) == 3;
 }
 
-/* Signals (or just counts, when sig is 0) every process except PID 1, this
-   one, and other hu-exec processes: the idle main process, and a step's own
-   hu-exec while --kill stops its command. */
-static int others(int sig) {
+/* The job's main process (hu-exec --idle, or hu-init before it): the oldest
+   child of PID 1, which is Docker's tini. A step's orphans can end up children
+   of PID 1 too, and learner code can give itself any name, but nothing it
+   starts is older. 0 when there is none. */
+static long main_pid(void) {
+  long found = 0;
+  unsigned long long oldest = 0;
+  DIR *d = opendir("/proc");
+  if (!d) return 0;
+  struct dirent *e;
+  while ((e = readdir(d))) {
+    char *end, state;
+    long pid = strtol(e->d_name, &end, 10), ppid;
+    unsigned long long start;
+    if (*end || pid <= 1 || !stat_of(pid, &state, &ppid, &start) || ppid != 1) continue;
+    if (!found || start < oldest || (start == oldest && pid < found)) {
+      found = pid;
+      oldest = start;
+    }
+  }
+  closedir(d);
+  return found;
+}
+
+/* Signals (or just counts, when sig is 0) every process a step started: all
+   but PID 1, the job's main process (keep), this one, and the runner's other
+   execs. An exec's parent is outside the container, so it shows a parent of
+   0, which no process started inside can ever have. That keeps a step's own
+   hu-exec alive while --kill stops its command. */
+static int others(int sig, long keep) {
   int n = 0;
   pid_t self = getpid();
   DIR *d = opendir("/proc");
   if (!d) return 0;
   struct dirent *e;
   while ((e = readdir(d))) {
-    char *end;
-    long pid = strtol(e->d_name, &end, 10);
-    if (*end || pid <= 1 || pid == self) continue;
-    char comm[32];
-    comm_of(pid, comm, sizeof comm);
-    if (!comm[0] || strcmp(comm, "hu-exec") == 0) continue;
+    char *end, state;
+    long pid = strtol(e->d_name, &end, 10), ppid;
+    unsigned long long start;
+    if (*end || pid <= 1 || pid == self || pid == keep) continue;
+    if (!stat_of(pid, &state, &ppid, &start) || ppid == 0) continue;
     /* A zombie is already dead, it only waits for its parent to reap it. */
-    char path[64], state = 0;
-    snprintf(path, sizeof path, "/proc/%ld/stat", pid);
-    FILE *f = fopen(path, "r");
-    if (f) {
-      if (fscanf(f, "%*d (%*[^)]) %c", &state) != 1) state = 0;
-      fclose(f);
-    }
     if (state == 'Z') continue;
     if (sig == 0 || kill((pid_t)pid, sig) == 0) n++;
   }
@@ -99,9 +126,9 @@ static int others(int sig) {
 
 /* Kills everything the step left behind and waits (at most a second) until it
    is gone, reaping the orphans this subreaper inherited. */
-static void kill_and_wait(void) {
+static void kill_and_wait(long keep) {
   long until = now_ms() + 1000;
-  while (others(SIGKILL) > 0 && now_ms() < until) {
+  while (others(SIGKILL, keep) > 0 && now_ms() < until) {
     while (waitpid(-1, NULL, WNOHANG) > 0) {
     }
     struct timespec ts = {0, 2 * 1000000L};
@@ -121,7 +148,7 @@ int main(int argc, char **argv) {
     for (;;) pause();
   }
   if (argc == 2 && strcmp(argv[1], "--kill") == 0) {
-    kill_and_wait();
+    kill_and_wait(main_pid());
     return 0;
   }
 
@@ -146,6 +173,8 @@ int main(int argc, char **argv) {
   sigaddset(&chld, SIGCHLD);
   sigprocmask(SIG_BLOCK, &chld, NULL);
 
+  /* Found before the step starts anything. */
+  long keep = main_pid();
   long oom_before = cgroup_counter("/sys/fs/cgroup/memory.events", "oom_kill");
   long pids_before = cgroup_counter("/sys/fs/cgroup/pids.events", "max");
   long start = now_ms();
@@ -189,7 +218,7 @@ int main(int argc, char **argv) {
   long ms = now_ms() - start;
 
   kill(-child, SIGKILL);
-  kill_and_wait();
+  kill_and_wait(keep);
 
   long oom = cgroup_counter("/sys/fs/cgroup/memory.events", "oom_kill") - oom_before;
   long pids = cgroup_counter("/sys/fs/cgroup/pids.events", "max") - pids_before;

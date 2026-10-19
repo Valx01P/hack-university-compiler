@@ -234,6 +234,28 @@ describe("the bash recipe", { skip }, () => {
     assert.equal(r.results?.[1].exists["late.txt"], false);
   });
 
+  it("stops a background process whatever it calls itself, even hu-exec", async () => {
+    // Each loop is a script whose file name becomes its process name, in a
+    // session of its own, out of reach of the step's process group. Test 1
+    // starts them, and test 2 looks for their heartbeats after the reset.
+    const loop = (name: string, beat: string) =>
+      `printf '#!/bin/sh\\nwhile :; do echo x >> ${beat}; sleep 0.05; done\\n' > '${name}'; chmod +x '${name}'; setsid './${name}' &`;
+    const r = await sh(
+      [
+        'if [ -n "$1" ]; then',
+        `  ${loop("hu-exec", "/tmp/hu-exec.beat")}`,
+        `  ${loop("x) Z", "/tmp/z.beat")}`,
+        "  sleep 0.2; ls /tmp",
+        "else",
+        "  sleep 0.5; ls /tmp | wc -l",
+        "fi",
+      ].join("\n"),
+      { tests: [{ args: ["start"] }, {}] }
+    );
+    assert.equal(r.results?.[0].stdout, "hu-exec.beat\nz.beat\n");
+    assert.equal(r.results?.[1].stdout, "0\n");
+  });
+
   it("starts every test fresh: nothing in /tmp, /dev/shm, or home from the test before", async () => {
     const r = await sh(
       [
