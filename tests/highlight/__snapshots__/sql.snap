@@ -1,0 +1,39 @@
+# tokenize(sample, "sql")
+# «k|…» keyword, «s|…» string, «e|…» escape, «n|…» number, «c|…» comment, «f|…» fn, «d|…» directive, anything else plain
+«d|-- +goose Up»
+«d|-- +goose StatementBegin»
+«k|CREATE» «k|TABLE» «f|tasks» (
+    id «k|integer» GENERATED ALWAYS «k|AS» IDENTITY «k|PRIMARY» «k|KEY»,
+    title «k|text» «k|NOT» «k|NULL»,
+    done «k|boolean» «k|DEFAULT» «k|false»
+);
+«d|-- +goose StatementEnd»
+
+«d|-- name: GetTask :one»
+«k|SELECT» id, title «k|FROM» tasks «k|WHERE» id = $«n|1»;
+
+«c|/* A block comment
+   over two lines */»
+«k|INSERT» «k|INTO» «f|tasks» (title) «k|VALUES» («s|'Don»«e|''»«s|t forget'»), («s|'it»«e|''»«s|s fine'»);
+«k|select» «f|count»(*) «k|as» n, «f|upper»(title) «k|from» tasks «k|group» «k|by» title «k|having» «f|count»(*) > «n|1»;
+«k|UPDATE» tasks «k|SET» done = «k|TRUE» «k|WHERE» id «k|IN» («n|1», «n|2», «n|3.5»); «c|-- TODO: mark all done»
+«k|WITH» «k|RECURSIVE» «f|t»(n) «k|AS» («k|SELECT» «n|1» «k|UNION» «k|ALL» «k|SELECT» n + «n|1» «k|FROM» t «k|WHERE» n < «n|5») «k|SELECT» * «k|FROM» t;
+
+# stripComments(sample, "sql")
+-- +goose Up
+-- +goose StatementBegin
+CREATE TABLE tasks (
+    id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    title text NOT NULL,
+    done boolean DEFAULT false
+);
+-- +goose StatementEnd
+
+-- name: GetTask :one
+SELECT id, title FROM tasks WHERE id = $1;
+
+INSERT INTO tasks (title) VALUES ('Don''t forget'), ('it''s fine');
+select count(*) as n, upper(title) from tasks group by title having count(*) > 1;
+UPDATE tasks SET done = TRUE WHERE id IN (1, 2, 3.5); -- TODO: mark all done
+WITH RECURSIVE t(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM t WHERE n < 5) SELECT * FROM t;
+

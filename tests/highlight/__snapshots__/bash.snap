@@ -1,0 +1,141 @@
+# tokenize(sample, "bash")
+# «k|…» keyword, «s|…» string, «e|…» escape, «n|…» number, «c|…» comment, «f|…» fn, «d|…» directive, anything else plain
+«d|#!/usr/bin/env bash»
+«c|# A sample for the tokenizer snapshots: the rules the Bash course needs.»
+«d|# shellcheck disable=SC2034»
+«k|set» -euo pipefail
+
+name=«s|"World"»
+greeting=«s|'single #quoted'»
+count=${#name}
+first=${name:0:1}
+path=/srv/app/releases/v1.2.3
+base=${path##*/}
+dir=${path%/*}
+ext=${file#*.}
+args=$#
+«k|echo» «s|"Hello, $name! You have $# args and ${#greeting} chars."»
+«k|echo» «s|'It'»\'«s|'s a #hash'» «s|$'tab»«e|\t»«s|here»«e|\n»«s|newline »«e|\x41»«s| »«e|\u00e9»«s| »«e|\e»«s|[0m \q'» «s|$"locale"»
+«k|echo» «s|"escapes: »«e|\$»«s|HOME »«e|\`»«s|cmd»«e|\`»«s| »«e|\"»«s|quoted»«e|\"»«s| »«e|\\»«s| and \n stays"» «c|# a real comment»
+«k|echo» a#b c#d url=https://example.com/#section «c|#comment after url»
+«k|echo» \#escaped not-a-comment
+arr=(one two «s|"three four"») «c|# an array»
+«k|echo» «s|"${arr[@]}"» «s|"${#arr[@]}"» «s|"$((1 + 2))"» «s|"$(date +%F)"»
+total=$(( count * «n|16#ff» + «n|0x10» ))
+(( i = «n|2#101» ))
+«k|for» ((i = «n|0»; i < «n|3»; i++)); «k|do»
+  «k|echo» «s|"$i"»
+«k|done»
+«k|for» f «k|in» *.txt; «k|do»
+  [[ -f «s|"$f"» ]] && wc -l «s|"$f"» «c|# count lines»
+«k|done»
+«k|while» «k|read» -r line; «k|do» «k|echo» «s|"$line"»; «k|done» < input.txt
+«k|case» «s|"$1"» «k|in»
+  start|run) «k|echo» «s|"starting"»;;
+  stop) «k|echo» «s|"stopping"» ;;
+  *) «k|echo» «s|"usage: $0 {start|stop}"» >&«n|2»; «k|exit» «n|1» ;;
+«k|esac»
+«f|greet»() {
+  «k|local» who=«s|"${1:-friend}"»
+  «k|printf» «s|'Hello, %s\n'» «s|"$who"»
+  «k|return» «n|0»
+}
+«k|function» «f|cleanup» {
+  rm -f «s|"$tmp"» «n|2»>/dev/null || «k|true»
+}
+«k|trap» cleanup EXIT
+tmp=$(mktemp)
+result=«s|"$(basename "$path")"»
+nested=«s|"$(echo "inner $(echo deep)")"»
+files=$(
+  «c|# every log, even the hidden ones»
+  find . -name «s|'*.log'»
+)
+cat <<«s|EOF»
+«s|# not a comment: part of the heredoc
+Home is $HOME and »«e|\$»«s|HOME, cost »«e|\`»«s|$5»«e|\`»«s|
+EOF»
+cat <<-«s|'RAW'»
+«s|	$HOME stays \n raw
+»	«s|RAW»
+cat <<< «s|"here string"» «c|# comment»
+npm test && docker exec app ls
+docker run --rm \
+  -p 8080:80 \
+  «c|# -v data:/data \»
+  nginx
+«k|echo» done in time «c|# keywords as arguments»
+«k|if» [ «s|"$count"» -gt «n|3» ]; «k|then» «k|echo» big; «k|elif» [ «s|"$count"» -eq «n|0» ]; «k|then» «k|echo» none; «k|else» «k|echo» small; «k|fi»
+«c|# TODO: print the totals»
+«c|#       one per line»
+«k|exit» «n|0»
+
+# stripComments(sample, "bash")
+#!/usr/bin/env bash
+# shellcheck disable=SC2034
+set -euo pipefail
+
+name="World"
+greeting='single #quoted'
+count=${#name}
+first=${name:0:1}
+path=/srv/app/releases/v1.2.3
+base=${path##*/}
+dir=${path%/*}
+ext=${file#*.}
+args=$#
+echo "Hello, $name! You have $# args and ${#greeting} chars."
+echo 'It'\''s a #hash' $'tab\there\nnewline \x41 \u00e9 \e[0m \q' $"locale"
+echo "escapes: \$HOME \`cmd\` \"quoted\" \\ and \n stays"
+echo a#b c#d url=https://example.com/#section
+echo \#escaped not-a-comment
+arr=(one two "three four")
+echo "${arr[@]}" "${#arr[@]}" "$((1 + 2))" "$(date +%F)"
+total=$(( count * 16#ff + 0x10 ))
+(( i = 2#101 ))
+for ((i = 0; i < 3; i++)); do
+  echo "$i"
+done
+for f in *.txt; do
+  [[ -f "$f" ]] && wc -l "$f"
+done
+while read -r line; do echo "$line"; done < input.txt
+case "$1" in
+  start|run) echo "starting";;
+  stop) echo "stopping" ;;
+  *) echo "usage: $0 {start|stop}" >&2; exit 1 ;;
+esac
+greet() {
+  local who="${1:-friend}"
+  printf 'Hello, %s\n' "$who"
+  return 0
+}
+function cleanup {
+  rm -f "$tmp" 2>/dev/null || true
+}
+trap cleanup EXIT
+tmp=$(mktemp)
+result="$(basename "$path")"
+nested="$(echo "inner $(echo deep)")"
+files=$(
+  find . -name '*.log'
+)
+cat <<EOF
+# not a comment: part of the heredoc
+Home is $HOME and \$HOME, cost \`$5\`
+EOF
+cat <<-'RAW'
+	$HOME stays \n raw
+	RAW
+cat <<< "here string"
+npm test && docker exec app ls
+docker run --rm \
+  -p 8080:80 \
+
+  nginx
+echo done in time
+if [ "$count" -gt 3 ]; then echo big; elif [ "$count" -eq 0 ]; then echo none; else echo small; fi
+# TODO: print the totals
+#       one per line
+exit 0
+

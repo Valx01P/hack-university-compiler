@@ -1,0 +1,195 @@
+// The tokenizer's rules, one case at a time (the snapshots show whole
+// samples): what Bash calls a comment, directives and TODO lines that never
+// hide, escapes and raw strings, decorators, and TypeScript through Lezer.
+// The Bash comment cases were checked against bash 5.3 itself, whose
+// `declare -f` prints a function without its comments.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { bashTokens } from "../../lib/bash-tokens.mjs";
+import { languageId, stripComments, tokenize } from "../../lib/tokenize.mjs";
+
+/** The texts of the tokens of one type. */
+const of = (type, code, language) => tokenize(code, language).filter((t) => t.type === type).map((t) => t.text);
+
+test("bash: a # starts a comment only at the start of a word", () => {
+  const cases = [
+    ["echo a#b c#d # note", ["# note"]],
+    ["echo ${#name} $# ${path#*/} ${path##*/} # note", ["# note"]],
+    ["echo '#' \"#\" $'#' \\#x # note", ["# note"]],
+    ["echo https://example.com/#top # note", ["# note"]],
+    ["echo $(( 16#ff )) $((2#101)) # note", ["# note"]],
+    ["(( mask = 16#f0 )) # note", ["# note"]],
+    ["echo {#,a} a=#b # note", ["# note"]],
+    ["echo x;# note", ["# note"]],
+    ["echo x|# note\ncat", ["# note"]],
+    ["echo x &# note", ["# note"]],
+    ["arr=(a b # note\n  c)", ["# note"]],
+    ["x=$(echo hi # note\n)", ["# note"]],
+    ["x=\"$(echo hi # note\n)\"", ["# note"]],
+    ["echo a\\\n#b # note", ["# note"]],
+    ["echo `echo # in backquotes` # note", ["# note"]],
+    ["echo $(case a in a) echo ok;; esac) # note", ["# note"]],
+    ["x='a\n# still the string' # note", ["# note"]],
+  ];
+  for (const [code, comments] of cases) assert.deepEqual(of("comment", code, "bash"), comments, code);
+});
+
+test("bash: a comment line after a line continuation leaves its line", () => {
+  // The `\` joins the comment to the command above, and the comment ends
+  // it: an empty line in its place ends it the same way (each pair prints
+  // the same in bash).
+  const cases = [
+    ["echo a \\\n# a note\necho b", "echo a \\\n\necho b"],
+    ["x=1 \\\n# a note\ny=2", "x=1 \\\n\ny=2"],
+    ["docker run \\\n  -p 8080:80 \\\n  # -v data:/data \\\n  nginx", "docker run \\\n  -p 8080:80 \\\n\n  nginx"],
+    // An escaped backslash continues nothing, and after a pipe the next
+    // line is the command's anyway.
+    ["echo a\\\\\n# a note\necho b", "echo a\\\\\necho b"],
+    ["echo a |\n# a note\ncat", "echo a |\ncat"],
+  ];
+  for (const [code, stripped] of cases) assert.equal(stripComments(code, "bash"), stripped, code);
+});
+
+test("bash: heredoc bodies are data", () => {
+  const code = "cat <<EOF # note\n# not a comment\nEOF\necho done";
+  assert.deepEqual(of("comment", code, "bash"), ["# note"]);
+  assert.equal(stripComments(code, "bash"), "cat <<EOF\n# not a comment\nEOF\necho done");
+  // <<- strips tabs, so its closing word may be indented with them.
+  assert.deepEqual(of("comment", "cat <<-END\n\t# data\n\tEND\n# note", "bash"), ["# note"]);
+  // Two heredocs on one line, read in order.
+  assert.deepEqual(of("comment", "paste <<A <<B\n# a\nA\n# b\nB\n# note", "bash"), ["# note"]);
+});
+
+test("bash: escapes follow its quoting", () => {
+  assert.deepEqual(of("escape", "echo 'a\\nb\\$'", "bash"), []);
+  assert.deepEqual(of("escape", 'echo "\\$x \\` \\" \\\\ \\n \\t"', "bash"), ["\\$", "\\`", '\\"', "\\\\"]);
+  assert.deepEqual(of("escape", 'echo "a\\\nb"', "bash"), ["\\\n"]);
+  assert.deepEqual(of("escape", "echo $'\\t\\n\\x41\\u00e9\\101\\e\\cA\\q'", "bash"), ["\\t", "\\n", "\\x41", "\\u00e9", "\\101", "\\e", "\\cA"]);
+  assert.deepEqual(of("escape", "cat <<EOF\n\\$HOME \\` \\\\ \\n\nEOF", "bash"), ["\\$", "\\`", "\\\\"]);
+  assert.deepEqual(of("escape", "cat <<'EOF'\n\\$HOME \\\\\nEOF", "bash"), []);
+});
+
+test("bash: keywords where a command starts, functions, numbers", () => {
+  const code = "if true; then echo done in time; fi\nfor f in a b; do npm test; done\ngreet() { return 0; }\nfunction bye { exit 1; }";
+  assert.deepEqual(of("keyword", code, "bash"), ["if", "true", "then", "echo", "fi", "for", "in", "do", "done", "return", "function", "exit"]);
+  assert.deepEqual(of("fn", code, "bash"), ["greet", "bye"]);
+  assert.deepEqual(of("number", code, "bash"), ["0", "1"]);
+  assert.deepEqual(of("number", "x=v1.2.3 2>&1 sleep 0.5", "bash"), ["2", "1", "0.5"]);
+});
+
+test("bash: the scanner reports the ) that ends a case pattern", () => {
+  // The editor's bracket colors leave these alone: they have no partner.
+  const code = 'case $1 in\n  a|b) echo ab ;;\n  (c) echo c ;;\nesac\nx=$(case $2 in y) echo "(y)" ;; esac)';
+  const patterns = [];
+  bashTokens(code, patterns);
+  assert.deepEqual(patterns.map((p) => code.slice(p - 1, p + 1)), ["b)", "y)"]);
+});
+
+test("directives get their own type and never hide", () => {
+  const cases = [
+    ["bash", "#!/usr/bin/env bash\n# shellcheck disable=SC2086\n# a note\necho $x", ["#!/usr/bin/env bash", "# shellcheck disable=SC2086"]],
+    ["python", "#!/usr/bin/env python3\nimport os  # noqa: F401\nx = []  # type: list[int]\n# a note", ["#!/usr/bin/env python3", "# noqa: F401", "# type: list[int]"]],
+    ["go", "// Code generated by sqlc. DO NOT EDIT.\n//go:build linux\n//go:embed static/*\n//go:generate stringer -type=T\nx := 1 //nolint:errcheck\n// a note", ["// Code generated by sqlc. DO NOT EDIT.", "//go:build linux", "//go:embed static/*", "//go:generate stringer -type=T", "//nolint:errcheck"]],
+    ["go", "func ExampleSum() {\n\tfmt.Println(1)\n\t// Output:\n\t// 1\n}\n// a note", ["// Output:", "// 1"]],
+    ["sql", "-- +goose Up\n-- name: GetTask :one\nSELECT 1; -- a note", ["-- +goose Up", "-- name: GetTask :one"]],
+    ["typescript", '#!/usr/bin/env node\n/// <reference types="node" />\n// @ts-expect-error wrong on purpose\nf(1); // eslint-disable-line\n/* @ts-ignore */ g();\n// a note', ["#!/usr/bin/env node", '/// <reference types="node" />', "// @ts-expect-error wrong on purpose", "// eslint-disable-line", "/* @ts-ignore */"]],
+    ["javascript", "#!/usr/bin/env node\n// @ts-check\n/* eslint-disable no-console */\n// a note\nlog();", ["#!/usr/bin/env node", "// @ts-check", "/* eslint-disable no-console */"]],
+  ];
+  for (const [language, code, directives] of cases) {
+    assert.deepEqual(of("directive", code, language), directives, language);
+    const stripped = stripComments(code, language);
+    for (const d of directives) assert.ok(stripped.includes(d), `${language}: ${d} stays`);
+    assert.ok(!stripped.includes("a note"), `${language}: the plain comment hides`);
+  }
+  // A shebang only counts on the first line, and `// Output:` only on its own.
+  assert.deepEqual(of("directive", "# a note\n#!/bin/sh", "bash"), []);
+  assert.deepEqual(of("directive", "fmt.Println(1) // Output: 1", "go"), []);
+});
+
+test("TODO lines never hide, with the comment lines under them", () => {
+  const python = "def f():\n    # TODO: read n, then print\n    #       the sum of 1 to n\n    pass  # TODO: finish\n# a note\nf()";
+  assert.equal(stripComments(python, "python"), "def f():\n    # TODO: read n, then print\n    #       the sum of 1 to n\n    pass  # TODO: finish\nf()");
+  // A comment under a trailing TODO, at another column, isn't part of it.
+  assert.equal(stripComments("x = 1  # TODO: change\n# a note\ny = 2", "python"), "x = 1  # TODO: change\ny = 2");
+  // A blank line ends the instructions.
+  assert.equal(stripComments("// TODO: do it\n\n// a note\nrun();", "javascript"), "// TODO: do it\n\nrun();");
+  assert.equal(stripComments("-- TODO: select the names\nSELECT 1;", "sql"), "-- TODO: select the names\nSELECT 1;");
+  assert.equal(stripComments("# TODO: print it\necho hi # a note", "bash"), "# TODO: print it\necho hi");
+  // A starter of nothing but comments keeps them all, not just its TODOs.
+  const starter = "-- The tasks table: id, title, next_id\n\n-- TODO: select the first task\n";
+  assert.equal(stripComments(starter, "sql"), starter);
+  assert.equal(stripComments("// Course card\n// TODO: print it\n", "javascript"), "// Course card\n// TODO: print it\n");
+});
+
+test("JSDoc types stay in JavaScript, where TypeScript reads them", () => {
+  const code = "/**\n * @param {number} a\n * @returns {number}\n */\nfunction twice(a) {\n  return a * 2; // double it\n}";
+  assert.equal(stripComments(code, "javascript"), code.replace(" // double it", ""));
+  // Prose JSDoc hides, and in TypeScript the types are in the code.
+  assert.equal(stripComments("/** Doubles a number. */\nconst twice = (a) => a * 2;", "javascript"), "const twice = (a) => a * 2;");
+  assert.equal(stripComments("/** @param a a number */\nconst twice = (a: number) => a * 2;", "typescript"), "const twice = (a: number) => a * 2;");
+});
+
+test("decorators and annotations are calls", () => {
+  const python = "@dataclass(frozen=True)\nclass P:\n    @property\n    def n(self):\n        return a @ b\n    @functools.lru_cache(maxsize=None)\n    def m(self): pass";
+  assert.deepEqual(of("fn", python, "python"), ["@dataclass", "@property", "n", "@functools.lru_cache", "m"]);
+  const java = "@Override\npublic @interface Marker {}\n@SuppressWarnings(\"unchecked\") void f() {}";
+  assert.deepEqual(of("fn", java, "java"), ["@Override", "@SuppressWarnings", "f"]);
+  assert.ok(of("keyword", java, "java").includes("interface"));
+  assert.deepEqual(of("fn", '@Component({ a: 1 })\nclass A { @Input() x = ""; @HostListener.bind("click") onClick() {} }', "typescript"), ["@Component", "@Input", "@HostListener.bind", "onClick"]);
+});
+
+test("typescript: escapes, raw strings, and template literals", () => {
+  assert.deepEqual(of("escape", 'const s = "a\\tb\\u00e9\\x41\\u{1F600}";', "typescript"), ["\\t", "\\u00e9", "\\x41", "\\u{1F600}"]);
+  assert.deepEqual(of("escape", "const s = `a\\n${b}\\t`;", "typescript"), ["\\n", "\\t"]);
+  assert.deepEqual(of("escape", "const s = String.raw`C:\\new ${b}`;", "typescript"), []);
+  // `${` and `}` take the keyword color, and what's inside is code.
+  const tokens = tokenize("`total: ${count + 1}`", "typescript");
+  assert.deepEqual(tokens.map((t) => [t.type, t.text]), [["string", "`total: "], ["keyword", "${"], [null, "count + "], ["number", "1"], ["keyword", "}"], ["string", "`"]]);
+  // A template literal type is a string too.
+  assert.deepEqual(of("string", "type Path = `/${string}`;", "typescript"), ["`/", "`"]);
+});
+
+test("typescript: names, types, and calls", () => {
+  const code = "const m = new Map<string, number>(); const v = useState<boolean>(false); let u: unknown = undefined; type T = Record<string, never>;";
+  assert.deepEqual(of("fn", code, "typescript"), ["Map", "useState"]);
+  assert.deepEqual(of("keyword", code, "typescript"), ["const", "new", "string", "number", "const", "boolean", "false", "let", "unknown", "undefined", "type", "string", "never"]);
+  // A method's name is fn, like a call, in classes, interfaces, and objects.
+  assert.deepEqual(of("fn", "class A { greet<T>(x: T) {} } interface B { run(): void } const o = { show() {} };", "typescript"), ["greet", "run", "show"]);
+});
+
+test("typescript: defaults in destructuring, and the code after them", () => {
+  // @lezer/javascript 1.5.5 read `{ a = 1 }` as errors.
+  const code = 'function connect({ host = "localhost", port = 5432 }: Options = {}) {}\nfor (const { id, name = "?" } of users) show(id);';
+  assert.deepEqual(of("keyword", code, "typescript"), ["function", "for", "const", "of"]);
+  assert.deepEqual(of("fn", code, "typescript"), ["connect", "show"]);
+  assert.deepEqual(of("keyword", "function Card({ title, compact = false }: Props) {\n  return <p>{title}</p>;\n}", "tsx"), ["function", "false", "return", "p", "p"]);
+});
+
+test("typescript: calls and function names in code over 1024 characters", () => {
+  // The parser stores a node that long apart from its neighbors, and
+  // highlightTree's cursor then took a neighbor for a name's parent: this
+  // function's name came out plain, and `value`, after the long call, a call.
+  const fn = `function moveSelection(by) {\n  return "${"x".repeat(982)}";\n}`;
+  assert.equal(fn.length, 1025);
+  assert.deepEqual(of("fn", fn, "typescript"), ["moveSelection"]);
+  assert.deepEqual(of("fn", `show(make("${"x".repeat(1100)}"), value);`, "typescript"), ["show", "make"]);
+});
+
+test("tsx: tags, attributes, and {/* comments */} that hide with their braces", () => {
+  const code = 'const el = (\n  <div className="box">\n    {/* the label */}\n    <p>it\'s {n}</p>\n  </div>\n);';
+  assert.deepEqual(of("keyword", code, "tsx"), ["const", "div", "p", "p", "div"]);
+  assert.deepEqual(of("fn", code, "tsx"), ["className"]);
+  assert.deepEqual(of("string", code, "tsx"), ['"box"']);
+  assert.deepEqual(of("comment", code, "tsx"), ["{/* the label */}"]);
+  assert.equal(stripComments(code, "tsx"), 'const el = (\n  <div className="box">\n    <p>it\'s {n}</p>\n  </div>\n);');
+});
+
+test("languages have their usual names", () => {
+  assert.equal(languageId("ts"), "typescript");
+  assert.equal(languageId("mts"), "typescript");
+  assert.equal(languageId("sh"), "bash");
+  assert.equal(languageId("zsh"), "bash");
+  assert.equal(languageId("tsx"), "tsx");
+  assert.deepEqual(tokenize("let x = 1", "ts"), tokenize("let x = 1", "typescript"));
+  assert.deepEqual(tokenize("echo hi # x", "sh"), tokenize("echo hi # x", "bash"));
+});
