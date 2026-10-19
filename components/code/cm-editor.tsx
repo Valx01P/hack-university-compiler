@@ -21,6 +21,7 @@ import {
   codeFolding,
   foldGutter,
   foldKeymap,
+  StreamLanguage,
 } from "@codemirror/language";
 import { autocompletion, closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { indentationMarkers } from "@replit/codemirror-indentation-markers";
@@ -30,18 +31,34 @@ import { cpp } from "@codemirror/lang-cpp";
 import { java } from "@codemirror/lang-java";
 import { go } from "@codemirror/lang-go";
 import { PostgreSQL, sql } from "@codemirror/lang-sql";
+import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { useCodeEditorSettings } from "@/components/code/editor-settings";
 import { completionSources, SQL_SCHEMA } from "@/lib/code-editor-completions";
 import { bracketColors } from "@/lib/bracket-colors";
 import { tokenHighlight } from "@/lib/token-highlight";
+import { languageId } from "@/lib/tokenize.mjs";
 
-/** Language id → CodeMirror language extension. */
+// Bash through CodeMirror's shell mode: brackets, quotes, and `#` for the
+// comment toggle (colors come from the tokenizer, like every language).
+const bash = StreamLanguage.define(shell);
+
+/** Language id → CodeMirror language extension (its comment syntax drives
+    the comment toggle, Mod-/). */
 function langExt(language: string) {
-  switch (language) {
+  switch (languageId(language)) {
     case "python":
       return python();
     case "javascript":
       return javascript();
+    case "typescript":
+      return javascript({ typescript: true });
+    case "tsx":
+      // JSX comments toggle as {/* */}.
+      return javascript({ typescript: true, jsx: true });
+    case "jsx":
+      return javascript({ jsx: true });
+    case "bash":
+      return bash;
     case "cpp":
       return cpp();
     case "java":
@@ -248,7 +265,7 @@ export function CmEditor({
       ? [snippetTheme]
       : [
           lineNumbers(),
-          bracketColors(),
+          bracketColors(language),
           search({ top: true }),
           indentationMarkers({
             markerType: "codeOnly",

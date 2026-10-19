@@ -1,6 +1,8 @@
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
+import { bashTokens } from "@/lib/bash-tokens.mjs";
+import { languageId } from "@/lib/tokenize.mjs";
 
 /**
  * Bracket pair colors: every ( [ { and its partner get a color by how deeply
@@ -18,10 +20,27 @@ const unmatched = Decoration.mark({ class: "cm-bracket-unmatched" });
 // Syntax nodes whose brackets are just text.
 const TEXTUAL = /String|Comment|Char|Rune|RegExp|Regex|Template|Escape|QuotedIdentifier/;
 
-function decorations(view: EditorView): DecorationSet {
+/** Bash's shell mode only guesses at its syntax (it reads `2#101` as a
+    comment), so Bash's brackets go by the tokenizer that colors it: the
+    offsets of brackets that are text, in strings, comments, and heredocs, or
+    the `)` that ends a case pattern, which has no partner and needs none. */
+function bashText(text: string): Set<number> {
+  const skip = new Set<number>();
+  const patterns: number[] = [];
+  let pos = 0;
+  for (const t of bashTokens(text, patterns)) {
+    if (t.type) for (let i = 0; i < t.text.length; i++) if ("()[]{}".includes(t.text[i])) skip.add(pos + i);
+    pos += t.text.length;
+  }
+  patterns.forEach((p) => skip.add(p));
+  return skip;
+}
+
+function decorations(view: EditorView, bash: boolean): DecorationSet {
   const { state } = view;
   const tree = syntaxTree(state);
   const text = state.doc.toString();
+  const skip = bash ? bashText(text) : null;
   // Depth has to be counted from the top of the document, so a block that
   // scrolls into view keeps its real depth. Programs here are small.
   const end = view.visibleRanges.length ? view.visibleRanges[view.visibleRanges.length - 1].to : text.length;
@@ -33,7 +52,7 @@ function decorations(view: EditorView): DecorationSet {
     const opens = OPEN.indexOf(ch);
     const closes = CLOSE.indexOf(ch);
     if (opens < 0 && closes < 0) continue;
-    if (TEXTUAL.test(tree.resolveInner(pos, 1).name)) continue;
+    if (skip ? skip.has(pos) : TEXTUAL.test(tree.resolveInner(pos, 1).name)) continue;
     let mark: Decoration | null = null;
     if (opens >= 0) {
       mark = level[stack.length % LEVELS];
@@ -49,20 +68,21 @@ function decorations(view: EditorView): DecorationSet {
   return builder.finish();
 }
 
-const plugin = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-    constructor(view: EditorView) {
-      this.decorations = decorations(view);
-    }
-    update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) {
-        this.decorations = decorations(update.view);
+const plugin = (bash: boolean) =>
+  ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+      constructor(view: EditorView) {
+        this.decorations = decorations(view, bash);
       }
-    }
-  },
-  { decorations: (v) => v.decorations }
-);
+      update(update: ViewUpdate) {
+        if (update.docChanged || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) {
+          this.decorations = decorations(update.view, bash);
+        }
+      }
+    },
+    { decorations: (v) => v.decorations }
+  );
 
 /** Colors follow the code theme: they reuse its number, keyword, and
     function colors, so they keep its contrast at every level. */
@@ -73,4 +93,4 @@ const theme = EditorView.baseTheme({
   ".cm-bracket-unmatched": { color: "var(--danger)", textDecoration: "underline wavy var(--danger)" },
 });
 
-export const bracketColors = (): Extension => [plugin, theme];
+export const bracketColors = (language: string): Extension => [plugin(languageId(language) === "bash"), theme];

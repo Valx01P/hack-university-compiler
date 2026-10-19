@@ -5,6 +5,7 @@
 // `declare -f` prints a function without its comments.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { bashTokens } from "../../lib/bash-tokens.mjs";
 import { languageId, stripComments, tokenize } from "../../lib/tokenize.mjs";
 
 /** The texts of the tokens of one type. */
@@ -58,6 +59,14 @@ test("bash: keywords where a command starts, functions, numbers", () => {
   assert.deepEqual(of("fn", code, "bash"), ["greet", "bye"]);
   assert.deepEqual(of("number", code, "bash"), ["0", "1"]);
   assert.deepEqual(of("number", "x=v1.2.3 2>&1 sleep 0.5", "bash"), ["2", "1", "0.5"]);
+});
+
+test("bash: the scanner reports the ) that ends a case pattern", () => {
+  // The editor's bracket colors leave these alone: they have no partner.
+  const code = 'case $1 in\n  a|b) echo ab ;;\n  (c) echo c ;;\nesac\nx=$(case $2 in y) echo "(y)" ;; esac)';
+  const patterns = [];
+  bashTokens(code, patterns);
+  assert.deepEqual(patterns.map((p) => code.slice(p - 1, p + 1)), ["b)", "y)"]);
 });
 
 test("directives get their own type and never hide", () => {

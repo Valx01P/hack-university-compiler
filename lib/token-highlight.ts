@@ -5,11 +5,11 @@ import { tokenize } from "@/lib/highlight";
 /**
  * Syntax colors for the code editors, from the same tokenizer as the static
  * code blocks in lessons and cheatsheets (lib/highlight.tsx): keywords,
- * strings, numbers, comments, and calls get the same `tok-*` classes, so code
- * reads the same everywhere, and an example you click into to edit keeps its
- * colors. The whole document is tokenized on each change (a block comment
- * can start above the view, and programs here are small), and only what's
- * on screen is marked.
+ * strings and their escapes, numbers, comments, directives, and calls get the
+ * same `tok-*` classes, so code reads the same everywhere, and an example you
+ * click into to edit keeps its colors. The whole document is tokenized on
+ * each change (a block comment can start above the view, and programs here
+ * are small), and only what's on screen is marked.
  */
 
 const marks: Record<string, Decoration> = {};
