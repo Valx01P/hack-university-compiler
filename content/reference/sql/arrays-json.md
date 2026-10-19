@@ -17,6 +17,20 @@ INSERT INTO posts (title, tags, meta) VALUES
 
 ### Arrays: create and access
 
+```sql harness
+CREATE TABLE posts (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    title text NOT NULL,
+    tags  text[] NOT NULL DEFAULT '{}',
+    meta  jsonb NOT NULL DEFAULT '{}'
+);
+INSERT INTO posts (title, tags, meta) VALUES
+    ('Intro', ARRAY['sql', 'basics'], '{"author": "Ana", "views": 120, "draft": false}'),
+    ('Joins', '{sql,joins}', '{"author": "Bo", "views": 45, "links": ["a", "b"]}'),
+    ('Notes', '{}', '{"author": "Ana", "views": 3, "draft": true}');
+{{code}}
+```
+
 ```sql
 SELECT ARRAY[10, 20, 30] AS a,         -- {10,20,30}
        '{x,y}'::text[] AS b,           -- {x,y}
@@ -32,6 +46,21 @@ FROM posts ORDER BY id;
 ```
 
 ### Arrays: search and change
+
+```sql harness
+CREATE TABLE posts (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    title text NOT NULL,
+    tags  text[] NOT NULL DEFAULT '{}',
+    meta  jsonb NOT NULL DEFAULT '{}'
+);
+INSERT INTO posts (title, tags, meta) VALUES
+    ('Intro', ARRAY['sql', 'basics'], '{"author": "Ana", "views": 120, "draft": false}'),
+    ('Joins', '{sql,joins}', '{"author": "Bo", "views": 45, "links": ["a", "b"]}'),
+    ('Notes', '{}', '{"author": "Ana", "views": 3, "draft": true}');
+{{code}}
+SELECT title, tags FROM posts ORDER BY id;
+```
 
 ```sql
 SELECT title FROM posts WHERE 'joins' = ANY (tags);             -- Joins
@@ -53,6 +82,22 @@ UPDATE posts SET tags = array_remove(tags, 'basics') WHERE title = 'Intro';
 | `array_to_string(a, ', ')`, `string_to_array(s, ',')` | to and from text |
 
 ### unnest and array_agg: rows to arrays and back
+
+```sql harness
+CREATE TABLE posts (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    title text NOT NULL,
+    tags  text[] NOT NULL DEFAULT '{}',
+    meta  jsonb NOT NULL DEFAULT '{}'
+);
+INSERT INTO posts (title, tags, meta) VALUES
+    ('Intro', ARRAY['sql', 'basics'], '{"author": "Ana", "views": 120, "draft": false}'),
+    ('Joins', '{sql,joins}', '{"author": "Bo", "views": 45, "links": ["a", "b"]}'),
+    ('Notes', '{}', '{"author": "Ana", "views": 3, "draft": true}');
+UPDATE posts SET tags = array_append(tags, 'draft') WHERE title = 'Notes';
+UPDATE posts SET tags = array_remove(tags, 'basics') WHERE title = 'Intro';
+{{code}}
+```
 
 ```sql
 SELECT tag, count(*) AS posts               -- one row per tag, use it like a loop
@@ -77,6 +122,20 @@ ORDER BY author;
 
 ### JSONB: read
 
+```sql harness
+CREATE TABLE posts (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    title text NOT NULL,
+    tags  text[] NOT NULL DEFAULT '{}',
+    meta  jsonb NOT NULL DEFAULT '{}'
+);
+INSERT INTO posts (title, tags, meta) VALUES
+    ('Intro', ARRAY['sql', 'basics'], '{"author": "Ana", "views": 120, "draft": false}'),
+    ('Joins', '{sql,joins}', '{"author": "Bo", "views": 45, "links": ["a", "b"]}'),
+    ('Notes', '{}', '{"author": "Ana", "views": 3, "draft": true}');
+{{code}}
+```
+
 ```sql
 SELECT meta -> 'author' AS as_json,                   -- "Ana"  (jsonb)
        meta ->> 'author' AS as_text,                  -- Ana    (text)
@@ -92,6 +151,21 @@ SELECT title FROM posts WHERE (meta ->> 'views')::integer > 100;         -- Intr
 ```
 
 ### JSONB: change and build
+
+```sql harness
+CREATE TABLE posts (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    title text NOT NULL,
+    tags  text[] NOT NULL DEFAULT '{}',
+    meta  jsonb NOT NULL DEFAULT '{}'
+);
+INSERT INTO posts (title, tags, meta) VALUES
+    ('Intro', ARRAY['sql', 'basics'], '{"author": "Ana", "views": 120, "draft": false}'),
+    ('Joins', '{sql,joins}', '{"author": "Bo", "views": 45, "links": ["a", "b"]}'),
+    ('Notes', '{}', '{"author": "Ana", "views": 3, "draft": true}');
+{{code}}
+SELECT id, meta FROM posts ORDER BY id;
+```
 
 ```sql
 UPDATE posts SET meta = meta || '{"draft": false}' WHERE id = 3;     -- merge keys

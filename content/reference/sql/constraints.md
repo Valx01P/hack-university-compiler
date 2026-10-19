@@ -15,6 +15,17 @@ CREATE TABLE authors (
 
 ### Foreign keys
 
+```sql harness
+CREATE TABLE authors (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    email text NOT NULL UNIQUE,
+    born  integer CHECK (born > 1000)
+);
+{{code}}
+SELECT * FROM books ORDER BY id;
+```
+
 ```sql
 CREATE TABLE books (
     id        integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -59,6 +70,27 @@ INSERT INTO enrollments VALUES (1, 10, '2025-01-01', '2025-06-01');
 
 ### Add and drop later
 
+```sql harness
+CREATE TABLE authors (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    email text NOT NULL UNIQUE,
+    born  integer CHECK (born > 1000)
+);
+CREATE TABLE books (
+    id        integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    author_id integer NOT NULL REFERENCES authors (id) ON DELETE CASCADE,
+    title     text NOT NULL,
+    price     numeric(8, 2) NOT NULL CHECK (price >= 0)
+);
+INSERT INTO authors (name, email, born) VALUES ('Ada', 'ada@x.io', 1815);
+INSERT INTO books (author_id, title, price) VALUES (1, 'Notes', 12.50);
+{{code}}
+SELECT conrelid::regclass AS tbl, conname, contype FROM pg_constraint
+WHERE conrelid IN ('authors'::regclass, 'books'::regclass) AND contype <> 'n'
+ORDER BY conrelid::regclass::text, conname;
+```
+
 ```sql
 ALTER TABLE authors ADD CONSTRAINT name_not_blank CHECK (trim(name) <> '');
 ALTER TABLE books ADD CONSTRAINT one_title_per_author UNIQUE (author_id, title);
@@ -68,6 +100,22 @@ ALTER TABLE books DROP CONSTRAINT one_title_per_author;
 ```
 
 ### List a table's constraints
+
+```sql harness
+CREATE TABLE authors (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    email text NOT NULL UNIQUE,
+    born  integer CHECK (born > 1000)
+);
+CREATE TABLE books (
+    id        integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    author_id integer NOT NULL REFERENCES authors (id) ON DELETE CASCADE,
+    title     text NOT NULL,
+    price     numeric(8, 2) NOT NULL CHECK (price >= 0)
+);
+{{code}}
+```
 
 ```sql
 SELECT conname, contype

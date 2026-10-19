@@ -21,6 +21,25 @@ ANALYZE purchases;                               -- refresh the planner's statis
 
 ### Create
 
+```sql harness
+CREATE TABLE purchases (
+    id          integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    customer_id integer NOT NULL,
+    status      text NOT NULL,
+    total       numeric(10, 2) NOT NULL,
+    created_at  date NOT NULL
+);
+INSERT INTO purchases (customer_id, status, total, created_at)
+SELECT n % 500,
+       CASE WHEN n % 10 = 0 THEN 'open' ELSE 'shipped' END,
+       n % 97,
+       DATE '2025-01-01' + n % 365
+FROM generate_series(1, 20000) AS n;
+ANALYZE purchases;
+{{code}}
+SELECT indexname FROM pg_indexes WHERE tablename = 'purchases' ORDER BY indexname;
+```
+
 ```sql
 CREATE INDEX purchases_customer_id_idx ON purchases (customer_id);
 CREATE INDEX ON purchases (customer_id, created_at);              -- name picked for you
@@ -45,6 +64,28 @@ INSERT INTO accounts VALUES (1, 'Ana@x.io');
 A `PRIMARY KEY` or `UNIQUE` constraint builds a unique index for you. A unique index on an expression, like `lower(email)` here, is something a constraint can't do.
 
 ### Read EXPLAIN
+
+```sql harness
+CREATE TABLE purchases (
+    id          integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    customer_id integer NOT NULL,
+    status      text NOT NULL,
+    total       numeric(10, 2) NOT NULL,
+    created_at  date NOT NULL
+);
+INSERT INTO purchases (customer_id, status, total, created_at)
+SELECT n % 500,
+       CASE WHEN n % 10 = 0 THEN 'open' ELSE 'shipped' END,
+       n % 97,
+       DATE '2025-01-01' + n % 365
+FROM generate_series(1, 20000) AS n;
+CREATE INDEX purchases_customer_id_idx ON purchases (customer_id);
+CREATE INDEX ON purchases (customer_id, created_at);
+CREATE INDEX purchases_open_idx ON purchases (created_at) WHERE status = 'open';
+CREATE INDEX purchases_lower_status_idx ON purchases (lower(status));
+ANALYZE purchases;
+{{code}}
+```
 
 ```sql
 EXPLAIN SELECT * FROM purchases WHERE id = 7;
@@ -80,6 +121,27 @@ Read a plan from the most indented line up: each `->` node feeds the one above i
 | `Sort`, `Hash Join`, `Nested Loop` | sorting and the join strategies |
 
 ### List and drop
+
+```sql harness
+CREATE TABLE purchases (
+    id          integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    customer_id integer NOT NULL,
+    status      text NOT NULL,
+    total       numeric(10, 2) NOT NULL,
+    created_at  date NOT NULL
+);
+INSERT INTO purchases (customer_id, status, total, created_at)
+SELECT n % 500,
+       CASE WHEN n % 10 = 0 THEN 'open' ELSE 'shipped' END,
+       n % 97,
+       DATE '2025-01-01' + n % 365
+FROM generate_series(1, 20000) AS n;
+CREATE INDEX purchases_customer_id_idx ON purchases (customer_id);
+CREATE INDEX ON purchases (customer_id, created_at);
+CREATE INDEX purchases_open_idx ON purchases (created_at) WHERE status = 'open';
+CREATE INDEX purchases_lower_status_idx ON purchases (lower(status));
+{{code}}
+```
 
 ```sql
 SELECT indexname FROM pg_indexes WHERE tablename = 'purchases' ORDER BY indexname;

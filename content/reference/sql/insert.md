@@ -13,6 +13,17 @@ CREATE TABLE users (
 
 ### One row, many rows
 
+```sql harness
+CREATE TABLE users (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    email text NOT NULL UNIQUE,
+    score integer NOT NULL DEFAULT 0
+);
+{{code}}
+SELECT * FROM users ORDER BY id;
+```
+
 ```sql
 INSERT INTO users (name, email) VALUES ('Ana', 'ana@x.io');          -- INSERT 0 1
 INSERT INTO users (name, email, score) VALUES
@@ -25,6 +36,19 @@ The tag `INSERT 0 2` means 2 rows went in (the `0` is a leftover, always 0).
 
 ### RETURNING: get the new id back
 
+```sql harness
+CREATE TABLE users (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    email text NOT NULL UNIQUE,
+    score integer NOT NULL DEFAULT 0
+);
+INSERT INTO users (name, email) VALUES ('Ana', 'ana@x.io');
+INSERT INTO users (name, email, score) VALUES ('Bo', 'bo@x.io', 7), ('Cy', 'cy@x.io', 3);
+INSERT INTO users (name, email, score) VALUES ('Di', 'di@x.io', DEFAULT);
+{{code}}
+```
+
 ```sql
 INSERT INTO users (name, email) VALUES ('Ed', 'ed@x.io')
 RETURNING id, score;
@@ -34,6 +58,21 @@ RETURNING id, score;
 `RETURNING *` returns every column. It also works on `UPDATE` and `DELETE`.
 
 ### Insert from a SELECT
+
+```sql harness
+CREATE TABLE users (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    email text NOT NULL UNIQUE,
+    score integer NOT NULL DEFAULT 0
+);
+INSERT INTO users (name, email) VALUES ('Ana', 'ana@x.io');
+INSERT INTO users (name, email, score) VALUES ('Bo', 'bo@x.io', 7), ('Cy', 'cy@x.io', 3);
+INSERT INTO users (name, email, score) VALUES ('Di', 'di@x.io', DEFAULT);
+INSERT INTO users (name, email) VALUES ('Ed', 'ed@x.io');
+{{code}}
+SELECT * FROM top_users ORDER BY user_id;
+```
 
 ```sql
 CREATE TABLE top_users (user_id integer, name text);
@@ -49,6 +88,20 @@ FROM generate_series(1, 3) AS n;                                     -- 3 test r
 ```
 
 ### Upsert: ON CONFLICT
+
+```sql harness
+CREATE TABLE users (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    email text NOT NULL UNIQUE,
+    score integer NOT NULL DEFAULT 0
+);
+INSERT INTO users (name, email) VALUES ('Ana', 'ana@x.io');
+INSERT INTO users (name, email, score) VALUES ('Bo', 'bo@x.io', 7), ('Cy', 'cy@x.io', 3);
+INSERT INTO users (name, email, score) VALUES ('Di', 'di@x.io', DEFAULT);
+{{code}}
+SELECT * FROM users ORDER BY id;
+```
 
 ```sql
 -- skip rows that would break a unique rule
@@ -71,7 +124,7 @@ WHERE users.name IS DISTINCT FROM EXCLUDED.name;                     -- INSERT 0
 
 ### Use it in a loop: counters
 
-```sql
+```sql error
 CREATE TABLE word_counts (word text PRIMARY KEY, n integer NOT NULL);
 
 INSERT INTO word_counts (word, n)
@@ -82,6 +135,12 @@ ON CONFLICT (word) DO UPDATE SET n = word_counts.n + 1;
 ```
 
 One statement can't hit the same key twice. Group first, then upsert:
+
+```sql harness
+CREATE TABLE word_counts (word text PRIMARY KEY, n integer NOT NULL);
+{{code}}
+SELECT * FROM word_counts ORDER BY word;
+```
 
 ```sql
 INSERT INTO word_counts (word, n)

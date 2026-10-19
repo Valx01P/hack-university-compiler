@@ -13,6 +13,17 @@ INSERT INTO contacts (name, phone) VALUES ('Ana', 5551234), ('Bo', NULL);
 
 ### Columns
 
+```sql harness
+CREATE TABLE contacts (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    phone integer
+);
+INSERT INTO contacts (name, phone) VALUES ('Ana', 5551234), ('Bo', NULL);
+{{code}}
+SELECT * FROM contacts ORDER BY id;
+```
+
 ```sql
 ALTER TABLE contacts ADD COLUMN email text;                           -- NULL in old rows
 ALTER TABLE contacts ADD COLUMN active boolean NOT NULL DEFAULT true;  -- old rows get true
@@ -21,6 +32,19 @@ ALTER TABLE contacts DROP COLUMN IF EXISTS active;
 ```
 
 ### Change a column
+
+```sql harness
+CREATE TABLE contacts (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    phone integer
+);
+INSERT INTO contacts (name, phone) VALUES ('Ana', 5551234), ('Bo', NULL);
+ALTER TABLE contacts ADD COLUMN email text;
+{{code}}
+SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns
+WHERE table_name = 'contacts' ORDER BY ordinal_position;
+```
 
 ```sql
 ALTER TABLE contacts ALTER COLUMN phone TYPE text;                    -- int to text: automatic
@@ -33,6 +57,19 @@ ALTER TABLE contacts ALTER COLUMN name SET NOT NULL;
 
 ### Constraints
 
+```sql harness
+CREATE TABLE contacts (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    phone integer
+);
+INSERT INTO contacts (name, phone) VALUES ('Ana', 5551234), ('Bo', NULL);
+ALTER TABLE contacts ADD COLUMN email text;
+{{code}}
+SELECT conname, contype FROM pg_constraint
+WHERE conrelid = 'contacts'::regclass AND contype <> 'n' ORDER BY conname;
+```
+
 ```sql
 ALTER TABLE contacts ADD CONSTRAINT email_has_at CHECK (email LIKE '%@%');
 ALTER TABLE contacts ADD CONSTRAINT contacts_email_key UNIQUE (email);
@@ -40,6 +77,19 @@ ALTER TABLE contacts DROP CONSTRAINT email_has_at;
 ```
 
 ### Rename
+
+```sql harness
+CREATE TABLE contacts (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    phone integer
+);
+INSERT INTO contacts (name, phone) VALUES ('Ana', 5551234), ('Bo', NULL);
+ALTER TABLE contacts ADD COLUMN email text;
+ALTER TABLE contacts ADD CONSTRAINT contacts_email_key UNIQUE (email);
+{{code}}
+SELECT * FROM clients ORDER BY id;
+```
 
 ```sql
 ALTER TABLE contacts RENAME COLUMN phone TO phone_number;
@@ -49,6 +99,20 @@ ALTER TABLE clients RENAME CONSTRAINT contacts_email_key TO clients_email_key;
 
 Several changes can go in one statement, separated by commas:
 
+```sql harness
+CREATE TABLE contacts (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    phone integer
+);
+INSERT INTO contacts (name, phone) VALUES ('Ana', 5551234), ('Bo', NULL);
+ALTER TABLE contacts ADD COLUMN email text;
+ALTER TABLE contacts RENAME COLUMN phone TO phone_number;
+ALTER TABLE contacts RENAME TO clients;
+{{code}}
+SELECT * FROM clients ORDER BY id;
+```
+
 ```sql
 ALTER TABLE clients
     ADD COLUMN city text,
@@ -57,6 +121,18 @@ ALTER TABLE clients
 ```
 
 ### DROP
+
+```sql harness
+CREATE TABLE contacts (
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  text NOT NULL,
+    phone integer
+);
+INSERT INTO contacts (name, phone) VALUES ('Ana', 5551234), ('Bo', NULL);
+ALTER TABLE contacts RENAME TO clients;
+{{code}}
+SELECT to_regclass('clients') AS clients, to_regclass('invoices') AS invoices;
+```
 
 ```sql
 CREATE TABLE invoices (id integer PRIMARY KEY, client_id integer REFERENCES clients (id));

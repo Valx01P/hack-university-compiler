@@ -13,6 +13,16 @@ INSERT INTO accounts VALUES (1, 'Ana', 100), (2, 'Bo', 50);
 
 ### BEGIN and COMMIT
 
+```sql harness
+CREATE TABLE accounts (
+    id      integer PRIMARY KEY,
+    owner   text NOT NULL,
+    balance numeric(10, 2) NOT NULL CHECK (balance >= 0)
+);
+INSERT INTO accounts VALUES (1, 'Ana', 100), (2, 'Bo', 50);
+{{code}}
+```
+
 ```sql
 BEGIN;
 UPDATE accounts SET balance = balance - 30 WHERE id = 1;
@@ -26,6 +36,16 @@ SELECT owner, balance FROM accounts ORDER BY id;
 
 ### ROLLBACK: undo everything since BEGIN
 
+```sql harness
+CREATE TABLE accounts (
+    id      integer PRIMARY KEY,
+    owner   text NOT NULL,
+    balance numeric(10, 2) NOT NULL CHECK (balance >= 0)
+);
+INSERT INTO accounts VALUES (1, 'Ana', 100), (2, 'Bo', 50);
+{{code}}
+```
+
 ```sql
 BEGIN;
 DELETE FROM accounts;
@@ -36,6 +56,18 @@ SELECT count(*) FROM accounts;          -- 2, the delete never happened
 ```
 
 ### SAVEPOINT: undo part of a transaction
+
+```sql harness
+CREATE TABLE accounts (
+    id      integer PRIMARY KEY,
+    owner   text NOT NULL,
+    balance numeric(10, 2) NOT NULL CHECK (balance >= 0)
+);
+INSERT INTO accounts VALUES (1, 'Ana', 100), (2, 'Bo', 50);
+UPDATE accounts SET balance = balance - 30 WHERE id = 1;
+UPDATE accounts SET balance = balance + 30 WHERE id = 2;
+{{code}}
+```
 
 ```sql
 BEGIN;
@@ -52,7 +84,17 @@ SELECT owner, balance FROM accounts ORDER BY id;
 
 ### An error aborts the transaction
 
-```sql
+```sql harness
+CREATE TABLE accounts (
+    id      integer PRIMARY KEY,
+    owner   text NOT NULL,
+    balance numeric(10, 2) NOT NULL CHECK (balance >= 0)
+);
+INSERT INTO accounts VALUES (1, 'Ana', 100), (2, 'Bo', 50);
+{{code}}
+```
+
+```sql error
 BEGIN;
 UPDATE accounts SET balance = balance - 500 WHERE id = 1;
 -- ERROR:  new row for relation "accounts" violates check constraint "accounts_balance_check"
@@ -64,6 +106,17 @@ ROLLBACK;
 In an app, wrap the steps in `BEGIN` and `COMMIT`, and send `ROLLBACK` from your error handler. In the compiler, the first error stops the program, so the statements after it never run.
 
 ### Lock the rows you are about to change
+
+```sql harness
+CREATE TABLE accounts (
+    id      integer PRIMARY KEY,
+    owner   text NOT NULL,
+    balance numeric(10, 2) NOT NULL CHECK (balance >= 0)
+);
+INSERT INTO accounts VALUES (1, 'Ana', 100), (2, 'Bo', 50);
+{{code}}
+SELECT owner, balance FROM accounts ORDER BY id;
+```
 
 ```sql
 BEGIN;
