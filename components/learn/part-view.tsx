@@ -835,11 +835,12 @@ export function PartView({
             <div className="shrink-0 border-t border-code-content-line bg-code-bg">
               {takesArgs ? (
                 // The Arguments field sits next to stdin, as on the compiler
-                // page.
-                <div className="flex">
+                // page. With no border of its own, the field shows focus the
+                // way the stdin toggle does (.code-args-field in globals.css).
+                <div className="flex items-stretch">
                   {stdinToggle}
                   <label
-                    className={`flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${
+                    className={`code-args-field flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${
                       showStdin || filesRow ? "" : "rounded-br-[calc(var(--radius-card)-1px)]"
                     }`}
                   >
