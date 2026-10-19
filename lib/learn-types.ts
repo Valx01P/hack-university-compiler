@@ -162,13 +162,18 @@ export interface Lesson {
 export type LessonStepFile = Omit<LessonStep, "examples"> & { example?: LessonExample; examples?: LessonExample[] };
 export type LessonFile = Omit<Lesson, "steps"> & { steps: LessonStepFile[] };
 
-/** A lesson file as Learn reads it: every step's examples in `examples`. */
+/** The most worked examples a part has: the editor's Example 1 to 3 tabs. */
+export const MAX_EXAMPLES = 3;
+
+/** A lesson file as Learn reads it: every step's examples in `examples`, at
+    most MAX_EXAMPLES of them, so the lesson column and the editor's tabs
+    always show the same ones (scripts/verify-lessons.mjs refuses more). */
 export function normalizeLesson(file: LessonFile): Lesson {
   return {
     ...file,
     steps: file.steps.map(({ example, examples, ...step }) => ({
       ...step,
-      examples: examples ?? (example ? [example] : []),
+      examples: (examples ?? (example ? [example] : [])).slice(0, MAX_EXAMPLES),
     })),
   };
 }

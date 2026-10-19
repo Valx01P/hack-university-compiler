@@ -51,6 +51,7 @@ type TabKind = "example" | "example2" | "example3" | "practice";
 // errors the editor underlines.
 type Panel = { mode: "run"; run: RunState; code?: string } | { mode: "check"; check: CheckState; code?: string };
 
+// One tab per example, MAX_EXAMPLES of them at most (lib/learn-types.ts).
 const EXAMPLE_TABS: TabKind[] = ["example", "example2", "example3"];
 // The address's ?tab for each tab (lib/url-state.ts). Example 1 has none.
 const TAB_PARAM: Record<TabKind, string | null> = { example: null, example2: "ex2", example3: "ex3", practice: "code" };
