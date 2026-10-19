@@ -5,9 +5,10 @@ import { useRef } from "react";
 import { TypeCheckStrip } from "@/components/compiler/type-check";
 import { CompleteIcon } from "@/components/learn/complete-icon";
 import { ScrollPre } from "@/components/ui/scroll-pre";
+import type { LessonTest } from "@/lib/learn-types";
 import { EASE, dur, gsap, hasPainted, useGSAP } from "@/lib/motion";
-import { joinArgs } from "@/lib/shell-words";
-import type { ForbiddenHit, TestVerdict, TypeTestVerdict } from "@/lib/single-checks.mjs";
+import { joinArgs, normalizeOutput, type RunResult } from "@/lib/run-code";
+import { FORBID_RULES, type ForbidRule } from "@/lib/single-checks.mjs";
 
 export interface TestResult {
   stdin: string;
@@ -15,26 +16,26 @@ export interface TestResult {
   actual: string;
   stderr: string;
   passed: boolean;
-  /** Tests checked on the runner: what else the test ran with, and how the
-      program did on each thing it's held to. */
-  detail?: TestDetail;
-}
-
-export interface TestDetail {
-  args?: string[];
-  env?: Record<string, string>;
-  /** The test's own fixture set, when it isn't the practice's. */
-  fixtures?: string;
-  cwd?: string;
-  wrap?: string;
-  clock?: string;
-  sql?: string;
-  seed?: Record<string, unknown[]>;
-  verdict: TestVerdict;
+  /** Tests checked on the runner: the test as written, its run, and what
+      was wrong (lib/single-checks.mjs judgeTest), so the result can show
+      everything the program is held to. */
+  detail?: { test: LessonTest; run: RunResult; problems: string[] };
 }
 
 /** A type-test case's verdict, with the code it compiled. */
-export type TypeTestResult = TypeTestVerdict & { code: string };
+export interface TypeTestResult {
+  name: string;
+  passed: boolean;
+  problem: string | null;
+  code: string;
+}
+
+/** A line of your code that breaks one of the practice's honesty rules. */
+export interface ForbiddenUse {
+  rule: ForbidRule;
+  line: number;
+  text: string;
+}
 
 export type CheckState =
   | { status: "checking"; total: number }
@@ -50,7 +51,7 @@ export type CheckState =
       results: TestResult[];
       lessonComplete: boolean;
       typeTests?: TypeTestResult[];
-      forbidden?: ForbiddenHit[];
+      forbidden?: ForbiddenUse[];
     };
 
 const NEXT_LINK =
@@ -246,7 +247,7 @@ export function CheckResults({
                 </p>
                 {!c.passed && (
                   <div className="mt-1.5 space-y-1.5 pl-5.5">
-                    <p className="text-sm text-ink-muted">{c.message}</p>
+                    {c.problem && <p className="text-sm text-ink-muted">{sentence(c.problem)}</p>}
                     <ScrollPre label={`Type test: ${c.name}`} className={BLOCK}>
                       {c.code}
                     </ScrollPre>
@@ -261,24 +262,27 @@ export function CheckResults({
       {forbidden.length > 0 && (
         <div data-anim="row" className="border-t border-content-line px-4 py-3">
           <p className="text-xs font-medium uppercase tracking-wider text-ink-muted">Honesty rules</p>
-          <ul className="mt-2 space-y-1.5">
+          <ul className="mt-2 space-y-2.5">
             {forbidden.map((h, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-ink">
-                <span aria-hidden className="mt-0.5 shrink-0 text-danger">
-                  ✗
-                </span>
-                <span className="min-w-0">
-                  {onGoTo ? (
-                    <button type="button" onClick={() => onGoTo(h.line, h.col)} className={LINE_LINK}>
-                      Line {h.line}
-                    </button>
-                  ) : (
-                    `Line ${h.line}`
-                  )}
-                  ,{" "}
-                  <code className="rounded border border-content-line bg-raised px-1 py-px font-mono text-[0.85em] font-medium">{h.text}</code>:{" "}
-                  <span className="text-ink-muted">{h.message}</span>
-                </span>
+              <li key={i} className="min-w-0">
+                <p className="flex items-start gap-2 text-sm text-ink">
+                  <span aria-hidden className="mt-0.5 shrink-0 text-danger">
+                    ✗
+                  </span>
+                  <span className="min-w-0">
+                    {onGoTo ? (
+                      <button type="button" onClick={() => onGoTo(h.line, 1)} className={LINE_LINK}>
+                        Line {h.line}
+                      </button>
+                    ) : (
+                      `Line ${h.line}`
+                    )}
+                    : <WithCode text={sentence(FORBID_RULES[h.rule])} />
+                  </span>
+                </p>
+                <ScrollPre label={`Line ${h.line}`} className={`${BLOCK} mt-1.5 ml-5.5`}>
+                  {h.text}
+                </ScrollPre>
               </li>
             ))}
           </ul>
@@ -291,73 +295,91 @@ export function CheckResults({
 const BLOCK =
   "code-dark slim-scroll max-h-48 overflow-auto rounded-btn border border-code-content-line bg-code-bg px-3 py-2 font-mono text-xs leading-5 text-code-ink";
 
+/** A judge's note as a sentence: "wrong output" reads "Wrong output.", and
+    one that starts with a file name or code keeps it as written. */
+function sentence(text: string): string {
+  const s = /^[a-z]+\s/.test(text) ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+  return /[.!?]$/.test(s) ? s : `${s}.`;
+}
+
+/** Text with `code` in backquotes set as code. */
+function WithCode({ text }: { text: string }) {
+  return (
+    <>
+      {text.split("`").map((part, i) =>
+        i % 2 ? (
+          <code key={i} className="rounded border border-content-line bg-raised px-1 py-px font-mono text-[0.85em] font-medium">
+            {part}
+          </code>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+}
+
 /** What a runner test ran with, and every way it fell short: its output,
     exit status, stderr, and the files it left. */
-function RunnerTestDetail({ test, result, detail }: { test: number; result: TestResult; detail: TestDetail }) {
-  const { verdict } = detail;
+function RunnerTestDetail({ test: n, result, detail }: { test: number; result: TestResult; detail: NonNullable<TestResult["detail"]> }) {
+  const { test, run, problems } = detail;
+  const timedOut = run.verdict === "TO";
+  const outputWrong = timedOut || normalizeOutput(run.stdout) !== normalizeOutput(test.output);
+  const stderrMissing = test.stderrIncludes != null && !run.stderr.includes(test.stderrIncludes);
+  const files = Object.entries(test.files ?? {}).filter(
+    ([path, want]) => run.files?.[path] == null || normalizeOutput(run.files[path]) !== normalizeOutput(want)
+  );
   const notes = [
-    detail.fixtures && `with the ${detail.fixtures} files`,
-    detail.cwd && `from ${detail.cwd}/`,
-    detail.wrap && `inside ${detail.wrap}`,
-    detail.clock && `at ${detail.clock}`,
+    test.fixtures && `with the ${test.fixtures} files`,
+    test.cwd && `from ${test.cwd}/`,
+    test.wrap && `inside ${test.wrap}`,
+    test.clock && `at ${test.clock}`,
   ].filter(Boolean);
-  const exit = verdict.exit;
   return (
     <div className="mt-2.5 space-y-2.5">
-      {verdict.problem && <p className="text-sm text-ink">{verdict.problem}</p>}
-      {notes.length > 0 && <p className="text-xs text-ink-faint">Runs {notes.join(", ")}.</p>}
+      {problems.length > 0 && (
+        <ul className="list-disc space-y-0.5 pl-5 text-sm text-ink marker:text-ink-faint">
+          {problems.map((p, i) => (
+            <li key={i}>{sentence(p)}</li>
+          ))}
+        </ul>
+      )}
+      {notes.length > 0 && <p className="text-xs text-ink-faint">It runs {notes.join(", ")}.</p>}
       <div className="grid gap-2.5 sm:grid-cols-2">
-        {detail.args && detail.args.length > 0 && (
-          <OutputBlock test={test} label="Arguments" text={joinArgs(detail.args)} className="sm:col-span-2" />
+        {test.args && test.args.length > 0 && (
+          <OutputBlock test={n} label="Arguments" text={joinArgs(test.args)} className="sm:col-span-2" />
         )}
-        {detail.env && Object.keys(detail.env).length > 0 && (
+        {test.env && Object.keys(test.env).length > 0 && (
           <OutputBlock
-            test={test}
+            test={n}
             label="Environment"
-            text={Object.entries(detail.env)
+            text={Object.entries(test.env)
               .map(([k, v]) => `${k}=${v}`)
               .join("\n")}
             className="sm:col-span-2"
           />
         )}
-        {result.stdin && <OutputBlock test={test} label="Input" text={result.stdin} className="sm:col-span-2" />}
-        {detail.sql && <OutputBlock test={test} label="SQL first" text={detail.sql} className="sm:col-span-2" />}
-        {detail.seed && (
-          <OutputBlock test={test} label="Documents first" text={JSON.stringify(detail.seed, null, 2)} className="sm:col-span-2" />
-        )}
-        {verdict.output && !verdict.output.passed && (
+        {result.stdin && <OutputBlock test={n} label="Input" text={result.stdin} className="sm:col-span-2" />}
+        {test.sql && <OutputBlock test={n} label="SQL first" text={test.sql} className="sm:col-span-2" />}
+        {test.seed && <OutputBlock test={n} label="Documents first" text={JSON.stringify(test.seed, null, 2)} className="sm:col-span-2" />}
+        {outputWrong && (
           <>
-            <OutputBlock test={test} label="Expected" text={result.expected} />
-            <OutputBlock test={test} label="Your output" text={result.actual || "(no output)"} />
+            <OutputBlock test={n} label="Expected" text={result.expected || "(no output)"} />
+            <OutputBlock test={n} label="Your output" text={result.actual || "(no output)"} />
           </>
         )}
-        {result.stderr && <OutputBlock test={test} label="Errors" text={result.stderr} className="sm:col-span-2" danger />}
-        {verdict.stderrIncludes && !verdict.stderrIncludes.passed && (
-          <OutputBlock test={test} label="Errors should include" text={verdict.stderrIncludes.text} className="sm:col-span-2" />
-        )}
-        {verdict.files
-          .filter((f) => !f.passed)
-          .map((f) => (
-            <div key={f.path} className="grid gap-2.5 sm:col-span-2 sm:grid-cols-2">
-              <OutputBlock test={test} label={`Expected ${f.path}`} text={f.expected} />
-              <OutputBlock test={test} label={`Your ${f.path}`} text={f.actual ?? "(missing)"} />
+        {result.stderr && <OutputBlock test={n} label="Errors" text={result.stderr} className="sm:col-span-2" danger />}
+        {stderrMissing && <OutputBlock test={n} label="Errors should include" text={test.stderrIncludes!} className="sm:col-span-2" />}
+        {files.map(([path, want]) => {
+          const got = run.files?.[path];
+          return (
+            <div key={path} className="grid gap-2.5 sm:col-span-2 sm:grid-cols-2">
+              <OutputBlock test={n} label={`Expected ${path}`} text={want || "(empty)"} />
+              <OutputBlock test={n} label={`Your ${path}`} text={got == null ? "(missing)" : got || "(empty)"} />
             </div>
-          ))}
+          );
+        })}
       </div>
-      {exit && !exit.passed && !verdict.timedOut && (
-        <p className="text-sm text-ink">
-          {exit.signal
-            ? `It was killed by ${exit.signal}, and should exit with ${exit.expected}.`
-            : `It exited with ${exit.actual ?? "no status"}, and should exit with ${exit.expected}.`}
-        </p>
-      )}
-      {verdict.absent
-        .filter((a) => !a.passed)
-        .map((a) => (
-          <p key={a.path} className="text-sm text-ink">
-            <code className="font-mono text-[0.9em]">{a.path}</code> should be gone, but it&apos;s still there.
-          </p>
-        ))}
     </div>
   );
 }

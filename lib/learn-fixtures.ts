@@ -30,7 +30,8 @@ export interface FixtureFile {
 async function walk(root: string, rel = ""): Promise<FixtureFile[]> {
   const entries = await fs.readdir(path.join(root, rel), { withFileTypes: true });
   const files: FixtureFile[] = [];
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+  // In code point order, like ls in the C locale, the same on every machine.
+  for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
     const relPath = rel ? `${rel}/${entry.name}` : entry.name;
     const full = path.join(root, relPath);
     if (entry.isDirectory()) {

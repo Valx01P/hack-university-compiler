@@ -31,9 +31,17 @@ import {
   type SingleFileFeatures,
 } from "@/lib/learn-types";
 import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolvedState } from "@/lib/learn-progress";
-import { checkInSandbox, normalizeOutput, refreshSandboxStatus, runInSandbox, type RunExtras, type RunState } from "@/lib/run-code";
-import { joinArgs, splitArgs } from "@/lib/shell-words";
-import { judgeCheck } from "@/lib/single-checks.mjs";
+import {
+  checkInSandbox,
+  joinArgs,
+  normalizeOutput,
+  refreshSandboxStatus,
+  runInSandbox,
+  splitArgs,
+  type RunExtras,
+  type RunState,
+} from "@/lib/run-code";
+import { forbiddenUses, judgeTest, judgeTypeTests } from "@/lib/single-checks.mjs";
 import { useEnter } from "@/lib/motion";
 import { useFullScreen } from "@/lib/full-screen";
 import { revealWorkspace, urlCount, urlParam, writeHash, writeUrl } from "@/lib/url-state";
@@ -168,7 +176,6 @@ export function PartView({
   const [showStdin, setShowStdin] = useState(() => defaultStdin(tabs[0]) !== "");
   // The Arguments field (Bash), as a line: split like a shell splits it.
   const [argLines, setArgLines] = useState(() => perTab(defaultArgs));
-  const [showArgs, setShowArgs] = useState(() => defaultArgs(tabs[0]) !== "");
   const [showFiles, setShowFiles] = useState(false);
   const [panels, setPanels] = useState<Partial<Record<TabKind, Panel>>>({});
   // The tab whose run or check is in flight. Runs go one at a time: every
@@ -217,7 +224,6 @@ export function PartView({
   const tabId = (kind: TabKind) => `${uid}-tab-${kind}`;
   const panelId = `${uid}-panel`;
   const stdinId = `${uid}-stdin`;
-  const argsId = `${uid}-args`;
   const filesId = `${uid}-files`;
   const outputId = `${uid}-output`;
 
@@ -232,11 +238,12 @@ export function PartView({
   const argLine = argLines[active];
   const panel: Panel = panels[active] ?? { mode: "run", run: { status: "idle" } };
   // The fixture files this tab's runs start in (Bash), for the Files strip.
-  const fixtureSet = runOf(active).fixtures;
-  const fixtureFiles = fixtureSet ? fixtures[fixtureSet] : undefined;
-  // The Arguments field, and the Files strip, join stdin below the editor.
+  const fixtureSet = runOf(active).fixtures ?? "";
+  const fixtureFiles = fixtures[fixtureSet] ?? [];
+  const filesRow = fixtureFiles.length > 0;
+  // An Arguments field next to stdin: always for Bash, and for any part
+  // whose programs take arguments.
   const takesArgs = features.args || tabs.some((kind) => (runOf(kind).args?.length ?? 0) > 0);
-  const extraInputs = takesArgs || Boolean(fixtureFiles?.length);
   const typeTestCount = practice.typeTests?.cases.length ?? 0;
 
   // Type errors from this tab's last run or check, underlined in the editor
@@ -340,7 +347,6 @@ export function PartView({
   function openTab(kind: TabKind, { scroll = true }: { scroll?: boolean } = {}) {
     setActive(kind);
     setShowStdin(stdins[kind] !== "");
-    setShowArgs(argLines[kind] !== "");
     // The tab's editor opens with its cursor where it starts.
     setCursorAt(null);
     // On narrow screens the editor sits below the lesson: bring it into view,
@@ -467,8 +473,9 @@ export function PartView({
     finish({ status: "done", results, lessonComplete });
   }
 
-  /** A check on the runner: every test in one request, then the tests,
-      type tests, and honesty rules judged by lib/single-checks.mjs. */
+  /** A check on the runner: every test in one request, judged by
+      lib/single-checks.mjs with everything a test can ask (exit codes,
+      stderr, files), then the type tests and the honesty rules. */
   async function checkOnRunner(ran: string) {
     const finish = (result: CheckState) => {
       setPanel("practice", { mode: "check", check: result, code: ran });
@@ -483,37 +490,58 @@ export function PartView({
       clock: practice.clock ?? lesson.clock,
     });
     if (!outcome.ok) return finish({ status: "error", error: outcome.error });
-    const verdict = judgeCheck(practice, ran, outcome.report);
-    if (verdict.compileError) {
+    const compileError = outcome.runs.find((r) => r.compileCode != null && r.compileCode !== 0);
+    if (compileError) {
       return finish({
         status: "compile-error",
-        output: verdict.compileError.output || (features.typeCheck ? "The type check failed." : "Compilation failed."),
+        output: compileError.compileOutput || (features.typeCheck ? "" : "Compilation failed."),
         typeCheck: features.typeCheck ? { fileName: lang.fileName } : undefined,
       });
     }
-    const results: TestResult[] = practice.tests.map((t, i) => {
-      const v = verdict.tests[i];
-      const r = outcome.report.results[i];
+    const results: TestResult[] = practice.tests.map((test, i) => {
+      const run = outcome.runs[i];
+      const { passed, problems } = judgeTest(test, run, { strictExit: true });
       return {
-        stdin: t.stdin ?? "",
-        expected: t.output,
-        actual: r?.stdout ?? "",
-        stderr: v.timedOut ? TIMED_OUT : (r?.stderr ?? ""),
-        passed: v.passed,
-        detail: { args: t.args, env: t.env, fixtures: t.fixtures, cwd: t.cwd, wrap: t.wrap, clock: t.clock, sql: t.sql, seed: t.seed, verdict: v },
+        stdin: test.stdin ?? "",
+        expected: test.output,
+        actual: run.stdout,
+        stderr: run.verdict === "TO" ? TIMED_OUT : run.stderr,
+        passed,
+        detail: { test, run, problems },
       };
     });
-    const typeTests = verdict.typeTests.map((v) => ({
-      ...v,
-      code: practice.typeTests?.cases.find((c) => c.name === v.name)?.code ?? "",
-    }));
-    if (verdict.passed) {
+    const typeTests = practice.typeTests
+      ? judgeTypeTests(practice.typeTests, outcome.typeTests).map((t, i) => ({ ...t, code: practice.typeTests!.cases[i].code }))
+      : [];
+    const forbidden = forbiddenUses(ran, practice.forbid ?? []);
+    const allPassed = results.every((r) => r.passed) && typeTests.every((t) => t.passed) && forbidden.length === 0;
+    if (allPassed) {
       markSolved(lang.slug, problemId(lesson.id, part));
       setNextGlow((n) => n + 1);
     }
-    const lessonComplete = verdict.passed && parts.every((_, i) => i === part || isSolved(i));
-    finish({ status: "done", results, lessonComplete, typeTests, forbidden: verdict.forbidden });
+    const lessonComplete = allPassed && parts.every((_, i) => i === part || isSolved(i));
+    finish({ status: "done", results, lessonComplete, typeTests, forbidden });
   }
+
+  // The stdin row under the editor. The code box clips anything outside it,
+  // so the focus ring sits inside the button (rounded like the box's corners
+  // when it's the last row), in the code text color. Beside an Arguments
+  // field it takes half the row.
+  const stdinToggle = (
+    <button
+      type="button"
+      onClick={() => setShowStdin((v) => !v)}
+      aria-expanded={showStdin}
+      aria-controls={showStdin ? stdinId : undefined}
+      className={`code-stdin-toggle flex ${takesArgs ? "min-w-0 flex-1" : "w-full"} items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${
+        showStdin || filesRow ? "" : takesArgs ? "rounded-bl-[calc(var(--radius-card)-1px)]" : "rounded-b-[calc(var(--radius-card)-1px)]"
+      }`}
+    >
+      <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
+      <span>{sql ? "setup (runs first)" : "stdin"}</span>
+      {!showStdin && stdin ? <span className="truncate text-code-gutter">· {stdin.split("\n")[0]}</span> : null}
+    </button>
+  );
 
   // One example keeps today's "Example". Several are numbered.
   const tabLabel = (kind: TabKind) =>
@@ -817,66 +845,32 @@ export function PartView({
               />
             </div>
             <div className="shrink-0 border-t border-code-content-line bg-code-bg">
-              {extraInputs ? (
-                // The Arguments field (Bash) and the fixture files sit next
-                // to stdin, each folded until you open it.
-                <div className="flex min-w-0 items-center">
-                  {takesArgs && (
-                    <FoldToggle
-                      open={showArgs}
-                      onToggle={() => setShowArgs((v) => !v)}
-                      controls={argsId}
-                      label="arguments"
-                      glimpse={argLine}
+              {takesArgs ? (
+                // The Arguments field sits next to stdin, as on the compiler
+                // page.
+                <div className="flex">
+                  {stdinToggle}
+                  <label
+                    className={`flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${
+                      showStdin || filesRow ? "" : "rounded-br-[calc(var(--radius-card)-1px)]"
+                    }`}
+                  >
+                    <span className="shrink-0">args</span>
+                    <input
+                      type="text"
+                      value={argLine}
+                      onChange={(e) => setArgLines((a) => ({ ...a, [active]: e.target.value }))}
+                      spellCheck={false}
+                      autoComplete="off"
+                      autoCapitalize="off"
+                      placeholder={features.args ? "arguments for $1, $2..." : "arguments for your program..."}
+                      aria-label="Arguments passed to your program"
+                      className="code-stdin-input min-w-0 flex-1 self-stretch border-0 bg-transparent pe-3 font-mono text-base font-normal text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-xs"
                     />
-                  )}
-                  <FoldToggle
-                    open={showStdin}
-                    onToggle={() => setShowStdin((v) => !v)}
-                    controls={stdinId}
-                    label={sql ? "setup (runs first)" : "stdin"}
-                    glimpse={stdin.split("\n")[0]}
-                  />
-                  {fixtureSet && fixtureFiles?.length ? (
-                    <FoldToggle
-                      open={showFiles}
-                      onToggle={() => setShowFiles((v) => !v)}
-                      controls={filesId}
-                      label="files"
-                      glimpse={`${fixtureFiles.length} in ${fixtureSet}`}
-                    />
-                  ) : null}
+                  </label>
                 </div>
               ) : (
-                // The code box clips anything outside it, so this focus ring
-                // sits inside the button (rounded like the box's corners when
-                // it's the last row), in the code text color.
-                <button
-                  type="button"
-                  onClick={() => setShowStdin((v) => !v)}
-                  aria-expanded={showStdin}
-                  aria-controls={showStdin ? stdinId : undefined}
-                  className={`code-stdin-toggle flex w-full items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${
-                    showStdin ? "" : "rounded-b-[calc(var(--radius-card)-1px)]"
-                  }`}
-                >
-                  <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
-                  <span>{sql ? "setup (runs first)" : "stdin"}</span>
-                  {!showStdin && stdin ? <span className="truncate text-code-gutter">· {stdin.split("\n")[0]}</span> : null}
-                </button>
-              )}
-              {takesArgs && showArgs && (
-                <input
-                  id={argsId}
-                  type="text"
-                  aria-label="Command-line arguments"
-                  value={argLine}
-                  onChange={(e) => setArgLines((a) => ({ ...a, [active]: e.target.value }))}
-                  spellCheck={false}
-                  autoComplete="off"
-                  placeholder="Arguments passed to your program, like -n 3 notes.txt..."
-                  className="code-stdin-input block w-full border-0 border-t border-code-content-line bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
-                />
+                stdinToggle
               )}
               {showStdin && (
                 <textarea
@@ -889,9 +883,28 @@ export function PartView({
                   className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-content-line bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
                 />
               )}
-              {showFiles && fixtureSet && fixtureFiles?.length ? (
-                <FixtureFiles key={fixtureSet} id={filesId} set={fixtureSet} files={fixtureFiles} />
-              ) : null}
+              {filesRow && (
+                // The files the program starts in (Bash), folded until you
+                // open them.
+                <button
+                  type="button"
+                  onClick={() => setShowFiles((v) => !v)}
+                  aria-expanded={showFiles}
+                  aria-controls={showFiles ? filesId : undefined}
+                  className={`code-stdin-toggle flex w-full items-center gap-1 border-t border-code-content-line px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${
+                    showFiles ? "" : "rounded-b-[calc(var(--radius-card)-1px)]"
+                  }`}
+                >
+                  <span aria-hidden>{showFiles ? "▾" : "▸"}</span>
+                  <span>files</span>
+                  {!showFiles && (
+                    <span className="truncate text-code-gutter">
+                      · {fixtureFiles.length} in {fixtureSet}, read only
+                    </span>
+                  )}
+                </button>
+              )}
+              {filesRow && showFiles && <FixtureFiles key={fixtureSet} id={filesId} set={fixtureSet} files={fixtureFiles} />}
             </div>
           </div>
 
@@ -949,37 +962,6 @@ export function PartView({
         </p>
       </div>
     </div>
-  );
-}
-
-/** One of the folds under the editor (arguments, stdin, files): its name, and
-    while it's folded, a glimpse of what's in it. The code box clips anything
-    outside it, so the focus ring sits inside, in the code text color. */
-function FoldToggle({
-  open,
-  onToggle,
-  controls,
-  label,
-  glimpse,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  controls: string;
-  label: string;
-  glimpse: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={open}
-      aria-controls={open ? controls : undefined}
-      className="code-stdin-toggle flex min-w-0 shrink items-center gap-1 rounded-btn px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]!"
-    >
-      <span aria-hidden>{open ? "▾" : "▸"}</span>
-      <span className="shrink-0">{label}</span>
-      {!open && glimpse ? <span className="truncate text-code-gutter">· {glimpse}</span> : null}
-    </button>
   );
 }
 
