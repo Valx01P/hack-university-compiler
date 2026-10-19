@@ -123,8 +123,10 @@ must be `public class Main` with `public static void main(String[] args)`. Put a
 other classes after `Main` (package-private, no `public`) or nest them as `static`
 classes inside `Main`. Available: `var`, switch expressions and `case ->` labels,
 text blocks, `String.repeat` / `strip` / `isBlank` / `formatted`, `List.of`,
-`Map.of`, `Set.of`. Not available: records, `Stream.toList()`, pattern matching
-for `instanceof`, sealed classes. Read input with `Scanner` or `BufferedReader`.
+`Map.of`, `Set.of`. Not available: `Stream.toList()`. Don't use records, pattern
+matching for `instanceof`, or sealed classes: they're only preview features in
+Java 15 (the sandbox turns previews on, so learners can try them, but lessons
+teach standard Java). Read input with `Scanner` or `BufferedReader`.
 
 **Go 1.16.2.** No generics and no `any`. No built-in `min` / `max` (write a small
 helper, or `math.Max` / `math.Min` for float64). No `slices` / `maps` packages, no

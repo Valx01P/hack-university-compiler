@@ -83,7 +83,7 @@ and algorithms practice reaches for:
 | Python | `sortedcontainers` (SortedList, SortedDict, SortedSet), and `numpy`, `pandas`, `scipy`, `sympy` |
 | JavaScript | `@datastructures-js/priority-queue` (with Min/MaxPriorityQueue), `/queue`, and `/deque`, the ones LeetCode ships |
 | C++ | C++17, `bits/stdc++.h`, and GNU's policy-based `tree` (an order-statistics `ordered_set`) |
-| Java | `java.util` collections, streams, `BigInteger` and `BigDecimal` (Java 15, so no records yet) |
+| Java | `java.util` collections, streams, `BigInteger` and `BigDecimal`, and Java 15's preview features (records, sealed classes, `instanceof` patterns) |
 | Go | `container/heap`, `container/list`, `sort`, `math/big` (Go 1.16, so no generics) |
 
 JavaScript runs as CommonJS (`require`) unless the program uses `import` or
