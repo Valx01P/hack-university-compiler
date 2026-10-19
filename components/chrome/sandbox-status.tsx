@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { RUNNER_LABELS, SANDBOX_REFRESH_EVENT, isSql, onRunner } from "@/lib/compiler";
+import { getCourseEntry, parseRuntime } from "@/lib/courses";
 
 type Status = {
   online: boolean;
   runtimes: Record<string, { name: string; version: string }>;
-  runner?: { online: boolean; docker: "ready" | "down" | "waking" | null; images: Record<string, string> };
+  runner?: { online: boolean; docker: "ready" | "down" | "waking" | null; recipes: Record<string, string> };
 };
 
 /**
@@ -109,12 +110,12 @@ function PistonStatus({ lang }: { lang: string }) {
  */
 function RunnerStatus({ lang }: { lang: string }) {
   const status = useSandboxStatus();
-  const name = RUNNER_LABELS[lang]?.name ?? lang;
+  const name = RUNNER_LABELS[lang] ?? lang;
   const runner = status?.runner;
   const docker = runner?.online ? runner.docker : null;
-  const image = runner?.images[RUNNER_LABELS[lang]?.image ?? ""];
-  // The image's state, when the runner says (a missing one builds with npm run up).
-  const built = image === undefined || image === "ready";
+  // The recipe's image, when the runner says (a missing one builds with npm run up).
+  const image = runner?.recipes?.[parseRuntime(getCourseEntry(lang)?.runtime ?? "")?.id ?? ""];
+  const built = !image || image === "ready";
   const ready = docker === "ready" && built;
   const label =
     docker === "ready" ? (built ? name : "not installed") : docker === "waking" ? "waking docker" : "sandbox offline";
@@ -122,7 +123,9 @@ function RunnerStatus({ lang }: { lang: string }) {
     docker === "ready"
       ? built
         ? `Runs on ${name} in a fresh container on your machine`
-        : "This course's sandbox isn't built yet. Build it with: npm run up"
+        : image === "building"
+          ? "This course's sandbox is being built. It runs once that's done."
+          : "This course's sandbox isn't built yet. Build it with: npm run up"
       : docker === "waking"
         ? "Docker is waking up. Run again in a moment."
         : runner?.online

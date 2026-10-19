@@ -40,10 +40,10 @@ const STARTERS: Record<string, string> = {
 };
 
 /** What the sandbox badge says runs a runner course (Piston's runtimes
-    report their own versions), and the runner's image it runs in. */
-export const RUNNER_LABELS: Record<string, { name: string; image: string }> = {
-  typescript: { name: "TypeScript 7.0.2 on Node 26.12.0", image: "hu/node" },
-  bash: { name: "Bash 5.3", image: "hu/bash" },
+    report their own versions). */
+export const RUNNER_LABELS: Record<string, string> = {
+  typescript: "TypeScript 7.0.2 on Node 26.12.0",
+  bash: "Bash 5.3",
 };
 
 /** SQL runs on PostgreSQL inside the browser, not in a sandbox. */

@@ -16,10 +16,6 @@ export function generateStaticParams() {
   return COMPILER_COURSES.filter((c) => getCompilerLang(c.slug)).map((c) => ({ lang: c.slug }));
 }
 
-// Open playground leads to /<course>/playground, so it shows once that route
-// exists (the IDE phase adds it) for courses that name a playground template.
-const PLAYGROUND_ROUTE = existsSync(path.join(process.cwd(), "app", "[lang]", "playground"));
-
 export async function generateMetadata(
   props: PageProps<"/[lang]">
 ): Promise<Metadata> {
@@ -33,7 +29,12 @@ export default async function CompilerLangPage(props: PageProps<"/[lang]">) {
   const lang = getCompilerLang(slug);
   if (!lang) notFound();
   const lessons = await getLessonRefs(lang.slug);
-  const playground = PLAYGROUND_ROUTE && getCourseEntry(lang.slug)?.playground ? `/${lang.slug}/playground` : null;
+  // Open playground leads to /<course>/playground, so it shows once that
+  // route exists (the IDE phase adds it) for a course with a playground.
+  const playground =
+    getCourseEntry(lang.slug)?.playground && existsSync(path.join(process.cwd(), "app", "[lang]", "playground"))
+      ? `/${lang.slug}/playground`
+      : null;
 
   return (
     <CompilerShell lang={lang.slug}>

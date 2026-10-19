@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { promises as fs, readFileSync } from "fs";
 import os from "os";
 import path from "path";
 import type { RunResult } from "@/lib/piston";
@@ -50,38 +50,61 @@ export class RunnerError extends Error {
   }
 }
 
+/** One file the program starts with (runner/schemas.ts FileEntry). */
+export interface RunnerFile {
+  name: string;
+  content: string;
+  encoding?: "utf8" | "base64";
+  mode?: number;
+  type?: "file" | "dir" | "symlink";
+  target?: string;
+}
+
+/** What one test of a Check feeds the program, and what it reads back
+    (runner/schemas.ts TestSpec). Its expectations ride along unjudged:
+    lib/single-checks.mjs judges the results. */
 export interface RunnerTest {
   stdin?: string;
   args?: string[];
-  /** Files to report on afterwards: what the test expects to exist or not. */
+  env?: Record<string, string>;
+  clock?: string | null;
+  fixtures?: string;
+  cwd?: string;
+  wrap?: string[];
+  files?: Record<string, string>;
+  absent?: string[];
   collect?: string[];
+  tryIt?: string;
+  output?: string;
+  exitCode?: number;
+  stderrIncludes?: string;
 }
 
 export interface RunnerRequest {
   /** The recipe: runner:<recipe> in content/courses.json. */
   recipe: string;
-  files: { name: string; content: string }[];
+  files: RunnerFile[];
   stdin?: string;
   args?: string[];
+  env?: Record<string, string>;
+  clock?: string | null;
+  /** The fixture set a Run starts in, by name, with every set it or a test names. */
+  fixtures?: string;
+  fixtureSets?: Record<string, RunnerFile[]>;
   /** Every test of a Check, run in one job (TypeScript compiles once). */
   tests?: RunnerTest[];
   typeTests?: { imports: string; cases: { name: string; expect: "ok" | "error"; errorCode?: string; code: string }[] };
+  forbid?: string[];
 }
 
-/** One test's run, as /api/execute answers a Check. */
-export interface TestRun {
-  stdout: string;
-  stderr: string;
-  code: number | null;
-  signal: string | null;
-  status: string | null;
-  files?: Record<string, string | null>;
-}
-
-export interface TestsResult {
-  compile: { code: number | null; output: string } | null;
-  results: TestRun[];
-  typeTests?: { name: string; diagnostics: { line: number; col: number; code: string; message: string }[] }[];
+/** A Check's report, as the runner sends it: the compile step, each test's
+    run with the files it read back, and type test and honesty verdicts. */
+export interface TestsReport {
+  compile?: { code: number | null; output: string; [key: string]: unknown } | null;
+  results: { stdout: string; stderr: string; code: number | null; signal: string | null; status: string | null; files?: Record<string, string | null>; [key: string]: unknown }[];
+  typeTests?: unknown[];
+  forbid?: unknown[];
+  [key: string]: unknown;
 }
 
 type Json = Record<string, unknown> | null;
@@ -90,25 +113,28 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 const num = (v: unknown) => (typeof v === "number" ? v : null);
 const strOrNull = (v: unknown) => (typeof v === "string" ? v : null);
 
-/** The error's code and words, from `{error, message}` or `{error: {code, message}}`. */
-function errorOf(data: Json): { code: string; message: string } {
-  const error = data?.error;
-  const nested = error && typeof error === "object" ? (error as Record<string, unknown>) : null;
-  const code = str(data?.code) || str(nested?.code) || (typeof error === "string" && !/\s/.test(error) ? error : "");
-  const message = str(data?.message) || str(nested?.message) || (typeof error === "string" && /\s/.test(error) ? error : "");
-  return { code, message };
-}
-
-/** What a refusal from the runner means for the learner. */
+/** What a refusal from the runner means for the learner. It answers
+    `{error, message}`, where error is a code like docker_unavailable. */
 function failure(status: number, data: Json, label: string): RunnerError {
-  const { code, message } = errorOf(data);
-  if (/docker/i.test(code) || (status === 503 && !message)) return new RunnerError(START_DOCKER, 503);
-  if (/image/i.test(code)) return new RunnerError(`The ${label} sandbox isn't built yet. npm run up builds it, then run again.`, 503);
+  const code = str(data?.error);
+  const message = str(data?.message);
+  // The runner phrases Docker being off ("Start Docker to run this.") or
+  // waking up itself.
+  if (/docker/.test(code)) return new RunnerError(/docker/i.test(message) ? message : START_DOCKER, 503);
+  if (/image/.test(code)) {
+    return new RunnerError(
+      /being built/i.test(message)
+        ? `The ${label} sandbox is being built. Try again in a minute.`
+        : `The ${label} sandbox isn't built yet. Run npm run up, then run again.`,
+      503
+    );
+  }
   if (status === 401 || status === 403) {
     return new RunnerError("The runner didn't accept this app's token. Restart the app with npm run up.", 502);
   }
   if (status === 413) return new RunnerError("Code is too long.", 413);
   if (status === 429) return new RunnerError("The runner is busy. Try again in a moment.", 503);
+  if (status === 503 && !message) return new RunnerError(START_DOCKER, 503);
   return new RunnerError(message || `The runner returned an error (${status}).`, status >= 400 && status < 500 ? 400 : 502);
 }
 
@@ -136,43 +162,80 @@ async function post(body: RunnerRequest, label: string): Promise<Json> {
   return data;
 }
 
-function compileOf(data: Json): TestsResult["compile"] {
-  const compile = data?.compile as Json;
-  return compile ? { code: num(compile.code), output: str(compile.output) } : null;
-}
-
-/** A Run: one program, once, answered in Piston's shape. */
+/** A Run: one program, once, answered in Piston's shape. A failed compile
+    is the run's result, as on Piston. */
 export async function runOnRunner(body: RunnerRequest, label: string): Promise<RunResult> {
   const data = await post({ ...body, tests: undefined }, label);
   const run = (data?.run ?? {}) as Record<string, unknown>;
-  const compile = compileOf(data);
+  const compile = (data?.compile ?? null) as Json;
   return {
     stdout: str(run.stdout),
     stderr: str(run.stderr),
     code: num(run.code),
     signal: strOrNull(run.signal),
     status: strOrNull(run.status),
-    compileCode: compile ? compile.code : null,
-    compileOutput: compile?.output ?? "",
+    compileCode: compile ? num(compile.code) : null,
+    compileOutput: compile ? str(compile.output) : "",
   };
 }
 
-/** A Check: every test in one job. A failed compile answers no results. */
-export async function testOnRunner(body: RunnerRequest & { tests: RunnerTest[] }, label: string): Promise<TestsResult> {
+/** A Check: every test in one job, answered with the runner's report. A
+    failed compile leaves every test skipped. */
+export async function testOnRunner(body: RunnerRequest & { tests: RunnerTest[] }, label: string): Promise<TestsReport> {
   const data = await post(body, label);
-  const results = Array.isArray(data?.results) ? (data.results as Record<string, unknown>[]) : [];
-  return {
-    compile: compileOf(data),
-    results: results.map((r) => ({
-      stdout: str(r.stdout),
-      stderr: str(r.stderr),
-      code: num(r.code),
-      signal: strOrNull(r.signal),
-      status: strOrNull(r.status),
-      ...(r.files && typeof r.files === "object" ? { files: r.files as Record<string, string | null> } : {}),
-    })),
-    ...(Array.isArray(data?.typeTests) ? { typeTests: data.typeTests as TestsResult["typeTests"] } : {}),
-  };
+  if (!data || !Array.isArray(data.results)) throw new RunnerError("The runner didn't send back test results. Try again.", 502);
+  return data as TestsReport;
+}
+
+const SET_NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+// Fixture sets are a lesson's data files, small by design.
+const SET_MAX_BYTES = 4 * 1024 * 1024;
+
+/**
+ * A course's fixture set, the files a program starts among
+ * (content/fixtures/<course>/<name>/, or FIXTURES_CONTENT_DIR for drafts),
+ * as the runner takes files: text as text, anything else base64, with
+ * executable bits and symlinks kept. Null when there's no such set.
+ */
+export async function readFixtureSet(course: string, name: string): Promise<RunnerFile[] | null> {
+  if (!SET_NAME.test(course) || !SET_NAME.test(name)) return null;
+  const base = process.env.FIXTURES_CONTENT_DIR
+    ? path.resolve(process.env.FIXTURES_CONTENT_DIR)
+    : path.join(process.cwd(), "content", "fixtures");
+  const root = path.join(base, course, name);
+  const files: RunnerFile[] = [];
+  let bytes = 0;
+  async function walk(rel: string) {
+    const entries = await fs.readdir(path.join(root, rel), { withFileTypes: true });
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      const relPath = rel ? `${rel}/${entry.name}` : entry.name;
+      const full = path.join(root, relPath);
+      if (entry.isSymbolicLink()) {
+        files.push({ name: relPath, content: "", type: "symlink", target: await fs.readlink(full) });
+      } else if (entry.isDirectory()) {
+        files.push({ name: relPath, content: "", type: "dir" });
+        await walk(relPath);
+      } else if (entry.isFile()) {
+        const [stat, data] = await Promise.all([fs.stat(full), fs.readFile(full)]);
+        bytes += data.length;
+        if (bytes > SET_MAX_BYTES) throw new RunnerError(`The fixture set ${name} is over 4 MB.`, 413);
+        const text = !data.subarray(0, 8000).includes(0);
+        files.push({
+          name: relPath,
+          content: data.toString(text ? "utf8" : "base64"),
+          ...(text ? {} : { encoding: "base64" as const }),
+          mode: stat.mode & 0o777,
+        });
+      }
+    }
+  }
+  try {
+    await walk("");
+  } catch (err) {
+    if (err instanceof RunnerError) throw err;
+    return null;
+  }
+  return files;
 }
 
 export interface RunnerStatus {
@@ -180,13 +243,13 @@ export interface RunnerStatus {
   online: boolean;
   /** Docker as the runner sees it. */
   docker: "ready" | "down" | "waking" | null;
-  /** Each hu/* image: ready, missing, or building. */
-  images: Record<string, string>;
+  /** Each recipe's image: ready, missing, or building. */
+  recipes: Record<string, string>;
 }
 
 /** Whether the runner is up, and what it says about Docker and its images. */
 export async function runnerStatus(): Promise<RunnerStatus> {
-  const offline: RunnerStatus = { online: false, docker: null, images: {} };
+  const offline: RunnerStatus = { online: false, docker: null, recipes: {} };
   const token = runnerToken();
   if (!token) return offline;
   try {
@@ -198,10 +261,11 @@ export async function runnerStatus(): Promise<RunnerStatus> {
     if (!res.ok) return offline;
     const data = (await res.json()) as Json;
     const docker = str((data?.docker as Json)?.state);
+    const recipes = (data?.recipes ?? {}) as Record<string, Json>;
     return {
       online: true,
       docker: docker === "ready" || docker === "down" || docker === "waking" ? docker : null,
-      images: data?.images && typeof data.images === "object" ? (data.images as Record<string, string>) : {},
+      recipes: Object.fromEntries(Object.entries(recipes).map(([id, r]) => [id, str(r?.state)])),
     };
   } catch {
     return offline;
