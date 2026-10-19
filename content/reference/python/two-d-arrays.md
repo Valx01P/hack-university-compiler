@@ -44,6 +44,11 @@ for row in m:
 
 ### Loop by index (when you need r and c)
 
+```python harness
+m = [[1, 2, 3], [4, 5, 6]]
+{{code}}
+```
+
 ```python
 for r in range(len(m)):
     for c in range(len(m[r])):

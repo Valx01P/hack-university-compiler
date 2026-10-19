@@ -12,6 +12,11 @@ for n in nums:
 
 ### for: index and value
 
+```python harness
+nums = [4, 8, 15]
+{{code}}
+```
+
 ```python
 for i, n in enumerate(nums):
     print(i, n)             # 0 4, 1 8, 2 15
@@ -21,6 +26,11 @@ for i in range(len(nums)):  # index only, read with nums[i]
 ```
 
 ### while: index by hand
+
+```python harness
+nums = [4, 8, 15]
+{{code}}
+```
 
 ```python
 i = 0

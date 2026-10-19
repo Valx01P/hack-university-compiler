@@ -46,6 +46,15 @@ print(lo, hi)                   # 1 9
 
 ### Any number of arguments
 
+```python harness
+def add(a, b):
+    return a + b
+
+
+{{code}}
+print(total(1, 2, 3), tag("img", src="a.png", w=20), add(*args))
+```
+
 ```python
 def total(*nums):               # nums is a tuple
     return sum(nums)

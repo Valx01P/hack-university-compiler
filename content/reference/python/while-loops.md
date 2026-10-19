@@ -58,6 +58,12 @@ while queue:
 
 The walrus operator `:=` assigns inside the condition:
 
+```stdin
+hi
+there
+quit
+```
+
 ```python
 while (line := input()) != "quit":
     print("got", line)

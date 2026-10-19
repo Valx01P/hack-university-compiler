@@ -4,6 +4,13 @@
 
 ### One value
 
+```stdin
+Ana
+31
+2.5
+ Yes 
+```
+
 ```python
 name = input()                    # "Ana"
 age = int(input())                # "31" -> 31
@@ -14,6 +21,13 @@ print(f"{name} is {age}, pays {price}, said {answer}")
 
 ### Several values on one line
 
+```stdin
+3 4
+5 1 8
+red green
+x,y,z
+```
+
 ```python
 a, b = map(int, input().split())          # "3 4" -> 3, 4
 nums = list(map(int, input().split()))    # "5 1 8" -> [5, 1, 8]
@@ -23,6 +37,13 @@ print(a + b, sum(nums), words, parts)     # 7 14 ['red', 'green'] ['x', 'y', 'z'
 ```
 
 ### A count, then that many lines
+
+```stdin
+3
+ana
+bo
+cy
+```
 
 ```python
 n = int(input())
@@ -45,6 +66,11 @@ print(total)
 ```
 
 All at once, which is the fastest way to read lots of numbers:
+
+```stdin
+3
+5 1 8
+```
 
 ```python
 import sys
@@ -69,6 +95,14 @@ print(len(lines))
 
 ### Into a grid
 
+```stdin
+2 3
+#.#
+.#.
+1 2 3
+4 5 6
+```
+
 ```python
 rows, cols = map(int, input().split())
 grid = [list(input()) for _ in range(rows)]      # "#.#" -> ['#', '.', '#']
@@ -78,6 +112,14 @@ print(walls, matrix[1][2])
 ```
 
 ### Into a dict, set, or objects
+
+```stdin
+3
+apple 3
+pear 1
+apple 2
+a b a c
+```
 
 ```python
 n = int(input())
@@ -89,6 +131,13 @@ print(stock)                               # {'apple': 5, 'pear': 1}
 
 unique = set(input().split())              # "a b a c" -> {'a', 'b', 'c'}
 print(len(unique))                         # 3
+```
+
+```stdin
+3
+ana 90
+bo 85
+cy 78
 ```
 
 ```python
@@ -107,6 +156,16 @@ print(best.name)
 ```
 
 ### Validate and retry
+
+```stdin
+abc
+31
+```
+
+```python harness
+{{code}}
+print(age)
+```
 
 ```python
 while True:

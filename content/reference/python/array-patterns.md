@@ -8,6 +8,11 @@ xs = [10, 20, 30, 40, 50, 60]
 
 ### Reverse
 
+```python harness
+xs = [10, 20, 30, 40, 50, 60]
+{{code}}
+```
+
 ```python
 for x in reversed(xs):
     print(x)                        # 60, 50, ..., 10
@@ -19,6 +24,11 @@ xs[::-1]                            # [60, 50, 40, 30, 20, 10]
 ```
 
 ### Every other, skip odd, every k-th
+
+```python harness
+xs = [10, 20, 30, 40, 50, 60]
+{{code}}
+```
 
 ```python
 xs[::2]                             # [10, 30, 50]  even indexes
@@ -33,6 +43,11 @@ nums = [1, 2, 3, 4, 5, 6]
 ```
 
 ### First n, last n, skip the ends
+
+```python harness
+xs = [10, 20, 30, 40, 50, 60]
+{{code}}
+```
 
 ```python
 xs[:3]                              # [10, 20, 30]
@@ -59,6 +74,11 @@ list(pairwise(temps))               # [(3, 5), (5, 4), (4, 8)]
 ```
 
 ### Chunks and sliding windows
+
+```python harness
+xs = [10, 20, 30, 40, 50, 60]
+{{code}}
+```
 
 ```python
 from itertools import batched
