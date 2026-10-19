@@ -98,10 +98,21 @@ export interface RunnerRequest {
 }
 
 /** A Check's report, as the runner sends it: the compile step, each test's
-    run with the files it read back, and type test and honesty verdicts. */
+    run with what it found at the paths the test named (`files` has a
+    regular file's contents, `exists` says whether anything is there), and
+    type test and honesty verdicts. */
 export interface TestsReport {
   compile?: { code: number | null; output: string; [key: string]: unknown } | null;
-  results: { stdout: string; stderr: string; code: number | null; signal: string | null; status: string | null; files?: Record<string, string | null>; [key: string]: unknown }[];
+  results: {
+    stdout: string;
+    stderr: string;
+    code: number | null;
+    signal: string | null;
+    status: string | null;
+    files?: Record<string, string | null>;
+    exists?: Record<string, boolean>;
+    [key: string]: unknown;
+  }[];
   typeTests?: unknown[];
   forbid?: unknown[];
   [key: string]: unknown;

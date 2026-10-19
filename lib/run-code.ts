@@ -15,9 +15,11 @@ export interface RunResult {
   verdict: string | null;
   compileCode: number | null;
   compileOutput: string;
-  /** For a test that names files: each one's contents, or null when it
-      doesn't exist. */
+  /** For a test that names paths: each regular file's contents, or null
+      for anything else (nothing there, a folder, a link). */
   files?: Record<string, string | null>;
+  /** For the same paths: whether anything at all is there. */
+  exists?: Record<string, boolean>;
 }
 
 export type RunState =
@@ -33,7 +35,7 @@ export interface TestInput {
   stdin?: string;
   /** Command-line arguments (Bash). */
   args?: string[];
-  /** Files to report on afterwards (lib/single-checks.mjs filesToCollect). */
+  /** Paths to report on afterwards (lib/single-checks.mjs filesToCollect). */
   collect?: string[];
 }
 
@@ -129,6 +131,7 @@ export async function runTests(language: string, code: string, tests: TestInput[
         compileCode,
         compileOutput,
         ...(r.files ? { files: r.files as Record<string, string | null> } : {}),
+        ...(r.exists ? { exists: r.exists as Record<string, boolean> } : {}),
       };
     });
     return { ok: true, runs };
