@@ -190,7 +190,8 @@ Every code example in the lessons and cheatsheets runs, in all six languages,
 so you can tinker with it right where you read it.
 
 - The play button at its top right runs it, and the output opens below (the
-  × closes it). Examples that show an error run into that error.
+  × closes it). Every example prints the values its comments state, so the
+  output shows them, and examples that show an error run into that error.
 - Click the code (or focus it and press `Enter`) to edit it in place, and
   `Mod-Enter` runs your version.
 - Once you change an example, a reset button appears next to play. Your
@@ -206,7 +207,7 @@ A fragment that can't run alone gets its context from a hidden block in the
 Markdown, and C++, Java, and Go fragments are wrapped into whole programs (see
 `lib/snippet-harness.mjs` and the Runnable snippets section of each
 `AUTHORING.md`). `npm run snippets:verify` runs all of them, about 2,600, the
-way the app does.
+way the app does, and fails any that errors by surprise or prints nothing.
 
 ## Editor
 
@@ -289,7 +290,8 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
   `Origin` is another site, so a web page you have open can't use your sandbox.
 - Every run is limited by `docker-compose.yml`: no network, 10s to run, 60s to
   compile, 512 MB of memory to run (1 GB to compile), 128 processes, and 1 MB of
-  output.
+  output. When a run is stopped, the reason shows above its output, and very
+  long output shows its first 1,000 lines.
 - SQL never reaches the server. PostgreSQL runs as WebAssembly in the page,
   loaded the first time you run SQL (about 16 MB, 5 MB gzipped). The playground
   keeps one in-memory database, and lessons and challenges get a fresh one for
