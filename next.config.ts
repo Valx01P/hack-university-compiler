@@ -33,6 +33,11 @@ const nextConfig: NextConfig = {
   // icons it uses into the client bundle.
   experimental: {
     optimizePackageImports: ["lucide-react", "simple-icons"],
+    // Turbopack's production scope hoisting renames a helper inside PGlite
+    // but not every use of it, so SQL failed to start in a production build
+    // ("p.instantiateWasm is not a function"). Keep each module in its own
+    // scope instead.
+    turbopackScopeHoisting: false,
   },
   // The floating dev badge sits on top of the language rail.
   devIndicators: false,
