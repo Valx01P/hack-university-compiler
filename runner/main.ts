@@ -45,11 +45,12 @@ const pool = new JobPool(config.jobSlots);
 const tickets = new Tickets(config.ticketTtlMs);
 const services: Services = { piston: false, postgres: "absent", mongo: "absent" };
 
-/** Whenever Docker is (back) up: clear leftovers and look the images up. */
+/** Whenever Docker is (back) up: clear leftovers, and look the images and shared services up. */
 async function onDockerReady() {
   try {
     await reconcile(watch.docker, owner, log);
     await images.refresh();
+    await refreshServices();
   } catch (err) {
     log.warn("docker.ready_failed", { error: (err as Error).message });
   }
@@ -66,13 +67,13 @@ async function refreshServices() {
   services.mongo = state("hu-mongo");
 }
 
-watch.onChange((state) => {
-  log.info("docker.state", { state });
-  if (state === "ready") void onDockerReady();
-});
-
+// Requests wait for the first look at Docker, so the first /v1/health already
+// knows whether it's up and which images exist. A socket needs a ticket from
+// POST /v1/tickets first, so it waits too.
+let started!: () => void;
+const ready = new Promise<void>((resolve) => (started = resolve));
 const startedAt = Date.now();
-const server = createApiServer({ config, token, tickets, watch, images, pool, owner, log, services, startedAt, version });
+const server = createApiServer({ config, token, tickets, watch, images, pool, owner, log, services, startedAt, version, ready });
 attachWebSockets(server, { port: config.port, appPort: config.appPort, helloTimeoutMs: config.helloTimeoutMs, tickets, watch, log });
 
 server.on("error", (err: NodeJS.ErrnoException) => {
@@ -84,8 +85,18 @@ server.on("error", (err: NodeJS.ErrnoException) => {
   process.exit(1);
 });
 
+// The port first. A second runner started on a port that's taken (npm run
+// runner beside npm run up) exits above, before it touches Docker, so it
+// never reconciles away the jobs of the runner that holds the port.
+await new Promise<void>((resolve) => server.listen(config.port, "127.0.0.1", resolve));
+
+// Docker, once at startup. From then on, Docker coming back reconciles.
 await watch.check();
 if (watch.state === "ready") await onDockerReady();
+watch.onChange((state) => {
+  log.info("docker.state", { state });
+  if (state === "ready") void onDockerReady();
+});
 watch.start(config.pollMs);
 
 // The reaper, and what the health check reports about shared services.
@@ -99,12 +110,10 @@ const reaper = setInterval(async () => {
   }
 }, config.pollMs);
 reaper.unref();
-if (watch.state === "ready") await refreshServices().catch(() => {});
 
-server.listen(config.port, "127.0.0.1", () => {
-  log.info("runner.listening", { port: config.port, ns: config.ns, boot: owner.boot, docker: watch.state, endpoint: endpoint.source });
-  console.log(`hu-runner listening on http://127.0.0.1:${config.port} (Docker ${watch.state === "ready" ? "is ready" : `is ${watch.state}`})`);
-});
+started();
+log.info("runner.listening", { port: config.port, ns: config.ns, boot: owner.boot, docker: watch.state, endpoint: endpoint.source });
+console.log(`hu-runner listening on http://127.0.0.1:${config.port} (Docker ${watch.state === "ready" ? "is ready" : `is ${watch.state}`})`);
 
 // Ctrl+C: stop taking requests, remove this runner's containers, and go.
 let stopping = false;

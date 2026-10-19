@@ -62,9 +62,10 @@ function request(
 
 const auth = { authorization: `Bearer ${TOKEN}` };
 const json = { ...auth, "content-type": "application/json" };
+let deps: ApiDeps;
 
 before(async () => {
-  const deps: ApiDeps = {
+  deps = {
     config,
     token: TOKEN,
     tickets,
@@ -151,6 +152,20 @@ describe("the REST API", () => {
     assert.equal(missing.status, 503);
     assert.equal(missing.json?.error, "image_missing");
     imageState = "ready";
+  });
+
+  it("holds requests until the runner has first looked at Docker", async () => {
+    let started!: () => void;
+    deps.ready = new Promise<void>((resolve) => (started = resolve));
+    let answered = false;
+    const pending = request("GET", "/v1/health", { headers: auth }).finally(() => (answered = true));
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(answered, false);
+    // A request without the token is still refused at once.
+    assert.equal((await request("GET", "/v1/health")).status, 401);
+    started();
+    assert.equal((await pending).status, 200);
+    delete deps.ready;
   });
 
   it("issues tickets, and routes the rest", async () => {

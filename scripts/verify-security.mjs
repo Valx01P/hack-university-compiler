@@ -397,6 +397,21 @@ async function S14(kit) {
     check("a restarted runner removes every job left behind", left.length === 0, left.map((c) => c.Names[0]).join(", "));
     const volumes = (await kit.docker.listVolumes({ filters: { label: ["hu.managed=1", "hu.ns=verify", `hu.port=${PORT}`] } })).Volumes ?? [];
     check("and no volume is left behind", volumes.length === 0);
+
+    // npm run runner beside npm run up: a second runner on the same port
+    // can't have it, and must leave the first one's jobs alone.
+    const inflight = runner.request("POST", "/v1/run", { body: { recipe: "bash", files: [{ name: "main.sh", content: "sleep 2\necho finished\n" }] } });
+    for (let i = 0; i < 100 && !(await jobsOnPort(kit)).some((c) => c.State === "running"); i++) await sleep(50);
+    const second = startRunner(PORT);
+    const exit = await Promise.race([new Promise((resolve) => second.child.once("exit", resolve)), sleep(15_000).then(() => "still running")]);
+    await second.stop();
+    rmSync(second.dataDir, { recursive: true, force: true });
+    const answer = await inflight;
+    check(
+      "a second runner on the same port exits without touching the first one's run",
+      exit === 1 && answer.status === 200 && answer.json?.run?.stdout === "finished\n",
+      `exit ${exit}, ${answer.status} ${JSON.stringify(answer.json?.run ?? answer.json)}`
+    );
     note("a workspace start (P1) and ck_ and run_ databases (P2) join this test when they exist");
   } finally {
     await runner.stop();

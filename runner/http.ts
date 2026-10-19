@@ -30,6 +30,8 @@ export interface ApiDeps {
   services: Services;
   startedAt: number;
   version: string;
+  /** Resolves once the runner has first looked at Docker. Requests wait for it. */
+  ready?: Promise<void>;
 }
 
 /** What the runner knows about the shared containers it doesn't run in P0. */
@@ -262,6 +264,7 @@ export function createApiServer(deps: ApiDeps): http.Server {
       if (req.method === "OPTIONS") throw new HttpError(403, "forbidden", "No CORS here.");
       if (!bearerMatches(req.headers.authorization, deps.token)) throw new HttpError(401, "unauthorized", "Missing or wrong runner token.");
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
+      await deps.ready;
       await route(deps, req, res, url);
     } catch (err) {
       if (res.headersSent) {
