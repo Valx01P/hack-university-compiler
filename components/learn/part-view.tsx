@@ -22,6 +22,7 @@ import { partHref, problemId, type Lesson, type LessonStep } from "@/lib/learn-t
 import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolvedState } from "@/lib/learn-progress";
 import { normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
 import { useEnter } from "@/lib/motion";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { revealWorkspace, urlCount, urlParam, writeHash, writeUrl } from "@/lib/url-state";
 
 /** Where Previous or Next goes: another part of this lesson, or a lesson. */
@@ -47,7 +48,7 @@ const SPLIT = { min: 30, max: 70, initial: 50 };
 // Where #example, #practice, and #recap land: clear of the sticky header
 // when the page scrolls, a little below the top of the lesson column.
 const PLACE_MARGIN = "scroll-mt-[calc(4rem+1rem)] lg:scroll-mt-4";
-const session = { split: SPLIT.initial };
+const session = { split: SPLIT.initial, full: false };
 
 /** Lesson markdown with the outer margins trimmed, for use inside cards. */
 function Prose({ md, className = "", runnable }: { md: string; className?: string; runnable?: RunnableContext }) {
@@ -138,6 +139,11 @@ export function PartView({
   // Moving to another part fades the new one in (never on first paint).
   const articleRef = useRef<HTMLElement>(null);
   useEnter(articleRef);
+
+  // Full screen, like the compiler's: the lesson and the editor over the
+  // whole window. It lasts while you move between parts.
+  const [full, setFullState] = useState(session.full);
+  const toggleFull = () => setFullState((was) => (session.full = !was));
 
   const [split, setSplitPct] = useState(session.split);
   const setSplit = (pct: number) => {
@@ -355,7 +361,9 @@ export function PartView({
     <div
       ref={gridRef}
       data-workspace
-      className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[var(--learn-split)_9px_minmax(0,1fr)]"
+      className={`flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[var(--learn-split)_9px_minmax(0,1fr)] ${
+        full ? "fixed inset-0 z-[100] bg-canvas max-lg:overflow-y-auto" : ""
+      }`}
       style={{ "--learn-split": `${split}%` } as React.CSSProperties}
     >
       {/* Left: the part. Its scroll padding (and, on narrow screens, the
@@ -541,6 +549,18 @@ export function PartView({
               {active === "example" ? step.example.title : showingAnswer ? "The answer (read only, your code is kept)" : step.practice.title}
             </span>
             <div className="ms-auto flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={toggleFull}
+                title={full ? "Exit full screen" : "Full screen"}
+                aria-label="Toggle full screen"
+                aria-pressed={full}
+                className={`${iconBtn} hidden lg:inline-flex`}
+              >
+                <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+                </svg>
+              </button>
               {active === "practice" && (
                 <AnswerToggle
                   shown={answer}
@@ -682,6 +702,8 @@ export function PartView({
           {announcement}
         </p>
       </div>
+      {/* In full screen the header is covered, so the theme picker floats. */}
+      {full && <ThemeToggle floating />}
     </div>
   );
 }

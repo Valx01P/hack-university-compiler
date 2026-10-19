@@ -13,6 +13,7 @@ import { ResizeHandle } from "@/components/ui/resize-handle";
 import { LangIcon } from "@/components/compiler/lang-icon";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { ReferencePanel, useReferenceData, type ReferenceTab } from "@/components/compiler/reference-panel";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cheatsheetPlace, readCompilerUrl, revealWorkspace, urlParam, writeUrl } from "@/lib/compiler-url";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { SqlDatabase } from "@/components/compiler/sql-database";
@@ -47,6 +48,7 @@ const sessionLayout: {
   refTab: ReferenceTab;
   refPct: number;
   challengeId: string | null;
+  full: boolean;
 } = {
   orient: "horizontal",
   splitPct: 55,
@@ -54,6 +56,7 @@ const sessionLayout: {
   refTab: "cheatsheet",
   refPct: 55,
   challengeId: null,
+  full: false,
 };
 
 const codeKey = (slug: string) => `hu-compiler-code:${slug}`;
@@ -90,7 +93,10 @@ export function CompilerApp({
   const outputId = useId();
   const [orient, setOrient] = useState<Orient>(() => sessionLayout.orient);
   const [splitPct, setSplitPct] = useState(() => sessionLayout.splitPct);
-  const [full, setFull] = useState(false);
+  // Full screen lasts while you switch languages, like the split.
+  const [full, setFullState] = useState(() => sessionLayout.full);
+  const setFull = (next: boolean | ((was: boolean) => boolean)) =>
+    setFullState((was) => (sessionLayout.full = typeof next === "function" ? next(was) : next));
 
   // The cheatsheet or the challenges, in a panel on the right with the
   // output tucked under the editor (refTab says which).
@@ -877,6 +883,8 @@ export function CompilerApp({
           />
         )}
       </div>
+      {/* In full screen the header is covered, so the theme picker floats. */}
+      {full && <ThemeToggle floating />}
     </div>
   );
 }

@@ -28,9 +28,10 @@ import { POP, usePresence } from "@/lib/motion";
  * setTheme() so the `data-dark` flag and the editor's code theme stay in sync.
  * The icon starts as the Light sun on first paint (SSR) and corrects after
  * hydration — same pattern as the rest of the theme bootstrap, so there's no
- * markup mismatch.
+ * markup mismatch. `floating` is the button in full screen, where the header
+ * is covered: round, fixed at the bottom right, its menu opening upward.
  */
-export function ThemeToggle() {
+export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   const theme = useTheme();
   const contrast = useContrast();
@@ -56,7 +57,7 @@ export function ThemeToggle() {
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className={floating ? "fixed bottom-4 right-4 z-[120]" : "relative"}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -64,9 +65,15 @@ export function ThemeToggle() {
         title="Theme"
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`inline-flex size-9 items-center justify-center rounded-btn transition-colors ${
-          open ? "bg-raised text-ink" : "text-ink-muted hover:bg-raised hover:text-ink"
-        }`}
+        className={
+          floating
+            ? `inline-flex size-10 items-center justify-center rounded-full border border-line bg-surface shadow-(--shadow-card) transition-colors ${
+                open ? "text-ink" : "text-ink-muted hover:text-ink"
+              }`
+            : `inline-flex size-9 items-center justify-center rounded-btn transition-colors ${
+                open ? "bg-raised text-ink" : "text-ink-muted hover:bg-raised hover:text-ink"
+              }`
+        }
       >
         <ThemeIcon id={theme} className="size-5" />
       </button>
@@ -76,8 +83,10 @@ export function ThemeToggle() {
           ref={menuRef}
           role="menu"
           aria-label="Theme"
-          style={{ transformOrigin: "top right" }}
-          className="slim-scroll absolute right-0 top-[calc(100%+0.4rem)] z-[60] max-h-[calc(100dvh-4.5rem)] w-60 overflow-y-auto rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card)"
+          style={{ transformOrigin: floating ? "bottom right" : "top right" }}
+          className={`slim-scroll absolute right-0 z-[60] w-60 overflow-y-auto rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card) ${
+            floating ? "bottom-[calc(100%+0.5rem)] max-h-[calc(100dvh-5rem)]" : "top-[calc(100%+0.4rem)] max-h-[calc(100dvh-4.5rem)]"
+          }`}
         >
           {APP_THEMES.map((t) => {
             const active = t.id === theme;
