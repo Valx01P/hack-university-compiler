@@ -15,8 +15,6 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import {
-  syntaxHighlighting,
-  HighlightStyle,
   indentOnInput,
   bracketMatching,
   indentUnit,
@@ -25,7 +23,6 @@ import {
   foldKeymap,
 } from "@codemirror/language";
 import { autocompletion, closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
-import { tags as t } from "@lezer/highlight";
 import { indentationMarkers } from "@replit/codemirror-indentation-markers";
 import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
@@ -36,6 +33,7 @@ import { PostgreSQL, sql } from "@codemirror/lang-sql";
 import { useCodeEditorSettings } from "@/components/code/editor-settings";
 import { completionSources, SQL_SCHEMA } from "@/lib/code-editor-completions";
 import { bracketColors } from "@/lib/bracket-colors";
+import { tokenHighlight } from "@/lib/token-highlight";
 
 /** Language id → CodeMirror language extension. */
 function langExt(language: string) {
@@ -178,16 +176,6 @@ const cmTheme = EditorView.theme(
   { dark: true }
 );
 
-const cmHighlight = HighlightStyle.define([
-  { tag: t.keyword, color: "var(--hl-keyword)" },
-  { tag: [t.controlKeyword, t.moduleKeyword, t.operatorKeyword], color: "var(--hl-keyword)" },
-  { tag: [t.string, t.special(t.string)], color: "var(--hl-string)" },
-  { tag: [t.comment, t.lineComment, t.blockComment, t.docComment], color: "var(--hl-comment)", fontStyle: "italic" },
-  { tag: [t.number, t.bool, t.null, t.atom], color: "var(--hl-number)" },
-  { tag: [t.function(t.variableName), t.function(t.propertyName), t.definition(t.function(t.variableName))], color: "var(--hl-fn)" },
-  { tag: [t.typeName, t.className, t.namespace], color: "var(--hl-fn)" },
-]);
-
 /** A snippet in a lesson or cheatsheet, edited in place: it looks exactly
     like the static code block it replaces (no gutters or guides, the same
     padding, font, and line height) and grows with its code. */
@@ -299,7 +287,8 @@ export function CmEditor({
           highlightSelectionMatches(),
           tabComp.current.of(EditorState.tabSize.of(settings.tabSize)),
           indentComp.current.of(indentUnit.of(indentUnitFor(settings.tabSize, language))),
-          syntaxHighlighting(cmHighlight),
+          // The same colors as the static code blocks (lib/highlight.tsx).
+          tokenHighlight(language),
           langExt(language),
           completionComp.current.of(completion(settings.intellisense, language)),
           Prec.highest(

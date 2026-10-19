@@ -241,8 +241,10 @@ way the app does, and fails any that errors by surprise or prints nothing.
 
 ## Editor
 
-The editor (CodeMirror) helps with nesting: brackets and quotes close
-themselves, Enter between a pair opens an indented line with the closer on its
+The editor (CodeMirror) colors code with the same highlighter as the code
+blocks in lessons and cheatsheets (`lib/highlight.tsx`), so code reads the same
+everywhere and an example you click into keeps its colors. It also helps with
+nesting: brackets and quotes close themselves, Enter between a pair opens an indented line with the closer on its
 own line, each bracket pair gets a color by depth (with a stray closer marked),
 indent guides and fold arrows show the blocks, and the pair at the cursor is
 outlined. Go indents with tabs, everything else with spaces (2 or 4, in the
@@ -404,10 +406,13 @@ scripts/try-sql.mjs          runs SQL on a fresh PostgreSQL, printed like psql
    `curl http://127.0.0.1:2000/api/v2/packages`).
 2. `lib/compiler.ts`: label, starter, file name, and `COMPILER_SLUGS`.
 3. `components/compiler/lang-icon.tsx`: the rail icon.
-4. `components/code/cm-editor.tsx` and `lib/code-editor-completions.ts`: syntax
-   highlighting (install the matching `@codemirror/lang-*` package, or use a
-   `@codemirror/legacy-modes` mode) and completions.
-5. `npm run piston:install -- <id>`, then run a hello world.
+4. `lib/highlight.tsx`: its keywords and comment style, which color its code
+   blocks and editors.
+5. `components/code/cm-editor.tsx` and `lib/code-editor-completions.ts`: the
+   grammar for indenting, folding, and bracket matching (install the matching
+   `@codemirror/lang-*` package, or use a `@codemirror/legacy-modes` mode) and
+   completions.
+6. `npm run piston:install -- <id>`, then run a hello world.
 
 ## Troubleshooting
 
