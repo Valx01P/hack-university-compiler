@@ -57,6 +57,7 @@ npm run piston:install -- python javascript
 | `npm run lessons:verify` | Check every Learn lesson in the sandbox (`-- <language> [ids]` for some) |
 | `npm run challenges:verify` | Check every challenge in every language (`-- <ids>`, `--lang=<language>`) |
 | `npm run reference:verify` | Lint the cheatsheets (`-- <language> [categories]`) |
+| `npm run snippets:verify` | Run every code example in the lessons and cheatsheets the way the app does (`-- <languages>`, `--source=learn` or `reference`, `--pages=<ids>`) |
 | `npm run sql:try -- <file.sql>` | Run SQL on a fresh PostgreSQL and print what psql would (`--setup <file.sql>`, `--sample` for the playground's tables) |
 
 ## Languages
@@ -148,6 +149,7 @@ practice problems for each programming language, and 114 for SQL.
 - Drag the borders to resize the lesson list, the lesson, and the editor.
   Drag the lesson list's border all the way left to fold it away, and bring it
   back with the panel button or the border.
+- Every code block in a part runs too (see [Runnable examples](#runnable-examples)).
 - Progress, your code in every tab, and the part you were on are saved in the
   browser's local storage.
 
@@ -181,6 +183,30 @@ Content lives in `content/reference/<language>/<topic>.md` and
 `content/challenges/<id>.json`, each with an `AUTHORING.md` guide, and
 `npm run challenges:verify` runs every challenge's solution and starter in the
 sandbox.
+
+## Runnable examples
+
+Every code example in the lessons and cheatsheets runs, in all six languages,
+so you can tinker with it right where you read it.
+
+- The play button at its top right runs it, and the output opens below (the
+  × closes it). Examples that show an error run into that error.
+- Click the code (or focus it and press `Enter`) to edit it in place, and
+  `Mod-Enter` runs your version.
+- Once you change an example, a reset button appears next to play. Your
+  version is saved in the browser and stays until you reset it, across
+  reloads.
+- SQL examples run on the lesson's tables, or on the playground's sample
+  database in the cheatsheet.
+- Examples show as plain highlighted code until you use them. Hovering one
+  loads the editor in the background (and PostgreSQL for SQL), and clicking it
+  swaps the editor in.
+
+A fragment that can't run alone gets its context from a hidden block in the
+Markdown, and C++, Java, and Go fragments are wrapped into whole programs (see
+`lib/snippet-harness.mjs` and the Runnable snippets section of each
+`AUTHORING.md`). `npm run snippets:verify` runs all of them, about 2,600, the
+way the app does.
 
 ## Editor
 
@@ -266,10 +292,15 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
   drawer, menus and popups, the cheatsheet and challenges panel, check results,
   and moving between parts. They only answer what you do, never a page load,
   and the system's "reduce motion" setting turns them off.
-- Saved in the browser's local storage: your code (per language), editor zoom,
-  tab size, intellisense, theme, editor theme, contrast level, code background,
-  layout lines, and content lines. Everything visual is applied before the page
-  paints, so nothing shifts on reload. The editor/output split isn't saved, so
+- Hovering or focusing a link to another page loads that page in the
+  background, so it opens at once when you click. (In `npm run dev` it warms
+  the page's compile instead, since Next.js only prefetches in production.)
+- Saved in the browser's local storage: your code (per language), your edits
+  to examples, editor zoom, tab size, intellisense, theme, editor theme,
+  contrast level, code background, layout lines, and content lines. Everything
+  visual is applied before the page paints, so nothing shifts on reload, and
+  the menus read what's applied, so opening one never flashes the default
+  first. The editor/output split isn't saved, so
   a reload always opens on the default layout (it does carry over while you
   switch languages).
 
@@ -291,6 +322,7 @@ lib/compiler.ts              languages, labels, starters, file names
 lib/sql/                     SQL: the PGlite playground, the sample database, and
                              the psql-style runner shared with the verifiers
 lib/learn.ts                 reads courses and lessons at build time
+lib/snippet-harness.mjs      turns a lesson or cheatsheet code block into a program
 lib/runtimes.json            language id to Piston runtime and package
 lib/piston.ts                server-side Piston client
 docker-compose.yml           the sandbox and its limits
@@ -298,6 +330,7 @@ scripts/setup-piston.mjs     runtime installer
 scripts/verify-lessons.mjs   runs every lesson's programs in the sandbox
 scripts/verify-challenges.mjs runs every challenge in every language
 scripts/verify-reference.mjs lints the cheatsheets
+scripts/verify-snippets.mjs  runs every code example in the lessons and cheatsheets
 scripts/try-sql.mjs          runs SQL on a fresh PostgreSQL, printed like psql
 ```
 
