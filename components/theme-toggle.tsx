@@ -15,7 +15,7 @@ import {
   useCodeCommentsHidden,
   useTheme,
 } from "@/lib/theme";
-import { CodeBackgroundPicker } from "@/components/code/code-background";
+import { CodeBackgroundPicker, SelectionColorPicker } from "@/components/code/code-background";
 import { POP, usePresence } from "@/lib/motion";
 
 /**
@@ -177,6 +177,29 @@ export function ThemeToggle() {
             </p>
             <div className="mt-2.5">
               <CodeBackgroundPicker compact />
+            </div>
+          </div>
+
+          {/* And the color selected code is highlighted with. */}
+          <div role="group" aria-label="Selection color" className="px-3 pb-2.5 pt-1.5">
+            <p className="flex items-center gap-2.5 text-sm text-ink-muted">
+              <svg
+                viewBox="0 0 24 24"
+                className="size-4 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <rect x="3.5" y="8" width="11" height="8" rx="1.5" fill="currentColor" fillOpacity={0.25} stroke="none" />
+                <path d="M17 5v14M15 5h4M15 19h4" />
+              </svg>
+              Selection color
+            </p>
+            <div className="mt-2.5">
+              <SelectionColorPicker compact />
             </div>
           </div>
 

@@ -167,13 +167,99 @@ export function useContrast(): ContrastLevel {
 }
 
 /**
- * Code background: one background for every code surface (the editor, code
- * blocks, and the output terminal) on top of whichever editor theme and
- * contrast level is active. Their text and syntax colors stay the editor
- * theme's. Stored as a #rrggbb color (no key = the theme's own background)
- * and applied before first paint by the bootstrap in app/layout.tsx, as
- * <html data-code-bg> plus the --code-bg-override variable.
+ * Code colors: settings that recolor every code surface (the editors, the
+ * code blocks, and the output terminal) on top of whichever editor theme and
+ * contrast level is active. Each is stored as a #rrggbb color (no key = the
+ * theme's own) and applied before first paint by the bootstrap in
+ * app/layout.tsx, as an <html> attribute plus a CSS variable. Each also
+ * remembers the last custom color you picked, so it stays one click away
+ * after you switch to a preset, until you pick another.
+ *
+ * - Code background (data-code-bg, --code-bg-override): one background for
+ *   all of them. Their text and syntax colors stay the editor theme's.
+ * - Selection (data-code-sel, --code-sel-override): the color selected text
+ *   is highlighted with, drawn at 40% over the background (globals.css), so
+ *   the text stays readable on dark and light editor themes alike.
  */
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/** A valid #rrggbb color, lowercased, or null. */
+export function toHexColor(value: string | null | undefined): string | null {
+  return value && HEX_COLOR.test(value) ? value.toLowerCase() : null;
+}
+
+function colorSetting(key: string, attr: string, cssVar: string) {
+  const event = `hu:${key}-changed`;
+  const customKey = `${key}-custom`;
+  const customEvent = `hu:${customKey}-changed`;
+
+  function apply(value: string | null) {
+    const d = document.documentElement;
+    if (value) {
+      d.setAttribute(attr, "");
+      d.style.setProperty(cssVar, value);
+    } else {
+      d.removeAttribute(attr);
+      d.style.removeProperty(cssVar);
+    }
+  }
+
+  /** Set the color (null = the theme's own), persist it, and broadcast to
+      every picker. */
+  function set(value: string | null) {
+    const color = toHexColor(value);
+    apply(color);
+    try {
+      if (color) localStorage.setItem(key, color);
+      else localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+    try {
+      window.dispatchEvent(new Event(event));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function current(): string | null {
+    const d = document.documentElement;
+    return d.hasAttribute(attr) ? toHexColor(d.style.getPropertyValue(cssVar).trim()) : null;
+  }
+
+  const subscribe = subscribeTo(event, key, (stored) => apply(toHexColor(stored)));
+  /** The color (null = the theme's own), any tab. */
+  function use(): string | null {
+    return useSyncExternalStore(subscribe, current, () => null);
+  }
+
+  /** Remember a custom color you picked. */
+  function saveCustom(value: string) {
+    const color = toHexColor(value);
+    if (!color) return;
+    try {
+      localStorage.setItem(customKey, color);
+      window.dispatchEvent(new Event(customEvent));
+    } catch {
+      /* ignore */
+    }
+  }
+  const readCustom = () => {
+    try {
+      return toHexColor(localStorage.getItem(customKey));
+    } catch {
+      return null;
+    }
+  };
+  const subscribeCustom = subscribeTo(customEvent, customKey);
+  /** The last custom color you picked, if any, any tab. */
+  function useCustom(): string | null {
+    return useSyncExternalStore(subscribeCustom, readCustom, () => null);
+  }
+
+  return { set, use, saveCustom, useCustom };
+}
+
 export const CODE_BG_PRESETS: { value: string; label: string }[] = [
   { value: "#2e2f34", label: "Graphite" },
   { value: "#1c2030", label: "Navy" },
@@ -182,55 +268,23 @@ export const CODE_BG_PRESETS: { value: string; label: string }[] = [
   { value: "#282c34", label: "Slate" },
   { value: "#000000", label: "Black" },
 ];
-
 export const CODE_BG_KEY = "hu-code-bg";
-export const CODE_BG_EVENT = "hu:code-bg-changed";
-const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+export const codeBackground = colorSetting(CODE_BG_KEY, "data-code-bg", "--code-bg-override");
+export const setCodeBackground = codeBackground.set;
+export const useCodeBackground = codeBackground.use;
 
-/** A valid #rrggbb color, lowercased, or null. */
-export function toCodeBg(value: string | null | undefined): string | null {
-  return value && HEX_COLOR.test(value) ? value.toLowerCase() : null;
-}
-
-function applyCodeBg(value: string | null) {
-  const d = document.documentElement;
-  if (value) {
-    d.setAttribute("data-code-bg", "");
-    d.style.setProperty("--code-bg-override", value);
-  } else {
-    d.removeAttribute("data-code-bg");
-    d.style.removeProperty("--code-bg-override");
-  }
-}
-
-/** Set the code background (null = the theme's own), persist it, and
-    broadcast to every picker. */
-export function setCodeBackground(value: string | null) {
-  const color = toCodeBg(value);
-  applyCodeBg(color);
-  try {
-    if (color) localStorage.setItem(CODE_BG_KEY, color);
-    else localStorage.removeItem(CODE_BG_KEY);
-  } catch {
-    /* ignore */
-  }
-  try {
-    window.dispatchEvent(new Event(CODE_BG_EVENT));
-  } catch {
-    /* ignore */
-  }
-}
-
-function currentCodeBg(): string | null {
-  const d = document.documentElement;
-  return d.hasAttribute("data-code-bg") ? toCodeBg(d.style.getPropertyValue("--code-bg-override").trim()) : null;
-}
-
-/** Subscribe to the code background (null = the theme's own), any tab. */
-const subscribeCodeBg = subscribeTo(CODE_BG_EVENT, CODE_BG_KEY, (stored) => applyCodeBg(toCodeBg(stored)));
-export function useCodeBackground(): string | null {
-  return useSyncExternalStore(subscribeCodeBg, currentCodeBg, () => null);
-}
+export const CODE_SEL_PRESETS: { value: string; label: string }[] = [
+  { value: "#388bfd", label: "Blue" },
+  { value: "#a371f7", label: "Purple" },
+  { value: "#2ea043", label: "Green" },
+  { value: "#d29922", label: "Amber" },
+  { value: "#db61a2", label: "Pink" },
+  { value: "#8b949e", label: "Gray" },
+];
+export const CODE_SEL_KEY = "hu-code-sel";
+export const codeSelection = colorSetting(CODE_SEL_KEY, "data-code-sel", "--code-sel-override");
+export const setCodeSelection = codeSelection.set;
+export const useCodeSelection = codeSelection.use;
 
 /**
  * Line visibility settings, from 0 (hidden) to 100 (the theme's own), each

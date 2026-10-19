@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Minus, Plus, Settings } from "lucide-react";
 import { CONTRAST_LEVELS, setContrast, useContrast } from "@/lib/theme";
-import { CodeBackgroundPicker } from "@/components/code/code-background";
+import { CodeBackgroundPicker, SelectionColorPicker } from "@/components/code/code-background";
 import { POP, usePresence } from "@/lib/motion";
 
 export type CodeEditorSettings = {
@@ -213,6 +213,13 @@ export function EditorSettingsButton({
                 <span className="text-ink-muted">Background</span>
                 <div className="mt-2">
                   <CodeBackgroundPicker compact />
+                </div>
+              </div>
+
+              <div>
+                <span className="text-ink-muted">Selection</span>
+                <div className="mt-2">
+                  <SelectionColorPicker compact />
                 </div>
               </div>
 
