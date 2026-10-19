@@ -12,7 +12,6 @@ import { OutputPanel } from "@/components/compiler/output-panel";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
 import { ResizeHandle } from "@/components/ui/resize-handle";
-import { ScrollPre } from "@/components/ui/scroll-pre";
 import { LessonMarkdown, type RunnableContext } from "@/components/learn/lesson-md";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { CompilerButton } from "@/components/learn/compiler-button";
@@ -39,8 +38,6 @@ type Panel = { mode: "run"; run: RunState } | { mode: "check"; check: CheckState
 const TABS: TabKind[] = ["example", "practice"];
 const CODE_BLOCK =
   "code-dark slim-scroll overflow-x-auto rounded-card border border-code-content-line bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink";
-const PLAIN_BLOCK =
-  "code-terminal slim-scroll mt-1.5 overflow-x-auto rounded-card border border-content-line bg-raised px-4 py-3 font-mono text-[13px] leading-6 text-ink";
 
 // How much of the width the lesson gets next to the editor. Like the
 // compiler's split it lasts for the session but isn't saved, so a reload
@@ -795,15 +792,13 @@ function PartSection({
         {example.stdin ? (
           <>
             <p className="mt-4 text-xs font-medium text-ink-faint">Input</p>
-            <ScrollPre label="Example input" className={PLAIN_BLOCK}>
-              {example.stdin}
-            </ScrollPre>
+            <CopyableCodeBlock code={example.stdin} label="Example input" className="mt-1.5" preClassName={CODE_BLOCK} />
           </>
         ) : null}
+        {/* Shown like the expected output in a practice prompt: a terminal
+            block you can copy. */}
         <p className="mt-4 text-xs font-medium text-ink-faint">Output</p>
-        <ScrollPre label="Example output" className={PLAIN_BLOCK}>
-          {example.output}
-        </ScrollPre>
+        <CopyableCodeBlock code={example.output} label="Example output" className="mt-1.5" preClassName={CODE_BLOCK} />
         <p className="mt-4 text-sm font-medium text-ink">How it works</p>
         <Prose md={example.explanation} className="mt-1 text-ink-muted" runnable={runnable} />
       </div>

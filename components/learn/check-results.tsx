@@ -170,8 +170,9 @@ function OutputBlock({
       <p className="mb-1 text-xs text-ink-faint">{label}</p>
       <ScrollPre
         label={`Test ${test}: ${label}`}
-        className={`slim-scroll max-h-48 overflow-auto rounded-btn border border-content-line bg-raised px-3 py-2 font-mono text-xs leading-5 ${
-          danger ? "text-danger" : "text-ink"
+        // The terminal look of every output block in lessons.
+        className={`code-dark slim-scroll max-h-48 overflow-auto rounded-btn border border-code-content-line bg-code-bg px-3 py-2 font-mono text-xs leading-5 ${
+          danger ? "text-danger" : "text-code-ink"
         }`}
       >
         {text}
