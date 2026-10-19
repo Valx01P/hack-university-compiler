@@ -244,15 +244,21 @@ way the app does, and fails any that errors by surprise or prints nothing.
 ## Editor
 
 The editor (CodeMirror) colors code with the same highlighter as the code
-blocks in lessons and cheatsheets (`lib/highlight.tsx`), so code reads the same
-everywhere and an example you click into keeps its colors. Escape sequences in
-strings (`\n`, `\"`, SQL's `''`) get a color of their own, except in raw
-strings, which have none. It also helps with nesting: brackets and quotes close
-themselves, Enter between a pair opens an indented line with the closer on its
-own line, each bracket pair gets a color by depth (with a stray closer marked),
-indent guides and fold arrows show the blocks, and the pair at the cursor is
-outlined. Go indents with tabs, everything else with spaces (2 or 4, in the
-settings gear). Suggestions as you type (intellisense) have a switch there too.
+blocks in lessons and cheatsheets (`lib/highlight.tsx`, with its tokenizer in
+`lib/tokenize.mjs`), so code reads the same everywhere and an example you click
+into keeps its colors. Escape sequences in strings (`\n`, `\"`, SQL's `''`) get
+a color of their own, except in raw strings, which have none. TypeScript and
+TSX are read by Lezer's parser, and Bash by a scanner that reads it the way
+Bash does: `a#b`, `$#`, and `${#name}` aren't comments, and a heredoc's body is
+data. Python's decorators and Java's annotations are colored like calls, and
+directives, the comments a tool reads (a shebang, `//go:embed`,
+`// @ts-expect-error`, sqlc's `-- name:`), take the keyword color. It also
+helps with nesting: brackets and quotes close themselves, Enter between a pair
+opens an indented line with the closer on its own line, each bracket pair gets
+a color by depth (with a stray closer marked), indent guides and fold arrows
+show the blocks, and the pair at the cursor is outlined. Go indents with tabs,
+everything else with spaces (2 or 4, in the settings gear). Suggestions as you
+type (intellisense) have a switch there too.
 
 **Full screen**, the corner button in the editor's toolbar (in the compiler and
 in Learn), fills the window with the workspace. It's one setting for both, so
@@ -333,7 +339,8 @@ border.
 the comments in the code examples of lessons and cheatsheets, for reading the
 code on its own (an example still prints its results when you run it). A
 comment on its own line goes with its line, and copying or editing an example
-leaves them out too. Code you changed yourself always shows as you wrote it.
+leaves them out too. Directives and `TODO` lines (a starter's instructions)
+always stay. Code you changed yourself always shows as you wrote it.
 
 ## How it works
 
@@ -412,8 +419,10 @@ tests/highlight/             the tokenizer's samples and snapshots, one per lang
    `curl http://127.0.0.1:2000/api/v2/packages`).
 2. `lib/compiler.ts`: label, starter, file name, and `COMPILER_SLUGS`.
 3. `components/compiler/lang-icon.tsx`: the rail icon.
-4. `lib/highlight.tsx`: its keywords and comment style, which color its code
-   blocks and editors.
+4. `lib/tokenize.mjs`: its keywords and comment style (or a Lezer parser, like
+   TypeScript's in `lib/lezer-tokens.mjs`), which color its code blocks and
+   editors, plus a sample in `tests/highlight/samples/` for
+   `npm run highlight:test`.
 5. `components/code/cm-editor.tsx` and `lib/code-editor-completions.ts`: the
    grammar for indenting, folding, and bracket matching (install the matching
    `@codemirror/lang-*` package, or use a `@codemirror/legacy-modes` mode) and
