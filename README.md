@@ -73,6 +73,26 @@ npm run piston:install -- python javascript
 The first five are the newest versions in Piston's package index. Piston has
 packages for many more languages, see [Adding a language](#adding-a-language).
 
+### What you can import
+
+Every language has its whole standard library, plus the extras data structures
+and algorithms practice reaches for:
+
+| Language | Beyond the standard library |
+| --- | --- |
+| Python | `sortedcontainers` (SortedList, SortedDict, SortedSet), and `numpy`, `pandas`, `scipy`, `sympy` |
+| JavaScript | `@datastructures-js/priority-queue` (with Min/MaxPriorityQueue), `/queue`, and `/deque`, the ones LeetCode ships |
+| C++ | C++17, `bits/stdc++.h`, and GNU's policy-based `tree` (an order-statistics `ordered_set`) |
+| Java | `java.util` collections, streams, `BigInteger` and `BigDecimal` (Java 15, so no records yet) |
+| Go | `container/heap`, `container/list`, `sort`, `math/big` (Go 1.16, so no generics) |
+
+JavaScript runs as CommonJS (`require`) unless the program uses `import` or
+`export`, then as an ES module, so both styles work, extras included. Programs
+run with no network, so nothing is installed at run time: `npm run setup` (or
+`npm run piston:install` on an existing sandbox) adds the extras once.
+Compile errors and tracebacks name the file the editor shows, like
+`main.py:3` or `Main.java:7`.
+
 The badge in the top right of the compiler shows the runtime serving the
 current language, or what to run if the sandbox is offline or the language
 isn't installed yet.
@@ -161,6 +181,32 @@ Content lives in `content/reference/<language>/<topic>.md` and
 `content/challenges/<id>.json`, each with an `AUTHORING.md` guide, and
 `npm run challenges:verify` runs every challenge's solution and starter in the
 sandbox.
+
+## Editor
+
+The editor (CodeMirror) helps with nesting: brackets and quotes close
+themselves, Enter between a pair opens an indented line with the closer on its
+own line, each bracket pair gets a color by depth (with a stray closer marked),
+indent guides and fold arrows show the blocks, and the pair at the cursor is
+outlined. Go indents with tabs, everything else with spaces (2 or 4, in the
+settings gear).
+
+`Mod` is `Cmd` on a Mac and `Ctrl` elsewhere.
+
+| Keys | Does |
+| --- | --- |
+| `Mod-F` | Find and replace (`Enter` and `Shift-Enter` move between matches) |
+| `Mod-D` | Add the next match of the selection as another cursor |
+| `Alt`-click, `Alt`-drag | More cursors, or a column selection |
+| `Mod-/` | Comment or uncomment the line |
+| `Tab`, `Shift-Tab` | Indent or outdent (`Escape` then `Tab` leaves the editor) |
+| `Alt-↑`, `Alt-↓` | Move the line up or down |
+| `Ctrl-Space` (or ``Alt-` `` on a Mac) | Show completions |
+
+Completions know each language's keywords and your own names, and on an
+import line they offer modules: `import col` suggests `collections`,
+`from heapq import ` its functions, `#include <` the headers, `require("`
+the packages, and SQL knows the sample database's tables and columns.
 
 ## Themes
 
