@@ -10,6 +10,8 @@ export interface Piece extends Token {
   hide: boolean;
 }
 
+/** A language's own id, from any of its names (`ts`, `sh`, `py`). */
+export function languageId(language: string): string;
 export function tokenize(code: string, language: string): Token[];
 export function commentPieces(code: string, language: string): Piece[];
 export function stripComments(code: string, language: string): string;
