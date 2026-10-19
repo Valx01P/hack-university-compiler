@@ -167,7 +167,10 @@ open a panel beside your code (the output moves under the editor). While it's
 open the three buttons sit at the top of the panel: press the other one to
 switch, or the same one again to close it. Each keeps your place, even after
 you close the panel: the cheatsheet's search and scroll, the challenge list's
-filters and scroll, and the challenge you're on with its hints.
+filters and scroll, and the challenge you're on with its hints. The address
+keeps your place too (`/python?panel=cheatsheet&at=arrays`,
+`?panel=challenges&challenge=greeting`), so a reload, or a link you copy, opens
+the same panel, challenge, search, and section, with nothing popping in.
 
 - **Cheatsheet**: a direct reference for the language, one section per topic
   from printing to OOP: the syntax, what to import, the methods people use, a
@@ -196,9 +199,10 @@ sandbox.
 Every code example in the lessons and cheatsheets runs, in all six languages,
 so you can tinker with it right where you read it.
 
-- The play button at its top right runs it, and the output opens below (the
-  × closes it). Every example prints the values its comments state, so the
-  output shows them, and examples that show an error run into that error.
+- The play button at its top right (after the copy button, both always shown)
+  runs it, and the output opens below (the × closes it). Every example prints
+  the values its comments state, so the output shows them, and examples that
+  show an error run into that error.
 - Click the code (or focus it and press `Enter`) to edit it in place, and
   `Mod-Enter` runs your version.
 - Once you change an example, a reset button appears next to play. Your
@@ -270,8 +274,9 @@ editor theme's, and the picker warns you if they'd be hard to read on your
 color.
 
 **Selection color**, under it (and in the editor's settings gear), sets the
-color selected code is highlighted with in every editor and code block: the
-theme's own, Blue, Purple, Green, Amber, Pink, Gray, or any custom color.
+color selected code is highlighted with in every editor, code block, and the
+output: Blue until you pick another, the theme's own, Purple, Green, Amber,
+Pink, Gray, or any custom color.
 It's drawn at 40% over the background, so selected code keeps its syntax
 colors and stays readable on dark and light editor themes, and the picker
 warns you when a color would make selections hard to see. In both pickers
@@ -329,7 +334,8 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
   the menus read what's applied, so opening one never flashes the default
   first. The editor/output split isn't saved, so
   a reload always opens on the default layout (it does carry over while you
-  switch languages).
+  switch languages). The panel and the challenge you're on live in the
+  address instead.
 
 ## Project layout
 
