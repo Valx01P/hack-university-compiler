@@ -27,6 +27,11 @@ const dev = process.argv.includes("--dev");
 const PORT = Number(process.env.PORT) || 3000;
 const windows = process.platform === "win32";
 const npm = windows ? "npm.cmd" : "npm";
+// Next.js reports each build and dev session to telemetry.nextjs.org (with
+// this machine's OS, CPU, and memory, and the coding agent running it, if
+// any). The app stays offline, so the build and the server started below
+// inherit this and report nothing.
+process.env.NEXT_TELEMETRY_DISABLED = "1";
 
 let stepNo = 0;
 const step = (text) => console.log(`\n\u001b[1m${++stepNo}. ${text}\u001b[0m`);
