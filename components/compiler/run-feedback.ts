@@ -10,7 +10,9 @@ export function runSummary(run: RunState): string {
   if (run.compileCode != null && run.compileCode !== 0) return "Your code didn't compile.";
   if (run.verdict === "TO") return "Timed out. Your code ran too long.";
   if (run.verdict === "OL" || run.verdict === "EL") return "Output limit reached.";
-  return run.signal ? `Run finished. Killed by ${run.signal}.` : `Run finished with exit code ${run.code ?? "unknown"}.`;
+  if (run.signal) return `Run finished. Killed by ${run.signal}.`;
+  // Like the output panel, only an error code is worth saying.
+  return run.code != null && run.code !== 0 ? `Run finished with exit code ${run.code}.` : "Run finished.";
 }
 
 /**

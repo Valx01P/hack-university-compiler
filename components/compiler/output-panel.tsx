@@ -44,6 +44,8 @@ export function OutputPanel({ run }: { run: RunState }) {
   const timedOut = run.verdict === "TO";
   const outputCapped = run.verdict === "OL" || run.verdict === "EL";
   const stopped = timedOut || outputCapped;
+  // A clean exit says nothing. A crash or an error code still shows.
+  const exitNote = run.signal ? `killed by ${run.signal}` : run.code != null && run.code !== 0 ? `exit code ${run.code}` : null;
   // Why it stopped comes first, so a flood of output can't bury it.
   const stopNotice = timedOut ? (
     <pre className="whitespace-pre-wrap text-danger">
@@ -71,11 +73,7 @@ export function OutputPanel({ run }: { run: RunState }) {
           )}
         </>
       )}
-      {!compileFailed && !stopped && (
-        <p className="text-xs text-ink-faint">
-          {run.signal ? `killed by ${run.signal}` : `exit code ${run.code ?? "?"}`}
-        </p>
-      )}
+      {!compileFailed && !stopped && exitNote && <p className="text-xs text-ink-faint">{exitNote}</p>}
     </div>
   );
 }
