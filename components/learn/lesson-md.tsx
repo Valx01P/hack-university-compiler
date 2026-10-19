@@ -234,23 +234,25 @@ function renderLines(text: string, keyBase: string): React.ReactNode[] {
   return nodes;
 }
 
-/** Where a page's code examples run: `scope` names the page for saving
-    your edits, `setup` builds the tables SQL examples work on. */
+/** Where a page's code examples run: `course` is the course whose fences
+    they are (content/courses.json), `scope` names the page for saving your
+    edits, `setup` builds the tables SQL examples work on. */
 export interface RunnableContext {
+  course: string;
   scope: string;
   setup?: string;
 }
 
 /**
  * Renders content Markdown. With `runnable`, every code example in a
- * language the sandbox runs becomes a RunnableSnippet (run it, edit it,
+ * language its course runs becomes a RunnableSnippet (run it, edit it,
  * reset it); without it, and for text and `norun` blocks, code shows as a
  * plain block you can copy. Hidden harness and stdin blocks never show.
  */
 export function LessonMarkdown({ md, runnable }: { md: string; runnable?: RunnableContext }) {
   return (
     <>
-      {segmentMarkdown(md).map((seg, i) =>
+      {segmentMarkdown(md, runnable?.course).map((seg, i) =>
         seg.type === "fence" ? (
           runnable && seg.runtime ? (
             <RunnableSnippet

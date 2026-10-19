@@ -145,7 +145,7 @@ export function PartView({
   const gridRef = useRef<HTMLDivElement>(null);
   // The lesson's code examples run here (on the lesson's tables, for SQL),
   // and keep your edits under the lesson.
-  const runnable: RunnableContext = { scope: `learn/${lang.slug}/${lesson.id}`, setup: lesson.setup };
+  const runnable: RunnableContext = { course: lang.slug, scope: `learn/${lang.slug}/${lesson.id}`, setup: lesson.setup };
   // Moving to another part fades the new one in (never on first paint).
   const articleRef = useRef<HTMLElement>(null);
   useEnter(articleRef);

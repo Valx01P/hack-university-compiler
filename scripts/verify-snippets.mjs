@@ -30,9 +30,10 @@ const POOL = Number(process.env.SNIPPET_POOL ?? 8);
 const sampleSrc = readFileSync(path.join(ROOT, "lib/sql/sample-db.ts"), "utf8");
 const SAMPLE_DB_SQL = sampleSrc.slice(sampleSrc.indexOf("`") + 1, sampleSrc.lastIndexOf("`"));
 
-/** Every runnable snippet in some Markdown, with where it came from. */
+/** Every runnable snippet in a course's Markdown, with where it came from.
+    The course's fences say which blocks run, and on what. */
 function snippetsIn(md, base) {
-  return segmentMarkdown(md ?? "")
+  return segmentMarkdown(md ?? "", base.lang)
     .filter((s) => s.type === "fence" && s.runtime)
     .map((s, i) => ({ ...base, index: i, ...s }));
 }
