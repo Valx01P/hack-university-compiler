@@ -8,7 +8,7 @@ type NavigationLike = { canGoBack: boolean; canGoForward: boolean };
 const navigation = () => (window as unknown as { navigation?: NavigationLike }).navigation;
 
 const ARROW =
-  "inline-flex size-7 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-faint";
+  "inline-flex items-center justify-center text-ink-faint transition-colors hover:bg-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-faint";
 
 /**
  * Browser-style back and forward arrows, each enabled only when there is a
@@ -21,12 +21,14 @@ const ARROW =
  * every navigation before the page paints. Next updates the history in an
  * insertion effect of the same commit, so it is current by then (and a
  * currententrychange listener would fire inside that insertion effect, where
- * React updates aren't allowed).
+ * React updates aren't allowed). `round` is the floating look, for full
+ * screen (components/chrome/floating-nav.tsx).
  */
-export function HistoryArrows() {
+export function HistoryArrows({ round = false }: { round?: boolean } = {}) {
   const pathname = usePathname();
   const router = useRouter();
   const [hist, setHist] = useState({ back: false, fwd: false });
+  const arrow = `${ARROW} ${round ? "size-8 rounded-full" : "size-7 rounded-btn"}`;
 
   useLayoutEffect(() => {
     const nav = navigation();
@@ -45,7 +47,7 @@ export function HistoryArrows() {
         disabled={!hist.back}
         aria-label="Go back"
         title="Go back"
-        className={ARROW}
+        className={arrow}
       >
         <ArrowLeft className="size-4" aria-hidden />
       </button>
@@ -56,7 +58,7 @@ export function HistoryArrows() {
         disabled={!hist.fwd}
         aria-label="Go forward"
         title="Go forward"
-        className={ARROW}
+        className={arrow}
       >
         <ArrowRight className="size-4" aria-hidden />
       </button>

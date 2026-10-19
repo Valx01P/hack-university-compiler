@@ -23,7 +23,6 @@ import { partHref, problemId, type Lesson, type LessonStep } from "@/lib/learn-t
 import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolvedState } from "@/lib/learn-progress";
 import { normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
 import { useEnter } from "@/lib/motion";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { useFullScreen } from "@/lib/full-screen";
 import { revealWorkspace, urlCount, urlParam, writeHash, writeUrl } from "@/lib/url-state";
 
@@ -373,12 +372,16 @@ export function PartView({
     >
       {/* Left: the part. Its scroll padding (and, on narrow screens, the
           focusables' scroll margin) keeps keyboard focus clear of the floating
-          nav. */}
-      <div ref={columnRef} onScroll={trackPlace} className={`slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto ${hasNav ? "lg:scroll-pb-24" : ""}`}>
+          nav, which sits higher in full screen. */}
+      <div
+        ref={columnRef}
+        onScroll={trackPlace}
+        className={`slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto ${hasNav ? (full ? "lg:scroll-pb-36" : "lg:scroll-pb-24") : ""}`}
+      >
         <article
           ref={articleRef}
           className={`mx-auto w-full max-w-[46rem] flex-1 px-5 pb-10 pt-6 sm:px-7 ${
-            hasNav ? "max-lg:[&_:is(a,button,pre,[tabindex])]:scroll-mb-24" : ""
+            hasNav ? (full ? "max-lg:[&_:is(a,button,pre,[tabindex])]:scroll-mb-36" : "max-lg:[&_:is(a,button,pre,[tabindex])]:scroll-mb-24") : ""
           }`}
         >
           <p className="eyebrow">
@@ -448,9 +451,14 @@ export function PartView({
         </article>
 
         {/* Floating nav through the parts, then on to the next lesson: only
-            Next at the very start of the course, only Previous at its end. */}
+            Next at the very start of the course, only Previous at its end. In
+            full screen it sits above the floating buttons in the corners. */}
         {hasNav && (
-          <div className="pointer-events-none sticky bottom-0 z-10 flex justify-center bg-gradient-to-t from-surface from-40% to-transparent px-4 pb-4 pt-8">
+          <div
+            className={`pointer-events-none sticky bottom-0 z-10 flex justify-center bg-gradient-to-t from-surface from-40% to-transparent px-4 pt-8 ${
+              full ? "pb-16" : "pb-4"
+            }`}
+          >
             <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-card border border-line bg-surface p-1.5 shadow-(--shadow-card)">
               {prev && (
                 <Link
@@ -712,8 +720,6 @@ export function PartView({
           {announcement}
         </p>
       </div>
-      {/* In full screen the header is covered, so the theme picker floats. */}
-      {full && <ThemeToggle floating />}
     </div>
   );
 }

@@ -24,6 +24,11 @@ function setFullScreen(next: boolean) {
   for (const notify of listeners) notify();
 }
 
+/** Whether full screen is on, for parts of the page around the workspace. */
+export function useIsFullScreen() {
+  return useSyncExternalStore(subscribe, getFull, () => false);
+}
+
 // Things open that Escape should close first: a menu, a dialog or popover,
 // or the code editor's completions or search box.
 const TAKES_ESCAPE = '[role="menu"], [role="dialog"], [data-editor-overlay], [data-popup], .cm-tooltip-autocomplete, .cm-search';
@@ -38,7 +43,7 @@ const TAKES_ESCAPE = '[role="menu"], [role="dialog"], [data-editor-overlay], [da
  * Escape works there).
  */
 export function useFullScreen() {
-  const isFull = useSyncExternalStore(subscribe, getFull, () => false);
+  const isFull = useIsFullScreen();
   const setFull = useCallback(
     (next: boolean | ((was: boolean) => boolean)) => setFullScreen(typeof next === "function" ? next(full) : next),
     []

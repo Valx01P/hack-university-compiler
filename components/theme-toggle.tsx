@@ -29,7 +29,8 @@ import { POP, usePresence } from "@/lib/motion";
  * The icon starts as the Light sun on first paint (SSR) and corrects after
  * hydration — same pattern as the rest of the theme bootstrap, so there's no
  * markup mismatch. `floating` is the button in full screen, where the header
- * is covered: round, fixed at the bottom right, its menu opening upward.
+ * is covered: round, its menu opening upward (components/chrome/floating-nav.tsx
+ * places it at the bottom right).
  */
 export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
   const [open, setOpen] = useState(false);
@@ -57,7 +58,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
   }, [open]);
 
   return (
-    <div ref={ref} className={floating ? "fixed bottom-4 right-4 z-[120]" : "relative"}>
+    <div ref={ref} className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

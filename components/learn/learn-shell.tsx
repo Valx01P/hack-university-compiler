@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { FloatingNav } from "@/components/chrome/floating-nav";
 import { HistoryArrows } from "@/components/chrome/history-arrows";
 import { SandboxStatus } from "@/components/chrome/sandbox-status";
 import { CompilerButton } from "@/components/learn/compiler-button";
 import { LessonDrawer } from "@/components/learn/lesson-drawer";
 import { LessonList } from "@/components/learn/lesson-list";
 import { ResizeHandle } from "@/components/ui/resize-handle";
+import { useIsFullScreen } from "@/lib/full-screen";
 import { EASE, dur, gsap } from "@/lib/motion";
 import type { Course, LessonRef } from "@/lib/learn-types";
 
@@ -68,6 +70,11 @@ export function LearnShell({
   const index = lessons.findIndex((l) => l.id === currentId);
   const current = index >= 0 ? lessons[index] : null;
   const wide = useWide();
+  // Full screen (laid out by the part, components/learn/part-view.tsx)
+  // covers this frame, so the lesson list opens as the drawer from a
+  // floating button then, on any screen.
+  const full = useIsFullScreen();
+  const floatingButtonRef = useRef<HTMLButtonElement>(null);
 
   const rowRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLElement>(null);
@@ -161,13 +168,14 @@ export function LearnShell({
     commit(next);
   };
 
-  // Below the docking width the list is a drawer, closed on every move.
+  // Below the docking width (or in full screen) the list is a drawer,
+  // closed on every move.
   const [drawer, setDrawer] = useState(false);
   const closeDrawer = useCallback(() => setDrawer(false), []);
   useEffect(() => setDrawer(false), [pathname]);
   useEffect(() => {
-    if (wide) setDrawer(false);
-  }, [wide]);
+    if (wide && !full) setDrawer(false);
+  }, [wide, full]);
 
   const shown = wide ? !collapsed : drawer;
   const togglePanel = () => {
@@ -249,7 +257,14 @@ export function LearnShell({
         </div>
       </section>
 
-      <LessonDrawer {...listProps} open={drawer} onClose={closeDrawer} returnFocusTo={panelButtonRef} />
+      <LessonDrawer
+        {...listProps}
+        open={drawer}
+        onClose={closeDrawer}
+        returnFocusTo={full ? floatingButtonRef : panelButtonRef}
+        anyWidth={full}
+      />
+      {full && <FloatingNav lessons={{ open: drawer, onToggle: () => setDrawer((open) => !open), buttonRef: floatingButtonRef }} />}
     </div>
   );
 }

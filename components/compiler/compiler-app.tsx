@@ -13,7 +13,7 @@ import { ResizeHandle } from "@/components/ui/resize-handle";
 import { LangIcon } from "@/components/compiler/lang-icon";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { ReferencePanel, useReferenceData, type ReferenceTab } from "@/components/compiler/reference-panel";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { FloatingNav } from "@/components/chrome/floating-nav";
 import { useFullScreen } from "@/lib/full-screen";
 import { cheatsheetPlace, readCompilerUrl, revealWorkspace, urlParam, writeUrl } from "@/lib/compiler-url";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
@@ -882,8 +882,9 @@ export function CompilerApp({
           />
         )}
       </div>
-      {/* In full screen the header is covered, so the theme picker floats. */}
-      {full && <ThemeToggle floating />}
+      {/* In full screen the header is covered, so back, forward, and the
+          theme picker float. */}
+      {full && <FloatingNav />}
     </div>
   );
 }

@@ -8,7 +8,8 @@ import { EASE, dur, gsap } from "@/lib/motion";
 import type { Course, LessonRef } from "@/lib/learn-types";
 
 /**
- * The lesson plan as a drawer, for screens too narrow to dock the sidebar.
+ * The lesson plan as a drawer, for screens too narrow to dock the sidebar
+ * (and for full screen, which covers the sidebar: `anyWidth`).
  * The panel button opens it and it slides in from the left over a dimmed
  * page. Focus moves to the lesson you're on and stays inside while it's
  * open. Escape, the close button, a click on the page, or picking a lesson
@@ -18,11 +19,14 @@ export function LessonDrawer({
   open,
   onClose,
   returnFocusTo,
+  anyWidth = false,
   ...listProps
 }: {
   open: boolean;
   onClose: () => void;
   returnFocusTo: RefObject<HTMLElement | null>;
+  /** Shown on wide screens too. */
+  anyWidth?: boolean;
   lang: string;
   langLabel: string;
   course: Course;
@@ -100,7 +104,7 @@ export function LessonDrawer({
 
   if (!open && !rendered) return null;
   return createPortal(
-    <div className="fixed inset-0 z-[130] xl:hidden" onKeyDown={trapFocus}>
+    <div className={`fixed inset-0 z-[130] ${anyWidth ? "" : "xl:hidden"}`} onKeyDown={trapFocus}>
       <div ref={backdropRef} onClick={onClose} className="absolute inset-0 bg-black/40" aria-hidden />
       <div
         ref={panelRef}

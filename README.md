@@ -250,8 +250,11 @@ settings gear).
 
 **Full screen**, the corner button in the editor's toolbar (in the compiler and
 in Learn), fills the window with the workspace. It's one setting for both, so
-it stays on as you go between the compiler and Learn. The theme button floats
-at the bottom right meanwhile, `Escape` leaves it (unless a menu, the editor's
+it stays on as you go between the compiler and Learn. The top bar is covered
+meanwhile, so its controls float: back and forward sit beside the theme button
+at the bottom right, and in Learn the lesson list button sits at the bottom
+left (the list opens over the workspace) and a Compiler button joins the
+editor's tabs. `Escape` leaves it (unless a menu, the lesson list, the editor's
 completions, or an example you're editing take the `Escape` first), and the
 address keeps it (`?full=1`), so a reload opens straight into it.
 
