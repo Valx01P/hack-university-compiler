@@ -31,16 +31,8 @@ import {
   type SingleFileFeatures,
 } from "@/lib/learn-types";
 import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolvedState } from "@/lib/learn-progress";
-import {
-  checkInSandbox,
-  joinArgs,
-  normalizeOutput,
-  refreshSandboxStatus,
-  runInSandbox,
-  splitArgs,
-  type RunExtras,
-  type RunState,
-} from "@/lib/run-code";
+import { checkInSandbox, normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
+import { joinArgs, splitArgs } from "@/lib/shell-words";
 import { forbiddenUses, judgeTest, judgeTypeTests } from "@/lib/single-checks.mjs";
 import { useEnter } from "@/lib/motion";
 import { useFullScreen } from "@/lib/full-screen";
@@ -158,7 +150,6 @@ export function PartView({
           stdin: test?.stdin,
           args: test?.args,
           env: test?.env,
-          cwd: test?.cwd,
           fixtures: test?.fixtures ?? practice.fixtures ?? lesson.fixtures,
           clock: test?.clock ?? practice.clock ?? lesson.clock,
         };
@@ -406,24 +397,22 @@ export function PartView({
     }
   }
 
-  /** Where a program on the runner comes from and what it runs with. Runs
-      on Piston and PGlite send none of it, so their requests never change. */
-  function runnerExtras(): RunExtras {
-    return { course: lang.slug, lesson: lesson.id, part: part + 1, runtime: lesson.runtime };
-  }
-
   async function run(e: React.MouseEvent<HTMLButtonElement>) {
     if (busy) return;
     const kind = active;
     const ran = code;
     begin(kind, e);
     setPanel(kind, { mode: "run", run: { status: "running" } });
+    // On the runner a run also gets its arguments, environment, fixture
+    // files, and clock. Piston and PGlite runs send just code and stdin.
     const setup = runOf(kind);
     const args = splitArgs(argLine);
-    const extras: RunExtras = features.runner
-      ? { ...runnerExtras(), args: args.length ? args : undefined, env: setup.env, fixtures: setup.fixtures, cwd: setup.cwd, clock: setup.clock }
-      : {};
-    const result = await runInSandbox(lang.slug, ran, stdin, extras);
+    const result = await runInSandbox(
+      lang.slug,
+      ran,
+      stdin,
+      features.runner ? { args: args.length ? args : undefined, env: setup.env, fixtures: setup.fixtures, clock: setup.clock } : {}
+    );
     const done: RunState = result.ok ? { status: "done", ...result.run } : { status: "error", error: result.error };
     setPanel(kind, { mode: "run", run: done, code: ran });
     setAnnouncement(runSummary(done, { typeChecked: features.typeCheck }));
@@ -483,7 +472,6 @@ export function PartView({
       setBusyTab(null);
     };
     const outcome = await checkInSandbox(lang.slug, ran, {
-      ...runnerExtras(),
       tests: practice.tests,
       typeTests: practice.typeTests,
       fixtures: practice.fixtures ?? lesson.fixtures,
@@ -500,7 +488,7 @@ export function PartView({
     }
     const results: TestResult[] = practice.tests.map((test, i) => {
       const run = outcome.runs[i];
-      const { passed, problems } = judgeTest(test, run, { strictExit: true });
+      const { passed, problems } = judgeTest(test, run);
       return {
         stdin: test.stdin ?? "",
         expected: test.output,

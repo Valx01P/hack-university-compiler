@@ -7,7 +7,8 @@ import { CompleteIcon } from "@/components/learn/complete-icon";
 import { ScrollPre } from "@/components/ui/scroll-pre";
 import type { LessonTest } from "@/lib/learn-types";
 import { EASE, dur, gsap, hasPainted, useGSAP } from "@/lib/motion";
-import { joinArgs, normalizeOutput, type RunResult } from "@/lib/run-code";
+import { normalizeOutput, type RunResult } from "@/lib/run-code";
+import { joinArgs } from "@/lib/shell-words";
 import { FORBID_RULES, type ForbidRule } from "@/lib/single-checks.mjs";
 
 export interface TestResult {
@@ -332,7 +333,7 @@ function RunnerTestDetail({ test: n, result, detail }: { test: number; result: T
   const notes = [
     test.fixtures && `with the ${test.fixtures} files`,
     test.cwd && `from ${test.cwd}/`,
-    test.wrap && `inside ${test.wrap}`,
+    test.wrap && `inside ${typeof test.wrap === "string" ? test.wrap : joinArgs(test.wrap)}`,
     test.clock && `at ${test.clock}`,
   ].filter(Boolean);
   return (

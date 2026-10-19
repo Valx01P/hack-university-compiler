@@ -6,10 +6,10 @@ export interface JudgedRun {
   stderr?: string;
   code: number | null;
   signal?: string | null;
-  /** The sandbox's verdict in the app ("TO", "OL", "EL"). */
-  verdict?: string | null;
-  /** The same verdict, as the verifiers name it. */
+  /** The sandbox's verdict ("TO", "OL", "EL"), as the server names it. */
   status?: string | null;
+  /** The same verdict, as the app's RunResult names it. */
+  verdict?: string | null;
   /** Each file the test names, or null when it doesn't exist. */
   files?: Record<string, string | null>;
 }
@@ -23,7 +23,7 @@ export interface JudgedTest {
 }
 
 export function normalizeOutput(s: string | null | undefined): string;
-export function judgeTest(test: JudgedTest, run: JudgedRun, options?: { strictExit?: boolean }): { passed: boolean; problems: string[] };
+export function judgeTest(test: JudgedTest, run: JudgedRun): { passed: boolean; problems: string[] };
 export function filesToCollect(test: Pick<JudgedTest, "files" | "absent">): string[];
 
 export interface TypeTestCase {

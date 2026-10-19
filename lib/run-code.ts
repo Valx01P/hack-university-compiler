@@ -1,5 +1,7 @@
 import { SANDBOX_REFRESH_EVENT, isSql } from "@/lib/compiler";
 import type { LessonTest, TypeTests } from "@/lib/learn-types";
+import { splitArgs } from "@/lib/shell-words";
+import { applyHarness } from "@/lib/snippet-harness.mjs";
 import { filesToCollect, type Diagnostic } from "@/lib/single-checks.mjs";
 
 /** How outputs are compared (lib/single-checks.mjs, shared with the
@@ -31,25 +33,17 @@ export type RunState =
 export type RunOutcome = { ok: true; run: RunResult } | { ok: false; error: string };
 
 /**
- * What a run gets besides its code and stdin, for programs the runner runs
- * (TypeScript, Bash, and the stack courses). Piston and PGlite runs never
- * set these, so their requests stay exactly what they were.
+ * What a run gets besides its code and stdin, on the runner (TypeScript,
+ * Bash, and the stack courses): command-line arguments, environment
+ * variables, the fixture set it starts in (content/fixtures/<course>/<name>),
+ * and a frozen clock. Piston and PGlite runs never set these, so their
+ * requests stay what they were.
  */
 export interface RunExtras {
-  /** Where the program comes from, so the server can find its fixture
-      files and setup in the content. */
-  course?: string;
-  lesson?: string;
-  /** The part, counting from 1. */
-  part?: number;
   args?: string[];
   env?: Record<string, string>;
-  /** The fixture set the run starts in (content/fixtures/<course>/<name>). */
   fixtures?: string;
-  cwd?: string;
   clock?: string;
-  /** The lesson's own runtime, when it isn't the course's. */
-  runtime?: string;
 }
 
 /** The extras that are set, so a request carries nothing it doesn't use. */
@@ -106,52 +100,72 @@ export type TypeTestRuns = { name: string; diagnostics: Diagnostic[] }[];
 
 export type CheckOutcome = { ok: true; runs: RunResult[]; typeTests: TypeTestRuns } | { ok: false; error: string };
 
+// What a test can carry to the runner (runner/schemas.ts TestSpec).
+const TEST_FIELDS = ["stdin", "args", "env", "clock", "fixtures", "cwd", "wrap", "files", "absent", "tryIt", "output", "exitCode", "stderrIncludes"] as const;
+
+/** A test as the runner takes it, with the files it looks at afterwards to
+    `collect`. A wrap written as a command line goes as its words. */
+function runnerTest(test: LessonTest): Record<string, unknown> {
+  const out: Record<string, unknown> = Object.fromEntries(TEST_FIELDS.filter((k) => test[k] !== undefined).map((k) => [k, test[k]]));
+  if (typeof test.wrap === "string") out.wrap = splitArgs(test.wrap);
+  const collect = filesToCollect(test);
+  if (collect.length) out.collect = collect;
+  return out;
+}
+
 /**
- * Checks a practice on the runner in one request, so the program compiles
- * (TypeScript type-checks) once however many tests there are, and its type
- * tests compile with it. Each test goes as written, with the files it looks
- * at afterwards to `collect`. A failed compile comes back on every test's
- * run, like a Piston compile error. lib/single-checks.mjs judges the runs.
+ * Checks a practice on the runner: one request for every test, so the
+ * program compiles (TypeScript type-checks) once however many tests there
+ * are, and its type tests compile with it. A test with a hidden harness (or
+ * `append`) runs its own program, so it goes in a request with the others
+ * that share it. A failed compile comes back on each of that request's runs,
+ * like a Piston compile error. lib/single-checks.mjs judges the runs.
  */
 export async function checkInSandbox(
   language: string,
   code: string,
   { tests, typeTests, ...extras }: { tests: LessonTest[]; typeTests?: TypeTests } & RunExtras
 ): Promise<CheckOutcome> {
+  const programs = tests.map((t) =>
+    t.harness != null ? applyHarness(t.harness, code) : t.append != null ? applyHarness(`{{code}}\n${t.append}`, code) : code
+  );
+  const groups = [...new Set(programs)].sort((a, b) => Number(b === code) - Number(a === code));
+  const runs: RunResult[] = [];
+  let typeTestRuns: TypeTestRuns = [];
   try {
-    const res = await fetch("/api/execute", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        language,
-        code,
-        ...defined(extras),
-        tests: tests.map((t) => {
-          const collect = filesToCollect(t);
-          return collect.length ? { ...t, collect } : t;
+    for (const [g, program] of groups.entries()) {
+      const members = tests.map((t, i) => i).filter((i) => programs[i] === program);
+      const res = await fetch("/api/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          language,
+          code: program,
+          ...defined(extras),
+          tests: members.map((i) => runnerTest(tests[i])),
+          // The type tests compile against the program as written.
+          ...(typeTests && g === 0 ? { typeTests } : {}),
         }),
-        ...(typeTests ? { typeTests } : {}),
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: data?.error ?? "The check failed. Try again." };
-    if (!Array.isArray(data.results)) return { ok: false, error: "The sandbox didn't send back any test results. Try again." };
-    const compileCode = data.compile?.code ?? null;
-    const compileOutput = data.compile?.output ?? "";
-    const runs = tests.map((_, i): RunResult => {
-      const r = data.results[i] ?? {};
-      return {
-        stdout: r.stdout ?? "",
-        stderr: r.stderr ?? "",
-        code: r.code ?? null,
-        signal: r.signal ?? null,
-        verdict: r.status ?? null,
-        compileCode,
-        compileOutput,
-        ...(r.files ? { files: r.files } : {}),
-      };
-    });
-    return { ok: true, runs, typeTests: Array.isArray(data.typeTests) ? data.typeTests : [] };
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: data?.error ?? "The check failed. Try again." };
+      if (!Array.isArray(data.results)) return { ok: false, error: "The sandbox didn't send back any test results. Try again." };
+      members.forEach((i, k) => {
+        const r = data.results[k] ?? {};
+        runs[i] = {
+          stdout: r.stdout ?? "",
+          stderr: r.stderr ?? "",
+          code: r.code ?? null,
+          signal: r.signal ?? null,
+          verdict: r.status ?? null,
+          compileCode: data.compile?.code ?? null,
+          compileOutput: data.compile?.output ?? "",
+          ...(r.files ? { files: r.files } : {}),
+        };
+      });
+      if (g === 0 && Array.isArray(data.typeTests)) typeTestRuns = data.typeTests;
+    }
+    return { ok: true, runs, typeTests: typeTestRuns };
   } catch {
     return { ok: false, error: UNREACHABLE };
   } finally {
@@ -176,43 +190,4 @@ async function runSqlInBrowser(code: string, setup: string): Promise<RunOutcome>
     the sandbox stopped or a runtime is missing). */
 export function refreshSandboxStatus() {
   window.dispatchEvent(new Event(SANDBOX_REFRESH_EVENT));
-}
-
-/** Splits an Arguments field into arguments the way a shell would: spaces
-    separate them, and quotes or a backslash keep spaces inside one.
-    Nothing is expanded. */
-export function splitArgs(text: string): string[] {
-  const args: string[] = [];
-  let current = "";
-  let started = false;
-  let quote: '"' | "'" | null = null;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (quote) {
-      if (c === quote) quote = null;
-      else if (c === "\\" && quote === '"' && /["\\$`]/.test(text[i + 1] ?? "")) current += text[++i];
-      else current += c;
-    } else if (c === '"' || c === "'") {
-      quote = c;
-      started = true;
-    } else if (c === "\\" && i + 1 < text.length) {
-      current += text[++i];
-      started = true;
-    } else if (/\s/.test(c)) {
-      if (started) args.push(current);
-      current = "";
-      started = false;
-    } else {
-      current += c;
-      started = true;
-    }
-  }
-  if (started) args.push(current);
-  return args;
-}
-
-/** Arguments written back as an Arguments field would take them: quoted
-    where they hold spaces or quotes. */
-export function joinArgs(args: readonly string[]): string {
-  return args.map((a) => (a && !/[\s"'\\]/.test(a) ? a : `'${a.replace(/'/g, `'"'"'`)}'`)).join(" ");
 }

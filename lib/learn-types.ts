@@ -30,8 +30,9 @@ export interface LessonTest {
   fixtures?: string;
   /** A folder of the fixtures to run from. */
   cwd?: string;
-  /** A command wrapped around the run, like `flock job.lock`. */
-  wrap?: string;
+  /** A command wrapped around the run, like `flock job.lock` (as a line,
+      split like a shell splits it, or as its words). */
+  wrap?: string | string[];
   /** A frozen time, like `2026-10-19T09:00:00Z`. */
   clock?: string;
   /** More SQL on the test's fresh copy of the lesson's database. */
@@ -70,7 +71,6 @@ export interface LessonExample {
   exitCode?: number;
   /** Another fixture set than the lesson's. */
   fixtures?: string;
-  cwd?: string;
   clock?: string;
   explanation: string;
 }
