@@ -13,7 +13,7 @@ import { ResizeHandle } from "@/components/ui/resize-handle";
 import { LangIcon } from "@/components/compiler/lang-icon";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { ReferencePanel, useReferenceData, type ReferenceTab } from "@/components/compiler/reference-panel";
-import { cheatsheetPlace, readCompilerUrl, revealWorkspace, writeCompilerUrl } from "@/lib/compiler-url";
+import { cheatsheetPlace, readCompilerUrl, revealWorkspace, urlParam, writeUrl } from "@/lib/compiler-url";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { SqlDatabase } from "@/components/compiler/sql-database";
 import { SqlResults } from "@/components/compiler/sql-results";
@@ -238,6 +238,7 @@ export function CompilerApp({
   // workspace stays hidden until it's all there, so nothing pops in.
   const restoring = useRef(false);
   useLayoutEffect(() => {
+    if (sqlMode && urlParam("view") === "database") setSqlView("database");
     const place = readCompilerUrl();
     if (!place.panel) return revealWorkspace();
     cheatsheetPlace.q = place.q;
@@ -260,12 +261,23 @@ export function CompilerApp({
   }, [refData, refError]);
   // And the address follows along.
   useEffect(() => {
-    writeCompilerUrl(
+    const onChallenge = refOpen && refTab === "challenges" && challengeId;
+    writeUrl(
       refOpen
-        ? { panel: refTab, challenge: refTab === "challenges" ? challengeId : null, q: cheatsheetPlace.q, at: cheatsheetPlace.at }
-        : { panel: null, challenge: null, q: "", at: "" }
+        ? {
+            panel: refTab,
+            challenge: onChallenge ? challengeId : null,
+            // The open challenge keeps its own hints in the address.
+            hints: onChallenge ? undefined : null,
+            q: cheatsheetPlace.q,
+            at: cheatsheetPlace.at,
+          }
+        : { panel: null, challenge: null, hints: null, difficulty: null, status: null, q: null, at: null }
     );
   }, [refOpen, refTab, challengeId]);
+  useEffect(() => {
+    if (sqlMode) writeUrl({ view: sqlView === "database" ? "database" : null });
+  }, [sqlMode, sqlView]);
 
   // The panel slides in from the right when you open it, and back out before
   // the layout returns to side by side.

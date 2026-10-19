@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { challengeListPlace, urlCount, urlParam, writeUrl } from "@/lib/compiler-url";
 import { ArrowLeft, ArrowRight, Eye, List } from "lucide-react";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
@@ -34,8 +35,21 @@ export function ChallengeList({
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   useEnter(rootRef);
-  const [difficulty, setDifficulty] = useState<ChallengeDifficulty | "all">("all");
-  const [status, setStatus] = useState<StatusFilter>("all");
+  // The filters come back from the address (a reload), else from earlier in
+  // the visit (another language), and go back into both.
+  const [difficulty, setDifficulty] = useState<ChallengeDifficulty | "all">(() => {
+    const d = urlParam("difficulty") || challengeListPlace.difficulty;
+    return Object.hasOwn(DIFFICULTY_LABEL, d) ? (d as ChallengeDifficulty) : "all";
+  });
+  const [status, setStatus] = useState<StatusFilter>(() => {
+    const s = urlParam("status") || challengeListPlace.status;
+    return s === "todo" || s === "solved" ? s : "all";
+  });
+  useEffect(() => {
+    challengeListPlace.difficulty = difficulty;
+    challengeListPlace.status = status;
+    writeUrl({ difficulty: difficulty === "all" ? null : difficulty, status: status === "all" ? null : status });
+  }, [difficulty, status]);
   const solved = challenges.filter((c) => progress.solved.has(c.id)).length;
   const visible = challenges.filter(
     (c) =>
@@ -132,7 +146,12 @@ export function ChallengeDetail({
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   useEnter(rootRef);
-  const [hints, setHints] = useState(0);
+  // The hints you'd seen come back on a reload (the address names this
+  // challenge), and go back into it.
+  const [hints, setHints] = useState(() => (urlParam("challenge") === challenge.id ? urlCount("hints", challenge.hints.length) : 0));
+  useEffect(() => {
+    writeUrl({ hints: hints ? String(hints) : null });
+  }, [hints]);
   const solved = progress.solved.has(challenge.id);
 
   return (

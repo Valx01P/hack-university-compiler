@@ -5,7 +5,7 @@ import { Search, X } from "lucide-react";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
 import { SAMPLE_DB_SQL } from "@/lib/sql/sample-db";
 import { cheatsheetBlocks, type CheatsheetHit } from "@/lib/reference-blocks";
-import { cheatsheetPlace, writeCompilerUrl } from "@/lib/compiler-url";
+import { cheatsheetPlace, writeUrl } from "@/lib/compiler-url";
 import type { ReferenceSection } from "@/lib/reference-types";
 import { EASE, dur, gsap } from "@/lib/motion";
 
@@ -92,12 +92,12 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
     return ranked.hits ? rankedSections(sections, ranked.hits) : textMatches(sections, ranked.q);
   }, [sections, q, ranked]);
 
-  // Remember the search, and put it in the address while the panel is open.
-  const panelOpen = () => new URLSearchParams(window.location.search).has("panel");
+  // Remember the search, and put it in the address (it only changes while
+  // the panel shows it, and closing the panel clears it).
   useEffect(() => {
     cheatsheetPlace.q = q;
     if (q) cheatsheetPlace.at = "";
-    if (panelOpen()) writeCompilerUrl(q ? { q, at: "" } : { q: "" });
+    writeUrl(q ? { q, at: "" } : { q: "" });
   }, [q]);
 
   // Back to the section you were reading (a search starts at its top).
@@ -128,7 +128,7 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
       if (box.scrollTop < 8) top = "";
       if (top === cheatsheetPlace.at) return;
       cheatsheetPlace.at = top;
-      if (panelOpen()) writeCompilerUrl({ at: top });
+      writeUrl({ at: top });
     });
   }
 
