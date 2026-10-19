@@ -15,6 +15,7 @@ import {
   useCodeCommentsHidden,
   useTheme,
 } from "@/lib/theme";
+import { SwitchTrack } from "@/components/ui/switch-track";
 import { CodeBackgroundPicker, SelectionColorPicker } from "@/components/code/code-background";
 import { POP, usePresence } from "@/lib/motion";
 
@@ -268,18 +269,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
               <span className="block">Code comments</span>
               <span className="mt-0.5 block text-xs text-ink-faint">In lesson and cheatsheet examples</span>
             </span>
-            <span
-              aria-hidden
-              className={`relative mt-0.5 inline-flex h-[18px] w-8 shrink-0 rounded-full border transition-colors ${
-                commentsShown ? "border-ink bg-ink" : "border-edge-strong"
-              }`}
-            >
-              <span
-                className={`absolute left-[2px] top-[2px] size-3 rounded-full transition-transform ${
-                  commentsShown ? "translate-x-[14px] bg-canvas" : "bg-ink-faint"
-                }`}
-              />
-            </span>
+            <SwitchTrack on={commentsShown} className="mt-0.5" />
           </button>
         </div>
       )}

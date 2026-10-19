@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Minus, Plus, Settings } from "lucide-react";
 import { CONTRAST_LEVELS, setContrast, useContrast } from "@/lib/theme";
+import { SwitchTrack } from "@/components/ui/switch-track";
 import { CodeBackgroundPicker, SelectionColorPicker } from "@/components/code/code-background";
 import { POP, usePresence } from "@/lib/motion";
 
@@ -246,15 +247,21 @@ export function EditorSettingsButton({
                 </div>
               </div>
 
-              <label className="flex items-center justify-between gap-4">
-                <span className="text-ink-muted">Intellisense</span>
-                <input
-                  type="checkbox"
-                  checked={settings.intellisense}
-                  onChange={(e) => update({ intellisense: e.target.checked })}
-                  className="size-4 accent-ink"
-                />
-              </label>
+              {/* A switch like the theme menu's: the whole row turns
+                  suggestions as you type on and off. */}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={settings.intellisense}
+                onClick={() => update({ intellisense: !settings.intellisense })}
+                className="-mx-1 flex w-[calc(100%+0.5rem)] items-center justify-between gap-4 rounded-btn px-1 py-0.5 text-left transition-colors hover:bg-raised"
+              >
+                <span>
+                  <span className="block text-ink-muted">Intellisense</span>
+                  <span className="block text-xs text-ink-faint">Suggestions as you type</span>
+                </span>
+                <SwitchTrack on={settings.intellisense} />
+              </button>
 
               <div className="flex items-center justify-between gap-4">
                 <span className="text-ink-muted">Zoom</span>
