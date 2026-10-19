@@ -352,6 +352,11 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
   loaded the first time you run SQL (about 16 MB, 5 MB gzipped). The playground
   keeps one in-memory database, and lessons and challenges get a fresh one for
   every run.
+- Next.js reports each build and dev session to telemetry.nextjs.org unless
+  told not to, and `npm run up` tells it not to. When you run `npm run dev`,
+  `npm run build`, or `npm start` yourself, `npx next telemetry disable` turns
+  it off for every Next.js project you run (`npx next telemetry status` shows
+  whether it's on).
 - Animations run on [GSAP](https://gsap.com): the lesson list sliding, the
   drawer, menus and popups, the cheatsheet and challenges panel, check results,
   and moving between parts. They only answer what you do, never a page load,
