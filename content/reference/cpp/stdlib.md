@@ -11,20 +11,21 @@ Beyond `vector`, `map`, and `set`, the standard library gives you ready-made sta
 
 std::stack<int> st;
 st.push(1); st.push(2);
-st.top();      // 2, last in
-st.pop();      // removes it, returns nothing
+std::cout << st.top() << '\n';    // 2, last in
+st.pop();                         // removes it, returns nothing
 
 std::queue<int> q;
 q.push(1); q.push(2);
-q.front();     // 1, first in
-q.back();      // 2
+std::cout << q.front() << '\n';   // 1, first in
+std::cout << q.back() << '\n';    // 2
 q.pop();
 
 std::deque<int> d = {2, 3};
-d.push_front(1);   // {1, 2, 3}
-d.push_back(4);    // {1, 2, 3, 4}
-d.pop_front();     // {2, 3, 4}
-d[0];              // 2, random access like a vector
+d.push_front(1);                         // add at the front
+d.push_back(4);                          // add at the back
+d.pop_front();                           // remove the front
+std::cout << d[0] << '\n';               // 2, random access like a vector
+for (int x : d) std::cout << x << ' ';   // 2 3 4
 ```
 
 ### Priority queue (heap)
@@ -37,7 +38,7 @@ d[0];              // 2, random access like a vector
 
 std::priority_queue<int> maxHeap;          // largest on top
 for (int x : {5, 1, 8}) maxHeap.push(x);
-maxHeap.top();                             // 8
+std::cout << maxHeap.top() << '\n';        // 8
 
 std::priority_queue<int, std::vector<int>, std::greater<int>> minHeap;
 for (int x : {5, 1, 8}) minHeap.push(x);
@@ -56,21 +57,27 @@ while (!minHeap.empty()) {
 
 std::vector<int> v = {4, 1, 3, 1, 5};
 
-std::sort(v.begin(), v.end());                      // {1, 1, 3, 4, 5}
-std::sort(v.begin(), v.end(), std::greater<int>()); // {5, 4, 3, 1, 1}
-std::reverse(v.begin(), v.end());                   // {1, 1, 3, 4, 5}
+std::sort(v.begin(), v.end());                      // smallest first
+std::sort(v.begin(), v.end(), std::greater<int>()); // largest first
+std::reverse(v.begin(), v.end());                   // flip the order
+for (int x : v) std::cout << x << ' ';              // 1 1 3 4 5
+std::cout << '\n';
 
-int ones = std::count(v.begin(), v.end(), 1);       // 2
+int ones = std::count(v.begin(), v.end(), 1);
+std::cout << ones << '\n';                          // 2
 
 auto it = std::find(v.begin(), v.end(), 3);
 if (it != v.end()) {
-    int index = it - v.begin();                      // 2
+    int index = it - v.begin();
+    std::cout << index << '\n';                     // 2
 }
 
-bool anyEven = std::any_of(v.begin(), v.end(), [](int x) { return x % 2 == 0; }); // true
+bool anyEven = std::any_of(v.begin(), v.end(), [](int x) { return x % 2 == 0; });
+std::cout << std::boolalpha << anyEven << '\n';     // true
 
 auto lb = std::lower_bound(v.begin(), v.end(), 2);  // v is sorted: first element >= 2
-int pos = lb - v.begin();                           // 2, where 2 would go
+int pos = lb - v.begin();
+std::cout << pos << '\n';                           // 2, where 2 would go
 ```
 
 Sum, min, and max of a range (`std::accumulate`, `std::max_element`) are in Built-in Functions.
@@ -103,18 +110,20 @@ void show(const std::vector<T>& xs) {
 
 int main() {
     {{code}}
-    show(v);
 }
 ```
 
 ```cpp
 std::vector<int> v = {3, 1, 3, 2, 1};
-std::sort(v.begin(), v.end());                       // {1, 1, 2, 3, 3}
-v.erase(std::unique(v.begin(), v.end()), v.end());   // {1, 2, 3}
+std::sort(v.begin(), v.end());                       // puts repeats side by side
+v.erase(std::unique(v.begin(), v.end()), v.end());
+for (int x : v) std::cout << x << ' ';               // 1 2 3
+std::cout << '\n';
 
 // erase-remove idiom: drop every even number
 v.erase(std::remove_if(v.begin(), v.end(), [](int x) { return x % 2 == 0; }),
-        v.end());                                    // {1, 3}
+        v.end());
+for (int x : v) std::cout << x << ' ';               // 1 3
 ```
 
 ### Transform
@@ -131,7 +140,6 @@ void show(const std::vector<T>& xs) {
 
 int main() {
     {{code}}
-    show(sq);
 }
 ```
 
@@ -139,7 +147,7 @@ int main() {
 std::vector<int> v = {1, 2, 3};
 std::vector<int> sq(v.size());
 std::transform(v.begin(), v.end(), sq.begin(), [](int x) { return x * x; });
-// sq = {1, 4, 9}
+for (int x : sq) std::cout << x << ' ';   // 1 4 9
 ```
 
 ### Random numbers
@@ -166,6 +174,7 @@ auto start = std::chrono::steady_clock::now();
 // ... work ...
 auto end = std::chrono::steady_clock::now();
 auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+std::cout << ms << " ms\n";   // the time it took, varies by run
 ```
 
 ### Gotchas

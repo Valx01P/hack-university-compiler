@@ -27,9 +27,11 @@ std::cout << digitSum << '\n';    // 10
 
 int value = 100, halvings = 0;
 while (value > 1) {
-    value /= 2;                   // 50 25 12 6 3 1
+    value /= 2;
+    std::cout << value << ' ';    // 50 25 12 6 3 1
     halvings++;
 }
+std::cout << '\n';
 std::cout << halvings << '\n';    // 6
 ```
 
@@ -69,6 +71,10 @@ std::cout << k << '\n';           // 3, index of the first even
 ```
 
 ### Read input until it runs out
+
+```stdin
+3 4 5
+```
 
 ```cpp
 #include <string>

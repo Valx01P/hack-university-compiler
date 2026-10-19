@@ -26,8 +26,8 @@ public:
 };
 
 Dog d("Rex");
-d.name();    // "Rex", inherited
-d.sound();   // "woof"
+std::cout << d.name() << '\n';    // Rex, inherited
+std::cout << d.sound() << '\n';   // woof
 ```
 
 ### Polymorphism
@@ -141,11 +141,6 @@ protected: std::string name_;
 class Dog : public Animal { public: using Animal::Animal; std::string sound() const override { return "woof"; } };
 
 {{code}}
-
-int main() {
-    Puppy p("Rex");
-    std::cout << p.name() << ": " << p.sound() << '\n';
-}
 ```
 
 ```cpp
@@ -153,9 +148,10 @@ class Puppy : public Dog {
 public:
     using Dog::Dog;
     std::string sound() const override {
-        return Dog::sound() + "!";             // "woof!"
+        return Dog::sound() + "!";
     }
 };
+std::cout << Puppy("Rex").sound() << '\n';   // woof!
 ```
 
 ### Operator overloading
@@ -170,7 +166,8 @@ struct Vec {
 };
 
 Vec a{1, 2}, b{3, 4};
-Vec c = a + b * 2;   // {7, 10}
+Vec c = a + b * 2;
+std::cout << c.x << ' ' << c.y << '\n';   // 7 10
 ```
 
 ### Smart pointers
@@ -190,8 +187,6 @@ class Dog : public Animal { public: using Animal::Animal; std::string sound() co
 
 int main() {
     {{code}}
-    std::cout << (p == nullptr) << ' ' << q->name() << '\n';
-    std::cout << s1.use_count() << '\n';
 }
 ```
 
@@ -200,10 +195,11 @@ int main() {
 
 auto p = std::make_unique<Dog>("Rex");    // one owner, freed automatically
 auto q = std::move(p);                    // ownership moves, p is now null
+std::cout << std::boolalpha << (p == nullptr) << ' ' << q->name() << '\n';   // true Rex
 
 auto s1 = std::make_shared<Dog>("Max");   // shared owners, freed with the last one
 auto s2 = s1;
-s1.use_count();                           // 2
+std::cout << s1.use_count() << '\n';      // 2
 ```
 
 ### Check the real type

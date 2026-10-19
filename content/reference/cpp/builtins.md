@@ -7,13 +7,14 @@ C++ has no global built-ins like Python's `max` or `len`. They live in headers u
 ```cpp
 #include <algorithm>
 
-std::max(3, 7);                 // 7
-std::min(3, 7);                 // 3
-std::max({4, 9, 2});            // 9, any number of values in braces
-std::min({4, 9, 2});            // 2
-auto [lo, hi] = std::minmax({4, 9, 2});   // 2 9
-std::clamp(15, 0, 10);          // 10, keeps a value in [0, 10] (C++17)
-std::max<double>(2, 3.5);       // 3.5, mixed types need the <double>
+std::cout << std::max(3, 7) << '\n';            // 7
+std::cout << std::min(3, 7) << '\n';            // 3
+std::cout << std::max({4, 9, 2}) << '\n';       // 9, any number of values in braces
+std::cout << std::min({4, 9, 2}) << '\n';       // 2
+auto [lo, hi] = std::minmax({4, 9, 2});
+std::cout << lo << ' ' << hi << '\n';           // 2 9
+std::cout << std::clamp(15, 0, 10) << '\n';     // 10, keeps a value in [0, 10] (C++17)
+std::cout << std::max<double>(2, 3.5) << '\n';  // 3.5, mixed types need the <double>
 ```
 
 ### Math from cmath
@@ -21,23 +22,23 @@ std::max<double>(2, 3.5);       // 3.5, mixed types need the <double>
 ```cpp
 #include <cmath>
 
-std::pow(2, 10);                // 1024 (a double)
-std::sqrt(16.0);                // 4
-std::cbrt(27.0);                // 3
-std::abs(-5);                   // 5, works for int and double
-std::abs(-2.5);                 // 2.5
-std::floor(2.7);                // 2
-std::ceil(2.1);                 // 3
-std::round(2.5);                // 3, halves round away from zero
-std::trunc(-2.7);               // -2, drops the decimals
-std::fmod(7.5, 2);              // 1.5, % for doubles
-std::log(1.0);                  // 0, natural log
-std::log2(8.0);                 // 3
-std::log10(1000.0);             // 3
-std::exp(1.0);                  // 2.71828
-std::hypot(3.0, 4.0);           // 5, sqrt(3*3 + 4*4)
-std::sin(0.0);                  // 0, radians (also cos, tan, atan2)
-M_PI;                           // 3.14159 (M_E is e), g++ defines both
+std::cout << std::pow(2, 10) << '\n';         // 1024 (a double)
+std::cout << std::sqrt(16.0) << '\n';         // 4
+std::cout << std::cbrt(27.0) << '\n';         // 3
+std::cout << std::abs(-5) << '\n';            // 5, works for int and double
+std::cout << std::abs(-2.5) << '\n';          // 2.5
+std::cout << std::floor(2.7) << '\n';         // 2
+std::cout << std::ceil(2.1) << '\n';          // 3
+std::cout << std::round(2.5) << '\n';         // 3, halves round away from zero
+std::cout << std::trunc(-2.7) << '\n';        // -2, drops the decimals
+std::cout << std::fmod(7.5, 2) << '\n';       // 1.5, % for doubles
+std::cout << std::log(1.0) << '\n';           // 0, natural log
+std::cout << std::log2(8.0) << '\n';          // 3
+std::cout << std::log10(1000.0) << '\n';      // 3
+std::cout << std::exp(1.0) << '\n';           // 2.71828
+std::cout << std::hypot(3.0, 4.0) << '\n';    // 5, sqrt(3*3 + 4*4)
+std::cout << std::sin(0.0) << '\n';           // 0, radians (also cos, tan, atan2)
+std::cout << M_PI << '\n';                    // 3.14159 (M_E is e), g++ defines both
 ```
 
 ### gcd and lcm
@@ -45,8 +46,8 @@ M_PI;                           // 3.14159 (M_E is e), g++ defines both
 ```cpp
 #include <numeric>
 
-std::gcd(12, 18);               // 6 (C++17)
-std::lcm(4, 6);                 // 12 (C++17)
+std::cout << std::gcd(12, 18) << '\n';  // 6 (C++17)
+std::cout << std::lcm(4, 6) << '\n';    // 12 (C++17)
 ```
 
 ### Length, sum, min, max of a vector
@@ -57,12 +58,12 @@ std::lcm(4, 6);                 // 12 (C++17)
 #include <vector>
 
 std::vector<int> v = {5, 3, 8, 1};
-v.size();                                           // 4, like len(v)
-std::accumulate(v.begin(), v.end(), 0);             // 17, the sum
-std::accumulate(v.begin(), v.end(), 0LL);           // sum as long long
-*std::max_element(v.begin(), v.end());              // 8
-*std::min_element(v.begin(), v.end());              // 1
-std::max_element(v.begin(), v.end()) - v.begin();   // 2, index of the max
+std::cout << v.size() << '\n';                                // 4, like len(v)
+std::cout << std::accumulate(v.begin(), v.end(), 0) << '\n';  // 17, the sum
+std::accumulate(v.begin(), v.end(), 0LL);                     // sum as long long
+std::cout << *std::max_element(v.begin(), v.end()) << '\n';   // 8
+std::cout << *std::min_element(v.begin(), v.end()) << '\n';   // 1
+std::cout << std::max_element(v.begin(), v.end()) - v.begin() << '\n';  // 2, index of the max
 ```
 
 Sorting, searching, and the other algorithms are in Standard Library. Integer limits like `INT_MAX` are in Variables and Types.

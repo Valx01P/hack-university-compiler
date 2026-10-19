@@ -55,6 +55,7 @@ if (!v.empty() && v[0] > 0) {   // v[0] never runs when v is empty
 
 int d = 0;
 if (d != 0 && 10 / d > 1) std::cout << "big\n";   // safe, no divide by zero
+std::cout << "no crash\n";                        // both ifs were skipped safely
 ```
 
 ### Truthiness

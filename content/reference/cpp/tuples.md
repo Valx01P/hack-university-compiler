@@ -12,9 +12,9 @@ std::pair<std::string, int> p = {"ana", 31};
 auto q = std::make_pair("bo", 25);   // type deduced
 std::pair r("cy", 40);               // C++17 deduces the types too
 
-p.first;          // "ana"
-p.second;         // 31
-p.second = 32;    // members are writable
+std::cout << p.first << '\n';    // ana
+std::cout << p.second << '\n';   // 31
+p.second = 32;                   // members are writable
 ```
 
 ### Tuple
@@ -25,10 +25,10 @@ p.second = 32;    // members are writable
 std::tuple<std::string, int, double> t = {"ana", 31, 1.68};
 auto u = std::make_tuple(1, 'x', true);
 
-std::get<0>(t);           // "ana"
-std::get<2>(t) = 1.70;    // write by index
-std::get<int>(t);         // 31, by type (only if the type appears once)
-std::tuple_size_v<decltype(t)>;        // 3
+std::cout << std::get<0>(t) << '\n';     // ana
+std::get<2>(t) = 1.70;                   // write by index
+std::cout << std::get<int>(t) << '\n';   // 31, by type (only if the type appears once)
+std::cout << std::tuple_size_v<decltype(t)> << '\n';   // 3
 ```
 
 ### Unpack
@@ -88,8 +88,6 @@ using namespace std;
 int main() {
     std::vector<std::pair<std::string, int>> scores = {{"ana", 90}, {"bo", 75}, {"cy", 82}, {"dee", 60}};
     {{code}}
-    std::cout << std::boolalpha << (a < b) << ' ' << (a == b) << '\n';
-    for (const auto& [k, s] : v) std::cout << k << s << ' ';
     std::cout << '\n';
     for (const auto& [name, score] : scores) std::cout << name << ' ' << score << '\n';
 }
@@ -98,13 +96,14 @@ int main() {
 ```cpp
 #include <algorithm>
 
+std::cout << std::boolalpha;
 std::pair<int, int> a = {1, 5}, b = {1, 7};
-a < b;     // true (first equal, then 5 < 7)
-a == b;    // false
+std::cout << (a < b) << '\n';    // true (first equal, then 5 < 7)
+std::cout << (a == b) << '\n';   // false
 
 std::vector<std::pair<int, std::string>> v = {{2, "b"}, {1, "z"}, {2, "a"}};
 std::sort(v.begin(), v.end());
-// {1, "z"}, {2, "a"}, {2, "b"}
+for (const auto& [k, s] : v) std::cout << k << s << ' ';   // 1z 2a 2b
 
 // sort by score descending, then name ascending
 std::sort(scores.begin(), scores.end(), [](const auto& x, const auto& y) {

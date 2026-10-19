@@ -19,34 +19,40 @@ std::cout << -7 % 3 << '\n';     // -1, sign follows the left side
 
 ```cpp
 int a = 7, b = 2;
-double avg = static_cast<double>(a) / b;   // 3.5
-double wrong = a / b;                      // 3, divided as ints first
+double avg = static_cast<double>(a) / b;
+std::cout << avg << '\n';     // 3.5
+double wrong = a / b;
+std::cout << wrong << '\n';   // 3, divided as ints first
 ```
 
 ### Split with / and %
 
 ```cpp
 int seconds = 3725;
-std::cout << seconds / 3600 << "h "         // 1h
-          << seconds % 3600 / 60 << "m "    // 2m
-          << seconds % 60 << "s\n";         // 5s
-int lastDigit = 1234 % 10;                  // 4
-bool even = 1234 % 2 == 0;                  // true
+std::cout << seconds / 3600 << "h "         // 1h 2m 5s
+          << seconds % 3600 / 60 << "m "
+          << seconds % 60 << "s\n";
+int lastDigit = 1234 % 10;
+bool even = 1234 % 2 == 0;
+std::cout << lastDigit << ' ' << std::boolalpha << even << '\n';   // 4 true
 ```
 
 ### Compound assignment and increment
 
 ```cpp
 int x = 10;
-x += 5;   // 15
-x -= 3;   // 12
-x *= 2;   // 24
-x /= 4;   // 6
-x %= 4;   // 2
+x += 5;   // x = x + 5
+x -= 3;   // x = x - 3
+x *= 2;   // x = x * 2
+x /= 4;   // x = x / 4
+x %= 4;   // x = x % 4
+std::cout << x << '\n';   // 2
 
 int i = 5;
-int a = i++;   // a=5, then i=6
-int b = ++i;   // i=7, then b=7
+int a = i++;
+std::cout << a << ' ' << i << '\n';   // 5 6, a got i, then i went up
+int b = ++i;
+std::cout << b << ' ' << i << '\n';   // 7 7, i went up, then b got it
 ```
 
 ### Powers and roots
@@ -54,9 +60,9 @@ int b = ++i;   // i=7, then b=7
 ```cpp
 #include <cmath>
 
-std::pow(2, 10);        // 1024, returned as a double
-std::sqrt(16.0);        // 4
-std::fmod(7.5, 2);      // 1.5, % for doubles
+std::cout << std::pow(2, 10) << '\n';     // 1024, returned as a double
+std::cout << std::sqrt(16.0) << '\n';     // 4
+std::cout << std::fmod(7.5, 2) << '\n';   // 1.5, % for doubles
 ```
 
 The rest of `<cmath>` (`abs`, `floor`, `round`, `log`, ...) and `std::max` are in Built-in Functions.

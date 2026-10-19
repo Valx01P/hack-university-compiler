@@ -37,12 +37,12 @@ std::cout << std::isnan(nan) << '\n';           // 1, the only reliable test
 #include <climits>
 #include <limits>
 
-int big = INT_MAX;                                   // 2147483647
-int small = INT_MIN;                                 // -2147483648
-long long bigLL = LLONG_MAX;                         // 9223372036854775807
-int same = std::numeric_limits<int>::max();          // 2147483647
-double maxD = std::numeric_limits<double>::max();    // 1.79769e+308
-double minD = std::numeric_limits<double>::lowest(); // -1.79769e+308
+std::cout << INT_MAX << '\n';                                 // 2147483647
+std::cout << INT_MIN << '\n';                                 // -2147483648
+std::cout << LLONG_MAX << '\n';                               // 9223372036854775807
+std::cout << std::numeric_limits<int>::max() << '\n';         // 2147483647
+std::cout << std::numeric_limits<double>::max() << '\n';      // 1.79769e+308
+std::cout << std::numeric_limits<double>::lowest() << '\n';   // -1.79769e+308
 ```
 
 ### Use it in a loop

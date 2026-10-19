@@ -24,10 +24,6 @@ int main() {
     std::vector<int> v = {4, 7, 1, 9};
     {{code}}
     std::cout << '\n';
-    for (int x : v) {
-        std::cout << x << ' ';
-    }
-    std::cout << '\n';
     return 0;
 }
 ```
@@ -36,10 +32,12 @@ int main() {
 for (int x : v) {
     std::cout << x << ' ';                    // 4 7 1 9
 }
+std::cout << '\n';
 
 for (int& x : v) {
-    x += 1;                                   // v is now {5, 8, 2, 10}
+    x += 1;                                   // changes v itself
 }
+for (int x : v) std::cout << x << ' ';        // 5 8 2 10
 
 std::vector<std::string> names = {"ann", "bo"};
 for (const std::string& n : names) { }        // const& skips copying each string
@@ -132,7 +130,7 @@ for (int x : v) {
     if (x > best) best = x;
     if (x % 2 == 0) evens++;
 }
-// sum 21, best 9, evens 1
+std::cout << sum << ' ' << best << ' ' << evens << '\n';   // 21 9 1
 ```
 
 ### Filter into a new vector
@@ -143,9 +141,6 @@ for (int x : v) {
 int main() {
     std::vector<int> v = {4, 7, 1, 9};
     {{code}}
-    for (int x : big) {
-        std::cout << x << ' ';
-    }
     std::cout << '\n';
     return 0;
 }
@@ -154,8 +149,9 @@ int main() {
 ```cpp
 std::vector<int> big;
 for (int x : v) {
-    if (x > 3) big.push_back(x);              // {4, 7, 9}
+    if (x > 3) big.push_back(x);
 }
+for (int x : big) std::cout << x << ' ';      // 4 7 9
 ```
 
 ### Print with separators
@@ -186,7 +182,6 @@ for (std::size_t k = 0; k < v.size(); k++) {
 int main() {
     std::vector<int> v = {4, 7, 1, 9};
     {{code}}
-    std::cout << "pos is " << pos << '\n';
     return 0;
 }
 ```
@@ -199,7 +194,7 @@ for (int k = 0; k < (int)v.size(); k++) {
         break;
     }
 }
-// pos is 2
+std::cout << "pos is " << pos << '\n';   // pos is 2
 ```
 
 ### Remove while looping
@@ -213,7 +208,7 @@ for (std::size_t k = 0; k < w.size(); ) {
         k++;
     }
 }
-// w is {1, 3, 5}
+for (int x : w) std::cout << x << ' ';        // 1 3 5
 ```
 
 The one-line version, the erase-remove idiom, is in Standard Library.

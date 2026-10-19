@@ -23,6 +23,7 @@ private:
     std::string name_;
     int age_;
 };   // <- semicolon
+Dog("Rex", 3).bark();   // Rex says woof
 ```
 
 ### Create and use objects
@@ -44,19 +45,18 @@ private:
 
 int main() {
     {{code}}
-    std::cout << d.age() << '\n';
 }
 ```
 
 ```cpp
-Dog d("Rex", 3);         // on the stack, freed automatically
-Dog e{"Fido", 5};        // brace init works too
-d.bark();                // Rex says woof
+Dog d("Rex", 3);                // on the stack, freed automatically
+Dog e{"Fido", 5};               // brace init works too
+d.bark();                       // Rex says woof
 d.setAge(4);
-d.age();                 // 4
+std::cout << d.age() << '\n';   // 4
 
-Dog* p = &d;             // pointer to an object
-p->bark();               // -> instead of . through a pointer
+Dog* p = &d;                    // pointer to an object
+p->bark();                      // -> instead of . through a pointer
 ```
 
 ### Struct for plain data
@@ -67,8 +67,9 @@ struct Point {
     int y = 0;
 };
 
-Point a;                 // {0, 0}
-Point b{3, 4};           // aggregate init, in member order
+Point a;
+std::cout << a.x << ' ' << a.y << '\n';   // 0 0
+Point b{3, 4};                            // aggregate init, in member order
 b.x = 10;
 ```
 
@@ -85,9 +86,12 @@ private:
     int w_, h_;
 };
 
-Box a;          // 1x1   (not Box a(); that declares a function)
-Box b(5);       // 5x5
-Box c(2, 3);    // 2x3
+Box a;                           // not Box a(); that declares a function
+std::cout << a.area() << '\n';   // 1 (1x1)
+Box b(5);
+std::cout << b.area() << '\n';   // 25 (5x5)
+Box c(2, 3);
+std::cout << c.area() << '\n';   // 6 (2x3)
 ```
 
 ### Static members
@@ -147,7 +151,6 @@ private:
 
 int main() {
     {{code}}
-    std::cout << total << '\n';
 }
 ```
 
@@ -163,7 +166,8 @@ for (const Dog& d : dogs) {     // const& avoids copying each Dog
 }
 
 int total = 0;
-for (const auto& d : dogs) total += d.age();   // 10
+for (const auto& d : dogs) total += d.age();
+std::cout << total << '\n';     // 10
 ```
 
 | Keyword | Means |

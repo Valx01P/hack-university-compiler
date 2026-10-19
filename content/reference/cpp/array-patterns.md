@@ -9,7 +9,8 @@ All examples use this vector:
 #include <vector>
 
 std::vector<int> v = {10, 11, 12, 13, 14, 15};
-int n = (int)v.size();          // 6, signed so n - 1 is safe
+int n = (int)v.size();          // signed so n - 1 is safe
+std::cout << n << '\n';         // 6
 ```
 
 ### Reverse
@@ -30,6 +31,7 @@ int main() {
 for (int i = n - 1; i >= 0; i--) {
     std::cout << v[i] << ' ';       // 15 14 13 12 11 10
 }
+std::cout << '\n';
 
 for (auto it = v.rbegin(); it != v.rend(); ++it) {
     std::cout << *it << ' ';        // 15 14 13 12 11 10
@@ -51,8 +53,10 @@ int main() {
 ```
 
 ```cpp
-for (int i = 0; i < n; i += 2) { }  // even indexes: 10 12 14
-for (int i = 1; i < n; i += 2) { }  // odd indexes:  11 13 15
+for (int i = 0; i < n; i += 2) std::cout << v[i] << ' ';  // 10 12 14, even indexes
+std::cout << '\n';
+for (int i = 1; i < n; i += 2) std::cout << v[i] << ' ';  // 11 13 15, odd indexes
+std::cout << '\n';
 
 for (int x : v) {
     if (x % 2 != 0) continue;       // skip odd values
@@ -70,9 +74,6 @@ int main() {
     std::vector<int> v = {10, 11, 12, 13, 14, 15};
     int n = (int)v.size();
     {{code}}
-    for (int i = 0; i < std::min(3, n); i++) std::cout << v[i] << ' ';
-    std::cout << '\n';
-    for (int i = std::max(0, n - 2); i < n; i++) std::cout << v[i] << ' ';
     std::cout << '\n';
 }
 ```
@@ -80,8 +81,9 @@ int main() {
 ```cpp
 #include <algorithm>   // std::max, std::min
 
-for (int i = 0; i < std::min(3, n); i++) { }   // 10 11 12
-for (int i = std::max(0, n - 2); i < n; i++) { }  // 14 15
+for (int i = 0; i < std::min(3, n); i++) std::cout << v[i] << ' ';      // 10 11 12
+std::cout << '\n';
+for (int i = std::max(0, n - 2); i < n; i++) std::cout << v[i] << ' ';  // 14 15
 ```
 
 ### Neighbors (compare with the previous one)
@@ -180,7 +182,7 @@ for (int i = 0; i < (int)s.size(); i++) {
     if (i >= k) window -= s[i - k];       // drop the old left end
     if (i >= k - 1) best = std::max(best, window);
 }
-// best is 9 (5 + 1 + 3)
+std::cout << best << '\n';                // 9 (5 + 1 + 3)
 ```
 
 ### Prefix sums and running max
@@ -193,22 +195,22 @@ int main() {
     std::vector<int> s = {2, 1, 5, 1, 3, 2};
     {{code}}
     std::cout << '\n';
-    for (int x : prefix) std::cout << x << ' ';
-    std::cout << '\n' << prefix[4] - prefix[1] << '\n';
 }
 ```
 
 ```cpp
 std::vector<int> prefix(s.size() + 1, 0);
 for (std::size_t i = 0; i < s.size(); i++) {
-    prefix[i + 1] = prefix[i] + s[i];     // {0, 2, 3, 8, 9, 12, 14}
+    prefix[i + 1] = prefix[i] + s[i];
 }
-prefix[4] - prefix[1];                    // 7, sum of s[1] through s[3]
+for (int x : prefix) std::cout << x << ' ';  // 0 2 3 8 9 12 14
+std::cout << '\n';
+std::cout << prefix[4] - prefix[1] << '\n';  // 7, sum of s[1] through s[3]
 
 int run = 0;
 for (int x : s) {
     run = std::max(run, x);
-    std::cout << run << ' ';              // 2 2 5 5 5 5
+    std::cout << run << ' ';                 // 2 2 5 5 5 5
 }
 ```
 

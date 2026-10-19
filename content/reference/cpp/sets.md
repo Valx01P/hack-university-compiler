@@ -10,11 +10,15 @@ A set holds each value once. `std::set` keeps values sorted (O(log n)), `std::un
 #include <string>
 #include <vector>
 
-std::set<int> s = {3, 1, 4, 1, 5};       // {1, 3, 4, 5}
-std::unordered_set<std::string> seen;    // empty
+std::set<int> s = {3, 1, 4, 1, 5};
+for (int x : s) std::cout << x << ' ';      // 1 3 4 5
+std::cout << '\n';
+std::unordered_set<std::string> seen;
+std::cout << seen.size() << '\n';           // 0, empty
 
 std::vector<int> v = {2, 2, 7, 7, 9};
-std::set<int> uniq(v.begin(), v.end());  // {2, 7, 9}
+std::set<int> uniq(v.begin(), v.end());
+for (int x : uniq) std::cout << x << ' ';   // 2 7 9
 ```
 
 ### Add and remove
@@ -31,12 +35,14 @@ int main() {
 ```
 
 ```cpp
-s.insert(9);            // {1, 3, 4, 5, 9}
-s.insert(3);            // already there, no change
+s.insert(9);
+s.insert(3);                             // already there, no change
+for (int x : s) std::cout << x << ' ';   // 1 3 4 5 9
+std::cout << '\n';
 
-auto [it, added] = s.insert(2);  // added is true if it was new
+auto [it, added] = s.insert(2);          // added is true if it was new
 
-s.erase(4);             // by value, returns 1 if removed, 0 if not
+s.erase(4);                              // by value, returns 1 if removed, 0 if not
 s.clear();
 ```
 
@@ -44,9 +50,9 @@ s.clear();
 
 ```cpp
 std::set<int> s = {1, 3, 5};
-if (s.count(3)) { }             // 1 if present, 0 if not
-if (s.find(4) == s.end()) { }   // not found
-s.size();                       // 3
+std::cout << s.count(3) << '\n';   // 1 if present, 0 if not
+if (s.find(4) == s.end()) { }      // not found
+std::cout << s.size() << '\n';     // 3
 ```
 
 ### Loop
@@ -88,26 +94,31 @@ std::set<int> b = {3, 4, 5};
 std::set<int> out;
 
 std::set_union(a.begin(), a.end(), b.begin(), b.end(),
-               std::inserter(out, out.begin()));          // {1, 2, 3, 4, 5}
+               std::inserter(out, out.begin()));
+for (int x : out) std::cout << x << ' ';                  // 1 2 3 4 5
+std::cout << '\n';
 out.clear();
 std::set_intersection(a.begin(), a.end(), b.begin(), b.end(),
-                      std::inserter(out, out.begin()));   // {3, 4}
+                      std::inserter(out, out.begin()));
+for (int x : out) std::cout << x << ' ';                  // 3 4
+std::cout << '\n';
 out.clear();
 std::set_difference(a.begin(), a.end(), b.begin(), b.end(),
-                    std::inserter(out, out.begin()));     // {1, 2}
+                    std::inserter(out, out.begin()));
+for (int x : out) std::cout << x << ' ';                  // 1 2
 ```
 
 ### Sorted set extras
 
 ```cpp
 std::set<int> s = {10, 20, 30};
-*s.begin();             // 10, smallest
-*s.rbegin();            // 30, largest
-*s.lower_bound(15);     // 20, first value >= 15
-*s.upper_bound(20);     // 30, first value > 20
+std::cout << *s.begin() << '\n';           // 10, smallest
+std::cout << *s.rbegin() << '\n';          // 30, largest
+std::cout << *s.lower_bound(15) << '\n';   // 20, first value >= 15
+std::cout << *s.upper_bound(20) << '\n';   // 30, first value > 20
 
 std::multiset<int> ms = {1, 1, 2};   // allows repeats
-ms.count(1);                         // 2
+std::cout << ms.count(1) << '\n';    // 2
 ms.erase(ms.find(1));                // removes one copy (erase(1) removes all)
 ```
 

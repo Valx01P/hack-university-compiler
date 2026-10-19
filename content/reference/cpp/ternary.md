@@ -6,9 +6,10 @@
 
 ```cpp
 int x = -7;
-int absX = (x >= 0) ? x : -x;               // 7
-int bigger = (3 > 5) ? 3 : 5;               // 5
-const char* sign = (x < 0) ? "neg" : "pos"; // "neg"
+int absX = (x >= 0) ? x : -x;
+int bigger = (3 > 5) ? 3 : 5;
+const char* sign = (x < 0) ? "neg" : "pos";
+std::cout << absX << ' ' << bigger << ' ' << sign << '\n';   // 7 5 neg
 ```
 
 ### Inside an expression
@@ -21,7 +22,8 @@ int n = 1;
 std::cout << n << (n == 1 ? " item" : " items") << '\n';   // 1 item
 
 int count = 3;
-std::string label = "file" + std::string(count == 1 ? "" : "s");   // "files"
+std::string label = "file" + std::string(count == 1 ? "" : "s");
+std::cout << label << '\n';                                // files
 ```
 
 Wrap the whole ternary in parentheses when you print it, because `<<` binds tighter than `?:`.
@@ -44,6 +46,7 @@ Past two levels an `if` / `else if` chain is easier to read.
 ```cpp
 bool debug = true;
 const int limit = debug ? 10 : 1000;   // a const can't be set later in an if
+std::cout << limit << '\n';            // 10
 ```
 
 ### Use it in a loop

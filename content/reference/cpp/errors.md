@@ -99,7 +99,7 @@ for (const std::string& s : raw) {
         std::cout << "skip " << s << " (too big)\n";
     }
 }
-// sum = 19
+std::cout << "sum = " << sum << '\n';   // sum = 19
 ```
 
 ### Errors without exceptions

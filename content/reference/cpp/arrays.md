@@ -8,27 +8,40 @@ Reach for `std::vector` from `<vector>`: a dynamic array that grows as you `push
 #include <string>
 #include <vector>
 
-std::vector<int> empty;                   // {}
-std::vector<int> v = {3, 1, 4};           // {3, 1, 4}
-std::vector<int> zeros(5);                // {0, 0, 0, 0, 0}
-std::vector<int> sevens(3, 7);            // {7, 7, 7}
+std::vector<int> empty;
+std::cout << empty.size() << '\n';           // 0
+std::vector<int> v = {3, 1, 4};
+for (int x : v) std::cout << x << ' ';       // 3 1 4
+std::cout << '\n';
+std::vector<int> zeros(5);
+for (int x : zeros) std::cout << x << ' ';   // 0 0 0 0 0
+std::cout << '\n';
+std::vector<int> sevens(3, 7);
+for (int x : sevens) std::cout << x << ' ';  // 7 7 7
 std::vector<std::string> names = {"ann", "bo"};
-std::vector<int> copy = v;                // a full, independent copy
+std::vector<int> copy = v;                   // a full, independent copy
 ```
 
 ### Add and remove
 
 ```cpp
 std::vector<int> v = {3, 1, 4};
-v.push_back(5);                     // {3, 1, 4, 5}
-v.insert(v.begin(), 9);             // {9, 3, 1, 4, 5}
-v.insert(v.begin() + 2, 8);         // {9, 3, 8, 1, 4, 5}
-v.pop_back();                       // {9, 3, 8, 1, 4}
-v.erase(v.begin());                 // {3, 8, 1, 4}
-v.erase(v.begin() + 1);             // {3, 1, 4}, removes index 1
-v.erase(v.begin(), v.begin() + 2);  // {4}, removes indexes 0 and 1
-v.clear();                          // {}
-v.resize(3);                        // {0, 0, 0}
+v.push_back(5);                         // adds to the end
+v.insert(v.begin(), 9);                 // inserts at the front
+v.insert(v.begin() + 2, 8);             // inserts at index 2
+for (int x : v) std::cout << x << ' ';  // 9 3 8 1 4 5
+std::cout << '\n';
+v.pop_back();                           // removes the last
+v.erase(v.begin());                     // removes the first
+v.erase(v.begin() + 1);                 // removes index 1
+for (int x : v) std::cout << x << ' ';  // 3 1 4
+std::cout << '\n';
+v.erase(v.begin(), v.begin() + 2);      // removes indexes 0 and 1
+for (int x : v) std::cout << x << ' ';  // 4
+std::cout << '\n';
+v.clear();                              // removes everything
+v.resize(3);                            // sets the length
+for (int x : v) std::cout << x << ' ';  // 0 0 0
 ```
 
 ### Access
@@ -41,7 +54,8 @@ std::cout << v[0] << '\n';                         // 3, no bounds check
 std::cout << v.at(1) << '\n';                      // 1, throws std::out_of_range if bad
 std::cout << v.front() << ' ' << v.back() << '\n'; // 3 4
 std::cout << v.size() << ' ' << v.empty() << '\n'; // 3 0
-v[2] = 10;                                         // {3, 1, 10}
+v[2] = 10;
+for (int x : v) std::cout << x << ' ';             // 3 1 10
 ```
 
 ### Sort and search
@@ -51,15 +65,21 @@ v[2] = 10;                                         // {3, 1, 10}
 #include <functional>   // std::greater
 
 std::vector<int> v = {5, 2, 8, 2};
-std::sort(v.begin(), v.end());                       // {2, 2, 5, 8}
-std::sort(v.begin(), v.end(), std::greater<int>());  // {8, 5, 2, 2}
-std::reverse(v.begin(), v.end());                    // {2, 2, 5, 8}
+std::sort(v.begin(), v.end());
+for (int x : v) std::cout << x << ' ';                   // 2 2 5 8
+std::cout << '\n';
+std::sort(v.begin(), v.end(), std::greater<int>());
+for (int x : v) std::cout << x << ' ';                   // 8 5 2 2
+std::cout << '\n';
+std::reverse(v.begin(), v.end());
+for (int x : v) std::cout << x << ' ';                   // 2 2 5 8
+std::cout << '\n';
 
 auto it = std::find(v.begin(), v.end(), 5);
 if (it != v.end()) {
     std::cout << "at index " << (it - v.begin()) << '\n';  // at index 2
 }
-std::count(v.begin(), v.end(), 2);                   // 2
+std::cout << std::count(v.begin(), v.end(), 2) << '\n';  // 2
 ```
 
 Sum, min, and max of a vector are in Built-in Functions. More algorithms (`unique`, `remove_if`, `transform`) are in Standard Library.
@@ -82,14 +102,18 @@ for (int s : squares) {
 #include <array>
 #include <iterator>   // std::size, std::begin, std::end
 
-std::array<int, 3> arr = {1, 2, 3};  // size is part of the type
-arr.size();                          // 3
-arr.fill(0);                         // {0, 0, 0}
+std::array<int, 3> arr = {1, 2, 3};             // size is part of the type
+std::cout << arr.size() << '\n';                // 3
+arr.fill(0);
+for (int x : arr) std::cout << x << ' ';        // 0 0 0
+std::cout << '\n';
 
-int c[5] = {1, 2, 3};                // {1, 2, 3, 0, 0}, the rest are 0
-int d[4] = {};                       // all zeros
-std::size(c);                        // 5 (C++17)
-sizeof(c) / sizeof(c[0]);            // 5, the old way
+int c[5] = {1, 2, 3};
+for (int x : c) std::cout << x << ' ';          // 1 2 3 0 0, the rest are 0
+std::cout << '\n';
+int d[4] = {};                                  // all zeros
+std::cout << std::size(c) << '\n';              // 5 (C++17)
+std::cout << sizeof(c) / sizeof(c[0]) << '\n';  // 5, the old way
 std::vector<int> fromC(std::begin(c), std::end(c));  // C array to vector
 ```
 

@@ -5,15 +5,16 @@ Bitwise operators work on the binary digits of integers. Use `unsigned` types (o
 ### Operators
 
 ```cpp
-unsigned a = 0b1100;   // 12  (binary literal)
-unsigned b = 0b1010;   // 10
+unsigned a = 0b1100;                  // binary literal
+unsigned b = 0b1010;
+std::cout << a << ' ' << b << '\n';   // 12 10
 
-a & b;    // 0b1000 = 8    AND: 1 where both are 1
-a | b;    // 0b1110 = 14   OR: 1 where either is 1
-a ^ b;    // 0b0110 = 6    XOR: 1 where they differ
-~a;       // flips all 32 bits: 4294967283
-a << 2;   // 0b110000 = 48  shift left, same as * 4
-a >> 2;   // 0b11 = 3       shift right, same as / 4
+std::cout << (a & b) << '\n';         // 8 = 0b1000     AND: 1 where both are 1
+std::cout << (a | b) << '\n';         // 14 = 0b1110    OR: 1 where either is 1
+std::cout << (a ^ b) << '\n';         // 6 = 0b0110     XOR: 1 where they differ
+std::cout << ~a << '\n';              // 4294967283     flips all 32 bits
+std::cout << (a << 2) << '\n';        // 48 = 0b110000  shift left, same as * 4
+std::cout << (a >> 2) << '\n';        // 3 = 0b11       shift right, same as / 4
 
 a |= 1;   // compound forms: &=  |=  ^=  <<=  >>=
 ```
@@ -30,13 +31,18 @@ a |= 1;   // compound forms: &=  |=  ^=  <<=  >>=
 ### Work with single bits
 
 ```cpp
+std::cout << std::boolalpha;
 unsigned x = 0;
 int i = 3;
 
-x |= (1u << i);            // set bit i       -> 8
-bool on = (x >> i) & 1u;   // test bit i      -> true
-x &= ~(1u << i);           // clear bit i     -> 0
-x ^= (1u << i);            // toggle bit i    -> 8
+x |= (1u << i);            // set bit i
+std::cout << x << '\n';    // 8
+bool on = (x >> i) & 1u;   // test bit i
+std::cout << on << '\n';   // true
+x &= ~(1u << i);           // clear bit i
+std::cout << x << '\n';    // 0
+x ^= (1u << i);            // toggle bit i
+std::cout << x << '\n';    // 8
 ```
 
 ### Print in binary with bitset
@@ -45,15 +51,18 @@ x ^= (1u << i);            // toggle bit i    -> 8
 #include <iostream>
 #include <bitset>
 
+std::cout << std::boolalpha;
 std::bitset<8> bits(13);
-std::cout << bits;          // 00001101
-bits.count();               // 3, how many 1s
-bits.test(0);               // true, bit 0 is set
-bits.set(1);                // 00001111
-bits.flip();                // 11110000
-bits.to_ulong();            // 240
-bits.to_string();           // "11110000"
-std::bitset<8>("1010").to_ulong();   // 10, parse from a string
+std::cout << bits << '\n';              // 00001101
+std::cout << bits.count() << '\n';      // 3, how many 1s
+std::cout << bits.test(0) << '\n';      // true, bit 0 is set
+bits.set(1);
+std::cout << bits << '\n';              // 00001111
+bits.flip();
+std::cout << bits << '\n';              // 11110000
+std::cout << bits.to_ulong() << '\n';   // 240
+std::cout << bits.to_string() << '\n';  // 11110000
+std::cout << std::bitset<8>("1010").to_ulong() << '\n';   // 10, parse from a string
 ```
 
 ### Common tricks
@@ -63,11 +72,12 @@ int n = 12, x = 3, y = 5;
 
 bool odd = n & 1;                    // last bit tells odd or even
 bool pow2 = n > 0 && (n & (n - 1)) == 0;   // power of two: 8 yes, 6 no
-int lowest = n & -n;                 // lowest set bit: 12 -> 4
+int lowest = n & -n;                 // lowest set bit
+std::cout << lowest << '\n';         // 4, from 12
 x ^= y; y ^= x; x ^= y;              // swap without a temp (just use std::swap)
 
-__builtin_popcount(13);              // 3, count 1 bits (g++ builtin, ...ll for long long)
-__builtin_ctz(12);                   // 2, trailing zeros (undefined for 0)
+std::cout << __builtin_popcount(13) << '\n';  // 3, count 1 bits (g++ builtin, ...ll for long long)
+std::cout << __builtin_ctz(12) << '\n';       // 2, trailing zeros (undefined for 0)
 ```
 
 ### Use it in a loop: count bits by hand
@@ -79,7 +89,7 @@ while (n) {
     ones += n & 1;   // look at the last bit
     n >>= 1;         // drop it
 }
-// ones = 3
+std::cout << ones << '\n';   // 3
 ```
 
 ### Loop over every subset

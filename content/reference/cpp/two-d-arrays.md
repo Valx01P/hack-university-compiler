@@ -8,7 +8,8 @@ A 2D grid in C++ is a vector of vectors, `std::vector<std::vector<int>>`. Index 
 #include <vector>
 
 int rows = 3, cols = 4;
-std::vector<std::vector<int>> grid(rows, std::vector<int>(cols, 0));  // 3x4 of zeros
+std::vector<std::vector<int>> grid(rows, std::vector<int>(cols, 0));
+std::cout << grid.size() << 'x' << grid[0].size() << '\n';   // 3x4 of zeros
 
 std::vector<std::vector<int>> m = {
     {1, 2, 3},
@@ -25,7 +26,6 @@ using namespace std;
 int main() {
     std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
     {{code}}
-    std::cout << m[0][0] << ' ' << m.size() << ' ' << m[0].size() << '\n';
 }
 ```
 
@@ -33,9 +33,10 @@ int main() {
 #include <iostream>
 
 std::cout << m[1][2] << '\n';       // 6, row 1, column 2
-m[0][0] = 9;                        // {{9, 2, 3}, {4, 5, 6}}
-m.size();                           // 2, number of rows
-m[0].size();                        // 3, number of columns
+m[0][0] = 9;
+std::cout << m[0][0] << '\n';       // 9
+std::cout << m.size() << '\n';      // 2, number of rows
+std::cout << m[0].size() << '\n';   // 3, number of columns
 ```
 
 ### Loop with indexes
@@ -68,7 +69,6 @@ void showGrid(const std::vector<std::vector<int>>& g) {
 int main() {
     std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
     {{code}}
-    showGrid(m);
 }
 ```
 
@@ -81,8 +81,9 @@ for (const auto& row : m) {         // const& avoids copying each row
 }
 
 for (auto& row : m) {
-    for (int& x : row) x *= 10;     // {{10, 20, 30}, {40, 50, 60}}
+    for (int& x : row) x *= 10;
 }
+for (const auto& row : m) for (int x : row) std::cout << x << ' ';   // 10 20 30 40 50 60
 ```
 
 ### Column by column
@@ -105,8 +106,6 @@ using namespace std;
 int main() {
     std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
     {{code}}
-    for (int x : rowSums) std::cout << x << ' ';
-    std::cout << '\n' << total << '\n';
 }
 ```
 
@@ -116,9 +115,11 @@ std::vector<int> rowSums;
 for (const auto& row : m) {
     int s = 0;
     for (int x : row) s += x;
-    rowSums.push_back(s);           // {6, 15}
-    total += s;                     // 21
+    rowSums.push_back(s);
+    total += s;
 }
+std::cout << total << '\n';                    // 21
+for (int x : rowSums) std::cout << x << ' ';   // 6 15
 ```
 
 ### Diagonals of a square grid
@@ -192,14 +193,16 @@ for (std::size_t i = 0; i < m.size(); i++) {
 
 std::vector<std::vector<int>> tri;
 for (int i = 1; i <= 3; i++) {
-    tri.push_back(std::vector<int>(i, i));   // {{1}, {2, 2}, {3, 3, 3}}
+    tri.push_back(std::vector<int>(i, i));
 }
+for (const auto& row : tri) for (int x : row) std::cout << x << ' ';   // 1 2 2 3 3 3
+std::cout << '\n';
 
 std::vector<std::string> board = {
     "#..",
     ".#.",
 };
-board[1][1];                        // '#', a char
+std::cout << board[1][1] << '\n';   // #, a char
 ```
 
 ### Fixed-size grids
@@ -210,7 +213,7 @@ board[1][1];                        // '#', a char
 int g[2][3] = {{1, 2, 3}, {4, 5, 6}};
 int z[3][3] = {};                   // all zeros
 std::array<std::array<int, 3>, 2> a = {{{1, 2, 3}, {4, 5, 6}}};
-a[1][2];                            // 6
+std::cout << a[1][2] << '\n';       // 6
 ```
 
 | Task | Code |

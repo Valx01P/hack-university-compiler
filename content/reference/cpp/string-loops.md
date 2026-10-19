@@ -29,8 +29,9 @@ for (int i = (int)s.size() - 1; i >= 0; i--) {
 
 std::string t = "hi there";
 for (char& c : t) {
-    c = std::toupper(static_cast<unsigned char>(c));   // "HI THERE"
+    c = std::toupper(static_cast<unsigned char>(c));
 }
+std::cout << t << '\n';   // HI THERE
 ```
 
 ### Count and classify
@@ -45,7 +46,7 @@ for (char c : text) {
     else if (std::isspace(u)) spaces++;
     if (std::string("aeiouAEIOU").find(c) != std::string::npos) vowels++;
 }
-// letters 5, digits 1, spaces 2, vowels 3
+std::cout << letters << ' ' << digits << ' ' << spaces << ' ' << vowels << '\n';   // 5 1 2 3
 ```
 
 ### Build a new string
@@ -54,11 +55,13 @@ for (char c : text) {
 std::string word = "a1b2c3";
 std::string onlyLetters;
 for (char c : word) {
-    if (std::isalpha(static_cast<unsigned char>(c))) onlyLetters += c;  // "abc"
+    if (std::isalpha(static_cast<unsigned char>(c))) onlyLetters += c;
 }
+std::cout << onlyLetters << '\n';     // abc
 
 std::string rev;
-for (char c : word) rev = c + rev;    // "3c2b1a"
+for (char c : word) rev = c + rev;
+std::cout << rev << '\n';             // 3c2b1a
 ```
 
 ### Letter counts with an array
@@ -80,8 +83,9 @@ for (int i = 0; i < 26; i++) {
 std::string num = "4096";
 int value = 0;
 for (char c : num) {
-    value = value * 10 + (c - '0');   // 4096
+    value = value * 10 + (c - '0');
 }
+std::cout << value << '\n';   // 4096
 ```
 
 ### Neighbors and runs
@@ -93,7 +97,7 @@ for (std::size_t i = 1; i < r.size(); i++) {
     run = (r[i] == r[i - 1]) ? run + 1 : 1;
     if (run > best) best = run;
 }
-// best is 3, the "aaa" run
+std::cout << best << '\n';   // 3, the "aaa" run
 ```
 
 ### Palindrome check (two pointers)
@@ -107,7 +111,7 @@ for (int i = 0, j = (int)p.size() - 1; i < j; i++, j--) {
         break;
     }
 }
-// isPal is true
+std::cout << std::boolalpha << isPal << '\n';   // true
 ```
 
 To loop over words instead of characters, split with `std::istringstream` (see Strings).

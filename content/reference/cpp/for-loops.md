@@ -10,10 +10,13 @@ C++ has two `for` loops: the classic three-part `for (init; condition; step)` fo
 for (int i = 0; i < 5; i++) {
     std::cout << i << ' ';        // 0 1 2 3 4
 }
+std::cout << '\n';
 
-for (int i = 5; i > 0; i--) { }        // 5 4 3 2 1
-for (int i = 0; i <= 10; i += 2) { }   // 0 2 4 6 8 10
-for (int i = 1; i < 100; i *= 2) { }   // 1 2 4 8 16 32 64
+for (int i = 5; i > 0; i--) std::cout << i << ' ';        // 5 4 3 2 1
+std::cout << '\n';
+for (int i = 0; i <= 10; i += 2) std::cout << i << ' ';   // 0 2 4 6 8 10
+std::cout << '\n';
+for (int i = 1; i < 100; i *= 2) std::cout << i << ' ';   // 1 2 4 8 16 32 64
 ```
 
 ### Range-based for
@@ -31,7 +34,7 @@ for (int n : nums) {
 for (int& n : nums) {
     n *= 2;                       // & edits the real element
 }
-// nums is now {6, 2, 8}
+for (int n : nums) std::cout << n << ' ';   // 6 2 8
 
 std::vector<std::string> words = {"hi", "yo"};
 for (const auto& w : words) {     // read-only, no copy
@@ -92,6 +95,7 @@ for (int r = 0; r < 3 && !found; r++) {
         }
     }
 }
+std::cout << std::boolalpha << found << '\n';   // true
 ```
 
 ### Forms

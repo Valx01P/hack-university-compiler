@@ -11,7 +11,8 @@ C++ has two maps. `std::map` keeps keys sorted (a balanced tree, O(log n)), and 
 #include <vector>
 
 std::map<std::string, int> ages = {{"ana", 31}, {"bo", 25}};
-std::unordered_map<std::string, int> counts;   // empty
+std::unordered_map<std::string, int> counts;
+std::cout << counts.size() << '\n';             // 0, empty
 std::map<int, std::vector<std::string>> groups; // value can be any type
 ```
 
@@ -48,26 +49,25 @@ using namespace std;
 int main() {
     std::map<std::string, int> ages = {{"ana", 32}, {"bo", 25}, {"cy", 40}, {"dee", 22}, {"eve", 28}};
     {{code}}
-    std::cout << '\n' << a << ' ' << b << '\n';
-    std::cout << ages.size() << ' ' << std::boolalpha << ages.empty() << '\n';
 }
 ```
 
 ```cpp
 #include <iostream>
 
-int a = ages["ana"];        // 32, but inserts 0 if "ana" is missing
-int b = ages.at("bo");      // 25, throws std::out_of_range if missing
+std::cout << std::boolalpha;
+std::cout << ages["ana"] << '\n';        // 32, but inserts 0 if "ana" is missing
+std::cout << ages.at("bo") << '\n';      // 25, throws std::out_of_range if missing
 
-if (ages.count("cy")) { }   // 1 if present, 0 if not
+std::cout << ages.count("cy") << '\n';   // 1 if present, 0 if not
 
-auto it = ages.find("zed"); // look up without inserting
+auto it = ages.find("zed");              // look up without inserting
 if (it != ages.end()) {
     std::cout << it->first << ' ' << it->second;
 }
 
-ages.size();   // 5
-ages.empty();  // false
+std::cout << ages.size() << '\n';        // 5
+std::cout << ages.empty() << '\n';       // false
 ```
 
 ### Remove
@@ -143,7 +143,6 @@ using namespace std;
 
 int main() {
     {{code}}
-    for (const auto& [name, n] : byScore) std::cout << name << ' ' << n << '\n';
 }
 ```
 
@@ -156,7 +155,7 @@ std::vector<std::pair<std::string, int>> byScore(score.begin(), score.end());
 std::sort(byScore.begin(), byScore.end(), [](const auto& a, const auto& b) {
     return a.second > b.second;          // highest first
 });
-// {"bo", 9}, {"ana", 7}, {"cy", 4}
+for (const auto& [k, v] : byScore) std::cout << k << '=' << v << ' ';  // bo=9 ana=7 cy=4
 ```
 
 ### Sorted map extras
@@ -165,10 +164,10 @@ std::sort(byScore.begin(), byScore.end(), [](const auto& a, const auto& b) {
 #include <functional>  // std::greater
 
 std::map<int, std::string> m = {{10, "a"}, {20, "b"}, {30, "c"}};
-m.begin()->first;            // 10, smallest key
-m.rbegin()->first;           // 30, largest key
-m.lower_bound(15)->first;    // 20, first key >= 15
-m.upper_bound(20)->first;    // 30, first key > 20
+std::cout << m.begin()->first << '\n';           // 10, smallest key
+std::cout << m.rbegin()->first << '\n';          // 30, largest key
+std::cout << m.lower_bound(15)->first << '\n';   // 20, first key >= 15
+std::cout << m.upper_bound(20)->first << '\n';   // 30, first key > 20
 
 std::map<int, int, std::greater<int>> desc; // sorted largest first
 ```

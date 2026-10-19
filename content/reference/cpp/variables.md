@@ -13,15 +13,18 @@ char grade = 'A';          // single quotes for one char
 bool done = false;
 std::string name = "Ada";  // double quotes, needs <string>
 long long big = 9000000000LL;
+std::cout << name << ' ' << age << ' ' << price << '\n';   // Ada 30 9.99
 ```
 
 ### Initialize with braces
 
 ```cpp
 int count{5};
-int zero{};        // 0
-int trunc = 3.7;   // 3, silently drops the decimals
-// int bad{3.7};   // compile error: braces refuse narrowing
+int zero{};
+std::cout << zero << '\n';    // 0
+int trunc = 3.7;
+std::cout << trunc << '\n';   // 3, silently drops the decimals
+// int bad{3.7};              // compile error: braces refuse narrowing
 ```
 
 ### auto and constants
@@ -34,6 +37,7 @@ auto t = std::string("hi");   // std::string
 
 const int MAX = 100;          // can't change after this line
 constexpr double PI = 3.14159;  // known at compile time
+std::cout << n << ' ' << d << ' ' << MAX << ' ' << PI << '\n';   // 42 3.14 100 3.14159
 ```
 
 ### Common types
@@ -67,13 +71,15 @@ std::cout << sizeof(int) << ' ' << sizeof(long long) << '\n';  // 4 8
 
 ```cpp
 double x = 7.9;
-int i = static_cast<int>(x);                 // 7, truncates toward zero
-double half = static_cast<double>(7) / 2;    // 3.5
+int i = static_cast<int>(x);                 // truncates toward zero
+double half = static_cast<double>(7) / 2;
+std::cout << i << ' ' << half << '\n';       // 7 3.5
 
 char c = '7';
-int digit = c - '0';                         // 7
-int code = static_cast<int>('A');            // 65
-char next = static_cast<char>(code + 1);     // 'B'
+int digit = c - '0';
+int code = static_cast<int>('A');
+char next = static_cast<char>(code + 1);
+std::cout << digit << ' ' << code << ' ' << next << '\n';   // 7 65 B
 ```
 
 String to number and back (`std::stoi`, `std::to_string`) is in Strings.
@@ -82,11 +88,12 @@ String to number and back (`std::stoi`, `std::to_string`) is in Strings.
 
 ```cpp
 int million = 1'000'000;   // quotes are digit separators
-int hex = 0xFF;            // 255
-int bin = 0b1010;          // 10
+int hex = 0xFF;
+int bin = 0b1010;
 long long huge = 9'000'000'000LL;  // LL makes a long long literal
 float f = 1.5f;            // without f it's a double
 unsigned u = 42u;
+std::cout << million << ' ' << hex << ' ' << bin << '\n';   // 1000000 255 10
 ```
 
 ### Use it in a loop

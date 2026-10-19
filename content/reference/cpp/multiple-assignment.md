@@ -9,13 +9,15 @@ int a = 1, b = 2, c = 3;
 double x = 0.5, y = 1.5;
 int i = 0, j;      // only i is initialized, j holds garbage
 j = 10;
+std::cout << a << ' ' << b << ' ' << c << '\n';   // 1 2 3
 ```
 
 ### Chain the same value
 
 ```cpp
 int a, b, c;
-a = b = c = 0;     // = runs right to left, all three are 0
+a = b = c = 0;     // = runs right to left
+std::cout << a << ' ' << b << ' ' << c << '\n';   // 0 0 0, all three
 ```
 
 ### Unpack with structured bindings
@@ -26,11 +28,13 @@ a = b = c = 0;     // = runs right to left, all three are 0
 #include <tuple>
 #include <utility>
 
-auto [x, y] = std::pair<int, int>(3, 4);                    // x=3, y=4
+auto [x, y] = std::pair<int, int>(3, 4);
+std::cout << x << ' ' << y << '\n';                         // 3 4
 auto [id, name, score] = std::make_tuple(7, std::string("Ada"), 9.5);
 
 int arr[3] = {10, 20, 30};
-auto [p, q, r] = arr;                                       // p=10, q=20, r=30
+auto [p, q, r] = arr;
+std::cout << p << ' ' << q << ' ' << r << '\n';             // 10 20 30
 
 std::cout << x + y << ' ' << name << ' ' << q << '\n';      // 7 Ada 20
 ```
@@ -41,10 +45,12 @@ std::cout << x + y << ' ' << name << ' ' << q << '\n';      // 7 Ada 20
 #include <tuple>
 
 int a = 1, b = 2;
-std::tie(a, b) = std::make_tuple(b, a);   // a=2, b=1
+std::tie(a, b) = std::make_tuple(b, a);
+std::cout << a << ' ' << b << '\n';       // 2 1
 
 int lo;
-std::tie(lo, std::ignore) = std::make_pair(5, 99);   // lo=5, second is dropped
+std::tie(lo, std::ignore) = std::make_pair(5, 99);   // second is dropped
+std::cout << lo << '\n';                             // 5
 ```
 
 ### Swap
@@ -53,7 +59,8 @@ std::tie(lo, std::ignore) = std::make_pair(5, 99);   // lo=5, second is dropped
 #include <utility>
 
 int a = 1, b = 2;
-std::swap(a, b);   // a=2, b=1
+std::swap(a, b);
+std::cout << a << ' ' << b << '\n';   // 2 1
 ```
 
 To return several values from a function, return a `std::pair`, `std::tuple`, or struct and unpack it (see Functions).

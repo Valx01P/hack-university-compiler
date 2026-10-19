@@ -53,9 +53,9 @@ std::string pad(const std::string& s, int width = 5, char fill = '.') {
     return s + std::string(width - (int)s.size(), fill);
 }
 
-pad("ab");             // "ab..."
-pad("ab", 4);          // "ab.."
-pad("ab", 4, '-');     // "ab--"
+std::cout << pad("ab") << '\n';          // ab...
+std::cout << pad("ab", 4) << '\n';       // ab..
+std::cout << pad("ab", 4, '-') << '\n';  // ab--
 ```
 
 ### Overloading (same name, different parameters)
@@ -64,8 +64,8 @@ pad("ab", 4, '-');     // "ab--"
 double area(double r) { return 3.14159 * r * r; }
 int area(int w, int h) { return w * h; }
 
-area(1.0);             // 3.14159
-area(2, 3);            // 6
+std::cout << area(1.0) << '\n';    // 3.14159
+std::cout << area(2, 3) << '\n';   // 6
 ```
 
 ### Pass by value, reference, const reference
@@ -83,8 +83,10 @@ int sum(const std::vector<int>& v) {  // no copy, cannot change v
 }
 
 int n = 5;
-addOne(n);             // n is still 5
-addOneRef(n);          // n is now 6
+addOne(n);
+std::cout << n << '\n';   // 5, unchanged
+addOneRef(n);
+std::cout << n << '\n';   // 6, changed
 ```
 
 ### Return several values
@@ -139,11 +141,11 @@ Stats st = describe(v);                 // st.count 3, st.mean 4
 
 ```cpp
 int factorial(int n) {
-    if (n <= 1) return 1;       // base case
+    if (n <= 1) return 1;               // base case
     return n * factorial(n - 1);
 }
 
-factorial(5);                   // 120
+std::cout << factorial(5) << '\n';      // 120
 ```
 
 ### auto return, static locals, templates
@@ -153,14 +155,15 @@ auto twice(int x) { return x * 2; }   // return type deduced: int
 
 int nextId() {
     static int id = 0;          // kept between calls
-    return ++id;                // 1, then 2, then 3
+    return ++id;
 }
 
 template <typename T>
 T biggest(T a, T b) { return a > b ? a : b; }
 
-biggest(3, 9);                  // 9
-biggest(std::string("a"), std::string("b"));  // "b"
+std::cout << biggest(3, 9) << '\n';                                 // 9
+std::cout << biggest(std::string("a"), std::string("b")) << '\n';   // b
+for (int i = 0; i < 3; i++) std::cout << nextId() << ' ';           // 1 2 3
 ```
 
 ### Lambdas
@@ -171,9 +174,6 @@ using namespace std;
 
 int main() {
     {{code}}
-    std::cout << times3(4) << ' ' << addBonus(1) << ' ' << total << '\n';
-    for (const auto& w : words) std::cout << w << ' ';
-    std::cout << '\n' << op(3, 4) << '\n';
 }
 ```
 
@@ -182,21 +182,25 @@ int main() {
 #include <functional>   // std::function
 
 auto times3 = [](int x) { return x * 3; };
-times3(4);                                     // 12
+std::cout << times3(4) << '\n';                         // 12
 
 int bonus = 10;
 auto addBonus = [bonus](int x) { return x + bonus; };   // copies bonus
+std::cout << addBonus(1) << '\n';                       // 11
 int total = 0;
 auto addTo = [&total](int x) { total += x; };           // refers to total
-addTo(5);                                      // total is 5
+addTo(5);
+std::cout << total << '\n';                             // 5
 
 std::vector<std::string> words = {"ccc", "a", "bb"};
 std::sort(words.begin(), words.end(), [](const std::string& a, const std::string& b) {
-    return a.size() < b.size();                // {"a", "bb", "ccc"}
+    return a.size() < b.size();
 });
+for (const auto& w : words) std::cout << w << ' ';      // a bb ccc
+std::cout << '\n';
 
 std::function<int(int, int)> op = [](int x, int y) { return x * y; };
-op(3, 4);                                      // 12
+std::cout << op(3, 4) << '\n';                          // 12
 ```
 
 | Syntax | Means |
