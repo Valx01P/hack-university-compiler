@@ -629,11 +629,14 @@ export function CompilerApp({
                     execute();
                   }}
                   disabled={busy}
+                  // Greyed out while it runs, with the same label, so the
+                  // bar never shifts.
+                  aria-busy={running}
                   className={`shrink-0 rounded-btn border border-edge-strong text-sm font-medium disabled:opacity-50 ${
                     challenge ? "px-3 py-1.5 text-ink transition-colors hover:bg-raised" : "px-4 py-1.5 btn-grad"
                   }`}
                 >
-                  {running ? "Running…" : "▶ Run"}
+                  ▶ Run
                 </button>
                 {challenge && (
                   <button
@@ -643,10 +646,11 @@ export function CompilerApp({
                       checkChallenge();
                     }}
                     disabled={busy || showingAnswer}
+                    aria-busy={checking}
                     title={showingAnswer ? "Close the answer to check your own code" : undefined}
                     className="shrink-0 rounded-btn border border-edge-strong px-4 py-1.5 text-sm font-medium btn-grad disabled:opacity-50"
                   >
-                    {checking ? "Checking…" : "Check"}
+                    Check
                   </button>
                 )}
               </div>

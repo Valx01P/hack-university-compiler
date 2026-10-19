@@ -119,8 +119,9 @@ export function PartView({
   }));
   const [showStdin, setShowStdin] = useState(() => defaultStdin("example") !== "");
   const [panels, setPanels] = useState<Partial<Record<TabKind, Panel>>>({});
-  // The tab whose run or check is in flight. Runs go one at a time, but only
-  // that tab's buttons say "Running…" or "Checking…".
+  // The tab whose run or check is in flight. Runs go one at a time: every
+  // Run and Check is greyed out meanwhile, keeping its label so nothing
+  // shifts, and the one at work is marked busy for screen readers.
   const [busyTab, setBusyTab] = useState<TabKind | null>(null);
   const busy = busyTab !== null;
   // What a screen reader hears when a run or check ends.
@@ -608,6 +609,7 @@ export function PartView({
                     type="button"
                     onClick={run}
                     disabled={busy}
+                    aria-busy={busyTab === "practice" && panel.mode === "run"}
                     className="shrink-0 rounded-btn border border-edge-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-raised disabled:opacity-50"
                   >
                     ▶ Run
@@ -616,10 +618,11 @@ export function PartView({
                     type="button"
                     onClick={check}
                     disabled={busy || showingAnswer}
+                    aria-busy={busyTab === "practice" && panel.mode === "check"}
                     title={showingAnswer ? "Close the answer to check your own code" : undefined}
                     className="shrink-0 rounded-btn border border-edge-strong px-4 py-1.5 text-sm font-medium btn-grad disabled:opacity-50"
                   >
-                    {busyTab === "practice" && panel.mode === "check" ? "Checking…" : "Check"}
+                    Check
                   </button>
                 </>
               ) : (
@@ -627,9 +630,10 @@ export function PartView({
                   type="button"
                   onClick={run}
                   disabled={busy}
+                  aria-busy={busyTab === "example"}
                   className="shrink-0 rounded-btn border border-edge-strong px-4 py-1.5 text-sm font-medium btn-grad disabled:opacity-50"
                 >
-                  {busyTab === "example" ? "Running…" : "▶ Run"}
+                  ▶ Run
                 </button>
               )}
             </div>
