@@ -91,6 +91,22 @@ Sum, min, and max of a range (`std::accumulate`, `std::max_element`) are in Buil
 
 ### Remove duplicates and filter
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+template <typename T>
+void show(const std::vector<T>& xs) {
+    for (const auto& x : xs) std::cout << x << ' ';
+    std::cout << '\n';
+}
+
+int main() {
+    {{code}}
+    show(v);
+}
+```
+
 ```cpp
 std::vector<int> v = {3, 1, 3, 2, 1};
 std::sort(v.begin(), v.end());                       // {1, 1, 2, 3, 3}
@@ -102,6 +118,22 @@ v.erase(std::remove_if(v.begin(), v.end(), [](int x) { return x % 2 == 0; }),
 ```
 
 ### Transform
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+template <typename T>
+void show(const std::vector<T>& xs) {
+    for (const auto& x : xs) std::cout << x << ' ';
+    std::cout << '\n';
+}
+
+int main() {
+    {{code}}
+    show(sq);
+}
+```
 
 ```cpp
 std::vector<int> v = {1, 2, 3};

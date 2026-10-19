@@ -19,6 +19,17 @@ std::set<int> uniq(v.begin(), v.end());  // {2, 7, 9}
 
 ### Add and remove
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::set<int> s = {3, 1, 4, 1, 5};
+    {{code}}
+    std::cout << std::boolalpha << added << ' ' << s.size() << '\n';
+}
+```
+
 ```cpp
 s.insert(9);            // {1, 3, 4, 5, 9}
 s.insert(3);            // already there, no change

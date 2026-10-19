@@ -33,6 +33,20 @@ std::tuple_size_v<decltype(t)>;        // 3
 
 ### Unpack
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::pair<std::string, int> p = {"ana", 31};
+    std::tuple<std::string, int, double> t = {"ana", 31, 1.68};
+    {{code}}
+    a2 = 32;
+    std::cout << name << ' ' << age << ' ' << p.second << '\n';
+    std::cout << who << ' ' << years << ' ' << height << '\n';
+}
+```
+
 ```cpp
 auto [name, age] = p;                 // copies
 auto& [n2, a2] = p;                   // references, edits change p
@@ -66,6 +80,20 @@ for (const auto& kv : ages) {
 ### Compare and sort
 
 Pairs and tuples compare element by element, left to right. That makes sorting by several keys easy.
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::vector<std::pair<std::string, int>> scores = {{"ana", 90}, {"bo", 75}, {"cy", 82}, {"dee", 60}};
+    {{code}}
+    std::cout << std::boolalpha << (a < b) << ' ' << (a == b) << '\n';
+    for (const auto& [k, s] : v) std::cout << k << s << ' ';
+    std::cout << '\n';
+    for (const auto& [name, score] : scores) std::cout << name << ' ' << score << '\n';
+}
+```
 
 ```cpp
 #include <algorithm>

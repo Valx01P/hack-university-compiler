@@ -75,6 +75,13 @@ switch (op) {
 
 ### Switch on an enum
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+{{code}}
+```
+
 ```cpp
 enum class Color { Red, Green, Blue };
 

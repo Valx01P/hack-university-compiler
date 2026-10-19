@@ -67,6 +67,13 @@ The variable before the `;` lives only inside the `if` and its `else` branches.
 
 ### Early return instead of nesting
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+{{code}}
+```
+
 ```cpp
 #include <string>
 

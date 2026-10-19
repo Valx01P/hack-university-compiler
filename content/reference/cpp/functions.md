@@ -27,6 +27,13 @@ int main() {
 
 ### Prototype (declare now, define later)
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+{{code}}
+```
+
 ```cpp
 int square(int x);              // declaration, ends with ;
 
@@ -81,6 +88,25 @@ addOneRef(n);          // n is now 6
 ```
 
 ### Return several values
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int sum(const std::vector<int>& v) {
+    int total = 0;
+    for (int x : v) total += x;
+    return total;
+}
+
+{{code}}
+
+int main() {
+    std::cout << lo << ' ' << hi << ' ' << mm.first << ' ' << mm.second << '\n';
+    std::cout << r << ' ' << g << ' ' << b << '\n';
+    std::cout << st.count << ' ' << st.mean << '\n';
+}
+```
 
 ```cpp
 #include <algorithm>
@@ -138,6 +164,18 @@ biggest(std::string("a"), std::string("b"));  // "b"
 ```
 
 ### Lambdas
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    {{code}}
+    std::cout << times3(4) << ' ' << addBonus(1) << ' ' << total << '\n';
+    for (const auto& w : words) std::cout << w << ' ';
+    std::cout << '\n' << op(3, 4) << '\n';
+}
+```
 
 ```cpp
 #include <algorithm>    // std::sort

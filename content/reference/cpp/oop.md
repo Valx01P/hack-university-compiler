@@ -32,6 +32,19 @@ d.sound();   // "woof"
 
 ### Polymorphism
 
+```cpp harness
+class Animal {
+public:
+    explicit Animal(std::string name) : name_(std::move(name)) {}
+    virtual ~Animal() = default;  virtual std::string sound() const { return "..."; }
+    std::string name() const { return name_; }
+protected: std::string name_;
+};
+class Dog : public Animal { public: using Animal::Animal; std::string sound() const override { return "woof"; } };
+
+{{code}}
+```
+
 ```cpp
 class Cat : public Animal {
 public:
@@ -52,6 +65,25 @@ speak(c);   // Tom: meow
 ### Mixed objects in a loop
 
 Store pointers, not objects, or the subclass part gets sliced off. `std::unique_ptr` frees them for you.
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+class Animal {
+public:
+    explicit Animal(std::string name) : name_(std::move(name)) {}
+    virtual ~Animal() = default;  virtual std::string sound() const { return "..."; }
+    std::string name() const { return name_; }
+protected: std::string name_;
+};
+class Dog : public Animal { public: using Animal::Animal; std::string sound() const override { return "woof"; } };
+class Cat : public Animal { public: using Animal::Animal; std::string sound() const override { return "meow"; } };
+
+int main() {
+    {{code}}
+}
+```
 
 ```cpp
 #include <memory>
@@ -95,6 +127,27 @@ r.describe();    // area 6
 
 ### Call the parent's version
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+class Animal {
+public:
+    explicit Animal(std::string name) : name_(std::move(name)) {}
+    virtual ~Animal() = default;  virtual std::string sound() const { return "..."; }
+    std::string name() const { return name_; }
+protected: std::string name_;
+};
+class Dog : public Animal { public: using Animal::Animal; std::string sound() const override { return "woof"; } };
+
+{{code}}
+
+int main() {
+    Puppy p("Rex");
+    std::cout << p.name() << ": " << p.sound() << '\n';
+}
+```
+
 ```cpp
 class Puppy : public Dog {
 public:
@@ -122,6 +175,26 @@ Vec c = a + b * 2;   // {7, 10}
 
 ### Smart pointers
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+class Animal {
+public:
+    explicit Animal(std::string name) : name_(std::move(name)) {}
+    virtual ~Animal() = default;  virtual std::string sound() const { return "..."; }
+    std::string name() const { return name_; }
+protected: std::string name_;
+};
+class Dog : public Animal { public: using Animal::Animal; std::string sound() const override { return "woof"; } };
+
+int main() {
+    {{code}}
+    std::cout << (p == nullptr) << ' ' << q->name() << '\n';
+    std::cout << s1.use_count() << '\n';
+}
+```
+
 ```cpp
 #include <memory>
 
@@ -134,6 +207,28 @@ s1.use_count();                           // 2
 ```
 
 ### Check the real type
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+class Animal {
+public:
+    explicit Animal(std::string name) : name_(std::move(name)) {}
+    virtual ~Animal() = default;  virtual std::string sound() const { return "..."; }
+    std::string name() const { return name_; }
+protected: std::string name_;
+};
+class Dog : public Animal { public: using Animal::Animal; std::string sound() const override { return "woof"; } };
+class Cat : public Animal { public: using Animal::Animal; std::string sound() const override { return "meow"; } };
+
+int main() {
+    std::vector<std::unique_ptr<Animal>> zoo;
+    zoo.push_back(std::make_unique<Dog>("Rex"));
+    zoo.push_back(std::make_unique<Cat>("Tom"));
+    {{code}}
+}
+```
 
 ```cpp
 Animal* a = zoo[0].get();

@@ -17,6 +17,17 @@ std::string raw = R"(C:\path\n)";      // raw string, backslashes kept
 
 ### Length and characters
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::string s = "hello";
+    {{code}}
+    std::cout << s << '\n';
+}
+```
+
 ```cpp
 s.size();                              // 5, same as s.length()
 s.empty();                             // false
@@ -27,6 +38,17 @@ s[0] = 'H';                            // "Hello"
 ```
 
 ### Join and build
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::string s = "Hello";
+    {{code}}
+    std::cout << full << '\n' << s << '\n' << rep << '\n';
+}
+```
 
 ```cpp
 std::string full = s + ", " + "world"; // "Hello, world"
@@ -101,6 +123,16 @@ char c = 'a' + 2;                      // 'c'
 ```
 
 ### Case, trim, reverse, sort
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    {{code}}
+    std::cout << u << '\n' << trimmed << '\n' << r << '\n';
+}
+```
 
 ```cpp
 #include <algorithm>

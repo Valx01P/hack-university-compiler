@@ -18,6 +18,17 @@ std::vector<std::vector<int>> m = {
 
 ### Access and size
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
+    {{code}}
+    std::cout << m[0][0] << ' ' << m.size() << ' ' << m[0].size() << '\n';
+}
+```
+
 ```cpp
 #include <iostream>
 
@@ -42,6 +53,24 @@ for (std::size_t r = 0; r < m.size(); r++) {
 ```
 
 ### Loop with range-based for
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+void showGrid(const std::vector<std::vector<int>>& g) {
+    for (const auto& row : g) {
+        for (int x : row) std::cout << x << ' ';
+        std::cout << '\n';
+    }
+}
+
+int main() {
+    std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
+    {{code}}
+    showGrid(m);
+}
+```
 
 ```cpp
 for (const auto& row : m) {         // const& avoids copying each row
@@ -69,6 +98,18 @@ for (std::size_t c = 0; c < m[0].size(); c++) {
 
 ### Row sums and total
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
+    {{code}}
+    for (int x : rowSums) std::cout << x << ' ';
+    std::cout << '\n' << total << '\n';
+}
+```
+
 ```cpp
 int total = 0;
 std::vector<int> rowSums;
@@ -91,6 +132,17 @@ for (int i = 0; i < n; i++) std::cout << sq[i][n - 1 - i] << ' '; // 3 5 7
 
 ### Neighbors with a bounds check
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::vector<std::vector<int>> sq = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
+    {{code}}
+    std::cout << '\n';
+}
+```
+
 ```cpp
 int R = (int)sq.size(), C = (int)sq[0].size();
 int dr[] = {-1, 1, 0, 0};           // up, down, left, right
@@ -105,6 +157,24 @@ for (int d = 0; d < 4; d++) {
 ```
 
 ### Transpose
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+void showGrid(const std::vector<std::vector<int>>& g) {
+    for (const auto& row : g) {
+        for (int x : row) std::cout << x << ' ';
+        std::cout << '\n';
+    }
+}
+
+int main() {
+    std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
+    {{code}}
+    showGrid(t);
+}
+```
 
 ```cpp
 std::vector<std::vector<int>> t(m[0].size(), std::vector<int>(m.size()));

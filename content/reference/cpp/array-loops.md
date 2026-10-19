@@ -17,6 +17,21 @@ for (std::size_t i = 0; i < v.size(); i++) {
 
 ### Range-based loop
 
+```cpp harness
+#include <bits/stdc++.h>
+
+int main() {
+    std::vector<int> v = {4, 7, 1, 9};
+    {{code}}
+    std::cout << '\n';
+    for (int x : v) {
+        std::cout << x << ' ';
+    }
+    std::cout << '\n';
+    return 0;
+}
+```
+
 ```cpp
 for (int x : v) {
     std::cout << x << ' ';                    // 4 7 1 9
@@ -32,6 +47,17 @@ for (const std::string& n : names) { }        // const& skips copying each strin
 
 ### while loop
 
+```cpp harness
+#include <bits/stdc++.h>
+
+int main() {
+    std::vector<int> v = {4, 7, 1, 9};
+    {{code}}
+    std::cout << '\n';
+    return 0;
+}
+```
+
 ```cpp
 std::size_t i = 0;
 while (i < v.size()) {
@@ -42,6 +68,17 @@ while (i < v.size()) {
 
 ### Iterators
 
+```cpp harness
+#include <bits/stdc++.h>
+
+int main() {
+    std::vector<int> v = {4, 7, 1, 9};
+    {{code}}
+    std::cout << '\n';
+    return 0;
+}
+```
+
 ```cpp
 for (auto it = v.begin(); it != v.end(); ++it) {
     std::cout << *it << ' ';                  // 4 7 1 9
@@ -51,6 +88,17 @@ for (auto it = v.begin(); it != v.end(); ++it) {
 ### Index and value together
 
 There is no `enumerate`. Keep a counter, or use the index loop.
+
+```cpp harness
+#include <bits/stdc++.h>
+
+int main() {
+    std::vector<int> v = {4, 7, 1, 9};
+    {{code}}
+    std::cout << '\n';
+    return 0;
+}
+```
 
 ```cpp
 int idx = 0;
@@ -89,6 +137,20 @@ for (int x : v) {
 
 ### Filter into a new vector
 
+```cpp harness
+#include <bits/stdc++.h>
+
+int main() {
+    std::vector<int> v = {4, 7, 1, 9};
+    {{code}}
+    for (int x : big) {
+        std::cout << x << ' ';
+    }
+    std::cout << '\n';
+    return 0;
+}
+```
+
 ```cpp
 std::vector<int> big;
 for (int x : v) {
@@ -98,6 +160,17 @@ for (int x : v) {
 
 ### Print with separators
 
+```cpp harness
+#include <bits/stdc++.h>
+
+int main() {
+    std::vector<int> v = {4, 7, 1, 9};
+    {{code}}
+    std::cout << '\n';
+    return 0;
+}
+```
+
 ```cpp
 for (std::size_t k = 0; k < v.size(); k++) {
     if (k > 0) std::cout << ", ";
@@ -106,6 +179,17 @@ for (std::size_t k = 0; k < v.size(); k++) {
 ```
 
 ### Find the first match
+
+```cpp harness
+#include <bits/stdc++.h>
+
+int main() {
+    std::vector<int> v = {4, 7, 1, 9};
+    {{code}}
+    std::cout << "pos is " << pos << '\n';
+    return 0;
+}
+```
 
 ```cpp
 int pos = -1;

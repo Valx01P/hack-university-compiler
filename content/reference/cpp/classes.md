@@ -27,6 +27,27 @@ private:
 
 ### Create and use objects
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+class Dog {
+public:
+    Dog(std::string name, int age) : name_(std::move(name)), age_(age) {}
+    void bark() const { std::cout << name_ << " says woof\n"; }
+    int age() const { return age_; }
+    void setAge(int a) { if (a >= 0) age_ = a; }
+private:
+    std::string name_;
+    int age_;
+};
+
+int main() {
+    {{code}}
+    std::cout << d.age() << '\n';
+}
+```
+
 ```cpp
 Dog d("Rex", 3);         // on the stack, freed automatically
 Dog e{"Fido", 5};        // brace init works too
@@ -81,12 +102,21 @@ public:
 int Counter::count = 0;               // define it once, outside the class
 
 Counter x, y;
-Counter::total();                     // 2
+std::cout << Counter::total();        // 2
 ```
 
 In C++17 you can write `inline static int count = 0;` inside the class instead.
 
 ### Print an object with `<<`
+
+```cpp harness
+struct Point {
+    int x = 0;
+    int y = 0;
+};
+
+{{code}}
+```
 
 ```cpp
 #include <iostream>
@@ -99,6 +129,27 @@ std::cout << Point{3, 4};   // (3, 4)
 ```
 
 ### Objects in a loop
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+class Dog {
+public:
+    Dog(std::string name, int age) : name_(std::move(name)), age_(age) {}
+    void bark() const { std::cout << name_ << " says woof\n"; }
+    int age() const { return age_; }
+    void setAge(int a) { if (a >= 0) age_ = a; }
+private:
+    std::string name_;
+    int age_;
+};
+
+int main() {
+    {{code}}
+    std::cout << total << '\n';
+}
+```
 
 ```cpp
 #include <vector>

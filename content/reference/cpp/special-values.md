@@ -70,6 +70,13 @@ if (!p) std::cout << "still null\n";   // same test, shorter
 
 ### Optional value: std::optional
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+{{code}}
+```
+
 ```cpp
 #include <optional>
 #include <vector>

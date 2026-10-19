@@ -14,6 +14,18 @@ int n = (int)v.size();          // 6, signed so n - 1 is safe
 
 ### Reverse
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::vector<int> v = {10, 11, 12, 13, 14, 15};
+    int n = (int)v.size();
+    {{code}}
+    std::cout << '\n';
+}
+```
+
 ```cpp
 for (int i = n - 1; i >= 0; i--) {
     std::cout << v[i] << ' ';       // 15 14 13 12 11 10
@@ -25,6 +37,18 @@ for (auto it = v.rbegin(); it != v.rend(); ++it) {
 ```
 
 ### Every other one
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::vector<int> v = {10, 11, 12, 13, 14, 15};
+    int n = (int)v.size();
+    {{code}}
+    std::cout << '\n';
+}
+```
 
 ```cpp
 for (int i = 0; i < n; i += 2) { }  // even indexes: 10 12 14
@@ -38,6 +62,21 @@ for (int x : v) {
 
 ### First k, last k
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::vector<int> v = {10, 11, 12, 13, 14, 15};
+    int n = (int)v.size();
+    {{code}}
+    for (int i = 0; i < std::min(3, n); i++) std::cout << v[i] << ' ';
+    std::cout << '\n';
+    for (int i = std::max(0, n - 2); i < n; i++) std::cout << v[i] << ' ';
+    std::cout << '\n';
+}
+```
+
 ```cpp
 #include <algorithm>   // std::max, std::min
 
@@ -46,6 +85,18 @@ for (int i = std::max(0, n - 2); i < n; i++) { }  // 14 15
 ```
 
 ### Neighbors (compare with the previous one)
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::vector<int> v = {10, 11, 12, 13, 14, 15};
+    int n = (int)v.size();
+    {{code}}
+    std::cout << '\n';
+}
+```
 
 ```cpp
 for (int i = 1; i < n; i++) {
@@ -65,6 +116,19 @@ for (int i = 0; i < (int)a.size(); i++) {
 ```
 
 ### Two pointers from both ends
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::vector<int> v = {10, 11, 12, 13, 14, 15};
+    int n = (int)v.size();
+    {{code}}
+    for (int x : r) std::cout << x << ' ';
+    std::cout << '\n' << sorted[lo] << " + " << sorted[hi] << '\n';
+}
+```
 
 ```cpp
 #include <utility>     // std::swap
@@ -88,6 +152,18 @@ while (lo < hi) {
 
 ### Wrap around with %
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::vector<int> v = {10, 11, 12, 13, 14, 15};
+    int n = (int)v.size();
+    {{code}}
+    std::cout << '\n';
+}
+```
+
 ```cpp
 for (int i = 0; i < n; i++) {
     std::cout << v[(i + 2) % n] << ' ';   // 12 13 14 15 10 11
@@ -108,6 +184,19 @@ for (int i = 0; i < (int)s.size(); i++) {
 ```
 
 ### Prefix sums and running max
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::vector<int> s = {2, 1, 5, 1, 3, 2};
+    {{code}}
+    std::cout << '\n';
+    for (int x : prefix) std::cout << x << ' ';
+    std::cout << '\n' << prefix[4] - prefix[1] << '\n';
+}
+```
 
 ```cpp
 std::vector<int> prefix(s.size() + 1, 0);

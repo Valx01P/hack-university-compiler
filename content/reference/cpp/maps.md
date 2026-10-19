@@ -17,6 +17,19 @@ std::map<int, std::vector<std::string>> groups; // value can be any type
 
 ### Add and update
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::map<std::string, int> ages = {{"ana", 31}, {"bo", 25}};
+    std::unordered_map<std::string, int> counts;
+    {{code}}
+    for (const auto& [k, v] : ages) std::cout << k << '=' << v << ' ';
+    std::cout << '\n' << counts["x"] << '\n';
+}
+```
+
 ```cpp
 ages["cy"] = 40;                 // insert or overwrite
 ages.insert({"dee", 22});        // only inserts if the key is new
@@ -27,6 +40,18 @@ counts["x"]++;                   // missing key starts at 0, now 1
 ```
 
 ### Access and check
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::map<std::string, int> ages = {{"ana", 32}, {"bo", 25}, {"cy", 40}, {"dee", 22}, {"eve", 28}};
+    {{code}}
+    std::cout << '\n' << a << ' ' << b << '\n';
+    std::cout << ages.size() << ' ' << std::boolalpha << ages.empty() << '\n';
+}
+```
 
 ```cpp
 #include <iostream>
@@ -46,6 +71,17 @@ ages.empty();  // false
 ```
 
 ### Remove
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::map<std::string, int> ages = {{"ana", 32}, {"bo", 25}, {"cy", 40}, {"dee", 22}, {"eve", 28}};
+    {{code}}
+    std::cout << ages.size() << '\n';
+}
+```
 
 ```cpp
 ages.erase("dee");   // by key, returns how many were removed (0 or 1)
@@ -79,6 +115,17 @@ for (const auto& [c, n] : freq) std::cout << c << '=' << n << ' ';
 
 ### Erase while looping
 
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    std::map<std::string, int> stock = {{"pear", 3}, {"apple", 5}};
+    {{code}}
+    for (const auto& [name, qty] : stock) std::cout << name << ": " << qty << '\n';
+}
+```
+
 ```cpp
 for (auto it = stock.begin(); it != stock.end(); ) {
     if (it->second < 5) it = stock.erase(it); // erase returns the next iterator
@@ -89,6 +136,16 @@ for (auto it = stock.begin(); it != stock.end(); ) {
 ### Sort by value
 
 A map is always ordered by key. To order by value, copy the entries into a vector of pairs and sort that.
+
+```cpp harness
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    {{code}}
+    for (const auto& [name, n] : byScore) std::cout << name << ' ' << n << '\n';
+}
+```
 
 ```cpp
 #include <algorithm>

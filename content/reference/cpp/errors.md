@@ -115,6 +115,7 @@ std::optional<int> parse(const std::string& s) {   // empty means "failed"
 
 if (auto n = parse("42")) std::cout << *n;    // 42
 
+int sum = 19;
 assert(sum >= 0);    // aborts with a message if false (debug check)
 ```
 
