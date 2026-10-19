@@ -7,9 +7,13 @@ import {
   keymap,
   lineNumbers,
   drawSelection,
+  dropCursor,
   highlightSpecialChars,
+  rectangularSelection,
+  crosshairCursor,
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import {
   syntaxHighlighting,
   HighlightStyle,
@@ -20,7 +24,7 @@ import {
   foldGutter,
   foldKeymap,
 } from "@codemirror/language";
-import { autocompletion } from "@codemirror/autocomplete";
+import { autocompletion, closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { tags as t } from "@lezer/highlight";
 import { indentationMarkers } from "@replit/codemirror-indentation-markers";
 import { python } from "@codemirror/lang-python";
@@ -30,7 +34,8 @@ import { java } from "@codemirror/lang-java";
 import { go } from "@codemirror/lang-go";
 import { PostgreSQL, sql } from "@codemirror/lang-sql";
 import { useCodeEditorSettings } from "@/components/code/editor-settings";
-import { completionFor } from "@/lib/code-editor-completions";
+import { completionSources, SQL_SCHEMA } from "@/lib/code-editor-completions";
+import { bracketColors } from "@/lib/bracket-colors";
 
 /** Language id → CodeMirror language extension. */
 function langExt(language: string) {
@@ -46,14 +51,26 @@ function langExt(language: string) {
     case "go":
       return go();
     case "sql":
-      return sql({ dialect: PostgreSQL });
+      // Uppercase keywords like the course, and the playground's sample
+      // tables and columns.
+      return sql({ dialect: PostgreSQL, upperCaseKeywords: true, schema: SQL_SCHEMA });
     default:
       return [];
   }
 }
 
-function indentUnitFor(tabSize: 2 | 4): string {
-  return " ".repeat(tabSize);
+// Go is indented with tabs (gofmt), everything else with spaces.
+function indentUnitFor(tabSize: 2 | 4, language: string): string {
+  return language === "go" ? "\t" : " ".repeat(tabSize);
+}
+
+/** Completion, when it's on: CodeMirror's own for the language (keywords,
+    snippets, local names, SQL tables) plus ours (import lines, extra names). */
+function completion(on: boolean, language: string) {
+  if (!on) return [];
+  const { sources, override } = completionSources(language);
+  if (override) return autocompletion({ override: sources });
+  return [autocompletion(), EditorState.languageData.of(() => sources.map((autocomplete) => ({ autocomplete })))];
 }
 
 /* Theme driven by the app's themeable code CSS vars (so the editor follows the
@@ -90,6 +107,65 @@ const cmTheme = EditorView.theme(
     // !important so the gray wins whether or not the editor is focused.
     "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
       { background: "var(--code-selection) !important" },
+    // The bracket pair the cursor is at, outlined.
+    ".cm-matchingBracket, &.cm-focused .cm-matchingBracket": {
+      backgroundColor: "color-mix(in oklab, var(--code-gutter) 25%, transparent)",
+      outline: "1px solid color-mix(in oklab, var(--code-gutter) 70%, transparent)",
+      borderRadius: "2px",
+    },
+    ".cm-nonmatchingBracket, &.cm-focused .cm-nonmatchingBracket": {
+      backgroundColor: "transparent",
+      outline: "1px solid var(--danger)",
+    },
+    // Other places the selected word appears, and search hits.
+    ".cm-selectionMatch": { backgroundColor: "color-mix(in oklab, var(--code-selection) 65%, transparent)" },
+    ".cm-searchMatch": {
+      backgroundColor: "color-mix(in oklab, var(--hl-number) 22%, transparent)",
+      outline: "1px solid color-mix(in oklab, var(--hl-number) 55%, transparent)",
+    },
+    ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "color-mix(in oklab, var(--hl-number) 45%, transparent)" },
+    // Find and replace (Mod-F), in the editor's own colors.
+    ".cm-panels": { backgroundColor: "var(--code-bg)", color: "var(--code-ink)", colorScheme: "dark" },
+    ".cm-panels.cm-panels-top": { borderBottom: "1px solid var(--code-edge)" },
+    ".cm-search": { padding: "6px 30px 6px 8px", fontFamily: "var(--font-body), system-ui, sans-serif", fontSize: "12px" },
+    ".cm-search .cm-textfield": {
+      backgroundColor: "color-mix(in oklab, var(--code-bg) 88%, var(--code-ink))",
+      border: "1px solid var(--code-edge)",
+      borderRadius: "5px",
+      color: "var(--code-ink)",
+      fontFamily: "var(--font-code), ui-monospace, monospace",
+      fontSize: "12px",
+      padding: "3px 7px",
+    },
+    ".cm-search .cm-textfield:focus": { outline: "none", borderColor: "var(--code-gutter)" },
+    ".cm-search .cm-button": {
+      backgroundImage: "none",
+      backgroundColor: "transparent",
+      border: "1px solid var(--code-edge)",
+      borderRadius: "5px",
+      color: "var(--code-ink)",
+      fontSize: "12px",
+      padding: "2px 8px",
+    },
+    ".cm-search .cm-button:hover": { backgroundColor: "color-mix(in oklab, var(--code-bg) 80%, var(--code-ink))" },
+    ".cm-search label": { color: "var(--code-gutter)", fontSize: "12px" },
+    ".cm-search input[type=checkbox]": { accentColor: "var(--hl-keyword)", verticalAlign: "-2px" },
+    ".cm-search button[name=close]": { color: "var(--code-gutter)", fontSize: "18px", right: "8px", top: "4px", cursor: "pointer" },
+    // Completion list.
+    ".cm-tooltip": {
+      backgroundColor: "var(--code-bg)",
+      color: "var(--code-ink)",
+      border: "1px solid var(--code-edge)",
+      borderRadius: "6px",
+      overflow: "hidden",
+    },
+    ".cm-tooltip.cm-tooltip-autocomplete > ul": { fontFamily: "var(--font-code), ui-monospace, monospace", maxHeight: "14em" },
+    ".cm-tooltip.cm-tooltip-autocomplete > ul > li": { padding: "2px 10px 2px 6px" },
+    ".cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]": { backgroundColor: "var(--code-selection)", color: "var(--code-ink)" },
+    ".cm-completionLabel": { color: "var(--code-ink)" },
+    ".cm-completionMatchedText": { textDecoration: "none", color: "var(--hl-keyword)", fontWeight: "600" },
+    ".cm-completionDetail": { color: "var(--code-gutter)", fontStyle: "normal", marginLeft: "0.75em" },
+    ".cm-completionIcon": { color: "var(--code-gutter)", opacity: "1" },
     ".cm-foldPlaceholder": {
       backgroundColor: "var(--code-edge)",
       color: "var(--code-ink)",
@@ -160,10 +236,22 @@ export function CmEditor({
           highlightSpecialChars(),
           history(),
           drawSelection(),
+          dropCursor(),
+          // Several cursors: Alt-click, Alt-drag for a column, Mod-D for the
+          // next match of the selection.
+          EditorState.allowMultipleSelections.of(true),
+          rectangularSelection(),
+          crosshairCursor(),
           indentOnInput(),
           bracketMatching(),
+          // Typing ( [ { or a quote adds its partner, and Enter between a
+          // pair opens an indented line with the closer on its own line.
+          closeBrackets(),
+          bracketColors(),
+          highlightSelectionMatches(),
+          search({ top: true }),
           tabComp.current.of(EditorState.tabSize.of(settings.tabSize)),
-          indentComp.current.of(indentUnit.of(indentUnitFor(settings.tabSize))),
+          indentComp.current.of(indentUnit.of(indentUnitFor(settings.tabSize, language))),
           indentationMarkers({
             markerType: "codeOnly",
             thickness: 1,
@@ -179,12 +267,8 @@ export function CmEditor({
           foldGutter(),
           syntaxHighlighting(cmHighlight),
           langExt(language),
-          completionComp.current.of(
-            settings.intellisense
-              ? autocompletion({ override: [completionFor(language)] })
-              : []
-          ),
-          keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
+          completionComp.current.of(completion(settings.intellisense, language)),
+          keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
           cmTheme,
           EditorState.readOnly.of(readOnly),
           EditorView.updateListener.of((u) => {
@@ -210,12 +294,8 @@ export function CmEditor({
     view.dispatch({
       effects: [
         tabComp.current.reconfigure(EditorState.tabSize.of(settings.tabSize)),
-        indentComp.current.reconfigure(indentUnit.of(indentUnitFor(settings.tabSize))),
-        completionComp.current.reconfigure(
-          settings.intellisense
-            ? autocompletion({ override: [completionFor(language)] })
-            : []
-        ),
+        indentComp.current.reconfigure(indentUnit.of(indentUnitFor(settings.tabSize, language))),
+        completionComp.current.reconfigure(completion(settings.intellisense, language)),
       ],
     });
   }, [settings, language]);
