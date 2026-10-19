@@ -34,6 +34,22 @@ test("bash: a # starts a comment only at the start of a word", () => {
   for (const [code, comments] of cases) assert.deepEqual(of("comment", code, "bash"), comments, code);
 });
 
+test("bash: a comment line after a line continuation leaves its line", () => {
+  // The `\` joins the comment to the command above, and the comment ends
+  // it: an empty line in its place ends it the same way (each pair prints
+  // the same in bash).
+  const cases = [
+    ["echo a \\\n# a note\necho b", "echo a \\\n\necho b"],
+    ["x=1 \\\n# a note\ny=2", "x=1 \\\n\ny=2"],
+    ["docker run \\\n  -p 8080:80 \\\n  # -v data:/data \\\n  nginx", "docker run \\\n  -p 8080:80 \\\n\n  nginx"],
+    // An escaped backslash continues nothing, and after a pipe the next
+    // line is the command's anyway.
+    ["echo a\\\\\n# a note\necho b", "echo a\\\\\necho b"],
+    ["echo a |\n# a note\ncat", "echo a |\ncat"],
+  ];
+  for (const [code, stripped] of cases) assert.equal(stripComments(code, "bash"), stripped, code);
+});
+
 test("bash: heredoc bodies are data", () => {
   const code = "cat <<EOF # note\n# not a comment\nEOF\necho done";
   assert.deepEqual(of("comment", code, "bash"), ["# note"]);
