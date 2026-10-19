@@ -7,8 +7,8 @@ import { languageId } from "@/lib/tokenize.mjs";
 /**
  * Bracket pair colors: every ( [ { and its partner get a color by how deeply
  * they're nested (three colors, cycling), so nested blocks and calls are easy
- * to follow. Brackets inside strings and comments are left alone, and a
- * closing bracket with no partner is marked as an error.
+ * to follow. Brackets inside strings, comments, and JSX text are left alone,
+ * and a closing bracket with no partner is marked as an error.
  */
 
 const OPEN = "([{";
@@ -17,8 +17,37 @@ const LEVELS = 3;
 const level = Array.from({ length: LEVELS }, (_, i) => Decoration.mark({ class: `cm-bracket-${i}` }));
 const unmatched = Decoration.mark({ class: "cm-bracket-unmatched" });
 
-// Syntax nodes whose brackets are just text.
-const TEXTUAL = /String|Comment|Char|Rune|RegExp|Regex|Template|Escape|QuotedIdentifier/;
+// Syntax nodes whose brackets are just text, like JSX's text (`<p>Done :)</p>`)
+// and attribute values.
+const TEXTUAL = /String|Comment|Char|Rune|RegExp|Regex|Template|Escape|QuotedIdentifier|JSXText|JSXAttributeValue/;
+
+type Tree = ReturnType<typeof syntaxTree>;
+type SyntaxNode = ReturnType<Tree["resolveInner"]>;
+
+/** Whether a JSX `{...}` holds nothing but comments, which the tokenizer
+    colors as one comment, braces and all. */
+function jsxComment(escape: SyntaxNode | null): boolean {
+  if (escape?.name !== "JSXEscape") return false;
+  let comments = 0;
+  for (let k = escape.firstChild; k; k = k.nextSibling) {
+    if (k.name === "BlockComment" || k.name === "LineComment") comments++;
+    else if (!["{", "}", "⚠"].includes(k.name)) return false;
+  }
+  return comments > 0;
+}
+
+/** Whether the bracket at `pos` is text rather than code. */
+function isText(tree: Tree, text: string, pos: number): boolean {
+  const node = tree.resolveInner(pos, 1);
+  if (node.name === "{" || node.name === "}") return jsxComment(node.parent);
+  // Lezer's JSX grammar leaves a `{` that holds only a comment open, and
+  // its `}` lands in the text after it.
+  if (node.name === "JSXText" && text[pos] === "}" && !text.slice(node.from, pos).trim()) {
+    const escape = node.prevSibling;
+    if (escape && !escape.getChild("}")) return jsxComment(escape);
+  }
+  return TEXTUAL.test(node.name);
+}
 
 /** Bash's shell mode only guesses at its syntax (it reads `2#101` as a
     comment), so Bash's brackets go by the tokenizer that colors it: the
@@ -52,7 +81,7 @@ function decorations(view: EditorView, bash: boolean): DecorationSet {
     const opens = OPEN.indexOf(ch);
     const closes = CLOSE.indexOf(ch);
     if (opens < 0 && closes < 0) continue;
-    if (skip ? skip.has(pos) : TEXTUAL.test(tree.resolveInner(pos, 1).name)) continue;
+    if (skip ? skip.has(pos) : isText(tree, text, pos)) continue;
     let mark: Decoration | null = null;
     if (opens >= 0) {
       mark = level[stack.length % LEVELS];
