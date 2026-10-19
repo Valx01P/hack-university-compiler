@@ -125,6 +125,14 @@ The info string after the opening fence controls it:
 - ` ```python norun ` is shown but never runs. Only for what can't run in any
   form: a syntax template with placeholders, pseudo-code, `...` elisions.
 
+Print what a comment promises. A comment that states a value (`# 5`,
+`// [1, 2, 3]`) sits on a line that prints it and says exactly what prints, so
+pressing Run shows it: `print(len(s))  # 5`, not `len(s)  # 5`. After a call
+that changes a container, print the container where its new contents matter.
+Every block prints something when it runs (`verify-snippets` fails one that
+prints nothing), and no comment promises output that changes between runs
+(addresses, hash order, random numbers).
+
 Prefer, in order: a block that runs as written; a hidden harness that gives a
 fragment its context (the shown code stays the same); `error` for a block that
 demonstrates an error; a minimal rewrite of a block that isn't code on its own

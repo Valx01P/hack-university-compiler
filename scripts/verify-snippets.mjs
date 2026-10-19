@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Runs every runnable code snippet in the Learn lessons and the cheatsheets
 // the way the app does (lib/snippet-harness.mjs builds each program), and
-// reports the ones that don't run: a compile error, a crash, a timeout, or a
-// snippet marked `error` that ran cleanly. Piston must be running, except for
+// reports the ones that don't run: a compile error, a crash, a timeout, a
+// snippet marked `error` that ran cleanly, or one that prints nothing, since
+// running it would show an empty output. Piston must be running, except for
 // SQL, which runs on PGlite here (on the lesson's tables, or the playground's
 // sample database for the cheatsheet).
 //
@@ -74,7 +75,7 @@ async function check(s) {
   const failed = Boolean(r.compileError) || r.code !== 0 || Boolean(r.status);
   const output = clip([r.compileError, r.stdout, r.stderr].filter(Boolean).join("\n"));
   if (s.expectError) return failed ? null : { message: "marked `error` but ran cleanly", output, program };
-  if (!failed) return null;
+  if (!failed) return `${r.stdout ?? ""}${r.stderr ?? ""}`.trim() ? null : { message: "prints nothing", output, program };
   const why = r.compileError ? "doesn't compile" : r.status ? `stopped (${r.status})` : `exited with ${r.code}`;
   return { message: why, output, program };
 }
