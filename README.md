@@ -81,7 +81,7 @@ npm run piston:install -- python javascript
 | `/cpp` | C++ | GCC 10.2.0 |
 | `/java` | Java | Java 15.0.2 |
 | `/go` | Go | Go 1.16.2 |
-| `/sql` | SQL | PostgreSQL 18.3 ([PGlite](https://pglite.dev), in the browser) |
+| `/sql` | SQL | PostgreSQL 18.6 ([PGlite](https://pglite.dev), in the browser) |
 
 The first five are the newest versions in Piston's package index. Piston has
 packages for many more languages, see [Adding a language](#adding-a-language).
