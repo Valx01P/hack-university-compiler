@@ -94,13 +94,12 @@ export interface RunnerRequest {
   /** Every test of a Check, run in one job (TypeScript compiles once). */
   tests?: RunnerTest[];
   typeTests?: { imports: string; cases: { name: string; expect: "ok" | "error"; errorCode?: string; code: string }[] };
-  forbid?: string[];
 }
 
 /** A Check's report, as the runner sends it: the compile step, each test's
     run with what it found at the paths the test named (`files` has a
     regular file's contents, `exists` says whether anything is there), and
-    type test and honesty verdicts. */
+    each type test case's verdict. */
 export interface TestsReport {
   compile?: { code: number | null; output: string; [key: string]: unknown } | null;
   results: {
@@ -114,7 +113,6 @@ export interface TestsReport {
     [key: string]: unknown;
   }[];
   typeTests?: unknown[];
-  forbid?: unknown[];
   [key: string]: unknown;
 }
 

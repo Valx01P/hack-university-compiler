@@ -20,7 +20,6 @@ const MAX_ARGS = 64;
 const ARG_MAX_CHARS = 4_096;
 const MAX_TESTS = 20;
 const MAX_TYPE_TESTS = 6;
-const FORBID = new Set(["any", "as", "non-null", "ts-comments"]);
 
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
 const isStr = (v: unknown): v is string => typeof v === "string";
@@ -139,10 +138,8 @@ export async function POST(request: Request) {
       if (!typeTests) return bad(`typeTests needs an imports line and 1 to ${MAX_TYPE_TESTS} cases.`);
       job.typeTests = typeTests;
     }
-    if (body.forbid !== undefined) {
-      if (!strings(body.forbid, 4) || !(body.forbid as string[]).every((r) => FORBID.has(r))) return bad("forbid names unknown rules.");
-      job.forbid = body.forbid as string[];
-    }
+    // A practice's honesty rules (forbid) need no sandbox: the browser and
+    // the verifiers read them off the source with lib/single-checks.mjs.
     const tests = body.tests === undefined ? null : testsOf(body.tests);
     if (typeof tests === "string") return bad(tests);
 
