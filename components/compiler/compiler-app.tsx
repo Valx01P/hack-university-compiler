@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { BookOpenText, GraduationCap, ListChecks, RotateCcw } from "lucide-react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { BookOpenText, FolderCode, GraduationCap, ListChecks, RotateCcw } from "lucide-react";
 import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
@@ -20,7 +20,9 @@ import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { SqlDatabase } from "@/components/compiler/sql-database";
 import { SqlResults } from "@/components/compiler/sql-results";
 import { CheckResults, checkSummary, type CheckState } from "@/components/learn/check-results";
-import { COMPILER_LANGS, isSql, type CompilerLang } from "@/lib/compiler";
+import { isSql, onRunner, type CompilerLang } from "@/lib/compiler";
+import { COMPILER_COURSES, courseRows } from "@/lib/courses";
+import { judgeTest } from "@/lib/single-checks.mjs";
 import type { SqlRun } from "@/lib/sql/core.mjs";
 import {
   loadChallengeCode,
@@ -31,7 +33,7 @@ import {
 } from "@/lib/challenge-progress";
 import { useResumeHref } from "@/lib/learn-progress";
 import type { LessonRef } from "@/lib/learn-types";
-import { normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
+import { joinArgs, runInSandbox, runTests, splitArgs, type RunState } from "@/lib/run-code";
 import { EASE, dur, gsap } from "@/lib/motion";
 
 type Orient = "horizontal" | "vertical";
@@ -61,6 +63,10 @@ const sessionLayout: {
 const codeKey = (slug: string) => `hu-compiler-code:${slug}`;
 const noop = () => {};
 
+// The rail: every course with a compiler page, in the Learn icon rows'
+// order, with a divider between the rows.
+const RAIL = courseRows(COMPILER_COURSES);
+
 /** Your code per language is the one thing saved across reloads. */
 function savedCode(lang: CompilerLang): string {
   if (typeof window === "undefined") return lang.starter;
@@ -74,10 +80,13 @@ function savedCode(lang: CompilerLang): string {
 export function CompilerApp({
   lang,
   lessons,
+  playground: playgroundHref = null,
 }: {
   lang: CompilerLang;
   /** Learn lessons in course order; empty when this language has no course. */
   lessons: LessonRef[];
+  /** Where Open playground goes, once the course has a playground. */
+  playground?: string | null;
 }) {
   // Read while initializing, not in an effect, so the editor opens straight on
   // your code: no starter flash, and ⌘Z can't undo back to the starter. The
@@ -87,6 +96,9 @@ export function CompilerApp({
   const [stdin, setStdin] = useState("");
   const [showStdin, setShowStdin] = useState(false);
   const stdinId = useId();
+  // The command line, for courses whose programs take arguments (Bash). Like
+  // stdin, it lasts for the visit.
+  const [argsText, setArgsText] = useState("");
   const [run, setRun] = useState<RunState>({ status: "idle" });
   const [announcement, setAnnouncement] = useState("");
   const outputId = useId();
@@ -115,6 +127,7 @@ export function CompilerApp({
   const previousChallenge = refData && challengeIndex > 0 ? refData.challenges[challengeIndex - 1] ?? null : null;
   const [challengeCodes, setChallengeCodes] = useState<Record<string, string>>({});
   const [challengeStdins, setChallengeStdins] = useState<Record<string, string>>({});
+  const [challengeArgs, setChallengeArgs] = useState<Record<string, string>>({});
   const [answerFor, setAnswerFor] = useState<string | null>(null);
   const [unlockedFor, setUnlockedFor] = useState<string | null>(null);
   const [checkFor, setCheckFor] = useState<{ id: string; state: CheckState } | null>(null);
@@ -161,6 +174,7 @@ export function CompilerApp({
   const challengeInput = (stdin: string | undefined) =>
     challenge && sqlMode ? [challenge.setup, stdin].filter((x) => x && x.trim()).join("\n") : stdin ?? "";
   const currentStdin = challenge ? challengeStdins[challenge.id] ?? challengeInput(challenge.tests[0]?.stdin) : stdin;
+  const currentArgs = challenge ? challengeArgs[challenge.id] ?? joinArgs(challenge.tests[0]?.args ?? []) : argsText;
   const playground = sqlMode && !challenge;
   const checkState = challenge && checkFor?.id === challenge.id ? checkFor.state : null;
 
@@ -182,6 +196,11 @@ export function CompilerApp({
   function setCurrentStdin(next: string) {
     if (challenge) setChallengeStdins((all) => ({ ...all, [challenge.id]: next }));
     else setStdin(next);
+  }
+
+  function setCurrentArgs(next: string) {
+    if (challenge) setChallengeArgs((all) => ({ ...all, [challenge.id]: next }));
+    else setArgsText(next);
   }
 
   function resetCode() {
@@ -283,10 +302,16 @@ export function CompilerApp({
   useEffect(() => {
     if (sqlMode) writeUrl({ view: sqlView === "database" ? "database" : null });
   }, [sqlMode, sqlView]);
-  // The homepage brings you back to this language next time (the redirect
-  // in next.config.ts reads this cookie).
+  // The homepage brings you back to this compiler next time: the server sets
+  // the HttpOnly hu-lang cookie the redirect in next.config.ts reads. Only a
+  // real visit mounts this page, never a prefetch, so hovering the rail
+  // doesn't move the homepage.
   useEffect(() => {
-    document.cookie = `hu-lang=${lang.slug}; path=/; max-age=31536000; samesite=lax`;
+    void fetch("/api/lang", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-HU": "1" },
+      body: JSON.stringify({ lang: lang.slug }),
+    }).catch(() => {});
   }, [lang.slug]);
 
   // The panel slides in from the right when you open it, and back out before
@@ -365,7 +390,7 @@ export function CompilerApp({
       setDbVersion((v) => v + 1);
       return;
     }
-    const result = await runInSandbox(lang.slug, editorCode, currentStdin);
+    const result = await runInSandbox(lang.slug, editorCode, currentStdin, { args: lang.args ? splitArgs(currentArgs) : undefined });
     const done: RunState = result.ok ? { status: "done", ...result.run } : { status: "error", error: result.error };
     setRun(done);
     setAnnouncement(runSummary(done));
@@ -378,17 +403,21 @@ export function CompilerApp({
     setRun({ status: "idle" });
     setAnnouncement("");
     setCheckFor({ id, state: { status: "checking", total: tests.length } });
-    const outcomes = await Promise.all(tests.map((t) => runInSandbox(lang.slug, code, challengeInput(t.stdin), { refreshStatus: false })));
-    refreshSandboxStatus();
+    const outcome = await runTests(
+      lang.slug,
+      code,
+      tests.map((t) => ({ stdin: challengeInput(t.stdin), args: t.args }))
+    );
     const finish = (state: CheckState) => {
       setCheckFor({ id, state });
       setAnnouncement(checkSummary(state));
     };
-    const failed = outcomes.find((o) => !o.ok);
-    if (failed && !failed.ok) return finish({ status: "error", error: failed.error });
-    const runs = outcomes.map((o) => (o.ok ? o.run : null)).filter((r) => r !== null);
+    if (!outcome.ok) return finish({ status: "error", error: outcome.error });
+    const { runs } = outcome;
     const compileError = runs.find((r) => r.compileCode != null && r.compileCode !== 0);
     if (compileError) return finish({ status: "compile-error", output: compileError.compileOutput || "Compilation failed." });
+    // The runner's courses also want a clean exit (lib/single-checks.mjs).
+    const strictExit = onRunner(lang.slug);
     const results = runs.map((r, i) => {
       const timedOut = r.verdict === "TO";
       return {
@@ -396,7 +425,7 @@ export function CompilerApp({
         expected: tests[i].output,
         actual: r.stdout,
         stderr: timedOut ? "Timed out. Your code ran too long (usually an infinite loop). It was stopped." : r.stderr,
-        passed: !timedOut && normalizeOutput(r.stdout) === normalizeOutput(tests[i].output),
+        passed: judgeTest(tests[i], r, { strictExit }).passed,
       };
     });
     if (results.every((r) => r.passed)) markChallengeSolved(lang.slug, id);
@@ -449,6 +478,28 @@ export function CompilerApp({
   const headerBtn =
     "inline-flex items-center gap-1.5 rounded-btn border border-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised";
 
+  // The stdin row under the editor. The code box clips anything outside it,
+  // so the focus ring sits inside the button (rounded like the box's corners
+  // when it's the last row), in the code text color. Beside an Arguments
+  // field it takes half the row.
+  const stdinToggle = (
+    <button
+      type="button"
+      onClick={() => setShowStdin((v) => !v)}
+      aria-expanded={showStdin}
+      aria-controls={showStdin ? stdinId : undefined}
+      className={`code-stdin-toggle flex ${lang.args ? "min-w-0 flex-1" : "w-full"} items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${
+        showStdin ? "" : lang.args ? "rounded-bl-[calc(var(--radius-card)-1px)]" : "rounded-b-[calc(var(--radius-card)-1px)]"
+      }`}
+    >
+      <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
+      <span>{sqlMode ? "setup (runs first)" : "stdin"}</span>
+      {!showStdin && currentStdin ? (
+        <span className="truncate text-code-gutter">· {currentStdin.split("\n")[0]}</span>
+      ) : null}
+    </button>
+  );
+
   // Cheatsheet, Challenges, and Learn: above the output, or in the panel's
   // header while it's open, so they stay put and switching is one click.
   const panelButtons = (
@@ -489,6 +540,14 @@ export function CompilerApp({
           Learn
         </ConfirmButton>
       )}
+      {playgroundHref && (
+        // A whole project to work in, with files and a terminal. Your code
+        // here stays saved.
+        <Link href={playgroundHref} title={`A ${lang.label} project with files and a terminal`} className={headerBtn}>
+          <FolderCode className="size-3.5" aria-hidden />
+          Open playground
+        </Link>
+      )}
     </>
   );
 
@@ -502,30 +561,36 @@ export function CompilerApp({
         full ? "fixed inset-0 z-[100]" : "h-[calc(100dvh-4rem-1px)] lg:h-full lg:shrink-0"
       }`}
     >
-      {/* Language rail */}
+      {/* Language rail: the Learn icon rows' courses in order, with a
+          divider between the two rows */}
       <nav
         aria-label="Languages"
         className="slim-scroll flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-line py-2 sm:w-14"
       >
-        {COMPILER_LANGS.map((l) => {
-          const active = l.slug === lang.slug;
-          return (
-            <Link
-              key={l.slug}
-              href={`/${l.slug}`}
-              title={`${l.label} compiler`}
-              aria-label={`${l.label} compiler`}
-              aria-current={active ? "page" : undefined}
-              className={`flex size-10 items-center justify-center rounded-btn transition-colors ${
-                active
-                  ? "text-ink dark:text-gold"
-                  : "text-ink-muted hover:text-ink"
-              }`}
-            >
-              <LangIcon slug={l.slug} className="size-5" />
-            </Link>
-          );
-        })}
+        {RAIL.map((row, r) => (
+          <Fragment key={r}>
+            {r > 0 && <span aria-hidden className="my-1 h-px w-6 shrink-0 bg-line" />}
+            {row.map((l) => {
+              const active = l.slug === lang.slug;
+              return (
+                <Link
+                  key={l.slug}
+                  href={`/${l.slug}`}
+                  title={`${l.label} compiler`}
+                  aria-label={`${l.label} compiler`}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex size-10 shrink-0 items-center justify-center rounded-btn transition-colors ${
+                    active
+                      ? "text-ink dark:text-gold"
+                      : "text-ink-muted hover:text-ink"
+                  }`}
+                >
+                  <LangIcon slug={l.slug} className="size-5" />
+                </Link>
+              );
+            })}
+          </Fragment>
+        ))}
       </nav>
 
       {/* Main: the editor and output, plus the cheatsheet or challenges panel when it's open */}
@@ -668,24 +733,32 @@ export function CompilerApp({
               </div>
               {/* SQL's playground has no input: the database is the input. */}
               <div className={`shrink-0 border-t border-code-content-line bg-code-bg ${playground ? "hidden" : ""}`}>
-                {/* The code box clips anything outside it, so this focus ring
-                    sits inside the button (rounded like the box's corners
-                    when it's the last row), in the code text color. */}
-                <button
-                  type="button"
-                  onClick={() => setShowStdin((v) => !v)}
-                  aria-expanded={showStdin}
-                  aria-controls={showStdin ? stdinId : undefined}
-                  className={`code-stdin-toggle flex w-full items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${
-                    showStdin ? "" : "rounded-b-[calc(var(--radius-card)-1px)]"
-                  }`}
-                >
-                  <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
-                  <span>{sqlMode ? "setup (runs first)" : "stdin"}</span>
-                  {!showStdin && currentStdin ? (
-                    <span className="truncate text-code-gutter">· {currentStdin.split("\n")[0]}</span>
-                  ) : null}
-                </button>
+                {lang.args ? (
+                  // The command line goes beside stdin, on the same row.
+                  <div className="flex items-stretch">
+                    {stdinToggle}
+                    <label
+                      className={`flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${
+                        showStdin ? "" : "rounded-br-[calc(var(--radius-card)-1px)]"
+                      }`}
+                    >
+                      <span className="shrink-0">args</span>
+                      <input
+                        type="text"
+                        value={currentArgs}
+                        onChange={(e) => setCurrentArgs(e.target.value)}
+                        spellCheck={false}
+                        autoComplete="off"
+                        autoCapitalize="off"
+                        placeholder="arguments for $1, $2..."
+                        aria-label="Arguments passed to your program"
+                        className="code-stdin-input min-w-0 flex-1 self-stretch border-0 bg-transparent pe-3 font-mono text-base font-normal text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-xs"
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  stdinToggle
+                )}
                 {showStdin && (
                   <textarea
                     id={stdinId}

@@ -7,7 +7,7 @@ import { LangIcon } from "@/components/compiler/lang-icon";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Collapse } from "@/components/ui/collapse";
-import { COMPILER_LANGS } from "@/lib/compiler";
+import { COMPILER_COURSES, courseRows, type CourseEntry } from "@/lib/courses";
 import { partHref, problemId, type Course, type LessonRef } from "@/lib/learn-types";
 import { useResumeHref, useSolvedState } from "@/lib/learn-progress";
 
@@ -18,7 +18,7 @@ export function isLessonComplete(solved: Set<string>, id: string, problems: numb
 }
 
 /**
- * The lesson plan: progress, a language switcher, the way back to the
+ * The lesson plan: progress, a course switcher, the way back to the
  * compiler, and every lesson by section with its completion mark. Each
  * lesson's parts fold out under it: collapsed by default so the list stays
  * short, with the lesson you're on opened for you. Shown as the sidebar on
@@ -48,8 +48,8 @@ export function LessonList({
   const done = lessons.filter((l) => isLessonComplete(solved, l.id, l.problems)).length;
   const currentRef = useRef<HTMLAnchorElement>(null);
   const uid = useId();
-  // Only languages with a course have a Learn mode to switch to.
-  const langs = COMPILER_LANGS.filter((l) => courses[l.slug]?.length);
+  // Only courses with lessons have a Learn mode to switch to.
+  const langs = COMPILER_COURSES.filter((c) => courses[c.slug]?.length);
 
   // Which lessons show their parts. The current one opens by itself (in the
   // server markup too, so nothing moves on load), and stays open until you
@@ -97,18 +97,13 @@ export function LessonList({
           />
         </div>
         {langs.length > 1 && (
-          <div role="group" aria-label="Learn another language" className="mt-3 flex items-center gap-0.5">
-            {langs.map((l) => (
-              <LanguageLink
-                key={l.slug}
-                slug={l.slug}
-                label={l.label}
-                lessons={courses[l.slug]}
-                here={l.slug === lang && currentId ? partHref(lang, currentId, currentPart + 1) : null}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </div>
+          <CourseIcons
+            rows={courseRows(langs)}
+            lang={lang}
+            courses={courses}
+            here={currentId ? partHref(lang, currentId, currentPart + 1) : null}
+            onNavigate={onNavigate}
+          />
         )}
         {/* Asks first, like the compiler's Learn button. */}
         <ConfirmButton
@@ -219,34 +214,123 @@ export function LessonList({
 }
 
 /**
- * One language in the switcher. The current language links to the part
- * you're on; the others reopen where you left off in them, as long as that
- * part is still in their course.
+ * The course switcher: an icon for every course with lessons, in rows of 8
+ * (the languages, then the web and server stacks), each row in registry
+ * order and starting at the left. Cells shrink to fit the sidebar, keeping
+ * at least 24px from one to the next at its narrowest. The whole grid is
+ * one tab stop: the arrow keys move within a row and between rows, and Home
+ * and End go to the ends of the row (with Ctrl, the first and last course).
  */
-function LanguageLink({
+function CourseIcons({
+  rows,
+  lang,
+  courses,
+  here,
+  onNavigate,
+}: {
+  rows: CourseEntry[][];
+  lang: string;
+  courses: Record<string, LessonRef[]>;
+  /** Where you are in this course. */
+  here: string | null;
+  onNavigate?: () => void;
+}) {
+  const links = useRef(new Map<string, HTMLAnchorElement>());
+  // The icon Tab lands on: this course's, until the arrow keys move on.
+  const [moved, setMoved] = useState<string | null>(null);
+  const all = rows.flat();
+  const stop = all.some((c) => c.slug === moved) ? moved : (all.find((c) => c.slug === lang) ?? all[0]).slug;
+
+  function onKeyDown(e: React.KeyboardEvent, r: number, i: number) {
+    const last = rows.length - 1;
+    const to: [number, number] | null =
+      e.key === "ArrowRight" ? [r, Math.min(i + 1, rows[r].length - 1)]
+      : e.key === "ArrowLeft" ? [r, Math.max(i - 1, 0)]
+      : e.key === "ArrowDown" ? (r < last ? [r + 1, Math.min(i, rows[r + 1].length - 1)] : [r, i])
+      : e.key === "ArrowUp" ? (r > 0 ? [r - 1, Math.min(i, rows[r - 1].length - 1)] : [r, i])
+      : e.key === "Home" ? (e.ctrlKey ? [0, 0] : [r, 0])
+      : e.key === "End" ? (e.ctrlKey ? [last, rows[last].length - 1] : [r, rows[r].length - 1])
+      : null;
+    if (!to) return;
+    e.preventDefault();
+    const slug = rows[to[0]][to[1]].slug;
+    setMoved(slug);
+    links.current.get(slug)?.focus();
+  }
+
+  return (
+    <div
+      role="group"
+      aria-label="Learn another course"
+      className="-mx-1 mt-3 grid grid-cols-[repeat(8,minmax(0,2rem))] justify-between gap-0.5"
+    >
+      {rows.map((row, r) =>
+        row.map((c, i) => (
+          <CourseLink
+            key={c.slug}
+            ref={(el) => {
+              if (el) links.current.set(c.slug, el);
+              else links.current.delete(c.slug);
+            }}
+            slug={c.slug}
+            label={c.label}
+            lessons={courses[c.slug]}
+            here={c.slug === lang ? here : null}
+            current={c.slug === lang}
+            tabIndex={c.slug === stop ? 0 : -1}
+            style={{ gridRow: r + 1, gridColumn: i + 1 }}
+            onKeyDown={(e) => onKeyDown(e, r, i)}
+            onNavigate={onNavigate}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+/**
+ * One course in the switcher. The current course links to the part you're
+ * on, the others reopen where you left off in them, as long as that part is
+ * still in their course.
+ */
+function CourseLink({
+  ref,
   slug,
   label,
   lessons,
   here,
+  current,
+  tabIndex,
+  style,
+  onKeyDown,
   onNavigate,
 }: {
+  ref: React.Ref<HTMLAnchorElement>;
   slug: string;
   label: string;
   lessons: LessonRef[];
-  /** Where you are, when this is the current language. */
+  /** Where you are, when this is the current course. */
   here: string | null;
+  current: boolean;
+  tabIndex: number;
+  style: React.CSSProperties;
+  onKeyDown: (e: React.KeyboardEvent) => void;
   onNavigate?: () => void;
 }) {
   const resume = useResumeHref(slug, lessons);
   return (
     <Link
+      ref={ref}
       href={here ?? resume ?? `/${slug}/learn`}
       onClick={onNavigate}
+      onKeyDown={onKeyDown}
+      tabIndex={tabIndex}
+      style={style}
       title={`Learn ${label}`}
       aria-label={`Learn ${label}`}
-      aria-current={here ? "true" : undefined}
-      className={`flex size-8 items-center justify-center rounded-btn transition-colors ${
-        here ? "bg-raised text-ink dark:text-gold" : "text-ink-muted hover:bg-raised hover:text-ink"
+      aria-current={current ? "true" : undefined}
+      className={`flex aspect-square w-full items-center justify-center rounded-btn transition-colors ${
+        current ? "bg-raised text-ink dark:text-gold" : "text-ink-muted hover:bg-raised hover:text-ink"
       }`}
     >
       <LangIcon slug={slug} className="size-4" />

@@ -1,18 +1,18 @@
 import { notFound } from "next/navigation";
 import { LearnShell } from "@/components/learn/learn-shell";
-import { getCompilerLang } from "@/lib/compiler";
+import { getCourseEntry } from "@/lib/courses";
 import { getCourse, getLessonRefsByLang } from "@/lib/learn";
 
 export default async function LearnLayout(props: LayoutProps<"/[lang]/learn">) {
   const { lang: slug } = await props.params;
-  const lang = getCompilerLang(slug);
-  const course = lang ? await getCourse(lang.slug) : null;
-  if (!lang || !course) notFound();
-  // The language switcher only offers languages that have a course.
+  const entry = getCourseEntry(slug);
+  const course = entry?.page ? await getCourse(entry.slug) : null;
+  if (!entry || !course) notFound();
+  // The course switcher only offers courses that have lessons.
   const courses = await getLessonRefsByLang();
 
   return (
-    <LearnShell lang={lang.slug} langLabel={lang.label} course={course} courses={courses}>
+    <LearnShell lang={entry.slug} langLabel={entry.label} course={course} courses={courses}>
       {props.children}
     </LearnShell>
   );

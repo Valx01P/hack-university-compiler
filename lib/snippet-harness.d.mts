@@ -1,5 +1,5 @@
 // Types for lib/snippet-harness.mjs (plain JavaScript so the Node checker can use it).
-export type SnippetRuntime = "python" | "javascript" | "cpp" | "java" | "go" | "sql";
+export type SnippetRuntime = "python" | "javascript" | "typescript" | "cpp" | "java" | "go" | "sql" | "bash";
 
 export const RUNTIMES: Record<string, SnippetRuntime>;
 

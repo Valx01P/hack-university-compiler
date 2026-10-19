@@ -42,6 +42,8 @@ function langExt(language: string) {
       return python();
     case "javascript":
       return javascript();
+    case "typescript":
+      return javascript({ typescript: true });
     case "cpp":
       return cpp();
     case "java":

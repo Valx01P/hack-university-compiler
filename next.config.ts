@@ -1,12 +1,28 @@
 import type { NextConfig } from "next";
+import { readFileSync } from "fs";
+import path from "path";
 
 const isProd = process.env.NODE_ENV === "production";
 
+// The local runner (hu-runner) that TypeScript, Bash, and the IDE's
+// terminals talk to. The browser opens WebSockets to it directly, always at
+// 127.0.0.1 so the localhost cookies lesson previews set never ride along.
+// Its port is fixed when the app builds, since the CSP below names it.
+const RUNNER_PORT = /^\d{1,5}$/.test(process.env.HU_RUNNER_PORT ?? "") ? process.env.HU_RUNNER_PORT : "3100";
+
+// The course registry. Every course whose /<slug> page exists can be the
+// compiler the homepage reopens.
+const { courses } = JSON.parse(readFileSync(path.join(process.cwd(), "content", "courses.json"), "utf8")) as {
+  courses: { slug: string; page?: string }[];
+};
+const COMPILER_SLUGS = courses.filter((c) => c.page && /^[a-z0-9-]+$/.test(c.slug)).map((c) => c.slug);
+
 /**
- * Static Content-Security-Policy. The browser only ever talks to this server
- * (never to Piston directly), so everything is same-origin. `script-src`
- * keeps `'unsafe-inline'` for the pre-paint theme bootstrap. `'unsafe-eval'`
- * and websockets are dev-only (React debugging and hot reload).
+ * Static Content-Security-Policy. The browser talks to this server, which
+ * runs code on Piston and the runner for it, so pages are same-origin, plus
+ * the runner's WebSockets. `script-src` keeps `'unsafe-inline'` for the
+ * pre-paint theme bootstrap. `'unsafe-eval'` and other websockets are
+ * dev-only (React debugging and hot reload).
  */
 const csp = [
   "default-src 'self'",
@@ -16,7 +32,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  `connect-src 'self'${isProd ? "" : " ws:"}`,
+  `connect-src 'self' ws://127.0.0.1:${RUNNER_PORT} ws://localhost:${RUNNER_PORT}${isProd ? "" : " ws:"}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -25,16 +41,17 @@ const csp = [
 
 const nextConfig: NextConfig = {
   // The compiler is the whole app: the homepage drops you into Python, and
-  // every other language is just a route change (/javascript, /cpp, /java, /go).
-  // The homepage opens the compiler you used last: each compiler page sets
-  // the hu-lang cookie (components/compiler/compiler-app.tsx), and this
-  // redirect reads it, so it costs nothing more than the plain redirect.
-  // Without it (or with anything else in it), Python.
+  // every other course is just a route change (/javascript, /typescript,
+  // /bash…). The homepage opens the compiler you used last: each compiler
+  // page asks POST /api/lang to set the hu-lang cookie (an HttpOnly one, see
+  // app/api/lang/route.ts), and this redirect reads it, so it costs nothing
+  // more than the plain redirect. Without it (or with anything else in it),
+  // Python.
   async redirects() {
     return [
       {
         source: "/",
-        has: [{ type: "cookie", key: "hu-lang", value: "(?<lang>python|javascript|cpp|java|go|sql)" }],
+        has: [{ type: "cookie", key: "hu-lang", value: `(?<lang>${COMPILER_SLUGS.join("|")})` }],
         destination: "/:lang",
         permanent: false,
       },

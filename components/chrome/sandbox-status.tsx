@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { SANDBOX_REFRESH_EVENT, isSql } from "@/lib/compiler";
+import { RUNNER_LABELS, SANDBOX_REFRESH_EVENT, isSql, onRunner } from "@/lib/compiler";
 
 type Status = {
   online: boolean;
   runtimes: Record<string, { name: string; version: string }>;
+  runner?: { online: boolean; docker: "ready" | "down" | "waking" | null; images: Record<string, string> };
 };
 
 /**
@@ -16,6 +17,7 @@ type Status = {
  */
 export function SandboxStatus({ lang }: { lang: string }) {
   if (isSql(lang)) return <SqlStatus />;
+  if (onRunner(lang)) return <RunnerStatus lang={lang} />;
   return <PistonStatus lang={lang} />;
 }
 
@@ -32,7 +34,8 @@ function SqlStatus() {
   );
 }
 
-function PistonStatus({ lang }: { lang: string }) {
+/** /api/runtimes, fetched now, on focus, and after every run. */
+function useSandboxStatus(): Status | null {
   const [status, setStatus] = useState<Status | null>(null);
 
   const refresh = useCallback(() => {
@@ -57,6 +60,28 @@ function PistonStatus({ lang }: { lang: string }) {
     };
   }, [refresh]);
 
+  return status;
+}
+
+function Badge({ ready, label, hint }: { ready: boolean; label: string; hint: string }) {
+  return (
+    <span
+      title={hint}
+      className="inline-flex shrink-0 items-center gap-1.5 px-1 font-mono text-xs text-ink-faint"
+    >
+      <span
+        aria-hidden
+        className={`size-1.5 shrink-0 rounded-full ${
+          ready ? "bg-gold" : "border border-ink-faint"
+        }`}
+      />
+      {label}
+    </span>
+  );
+}
+
+function PistonStatus({ lang }: { lang: string }) {
+  const status = useSandboxStatus();
   if (!status) return null;
 
   const runtime = status.runtimes[lang];
@@ -72,18 +97,48 @@ function PistonStatus({ lang }: { lang: string }) {
       ? `Runs on ${runtime.name} ${runtime.version} in your local sandbox`
       : `Install this language with: npm run piston:install -- ${lang}`;
 
+  return <Badge ready={ready} label={label} hint={hint} />;
+}
+
+/**
+ * TypeScript and Bash run on the local runner, which needs Docker. The badge
+ * names what runs them, says the course's image isn't built yet, or that
+ * Docker (or the runner, which npm run up starts with it) is off. Its slot is
+ * as wide as its longest label from the first paint, so nothing moves when
+ * the answer comes in.
+ */
+function RunnerStatus({ lang }: { lang: string }) {
+  const status = useSandboxStatus();
+  const name = RUNNER_LABELS[lang]?.name ?? lang;
+  const runner = status?.runner;
+  const docker = runner?.online ? runner.docker : null;
+  const image = runner?.images[RUNNER_LABELS[lang]?.image ?? ""];
+  // The image's state, when the runner says (a missing one builds with npm run up).
+  const built = image === undefined || image === "ready";
+  const ready = docker === "ready" && built;
+  const label =
+    docker === "ready" ? (built ? name : "not installed") : docker === "waking" ? "waking docker" : "sandbox offline";
+  const hint =
+    docker === "ready"
+      ? built
+        ? `Runs on ${name} in a fresh container on your machine`
+        : "This course's sandbox isn't built yet. Build it with: npm run up"
+      : docker === "waking"
+        ? "Docker is waking up. Run again in a moment."
+        : runner?.online
+          ? "Start Docker to run this."
+          : "Start Docker to run this. npm run up starts the runner with it.";
+
   return (
-    <span
-      title={hint}
-      className="inline-flex shrink-0 items-center gap-1.5 px-1 font-mono text-xs text-ink-faint"
-    >
-      <span
-        aria-hidden
-        className={`size-1.5 shrink-0 rounded-full ${
-          ready ? "bg-gold" : "border border-ink-faint"
-        }`}
-      />
-      {label}
+    <span className="inline-grid shrink-0">
+      {[name, "sandbox offline", "not installed", "waking docker"].map((text) => (
+        <span key={text} aria-hidden className="invisible col-start-1 row-start-1 justify-self-end">
+          <Badge ready label={text} hint="" />
+        </span>
+      ))}
+      <span className={`col-start-1 row-start-1 justify-self-end ${status ? "" : "invisible"}`}>
+        <Badge ready={ready} label={label} hint={hint} />
+      </span>
     </span>
   );
 }

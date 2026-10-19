@@ -19,7 +19,7 @@ interface ChallengeFile {
   category: string;
   difficulty: Challenge["difficulty"];
   statement: string;
-  tests: { stdin?: string; output: string }[];
+  tests: { stdin?: string; args?: string[]; output: string }[];
   hints?: string[];
   setup?: string;
   code: Record<string, { starter: string; solution: string }>;

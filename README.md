@@ -2,12 +2,14 @@
 
 > The Hack University online compiler, running entirely on your own machine.
 
-Write, compile, and run **Python, JavaScript, C++, Java, and Go** right in the
-browser, and query a real **PostgreSQL** database with **SQL**. Code runs in a
-local [Piston](https://github.com/engineer-man/piston) sandbox in Docker, and SQL
-runs on PostgreSQL 18 compiled to WebAssembly inside the page, so nothing leaves
-localhost and there is no server to pay for. Same editor, same themes, same look
-as the original hackuniversity.dev compiler.
+Write, compile, and run **Python, JavaScript, TypeScript, C++, Java, Go, and
+Bash** right in the browser, and query a real **PostgreSQL** database with
+**SQL**. Code runs in a local [Piston](https://github.com/engineer-man/piston)
+sandbox in Docker, TypeScript and Bash run in fresh containers that the local
+runner (`hu-runner`) starts for each run, and SQL runs on PostgreSQL 18 compiled
+to WebAssembly inside the page, so nothing leaves localhost and there is no
+server to pay for. Same editor, same themes, same look as the original
+hackuniversity.dev compiler.
 
 ## Requirements
 
@@ -41,9 +43,11 @@ server instead, for working on the app. With [Task](https://taskfile.dev),
 `task` does the same (`task --list` shows the rest).
 
 The homepage opens the compiler you used last (Python the first time), and
-every language is its own route: `/python`, `/javascript`, `/cpp`, `/java`,
-`/go`, and `/sql`. The last one is a cookie (`hu-lang`) the redirect reads on
-the server, so it costs nothing extra.
+every language is its own route: `/python`, `/javascript`, `/typescript`,
+`/cpp`, `/java`, `/go`, `/sql`, and `/bash`. The last one you opened is an
+HttpOnly cookie (`hu-lang`) that the compiler page asks the server to set when
+you open it, and the redirect reads it on the server, so it costs nothing
+extra. Hovering a link never changes it.
 
 Only need some of the languages? Install just those yourself, then serve the
 app with `npm run dev` (or `npm run build` and `npm start`):
@@ -82,9 +86,23 @@ npm run piston:install -- python javascript
 | `/java` | Java | Java 15.0.2 |
 | `/go` | Go | Go 1.16.2 |
 | `/sql` | SQL | PostgreSQL 18.3 ([PGlite](https://pglite.dev), in the browser) |
+| `/typescript` | TypeScript | TypeScript 7.0.2 checks, then Node 26.12.0 runs it (the local runner) |
+| `/bash` | Bash | Bash 5.3 (the local runner) |
 
-The first five are the newest versions in Piston's package index. Piston has
-packages for many more languages, see [Adding a language](#adding-a-language).
+Python, JavaScript, C++, Java, and Go are the newest versions in Piston's
+package index. Piston has packages for many more languages, see
+[Adding a language](#adding-a-language). TypeScript and Bash run on the local
+runner, which needs Docker: with Docker off, their Run says "Start Docker to
+run this". A type error stops a TypeScript run the way a compile error stops
+C++. `/bash` has an **args** field beside stdin, split the way a shell would
+(quotes keep spaces), that arrives as `$1`, `$2`, and so on.
+
+Every course is listed once, in `content/courses.json`, the course registry:
+its route, label, icon, the row of the Learn icons it sits in, and what runs it
+(`piston:<id>`, `pglite`, or `runner:<recipe>`). The rail, the Learn icon rows,
+the routes, `/api/execute`, and the homepage redirect all read it. Courses that
+ship in a later release are already in it, without a `page`, and stay out of
+sight until they get one.
 
 ### What you can import
 
@@ -158,7 +176,10 @@ practice problems for each programming language, and 114 for SQL.
 - The panel button at the top left shows and hides the lesson list: docked on
   the left on wide screens, sliding in as a drawer on narrower ones. Each
   lesson's parts fold out under it (the lesson you're on opens by itself). The
-  list also switches languages and leads back to the compiler.
+  list also switches courses, with an icon for every course that has lessons,
+  in rows of 8 (the languages first, then the web and server stacks), and
+  leads back to the compiler. The icons are one stop for Tab: the arrow keys
+  move between them, and Home and End jump to the ends of a row.
 - Drag the borders to resize the lesson list, the lesson, and the editor.
   Drag the lesson list's border all the way left to fold it away, and bring it
   back with the panel button or the border.
@@ -337,13 +358,19 @@ leaves them out too. Code you changed yourself always shows as you wrote it.
 ## How it works
 
 ```
-browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Piston on 127.0.0.1:2000 ──▶ isolate sandbox
+browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─▶ Piston on 127.0.0.1:2000 ──▶ isolate sandbox
+                                                        └─▶ hu-runner on 127.0.0.1:3100 ──▶ a fresh container per run
 ```
 
-- The browser never talks to Piston. The Next.js server forwards runs to it.
-- Both listen on `127.0.0.1` only, so nothing else on your network can reach
-  them. The API also rejects requests whose `Host` isn't localhost or whose
-  `Origin` is another site, so a web page you have open can't use your sandbox.
+- The browser never talks to Piston or the runner for a run. The Next.js
+  server forwards each run to whatever the course registry says runs it, and
+  the runner's answers have Piston's shape, so the output reads the same.
+- They all listen on `127.0.0.1` only, so nothing else on your network can
+  reach them. The API also rejects requests whose `Host` isn't localhost,
+  whose `Origin` is another site, or that a page on another localhost port
+  sent (a lesson's preview, say), and every write needs the app's `X-HU`
+  header, so a web page you have open can't use your sandbox. The runner wants
+  the token `npm run up` writes to `~/.hack-university/runner-token`.
 - Every run is limited by `docker-compose.yml`: no network, 10s to run, 60s to
   compile, 512 MB of memory to run (1 GB to compile), 128 processes, and 1 MB of
   output. When a run is stopped, the reason shows above its output, and very
@@ -377,7 +404,8 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
 app/[lang]/page.tsx          one prerendered page per language
 app/[lang]/learn/            Learn mode: the course shell and one page per lesson part
 app/api/execute/route.ts     runs code in the sandbox
-app/api/runtimes/route.ts    sandbox health and installed runtimes
+app/api/runtimes/route.ts    sandbox health and installed runtimes, and the runner's
+app/api/lang/route.ts        sets the hu-lang cookie the homepage redirect reads
 components/compiler/         the compiler: language rail, toolbar, editor, output
 components/learn/            Learn mode: lesson list, lesson view, practice checks
 components/chrome/           header, panel shell, status badge
@@ -385,7 +413,9 @@ components/code/             CodeMirror editor and its settings
 content/learn/               the Learn courses (JSON) and the authoring guide
 content/reference/           the cheatsheets (one Markdown file per topic)
 content/challenges/          the challenges (one JSON file each, all languages)
-lib/compiler.ts              languages, labels, starters, file names
+content/courses.json         the course registry: every course, its row, icon, and runtime
+lib/courses.ts               the registry's types and helpers
+lib/compiler.ts              each compiler page's starter program
 lib/sql/                     SQL: the PGlite playground, the sample database, and
                              the psql-style runner shared with the verifiers
 lib/learn.ts                 reads courses and lessons at build time
@@ -393,6 +423,8 @@ lib/snippet-harness.mjs      turns a lesson or cheatsheet code block into a prog
 lib/search/                  the cheatsheet search (served by app/api/search)
 lib/runtimes.json            language id to Piston runtime and package
 lib/piston.ts                server-side Piston client
+lib/runner.ts                server-side client for the local runner (TypeScript, Bash)
+lib/single-checks.mjs        how a run passes a test, shared with the verifiers
 docker-compose.yml           the sandbox and its limits
 scripts/setup-piston.mjs     runtime installer
 scripts/setup-search.mjs     downloads the search model into .models/
@@ -407,15 +439,18 @@ scripts/try-sql.mjs          runs SQL on a fresh PostgreSQL, printed like psql
 
 1. `lib/runtimes.json`: the Piston runtime and package (list them with
    `curl http://127.0.0.1:2000/api/v2/packages`).
-2. `lib/compiler.ts`: label, starter, file name, and `COMPILER_SLUGS`.
-3. `components/compiler/lang-icon.tsx`: the rail icon.
-4. `lib/highlight.tsx`: its keywords and comment style, which color its code
+2. `content/courses.json`: the course, with its label, file name, icon, row,
+   `"page": "single"`, `"runtime": "piston:<id>"`, and the code fences its
+   snippets run in.
+3. `lib/compiler.ts`: the starter program.
+4. `components/compiler/lang-icon.tsx`: the icon, when it's a new one.
+5. `lib/highlight.tsx`: its keywords and comment style, which color its code
    blocks and editors.
-5. `components/code/cm-editor.tsx` and `lib/code-editor-completions.ts`: the
+6. `components/code/cm-editor.tsx` and `lib/code-editor-completions.ts`: the
    grammar for indenting, folding, and bracket matching (install the matching
    `@codemirror/lang-*` package, or use a `@codemirror/legacy-modes` mode) and
    completions.
-6. `npm run piston:install -- <id>`, then run a hello world.
+7. `npm run piston:install -- <id>`, then run a hello world.
 
 ## Troubleshooting
 
