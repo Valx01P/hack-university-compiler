@@ -37,6 +37,25 @@ System.out.println(new Puppy("Bit").describe()); // Bit says Woof (tiny)
 
 ### Polymorphism in a loop
 
+```java harness
+class Animal {
+    protected String name;
+    Animal(String name) { this.name = name; }
+    String sound() { return "..."; }
+    String describe() { return name + " says " + sound(); }
+}
+class Dog extends Animal {
+    Dog(String name) { super(name); }
+    @Override String sound() { return "Woof"; }
+}
+class Puppy extends Dog {
+    Puppy(String name) { super(name); }
+    @Override String sound() { return super.sound() + " (tiny)"; }
+}
+
+{{code}}
+```
+
 ```java
 import java.util.List;
 
@@ -113,6 +132,31 @@ System.out.println(sp.speakTwice());              // Beep Beep
 ```
 
 ### Casting and instanceof
+
+```java harness
+import java.util.*;
+
+public class Main {
+    static class Animal {
+        protected String name;
+        Animal(String name) { this.name = name; }
+        String sound() { return "..."; }
+        String describe() { return name + " says " + sound(); }
+    }
+    static class Dog extends Animal {
+        Dog(String name) { super(name); }
+        @Override String sound() { return "Woof"; }
+    }
+    static class Puppy extends Dog {
+        Puppy(String name) { super(name); }
+        @Override String sound() { return super.sound() + " (tiny)"; }
+    }
+
+    public static void main(String[] args) throws Exception {
+        {{code}}
+    }
+}
+```
 
 ```java
 Animal a = new Dog("Rex");          // upcast, automatic

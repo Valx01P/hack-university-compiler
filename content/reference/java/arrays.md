@@ -21,6 +21,7 @@ primes[1] = 13;                        // [2, 13, 5, 7]
 import java.util.Arrays;
 
 int[] a = {5, 2, 9, 1};
+int[] nums = new int[5];
 System.out.println(a);               // [I@1b6d3586, an address, not the contents
 Arrays.toString(a);                  // "[5, 2, 9, 1]"
 Arrays.sort(a);                      // a is now [1, 2, 5, 9]
@@ -45,6 +46,18 @@ List<Integer> fixed = List.of(1, 2, 3);                   // immutable
 ```
 
 ### Add, change, remove
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        List<Integer> list = new ArrayList<>();
+        {{code}}
+        System.out.println(list);
+    }
+}
+```
 
 ```java
 list.add(10);                      // [10]
@@ -79,6 +92,7 @@ import java.util.Collections;
 import java.util.Comparator;
 
 List<Integer> nums = new ArrayList<>(List.of(3, 1, 2));
+List<String> names = new ArrayList<>(List.of("Ana", "Bo", "Cy", "Bo"));
 Collections.sort(nums);                  // [1, 2, 3]
 nums.sort(Comparator.reverseOrder());    // [3, 2, 1]
 Collections.reverse(nums);               // [1, 2, 3]

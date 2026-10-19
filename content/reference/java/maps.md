@@ -19,6 +19,17 @@ Map<String, Integer> copy = new HashMap<>(fixed);     // mutable copy
 
 ### Add, update, remove
 
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        Map<String, Integer> ages = new HashMap<>();
+        {{code}}
+    }
+}
+```
+
 ```java
 ages.put("Ana", 30);           // insert or overwrite
 ages.put("Ben", 25);
@@ -29,6 +40,18 @@ System.out.println(ages);      // {Ana=31}
 ```
 
 ### Access
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        Map<String, Integer> ages = new HashMap<>(Map.of("Ana", 31));
+        {{code}}
+        System.out.println(ages);
+    }
+}
+```
 
 ```java
 ages.get("Ana");               // 31
@@ -82,6 +105,18 @@ System.out.println(scores);    // {Ana=90, Ben=85}
 ```
 
 ### Sort by value
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        Map<String, Integer> scores = new TreeMap<>(Map.of("Ana", 90, "Ben", 85));
+        {{code}}
+        System.out.println(entries);
+    }
+}
+```
 
 ```java
 List<Map.Entry<String, Integer>> entries = new ArrayList<>(scores.entrySet());

@@ -25,6 +25,25 @@ class Dog {
 
 ### Create and use
 
+```java harness
+import java.util.*;
+
+public class Main {
+    static class Dog {
+        private String name;
+        private int age;
+        Dog(String name, int age) { this.name = name; this.age = age; }
+        void birthday() { age++; }
+        String getName() { return name; }
+        int getAge() { return age; }
+    }
+
+    public static void main(String[] args) throws Exception {
+        {{code}}
+    }
+}
+```
+
 ```java
 Dog rex = new Dog("Rex", 3);
 rex.birthday();
@@ -115,6 +134,19 @@ System.out.println(a.equals(b)); // true, same value
 ```
 
 ### Objects in a loop
+
+```java harness
+class Dog {
+    private String name;
+    private int age;
+    Dog(String name, int age) { this.name = name; this.age = age; }
+    void birthday() { age++; }
+    String getName() { return name; }
+    int getAge() { return age; }
+}
+
+{{code}}
+```
 
 ```java
 import java.util.ArrayList;

@@ -4,6 +4,11 @@ Read standard input with `Scanner` (easy) or `BufferedReader` (faster for big in
 
 ### Scanner basics
 
+```stdin
+Ana 30 1.75
+hello big world
+```
+
 ```java
 import java.util.Scanner;
 
@@ -27,6 +32,22 @@ String line = sc.nextLine();    // "hello big world", the whole line
 
 ### Numbers into an array
 
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        Scanner sc = new Scanner(System.in);
+        {{code}}
+    }
+}
+```
+
+```stdin
+5
+3 9 1 7 4
+```
+
 ```java
 // input:
 // 5
@@ -43,10 +64,15 @@ System.out.println(max);        // 9
 
 ### Read until the input ends
 
+```stdin
+4 8 15 16 23 42
+```
+
 ```java
 import java.util.ArrayList;
 import java.util.List;
 
+Scanner sc = new Scanner(System.in);
 // input: 4 8 15 16 23 42
 List<Integer> values = new ArrayList<>();
 while (sc.hasNextInt()) {
@@ -57,12 +83,17 @@ System.out.println(values.size()); // 6
 
 ### A line into words, a map, and a set
 
+```stdin
+the cat and the hat
+```
+
 ```java
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+Scanner sc = new Scanner(System.in);
 // input: the cat and the hat
 String[] words = sc.nextLine().trim().split("\\s+");
 Map<String, Integer> counts = new TreeMap<>();
@@ -76,6 +107,23 @@ System.out.println(unique);     // [and, cat, hat, the]
 ```
 
 ### Lines into objects
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        Scanner sc = new Scanner(System.in);
+        {{code}}
+    }
+}
+```
+
+```stdin
+2
+Ana 90
+Ben 85
+```
 
 ```java
 class Student {                  // after Main
@@ -103,21 +151,28 @@ for (Student s : students) {
 
 `readLine()` returns `null` at the end of input. It throws `IOException`, so declare it on `main`.
 
+```stdin
+1 2
+3 4
+```
+
 ```java
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-public static void main(String[] args) throws IOException {
-    BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-    String line;
-    int total = 0;
-    while ((line = br.readLine()) != null) {   // input: 1 2 and then 3 4
-        for (String part : line.trim().split("\\s+")) {
-            if (!part.isEmpty()) total += Integer.parseInt(part);
+public class Main {
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        String line;
+        int total = 0;
+        while ((line = br.readLine()) != null) {   // input: 1 2 and then 3 4
+            for (String part : line.trim().split("\\s+")) {
+                if (!part.isEmpty()) total += Integer.parseInt(part);
+            }
         }
+        System.out.println(total);  // 10
     }
-    System.out.println(total);  // 10
 }
 ```
 

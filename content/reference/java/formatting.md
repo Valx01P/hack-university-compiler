@@ -14,6 +14,17 @@ System.out.println(name + age * 2);                     // Ada72
 
 ### printf
 
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        String name = "Ada";
+        {{code}}
+    }
+}
+```
+
 ```java
 double price = 4.5;
 System.out.printf("%s owes $%.2f%n", name, price);   // Ada owes $4.50
@@ -51,6 +62,18 @@ String c = String.format("%05.1f", 3.14159);   // "003.1"
 | `%n` | `printf("a%nb")` | a newline |
 
 ### Text block template
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        String name = "Ada";
+        int age = 36;
+        {{code}}
+    }
+}
+```
 
 ```java
 String card = """

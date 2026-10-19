@@ -54,7 +54,7 @@ double avg = Math.round(7.456 * 100) / 100.0;   // 7.46, round to 2 places
 
 ### Overflow
 
-```java
+```java error
 int big = Integer.MAX_VALUE;     // 2147483647
 int wrapped = big + 1;           // -2147483648, wraps silently
 long ok = big + 1L;              // 2147483648, a long operand makes it long math

@@ -115,6 +115,24 @@ len.apply("hi");         // 2
 
 ### Use it in a loop
 
+```java harness
+import java.util.*;
+
+public class Main {
+    static boolean isPrime(int n) {
+        if (n < 2) return false;
+        for (int i = 2; i * i <= n; i++) {
+            if (n % i == 0) return false;
+        }
+        return true;
+    }
+
+    public static void main(String[] args) throws Exception {
+        {{code}}
+    }
+}
+```
+
 ```java
 for (int n = 1; n <= 10; n++) {
     if (isPrime(n)) {

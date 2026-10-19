@@ -13,6 +13,17 @@ for (int i = 0; i < nums.length; i++) {
 
 ### For-each
 
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[] nums = {4, 8, 15, 16};
+        {{code}}
+    }
+}
+```
+
 ```java
 int sum = 0;
 for (int n : nums) {
@@ -23,6 +34,17 @@ System.out.println(sum); // 43
 
 ### While with an index
 
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[] nums = {4, 8, 15, 16};
+        {{code}}
+    }
+}
+```
+
 ```java
 int i = 0;
 while (i < nums.length && nums[i] < 10) {
@@ -32,6 +54,18 @@ System.out.println(i); // 2, the index of the first value >= 10
 ```
 
 ### Change the values
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[] nums = {4, 8, 15, 16};
+        {{code}}
+        System.out.println(Arrays.toString(nums));
+    }
+}
+```
 
 ```java
 for (int j = 0; j < nums.length; j++) {

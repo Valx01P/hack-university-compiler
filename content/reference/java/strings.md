@@ -15,6 +15,18 @@ String both = "ab" + "cd" + 1 + 2;  // "abcd12", + with any value builds a strin
 
 ### Search
 
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        String s = "Hello, World";
+        {{code}}
+        System.out.println(s);
+    }
+}
+```
+
 ```java
 s.indexOf('o');          // 4, first match
 s.indexOf("o", 5);       // 8, search from index 5
@@ -26,6 +38,18 @@ s.endsWith("!");         // false
 ```
 
 ### Substrings
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        String s = "Hello, World";
+        {{code}}
+        System.out.println(s);
+    }
+}
+```
 
 ```java
 s.substring(7);          // "World", from 7 to the end

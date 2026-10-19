@@ -119,7 +119,21 @@ try (BufferedReader br = new BufferedReader(new StringReader("line one"))) {
 
 ### Wrap and rethrow
 
-```java
+```java harness
+import java.io.*;
+
+public class Main {
+    static void load(String path) throws IOException {
+        throw new IOException("cannot open " + path);
+    }
+
+    public static void main(String[] args) throws Exception {
+        {{code}}
+    }
+}
+```
+
+```java error
 try {
     load("cfg.txt");
 } catch (IOException e) {

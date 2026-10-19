@@ -22,11 +22,23 @@ m[0][0] = 9;             // m is now [[9, 2, 3], [4, 5, 6]]
 ```java
 import java.util.Arrays;
 
+int[][] m = {{9, 2, 3}, {4, 5, 6}};
 System.out.println(Arrays.deepToString(m)); // [[9, 2, 3], [4, 5, 6]]
 System.out.println(Arrays.toString(m));     // [[I@..., [I@...], row addresses
 ```
 
 ### Loop with indexes
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[][] m = {{9, 2, 3}, {4, 5, 6}};
+        {{code}}
+    }
+}
+```
 
 ```java
 for (int r = 0; r < m.length; r++) {
@@ -41,6 +53,17 @@ for (int r = 0; r < m.length; r++) {
 
 ### Loop with for-each
 
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[][] m = {{9, 2, 3}, {4, 5, 6}};
+        {{code}}
+    }
+}
+```
+
 ```java
 int total = 0;
 for (int[] row : m) {
@@ -52,6 +75,17 @@ System.out.println(total); // 29
 ```
 
 ### Column by column
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[][] m = {{9, 2, 3}, {4, 5, 6}};
+        {{code}}
+    }
+}
+```
 
 ```java
 for (int c = 0; c < m[0].length; c++) {
@@ -88,6 +122,17 @@ System.out.println(Arrays.deepToString(tri)); // [[0], [0, 0], [0, 0, 0], [0, 0,
 
 ### Neighbors with bounds checks
 
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[][] m = {{9, 2, 3}, {4, 5, 6}};
+        {{code}}
+    }
+}
+```
+
 ```java
 int[][] dirs = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}}; // up, down, left, right
 int row = 0;
@@ -102,6 +147,19 @@ for (int[] d : dirs) {
 ```
 
 ### Diagonal and transpose
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[][] m = {{9, 2, 3}, {4, 5, 6}};
+        {{code}}
+        System.out.println(diag);
+        System.out.println(Arrays.deepToString(t));
+    }
+}
+```
 
 ```java
 int[][] sq = {{1, 2}, {3, 4}};
@@ -120,6 +178,18 @@ for (int r = 0; r < m.length; r++) {
 ```
 
 ### Copy
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[][] m = {{9, 2, 3}, {4, 5, 6}};
+        {{code}}
+        System.out.println(Arrays.deepToString(copy));
+    }
+}
+```
 
 ```java
 int[][] copy = new int[m.length][];

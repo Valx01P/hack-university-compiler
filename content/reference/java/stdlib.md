@@ -102,6 +102,7 @@ int sum = IntStream.rangeClosed(1, 5).sum();                      // 15
 ```java
 import java.util.Optional;
 
+List<String> words = List.of("apple", "fig", "banana", "kiwi");
 Optional<String> firstB = words.stream().filter(w -> w.startsWith("b")).findFirst();
 firstB.isPresent();       // true
 firstB.get();             // "banana"

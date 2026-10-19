@@ -4,6 +4,18 @@ Most patterns are a plain `for` with a different start, stop, or step. Here `a` 
 
 ### Reverse
 
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[] a = {10, 11, 12, 13, 14, 15};
+        int n = a.length;
+        {{code}}
+    }
+}
+```
+
 ```java
 for (int i = n - 1; i >= 0; i--) {
     System.out.print(a[i] + " "); // 15 14 13 12 11 10
@@ -11,6 +23,18 @@ for (int i = n - 1; i >= 0; i--) {
 ```
 
 ### Every other index
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[] a = {10, 11, 12, 13, 14, 15};
+        int n = a.length;
+        {{code}}
+    }
+}
+```
 
 ```java
 for (int i = 0; i < n; i += 2) {
@@ -23,6 +47,18 @@ for (int i = 1; i < n; i += 2) {
 
 ### Skip by value
 
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[] a = {10, 11, 12, 13, 14, 15};
+        int n = a.length;
+        {{code}}
+    }
+}
+```
+
 ```java
 for (int v : a) {
     if (v % 2 != 0) continue;     // skip odd values
@@ -31,6 +67,18 @@ for (int v : a) {
 ```
 
 ### Every k-th, starting anywhere
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[] a = {10, 11, 12, 13, 14, 15};
+        int n = a.length;
+        {{code}}
+    }
+}
+```
 
 ```java
 for (int i = 2; i < n; i += 3) {
@@ -49,6 +97,19 @@ for (int i = 1; i < temps.length; i++) {
 ```
 
 ### Two pointers from both ends
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[] a = {10, 11, 12, 13, 14, 15};
+        int n = a.length;
+        {{code}}
+        System.out.println(Arrays.toString(a));
+    }
+}
+```
 
 ```java
 int lo = 0;
@@ -97,6 +158,17 @@ int sumOf1to2 = prefix[3] - prefix[1];       // 10, the sum of v[1..2]
 
 ### Sliding window of size k
 
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int[] v = {2, 4, 6, 8};
+        {{code}}
+    }
+}
+```
+
 ```java
 int k = 2;
 int window = 0;
@@ -115,6 +187,7 @@ System.out.println(best);                     // 14
 import java.util.ArrayList;
 import java.util.List;
 
+int[] v = {2, 4, 6, 8};
 List<Integer> big = new ArrayList<>();
 for (int x : v) {
     if (x > 4) big.add(x);

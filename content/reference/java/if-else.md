@@ -20,11 +20,33 @@ Only the first true branch runs, so order the checks from most specific to least
 
 ### One-line if
 
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int temp = 72;
+        {{code}}
+    }
+}
+```
+
 ```java
 if (temp > 100) System.out.println("stay inside");   // legal, but easy to break later
 ```
 
 ### Nested
+
+```java harness
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws Exception {
+        int temp = 72;
+        {{code}}
+    }
+}
+```
 
 ```java
 boolean raining = false;
