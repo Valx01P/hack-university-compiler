@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { CODE_BG_PRESETS, setCodeBackground, useCodeBackground } from "@/lib/theme";
 
 /** WCAG relative luminance of a #rrggbb color. */
@@ -29,22 +29,29 @@ function editorInk(): string | null {
 }
 
 /**
- * Whether the editor theme's text is hard to read on `bg`. Re-checked when the
- * editor theme or contrast level changes, since those set the text color.
+ * Whether the editor theme's text is hard to read on `bg`, worked out while
+ * rendering so the warning is there (or not) in the picker's first frame.
+ * Re-checked when the editor theme or contrast level changes, since those set
+ * the text color, and cached between renders.
  */
+const subscribeEditorColors = (notify: () => void) => {
+  const observer = new MutationObserver(notify);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-code-theme", "data-contrast"] });
+  return () => observer.disconnect();
+};
+let lowCache = { key: "", low: false };
+function lowContrastFor(bg: string | null): boolean {
+  if (!bg) return false;
+  const d = document.documentElement;
+  const key = `${bg}|${d.getAttribute("data-code-theme")}|${d.getAttribute("data-contrast")}`;
+  if (lowCache.key !== key) {
+    const ink = editorInk();
+    lowCache = { key, low: Boolean(ink && contrast(bg, ink) < 4.5) };
+  }
+  return lowCache.low;
+}
 function useLowContrast(bg: string | null): boolean {
-  const [low, setLow] = useState(false);
-  useEffect(() => {
-    const check = () => {
-      const ink = bg ? editorInk() : null;
-      setLow(Boolean(bg && ink && contrast(bg, ink) < 4.5));
-    };
-    check();
-    const observer = new MutationObserver(check);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-code-theme", "data-contrast"] });
-    return () => observer.disconnect();
-  }, [bg]);
-  return low;
+  return useSyncExternalStore(subscribeEditorColors, () => lowContrastFor(bg), () => false);
 }
 
 /**
@@ -59,7 +66,7 @@ export function CodeBackgroundPicker({ compact = false }: { compact?: boolean })
   const inputRef = useRef<HTMLInputElement>(null);
   const id = useId();
   const custom = value && !CODE_BG_PRESETS.some((p) => p.value === value) ? value : null;
-  const [lastCustom, setLastCustom] = useState("#2a2d3a");
+  const [lastCustom, setLastCustom] = useState(() => custom ?? "#2a2d3a");
   useEffect(() => {
     if (custom) setLastCustom(custom);
   }, [custom]);

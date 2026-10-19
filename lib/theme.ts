@@ -1,6 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+/**
+ * Every setting here is applied to <html> before first paint (the bootstrap
+ * in app/layout.tsx), so the hooks read it from there synchronously: a menu
+ * that opens after load shows your saved choice in its very first frame, never
+ * the default for a moment. Server markup, and hydration, use the default.
+ * `subscribeTo` re-renders on this tab's change event, and on another tab's
+ * change (mirrored onto this page first, when `mirror` is given).
+ */
+function subscribeTo(event: string, storageKey: string, mirror?: (stored: string | null) => void) {
+  return (notify: () => void) => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== storageKey) return;
+      mirror?.(e.newValue);
+      notify();
+    };
+    window.addEventListener(event, notify);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(event, notify);
+      window.removeEventListener("storage", onStorage);
+    };
+  };
+}
 
 /**
  * App theme store. The app ships Light + Dark plus four editor-matched
@@ -86,22 +110,10 @@ export function setTheme(id: string) {
 }
 
 /** Subscribe to the current theme id (re-renders on change, any tab). */
+const subscribeTheme = subscribeTo(THEME_EVENT, THEME_KEY);
+const currentTheme = () => document.documentElement.getAttribute("data-theme") || getTheme();
 export function useTheme(): string {
-  const [theme, set] = useState("light");
-  useEffect(() => {
-    set(getTheme());
-    const refresh = () => set(getTheme());
-    const onStorage = (e: StorageEvent) => {
-      if (!e || e.key === THEME_KEY) refresh();
-    };
-    window.addEventListener(THEME_EVENT, refresh);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener(THEME_EVENT, refresh);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
-  return theme;
+  return useSyncExternalStore(subscribeTheme, currentTheme, () => "light");
 }
 
 /**
@@ -148,26 +160,10 @@ export function setContrast(level: ContrastLevel) {
 }
 
 /** Subscribe to the contrast level (re-renders on change, any tab). */
+const subscribeContrast = subscribeTo(CONTRAST_EVENT, CONTRAST_KEY, (stored) => applyContrast(toLevel(stored)));
+const currentContrast = () => toLevel(document.documentElement.getAttribute("data-contrast"));
 export function useContrast(): ContrastLevel {
-  const [level, set] = useState<ContrastLevel>("normal");
-  useEffect(() => {
-    const refresh = () =>
-      set(toLevel(document.documentElement.getAttribute("data-contrast")));
-    refresh();
-    // Another tab changed it: mirror the stored choice onto this page too.
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== CONTRAST_KEY) return;
-      applyContrast(toLevel(e.newValue));
-      refresh();
-    };
-    window.addEventListener(CONTRAST_EVENT, refresh);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener(CONTRAST_EVENT, refresh);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
-  return level;
+  return useSyncExternalStore(subscribeContrast, currentContrast, () => "normal");
 }
 
 /**
@@ -231,25 +227,9 @@ function currentCodeBg(): string | null {
 }
 
 /** Subscribe to the code background (null = the theme's own), any tab. */
+const subscribeCodeBg = subscribeTo(CODE_BG_EVENT, CODE_BG_KEY, (stored) => applyCodeBg(toCodeBg(stored)));
 export function useCodeBackground(): string | null {
-  const [value, set] = useState<string | null>(null);
-  useEffect(() => {
-    const refresh = () => set(currentCodeBg());
-    refresh();
-    // Another tab changed it: mirror the stored choice onto this page too.
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== CODE_BG_KEY) return;
-      applyCodeBg(toCodeBg(e.newValue));
-      refresh();
-    };
-    window.addEventListener(CODE_BG_EVENT, refresh);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener(CODE_BG_EVENT, refresh);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
-  return value;
+  return useSyncExternalStore(subscribeCodeBg, currentCodeBg, () => null);
 }
 
 /**
@@ -298,25 +278,11 @@ function lineSetting(key: string, cssVar: string) {
   }
 
   /** Subscribe to the visibility (0 to 100), any tab. */
+  const subscribe = subscribeTo(event, key, (stored) =>
+    document.documentElement.style.setProperty(cssVar, `${toLines(stored ?? 100)}%`)
+  );
   function use(): number {
-    const [value, setValue] = useState(100);
-    useEffect(() => {
-      const refresh = () => setValue(current());
-      refresh();
-      // Another tab changed it: mirror the stored choice onto this page too.
-      const onStorage = (e: StorageEvent) => {
-        if (e.key !== key) return;
-        document.documentElement.style.setProperty(cssVar, `${toLines(e.newValue ?? 100)}%`);
-        refresh();
-      };
-      window.addEventListener(event, refresh);
-      window.addEventListener("storage", onStorage);
-      return () => {
-        window.removeEventListener(event, refresh);
-        window.removeEventListener("storage", onStorage);
-      };
-    }, []);
-    return value;
+    return useSyncExternalStore(subscribe, current, () => 100);
   }
 
   return { set, use };

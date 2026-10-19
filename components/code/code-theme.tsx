@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /** Editor color themes — applied app-wide to every .code-dark surface. */
 export const CODE_THEMES: { id: string; label: string }[] = [
@@ -29,31 +29,31 @@ export function applyCodeTheme(next: string) {
   document.documentElement.setAttribute("data-code-theme", next);
 }
 
-export function CodeThemePicker({ className }: { className?: string }) {
-  const [theme, setTheme] = useState("midnight");
+// The bootstrap applies the saved editor theme to <html> before first paint,
+// so the picker reads it from there and opens on your choice, not "midnight"
+// for a frame. Page-theme switches (which snap the editor theme) and other
+// tabs re-render it through the change event and storage.
+const subscribeCodeTheme = (notify: () => void) => {
+  const onStorage = (e: StorageEvent) => {
+    if (e.key !== "hu-code-theme") return;
+    document.documentElement.setAttribute("data-code-theme", getCodeTheme());
+    notify();
+  };
+  window.addEventListener("hu:code-theme-changed", notify);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener("hu:code-theme-changed", notify);
+    window.removeEventListener("storage", onStorage);
+  };
+};
+const currentCodeTheme = () => document.documentElement.getAttribute("data-code-theme") || getCodeTheme();
 
-  useEffect(() => {
-    const saved = getCodeTheme();
-    setTheme(saved);
-    // Re-apply to <html> so every .code-dark surface reflects the saved theme
-    // even if the pre-paint bootstrap and this picker ever drift out of sync.
-    document.documentElement.setAttribute("data-code-theme", saved);
-    // Re-sync when a page-theme switch snaps the editor theme (or another tab).
-    const refresh = () => setTheme(getCodeTheme());
-    const onStorage = (e: StorageEvent) => {
-      if (!e || e.key === "hu-code-theme") refresh();
-    };
-    window.addEventListener("hu:code-theme-changed", refresh);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener("hu:code-theme-changed", refresh);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
+export function CodeThemePicker({ className }: { className?: string }) {
+  const theme = useSyncExternalStore(subscribeCodeTheme, currentCodeTheme, () => "midnight");
 
   function change(next: string) {
-    setTheme(next);
     applyCodeTheme(next);
+    window.dispatchEvent(new Event("hu:code-theme-changed"));
   }
 
   return (
