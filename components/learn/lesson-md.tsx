@@ -1,6 +1,9 @@
 import React from "react";
 import { Highlight } from "@/lib/highlight";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
+import { RunnableSnippet } from "@/components/learn/runnable-snippet";
+import { segmentMarkdown } from "@/lib/snippet-harness.mjs";
+import { snippetHash } from "@/lib/snippet-edits";
 
 /**
  * Renderer for the content-markdown subset:
@@ -132,31 +135,6 @@ function renderTable(lines: string[], key: string): React.ReactNode {
   );
 }
 
-interface Segment {
-  type: "fence" | "lines";
-  language?: string;
-  content: string;
-}
-
-function segment(md: string): Segment[] {
-  const segments: Segment[] = [];
-  const parts = md.split(/^```/m);
-  // Even indexes are normal text, odd indexes start with "lang\ncode..."
-  parts.forEach((part, i) => {
-    if (i % 2 === 0) {
-      if (part.trim()) segments.push({ type: "lines", content: part });
-    } else {
-      const nl = part.indexOf("\n");
-      segments.push({
-        type: "fence",
-        language: part.slice(0, nl).trim() || "text",
-        content: part.slice(nl + 1).replace(/\n$/, ""),
-      });
-    }
-  });
-  return segments;
-}
-
 function renderLines(text: string, keyBase: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   const blocks = text.split(/\n{2,}/).filter((b) => b.trim());
@@ -256,19 +234,45 @@ function renderLines(text: string, keyBase: string): React.ReactNode[] {
   return nodes;
 }
 
-export function LessonMarkdown({ md }: { md: string }) {
+/** Where a page's code examples run: `scope` names the page for saving
+    your edits, `setup` builds the tables SQL examples work on. */
+export interface RunnableContext {
+  scope: string;
+  setup?: string;
+}
+
+/**
+ * Renders content Markdown. With `runnable`, every code example in a
+ * language the sandbox runs becomes a RunnableSnippet (run it, edit it,
+ * reset it); without it, and for text and `norun` blocks, code shows as a
+ * plain block you can copy. Hidden harness and stdin blocks never show.
+ */
+export function LessonMarkdown({ md, runnable }: { md: string; runnable?: RunnableContext }) {
   return (
     <>
-      {segment(md).map((seg, i) =>
+      {segmentMarkdown(md).map((seg, i) =>
         seg.type === "fence" ? (
-          <CopyableCodeBlock
-            key={i}
-            code={seg.content}
-            className="my-5"
-            preClassName="code-dark slim-scroll overflow-x-auto rounded-card border border-code-content-line bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink"
-          >
-            <Highlight code={seg.content} language={seg.language ?? "text"} />
-          </CopyableCodeBlock>
+          runnable && seg.runtime ? (
+            <RunnableSnippet
+              key={i}
+              code={seg.content}
+              runtime={seg.runtime}
+              harness={seg.harness}
+              stdin={seg.stdin}
+              storageKey={`${runnable.scope}:${snippetHash(seg.content)}`}
+              setup={runnable.setup}
+              className="my-5"
+            />
+          ) : (
+            <CopyableCodeBlock
+              key={i}
+              code={seg.content}
+              className="my-5"
+              preClassName="code-dark slim-scroll overflow-x-auto rounded-card border border-code-content-line bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink"
+            >
+              <Highlight code={seg.content} language={seg.language} />
+            </CopyableCodeBlock>
+          )
         ) : (
           <React.Fragment key={i}>{renderLines(seg.content, `s${i}`)}</React.Fragment>
         )

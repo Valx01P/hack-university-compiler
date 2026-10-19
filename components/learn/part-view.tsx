@@ -13,7 +13,7 @@ import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { ScrollPre } from "@/components/ui/scroll-pre";
-import { LessonMarkdown } from "@/components/learn/lesson-md";
+import { LessonMarkdown, type RunnableContext } from "@/components/learn/lesson-md";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { CheckResults, checkSummary, type CheckState } from "@/components/learn/check-results";
 import { Highlight } from "@/lib/highlight";
@@ -46,10 +46,10 @@ const SPLIT = { min: 30, max: 70, initial: 50 };
 const session = { split: SPLIT.initial };
 
 /** Lesson markdown with the outer margins trimmed, for use inside cards. */
-function Prose({ md, className = "" }: { md: string; className?: string }) {
+function Prose({ md, className = "", runnable }: { md: string; className?: string; runnable?: RunnableContext }) {
   return (
     <div className={`text-[0.95rem] leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${className}`}>
-      <LessonMarkdown md={md} />
+      <LessonMarkdown md={md} runnable={runnable} />
     </div>
   );
 }
@@ -128,6 +128,9 @@ export function PartView({
   const outputRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Partial<Record<TabKind, HTMLButtonElement | null>>>({});
   const gridRef = useRef<HTMLDivElement>(null);
+  // The lesson's code examples run here (on the lesson's tables, for SQL),
+  // and keep your edits under the lesson.
+  const runnable: RunnableContext = { scope: `learn/${lang.slug}/${lesson.id}`, setup: lesson.setup };
   // Moving to another part fades the new one in (never on first paint).
   const articleRef = useRef<HTMLElement>(null);
   useEnter(articleRef);
@@ -337,10 +340,11 @@ export function PartView({
             </nav>
           )}
 
-          {part === 0 && <Prose md={lesson.intro} className="mt-4 text-ink-muted" />}
+          {part === 0 && <Prose md={lesson.intro} className="mt-4 text-ink-muted" runnable={runnable} />}
 
           <PartSection
             step={step}
+            runnable={runnable}
             language={lang.slug}
             solved={partSolved}
             onOpenExample={() => openTab("example")}
@@ -350,7 +354,7 @@ export function PartView({
           {lastPart && lesson.recap && (
             <section className="mt-12 border-t border-content-line pt-6">
               <p className="eyebrow">Lesson recap</p>
-              <Prose md={lesson.recap} className="mt-3" />
+              <Prose md={lesson.recap} className="mt-3" runnable={runnable} />
             </section>
           )}
         </article>
@@ -610,12 +614,15 @@ export function PartView({
 function PartSection({
   step,
   language,
+  runnable,
   solved,
   onOpenExample,
   onOpenPractice,
 }: {
   step: LessonStep;
   language: string;
+  /** The lesson's code examples run (and keep your edits) here. */
+  runnable: RunnableContext;
   solved: boolean;
   onOpenExample: () => void;
   onOpenPractice: () => void;
@@ -644,7 +651,7 @@ function PartSection({
   return (
     <section className="mt-9">
       <h2 className="font-display text-title">{step.title}</h2>
-      <Prose md={step.body} className="mt-3" />
+      <Prose md={step.body} className="mt-3" runnable={runnable} />
 
       <div className="mt-7 border-l-2 border-content-line pl-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -675,7 +682,7 @@ function PartSection({
           {example.output}
         </ScrollPre>
         <p className="mt-4 text-sm font-medium text-ink">How it works</p>
-        <Prose md={example.explanation} className="mt-1 text-ink-muted" />
+        <Prose md={example.explanation} className="mt-1 text-ink-muted" runnable={runnable} />
       </div>
 
       <div className="mt-8 border-l-2 border-content-line-strong pl-5">

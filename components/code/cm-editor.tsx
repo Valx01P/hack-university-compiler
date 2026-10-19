@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
-import { EditorState, Compartment } from "@codemirror/state";
+import { EditorState, Compartment, Prec, type Extension } from "@codemirror/state";
 import {
   EditorView,
   keymap,
@@ -188,12 +188,27 @@ const cmHighlight = HighlightStyle.define([
   { tag: [t.typeName, t.className, t.namespace], color: "var(--hl-fn)" },
 ]);
 
+/** A snippet in a lesson or cheatsheet, edited in place: it looks exactly
+    like the static code block it replaces (no gutters or guides, the same
+    padding, font, and line height) and grows with its code. */
+const snippetTheme = Prec.highest(
+  EditorView.theme({
+    "&": { height: "auto", fontSize: "13px" },
+    ".cm-scroller": { lineHeight: "24px" },
+    ".cm-content": { padding: "16px 0" },
+    ".cm-line": { padding: "0 112px 0 16px" },
+  })
+);
+
 export function CmEditor({
   value,
   language,
   onChange,
   ariaLabel,
   readOnly = false,
+  variant = "full",
+  onRun,
+  focusAt = null,
 }: {
   value: string;
   language: string;
@@ -202,6 +217,14 @@ export function CmEditor({
   /** Show the code without letting it be edited (fixed when the editor is
       created, so give the editor a new key to switch). */
   readOnly?: boolean;
+  /** "full" for the compiler and Learn editors, "snippet" for a code block
+      edited where it sits. */
+  variant?: "full" | "snippet";
+  /** Mod-Enter runs the code (snippets). */
+  onRun?: () => void;
+  /** Focus the editor when it appears, with the cursor at this point on the
+      screen (where you clicked the code block it replaced). */
+  focusAt?: { x: number; y: number } | null;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -209,8 +232,11 @@ export function CmEditor({
   const tabComp = useRef(new Compartment());
   const completionComp = useRef(new Compartment());
   const onChangeRef = useRef(onChange);
+  const onRunRef = useRef(onRun);
   const settings = useCodeEditorSettings();
   onChangeRef.current = onChange;
+  onRunRef.current = onRun;
+  const snippet = variant === "snippet";
   const exitHintId = useId();
 
   // Create the editor once. Each language is its own page, so the grammar is
@@ -222,17 +248,40 @@ export function CmEditor({
     // out with a 14px line-height guess. Keep the editor invisible until that
     // measure lands so a load can never show the gutter jumping into place.
     // The fallback reveals it anyway if a measure never comes.
-    host.style.visibility = "hidden";
+    // (A snippet has no gutter, and it replaces a static block that looks the
+    // same, so it shows at once.)
+    if (!snippet) host.style.visibility = "hidden";
     const reveal = () => {
       host.style.visibility = "";
     };
     const fallback = window.setTimeout(reveal, 300);
+    // The full editor's gutters and guides; a snippet shows just its code.
+    const chrome: Extension[] = snippet
+      ? [snippetTheme]
+      : [
+          lineNumbers(),
+          bracketColors(),
+          search({ top: true }),
+          indentationMarkers({
+            markerType: "codeOnly",
+            thickness: 1,
+            activeThickness: 1.5,
+            colors: {
+              dark: "var(--code-edge)",
+              activeDark: "var(--code-gutter)",
+              light: "var(--code-edge)",
+              activeLight: "var(--code-gutter)",
+            },
+          }),
+          codeFolding({ placeholderText: "⋯ expand" }),
+          foldGutter(),
+        ];
     const view = new EditorView({
       parent: host,
       state: EditorState.create({
         doc: value,
         extensions: [
-          lineNumbers(),
+          ...chrome,
           highlightSpecialChars(),
           history(),
           drawSelection(),
@@ -247,27 +296,24 @@ export function CmEditor({
           // Typing ( [ { or a quote adds its partner, and Enter between a
           // pair opens an indented line with the closer on its own line.
           closeBrackets(),
-          bracketColors(),
           highlightSelectionMatches(),
-          search({ top: true }),
           tabComp.current.of(EditorState.tabSize.of(settings.tabSize)),
           indentComp.current.of(indentUnit.of(indentUnitFor(settings.tabSize, language))),
-          indentationMarkers({
-            markerType: "codeOnly",
-            thickness: 1,
-            activeThickness: 1.5,
-            colors: {
-              dark: "var(--code-edge)",
-              activeDark: "var(--code-gutter)",
-              light: "var(--code-edge)",
-              activeLight: "var(--code-gutter)",
-            },
-          }),
-          codeFolding({ placeholderText: "⋯ expand" }),
-          foldGutter(),
           syntaxHighlighting(cmHighlight),
           langExt(language),
           completionComp.current.of(completion(settings.intellisense, language)),
+          Prec.highest(
+            keymap.of([
+              {
+                key: "Mod-Enter",
+                run: () => {
+                  if (!onRunRef.current) return false;
+                  onRunRef.current();
+                  return true;
+                },
+              },
+            ])
+          ),
           keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
           cmTheme,
           EditorState.readOnly.of(readOnly),
@@ -280,8 +326,21 @@ export function CmEditor({
     });
     viewRef.current = view;
     view.requestMeasure({ read: () => null, write: reveal });
+    // Put the cursor where the click landed on the block this replaced. On
+    // the next frame, outside CodeMirror's own update, where reading the
+    // layout is allowed.
+    let focusFrame = 0;
+    if (focusAt) {
+      focusFrame = requestAnimationFrame(() => {
+        if (viewRef.current !== view) return;
+        const pos = view.posAtCoords(focusAt);
+        view.focus();
+        if (pos !== null) view.dispatch({ selection: { anchor: pos } });
+      });
+    }
     return () => {
       window.clearTimeout(fallback);
+      cancelAnimationFrame(focusFrame);
       view.destroy();
       viewRef.current = null;
     };
@@ -311,12 +370,16 @@ export function CmEditor({
   }, [value]);
 
   return (
-    <div className="relative h-full min-h-0">
+    <div className={snippet ? "relative" : "relative h-full min-h-0"}>
       {/* Zoom comes from --code-user-fs on <html> (set before first paint
           from your saved settings), never from state, so it can't jump. */}
       <div
         ref={hostRef}
-        className="code-dark slim-scroll h-full min-h-0 overflow-hidden bg-code-bg [--code-fs:max(16px,var(--code-user-fs))] sm:[--code-fs:var(--code-user-fs)]"
+        className={
+          snippet
+            ? "code-dark slim-scroll overflow-hidden bg-code-bg"
+            : "code-dark slim-scroll h-full min-h-0 overflow-hidden bg-code-bg [--code-fs:max(16px,var(--code-user-fs))] sm:[--code-fs:var(--code-user-fs)]"
+        }
       />
       {/* Tab indents code, so screen readers hear the way out (CodeMirror's
           Escape, then Tab). */}

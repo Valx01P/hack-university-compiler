@@ -18,9 +18,12 @@ function fallbackCopy(text: string) {
 export function CodeCopyButton({
   text,
   className = "",
+  compact = false,
 }: {
   text: string;
   className?: string;
+  /** Just the icon (the label stays for screen readers and the tooltip). */
+  compact?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -53,7 +56,7 @@ export function CodeCopyButton({
       ) : (
         <Clipboard aria-hidden className="size-3.5" />
       )}
-      <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
+      {!compact && <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>}
     </button>
   );
 }

@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
+import { SAMPLE_DB_SQL } from "@/lib/sql/sample-db";
 import type { ReferenceSection } from "@/lib/reference-types";
 import { EASE, dur, gsap } from "@/lib/motion";
 
@@ -97,7 +98,7 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
             <section key={s.id} id={`ref-${s.id}`} className="border-b border-content-line pb-6 pt-5 last:border-0">
               <h3 className="font-display text-xl font-medium text-ink">{s.title}</h3>
               <div className="text-[0.92rem] leading-relaxed [&>*:first-child]:mt-2">
-                <LessonMarkdown md={s.md} />
+                <LessonMarkdown md={s.md} runnable={{ scope: `ref/${lang}/${s.id}`, setup: lang === "sql" ? SAMPLE_DB_SQL : undefined }} />
               </div>
             </section>
           ))
