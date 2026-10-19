@@ -152,7 +152,11 @@ practice problems for each programming language, and 114 for SQL.
   back with the panel button or the border.
 - Every code block in a part runs too (see [Runnable examples](#runnable-examples)).
 - Progress, your code in every tab, and the part you were on are saved in the
-  browser's local storage.
+  browser's local storage. The address keeps the rest of your place: the tab
+  you're on (`?tab=code` for Your code), the practice hints you've opened
+  (`&hints=2`), and where you are in the part (`#example`, `#practice`,
+  `#recap`), so a reload comes back to exactly that, without the page
+  jumping.
 
 Lessons live in `content/learn/<language>/` as JSON, one file per lesson.
 [`content/learn/AUTHORING.md`](content/learn/AUTHORING.md) is the guide for
@@ -169,8 +173,10 @@ switch, or the same one again to close it. Each keeps your place, even after
 you close the panel: the cheatsheet's search and scroll, the challenge list's
 filters and scroll, and the challenge you're on with its hints. The address
 keeps your place too (`/python?panel=cheatsheet&at=arrays`,
-`?panel=challenges&challenge=greeting`), so a reload, or a link you copy, opens
-the same panel, challenge, search, and section, with nothing popping in.
+`?panel=challenges&challenge=greeting&hints=1`), so a reload, or a link you
+copy, opens the same panel, challenge, search, and section, with the hints you
+opened, the challenge list's filters (`&difficulty=easy&status=todo`), and on
+SQL the database view (`&view=database`), with nothing popping in.
 
 - **Cheatsheet**: a direct reference for the language, one section per topic
   from printing to OOP: the syntax, what to import, the methods people use, a
