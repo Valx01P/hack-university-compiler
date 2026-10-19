@@ -30,9 +30,9 @@ const LABELS: Record<SnippetRuntime, string> = {
 };
 
 const BLOCK = "font-mono text-[13px] leading-6";
-// Icon buttons, so the three of them fit in the code's top-right corner.
+// Plain icons in the code's top-right corner, in the code's own colors.
 const TOOL =
-  "inline-flex size-7 items-center justify-center rounded-btn border border-white/15 bg-[#111111] px-2 text-[11px] font-medium text-[#fafafa] shadow-sm transition-colors hover:bg-[#2a2a2a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong";
+  "inline-flex size-7 items-center justify-center rounded-btn text-code-gutter transition-colors hover:text-code-ink focus-visible:text-code-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong";
 
 /**
  * A code example you can run and change. It shows as ordinary highlighted
@@ -131,7 +131,8 @@ export function RunnableSnippet({
         </div>
       )}
 
-      <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
+      {/* Reset (once it's changed), Copy, then Run, always shown. */}
+      <div className="code-dark absolute right-2 top-2 z-10 flex items-center gap-0.5">
         {modified && (
           <button
             type="button"
@@ -143,6 +144,7 @@ export function RunnableSnippet({
             <RotateCcw aria-hidden className="size-3.5" />
           </button>
         )}
+        <CodeCopyButton compact plain text={current} className="size-7 justify-center" />
         <button
           type="button"
           onClick={() => void execute()}
@@ -153,7 +155,6 @@ export function RunnableSnippet({
         >
           <Play aria-hidden className="size-3.5" />
         </button>
-        <CodeCopyButton compact text={current} className="size-7 justify-center px-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100" />
       </div>
 
       {run && (

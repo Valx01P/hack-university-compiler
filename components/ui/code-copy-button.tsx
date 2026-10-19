@@ -20,6 +20,7 @@ export function CodeCopyButton({
   text: code,
   className = "",
   compact = false,
+  plain = false,
   language,
 }: {
   text: string;
@@ -29,6 +30,9 @@ export function CodeCopyButton({
   className?: string;
   /** Just the icon (the label stays for screen readers and the tooltip). */
   compact?: boolean;
+  /** No button box: the icon alone, in the code's colors (place it inside
+      a .code-dark element, where those resolve). */
+  plain?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -56,7 +60,11 @@ export function CodeCopyButton({
       onClick={copy}
       aria-label={copied ? "Code copied" : "Copy code"}
       title={copied ? "Copied" : "Copy code"}
-      className={`inline-flex h-7 items-center gap-1.5 rounded-btn border border-white/15 bg-[#111111] px-2 text-[11px] font-medium text-[#fafafa] shadow-sm transition-colors hover:bg-[#2a2a2a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong ${className}`}
+      className={`inline-flex h-7 items-center gap-1.5 rounded-btn text-[11px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong ${
+        plain
+          ? "text-code-gutter hover:text-code-ink focus-visible:text-code-ink"
+          : "border border-white/15 bg-[#111111] px-2 text-[#fafafa] shadow-sm hover:bg-[#2a2a2a]"
+      } ${className}`}
     >
       {copied ? (
         <Check aria-hidden className="size-3.5" />

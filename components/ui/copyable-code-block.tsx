@@ -24,7 +24,10 @@ export function CopyableCodeBlock({
       <ScrollPre label={label} text={code} className={preClassName}>
         {children ?? code}
       </ScrollPre>
-      <CodeCopyButton text={code} language={language} className="absolute right-2 top-2 z-10 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100" />
+      {/* Always shown, as a plain icon in the code's colors. */}
+      <span className="code-dark absolute right-2 top-2 z-10">
+        <CodeCopyButton compact plain text={code} language={language} className="size-7 justify-center" />
+      </span>
     </div>
   );
 }
