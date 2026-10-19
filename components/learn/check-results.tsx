@@ -20,6 +20,9 @@ export interface TestResult {
 
 /** Whether a failed test's output differs from what was expected. */
 const outputWrong = (r: TestResult) => !r.problems || r.problems.includes("wrong output");
+/** Whether it failed on more than its output (its exit code, say), which
+    the output blocks alone can't show. */
+const moreThanOutput = (r: TestResult) => Boolean(r.problems?.some((p) => p !== "wrong output"));
 
 export type CheckState =
   | { status: "checking"; total: number }
@@ -103,9 +106,9 @@ export function CheckResults({
   const { results, lessonComplete } = check;
   const passed = results.filter((r) => r.passed).length;
   const allPassed = passed === results.length;
-  // A test on the runner can fail on more than its output (its exit code,
-  // say), and then lists what was wrong instead.
-  const onlyOutputs = results.every((r) => r.passed || !r.problems || r.problems.every((p) => p === "wrong output"));
+  // A test on the runner can fail on more than its output, and then lists
+  // what was wrong.
+  const onlyOutputs = results.every((r) => r.passed || !moreThanOutput(r));
   return (
     <div ref={rootRef}>
       {allPassed ? (
@@ -152,7 +155,7 @@ export function CheckResults({
             {r.passed ? <CompleteIcon className="size-3.5" /> : <span aria-hidden className="text-danger">✗</span>}
             Test {i + 1} {r.passed ? "passed" : "failed"}
           </p>
-          {!r.passed && r.problems && r.problems.length > 0 && (
+          {!r.passed && r.problems && moreThanOutput(r) && (
             <ul className="mt-2.5 list-disc space-y-0.5 pl-5 text-sm text-ink marker:text-ink-faint">
               {r.problems.map((p, k) => (
                 <li key={k}>{sentence(p)}</li>
