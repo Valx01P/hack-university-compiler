@@ -57,7 +57,12 @@ export function packTar(entries: TarEntry[]): Buffer {
   return Buffer.concat(parts);
 }
 
-/** The entries of a tar archive (ustar, pax, and GNU long names). */
+/**
+ * The entries of a tar archive (ustar, pax, and GNU long names). The bytes may
+ * come out of a learner's container, so no length is trusted: parsing stops at
+ * the first header whose checksum or size doesn't add up and at an entry the
+ * archive cuts short, and every pass moves forward.
+ */
 export function unpackTar(buf: Buffer): TarEntry[] {
   const entries: TarEntry[] = [];
   let offset = 0;
@@ -68,6 +73,7 @@ export function unpackTar(buf: Buffer): TarEntry[] {
     const block = buf.subarray(offset, offset + BLOCK);
     if (block.every((b) => b === 0)) break;
     const size = parseOctal(block.subarray(124, 136));
+    if (size === null || !checksumOk(block) || offset + BLOCK + size > buf.length) break;
     const type = String.fromCharCode(block[156] || 48);
     const body = buf.subarray(offset + BLOCK, offset + BLOCK + size);
     offset += BLOCK + Math.ceil(size / BLOCK) * BLOCK;
@@ -97,8 +103,8 @@ export function unpackTar(buf: Buffer): TarEntry[] {
       path: name,
       type: entryType,
       data: entryType === "file" ? Buffer.from(body) : undefined,
-      mode: parseOctal(block.subarray(100, 108)),
-      mtime: parseOctal(block.subarray(136, 148)),
+      mode: parseOctal(block.subarray(100, 108)) ?? undefined,
+      mtime: parseOctal(block.subarray(136, 148)) ?? undefined,
       target: entryType === "symlink" ? target : undefined,
     });
   }
@@ -163,14 +169,20 @@ function paxRecords(fields: Record<string, string>): Buffer {
   return Buffer.from(out, "utf8");
 }
 
+/** pax records, each "<len> <key>=<value>\n" with len counting the whole
+    record. Parsing stops at the first record that doesn't add up. */
 function parsePax(body: Buffer): Record<string, string> {
   const out: Record<string, string> = {};
   let i = 0;
   while (i < body.length) {
     const space = body.indexOf(0x20, i);
     if (space < 0) break;
-    const len = Number(body.subarray(i, space).toString("ascii"));
-    if (!len) break;
+    const digits = body.subarray(i, space).toString("latin1");
+    if (!/^\d{1,9}$/.test(digits)) break;
+    const len = Number(digits);
+    // A record holds its length, the space, and at least its newline, so i
+    // always moves forward.
+    if (len <= digits.length + 1 || i + len > body.length || body[i + len - 1] !== 0x0a) break;
     const record = body.subarray(space + 1, i + len - 1).toString("utf8");
     const eq = record.indexOf("=");
     if (eq > 0) out[record.slice(0, eq)] = record.slice(eq + 1);
@@ -183,9 +195,28 @@ function octal(b: Buffer, at: number, width: number, value: number) {
   b.write(`${value.toString(8).padStart(width - 1, "0")}\0`, at, width, "ascii");
 }
 
-function parseOctal(field: Buffer): number {
+/** An octal header field, or null when it isn't one (a minus sign, other
+    digits, or GNU's base-256 for huge numbers). */
+function parseOctal(field: Buffer): number | null {
   const text = cString(field).trim();
-  return text ? parseInt(text, 8) : 0;
+  if (!text) return 0;
+  if (!/^[0-7]+$/.test(text)) return null;
+  const value = parseInt(text, 8);
+  return Number.isSafeInteger(value) ? value : null;
+}
+
+/** Whether a header's checksum adds up: the sum of its bytes with the
+    checksum field read as spaces (signed, too, as some old tars wrote it). */
+function checksumOk(block: Buffer): boolean {
+  const want = parseOctal(block.subarray(148, 156));
+  let unsigned = 0;
+  let signed = 0;
+  for (let i = 0; i < BLOCK; i++) {
+    const b = i >= 148 && i < 156 ? 0x20 : block[i];
+    unsigned += b;
+    signed += b > 127 ? b - 256 : b;
+  }
+  return want === unsigned || want === signed;
 }
 
 function cString(field: Buffer): string {
