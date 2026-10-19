@@ -1,54 +1,106 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
 import { SAMPLE_DB_SQL } from "@/lib/sql/sample-db";
+import { cheatsheetBlocks, type CheatsheetHit } from "@/lib/reference-blocks";
 import type { ReferenceSection } from "@/lib/reference-types";
 import { EASE, dur, gsap } from "@/lib/motion";
 
 /** What each language's search box suggests looking for. */
 const SEARCH_HINTS: Record<string, string> = {
-  python: "list, import, split",
-  javascript: "map, import, split",
-  cpp: "vector, include, sort",
-  java: "ArrayList, import, split",
-  go: "slice, import, Split",
-  sql: "join, group by, coalesce",
+  python: "list methods, read input",
+  javascript: "array methods, map lookup",
+  cpp: "vector methods, hashmap",
+  java: "ArrayList methods, string to int",
+  go: "slice methods, map lookup",
+  sql: "count per group, join",
 };
 
-/** A section's own "###" blocks, so a search can show just the part that
-    matches instead of the whole section. */
-function blocks(md: string): string[] {
-  return md.split(/^(?=### )/m).map((b) => b.trim()).filter(Boolean);
+/** Sections, or the parts of sections, that contain the text (the search
+    for a letter or two, and the fallback when the ranked search can't run). */
+function textMatches(sections: ReferenceSection[], q: string): ReferenceSection[] {
+  return sections
+    .map((s) => {
+      if (s.title.toLowerCase().includes(q)) return s;
+      const parts = cheatsheetBlocks(s.md).filter((b) => b.toLowerCase().includes(q));
+      return parts.length ? { ...s, md: parts.join("\n\n") } : null;
+    })
+    .filter((s): s is ReferenceSection => s !== null);
+}
+
+/** The ranked search's hits as sections: the best one first, each showing
+    just its matching blocks, in their own order. */
+function rankedSections(sections: ReferenceSection[], hits: CheatsheetHit[]): ReferenceSection[] {
+  const picked = new Map<string, number[]>();
+  for (const h of hits) picked.set(h.section, [...(picked.get(h.section) ?? []), h.block]);
+  return [...picked].flatMap(([id, picks]) => {
+    const s = sections.find((x) => x.id === id);
+    if (!s) return [];
+    const parts = cheatsheetBlocks(s.md);
+    const md = [...picks]
+      .sort((a, b) => a - b)
+      .map((i) => parts[i])
+      .filter(Boolean)
+      .join("\n\n");
+    return md ? [{ ...s, md }] : [];
+  });
 }
 
 /**
- * The language's cheatsheet: every category in roadmap order, a search that
- * narrows it to the sections (or the parts of sections) that mention what you
- * typed, and a jump menu.
+ * The language's cheatsheet: every category in roadmap order, a search, and
+ * a jump menu. From three letters on, the search ranks the cheatsheet's
+ * blocks by what you mean as well as the words you typed (/api/search, run
+ * on this machine), so "list methods" finds adding, removing, and sorting.
  */
 export function CheatsheetView({ lang, sections, langLabel }: { lang: string; sections: ReferenceSection[]; langLabel: string }) {
   const [query, setQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const q = query.trim().toLowerCase();
+  // The latest ranked results, for the query they answer (null: use text).
+  const [ranked, setRanked] = useState<{ q: string; hits: CheatsheetHit[] | null } | null>(null);
+  const warmed = useRef(false);
+
+  useEffect(() => {
+    if (q.length < 3) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?lang=${encodeURIComponent(lang)}&q=${encodeURIComponent(q)}`, { signal: controller.signal });
+        if (!res.ok) throw new Error(String(res.status));
+        const data = (await res.json()) as { hits: CheatsheetHit[] };
+        setRanked({ q, hits: data.hits });
+      } catch {
+        if (!controller.signal.aborted) setRanked({ q, hits: null });
+      }
+    }, 120);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [q, lang]);
 
   const shown = useMemo(() => {
     if (!q) return sections;
-    return sections
-      .map((s) => {
-        if (s.title.toLowerCase().includes(q)) return s;
-        const parts = blocks(s.md).filter((b) => b.toLowerCase().includes(q));
-        return parts.length ? { ...s, md: parts.join("\n\n") } : null;
-      })
-      .filter((s): s is ReferenceSection => s !== null);
-  }, [sections, q]);
+    if (q.length < 3) return textMatches(sections, q);
+    // Until this query's results arrive, keep showing the last ones.
+    if (!ranked) return textMatches(sections, q);
+    return ranked.hits ? rankedSections(sections, ranked.hits) : textMatches(sections, ranked.q);
+  }, [sections, q, ranked]);
 
   function jump(id: string) {
     const el = scrollRef.current?.querySelector<HTMLElement>(`#ref-${id}`);
     if (el && scrollRef.current) {
       gsap.to(scrollRef.current, { scrollTo: { y: el.offsetTop - 8 }, duration: dur(0.5), ease: EASE.inOut, overwrite: true });
     }
+  }
+
+  // Focusing the box shows intent: get the search (and its model) ready.
+  function warm() {
+    if (warmed.current) return;
+    warmed.current = true;
+    void fetch(`/api/search?lang=${encodeURIComponent(lang)}&q=`).catch(() => {});
   }
 
   return (
@@ -61,6 +113,8 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={warm}
+            onPointerEnter={warm}
             placeholder={`Search ${langLabel}: ${SEARCH_HINTS[lang] ?? "loops, strings, functions"}…`}
             className="field w-full rounded-btn py-1.5 pl-8 pr-7 text-sm text-ink"
           />
@@ -92,7 +146,7 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
 
       <div ref={scrollRef} className="slim-scroll relative min-h-0 flex-1 overflow-y-auto px-4 pb-10 pt-2">
         {shown.length === 0 ? (
-          <p className="pt-6 text-sm text-ink-muted">Nothing in the {langLabel} cheatsheet mentions “{query}”.</p>
+          <p className="pt-6 text-sm text-ink-muted">Nothing in the {langLabel} cheatsheet matches “{query}”.</p>
         ) : (
           shown.map((s) => (
             <section key={s.id} id={`ref-${s.id}`} className="border-b border-content-line pb-6 pt-5 last:border-0">
