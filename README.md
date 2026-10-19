@@ -404,7 +404,7 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
 app/[lang]/page.tsx          one prerendered page per language
 app/[lang]/learn/            Learn mode: the course shell and one page per lesson part
 app/api/execute/route.ts     runs code in the sandbox
-app/api/runtimes/route.ts    sandbox health and installed runtimes, and the runner's
+app/api/runtimes/route.ts    Piston's and the runner's health, for the status badge
 app/api/lang/route.ts        sets the hu-lang cookie the homepage redirect reads
 components/compiler/         the compiler: language rail, toolbar, editor, output
 components/learn/            Learn mode: lesson list, lesson view, practice checks
