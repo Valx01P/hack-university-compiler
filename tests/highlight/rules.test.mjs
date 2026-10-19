@@ -137,6 +137,14 @@ test("typescript: names, types, and calls", () => {
   assert.deepEqual(of("fn", "class A { greet<T>(x: T) {} } interface B { run(): void } const o = { show() {} };", "typescript"), ["greet", "run", "show"]);
 });
 
+test("typescript: defaults in destructuring, and the code after them", () => {
+  // @lezer/javascript 1.5.5 read `{ a = 1 }` as errors.
+  const code = 'function connect({ host = "localhost", port = 5432 }: Options = {}) {}\nfor (const { id, name = "?" } of users) show(id);';
+  assert.deepEqual(of("keyword", code, "typescript"), ["function", "for", "const", "of"]);
+  assert.deepEqual(of("fn", code, "typescript"), ["connect", "show"]);
+  assert.deepEqual(of("keyword", "function Card({ title, compact = false }: Props) {\n  return <p>{title}</p>;\n}", "tsx"), ["function", "false", "return", "p", "p"]);
+});
+
 test("tsx: tags, attributes, and {/* comments */} that hide with their braces", () => {
   const code = 'const el = (\n  <div className="box">\n    {/* the label */}\n    <p>it\'s {n}</p>\n  </div>\n);';
   assert.deepEqual(of("keyword", code, "tsx"), ["const", "div", "p", "p", "div"]);
