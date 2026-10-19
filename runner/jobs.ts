@@ -362,8 +362,10 @@ export class Job {
       result.status = "RE";
       result.message = `Exited with error status ${result.code}`;
     }
-    if (!result.limit && trailer?.oom) result.limit = "memory";
-    if (!result.limit && trailer?.pids) result.limit = "pids";
+    // The cause is more use than the symptom: a fork bomb that ran out the
+    // clock is a process limit, and a crash from an OOM kill is a memory one.
+    if (trailer?.oom) result.limit = "memory";
+    else if (trailer?.pids && result.limit !== "output") result.limit = "pids";
     return result;
   }
 
