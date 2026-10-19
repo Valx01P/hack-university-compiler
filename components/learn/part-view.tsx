@@ -46,6 +46,8 @@ const SPLIT = { min: 30, max: 70, initial: 50 };
 // Where #example, #practice, and #recap land: clear of the sticky header
 // when the page scrolls, a little below the top of the lesson column.
 const PLACE_MARGIN = "scroll-mt-[calc(4rem+1rem)] lg:scroll-mt-4";
+// How long Next glows once your practice passes (the .next-glow animation).
+const NEXT_GLOW_MS = 3600;
 const session = { split: SPLIT.initial };
 
 /** Lesson markdown with the outer margins trimmed, for use inside cards. */
@@ -126,6 +128,15 @@ export function PartView({
   const busy = busyTab !== null;
   // What a screen reader hears when a run or check ends.
   const [announcement, setAnnouncement] = useState("");
+  // Next glows for a few seconds after your practice passes, like the answer
+  // eye, then goes back to normal. Counts the passes, so another one starts
+  // the glow over.
+  const [nextGlow, setNextGlow] = useState(0);
+  useEffect(() => {
+    if (!nextGlow) return;
+    const timer = window.setTimeout(() => setNextGlow(0), NEXT_GLOW_MS);
+    return () => window.clearTimeout(timer);
+  }, [nextGlow]);
   // Hands keyboard focus back to Run or Check once the run is over.
   const rememberRunButton = useReturnFocus(busy);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -347,7 +358,10 @@ export function PartView({
       };
     });
     const allPassed = results.every((r) => r.passed);
-    if (allPassed) markSolved(lang.slug, problemId(lesson.id, part));
+    if (allPassed) {
+      markSolved(lang.slug, problemId(lesson.id, part));
+      setNextGlow((n) => n + 1);
+    }
     const lessonComplete = allPassed && parts.every((_, i) => i === part || isSolved(i));
     finish({ status: "done", results, lessonComplete });
   }
@@ -474,10 +488,9 @@ export function PartView({
                   href={next.href}
                   aria-label={nextLabel(next)}
                   title={next.title}
-                  className={`inline-flex min-w-0 items-center gap-1.5 rounded-btn border px-3 py-1.5 text-sm font-medium ${
-                    partSolved ? "border-edge-strong btn-grad" : "border-line-strong text-ink transition-colors hover:bg-raised"
-                  }`}
+                  className="relative inline-flex min-w-0 items-center gap-1.5 rounded-btn border border-line-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-raised"
                 >
+                  {nextGlow > 0 && <span key={nextGlow} aria-hidden className="next-glow pointer-events-none absolute -inset-px rounded-btn" />}
                   <span className="min-w-0 truncate">{nextLabel(next)}</span>
                   <ArrowRight className="size-4 shrink-0" aria-hidden />
                 </Link>

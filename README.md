@@ -153,7 +153,8 @@ practice problems for each programming language, and 114 for SQL.
   code (your code is kept, and the eye closes back onto it). The first time on
   a page it asks first: click once, and again within 3 seconds while it glows.
 - A part gets a green check once its practice passes, and a lesson once all its
-  parts do.
+  parts do. When it passes, the floating **Next** glows for a few seconds, like
+  the eye, to point the way on.
 - The panel button at the top left shows and hides the lesson list: docked on
   the left on wide screens, sliding in as a drawer on narrower ones. Each
   lesson's parts fold out under it (the lesson you're on opens by itself). The
