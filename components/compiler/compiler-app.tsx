@@ -33,7 +33,8 @@ import {
 } from "@/lib/challenge-progress";
 import { useResumeHref } from "@/lib/learn-progress";
 import type { LessonRef } from "@/lib/learn-types";
-import { joinArgs, runInSandbox, runTests, splitArgs, type RunState } from "@/lib/run-code";
+import { normalizeOutput, runInSandbox, runTests, type RunState } from "@/lib/run-code";
+import { joinArgs, splitArgs } from "@/lib/shell-words";
 import { EASE, dur, gsap } from "@/lib/motion";
 
 type Orient = "horizontal" | "vertical";
@@ -417,7 +418,8 @@ export function CompilerApp({
     const compileError = runs.find((r) => r.compileCode != null && r.compileCode !== 0);
     if (compileError) return finish({ status: "compile-error", output: compileError.compileOutput || "Compilation failed." });
     // The runner's courses also want a clean exit (lib/single-checks.mjs).
-    const strictExit = onRunner(lang.slug);
+    // The rest compare output, as they always have.
+    const onTheRunner = onRunner(lang.slug);
     const results = runs.map((r, i) => {
       const timedOut = r.verdict === "TO";
       return {
@@ -425,7 +427,9 @@ export function CompilerApp({
         expected: tests[i].output,
         actual: r.stdout,
         stderr: timedOut ? "Timed out. Your code ran too long (usually an infinite loop). It was stopped." : r.stderr,
-        passed: judgeTest(tests[i], r, { strictExit }).passed,
+        passed: onTheRunner
+          ? judgeTest(tests[i], r).passed
+          : !timedOut && normalizeOutput(r.stdout) === normalizeOutput(tests[i].output),
       };
     });
     if (results.every((r) => r.passed)) markChallengeSolved(lang.slug, id);
