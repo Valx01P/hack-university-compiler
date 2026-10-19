@@ -23,6 +23,7 @@ import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolvedStat
 import { normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
 import { useEnter } from "@/lib/motion";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useFullScreen } from "@/lib/full-screen";
 import { revealWorkspace, urlCount, urlParam, writeHash, writeUrl } from "@/lib/url-state";
 
 /** Where Previous or Next goes: another part of this lesson, or a lesson. */
@@ -141,9 +142,10 @@ export function PartView({
   useEnter(articleRef);
 
   // Full screen, like the compiler's: the lesson and the editor over the
-  // whole window. It lasts while you move between parts.
-  const [full, setFullState] = useState(session.full);
-  const toggleFull = () => setFullState((was) => (session.full = !was));
+  // whole window. It lasts while you move between parts, is in the address
+  // (?full=1), and Escape leaves it.
+  const [full, setFull] = useFullScreen(session);
+  const toggleFull = () => setFull((was) => !was);
 
   const [split, setSplitPct] = useState(session.split);
   const setSplit = (pct: number) => {

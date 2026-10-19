@@ -14,6 +14,7 @@ import { LangIcon } from "@/components/compiler/lang-icon";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { ReferencePanel, useReferenceData, type ReferenceTab } from "@/components/compiler/reference-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useFullScreen } from "@/lib/full-screen";
 import { cheatsheetPlace, readCompilerUrl, revealWorkspace, urlParam, writeUrl } from "@/lib/compiler-url";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { SqlDatabase } from "@/components/compiler/sql-database";
@@ -93,10 +94,9 @@ export function CompilerApp({
   const outputId = useId();
   const [orient, setOrient] = useState<Orient>(() => sessionLayout.orient);
   const [splitPct, setSplitPct] = useState(() => sessionLayout.splitPct);
-  // Full screen lasts while you switch languages, like the split.
-  const [full, setFullState] = useState(() => sessionLayout.full);
-  const setFull = (next: boolean | ((was: boolean) => boolean)) =>
-    setFullState((was) => (sessionLayout.full = typeof next === "function" ? next(was) : next));
+  // Full screen lasts while you switch languages, is in the address
+  // (?full=1), and Escape leaves it.
+  const [full, setFull] = useFullScreen(sessionLayout);
 
   // The cheatsheet or the challenges, in a panel on the right with the
   // output tucked under the editor (refTab says which).

@@ -9,6 +9,7 @@
  *   &difficulty, &status, the cheatsheet's &q and &at, and SQL's &view.
  * - Learn: ?tab=code (the Your code tab), &hints, and #example, #practice,
  *   or #recap for where you are in the part.
+ * - Both: &full=1 in full screen (lib/full-screen.ts).
  *
  * A reload that restores something you'd see change is restored before you
  * see it: the bootstrap in app/layout.tsx marks <html data-restore>, which
@@ -17,7 +18,7 @@
  */
 
 // The order params are written in, for a readable address.
-const ORDER = ["panel", "challenge", "hints", "difficulty", "status", "q", "at", "view", "tab"];
+const ORDER = ["panel", "challenge", "hints", "difficulty", "status", "q", "at", "view", "tab", "full"];
 const rank = (key: string) => {
   const i = ORDER.indexOf(key);
   return i < 0 ? ORDER.length : i;

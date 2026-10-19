@@ -246,6 +246,12 @@ indent guides and fold arrows show the blocks, and the pair at the cursor is
 outlined. Go indents with tabs, everything else with spaces (2 or 4, in the
 settings gear).
 
+**Full screen**, the corner button in the editor's toolbar (in the compiler and
+in Learn, on wide screens), fills the window with the workspace. The theme
+button floats at the bottom right meanwhile, `Escape` leaves it (unless a menu
+or the editor's completions take the `Escape` first), and the address keeps it
+(`?full=1`), so a reload opens straight into it.
+
 `Mod` is `Cmd` on a Mac and `Ctrl` elsewhere.
 
 | Keys | Does |

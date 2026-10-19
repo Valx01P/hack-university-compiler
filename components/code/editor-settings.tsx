@@ -167,6 +167,8 @@ export function EditorSettingsButton({
       ? createPortal(
           <div
             ref={panelRef}
+            // Escape closes this before it leaves full screen (lib/full-screen.ts).
+            data-popup
             style={{ position: "fixed", top: pos.top, left: pos.left, transformOrigin: "top right" }}
             className="z-[120] w-64 rounded-card border border-edge bg-surface p-3 text-sm shadow-[var(--shadow-card)]"
           >
