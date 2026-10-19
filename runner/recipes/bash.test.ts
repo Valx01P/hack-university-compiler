@@ -10,8 +10,11 @@ describe("bash recipe commands", () => {
   });
 
   it("run from a subfolder the way you'd type it there", () => {
-    assert.deepEqual(bashCommand({ cwd: "elsewhere" }), ["bash", "../main.sh"]);
-    assert.deepEqual(bashCommand({ cwd: "a/b", args: ["x"] }), ["bash", "../../main.sh", "x"]);
+    assert.deepEqual(bashCommand({ cwd: "elsewhere" }).slice(-2), ["bash", "../main.sh"]);
+    assert.deepEqual(bashCommand({ cwd: "a/b", args: ["x"] }).slice(-3), ["bash", "../../main.sh", "x"]);
+    const [sh, flag, script, name, dir] = bashCommand({ cwd: "a/b" });
+    assert.deepEqual([sh, flag, name, dir], ["sh", "-c", "sh", "a/b"]);
+    assert.match(script, /^cd -- "\$1"/);
   });
 
   it("wrap the script, then put faketime around everything when there's a clock", () => {

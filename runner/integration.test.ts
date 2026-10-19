@@ -191,11 +191,13 @@ describe("the bash recipe", { skip }, () => {
     const r = await run({
       recipe: "bash",
       files: [{ name: "main.sh", content: 'pwd\necho "$0"\n' }, { name: "sub", type: "dir" }],
-      tests: [{ cwd: "sub" }, { wrap: ["flock", "job.lock"], collect: ["job.lock"] }],
+      tests: [{ cwd: "sub" }, { wrap: ["flock", "job.lock"], collect: ["job.lock"] }, { cwd: "missing" }],
     });
     assert.equal(r.results?.[0].stdout, "/home/learner/sub\n../main.sh\n");
     assert.equal(r.results?.[1].stdout, "/home/learner\nmain.sh\n");
     assert.equal(r.results?.[1].exists["job.lock"], true);
+    assert.equal(r.results?.[2].code, 1);
+    assert.match(r.results?.[2].stderr ?? "", /runs from the folder missing, which doesn't exist/);
   });
 
   it("tells an exit status of 130 from a death by SIGINT", async () => {

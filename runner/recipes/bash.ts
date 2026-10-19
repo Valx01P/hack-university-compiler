@@ -47,8 +47,12 @@ export function bashCommand(opts: { args?: readonly string[]; cwd?: string; wrap
   // faketime starts the clock at the given second and lets it tick, in this
   // process and every one it starts.
   if (opts.clock) cmd.unshift("faketime", `@${Math.floor(Date.parse(opts.clock) / 1000)}`);
+  // A missing subfolder gets a plain answer, not a failed exec.
+  if (opts.cwd) cmd.unshift("sh", "-c", CD_THEN_RUN, "sh", opts.cwd);
   return cmd;
 }
+
+const CD_THEN_RUN = 'cd -- "$1" 2>/dev/null || { echo "This test runs from the folder $1, which doesn\'t exist." >&2; exit 1; }; shift; exec "$@"';
 
 /**
  * The environment for one run. With a clock, NO_FAKE_STAT keeps file times as
@@ -117,7 +121,7 @@ export async function runBash(job: Job, req: RunRequest, time: (key: "loadMs" | 
     await job.load(HOME, homeFiles(req, test.fixtures ?? req.fixtures, clock), n > 0);
     if (n === 0) time("loadMs", Date.now() - loadStarted);
     const step = await job.step(bashCommand({ args: test.args, cwd: test.cwd, wrap: test.wrap, clock }), {
-      workDir: test.cwd ? path.posix.join(HOME, test.cwd) : HOME,
+      workDir: HOME,
       env: bashEnv({ ...req.env, ...test.env }, clock),
       stdin: test.stdin ?? "",
       timeoutMs: limits.runMs,
