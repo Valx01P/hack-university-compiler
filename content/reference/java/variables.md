@@ -16,6 +16,7 @@ float ratio = 0.5f;          // f suffix, rarely needed
 int count;                   // declared, no value yet
 count = 5;                   // assign before you read it
 age = age + 1;               // reassign, same type only
+System.out.println(age);     // 31
 ```
 
 ### Primitive types
@@ -44,14 +45,16 @@ var total = 0;                         // int
 var avg = 2.5;                         // double
 var word = "hi";                       // String
 var names = new ArrayList<String>();   // ArrayList<String>
+System.out.println(word + " " + avg);  // hi 2.5
 // total = "zero";                     // error: incompatible types
 ```
 
 ### Constants
 
 ```java
-final int MAX_SCORE = 100;   // can't be reassigned
-// MAX_SCORE = 200;          // error: cannot assign a value to final variable
+final int MAX_SCORE = 100;      // can't be reassigned
+// MAX_SCORE = 200;             // error: cannot assign a value to final variable
+System.out.println(MAX_SCORE);  // 100
 ```
 
 A constant shared by the whole class goes outside `main`:
@@ -77,6 +80,7 @@ import java.util.List;
 List<Integer> scores = new ArrayList<>();  // List<int> does not compile
 scores.add(90);                            // int boxed to Integer
 int first = scores.get(0);                 // Integer unboxed to int
+System.out.println(first);                 // 90
 ```
 
 | Primitive | Wrapper |
@@ -90,26 +94,34 @@ int first = scores.get(0);                 // Integer unboxed to int
 ### Convert between types
 
 ```java
-double d = 7;                          // 7.0, widening is automatic
-int i = (int) 3.99;                    // 3, the cast drops the fraction
-long r = Math.round(3.5);              // 4, round returns long for a double
-int wrapped = (int) 5_000_000_000L;    // 705032704, overflow
-char c = (char) 66;                    // 'B'
-int code = 'A';                        // 65
+double d = 7;
+System.out.println(d);         // 7.0, widening is automatic
+int i = (int) 3.99;
+System.out.println(i);         // 3, the cast drops the fraction
+long r = Math.round(3.5);
+System.out.println(r);         // 4, round returns long for a double
+int wrapped = (int) 5_000_000_000L;
+System.out.println(wrapped);   // 705032704, overflow
+char c = (char) 66;
+System.out.println(c);         // B
+int code = 'A';
+System.out.println(code);      // 65
 
 int n = Integer.parseInt("42");          // String to int
 double x = Double.parseDouble("3.14");   // String to double
-String s = String.valueOf(42);           // int to String "42"
-String t = "" + 3.5;                     // "3.5"
+String s = String.valueOf(42);           // int to String
+System.out.println(s);                   // 42
+String t = "" + 3.5;
+System.out.println(t);                   // 3.5
 ```
 
 ### Limits
 
 ```java
-int maxInt = Integer.MAX_VALUE;     // 2147483647
-int minInt = Integer.MIN_VALUE;     // -2147483648
-long maxLong = Long.MAX_VALUE;      // 9223372036854775807
-double maxDbl = Double.MAX_VALUE;   // 1.7976931348623157E308
+System.out.println(Integer.MAX_VALUE);   // 2147483647
+System.out.println(Integer.MIN_VALUE);   // -2147483648
+System.out.println(Long.MAX_VALUE);      // 9223372036854775807
+System.out.println(Double.MAX_VALUE);    // 1.7976931348623157E308
 ```
 
 ### Use it in a loop

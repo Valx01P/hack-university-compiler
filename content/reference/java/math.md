@@ -6,40 +6,49 @@ Java has `+ - * / %`. Dividing two integers truncates the result, and there is n
 
 ```java
 int a = 17, b = 5;
-int sum = a + b;                 // 22
-int diff = a - b;                // 12
-int prod = a * b;                // 85
-int quot = a / b;                // 3, int / int drops the fraction
-int rem = a % b;                 // 2
-double exact = (double) a / b;   // 3.4
-double half = a / 2.0;           // 8.5
-int order = 2 + 3 * 4;           // 14, * / % before + -
+System.out.println(a + b);            // 22
+System.out.println(a - b);            // 12
+System.out.println(a * b);            // 85
+System.out.println(a / b);            // 3, int / int drops the fraction
+System.out.println(a % b);            // 2
+System.out.println((double) a / b);   // 3.4
+System.out.println(a / 2.0);          // 8.5
+System.out.println(2 + 3 * 4);        // 14, * / % before + -
 ```
 
 ### Negative numbers
 
 ```java
-int q = -17 / 5;                 // -3, truncates toward zero
-int r = -17 % 5;                 // -2, sign follows the left side
-int m = Math.floorMod(-17, 5);   // 3, always 0 to 4 for a divisor of 5
-int f = Math.floorDiv(-17, 5);   // -4, rounds down
+System.out.println(-17 / 5);                 // -3, truncates toward zero
+System.out.println(-17 % 5);                 // -2, sign follows the left side
+System.out.println(Math.floorMod(-17, 5));   // 3, always 0 to 4 for a divisor of 5
+System.out.println(Math.floorDiv(-17, 5));   // -4, rounds down
 ```
 
 ### Compound assignment and ++
 
 ```java
 int x = 10;
-x += 5;   // 15
-x -= 3;   // 12
-x *= 2;   // 24
-x /= 5;   // 4
-x %= 3;   // 1
-x++;      // 2
-x--;      // 1
+x += 5;
+System.out.println(x);   // 15
+x -= 3;
+System.out.println(x);   // 12
+x *= 2;
+System.out.println(x);   // 24
+x /= 5;
+System.out.println(x);   // 4
+x %= 3;
+System.out.println(x);   // 1
+x++;
+System.out.println(x);   // 2
+x--;
+System.out.println(x);   // 1
 
 int i = 5;
-int post = i++;   // post is 5, then i becomes 6
-int pre = ++i;    // i becomes 7, then pre is 7
+int post = i++;                       // post is 5, then i becomes 6
+System.out.println(post + " " + i);   // 5 6
+int pre = ++i;                        // i becomes 7, then pre is 7
+System.out.println(pre + " " + i);    // 7 7
 ```
 
 ### Powers and rounding
@@ -47,9 +56,9 @@ int pre = ++i;    // i becomes 7, then pre is 7
 There is no `**` operator. `Math.pow` returns a `double`, so cast it for an `int`. The rest of `Math` is in Math and Built-in Methods.
 
 ```java
-int cube = (int) Math.pow(3, 3);                // 27
-double root = Math.sqrt(2);                     // 1.4142135623730951
-double avg = Math.round(7.456 * 100) / 100.0;   // 7.46, round to 2 places
+System.out.println((int) Math.pow(3, 3));              // 27
+System.out.println(Math.sqrt(2));                      // 1.4142135623730951
+System.out.println(Math.round(7.456 * 100) / 100.0);   // 7.46, round to 2 places
 ```
 
 ### Overflow

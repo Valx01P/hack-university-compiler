@@ -9,12 +9,12 @@ import java.util.AbstractMap;
 import java.util.Map;
 
 Map.Entry<String, Integer> p = Map.entry("Ana", 30); // immutable
-p.getKey();                  // "Ana"
-p.getValue();                // 30
-System.out.println(p);       // Ana=30
+System.out.println(p.getKey());   // Ana
+System.out.println(p.getValue()); // 30
+System.out.println(p);            // Ana=30
 
 Map.Entry<String, Integer> m = new AbstractMap.SimpleEntry<>("Ben", 25);
-m.setValue(26);              // SimpleEntry is mutable
+m.setValue(26);                   // SimpleEntry is mutable
 ```
 
 ### Your own Pair class
@@ -52,9 +52,9 @@ class Pair<A, B> {                    // after Main
 }
 
 Pair<String, Integer> q = new Pair<>("Ana", 30);
-String name = q.first;                // "Ana"
-System.out.println(q);                // (Ana, 30)
-q.equals(new Pair<>("Ana", 30));      // true
+System.out.println(q.first);                         // Ana
+System.out.println(q);                               // (Ana, 30)
+System.out.println(q.equals(new Pair<>("Ana", 30))); // true
 ```
 
 ### Return several values
@@ -78,8 +78,10 @@ static int[] divmod(int a, int b) {
     return new int[]{a / b, a % b};   // quick and untyped
 }
 
-MinMax r = minMax(new int[]{4, 9, 1}); // r.min 1, r.max 9
-int[] qr = divmod(17, 5);              // qr[0] 3, qr[1] 2
+MinMax r = minMax(new int[]{4, 9, 1});
+System.out.println(r.min + " " + r.max); // 1 9
+int[] qr = divmod(17, 5);
+System.out.println(qr[0] + " " + qr[1]); // 3 2
 ```
 
 ### Coordinates in a loop
@@ -93,6 +95,7 @@ queue.add(new int[]{0, 0});
 while (!queue.isEmpty()) {
     int[] cur = queue.poll();
     int row = cur[0], col = cur[1];
+    System.out.println(row + " " + col); // 0 0
     // ... queue.add(new int[]{row + 1, col});
 }
 ```
@@ -107,10 +110,10 @@ import java.util.Set;
 
 Set<List<Integer>> visited = new HashSet<>();
 visited.add(List.of(2, 3));
-visited.contains(List.of(2, 3));      // true, lists compare by content
+System.out.println(visited.contains(List.of(2, 3))); // true, lists compare by content
 
 Map<String, Integer> dist = new HashMap<>();
-dist.put(2 + "," + 3, 5);             // or a "r,c" string key
+dist.put(2 + "," + 3, 5);                            // or a "r,c" string key
 ```
 
 ### Sort a list of pairs
@@ -132,7 +135,7 @@ for (Map.Entry<String, Integer> e : people) {
 
 List<int[]> pts = new ArrayList<>(List.of(new int[]{3, 1}, new int[]{1, 2}, new int[]{3, 0}));
 pts.sort(Comparator.comparingInt((int[] pt) -> pt[0]).thenComparingInt(pt -> pt[1]));
-// pts is now {1, 2}, {3, 0}, {3, 1}
+System.out.println(Arrays.deepToString(pts.toArray())); // [[1, 2], [3, 0], [3, 1]]
 ```
 
 ### Which to use

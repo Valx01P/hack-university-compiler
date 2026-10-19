@@ -21,6 +21,7 @@ class Dog {
     String getName() { return name; }
     int getAge() { return age; }
 }
+System.out.println(new Dog("Rex", 3).getName()); // Rex
 ```
 
 ### Create and use

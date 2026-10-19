@@ -23,17 +23,17 @@ Deque<Integer> stack = new ArrayDeque<>();
 stack.push(1);
 stack.push(2);
 stack.push(3);
-stack.peek();            // 3, top without removing
-stack.pop();             // 3
-System.out.println(stack); // [2, 1]
+System.out.println(stack.peek()); // 3, top without removing
+System.out.println(stack.pop());  // 3
+System.out.println(stack);        // [2, 1]
 
 Queue<String> queue = new ArrayDeque<>();
-queue.offer("a");        // add at the back
+queue.offer("a");                 // add at the back
 queue.offer("b");
-queue.peek();            // "a"
-queue.poll();            // "a", removes from the front
-queue.poll();            // "b"
-queue.poll();            // null, empty
+System.out.println(queue.peek()); // a
+System.out.println(queue.poll()); // a, removes from the front
+System.out.println(queue.poll()); // b
+System.out.println(queue.poll()); // null, empty
 ```
 
 | Deque call | Does |
@@ -54,8 +54,8 @@ for (int x : new int[] {5, 1, 4}) {
     minHeap.offer(x);
     maxHeap.offer(x);
 }
-minHeap.poll();          // 1
-maxHeap.poll();          // 5
+System.out.println(minHeap.poll()); // 1
+System.out.println(maxHeap.poll()); // 5
 while (!minHeap.isEmpty()) {
     System.out.print(minHeap.poll() + " "); // 4 5
 }
@@ -77,6 +77,7 @@ double x = rng.nextDouble();    // 0.0 up to, not including, 1.0
 boolean coin = rng.nextBoolean();
 List<Integer> deck = new ArrayList<>(List.of(1, 2, 3, 4));
 Collections.shuffle(deck, rng); // random order, in place
+System.out.println(die + " " + x + " " + coin + " " + deck); // different every run
 ```
 
 ### Streams
@@ -89,12 +90,16 @@ List<String> words = List.of("apple", "fig", "banana", "kiwi");
 List<String> longOnes = words.stream()
         .filter(w -> w.length() > 3)
         .map(String::toUpperCase)
-        .collect(Collectors.toList());               // [APPLE, BANANA, KIWI]
-int letters = words.stream().mapToInt(String::length).sum();      // 18
+        .collect(Collectors.toList());
+System.out.println(longOnes);  // [APPLE, BANANA, KIWI]
+int letters = words.stream().mapToInt(String::length).sum();
+System.out.println(letters);   // 18
 String joined = words.stream().sorted().collect(Collectors.joining(", "));
-// apple, banana, fig, kiwi
-boolean anyB = words.stream().anyMatch(w -> w.startsWith("b"));   // true
-int sum = IntStream.rangeClosed(1, 5).sum();                      // 15
+System.out.println(joined);    // apple, banana, fig, kiwi
+boolean anyB = words.stream().anyMatch(w -> w.startsWith("b"));
+System.out.println(anyB);      // true
+int sum = IntStream.rangeClosed(1, 5).sum();
+System.out.println(sum);       // 15
 ```
 
 ### Optional
@@ -104,10 +109,11 @@ import java.util.Optional;
 
 List<String> words = List.of("apple", "fig", "banana", "kiwi");
 Optional<String> firstB = words.stream().filter(w -> w.startsWith("b")).findFirst();
-firstB.isPresent();       // true
-firstB.get();             // "banana"
-words.stream().filter(w -> w.startsWith("z")).findFirst().orElse("none"); // "none"
-firstB.ifPresent(w -> System.out.println("found " + w));                 // found banana
+System.out.println(firstB.isPresent());    // true
+System.out.println(firstB.get());          // banana
+Optional<String> firstZ = words.stream().filter(w -> w.startsWith("z")).findFirst();
+System.out.println(firstZ.orElse("none")); // none
+firstB.ifPresent(w -> System.out.println("found " + w)); // found banana
 ```
 
 ### Big numbers
@@ -121,7 +127,8 @@ for (int i = 2; i <= 25; i++) {
     f = f.multiply(BigInteger.valueOf(i));  // immutable: reassign the result
 }
 System.out.println(f);                      // 15511210043330985984000000
-new BigDecimal("0.1").add(new BigDecimal("0.2")); // 0.3, while 0.1 + 0.2 is 0.30000000000000004
+BigDecimal sum = new BigDecimal("0.1").add(new BigDecimal("0.2"));
+System.out.println(sum);                    // 0.3, while 0.1 + 0.2 is 0.30000000000000004
 ```
 
 ### Dates
@@ -131,11 +138,11 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
 LocalDate d = LocalDate.of(2024, 2, 28);
-d.plusDays(1);                     // 2024-02-29
-d.getDayOfWeek();                  // WEDNESDAY
-d.isLeapYear();                    // true
-ChronoUnit.DAYS.between(d, LocalDate.of(2024, 12, 25)); // 301
-LocalDate.parse("2024-07-04");     // from "yyyy-MM-dd"
+System.out.println(d.plusDays(1));     // 2024-02-29
+System.out.println(d.getDayOfWeek());  // WEDNESDAY
+System.out.println(d.isLeapYear());    // true
+System.out.println(ChronoUnit.DAYS.between(d, LocalDate.of(2024, 12, 25))); // 301
+LocalDate.parse("2024-07-04");         // from "yyyy-MM-dd"
 ```
 
 ### Gotchas

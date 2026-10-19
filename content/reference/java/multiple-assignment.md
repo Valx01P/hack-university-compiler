@@ -8,6 +8,7 @@ Java has no tuple unpacking like `a, b = 1, 2`. You can declare several variable
 int x = 1, y = 2, z = 3;
 String first = "Ada", last = "Lovelace";
 double w, h;      // both declared, neither assigned
+System.out.println(x + " " + y + " " + z);  // 1 2 3
 ```
 
 ### Same value to many (chained)
@@ -36,7 +37,8 @@ Swap two array elements the same way:
 int[] arr = {5, 8};
 int t = arr[0];
 arr[0] = arr[1];
-arr[1] = t;   // arr is now {8, 5}
+arr[1] = t;
+System.out.println(Arrays.toString(arr));  // [8, 5]
 ```
 
 ### Return several values

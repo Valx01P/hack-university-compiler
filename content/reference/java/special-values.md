@@ -80,13 +80,15 @@ String name = null;
 if (name != null && name.length() > 3) {     // && skips the right side
     System.out.println("long name");
 }
-boolean isAda = "Ada".equals(name);                          // false, no crash
-String shown = Objects.requireNonNullElse(name, "guest");    // "guest"
-String alt = Optional.ofNullable(name).orElse("guest");      // "guest"
+System.out.println("Ada".equals(name));                         // false, no crash
+System.out.println(Objects.requireNonNullElse(name, "guest"));  // guest
+System.out.println(Optional.ofNullable(name).orElse("guest"));  // guest
 
 Map<String, Integer> ages = new HashMap<>();
-Integer age = ages.get("Bob");               // null, key missing
-int safe = ages.getOrDefault("Bob", 0);      // 0
+Integer age = ages.get("Bob");
+System.out.println(age);                     // null, key missing
+int safe = ages.getOrDefault("Bob", 0);
+System.out.println(safe);                    // 0
 ```
 
 ### Gotchas

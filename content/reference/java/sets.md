@@ -15,20 +15,21 @@ Set<String> words = new HashSet<>();
 Set<String> ordered = new LinkedHashSet<>();               // keeps insertion order
 Set<Integer> sorted = new TreeSet<>();                     // keeps values sorted
 Set<Integer> fixed = Set.of(1, 2, 3);                      // immutable
-Set<Integer> fromList = new HashSet<>(List.of(3, 1, 3, 2)); // [1, 2, 3], one 3 dropped
+Set<Integer> fromList = new HashSet<>(List.of(3, 1, 3, 2));
+System.out.println(fromList);                              // [1, 2, 3], one 3 dropped
 ```
 
 ### Add, remove, check
 
 ```java
 Set<String> tags = new TreeSet<>();
-tags.add("java");        // true, it was added
-tags.add("java");        // false, already there
+System.out.println(tags.add("java"));    // true, it was added
+System.out.println(tags.add("java"));    // false, already there
 tags.add("go");
-tags.contains("go");     // true
-tags.remove("go");       // true
-tags.size();             // 1
-System.out.println(tags); // [java]
+System.out.println(tags.contains("go")); // true
+System.out.println(tags.remove("go"));   // true
+System.out.println(tags.size());         // 1
+System.out.println(tags);                // [java]
 ```
 
 ### Union, intersection, difference
@@ -40,13 +41,16 @@ Set<Integer> a = new TreeSet<>(List.of(1, 2, 3, 4));
 Set<Integer> b = new TreeSet<>(List.of(3, 4, 5));
 
 Set<Integer> union = new TreeSet<>(a);
-union.addAll(b);         // [1, 2, 3, 4, 5]
+union.addAll(b);
+System.out.println(union);               // [1, 2, 3, 4, 5]
 Set<Integer> both = new TreeSet<>(a);
-both.retainAll(b);       // [3, 4]
+both.retainAll(b);
+System.out.println(both);                // [3, 4]
 Set<Integer> onlyA = new TreeSet<>(a);
-onlyA.removeAll(b);      // [1, 2]
+onlyA.removeAll(b);
+System.out.println(onlyA);               // [1, 2]
 
-a.containsAll(both);     // true, subset check
+System.out.println(a.containsAll(both)); // true, subset check
 ```
 
 ### Seen-before in a loop
@@ -68,8 +72,10 @@ for (int n : nums) {
 import java.util.ArrayList;
 
 List<String> names = List.of("bo", "al", "bo", "cy", "al");
-List<String> unique = new ArrayList<>(new LinkedHashSet<>(names)); // [bo, al, cy]
-Set<String> abc = new TreeSet<>(names);                            // [al, bo, cy]
+List<String> unique = new ArrayList<>(new LinkedHashSet<>(names));
+System.out.println(unique); // [bo, al, cy]
+Set<String> abc = new TreeSet<>(names);
+System.out.println(abc);    // [al, bo, cy]
 for (String n : abc) {
     System.out.print(n + " ");  // al bo cy
 }
@@ -79,16 +85,16 @@ for (String n : abc) {
 
 ```java
 TreeSet<Integer> t = new TreeSet<>(List.of(10, 20, 30, 40));
-t.first();         // 10
-t.last();          // 40
-t.floor(25);       // 20, largest <= 25
-t.ceiling(25);     // 30, smallest >= 25
-t.lower(10);       // null, nothing < 10
-t.higher(30);      // 40
-t.headSet(30);     // [10, 20], values < 30
-t.tailSet(30);     // [30, 40], values >= 30
-t.descendingSet(); // [40, 30, 20, 10]
-t.pollFirst();     // 10, and removes it
+System.out.println(t.first());         // 10
+System.out.println(t.last());          // 40
+System.out.println(t.floor(25));       // 20, largest <= 25
+System.out.println(t.ceiling(25));     // 30, smallest >= 25
+System.out.println(t.lower(10));       // null, nothing < 10
+System.out.println(t.higher(30));      // 40
+System.out.println(t.headSet(30));     // [10, 20], values < 30
+System.out.println(t.tailSet(30));     // [30, 40], values >= 30
+System.out.println(t.descendingSet()); // [40, 30, 20, 10]
+System.out.println(t.pollFirst());     // 10, and removes it
 ```
 
 ### Common calls

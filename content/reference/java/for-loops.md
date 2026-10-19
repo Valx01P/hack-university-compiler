@@ -8,10 +8,12 @@ Java's `for` is the C-style loop: start, condition, step. The enhanced `for (x :
 for (int i = 0; i < 5; i++) {
     System.out.print(i + " "); // 0 1 2 3 4
 }
+System.out.println();
 
 for (int i = 10; i > 0; i -= 3) {
     System.out.print(i + " "); // 10 7 4 1
 }
+System.out.println();
 
 for (int i = 1; i <= 100; i *= 2) {
     System.out.print(i + " "); // 1 2 4 8 16 32 64
@@ -27,6 +29,7 @@ int[] nums = {3, 1, 4};
 for (int n : nums) {
     System.out.print(n + " "); // 3 1 4
 }
+System.out.println();
 
 List<String> names = List.of("Ana", "Bo");
 for (String name : names) {
@@ -52,6 +55,7 @@ for (int i = 0; i < 10; i++) {
     if (i == 5) break;    // leave the loop
     System.out.print(i + " "); // 0 1 3 4
 }
+System.out.println();
 
 outer:
 for (int r = 0; r < 3; r++) {

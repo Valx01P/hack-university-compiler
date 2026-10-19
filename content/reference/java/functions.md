@@ -15,8 +15,9 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        int sum = add(2, 3);              // 5
+        int sum = add(2, 3);
         greet("Ana");                     // Hi Ana
+        System.out.println(sum);          // 5
     }
 }
 ```
@@ -31,7 +32,8 @@ static boolean isPrime(int n) {
     }
     return true;
 }
-// isPrime(7) is true, isPrime(9) is false
+System.out.println(isPrime(7));  // true
+System.out.println(isPrime(9));  // false
 ```
 
 ### Overloading instead of default arguments
@@ -44,7 +46,8 @@ static double area(double side) {
 static double area(double w, double h) {   // same name, different parameters
     return w * h;
 }
-// area(3) is 9.0, area(2, 5) is 10.0
+System.out.println(area(3));     // 9.0
+System.out.println(area(2, 5));  // 10.0
 ```
 
 ### Varargs
@@ -55,7 +58,8 @@ static int total(int... nums) {   // nums is an int[]
     for (int n : nums) sum += n;
     return sum;
 }
-// total() is 0, total(1, 2, 3) is 6
+System.out.println(total());         // 0
+System.out.println(total(1, 2, 3));  // 6
 ```
 
 ### Pass by value
@@ -70,6 +74,11 @@ static void doubleAll(int[] arr) {
 static void reset(int x) {
     x = 0;                                // caller's variable is unchanged
 }
+int[] nums = {1, 2};
+int n = 5;
+doubleAll(nums);
+reset(n);
+System.out.println(Arrays.toString(nums) + " " + n);  // [2, 4] 5
 ```
 
 To return several values, see Tuples and Pairs.
@@ -81,7 +90,7 @@ static long factorial(int n) {
     if (n <= 1) return 1;                 // base case
     return n * factorial(n - 1);
 }
-// factorial(10) is 3628800
+System.out.println(factorial(10));  // 3628800
 ```
 
 ### Generic method
@@ -92,7 +101,7 @@ import java.util.List;
 static <T> T last(List<T> items) {
     return items.get(items.size() - 1);
 }
-// last(List.of("a", "b")) is "b"
+System.out.println(last(List.of("a", "b")));  // b
 ```
 
 ### Lambdas and method references
@@ -107,10 +116,10 @@ BiFunction<Integer, Integer, Integer> mul = (a, b) -> a * b;
 Predicate<String> isLong = s -> s.length() > 3;
 Function<String, Integer> len = String::length;   // method reference
 
-square.apply(5);         // 25
-mul.apply(3, 4);         // 12
-isLong.test("java");     // true
-len.apply("hi");         // 2
+System.out.println(square.apply(5));      // 25
+System.out.println(mul.apply(3, 4));      // 12
+System.out.println(isLong.test("java"));  // true
+System.out.println(len.apply("hi"));      // 2
 ```
 
 ### Use it in a loop

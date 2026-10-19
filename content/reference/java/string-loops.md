@@ -40,7 +40,6 @@ public class Main {
     public static void main(String[] args) throws Exception {
         String s = "hello";
         {{code}}
-        System.out.println(rev + " " + rev2);
     }
 }
 ```
@@ -50,9 +49,9 @@ String rev = "";
 for (int i = s.length() - 1; i >= 0; i--) {
     rev += s.charAt(i);           // fine for short strings
 }
-// rev is "olleh"
+System.out.println(rev);          // olleh
 
-String rev2 = new StringBuilder(s).reverse().toString(); // "olleh", the quick way
+System.out.println(new StringBuilder(s).reverse().toString()); // olleh, the quick way
 ```
 
 ### Count and test characters
@@ -74,10 +73,10 @@ System.out.println(letters + " " + digits + " " + vowels); // 5 1 3
 
 ```java
 char c = 'd';
-int pos = c - 'a';                 // 3, position in the alphabet
-char next = (char) (c + 1);        // 'e', cast back to char
-int digit = '7' - '0';             // 7, digit char to int
-char upper = Character.toUpperCase(c); // 'D'
+System.out.println(c - 'a');                  // 3, position in the alphabet
+System.out.println((char) (c + 1));           // e, cast back to char
+System.out.println('7' - '0');                // 7, digit char to int
+System.out.println(Character.toUpperCase(c)); // D
 ```
 
 ### Count every letter

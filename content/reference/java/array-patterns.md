@@ -106,7 +106,6 @@ public class Main {
         int[] a = {10, 11, 12, 13, 14, 15};
         int n = a.length;
         {{code}}
-        System.out.println(Arrays.toString(a));
     }
 }
 ```
@@ -121,7 +120,7 @@ while (lo < hi) {
     lo++;
     hi--;
 }
-// a is now [15, 14, 13, 12, 11, 10]
+System.out.println(Arrays.toString(a)); // [15, 14, 13, 12, 11, 10]
 ```
 
 ### Every pair once
@@ -151,9 +150,10 @@ for (int i = 0; i < ring.length; i++) {
 int[] v = {2, 4, 6, 8};
 int[] prefix = new int[v.length + 1];        // prefix[i] = sum of first i values
 for (int i = 0; i < v.length; i++) {
-    prefix[i + 1] = prefix[i] + v[i];        // [0, 2, 6, 12, 20]
+    prefix[i + 1] = prefix[i] + v[i];
 }
-int sumOf1to2 = prefix[3] - prefix[1];       // 10, the sum of v[1..2]
+System.out.println(Arrays.toString(prefix)); // [0, 2, 6, 12, 20]
+System.out.println(prefix[3] - prefix[1]);   // 10, the sum of v[1..2]
 ```
 
 ### Sliding window of size k

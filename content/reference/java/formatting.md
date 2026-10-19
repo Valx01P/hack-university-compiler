@@ -34,9 +34,12 @@ System.out.printf("%d%% done%n", 80);                 // 80% done
 ### Format into a String
 
 ```java
-String a = String.format("%d items", 3);       // "3 items"
-String b = "%s is %d".formatted("Ada", 36);    // "Ada is 36" (Java 15)
-String c = String.format("%05.1f", 3.14159);   // "003.1"
+String a = String.format("%d items", 3);
+System.out.println(a);  // 3 items
+String b = "%s is %d".formatted("Ada", 36);
+System.out.println(b);  // Ada is 36 (Java 15)
+String c = String.format("%05.1f", 3.14159);
+System.out.println(c);  // 003.1
 ```
 
 ### Format specifiers

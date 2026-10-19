@@ -11,10 +11,11 @@ int[][] m = {
     {4, 5, 6}
 };
 
-int rows = m.length;     // 2
-int cols = m[0].length;  // 3, the length of row 0
-int x = m[1][2];         // 6
-m[0][0] = 9;             // m is now [[9, 2, 3], [4, 5, 6]]
+System.out.println(m.length);               // 2
+System.out.println(m[0].length);            // 3, the length of row 0
+System.out.println(m[1][2]);                // 6
+m[0][0] = 9;
+System.out.println(Arrays.deepToString(m)); // [[9, 2, 3], [4, 5, 6]]
 ```
 
 ### Print
@@ -24,7 +25,7 @@ import java.util.Arrays;
 
 int[][] m = {{9, 2, 3}, {4, 5, 6}};
 System.out.println(Arrays.deepToString(m)); // [[9, 2, 3], [4, 5, 6]]
-System.out.println(Arrays.toString(m));     // [[I@..., [I@...], row addresses
+System.out.println(Arrays.toString(m));     // row addresses, like [[I@..., [I@...]
 ```
 
 ### Loop with indexes
@@ -155,8 +156,6 @@ public class Main {
     public static void main(String[] args) throws Exception {
         int[][] m = {{9, 2, 3}, {4, 5, 6}};
         {{code}}
-        System.out.println(diag);
-        System.out.println(Arrays.deepToString(t));
     }
 }
 ```
@@ -165,8 +164,9 @@ public class Main {
 int[][] sq = {{1, 2}, {3, 4}};
 int diag = 0;
 for (int i = 0; i < sq.length; i++) {
-    diag += sq[i][i];                 // 1 + 4 = 5
+    diag += sq[i][i];
 }
+System.out.println(diag);             // 5 (1 + 4)
 
 int[][] t = new int[m[0].length][m.length];
 for (int r = 0; r < m.length; r++) {
@@ -174,7 +174,7 @@ for (int r = 0; r < m.length; r++) {
         t[c][r] = m[r][c];
     }
 }
-// t is [[9, 4], [2, 5], [3, 6]]
+System.out.println(Arrays.deepToString(t)); // [[9, 4], [2, 5], [3, 6]]
 ```
 
 ### Copy

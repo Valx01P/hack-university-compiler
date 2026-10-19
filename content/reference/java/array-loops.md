@@ -62,19 +62,20 @@ public class Main {
     public static void main(String[] args) throws Exception {
         int[] nums = {4, 8, 15, 16};
         {{code}}
-        System.out.println(Arrays.toString(nums));
     }
 }
 ```
 
 ```java
 for (int j = 0; j < nums.length; j++) {
-    nums[j] *= 2;           // nums is now [8, 16, 30, 32]
+    nums[j] *= 2;
 }
+System.out.println(Arrays.toString(nums)); // [8, 16, 30, 32]
 
 for (int n : nums) {
     n = 0;                  // changes the copy n only, nums is untouched
 }
+System.out.println(Arrays.toString(nums)); // [8, 16, 30, 32], untouched
 ```
 
 ### ArrayList
@@ -93,7 +94,8 @@ for (String name : names) {
 }
 names.forEach(System.out::println);           // same, with a method reference
 
-names.removeIf(name -> name.startsWith("B")); // [Ana, Cy], safe removal
+names.removeIf(name -> name.startsWith("B")); // safe removal
+System.out.println(names);                    // [Ana, Cy]
 ```
 
 ### Common jobs
@@ -104,7 +106,8 @@ int[] data = {7, -2, 9, 4, 9};
 int max = data[0];                    // start at the first value, not 0
 for (int v : data) {
     if (v > max) max = v;
-}                                     // max == 9
+}
+System.out.println(max);              // 9
 
 int found = -1;
 for (int k = 0; k < data.length; k++) {
@@ -112,12 +115,14 @@ for (int k = 0; k < data.length; k++) {
         found = k;
         break;                        // stop at the first match
     }
-}                                     // found == 2
+}
+System.out.println(found);            // 2
 
 int positives = 0;
 for (int v : data) {
     if (v > 0) positives++;
-}                                     // positives == 4
+}
+System.out.println(positives);        // 4
 ```
 
 ### Build a new array

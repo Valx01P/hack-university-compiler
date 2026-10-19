@@ -188,10 +188,13 @@ class Player implements Comparable<Player> {
 }
 
 List<Player> ps = new ArrayList<>(List.of(new Player("Ana", 9), new Player("Ben", 4), new Player("Cy", 9)));
-Collections.sort(ps);                                 // [Ben:4, Ana:9, Cy:9]
-ps.sort(Comparator.comparing((Player p) -> p.name).reversed()); // [Cy:9, Ben:4, Ana:9]
+Collections.sort(ps);
+System.out.println(ps);  // [Ben:4, Ana:9, Cy:9]
+ps.sort(Comparator.comparing((Player p) -> p.name).reversed());
+System.out.println(ps);  // [Cy:9, Ben:4, Ana:9]
 ps.sort(Comparator.comparingInt((Player p) -> p.score).reversed()
-        .thenComparing(p -> p.name));                 // [Ana:9, Cy:9, Ben:4]
+        .thenComparing(p -> p.name));
+System.out.println(ps);  // [Ana:9, Cy:9, Ben:4]
 ```
 
 ### Enums
@@ -207,7 +210,7 @@ enum Planet {
 for (Planet p : Planet.values()) {
     System.out.println(p + " " + p.gravity + " " + p.ordinal()); // MERCURY 0.38 0 ...
 }
-Planet.valueOf("MARS");   // MARS
+System.out.println(Planet.valueOf("MARS"));   // MARS
 ```
 
 ### Generic class
@@ -221,6 +224,7 @@ class Box<T> {
 
 Box<String> b = new Box<>("hi");
 String s = b.get();       // no cast needed
+System.out.println(s);    // hi
 ```
 
 ### Lambdas for one-method interfaces
@@ -234,8 +238,8 @@ interface Op {                        // after Main
 
 Op add = (x, y) -> x + y;
 Op max = Math::max;                   // a method reference works too
-add.apply(2, 3);          // 5
-max.apply(2, 3);          // 3
+System.out.println(add.apply(2, 3));  // 5
+System.out.println(max.apply(2, 3));  // 3
 ```
 
 ### Abstract class or interface

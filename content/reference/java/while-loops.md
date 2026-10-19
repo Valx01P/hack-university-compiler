@@ -67,6 +67,10 @@ System.out.println(digits + " " + digitSum); // 4 19
 
 ### Read input until it runs out
 
+```stdin
+1 2 3
+```
+
 ```java
 import java.util.Scanner;
 

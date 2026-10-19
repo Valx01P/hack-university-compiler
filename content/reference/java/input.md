@@ -14,12 +14,16 @@ import java.util.Scanner;
 
 Scanner sc = new Scanner(System.in);
 // input: Ana 30 1.75
-String name = sc.next();        // "Ana", one word
-int age = sc.nextInt();         // 30
-double height = sc.nextDouble(); // 1.75
+String name = sc.next();
+System.out.println(name);       // Ana, one word
+int age = sc.nextInt();
+System.out.println(age);        // 30
+double height = sc.nextDouble();
+System.out.println(height);     // 1.75
 sc.nextLine();                  // drop the rest of that line
 // input: hello big world
-String line = sc.nextLine();    // "hello big world", the whole line
+String line = sc.nextLine();
+System.out.println(line);       // hello big world, the whole line
 ```
 
 | Call | Reads |

@@ -29,13 +29,14 @@ System.out.println(-1 >>> 1);    // 2147483647
 ### See and parse binary
 
 ```java
-Integer.toBinaryString(12);        // "1100"
-Integer.toBinaryString(-1);        // "11111111111111111111111111111111", all 32 bits
-Integer.parseInt("1010", 2);       // 10
-String.format("%8s", Integer.toBinaryString(5)).replace(' ', '0'); // "00000101"
-Integer.toHexString(255);          // "ff"
-int hex = 0xFF;                    // 255, a hex literal
-int high = 0b1111_0000;            // 240, underscores group the digits
+System.out.println(Integer.toBinaryString(12));  // 1100
+System.out.println(Integer.toBinaryString(-1));  // 11111111111111111111111111111111, all 32 bits
+System.out.println(Integer.parseInt("1010", 2)); // 10
+String padded = String.format("%8s", Integer.toBinaryString(5)).replace(' ', '0');
+System.out.println(padded);                      // 00000101
+System.out.println(Integer.toHexString(255));    // ff
+System.out.println(0xFF);                        // 255, a hex literal
+System.out.println(0b1111_0000);                 // 240, underscores group the digits
 ```
 
 ### Single bits
@@ -45,26 +46,29 @@ Bit `i` counts from 0 at the right.
 ```java
 int x = 0b1010;
 int i = 1;
-boolean on = ((x >> i) & 1) == 1;  // true, test bit i
-int set = x | (1 << 0);            // 11 (0b1011), set bit 0
-int cleared = x & ~(1 << 1);       // 8  (0b1000), clear bit 1
-int toggled = x ^ (1 << 3);        // 2  (0b0010), toggle bit 3
+System.out.println(((x >> i) & 1) == 1); // true, test bit i
+System.out.println(x | (1 << 0));        // 11 (0b1011), set bit 0
+System.out.println(x & ~(1 << 1));       // 8  (0b1000), clear bit 1
+System.out.println(x ^ (1 << 3));        // 2  (0b0010), toggle bit 3
 
 int flags = 0;
-flags |= 1 << 2;                   // compound forms: &= |= ^= <<= >>=
+flags |= 1 << 2;                         // compound forms: &= |= ^= <<= >>=
 ```
 
 ### Common tricks
 
 ```java
-boolean odd = (7 & 1) == 1;               // true, works for negatives too
+boolean odd = (7 & 1) == 1;
+System.out.println(odd);                  // true, works for negatives too
 int n = 16;
-boolean pow2 = n > 0 && (n & (n - 1)) == 0; // true
-int lowest = 12 & -12;                    // 4, the lowest set bit
+boolean pow2 = n > 0 && (n & (n - 1)) == 0;
+System.out.println(pow2);                 // true
+System.out.println(12 & -12);             // 4, the lowest set bit
 int p = 3, q = 5;
 p ^= q;
 q ^= p;
-p ^= q;                                   // swapped: p 5, q 3
+p ^= q;
+System.out.println(p + " " + q);          // 5 3, swapped
 
 int[] nums = {4, 1, 2, 1, 2};
 int single = 0;
@@ -77,11 +81,11 @@ System.out.println(single);               // 4
 ### Count and find bits
 
 ```java
-Integer.bitCount(13);              // 3, 13 is 0b1101
-Integer.highestOneBit(13);         // 8
-Integer.numberOfTrailingZeros(12); // 2
-Integer.numberOfLeadingZeros(1);   // 31
-Long.bitCount(-1L);                // 64
+System.out.println(Integer.bitCount(13));              // 3, 13 is 0b1101
+System.out.println(Integer.highestOneBit(13));         // 8
+System.out.println(Integer.numberOfTrailingZeros(12)); // 2
+System.out.println(Integer.numberOfLeadingZeros(1));   // 31
+System.out.println(Long.bitCount(-1L));                // 64
 ```
 
 ### Loop over all subsets

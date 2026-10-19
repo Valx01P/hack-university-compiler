@@ -6,8 +6,10 @@
 
 ```java
 int a = 7, b = 12;
-int max = a > b ? a : b;                       // 12
-String parity = a % 2 == 0 ? "even" : "odd";   // "odd"
+int max = a > b ? a : b;
+System.out.println(max);     // 12
+String parity = a % 2 == 0 ? "even" : "odd";
+System.out.println(parity);  // odd
 ```
 
 ### Inside a string
@@ -46,7 +48,8 @@ System.out.println(grade);  // B
 
 ```java
 String name = null;
-String shown = name != null ? name : "guest";  // "guest"
+String shown = name != null ? name : "guest";
+System.out.println(shown);  // guest
 ```
 
 ### Use it in a loop: separators

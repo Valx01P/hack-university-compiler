@@ -18,11 +18,11 @@ A condition in Java must be a `boolean`. There is no truthiness: `0`, `null`, an
 ```java
 int age = 20;
 boolean member = true;
-boolean canEnter = age >= 18 && member;     // true, both must be true
-boolean discount = age < 12 || age >= 65;   // false, at least one must be true
-boolean guest = !member;                    // false
-boolean onlyOne = (age > 18) ^ member;      // false, XOR: exactly one is true
-boolean inRange = age >= 13 && age <= 19;   // false, no 13 <= age <= 19 chaining
+System.out.println(age >= 18 && member);    // true, both must be true
+System.out.println(age < 12 || age >= 65);  // false, at least one must be true
+System.out.println(!member);                // false
+System.out.println((age > 18) ^ member);    // false, XOR: exactly one is true
+System.out.println(age >= 13 && age <= 19); // false, no 13 <= age <= 19 chaining
 ```
 
 Precedence, highest first: `!`, then comparisons, then `&&`, then `||`. Add parentheses when you mix `&&` and `||`.
@@ -36,6 +36,7 @@ int total = 50, count = 0;
 if (count > 0 && total / count > 10) {   // the division never runs, so no crash
     System.out.println("high average");
 }
+System.out.println(count > 0 && total / count > 10); // false, without dividing by zero
 ```
 
 The same guard protects against `null`: `name != null && name.length() > 3` (see Infinity and Null).
@@ -45,22 +46,22 @@ The same guard protects against `null`: `name != null && name.length() > 3` (see
 ```java
 String a = "hello";
 String b = new String("hello");
-boolean sameText = a.equals(b);                // true, compares contents
-boolean sameObject = a == b;                   // false, compares references
-boolean ci = a.equalsIgnoreCase("HELLO");      // true
-int cmp = "apple".compareTo("banana");         // negative, "apple" sorts first
+System.out.println(a.equals(b));                 // true, compares contents
+System.out.println(a == b);                      // false, compares references
+System.out.println(a.equalsIgnoreCase("HELLO")); // true
+System.out.println("apple".compareTo("banana")); // -1, negative, "apple" sorts first
 
 Integer p = 1000, q = 1000;
-boolean boxedEq = p == q;          // false, two different Integer objects
-boolean boxedOk = p.equals(q);     // true
+System.out.println(p == q);        // false, two different Integer objects
+System.out.println(p.equals(q));   // true
 ```
 
 ### Compare doubles
 
 ```java
 double x = 0.1 + 0.2;
-boolean exact = x == 0.3;                    // false
-boolean close = Math.abs(x - 0.3) < 1e-9;    // true
+System.out.println(x == 0.3);                 // false
+System.out.println(Math.abs(x - 0.3) < 1e-9); // true
 ```
 
 ### Methods that return boolean

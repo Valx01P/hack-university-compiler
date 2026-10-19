@@ -15,6 +15,7 @@ Map<String, Integer> ordered = new LinkedHashMap<>(); // keeps insertion order
 Map<String, Integer> sorted = new TreeMap<>();        // keeps keys sorted
 Map<String, Integer> fixed = Map.of("a", 1, "b", 2);  // immutable, up to 10 pairs
 Map<String, Integer> copy = new HashMap<>(fixed);     // mutable copy
+System.out.println(copy.get("a"));                    // 1
 ```
 
 ### Add, update, remove
@@ -31,12 +32,12 @@ public class Main {
 ```
 
 ```java
-ages.put("Ana", 30);           // insert or overwrite
+ages.put("Ana", 30);                              // insert or overwrite
 ages.put("Ben", 25);
-ages.putIfAbsent("Ana", 99);   // does nothing, Ana exists (returns 30)
-ages.remove("Ben");            // returns 25
-ages.replace("Ana", 31);       // only if the key exists
-System.out.println(ages);      // {Ana=31}
+System.out.println(ages.putIfAbsent("Ana", 99));  // 30, does nothing, Ana exists
+System.out.println(ages.remove("Ben"));           // 25, the removed value
+ages.replace("Ana", 31);                          // only if the key exists
+System.out.println(ages);                         // {Ana=31}
 ```
 
 ### Access
@@ -48,19 +49,18 @@ public class Main {
     public static void main(String[] args) throws Exception {
         Map<String, Integer> ages = new HashMap<>(Map.of("Ana", 31));
         {{code}}
-        System.out.println(ages);
     }
 }
 ```
 
 ```java
-ages.get("Ana");               // 31
-ages.get("Zed");               // null, the key is missing
-ages.getOrDefault("Zed", 0);   // 0
-ages.containsKey("Ana");       // true
-ages.containsValue(31);        // true
-ages.size();                   // 1
-ages.isEmpty();                // false
+System.out.println(ages.get("Ana"));              // 31
+System.out.println(ages.get("Zed"));              // null, the key is missing
+System.out.println(ages.getOrDefault("Zed", 0));  // 0
+System.out.println(ages.containsKey("Ana"));      // true
+System.out.println(ages.containsValue(31));       // true
+System.out.println(ages.size());                  // 1
+System.out.println(ages.isEmpty());               // false
 ```
 
 ### Count things
@@ -113,27 +113,28 @@ public class Main {
     public static void main(String[] args) throws Exception {
         Map<String, Integer> scores = new TreeMap<>(Map.of("Ana", 90, "Ben", 85));
         {{code}}
-        System.out.println(entries);
     }
 }
 ```
 
 ```java
 List<Map.Entry<String, Integer>> entries = new ArrayList<>(scores.entrySet());
-entries.sort(Map.Entry.comparingByValue());                            // [Ben=85, Ana=90]
-entries.sort(Map.Entry.<String, Integer>comparingByValue().reversed()); // [Ana=90, Ben=85]
+entries.sort(Map.Entry.comparingByValue());
+System.out.println(entries);  // [Ben=85, Ana=90]
+entries.sort(Map.Entry.<String, Integer>comparingByValue().reversed());
+System.out.println(entries);  // [Ana=90, Ben=85]
 ```
 
 ### TreeMap lookups
 
 ```java
 TreeMap<Integer, String> t = new TreeMap<>(Map.of(1, "a", 5, "e", 9, "i"));
-t.firstKey();     // 1
-t.lastKey();      // 9
-t.floorKey(6);    // 5, largest key <= 6 (null if none)
-t.ceilingKey(6);  // 9, smallest key >= 6
-t.headMap(5);     // {1=a}, keys < 5
-t.tailMap(5);     // {5=e, 9=i}, keys >= 5
+System.out.println(t.firstKey());     // 1
+System.out.println(t.lastKey());      // 9
+System.out.println(t.floorKey(6));    // 5, largest key <= 6 (null if none)
+System.out.println(t.ceilingKey(6));  // 9, smallest key >= 6
+System.out.println(t.headMap(5));     // {1=a}, keys < 5
+System.out.println(t.tailMap(5));     // {5=e, 9=i}, keys >= 5
 ```
 
 ### Common calls

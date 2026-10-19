@@ -62,7 +62,7 @@ import java.util.Arrays;
 import java.util.List;
 
 int[] nums = {3, 1, 2};
-System.out.println(nums);                  // [I@1b6d3586, an address, not the contents
+System.out.println(nums);                  // an address like [I@1b6d3586, not the contents
 System.out.println(Arrays.toString(nums)); // [3, 1, 2]
 
 int[][] grid = {{1, 2}, {3, 4}};
