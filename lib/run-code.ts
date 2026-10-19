@@ -2,7 +2,7 @@ import { SANDBOX_REFRESH_EVENT, isSql } from "@/lib/compiler";
 import type { LessonTest, TypeTests } from "@/lib/learn-types";
 import { splitArgs } from "@/lib/shell-words";
 import { applyHarness } from "@/lib/snippet-harness.mjs";
-import { filesToCollect, type Diagnostic } from "@/lib/single-checks.mjs";
+import { filesToCollect, type TypeTestReport } from "@/lib/single-checks.mjs";
 
 /** How outputs are compared (lib/single-checks.mjs, shared with the
     verifiers): trailing spaces on a line and trailing blank lines don't
@@ -19,9 +19,11 @@ export interface RunResult {
   verdict: string | null;
   compileCode: number | null;
   compileOutput: string;
-  /** For a test that names files: each one's contents, or null when it
-      doesn't exist. */
+  /** For a test that names paths: each regular file's contents, or null
+      for anything else (nothing there, a folder, a link). */
   files?: Record<string, string | null>;
+  /** For the same paths: whether anything at all is there. */
+  exists?: Record<string, boolean>;
 }
 
 export type RunState =
@@ -95,10 +97,7 @@ export async function runInSandbox(
   }
 }
 
-/** Each type-test case's diagnostics, in the order of the practice's cases. */
-export type TypeTestRuns = { name: string; diagnostics: Diagnostic[] }[];
-
-export type CheckOutcome = { ok: true; runs: RunResult[]; typeTests: TypeTestRuns } | { ok: false; error: string };
+export type CheckOutcome = { ok: true; runs: RunResult[]; typeTests: TypeTestReport[] } | { ok: false; error: string };
 
 // What a test can carry to the runner (runner/schemas.ts TestSpec).
 const TEST_FIELDS = ["stdin", "args", "env", "clock", "fixtures", "cwd", "wrap", "files", "absent", "tryIt", "output", "exitCode", "stderrIncludes"] as const;
@@ -131,7 +130,7 @@ export async function checkInSandbox(
   );
   const groups = [...new Set(programs)].sort((a, b) => Number(b === code) - Number(a === code));
   const runs: RunResult[] = [];
-  let typeTestRuns: TypeTestRuns = [];
+  let typeTestReports: TypeTestReport[] = [];
   try {
     for (const [g, program] of groups.entries()) {
       const members = tests.map((t, i) => i).filter((i) => programs[i] === program);
@@ -161,11 +160,12 @@ export async function checkInSandbox(
           compileCode: data.compile?.code ?? null,
           compileOutput: data.compile?.output ?? "",
           ...(r.files ? { files: r.files } : {}),
+          ...(r.exists ? { exists: r.exists } : {}),
         };
       });
-      if (g === 0 && Array.isArray(data.typeTests)) typeTestRuns = data.typeTests;
+      if (g === 0 && Array.isArray(data.typeTests)) typeTestReports = data.typeTests;
     }
-    return { ok: true, runs, typeTests: typeTestRuns };
+    return { ok: true, runs, typeTests: typeTestReports };
   } catch {
     return { ok: false, error: UNREACHABLE };
   } finally {

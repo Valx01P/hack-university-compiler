@@ -31,10 +31,12 @@ export interface TypeTestResult {
   code: string;
 }
 
-/** A line of your code that breaks one of the practice's honesty rules. */
+/** A place in your code that breaks one of the practice's honesty rules,
+    with its line. */
 export interface ForbiddenUse {
   rule: ForbidRule;
   line: number;
+  col: number;
   text: string;
 }
 
@@ -238,9 +240,7 @@ export function CheckResults({
             {typeTests.map((c, i) => (
               <li key={i} className="min-w-0">
                 <p className="flex items-start gap-2 text-sm text-ink">
-                  <span className="mt-0.5 inline-flex shrink-0">
-                    {c.passed ? <CompleteIcon className="size-3.5" /> : <span aria-hidden className="text-danger">✗</span>}
-                  </span>
+                  <Mark passed={c.passed} />
                   <span className="min-w-0">
                     {c.name}
                     <span className="sr-only">{c.passed ? " (passed)" : " (failed)"}</span>
@@ -267,12 +267,10 @@ export function CheckResults({
             {forbidden.map((h, i) => (
               <li key={i} className="min-w-0">
                 <p className="flex items-start gap-2 text-sm text-ink">
-                  <span aria-hidden className="mt-0.5 shrink-0 text-danger">
-                    ✗
-                  </span>
+                  <Mark passed={false} />
                   <span className="min-w-0">
                     {onGoTo ? (
-                      <button type="button" onClick={() => onGoTo(h.line, 1)} className={LINE_LINK}>
+                      <button type="button" onClick={() => onGoTo(h.line, h.col)} className={LINE_LINK}>
                         Line {h.line}
                       </button>
                     ) : (
@@ -295,6 +293,16 @@ export function CheckResults({
 
 const BLOCK =
   "code-dark slim-scroll max-h-48 overflow-auto rounded-btn border border-code-content-line bg-code-bg px-3 py-2 font-mono text-xs leading-5 text-code-ink";
+
+/** A row's pass or fail mark, the same size either way, centered on the
+    row's first line. */
+function Mark({ passed }: { passed: boolean }) {
+  return (
+    <span className="mt-[3px] inline-flex size-3.5 shrink-0 items-center justify-center">
+      {passed ? <CompleteIcon className="size-3.5" /> : <span aria-hidden className="text-xs leading-none text-danger">✗</span>}
+    </span>
+  );
+}
 
 /** A judge's note as a sentence: "wrong output" reads "Wrong output.", and
     one that starts with a file name or code keeps it as written. */

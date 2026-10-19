@@ -10,8 +10,11 @@ export interface JudgedRun {
   status?: string | null;
   /** The same verdict, as the app's RunResult names it. */
   verdict?: string | null;
-  /** Each file the test names, or null when it doesn't exist. */
+  /** Each path the test names: a regular file's contents, or null for
+      anything else (nothing, a folder, a link). */
   files?: Record<string, string | null>;
+  /** Whether anything at all (a file, a folder, a link) is at each path. */
+  exists?: Record<string, boolean>;
 }
 
 export interface JudgedTest {
@@ -43,14 +46,35 @@ export interface Diagnostic {
   code: string;
   message: string;
 }
+/** One case of a Check's `typeTests`, as the runner reports it. */
+export interface TypeTestReport {
+  name: string;
+  expect?: "ok" | "error";
+  /** Whether the case did what its `expect` (and `errorCode`) says. */
+  pass: boolean;
+  /** Lines and columns count from the start of the case's own code. */
+  diagnostics: Diagnostic[];
+  /** Why it failed. */
+  message?: string;
+}
 
-export function typeTestFiles(typeTests: TypeTests): { name: string; case: string; importLines: number; content: string }[];
 export function judgeTypeTests(
   typeTests: TypeTests,
-  results: { diagnostics: Diagnostic[] }[]
+  results: readonly TypeTestReport[] | null | undefined
 ): { name: string; passed: boolean; problem: string | null }[];
 export function parseTscOutput(output: string): Required<Diagnostic>[];
 
 export type ForbidRule = "any" | "as" | "non-null" | "ts-comments";
 export const FORBID_RULES: Record<ForbidRule, string>;
-export function forbiddenUses(src: string, rules: readonly string[]): { rule: ForbidRule; line: number; text: string }[];
+
+export interface Token {
+  type: "ident" | "punct" | "string" | "template" | "regex" | "number" | "comment";
+  value: string;
+  /** 1-based. */
+  line: number;
+  col: number;
+  /** A line break comes between this token and the one before it. */
+  newlineBefore: boolean;
+}
+export function tokenize(src: string): Token[];
+export function forbiddenUses(src: string, rules: readonly string[]): { rule: ForbidRule; line: number; col: number; text: string }[];
