@@ -999,7 +999,15 @@ function ExampleBlock({
   onOpen: () => void;
 }) {
   const expect = example.expect ?? "run";
-  const exitCode = example.exitCode ?? 0;
+  // A crash that printed nothing shows just its errors.
+  const showOutput = expect !== "runtime-error" || Boolean(example.output);
+  // The exit status rides on the first of those labels.
+  const exit =
+    (example.exitCode ?? 0) !== 0 ? (
+      <span className="ml-2 inline-block rounded-btn border border-line-strong px-1.5 font-mono text-[11px] leading-4 text-ink">
+        exit {example.exitCode}
+      </span>
+    ) : null;
   return (
     <div id={exampleId(index)} className={`${index === 0 ? "mt-7" : "mt-8"} border-l-2 border-content-line pl-5 ${PLACE_MARGIN}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -1045,15 +1053,11 @@ function ExampleBlock({
       {/* Shown like the expected output in a practice prompt: a terminal
           block you can copy. A type error shows the checker's words instead,
           and a crash what it printed first, then its error. */}
-      {expect !== "runtime-error" || example.output ? (
+      {showOutput ? (
         <>
           <p className="mt-4 text-xs font-medium text-ink-faint">
             {expect === "type-error" ? "Type errors" : "Output"}
-            {exitCode !== 0 && (
-              <span className="ml-2 inline-block rounded-btn border border-line-strong px-1.5 font-mono text-[11px] leading-4 text-ink">
-                exit {exitCode}
-              </span>
-            )}
+            {exit}
           </p>
           <CopyableCodeBlock
             code={example.output}
@@ -1065,7 +1069,10 @@ function ExampleBlock({
       ) : null}
       {example.errorIncludes ? (
         <>
-          <p className="mt-4 text-xs font-medium text-ink-faint">Errors</p>
+          <p className="mt-4 text-xs font-medium text-ink-faint">
+            Errors
+            {!showOutput && exit}
+          </p>
           <CopyableCodeBlock code={example.errorIncludes} label="Example errors" className="mt-1.5" preClassName={`${CODE_BLOCK} text-danger!`} />
         </>
       ) : null}
