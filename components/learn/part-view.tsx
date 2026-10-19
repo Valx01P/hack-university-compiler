@@ -365,7 +365,9 @@ export function PartView({
       ref={gridRef}
       data-workspace
       className={`flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[var(--learn-split)_9px_minmax(0,1fr)] ${
-        full ? "fixed inset-0 z-[100] bg-canvas max-lg:overflow-y-auto" : ""
+        // Below lg the part and the editor stack and the whole thing
+        // scrolls, each at its own height (never squeezed to fit).
+        full ? "fixed inset-0 z-[100] bg-canvas max-lg:overflow-y-auto max-lg:*:shrink-0" : ""
       }`}
       style={{ "--learn-split": `${split}%` } as React.CSSProperties}
     >
