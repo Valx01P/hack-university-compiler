@@ -217,6 +217,10 @@ export function failure(r) {
 
 export const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const FENCE_LANGS = new Set(["python", "javascript", "cpp", "java", "go", "sql", "text"]);
+/** Flags after a fence's language, for runnable snippets: norun (shown only),
+    error (runs and is meant to fail), harness (hidden wrapper for the next
+    snippet). */
+export const FENCE_FLAGS = new Set(["norun", "error", "harness"]);
 export const isStr = (v) => typeof v === "string";
 export const nonEmpty = (v) => isStr(v) && v.trim().length > 0;
 
@@ -268,8 +272,17 @@ export function lintMarkdown(where, value, isMarkdown, errors) {
   }
   parts.forEach((part, i) => {
     if (i % 2 === 1) {
-      const fenceLang = part.slice(0, part.indexOf("\n") < 0 ? part.length : part.indexOf("\n")).trim();
+      // The info string: a language, then flags for runnable snippets (see
+      // lib/snippet-harness.mjs). A ```stdin block is hidden input.
+      const nl = part.indexOf("\n");
+      const [fenceLang = "", ...flags] = part.slice(0, nl < 0 ? part.length : nl).trim().split(/\s+/);
+      if (fenceLang === "stdin") {
+        if (flags.length) bad("a ```stdin block takes no flags");
+        return;
+      }
       if (!FENCE_LANGS.has(fenceLang)) bad(`code fence language "${fenceLang}" must be one of ${[...FENCE_LANGS].join(", ")}`);
+      for (const flag of flags) if (!FENCE_FLAGS.has(flag)) bad(`unknown code fence flag "${flag}" (use ${[...FENCE_FLAGS].join(", ")})`);
+      if (flags.includes("harness") && !/^[ \t]*\{\{code\}\}[ \t]*$/m.test(part.slice(nl + 1))) bad("a harness needs a line holding just {{code}}");
       return;
     }
     for (const block of part.split(/\n{2,}/)) checkBlock(block.replace(/^\n+|\n+$/g, ""), bad);

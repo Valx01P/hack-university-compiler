@@ -156,6 +156,94 @@ in the browser and in the verifier alike. How SQL lessons differ:
 - Write keywords in uppercase and names in `snake_case`. End every statement
   with a semicolon.
 
+## Runnable snippets
+
+Every code block in a lesson (`intro`, a step's `body`, an example's
+`explanation`, `recap`) and in a cheatsheet is runnable in the app: it has a
+Run button, opens its output below, and can be edited (and reset). So every
+block must actually run. `node scripts/verify-snippets.mjs <language>` runs
+them all the way the app does and lists the ones that don't.
+
+How a block runs (lib/snippet-harness.mjs):
+
+- Python, JavaScript, and SQL run as written. SQL in a lesson runs after the
+  lesson's `setup` (its tables exist), and in a cheatsheet on the playground's
+  sample database (departments, employees, customers, products, orders,
+  order_items).
+- C++, Java, and Go blocks that aren't whole programs are wrapped for you:
+  C++ gets `#include <bits/stdc++.h>` and `using namespace std;`, Java gets
+  `java.util.*`, `java.util.stream.*`, `java.util.function.*`, `java.io.*`,
+  and `java.math.*` with a `Main` class, Go gets `package main` and the imports
+  it uses. Functions, types, and classes stay at the top level (Java methods
+  and classes become `static` members of `Main`), and the other lines go
+  inside `main`. Go also gets `_ = x` for each variable `main` declares, so an
+  unused one isn't an error, and a `var` or `const` that a function uses stays
+  at the package level.
+
+The info string after the opening fence controls it:
+
+- ` ```python ` runs normally and must exit cleanly.
+- ` ```python error ` is meant to fail: it shows an error (a traceback, a
+  compile error, a constraint violation), and the check makes sure it does.
+- ` ```python harness ` is hidden. It wraps the next runnable block: its line
+  holding just `{{code}}` becomes that block, indented like that line. Use it
+  when a block is a fragment that needs context, like names from an earlier
+  block, an enclosing loop or function, imports, or values to work on. For
+  C++, Java, and Go the automatic wrapping runs after the harness is filled
+  in, so a harness holds just that context (a struct, a class, a few
+  variables), and the shown block keeps its imports and never needs a `main`
+  of its own to fit. Add a print after `{{code}}` when the block itself prints
+  nothing, so running it shows what it did.
+- ` ```stdin ` is hidden: input for the next runnable block.
+- ` ```python norun ` is shown but never runs. Only for what can't run in any
+  form: a syntax template with placeholders, pseudo-code, `...` elisions.
+
+Prefer, in order: a block that runs as written; a hidden harness that gives a
+fragment its context (the shown code stays the same); `error` for a block that
+demonstrates an error; a minimal rewrite of a block that isn't code on its own
+(for example `std::sqrt(144)  // 12` becomes
+`std::cout << std::sqrt(144) << '\n';  // 12`); and `norun` last.
+
+```python harness
+from collections import deque
+start = (0, 0)
+{{code}}
+print(queue)
+```
+
+```python
+queue = deque([(start, 0)])
+```
+
+```sql harness
+SELECT id, name, city
+FROM customers
+{{code}}
+ORDER BY id;
+```
+
+```sql
+WHERE city IN ('Austin', 'Denver')
+```
+
+```go harness
+type Person struct {
+	Name string
+	Age  int
+}
+
+p := Person{Name: "Ann", Age: 30}
+{{code}}
+```
+
+```go
+func (p Person) Greet() string {
+	return "Hi, " + p.Name
+}
+
+fmt.Println(p.Greet()) // Hi, Ann
+```
+
 ## Lesson file
 
 ```json

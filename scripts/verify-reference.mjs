@@ -68,7 +68,7 @@ for (const lang of langs) {
       if (!body) errors.push({ where: "body", message: "empty" });
       if (/^#\s/m.test(body)) errors.push({ where: "body", message: 'use "##" and "###" headings inside a section, "#" is only the title' });
       const fences = [...body.matchAll(/^```(\S*)/gm)].map((m) => m[1]);
-      const langFences = fences.filter((_, i) => i % 2 === 0);
+      const langFences = fences.filter((_, i) => i % 2 === 0).filter((l) => l !== "stdin");
       if (!langFences.includes(lang)) errors.push({ where: "body", message: `needs at least one \`\`\`${lang} code block` });
       for (const l of langFences) {
         if (l !== lang && l !== "text") errors.push({ where: "body", message: `code blocks are \`\`\`${lang} or \`\`\`text, not "${l}"` });
