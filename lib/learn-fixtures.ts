@@ -12,8 +12,10 @@ const DIR = process.env.FIXTURES_CONTENT_DIR
   ? path.resolve(process.env.FIXTURES_CONTENT_DIR)
   : path.join(process.cwd(), "content", "fixtures");
 const NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-// What the strip shows of each file. The runner always gets all of it.
-const SHOWN_BYTES = 64 * 1024;
+// What the strip shows of each file, enough to read a log's first couple
+// of hundred lines. It rides in the part's page, so it stays small. The
+// runner always gets the whole file.
+const SHOWN_BYTES = 16 * 1024;
 
 export interface FixtureFile {
   /** Relative to the set, with forward slashes. */
@@ -41,11 +43,14 @@ async function walk(root: string, rel = ""): Promise<FixtureFile[]> {
     } else if (entry.isFile()) {
       const [stat, bytes] = await Promise.all([fs.stat(full), fs.readFile(full)]);
       const binary = bytes.subarray(0, 8000).includes(0);
+      const clipped = !binary && stat.size > SHOWN_BYTES;
+      // A clipped file shows whole lines.
+      const text = binary ? null : bytes.subarray(0, SHOWN_BYTES).toString("utf8");
       files.push({
         path: relPath,
         size: stat.size,
-        content: binary ? null : bytes.subarray(0, SHOWN_BYTES).toString("utf8"),
-        clipped: !binary && stat.size > SHOWN_BYTES,
+        content: text !== null && clipped ? text.slice(0, text.lastIndexOf("\n") + 1) || text : text,
+        clipped,
         executable: (stat.mode & 0o111) !== 0,
       });
     }
