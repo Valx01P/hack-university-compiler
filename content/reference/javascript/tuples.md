@@ -46,7 +46,7 @@ const zipped = keys.map((k, i) => [k, vals[i]]);  // [ [ 'a', 1 ], [ 'b', 2 ] ]
 
 ### Read-only
 
-```javascript
+```javascript error
 const p = Object.freeze([1, 2]);
 p[0] = 9;      // silently ignored (throws in strict mode)
 p.push(3);     // TypeError: Cannot add property 2, object is not extensible

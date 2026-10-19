@@ -13,6 +13,12 @@ s.size;                            // 3
 
 ### Add and remove
 
+```javascript harness
+const s = new Set([3, 1, 3, 2]);
+{{code}}
+console.log([...s].join(", "));
+```
+
 ```javascript
 s.add(5);           // add, a duplicate is ignored
 s.add(7).add(8);    // add returns the set, so it chains
@@ -20,6 +26,11 @@ s.delete(8);        // true (false if it was not there)
 ```
 
 ### Check and loop
+
+```javascript harness
+const s = new Set([3, 1, 2, 5, 7]);
+{{code}}
+```
 
 ```javascript
 s.has(3);           // true
@@ -60,6 +71,12 @@ const isSubset = [...diff].every((x) => a.has(x));      // true, diff is inside 
 ```
 
 ### Convert
+
+```javascript harness
+const a = new Set([1, 2, 3]);
+{{code}}
+console.log([...a].sort((x, y) => y - x));
+```
 
 ```javascript
 [...a];                         // [ 1, 2, 3 ]

@@ -13,6 +13,14 @@ const fromObj = new Map(Object.entries(obj));   // object to Map
 
 ### Add, update, remove
 
+```javascript harness
+const m = new Map([["ann", 31], ["bob", 25]]);
+const obj = { ann: 31, bob: 25 };
+{{code}}
+console.log(m);
+console.log(obj);
+```
+
 ```javascript
 m.set("cy", 40);                  // add or overwrite
 m.set("ann", m.get("ann") + 1);   // update
@@ -25,6 +33,13 @@ delete obj.bob;
 ```
 
 ### Look up
+
+```javascript harness
+const m = new Map([["ann", 32], ["cy", 40]]);
+const obj = { ann: 31, cy: 40, dee: 22 };
+{{code}}
+console.log(m.get("ann"), m.get("zed") ?? 0, obj[key], "ann" in obj);
+```
 
 ```javascript
 m.get("ann");               // 32
@@ -40,6 +55,12 @@ Object.hasOwn(obj, "ann");  // true
 ```
 
 ### Loop
+
+```javascript harness
+const m = new Map([["ann", 32], ["cy", 40]]);
+const obj = { ann: 31, cy: 40, dee: 22 };
+{{code}}
+```
 
 ```javascript
 for (const [name, age] of m) {
@@ -78,6 +99,18 @@ for (const w of ["apple", "avocado", "banana"]) {
 ```
 
 ### Sort and convert
+
+```javascript harness
+const m = new Map([["ann", 32], ["cy", 40]]);
+const counts = new Map();
+for (const w of "the cat and the hat".split(" ")) {
+  counts.set(w, (counts.get(w) ?? 0) + 1);
+}
+{{code}}
+console.log(top[0]);
+console.log(byKey);
+console.log(JSON.stringify(Object.fromEntries(m)));
+```
 
 ```javascript
 [...m.keys()];     // [ 'ann', 'cy' ]

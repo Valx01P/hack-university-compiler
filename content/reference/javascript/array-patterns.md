@@ -8,6 +8,11 @@ const a = [10, 11, 12, 13, 14, 15];
 
 ### Reverse
 
+```javascript harness
+const a = [10, 11, 12, 13, 14, 15];
+{{code}}
+```
+
 ```javascript
 const out = [];
 for (let i = a.length - 1; i >= 0; i--) {
@@ -19,6 +24,11 @@ console.log([...a].reverse().join(" ")); // same, copy first since reverse() mut
 ```
 
 ### Every other index (step by 2)
+
+```javascript harness
+const a = [10, 11, 12, 13, 14, 15];
+{{code}}
+```
 
 ```javascript
 const evenIdx = [];
@@ -32,6 +42,11 @@ console.log(oddIdx.join(" ")); // 11 13 15 (indexes 1, 3, 5)
 
 ### Skip odd values
 
+```javascript harness
+const a = [10, 11, 12, 13, 14, 15];
+{{code}}
+```
+
 ```javascript
 const evens = [];
 for (const x of a) {
@@ -44,6 +59,11 @@ console.log(a.filter((x) => x % 2 === 0).join(" ")); // 10 12 14
 
 ### Every k-th, first n, last n
 
+```javascript harness
+const a = [10, 11, 12, 13, 14, 15];
+{{code}}
+```
+
 ```javascript
 const k = 3;
 const everyThird = [];
@@ -55,6 +75,11 @@ console.log(a.slice(-2).join(" "));   // 14 15 (last 2)
 ```
 
 ### Adjacent pairs
+
+```javascript harness
+const a = [10, 11, 12, 13, 14, 15];
+{{code}}
+```
 
 ```javascript
 const diffs = [];
@@ -72,6 +97,11 @@ console.log(rises); // 3
 ```
 
 ### From both ends inward
+
+```javascript harness
+const a = [10, 11, 12, 13, 14, 15];
+{{code}}
+```
 
 ```javascript
 const pairs = [];
@@ -94,6 +124,11 @@ console.log(b.join(" ")); // 5 4 3 2 1
 
 ### Wrap around (circular)
 
+```javascript harness
+const a = [10, 11, 12, 13, 14, 15];
+{{code}}
+```
+
 ```javascript
 const start = 4;
 const ring = [];
@@ -104,6 +139,11 @@ console.log(ring.join(" ")); // 14 15 10 11 12 13
 ```
 
 ### Running total (prefix sums)
+
+```javascript harness
+const a = [10, 11, 12, 13, 14, 15];
+{{code}}
+```
 
 ```javascript
 const prefix = [];
@@ -116,6 +156,11 @@ console.log(prefix.join(" ")); // 10 21 33 46 60 75
 ```
 
 ### Sliding window of size k
+
+```javascript harness
+const a = [10, 11, 12, 13, 14, 15];
+{{code}}
+```
 
 ```javascript
 const size = 3;

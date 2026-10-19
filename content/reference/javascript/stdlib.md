@@ -34,7 +34,7 @@ const days = (new Date(2024, 2, 1) - new Date(2024, 1, 1)) / 86400000;  // 29
 
 ### util and assert
 
-```javascript
+```javascript error
 const util = require("util");
 const nested = { a: { b: { c: { d: 1 } } } };
 console.log(util.inspect(nested, { depth: null }));     // every level, no [Object]

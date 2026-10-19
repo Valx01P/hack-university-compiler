@@ -53,6 +53,14 @@ x ^ (1 << 3);           // 2  (0b0010), toggle bit 3
 
 ### Common tricks
 
+```javascript harness
+const n = 6;
+{{code}}
+console.log(`6 is even: ${(n & 1) === 0}`);
+console.log(`isPow2(64): ${isPow2(64)}`);
+console.log(`popcount(0b1011): ${popcount(0b1011)}`);
+```
+
 ```javascript
 (n & 1) === 0;                          // even?
 const isPow2 = (n) => n > 0 && (n & (n - 1)) === 0;   // isPow2(64) is true

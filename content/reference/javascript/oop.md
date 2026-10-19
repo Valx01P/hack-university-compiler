@@ -57,6 +57,32 @@ class Square extends Rect {
 
 ### Polymorphism in a loop
 
+```javascript harness
+class Shape {
+  constructor(name) {
+    if (new.target === Shape) throw new TypeError("Shape is abstract");
+    this.name = name;
+  }
+  describe() { return `${this.name} with area ${this.area().toFixed(2)}`; }
+}
+class Rect extends Shape {
+  constructor(w, h) { super("rect"); this.w = w; this.h = h; }
+  area() { return this.w * this.h; }
+  describe() { return super.describe() + ` (${this.w}x${this.h})`; }
+}
+class Circle extends Shape {
+  constructor(r) { super("circle"); this.r = r; }
+  area() { return Math.PI * this.r ** 2; }
+}
+class Square extends Rect {
+  constructor(side) { super(side, side); this.name = "square"; }
+}
+
+{{code}}
+console.log(`total: ${total.toFixed(2)}`);
+console.log(`circles: ${circles.length}`);
+```
+
 ```javascript
 const shapes = [new Circle(1), new Rect(2, 3), new Square(2)];
 for (const s of shapes) {
@@ -72,7 +98,31 @@ const circles = shapes.filter((s) => s instanceof Circle);
 
 ### Check types
 
-```javascript
+```javascript harness
+class Shape {
+  constructor(name) {
+    if (new.target === Shape) throw new TypeError("Shape is abstract");
+    this.name = name;
+  }
+  describe() { return `${this.name} with area ${this.area().toFixed(2)}`; }
+}
+class Rect extends Shape {
+  constructor(w, h) { super("rect"); this.w = w; this.h = h; }
+  area() { return this.w * this.h; }
+  describe() { return super.describe() + ` (${this.w}x${this.h})`; }
+}
+class Circle extends Shape {
+  constructor(r) { super("circle"); this.r = r; }
+  area() { return Math.PI * this.r ** 2; }
+}
+class Square extends Rect {
+  constructor(side) { super(side, side); this.name = "square"; }
+}
+
+{{code}}
+```
+
+```javascript error
 const sq = new Square(2);
 sq instanceof Square;     // true
 sq instanceof Rect;       // true, a subclass counts
@@ -82,6 +132,23 @@ new Shape("x");           // TypeError: Shape is abstract
 ```
 
 ### Duck typing and composition
+
+```javascript harness
+class Shape {
+  constructor(name) {
+    if (new.target === Shape) throw new TypeError("Shape is abstract");
+    this.name = name;
+  }
+  describe() { return `${this.name} with area ${this.area().toFixed(2)}`; }
+}
+class Circle extends Shape {
+  constructor(r) { super("circle"); this.r = r; }
+  area() { return Math.PI * this.r ** 2; }
+}
+
+{{code}}
+console.log(new Car().start());
+```
 
 ```javascript
 // anything with area() can be used where a Shape is expected

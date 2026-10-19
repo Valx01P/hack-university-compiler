@@ -106,7 +106,7 @@ valid;   // [ 4, 10 ]
 
 ### Wrap with a cause
 
-```javascript
+```javascript error
 const text = "{bad json";
 try {
   JSON.parse(text);

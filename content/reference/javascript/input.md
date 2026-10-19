@@ -12,6 +12,18 @@ const lines = input.trim().split("\n");       // array of lines
 
 ### Numbers from a line
 
+```stdin
+3
+5 2 9
+```
+
+```javascript harness
+const input = require("fs").readFileSync(0, "utf8");
+const lines = input.trim().split("\n");
+{{code}}
+console.log(n, nums, sum);
+```
+
 ```javascript
 // input: "3\n5 2 9"
 const n = Number(lines[0]);                   // 3
@@ -24,6 +36,17 @@ if (nums.some(Number.isNaN)) console.log("bad number in the input");
 
 When values are spread over lines in any way, split on all whitespace and walk with an index.
 
+```stdin
+2
+7   4
+```
+
+```javascript harness
+const input = require("fs").readFileSync(0, "utf8");
+{{code}}
+console.log(tokens, count, first);
+```
+
 ```javascript
 // input: "2\n7   4\n"
 const tokens = input.split(/\s+/).filter(Boolean);   // [ '2', '7', '4' ]
@@ -35,6 +58,20 @@ const first = Number(next());   // 7
 ```
 
 ### Into a Map, a Set, and objects
+
+```stdin
+3
+ann 31
+bob 25
+ann 40
+```
+
+```javascript harness
+const input = require("fs").readFileSync(0, "utf8");
+const lines = input.trim().split("\n");
+{{code}}
+console.log(names.size, best.get("ann"), people[1].name);
+```
 
 ```javascript
 // input:
@@ -67,6 +104,18 @@ people[1].name;      // 'bob'
 ```
 
 ### A grid of characters
+
+```stdin
+#.#
+.#.
+```
+
+```javascript harness
+const input = require("fs").readFileSync(0, "utf8");
+const lines = input.trim().split("\n");
+{{code}}
+console.log(grid[1][1]);
+```
 
 ```javascript
 // input: "#.#\n.#."

@@ -70,6 +70,29 @@ A setter pairs with a getter: `set balance(v) { ... }` runs on `acct.balance = v
 
 ### Use it in a loop
 
+```javascript harness
+class Account {
+  #balance = 0;
+
+  constructor(owner) {
+    this.owner = owner;
+  }
+
+  deposit(amount) {
+    this.#balance += amount;
+    return this;
+  }
+
+  get balance() {
+    return this.#balance;
+  }
+}
+
+{{code}}
+console.log(`total: ${total}`);
+console.log(`richest: ${richest.owner}`);
+```
+
 ```javascript
 const accounts = [new Account("cy"), new Account("al")];
 accounts[0].deposit(10);
