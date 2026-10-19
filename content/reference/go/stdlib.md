@@ -32,6 +32,7 @@ d := rand.Intn(6) + 1            // 1..6
 f := rand.Float64()              // 0.0 up to (not including) 1.0
 deck := []int{1, 2, 3, 4}
 rand.Shuffle(len(deck), func(i, j int) { deck[i], deck[j] = deck[j], deck[i] })
+fmt.Println(d, f, deck) // different on every run
 ```
 
 ### time
@@ -75,7 +76,8 @@ heap.Push(h, 1)
 for h.Len() > 0 {
 	fmt.Print(heap.Pop(h), " ")
 }
-fmt.Println() // 1 2 5 8
+fmt.Println()
+// 1 2 5 8
 ```
 
 ### Queues: slice or container/list

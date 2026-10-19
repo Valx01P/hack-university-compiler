@@ -97,6 +97,11 @@ fmt.Println(s) // [5 4 3 2 1]
 
 ### Read input until it runs out
 
+```stdin
+hi
+there
+```
+
 ```go
 import (
 	"bufio"

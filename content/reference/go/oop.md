@@ -114,6 +114,7 @@ type Incer interface{ Inc() }
 
 var i Incer = &Counter{} // Counter{} would not compile
 i.Inc()
+fmt.Println(i) // &{1}
 ```
 
 ### Depend on an interface

@@ -9,8 +9,9 @@ ages := map[string]int{
 	"alice": 30,
 	"bob":   25,
 }
-counts := make(map[string]int) // empty, ready to write
-var m map[string]int           // nil: reads work, writes panic
+counts := make(map[string]int)           // empty, ready to write
+var m map[string]int                     // nil: reads work, writes panic
+fmt.Println(ages, len(counts), m == nil) // map[alice:30 bob:25] 0 true
 ```
 
 ### Add, update, remove
@@ -31,7 +32,8 @@ func main() {
 
 ```go
 ages["carol"] = 41 // add or overwrite
-ages["bob"]++      // 26
+ages["bob"]++
+fmt.Println(ages["bob"]) // 26
 delete(ages, "alice")
 delete(ages, "nobody") // missing key: no-op, no error
 fmt.Println(len(ages)) // 2
@@ -49,14 +51,14 @@ import "fmt"
 func main() {
 	ages := map[string]int{"bob": 26, "carol": 41}
 	{{code}}
-	fmt.Println(age, ok)
 }
 ```
 
 ```go
 fmt.Println(ages["bob"]) // 26
 fmt.Println(ages["zed"]) // 0 (zero value, no error)
-age, ok := ages["zed"]   // 0 false
+age, ok := ages["zed"]
+fmt.Println(age, ok) // 0 false
 
 if v, ok := ages["bob"]; ok {
 	fmt.Println("found", v) // found 26

@@ -96,7 +96,8 @@ for _, n := range []int{1, -2, 3, -4} {
 	}
 	fmt.Print(n, " ")
 }
-fmt.Println() // 1 3
+fmt.Println()
+// 1 3
 ```
 
 ### Gotchas

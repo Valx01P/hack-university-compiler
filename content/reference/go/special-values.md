@@ -95,7 +95,8 @@ list := &Node{1, &Node{2, nil}}
 for n := list; n != nil; n = n.Next {
 	fmt.Print(n.Val, " ")
 }
-fmt.Println() // 1 2
+fmt.Println()
+// 1 2
 ```
 
 ### "No value" without nil

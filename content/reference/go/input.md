@@ -4,6 +4,10 @@ Read whole lines with `bufio.Scanner` (or `bufio.Reader`), or read whitespace-se
 
 ### One line
 
+```stdin
+Ann
+```
+
 ```go
 import (
 	"bufio"
@@ -22,6 +26,10 @@ fmt.Println("Hi,", name) // Hi, Ann
 
 `fmt.Scan` skips any whitespace, newlines included, and fills the variables you point it at.
 
+```stdin
+Ann 30
+```
+
 ```go
 var name string
 var age int
@@ -30,6 +38,11 @@ fmt.Println(name, age+1) // Ann 31
 ```
 
 ### A count, then that many numbers into a slice
+
+```stdin
+3
+1 2 3
+```
 
 ```go
 var n int
@@ -42,6 +55,10 @@ fmt.Println(nums) // [1 2 3]
 ```
 
 ### Numbers on one line into a slice
+
+```stdin
+4 x 7 1
+```
 
 ```go
 import (
@@ -149,6 +166,10 @@ for sc.Scan() { // false at end of input
 ```
 
 ### Fast token reading until EOF
+
+```stdin
+10 20 30
+```
 
 ```go
 import (

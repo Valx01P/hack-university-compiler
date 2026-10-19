@@ -9,6 +9,7 @@ s := "hello"
 empty := ""                  // zero value of string
 raw := `C:\path\no\escapes`  // backticks: raw, can span lines
 quote := "she said \"hi\"\n" // double quotes: escapes work
+fmt.Print(raw, " ", quote)   // C:\path\no\escapes she said "hi"
 ```
 
 ### Length, index, substring
@@ -53,13 +54,13 @@ fmt.Println(sb.String()) // ab-ab-ab-
 import "strings"
 
 s := "banana"
-strings.Contains(s, "nan") // true
-strings.Index(s, "an")     // 1 (-1 if missing)
-strings.LastIndex(s, "an") // 3
-strings.HasPrefix(s, "ba") // true
-strings.HasSuffix(s, "na") // true
-strings.Count(s, "a")      // 3
-strings.IndexByte(s, 'n')  // 2
+fmt.Println(strings.Contains(s, "nan")) // true
+fmt.Println(strings.Index(s, "an"))     // 1 (-1 if missing)
+fmt.Println(strings.LastIndex(s, "an")) // 3
+fmt.Println(strings.HasPrefix(s, "ba")) // true
+fmt.Println(strings.HasSuffix(s, "na")) // true
+fmt.Println(strings.Count(s, "a"))      // 3
+fmt.Println(strings.IndexByte(s, 'n'))  // 2
 ```
 
 ### Change (returns a new string)
@@ -67,15 +68,15 @@ strings.IndexByte(s, 'n')  // 2
 ```go
 import "strings"
 
-strings.ToUpper("Go")                 // GO
-strings.ToLower("Go")                 // go
-strings.TrimSpace("  hi \n")          // hi
-strings.Trim("--hi--", "-")           // hi
-strings.TrimPrefix("v1.16", "v")      // 1.16
-strings.TrimSuffix("file.go", ".go")  // file
-strings.ReplaceAll("a-b-c", "-", "+") // a+b+c
-strings.Replace("aaa", "a", "b", 2)   // bba (first 2 only)
-strings.Repeat("ab", 3)               // ababab
+fmt.Println(strings.ToUpper("Go"))                 // GO
+fmt.Println(strings.ToLower("Go"))                 // go
+fmt.Println(strings.TrimSpace("  hi \n"))          // hi
+fmt.Println(strings.Trim("--hi--", "-"))           // hi
+fmt.Println(strings.TrimPrefix("v1.16", "v"))      // 1.16
+fmt.Println(strings.TrimSuffix("file.go", ".go"))  // file
+fmt.Println(strings.ReplaceAll("a-b-c", "-", "+")) // a+b+c
+fmt.Println(strings.Replace("aaa", "a", "b", 2))   // bba (first 2 only)
+fmt.Println(strings.Repeat("ab", 3))               // ababab
 ```
 
 ### Split and join
@@ -83,11 +84,11 @@ strings.Repeat("ab", 3)               // ababab
 ```go
 import "strings"
 
-strings.Split("a,b,c", ",")            // [a b c]
-strings.SplitN("k=v=w", "=", 2)        // [k v=w], at most 2 parts
-strings.Fields("  one  two\tthree ")   // [one two three], splits on any whitespace
-strings.Join([]string{"x", "y"}, ", ") // x, y
-strings.Split("abc", "")               // [a b c], one string per character
+fmt.Println(strings.Split("a,b,c", ","))            // [a b c]
+fmt.Println(strings.SplitN("k=v=w", "=", 2))        // [k v=w], at most 2 parts
+fmt.Println(strings.Fields("  one  two\tthree "))   // [one two three], splits on any whitespace
+fmt.Println(strings.Join([]string{"x", "y"}, ", ")) // x, y
+fmt.Println(strings.Split("abc", ""))               // [a b c], one string per character
 ```
 
 ### Compare
@@ -132,11 +133,11 @@ fmt.Println(string(r)) // olléh
 ```go
 import "unicode"
 
-unicode.IsLetter('a') // true
-unicode.IsDigit('7')  // true
-unicode.IsSpace(' ')  // true
-unicode.IsUpper('Q')  // true
-unicode.ToUpper('q')  // 'Q' (a rune, prints as 81)
+fmt.Println(unicode.IsLetter('a')) // true
+fmt.Println(unicode.IsDigit('7'))  // true
+fmt.Println(unicode.IsSpace(' '))  // true
+fmt.Println(unicode.IsUpper('Q'))  // true
+fmt.Println(unicode.ToUpper('q'))  // 81, the rune 'Q'
 ```
 
 Digit character to number: `int(ch - '0')`.

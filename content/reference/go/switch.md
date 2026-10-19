@@ -95,7 +95,8 @@ for _, c := range "a1 b" {
 		fmt.Print("letter ")
 	}
 }
-fmt.Println() // letter digit space letter
+fmt.Println()
+// letter digit space letter
 ```
 
 `break` inside a `switch` only leaves the switch. To leave the loop, label it:

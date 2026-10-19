@@ -47,8 +47,10 @@ func divmod(a, b int) (int, int) {
 	return a / b, a % b
 }
 
-q, r := divmod(17, 5) // 3 2
-_, r = divmod(9, 4)   // 1, the blank _ throws a value away
+q, r := divmod(17, 5)
+fmt.Println(q, r)   // 3 2
+_, r = divmod(9, 4) // the blank _ throws a value away
+fmt.Println(r)      // 1
 ```
 
 Declaring functions with several results, and named results, is in Functions.

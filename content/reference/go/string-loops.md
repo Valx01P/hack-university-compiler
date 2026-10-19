@@ -145,6 +145,7 @@ import "strings"
 for _, w := range strings.Fields("  the quick  fox ") {
 	fmt.Print("[", w, "]")
 }
+fmt.Println()
 // [the][quick][fox]
 
 for i, line := range strings.Split("a\nb", "\n") {

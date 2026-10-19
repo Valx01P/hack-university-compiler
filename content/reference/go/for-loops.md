@@ -17,6 +17,7 @@ for i := 0; i < 5; i++ {
 for i := 10; i > 0; i -= 3 {
 	fmt.Print(i, " ")
 }
+fmt.Println()
 // 10 7 4 1
 
 for i := 0; i <= 20; i += 5 {
@@ -53,6 +54,7 @@ for i, v := range nums {
 for _, v := range nums { // value only
 	fmt.Print(v, " ")
 }
+fmt.Println()
 // 10 20 30
 
 for i := range nums { // index only

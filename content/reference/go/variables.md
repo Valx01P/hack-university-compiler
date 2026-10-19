@@ -24,12 +24,16 @@ At package level (outside `func`), only `var` works, never `:=`.
 A variable declared without a value gets its type's zero value, never garbage.
 
 ```go
-var n int                                   // 0
-var f float64                               // 0
-var s string                                // ""
-var ok bool                                 // false
-var nums []int                              // nil (len 0, still safe to append to)
-fmt.Println(n, f, s == "", ok, nums == nil) // 0 0 true false true
+var n int
+fmt.Println(n) // 0
+var f float64
+fmt.Println(f) // 0
+var s string
+fmt.Printf("%q\n", s) // ""
+var ok bool
+fmt.Println(ok) // false
+var nums []int
+fmt.Println(nums == nil, len(nums)) // true 0, still safe to append to
 ```
 
 ### Constants
@@ -45,10 +49,11 @@ const (
 type Weekday int
 
 const (
-	Sunday  Weekday = iota // 0
-	Monday                 // 1
-	Tuesday                // 2
+	Sunday Weekday = iota
+	Monday
+	Tuesday
 )
+fmt.Println(Sunday, Monday, Tuesday) // 0 1 2
 ```
 
 `iota` counts up by one in each line of a `const` block. It is Go's enum.
@@ -82,7 +87,7 @@ Go never converts numbers for you. Write the conversion as `Type(value)`.
 
 ```go
 i := 7
-x := float64(i) / 2 // 3.5
+fmt.Println(float64(i) / 2) // 3.5
 fl := 3.99
 fmt.Println(int(fl)) // 3, truncates toward zero
 
@@ -96,9 +101,12 @@ fmt.Println(int64(a) + c) // 11
 ```go
 import "strconv"
 
-s := strconv.Itoa(42)         // "42"
-n, err := strconv.Atoi("123") // 123 <nil>
-_, err = strconv.Atoi("abc")  // strconv.Atoi: parsing "abc": invalid syntax
+s := strconv.Itoa(42)
+fmt.Printf("%q\n", s) // "42"
+n, err := strconv.Atoi("123")
+fmt.Println(n, err) // 123 <nil>
+_, err = strconv.Atoi("abc")
+fmt.Println(err) // strconv.Atoi: parsing "abc": invalid syntax
 f, _ := strconv.ParseFloat("2.5", 64)
 ok, _ := strconv.ParseBool("true")
 fmt.Println(strconv.FormatFloat(2.5, 'f', 2, 64)) // 2.50

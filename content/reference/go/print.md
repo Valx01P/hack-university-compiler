@@ -25,7 +25,8 @@ fmt.Print("\n")
 for i := 1; i <= 3; i++ {
 	fmt.Print(i, " ")
 }
-fmt.Println() // 1 2 3
+fmt.Println()
+// 1 2 3
 ```
 
 ### Formatted
@@ -37,6 +38,16 @@ fmt.Printf("%d items\n", 3) // 3 items
 `Printf` never adds a newline, so end the format with `\n`. The verbs (`%d`, `%s`, `%v`, `%.2f`) are in Printing Variables.
 
 ### Escapes and raw strings
+
+```go harness
+package main
+
+import "fmt"
+
+func main() {
+{{code}}
+}
+```
 
 ```go
 fmt.Println("Tab:\tend")     // Tab:	end

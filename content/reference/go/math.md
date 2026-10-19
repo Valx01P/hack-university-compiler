@@ -18,13 +18,20 @@ fmt.Println(17.0 / 5)                // 3.4
 
 ```go
 x := 10
-x += 5 // 15
-x -= 3 // 12
-x *= 2 // 24
-x /= 5 // 4
-x %= 3 // 1
-x++    // 2
-x--    // 1
+x += 5
+fmt.Println(x) // 15
+x -= 3
+fmt.Println(x) // 12
+x *= 2
+fmt.Println(x) // 24
+x /= 5
+fmt.Println(x) // 4
+x %= 3
+fmt.Println(x) // 1
+x++
+fmt.Println(x) // 2
+x--
+fmt.Println(x) // 1
 ```
 
 `x++` is a statement, not an expression: `y := x++` does not compile, and there is no `++x`.
@@ -35,7 +42,7 @@ x--    // 1
 import "math"
 
 fmt.Println(math.Pow(2, 10), math.Sqrt(16)) // 1024 4
-n := int(math.Pow(2, 10))                   // 1024, convert back to int
+fmt.Println(int(math.Pow(2, 10)))           // 1024, convert back to int
 fmt.Println(1 << 10)                        // 1024, exact power of two for ints
 ```
 

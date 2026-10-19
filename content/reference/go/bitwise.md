@@ -5,14 +5,15 @@ Bitwise operators work on the binary digits of integers. Go has the usual set pl
 ### Operators
 
 ```go
-a, b := 12, 10      // 1100, 1010
-fmt.Println(a & b)  // 8   (1000) AND: both bits set
-fmt.Println(a | b)  // 14  (1110) OR: either bit set
-fmt.Println(a ^ b)  // 6   (0110) XOR: bits differ
-fmt.Println(a &^ b) // 4   (0100) AND NOT: clear b's bits from a
-fmt.Println(^a)     // -13 NOT: flip every bit
-fmt.Println(a << 2) // 48  shift left: times 4
-fmt.Println(a >> 2) // 3   shift right: divide by 4
+a, b := 12, 10
+fmt.Printf("%b %b\n", a, b) // 1100 1010
+fmt.Println(a & b)          // 8   (1000) AND: both bits set
+fmt.Println(a | b)          // 14  (1110) OR: either bit set
+fmt.Println(a ^ b)          // 6   (0110) XOR: bits differ
+fmt.Println(a &^ b)         // 4   (0100) AND NOT: clear b's bits from a
+fmt.Println(^a)             // -13 NOT: flip every bit
+fmt.Println(a << 2)         // 48  shift left: times 4
+fmt.Println(a >> 2)         // 3   shift right: divide by 4
 
 var u uint8 = 12
 fmt.Println(^u) // 243 (11110011), unsigned NOT stays positive
@@ -33,12 +34,13 @@ fmt.Println(^u) // 243 (11110011), unsigned NOT stays positive
 ```go
 import "strconv"
 
-fmt.Printf("%b\n", 12)                  // 1100
-fmt.Printf("%08b\n", 12)                // 00001100
-fmt.Printf("%x %X %o\n", 255, 255, 8)   // ff FF 10
-fmt.Println(strconv.FormatInt(12, 2))   // 1100
-n, _ := strconv.ParseInt("1100", 2, 64) // 12
-fmt.Println(0b1100, 0xff, 0o17, 1_000)  // 12 255 15 1000
+fmt.Printf("%b\n", 12)                // 1100
+fmt.Printf("%08b\n", 12)              // 00001100
+fmt.Printf("%x %X %o\n", 255, 255, 8) // ff FF 10
+fmt.Println(strconv.FormatInt(12, 2)) // 1100
+n, _ := strconv.ParseInt("1100", 2, 64)
+fmt.Println(n)                         // 12
+fmt.Println(0b1100, 0xff, 0o17, 1_000) // 12 255 15 1000
 ```
 
 ### Get, set, clear, toggle one bit
@@ -46,10 +48,12 @@ fmt.Println(0b1100, 0xff, 0o17, 1_000)  // 12 255 15 1000
 ```go
 x := 0b1010
 i := 1
-fmt.Println(x>>i&1 == 1) // true: is bit i set?
-x |= 1 << 2              // set bit 2:    1110
-x &^= 1 << 1             // clear bit 1:  1100
-x ^= 1 << 0              // toggle bit 0: 1101
+fmt.Println(x>>i&1 == 1) // true, bit i is set
+x |= 1 << 2              // set bit 2
+fmt.Printf("%04b\n", x)  // 1110
+x &^= 1 << 1             // clear bit 1
+fmt.Printf("%04b\n", x)  // 1100
+x ^= 1 << 0              // toggle bit 0
 fmt.Printf("%04b\n", x)  // 1101
 ```
 
@@ -83,10 +87,11 @@ fmt.Println(single) // 4
 
 ```go
 const (
-	Read  = 1 << iota // 1 (001)
-	Write             // 2 (010)
-	Exec              // 4 (100)
+	Read = 1 << iota
+	Write
+	Exec
 )
+fmt.Println(Read, Write, Exec) // 1 2 4 (001 010 100)
 
 perms := Read | Write
 if perms&Write != 0 {
@@ -118,8 +123,8 @@ for mask := 0; mask < 1<<size; mask++ {
 ```go
 import "math/bits"
 
-fmt.Println(bits.OnesCount(uint(12))) // 2: count set bits
-fmt.Println(bits.Len(12))             // 4: bits needed
+fmt.Println(bits.OnesCount(uint(12))) // 2, count set bits
+fmt.Println(bits.Len(12))             // 4, bits needed
 fmt.Println(bits.TrailingZeros(12))   // 2
 fmt.Println(bits.LeadingZeros8(12))   // 4
 fmt.Println(bits.Reverse8(1))         // 128

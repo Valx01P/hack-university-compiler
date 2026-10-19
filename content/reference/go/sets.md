@@ -24,7 +24,8 @@ fmt.Println(seen) // map[go:true]
 ```go
 set := make(map[int]struct{})
 set[3] = struct{}{}
-_, ok := set[3] // true
+_, ok := set[3]
+fmt.Println(ok) // true
 for n := range set {
 	fmt.Println(n) // 3
 }

@@ -41,6 +41,7 @@ func main() {
 for i := 0; i < len(s); i += 2 { // even indexes
 	fmt.Print(s[i], " ")
 }
+fmt.Println()
 // 10 30 50
 
 for i := 1; i < len(s); i += 2 { // odd indexes
@@ -101,6 +102,7 @@ func main() {
 for i := 1; i < 4; i++ { // indexes 1, 2, 3
 	fmt.Print(s[i], " ")
 }
+fmt.Println()
 // 20 30 40
 
 for _, v := range s[1:4] { // same thing with a subslice

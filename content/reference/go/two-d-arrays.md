@@ -12,6 +12,7 @@ grid := [][]int{
 
 var board [3][3]string // fixed size array, all ""
 board[1][1] = "X"
+fmt.Printf("%q\n", board) // [["" "" ""] ["" "X" ""] ["" "" ""]]
 ```
 
 Sized at runtime, all zeros:

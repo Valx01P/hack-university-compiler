@@ -12,7 +12,8 @@ type Person struct {
 
 p := Person{Name: "Ann", Age: 30}
 q := Person{"Bob", 25}        // positional: every field, in order
-var z Person                  // zero value: {"" 0}
+var z Person                  // zero value
+fmt.Printf("%+v\n", z)        // {Name: Age:0}
 ptr := &Person{Name: "Cy"}    // pointer to a new struct
 fmt.Println(p.Name, ptr.Name) // Ann Cy (no -> needed)
 fmt.Printf("%+v\n", p)        // {Name:Ann Age:30}
@@ -189,7 +190,8 @@ There is no `static`. Use package-level constants, variables, and functions.
 ```go
 const MaxUsers = 100 // like a static constant
 
-var userCount int // like a static field
+var userCount int                // like a static field
+fmt.Println(MaxUsers, userCount) // 100 0
 ```
 
 | Syntax | Does |

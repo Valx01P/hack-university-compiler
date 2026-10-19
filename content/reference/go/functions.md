@@ -47,8 +47,9 @@ func minMax(nums []int) (int, int) {
 	return lo, hi
 }
 
-lo, hi := minMax([]int{4, 9, 1}) // 1 9
-_, hi = minMax([]int{2, 5})      // keep one, drop the other with _
+lo, hi := minMax([]int{4, 9, 1})
+fmt.Println(lo, hi)         // 1 9
+_, hi = minMax([]int{2, 5}) // keep one, drop the other with _
 ```
 
 When a call can fail, return a value plus an `error` last. That pattern is in Errors, panic, and recover.
@@ -68,7 +69,8 @@ func stats(nums []int) (sum, largest int) {
 	return
 }
 
-total, top := stats([]int{3, 9, 4}) // 16 9
+total, top := stats([]int{3, 9, 4})
+fmt.Println(total, top) // 16 9
 ```
 
 ### Variadic (any number of arguments)
@@ -82,9 +84,9 @@ func sum(nums ...int) int { // nums is a []int
 	return total
 }
 
-sum()               // 0
-sum(1, 2, 3)        // 6
-sum([]int{4, 5}...) // 9, spread a slice with ...
+fmt.Println(sum())               // 0
+fmt.Println(sum(1, 2, 3))        // 6
+fmt.Println(sum([]int{4, 5}...)) // 9, spread a slice with ...
 ```
 
 ### Slices, maps, and pointers as arguments

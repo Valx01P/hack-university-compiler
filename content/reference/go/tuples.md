@@ -57,7 +57,8 @@ for _, d := range dirs {
 	r, c := pos[0]+d[0], pos[1]+d[1]
 	fmt.Print(r, ",", c, " ")
 }
-fmt.Println() // 2,3 3,2 2,1 1,2
+fmt.Println()
+// 2,3 3,2 2,1 1,2
 
 dist := map[[2]int]int{{0, 0}: 0}
 dist[[2]int{0, 1}] = 1

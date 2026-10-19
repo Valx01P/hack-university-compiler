@@ -5,11 +5,11 @@ A slice (`[]int`) is Go's dynamic list: it grows with `append` and is what you u
 ### Create
 
 ```go
-nums := []int{3, 1, 4}     // slice literal
-names := []string{}        // empty, ready to append
-zeros := make([]int, 5)    // [0 0 0 0 0]
-buf := make([]int, 0, 100) // len 0, room for 100 before regrowing
-var none []int             // nil slice, len 0, append still works
+nums := []int{3, 1, 4}      // slice literal
+names := []string{}         // empty, ready to append
+fmt.Println(make([]int, 5)) // [0 0 0 0 0]
+buf := make([]int, 0, 100)  // len 0, room for 100 before regrowing
+var none []int              // nil slice, len 0, append still works
 
 arr := [3]int{1, 2, 3}        // array, fixed length 3
 auto := [...]string{"a", "b"} // array, length counted for you (2)
@@ -19,10 +19,13 @@ auto := [...]string{"a", "b"} // array, length counted for you (2)
 
 ```go
 nums := []int{1, 2}
-nums = append(nums, 3)    // [1 2 3]
-nums = append(nums, 4, 5) // [1 2 3 4 5]
+nums = append(nums, 3)
+fmt.Println(nums) // [1 2 3]
+nums = append(nums, 4, 5)
+fmt.Println(nums) // [1 2 3 4 5]
 more := []int{6, 7}
-nums = append(nums, more...) // [1 2 3 4 5 6 7]
+nums = append(nums, more...)
+fmt.Println(nums) // [1 2 3 4 5 6 7]
 ```
 
 ### Access and update
@@ -42,13 +45,16 @@ fmt.Println(s[:2], s[2:]) // [a B] [c d]
 ```go
 s := []int{10, 20, 30, 40, 50}
 i := 1
-s = append(s[:i], s[i+1:]...) // remove index 1, keeps order: [10 30 40 50]
+s = append(s[:i], s[i+1:]...) // remove index 1, keeps order
+fmt.Println(s)                // [10 30 40 50]
 
 last := s[len(s)-1]
-s = s[:len(s)-1] // pop last: [10 30 40], last = 50
+s = s[:len(s)-1]     // pop last
+fmt.Println(s, last) // [10 30 40] 50
 
 first := s[0]
-s = s[1:] // pop front: [30 40], first = 10
+s = s[1:]             // pop front
+fmt.Println(s, first) // [30 40] 10
 ```
 
 ### Insert at an index
@@ -87,7 +93,7 @@ func indexOf(s []int, target int) int {
 	return -1
 }
 
-indexOf([]int{5, 8, 2}, 8) // 1
+fmt.Println(indexOf([]int{5, 8, 2}, 8)) // 1
 ```
 
 On a sorted slice, binary search with `sort`:
@@ -97,7 +103,8 @@ import "sort"
 
 s := []int{1, 3, 5, 7}
 i := sort.SearchInts(s, 5)
-found := i < len(s) && s[i] == 5 // i = 2, found = true
+found := i < len(s) && s[i] == 5
+fmt.Println(i, found) // 2 true
 ```
 
 ### Sort
@@ -106,11 +113,14 @@ found := i < len(s) && s[i] == 5 // i = 2, found = true
 import "sort"
 
 nums := []int{3, 1, 2}
-sort.Ints(nums)                              // [1 2 3]
-sort.Sort(sort.Reverse(sort.IntSlice(nums))) // [3 2 1]
+sort.Ints(nums)
+fmt.Println(nums) // [1 2 3]
+sort.Sort(sort.Reverse(sort.IntSlice(nums)))
+fmt.Println(nums) // [3 2 1]
 
 words := []string{"pear", "fig", "apple"}
-sort.Strings(words) // [apple fig pear]
+sort.Strings(words)
+fmt.Println(words) // [apple fig pear]
 sort.Slice(words, func(i, j int) bool {
 	return len(words[i]) < len(words[j]) // by length
 })

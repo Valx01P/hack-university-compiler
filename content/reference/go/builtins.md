@@ -74,22 +74,22 @@ fmt.Println(best) // 9
 ```go
 import "math"
 
-math.Max(3, 7)       // 7
-math.Min(3, 7)       // 3
-math.Pow(2, 10)      // 1024
-math.Sqrt(16)        // 4
-math.Cbrt(27)        // 3
-math.Abs(-2.5)       // 2.5
-math.Floor(2.7)      // 2
-math.Ceil(2.1)       // 3
-math.Round(2.5)      // 3 (half away from zero)
-math.Trunc(-2.7)     // -2
-math.Mod(7.5, 2)     // 1.5
-math.Hypot(3, 4)     // 5
-math.Log(math.E)     // 1
-math.Log2(8)         // 3
-math.Log10(1000)     // 3
-fmt.Println(math.Pi) // 3.141592653589793
+fmt.Println(math.Max(3, 7))   // 7
+fmt.Println(math.Min(3, 7))   // 3
+fmt.Println(math.Pow(2, 10))  // 1024
+fmt.Println(math.Sqrt(16))    // 4
+fmt.Println(math.Cbrt(27))    // 3
+fmt.Println(math.Abs(-2.5))   // 2.5
+fmt.Println(math.Floor(2.7))  // 2
+fmt.Println(math.Ceil(2.1))   // 3
+fmt.Println(math.Round(2.5))  // 3 (half away from zero)
+fmt.Println(math.Trunc(-2.7)) // -2
+fmt.Println(math.Mod(7.5, 2)) // 1.5
+fmt.Println(math.Hypot(3, 4)) // 5
+fmt.Println(math.Log(math.E)) // 1
+fmt.Println(math.Log2(8))     // 3
+fmt.Println(math.Log10(1000)) // 3
+fmt.Println(math.Pi)          // 3.141592653589793
 ```
 
 ### Using math with ints
@@ -111,10 +111,10 @@ func maxInt(a, b int) int {
 import "math"
 
 n := 17
-root := int(math.Sqrt(float64(n)))       // 4
-big := int(math.Pow(2, 20))              // 1048576
-bigger := maxInt(n, int(math.Pow(3, 3))) // 27
-fmt.Println(root, big, bigger)
+root := int(math.Sqrt(float64(n)))
+big := int(math.Pow(2, 20))
+bigger := maxInt(n, int(math.Pow(3, 3)))
+fmt.Println(root, big, bigger) // 4 1048576 27
 ```
 
 Exact integer power and absolute value without floats:
