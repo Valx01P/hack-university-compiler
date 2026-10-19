@@ -60,6 +60,15 @@ test("bash: keywords where a command starts, functions, numbers", () => {
   assert.deepEqual(of("number", "x=v1.2.3 2>&1 sleep 0.5", "bash"), ["2", "1", "0.5"]);
 });
 
+test("decorators and annotations are calls", () => {
+  const python = "@dataclass(frozen=True)\nclass P:\n    @property\n    def n(self):\n        return a @ b\n    @functools.lru_cache(maxsize=None)\n    def m(self): pass";
+  assert.deepEqual(of("fn", python, "python"), ["@dataclass", "@property", "n", "@functools.lru_cache", "m"]);
+  const java = "@Override\npublic @interface Marker {}\n@SuppressWarnings(\"unchecked\") void f() {}";
+  assert.deepEqual(of("fn", java, "java"), ["@Override", "@SuppressWarnings", "f"]);
+  assert.ok(of("keyword", java, "java").includes("interface"));
+  assert.deepEqual(of("fn", '@Component({ a: 1 })\nclass A { @Input() x = ""; @HostListener.bind("click") onClick() {} }', "typescript"), ["@Component", "@Input", "@HostListener.bind", "onClick"]);
+});
+
 test("typescript: escapes, raw strings, and template literals", () => {
   assert.deepEqual(of("escape", 'const s = "a\\tb\\u00e9\\x41\\u{1F600}";', "typescript"), ["\\t", "\\u00e9", "\\x41", "\\u{1F600}"]);
   assert.deepEqual(of("escape", "const s = `a\\n${b}\\t`;", "typescript"), ["\\n", "\\t"]);
