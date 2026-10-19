@@ -428,7 +428,7 @@ export function CompilerApp({
         actual: r.stdout,
         stderr: timedOut ? "Timed out. Your code ran too long (usually an infinite loop). It was stopped." : r.stderr,
         passed: onTheRunner
-          ? judgeTest(tests[i], r).passed
+          ? judgeTest(tests[i], { ...r, status: r.verdict }).passed
           : !timedOut && normalizeOutput(r.stdout) === normalizeOutput(tests[i].output),
       };
     });
