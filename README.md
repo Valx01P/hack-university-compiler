@@ -144,11 +144,21 @@ graphs. Every course has 44 lessons: about 150 worked examples and as many
 practice problems for each programming language, and 114 for SQL.
 
 - Every lesson is split into parts, small sub-lessons that each explain one
-  idea, walk through a worked example, and give you a practice problem with the
-  same shape.
-- The part is on the left and the editor on the right, with two tabs: the
-  example and **Your code**. The example runs and can be edited and reset.
-  **Check** runs your practice code against its tests in the sandbox.
+  idea, walk through one to three worked examples, and give you a practice
+  problem with the same shape.
+- The part is on the left and the editor on the right, with a tab for each
+  example (Example 1 to 3 when a part has several) and **Your code**. Every
+  example runs and can be edited and reset. **Check** runs your practice code
+  against its tests in the sandbox.
+- TypeScript and Bash parts add a little to the editor. A TypeScript run shows
+  a **Type check** strip above its output: "No type errors", or each error with
+  a link that puts the cursor on its line, which the editor underlines. Bash
+  has an **args** field beside stdin, shows a script's exit status as a badge
+  beside the output when it isn't 0, and lists the data files every run starts
+  in under **files**, read only. Their checks also hold a program to its exit
+  status, what it writes to stderr, and the files it leaves behind, and a
+  TypeScript practice can add type tests and honesty rules (no `any`, `as`,
+  non-null `!`, or `@ts-` comments).
 - Stuck? The eye next to the editor's `{}` shows the answer in place of your
   code (your code is kept, and the eye closes back onto it). The first time on
   a page it asks first: click once, and again within 3 seconds while it glows.
@@ -165,8 +175,9 @@ practice problems for each programming language, and 114 for SQL.
 - Every code block in a part runs too (see [Runnable examples](#runnable-examples)).
 - Progress, your code in every tab, and the part you were on are saved in the
   browser's local storage. The address keeps the rest of your place: the tab
-  you're on (`?tab=code` for Your code), the practice hints you've opened
-  (`&hints=2`), and where you are in the part (`#example`, `#practice`,
+  you're on (`?tab=code` for Your code, `?tab=ex2` or `ex3` for the second or
+  third example), the practice hints you've opened (`&hints=2`), and where you
+  are in the part (`#example`, `#example-2`, `#example-3`, `#practice`,
   `#recap`), so a reload comes back to exactly that, without the page
   jumping.
 
@@ -174,7 +185,11 @@ Lessons live in `content/learn/<language>/` as JSON, one file per lesson.
 [`content/learn/AUTHORING.md`](content/learn/AUTHORING.md) is the guide for
 writing them, and `npm run lessons:verify` checks every lesson (Piston must be
 running, except for SQL): it runs each example and reference solution and makes
-sure every practice starter runs but doesn't already pass.
+sure every practice starter runs but doesn't already pass. A Bash lesson's data
+files live in `content/fixtures/<language>/<set>/`. To read a draft course from
+outside the repo, start the app with `LEARN_CONTENT_DIR` set to its folder of
+courses (the one `lessons:verify` checks) and `FIXTURES_CONTENT_DIR` to its
+fixtures: a course there takes the place of the one in `content/learn/`.
 
 ## Cheatsheets and challenges
 
