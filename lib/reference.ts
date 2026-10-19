@@ -74,9 +74,22 @@ const readChallengeFiles = cache(async (): Promise<ChallengeFile[]> => {
   return files.filter((c): c is ChallengeFile => c !== null && ID_RE.test(c.id));
 });
 
+/** The topics a language's challenges are grouped by: its own list when
+    every challenge it has fits it (SQL's are its own), else the shared one
+    (TypeScript has its own cheatsheet topics and the short challenges every
+    language has). */
+export const getChallengeCategories = cache(async (lang: string): Promise<ReferenceCategory[]> => {
+  const own = await getCategories(lang);
+  const ids = new Set(own.map((c) => c.id));
+  const mine = (await readChallengeFiles()).filter((c) => c.code?.[lang]);
+  if (mine.every((c) => ids.has(c.category))) return own;
+  const raw = JSON.parse(await fs.readFile(path.join(ROOT, "reference", "categories.json"), "utf8"));
+  return (raw.categories as ReferenceCategory[]).map(({ id, title }) => ({ id, title }));
+});
+
 /** One language's challenges, in category order, easiest first. */
 export const getChallenges = cache(async (lang: string): Promise<Challenge[]> => {
-  const order = (await getCategories(lang)).map((c) => c.id);
+  const order = (await getChallengeCategories(lang)).map((c) => c.id);
   return (await readChallengeFiles())
     .filter((c) => c.code?.[lang] && order.includes(c.category))
     .sort(
@@ -100,6 +113,11 @@ export const getChallenges = cache(async (lang: string): Promise<Challenge[]> =>
 });
 
 export async function getReferenceData(lang: string): Promise<ReferenceData> {
-  const [categories, cheatsheet, challenges] = await Promise.all([getCategories(lang), getCheatsheet(lang), getChallenges(lang)]);
-  return { categories, cheatsheet, challenges };
+  const [categories, cheatsheet, challenges, challengeCategories] = await Promise.all([
+    getCategories(lang),
+    getCheatsheet(lang),
+    getChallenges(lang),
+    getChallengeCategories(lang),
+  ]);
+  return { categories, cheatsheet, challenges, challengeCategories };
 }

@@ -37,6 +37,11 @@ export interface ReferenceData {
   categories: ReferenceCategory[];
   cheatsheet: ReferenceSection[];
   challenges: Challenge[];
+  /** The topics the challenges are grouped by: the language's own when its
+      challenges are its own (SQL), else the shared list, since a language
+      with its own cheatsheet topics (TypeScript) still has the short
+      challenges every language has. */
+  challengeCategories: ReferenceCategory[];
 }
 
 export const DIFFICULTY_LABEL: Record<ChallengeDifficulty, string> = {

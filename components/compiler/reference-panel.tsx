@@ -163,7 +163,7 @@ export function ReferencePanel({
                   <ChallengeDetail
                     key={challenge.id}
                     challenge={challenge}
-                    category={data.categories.find((c) => c.id === challenge.category)?.title ?? challenge.category}
+                    category={data.challengeCategories.find((c) => c.id === challenge.category)?.title ?? challenge.category}
                     progress={progress}
                     next={next}
                     previous={previous}
@@ -175,7 +175,7 @@ export function ReferencePanel({
               )}
               <div className={layer(!challenge)} inert={Boolean(challenge)}>
                 {data.challenges.length ? (
-                  <ChallengeList challenges={data.challenges} categories={data.categories} progress={progress} onOpen={onOpenChallenge} />
+                  <ChallengeList challenges={data.challenges} categories={data.challengeCategories} progress={progress} onOpen={onOpenChallenge} />
                 ) : (
                   <p className="p-4 text-sm text-ink-muted">No {langLabel} challenges yet.</p>
                 )}
