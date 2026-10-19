@@ -49,7 +49,7 @@ const SPLIT = { min: 30, max: 70, initial: 50 };
 // Where #example, #practice, and #recap land: clear of the sticky header
 // when the page scrolls, a little below the top of the lesson column.
 const PLACE_MARGIN = "scroll-mt-[calc(4rem+1rem)] lg:scroll-mt-4";
-const session = { split: SPLIT.initial, full: false };
+const session = { split: SPLIT.initial };
 
 /** Lesson markdown with the outer margins trimmed, for use inside cards. */
 function Prose({ md, className = "", runnable }: { md: string; className?: string; runnable?: RunnableContext }) {
@@ -141,10 +141,10 @@ export function PartView({
   const articleRef = useRef<HTMLElement>(null);
   useEnter(articleRef);
 
-  // Full screen, like the compiler's: the lesson and the editor over the
-  // whole window. It lasts while you move between parts, is in the address
-  // (?full=1), and Escape leaves it.
-  const [full, setFull] = useFullScreen(session);
+  // Full screen, the same one the compiler uses: the lesson and the editor
+  // over the whole window. It lasts while you move between parts and to the
+  // compiler and back, is in the address (?full=1), and Escape leaves it.
+  const [full, setFull] = useFullScreen();
   const toggleFull = () => setFull((was) => !was);
 
   const [split, setSplitPct] = useState(session.split);

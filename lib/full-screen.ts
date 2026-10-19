@@ -1,7 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { urlParam, writeUrl } from "@/lib/url-state";
+
+// One full screen for the whole app: turn it on in the compiler and Learn
+// opens in it too, and the other way around. It lasts while you move around
+// (languages, parts, between the two).
+let full = false;
+// Only a page load reads it from the address. After that, moving between
+// pages (back and forward included) keeps what you last chose.
+let seeded = false;
+const listeners = new Set<() => void>();
+const getFull = () => full;
+function subscribe(notify: () => void) {
+  listeners.add(notify);
+  return () => {
+    listeners.delete(notify);
+  };
+}
+function setFullScreen(next: boolean) {
+  if (next === full) return;
+  full = next;
+  for (const notify of listeners) notify();
+}
 
 // Things open that Escape should close first: a menu, a dialog or popover,
 // or the code editor's completions or search box.
@@ -9,43 +30,43 @@ const TAKES_ESCAPE = '[role="menu"], [role="dialog"], [data-editor-overlay], [da
 
 /**
  * Full screen for the compiler and Learn: the workspace over the whole
- * window. It lasts while you move around (kept in `session`), and it's in
- * the address as ?full=1, so a reload opens straight into it: the bootstrap
- * in app/layout.tsx marks <html data-full> before first paint, and
- * globals.css lays the workspace out full screen from there, before React
- * does. Escape leaves it, unless something open takes the Escape first or
- * you're typing in a text field (the code editor isn't one: Escape works
- * there).
+ * window. It's in the address as ?full=1, so a reload opens straight into
+ * it: the bootstrap in app/layout.tsx marks <html data-full> before first
+ * paint, and globals.css lays the workspace out full screen from there,
+ * before React does. Escape leaves it, unless something open takes the
+ * Escape first or you're typing in a text field (the code editor isn't one:
+ * Escape works there).
  */
-export function useFullScreen(session: { full: boolean }) {
-  const [full, setFullState] = useState(() => session.full);
+export function useFullScreen() {
+  const isFull = useSyncExternalStore(subscribe, getFull, () => false);
   const setFull = useCallback(
-    (next: boolean | ((was: boolean) => boolean)) =>
-      setFullState((was) => (session.full = typeof next === "function" ? next(was) : next)),
-    [session]
+    (next: boolean | ((was: boolean) => boolean)) => setFullScreen(typeof next === "function" ? next(full) : next),
+    []
   );
 
   // From the address, on load. Until it's applied, <html data-full> stays.
   const restoring = useRef(false);
   useLayoutEffect(() => {
-    if (urlParam("full") === "1" && !session.full) {
+    if (seeded) return;
+    seeded = true;
+    if (urlParam("full") === "1" && !full) {
       restoring.current = true;
-      setFull(true);
+      setFullScreen(true);
     }
-  }, [session, setFull]);
+  }, []);
   // Into the address, and onto <html> for the CSS.
   useLayoutEffect(() => {
-    if (restoring.current && !full) return;
+    if (restoring.current && !isFull) return;
     restoring.current = false;
-    document.documentElement.toggleAttribute("data-full", full);
-    writeUrl({ full: full ? "1" : null });
-  }, [full]);
-  // A page that goes away takes its full screen with it (the next one sets
-  // its own before it paints).
+    document.documentElement.toggleAttribute("data-full", isFull);
+    writeUrl({ full: isFull ? "1" : null });
+  }, [isFull]);
+  // A page that goes away takes <html data-full> with it (the next one sets
+  // it again before it paints).
   useLayoutEffect(() => () => document.documentElement.removeAttribute("data-full"), []);
 
   useEffect(() => {
-    if (!full) return;
+    if (!isFull) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented || document.querySelector(TAKES_ESCAPE)) return;
       const focused = document.activeElement;
@@ -54,7 +75,7 @@ export function useFullScreen(session: { full: boolean }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [full, setFull]);
+  }, [isFull, setFull]);
 
-  return [full, setFull] as const;
+  return [isFull, setFull] as const;
 }

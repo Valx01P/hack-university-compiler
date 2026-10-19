@@ -49,7 +49,6 @@ const sessionLayout: {
   refTab: ReferenceTab;
   refPct: number;
   challengeId: string | null;
-  full: boolean;
 } = {
   orient: "horizontal",
   splitPct: 55,
@@ -57,7 +56,6 @@ const sessionLayout: {
   refTab: "cheatsheet",
   refPct: 55,
   challengeId: null,
-  full: false,
 };
 
 const codeKey = (slug: string) => `hu-compiler-code:${slug}`;
@@ -94,9 +92,10 @@ export function CompilerApp({
   const outputId = useId();
   const [orient, setOrient] = useState<Orient>(() => sessionLayout.orient);
   const [splitPct, setSplitPct] = useState(() => sessionLayout.splitPct);
-  // Full screen lasts while you switch languages, is in the address
-  // (?full=1), and Escape leaves it.
-  const [full, setFull] = useFullScreen(sessionLayout);
+  // Full screen, the same one Learn uses, lasts while you switch languages
+  // and go to Learn and back. It's in the address (?full=1), and Escape
+  // leaves it.
+  const [full, setFull] = useFullScreen();
 
   // The cheatsheet or the challenges, in a panel on the right with the
   // output tucked under the editor (refTab says which).
