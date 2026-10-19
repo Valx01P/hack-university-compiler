@@ -27,18 +27,26 @@ and Rosetta makes them run close to native speed.
 ```bash
 git clone https://github.com/Valx01P/hack-university-compiler.git
 cd hack-university-compiler
-npm install
-npm run setup   # starts the sandbox, installs all five languages, and gets the search model (one time, ~3 min)
-npm run dev
+npm run up
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The homepage opens the
-compiler you used last (Python the first time), and every language is its own
-route: `/python`, `/javascript`, `/cpp`, `/java`, `/go`, and `/sql`. The last
-one is a cookie (`hu-lang`) the redirect reads on the server, so it costs
-nothing extra.
+That's the whole setup. `npm run up` checks for Node and Docker, installs the
+dependencies, starts the code sandbox and installs its five languages,
+downloads the search model, builds the app, and serves it on
+[http://localhost:3000](http://localhost:3000). The first run takes a few
+minutes (the languages are about 5 GB). After that it starts in seconds, since
+it skips every step that's already done. Ctrl+C stops the app, and
+`npm run piston:down` stops the sandbox. `npm run up -- --dev` serves the dev
+server instead, for working on the app. With [Task](https://taskfile.dev),
+`task` does the same (`task --list` shows the rest).
 
-Only need some of them? Install just those instead of running `setup`:
+The homepage opens the compiler you used last (Python the first time), and
+every language is its own route: `/python`, `/javascript`, `/cpp`, `/java`,
+`/go`, and `/sql`. The last one is a cookie (`hu-lang`) the redirect reads on
+the server, so it costs nothing extra.
+
+Only need some of the languages? Install just those yourself, then serve the
+app with `npm run dev` (or `npm run build` and `npm start`):
 
 ```bash
 npm run piston:up
@@ -49,6 +57,7 @@ npm run piston:install -- python javascript
 
 | Command | What it does |
 | --- | --- |
+| `npm run up` | Everything: set up whatever's missing, build, and serve on `127.0.0.1:3000` (`-- --dev` for the dev server) |
 | `npm run dev` | Dev server on `127.0.0.1:3000` |
 | `npm run build` then `npm start` | Production build and server on `127.0.0.1:3000` |
 | `npm run setup` | `piston:up` + `piston:install` |
