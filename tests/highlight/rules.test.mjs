@@ -145,6 +145,16 @@ test("typescript: defaults in destructuring, and the code after them", () => {
   assert.deepEqual(of("keyword", "function Card({ title, compact = false }: Props) {\n  return <p>{title}</p>;\n}", "tsx"), ["function", "false", "return", "p", "p"]);
 });
 
+test("typescript: calls and function names in code over 1024 characters", () => {
+  // The parser stores a node that long apart from its neighbors, and
+  // highlightTree's cursor then took a neighbor for a name's parent: this
+  // function's name came out plain, and `value`, after the long call, a call.
+  const fn = `function moveSelection(by) {\n  return "${"x".repeat(982)}";\n}`;
+  assert.equal(fn.length, 1025);
+  assert.deepEqual(of("fn", fn, "typescript"), ["moveSelection"]);
+  assert.deepEqual(of("fn", `show(make("${"x".repeat(1100)}"), value);`, "typescript"), ["show", "make"]);
+});
+
 test("tsx: tags, attributes, and {/* comments */} that hide with their braces", () => {
   const code = 'const el = (\n  <div className="box">\n    {/* the label */}\n    <p>it\'s {n}</p>\n  </div>\n);';
   assert.deepEqual(of("keyword", code, "tsx"), ["const", "div", "p", "p", "div"]);
