@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { after, describe, it } from "node:test";
+import type Docker from "dockerode";
 import { ROOT } from "./config.ts";
 import { LABEL, connect, resolveEndpoint } from "./docker.ts";
 import { Images } from "./images.ts";
@@ -264,5 +265,18 @@ describe("the bash recipe", { skip }, () => {
     assert.deepEqual(t.truncated, ["big.txt"]);
   });
 
-
+  it("says the sandbox stopped, not that the program failed, when the container goes from outside", async () => {
+    const run = sh("sleep 5\necho never\n");
+    let jobs: Docker.ContainerInfo[] = [];
+    for (let i = 0; i < 100 && !jobs.length; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      jobs = await docker.listContainers({ filters: { label: [`${LABEL.runner}=${owner.boot}`], status: ["running"] } });
+    }
+    // Into the sleep, past the load. Then another runner's cleanup, or
+    // Docker restarting, looks like this.
+    await new Promise((r) => setTimeout(r, 1000));
+    await docker.getContainer(jobs[0].Id).remove({ force: true });
+    const r = await run;
+    assert.deepEqual([r.run?.status, r.run?.code, r.run?.message], ["XX", null, "The sandbox stopped unexpectedly. Run it again."]);
+  });
 });

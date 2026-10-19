@@ -325,18 +325,26 @@ export class Job {
    */
   async step(cmd: string[], options: StepOptions & { raw?: boolean }): Promise<StepResult & { raw?: Buffer }> {
     const started = Date.now();
-    const exec = await this.container.exec({
-      Cmd: ["/opt/hu/bin/hu-exec", "-t", String(options.timeoutMs), "--", ...cmd],
-      Env: options.env,
-      WorkingDir: options.workDir,
-      User: "1000:1000",
-      AttachStdin: true,
-      AttachStdout: true,
-      AttachStderr: true,
-      Tty: false,
-    });
-    const stream = (await exec.start({ hijack: true, stdin: true })) as Duplex;
-    const watchdog = setTimeout(() => void this.kill("step deadline"), options.timeoutMs + 3_000);
+    let stream: Duplex | null = null;
+    try {
+      const exec = await this.container.exec({
+        Cmd: ["/opt/hu/bin/hu-exec", "-t", String(options.timeoutMs), "--", ...cmd],
+        Env: options.env,
+        WorkingDir: options.workDir,
+        User: "1000:1000",
+        AttachStdin: true,
+        AttachStdout: true,
+        AttachStderr: true,
+        Tty: false,
+      });
+      stream = (await exec.start({ hijack: true, stdin: true })) as Duplex;
+    } catch (err) {
+      // A container that is gone (404) or stopped (409) has nothing to run
+      // in, and the verdict below says the sandbox stopped. Anything else is
+      // Docker's own trouble.
+      const status = (err as { statusCode?: number }).statusCode;
+      if (status !== 404 && status !== 409) throw err;
+    }
     const cap = options.maxBytes;
     const out: Buffer[] = [];
     const err: Buffer[] = [];
@@ -372,14 +380,18 @@ export class Job {
       }
       if (over) stopping ??= this.stopStep();
     });
-    await new Promise<void>((resolve) => {
-      stream.on("data", (chunk: Buffer) => demux.push(chunk));
-      stream.on("end", resolve);
-      stream.on("close", resolve);
-      stream.on("error", resolve);
-      stream.end(options.stdin ?? "");
-    });
-    clearTimeout(watchdog);
+    if (stream) {
+      const io = stream;
+      const watchdog = setTimeout(() => void this.kill("step deadline"), options.timeoutMs + 3_000);
+      await new Promise<void>((resolve) => {
+        io.on("data", (chunk: Buffer) => demux.push(chunk));
+        io.on("end", resolve);
+        io.on("close", resolve);
+        io.on("error", resolve);
+        io.end(options.stdin ?? "");
+      });
+      clearTimeout(watchdog);
+    }
     await stopping;
     const wallMs = Date.now() - started;
 
@@ -402,9 +414,6 @@ export class Job {
     if (trailer) {
       result.code = trailer.code >= 0 ? trailer.code : null;
       result.signal = trailer.signal ? signalName(trailer.signal) : null;
-    } else if (!this.killed) {
-      // No status line and no kill: ask Docker how the exec ended.
-      result.code = (await exec.inspect().catch(() => null))?.ExitCode ?? null;
     }
 
     if (over) {
@@ -413,6 +422,12 @@ export class Job {
       result.message = over === "OL" ? "stdout length exceeded" : "stderr length exceeded";
     } else if (trailer?.timedOut || (!trailer && this.killed)) {
       Object.assign(result, { status: "TO", limit: "time", code: null, signal: "SIGKILL", message: "Time limit exceeded" });
+    } else if (!trailer) {
+      // No status line, and this job didn't kill the container: something
+      // outside stopped it (a Docker restart, another runner's cleanup).
+      // Docker's 137 would blame the program, which never failed.
+      result.status = "XX";
+      result.message = "The sandbox stopped unexpectedly. Run it again.";
     } else if (result.signal) {
       result.status = "SG";
       result.message = `Killed by ${result.signal}`;
