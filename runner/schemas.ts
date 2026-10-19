@@ -117,7 +117,8 @@ export const RunRequest = z
     /** A Check: every test in one job, so tsc runs once. */
     tests: z.array(TestSpec).min(1).max(20).optional(),
     typeTests: TypeTests.optional(),
-    /** Honesty rules to scan the program for. */
+    // The honesty rules, judged by lib/single-checks.mjs from the source, not
+    // here. Accepted so a Check can be sent as written.
     forbid: z.array(z.enum(FORBID_RULES)).max(4).optional(),
   })
   .superRefine((req, ctx) => {

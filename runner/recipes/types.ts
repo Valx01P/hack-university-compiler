@@ -1,11 +1,12 @@
 import type { StepResult } from "../jobs.ts";
-import type { HonestyHit } from "./honesty.ts";
 
 /**
  * What POST /v1/run answers (architecture §3.5). A Run, with no tests, is
  * Piston-shaped, `{ run, compile }`, so the app's runInSandbox, OutputPanel,
  * and CheckResults read it unchanged. A Check sends every test at once and
  * gets `{ compile, results }`, so tsc runs once however many tests there are.
+ * The runner only reports what happened. lib/single-checks.mjs judges it,
+ * with the same code for Check and the verifiers, honesty rules included.
  */
 
 /** Piston's run object, plus `limit` when a sandbox limit stopped the step. */
@@ -56,7 +57,6 @@ export interface RunResponse {
   compile?: PistonRun;
   results?: TestResult[];
   typeTests?: TypeTestResult[];
-  forbid?: HonestyHit[];
   timing: Timing;
 }
 

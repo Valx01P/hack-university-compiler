@@ -2,7 +2,6 @@ import type { Job } from "../jobs.ts";
 import { SCRIPT_JOB } from "../profiles.ts";
 import type { RunRequest, TestSpec, TypeTests } from "../schemas.ts";
 import type { TarEntry } from "../tar.ts";
-import { scanHonesty } from "./honesty.ts";
 import {
   brokenTest,
   pistonRun,
@@ -20,7 +19,8 @@ import {
  * C++ compile error. Then Node 26.12.0 runs it with type stripping, once per
  * test. Type tests are compiled in that same tsc pass, each case in its own
  * block of a generated type-tests.ts, so every diagnostic lands in exactly one
- * case. Honesty rules are a scan of the source, no container needed.
+ * case. Honesty rules (forbid) are judged by lib/single-checks.mjs from the
+ * source, not here.
  */
 
 export const IMAGE = "node";
@@ -192,7 +192,6 @@ export async function runTypeScript(job: Job, req: RunRequest, time: (key: "load
   const layout = req.typeTests ? typeTestsFile(req.typeTests) : null;
   const response: Omit<RunResponse, "timing"> = {};
   const code = Buffer.from(req.files[0].content, req.files[0].encoding === "base64" ? "base64" : "utf8").toString("utf8");
-  if (req.forbid) response.forbid = scanHonesty(code, req.forbid);
 
   let started = Date.now();
   await job.load(WORK_DIR, workFiles(req, layout));

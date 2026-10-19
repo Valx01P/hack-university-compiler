@@ -77,7 +77,7 @@ describe("the typescript recipe", { skip }, () => {
     assert.equal(r.run?.code, 1);
   });
 
-  it("runs every test after one tsc, with type tests, honesty rules, and tryIt", async () => {
+  it("runs every test after one tsc, with type tests and tryIt", async () => {
     const code = [
       'export type Payment = { kind: "card"; last4: string } | { kind: "cash" };',
       "export function describe(p: Payment): string {",
@@ -96,12 +96,13 @@ describe("the typescript recipe", { skip }, () => {
           { name: "rejects a card without last4", expect: "error", errorCode: "TS2345", code: 'describe({ kind: "card" });' },
         ],
       },
+      // Accepted and left to lib/single-checks.mjs, which judges honesty rules.
       forbid: ["any", "as", "non-null", "ts-comments"],
     });
     assert.equal(r.compile?.code, 0);
     assert.deepEqual(r.results?.map((t) => t.stdout), ["card ending 4242 1\n", "cash\n", "card ending 4242 1\n"]);
     assert.deepEqual(r.typeTests?.map((t) => t.pass), [true, true]);
-    assert.deepEqual(r.forbid?.map((h) => `${h.rule}@${h.line}`), ["as@5"]);
+    assert.equal("forbid" in r, false);
     assert.ok((r.timing.totalMs ?? 0) < 1500, `a 3-test check took ${r.timing.totalMs} ms`);
   });
 
