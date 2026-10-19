@@ -107,6 +107,33 @@ describe("the typescript recipe", { skip }, () => {
     assert.ok((r.timing.totalMs ?? 0) < 1500, `a 3-test check took ${r.timing.totalMs} ms`);
   });
 
+  it("lets a type test declare what it needs, and keeps each case's names to itself", async () => {
+    const code = [
+      'export type Payment = { kind: "card"; last4: string } | { kind: "cash" };',
+      "export function describe(p: Payment): string {",
+      '  return p.kind === "card" ? `card ending ${p.last4}` : "cash";',
+      "}",
+    ].join("\n");
+    const r = await ts(code, {
+      tests: [{}],
+      typeTests: {
+        imports: 'import { describe, type Payment } from "./main.ts";',
+        cases: [
+          { name: "takes any payment", expect: "ok", code: "declare const p: Payment;\nconst label: string = describe(p);" },
+          { name: "declares the same name again", expect: "ok", code: "declare const p: Payment;\ndescribe(p);" },
+          { name: "rejects a number", expect: "error", errorCode: "TS2345", code: "declare const n: number;\ndescribe(n);" },
+        ],
+      },
+    });
+    assert.equal(r.compile?.code, 0, r.compile?.output ?? "");
+    assert.deepEqual(r.typeTests?.map((t) => [t.name, t.pass, t.message ?? null]), [
+      ["takes any payment", true, null],
+      ["declares the same name again", true, null],
+      ["rejects a number", true, null],
+    ]);
+    assert.deepEqual(r.typeTests?.[2].diagnostics.map((d) => [d.line, d.code]), [[2, "TS2345"]]);
+  });
+
   it("runs each test in a fresh /work and /tmp, so no test sees what another wrote", async () => {
     const r = await ts(
       [

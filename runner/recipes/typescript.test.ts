@@ -5,12 +5,13 @@ import {
   COMPILE_CMD,
   PACKAGE_JSON,
   TSCONFIG,
+  isTypeTestFile,
   judgeTypeTests,
   parseDiagnostics,
   runCmd,
   spliceTryIt,
   stepEnv,
-  typeTestsFile,
+  typeTestFiles,
   workFiles,
 } from "./typescript.ts";
 
@@ -51,10 +52,18 @@ describe("typescript recipe commands", () => {
       clock: "2026-10-01T09:00:00Z",
       tests: [{}, { tryIt: "console.log(x + 1);" }],
     });
-    const files = workFiles(req, typeTestsFile(typeTests));
-    assert.deepEqual(files.map((f) => f.path), ["tsconfig.json", "package.json", "main.ts", "type-tests.ts", "t2/main.ts"]);
+    const files = workFiles(req, typeTestFiles(typeTests));
+    assert.deepEqual(files.map((f) => f.path), [
+      "tsconfig.json",
+      "package.json",
+      "main.ts",
+      "type-test-1.ts",
+      "type-test-2.ts",
+      "type-test-3.ts",
+      "t2/main.ts",
+    ]);
     assert.equal(files[0].data?.toString(), `${JSON.stringify(TSCONFIG, null, 2)}\n`);
-    assert.equal(files[4].data?.toString(), "export const x = 1;\n// --- try it ---\nconsole.log(x + 1);\n");
+    assert.equal(files[6].data?.toString(), "export const x = 1;\n// --- try it ---\nconsole.log(x + 1);\n");
     assert.equal(files[2].mtime, Date.parse("2026-10-01T09:00:00Z") / 1000);
   });
 });
@@ -70,36 +79,33 @@ describe("tryIt", () => {
 });
 
 describe("type tests", () => {
-  it("put each case in its own block, at known lines", () => {
-    const layout = typeTestsFile(typeTests);
-    assert.equal(
-      layout.source,
-      [
-        typeTests.imports,
-        "{",
-        typeTests.cases[0].code,
-        "}",
-        "{",
-        typeTests.cases[1].code,
-        "}",
-        "{",
-        "const a: number = 1;",
-        "const b: string = a;",
-        "}",
-        "",
-      ].join("\n")
-    );
+  it("put each case in its own module, after the imports", () => {
+    const layout = typeTestFiles(typeTests);
+    assert.deepEqual(layout.files, [
+      { path: "type-test-1.ts", source: `${typeTests.imports}\n${typeTests.cases[0].code}\n` },
+      { path: "type-test-2.ts", source: `${typeTests.imports}\n${typeTests.cases[1].code}\n` },
+      { path: "type-test-3.ts", source: `${typeTests.imports}\nconst a: number = 1;\nconst b: string = a;\n` },
+    ]);
     assert.equal(layout.importLines, 1);
-    assert.deepEqual(layout.cases.map((c) => [c.from, c.to]), [[3, 3], [6, 6], [9, 10]]);
+    assert.equal(isTypeTestFile("type-test-12.ts"), true);
+    assert.equal(isTypeTestFile("main.ts"), false);
   });
 
-  it("judge each case by the diagnostics in its lines", () => {
-    const layout = typeTestsFile(typeTests);
+  it("count a case's lines from its own code, after an imports block of several lines", () => {
+    const tests = { imports: 'import { describe } from "./main.ts";\nimport type { Payment } from "./main.ts";\n', cases: typeTests.cases.slice(0, 1) };
+    const layout = typeTestFiles(tests);
+    assert.equal(layout.importLines, 2);
+    const results = judgeTypeTests(tests, layout, parseDiagnostics("type-test-1.ts(3,1): error TS2554: Expected 1 arguments, but got 2."));
+    assert.deepEqual(results[0].diagnostics.map((d) => [d.line, d.col]), [[1, 1]]);
+  });
+
+  it("judge each case by the diagnostics in its own file", () => {
+    const layout = typeTestFiles(typeTests);
     const out = [
       "main.ts(2,3): error TS2322: Type 'x' is not assignable to type 'y'.",
-      "type-tests.ts(6,10): error TS2345: Argument of type '{ kind: \"card\"; }' is not assignable to parameter of type 'Payment'.",
+      "type-test-2.ts(2,10): error TS2345: Argument of type '{ kind: \"card\"; }' is not assignable to parameter of type 'Payment'.",
       "  Property 'last4' is missing in type '{ kind: \"card\"; }'.",
-      "type-tests.ts(10,7): error TS2322: Type 'number' is not assignable to type 'string'.",
+      "type-test-3.ts(3,7): error TS2322: Type 'number' is not assignable to type 'string'.",
     ].join("\n");
     const results = judgeTypeTests(typeTests, layout, parseDiagnostics(out));
     assert.deepEqual(
@@ -114,11 +120,11 @@ describe("type tests", () => {
   });
 
   it("explain a case that misbehaves", () => {
-    const layout = typeTestsFile(typeTests);
+    const layout = typeTestFiles(typeTests);
     const results = judgeTypeTests(
       typeTests,
       layout,
-      parseDiagnostics("type-tests.ts(3,1): error TS2554: Expected 1 arguments, but got 2.\ntype-tests.ts(6,1): error TS2322: nope")
+      parseDiagnostics("type-test-1.ts(2,1): error TS2554: Expected 1 arguments, but got 2.\ntype-test-2.ts(2,1): error TS2322: nope")
     );
     assert.equal(results[0].pass, false);
     assert.equal(results[0].message, "This should compile, but: Expected 1 arguments, but got 2.");
@@ -127,11 +133,12 @@ describe("type tests", () => {
   });
 
   it("fail every case when the imports line does", () => {
-    const layout = typeTestsFile(typeTests);
+    const layout = typeTestFiles(typeTests);
+    const missing = "error TS2305: Module '\"./main.ts\"' has no exported member 'describe'.";
     const results = judgeTypeTests(
       typeTests,
       layout,
-      parseDiagnostics("type-tests.ts(1,10): error TS2305: Module '\"./main.ts\"' has no exported member 'describe'.")
+      parseDiagnostics(layout.files.map((f) => `${f.path}(1,10): ${missing}`).join("\n"))
     );
     assert.ok(results.every((r) => !r.pass && r.message?.startsWith("The type tests couldn't import from main.ts")));
   });

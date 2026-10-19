@@ -83,7 +83,7 @@ export const TestSpec = z.strictObject({
 });
 
 export const TypeTests = z.strictObject({
-  /** The line the generated type-tests.ts starts with, such as import { describe } from "./main.ts". */
+  /** The line every generated type-test file starts with, such as import { describe } from "./main.ts". */
   imports: z.string().max(4 * KiB),
   cases: z
     .array(

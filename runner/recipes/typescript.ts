@@ -19,9 +19,9 @@ import {
  * C++ compile error. Then Node 26.12.0 runs it with type stripping, once per
  * test, each test in a fresh /work (and /tmp), so a file one test writes
  * never reaches the next. Type tests are compiled in that same tsc pass, each
- * case in its own block of a generated type-tests.ts, so every diagnostic
- * lands in exactly one case. Honesty rules (forbid) are judged by
- * lib/single-checks.mjs from the source, not here.
+ * case as its own module (type-test-1.ts and on), so every diagnostic lands
+ * in exactly one case and a case can `declare` what it needs. Honesty rules
+ * (forbid) are judged by lib/single-checks.mjs from the source, not here.
  */
 
 export const IMAGE = "node";
@@ -77,27 +77,31 @@ export function stepEnv(env: Record<string, string> = {}, clock?: string | null)
 }
 
 export interface TypeTestLayout {
-  source: string;
-  /** Lines 1 to importLines hold the imports. */
+  /** One file per case, in the order of the cases. */
+  files: { path: string; source: string }[];
+  /** Lines 1 to importLines of each file hold the imports. */
   importLines: number;
-  /** Each case's code, as 1-based lines of type-tests.ts (its braces excluded). */
-  cases: { name: string; from: number; to: number }[];
 }
 
-/** type-tests.ts: the imports line, then each case in its own block. */
-export function typeTestsFile(tests: TypeTests): TypeTestLayout {
-  const lines = tests.imports.replace(/\r\n/g, "\n").replace(/\n+$/, "").split("\n");
-  const importLines = lines.length;
-  const cases: TypeTestLayout["cases"] = [];
-  for (const c of tests.cases) {
-    const code = c.code.replace(/\r\n/g, "\n").replace(/\n+$/, "").split("\n");
-    lines.push("{");
-    const from = lines.length + 1;
-    lines.push(...code);
-    cases.push({ name: c.name, from, to: lines.length });
-    lines.push("}");
-  }
-  return { source: `${lines.join("\n")}\n`, importLines, cases };
+const TYPE_TEST_FILE = /^type-test-\d+\.ts$/;
+
+/** Whether tsc's diagnostic is in a type-test file rather than main.ts. */
+export const isTypeTestFile = (file: string) => TYPE_TEST_FILE.test(file);
+
+/**
+ * type-test-1.ts, type-test-2.ts, ...: each case as its own module, the
+ * imports line and then the case's code at the top level. A block can't hold
+ * `declare const p: Payment;` (TS1184), a module can, and no case sees the
+ * names another declares. The tsconfig's "*.ts" puts them all in the one tsc
+ * pass.
+ */
+export function typeTestFiles(tests: TypeTests): TypeTestLayout {
+  const imports = tests.imports.replace(/\r\n/g, "\n").replace(/\n+$/, "");
+  const files = tests.cases.map((c, i) => ({
+    path: `type-test-${i + 1}.ts`,
+    source: `${imports}\n${c.code.replace(/\r\n/g, "\n").replace(/\n+$/, "")}\n`,
+  }));
+  return { files, importLines: imports.split("\n").length };
 }
 
 export interface ParsedDiagnostic extends Diagnostic {
@@ -132,14 +136,13 @@ export function parseDiagnostics(output: string): ParsedDiagnostic[] {
 
 /** Each case's diagnostics, and whether the case behaved as it said it would. */
 export function judgeTypeTests(tests: TypeTests, layout: TypeTestLayout, diagnostics: ParsedDiagnostic[]): TypeTestResult[] {
-  const inFile = diagnostics.filter((d) => d.file === "type-tests.ts");
-  const importErrors = inFile.filter((d) => d.line <= layout.importLines);
   return tests.cases.map((c, i) => {
-    const range = layout.cases[i];
-    // A diagnostic on a case's braces belongs to the case too.
+    const inFile = diagnostics.filter((d) => d.file === layout.files[i].path);
+    // Every file starts with the same imports, so when they fail, they fail in every case.
+    const importErrors = inFile.filter((d) => d.line <= layout.importLines);
     const mine = inFile
-      .filter((d) => d.line >= range.from - 1 && d.line <= range.to + 1)
-      .map((d) => ({ line: d.line - range.from + 1, col: d.col, code: d.code, message: d.message }));
+      .filter((d) => d.line > layout.importLines)
+      .map((d) => ({ line: d.line - layout.importLines, col: d.col, code: d.code, message: d.message }));
     const result: TypeTestResult = { name: c.name, expect: c.expect, pass: false, diagnostics: mine };
     if (importErrors.length) {
       result.message = `The type tests couldn't import from main.ts: ${importErrors[0].message}`;
@@ -178,7 +181,7 @@ export function workFiles(req: RunRequest, layout: TypeTestLayout | null): TarEn
     file("package.json", `${JSON.stringify(PACKAGE_JSON)}\n`),
     file("main.ts", code),
   ];
-  if (layout) entries.push(file("type-tests.ts", layout.source));
+  if (layout) entries.push(...layout.files.map((f) => file(f.path, f.source)));
   // A test with tryIt runs its own copy of the program, in t<n>/.
   req.tests?.forEach((t, n) => {
     if (t.tryIt === undefined) return;
@@ -190,7 +193,7 @@ export function workFiles(req: RunRequest, layout: TypeTestLayout | null): TarEn
 
 export async function runTypeScript(job: Job, req: RunRequest, time: (key: "loadMs" | "compileMs" | "runMs", ms: number) => void): Promise<Omit<RunResponse, "timing">> {
   const limits = SCRIPT_JOB;
-  const layout = req.typeTests ? typeTestsFile(req.typeTests) : null;
+  const layout = req.typeTests ? typeTestFiles(req.typeTests) : null;
   const response: Omit<RunResponse, "timing"> = {};
   const code = Buffer.from(req.files[0].content, req.files[0].encoding === "base64" ? "base64" : "utf8").toString("utf8");
   const files = workFiles(req, layout);
@@ -204,7 +207,7 @@ export async function runTypeScript(job: Job, req: RunRequest, time: (key: "load
   time("compileMs", Date.now() - started);
   const diagnostics = parseDiagnostics(tsc.stdout + tsc.stderr);
   // Type-test diagnostics belong to their cases. Everything else is main.ts's.
-  const own = diagnostics.filter((d) => d.file !== "type-tests.ts");
+  const own = diagnostics.filter((d) => !isTypeTestFile(d.file));
   const compile: PistonRun = pistonRun(tsc);
   if (layout && tsc.status !== "TO" && tsc.status !== "OL" && tsc.status !== "EL") {
     compile.stdout = own.map((d) => d.text).join("\n");
