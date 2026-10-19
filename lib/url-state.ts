@@ -56,11 +56,20 @@ function flush() {
 }
 
 function schedule(now: boolean) {
-  window.clearTimeout(timer);
-  // Bursts (scrolling, typing) settle first: browsers limit how often an
-  // address may be replaced.
-  if (now) flush();
-  else timer = window.setTimeout(flush, 250);
+  if (now) {
+    window.clearTimeout(timer);
+    timer = 0;
+    flush();
+    return;
+  }
+  // A burst (scrolling, typing, a panel opening) is written together, at
+  // most 250ms after it starts, since browsers limit how often an address
+  // may be replaced.
+  if (timer) return;
+  timer = window.setTimeout(() => {
+    timer = 0;
+    flush();
+  }, 250);
 }
 
 /** Sets params in the address, merged into what's there: null or ""
