@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+# Piston's run script for Java, with Java 15's preview features turned on
+# (records, sealed classes, pattern matching for instanceof). A program that
+# uses one makes javac print two notes saying so, which aren't errors, so
+# they're dropped from stderr. Everything else, and the exit code, pass through.
+mv $1 $1.java
+filename=$1.java
+shift
+exec 3>&1
+java --enable-preview --source 15 "$filename" "$@" 2>&1 1>&3 3>&- \
+    | grep --line-buffered -v -e '^Note: .* uses preview language features\.$' -e '^Note: Recompile with -Xlint:preview for details\.$' >&2
+exit "${PIPESTATUS[0]}"

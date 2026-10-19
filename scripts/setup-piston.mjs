@@ -148,10 +148,20 @@ for (const pkg of packages) {
 // structures and algorithms practice (LeetCode ships the same ones):
 // sortedcontainers for Python, and priority queues, queues, and deques for
 // JavaScript, which has no built-in heap. Pinned, and installed into the
-// sandbox's own runtimes inside the container, so runs stay offline.
+// sandbox's own runtimes inside the container, so runs stay offline. Java's
+// and Go's run scripts get small fixes too (see piston-extras/*/run).
 const CONTAINER = "hu-piston";
 const EXTRAS_DIR = new URL("./piston-extras/", import.meta.url).pathname;
+// Replaces a runtime's run script with ours from piston-extras/<pkg>/run.
+const runScript = (pkg, dir) => [
+  ["cp", `${EXTRAS_DIR}${pkg}/run`, `${CONTAINER}:${dir}/run`],
+  ["exec", CONTAINER, "sh", "-c", `chown root:root ${dir}/run && chmod 755 ${dir}/run`],
+];
 const EXTRAS = {
+  // Records and the other Java 15 preview features, minus javac's notes.
+  java: (dir) => runScript("java", dir),
+  // Steadier under emulation.
+  go: (dir) => runScript("go", dir),
   python: (dir) => [
     ["exec", CONTAINER, `${dir}/bin/python3`, "-m", "pip", "install", "--quiet", "--no-cache-dir", "--disable-pip-version-check", "--root-user-action=ignore", "sortedcontainers==2.4.0"],
   ],
@@ -172,7 +182,7 @@ for (const [pkg, steps] of Object.entries(EXTRAS)) {
   if (!packages.includes(pkg)) continue;
   const rt = installed.find((r) => (r.runtime ?? r.language) === pkg);
   if (!rt) continue;
-  process.stdout.write(`→ adding ${pkg} libraries … `);
+  process.stdout.write(`→ adding ${pkg} extras … `);
   try {
     for (const args of steps(`/piston/packages/${pkg}/${rt.version}`)) {
       execFileSync("docker", args, { stdio: ["ignore", "ignore", "pipe"] });
