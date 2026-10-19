@@ -53,6 +53,7 @@ class Square extends Rect {
     this.name = "square";
   }
 }
+console.log(new Square(2).describe()); // square with area 4.00 (2x2)
 ```
 
 ### Polymorphism in a loop
@@ -79,7 +80,6 @@ class Square extends Rect {
 }
 
 {{code}}
-console.log(`total: ${total.toFixed(2)}`);
 console.log(`circles: ${circles.length}`);
 ```
 
@@ -92,7 +92,7 @@ for (const s of shapes) {
 // rect with area 6.00 (2x3)
 // square with area 4.00 (2x2)
 
-const total = shapes.reduce((t, s) => t + s.area(), 0);   // 13.14...
+console.log(shapes.reduce((t, s) => t + s.area(), 0));   // 13.141592653589793
 const circles = shapes.filter((s) => s instanceof Circle);
 ```
 
@@ -147,7 +147,6 @@ class Circle extends Shape {
 }
 
 {{code}}
-console.log(new Car().start());
 ```
 
 ```javascript
@@ -169,7 +168,7 @@ class Car {
     return `car: ${this.engine.start()}`;
   }
 }
-new Car().start();   // 'car: vroom'
+console.log(new Car().start());   // car: vroom
 ```
 
 ### Compare and sort objects
@@ -193,7 +192,7 @@ class Version {
 
 const vs = [new Version(2, 0), new Version(1, 5), new Version(1, 10)];
 vs.sort(Version.compare);
-vs.join(", ");      // '1.5, 1.10, 2.0' (join calls toString)
+console.log(vs.join(", "));  // 1.5, 1.10, 2.0 (join calls toString)
 ```
 
 ### Make a class iterable
@@ -211,7 +210,7 @@ class Range {
 }
 
 for (const n of new Range(1, 4)) console.log(n);   // 1, 2, 3
-[...new Range(1, 4)];                              // [ 1, 2, 3 ]
+console.log([...new Range(1, 4)]);                 // [ 1, 2, 3 ]
 ```
 
 | Syntax | Does |

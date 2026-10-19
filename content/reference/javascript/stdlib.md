@@ -6,10 +6,11 @@ Globals like `JSON`, `Math`, `Date`, `Intl`, and `structuredClone` need no impor
 
 ```javascript
 const data = { name: "ann", tags: ["a", "b"], score: 9.5 };
-const text = JSON.stringify(data);    // '{"name":"ann","tags":["a","b"],"score":9.5}'
-JSON.stringify(data, null, 2);        // pretty-printed, 2-space indent
+const text = JSON.stringify(data);
+console.log(text);                          // {"name":"ann","tags":["a","b"],"score":9.5}
+console.log(JSON.stringify(data, null, 2)); // pretty-printed, 2-space indent
 const back = JSON.parse(text);
-back.tags[1];                         // 'b'
+console.log(back.tags[1]);                  // b
 ```
 
 ### Dates
@@ -17,19 +18,21 @@ back.tags[1];                         // 'b'
 ```javascript
 const now = new Date();
 const d = new Date(2024, 0, 31);       // months are 0-based: 0 is January
-d.getFullYear();                       // 2024
-d.getMonth();                          // 0
-d.getDate();                           // 31, day of the month
-d.getDay();                            // 3, day of the week (0 is Sunday)
+console.log(d.getFullYear());          // 2024
+console.log(d.getMonth());             // 0
+console.log(d.getDate());              // 31, day of the month
+console.log(d.getDay());               // 3, day of the week (0 is Sunday)
 
 const t = new Date("2024-03-15T12:00:00Z");
-t.toISOString();                       // '2024-03-15T12:00:00.000Z'
-t.getTime();                           // 1710504000000, ms since 1970
-Date.now();                            // current time in ms
+console.log(t.toISOString());          // 2024-03-15T12:00:00.000Z
+console.log(t.getTime());              // 1710504000000, ms since 1970
+console.log(Date.now());               // current time in ms
 
 const next = new Date(d);
-next.setDate(next.getDate() + 1);      // Feb 1, rolls over the month
-const days = (new Date(2024, 2, 1) - new Date(2024, 1, 1)) / 86400000;  // 29
+next.setDate(next.getDate() + 1);      // rolls over the month
+console.log(next.toDateString());      // Thu Feb 01 2024
+const days = (new Date(2024, 2, 1) - new Date(2024, 1, 1)) / 86400000;
+console.log(days);                     // 29
 ```
 
 ### util and assert
@@ -50,23 +53,24 @@ assert.ok(false, "bad");                         // throws AssertionError: bad
 
 ```javascript
 const crypto = require("crypto");
-crypto.randomInt(1, 7);               // 1 to 6, end is exclusive
-crypto.randomUUID();                  // 36-char id
-crypto.createHash("sha256").update("hi").digest("hex");  // '8f4343...'
+console.log(crypto.randomInt(1, 7));  // random 1 to 6, end is exclusive
+console.log(crypto.randomUUID());     // random 36-char id
+console.log(crypto.createHash("sha256").update("hi").digest("hex"));
+// 8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4
 
 const t0 = performance.now();         // global in Node 20
 // ... work ...
 const ms = performance.now() - t0;
 console.time("loop");                 // or: label a timer
-console.timeEnd("loop");              // loop: 0.051ms
+console.timeEnd("loop");              // loop: 0.051ms, the time varies
 ```
 
 ### Paths, events, timers
 
 ```javascript
 const path = require("path");
-path.join("a", "b", "../c.txt");      // 'a/c.txt'
-path.extname("x.tar.gz");             // '.gz'
+console.log(path.join("a", "b", "../c.txt"));  // a/c.txt
+console.log(path.extname("x.tar.gz"));         // .gz
 
 const { EventEmitter } = require("events");
 const em = new EventEmitter();
@@ -148,11 +152,11 @@ class MinHeap {
 
 const heap = new MinHeap();
 for (const x of [5, 1, 4, 2]) heap.push(x);
-heap.pop();                                             // 1
+console.log(heap.pop());                                // 1
 const tasks = new MinHeap((a, b) => a[0] < b[0]);      // [priority, name] pairs
 tasks.push([2, "write"]);
 tasks.push([1, "plan"]);
-tasks.pop()[1];                                         // 'plan'
+console.log(tasks.pop()[1]);                            // plan
 ```
 
 | Call | Does |

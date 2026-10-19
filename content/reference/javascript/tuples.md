@@ -6,11 +6,13 @@ JavaScript has no tuple type. Use a short array like `[name, age]` for a pair an
 
 ```javascript
 const pair = ["ann", 31];
-const [name, age] = pair;        // name = 'ann', age = 31
-pair[0];                         // 'ann'
+const [name, age] = pair;
+console.log(name, age);          // ann 31
+console.log(pair[0]);            // ann
 
 const point = { x: 3, y: 4 };    // named fields read better past two
-const { x, y } = point;          // x = 3, y = 4
+const { x, y } = point;
+console.log(x, y);               // 3 4
 ```
 
 Skipping, defaults, rest, and swapping with destructuring are in Multiple Assignment. Returning a pair from a function is in Functions.
@@ -26,9 +28,9 @@ for (const [name, age] of people) {
 
 // by age, then by name
 people.sort((p, q) => p[1] - q[1] || p[0].localeCompare(q[0]));
-// [ [ 'bob', 25 ], [ 'cy', 25 ], [ 'ann', 31 ] ]
+console.log(people); // [ [ 'bob', 25 ], [ 'cy', 25 ], [ 'ann', 31 ] ]
 
-const names = people.map(([name]) => name);   // [ 'bob', 'cy', 'ann' ]
+console.log(people.map(([name]) => name));    // [ 'bob', 'cy', 'ann' ]
 const ages = new Map(people);                 // pairs are what Map takes
 ```
 
@@ -41,7 +43,7 @@ for (const [i, ch] of ["x", "y"].entries()) {
 
 const keys = ["a", "b"];
 const vals = [1, 2];
-const zipped = keys.map((k, i) => [k, vals[i]]);  // [ [ 'a', 1 ], [ 'b', 2 ] ]
+console.log(keys.map((k, i) => [k, vals[i]]));  // [ [ 'a', 1 ], [ 'b', 2 ] ]
 ```
 
 ### Read-only
@@ -57,8 +59,9 @@ p.push(3);     // TypeError: Cannot add property 2, object is not extensible
 ```javascript
 const seen = new Set();
 seen.add(`${3},${4}`);                       // store the pair as a string
-seen.has(`${3},${4}`);                       // true
-const [r, c] = "3,4".split(",").map(Number); // back to numbers: r = 3, c = 4
+console.log(seen.has(`${3},${4}`));          // true
+const [r, c] = "3,4".split(",").map(Number); // back to numbers
+console.log(r, c);                           // 3 4
 ```
 
 ### Gotchas

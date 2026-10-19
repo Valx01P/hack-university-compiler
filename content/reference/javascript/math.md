@@ -33,15 +33,14 @@ console.log(((-7 % 3) + 3) % 3); // 2 (always 0 to 2, a true modulo)
 
 ```javascript
 let x = 10;
-x += 5;  // 15
-x -= 3;  // 12
-x *= 2;  // 24
-x /= 4;  // 6
-x %= 4;  // 2
-x **= 3; // 8
-x++;     // 9
-x--;     // 8
-console.log(x); // 8
+x += 5;  console.log(x); // 15
+x -= 3;  console.log(x); // 12
+x *= 2;  console.log(x); // 24
+x /= 4;  console.log(x); // 6
+x %= 4;  console.log(x); // 2
+x **= 3; console.log(x); // 8
+x++;     console.log(x); // 9
+x--;     console.log(x); // 8
 
 let i = 5;
 console.log(i++); // 5 (returns the old value, then i is 6)

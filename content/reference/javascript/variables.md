@@ -10,7 +10,8 @@ right now.
 const name = "Ada"; // can't be reassigned
 let count = 0;      // can be reassigned
 count = count + 1;
-let later;          // undefined until you assign it
+let later;
+console.log(later); // undefined until you assign it
 later = "now";
 console.log(name, count, later); // Ada 1 now
 ```

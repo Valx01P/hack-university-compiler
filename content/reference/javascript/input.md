@@ -4,10 +4,17 @@ Node has no `input()`. The simple way is to read all of stdin at once with `requ
 
 ### Read everything
 
+```stdin
+3
+5 2 9
+```
+
 ```javascript
+// input: "3\n5 2 9"
 const fs = require("fs");
 const input = fs.readFileSync(0, "utf8");     // 0 is stdin
 const lines = input.trim().split("\n");       // array of lines
+console.log(lines);                           // [ '3', '5 2 9' ]
 ```
 
 ### Numbers from a line
@@ -21,14 +28,16 @@ const lines = input.trim().split("\n");       // array of lines
 const input = require("fs").readFileSync(0, "utf8");
 const lines = input.trim().split("\n");
 {{code}}
-console.log(n, nums, sum);
 ```
 
 ```javascript
 // input: "3\n5 2 9"
-const n = Number(lines[0]);                   // 3
-const nums = lines[1].split(" ").map(Number); // [ 5, 2, 9 ]
-const sum = nums.reduce((a, b) => a + b, 0);  // 16
+const n = Number(lines[0]);
+console.log(n);                               // 3
+const nums = lines[1].split(" ").map(Number);
+console.log(nums);                            // [ 5, 2, 9 ]
+const sum = nums.reduce((a, b) => a + b, 0);
+console.log(sum);                             // 16
 if (nums.some(Number.isNaN)) console.log("bad number in the input");
 ```
 
@@ -44,17 +53,19 @@ When values are spread over lines in any way, split on all whitespace and walk w
 ```javascript harness
 const input = require("fs").readFileSync(0, "utf8");
 {{code}}
-console.log(tokens, count, first);
 ```
 
 ```javascript
 // input: "2\n7   4\n"
-const tokens = input.split(/\s+/).filter(Boolean);   // [ '2', '7', '4' ]
+const tokens = input.split(/\s+/).filter(Boolean);
+console.log(tokens);                                 // [ '2', '7', '4' ]
 let pos = 0;
 const next = () => tokens[pos++];
 
-const count = Number(next());   // 2
-const first = Number(next());   // 7
+const count = Number(next());
+console.log(count);             // 2
+const first = Number(next());
+console.log(first);             // 7
 ```
 
 ### Into a Map, a Set, and objects
@@ -70,7 +81,6 @@ ann 40
 const input = require("fs").readFileSync(0, "utf8");
 const lines = input.trim().split("\n");
 {{code}}
-console.log(names.size, best.get("ann"), people[1].name);
 ```
 
 ```javascript
@@ -98,9 +108,9 @@ for (const line of lines.slice(1, 1 + n)) {
   best.set(name, Math.max(best.get(name) ?? 0, age));
   people.push(new Person(name, age));
 }
-names.size;          // 2
-best.get("ann");     // 40
-people[1].name;      // 'bob'
+console.log(names.size);         // 2
+console.log(best.get("ann"));    // 40
+console.log(people[1].name);     // bob
 ```
 
 ### A grid of characters
@@ -114,13 +124,12 @@ people[1].name;      // 'bob'
 const input = require("fs").readFileSync(0, "utf8");
 const lines = input.trim().split("\n");
 {{code}}
-console.log(grid[1][1]);
 ```
 
 ```javascript
 // input: "#.#\n.#."
 const grid = lines.map((row) => row.split(""));
-grid[1][1];          // '#'
+console.log(grid[1][1]);  // #
 ```
 
 ### Line by line with readline

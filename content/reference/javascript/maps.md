@@ -9,6 +9,7 @@ const empty = new Map();
 const m = new Map([["ann", 31], ["bob", 25]]);  // from [key, value] pairs
 const obj = { ann: 31, bob: 25 };               // plain object
 const fromObj = new Map(Object.entries(obj));   // object to Map
+console.log(fromObj); // Map(2) { 'ann' => 31, 'bob' => 25 }
 ```
 
 ### Add, update, remove
@@ -24,8 +25,8 @@ console.log(obj);
 ```javascript
 m.set("cy", 40);                  // add or overwrite
 m.set("ann", m.get("ann") + 1);   // update
-m.delete("bob");                  // true (false if it was missing)
-m.size;                           // 2 (a property, not a method)
+console.log(m.delete("bob"));     // true (false if it was missing)
+console.log(m.size);              // 2 (a property, not a method)
 
 obj.cy = 40;                      // objects: just assign
 obj["dee"] = 22;
@@ -38,20 +39,19 @@ delete obj.bob;
 const m = new Map([["ann", 32], ["cy", 40]]);
 const obj = { ann: 31, cy: 40, dee: 22 };
 {{code}}
-console.log(m.get("ann"), m.get("zed") ?? 0, obj[key], "ann" in obj);
 ```
 
 ```javascript
-m.get("ann");               // 32
-m.get("zed");               // undefined
-m.has("zed");               // false
-m.get("zed") ?? 0;          // 0, a default for missing keys
+console.log(m.get("ann"));               // 32
+console.log(m.get("zed"));               // undefined
+console.log(m.has("zed"));               // false
+console.log(m.get("zed") ?? 0);          // 0, a default for missing keys
 
-obj.ann;                    // 31
+console.log(obj.ann);                    // 31
 const key = "cy";
-obj[key];                   // 40 (brackets when the key is in a variable)
-"ann" in obj;               // true
-Object.hasOwn(obj, "ann");  // true
+console.log(obj[key]);                   // 40 (brackets when the key is in a variable)
+console.log("ann" in obj);               // true
+console.log(Object.hasOwn(obj, "ann"));  // true
 ```
 
 ### Loop
@@ -81,7 +81,7 @@ const counts = new Map();
 for (const w of words) {
   counts.set(w, (counts.get(w) ?? 0) + 1);
 }
-counts.get("the");  // 2
+console.log(counts.get("the"));  // 2
 ```
 
 ### Group
@@ -95,7 +95,7 @@ for (const w of ["apple", "avocado", "banana"]) {
   if (!groups.has(first)) groups.set(first, []);
   groups.get(first).push(w);
 }
-// Map(2) { 'a' => [ 'apple', 'avocado' ], 'b' => [ 'banana' ] }
+console.log(groups); // Map(2) { 'a' => [ 'apple', 'avocado' ], 'b' => [ 'banana' ] }
 ```
 
 ### Sort and convert
@@ -107,22 +107,20 @@ for (const w of "the cat and the hat".split(" ")) {
   counts.set(w, (counts.get(w) ?? 0) + 1);
 }
 {{code}}
-console.log(top[0]);
 console.log(byKey);
-console.log(JSON.stringify(Object.fromEntries(m)));
 ```
 
 ```javascript
-[...m.keys()];     // [ 'ann', 'cy' ]
-[...m.values()];   // [ 32, 40 ]
-[...m];            // [ [ 'ann', 32 ], [ 'cy', 40 ] ]
+console.log([...m.keys()]);    // [ 'ann', 'cy' ]
+console.log([...m.values()]);  // [ 32, 40 ]
+console.log([...m]);           // [ [ 'ann', 32 ], [ 'cy', 40 ] ]
 
 const top = [...counts].sort((a, b) => b[1] - a[1]);  // by count, highest first
-top[0];            // [ 'the', 2 ]
+console.log(top[0]);           // [ 'the', 2 ]
 const byKey = new Map([...m].sort((a, b) => a[0].localeCompare(b[0])));
 
-Object.fromEntries(m);                  // { ann: 32, cy: 40 }
-JSON.stringify(Object.fromEntries(m));  // '{"ann":32,"cy":40}'
+console.log(Object.fromEntries(m));                  // { ann: 32, cy: 40 }
+console.log(JSON.stringify(Object.fromEntries(m)));  // {"ann":32,"cy":40}
 ```
 
 | Call | Does |

@@ -12,7 +12,8 @@ const grid = [
 
 const rows = 3;
 const cols = 4;
-const board = Array.from({ length: rows }, () => new Array(cols).fill(0)); // 3 rows of 4 zeros
+const board = Array.from({ length: rows }, () => new Array(cols).fill(0));
+console.log(JSON.stringify(board)); // [[0,0,0,0],[0,0,0,0],[0,0,0,0]]
 const table = Array.from({ length: 3 }, (_, r) => Array.from({ length: 3 }, (_, c) => r * 3 + c));
 console.log(JSON.stringify(table)); // [[0,1,2],[3,4,5],[6,7,8]]
 ```
@@ -24,11 +25,11 @@ const grid = [
   [1, 2, 3],
   [4, 5, 6],
 ];
-grid[1][2];        // 6 (row 1, column 2)
-grid.length;       // 2 (number of rows)
-grid[0].length;    // 3 (number of columns)
-grid[0][0] = 9;    // set one cell
-grid.push([7, 8, 9]); // add a row
+console.log(grid[1][2]);           // 6 (row 1, column 2)
+console.log(grid.length);          // 2 (number of rows)
+console.log(grid[0].length);       // 3 (number of columns)
+grid[0][0] = 9;                    // set one cell
+grid.push([7, 8, 9]);              // add a row
 console.log(JSON.stringify(grid)); // [[9,2,3],[4,5,6],[7,8,9]]
 ```
 

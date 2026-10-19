@@ -101,7 +101,7 @@ for (const s of inputs) {
 }
 // skipped (not a number: x)
 // skipped (negative: -2)
-valid;   // [ 4, 10 ]
+console.log(valid);   // [ 4, 10 ]
 ```
 
 ### Wrap with a cause

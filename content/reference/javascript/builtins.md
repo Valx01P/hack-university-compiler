@@ -5,39 +5,39 @@ Math lives on the global `Math` object (`Math.max`, `Math.sqrt`, ...), and helpe
 ### Min, max, and powers
 
 ```javascript
-Math.max(3, 7, 2);      // 7
-Math.min(3, 7, 2);      // 2
+console.log(Math.max(3, 7, 2));     // 7
+console.log(Math.min(3, 7, 2));     // 2
 const nums = [4, 9, 1];
-Math.max(...nums);      // 9 (spread an array)
-Math.min(...nums);      // 1
-Math.pow(2, 10);        // 1024
-2 ** 10;                // 1024 (same thing)
-Math.sqrt(81);          // 9
-Math.cbrt(27);          // 3
-Math.abs(-5);           // 5
-Math.hypot(3, 4);       // 5 (distance, sqrt(3*3 + 4*4))
+console.log(Math.max(...nums));     // 9 (spread an array)
+console.log(Math.min(...nums));     // 1
+console.log(Math.pow(2, 10));       // 1024
+console.log(2 ** 10);               // 1024 (same thing)
+console.log(Math.sqrt(81));         // 9
+console.log(Math.cbrt(27));         // 3
+console.log(Math.abs(-5));          // 5
+console.log(Math.hypot(3, 4));      // 5 (distance, sqrt(3*3 + 4*4))
 ```
 
 ### Rounding and integer division
 
 ```javascript
-Math.floor(7.8);        // 7 (down)
-Math.ceil(7.2);         // 8 (up)
-Math.round(7.5);        // 8 (nearest, .5 goes up)
-Math.trunc(-7.8);       // -7 (drop the decimals)
-Math.floor(17 / 5);     // 3 (integer division)
-Math.sign(-3);          // -1
-(3.14159).toFixed(2);   // '3.14' (a string, for printing)
+console.log(Math.floor(7.8));       // 7 (down)
+console.log(Math.ceil(7.2));        // 8 (up)
+console.log(Math.round(7.5));       // 8 (nearest, .5 goes up)
+console.log(Math.trunc(-7.8));      // -7 (drop the decimals)
+console.log(Math.floor(17 / 5));    // 3 (integer division)
+console.log(Math.sign(-3));         // -1
+console.log((3.14159).toFixed(2));  // 3.14 (a string, for printing)
 ```
 
 ### Logs, constants, random
 
 ```javascript
-Math.log(Math.E);       // 1 (natural log)
-Math.log2(8);           // 3
-Math.log10(1000);       // 3
-Math.PI;                // 3.141592653589793
-Math.random();          // 0 <= x < 1
+console.log(Math.log(Math.E));      // 1 (natural log)
+console.log(Math.log2(8));          // 3
+console.log(Math.log10(1000));      // 3
+console.log(Math.PI);               // 3.141592653589793
+console.log(Math.random());         // 0 <= x < 1
 
 const randInt = (lo, hi) => Math.floor(Math.random() * (hi - lo + 1)) + lo; // lo..hi inclusive
 const roll = randInt(1, 6);
@@ -47,13 +47,13 @@ console.log(roll >= 1 && roll <= 6); // true
 ### Other built-ins you use every day
 
 ```javascript
-typeof 42;                          // 'number'
-Array.isArray([1, 2]);              // true
-Number.isInteger(5.0);              // true
-Number.isNaN(Number("x"));          // true
-Object.keys({ x: 1, y: 2 });        // [ 'x', 'y' ]
-Object.values({ x: 1, y: 2 });      // [ 1, 2 ]
-Object.entries({ x: 1 });           // [ [ 'x', 1 ] ]
+console.log(typeof 42);                         // number
+console.log(Array.isArray([1, 2]));             // true
+console.log(Number.isInteger(5.0));             // true
+console.log(Number.isNaN(Number("x")));         // true
+console.log(Object.keys({ x: 1, y: 2 }));       // [ 'x', 'y' ]
+console.log(Object.values({ x: 1, y: 2 }));     // [ 1, 2 ]
+console.log(Object.entries({ x: 1 }));          // [ [ 'x', 1 ] ]
 const deep = structuredClone({ list: [1, 2] }); // deep copy
 ```
 

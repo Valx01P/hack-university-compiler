@@ -31,16 +31,16 @@ console.log(add(2, 3), sub(5, 1), mul(3, 4), clamp(15, 0, 10)); // 5 4 12 10
 function greet(name = "World", punct = "!") {
   return `Hello, ${name}${punct}`;
 }
-greet();             // 'Hello, World!'
-greet("Ada", "?");   // 'Hello, Ada?'
-greet(undefined, "."); // 'Hello, World.'
+console.log(greet());               // Hello, World!
+console.log(greet("Ada", "?"));     // Hello, Ada?
+console.log(greet(undefined, ".")); // Hello, World.
 
 function sum(...nums) {    // rest: all remaining args as an array
   return nums.reduce((total, n) => total + n, 0);
 }
-sum(1, 2, 3);       // 6
+console.log(sum(1, 2, 3));  // 6
 const list = [4, 5, 6];
-sum(...list);       // 15 (spread an array into arguments)
+console.log(sum(...list));  // 15 (spread an array into arguments)
 ```
 
 ### Missing and extra arguments

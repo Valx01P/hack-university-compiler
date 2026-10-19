@@ -21,11 +21,11 @@ class Point {
 }
 
 const p = new Point(3, 4);
-p.x;                     // 3
-p.dist(new Point(0, 0)); // 5
-`${p}`;                  // '(3, 4)'
-console.log(p);          // Point { x: 3, y: 4 }
-p instanceof Point;      // true
+console.log(p.x);                     // 3
+console.log(p.dist(new Point(0, 0))); // 5
+console.log(`${p}`);                  // (3, 4)
+console.log(p);                       // Point { x: 3, y: 4 }
+console.log(p instanceof Point);      // true
 ```
 
 ### Fields, private, getters, static
@@ -60,10 +60,10 @@ class Account {
 
 const acct = new Account("ann");
 acct.deposit(50).deposit(25);
-acct.balance;                        // 75
+console.log(acct.balance);           // 75
 acct.balance = 999;                  // ignored, there is no setter
 const bob = Account.fromCsv("bob,40");
-Account.count;                       // 2
+console.log(Account.count);          // 2
 ```
 
 A setter pairs with a getter: `set balance(v) { ... }` runs on `acct.balance = v`.
@@ -89,7 +89,6 @@ class Account {
 }
 
 {{code}}
-console.log(`total: ${total}`);
 console.log(`richest: ${richest.owner}`);
 ```
 
@@ -102,7 +101,8 @@ for (const a of accounts) {
   console.log(`${a.owner}: ${a.balance}`);   // cy: 10, al: 30
 }
 accounts.sort((a, b) => a.owner.localeCompare(b.owner));   // by owner
-const total = accounts.reduce((sum, a) => sum + a.balance, 0);  // 40
+const total = accounts.reduce((sum, a) => sum + a.balance, 0);
+console.log(total);  // 40
 const richest = accounts.reduce((best, a) => (a.balance > best.balance ? a : best));
 ```
 
@@ -116,7 +116,7 @@ const user = {
     return `hi, I'm ${this.name}`;
   },
 };
-user.greet();                      // "hi, I'm ann"
+console.log(user.greet());           // hi, I'm ann
 const older = { ...user, age: 32 };  // shallow copy with one field changed
 ```
 

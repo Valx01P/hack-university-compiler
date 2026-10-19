@@ -4,6 +4,7 @@ Most patterns are a counted `for` with a different start, stop, or step. Every s
 
 ```javascript
 const a = [10, 11, 12, 13, 14, 15];
+console.log(a.join(" ")); // 10 11 12 13 14 15
 ```
 
 ### Reverse
