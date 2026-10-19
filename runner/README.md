@@ -77,6 +77,7 @@ Every error has one shape:
 | 501 | `not_implemented` | A route the architecture defines for a later phase (`/v1/workspaces/*`, `/v1/checks/*`, `/v1/pages/*`) |
 | 503 | `docker_unavailable` | Docker is off ("Start Docker to run this."), or still waking up |
 | 503 | `image_missing` | The recipe's image isn't built: run `npm run up` or `npm run images` |
+| 503 | `busy` | 64 runs are already waiting for a job slot |
 
 ## Routes
 

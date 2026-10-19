@@ -34,9 +34,10 @@ export interface WsDeps {
   log: Log;
 }
 
+/** Answers an upgrade with an HTTP error, then closes the socket once it's sent. */
 function refuse(socket: Duplex, status: number, reason: string) {
+  socket.once("finish", () => socket.destroy());
   socket.end(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
-  socket.destroy();
 }
 
 export function attachWebSockets(server: http.Server, deps: WsDeps): WebSocketServer {
