@@ -101,21 +101,25 @@ export class Images {
     return this.versions.get(name) ?? {};
   }
 
-  /** Looks each image up in Docker. */
+  /** Looks each image up in Docker, except those building, which look themselves up when done. */
   async refresh(): Promise<void> {
     for (const name of Object.keys(IMAGES) as ImageName[]) {
-      if (this.builds.has(name)) continue;
+      if (!this.builds.has(name)) await this.lookup(name);
+    }
+  }
+
+  /** Reads one image's state, and its versions from its hu.versions label. */
+  private async lookup(name: ImageName): Promise<void> {
+    try {
+      const info = await this.docker.getImage(this.tag(name)).inspect();
+      this.states.set(name, "ready");
       try {
-        const info = await this.docker.getImage(this.tag(name)).inspect();
-        this.states.set(name, "ready");
-        try {
-          this.versions.set(name, JSON.parse(info.Config?.Labels?.["hu.versions"] ?? "{}"));
-        } catch {
-          this.versions.set(name, {});
-        }
+        this.versions.set(name, JSON.parse(info.Config?.Labels?.["hu.versions"] ?? "{}"));
       } catch {
-        this.states.set(name, "missing");
+        this.versions.set(name, {});
       }
+    } catch {
+      this.states.set(name, "missing");
     }
   }
 
@@ -170,8 +174,9 @@ export class Images {
       this.states.set(name, "missing");
       throw err;
     }
-    this.states.set(name, "ready");
-    await this.refresh();
+    // refresh() skips an image while it builds, so the new tag is read here:
+    // /v1/health has its versions for the sandbox badge at once.
+    await this.lookup(name);
     await this.prune(name);
   }
 

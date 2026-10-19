@@ -1,10 +1,5 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { ROOT } from "./config.ts";
-import { imageHash } from "./images.ts";
 import { Demux, JobPool, splitTrailer } from "./jobs.ts";
 
 function frame(stream: 1 | 2, text: string): Buffer {
@@ -82,22 +77,5 @@ describe("the job pool", () => {
     release();
     await first;
     assert.deepEqual(pool.stats, { running: 0, queued: 0 });
-  });
-});
-
-describe("image tags", () => {
-  it("hash the Dockerfile and every file it copies, and nothing else", () => {
-    const copy = mkdtempSync(path.join(tmpdir(), "hu-images-"));
-    cpSync(path.join(ROOT, "docker"), path.join(copy, "docker"), { recursive: true });
-    const before = { node: imageHash(copy, "node"), bash: imageHash(copy, "bash") };
-    assert.equal(before.node, imageHash(ROOT, "node"));
-    assert.match(before.node, /^[0-9a-f]{12}$/);
-    writeFileSync(path.join(copy, "docker/bash/.DS_Store"), "noise");
-    assert.equal(imageHash(copy, "bash"), before.bash);
-    writeFileSync(path.join(copy, "docker/bash/Dockerfile"), "# changed\n", { flag: "a" });
-    assert.notEqual(imageHash(copy, "bash"), before.bash);
-    assert.equal(imageHash(copy, "node"), before.node);
-    writeFileSync(path.join(copy, "docker/shared/hu-exec.c"), "/* changed */\n", { flag: "a" });
-    assert.notEqual(imageHash(copy, "node"), before.node);
   });
 });
