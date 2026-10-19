@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Play, RotateCcw, X } from "lucide-react";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { CodeCopyButton } from "@/components/ui/code-copy-button";
@@ -37,8 +37,10 @@ const TOOL =
 /**
  * A code example you can run and change. It shows as ordinary highlighted
  * code until you click or tab into it, then becomes an editor that looks the
- * same (loaded while you hover). Run (or Mod-Enter) runs it in the sandbox,
- * through its hidden harness when it has one, and the output opens below.
+ * same (loaded while you hover). Clicking or tabbing off it, or Escape, makes
+ * it plain code again, so typing elsewhere can't change it by accident. Run
+ * (or Mod-Enter) runs it in the sandbox, through its hidden harness when it
+ * has one, and the output opens below.
  * Your changes are saved until you reset them. With comments hidden (the
  * Code comments setting) it reads, and edits, without them, but runs as
  * written until you change it. Your own edits always show as you wrote them.
@@ -71,6 +73,12 @@ export function RunnableSnippet({
   const modified = edited !== null && edited !== code && edited !== shown;
   // False while it's static; an editor (with where to put the cursor) after.
   const [editing, setEditing] = useState<{ x: number; y: number } | false>(false);
+  const active = editing !== false;
+  const editorRef = useRef<HTMLDivElement>(null);
+  const codeRef = useRef<HTMLPreElement>(null);
+  // Focus goes back to the code block once it's plain again (after Escape,
+  // or a Reset, whose button goes away).
+  const refocus = useRef(false);
   const [run, setRun] = useState<RunState | null>(null);
   // What runs: the example as written until you change it.
   const latest = useRef(edited ?? code);
@@ -88,9 +96,49 @@ export function RunnableSnippet({
     if (editing === false) setEditing(at);
   };
 
+  // Editing lasts while the editor has focus. Once focus goes anywhere else
+  // (a click on the page, Tab, even this snippet's own buttons), it's plain
+  // code again. Your edits stay until you reset them. When the window loses
+  // focus instead, focus stays put, so switching windows keeps you editing.
+  useEffect(() => {
+    if (!active) return;
+    const editor = editorRef.current;
+    if (!editor) return;
+    const away = () => !editor.contains(document.activeElement);
+    // Check where focus settled: a click on plain text moves it to nothing.
+    let timer = 0;
+    const onFocusOut = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (away()) setEditing(false);
+      });
+    };
+    // Before the editor takes focus (it's still loading, say), a click or
+    // focus anywhere else counts too.
+    const onElsewhere = (e: Event) => {
+      if (e.target instanceof Node && !editor.contains(e.target) && away()) setEditing(false);
+    };
+    editor.addEventListener("focusout", onFocusOut);
+    document.addEventListener("pointerdown", onElsewhere, true);
+    document.addEventListener("focusin", onElsewhere, true);
+    return () => {
+      window.clearTimeout(timer);
+      editor.removeEventListener("focusout", onFocusOut);
+      document.removeEventListener("pointerdown", onElsewhere, true);
+      document.removeEventListener("focusin", onElsewhere, true);
+    };
+  }, [active]);
+
+  useEffect(() => {
+    if (!refocus.current || active) return;
+    refocus.current = false;
+    codeRef.current?.focus({ preventScroll: true });
+  });
+
   const box = `code-dark slim-scroll overflow-x-auto rounded-card border border-code-content-line bg-code-bg text-code-ink`;
   const staticCode = (
     <pre
+      ref={codeRef}
       tabIndex={0}
       aria-label={`${LABELS[runtime]} example. Press Enter to edit it.`}
       onClick={(e) => {
@@ -116,7 +164,18 @@ export function RunnableSnippet({
       {editing === false ? (
         staticCode
       ) : (
-        <div className={box}>
+        <div
+          ref={editorRef}
+          className={box}
+          onKeyDown={(e) => {
+            // Escape stops editing, once the editor's own Escape (closing
+            // its completions, or a selection) has had its turn.
+            if (e.key !== "Escape" || e.defaultPrevented) return;
+            e.preventDefault();
+            refocus.current = true;
+            setEditing(false);
+          }}
+        >
           <Suspense fallback={staticCode}>
             <CmEditor
               variant="snippet"
@@ -136,7 +195,10 @@ export function RunnableSnippet({
         {modified && (
           <button
             type="button"
-            onClick={() => saveSnippetEdit(storageKey, null)}
+            onClick={(e) => {
+              refocus.current = e.currentTarget === document.activeElement;
+              saveSnippetEdit(storageKey, null);
+            }}
             title="Reset to the original"
             aria-label="Reset this example to the original"
             className={TOOL}

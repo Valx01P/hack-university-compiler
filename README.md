@@ -221,9 +221,11 @@ so you can tinker with it right where you read it.
   the values its comments state, so the output shows them, and examples that
   show an error run into that error.
 - Click the code (or focus it and press `Enter`) to edit it in place, and
-  `Mod-Enter` runs your version.
-- Once you change an example, a reset button appears next to play. Your
-  version is saved in the browser and stays until you reset it, across
+  `Mod-Enter` runs your version. Click anywhere off the code (its buttons
+  count), tab away, or press `Escape`, and it's plain code again, so nothing
+  you type elsewhere lands in it.
+- Once you change an example, a reset button appears before the copy button.
+  Your version is saved in the browser and stays until you reset it, across
   reloads.
 - SQL examples run on the lesson's tables, or on the playground's sample
   database in the cheatsheet.
