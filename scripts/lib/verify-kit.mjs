@@ -212,7 +212,10 @@ export function failure(r) {
 // ---------------------------------------------------------------- prose
 
 export const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-export const FENCE_LANGS = new Set(["python", "javascript", "cpp", "java", "go", "sql", "text"]);
+/** Fence languages content may use: every fence a course with a compiler
+    page lists in content/courses.json (runnable there or shown only, the way
+    lib/snippet-harness.mjs reads them), and text. */
+export const FENCE_LANGS = new Set([...COURSES.filter((c) => c.page).flatMap((c) => Object.keys(c.fences ?? {})), "text"]);
 /** Flags after a fence's language, for runnable snippets: norun (shown only),
     error (runs and is meant to fail), harness (hidden wrapper for the next
     snippet). */
