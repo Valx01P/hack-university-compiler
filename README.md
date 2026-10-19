@@ -244,8 +244,10 @@ way the app does, and fails any that errors by surprise or prints nothing.
 
 The editor (CodeMirror) colors code with the same highlighter as the code
 blocks in lessons and cheatsheets (`lib/highlight.tsx`), so code reads the same
-everywhere and an example you click into keeps its colors. It also helps with
-nesting: brackets and quotes close themselves, Enter between a pair opens an indented line with the closer on its
+everywhere and an example you click into keeps its colors. Escape sequences in
+strings (`\n`, `\"`, SQL's `''`) get a color of their own, except in raw
+strings, which have none. It also helps with nesting: brackets and quotes close
+themselves, Enter between a pair opens an indented line with the closer on its
 own line, each bracket pair gets a color by depth (with a stray closer marked),
 indent guides and fold arrows show the blocks, and the pair at the cursor is
 outlined. Go indents with tabs, everything else with spaces (2 or 4, in the

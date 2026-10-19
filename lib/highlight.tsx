@@ -3,6 +3,8 @@
  * Produces spans with `tok-*` classes; colors are the editor's `--hl-*`
  * variables, so blocks follow the code theme and contrast level. Fences in an
  * unknown language (or `text`, used for expected output) render plain.
+ * Escape sequences in strings (`\n`, `\"`, SQL's `''`) get a color of their
+ * own, except in raw strings, which have none.
  */
 
 const JS_KW = [
@@ -95,6 +97,56 @@ const ALIASES: Record<string, string> = {
 
 const STRING_RE = `(["'\`])(?:\\\\.|(?!\\1)[^\\\\\\n])*\\1`;
 
+// The escape sequences each language's strings (and character literals)
+// understand.
+const ESCAPES: Record<string, RegExp> = {
+  python: /\\(?:N\{[^}\n]*\}|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[0-7]{1,3}|[\\'"abfnrtv])/g,
+  javascript: /\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|[^\n])/g,
+  cpp: /\\(?:x[0-9a-fA-F]+|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[0-7]{1,3}|['"?\\abfnrtv])/g,
+  java: /\\(?:u+[0-9a-fA-F]{4}|[0-3][0-7]{0,2}|[4-7][0-7]?|[btnfrs'"\\])/g,
+  go: /\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[0-7]{3}|[abfnrtv\\'"])/g,
+  // A quote doubled inside a string is one quote.
+  sql: /''/g,
+  // Only double-quoted strings have escapes.
+  bash: /\\[$`"\\]/g,
+};
+
+/** Whether a string, with the text just before it, is raw (no escapes):
+    Python's r"", C++'s R"()", Go's backquotes, JavaScript's String.raw. */
+function isRaw(text: string, lang: string, before: string): boolean {
+  switch (lang) {
+    case "python":
+      return /(?:^|[^\w])(?:[rR][bBfF]?|[bBfF][rR])$/.test(before);
+    case "cpp":
+      return /(?:^|[^\w])(?:u8|[uUL])?R$/.test(before);
+    case "go":
+      return text[0] === "`";
+    case "javascript":
+      return text[0] === "`" && /String\.raw\s*$/.test(before);
+    case "bash":
+      return text[0] !== '"';
+    default:
+      return false;
+  }
+}
+
+/** A string token, split around the escape sequences in it. */
+function stringPieces(text: string, lang: string, before: string): Token[] {
+  const re = ESCAPES[lang];
+  if (!re || isRaw(text, lang, before)) return [{ type: "string", text }];
+  const pieces: Token[] = [];
+  let last = 0;
+  // Inside the quotes only.
+  re.lastIndex = 1;
+  for (let m = re.exec(text); m && m.index + m[0].length < text.length; m = re.exec(text)) {
+    if (m.index > last) pieces.push({ type: "string", text: text.slice(last, m.index) });
+    pieces.push({ type: "escape", text: m[0] });
+    last = m.index + m[0].length;
+  }
+  pieces.push({ type: "string", text: text.slice(last) });
+  return pieces;
+}
+
 function rulesFor(language: string): Rule[] {
   const lang = ALIASES[language] ?? language;
   const kw = KEYWORDS[lang];
@@ -126,6 +178,7 @@ export interface Token {
 
 /** Tokenize source into typed segments (null type = plain text). */
 export function tokenize(code: string, language: string): Token[] {
+  const lang = ALIASES[language] ?? language;
   // Sticky regexes, tried in priority order at each position
   const rules = rulesFor(language).map((r) => ({
     type: r.type,
@@ -157,8 +210,11 @@ export function tokenize(code: string, language: string): Token[] {
       }
     }
     if (matched) {
+      // What came just before a string says whether it's raw (r"...").
+      const before = plain;
       flushPlain();
-      tokens.push(matched);
+      if (matched.type === "string") tokens.push(...stringPieces(matched.text, lang, before));
+      else tokens.push(matched);
       i += matched.text.length;
       continue;
     }
