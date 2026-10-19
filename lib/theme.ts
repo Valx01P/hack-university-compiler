@@ -179,7 +179,8 @@ export function useContrast(): ContrastLevel {
  *   all of them. Their text and syntax colors stay the editor theme's.
  * - Selection (data-code-sel, --code-sel-override): the color selected text
  *   is highlighted with, drawn at 40% over the background (globals.css), so
- *   the text stays readable on dark and light editor themes alike.
+ *   the text stays readable on dark and light editor themes alike. Blue
+ *   until you pick another, and "theme" when you pick the theme's own.
  */
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
@@ -188,7 +189,9 @@ export function toHexColor(value: string | null | undefined): string | null {
   return value && HEX_COLOR.test(value) ? value.toLowerCase() : null;
 }
 
-function colorSetting(key: string, attr: string, cssVar: string) {
+/** `fallback`: the color with nothing saved (null: the theme's own). With
+    one, picking the theme's own is saved as "theme". */
+function colorSetting(key: string, attr: string, cssVar: string, fallback: string | null = null) {
   const event = `hu:${key}-changed`;
   const customKey = `${key}-custom`;
   const customEvent = `hu:${customKey}-changed`;
@@ -210,8 +213,8 @@ function colorSetting(key: string, attr: string, cssVar: string) {
     const color = toHexColor(value);
     apply(color);
     try {
-      if (color) localStorage.setItem(key, color);
-      else localStorage.removeItem(key);
+      if (color === fallback) localStorage.removeItem(key);
+      else localStorage.setItem(key, color ?? "theme");
     } catch {
       /* ignore */
     }
@@ -227,10 +230,10 @@ function colorSetting(key: string, attr: string, cssVar: string) {
     return d.hasAttribute(attr) ? toHexColor(d.style.getPropertyValue(cssVar).trim()) : null;
   }
 
-  const subscribe = subscribeTo(event, key, (stored) => apply(toHexColor(stored)));
+  const subscribe = subscribeTo(event, key, (stored) => apply(stored === "theme" ? null : (toHexColor(stored) ?? fallback)));
   /** The color (null = the theme's own), any tab. */
   function use(): string | null {
-    return useSyncExternalStore(subscribe, current, () => null);
+    return useSyncExternalStore(subscribe, current, () => fallback);
   }
 
   /** Remember a custom color you picked. */
@@ -282,7 +285,8 @@ export const CODE_SEL_PRESETS: { value: string; label: string }[] = [
   { value: "#8b949e", label: "Gray" },
 ];
 export const CODE_SEL_KEY = "hu-code-sel";
-export const codeSelection = colorSetting(CODE_SEL_KEY, "data-code-sel", "--code-sel-override");
+export const CODE_SEL_DEFAULT = "#388bfd";
+export const codeSelection = colorSetting(CODE_SEL_KEY, "data-code-sel", "--code-sel-override", CODE_SEL_DEFAULT);
 export const setCodeSelection = codeSelection.set;
 export const useCodeSelection = codeSelection.use;
 
