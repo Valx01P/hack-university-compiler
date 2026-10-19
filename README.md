@@ -11,7 +11,7 @@ as the original hackuniversity.dev compiler.
 
 ## Requirements
 
-- **Node.js 20.9+**
+- **Node.js 24.12+** (the workspace runner is TypeScript that Node runs directly)
 - **Docker Desktop** (or any Docker engine that can run privileged containers)
 - About **5 GB** of disk for the five runtimes (the C++ toolchain is 2.8 GB of it)
 
@@ -32,12 +32,15 @@ npm run up
 
 That's the whole setup. `npm run up` checks for Node and Docker, installs the
 dependencies, starts the code sandbox and installs its five languages,
-downloads the search model, builds the app, and serves it on
+downloads the search model, builds the TypeScript and Bash sandboxes (about
+0.85 GB), builds the app, starts the workspace runner, and serves the app on
 [http://localhost:3000](http://localhost:3000). The first run takes a few
 minutes (the languages are about 5 GB). After that it starts in seconds, since
-it skips every step that's already done. Ctrl+C stops the app, and
-`npm run piston:down` stops the sandbox. `npm run up -- --dev` serves the dev
-server instead, for working on the app. With [Task](https://taskfile.dev),
+it skips every step that's already done. Without Docker it still serves
+lessons, cheatsheets, search, and SQL, and running code says to start Docker.
+Ctrl+C stops the app and the runner, and `npm run piston:down` stops the
+sandbox. `npm run up -- --dev` serves the dev servers instead, for working on
+the app. With [Task](https://taskfile.dev),
 `task` does the same (`task --list` shows the rest).
 
 The homepage opens the compiler you used last (Python the first time), and
@@ -58,7 +61,7 @@ npm run piston:install -- python javascript
 | Command | What it does |
 | --- | --- |
 | `npm run up` | Everything: set up whatever's missing, build, and serve on `127.0.0.1:3000` (`-- --dev` for the dev server) |
-| `npm run dev` | Dev server on `127.0.0.1:3000` |
+| `npm run dev` | Dev server on `127.0.0.1:3000`, with the workspace runner on `127.0.0.1:3100` (restarted when its code changes) |
 | `npm run build` then `npm start` | Production build and server on `127.0.0.1:3000` |
 | `npm run setup` | `piston:up` + `piston:install` |
 | `npm run piston:up` | Start the sandbox container on `127.0.0.1:2000` |
@@ -71,6 +74,11 @@ npm run piston:install -- python javascript
 | `npm run reference:verify` | Lint the cheatsheets (`-- <language> [categories]`) |
 | `npm run snippets:verify` | Run every code example in the lessons and cheatsheets the way the app does (`-- <languages>`, `--source=learn` or `reference`, `--pages=<ids>`) |
 | `npm run sql:try -- <file.sql>` | Run SQL on a fresh PostgreSQL and print what psql would (`--setup <file.sql>`, `--sample` for the playground's tables) |
+| `npm run runner` | The workspace runner alone, on `127.0.0.1:3100` ([runner/README.md](runner/README.md)) |
+| `npm run images` | Build the TypeScript and Bash sandboxes when they're missing or changed (`-- bash` for one, `--force` to rebuild) |
+| `npm run images:status` | Show the sandbox images and whether they're built |
+| `npm run security:verify` | Prove the sandbox's isolation and limits against real containers (`-- S1 S9` for some) |
+| `npm run runner:test` | The runner's tests (the ones that run real jobs skip when Docker is off) |
 
 ## Languages
 
@@ -394,6 +402,9 @@ lib/search/                  the cheatsheet search (served by app/api/search)
 lib/runtimes.json            language id to Piston runtime and package
 lib/piston.ts                server-side Piston client
 docker-compose.yml           the sandbox and its limits
+docker/                      the TypeScript and Bash sandbox images (hu/node, hu/bash)
+runner/                      the workspace runner, the only process that talks to Docker
+lib/docker-memory.mjs        the one Docker memory threshold, shared by npm run up and the runner
 scripts/setup-piston.mjs     runtime installer
 scripts/setup-search.mjs     downloads the search model into .models/
 scripts/verify-lessons.mjs   runs every lesson's programs in the sandbox
@@ -401,6 +412,8 @@ scripts/verify-challenges.mjs runs every challenge in every language
 scripts/verify-reference.mjs lints the cheatsheets
 scripts/verify-snippets.mjs  runs every code example in the lessons and cheatsheets
 scripts/try-sql.mjs          runs SQL on a fresh PostgreSQL, printed like psql
+scripts/up.mjs, dev.mjs      npm run up and npm run dev
+scripts/verify-security.mjs  the sandbox's security suite
 ```
 
 ## Adding a language
@@ -425,6 +438,10 @@ scripts/try-sql.mjs          runs SQL on a fresh PostgreSQL, printed like psql
   Requirements). Java and Go compile on every run, so they take about a second
   even then.
 - **Port 3000 is taken**: `PORT=3001 npm run dev`.
+- **Port 3100 is taken**: another workspace runner is still up (an earlier
+  `npm run up`), or set `HU_RUNNER_PORT` to another port.
+- **"Start Docker to run this"** on TypeScript or Bash: start Docker Desktop.
+  The runner notices within 5 seconds. **"isn't built yet"**: `npm run images`.
 - **Windows**: use Docker Desktop with the WSL 2 backend.
 - **Linux**: Piston needs cgroup v2 (the default on modern distros) and a
   privileged container.
