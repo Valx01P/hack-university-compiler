@@ -7,8 +7,9 @@
  *
  * - The compiler (lib/compiler-url.ts): ?panel, &challenge, &hints,
  *   &difficulty, &status, the cheatsheet's &q and &at, and SQL's &view.
- * - Learn: ?tab=code (the Your code tab), &hints, and #example, #practice,
- *   or #recap for where you are in the part.
+ * - Learn: ?tab=code (the Your code tab) or ?tab=ex2 and ex3 (the second
+ *   and third examples), &hints, and #example, #example-2, #example-3,
+ *   #practice, or #recap for where you are in the part.
  * - Both: &full=1 in full screen (lib/full-screen.ts).
  *
  * A reload that restores something you'd see change is restored before you
