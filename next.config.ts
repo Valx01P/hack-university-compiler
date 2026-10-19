@@ -26,8 +26,20 @@ const csp = [
 const nextConfig: NextConfig = {
   // The compiler is the whole app: the homepage drops you into Python, and
   // every other language is just a route change (/javascript, /cpp, /java, /go).
+  // The homepage opens the compiler you used last: each compiler page sets
+  // the hu-lang cookie (components/compiler/compiler-app.tsx), and this
+  // redirect reads it, so it costs nothing more than the plain redirect.
+  // Without it (or with anything else in it), Python.
   async redirects() {
-    return [{ source: "/", destination: "/python", permanent: false }];
+    return [
+      {
+        source: "/",
+        has: [{ type: "cookie", key: "hu-lang", value: "(?<lang>python|javascript|cpp|java|go|sql)" }],
+        destination: "/:lang",
+        permanent: false,
+      },
+      { source: "/", destination: "/python", permanent: false },
+    ];
   },
   // Tree-shake the big barrel icon libraries so the rail only pulls the
   // icons it uses into the client bundle.

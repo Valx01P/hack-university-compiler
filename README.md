@@ -32,9 +32,11 @@ npm run setup   # starts the sandbox, installs all five languages, and gets the 
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The homepage redirects to
-the Python compiler, and every other language is its own route: `/javascript`,
-`/cpp`, `/java`, `/go`, and `/sql`.
+Open [http://localhost:3000](http://localhost:3000). The homepage opens the
+compiler you used last (Python the first time), and every language is its own
+route: `/python`, `/javascript`, `/cpp`, `/java`, `/go`, and `/sql`. The last
+one is a cookie (`hu-lang`) the redirect reads on the server, so it costs
+nothing extra.
 
 Only need some of them? Install just those instead of running `setup`:
 

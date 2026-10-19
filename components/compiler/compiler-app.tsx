@@ -278,6 +278,11 @@ export function CompilerApp({
   useEffect(() => {
     if (sqlMode) writeUrl({ view: sqlView === "database" ? "database" : null });
   }, [sqlMode, sqlView]);
+  // The homepage brings you back to this language next time (the redirect
+  // in next.config.ts reads this cookie).
+  useEffect(() => {
+    document.cookie = `hu-lang=${lang.slug}; path=/; max-age=31536000; samesite=lax`;
+  }, [lang.slug]);
 
   // The panel slides in from the right when you open it, and back out before
   // the layout returns to side by side.
