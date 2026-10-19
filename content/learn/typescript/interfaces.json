@@ -1,0 +1,181 @@
+{
+  "id": "interfaces",
+  "title": "Interfaces, Intersections, and Which to Use",
+  "section": "Object Types",
+  "summary": "Declare object shapes with interface and extends, combine types with intersections, and choose between interface and type.",
+  "intro": "`type` aliases are one way to name an object shape. Interfaces are the other, and real codebases use both, often in the same file. In this lesson you declare shapes with `interface` and `extends`, combine them with `&`, see how interface declarations merge, and learn the convention many teams follow for choosing between the two.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Interfaces and extends",
+      "body": "An `interface` names an object shape, much like a `type` alias does. For object shapes the two are interchangeable: a value that fits one fits the other, and the checks are the same.\n\n```typescript\ninterface Animal {\n  name: string;\n}\n\nconst rex: Animal = { name: \"Rex\" };\nconsole.log(rex.name); // Rex\n```\n\n`extends` builds a new interface from an existing one, so you never repeat the shared members. `interface Dog extends Animal { breed: string }` has both `name` and `breed`. An interface can extend several others at once, separated by commas, and gets every member of each.\n\nMembers take the same modifiers as in type aliases: `?` for optional, and `readonly` for properties that never change. The spelling differs only at the start: an interface has no `=` before its braces.",
+      "examples": [
+        {
+          "title": "Animals",
+          "prompt": "Extend an Animal interface into a Dog, and pass a Dog where an Animal is expected.",
+          "code": "interface Animal {\n  name: string;\n}\n\ninterface Dog extends Animal {\n  breed: string;\n}\n\nfunction greet(animal: Animal): string {\n  return `Hello, ${animal.name}!`;\n}\n\nconst rex: Dog = { name: \"Rex\", breed: \"Beagle\" };\n\nconsole.log(greet(rex));\nconsole.log(`${rex.name} is a ${rex.breed}`);\n",
+          "output": "Hello, Rex!\nRex is a Beagle",
+          "explanation": "`Dog` has everything `Animal` has plus `breed`, so `rex` needs both properties. Because a `Dog` has every member of `Animal`, it can go to `greet`, which only knows about `name`. This is the same shape check as with type aliases: `extends` just saves you from writing `name: string` again."
+        },
+        {
+          "title": "Several bases",
+          "prompt": "Build an Admin from a User and an Auditable interface at once.",
+          "code": "interface User {\n  id: number;\n  email: string;\n}\n\ninterface Auditable {\n  createdAt: string;\n  createdBy: string;\n}\n\ninterface Admin extends User, Auditable {\n  permissions: string[];\n}\n\nconst root: Admin = {\n  id: 1,\n  email: \"root@example.com\",\n  createdAt: \"2026-01-15\",\n  createdBy: \"setup\",\n  permissions: [\"users\", \"billing\"],\n};\n\nconsole.log(`${root.email} (#${root.id})`);\nconsole.log(`created ${root.createdAt} by ${root.createdBy}`);\nconsole.log(`can manage: ${root.permissions.join(\", \")}`);\n",
+          "output": "root@example.com (#1)\ncreated 2026-01-15 by setup\ncan manage: users, billing",
+          "explanation": "`extends User, Auditable` copies the members of both interfaces into `Admin`, which then adds `permissions`. Leaving out any of the five properties is a type error that names the missing one. A small interface like `Auditable` can be mixed into many shapes, so the audit fields are written once."
+        },
+        {
+          "title": "Readonly and optional members",
+          "prompt": "Mark a member's id readonly and its nickname optional, and print a default when the nickname is missing.",
+          "code": "interface Member {\n  readonly id: number;\n  name: string;\n  nickname?: string;\n}\n\nfunction badge(member: Member): string {\n  return `#${member.id} ${member.nickname ?? member.name}`;\n}\n\nconst members: Member[] = [\n  { id: 7, name: \"Margaret Hamilton\", nickname: \"Maggie\" },\n  { id: 8, name: \"Alan Turing\" },\n];\n\nfor (const member of members) {\n  console.log(badge(member));\n}\n",
+          "output": "#7 Maggie\n#8 Alan Turing",
+          "explanation": "The modifiers work exactly as in type aliases: `id` cannot be reassigned, and `nickname` may be left out, so reading it gives `string | undefined`. `??` falls back to the full name when there is no nickname. With `exactOptionalPropertyTypes` on, Alan's object leaves the key out instead of setting it to `undefined`."
+        }
+      ],
+      "practice": {
+        "title": "Employee directory",
+        "prompt": "Model a company directory where every employee is also a person.\n\n1. Make `Employee` extend `Person`, adding `team` (a string) and an optional `managerEmail` (a string).\n2. Make `directoryLine` return a line like `Ada Lovelace <ada@example.com>, Platform, manager: grace@example.com`, with `none` when there is no manager.\n\nExpected output:\n\n```text\nAda Lovelace <ada@example.com>, Platform, manager: grace@example.com\nGrace Hopper <grace@example.com>, Platform, manager: none\nAlan Turing <alan@example.com>, Research, manager: grace@example.com\n```",
+        "starter": "export interface Person {\n  name: string;\n  email: string;\n}\n\n// TODO: extend Person with team (a string) and an optional managerEmail (a string)\nexport interface Employee {}\n\nexport function directoryLine(employee: Employee): string {\n  // TODO: return \"Ada Lovelace <ada@example.com>, Platform, manager: grace@example.com\"\n  return \"\";\n}\n\nconst staff: Employee[] = [\n  { name: \"Ada Lovelace\", email: \"ada@example.com\", team: \"Platform\", managerEmail: \"grace@example.com\" },\n  { name: \"Grace Hopper\", email: \"grace@example.com\", team: \"Platform\" },\n  { name: \"Alan Turing\", email: \"alan@example.com\", team: \"Research\", managerEmail: \"grace@example.com\" },\n];\n\nfor (const employee of staff) {\n  console.log(directoryLine(employee));\n}\n",
+        "solution": "export interface Person {\n  name: string;\n  email: string;\n}\n\nexport interface Employee extends Person {\n  team: string;\n  managerEmail?: string;\n}\n\nexport function directoryLine(employee: Employee): string {\n  const manager = employee.managerEmail ?? \"none\";\n  return `${employee.name} <${employee.email}>, ${employee.team}, manager: ${manager}`;\n}\n\nconst staff: Employee[] = [\n  { name: \"Ada Lovelace\", email: \"ada@example.com\", team: \"Platform\", managerEmail: \"grace@example.com\" },\n  { name: \"Grace Hopper\", email: \"grace@example.com\", team: \"Platform\" },\n  { name: \"Alan Turing\", email: \"alan@example.com\", team: \"Research\", managerEmail: \"grace@example.com\" },\n];\n\nfor (const employee of staff) {\n  console.log(directoryLine(employee));\n}\n",
+        "tests": [
+          {
+            "output": "Ada Lovelace <ada@example.com>, Platform, manager: grace@example.com\nGrace Hopper <grace@example.com>, Platform, manager: none\nAlan Turing <alan@example.com>, Research, manager: grace@example.com"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { type Employee } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects an employee without a team",
+              "expect": "error",
+              "errorCode": "TS2741",
+              "code": "const e: Employee = { name: \"Ada Lovelace\", email: \"ada@example.com\" };"
+            }
+          ]
+        },
+        "hints": [
+          "Start with `export interface Employee extends Person`, the way `Dog` extends `Animal` in the first example.",
+          "An optional member has a `?` after its name: `managerEmail?: string`.",
+          "`employee.managerEmail ?? \"none\"` gives the manager's email, or `none` when it is missing."
+        ]
+      }
+    },
+    {
+      "title": "Intersections",
+      "body": "An intersection, `A & B`, is a type with every member of `A` and every member of `B`. It combines any object types, including aliases you did not write, so it is a common way to mix shared fields into a shape:\n\n```typescript types\ntype Timestamped = {\n  createdAt: string;\n  updatedAt: string;\n};\n\ntype Post = { title: string; body: string } & Timestamped;\n```\n\nA `Post` needs all four properties. The same trick builds a saved record from the data a user sends: `type Task = NewTask & { id: number; done: boolean }`.\n\n`extends` and `&` usually give the same result, but they differ when members conflict. If one side says `id: string` and the other `id: number`, the intersection's `id` must be both, which no value is, so its type becomes `never` and no object fits. You only find out when you try to create one. `extends` reports the same conflict right at the interface declaration (TS2430), which is easier to fix.",
+      "examples": [
+        {
+          "title": "Timestamped posts",
+          "prompt": "Mix shared timestamp fields into a post with an intersection.",
+          "code": "type Timestamped = {\n  createdAt: string;\n  updatedAt: string;\n};\n\ntype Post = { title: string; author: string } & Timestamped;\n\nconst post: Post = {\n  title: \"Hello, TypeScript\",\n  author: \"Ada\",\n  createdAt: \"2026-09-01\",\n  updatedAt: \"2026-09-14\",\n};\n\nconsole.log(`${post.title} by ${post.author}`);\nconsole.log(`created ${post.createdAt}, updated ${post.updatedAt}`);\n",
+          "output": "Hello, TypeScript by Ada\ncreated 2026-09-01, updated 2026-09-14",
+          "explanation": "`Post` is the inline object type and `Timestamped` together, so `post` must have all four properties, and leaving out `updatedAt` would be a type error. Any other shape can reuse `Timestamped` the same way, for example `type Comment = { text: string } & Timestamped`."
+        },
+        {
+          "title": "From new to saved",
+          "prompt": "Describe the data a user sends for a new task, then the saved task as that data plus an id and a done flag.",
+          "code": "type NewTask = {\n  title: string;\n};\n\ntype Task = NewTask & { id: number; done: boolean };\n//   ^? type Task = NewTask & { id: number; done: boolean; }\n\nfunction save(input: NewTask, id: number): Task {\n  return { ...input, id, done: false };\n}\n\nconst first = save({ title: \"Write tests\" }, 1);\nconst second = save({ title: \"Ship it\" }, 2);\nsecond.done = true;\n\nfor (const task of [first, second]) {\n  console.log(`#${task.id} [${task.done ? \"x\" : \" \"}] ${task.title}`);\n}\n",
+          "output": "#1 [ ] Write tests\n#2 [x] Ship it",
+          "explanation": "`NewTask` is what a form or a request sends, and `Task` is the same data after saving, plus the fields the program adds. Because `Task` is written as `NewTask & { ... }`, a field added to `NewTask` later shows up in `Task` too. In `save`, `{ ...input, id, done: false }` copies the input's fields and adds the other two, and the return type `Task` checks that nothing is missing."
+        },
+        {
+          "title": "Conflicting members",
+          "prompt": "Give id two different types, once with an intersection and once with extends.",
+          "code": "type WithStringId = { id: string };\ntype WithNumberId = { id: number };\ntype Both = WithStringId & WithNumberId;\n\nconst record: Both = { id: \"1\" };\n\ninterface Base {\n  id: string;\n}\n\ninterface Child extends Base {\n  id: number;\n}\n\nconsole.log(record.id);\n",
+          "expect": "type-error",
+          "output": "main.ts(5,24): error TS2322: Type 'string' is not assignable to type 'never'.\nmain.ts(11,11): error TS2430: Interface 'Child' incorrectly extends interface 'Base'.\n  Types of property 'id' are incompatible.\n    Type 'number' is not assignable to type 'string'.",
+          "explanation": "In `Both`, `id` must be a `string` and a `number` at once. No value is both, so `id` has the type `never`, and the error only appears on line 5, where a value is created, away from the types that caused it. The interface version fails at the declaration of `Child` instead, and TS2430 says which property conflicts. That earlier, clearer error is one reason to prefer `extends` when you build one object shape from another."
+        }
+      ],
+      "practice": {
+        "title": "Audit fields",
+        "prompt": "Add audit fields to invoices with an intersection.\n\n1. Complete `Auditable` with `createdBy` and `updatedBy`, both strings.\n2. Make `Invoice` the intersection of `{ number: string; totalCents: number }` and `Auditable`.\n3. Make `invoiceLine` return a line like `INV-001: $120.00 (created by ada, updated by grace)`.\n\nExpected output:\n\n```text\nINV-001: $120.00 (created by ada, updated by grace)\nINV-002: $45.50 (created by alan, updated by alan)\n```",
+        "starter": "export type Auditable = {\n  // TODO: createdBy and updatedBy, both strings\n};\n\n// TODO: number (a string) and totalCents (a number), intersected with Auditable\nexport type Invoice = {};\n\nexport function invoiceLine(invoice: Invoice): string {\n  // TODO: return \"INV-001: $120.00 (created by ada, updated by grace)\"\n  return \"\";\n}\n\nconst invoices: Invoice[] = [\n  { number: \"INV-001\", totalCents: 12000, createdBy: \"ada\", updatedBy: \"grace\" },\n  { number: \"INV-002\", totalCents: 4550, createdBy: \"alan\", updatedBy: \"alan\" },\n];\n\nfor (const invoice of invoices) {\n  console.log(invoiceLine(invoice));\n}\n",
+        "solution": "export type Auditable = {\n  createdBy: string;\n  updatedBy: string;\n};\n\nexport type Invoice = { number: string; totalCents: number } & Auditable;\n\nexport function invoiceLine(invoice: Invoice): string {\n  const total = (invoice.totalCents / 100).toFixed(2);\n  return `${invoice.number}: $${total} (created by ${invoice.createdBy}, updated by ${invoice.updatedBy})`;\n}\n\nconst invoices: Invoice[] = [\n  { number: \"INV-001\", totalCents: 12000, createdBy: \"ada\", updatedBy: \"grace\" },\n  { number: \"INV-002\", totalCents: 4550, createdBy: \"alan\", updatedBy: \"alan\" },\n];\n\nfor (const invoice of invoices) {\n  console.log(invoiceLine(invoice));\n}\n",
+        "tests": [
+          {
+            "output": "INV-001: $120.00 (created by ada, updated by grace)\nINV-002: $45.50 (created by alan, updated by alan)"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { type Invoice } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects an invoice without updatedBy",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const bad: Invoice = { number: \"INV-009\", totalCents: 100, createdBy: \"ada\" };"
+            }
+          ]
+        },
+        "hints": [
+          "`Auditable` lists its two properties like any object type.",
+          "Put `&` between the inline object type and `Auditable`, the way `Post` adds `Timestamped` in the first example.",
+          "Format the total with `(invoice.totalCents / 100).toFixed(2)`, and write a literal `$` before it."
+        ]
+      }
+    },
+    {
+      "title": "Declaration merging and which to use",
+      "body": "Declare an interface twice and TypeScript merges the declarations into one interface with every member:\n\n```typescript\ninterface Box {\n  width: number;\n}\n\ninterface Box {\n  height: number;\n}\n\nconst box: Box = { width: 3, height: 4 };\nconsole.log(box.width * box.height); // 12\n```\n\nA type alias can only be declared once, so a second `type` with the same name is an error (TS2300). Merging is how declaration files add members to types that a library or Node already declares, which this course comes back to later. In your own code, it mostly means interface names should be unique.\n\nSome types can only be aliases: unions like `\"pending\" | \"paid\"`, tuples, function types, and types computed from others, like `(typeof ROLES)[number]`. Hence a common team convention:\n\n- `interface` for object shapes, especially ones that other shapes extend.\n- `type` for everything else.\n\nAn interface that extends another may redeclare a member with a narrower type that still fits, like a `status` that can only be `\"paid\"`. For plain object shapes either form works, so follow the codebase you are in.",
+      "examples": [
+        {
+          "title": "Merging",
+          "prompt": "Declare Settings in two blocks, then build one object that needs the members of both.",
+          "code": "// The app's core declares the basics.\ninterface Settings {\n  theme: string;\n  language: string;\n}\n\n// The editor feature adds its own settings.\ninterface Settings {\n  fontSize: number;\n  wordWrap: boolean;\n}\n\nconst settings: Settings = {\n  theme: \"dark\",\n  language: \"en\",\n  fontSize: 14,\n  wordWrap: true,\n};\n\nconsole.log(`${settings.theme} theme, language ${settings.language}`);\nconsole.log(`${settings.fontSize}px, word wrap ${settings.wordWrap ? \"on\" : \"off\"}`);\n",
+          "output": "dark theme, language en\n14px, word wrap on",
+          "explanation": "The two declarations merge into one `Settings` with four members, so the object needs all four, and leaving out `fontSize` is a type error. In one file this looks odd, but it is what happens when a library declares an interface and your code, or another package, adds to it. A type alias can never grow like this, which is why some teams prefer aliases for their own shapes."
+        },
+        {
+          "title": "Aliases do not merge",
+          "prompt": "Declare the same type alias twice.",
+          "code": "type Settings = {\n  theme: string;\n};\n\ntype Settings = {\n  fontSize: number;\n};\n\nconst settings: Settings = { theme: \"dark\", fontSize: 14 };\nconsole.log(settings.theme);\n",
+          "expect": "type-error",
+          "output": "main.ts(1,6): error TS2300: Duplicate identifier 'Settings'.\nmain.ts(5,6): error TS2300: Duplicate identifier 'Settings'.\nmain.ts(9,45): error TS2353: Object literal may only specify known properties, and 'fontSize' does not exist in type 'Settings'.",
+          "explanation": "A type alias is one name for one type, so declaring `Settings` twice is TS2300, reported at both declarations. The checker then goes on with the first `Settings` only, which is why `fontSize` in the object is also reported, as an excess property (TS2353). To combine two shapes, give each its own name and intersect them: `type Settings = ThemeSettings & EditorSettings`."
+        },
+        {
+          "title": "The convention",
+          "prompt": "Use a type alias for the status union, and interfaces for the orders that hold it.",
+          "code": "type OrderStatus = \"pending\" | \"paid\";\n\ninterface Order {\n  id: string;\n  status: OrderStatus;\n  totalCents: number;\n}\n\ninterface PaidOrder extends Order {\n  status: \"paid\";\n  paidOn: string;\n}\n\nfunction summary(order: Order): string {\n  const total = (order.totalCents / 100).toFixed(2);\n  return `${order.id}: ${order.status}, $${total}`;\n}\n\nfunction receipt(order: PaidOrder): string {\n  return `${order.id} paid on ${order.paidOn}`;\n}\n\nconst draft: Order = { id: \"A-1\", status: \"pending\", totalCents: 1200 };\nconst done: PaidOrder = { id: \"A-2\", status: \"paid\", totalCents: 2599, paidOn: \"2026-09-30\" };\n\nconsole.log(summary(draft));\nconsole.log(summary(done));\nconsole.log(receipt(done));\n",
+          "output": "A-1: pending, $12.00\nA-2: paid, $25.99\nA-2 paid on 2026-09-30",
+          "explanation": "`OrderStatus` is a union, so it has to be a type alias: there is no `interface` form of `\"pending\" | \"paid\"`. `Order` and `PaidOrder` are object shapes, so they are interfaces. `PaidOrder` narrows `status` to the single literal `\"paid\"`, which is allowed because `\"paid\"` fits `OrderStatus`, so `receipt` only accepts paid orders. A `PaidOrder` is still an `Order`, which is why `summary(done)` compiles."
+        }
+      ],
+      "practice": {
+        "title": "Order model",
+        "prompt": "Model orders with a status union, an interface, and an interface for shipped orders that extends it.\n\n1. Make `OrderStatus` a union of `\"pending\"`, `\"paid\"`, and `\"shipped\"`.\n2. Give `Order` an `id` (a string), a `status` (an `OrderStatus`), and a `totalCents` (a number).\n3. Make `ShippedOrder` extend `Order`, with `status` narrowed to `\"shipped\"` and a `trackingNumber` (a string).\n4. Make `describe` return a line like `B-7 is pending ($18.00)`, and `trackingLabel` a line like `B-9 ships with 1Z999AA1`.\n\nExpected output:\n\n```text\nB-7 is pending ($18.00)\nB-8 is paid ($42.50)\nB-9 ships with 1Z999AA1\n```",
+        "starter": "// TODO: \"pending\", \"paid\", or \"shipped\"\nexport type OrderStatus = string;\n\nexport interface Order {\n  // TODO: id (a string), status (an OrderStatus), and totalCents (a number)\n}\n\n// TODO: extend Order with status \"shipped\" and a trackingNumber (a string)\nexport interface ShippedOrder {}\n\nexport function describe(order: Order): string {\n  // TODO: return \"B-7 is pending ($18.00)\"\n  return \"\";\n}\n\nexport function trackingLabel(order: ShippedOrder): string {\n  // TODO: return \"B-9 ships with 1Z999AA1\"\n  return \"\";\n}\n\nconst orders: Order[] = [\n  { id: \"B-7\", status: \"pending\", totalCents: 1800 },\n  { id: \"B-8\", status: \"paid\", totalCents: 4250 },\n];\nconst parcel: ShippedOrder = { id: \"B-9\", status: \"shipped\", totalCents: 990, trackingNumber: \"1Z999AA1\" };\n\nfor (const order of orders) {\n  console.log(describe(order));\n}\nconsole.log(trackingLabel(parcel));\n",
+        "solution": "export type OrderStatus = \"pending\" | \"paid\" | \"shipped\";\n\nexport interface Order {\n  id: string;\n  status: OrderStatus;\n  totalCents: number;\n}\n\nexport interface ShippedOrder extends Order {\n  status: \"shipped\";\n  trackingNumber: string;\n}\n\nexport function describe(order: Order): string {\n  const total = (order.totalCents / 100).toFixed(2);\n  return `${order.id} is ${order.status} ($${total})`;\n}\n\nexport function trackingLabel(order: ShippedOrder): string {\n  return `${order.id} ships with ${order.trackingNumber}`;\n}\n\nconst orders: Order[] = [\n  { id: \"B-7\", status: \"pending\", totalCents: 1800 },\n  { id: \"B-8\", status: \"paid\", totalCents: 4250 },\n];\nconst parcel: ShippedOrder = { id: \"B-9\", status: \"shipped\", totalCents: 990, trackingNumber: \"1Z999AA1\" };\n\nfor (const order of orders) {\n  console.log(describe(order));\n}\nconsole.log(trackingLabel(parcel));\n",
+        "tests": [
+          {
+            "output": "B-7 is pending ($18.00)\nB-8 is paid ($42.50)\nB-9 ships with 1Z999AA1"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { type Order, type ShippedOrder } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects an order with an unknown status",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const lost: Order = { id: \"X-1\", status: \"lost\", totalCents: 100 };"
+            },
+            {
+              "name": "rejects a shipped order whose status is paid",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const early: ShippedOrder = { id: \"X-2\", status: \"paid\", totalCents: 100, trackingNumber: \"1Z\" };"
+            }
+          ]
+        },
+        "hints": [
+          "`OrderStatus` is a union of three string literals joined with `|`, so it stays a `type`.",
+          "`interface ShippedOrder extends Order` adds `trackingNumber` and redeclares `status: \"shipped\"`, the way `PaidOrder` narrows it to `\"paid\"` in the last example.",
+          "`describe` formats the total like the example's `summary`: `(order.totalCents / 100).toFixed(2)` after a literal `$`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `interface Name { ... }` declares an object shape. For object shapes, interfaces and type aliases are interchangeable.\n- `interface B extends A` has every member of `A` plus its own, and an interface can extend several at once: `extends A, C`.\n- `A & B` intersects two types: a value needs every member of both.\n- Conflicting members turn an intersection's property into `never`, while `extends` reports the conflict at the declaration (TS2430).\n- Two `interface` declarations with one name merge. Two `type` aliases with one name are an error (TS2300).\n- Unions, tuples, function types, and computed types can only be aliases. A common convention: `interface` for object shapes, `type` for the rest."
+}

@@ -1,0 +1,190 @@
+{
+  "id": "generic-functions",
+  "title": "Generic Functions",
+  "section": "Generics",
+  "summary": "Write functions with type parameters, so the type that comes out follows the type that goes in, and pass type arguments when inference has nothing to go on.",
+  "intro": "Some functions don't care what they hold. The first item of an array is the first item whether the array holds numbers or users. Typing such a function with `any` throws the type away, and writing one copy per type repeats the same code. A generic function takes a type as a parameter instead, so every call gets back exactly the type it passed in. In this lesson you write your own generic functions and learn to read the generic signatures of built-ins like `map`.",
+  "steps": [
+    {
+      "title": "Type parameters",
+      "body": "`<T>` after a function's name declares a type parameter: a placeholder for a type that each call fills in. Use it in the parameters and the return type to say how they relate. Here, whatever the array holds, `first` returns one of those, or `undefined` when the array is empty:\n\n```typescript\nfunction first<T>(xs: readonly T[]): T | undefined {\n  return xs[0];\n}\n\nconst n = first([3, 1, 2]);\n//        ^? function first<number>(xs: readonly number[]): number | undefined\nconsole.log(n); // 3\n```\n\nYou don't pass `T` yourself. TypeScript infers it from the argument at each call. `[3, 1, 2]` is a `number[]`, so for this call `T` is `number`, as the bubble on `first` shows, and the result is `number | undefined`. Called with `[\"a\", \"b\"]`, the same function returns `string | undefined`.\n\n`T` is just a name. Single capital letters are the convention: `T` for a type, `K` for a key, `V` for a value. The parameter type `readonly T[]` accepts any array, readonly or not, and tells callers that `first` won't change it.",
+      "examples": [
+        {
+          "title": "First item",
+          "prompt": "Call one generic `first` on an array of numbers, an array of strings, and an empty array.",
+          "code": "function first<T>(xs: readonly T[]): T | undefined {\n  return xs[0];\n}\n\nconst scores = [88, 92, 79];\nconst names = [\"Ana\", \"Ben\", \"Caro\"];\nconst waiting: string[] = [];\n\nconst topScore = first(scores);\n//    ^? const topScore: number | undefined\nconst firstName = first(names);\n//    ^? const firstName: string | undefined\n\nconsole.log(`First score: ${topScore ?? \"none\"}`);\nconsole.log(`First name: ${firstName?.toUpperCase() ?? \"nobody\"}`);\nconsole.log(`First waiting: ${first(waiting) ?? \"nobody\"}`);\n",
+          "output": "First score: 88\nFirst name: ANA\nFirst waiting: nobody",
+          "explanation": "Each call infers its own `T`. `scores` is a `number[]`, so the first call returns `number | undefined`, and `names` makes the second return `string | undefined`, as the bubbles show. Because `firstName` holds a string whenever it holds anything, `?.toUpperCase()` is allowed on it. `waiting` is empty, so `first` returns `undefined` and `??` supplies the fallback. One function serves every array, and no result loses its type."
+        },
+        {
+          "title": "Wrap a value",
+          "prompt": "Wrap values of three different types in an object, then use each wrapped value as its own type.",
+          "code": "function wrap<T>(value: T): { value: T } {\n  return { value };\n}\n\nconst price = wrap(12.5);\n//    ^? const price: { value: number; }\nconst tags = wrap([\"sale\", \"new\"]);\n//    ^? const tags: { value: string[]; }\nconst mug = wrap({ sku: \"MUG-01\", stock: 4 });\n//    ^? const mug: { value: { sku: string; stock: number; }; }\n\nconsole.log(price.value.toFixed(2));\nconsole.log(tags.value.join(\" + \"));\nconsole.log(`${mug.value.sku}: ${mug.value.stock} left`);\n",
+          "output": "12.50\nsale + new\nMUG-01: 4 left",
+          "explanation": "`T` is the type of whatever you pass, and the return type `{ value: T }` carries it along. A number in gives `{ value: number; }` back, and an object in gives back an object with every property typed. That's why `price.value.toFixed(2)` and `mug.value.sku` type-check with no annotations at the calls. In the body, `{ value }` is shorthand for `{ value: value }`."
+        },
+        {
+          "title": "Why not any",
+          "prompt": "Write the same helper with `any` instead of a type parameter, then misspell a method on its result.",
+          "code": "function firstAny(xs: any[]): any {\n  return xs[0];\n}\n\nconst firstName = firstAny([\"ada\", \"ben\"]);\n//    ^? const firstName: any\nconsole.log(\"Formatting the first name\");\nconsole.log(firstName.toUppercase());\n",
+          "expect": "runtime-error",
+          "output": "Formatting the first name",
+          "errorIncludes": "TypeError: firstName.toUppercase is not a function",
+          "explanation": "`any` switches the checker off for the result, as the bubble shows, so the misspelled `toUppercase` compiles. The mistake waits until that line runs, and the program crashes. The generic version keeps the element type, so `tsc` catches the same typo before anything runs:\n\n```typescript error\nfunction first<T>(xs: readonly T[]): T | undefined {\n  return xs[0];\n}\n\nconst firstName = first([\"ada\", \"ben\"]);\nconsole.log(firstName?.toUppercase());\n```\n\nThe check reports TS2551: `Property 'toUppercase' does not exist on type 'string'. Did you mean 'toUpperCase'?` A type parameter is as flexible as `any`, and it keeps the checking."
+        }
+      ],
+      "practice": {
+        "title": "Last item",
+        "prompt": "Make `last` generic, so it returns the last item of any array.\n\n1. Give `last` a type parameter `T`, the parameter `xs: readonly T[]`, and the return type `T | undefined`.\n2. Return the last item, or `undefined` when the array is empty.\n3. Print the last temperature, the last city, and the last name in the queue, with `(none)` for an empty array.\n4. Keep `export`: hidden type tests import `last` from your file.\n\nExpected output:\n\n```text\nLast temperature: 15.3\nLast city: Lima\nLast in queue: (none)\n```",
+        "starter": "// TODO: make last generic: a type parameter T, xs typed readonly T[],\n// and the return type T | undefined. Return the last item.\nexport function last(xs: readonly number[]): number | undefined {\n  return undefined;\n}\n\nconst temperatures = [12.1, 9.8, 15.3];\nconst cities = [\"Oslo\", \"Cairo\", \"Lima\"];\nconst queue: string[] = [];\n\nconsole.log(`Last temperature: ${last(temperatures) ?? \"(none)\"}`);\n// TODO: print the last city and the last name in the queue the same way\n",
+        "solution": "export function last<T>(xs: readonly T[]): T | undefined {\n  return xs.at(-1);\n}\n\nconst temperatures = [12.1, 9.8, 15.3];\nconst cities = [\"Oslo\", \"Cairo\", \"Lima\"];\nconst queue: string[] = [];\n\nconsole.log(`Last temperature: ${last(temperatures) ?? \"(none)\"}`);\nconsole.log(`Last city: ${last(cities) ?? \"(none)\"}`);\nconsole.log(`Last in queue: ${last(queue) ?? \"(none)\"}`);\n",
+        "tests": [
+          {
+            "output": "Last temperature: 15.3\nLast city: Lima\nLast in queue: (none)"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { last } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "returns the element type",
+              "expect": "ok",
+              "code": "const n: number | undefined = last([1, 2]);"
+            },
+            {
+              "name": "numbers in never give strings out",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const s: string | undefined = last([1, 2]);"
+            }
+          ]
+        },
+        "hints": [
+          "Start from the first example's `first`. The same signature works for `last`, and only the body changes.",
+          "`xs.at(-1)` reads the last item, and it's `undefined` when the array is empty.",
+          "The signature is `export function last<T>(xs: readonly T[]): T | undefined`."
+        ]
+      }
+    },
+    {
+      "title": "Several type parameters",
+      "body": "A function can declare several type parameters, separated by commas. Each one is inferred on its own, from the argument where it appears:\n\n```typescript\nfunction pair<A, B>(a: A, b: B): [A, B] {\n  return [a, b];\n}\n\nconst entry = pair(\"mug\", 3);\n//    ^? const entry: [string, number]\nconsole.log(entry.join(\" x \")); // mug x 3\n```\n\nInference needs a value to look at. An empty array `[]` has no elements, so TypeScript gives it the type `never[]`, an array that can never hold anything. When an argument can't tell TypeScript the type, write the type arguments yourself, in angle brackets after the function's name: `pair<string, number>(\"mug\", 3)`.\n\nType arguments you write win over inference, and the checker holds each argument to them:\n\n```typescript error\nfunction pair<A, B>(a: A, b: B): [A, B] {\n  return [a, b];\n}\n\nconst entry = pair<string, number>(\"mug\", \"3\");\nconsole.log(entry.join(\" x \"));\n```",
+      "examples": [
+        {
+          "title": "Pairs",
+          "prompt": "Pair values of different types, and let each type parameter come from its own argument.",
+          "code": "function pair<A, B>(a: A, b: B): [A, B] {\n  return [a, b];\n}\n\nconst stock = pair(\"Mug\", 4);\n//    ^? const stock: [string, number]\nconst flag = pair(true, [\"beta\", \"dark-mode\"]);\n//    ^? const flag: [boolean, string[]]\n\nconst [item, count] = stock;\nconsole.log(`${item}: ${count} left`);\nconsole.log(`Enabled: ${flag[0]}, groups: ${flag[1].join(\", \")}`);\n",
+          "output": "Mug: 4 left\nEnabled: true, groups: beta, dark-mode",
+          "explanation": "`A` comes from the first argument and `B` from the second. So `pair(\"Mug\", 4)` returns a `[string, number]` tuple, and `pair(true, [\"beta\", \"dark-mode\"])` returns `[boolean, string[]]`. A tuple keeps one type per position, so destructuring gives `item` a `string` and `count` a `number`, and `flag[1]` is an array you can `join`."
+        },
+        {
+          "title": "Zip two lists",
+          "prompt": "Combine two arrays of different types into pairs, stopping at the end of the shorter one.",
+          "code": "function zip<A, B>(xs: readonly A[], ys: readonly B[]): [A, B][] {\n  const pairs: [A, B][] = [];\n  const length = Math.min(xs.length, ys.length);\n  for (let i = 0; i < length; i++) {\n    const x = xs[i];\n    const y = ys[i];\n    if (x !== undefined && y !== undefined) pairs.push([x, y]);\n  }\n  return pairs;\n}\n\nconst names = [\"Ana\", \"Ben\", \"Caro\"];\nconst scores = [91, 78];\n\nconst results = zip(names, scores);\n//    ^? const results: [string, number][]\nfor (const [name, score] of results) {\n  console.log(`${name}: ${score}`);\n}\nconsole.log(`${results.length} pairs`);\n",
+          "output": "Ana: 91\nBen: 78\n2 pairs",
+          "explanation": "`A` is inferred from `names` and `B` from `scores`, so `zip` returns `[string, number][]` with no annotation at the call. Inside, `pairs` starts empty, so it's annotated with the type it will hold. With this course's `noUncheckedIndexedAccess`, `xs[i]` is `A | undefined`, so the loop checks both values before it pushes a pair. Caro has no score, so the loop stops at the shorter array's length and leaves her out."
+        },
+        {
+          "title": "Passing the type yourself",
+          "prompt": "Create a store that starts as an empty list, then try to add an item to it.",
+          "code": "function createStore<T>(initial: T) {\n  let state = initial;\n  return {\n    get: () => state,\n    set: (next: T) => {\n      state = next;\n    },\n  };\n}\n\nconst cart = createStore([]);\ncart.get().push(\"milk\");\nconsole.log(cart.get().join(\", \"));\n",
+          "expect": "type-error",
+          "output": "main.ts(12,17): error TS2345: Argument of type '\"milk\"' is not assignable to parameter of type 'never'.",
+          "explanation": "`T` is inferred from `[]`, and an empty array is `never[]`, so this store can only ever hold an array of nothing, and pushing `\"milk\"` is rejected. Nothing in the call says what the cart should hold, so say it with a type argument:\n\n```typescript\nfunction createStore<T>(initial: T) {\n  let state = initial;\n  return {\n    get: () => state,\n    set: (next: T) => {\n      state = next;\n    },\n  };\n}\n\nconst cart = createStore<string[]>([]);\ncart.get().push(\"milk\");\ncart.set([...cart.get(), \"eggs\"]);\nconsole.log(cart.get().join(\", \")); // milk, eggs\n```\n\nWith `T` set to `string[]`, `get` returns a `string[]` and `set` takes one."
+        }
+      ],
+      "practice": {
+        "title": "Chunk",
+        "prompt": "Make `chunk` generic, so it splits an array of anything into groups.\n\n1. Give `chunk` a type parameter `T`, the parameters `xs: readonly T[]` and `size: number`, and the return type `T[][]`.\n2. Put the items into groups of `size`, in order. The last group holds whatever is left.\n3. Print `JSON.stringify` of the seats in groups of 2, then of the guests in groups of 3.\n4. Keep `export`: hidden type tests import `chunk` from your file.\n\nExpected output:\n\n```text\n[[1,2],[3,4],[5]]\n[[\"Ana\",\"Ben\",\"Caro\"],[\"Dev\",\"Eli\"]]\n```",
+        "starter": "// TODO: make chunk generic: a type parameter T, xs typed readonly T[],\n// and the return type T[][]. Fill groups with slices of size items.\nexport function chunk(xs: readonly number[], size: number): number[][] {\n  const groups: number[][] = [];\n  return groups;\n}\n\nconst seats = [1, 2, 3, 4, 5];\nconst guests = [\"Ana\", \"Ben\", \"Caro\", \"Dev\", \"Eli\"];\n\nconsole.log(JSON.stringify(chunk(seats, 2)));\n// TODO: print the guests in groups of 3 the same way\n",
+        "solution": "export function chunk<T>(xs: readonly T[], size: number): T[][] {\n  const groups: T[][] = [];\n  for (let i = 0; i < xs.length; i += size) {\n    groups.push(xs.slice(i, i + size));\n  }\n  return groups;\n}\n\nconst seats = [1, 2, 3, 4, 5];\nconst guests = [\"Ana\", \"Ben\", \"Caro\", \"Dev\", \"Eli\"];\n\nconsole.log(JSON.stringify(chunk(seats, 2)));\nconsole.log(JSON.stringify(chunk(guests, 3)));\n",
+        "tests": [
+          {
+            "output": "[[1,2],[3,4],[5]]\n[[\"Ana\",\"Ben\",\"Caro\"],[\"Dev\",\"Eli\"]]"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { chunk } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "groups strings as strings",
+              "expect": "ok",
+              "code": "const c: string[][] = chunk([\"a\"], 1);"
+            },
+            {
+              "name": "keeps the element type",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const c: number[][] = chunk([\"a\"], 1);"
+            }
+          ]
+        },
+        "hints": [
+          "Declare `<T>` after the name, then write `T` wherever the signature says `number` for an item.",
+          "Step through the array `size` items at a time: `for (let i = 0; i < xs.length; i += size)`.",
+          "`xs.slice(i, i + size)` is one group. `slice` stops at the end of the array, so the last group can be shorter."
+        ]
+      }
+    },
+    {
+      "title": "Generic callbacks",
+      "body": "A callback's type can use type parameters too. In `fn: (x: T) => R`, `T` is fixed by the array you pass, and `R` is whatever your callback returns, so the caller decides the result type:\n\n```typescript\nfunction mapArray<T, R>(xs: readonly T[], fn: (x: T) => R): R[] {\n  const out: R[] = [];\n  for (const x of xs) out.push(fn(x));\n  return out;\n}\n\nconst lengths = mapArray([\"ts\", \"node\"], (s) => s.length);\n//    ^? const lengths: number[]\nconsole.log(lengths.join(\", \")); // 2, 4\n```\n\nYou don't annotate `s`. `T` is already `string`, from the array, so the callback's parameter gets its type from there, just as a callback you pass to `map` does. That's no coincidence: the built-in array methods are generic functions written the same way. Leaving out an optional last parameter, `map` is declared as `map<U>(callbackfn: (value: T, index: number, array: T[]) => U): U[]`, where `T` is the array's element type and `U` is what your callback returns.",
+      "examples": [
+        {
+          "title": "Map anything",
+          "prompt": "Write your own `mapArray`, then turn a list of prices into labels and into yes or no flags.",
+          "code": "function mapArray<T, R>(xs: readonly T[], fn: (x: T) => R): R[] {\n  const out: R[] = [];\n  for (const x of xs) {\n    out.push(fn(x));\n  }\n  return out;\n}\n\nconst pricesCents = [1299, 450, 5000];\n\nconst labels = mapArray(pricesCents, (cents) => `$${(cents / 100).toFixed(2)}`);\n//    ^? const labels: string[]\nconst pricey = mapArray(pricesCents, (cents) => cents >= 1000);\n//    ^? const pricey: boolean[]\n\nconsole.log(labels.join(\", \"));\nconsole.log(pricey.join(\", \"));\n",
+          "output": "$12.99, $4.50, $50.00\ntrue, false, true",
+          "explanation": "Both calls pass the same `number[]`, so `T` is `number` and `cents` is a `number` in each callback. `R` differs. The first callback returns a template string, so `labels` is a `string[]`, and the second returns a comparison, so `pricey` is a `boolean[]`. The signature ties the output to the callback, which is exactly how the built-in `map` works."
+        },
+        {
+          "title": "Group by a key",
+          "prompt": "Group orders into lists by their status, with a callback that picks each order's group.",
+          "code": "type Order = {\n  id: string;\n  status: \"paid\" | \"shipped\" | \"pending\";\n  totalCents: number;\n};\n\nfunction groupBy<T>(xs: readonly T[], key: (x: T) => string): Record<string, T[]> {\n  const groups: Record<string, T[]> = {};\n  for (const x of xs) {\n    (groups[key(x)] ??= []).push(x);\n  }\n  return groups;\n}\n\nconst orders: Order[] = [\n  { id: \"o1\", status: \"paid\", totalCents: 1299 },\n  { id: \"o2\", status: \"shipped\", totalCents: 450 },\n  { id: \"o3\", status: \"paid\", totalCents: 5000 },\n];\n\nconst byStatus = groupBy(orders, (o) => o.status);\n//    ^? const byStatus: Record<string, Order[]>\nfor (const [status, group] of Object.entries(byStatus)) {\n  console.log(`${status}: ${group.map((o) => o.id).join(\", \")}`);\n}\n",
+          "output": "paid: o1, o3\nshipped: o2",
+          "explanation": "`T` is `Order`, from the array, so the callback's `o` is an `Order` and `o.status` is allowed. Each group holds the orders themselves, so the result is `Record<string, Order[]>`, as the bubble shows. `(groups[key(x)] ??= [])` creates a group the first time its key shows up, and `Object.entries` lists the groups in the order their first order appeared."
+        },
+        {
+          "title": "Built-ins are generic",
+          "prompt": "Group the same orders with Node's built-in `Object.groupBy` and `Map.groupBy`, and read their types from the bubbles.",
+          "code": "type Order = {\n  id: string;\n  status: \"paid\" | \"shipped\" | \"pending\";\n  totalCents: number;\n};\n\nconst orders: Order[] = [\n  { id: \"o1\", status: \"paid\", totalCents: 1299 },\n  { id: \"o2\", status: \"shipped\", totalCents: 450 },\n  { id: \"o3\", status: \"paid\", totalCents: 5000 },\n];\n\nconst byStatus = Object.groupBy(orders, (o) => o.status);\n//    ^? const byStatus: Partial<Record<\"paid\" | \"pending\" | \"shipped\", Order[]>>\nconsole.log(`Paid: ${byStatus.paid?.length ?? 0}`);\nconsole.log(`Pending: ${byStatus.pending?.length ?? 0}`);\n\nconst bySize = Map.groupBy(orders, (o) => (o.totalCents >= 1000 ? \"large\" : \"small\"));\n//    ^? const bySize: Map<\"large\" | \"small\", Order[]>\nfor (const [size, group] of bySize) {\n  console.log(`${size}: ${group.map((o) => o.id).join(\", \")}`);\n}\n",
+          "output": "Paid: 2\nPending: 0\nlarge: o1, o3\nsmall: o2",
+          "explanation": "`Object.groupBy` is generic in both the item and the key, and its key type is whatever your callback returns. Here that's `o.status`, so the keys are `\"paid\" | \"pending\" | \"shipped\"`. The result is wrapped in `Partial`, which makes every key optional, because a status no order has gets no group at all. So `byStatus.pending` is `Order[] | undefined`, and here it really is missing. The Built-in Utility Types lesson covers `Partial`. `Map.groupBy` returns a `Map` instead, typed `Map<\"large\" | \"small\", Order[]>` from the two strings the callback can return."
+        }
+      ],
+      "practice": {
+        "title": "Count by",
+        "prompt": "Make `countBy` generic, so it counts the items of any array by a key that a callback picks.\n\n1. Give `countBy` a type parameter `T`, the parameters `xs: readonly T[]` and `key: (x: T) => string`, and the return type `Record<string, number>`.\n2. For each item, call `key` and add 1 to that key's count.\n3. Count `products` by their `category`, and print one `category: n` line per category, sorted by category name.\n4. Keep `export`: hidden type tests import `countBy` from your file.\n\nExpected output:\n\n```text\ngarden: 1\nkitchen: 3\noffice: 2\n```",
+        "starter": "type Product = { name: string; category: string };\n\n// TODO: make countBy generic: a type parameter T, xs typed readonly T[],\n// and key typed (x: T) => string. Add 1 to the count of each item's key.\nexport function countBy(\n  xs: readonly Product[],\n  key: (x: Product) => string,\n): Record<string, number> {\n  const counts: Record<string, number> = {};\n  return counts;\n}\n\nconst products: Product[] = [\n  { name: \"Mug\", category: \"kitchen\" },\n  { name: \"Stapler\", category: \"office\" },\n  { name: \"Kettle\", category: \"kitchen\" },\n  { name: \"Trowel\", category: \"garden\" },\n  { name: \"Notebook\", category: \"office\" },\n  { name: \"Teapot\", category: \"kitchen\" },\n];\n\nconst counts = countBy(products, (p) => p.category);\n// TODO: sort the entries by category name before printing them\nfor (const [category, n] of Object.entries(counts)) {\n  console.log(`${category}: ${n}`);\n}\n",
+        "solution": "type Product = { name: string; category: string };\n\nexport function countBy<T>(\n  xs: readonly T[],\n  key: (x: T) => string,\n): Record<string, number> {\n  const counts: Record<string, number> = {};\n  for (const x of xs) {\n    const k = key(x);\n    counts[k] = (counts[k] ?? 0) + 1;\n  }\n  return counts;\n}\n\nconst products: Product[] = [\n  { name: \"Mug\", category: \"kitchen\" },\n  { name: \"Stapler\", category: \"office\" },\n  { name: \"Kettle\", category: \"kitchen\" },\n  { name: \"Trowel\", category: \"garden\" },\n  { name: \"Notebook\", category: \"office\" },\n  { name: \"Teapot\", category: \"kitchen\" },\n];\n\nconst counts = countBy(products, (p) => p.category);\nconst sorted = Object.entries(counts).toSorted(([a], [b]) => a.localeCompare(b));\nfor (const [category, n] of sorted) {\n  console.log(`${category}: ${n}`);\n}\n",
+        "tests": [
+          {
+            "output": "garden: 1\nkitchen: 3\noffice: 2"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { countBy } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "counts numbers by a string key",
+              "expect": "ok",
+              "code": "countBy([1, 2], (n) => String(n));"
+            },
+            {
+              "name": "the key callback must return a string",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "countBy([1, 2], (n) => n);"
+            }
+          ]
+        },
+        "hints": [
+          "The signature follows `groupBy` from the examples, with `Record<string, number>` as the result.",
+          "Count like you would by hand: `counts[k] = (counts[k] ?? 0) + 1`, where `k` is `key(x)`.",
+          "Sort the entries before the loop: `Object.entries(counts).toSorted(([a], [b]) => a.localeCompare(b))`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `function f<T>(...)` declares a type parameter. Each call infers `T` from its arguments, so the type of the result follows the input.\n- A generic beats `any`: `any` switches checking off, while `T` keeps every result fully typed.\n- Declare several type parameters with commas, like `<A, B>`. Each one is inferred from the argument where it appears.\n- When inference has nothing to look at, like an empty `[]`, pass the type yourself: `createStore<string[]>([])`.\n- A callback typed `(x: T) => R` lets the caller's callback decide `R`. Built-ins like `map`, `Object.groupBy`, and `Map.groupBy` are generic in exactly this way."
+}

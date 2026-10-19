@@ -1,0 +1,161 @@
+{
+  "id": "arrays-tuples",
+  "title": "Arrays, Tuples, and Index Access",
+  "section": "TypeScript on Node",
+  "summary": "Type arrays and tuples, handle index reads that might be undefined, and keep arrays read-only with methods that return copies.",
+  "intro": "Most data lives in arrays, so their types matter. In this lesson you type arrays and let TypeScript infer them, deal with the `undefined` that reading by index can give back, return two values as a tuple, and keep arrays read-only.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Typed arrays",
+      "body": "An array type says what every element is. Write the element type followed by `[]`, as in `number[]`, or use `Array<number>`, which means exactly the same thing. Most code uses `number[]`.\n\n```typescript\nconst prices: number[] = [4.5, 12, 3.25];\nconst names: Array<string> = [\"Ana\", \"Ben\"];\nconsole.log(prices.length, names.length); // 3 2\n```\n\nFrom then on the checker holds each array to its type, so `prices.push` only takes numbers.\n\nYou rarely write the type yourself. TypeScript infers it from the elements, and a callback you pass to `map`, `filter`, or `reduce` gets its parameter type from the array, so `p` needs no annotation here:\n\n```typescript\nconst prices = [4.5, 12, 3.25];\n//    ^? const prices: number[]\nconst doubled = prices.map((p) => p * 2);\n//                          ^? (parameter) p: number\nconsole.log(doubled.join(\", \")); // 9, 24, 6.5\n```\n\nAn empty array has no elements to infer from, so annotate it: `const names: string[] = [];`.",
+      "examples": [
+        {
+          "title": "Scores",
+          "prompt": "Keep a list of scores typed as `number[]`, add one, and print the best score and the average.",
+          "code": "const scores: number[] = [88, 92, 79];\nscores.push(95);\n\nconst total = scores.reduce((sum, score) => sum + score, 0);\nconst average = total / scores.length;\n\nconsole.log(`Scores: ${scores.join(\", \")}`);\nconsole.log(`Best: ${Math.max(...scores)}`);\nconsole.log(`Average: ${average}`);\n",
+          "output": "Scores: 88, 92, 79, 95\nBest: 95\nAverage: 88.5",
+          "explanation": "`scores` is declared as `number[]`, so `push(95)` is allowed and the array holds four numbers. `reduce` starts from `0` and adds each score, and TypeScript knows `sum` and `score` are numbers without being told. `Math.max(...scores)` spreads the array into separate arguments. The four scores add up to 354, and 354 divided by 4 is 88.5."
+        },
+        {
+          "title": "Inferred arrays",
+          "prompt": "Let TypeScript infer an array's type from its elements, then transform it with `map`.",
+          "code": "const tags = [\"ts\", \"node\", \"zod\"];\n//    ^? const tags: string[]\n\nconst loud = tags.map((tag) => tag.toUpperCase());\n//                     ^? (parameter) tag: string\n\nconsole.log(loud.join(\", \"));\nconsole.log(`${tags.length} tags: ${tags.join(\" \")}`);\n",
+          "output": "TS, NODE, ZOD\n3 tags: ts node zod",
+          "explanation": "Every element is a string, so `tags` is `string[]` with no annotation. `map` passes each element to the callback, so `tag` is a `string` and `toUpperCase()` is allowed. Had you typed `tag.toFixed(1)`, the checker would stop you, because strings have no `toFixed`. `map` returns a new array, `loud`, and `tags` is unchanged."
+        },
+        {
+          "title": "Pushing the wrong type",
+          "prompt": "Push a string onto a `number[]` and see what the checker says.",
+          "code": "const scores: number[] = [88, 92, 79];\nscores.push(\"100\");\nconsole.log(scores.join(\", \"));\n",
+          "expect": "type-error",
+          "output": "main.ts(2,13): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.",
+          "explanation": "`push` on a `number[]` takes numbers only, so `tsc` stops at the string `\"100\"`, which starts at line 2, column 13. Nothing runs. Plain JavaScript would push it, and the string would wait in the array to break the math later: `reduce` would glue it onto the sum as text. Push the number `100` instead."
+        }
+      ],
+      "practice": {
+        "title": "Temperature log",
+        "prompt": "Report the lowest, highest, and average temperature from a day of readings.\n\n1. Keep `readings`, a `number[]` of five temperatures.\n2. Print the lowest reading after `Min: ` and the highest after `Max: `.\n3. Print the average with 2 decimal places after `Average: `.\n\nExpected output:\n\n```text\nMin: 9.8\nMax: 15.3\nAverage: 12.54\n```",
+        "starter": "const readings: number[] = [12.1, 9.8, 15.3, 11.6, 13.9];\n\n// TODO: find the lowest and the highest reading\nconst min = 0;\nconst max = 0;\n// TODO: average the readings with reduce\nconst average = 0;\n\nconsole.log(`Min: ${min}`);\nconsole.log(`Max: ${max}`);\nconsole.log(`Average: ${average.toFixed(2)}`);\n",
+        "solution": "const readings: number[] = [12.1, 9.8, 15.3, 11.6, 13.9];\n\nconst min = Math.min(...readings);\nconst max = Math.max(...readings);\nconst average = readings.reduce((sum, r) => sum + r, 0) / readings.length;\n\nconsole.log(`Min: ${min}`);\nconsole.log(`Max: ${max}`);\nconsole.log(`Average: ${average.toFixed(2)}`);\n",
+        "tests": [
+          {
+            "output": "Min: 9.8\nMax: 15.3\nAverage: 12.54"
+          }
+        ],
+        "hints": [
+          "Each line needs one number worked out from the whole array.",
+          "`Math.min` and `Math.max` take separate numbers, so spread the array into them: `Math.min(...readings)`.",
+          "`readings.reduce((sum, r) => sum + r, 0)` adds the readings up. Divide that by `readings.length`."
+        ]
+      }
+    },
+    {
+      "title": "Index access can be undefined",
+      "body": "Reading `scores[i]` can miss, because the index may be past the end. So the course's `tsconfig.json` turns on `noUncheckedIndexedAccess`, as `tsc --init` does, and every read by index has the element type or `undefined`:\n\n```typescript\nconst scores = [88, 92, 79];\nconst first = scores[0];\n//    ^? const first: number | undefined\nconsole.log(first); // 88\n```\n\nRead `number | undefined` as \"a number or `undefined`\". The Unions and Narrowing lessons cover types like this in full. Before you use the value as a number, show the checker it's there. Check it, or give it a default:\n\n- Inside `if (first !== undefined) { ... }`, `first` is a `number`.\n- `scores[5] ?? 0` is `0`, because there is no sixth score. `??` uses its right side when the left side is `undefined`.\n\n`at()` reads by index too, and it also counts from the end: `scores.at(-1)` is the last score. Its type includes `undefined` as well, so pair it with `??`.\n\nYou may see `scores[0]!` in other code. The `!` tells the checker to trust you, and the program crashes later if you're wrong. Check the value instead.",
+      "examples": [
+        {
+          "title": "First score",
+          "prompt": "Read the first and the tenth score, and use each one only after checking it's there.",
+          "code": "const scores: number[] = [88, 92, 79];\n\nconst first = scores[0];\n//    ^? const first: number | undefined\nif (first !== undefined) {\n  console.log(`First: ${first.toFixed(1)}`);\n  //                    ^? const first: number\n}\n\nconst tenth = scores[9];\nif (tenth === undefined) {\n  console.log(\"There is no tenth score\");\n}\n",
+          "output": "First: 88.0\nThere is no tenth score",
+          "explanation": "`scores[0]` is `number | undefined` even though this array clearly has a first element: TypeScript doesn't track how long an array is. Inside `if (first !== undefined)` the checker knows `first` is a `number`, as the second query shows, so `toFixed` is allowed. `scores[9]` really is `undefined` when the program runs, which is exactly what the type warned about."
+        },
+        {
+          "title": "Using it unchecked",
+          "prompt": "Call a number method on an element without checking it first.",
+          "code": "const scores: number[] = [88, 92, 79];\nconsole.log(scores[5].toFixed(1));\n",
+          "expect": "type-error",
+          "output": "main.ts(2,13): error TS2532: Object is possibly 'undefined'.",
+          "explanation": "`scores[5]` is `number | undefined`, and `undefined` has no `toFixed`, so `tsc` stops the program. The checker is right: there is no sixth score. Turn the checker off with `// @ts-nocheck` and Node runs the line, then crashes with `TypeError: Cannot read properties of undefined (reading 'toFixed')`. Check the element or give it a default first, for example `(scores[5] ?? 0).toFixed(1)`."
+        },
+        {
+          "title": "Defaults",
+          "prompt": "Fall back to a default with `??` when an element is missing, reading from both ends of the array.",
+          "code": "const names: string[] = [\"Ana\", \"Ben\", \"Caro\"];\n\nconst first = names[0] ?? \"nobody\";\n//    ^? const first: string\nconst last = names.at(-1) ?? \"nobody\";\nconsole.log(`First: ${first}, last: ${last}`);\n\nconst empty: string[] = [];\nconsole.log(`Empty: ${empty[0] ?? \"nobody\"}, ${empty.at(-1) ?? \"nobody\"}`);\n",
+          "output": "First: Ana, last: Caro\nEmpty: nobody, nobody",
+          "explanation": "`??` gives back its right side only when the left side is `null` or `undefined`, so `first` is a plain `string`, as the query shows. `at(-1)` counts from the end, which is shorter than `names[names.length - 1]`, and it can be `undefined` too. On the empty array every read misses and `\"nobody\"` takes over."
+        }
+      ],
+      "practice": {
+        "title": "Podium",
+        "prompt": "Print the podium of a race where only two runners finished.\n\n1. Keep `finishers`, the runners' names in finishing order.\n2. Print `Gold: `, `Silver: `, and `Bronze: `, each followed by the runner in that place.\n3. When nobody finished in a place, print `(empty)` instead of a name.\n\nExpected output:\n\n```text\nGold: Ana\nSilver: Ben\nBronze: (empty)\n```",
+        "starter": "const finishers: string[] = [\"Ana\", \"Ben\"];\n\n// TODO: print the first three places, with \"(empty)\" for a missing runner\nconsole.log(`Gold: ${finishers[0]}`);\n",
+        "solution": "const finishers: string[] = [\"Ana\", \"Ben\"];\n\nconsole.log(`Gold: ${finishers[0] ?? \"(empty)\"}`);\nconsole.log(`Silver: ${finishers[1] ?? \"(empty)\"}`);\nconsole.log(`Bronze: ${finishers[2] ?? \"(empty)\"}`);\n",
+        "tests": [
+          {
+            "output": "Gold: Ana\nSilver: Ben\nBronze: (empty)"
+          }
+        ],
+        "forbid": [
+          "non-null"
+        ],
+        "hints": [
+          "`finishers[2]` is `string | undefined`, and here it really is `undefined`.",
+          "`??` supplies a fallback for `undefined`: `finishers[2] ?? \"(empty)\"`."
+        ]
+      }
+    },
+    {
+      "title": "Tuples and readonly arrays",
+      "body": "A tuple is an array with a fixed length and a type for each position. `[number, number]` is exactly two numbers. You can name the positions to say what each one means. The names are labels for readers, and destructuring picks its own:\n\n```typescript\nconst home: [lat: number, lng: number] = [51.5, -0.12];\nconst [lat, lng] = home;\nconsole.log(`${lat}, ${lng}`); // 51.5, -0.12\n```\n\nA tuple is how a function returns two values. Its length is part of the type, so reading a position it has is never `undefined`.\n\n`readonly string[]` is an array without `push`, `sort`, or any other method that changes it. Use the methods that return a new array instead: `toSorted`, `toReversed`, and `with`, which replaces one element:\n\n```typescript\nconst RUNNERS: readonly string[] = [\"Ben\", \"Ana\", \"Caro\"];\nconsole.log(RUNNERS.toSorted().join(\", \"));     // Ana, Ben, Caro\nconsole.log(RUNNERS.toReversed().join(\", \"));   // Caro, Ana, Ben\nconsole.log(RUNNERS.with(0, \"Dev\").join(\", \")); // Dev, Ana, Caro\nconsole.log(RUNNERS.join(\", \"));                // Ben, Ana, Caro\n```\n\nLike `sort`, `toSorted()` compares elements as strings, so sort numbers with `toSorted((a, b) => a - b)`.",
+      "examples": [
+        {
+          "title": "Coordinates",
+          "prompt": "Store a location as a named tuple and destructure it.",
+          "code": "const home: [lat: number, lng: number] = [51.5, -0.12];\n\nconst [lat, lng] = home;\n//     ^? const lat: number\n\nconsole.log(`Latitude: ${lat}`);\nconsole.log(`Longitude: ${lng}`);\nconsole.log(`Positions: ${home.length}`);\n//                             ^? (property) length: 2\n",
+          "output": "Latitude: 51.5\nLongitude: -0.12\nPositions: 2",
+          "explanation": "The annotation fixes the length at two and makes both positions numbers, so `lat` and `lng` are plain `number`s with no `undefined`. Even `home.length` has the type `2`. The names `lat` and `lng` inside the type are labels: they show up in your editor and in error messages, and the variables you destructure into can have any names. A third coordinate doesn't fit:\n\n```typescript error\nconst home: [lat: number, lng: number] = [51.5, -0.12, 30];\n```"
+        },
+        {
+          "title": "Returning two values",
+          "prompt": "Return the smallest and the largest number as a tuple, and destructure the result at the call.",
+          "code": "function minMax(xs: number[]): [min: number, max: number] {\n  return [Math.min(...xs), Math.max(...xs)];\n}\n\nconst [low, high] = minMax([7, 2, 9, 4]);\nconsole.log(`Low: ${low}, high: ${high}`);\nconsole.log(`Range: ${high - low}`);\n",
+          "output": "Low: 2, high: 9\nRange: 7",
+          "explanation": "The return type promises exactly two numbers, so `low` and `high` are both `number` and `high - low` type-checks. Leave the return type off and TypeScript infers `number[]` for the returned array. Then each destructured value is `number | undefined`, and the subtraction no longer compiles:\n\n```typescript error\nfunction minMax(xs: number[]) {\n  return [Math.min(...xs), Math.max(...xs)];\n}\n\nconst [low, high] = minMax([7, 2, 9, 4]);\nconsole.log(high - low);\n```"
+        },
+        {
+          "title": "A readonly array",
+          "prompt": "Try to push a day onto a `readonly string[]`.",
+          "code": "const DAYS: readonly string[] = [\"Mon\", \"Tue\", \"Wed\"];\nDAYS.push(\"Sun\");\nconsole.log(DAYS.join(\" \"));\n",
+          "expect": "type-error",
+          "output": "main.ts(2,6): error TS2339: Property 'push' does not exist on type 'readonly string[]'.",
+          "explanation": "A `readonly string[]` has no `push` at all, so `tsc` reports a property that doesn't exist. `const` alone isn't enough: it stops `DAYS` from pointing at another array, but a plain `string[]` would still let you change what's inside. To get a changed copy, spread the days into a new array, or call a method that returns one, like `toSorted` or `toReversed`. The original stays as it was:\n\n```typescript\nconst DAYS: readonly string[] = [\"Mon\", \"Tue\", \"Wed\"];\nconst week = [...DAYS, \"Sun\"];\nconsole.log(week.join(\" \"));              // Mon Tue Wed Sun\nconsole.log(DAYS.toReversed().join(\" \")); // Wed Tue Mon\nconsole.log(DAYS.join(\" \"));              // Mon Tue Wed\n```"
+        }
+      ],
+      "practice": {
+        "title": "Split the bill",
+        "prompt": "Split a bill in whole cents and report what each person pays and how many cents are left over.\n\n1. Give `splitBill` the return type `[share: number, remainder: number]`.\n2. Return each person's share, rounded down to whole cents, and the cents left over.\n3. Destructure `splitBill(1000, 3)` into `share` and `remainder`, and print them in the sentence below.\n4. Keep `export`: hidden type tests import `splitBill` from your file.\n\nExpected output:\n\n```text\nEach pays 333 cents, 1 cent left over\n```",
+        "starter": "// TODO: add the return type [share: number, remainder: number]\n// and return the share and the remainder\nexport function splitBill(totalCents: number, people: number) {\n  return [0, 0];\n}\n\n// TODO: destructure splitBill(1000, 3) into share and remainder\nconsole.log(\"Each pays ? cents, ? cent left over\");\n",
+        "solution": "export function splitBill(\n  totalCents: number,\n  people: number,\n): [share: number, remainder: number] {\n  return [Math.floor(totalCents / people), totalCents % people];\n}\n\nconst [share, remainder] = splitBill(1000, 3);\nconsole.log(`Each pays ${share} cents, ${remainder} cent left over`);\n",
+        "tests": [
+          {
+            "output": "Each pays 333 cents, 1 cent left over"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { splitBill } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "returns a pair of numbers",
+              "expect": "ok",
+              "code": "const r: [number, number] = splitBill(10, 3);"
+            },
+            {
+              "name": "the share is not a string",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const r: [string, number] = splitBill(10, 3);"
+            }
+          ]
+        },
+        "hints": [
+          "`Math.floor` rounds the share down to whole cents, and `%` gives the cents left over.",
+          "The return type goes after the parameter list, as in `minMax`: `): [share: number, remainder: number] {`.",
+          "`const [share, remainder] = splitBill(1000, 3);` names both values at once."
+        ]
+      }
+    }
+  ],
+  "recap": "- `number[]` and `Array<number>` are the same type. TypeScript infers array types from their elements, and callbacks get their parameter types from the array.\n- Annotate an empty array: `const names: string[] = [];`.\n- With `noUncheckedIndexedAccess`, `xs[i]` is the element type or `undefined`. Check it, or default it with `??`. `at()` also counts from the end, and it can give `undefined` too.\n- A tuple like `[lat: number, lng: number]` has a fixed length and a type per position. Return one to hand back two values, and destructure it at the call.\n- `readonly string[]` has no methods that change it. `toSorted`, `toReversed`, and `with` return new arrays instead."
+}

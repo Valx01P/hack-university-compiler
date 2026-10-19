@@ -1,0 +1,191 @@
+{
+  "id": "literal-types",
+  "title": "Literal Types, as const, and satisfies",
+  "section": "Object Types",
+  "summary": "Limit values to a fixed set with literal unions, derive types from data with as const, and check objects with satisfies without losing detail.",
+  "intro": "Many values in real code come from a short, fixed list: a direction, an HTTP status, a plan name, a feature flag. TypeScript can type the list itself, so a typo like `\"nort\"` is a type error instead of a bug. In this lesson you build those types from literals, derive them from data you already have, and check configuration objects without losing their details.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Literal unions",
+      "body": "A literal type is one exact value used as a type, like `\"north\"`, `404`, or `true`. Join literals with `|` to say \"one of these values\":\n\n```typescript types\ntype Direction = \"north\" | \"south\" | \"east\" | \"west\";\ntype HttpError = 400 | 404 | 500;\n```\n\nA `Direction` accepts those four strings and nothing else. Passing `\"up\"` is a type error (TS2345), and so is a `string` variable, because it could hold anything. A `const` holding `\"north\"` has the type `\"north\"`, so it fits. A `let` widens to `string` unless you annotate it: `let heading: Direction = \"north\"`.\n\nA `switch` on a literal union handles one value per `case`. When every case returns, TypeScript knows the function always returns, so it needs no `default`.\n\nA `Record` keyed by a union must have every key: `Record<Direction, string>` is an object with exactly those four properties. Leave one out and the checker names the missing key, which makes it a safe lookup table.",
+      "examples": [
+        {
+          "title": "Directions",
+          "prompt": "Move a point one step at a time with a switch over a union of four directions.",
+          "code": "type Direction = \"north\" | \"south\" | \"east\" | \"west\";\n\ntype Position = {\n  x: number;\n  y: number;\n};\n\nfunction move(from: Position, direction: Direction): Position {\n  switch (direction) {\n    case \"north\":\n      return { x: from.x, y: from.y + 1 };\n    case \"south\":\n      return { x: from.x, y: from.y - 1 };\n    case \"east\":\n      return { x: from.x + 1, y: from.y };\n    case \"west\":\n      return { x: from.x - 1, y: from.y };\n  }\n}\n\nlet position: Position = { x: 0, y: 0 };\nconst route: Direction[] = [\"north\", \"north\", \"east\", \"south\", \"west\", \"west\"];\n\nfor (const direction of route) {\n  position = move(position, direction);\n  console.log(`${direction} -> (${position.x}, ${position.y})`);\n}\n",
+          "output": "north -> (0, 1)\nnorth -> (0, 2)\neast -> (1, 2)\nsouth -> (1, 1)\nwest -> (0, 1)\nwest -> (-1, 1)",
+          "explanation": "`Direction` lists the four allowed strings, and `Direction[]` is an array that may only hold them. The `switch` has one `case` per member and every case returns, so `tsc` accepts `move` without a final `return`. Add a fifth direction to the union without a `case` for it, and `move` could end without returning a `Position`, which `tsc` reports as TS2366. At runtime `direction` is an ordinary string: the literal types are erased like every other type."
+        },
+        {
+          "title": "A value not in the union",
+          "prompt": "Call move with a direction the union does not list.",
+          "code": "type Direction = \"north\" | \"south\" | \"east\" | \"west\";\n\nfunction move(direction: Direction): string {\n  return `moving ${direction}`;\n}\n\nconsole.log(move(\"north\"));\nconsole.log(move(\"up\"));\n",
+          "expect": "type-error",
+          "output": "main.ts(8,18): error TS2345: Argument of type '\"up\"' is not assignable to parameter of type 'Direction'.",
+          "explanation": "`\"up\"` is a string, but not one of the four the union allows, so the call fails with TS2345, which names both types. Nothing runs, not even the valid first call, because a type error stops the whole program. In editors with TypeScript support, such as VS Code, typing `move(\"` lists the four directions as completions, so most of these mistakes never get typed at all."
+        },
+        {
+          "title": "Number and boolean literals",
+          "prompt": "Name each face of a die with a lookup table keyed by a union of numbers, then require a literal true in a request.",
+          "code": "type Dice = 1 | 2 | 3 | 4 | 5 | 6;\n\nconst FACES: Record<Dice, string> = {\n  1: \"one\",\n  2: \"two\",\n  3: \"three\",\n  4: \"four\",\n  5: \"five\",\n  6: \"six\",\n};\n\nconst rolls: Dice[] = [3, 6, 1];\nfor (const value of rolls) {\n  console.log(`${value} is ${FACES[value]}`);\n}\n\ntype ResetRequest = {\n  game: string;\n  confirmed: true;\n};\n\nfunction resetGame(request: ResetRequest): string {\n  return `${request.game} reset`;\n}\n\nconsole.log(resetGame({ game: \"Yahtzee\", confirmed: true }));\n",
+          "output": "3 is three\n6 is six\n1 is one\nYahtzee reset",
+          "explanation": "`Dice` is a union of six number literals, so `rolls` can only hold real faces, and a `7` in it would not compile. `FACES` is a `Record<Dice, string>`, so it must have all six keys, and since every key is guaranteed, `FACES[value]` is a plain `string`, never `undefined`. In `ResetRequest`, `confirmed: true` accepts only the literal `true`, so callers have to confirm on purpose: `confirmed: false` is a type error. The type `boolean` is itself the union `true | false`."
+        }
+      ],
+      "practice": {
+        "title": "Traffic light",
+        "prompt": "Cycle a traffic light through its colors.\n\n1. Make `Light` a union of `\"red\"`, `\"yellow\"`, and `\"green\"`.\n2. Make `next` return the light that comes after its argument: red, then green, then yellow, then red again.\n\nExpected output:\n\n```text\nred -> green\ngreen -> yellow\nyellow -> red\nred -> green\n```",
+        "starter": "// TODO: allow only \"red\", \"yellow\", and \"green\"\nexport type Light = string;\n\nexport function next(light: Light): Light {\n  // TODO: red goes to green, green to yellow, and yellow to red\n  return light;\n}\n\nlet light: Light = \"red\";\nfor (let step = 0; step < 4; step++) {\n  const after = next(light);\n  console.log(`${light} -> ${after}`);\n  light = after;\n}\n",
+        "solution": "export type Light = \"red\" | \"yellow\" | \"green\";\n\nexport function next(light: Light): Light {\n  switch (light) {\n    case \"red\":\n      return \"green\";\n    case \"green\":\n      return \"yellow\";\n    case \"yellow\":\n      return \"red\";\n  }\n}\n\nlet light: Light = \"red\";\nfor (let step = 0; step < 4; step++) {\n  const after = next(light);\n  console.log(`${light} -> ${after}`);\n  light = after;\n}\n",
+        "tests": [
+          {
+            "output": "red -> green\ngreen -> yellow\nyellow -> red\nred -> green"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { next, type Light } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects a color that is not a light",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "next(\"blue\");"
+            },
+            {
+              "name": "returns a Light",
+              "expect": "ok",
+              "code": "const l: Light = next(\"red\");"
+            }
+          ]
+        },
+        "hints": [
+          "Write the union like `Direction` in the first example: the three strings joined with `|`.",
+          "A `switch` on `light` with one `case` per color, each returning the next color, needs no `default`.",
+          "If `tsc` reports TS2366, a color in the union has no `case` that returns."
+        ]
+      }
+    },
+    {
+      "title": "Deriving types with as const",
+      "body": "Often the allowed values already exist as data, like a list you loop over. Put `as const` after an array or object literal to keep every literal type and make the whole value readonly, all the way down:\n\n```typescript\nconst ROLES = [\"admin\", \"editor\", \"viewer\"] as const;\n//    ^? const ROLES: readonly [\"admin\", \"editor\", \"viewer\"]\nconsole.log(ROLES.join(\", \")); // admin, editor, viewer\n```\n\nWithout `as const`, `ROLES` would be a `string[]`. With it, `ROLES` is a readonly tuple of three literals, and you can derive the union from the data instead of writing the values twice:\n\n- `typeof ROLES` in a type position means the type of the value `ROLES`.\n- `[number]` after an array type means its element type, so `(typeof ROLES)[number]` is the union of the three roles.\n- `keyof typeof HTTP` gives the keys of an object value, and `(typeof HTTP)[keyof typeof HTTP]` gives the union of its values.\n\nAdd a role to the array and the derived type follows. Despite the `as`, nothing is converted or forced: `as const` only asks TypeScript to infer the narrowest types it can.",
+      "examples": [
+        {
+          "title": "Roles from a list",
+          "prompt": "Derive a Role type from an as const array, then loop over the same array to print every role.",
+          "code": "const ROLES = [\"admin\", \"editor\", \"viewer\"] as const;\n\ntype Role = (typeof ROLES)[number];\n//   ^? type Role = \"admin\" | \"editor\" | \"viewer\"\n\nfunction canEdit(role: Role): boolean {\n  return role !== \"viewer\";\n}\n\nfor (const role of ROLES) {\n  console.log(`${role}: ${canEdit(role) ? \"can edit\" : \"read only\"}`);\n}\n",
+          "output": "admin: can edit\neditor: can edit\nviewer: read only",
+          "explanation": "`ROLES` is a readonly tuple of three string literals, and `(typeof ROLES)[number]` reads its element type: the union in the bubble. The list exists once, as data you can loop over, and the type comes from it. In the loop, `role` already has the type `Role`, so it goes straight into `canEdit`. If `ROLES` were a plain `string[]`, `Role` would be `string` and `canEdit` would accept any text."
+        },
+        {
+          "title": "Codes from an object",
+          "prompt": "Name HTTP status codes in an as const object, then derive the union of its keys and of its values.",
+          "code": "const HTTP = {\n  ok: 200,\n  notFound: 404,\n} as const;\n\ntype Key = keyof typeof HTTP;\n//   ^? type Key = \"notFound\" | \"ok\"\ntype Code = (typeof HTTP)[keyof typeof HTTP];\n//   ^? type Code = 200 | 404\n\nfunction describeStatus(code: Code): string {\n  return code === HTTP.ok ? \"success\" : \"not found\";\n}\n\nconsole.log(`${HTTP.ok}: ${describeStatus(HTTP.ok)}`);\nconsole.log(`${HTTP.notFound}: ${describeStatus(HTTP.notFound)}`);\n",
+          "output": "200: success\n404: not found",
+          "explanation": "`as const` keeps `ok` as the literal `200` instead of widening it to `number`, and makes both properties readonly. `keyof typeof HTTP` is the union of the object's keys, and indexing the object's type with all of them gives the union of its values, `200 | 404`. So `describeStatus(500)` is a type error, while every code in `HTTP` is accepted, and callers can still write `HTTP.notFound` instead of a bare `404`."
+        },
+        {
+          "title": "Deep readonly",
+          "prompt": "Try to add a role to the as const array.",
+          "code": "const ROLES = [\"admin\", \"editor\", \"viewer\"] as const;\n\nROLES.push(\"owner\");\nconsole.log(ROLES.join(\", \"));\n",
+          "expect": "type-error",
+          "output": "main.ts(3,7): error TS2339: Property 'push' does not exist on type 'readonly [\"admin\", \"editor\", \"viewer\"]'.",
+          "explanation": "A readonly tuple has no `push`, `pop`, or `splice`, so the checker rejects the call with TS2339, and the message shows the full type `as const` produced. That is the point: if code could add `\"owner\"` at runtime, a `Role` type derived from the array would be wrong. To support another role, add it to the literal itself. Methods that return a new array, like `map`, `filter`, and `toSorted`, still work.\n\nObjects behave the same way, and the readonly reaches nested objects too:\n\n```typescript error\nconst SETTINGS = { theme: { mode: \"dark\" } } as const;\nSETTINGS.theme.mode = \"light\";\n```"
+        }
+      ],
+      "practice": {
+        "title": "Plan tiers",
+        "prompt": "List subscription plans once, as data, and derive their type from it.\n\n1. Add `as const` to `PLANS`.\n2. Derive `Plan` from `PLANS`.\n3. Make `priceFor` look the price up in a `Record<Plan, number>`: free is 0, pro is 12, and team is 30 dollars a month.\n\nExpected output:\n\n```text\nfree: $0/month\npro: $12/month\nteam: $30/month\n```",
+        "starter": "// TODO: keep the three literal values with as const\nexport const PLANS = [\"free\", \"pro\", \"team\"];\n\n// TODO: derive Plan from PLANS\nexport type Plan = string;\n\nexport function priceFor(plan: Plan): number {\n  // TODO: look the price up in a Record<Plan, number>\n  return 0;\n}\n\nfor (const plan of PLANS) {\n  console.log(`${plan}: $${priceFor(plan)}/month`);\n}\n",
+        "solution": "export const PLANS = [\"free\", \"pro\", \"team\"] as const;\n\nexport type Plan = (typeof PLANS)[number];\n\nconst PRICES: Record<Plan, number> = {\n  free: 0,\n  pro: 12,\n  team: 30,\n};\n\nexport function priceFor(plan: Plan): number {\n  return PRICES[plan];\n}\n\nfor (const plan of PLANS) {\n  console.log(`${plan}: $${priceFor(plan)}/month`);\n}\n",
+        "tests": [
+          {
+            "output": "free: $0/month\npro: $12/month\nteam: $30/month"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { priceFor, type Plan } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects a plan that is not listed",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "priceFor(\"enterprise\");"
+            },
+            {
+              "name": "accepts a listed plan as a Plan",
+              "expect": "ok",
+              "code": "const p: Plan = \"team\";"
+            }
+          ]
+        },
+        "hints": [
+          "`as const` goes right after the closing `]` of the array.",
+          "`(typeof PLANS)[number]` is the union of the array's elements, like `Role` in the first example.",
+          "Declare `const PRICES: Record<Plan, number> = { free: 0, pro: 12, team: 30 }` and return `PRICES[plan]`."
+        ]
+      }
+    },
+    {
+      "title": "Checking values with satisfies",
+      "body": "An annotation decides a variable's type. `const routes: Record<string, string> = { ... }` makes `routes` exactly that type, so TypeScript forgets which keys you wrote, and every read gives `string | undefined`.\n\n`satisfies` checks the value against a type but keeps the precise type TypeScript infers:\n\n```typescript\nconst routes = { home: \"/\", about: \"/about\" } satisfies Record<string, string>;\n//    ^? const routes: { home: string; about: string; }\nconsole.log(routes.about); // /about\n```\n\nA value that is not a string is still an error, but now `routes.about` is a plain `string`, and `routes.blog` is an error because that key does not exist. This mix of checked and precise suits configuration: themes, routes, feature flags, and lookup tables. Like an annotation, `satisfies` runs the excess property check on an object literal, so a misspelled key is caught too.\n\nUse an annotation when a variable should have exactly the declared type, for example one you reassign later. Use `satisfies` when you want both the check and the details.",
+      "examples": [
+        {
+          "title": "Routes",
+          "prompt": "Check a routes object with satisfies and read its known keys.",
+          "code": "const routes = {\n  home: \"/\",\n  about: \"/about\",\n  contact: \"/contact\",\n} satisfies Record<string, string>;\n\nconst about = routes.about;\n//    ^? const about: string\n\nconsole.log(`Home: ${routes.home}`);\nconsole.log(`About: ${about}`);\nconsole.log(`Pages: ${Object.keys(routes).length}`);\n",
+          "output": "Home: /\nAbout: /about\nPages: 3",
+          "explanation": "`satisfies Record<string, string>` checks that every value is a string, but `routes` keeps its own type with three known keys, so `routes.about` is a plain `string`, as the bubble shows. Reading a key that is not there fails before the program runs:\n\n```typescript error\nconst routes = { home: \"/\", about: \"/about\" } satisfies Record<string, string>;\nconsole.log(routes.blog);\n```\n\nThat error (TS2339) is what you want from a fixed set of routes: a link to a page that does not exist never compiles."
+        },
+        {
+          "title": "Annotation versus satisfies",
+          "prompt": "Annotate the same routes as a Record and see what TypeScript forgets.",
+          "code": "const routes: Record<string, string> = {\n  home: \"/\",\n  about: \"/about\",\n};\n\nconst blog = routes[\"blog\"];\n//    ^? const blog: string | undefined\nconst about = routes[\"about\"];\n//    ^? const about: string | undefined\n\nconsole.log(blog ?? \"no blog page\");\nconsole.log(about ?? \"no about page\");\n",
+          "output": "no blog page\n/about",
+          "explanation": "With the annotation, `routes` is just a dictionary of strings. TypeScript no longer knows which keys exist, so `routes[\"blog\"]` compiles, and every read, even of `about`, has the type `string | undefined`. Each read now needs a `??` or a check, and a typo in a key is no longer an error. `satisfies` keeps both the check and the known keys, which is why it suits objects like this."
+        },
+        {
+          "title": "Catching a typo in config",
+          "prompt": "Misspell a key in a theme checked with satisfies.",
+          "code": "type Theme = {\n  primary: string;\n  secondary: string;\n};\n\nconst theme = {\n  primary: \"#336699\",\n  secondry: \"#999999\",\n} satisfies Theme;\n\nconsole.log(theme.primary);\n",
+          "expect": "type-error",
+          "output": "main.ts(8,3): error TS2561: Object literal may only specify known properties, but 'secondry' does not exist in type 'Theme'. Did you mean to write 'secondary'?",
+          "explanation": "`satisfies Theme` checks the object literal the way an annotation would, including the excess property check, so the misspelled `secondry` is reported with a suggestion (TS2561). Without `satisfies`, the object would compile, and the mistake would only show up later, as an error wherever some code reads `theme.secondary`."
+        }
+      ],
+      "practice": {
+        "title": "Feature flags",
+        "prompt": "Keep a set of feature flags checked but precise, and list the ones that are on.\n\n1. Check `flags` against `Record<string, boolean>` with `satisfies`.\n2. Make `enabledFlags` return the names of the flags that are on, sorted alphabetically.\n\nExpected output:\n\n```text\nEnabled: darkMode, newCheckout\n```",
+        "starter": "// TODO: check flags against Record<string, boolean> with satisfies\nexport const flags = {\n  newCheckout: true,\n  darkMode: true,\n  betaSearch: false,\n};\n\nexport function enabledFlags(): string[] {\n  // TODO: return the names of the flags that are on, sorted\n  return [];\n}\n\nconsole.log(`Enabled: ${enabledFlags().join(\", \")}`);\n",
+        "solution": "export const flags = {\n  newCheckout: true,\n  darkMode: true,\n  betaSearch: false,\n} satisfies Record<string, boolean>;\n\nexport function enabledFlags(): string[] {\n  return Object.entries(flags)\n    .filter(([, on]) => on)\n    .map(([name]) => name)\n    .toSorted();\n}\n\nconsole.log(`Enabled: ${enabledFlags().join(\", \")}`);\n",
+        "tests": [
+          {
+            "output": "Enabled: darkMode, newCheckout"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { flags } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "keeps the known flags as booleans",
+              "expect": "ok",
+              "code": "const d: boolean = flags.darkMode;"
+            },
+            {
+              "name": "rejects a flag that does not exist",
+              "expect": "error",
+              "errorCode": "TS2339",
+              "code": "flags.oldCheckout;"
+            }
+          ]
+        },
+        "hints": [
+          "Put `satisfies Record<string, boolean>` right after the object's closing brace, not as an annotation on `flags`.",
+          "`Object.entries(flags)` gives `[name, on]` pairs: keep the pairs that are on, then keep only the names.",
+          "Chain `filter(([, on]) => on)`, `map(([name]) => name)`, and `toSorted()`."
+        ]
+      }
+    }
+  ],
+  "recap": "- A literal type is one exact value: `\"north\"`, `404`, `true`. A union of literals, like `\"red\" | \"green\"`, allows only those values.\n- A `switch` with a returning `case` for every member of a union needs no `default`.\n- `Record<Union, V>` must have every key of the union, and reading a key gives `V`, never `undefined`.\n- `as const` keeps literal types and makes arrays and objects readonly all the way down.\n- `(typeof LIST)[number]` turns an `as const` array into a union, and `(typeof OBJ)[keyof typeof OBJ]` does the same for an object's values.\n- An annotation makes a variable exactly its type. `satisfies` checks a value against a type and keeps the precise type, so known keys stay known and typos are still caught."
+}

@@ -1,0 +1,164 @@
+{
+  "id": "hello-typescript",
+  "title": "Running and Checking TypeScript",
+  "section": "TypeScript on Node",
+  "summary": "Run a TypeScript file on Node 26, read what the type checker reports, and write only the syntax Node can strip.",
+  "intro": "TypeScript is JavaScript with types. You write down what each value should be, and a type checker proves the code agrees before anything runs. Here every program is one file, `main.ts`, and every Run uses two tools: `tsc` checks the types, then Node 26 runs the file.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Run a TypeScript file",
+      "body": "An annotation after a name says what it holds: `: number` for numbers, `: string` for text. Everything else is the JavaScript you already know.\n\n```typescript\nconst product: string = \"Mug\";\nconst price: number = 12.5;\nconsole.log(`${product} costs ${price}`); // Mug costs 12.5\n```\n\nNode 26 runs a `.ts` file directly, with no build step, but it never checks the types. It replaces each annotation with spaces and runs the JavaScript that is left. The spaces keep every character in its place, so the line and column in a runtime error still point at your code.\n\nChecking is a separate tool: `tsc`, the TypeScript compiler, version 7. Every Run and Check here runs `tsc` on `main.ts` first, and only then does Node run it. In the editor, the Type check line above the output says No type errors, or lists each error it found.",
+      "examples": [
+        {
+          "title": "Order total",
+          "prompt": "Annotate a price and a quantity, multiply them, and print the total.",
+          "code": "const price: number = 12.5;\nconst quantity: number = 3;\nconst total: number = price * quantity;\n\nconsole.log(`Total: ${total}`);\n",
+          "output": "Total: 37.5",
+          "explanation": "Each `: number` tells `tsc` what the variable holds, and the check passes because every value fits. `price * quantity` multiplies two numbers, so the result fits `total: number` too. Then Node strips the annotations and runs the multiplication like any JavaScript."
+        },
+        {
+          "title": "Types are gone at runtime",
+          "prompt": "Print a value's type while the program runs, and ask Node how it ran the file.",
+          "code": "const price: number = 12.5;\n\nconsole.log(typeof price);\nconsole.log(process.features.typescript);\n",
+          "output": "number\nstrip",
+          "explanation": "`typeof` is JavaScript: it looks at the value while the program runs, and `12.5` is a number. `process.features.typescript` is `\"strip\"`, because Node 26 handles TypeScript by stripping the types. This is what Node actually runs, with the annotation replaced by spaces. It is plain JavaScript and prints the same two lines:\n\n```typescript\nconst price         = 12.5;\n\nconsole.log(typeof price);\nconsole.log(process.features.typescript);\n```\n\nNo annotation is left at runtime, so nothing there can check one. That job belongs to `tsc`, before the program starts."
+        },
+        {
+          "title": "A typed function",
+          "prompt": "Annotate a function's parameter and its return value, then call it for two names.",
+          "code": "function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n\nconsole.log(greet(\"Ada\"));\nconsole.log(greet(\"Grace\"));\n",
+          "output": "Hello, Ada!\nHello, Grace!",
+          "explanation": "`name: string` annotates the parameter, and the `: string` after the parentheses annotates what the function returns. `tsc` checks both sides: every call must pass a string, and every `return` must give one. Node strips both annotations and runs an ordinary JavaScript function."
+        }
+      ],
+      "practice": {
+        "title": "Shipping label",
+        "prompt": "Print a shipping label from annotated variables.\n\n1. Declare `recipient` and `city` as `string` variables holding `\"Ada Lovelace\"` and `\"London\"`.\n2. Declare `weightKg` as a `number` holding `2.4`.\n3. Compute `cost`, a `number`, as `weightKg` times `ratePerKg`.\n4. Print the three lines below, with the cost to 2 decimals.\n\nExpected output:\n\n```text\nTo: Ada Lovelace\nCity: London\nCost: $10.20\n```",
+        "starter": "const ratePerKg: number = 4.25;\n\n// TODO: declare recipient, city, and weightKg with their annotations\n\n// TODO: compute cost, a number, from weightKg and ratePerKg\n\n// TODO: print the three lines of the label\n",
+        "solution": "const ratePerKg: number = 4.25;\n\nconst recipient: string = \"Ada Lovelace\";\nconst city: string = \"London\";\nconst weightKg: number = 2.4;\nconst cost: number = weightKg * ratePerKg;\n\nconsole.log(`To: ${recipient}`);\nconsole.log(`City: ${city}`);\nconsole.log(`Cost: $${cost.toFixed(2)}`);\n",
+        "tests": [
+          {
+            "output": "To: Ada Lovelace\nCity: London\nCost: $10.20"
+          }
+        ],
+        "hints": [
+          "Annotate each variable the way the examples do: `const city: string = \"London\";`.",
+          "`cost.toFixed(2)` gives the cost as text with 2 decimals.",
+          "In a template literal, put the dollar sign right before the placeholder: `$${cost.toFixed(2)}`."
+        ]
+      }
+    },
+    {
+      "title": "Let the checker catch mistakes",
+      "body": "`tsc` reads the whole file and checks every value against its type before anything runs. Run this block:\n\n```typescript error\nconst age: number = \"36\";\nconsole.log(age);\n```\n\n`tsc` reports `main.ts(1,7): error TS2322: Type 'string' is not assignable to type 'number'.` Read it left to right:\n\n- `main.ts(1,7)` is the file, then line 1 and column 7, where `age` starts.\n- `TS2322` is the error's code. Each code is one kind of mistake, so you can look it up.\n- The message says which type doesn't fit which.\n\nA type error stops the Run, so nothing prints until the check passes. In the editor, each error's place is a link that puts the cursor on its line.\n\nThen fix the code, not the annotation, unless the annotation is the mistake. Here `\"36\"` should be the number `36`. Loosening an annotation to make an error go away usually moves the bug to wherever the value is used.",
+      "examples": [
+        {
+          "title": "A string where a number belongs",
+          "prompt": "Annotate a count as a number, then assign it a string.",
+          "code": "let count: number = 3;\ncount = \"four\";\n\nconsole.log(count);\n",
+          "expect": "type-error",
+          "output": "main.ts(2,1): error TS2322: Type 'string' is not assignable to type 'number'.",
+          "explanation": "The annotation says `count` holds a number for as long as it exists, so line 2 can't put a string in it. The error points at line 2, column 1, where that assignment starts, not at the annotation. Plain JavaScript would run this and print `four`, and the bug would show up later, wherever the code does math with `count`."
+        },
+        {
+          "title": "A typo in a property",
+          "prompt": "Read a property whose name has two letters swapped.",
+          "code": "const user = { name: \"Ada\", email: \"ada@example.com\" };\n\nconsole.log(user.emial);\n",
+          "expect": "type-error",
+          "output": "main.ts(3,18): error TS2551: Property 'emial' does not exist on type '{ name: string; email: string; }'. Did you mean 'email'?",
+          "explanation": "TypeScript worked out the object's type from its value, `{ name: string; email: string; }`, with no annotation. `emial` isn't one of its properties, and it is close to `email`, so the message suggests the fix. Plain JavaScript would print `undefined` here without a word. A name that isn't close to any property gets TS2339 instead, the same error with no suggestion."
+        },
+        {
+          "title": "A missing argument",
+          "prompt": "Call a function that takes a name, without passing one.",
+          "code": "function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n\nconsole.log(greet());\n",
+          "expect": "type-error",
+          "output": "main.ts(5,13): error TS2554: Expected 1 arguments, but got 0.",
+          "explanation": "`greet` declares one parameter, so a call must pass one argument. JavaScript would run `greet()` with `name` set to `undefined` and print `Hello, undefined!`. The checker refuses the call instead and points at it: line 5, column 13. Pass the name, as in `greet(\"Ada\")`, and the file type-checks."
+        }
+      ],
+      "practice": {
+        "title": "Fix the receipt",
+        "prompt": "Fix the three type errors in the receipt program at their cause, so it type-checks and prints the receipt.\n\n1. Press Run and read the three errors in the Type check.\n2. Fix each one in the code it points at, and keep every annotation as it is.\n3. Press Run again after each fix, until the Type check says No type errors.\n\nExpected output:\n\n```text\nCoffee x2: $7.00\nMuffin x3: $6.75\nJuice x1: $4.50\nTotal: $18.25\n```",
+        "kind": "fix-types",
+        "starterErrors": [
+          "TS2322",
+          "TS2551",
+          "TS2554"
+        ],
+        "starter": "// TODO: fix the three type errors at their cause, then press Run\nfunction lineTotal(price: number, quantity: number): number {\n  return price * quantity;\n}\n\nconst coffee = { name: \"Coffee\", price: 3.5, quantity: 2 };\nconst muffin = { name: \"Muffin\", price: 2.25, quantity: 3 };\nconst juicePrice: number = \"4.50\";\nconst juiceQuantity = 1;\n\nconst coffeeTotal = lineTotal(coffee.price, coffee.quantity);\nconst muffinTotal = lineTotal(muffin.price, muffin.qunatity);\nconst juiceTotal = lineTotal(juicePrice);\nconst total = coffeeTotal + muffinTotal + juiceTotal;\n\nconsole.log(`${coffee.name} x${coffee.quantity}: $${coffeeTotal.toFixed(2)}`);\nconsole.log(`${muffin.name} x${muffin.quantity}: $${muffinTotal.toFixed(2)}`);\nconsole.log(`Juice x${juiceQuantity}: $${juiceTotal.toFixed(2)}`);\nconsole.log(`Total: $${total.toFixed(2)}`);\n",
+        "solution": "function lineTotal(price: number, quantity: number): number {\n  return price * quantity;\n}\n\nconst coffee = { name: \"Coffee\", price: 3.5, quantity: 2 };\nconst muffin = { name: \"Muffin\", price: 2.25, quantity: 3 };\nconst juicePrice: number = 4.5;\nconst juiceQuantity = 1;\n\nconst coffeeTotal = lineTotal(coffee.price, coffee.quantity);\nconst muffinTotal = lineTotal(muffin.price, muffin.quantity);\nconst juiceTotal = lineTotal(juicePrice, juiceQuantity);\nconst total = coffeeTotal + muffinTotal + juiceTotal;\n\nconsole.log(`${coffee.name} x${coffee.quantity}: $${coffeeTotal.toFixed(2)}`);\nconsole.log(`${muffin.name} x${muffin.quantity}: $${muffinTotal.toFixed(2)}`);\nconsole.log(`Juice x${juiceQuantity}: $${juiceTotal.toFixed(2)}`);\nconsole.log(`Total: $${total.toFixed(2)}`);\n",
+        "tests": [
+          {
+            "output": "Coffee x2: $7.00\nMuffin x3: $6.75\nJuice x1: $4.50\nTotal: $18.25"
+          }
+        ],
+        "forbid": [
+          "any",
+          "ts-comments"
+        ],
+        "hints": [
+          "Read the errors in order. Each one names its line and column, and its message says what doesn't fit.",
+          "A number has no quotes: write `4.5`, not `\"4.50\"`. TS2551 already suggests the right spelling of the property.",
+          "TS2554 says `lineTotal` expects 2 arguments. Pass `juiceQuantity` as the second one."
+        ]
+      }
+    },
+    {
+      "title": "What Node cannot strip",
+      "body": "Most TypeScript syntax is types, and Node erases it. A few older features generate JavaScript of their own, so erasing them would change what the program does:\n\n- `enum`, which becomes an object at runtime.\n- Parameter properties, like `constructor(public name: string)`, which add an assignment to the constructor.\n- A `namespace` with code inside it.\n\nNode 26 refuses to run them. The course's `tsconfig.json` turns on `erasableSyntaxOnly`, so `tsc` reports each one as TS1294 before Node ever sees it. Write the plain JavaScript form instead: declare fields and set them in the constructor, and use an object where you would reach for an enum.\n\nOne comment changes how `tsc` treats a whole file. `// @ts-nocheck` on the first line turns checking off, and Node runs whatever is there:\n\n```typescript\n// @ts-nocheck\nconst total: number = \"not checked\";\nconsole.log(total); // not checked\n```\n\nThe examples use it to show what Node does on its own. In your own code, fix the error instead.",
+      "examples": [
+        {
+          "title": "An enum is rejected",
+          "prompt": "Declare an enum of sizes and print one of its members.",
+          "code": "enum Size {\n  Small,\n  Medium,\n  Large,\n}\n\nconsole.log(Size.Medium);\n",
+          "expect": "type-error",
+          "output": "main.ts(1,6): error TS1294: This syntax is not allowed when 'erasableSyntaxOnly' is enabled.",
+          "explanation": "An `enum` isn't only a type. It compiles to a real object that maps `Size.Medium` to `1`, so running it needs generated code. With `erasableSyntaxOnly` on, `tsc` rejects it and points at the name `Size`. Projects that still use enums run them through a build step that generates that code."
+        },
+        {
+          "title": "Node refuses it as well",
+          "prompt": "Turn the checker off with `// @ts-nocheck` and let Node try the same enum.",
+          "code": "// @ts-nocheck\nconsole.log(\"Starting\");\n\nenum Size {\n  Small,\n  Medium,\n  Large,\n}\n\nconsole.log(Size.Medium);\n",
+          "expect": "runtime-error",
+          "output": "",
+          "errorIncludes": "SyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]: TypeScript enum is not supported in strip-only mode",
+          "explanation": "`// @ts-nocheck` makes the type check pass, so Node gets the file. Node strips the types from the whole file before it runs any of it, meets the enum, and stops with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. That's why even `Starting` never prints. The two tools agree: what `tsc` rejects with TS1294 is what Node can't strip."
+        },
+        {
+          "title": "Fields instead of parameter properties",
+          "prompt": "Declare a class's fields with their types, and set them in the constructor.",
+          "code": "class Product {\n  name: string;\n  price: number;\n\n  constructor(name: string, price: number) {\n    this.name = name;\n    this.price = price;\n  }\n}\n\nconst mug = new Product(\"Mug\", 12.99);\nconsole.log(`${mug.name} costs $${mug.price}`);\n",
+          "output": "Mug costs $12.99",
+          "explanation": "Each field is declared in the class body with its type, then the constructor assigns it, the way plain JavaScript classes work. Many codebases use parameter properties instead, a shorthand where a modifier on a constructor parameter declares and assigns the field at once. Run this version:\n\n```typescript error\nclass Product {\n  constructor(public name: string, public price: number) {}\n}\n\nconsole.log(new Product(\"Mug\", 12.99).name);\n```\n\n`tsc` reports TS1294 at both parameters, because the shorthand needs generated code. Modifiers like `public` and `private` are fine on a declared field, where they are only types and Node erases them."
+        }
+      ],
+      "practice": {
+        "title": "Make it erasable",
+        "prompt": "Rewrite the `Account` class without parameter properties, so Node can strip it. Right now the type check fails with TS1294 twice.\n\n1. Declare `owner` and `balance` as fields with their types, and keep `owner` private.\n2. Give the constructor plain parameters and assign each field.\n3. Leave the methods and the code below the class as they are.\n\nExpected output:\n\n```text\nAna: 120\n```",
+        "kind": "fix-types",
+        "starterErrors": [
+          "TS1294",
+          "TS1294"
+        ],
+        "starter": "// TODO: declare the fields in the class body and assign them in the constructor\nclass Account {\n  constructor(private owner: string, public balance: number) {}\n\n  deposit(amount: number) {\n    this.balance += amount;\n  }\n\n  summary(): string {\n    return `${this.owner}: ${this.balance}`;\n  }\n}\n\nconst account = new Account(\"Ana\", 100);\naccount.deposit(20);\nconsole.log(account.summary());\n",
+        "solution": "class Account {\n  private owner: string;\n  balance: number;\n\n  constructor(owner: string, balance: number) {\n    this.owner = owner;\n    this.balance = balance;\n  }\n\n  deposit(amount: number) {\n    this.balance += amount;\n  }\n\n  summary(): string {\n    return `${this.owner}: ${this.balance}`;\n  }\n}\n\nconst account = new Account(\"Ana\", 100);\naccount.deposit(20);\nconsole.log(account.summary());\n",
+        "tests": [
+          {
+            "output": "Ana: 120"
+          }
+        ],
+        "forbid": [
+          "ts-comments"
+        ],
+        "hints": [
+          "Follow the Product example: one line in the class body for each field, with its type.",
+          "`private owner: string;` keeps the field private. On a declared field the modifier is only a type, so Node erases it.",
+          "In the constructor, assign `this.owner = owner;` and `this.balance = balance;`."
+        ]
+      }
+    }
+  ],
+  "recap": "- TypeScript is JavaScript plus types. Node 26 strips the types and runs what is left, without checking them.\n- `tsc` checks the types. Every Run here runs `tsc` first, and a type error stops the program from running.\n- A diagnostic reads `main.ts(line,column): error TScode: message`. Fix the code it points at, not the annotation, unless the annotation is wrong.\n- `enum`, parameter properties, and namespaces with code are not erasable. `tsc` reports TS1294 and Node fails with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`, so write declared fields and plain objects instead.\n- `// @ts-nocheck` on the first line turns checking off for the whole file."
+}

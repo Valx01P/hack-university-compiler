@@ -1,0 +1,228 @@
+{
+  "id": "enums-vs-unions",
+  "title": "Enums vs Literal Unions",
+  "section": "Unions and Narrowing",
+  "summary": "See why Node can't run an enum, and replace it with literal unions and as const objects that keep the names callers use.",
+  "intro": "Many TypeScript codebases use `enum` for a fixed set of values, like statuses or log levels. Node runs TypeScript by erasing the types, and an enum isn't only a type: it also creates an object when the program runs. This lesson shows what an enum does, the erasable patterns that replace it, and how to move existing code off enums.",
+  "steps": [
+    {
+      "title": "What enums are",
+      "body": "`enum Level { Low, Medium, High }` declares a type, and it also creates a real object at runtime. Numeric members count up from 0, so `Level.Low` is 0, and the object maps back the other way as well: `Level[0]` is `\"Low\"`. A string enum like `enum Status { Active = \"active\" }` gives each member its value and has no reverse mapping.\n\nThat generated object is why an enum isn't erasable. Deleting the types would delete the object too, and every `Level.Low` would break. So Node refuses enums, and the course config's `erasableSyntaxOnly` makes `tsc` refuse them as well, with TS1294. `const enum` is refused the same way.\n\nWhat an enum stands for is a plain object, and a plain object runs anywhere:\n\n```typescript\nconst Level = { Low: 0, Medium: 1, High: 2 } as const;\nconsole.log(Level.Medium); // 1\n```\n\nAdd a type with the same name, and the object can stand in for the enum both as a value and as a type.",
+      "examples": [
+        {
+          "title": "A numeric enum",
+          "prompt": "Declare a numeric enum and print a member and its name, with the course config's checker on.",
+          "code": "enum Level {\n  Low,\n  Medium,\n  High,\n}\n\nconsole.log(Level.Medium);\nconsole.log(Level[Level.High]);\n",
+          "expect": "type-error",
+          "output": "main.ts(1,6): error TS1294: This syntax is not allowed when 'erasableSyntaxOnly' is enabled.",
+          "explanation": "The checker points at the enum's name, on line 1 at column 6, and the program never runs. A compiler that emits JavaScript, with `erasableSyntaxOnly` off, would turn the enum into an object, and the file would print `1` for `Level.Medium`, then `High` for `Level[Level.High]`, the reverse mapping from 2 back to its name. Example 3 prints the same two lines without an enum."
+        },
+        {
+          "title": "What Node does with an enum",
+          "prompt": "Turn the checker off with `// @ts-nocheck` and let Node run the same enum.",
+          "code": "// @ts-nocheck\nenum Level {\n  Low,\n  Medium,\n  High,\n}\n\nconsole.log(Level.Medium);\nconsole.log(Level[Level.High]);\n",
+          "expect": "runtime-error",
+          "output": "",
+          "errorIncludes": "SyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]: TypeScript enum is not supported in strip-only mode",
+          "explanation": "`// @ts-nocheck` switches type checking off for the file, so `tsc` reports nothing. Node then strips the types, finds the enum, and stops with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` before running a single line, which is why nothing prints. Stripping only ever deletes type syntax and never writes new code, and an enum needs new code. A project that still has enums runs through `tsx` or a `tsc` build, which turn them into JavaScript first."
+        },
+        {
+          "title": "The same thing as plain data",
+          "prompt": "Replace the enum with an `as const` object and a type of the same name, and print the same two values.",
+          "code": "const Level = { Low: 0, Medium: 1, High: 2 } as const;\ntype Level = (typeof Level)[keyof typeof Level];\n//   ^? type Level = 0 | 1 | 2\n\nfunction levelName(level: Level): string {\n  switch (level) {\n    case Level.Low:\n      return \"Low\";\n    case Level.Medium:\n      return \"Medium\";\n    case Level.High:\n      return \"High\";\n  }\n}\n\nconsole.log(Level.Medium);\nconsole.log(levelName(Level.High));\n",
+          "output": "1\nHigh",
+          "explanation": "`as const` keeps each value as a literal (`Level.Medium` has the type `1`, not `number`) and makes the object readonly. `(typeof Level)[keyof typeof Level]` is the union of its values, as the bubble shows. Giving that type the same name lets `Level` work in both places an enum did: as an annotation in `level: Level`, and as an object in `Level.High`. There is no reverse mapping, so `levelName` looks the name up itself with a `switch`."
+        }
+      ],
+      "practice": {
+        "title": "Replace an enum",
+        "prompt": "The starter declares a string enum, which the course config refuses with TS1294. Replace it so the file type-checks and prints the same lines the enum would.\n\n1. Turn `enum Status` into an exported `as const` object named `Status`, with the same names and values.\n2. Export a type named `Status` too, the union of the object's values.\n3. Leave the code that uses `Status.Active` and `Status.Archived` as it is.\n\nExpected output:\n\n```text\nWebsite: active\nOld blog: archived\nMobile app: active\nActive projects: 2\n```",
+        "kind": "fix-types",
+        "starterErrors": [
+          "TS1294"
+        ],
+        "starter": "// TODO: Node can't run an enum. Replace it with an as const object and a type of the same name.\nexport enum Status {\n  Active = \"active\",\n  Archived = \"archived\",\n}\n\ntype Project = { name: string; status: Status };\n\nconst projects: Project[] = [\n  { name: \"Website\", status: Status.Active },\n  { name: \"Old blog\", status: Status.Archived },\n  { name: \"Mobile app\", status: Status.Active },\n];\n\nfor (const project of projects) {\n  console.log(`${project.name}: ${project.status}`);\n}\n\nconst active = projects.filter((project) => project.status === Status.Active);\nconsole.log(`Active projects: ${active.length}`);\n",
+        "solution": "export const Status = {\n  Active: \"active\",\n  Archived: \"archived\",\n} as const;\nexport type Status = (typeof Status)[keyof typeof Status];\n\ntype Project = { name: string; status: Status };\n\nconst projects: Project[] = [\n  { name: \"Website\", status: Status.Active },\n  { name: \"Old blog\", status: Status.Archived },\n  { name: \"Mobile app\", status: Status.Active },\n];\n\nfor (const project of projects) {\n  console.log(`${project.name}: ${project.status}`);\n}\n\nconst active = projects.filter((project) => project.status === Status.Active);\nconsole.log(`Active projects: ${active.length}`);\n",
+        "tests": [
+          {
+            "output": "Website: active\nOld blog: archived\nMobile app: active\nActive projects: 2"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { Status } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "Status works as a type and as a value",
+              "expect": "ok",
+              "code": "const archived: Status = Status.Archived;"
+            },
+            {
+              "name": "Status only allows its own values",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const deleted: Status = \"deleted\";"
+            }
+          ]
+        },
+        "forbid": [
+          "ts-comments"
+        ],
+        "hints": [
+          "Example 3 does the same for numbers: an object with `as const`, then a type of the same name built from it.",
+          "The object keeps the enum's names and values, written as properties: `Active: \"active\"` and `Archived: \"archived\"`.",
+          "`export type Status = (typeof Status)[keyof typeof Status];` is the type. Then `status: Status` and `Status.Active` both compile again."
+        ]
+      }
+    },
+    {
+      "title": "Literal unions and as const objects",
+      "body": "A union of string literals is the simplest replacement: `type Level = \"low\" | \"medium\" | \"high\"`. Callers pass the strings themselves, the checker rejects any other string, and the editor offers the three as completions. When you also need the values at runtime, to loop over them or check input, keep them in an `as const` array and derive the type from it, so the list and the type can't drift apart.\n\nWhen code wants names like `Color.Red`, pair an `as const` object with a type of the same name:\n\n```typescript\nconst Color = { Red: \"red\", Green: \"green\" } as const;\ntype Color = (typeof Color)[keyof typeof Color];\n\nconst favorite: Color = Color.Green;\nconsole.log(favorite); // green\n```\n\nA value and a type can share a name because TypeScript keeps them apart: in `favorite: Color` the name means the type, and in `Color.Green` it means the object. Unlike a string enum, the type also accepts the plain string, so `const c: Color = \"red\"` compiles.",
+      "examples": [
+        {
+          "title": "A plain union",
+          "prompt": "Sort tasks by priority, with an `as const` array for the order and a union derived from it.",
+          "code": "const LEVELS = [\"low\", \"medium\", \"high\"] as const;\ntype Level = (typeof LEVELS)[number];\n//   ^? type Level = \"high\" | \"low\" | \"medium\"\n\ntype Task = { title: string; priority: Level };\n\nconst tasks: Task[] = [\n  { title: \"Update docs\", priority: \"low\" },\n  { title: \"Fix login bug\", priority: \"high\" },\n  { title: \"Review PR\", priority: \"medium\" },\n];\n\nconst byPriority = tasks.toSorted((a, b) => LEVELS.indexOf(b.priority) - LEVELS.indexOf(a.priority));\n\nfor (const task of byPriority) {\n  console.log(`${task.priority}: ${task.title}`);\n}\n",
+          "output": "high: Fix login bug\nmedium: Review PR\nlow: Update docs",
+          "explanation": "`LEVELS` holds the values in the order you wrote them, and `(typeof LEVELS)[number]` turns them into the union. The bubble lists the members in the checker's own order, since a union has no order, so the order lives in `LEVELS`. `LEVELS.indexOf(...)` ranks each priority, from 0 for low up to 2 for high. Subtracting `a`'s rank from `b`'s sorts high first, and `toSorted` returns a new array, leaving `tasks` as it was."
+        },
+        {
+          "title": "Same name for value and type",
+          "prompt": "Use `Color.Red` the way you would use an enum member, with an `as const` object and a type of the same name.",
+          "code": "const Color = { Red: \"red\", Green: \"green\", Blue: \"blue\" } as const;\ntype Color = (typeof Color)[keyof typeof Color];\n\nfunction hex(color: Color): string {\n  switch (color) {\n    case Color.Red:\n      return \"#ff0000\";\n    case Color.Green:\n      return \"#00ff00\";\n    case Color.Blue:\n      return \"#0000ff\";\n  }\n}\n\nconsole.log(Color.Green);\nconsole.log(hex(Color.Red));\nconsole.log(hex(\"blue\"));\n",
+          "output": "green\n#ff0000\n#0000ff",
+          "explanation": "`Color.Green` is just the string `\"green\"`, so that is what prints. `hex` takes a `Color`, the union of the three strings, so it accepts `Color.Red` and the plain string `\"blue\"` alike. A string enum would reject `hex(\"blue\")` with TS2345, because an enum member isn't interchangeable with its string. That difference makes literal unions easier to use across a codebase, in tests, and in JSON. The `switch` covers every member, so no `return` is needed after it."
+        },
+        {
+          "title": "What changes for callers",
+          "prompt": "See what callers get from a string union: readable JSON, the same exhaustive switch, and a list of the values.",
+          "code": "const Priority = { Low: \"low\", Medium: \"medium\", High: \"high\" } as const;\ntype Priority = (typeof Priority)[keyof typeof Priority];\n\ntype Ticket = { id: number; priority: Priority };\n\nfunction responseHours(priority: Priority): number {\n  switch (priority) {\n    case Priority.Low:\n      return 72;\n    case Priority.Medium:\n      return 24;\n    case Priority.High:\n      return 4;\n    default: {\n      const unreachable: never = priority;\n      throw new Error(`Unknown priority: ${unreachable}`);\n    }\n  }\n}\n\nconst ticket: Ticket = { id: 7, priority: Priority.High };\nconsole.log(JSON.stringify(ticket));\nconsole.log(`Respond within ${responseHours(ticket.priority)} hours`);\nconsole.log(Object.values(Priority).join(\", \"));\n",
+          "output": "{\"id\":7,\"priority\":\"high\"}\nRespond within 4 hours\nlow, medium, high",
+          "explanation": "With a numeric enum, this ticket would serialize as `{\"id\":7,\"priority\":2}`, and anyone reading the JSON, a log, or a database row would have to know what 2 means. A string value explains itself. The `never` check works exactly as it does for discriminated unions: add a member to `Priority` and `responseHours` stops compiling until it has a case. `Object.values` lists the values in the order you wrote them, which is handy for menus and validation, and when you type a `Priority`, the editor offers the three strings as completions."
+        }
+      ],
+      "practice": {
+        "title": "Log levels",
+        "prompt": "Turn the starter's log levels into an `as const` object with a type of the same name, then decide which messages get logged.\n\n1. Add `as const` to the exported `LogLevel` object.\n2. Replace `type LogLevel = string` with the union of the object's values, exported under the same name.\n3. Make `shouldLog(level, min)` return `true` when `level` comes at or after `min` in `ORDER`, which runs from debug to error.\n4. Check also calls `shouldLog` with other levels.\n\nExpected output:\n\n```text\ndebug at min info: false\ninfo at min info: true\nerror at min warn: true\nwarn at min error: false\n```",
+        "starter": "// TODO: make LogLevel a const object\nexport const LogLevel = {\n  Debug: \"debug\",\n  Info: \"info\",\n  Warn: \"warn\",\n  Error: \"error\",\n};\n\n// TODO: make the LogLevel type the union of the object's values\nexport type LogLevel = string;\n\nconst ORDER: readonly LogLevel[] = [LogLevel.Debug, LogLevel.Info, LogLevel.Warn, LogLevel.Error];\n\nexport function shouldLog(level: LogLevel, min: LogLevel): boolean {\n  // TODO: compare the positions of level and min in ORDER\n  return false;\n}\n\nconst checks: [LogLevel, LogLevel][] = [\n  [LogLevel.Debug, LogLevel.Info],\n  [LogLevel.Info, LogLevel.Info],\n  [LogLevel.Error, LogLevel.Warn],\n  [LogLevel.Warn, LogLevel.Error],\n];\n\nfor (const [level, min] of checks) {\n  console.log(`${level} at min ${min}: ${shouldLog(level, min)}`);\n}\n",
+        "solution": "export const LogLevel = {\n  Debug: \"debug\",\n  Info: \"info\",\n  Warn: \"warn\",\n  Error: \"error\",\n} as const;\n\nexport type LogLevel = (typeof LogLevel)[keyof typeof LogLevel];\n\nconst ORDER: readonly LogLevel[] = [LogLevel.Debug, LogLevel.Info, LogLevel.Warn, LogLevel.Error];\n\nexport function shouldLog(level: LogLevel, min: LogLevel): boolean {\n  return ORDER.indexOf(level) >= ORDER.indexOf(min);\n}\n\nconst checks: [LogLevel, LogLevel][] = [\n  [LogLevel.Debug, LogLevel.Info],\n  [LogLevel.Info, LogLevel.Info],\n  [LogLevel.Error, LogLevel.Warn],\n  [LogLevel.Warn, LogLevel.Error],\n];\n\nfor (const [level, min] of checks) {\n  console.log(`${level} at min ${min}: ${shouldLog(level, min)}`);\n}\n",
+        "tests": [
+          {
+            "output": "debug at min info: false\ninfo at min info: true\nerror at min warn: true\nwarn at min error: false"
+          },
+          {
+            "harness": "{{code}}\nconsole.log(`error at min debug: ${shouldLog(LogLevel.Error, LogLevel.Debug)}`);\nconsole.log(`debug at min debug: ${shouldLog(\"debug\", \"debug\")}`);\nconsole.log(`info at min warn: ${shouldLog(\"info\", \"warn\")}`);",
+            "output": "debug at min info: false\ninfo at min info: true\nerror at min warn: true\nwarn at min error: false\nerror at min debug: true\ndebug at min debug: true\ninfo at min warn: false"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { LogLevel, shouldLog } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects an unknown level",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "shouldLog(\"trace\", \"info\");"
+            },
+            {
+              "name": "accepts a member and a plain string",
+              "expect": "ok",
+              "code": "shouldLog(LogLevel.Warn, \"info\");"
+            },
+            {
+              "name": "keeps each value as a literal",
+              "expect": "ok",
+              "code": "const warn: \"warn\" = LogLevel.Warn;"
+            },
+            {
+              "name": "makes the levels read-only",
+              "expect": "error",
+              "errorCode": "TS2540",
+              "code": "LogLevel.Warn = \"loud\";"
+            }
+          ]
+        },
+        "hints": [
+          "`as const` goes right after the object's closing brace. The type is `(typeof LogLevel)[keyof typeof LogLevel]`, as in the colors example.",
+          "`ORDER.indexOf(level)` is a level's position: 0 for debug up to 3 for error.",
+          "Return `ORDER.indexOf(level) >= ORDER.indexOf(min)`: a message is logged when its level is at least as severe as the minimum."
+        ]
+      }
+    },
+    {
+      "title": "Moving code off enums",
+      "body": "A migration keeps the names callers already use, so most code only changes where the enum is declared: it becomes an `as const` object and a type of the same name. Three patterns cover the rest.\n\n- **Bit flags.** Powers of two become an `as const` object of numbers. `|` (bitwise OR) combines flags into one number, and `&` (bitwise AND) tests whether a flag is in it.\n- **Strings from outside.** Input and JSON arrive as `string`, so a type guard checks them against the list of values first.\n- **Reverse lookups.** Code that read a name back with `Level[2]` finds it with `Object.entries` instead.\n\n```typescript\nconst Flag = { A: 1, B: 2 } as const;\nconst both = Flag.A | Flag.B;\nconsole.log(both, (both & Flag.B) !== 0); // 3 true\n```\n\nSkip `const enum` too. The compiler pastes its values into the code that uses it, so it needs a compiler just as `enum` does, and this config refuses it with TS1294. Under `isolatedModules`, which compiles one file at a time the way Node does, a `const enum` from a library is an error too (TS2748). You'll still meet enums in older codebases and in frameworks like Angular and NestJS, which build with a compiler. Code that can't migrate yet runs with `tsx`, as a later lesson shows.",
+      "examples": [
+        {
+          "title": "Bit flags",
+          "prompt": "Combine permissions into one number with `|`, and test them with `&`.",
+          "code": "const Permission = { Read: 1, Write: 2, Delete: 4 } as const;\ntype PermissionValue = (typeof Permission)[keyof typeof Permission];\n//   ^? type PermissionValue = 1 | 2 | 4\n\nfunction can(perms: number, p: PermissionValue): boolean {\n  return (perms & p) !== 0;\n}\n\nconst viewer = Permission.Read;\nconst editor = Permission.Read | Permission.Write;\nconst admin = editor | Permission.Delete;\n\nconsole.log(`editor mask: ${editor}`);\nconsole.log(`editor can write: ${can(editor, Permission.Write)}`);\nconsole.log(`viewer can delete: ${can(viewer, Permission.Delete)}`);\nconsole.log(`admin can delete: ${can(admin, Permission.Delete)}`);\n",
+          "output": "editor mask: 3\neditor can write: true\nviewer can delete: false\nadmin can delete: true",
+          "explanation": "Each flag is its own bit: 1 is binary 001, 2 is 010, and 4 is 100. `Permission.Read | Permission.Write` turns on both bits, giving 3 (011). `perms & p` keeps only the bits both numbers have, so it is non-zero exactly when `p`'s bit is on. A combined value like 3 is a plain `number` and not one of the flags, so the single flags get a type of their own, `PermissionValue`, while `can` takes the combination as `perms: number`."
+        },
+        {
+          "title": "Parsing into a union",
+          "prompt": "Check strings from standard input against the list of levels before using them as a `Level`.",
+          "code": "import { readFileSync } from \"node:fs\";\n\nconst LEVELS = [\"low\", \"medium\", \"high\"] as const;\ntype Level = (typeof LEVELS)[number];\n\nfunction isLevel(x: string): x is Level {\n  return LEVELS.some((level) => level === x);\n}\n\nconst lines = readFileSync(0, \"utf8\").trim().split(\"\\n\");\n\nfor (const line of lines) {\n  const text = line.trim().toLowerCase();\n  if (isLevel(text)) {\n    console.log(`ok: ${text}`);\n    //                 ^? const text: \"high\" | \"low\" | \"medium\"\n  } else {\n    console.log(`not a level: ${line}`);\n  }\n}\n",
+          "stdin": "high\nLow\nurgent\nmedium\n",
+          "output": "ok: high\nok: low\nnot a level: urgent\nok: medium",
+          "explanation": "Everything read from input is a `string`, and a `string` isn't a `Level` until you check it. `isLevel` compares `x` with each allowed value, and its return type `x is Level` makes it a type guard, so inside the `if` the checker treats `text` as a `Level`, as the bubble shows. `LEVELS.includes(x)` looks like the obvious check, but `includes` on this array only takes a `Level`, so it rejects a plain `string`:\n\n```typescript error\nconst LEVELS = [\"low\", \"medium\", \"high\"] as const;\n\nfunction isLevel(x: string): boolean {\n  return LEVELS.includes(x);\n}\n\nconsole.log(isLevel(\"low\"));\n```\n\n`some` with `===` compares the string with each level, which the checker allows."
+        },
+        {
+          "title": "Reverse lookup",
+          "prompt": "Find the name of a status code, the way an enum's reverse mapping did.",
+          "code": "const HttpStatus = { Ok: 200, Created: 201, NotFound: 404, ServerError: 500 } as const;\n\nfunction statusName(code: number): string {\n  const entry = Object.entries(HttpStatus).find(([, value]) => value === code);\n  return entry ? entry[0] : \"Unknown\";\n}\n\nconsole.log(statusName(404));\nconsole.log(statusName(HttpStatus.Created));\nconsole.log(statusName(418));\n",
+          "output": "NotFound\nCreated\nUnknown",
+          "explanation": "A numeric enum maps values back to names, so `HttpStatus[404]` gave `\"NotFound\"`. An `as const` object only maps names to values. `Object.entries` lists its `[name, value]` pairs, and `find` returns the first pair whose value matches, or `undefined` when none does. `statusName` takes any `number` because codes arrive from outside, and 418 isn't in the object, so it prints `Unknown`."
+        }
+      ],
+      "practice": {
+        "title": "Permissions",
+        "prompt": "Store a user's permissions as bit flags in a single number.\n\n1. Make the exported `PermissionValue` type the union of `Permission`'s values.\n2. Make `grant(perms, p)` return `perms` with `p`'s bit turned on, using `|`.\n3. Make `has(perms, p)` return whether `p`'s bit is on in `perms`, using `&`.\n4. Check also calls `grant` and `has` with other flags.\n\nExpected output:\n\n```text\nread: true\nwrite: false\ndelete: true\nmask: 5\n```",
+        "starter": "export const Permission = { Read: 1, Write: 2, Delete: 4 } as const;\n\n// TODO: make PermissionValue the union of Permission's values\nexport type PermissionValue = number;\n\nexport function grant(perms: number, p: PermissionValue): number {\n  // TODO: turn on p's bit with |\n  return perms;\n}\n\nexport function has(perms: number, p: PermissionValue): boolean {\n  // TODO: test p's bit with &\n  return false;\n}\n\nlet perms = 0;\nperms = grant(perms, Permission.Read);\nperms = grant(perms, Permission.Delete);\n\nconsole.log(`read: ${has(perms, Permission.Read)}`);\nconsole.log(`write: ${has(perms, Permission.Write)}`);\nconsole.log(`delete: ${has(perms, Permission.Delete)}`);\nconsole.log(`mask: ${perms}`);\n",
+        "solution": "export const Permission = { Read: 1, Write: 2, Delete: 4 } as const;\n\nexport type PermissionValue = (typeof Permission)[keyof typeof Permission];\n\nexport function grant(perms: number, p: PermissionValue): number {\n  return perms | p;\n}\n\nexport function has(perms: number, p: PermissionValue): boolean {\n  return (perms & p) !== 0;\n}\n\nlet perms = 0;\nperms = grant(perms, Permission.Read);\nperms = grant(perms, Permission.Delete);\n\nconsole.log(`read: ${has(perms, Permission.Read)}`);\nconsole.log(`write: ${has(perms, Permission.Write)}`);\nconsole.log(`delete: ${has(perms, Permission.Delete)}`);\nconsole.log(`mask: ${perms}`);\n",
+        "tests": [
+          {
+            "output": "read: true\nwrite: false\ndelete: true\nmask: 5"
+          },
+          {
+            "harness": "{{code}}\nconsole.log(`all three: ${grant(grant(grant(0, Permission.Read), Permission.Write), Permission.Delete)}`);\nconsole.log(`writer can read: ${has(grant(0, Permission.Write), Permission.Read)}`);\nconsole.log(`7 can write: ${has(7, Permission.Write)}`);",
+            "output": "read: true\nwrite: false\ndelete: true\nmask: 5\nall three: 7\nwriter can read: false\n7 can write: true"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { Permission, grant, has } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects a combined mask as one flag",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "has(0, 3);"
+            },
+            {
+              "name": "accepts a single flag",
+              "expect": "ok",
+              "code": "has(0, Permission.Write);"
+            },
+            {
+              "name": "rejects a flag that doesn't exist",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "grant(0, 8);"
+            },
+            {
+              "name": "returns the new mask as a number",
+              "expect": "ok",
+              "code": "const mask: number = grant(0, Permission.Read);"
+            }
+          ]
+        },
+        "hints": [
+          "`PermissionValue` is built the same way as in the bit flags example: `(typeof Permission)[keyof typeof Permission]`.",
+          "`perms | p` turns on `p`'s bit and keeps every bit that was already on.",
+          "`(perms & p) !== 0` is `true` exactly when `p`'s bit is on in `perms`."
+        ]
+      }
+    }
+  ],
+  "recap": "- An `enum` creates an object at runtime, so it isn't erasable: `tsc` refuses it with TS1294 under `erasableSyntaxOnly`, and Node with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`.\n- A union of string literals is the simplest replacement. Keep the values in an `as const` array and derive the type with `(typeof LEVELS)[number]`.\n- For names like `Color.Red`, pair an `as const` object with `type Color = (typeof Color)[keyof typeof Color]`.\n- Literal unions accept plain strings, serialize readably, and work with exhaustive `never` checks.\n- Bit flags become `as const` numbers, combined with `|` and tested with `&`.\n- Check strings from outside with a type guard before using them as the union, and look names up with `Object.entries`.\n- `const enum` needs a compiler too. `tsx` runs code that can't migrate yet."
+}

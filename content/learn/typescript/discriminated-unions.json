@@ -1,0 +1,210 @@
+{
+  "id": "discriminated-unions",
+  "title": "Discriminated Unions and Exhaustive Checks",
+  "section": "Unions and Narrowing",
+  "summary": "Tag each member of a union with a literal kind, switch on it, and let never turn every forgotten case into a type error.",
+  "intro": "You can already narrow a union with `typeof`, `in`, and type guards. Unions of objects have a simpler, sturdier pattern: give every member the same property with its own literal value, then check that property. This lesson shows how to switch on it, how to make the checker prove that every case is handled, and how to model states so that impossible combinations don't compile.",
+  "steps": [
+    {
+      "title": "Tagged unions",
+      "body": "A **discriminated union** is a union of object types that share one property, the tag, with a different literal type in each member. `kind` is the usual name for it, and `type` and `status` are common too. Checking the tag narrows the value to one member, so that member's own fields become usable:\n\n```typescript\ntype Shape =\n  | { kind: \"circle\"; radius: number }\n  | { kind: \"square\"; side: number };\n\nfunction area(shape: Shape): number {\n  if (shape.kind === \"circle\") {\n    return Math.PI * shape.radius ** 2;\n    //               ^? (parameter) shape: { kind: \"circle\"; radius: number; }\n  }\n  return shape.side ** 2;\n  //     ^? (parameter) shape: { kind: \"square\"; side: number; }\n}\n\nconsole.log(area({ kind: \"square\", side: 3 })); // 9\n```\n\nBefore the check, the tag is the only field every member has, so reading `shape.radius` there is a type error. A `switch` on the tag narrows the same way in each `case`, and it reads better once a union has three or more members. A tag also works when two members have the same fields, where an `in` check can't tell them apart.",
+      "examples": [
+        {
+          "title": "Shapes",
+          "prompt": "Compute the area of each shape by switching on its `kind`.",
+          "code": "type Shape =\n  | { kind: \"circle\"; radius: number }\n  | { kind: \"rect\"; width: number; height: number };\n\nfunction area(shape: Shape): number {\n  switch (shape.kind) {\n    case \"circle\":\n      return Math.PI * shape.radius ** 2;\n    case \"rect\":\n      return shape.width * shape.height;\n  }\n}\n\nconst shapes: Shape[] = [\n  { kind: \"circle\", radius: 2 },\n  { kind: \"rect\", width: 3, height: 4 },\n  { kind: \"circle\", radius: 0.5 },\n];\n\nfor (const shape of shapes) {\n  console.log(`${shape.kind}: ${area(shape).toFixed(2)}`);\n}\n",
+          "output": "circle: 12.57\nrect: 12.00\ncircle: 0.79",
+          "explanation": "In `case \"circle\"` the checker narrows `shape` to the circle member, so `shape.radius` type-checks there. In `case \"rect\"` it allows `width` and `height` instead. Every case returns and the `switch` covers both kinds, so TypeScript knows the end of `area` can't be reached and doesn't ask for a `return` after the `switch`. The objects in `shapes` are checked against `Shape` too, so a circle without a `radius` wouldn't compile."
+        },
+        {
+          "title": "Payment methods",
+          "prompt": "Print a receipt line for a card, a PayPal account, and a bank transfer.",
+          "code": "type Payment =\n  | { kind: \"card\"; last4: string }\n  | { kind: \"paypal\"; email: string }\n  | { kind: \"bank\"; iban: string };\n\nfunction receiptLine(payment: Payment): string {\n  switch (payment.kind) {\n    case \"card\":\n      return `Paid by card ending ${payment.last4}`;\n    case \"paypal\":\n      return `Paid with PayPal (${payment.email})`;\n    case \"bank\":\n      return `Paid by bank transfer from ${payment.iban.slice(0, 4)}...${payment.iban.slice(-4)}`;\n  }\n}\n\nconst payments: Payment[] = [\n  { kind: \"card\", last4: \"4242\" },\n  { kind: \"paypal\", email: \"ada@example.com\" },\n  { kind: \"bank\", iban: \"GB33BUKB20201555555555\" },\n];\n\nfor (const payment of payments) {\n  console.log(receiptLine(payment));\n}\n",
+          "output": "Paid by card ending 4242\nPaid with PayPal (ada@example.com)\nPaid by bank transfer from GB33...5555",
+          "explanation": "Each member carries only what its kind needs: a card has `last4`, PayPal an `email`, and a bank transfer an `iban`. Inside each `case` only that member's fields are available, so reading `payment.email` in the card case would be a type error. The bank case shows just the first and last four characters of the IBAN, with `slice(0, 4)` and `slice(-4)`."
+        },
+        {
+          "title": "API results",
+          "prompt": "Handle results that carry either a user or an error message, tagged by `ok`.",
+          "code": "type User = { id: number; name: string };\n\ntype UserResult =\n  | { ok: true; data: User }\n  | { ok: false; error: string };\n\nconst results: UserResult[] = [\n  { ok: true, data: { id: 1, name: \"Ada\" } },\n  { ok: false, error: \"user 7 not found\" },\n  { ok: true, data: { id: 2, name: \"Grace\" } },\n];\n\nfor (const result of results) {\n  if (result.ok) {\n    console.log(`Loaded ${result.data.name} (#${result.data.id})`);\n  } else {\n    console.log(`Failed: ${result.error}`);\n  }\n}\n",
+          "output": "Loaded Ada (#1)\nFailed: user 7 not found\nLoaded Grace (#2)",
+          "explanation": "`true` and `false` are literal types too, so `ok` works as a tag. `if (result.ok)` narrows to the success member, where `data` exists, and the `else` branch gets the failure member with its `error`. A result can never have both a user and an error, or neither. This is the Result shape that the Results Instead of Exceptions lesson builds on."
+        }
+      ],
+      "practice": {
+        "title": "Notifications",
+        "prompt": "Model three kinds of notification as a discriminated union, and describe each one in a line.\n\n1. Add two members to the exported `Notification` union: `{ kind: \"sms\"; phone: string; text: string }` and `{ kind: \"push\"; deviceId: string; title: string }`.\n2. Add the sms and push notifications from the TODO comments to `inbox`.\n3. Make `describe(n: Notification): string` switch on `n.kind` and return `Email to <to>: <subject>`, `SMS to <phone>: <text>`, or `Push to <deviceId>: <title>`.\n4. Check also calls `describe` on notifications that aren't in `inbox`, so build every line from the fields.\n\nExpected output:\n\n```text\nEmail to ada@example.com: Your order shipped\nSMS to +44 7700 900123: Code 481516\nPush to pixel-7: Back in stock\n```",
+        "starter": "export type Notification =\n  | { kind: \"email\"; to: string; subject: string };\n// TODO: add an sms member (phone, text) and a push member (deviceId, title)\n\nexport function describe(n: Notification): string {\n  // TODO: switch on n.kind and return one line for each kind\n  return \"\";\n}\n\nconst inbox: Notification[] = [\n  { kind: \"email\", to: \"ada@example.com\", subject: \"Your order shipped\" },\n  // TODO: add { kind: \"sms\", phone: \"+44 7700 900123\", text: \"Code 481516\" }\n  // TODO: add { kind: \"push\", deviceId: \"pixel-7\", title: \"Back in stock\" }\n];\n\nfor (const n of inbox) {\n  console.log(describe(n));\n}\n",
+        "solution": "export type Notification =\n  | { kind: \"email\"; to: string; subject: string }\n  | { kind: \"sms\"; phone: string; text: string }\n  | { kind: \"push\"; deviceId: string; title: string };\n\nexport function describe(n: Notification): string {\n  switch (n.kind) {\n    case \"email\":\n      return `Email to ${n.to}: ${n.subject}`;\n    case \"sms\":\n      return `SMS to ${n.phone}: ${n.text}`;\n    case \"push\":\n      return `Push to ${n.deviceId}: ${n.title}`;\n  }\n}\n\nconst inbox: Notification[] = [\n  { kind: \"email\", to: \"ada@example.com\", subject: \"Your order shipped\" },\n  { kind: \"sms\", phone: \"+44 7700 900123\", text: \"Code 481516\" },\n  { kind: \"push\", deviceId: \"pixel-7\", title: \"Back in stock\" },\n];\n\nfor (const n of inbox) {\n  console.log(describe(n));\n}\n",
+        "tests": [
+          {
+            "output": "Email to ada@example.com: Your order shipped\nSMS to +44 7700 900123: Code 481516\nPush to pixel-7: Back in stock"
+          },
+          {
+            "harness": "{{code}}\nfor (const n of JSON.parse('[{\"kind\":\"push\",\"deviceId\":\"tab-3\",\"title\":\"Sale ends today\"},{\"kind\":\"sms\",\"phone\":\"+1 555 0100\",\"text\":\"Your table is ready\"},{\"kind\":\"email\",\"to\":\"grace@example.com\",\"subject\":\"Invoice 1042\"}]')) console.log(describe(n));",
+            "output": "Email to ada@example.com: Your order shipped\nSMS to +44 7700 900123: Code 481516\nPush to pixel-7: Back in stock\nPush to tab-3: Sale ends today\nSMS to +1 555 0100: Your table is ready\nEmail to grace@example.com: Invoice 1042"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { describe } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects an sms with an email address",
+              "expect": "error",
+              "errorCode": "TS2353",
+              "code": "describe({ kind: \"sms\", to: \"a@b.c\", text: \"Hi\" });"
+            },
+            {
+              "name": "accepts a push notification",
+              "expect": "ok",
+              "code": "describe({ kind: \"push\", deviceId: \"d1\", title: \"Hi\" });"
+            },
+            {
+              "name": "rejects a push notification without a title",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "describe({ kind: \"push\", deviceId: \"d1\" });"
+            },
+            {
+              "name": "returns a string",
+              "expect": "ok",
+              "code": "const line: string = describe({ kind: \"email\", to: \"a@b.c\", subject: \"Hi\" });"
+            }
+          ]
+        },
+        "hints": [
+          "Each new member is an object type with its own `kind` literal, added to the union with `|`, like the members of `Payment` in the payment methods example.",
+          "In `case \"sms\":` the checker knows `n` has `phone` and `text`, and in `case \"push\":` it knows `deviceId` and `title`.",
+          "The sms case returns `SMS to ${n.phone}: ${n.text}` as a template string. The other two cases follow the same pattern."
+        ]
+      }
+    },
+    {
+      "title": "Exhaustiveness with never",
+      "body": "A `switch` that handles every member is complete today. The trouble comes later, when someone adds a member to the union and every `switch` that doesn't know about it quietly misses a case. You can make the checker find those for you. Once every case is handled, the value that reaches `default` has the type `never`, so you can pass it to a helper that only takes `never`:\n\n```typescript\ntype Shape =\n  | { kind: \"circle\"; radius: number }\n  | { kind: \"square\"; side: number };\n\nfunction assertNever(value: never): never {\n  throw new Error(`Unexpected value: ${JSON.stringify(value)}`);\n}\n\nfunction area(shape: Shape): number {\n  switch (shape.kind) {\n    case \"circle\":\n      return Math.PI * shape.radius ** 2;\n    case \"square\":\n      return shape.side ** 2;\n    default:\n      return assertNever(shape);\n      //                 ^? (parameter) shape: never\n  }\n}\n\nconsole.log(area({ kind: \"square\", side: 3 })); // 9\n```\n\nAdd a member and forget its case, and the value in `default` is that new member, which isn't assignable to `never`. The call to `assertNever` stops compiling with TS2345, in every `switch` that needs the new case. Assigning to a variable works the same way: `const unreachable: never = shape` fails with TS2322. The `throw` covers values the checker never saw, such as JSON from a newer server.",
+      "examples": [
+        {
+          "title": "The never check",
+          "prompt": "Guard `area` with a `never` variable in `default`, so a new shape can't slip past it.",
+          "code": "type Shape =\n  | { kind: \"circle\"; radius: number }\n  | { kind: \"rect\"; width: number; height: number };\n\nfunction area(shape: Shape): number {\n  switch (shape.kind) {\n    case \"circle\":\n      return Math.PI * shape.radius ** 2;\n    case \"rect\":\n      return shape.width * shape.height;\n    default: {\n      const unreachable: never = shape;\n      throw new Error(`Unknown shape: ${JSON.stringify(unreachable)}`);\n    }\n  }\n}\n\nconsole.log(area({ kind: \"circle\", radius: 1 }).toFixed(2));\nconsole.log(area({ kind: \"rect\", width: 2, height: 5 }));\n",
+          "output": "3.14\n10",
+          "explanation": "Both kinds have a case, so `shape` is `never` in `default` and the assignment compiles. The program runs, and the `throw` never happens. Now add a triangle to the union and nothing else:\n\n```typescript error\ntype Shape =\n  | { kind: \"circle\"; radius: number }\n  | { kind: \"rect\"; width: number; height: number }\n  | { kind: \"triangle\"; base: number; height: number };\n\nfunction area(shape: Shape): number {\n  switch (shape.kind) {\n    case \"circle\":\n      return Math.PI * shape.radius ** 2;\n    case \"rect\":\n      return shape.width * shape.height;\n    default: {\n      const unreachable: never = shape;\n      throw new Error(`Unknown shape: ${JSON.stringify(unreachable)}`);\n    }\n  }\n}\n\nconsole.log(area({ kind: \"triangle\", base: 6, height: 2 }));\n```\n\nThe triangle reaches `default`, and the checker stops on the assignment: `Type '{ kind: \"triangle\"; base: number; height: number; }' is not assignable to type 'never'.` Add a `case \"triangle\"` that returns `shape.base * shape.height / 2`, and it compiles again."
+        },
+        {
+          "title": "The assertNever helper",
+          "prompt": "Call one `assertNever` helper from `default`, and see what it does with data the types never allowed.",
+          "code": "type Shape =\n  | { kind: \"circle\"; radius: number }\n  | { kind: \"rect\"; width: number; height: number };\n\nfunction assertNever(value: never): never {\n  throw new Error(`Unexpected value: ${JSON.stringify(value)}`);\n}\n\nfunction area(shape: Shape): number {\n  switch (shape.kind) {\n    case \"circle\":\n      return Math.PI * shape.radius ** 2;\n    case \"rect\":\n      return shape.width * shape.height;\n    default:\n      return assertNever(shape);\n  }\n}\n\n// JSON.parse returns any, so the checker trusts this data blindly.\nconst shapes: Shape[] = JSON.parse('[{\"kind\":\"rect\",\"width\":2,\"height\":5},{\"kind\":\"hexagon\",\"side\":1}]');\n\nfor (const shape of shapes) {\n  try {\n    console.log(`${shape.kind}: ${area(shape)}`);\n  } catch (err) {\n    console.log(err instanceof Error ? err.message : String(err));\n  }\n}\n",
+          "output": "rect: 10\nUnexpected value: {\"kind\":\"hexagon\",\"side\":1}",
+          "explanation": "`assertNever` does the same compile-time job as the `never` variable, and you write it once and call it from every `switch`. Its other job happens at runtime. `JSON.parse` returns `any`, so assigning its result to `Shape[]` compiles even though the second shape is a hexagon. That is the unchecked data the lesson on unknown, any, and never warns about. The hexagon reaches `default`, and `assertNever` throws with the value in its message instead of returning a wrong area. Validating the JSON first, as the zod lessons do, is the real fix, and the `throw` is the last line of defense."
+        },
+        {
+          "title": "Without the never check",
+          "prompt": "See what happens when `default` returns a fallback value and the union grows.",
+          "code": "type Shape =\n  | { kind: \"circle\"; radius: number }\n  | { kind: \"rect\"; width: number; height: number }\n  | { kind: \"triangle\"; base: number; height: number };\n\nfunction area(shape: Shape): number {\n  switch (shape.kind) {\n    case \"circle\":\n      return Math.PI * shape.radius ** 2;\n    case \"rect\":\n      return shape.width * shape.height;\n    default:\n      return 0;\n  }\n}\n\nconst shapes: Shape[] = [\n  { kind: \"rect\", width: 3, height: 4 },\n  { kind: \"triangle\", base: 6, height: 2 },\n];\n\nfor (const shape of shapes) {\n  console.log(`${shape.kind}: ${area(shape)}`);\n}\n",
+          "output": "rect: 12\ntriangle: 0",
+          "explanation": "Someone added `triangle` to `Shape` but never updated `area`. The `default` branch returns 0, so the file type-checks, the program runs, and the wrong answer only shows up when someone notices a triangle with no area. With `assertNever(shape)` in `default`, this file wouldn't compile until `area` handles triangles. A fallback in `default` still suits open-ended values, like any string, but not a union you control."
+        }
+      ],
+      "practice": {
+        "title": "New shipping method",
+        "prompt": "`ShippingMethod` just gained a locker member, and `costCents` no longer type-checks. Handle the new method so the program runs again.\n\n1. Read the error: `assertNever(method)` now receives the locker member.\n2. Add a `case \"locker\":` to `costCents` that returns 299, a flat $2.99.\n3. Keep `assertNever` in `default`, so the next new method is caught the same way.\n\nExpected output:\n\n```text\nstandard: $6.99\nexpress: $13.99\npickup: $0.00\nlocker: $2.99\n```",
+        "kind": "fix-types",
+        "starterErrors": [
+          "TS2345"
+        ],
+        "starter": "// TODO: costCents no longer type-checks. Read the error, then handle the new method.\nexport type ShippingMethod =\n  | { kind: \"standard\"; weightKg: number }\n  | { kind: \"express\"; weightKg: number }\n  | { kind: \"pickup\"; storeId: string }\n  | { kind: \"locker\"; lockerId: string };\n\nfunction assertNever(value: never): never {\n  throw new Error(`Unexpected value: ${JSON.stringify(value)}`);\n}\n\nexport function costCents(method: ShippingMethod): number {\n  switch (method.kind) {\n    case \"standard\":\n      return 499 + Math.ceil(method.weightKg) * 100;\n    case \"express\":\n      return 999 + Math.ceil(method.weightKg) * 200;\n    case \"pickup\":\n      return 0;\n    default:\n      return assertNever(method);\n  }\n}\n\nconst methods: ShippingMethod[] = [\n  { kind: \"standard\", weightKg: 1.5 },\n  { kind: \"express\", weightKg: 2 },\n  { kind: \"pickup\", storeId: \"store-12\" },\n  { kind: \"locker\", lockerId: \"LCK-0042\" },\n];\n\nfor (const method of methods) {\n  console.log(`${method.kind}: $${(costCents(method) / 100).toFixed(2)}`);\n}\n",
+        "solution": "export type ShippingMethod =\n  | { kind: \"standard\"; weightKg: number }\n  | { kind: \"express\"; weightKg: number }\n  | { kind: \"pickup\"; storeId: string }\n  | { kind: \"locker\"; lockerId: string };\n\nfunction assertNever(value: never): never {\n  throw new Error(`Unexpected value: ${JSON.stringify(value)}`);\n}\n\nexport function costCents(method: ShippingMethod): number {\n  switch (method.kind) {\n    case \"standard\":\n      return 499 + Math.ceil(method.weightKg) * 100;\n    case \"express\":\n      return 999 + Math.ceil(method.weightKg) * 200;\n    case \"pickup\":\n      return 0;\n    case \"locker\":\n      return 299;\n    default:\n      return assertNever(method);\n  }\n}\n\nconst methods: ShippingMethod[] = [\n  { kind: \"standard\", weightKg: 1.5 },\n  { kind: \"express\", weightKg: 2 },\n  { kind: \"pickup\", storeId: \"store-12\" },\n  { kind: \"locker\", lockerId: \"LCK-0042\" },\n];\n\nfor (const method of methods) {\n  console.log(`${method.kind}: $${(costCents(method) / 100).toFixed(2)}`);\n}\n",
+        "tests": [
+          {
+            "output": "standard: $6.99\nexpress: $13.99\npickup: $0.00\nlocker: $2.99"
+          }
+        ],
+        "forbid": [
+          "as",
+          "ts-comments"
+        ],
+        "hints": [
+          "The error is on the `assertNever(method)` line. No case handles lockers, so the locker member is what reaches `default`.",
+          "Add `case \"locker\":` above `default`, the same way the pickup case is written.",
+          "The new case is `return 299;`. Then nothing but `never` is left for `default`, and the error goes away."
+        ]
+      }
+    },
+    {
+      "title": "Modeling state",
+      "body": "Put each field only on the states where it exists. A shipped order has a tracking number and a pending order doesn't, so `trackingNumber` belongs to the shipped member alone. Then no code can read a tracking number from an order that hasn't shipped, and no value can be shipped and cancelled at once. Give each state a named type and build the union from them:\n\n```typescript types\ntype PendingOrder = { status: \"pending\"; id: string };\ntype PaidOrder = { status: \"paid\"; id: string; paidAt: string };\ntype Order = PendingOrder | PaidOrder;\n```\n\nA transition is a function from the state it starts in to the state it leads to, like `ship(order: PaidOrder, trackingNumber: string): ShippedOrder`. Passing an order in any other state is a type error, so the rule that only paid orders ship holds everywhere `ship` is called, not just where someone remembered an `if`.",
+      "examples": [
+        {
+          "title": "Fetch state",
+          "prompt": "Render the four states of a data fetch as text, with data and errors only where they exist.",
+          "code": "type FetchState =\n  | { status: \"idle\" }\n  | { status: \"loading\" }\n  | { status: \"success\"; data: string[] }\n  | { status: \"error\"; message: string };\n\nfunction render(state: FetchState): string {\n  switch (state.status) {\n    case \"idle\":\n      return \"Press Load to start\";\n    case \"loading\":\n      return \"Loading...\";\n    case \"success\":\n      return `${state.data.length} items: ${state.data.join(\", \")}`;\n    case \"error\":\n      return `Error: ${state.message}`;\n  }\n}\n\nconst states: FetchState[] = [\n  { status: \"idle\" },\n  { status: \"loading\" },\n  { status: \"success\", data: [\"tea\", \"milk\", \"bread\"] },\n  { status: \"error\", message: \"network down\" },\n];\n\nfor (const state of states) {\n  console.log(render(state));\n}\n",
+          "output": "Press Load to start\nLoading...\n3 items: tea, milk, bread\nError: network down",
+          "explanation": "Compare this with one object of optional fields, `{ loading: boolean; data?: string[]; error?: string }`. That type allows `loading: true` with an error, or data and an error at once, and every reader has to guess which fields to trust. With one member per state, `data` exists only on success and `message` only on error, so `render` can't read the wrong one, and `idle` and `loading` carry nothing at all."
+        },
+        {
+          "title": "Order lifecycle",
+          "prompt": "Model an order's four states as named types, and move a paid order to shipped with a transition function.",
+          "code": "type PendingOrder = { status: \"pending\"; id: string };\ntype PaidOrder = { status: \"paid\"; id: string; paidAt: string };\ntype ShippedOrder = { status: \"shipped\"; id: string; paidAt: string; trackingNumber: string };\ntype CancelledOrder = { status: \"cancelled\"; id: string; reason: string };\ntype Order = PendingOrder | PaidOrder | ShippedOrder | CancelledOrder;\n\nfunction ship(order: PaidOrder, trackingNumber: string): ShippedOrder {\n  return { ...order, status: \"shipped\", trackingNumber };\n}\n\nfunction describe(order: Order): string {\n  switch (order.status) {\n    case \"pending\":\n      return `${order.id}: waiting for payment`;\n    case \"paid\":\n      return `${order.id}: paid on ${order.paidAt}`;\n    case \"shipped\":\n      return `${order.id}: shipped, tracking ${order.trackingNumber}`;\n    case \"cancelled\":\n      return `${order.id}: cancelled (${order.reason})`;\n  }\n}\n\nconst paid: PaidOrder = { status: \"paid\", id: \"ord_3\", paidAt: \"2026-09-30\" };\n\nconst orders: Order[] = [\n  { status: \"pending\", id: \"ord_1\" },\n  { status: \"paid\", id: \"ord_2\", paidAt: \"2026-10-01\" },\n  ship(paid, \"1Z999AA10123456784\"),\n  { status: \"cancelled\", id: \"ord_4\", reason: \"out of stock\" },\n];\n\nfor (const order of orders) {\n  console.log(describe(order));\n}\n",
+          "output": "ord_1: waiting for payment\nord_2: paid on 2026-10-01\nord_3: shipped, tracking 1Z999AA10123456784\nord_4: cancelled (out of stock)",
+          "explanation": "Each state is its own type, and `Order` is their union. `ship` only takes a `PaidOrder` and always returns a `ShippedOrder`. The spread copies `id` and `paidAt`, then `status` and `trackingNumber` are set, and the return type checks that the result really is a shipped order. A pending order has no `paidAt` and a cancelled one has a `reason`, so `describe` reads each field only in the state that has it."
+        },
+        {
+          "title": "Shipping a pending order",
+          "prompt": "Try to ship an order that hasn't been paid.",
+          "code": "type PendingOrder = { status: \"pending\"; id: string };\ntype PaidOrder = { status: \"paid\"; id: string; paidAt: string };\ntype ShippedOrder = { status: \"shipped\"; id: string; paidAt: string; trackingNumber: string };\n\nfunction ship(order: PaidOrder, trackingNumber: string): ShippedOrder {\n  return { ...order, status: \"shipped\", trackingNumber };\n}\n\nconst pending: PendingOrder = { status: \"pending\", id: \"ord_1\" };\nconst shipped = ship(pending, \"1Z999AA10123456784\");\nconsole.log(shipped.trackingNumber);\n",
+          "expect": "type-error",
+          "output": "main.ts(10,22): error TS2741: Property 'paidAt' is missing in type 'PendingOrder' but required in type 'PaidOrder'.",
+          "explanation": "`ship` asks for a `PaidOrder`, and a pending order has no `paidAt`, so the checker refuses the call before anything runs. The order has to be paid first, through a transition of its own. An order typed as the whole union gets the same treatment. Check its `status` first: inside `if (order.status === \"paid\")` the checker knows it's a `PaidOrder`, so the call compiles.\n\n```typescript harness\ntype PendingOrder = { status: \"pending\"; id: string };\ntype PaidOrder = { status: \"paid\"; id: string; paidAt: string };\ntype ShippedOrder = { status: \"shipped\"; id: string; paidAt: string; trackingNumber: string };\ntype Order = PendingOrder | PaidOrder;\n\nfunction ship(order: PaidOrder, trackingNumber: string): ShippedOrder {\n  return { ...order, status: \"shipped\", trackingNumber };\n}\n\nconst orders: Order[] = [\n  { status: \"pending\", id: \"ord_1\" },\n  { status: \"paid\", id: \"ord_2\", paidAt: \"2026-10-01\" },\n];\n{{code}}\n```\n\n```typescript\nfor (const order of orders) {\n  if (order.status === \"paid\") {\n    console.log(ship(order, \"1Z999\").trackingNumber); // 1Z999\n  }\n}\n```"
+        }
+      ],
+      "practice": {
+        "title": "Parcel states",
+        "prompt": "Track a parcel through its three states, and make delivery accept only a parcel that's in transit.\n\n1. The starter has the three states and their `Parcel` union. Make `summary(p: Parcel): string` return `<id>: label created on <createdAt>`, `<id>: in transit at <location>`, or `<id>: delivered, signed by <signedBy>`.\n2. Change `deliver` to `deliver(p: InTransitParcel, signedBy: string): DeliveredParcel`, and return the delivered state with the parcel's `id`.\n3. Check also calls `summary` and `deliver` on other parcels, and makes sure that delivering a parcel in any other state is a type error.\n\nExpected output:\n\n```text\nP-1042: label created on 2026-10-01\nP-1042: in transit at Leeds hub\nP-1042: delivered, signed by Ana\n```",
+        "starter": "export type LabelParcel = { status: \"label\"; id: string; createdAt: string };\nexport type InTransitParcel = { status: \"in_transit\"; id: string; location: string };\nexport type DeliveredParcel = { status: \"delivered\"; id: string; signedBy: string };\nexport type Parcel = LabelParcel | InTransitParcel | DeliveredParcel;\n\nexport function summary(p: Parcel): string {\n  // TODO: switch on p.status and return one line for each state\n  return \"\";\n}\n\n// TODO: accept only an InTransitParcel, and return a DeliveredParcel\nexport function deliver(p: Parcel, signedBy: string): Parcel {\n  return p;\n}\n\nconst label: LabelParcel = { status: \"label\", id: \"P-1042\", createdAt: \"2026-10-01\" };\nconst moving: InTransitParcel = { status: \"in_transit\", id: \"P-1042\", location: \"Leeds hub\" };\nconst history: Parcel[] = [label, moving, deliver(moving, \"Ana\")];\n\nfor (const p of history) {\n  console.log(summary(p));\n}\n",
+        "solution": "export type LabelParcel = { status: \"label\"; id: string; createdAt: string };\nexport type InTransitParcel = { status: \"in_transit\"; id: string; location: string };\nexport type DeliveredParcel = { status: \"delivered\"; id: string; signedBy: string };\nexport type Parcel = LabelParcel | InTransitParcel | DeliveredParcel;\n\nexport function summary(p: Parcel): string {\n  switch (p.status) {\n    case \"label\":\n      return `${p.id}: label created on ${p.createdAt}`;\n    case \"in_transit\":\n      return `${p.id}: in transit at ${p.location}`;\n    case \"delivered\":\n      return `${p.id}: delivered, signed by ${p.signedBy}`;\n  }\n}\n\nexport function deliver(p: InTransitParcel, signedBy: string): DeliveredParcel {\n  return { status: \"delivered\", id: p.id, signedBy };\n}\n\nconst label: LabelParcel = { status: \"label\", id: \"P-1042\", createdAt: \"2026-10-01\" };\nconst moving: InTransitParcel = { status: \"in_transit\", id: \"P-1042\", location: \"Leeds hub\" };\nconst history: Parcel[] = [label, moving, deliver(moving, \"Ana\")];\n\nfor (const p of history) {\n  console.log(summary(p));\n}\n",
+        "tests": [
+          {
+            "output": "P-1042: label created on 2026-10-01\nP-1042: in transit at Leeds hub\nP-1042: delivered, signed by Ana"
+          },
+          {
+            "harness": "{{code}}\nfor (const p of JSON.parse('[{\"status\":\"in_transit\",\"id\":\"P-2077\",\"location\":\"Glasgow depot\"},{\"status\":\"label\",\"id\":\"P-3001\",\"createdAt\":\"2026-10-02\"}]')) console.log(summary(p));\nconsole.log(summary(deliver(JSON.parse('{\"status\":\"in_transit\",\"id\":\"P-2077\",\"location\":\"Glasgow depot\"}'), \"Sam\")));",
+            "output": "P-1042: label created on 2026-10-01\nP-1042: in transit at Leeds hub\nP-1042: delivered, signed by Ana\nP-2077: in transit at Glasgow depot\nP-3001: label created on 2026-10-02\nP-2077: delivered, signed by Sam"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { deliver, summary, type DeliveredParcel, type InTransitParcel, type LabelParcel, type Parcel } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects delivering a label parcel",
+              "expect": "error",
+              "errorCode": "TS2741",
+              "code": "declare const p: LabelParcel;\ndeliver(p, \"Ana\");"
+            },
+            {
+              "name": "accepts delivering an in-transit parcel",
+              "expect": "ok",
+              "code": "declare const p: InTransitParcel;\nconst delivered: DeliveredParcel = deliver(p, \"Ana\");"
+            },
+            {
+              "name": "rejects delivering a parcel twice",
+              "expect": "error",
+              "errorCode": "TS2741",
+              "code": "declare const p: DeliveredParcel;\ndeliver(p, \"Ana\");"
+            },
+            {
+              "name": "summarizes a parcel in any state",
+              "expect": "ok",
+              "code": "declare const p: Parcel;\nconst line: string = summary(p);"
+            }
+          ]
+        },
+        "hints": [
+          "`summary` is a `switch` on `p.status` with one `case` per state, like `describe` in the order lifecycle example.",
+          "Change only `deliver`'s types first. Then the checker tells you what the returned object needs.",
+          "`return { status: \"delivered\", id: p.id, signedBy };` builds the delivered state from the parcel in transit."
+        ]
+      }
+    }
+  ],
+  "recap": "- A discriminated union is a union of object types that share a tag property (`kind`, `type`, or `status`) with a different literal in each member.\n- Checking the tag with `===` or a `switch` narrows the value to one member, so its own fields become usable.\n- Boolean literals work as tags too: `{ ok: true; data: User } | { ok: false; error: string }`.\n- In `default`, `const unreachable: never = value` or `assertNever(value)` turns a forgotten case into a type error.\n- A `default` that returns a fallback hides new members, so keep fallbacks for open-ended values.\n- Put each field only on the states that have it, and type each transition by the state it can start from."
+}

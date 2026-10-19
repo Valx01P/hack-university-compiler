@@ -1,0 +1,170 @@
+{
+  "id": "unknown-any-never",
+  "title": "unknown, any, and never",
+  "section": "Unions and Narrowing",
+  "summary": "See why any switches the checker off, hold untrusted data as unknown and narrow it, and use never for code that never returns.",
+  "intro": "Some values come with no type you can trust: JSON from a file, a request body, the error in a `catch`. TypeScript has three special types for them. `any` turns checking off, `unknown` makes you check a value before you use it, and `never` marks code that can't be reached. From this lesson on, practices also read their input from stdin.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "any switches the checker off",
+      "body": "A value typed `any` is never checked. Every property, call, and assignment on it compiles, so a typo compiles too, and the mistake shows up only when the program runs:\n\n```typescript\nconst settings: any = { theme: \"dark\" };\nconsole.log(settings.theme.toUpperCase()); // DARK\nconsole.log(settings.colour); // undefined\n```\n\n`any` also spreads: whatever you read from an `any` is `any` too, so one unchecked value can flow into code that looks typed. `JSON.parse` returns `any`, which is the most common way it gets in.\n\nA parameter without an annotation is an error (TS7006), so `any` never appears there by accident. Writing it out yourself is allowed, which is why teams ban it with a lint rule. A cast, `value as User`, is the same kind of promise: the checker trusts it and checks nothing. Give the value a real type instead, and the checker finds the mistakes again.",
+      "examples": [
+        {
+          "title": "A typo that compiles",
+          "prompt": "Parse a user from JSON into an `any`, then misspell one property.",
+          "code": "const data: any = JSON.parse('{\"name\":\"Ada\",\"email\":\"ADA@EXAMPLE.COM\"}');\n\nconsole.log(`name: ${data.name}`);\nconsole.log(`email: ${data.emial.toLowerCase()}`);\n",
+          "expect": "runtime-error",
+          "output": "name: Ada",
+          "errorIncludes": "TypeError: Cannot read properties of undefined (reading 'toLowerCase')",
+          "explanation": "`data` is `any`, so the checker accepts `data.emial` without a word. At run time the object has no `emial`, so reading it gives `undefined`, and calling `toLowerCase` on that throws. The name printed, then the program crashed on the next line."
+        },
+        {
+          "title": "any spreads",
+          "prompt": "Follow one `any` value through a few lines of code.",
+          "code": "const data: any = JSON.parse('{\"name\":\"Ada\",\"count\":2}');\n\nconst count = data.count;\n//    ^? const count: any\nconst next = count + 1;\n//    ^? const next: any\nconst label: string = next;\nconsole.log(`label is a ${typeof label}: ${label}`);\n",
+          "output": "label is a number: 3",
+          "explanation": "Reading `count` from an `any` gives another `any`, and `count + 1` is `any` too, as the bubbles show. So `next` fits into `label: string` even though it holds the number 3, and `typeof label` says `number`. Nothing warned you: the annotation on `label` is now wrong, and every line that trusts it is at risk."
+        },
+        {
+          "title": "Typing it fixes it",
+          "prompt": "Give the parsed data a type, and let the checker find the typo.",
+          "code": "type User = { name: string; email: string };\n\nconst data: User = JSON.parse('{\"name\":\"Ada\",\"email\":\"ADA@EXAMPLE.COM\"}');\n\nconsole.log(`name: ${data.name}`);\nconsole.log(`email: ${data.emial.toLowerCase()}`);\n",
+          "expect": "type-error",
+          "output": "main.ts(6,28): error TS2551: Property 'emial' does not exist on type 'User'. Did you mean 'email'?",
+          "explanation": "With `data` typed as `User`, the checker knows which properties exist, so `data.emial` is TS2551, and it even suggests the property you meant. The program never runs, so the crash never happens. The annotation is still a promise about the JSON that nothing checks. The next part shows how to check it."
+        }
+      ],
+      "practice": {
+        "title": "Total weight",
+        "prompt": "`totalWeight` adds up the weights on a packing list, but its `any` parameter hides a mismatch, so it prints `Total: NaN kg`. Let the checker find it.\n\n1. Replace `any` with the type `{ name: string; weightKg: number }[]`.\n2. Press Run. The checker now reports a problem with the data passed in.\n3. Fix the data so it matches the type. Don't change the type to match the data.\n\nExpected output:\n\n```text\nTotal: 7.5 kg\n```",
+        "starter": "// TODO: replace any with the type { name: string; weightKg: number }[]\nfunction totalWeight(items: any): number {\n  let total = 0;\n  for (const item of items) {\n    total += item.weightKg;\n  }\n  return total;\n}\n\n// TODO: fix this data when the checker reports it\nconst packing = [\n  { name: \"tent\", weight: 2.5 },\n  { name: \"stove\", weight: 1.25 },\n  { name: \"sleeping bag\", weight: 3.75 },\n];\n\nconsole.log(`Total: ${totalWeight(packing)} kg`);\n",
+        "solution": "function totalWeight(items: { name: string; weightKg: number }[]): number {\n  let total = 0;\n  for (const item of items) {\n    total += item.weightKg;\n  }\n  return total;\n}\n\nconst packing = [\n  { name: \"tent\", weightKg: 2.5 },\n  { name: \"stove\", weightKg: 1.25 },\n  { name: \"sleeping bag\", weightKg: 3.75 },\n];\n\nconsole.log(`Total: ${totalWeight(packing)} kg`);\n",
+        "tests": [
+          {
+            "output": "Total: 7.5 kg"
+          }
+        ],
+        "forbid": [
+          "any"
+        ],
+        "hints": [
+          "Change only the parameter's type first, then press Run and read the error at the call.",
+          "The type says `weightKg` and the data says `weight`. Rename the property in the data."
+        ]
+      }
+    },
+    {
+      "title": "unknown makes you check first",
+      "body": "`unknown` also accepts any value, but you can't do anything with it until you check what it is. That makes it the right type for data you don't control. Narrow it one step at a time, and each check unlocks the next:\n\n```typescript\nconst value: unknown = JSON.parse('{\"port\":8080}');\nif (\n  typeof value === \"object\" &&\n  value !== null &&\n  \"port\" in value &&\n  typeof value.port === \"number\"\n) {\n  console.log(value.port + 1); // 8081\n}\n```\n\n`typeof value === \"object\"` is also true for `null`, so rule that out next. `\"port\" in value` proves the property exists, typed `unknown`, and the last `typeof` makes it a `number`.\n\nFrom here on, programs read their input from stdin. `readFileSync(0, \"utf8\")` from `node:fs` reads file number 0, which is stdin, and returns all of it as one string:\n\n```stdin\nhello\n```\n\n```typescript\nimport { readFileSync } from \"node:fs\";\nconst input = readFileSync(0, \"utf8\");\nconsole.log(input.trim().toUpperCase()); // HELLO\n```",
+      "examples": [
+        {
+          "title": "Narrowing parsed JSON",
+          "prompt": "Read a JSON object from stdin and greet the name in it, but only after checking that there is one.",
+          "code": "import { readFileSync } from \"node:fs\";\n\nconst data: unknown = JSON.parse(readFileSync(0, \"utf8\"));\n\nif (\n  typeof data === \"object\" &&\n  data !== null &&\n  \"name\" in data &&\n  typeof data.name === \"string\"\n) {\n  console.log(`Hello, ${data.name}!`);\n} else {\n  console.log(\"No name in the input\");\n}\n",
+          "stdin": "{\"name\": \"Ada\", \"team\": \"compilers\"}\n",
+          "output": "Hello, Ada!",
+          "explanation": "The parsed value goes straight into an `unknown`, so nothing can use it unchecked. The four checks narrow it in order: an object, not `null`, with a `name` property, which is a string. Only inside that `if` does `data.name` type-check. Change the input to `{\"name\": 7}` or `[1, 2]`, and the program prints `No name in the input` instead of crashing."
+        },
+        {
+          "title": "Using unknown directly",
+          "prompt": "Read a property of an `unknown` value without checking it first.",
+          "code": "const value: unknown = JSON.parse('{\"name\":\"Ada\"}');\n\nconsole.log(value.name);\n",
+          "expect": "type-error",
+          "output": "main.ts(3,13): error TS18046: 'value' is of type 'unknown'.",
+          "explanation": "With `any`, this line would compile and print `Ada`. With `unknown`, TypeScript refuses every use that depends on the type, so TS18046 tells you to check `value` first. Passing `value` itself to `console.log` would be fine, since that accepts anything."
+        },
+        {
+          "title": "catch gives unknown",
+          "prompt": "Parse two strings, one of which isn't JSON, and print the error message safely.",
+          "code": "const inputs = ['{\"ok\": true}', \"not json\"];\n\nfor (const text of inputs) {\n  try {\n    const value: unknown = JSON.parse(text);\n    console.log(`parsed: ${JSON.stringify(value)}`);\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    //              ^? var err: unknown\n    //                                     ^? var err: Error\n    console.log(`failed: ${message}`);\n  }\n}\n",
+          "output": "parsed: {\"ok\":true}\nfailed: Unexpected token 'o', \"not json\" is not valid JSON",
+          "explanation": "JavaScript can throw any value, not only errors, so under `strict` the `catch` variable is `unknown`, as the first bubble shows. `err instanceof Error` narrows it to `Error`, as the second bubble shows, so reading `message` is allowed. `String(err)` covers anything else that was thrown. The message itself comes from `JSON.parse`."
+        }
+      ],
+      "practice": {
+        "title": "Port from JSON",
+        "prompt": "Read a server config from stdin and choose the port to listen on.\n\n1. Parse the input into an `unknown` inside `try`. Input that isn't JSON counts as no config.\n2. When the config is an object whose `port` is a number, print `port: <port>`.\n3. Otherwise print `port: 3000 (default)`.\n\nInput:\n\n```text\n{\"port\": 8080}\n```\n\nExpected output:\n\n```text\nport: 8080\n```",
+        "starter": "import { readFileSync } from \"node:fs\";\n\nconst input = readFileSync(0, \"utf8\");\n\n// TODO: parse input into an unknown inside try, with null when it isn't JSON\n// TODO: print \"port: <port>\" when port is a number, or \"port: 3000 (default)\"\n",
+        "solution": "import { readFileSync } from \"node:fs\";\n\nfunction parseJson(text: string): unknown {\n  try {\n    return JSON.parse(text);\n  } catch {\n    return null;\n  }\n}\n\nconst input = readFileSync(0, \"utf8\");\nconst config = parseJson(input);\n\nif (\n  typeof config === \"object\" &&\n  config !== null &&\n  \"port\" in config &&\n  typeof config.port === \"number\"\n) {\n  console.log(`port: ${config.port}`);\n} else {\n  console.log(\"port: 3000 (default)\");\n}\n",
+        "tests": [
+          {
+            "stdin": "{\"port\": 8080}\n",
+            "output": "port: 8080"
+          },
+          {
+            "stdin": "{\"port\": \"80\"}\n",
+            "output": "port: 3000 (default)"
+          },
+          {
+            "stdin": "not json\n",
+            "output": "port: 3000 (default)"
+          }
+        ],
+        "forbid": [
+          "any",
+          "as"
+        ],
+        "hints": [
+          "Put `JSON.parse` in a function that returns `unknown`, with a `catch` that returns `null`.",
+          "Narrow in the same order as the greeting example: an object, not `null`, `\"port\" in config`, then `typeof config.port === \"number\"`.",
+          "Join the four checks with `&&` in one `if`. Every other input, including the `null` from bad JSON, prints the default."
+        ]
+      }
+    },
+    {
+      "title": "The never type",
+      "body": "`never` is the type with no values at all. A function whose return type is `never` never returns normally, usually because it always throws. Since it never produces a value, a call to it fits wherever a value is expected, which makes it a neat way to stop on bad data:\n\n```typescript\nfunction fail(message: string): never {\n  throw new Error(message);\n}\nconst names = [\"Ada\", \"Grace\"];\nconst first = names[0] ?? fail(\"no names\");\n//    ^? const first: string\nconsole.log(first.toUpperCase()); // ADA\n```\n\n`names[0]` is `string | undefined`, and `?? fail(...)` takes the `undefined` away, so `first` is a plain `string`.\n\n`never` also appears when narrowing runs out of options. Once a `string | number` has been checked for both, nothing is left, so its type is `never`. Assigning it to a `never` variable there compiles only while every case is handled.",
+      "examples": [
+        {
+          "title": "A fail helper",
+          "prompt": "Build a host and port address, and stop with a clear error when the port is missing.",
+          "code": "function fail(message: string): never {\n  throw new Error(message);\n}\n\ntype Config = { host: string; port?: number };\n\nfunction address(config: Config): string {\n  const port = config.port ?? fail(`no port for ${config.host}`);\n  //    ^? const port: number\n  return `${config.host}:${port}`;\n}\n\nconsole.log(address({ host: \"localhost\", port: 8080 }));\ntry {\n  console.log(address({ host: \"db.internal\" }));\n} catch (err) {\n  console.log(err instanceof Error ? err.message : String(err));\n}\n",
+          "output": "localhost:8080\nno port for db.internal",
+          "explanation": "`config.port` is `number | undefined`. When it's `undefined`, `??` calls `fail`, which throws instead of returning, so `port` can only ever hold a number, as the bubble shows. The second config has no port, so `fail` throws, and the `catch` prints its message."
+        },
+        {
+          "title": "Nothing left",
+          "prompt": "Handle both members of a union, then see that nothing is left in the last branch.",
+          "code": "function describe(x: string | number): string {\n  if (typeof x === \"string\") {\n    return `text \"${x}\"`;\n  } else if (typeof x === \"number\") {\n    return `number ${x}`;\n  } else {\n    const impossible: never = x;\n    //                        ^? (parameter) x: never\n    return impossible;\n  }\n}\n\nconsole.log(describe(\"hi\"));\nconsole.log(describe(42));\n",
+          "output": "text \"hi\"\nnumber 42",
+          "explanation": "The first two branches handle every member of `string | number`, so in the `else`, `x` is `never`, and assigning it to a `never` variable compiles. Now add `boolean` to the parameter without adding a branch, and that line stops compiling:\n\n```typescript error\nfunction describe(x: string | number | boolean): string {\n  if (typeof x === \"string\") {\n    return `text \"${x}\"`;\n  } else if (typeof x === \"number\") {\n    return `number ${x}`;\n  } else {\n    const impossible: never = x;\n    return impossible;\n  }\n}\n\nconsole.log(describe(true));\n```\n\nTS2322 says a `boolean` can't be a `never`, which points you at the case you forgot before anything runs."
+        },
+        {
+          "title": "A typed parse",
+          "prompt": "Parse a port number from text, and fail with a message for anything that isn't a valid port.",
+          "code": "function fail(message: string): never {\n  throw new Error(message);\n}\n\nfunction parsePort(text: string): number {\n  const port = Number(text);\n  if (Number.isInteger(port) && port > 0 && port < 65536) {\n    return port;\n  }\n  return fail(`bad port: ${text}`);\n}\n\nfor (const text of [\"8080\", \"http\", \"70000\"]) {\n  try {\n    console.log(`port ${parsePort(text)}`);\n  } catch (err) {\n    console.log(err instanceof Error ? err.message : String(err));\n  }\n}\n",
+          "output": "port 8080\nbad port: http\nbad port: 70000",
+          "explanation": "`parsePort` promises a `number`. Its last line returns `fail(...)`, and a `never` fits where a `number` is expected, so the function type-checks even though that path throws. `Number(\"http\")` is `NaN`, which isn't an integer, and 70000 is too big for a port, so both fail with a message the loop prints."
+        }
+      ],
+      "practice": {
+        "title": "Require positive",
+        "prompt": "Check the numbers on an order form before you use them.\n\n1. Export `requirePositive(n: number, label: string): number`. Return `n` when it is greater than 0. Otherwise call the starter's `fail` with the message `<label> must be positive`.\n2. Inside one `try`, print `quantity: <result>` for `requirePositive(3, \"quantity\")`, then `price: <result>` for `requirePositive(12.5, \"price\")`, then `discount: <result>` for `requirePositive(0, \"discount\")`.\n3. In the `catch`, print the error's message.\n\nExpected output:\n\n```text\nquantity: 3\nprice: 12.5\ndiscount must be positive\n```",
+        "starter": "function fail(message: string): never {\n  throw new Error(message);\n}\n\nexport function requirePositive(n: number, label: string): number {\n  // TODO: return n when it is greater than 0, otherwise call fail\n  return n;\n}\n\n// TODO: print the three results inside try, and the error's message in catch\n",
+        "solution": "function fail(message: string): never {\n  throw new Error(message);\n}\n\nexport function requirePositive(n: number, label: string): number {\n  if (n > 0) {\n    return n;\n  }\n  return fail(`${label} must be positive`);\n}\n\ntry {\n  console.log(`quantity: ${requirePositive(3, \"quantity\")}`);\n  console.log(`price: ${requirePositive(12.5, \"price\")}`);\n  console.log(`discount: ${requirePositive(0, \"discount\")}`);\n} catch (err) {\n  console.log(err instanceof Error ? err.message : String(err));\n}\n",
+        "tests": [
+          {
+            "output": "quantity: 3\nprice: 12.5\ndiscount must be positive"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { requirePositive } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "returns a number",
+              "expect": "ok",
+              "code": "const n: number = requirePositive(1, \"x\");"
+            }
+          ]
+        },
+        "hints": [
+          "Return `n` when `n > 0`. Every other number goes to `fail`.",
+          "Write `return fail(...)` with a template literal for the message. It type-checks because `never` fits where a `number` is expected.",
+          "The third call throws, so its line never prints. In the `catch`, check `err instanceof Error` and print `err.message`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `any` turns checking off for a value and for everything read from it, and `JSON.parse` returns `any`.\n- `unknown` accepts anything but allows nothing until you narrow it: `typeof`, `!== null`, `in`, then `typeof` on the property.\n- A `catch` variable is `unknown`, so check `err instanceof Error` before you read `err.message`.\n- `readFileSync(0, \"utf8\")` from `node:fs` reads all of stdin as one string.\n- A function that returns `never` never comes back, usually because it throws, so a call to it fits wherever a value is expected.\n- When every member of a union is handled, what's left is `never`."
+}

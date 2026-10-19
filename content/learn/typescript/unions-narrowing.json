@@ -1,0 +1,226 @@
+{
+  "id": "unions-narrowing",
+  "title": "Unions and Narrowing",
+  "section": "Unions and Narrowing",
+  "summary": "Accept several types with a union, then narrow it with typeof, truthiness, in, instanceof, and Array.isArray before you use the value.",
+  "intro": "Real data rarely has one fixed shape. An id can be a number or a string, a name can be missing, and a list of tags can arrive as one string. A union type says exactly which shapes are allowed, and narrowing is how your code finds out which one it has before it uses the value.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Union types",
+      "body": "A union type lists the types a value may have, joined by `|`. A variable typed `string | number` can hold either one:\n\n```typescript\nlet code: string | number = 404;\nconsole.log(code.toString()); // 404\ncode = \"NOT_FOUND\";\nconsole.log(code.toString()); // NOT_FOUND\n```\n\nUntil you check which type you have, you can only use what every member of the union has. Strings and numbers both have `toString()`, and `String(value)` and template literals accept any value, so those work right away. `toUpperCase()` exists only on strings, so calling it on a `string | number` is a type error.\n\nArrays can hold unions too. Put the union in parentheses: `(string | number)[]` is an array whose items are each a string or a number. Without them, `string | number[]` means one string or an array of numbers.",
+      "examples": [
+        {
+          "title": "IDs",
+          "prompt": "Format order ids from two systems: the old one stored numbers, the new one stores strings.",
+          "code": "function formatId(id: string | number): string {\n  return String(id).padStart(6, \"0\");\n}\n\nconsole.log(`Order ${formatId(42)}`);\nconsole.log(`Order ${formatId(\"A17\")}`);\nconsole.log(`Order ${formatId(123456)}`);\n",
+          "output": "Order 000042\nOrder 000A17\nOrder 123456",
+          "explanation": "`String(id)` turns either kind of id into a string, so `padStart(6, \"0\")` can pad it with zeros to 6 characters. The checker accepts this without knowing which kind `id` is, because `String` takes any value. `123456` is already 6 characters long, so it prints unchanged."
+        },
+        {
+          "title": "Only shared members",
+          "prompt": "Call a string method on the id before checking what it is.",
+          "code": "function formatId(id: string | number): string {\n  return id.toUpperCase().padStart(6, \"0\");\n}\n\nconsole.log(`Order ${formatId(\"a17\")}`);\n",
+          "expect": "type-error",
+          "output": "main.ts(2,13): error TS2339: Property 'toUpperCase' does not exist on type 'string | number'.\n  Property 'toUpperCase' does not exist on type 'number'.",
+          "explanation": "`id` might be a number, and numbers have no `toUpperCase`, so the checker reports TS2339 at line 2. The indented line under the error names the member of the union that lacks the method. The program never runs. To call `toUpperCase`, the function has to check that `id` is a string first, which is what narrowing does."
+        },
+        {
+          "title": "Arrays of unions",
+          "prompt": "Build CSV rows whose cells are a mix of text and numbers.",
+          "code": "const header = [\"name\", \"born\", \"city\"];\nconst cells: (string | number)[] = [\"Ada\", 1815, \"London\"];\ncells.push(\"Grace\", 1906, \"New York\");\n\nconsole.log(header.join(\",\"));\nfor (let i = 0; i < cells.length; i += 3) {\n  console.log(cells.slice(i, i + 3).join(\",\"));\n}\n",
+          "output": "name,born,city\nAda,1815,London\nGrace,1906,New York",
+          "explanation": "`(string | number)[]` lets each cell be either type, and `push` checks every argument against that union, so `cells.push(true)` would be a type error. `join(\",\")` turns every item into text, numbers included, so the cells need no checks before they print. The loop prints them 3 at a time, one row per person."
+        }
+      ],
+      "practice": {
+        "title": "Quantities",
+        "prompt": "Stock counts arrive as numbers from the barcode scanner and as text from a spreadsheet. Print them all the same way.\n\n1. Export `formatQuantity(q: number | string): string`.\n2. Return the quantity, a space, and `pcs`, like `12 pcs`.\n3. The starter already prints the quantities `12`, `\"7\"`, and `0`.\n\nExpected output:\n\n```text\n12 pcs\n7 pcs\n0 pcs\n```",
+        "starter": "export function formatQuantity(q: number | string): string {\n  // TODO: return the quantity, a space, and \"pcs\"\n  return \"\";\n}\n\nconsole.log(formatQuantity(12));\nconsole.log(formatQuantity(\"7\"));\nconsole.log(formatQuantity(0));\n",
+        "solution": "export function formatQuantity(q: number | string): string {\n  return `${q} pcs`;\n}\n\nconsole.log(formatQuantity(12));\nconsole.log(formatQuantity(\"7\"));\nconsole.log(formatQuantity(0));\n",
+        "tests": [
+          {
+            "output": "12 pcs\n7 pcs\n0 pcs"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { formatQuantity } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects null",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "formatQuantity(null);"
+            },
+            {
+              "name": "rejects an array",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "formatQuantity([1]);"
+            }
+          ]
+        },
+        "hints": [
+          "A template literal accepts strings and numbers alike, so `q` needs no check here.",
+          "Return `` `${q} pcs` ``."
+        ]
+      }
+    },
+    {
+      "title": "Narrowing with typeof and truthiness",
+      "body": "Narrowing turns a union into one of its members. Inside `if (typeof id === \"string\")`, the checker knows `id` is a string, so string methods work. In the `else`, or after an `if` that returns, only `number` is left:\n\n```typescript\nfunction label(id: string | number): string {\n  if (typeof id === \"string\") {\n    return id.toUpperCase();\n  }\n  return id.toFixed(1);\n}\nconsole.log(label(\"ab\"), label(2)); // AB 2.0\n```\n\nComparing with `===` narrows too, and so does an early `return`. After `if (user === null) return`, the rest of the function knows `user` isn't `null`.\n\nA truthiness check like `if (name)` removes `null` and `undefined`, but it also skips `\"\"` and `0`, which are often real values. When zero or an empty string counts, compare with exactly what you want to rule out, like `count !== undefined`.",
+      "examples": [
+        {
+          "title": "Pixels with typeof",
+          "prompt": "Convert a size to pixels when it comes as a number or as text like `24px`.",
+          "code": "function toPixels(size: number | string): number {\n  if (typeof size === \"string\") {\n    return Number.parseInt(size, 10);\n    //                     ^? (parameter) size: string\n  }\n  return size;\n  //     ^? (parameter) size: number\n}\n\nconsole.log(toPixels(16));\nconsole.log(toPixels(\"24px\"));\nconsole.log(toPixels(\"1.5em\"));\n",
+          "output": "16\n24\n1",
+          "explanation": "Inside the `if`, the first bubble shows `size` as a `string`, so `Number.parseInt` accepts it. `Number.parseInt(text, 10)` reads base 10 digits from the start of the text and stops at the first character that isn't one, so `\"24px\"` gives 24 and `\"1.5em\"` gives 1. The `if` returns, so on the last line only `number` is left, as the second bubble shows, and returning `size` matches the return type."
+        },
+        {
+          "title": "Truthiness and its trap",
+          "prompt": "Greet a name that may be missing, then watch a truthiness check mistake a stock count of 0 for a missing count.",
+          "code": "function greet(name: string | null | undefined): string {\n  if (name) {\n    return `Hello, ${name}!`;\n  }\n  return \"Hello, guest!\";\n}\n\nfunction stockLine(item: string, count: number | undefined): string {\n  if (!count) {\n    return `${item}: not counted`;\n  }\n  return `${item}: ${count}`;\n}\n\nfunction fixedStockLine(item: string, count: number | undefined): string {\n  if (count === undefined) {\n    return `${item}: not counted`;\n  }\n  return `${item}: ${count}`;\n}\n\nconsole.log(greet(\"Ada\"));\nconsole.log(greet(null));\nconsole.log(greet(\"\"));\nconsole.log(stockLine(\"mugs\", 0));\nconsole.log(fixedStockLine(\"mugs\", 0));\nconsole.log(fixedStockLine(\"plates\", undefined));\n",
+          "output": "Hello, Ada!\nHello, guest!\nHello, guest!\nmugs: not counted\nmugs: 0\nplates: not counted",
+          "explanation": "`if (name)` is false for `null`, `undefined`, and `\"\"`, so all three get the guest greeting, which is what you want for a name. In `stockLine`, `!count` is true for `undefined` and also for `0`, so 0 mugs prints as not counted. `fixedStockLine` compares with `undefined` directly, so 0 counts as a real number and only the plates, with no count at all, print `not counted`."
+        },
+        {
+          "title": "Early return",
+          "prompt": "Show a badge for the signed-in user, or `guest` when nobody is signed in.",
+          "code": "type User = { name: string; plan: \"free\" | \"pro\" };\n\nfunction badge(user: User | null): string {\n  if (user === null) {\n    return \"guest\";\n  }\n  return `${user.name} (${user.plan})`;\n  //        ^? (parameter) user: User\n}\n\nconsole.log(badge({ name: \"Ada\", plan: \"pro\" }));\nconsole.log(badge(null));\n",
+          "output": "Ada (pro)\nguest",
+          "explanation": "After `if (user === null)` returns, `user` can only be a `User`, as the bubble shows, so reading `user.name` and `user.plan` needs no second check. Handling the odd case first and returning keeps the main path of the function short and unindented."
+        }
+      ],
+      "practice": {
+        "title": "Normalize quantity",
+        "prompt": "Quantities reach the warehouse three ways: the scanner sends numbers, a web form sends text, and a missing value is `null`. Turn each one into a whole number.\n\n1. Export `normalizeQty(q: number | string | null): number`.\n2. Return `0` for `null`.\n3. Read a string with `Number.parseInt(q, 10)`, and return `0` when that gives `NaN`.\n4. Round a number down with `Math.floor`.\n5. The starter already prints the results for `4.7`, `\"12 boxes\"`, `\"none\"`, and `null`.\n\nExpected output:\n\n```text\n4\n12\n0\n0\n```",
+        "starter": "export function normalizeQty(q: number | string | null): number {\n  // TODO: return 0 for null\n  // TODO: read a string with Number.parseInt(q, 10), and return 0 for NaN\n  // TODO: round a number down with Math.floor\n  return -1;\n}\n\nconsole.log(normalizeQty(4.7));\nconsole.log(normalizeQty(\"12 boxes\"));\nconsole.log(normalizeQty(\"none\"));\nconsole.log(normalizeQty(null));\n",
+        "solution": "export function normalizeQty(q: number | string | null): number {\n  if (q === null) {\n    return 0;\n  }\n  if (typeof q === \"string\") {\n    const parsed = Number.parseInt(q, 10);\n    return Number.isNaN(parsed) ? 0 : parsed;\n  }\n  return Math.floor(q);\n}\n\nconsole.log(normalizeQty(4.7));\nconsole.log(normalizeQty(\"12 boxes\"));\nconsole.log(normalizeQty(\"none\"));\nconsole.log(normalizeQty(null));\n",
+        "tests": [
+          {
+            "output": "4\n12\n0\n0"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { normalizeQty } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "returns a number",
+              "expect": "ok",
+              "code": "const n: number = normalizeQty(\"3\");"
+            }
+          ]
+        },
+        "hints": [
+          "Handle `null` first, then check `typeof q === \"string\"`. Whatever reaches the end is a number.",
+          "Check the parsed value with `Number.isNaN` before you return it.",
+          "After the string branch returns, `Math.floor(q)` type-checks, because only `number` is left."
+        ]
+      }
+    },
+    {
+      "title": "in, instanceof, and Array.isArray",
+      "body": "`typeof` tells primitives apart, but objects, arrays, and `null` are all `\"object\"` to it. Narrow objects by what makes each member of the union different:\n\n- `\"swim\" in animal` is true when the object has a `swim` property, so it narrows to the members that have one.\n- `value instanceof Date` checks which class made the object, so it narrows to that class.\n- `Array.isArray(input)` is true only for arrays, so it narrows to the array member of a union.\n\nA ternary narrows the same way an `if` does:\n\n```typescript\nfunction message(problem: Error | string): string {\n  return problem instanceof Error ? problem.message : problem;\n}\nconsole.log(message(new Error(\"disk full\"))); // disk full\nconsole.log(message(\"timeout\")); // timeout\n```",
+      "examples": [
+        {
+          "title": "Fish or bird with in",
+          "prompt": "Move a fish or a bird by calling whichever method it has.",
+          "code": "type Fish = { name: string; swim: () => string };\ntype Bird = { name: string; fly: () => string };\n\nfunction move(animal: Fish | Bird): string {\n  if (\"swim\" in animal) {\n    return `${animal.name} ${animal.swim()}`;\n  }\n  return `${animal.name} ${animal.fly()}`;\n}\n\nconst nemo: Fish = { name: \"Nemo\", swim: () => \"swims away\" };\nconst tweety: Bird = { name: \"Tweety\", fly: () => \"flies off\" };\nconsole.log(move(nemo));\nconsole.log(move(tweety));\n",
+          "output": "Nemo swims away\nTweety flies off",
+          "explanation": "Only `Fish` has a `swim` property, so inside `if (\"swim\" in animal)` the checker narrows `animal` to `Fish`, and `animal.swim()` is allowed. After that branch returns, only `Bird` is left, so `animal.fly()` type-checks. Both types have `name`, so `animal.name` works everywhere."
+        },
+        {
+          "title": "Dates with instanceof",
+          "prompt": "Print a delivery date that is either a `Date` or text someone typed.",
+          "code": "function formatWhen(value: Date | string): string {\n  if (value instanceof Date) {\n    return value.toISOString().slice(0, 10);\n  }\n  return value;\n}\n\nconsole.log(formatWhen(new Date(\"2026-10-01T09:00:00Z\")));\nconsole.log(formatWhen(\"next Tuesday\"));\n",
+          "output": "2026-10-01\nnext Tuesday",
+          "explanation": "`new Date(\"2026-10-01T09:00:00Z\")` builds a date from a timestamp, and `toISOString()` writes it back as `2026-10-01T09:00:00.000Z`, so its first 10 characters are the date. `value instanceof Date` narrows `value` to `Date`, which is why `toISOString` is allowed. Text skips the `if`, and the function returns it as it is."
+        },
+        {
+          "title": "One or many with Array.isArray",
+          "prompt": "Accept one item or a list of items, and always hand back a list.",
+          "code": "function toList(input: string | string[]): string[] {\n  if (Array.isArray(input)) {\n    return input;\n  }\n  return [input];\n}\n\nconst one = toList(\"tea\");\nconst many = toList([\"tea\", \"coffee\"]);\nconsole.log(one.length, one.join(\" + \"));\nconsole.log(many.length, many.join(\" + \"));\n",
+          "output": "1 tea\n2 tea + coffee",
+          "explanation": "`Array.isArray(input)` narrows `input` to `string[]` inside the `if`, so the function returns it as it is. After the `if`, `input` is a `string`, and `[input]` wraps it in an array of one. Callers always get a `string[]`, so `length` and `join` work without any checks."
+        }
+      ],
+      "practice": {
+        "title": "Flexible tags",
+        "prompt": "Posts store their tags three ways: a comma-separated string from an old form, an array from the new editor, or `null` when a post has none. Turn all three into one clean list.\n\n1. Export `normalizeTags(input: string | string[] | null): string[]`.\n2. Return an empty array for `null`.\n3. Split a string on commas.\n4. Trim every tag and make it lowercase.\n5. The starter already prints the results for `\"TypeScript, Node ,Tips\"`, `[\" News\", \"RELEASES \"]`, and `null`, each joined with `|` inside square brackets.\n\nExpected output:\n\n```text\n[typescript|node|tips]\n[news|releases]\n[]\n```",
+        "starter": "export function normalizeTags(input: string | string[] | null): string[] {\n  // TODO: return [] for null, and split a string on commas\n  // TODO: trim every tag and make it lowercase\n  return [];\n}\n\nconsole.log(`[${normalizeTags(\"TypeScript, Node ,Tips\").join(\"|\")}]`);\nconsole.log(`[${normalizeTags([\" News\", \"RELEASES \"]).join(\"|\")}]`);\nconsole.log(`[${normalizeTags(null).join(\"|\")}]`);\n",
+        "solution": "export function normalizeTags(input: string | string[] | null): string[] {\n  if (input === null) {\n    return [];\n  }\n  const tags = Array.isArray(input) ? input : input.split(\",\");\n  return tags.map((tag) => tag.trim().toLowerCase());\n}\n\nconsole.log(`[${normalizeTags(\"TypeScript, Node ,Tips\").join(\"|\")}]`);\nconsole.log(`[${normalizeTags([\" News\", \"RELEASES \"]).join(\"|\")}]`);\nconsole.log(`[${normalizeTags(null).join(\"|\")}]`);\n",
+        "tests": [
+          {
+            "output": "[typescript|node|tips]\n[news|releases]\n[]"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { normalizeTags } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects a number",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "normalizeTags(42);"
+            }
+          ]
+        },
+        "hints": [
+          "Handle `null` first. Then `Array.isArray(input)` tells the array apart from the string.",
+          "`input.split(\",\")` turns the string into an array, so both cases end up as a `string[]`.",
+          "Finish with one `map` that calls `trim()` and then `toLowerCase()` on every tag."
+        ]
+      }
+    },
+    {
+      "title": "null and undefined: ?., ??, and !",
+      "body": "Optional chaining, `?.`, reads a property only when the value before it isn't `null` or `undefined`, and gives `undefined` otherwise. `??` then replaces `null` or `undefined` with a default. Together they read data that may be missing, and the checker types the result:\n\n```typescript\ntype Order = { id: string; coupon?: { code: string } };\nconst order: Order = { id: \"A1\" };\nconst code = order.coupon?.code ?? \"none\";\n//    ^? const code: string\nconsole.log(code); // none\n```\n\nThe non-null assertion, a `!` after a value, works the other way. `value!` tells the checker to treat `value` as never `null` or `undefined`, and the checker believes you. Node strips the `!` like any other type, so nothing checks it at run time. When you are wrong, the program crashes later with a `TypeError`. Check for the missing case instead, and decide what should happen.",
+      "examples": [
+        {
+          "title": "Optional chaining with a default",
+          "prompt": "Print each customer's city and postcode, with defaults for the parts that are missing.",
+          "code": "type Customer = {\n  name: string;\n  address?: { city: string; postcode?: string };\n};\n\nconst customers: Customer[] = [\n  { name: \"Ana\", address: { city: \"Lisbon\", postcode: \"1100-148\" } },\n  { name: \"Ben\", address: { city: \"Leeds\" } },\n  { name: \"Caro\" },\n];\n\nfor (const customer of customers) {\n  const city = customer.address?.city ?? \"unknown city\";\n  const postcode = customer.address?.postcode ?? \"no postcode\";\n  console.log(`${customer.name}: ${city}, ${postcode}`);\n}\n",
+          "output": "Ana: Lisbon, 1100-148\nBen: Leeds, no postcode\nCaro: unknown city, no postcode",
+          "explanation": "Caro has no `address`, so `customer.address?.city` stops at `address` and gives `undefined`, and `??` puts `unknown city` in its place. Ben has an address without a postcode, so only his postcode falls back. With the defaults, `city` and `postcode` are plain strings, so the template literal never prints `undefined`."
+        },
+        {
+          "title": "The ! lie",
+          "prompt": "Look up two prices with `!`, and one of the items isn't in the map.",
+          "code": "const prices = new Map<string, number>([\n  [\"mug\", 12.5],\n  [\"plate\", 8],\n]);\n\nconsole.log(`mug: ${prices.get(\"mug\")!.toFixed(2)}`);\nconsole.log(`cup: ${prices.get(\"cup\")!.toFixed(2)}`);\nconsole.log(\"done\");\n",
+          "expect": "runtime-error",
+          "output": "mug: 12.50",
+          "errorIncludes": "TypeError: Cannot read properties of undefined (reading 'toFixed')",
+          "explanation": "`prices.get` returns `number | undefined`, and each `!` tells the checker to drop the `undefined`, so the file type-checks. There's no cup in the map, so `get(\"cup\")` really is `undefined`, and calling `toFixed` on it throws. The mug line printed, then the program stopped before `done`. Press Run and the error shows the line with a space where the `!` was: Node stripped it like any other type."
+        },
+        {
+          "title": "Handle it instead",
+          "prompt": "Look up the same prices, and print a clear message for an item that isn't for sale.",
+          "code": "const prices = new Map<string, number>([\n  [\"mug\", 12.5],\n  [\"plate\", 8],\n]);\n\nfor (const item of [\"mug\", \"cup\", \"plate\"]) {\n  const price = prices.get(item);\n  if (price === undefined) {\n    console.log(`${item}: not for sale`);\n    continue;\n  }\n  console.log(`${item}: ${price.toFixed(2)}`);\n}\n",
+          "output": "mug: 12.50\ncup: not for sale\nplate: 8.00",
+          "explanation": "Without a `!`, `price` is `number | undefined`, and the checker won't allow `price.toFixed` until you rule out `undefined`. The `if` handles the missing price and moves on with `continue`, so after it `price` is a `number`. The cup gets its own message, and the loop carries on to the plate."
+        }
+      ],
+      "practice": {
+        "title": "Customer city",
+        "prompt": "Look up customers by id and print the city each one lives in.\n\n1. For each id in `ids`, get the customer from the `customers` map.\n2. When there is no customer with that id, print `<id>: no such customer`.\n3. Otherwise print `<id>: <city>`, with `unknown` for a customer without an address.\n\nExpected output:\n\n```text\nc1: Lisbon\nc2: unknown\nc9: no such customer\n```",
+        "starter": "type Customer = { name: string; address?: { city: string } };\n\nconst customers = new Map<string, Customer>([\n  [\"c1\", { name: \"Ana\", address: { city: \"Lisbon\" } }],\n  [\"c2\", { name: \"Ben\" }],\n]);\nconst ids = [\"c1\", \"c2\", \"c9\"];\n\nfor (const id of ids) {\n  // TODO: print \"<id>: no such customer\" when the map has no customer for id\n  // TODO: otherwise print \"<id>: <city>\", or \"<id>: unknown\" without an address\n}\n",
+        "solution": "type Customer = { name: string; address?: { city: string } };\n\nconst customers = new Map<string, Customer>([\n  [\"c1\", { name: \"Ana\", address: { city: \"Lisbon\" } }],\n  [\"c2\", { name: \"Ben\" }],\n]);\nconst ids = [\"c1\", \"c2\", \"c9\"];\n\nfor (const id of ids) {\n  const customer = customers.get(id);\n  if (customer === undefined) {\n    console.log(`${id}: no such customer`);\n    continue;\n  }\n  console.log(`${id}: ${customer.address?.city ?? \"unknown\"}`);\n}\n",
+        "tests": [
+          {
+            "output": "c1: Lisbon\nc2: unknown\nc9: no such customer"
+          }
+        ],
+        "forbid": [
+          "non-null"
+        ],
+        "hints": [
+          "`customers.get(id)` returns `Customer | undefined`. Rule out `undefined` before you read anything from it.",
+          "Print the missing customer's line and `continue`, the way the prices example does.",
+          "For the city, `customer.address?.city ?? \"unknown\"` handles a customer without an address."
+        ]
+      }
+    }
+  ],
+  "recap": "- `A | B` accepts either type, and until you narrow it you can use only what both have.\n- `typeof` narrows primitives, `===` narrows to a value, and an early `return` narrows the rest of the function.\n- Truthiness removes `null` and `undefined` but also `\"\"` and `0`, so compare with `undefined` or `null` when those count.\n- `\"key\" in value`, `instanceof`, and `Array.isArray` narrow objects, classes, and arrays.\n- `a?.b ?? fallback` reads data that may be missing and gives it a default.\n- `value!` silences the checker without checking anything. Handle the missing case instead."
+}

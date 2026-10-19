@@ -1,0 +1,179 @@
+{
+  "id": "functions",
+  "title": "Typed Functions",
+  "section": "TypeScript on Node",
+  "summary": "Annotate parameters and return types, use optional, default, and rest parameters, and type callbacks and functions that return functions.",
+  "intro": "A function's types are a contract. Callers must pass what the parameters say, and the body must return what the return type says. In this lesson you annotate both, let callers leave parameters out, and write function types for callbacks and for functions that build other functions.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Parameter and return types",
+      "body": "TypeScript never infers a parameter's type from the calls, so annotate every parameter. The return type is inferred from the `return` statements, which is often enough inside one file. Write it anyway on functions that other code calls, and wherever you want the body held to a promise. Then a mistake inside the function is reported inside it, where you made it, instead of at every caller.\n\n```typescript\nfunction area(width: number, height: number): number {\n  return width * height;\n}\n\nconsole.log(area(3, 4)); // 12\n```\n\nA function that returns nothing useful has the return type `void`. It's the type for functions that only print, save, or send something.\n\nOnce a return type is written, every path through the function must return a value of that type. A path that can reach the closing brace without a `return` is error TS2366. The fix is the missing `return`, not a looser type.",
+      "examples": [
+        {
+          "title": "Price with tax",
+          "prompt": "Add tax to a price and round the result to whole cents.",
+          "code": "function withTax(price: number, rate: number): number {\n  return Math.round(price * (1 + rate) * 100) / 100;\n}\n\nconsole.log(withTax(18, 0.2));\nconsole.log(withTax(9.99, 0.08));\n",
+          "output": "21.6\n10.79",
+          "explanation": "Both parameters are numbers, so a call like `withTax(\"18\", 0.2)` is rejected before anything runs, and the `number` return type is checked against the `return` line. Multiplying by 100, rounding, and dividing by 100 rounds to cents. It also hides floating-point noise, because `18 * 1.2` on its own is not quite 21.6:\n\n```typescript\nconsole.log(18 * 1.2); // 21.599999999999998\n```"
+        },
+        {
+          "title": "A function that returns nothing",
+          "prompt": "Write a function that only prints, and mark it as returning nothing with `void`.",
+          "code": "function logLine(label: string, value: number): void {\n  console.log(`${label}: ${value.toFixed(2)}`);\n}\n\nlogLine(\"Coffee\", 3.5);\nlogLine(\"Bagel\", 2.25);\nlogLine(\"Total\", 5.75);\n",
+          "output": "Coffee: 3.50\nBagel: 2.25\nTotal: 5.75",
+          "explanation": "`void` says the function gives back nothing a caller should use. `logLine` only prints, so it has no `return` at all, and anyone reading the signature knows it's called for what it does, not for a value. A bare `return;` to stop early is fine, but returning a value is a type error:\n\n```typescript error\nfunction logLine(label: string, value: number): void {\n  console.log(`${label}: ${value.toFixed(2)}`);\n  return value;\n}\n```"
+        },
+        {
+          "title": "A missing return",
+          "prompt": "Return a grade only when the score is high enough, and forget the other case.",
+          "code": "function grade(score: number): string {\n  if (score >= 50) {\n    return \"pass\";\n  }\n}\n\nconsole.log(grade(72));\n",
+          "expect": "type-error",
+          "output": "main.ts(1,32): error TS2366: Function lacks ending return statement and return type does not include 'undefined'.",
+          "explanation": "When `score` is below 50, `grade` reaches its closing brace and returns `undefined`, which isn't a `string`. Because the return type is written, `tsc` reports it right at that return type, line 1, column 32, before any caller can get an `undefined`. Add the missing branch:\n\n```typescript\nfunction grade(score: number): string {\n  if (score >= 50) {\n    return \"pass\";\n  }\n  return \"fail\";\n}\n\nconsole.log(grade(72), grade(31)); // pass fail\n```"
+        }
+      ],
+      "practice": {
+        "title": "Discount",
+        "prompt": "Write a function that takes a percentage off a price in cents.\n\n1. Write `discounted(priceCents, percent)`, and annotate both parameters and the return type as `number`.\n2. Return `priceCents` with `percent` percent taken off, rounded to whole cents with `Math.round`.\n3. Print the discounted prices of 1999 cents with 10% off, 4500 with 25% off, and 999 with 15% off, in the format below.\n\nExpected output:\n\n```text\n1999 with 10% off: 1799\n4500 with 25% off: 3375\n999 with 15% off: 849\n```",
+        "starter": "// TODO: write discounted(priceCents, percent). Annotate both parameters\n// and the return type as number, and round the result to whole cents.\n\n// TODO: print discounted(1999, 10), discounted(4500, 25), and\n// discounted(999, 15), each line like \"1999 with 10% off: 1799\"\n",
+        "solution": "function discounted(priceCents: number, percent: number): number {\n  return Math.round((priceCents * (100 - percent)) / 100);\n}\n\nconsole.log(`1999 with 10% off: ${discounted(1999, 10)}`);\nconsole.log(`4500 with 25% off: ${discounted(4500, 25)}`);\nconsole.log(`999 with 15% off: ${discounted(999, 15)}`);\n",
+        "tests": [
+          {
+            "output": "1999 with 10% off: 1799\n4500 with 25% off: 3375\n999 with 15% off: 849"
+          }
+        ],
+        "hints": [
+          "Follow `withTax`: a type after each parameter, and the return type after the parameter list, before the opening brace.",
+          "Taking `percent` percent off leaves `100 - percent` percent of the price.",
+          "`Math.round((priceCents * (100 - percent)) / 100)` rounds the result to whole cents."
+        ]
+      }
+    },
+    {
+      "title": "Optional, default, and rest parameters",
+      "body": "Every parameter is required unless you say otherwise, and a call with a missing or an extra argument is a type error. Three forms relax that:\n\n- `last?: string` is optional. Inside the function it's `string | undefined`, so check it before using it as a string.\n- `greeting = \"Hello\"` has a default, which fills in when the argument is left out. Its type, `string`, comes from the default.\n- `...nums: number[]` is a rest parameter. It collects all the remaining arguments into an array.\n\n```typescript\nfunction order(item: string, quantity = 1, note?: string): string {\n  const line = `${quantity} x ${item}`;\n  return note === undefined ? line : `${line} (${note})`;\n}\n\nconsole.log(order(\"tea\"));                  // 1 x tea\nconsole.log(order(\"bagel\", 2));             // 2 x bagel\nconsole.log(order(\"latte\", 1, \"oat milk\")); // 1 x latte (oat milk)\n```\n\nPut optional and default parameters after the required ones, and the rest parameter last.",
+      "examples": [
+        {
+          "title": "Defaults",
+          "prompt": "Greet someone with a greeting that defaults to `\"Hello\"`.",
+          "code": "function greet(name: string, greeting = \"Hello\"): string {\n  return `${greeting}, ${name}!`;\n}\n\nconsole.log(greet(\"Ada\"));\n//          ^? function greet(name: string, greeting?: string): string\nconsole.log(greet(\"Grace\", \"Welcome\"));\n",
+          "output": "Hello, Ada!\nWelcome, Grace!",
+          "explanation": "`greeting` has a default, so callers may leave it out, and its type `string` is inferred from `\"Hello\"`. The query shows the function the way callers see it: `greeting?: string`, an optional parameter. The type still holds, so `greet(\"Ada\", 3)` is a type error."
+        },
+        {
+          "title": "Optional",
+          "prompt": "Build a full name from a first name and an optional last name.",
+          "code": "function fullName(first: string, last?: string): string {\n  if (last === undefined) {\n    //^? (parameter) last: string | undefined\n    return first;\n  }\n  return `${first} ${last}`;\n  //                 ^? (parameter) last: string\n}\n\nconsole.log(fullName(\"Ada\", \"Lovelace\"));\nconsole.log(fullName(\"Cher\"));\n",
+          "output": "Ada Lovelace\nCher",
+          "explanation": "`last?: string` lets callers leave the last name out, so inside the function `last` is `string | undefined`, as the first query shows. Checking for `undefined` first handles the missing case, and once that `if` has returned, `last` is a plain `string`, as the second query shows. An optional parameter has no fallback value: you decide what a missing argument means."
+        },
+        {
+          "title": "Rest and spread",
+          "prompt": "Add up any number of numbers, passed one by one or spread from an array.",
+          "code": "function sum(...nums: number[]): number {\n  return nums.reduce((total, n) => total + n, 0);\n}\n\nconst prices = [4.5, 2.25, 3];\n\nconsole.log(sum(1, 2, 3));\nconsole.log(sum(...prices));\nconsole.log(sum());\n",
+          "output": "6\n9.75\n0",
+          "explanation": "`...nums: number[]` gathers every argument into one array, so `sum` takes any number of numbers, even none. Each argument is still checked, so `sum(1, \"2\")` is a type error. At the call, `...prices` does the opposite: it spreads an array back out into separate arguments."
+        }
+      ],
+      "practice": {
+        "title": "Tag line",
+        "prompt": "Write a function that builds a product tag from a name, a count, and any number of labels.\n\n1. Give `makeTag` a `count` parameter that defaults to `1`, then a rest parameter `labels` of type `string[]`.\n2. Return the name, a space, `x`, and the count, like `pen x1`.\n3. When there are labels, add a space and the labels in square brackets, separated by a comma and a space, like `mug x2 [gift, sale]`.\n4. Print the three tags below. Keep `export`: hidden type tests call `makeTag`.\n\nExpected output:\n\n```text\npen x1\nmug x2 [gift, sale]\nlamp x1 [new]\n```",
+        "starter": "// TODO: add count, which defaults to 1, and a rest parameter labels\nexport function makeTag(name: string): string {\n  // TODO: return \"<name> x<count>\", plus \" [<labels>]\" when there are labels\n  return name;\n}\n\nconsole.log(makeTag(\"pen\"));\n// TODO: print makeTag(\"mug\", 2, \"gift\", \"sale\") and makeTag(\"lamp\", 1, \"new\")\n",
+        "solution": "export function makeTag(name: string, count = 1, ...labels: string[]): string {\n  const tag = `${name} x${count}`;\n  if (labels.length === 0) {\n    return tag;\n  }\n  return `${tag} [${labels.join(\", \")}]`;\n}\n\nconsole.log(makeTag(\"pen\"));\nconsole.log(makeTag(\"mug\", 2, \"gift\", \"sale\"));\nconsole.log(makeTag(\"lamp\", 1, \"new\"));\n",
+        "tests": [
+          {
+            "output": "pen x1\nmug x2 [gift, sale]\nlamp x1 [new]"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { makeTag } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "takes just a name",
+              "expect": "ok",
+              "code": "makeTag(\"a\");"
+            },
+            {
+              "name": "takes a count and any number of labels",
+              "expect": "ok",
+              "code": "makeTag(\"a\", 2, \"x\", \"y\");"
+            },
+            {
+              "name": "rejects a count that is a string",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "makeTag(\"a\", \"2\");"
+            }
+          ]
+        },
+        "hints": [
+          "Write the parameters in the order required, default, rest, the way `sum` and `greet` write theirs.",
+          "`labels` is a `string[]`, so `labels.length` says whether there are any, and `labels.join(\", \")` lists them.",
+          "The parameter list is `name: string, count = 1, ...labels: string[]`. Return early with just the name and count when `labels.length === 0`."
+        ]
+      }
+    },
+    {
+      "title": "Function types and callbacks",
+      "body": "A function type is written like an arrow: `(n: number) => number` is any function that takes a number and returns a number. Use one for a parameter that takes a callback:\n\n```typescript\nfunction applyTwice(n: number, fn: (n: number) => number): number {\n  return fn(fn(n));\n}\n\nconsole.log(applyTwice(5, (x) => x * 3)); // 45\n//                         ^? (parameter) x: number\n```\n\nThe arrow `(x) => x * 3` has no annotation, yet `x` is a `number`: a function written inline gets its parameter types from where it's passed. This is called contextual typing, and it's why `map((t) => ...)` never needs annotations. The names inside a function type are only labels, so `x` fills a slot called `n`.\n\nA function can return a function, too. Its return type is then a function type, as in `function makeCounter(start: number): () => number`, and the arrow it returns is typed from it.",
+      "examples": [
+        {
+          "title": "Apply a function to every number",
+          "prompt": "Write `applyAll`, which runs a callback on every number, and pass it an inline arrow and a named function.",
+          "code": "function applyAll(xs: number[], fn: (n: number) => number): number[] {\n  return xs.map(fn);\n}\n\nconsole.log(applyAll([1, 2, 3], (n) => n * 10).join(\", \"));\nconsole.log(applyAll([4, 9, 16], Math.sqrt).join(\", \"));\n",
+          "output": "10, 20, 30\n2, 3, 4",
+          "explanation": "`fn` can be any function from `number` to `number`. The inline arrow gets `n: number` from the parameter's type, so it needs no annotation. `Math.sqrt` is a named function with that same shape, so it fits too, and `xs.map(fn)` gives back the `number[]` the return type promises."
+        },
+        {
+          "title": "Callbacks are checked",
+          "prompt": "Pass `applyAll` a callback that expects a string.",
+          "code": "function applyAll(xs: number[], fn: (n: number) => number): number[] {\n  return xs.map(fn);\n}\n\nconsole.log(applyAll([1, 2, 3], (s: string) => s.length).join(\", \"));\n",
+          "expect": "type-error",
+          "output": "main.ts(5,33): error TS2345: Argument of type '(s: string) => number' is not assignable to parameter of type '(n: number) => number'.\n  Types of parameters 's' and 'n' are incompatible.\n    Type 'number' is not assignable to type 'string'.",
+          "explanation": "`applyAll` calls `fn` with numbers, but this callback expects a string, so `tsc` rejects it. The indented lines explain why, one level at a time: the parameters `s` and `n` don't match, because a `number` can't go where a `string` is expected. Without the checker, `s.length` would be `undefined` for every number."
+        },
+        {
+          "title": "Returning a function",
+          "prompt": "Make counters: each call to `makeCounter` returns a new function that counts up from `start`.",
+          "code": "function makeCounter(start: number): () => number {\n  let count = start;\n  return () => {\n    count += 1;\n    return count;\n  };\n}\n\nconst next = makeCounter(0);\nconsole.log(next());\nconsole.log(next());\nconsole.log(next());\n\nconst fromTen = makeCounter(10);\nconsole.log(fromTen());\n",
+          "output": "1\n2\n3\n11",
+          "explanation": "The return type `() => number` is a function type: a function that takes nothing and returns a number. The arrow `makeCounter` returns closes over `count`, so every call to `next()` adds one to the same `count`. `fromTen` comes from its own call to `makeCounter`, so it has its own `count`, starting at 10."
+        }
+      ],
+      "practice": {
+        "title": "Multiplier",
+        "prompt": "Write a function that makes multiplier functions.\n\n1. Give `makeMultiplier` the return type `(n: number) => number`.\n2. Return an arrow function that multiplies its argument by `factor`.\n3. Keep the `console.log` lines, and keep `export`: hidden type tests call `makeMultiplier`.\n\nExpected output:\n\n```text\n3, 6, 9\n42\n```",
+        "starter": "// TODO: add the return type (n: number) => number, and return\n// an arrow function that multiplies n by factor\nexport function makeMultiplier(factor: number) {\n  return (n: number) => n;\n}\n\nconsole.log([1, 2, 3].map(makeMultiplier(3)).join(\", \"));\n\nconst double = makeMultiplier(2);\nconsole.log(double(21));\n",
+        "solution": "export function makeMultiplier(factor: number): (n: number) => number {\n  return (n) => n * factor;\n}\n\nconsole.log([1, 2, 3].map(makeMultiplier(3)).join(\", \"));\n\nconst double = makeMultiplier(2);\nconsole.log(double(21));\n",
+        "tests": [
+          {
+            "output": "3, 6, 9\n42"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { makeMultiplier } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "returns a function from number to number",
+              "expect": "ok",
+              "code": "const f: (n: number) => number = makeMultiplier(2);"
+            },
+            {
+              "name": "the returned function rejects a string",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "makeMultiplier(2)(\"4\");"
+            }
+          ]
+        },
+        "hints": [
+          "The returned arrow can use `factor` because it closes over it, like the counter in `makeCounter`.",
+          "With the return type written, the arrow needs no annotation: its `n` is a `number` because of the return type.",
+          "`return (n) => n * factor;`"
+        ]
+      }
+    }
+  ],
+  "recap": "- Annotate every parameter. Write the return type on functions that other code calls, so a mistake shows up inside the function.\n- `void` means the function returns nothing useful. With a written return type, every path must return, or `tsc` reports TS2366.\n- `last?: string` is optional and `string | undefined` inside. `greeting = \"Hello\"` is optional with a default. `...nums: number[]` collects the rest of the arguments.\n- `(n: number) => number` is a function type. A callback written inline gets its parameter types from where it's passed.\n- A function that returns a function has a function type as its return type, and the arrow it returns is typed from it."
+}

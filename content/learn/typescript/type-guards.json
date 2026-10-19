@@ -1,0 +1,177 @@
+{
+  "id": "type-guards",
+  "title": "Type Predicates and Assertion Functions",
+  "section": "Unions and Narrowing",
+  "summary": "Move narrowing into reusable functions with x is T predicates, let filter narrow arrays for you, and stop on bad data with asserts.",
+  "intro": "A check like `typeof x === \"object\" && x !== null && \"name\" in x` works, but writing it out everywhere a value needs checking gets old fast. A type guard puts the check in a function with a name, and TypeScript narrows wherever you call it. This lesson covers guards you write, guards TypeScript infers for you, and assertion functions that throw instead of returning `false`.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Guards with x is T",
+      "body": "A type guard is a function that returns a `boolean` and declares its return type as `x is T`, where `x` is one of its parameters. When the guard returns `true`, TypeScript narrows the argument to `T` wherever you called it:\n\n```typescript\nfunction isNumber(x: unknown): x is number {\n  return typeof x === \"number\";\n}\nconst value: unknown = 21;\nif (isNumber(value)) {\n  console.log(value * 2); // 42\n}\n```\n\nThe body is the narrowing code you already know. The `x is T` part is a promise: the checker doesn't prove that the body checks what the signature claims, so a guard that returns `true` for the wrong value lies just like `!`. Check every field the type has.\n\nGuards pay off with data from outside. Write `isUser(x: unknown): x is User` once, and every place that reads JSON can call it.",
+      "examples": [
+        {
+          "title": "isString",
+          "prompt": "Pick the strings out of a row of mixed values and shout them.",
+          "code": "function isString(x: unknown): x is string {\n  return typeof x === \"string\";\n}\n\nconst cells: unknown[] = [\"Ada\", 36, \"London\", null, \"1815\"];\nconst words: string[] = [];\nfor (const cell of cells) {\n  if (isString(cell)) {\n    words.push(cell.toUpperCase());\n    //         ^? const cell: string\n  }\n}\nconsole.log(words.join(\", \"));\n",
+          "output": "ADA, LONDON, 1815",
+          "explanation": "`isString` returns `true` only for strings, and its return type `x is string` passes that knowledge to the caller. Inside the `if`, `cell` is a `string`, as the bubble shows, so `toUpperCase` is allowed. The number and the `null` are skipped. `\"1815\"` is a string, so it stays."
+        },
+        {
+          "title": "isUser for parsed JSON",
+          "prompt": "Read a JSON array of users from stdin, print each valid user, and skip the rows that don't fit.",
+          "code": "import { readFileSync } from \"node:fs\";\n\ntype User = { name: string; age: number };\n\nfunction isUser(x: unknown): x is User {\n  return (\n    typeof x === \"object\" &&\n    x !== null &&\n    \"name\" in x &&\n    typeof x.name === \"string\" &&\n    \"age\" in x &&\n    typeof x.age === \"number\"\n  );\n}\n\nconst data: unknown = JSON.parse(readFileSync(0, \"utf8\"));\nconst rows: unknown[] = Array.isArray(data) ? data : [];\n\nfor (const row of rows) {\n  if (isUser(row)) {\n    console.log(`${row.name} is ${row.age}`);\n  } else {\n    console.log(`skipped ${JSON.stringify(row)}`);\n  }\n}\n",
+          "stdin": "[{\"name\": \"Ada\", \"age\": 36}, {\"name\": \"Grace\"}, {\"name\": \"Linus\", \"age\": 54}]\n",
+          "output": "Ada is 36\nskipped {\"name\":\"Grace\"}\nLinus is 54",
+          "explanation": "`isUser` checks every field the `User` type has, so the promise in `x is User` holds. `Array.isArray` narrows `data` to `any[]`, which would switch checking off for every row, so the rows go into an `unknown[]` first, and input that isn't an array gives no rows at all. Grace has no `age`, so the guard returns `false`, and her row prints as skipped."
+        },
+        {
+          "title": "Union members",
+          "prompt": "Tell the cats from the dogs in a list of pets with a guard on the union.",
+          "code": "type Cat = { name: string; lives: number };\ntype Dog = { name: string; tricks: string[] };\n\nfunction isCat(pet: Cat | Dog): pet is Cat {\n  return \"lives\" in pet;\n}\n\nconst pets: (Cat | Dog)[] = [\n  { name: \"Tom\", lives: 9 },\n  { name: \"Rex\", tricks: [\"sit\", \"roll over\"] },\n  { name: \"Felix\", lives: 7 },\n];\n\nfor (const pet of pets) {\n  if (isCat(pet)) {\n    console.log(`${pet.name} has ${pet.lives} lives`);\n  } else {\n    console.log(`${pet.name} knows ${pet.tricks.join(\" and \")}`);\n  }\n}\n",
+          "output": "Tom has 9 lives\nRex knows sit and roll over\nFelix has 7 lives",
+          "explanation": "A guard can narrow a union, not only `unknown`. `\"lives\" in pet` is true only for cats, so `isCat` narrows `pet` to `Cat` inside the `if`. In the `else`, TypeScript removes `Cat` from the union, so `pet` is a `Dog` and `pet.tricks` type-checks."
+        }
+      ],
+      "practice": {
+        "title": "Valid products",
+        "prompt": "A supplier sends its catalog as a JSON array, and some of its rows are broken. Print the SKUs of the valid products.\n\n1. The starter defines `Product` as `{ sku: string; priceCents: number }`. Export `isProduct(x: unknown): x is Product`, which returns `true` only when `x` is an object with a string `sku` and a number `priceCents`.\n2. The starter reads the array from stdin into `rows`. Print the `sku` of every valid product, one per line, in order.\n3. Finally print `Skipped: <n>`, where n counts the rows that aren't products.\n\nInput:\n\n```text\n[{\"sku\": \"MUG-1\", \"priceCents\": 1299}, {\"sku\": \"CUP-2\"}, {\"sku\": \"BOWL-3\", \"priceCents\": 899}, \"TEA-4\"]\n```\n\nExpected output:\n\n```text\nMUG-1\nBOWL-3\nSkipped: 2\n```",
+        "starter": "import { readFileSync } from \"node:fs\";\n\nexport type Product = { sku: string; priceCents: number };\n\nexport function isProduct(x: unknown): x is Product {\n  // TODO: check that x is an object with a string sku and a number priceCents\n  return false;\n}\n\nconst data: unknown = JSON.parse(readFileSync(0, \"utf8\"));\nconst rows: unknown[] = Array.isArray(data) ? data : [];\n\n// TODO: print the sku of every product, then \"Skipped: <n>\"\n",
+        "solution": "import { readFileSync } from \"node:fs\";\n\nexport type Product = { sku: string; priceCents: number };\n\nexport function isProduct(x: unknown): x is Product {\n  return (\n    typeof x === \"object\" &&\n    x !== null &&\n    \"sku\" in x &&\n    typeof x.sku === \"string\" &&\n    \"priceCents\" in x &&\n    typeof x.priceCents === \"number\"\n  );\n}\n\nconst data: unknown = JSON.parse(readFileSync(0, \"utf8\"));\nconst rows: unknown[] = Array.isArray(data) ? data : [];\n\nlet skipped = 0;\nfor (const row of rows) {\n  if (isProduct(row)) {\n    console.log(row.sku);\n  } else {\n    skipped++;\n  }\n}\nconsole.log(`Skipped: ${skipped}`);\n",
+        "tests": [
+          {
+            "stdin": "[{\"sku\": \"MUG-1\", \"priceCents\": 1299}, {\"sku\": \"CUP-2\"}, {\"sku\": \"BOWL-3\", \"priceCents\": 899}, \"TEA-4\"]\n",
+            "output": "MUG-1\nBOWL-3\nSkipped: 2"
+          },
+          {
+            "stdin": "[{\"sku\": 5, \"priceCents\": 100}, {\"sku\": \"POT-7\", \"priceCents\": 2450}, null, {\"priceCents\": 300}]\n",
+            "output": "POT-7\nSkipped: 3"
+          }
+        ],
+        "forbid": [
+          "any",
+          "as"
+        ],
+        "hints": [
+          "Give `isProduct` the shape of `isUser`: `typeof x === \"object\"`, `x !== null`, then `in` and `typeof` for each field.",
+          "Loop over `rows`. Inside `if (isProduct(row))`, `row.sku` is a string, so you can print it.",
+          "Count the other rows in a `let skipped = 0`, and print it after the loop."
+        ]
+      }
+    },
+    {
+      "title": "Inferred predicates and filter",
+      "body": "`filter` has a special form: when its callback is a type guard, it returns an array of the narrowed type. Since TypeScript 5.5 you often don't write that guard yourself. An arrow function like `(x) => x !== null` is *inferred* as a type predicate, so `filter` narrows the array:\n\n```typescript\nconst scores = [90, null, 75];\nconst taken = scores.filter((s) => s !== null);\n//    ^? const taken: number[]\nconsole.log(taken.join(\", \")); // 90, 75\n```\n\nThe inference only happens when the check proves the type both ways: `true` means a `number`, and `false` means not a `number`. `filter(Boolean)` also drops `null` at run time, but `Boolean` is a plain function, not a guard, so the array keeps its old type. It drops `0` and `\"\"` too.\n\n`find` works the same way: give it a guard, and you get the narrowed type back, or `undefined` when nothing matches.",
+      "examples": [
+        {
+          "title": "Removing nulls",
+          "prompt": "Drop the missing names from a list and shout the rest.",
+          "code": "const names = [\"Ada\", null, \"Grace\", null, \"Linus\"];\n//    ^? const names: (string | null)[]\nconst present = names.filter((n) => n !== null);\n//    ^? const present: string[]\nconsole.log(present.map((n) => n.toUpperCase()).join(\", \"));\n",
+          "output": "ADA, GRACE, LINUS",
+          "explanation": "`names` mixes strings and `null`, so its type is `(string | null)[]`. TypeScript infers that `(n) => n !== null` returns `true` exactly for the strings, so `filter` returns a `string[]`, and `map` can call `toUpperCase` on every name with no check."
+        },
+        {
+          "title": "Boolean does not narrow",
+          "prompt": "Filter the same list with `Boolean`, and compare the type you get.",
+          "code": "const names = [\"Ada\", null, \"Grace\", null, \"Linus\"];\nconst present = names.filter(Boolean);\n//    ^? const present: (string | null)[]\nconsole.log(present.length);\nconsole.log(present.join(\", \"));\n",
+          "output": "3\nAda, Grace, Linus",
+          "explanation": "At run time `filter(Boolean)` drops both `null`s, so 3 names are left. The type doesn't know that: `Boolean` isn't a type guard, so `present` is still `(string | null)[]`, and using an item as a string is a type error:\n\n```typescript error\nconst names = [\"Ada\", null, \"Grace\"];\nconst present = names.filter(Boolean);\nconsole.log(present.map((n) => n.toUpperCase()).join(\", \"));\n```\n\nTS18047 says `n` is possibly `null`. With numbers, `filter(Boolean)` has a second trap: it drops `0`, which is usually a real value."
+        },
+        {
+          "title": "find with a guard",
+          "prompt": "Find the first cat among the pets, then all of them, with the same guard.",
+          "code": "type Cat = { name: string; lives: number };\ntype Dog = { name: string; tricks: string[] };\n\nfunction isCat(pet: Cat | Dog): pet is Cat {\n  return \"lives\" in pet;\n}\n\nconst pets: (Cat | Dog)[] = [\n  { name: \"Rex\", tricks: [\"sit\"] },\n  { name: \"Tom\", lives: 9 },\n  { name: \"Felix\", lives: 7 },\n];\n\nconst firstCat = pets.find(isCat);\n//    ^? const firstCat: Cat | undefined\nconsole.log(firstCat ? `${firstCat.name} has ${firstCat.lives} lives` : \"no cats\");\n\nconst cats = pets.filter(isCat);\n//    ^? const cats: Cat[]\nconsole.log(`${cats.length} cats`);\n",
+          "output": "Tom has 9 lives\n2 cats",
+          "explanation": "Passing `isCat` to `find` gives `Cat | undefined`: the first cat when there is one, `undefined` when there isn't. The ternary rules out `undefined` before reading `lives`. `filter(isCat)` returns a `Cat[]` with every cat in the list."
+        }
+      ],
+      "practice": {
+        "title": "Clean readings",
+        "prompt": "A temperature sensor sometimes misses a reading, which arrives as `null` or `undefined`. Clean the list before you add it up.\n\n1. Export `cleanReadings(xs: (number | null | undefined)[]): number[]`.\n2. Keep only the numbers, with `filter` and an arrow function that TypeScript infers as a type predicate. A reading of `0` is real, so keep it.\n3. The starter already prints the cleaned readings and their sum.\n\nExpected output:\n\n```text\n12.5, 0, 14, 9.5\nSum: 36\n```",
+        "starter": "export function cleanReadings(xs: (number | null | undefined)[]): number[] {\n  // TODO: keep only the numbers with filter and an arrow function\n  return [];\n}\n\nconst readings = [12.5, null, 0, 14, undefined, 9.5];\nconst clean = cleanReadings(readings);\nconsole.log(clean.join(\", \"));\nconsole.log(`Sum: ${clean.reduce((sum, x) => sum + x, 0)}`);\n",
+        "solution": "export function cleanReadings(xs: (number | null | undefined)[]): number[] {\n  return xs.filter((x) => x !== null && x !== undefined);\n}\n\nconst readings = [12.5, null, 0, 14, undefined, 9.5];\nconst clean = cleanReadings(readings);\nconsole.log(clean.join(\", \"));\nconsole.log(`Sum: ${clean.reduce((sum, x) => sum + x, 0)}`);\n",
+        "tests": [
+          {
+            "output": "12.5, 0, 14, 9.5\nSum: 36"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { cleanReadings } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "returns a number array",
+              "expect": "ok",
+              "code": "const ok: number[] = cleanReadings([1, null]);"
+            }
+          ]
+        },
+        "forbid": [
+          "as"
+        ],
+        "hints": [
+          "An arrow function that rules out both `null` and `undefined` is inferred as a type predicate.",
+          "Return `xs.filter((x) => x !== null && x !== undefined)`. `filter(Boolean)` would drop the `0` reading and keep the wrong type."
+        ]
+      }
+    },
+    {
+      "title": "Assertion functions",
+      "body": "An assertion function checks a value and throws when the check fails, so it never returns `false`. Its return type says what is true once it returns: `asserts condition` for a condition, or `asserts x is T` for a type. Code after the call is narrowed, with no `if` around it:\n\n```typescript\nfunction assertIsNumber(x: unknown): asserts x is number {\n  if (typeof x !== \"number\") {\n    throw new Error(`expected a number, got ${typeof x}`);\n  }\n}\nconst value: unknown = 20;\nassertIsNumber(value);\nconsole.log(value + 1); // 21\n```\n\nUse a guard when bad data is normal and you want to skip it. Use an assertion when bad data means you should stop.\n\nOne rule trips people up. The checker only treats a call as an assertion when the function's type is written out, which every `function` declaration has. An arrow function stored in a `const` without a type annotation doesn't qualify, and calling it is error TS2775.",
+      "examples": [
+        {
+          "title": "An assert helper",
+          "prompt": "Reserve items from stock, and stop with a clear message when an item is unknown or sold out.",
+          "code": "function assert(condition: boolean, message: string): asserts condition {\n  if (!condition) {\n    throw new Error(message);\n  }\n}\n\nconst stock = new Map<string, number>([\n  [\"mug\", 4],\n  [\"plate\", 0],\n]);\n\nfunction reserve(item: string, wanted: number): string {\n  const left = stock.get(item);\n  assert(left !== undefined, `unknown item: ${item}`);\n  assert(left >= wanted, `only ${left} ${item} left`);\n  //     ^? const left: number\n  return `reserved ${wanted} ${item}`;\n}\n\nfor (const item of [\"mug\", \"plate\", \"cup\"]) {\n  try {\n    console.log(reserve(item, 1));\n  } catch (err) {\n    console.log(err instanceof Error ? err.message : String(err));\n  }\n}\n",
+          "output": "reserved 1 mug\nonly 0 plate left\nunknown item: cup",
+          "explanation": "`stock.get(item)` returns `number | undefined`. Once `assert(left !== undefined, ...)` returns, the checker knows the condition holds, so `left` is a `number`, as the bubble shows, and `left >= wanted` type-checks. Without the first assertion that comparison would be an error. Each failed assertion throws its own message, and the loop's `catch` prints it."
+        },
+        {
+          "title": "assertIsString",
+          "prompt": "Read one JSON value per line, and insist that each one is a string.",
+          "code": "import { readFileSync } from \"node:fs\";\n\nfunction assertIsString(x: unknown, label: string): asserts x is string {\n  if (typeof x !== \"string\") {\n    throw new Error(`${label} must be a string, got ${typeof x}`);\n  }\n}\n\nconst lines = readFileSync(0, \"utf8\").trim().split(\"\\n\");\nfor (const line of lines) {\n  const value: unknown = JSON.parse(line);\n  try {\n    assertIsString(value, \"name\");\n    console.log(`name: ${value.toUpperCase()}`);\n  } catch (err) {\n    console.log(err instanceof Error ? err.message : String(err));\n  }\n}\n",
+          "stdin": "\"ada\"\n42\nnull\n\"grace\"\n",
+          "output": "name: ADA\nname must be a string, got number\nname must be a string, got object\nname: GRACE",
+          "explanation": "After `assertIsString(value, \"name\")` returns, `value` is a `string`, so `toUpperCase` needs no `if` around it. For `42` the assertion throws before that line runs, and the `catch` prints its message. `typeof null` is `\"object\"`, an old JavaScript quirk, which is why the third line says `got object`."
+        },
+        {
+          "title": "The annotation rule",
+          "prompt": "Write the same kind of assertion as an arrow function in a `const`, and call it.",
+          "code": "const assertIsString = (x: unknown): asserts x is string => {\n  if (typeof x !== \"string\") {\n    throw new Error(\"expected a string\");\n  }\n};\n\nconst value: unknown = JSON.parse('\"hello\"');\nassertIsString(value);\nconsole.log(value.toUpperCase());\n",
+          "expect": "type-error",
+          "output": "main.ts(8,1): error TS2775: Assertions require every name in the call target to be declared with an explicit type annotation.\nmain.ts(9,13): error TS18046: 'value' is of type 'unknown'.",
+          "explanation": "The arrow function has an `asserts` return type, but the `const` that holds it has no type annotation, so the call is TS2775. The checker then ignores the assertion, and `value` is still `unknown` on the next line, which is the second error. A `function` declaration fixes both:\n\n```typescript\nfunction assertIsString(x: unknown): asserts x is string {\n  if (typeof x !== \"string\") {\n    throw new Error(\"expected a string\");\n  }\n}\n\nconst value: unknown = JSON.parse('\"hello\"');\nassertIsString(value);\nconsole.log(value.toUpperCase()); // HELLO\n```"
+        }
+      ],
+      "practice": {
+        "title": "Validate an order",
+        "prompt": "Each line of the input is one order as JSON. Check every order before you use it.\n\n1. The starter defines `Order`. Export `assertOrder(x: unknown): asserts x is Order`, which throws an `Error` with the message `missing id` when `x` isn't an object with a string `id`, `missing items` when it has no `items` array, and `bad item` when an item isn't an object with a string `sku` and a number `qty`.\n2. For a valid order, print `Order <id>: <n> items`, where n adds up the `qty` of its items.\n3. When `assertOrder` throws, print `Invalid order: <message>`.\n\nInput:\n\n```text\n{\"id\": \"ord_1\", \"items\": [{\"sku\": \"MUG-1\", \"qty\": 2}, {\"sku\": \"TEA-4\", \"qty\": 1}]}\n{\"id\": \"ord_2\"}\n```\n\nExpected output:\n\n```text\nOrder ord_1: 3 items\nInvalid order: missing items\n```",
+        "starter": "import { readFileSync } from \"node:fs\";\n\nexport type Order = { id: string; items: { sku: string; qty: number }[] };\n\nexport function assertOrder(x: unknown): asserts x is Order {\n  // TODO: throw new Error(\"missing id\"), \"missing items\", or \"bad item\"\n  // when x doesn't fit the Order type\n}\n\nconst lines = readFileSync(0, \"utf8\").trim().split(\"\\n\");\nfor (const line of lines) {\n  const order: unknown = JSON.parse(line);\n  // TODO: call assertOrder inside try, then print \"Order <id>: <n> items\"\n  // TODO: in catch, print \"Invalid order: <message>\"\n}\n",
+        "solution": "import { readFileSync } from \"node:fs\";\n\nexport type Order = { id: string; items: { sku: string; qty: number }[] };\n\nfunction isItem(x: unknown): x is { sku: string; qty: number } {\n  return (\n    typeof x === \"object\" &&\n    x !== null &&\n    \"sku\" in x &&\n    typeof x.sku === \"string\" &&\n    \"qty\" in x &&\n    typeof x.qty === \"number\"\n  );\n}\n\nexport function assertOrder(x: unknown): asserts x is Order {\n  if (\n    typeof x !== \"object\" ||\n    x === null ||\n    !(\"id\" in x) ||\n    typeof x.id !== \"string\"\n  ) {\n    throw new Error(\"missing id\");\n  }\n  if (!(\"items\" in x) || !Array.isArray(x.items)) {\n    throw new Error(\"missing items\");\n  }\n  if (!x.items.every(isItem)) {\n    throw new Error(\"bad item\");\n  }\n}\n\nconst lines = readFileSync(0, \"utf8\").trim().split(\"\\n\");\nfor (const line of lines) {\n  const order: unknown = JSON.parse(line);\n  try {\n    assertOrder(order);\n    const count = order.items.reduce((sum, item) => sum + item.qty, 0);\n    console.log(`Order ${order.id}: ${count} items`);\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    console.log(`Invalid order: ${message}`);\n  }\n}\n",
+        "tests": [
+          {
+            "stdin": "{\"id\": \"ord_1\", \"items\": [{\"sku\": \"MUG-1\", \"qty\": 2}, {\"sku\": \"TEA-4\", \"qty\": 1}]}\n{\"id\": \"ord_2\"}\n",
+            "output": "Order ord_1: 3 items\nInvalid order: missing items"
+          },
+          {
+            "stdin": "{\"items\": []}\n{\"id\": \"ord_3\", \"items\": [{\"sku\": \"MUG-1\", \"qty\": \"2\"}]}\n{\"id\": \"ord_4\", \"items\": []}\n",
+            "output": "Invalid order: missing id\nInvalid order: bad item\nOrder ord_4: 0 items"
+          },
+          {
+            "stdin": "\"ord_5\"\n{\"id\": \"ord_6\", \"items\": [{\"sku\": \"PLATE-2\", \"qty\": 4}, {\"sku\": \"BOWL-3\", \"qty\": 2}]}\n",
+            "output": "Invalid order: missing id\nOrder ord_6: 6 items"
+          }
+        ],
+        "forbid": [
+          "any",
+          "as"
+        ],
+        "hints": [
+          "Check in the order the messages are listed: an object with a string `id`, then an `items` array, then every item. Throw as soon as one check fails.",
+          "Write a guard `isItem(x: unknown): x is { sku: string; qty: number }` that checks both fields. Then `x.items.every(isItem)` checks every item at once.",
+          "After `assertOrder(order)` returns, `order` is an `Order`, so `order.items.reduce((sum, item) => sum + item.qty, 0)` adds up the quantities."
+        ]
+      }
+    }
+  ],
+  "recap": "- A function that returns `x is T` is a type guard: when it returns `true`, the argument is narrowed to `T` where you called it.\n- The checker trusts a guard's body, so check every field the type has.\n- `Array.isArray` narrows `unknown` to `any[]`, so store the result in an `unknown[]`.\n- An arrow like `(x) => x !== null` is inferred as a type predicate, so `filter` narrows the array. `filter(Boolean)` doesn't.\n- `find` and `filter` with a guard return the narrowed type.\n- `asserts x is T` and `asserts condition` throw on failure and narrow everything after the call.\n- Write assertion functions as `function` declarations, or calling them is TS2775."
+}

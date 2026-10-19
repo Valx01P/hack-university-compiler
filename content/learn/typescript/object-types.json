@@ -1,0 +1,237 @@
+{
+  "id": "object-types",
+  "title": "Object Types and Type Aliases",
+  "section": "Object Types",
+  "summary": "Describe objects by their shape with type aliases, optional and readonly properties, structural typing, and Record dictionaries.",
+  "intro": "Most of the data in a program is objects: a user, an order, the settings for a page. TypeScript describes an object by its shape, meaning the properties it has and the type of each one. In this lesson you name shapes with `type`, mark properties as optional or read-only, see how TypeScript compares shapes, and type objects that work as dictionaries.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Object types and aliases",
+      "body": "An object type lists each property with its type, between braces. A `type` alias gives that shape a name, so you can use it in annotations anywhere:\n\n```typescript\ntype User = {\n  id: number;\n  name: string;\n};\n\nconst ada: User = { id: 1, name: \"Ada\" };\nconsole.log(`${ada.id}: ${ada.name}`); // 1: Ada\n```\n\nEvery property is required. An object without `name`, or with a number in `name`, is a type error. In return, wherever a value has the type `User`, TypeScript knows its properties and their types.\n\nYou can also write a shape inline, right in a parameter. That suits a shape you use only once:\n\n```typescript\nfunction label(item: { name: string; qty: number }): string {\n  return `${item.qty} x ${item.name}`;\n}\n\nconsole.log(label({ name: \"Mug\", qty: 2 })); // 2 x Mug\n```\n\nShapes nest: a property can hold another object type, and `User[]` is an array of users. Like annotations, aliases are erased before the code runs, so they cost nothing at runtime. Name types in PascalCase, like `User` and `OrderLine`.",
+      "examples": [
+        {
+          "title": "Format users",
+          "prompt": "Name the shape of a user once, then use it for a function parameter and for an array of users.",
+          "code": "type User = {\n  id: number;\n  name: string;\n  email: string;\n};\n\nfunction describe(user: User): string {\n  return `#${user.id} ${user.name} <${user.email}>`;\n}\n\nconst users: User[] = [\n  { id: 1, name: \"Ada\", email: \"ada@example.com\" },\n  { id: 2, name: \"Grace\", email: \"grace@example.com\" },\n];\n\nfor (const user of users) {\n  console.log(describe(user));\n}\n",
+          "output": "#1 Ada <ada@example.com>\n#2 Grace <grace@example.com>",
+          "explanation": "`type User` names the shape once, and both `describe` and the array use it. `User[]` is an array of users, so each object in it is checked against the shape as you write it, and in the loop `user` has the type `User`. Inside `describe`, TypeScript knows that `user` has `id`, `name`, and `email`, so a typo like `user.nmae` is a type error. When the program runs, the alias is gone and Node sees plain objects."
+        },
+        {
+          "title": "Nested types",
+          "prompt": "Give a customer an address whose type is another alias, then print one shipping line.",
+          "code": "type Address = {\n  street: string;\n  city: string;\n};\n\ntype Customer = {\n  name: string;\n  address: Address;\n};\n\nconst ada: Customer = {\n  name: \"Ada\",\n  address: { street: \"12 Byron St\", city: \"London\" },\n};\n\nconst where = ada.address;\n//    ^? const where: Address\nconsole.log(`${ada.name}, ${where.street}, ${where.city}`);\n",
+          "output": "Ada, 12 Byron St, London",
+          "explanation": "The `address` property has the type `Address`, so the nested object is checked against `Address` too: leaving out `city` would be an error reported at `address`, naming the `Address` type. Reading `ada.address` gives an `Address`, as the type bubble shows, which is why `where.street` and `where.city` type-check. You could write the address shape inline in `Customer`, but a named type can be reused, for example for a billing address."
+        },
+        {
+          "title": "A missing property",
+          "prompt": "Leave a required property out of a user and read the checker's message.",
+          "code": "type User = {\n  id: number;\n  name: string;\n};\n\nconst user: User = { id: 1 };\nconsole.log(user.id);\n",
+          "expect": "type-error",
+          "output": "main.ts(6,7): error TS2741: Property 'name' is missing in type '{ id: number; }' but required in type 'User'.",
+          "explanation": "The object literal's type is `{ id: number; }`, and `User` also requires `name`, so `tsc` stops with TS2741 and the program never runs. The position `(6,7)` points at `user`, the variable whose annotation asks for a `User`. Add `name: \"Ada\"` and it compiles. When a property can really be missing, mark it optional with a `?` instead."
+        }
+      ],
+      "practice": {
+        "title": "Product catalog",
+        "prompt": "Describe products with a type alias and print one catalog line for each.\n\n1. Complete `Product`: `sku` and `name` are strings, and `priceCents` is a number.\n2. Make `formatProduct` return the SKU, the name, and the price in dollars with 2 decimals, like `MUG-001 Ceramic Mug $12.99`.\n\nExpected output:\n\n```text\nMUG-001 Ceramic Mug $12.99\nTEE-042 Logo T-Shirt $24.50\nPEN-007 Gel Pen $1.99\n```",
+        "starter": "export type Product = {\n  // TODO: sku and name are strings, and priceCents is a number\n};\n\nexport function formatProduct(product: Product): string {\n  // TODO: return \"MUG-001 Ceramic Mug $12.99\" for the mug\n  return \"\";\n}\n\nconst products: Product[] = [\n  { sku: \"MUG-001\", name: \"Ceramic Mug\", priceCents: 1299 },\n  { sku: \"TEE-042\", name: \"Logo T-Shirt\", priceCents: 2450 },\n  { sku: \"PEN-007\", name: \"Gel Pen\", priceCents: 199 },\n];\n\nfor (const product of products) {\n  console.log(formatProduct(product));\n}\n",
+        "solution": "export type Product = {\n  sku: string;\n  name: string;\n  priceCents: number;\n};\n\nexport function formatProduct(product: Product): string {\n  const dollars = (product.priceCents / 100).toFixed(2);\n  return `${product.sku} ${product.name} $${dollars}`;\n}\n\nconst products: Product[] = [\n  { sku: \"MUG-001\", name: \"Ceramic Mug\", priceCents: 1299 },\n  { sku: \"TEE-042\", name: \"Logo T-Shirt\", priceCents: 2450 },\n  { sku: \"PEN-007\", name: \"Gel Pen\", priceCents: 199 },\n];\n\nfor (const product of products) {\n  console.log(formatProduct(product));\n}\n",
+        "tests": [
+          {
+            "output": "MUG-001 Ceramic Mug $12.99\nTEE-042 Logo T-Shirt $24.50\nPEN-007 Gel Pen $1.99"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { formatProduct } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects a product without priceCents",
+              "expect": "error",
+              "errorCode": "TS2741",
+              "code": "formatProduct({ sku: \"X\", name: \"Y\" });"
+            }
+          ]
+        },
+        "hints": [
+          "Write `Product` the way the first example writes `User`: one `name: type` line per property.",
+          "The price is in cents, so divide by 100 and call `toFixed(2)` to get two decimals.",
+          "Return the template literal `${product.sku} ${product.name} $${dollars}` between backticks, where `dollars` holds the formatted price. In `$${dollars}`, the first `$` is a literal dollar sign."
+        ]
+      }
+    },
+    {
+      "title": "Optional and readonly properties",
+      "body": "Put `?` after a property name to make it optional. Reading an optional property gives its type plus `undefined`, so supply a default with `??`:\n\n```typescript\ntype Profile = {\n  name: string;\n  bio?: string;\n};\n\nconst linus: Profile = { name: \"Linus\" };\nconst bio = linus.bio;\n//    ^? const bio: string | undefined\nconsole.log(bio ?? \"(no bio)\"); // (no bio)\n```\n\nPut `readonly` before a property that must not change once the object exists, like an id. Assigning to it is a type error (TS2540). At runtime it is still an ordinary property: only the checker stops the assignment.\n\nThis course turns on `exactOptionalPropertyTypes`, so optional means \"may be missing\", not \"may be `undefined`\". To leave a value out, leave the key out. Writing `bio: undefined` is an error (TS2375) unless the type says `bio?: string | undefined`. The difference shows up at runtime too, because `Object.keys` and the `in` operator see a key that holds `undefined`.",
+      "examples": [
+        {
+          "title": "Optional bio",
+          "prompt": "Describe two profiles, one with a bio and one without, and fall back to a default for the missing one.",
+          "code": "type Profile = {\n  name: string;\n  bio?: string;\n};\n\nfunction describeProfile(profile: Profile): string {\n  return `${profile.name}: ${profile.bio ?? \"(no bio)\"}`;\n}\n\nconst ada: Profile = { name: \"Ada\", bio: \"Wrote the first program\" };\nconst linus: Profile = { name: \"Linus\" };\n\nconsole.log(describeProfile(ada));\nconsole.log(describeProfile(linus));\n",
+          "output": "Ada: Wrote the first program\nLinus: (no bio)",
+          "explanation": "`bio?: string` lets `linus` leave the key out, while `name` is still required. Inside `describeProfile`, `profile.bio` has the type `string | undefined`, and `??` turns a missing bio into `\"(no bio)\"`. Without the `??`, the template literal would print `Linus: undefined`. TypeScript allows that, so remembering the default is up to you."
+        },
+        {
+          "title": "A read-only id",
+          "prompt": "Mark an account's id as readonly, then try to change it.",
+          "code": "type Account = {\n  readonly id: number;\n  owner: string;\n};\n\nconst account: Account = { id: 1, owner: \"Ada\" };\naccount.owner = \"Grace\";\naccount.id = 2;\nconsole.log(`${account.id}: ${account.owner}`);\n",
+          "expect": "type-error",
+          "output": "main.ts(8,9): error TS2540: Cannot assign to 'id' because it is a read-only property.",
+          "explanation": "`owner` has no modifier, so changing it is fine. `id` is `readonly`, so the assignment on line 8 fails with TS2540 and nothing runs. Node itself would change the property without complaint, because `readonly` is erased with the other types. That is why the checker is the place to catch it."
+        },
+        {
+          "title": "Missing versus undefined",
+          "prompt": "Set an optional property to undefined instead of leaving it out.",
+          "code": "type Profile = {\n  name: string;\n  bio?: string;\n};\n\nconst ada: Profile = { name: \"Ada\", bio: undefined };\nconsole.log(ada.name);\n",
+          "expect": "type-error",
+          "output": "main.ts(6,7): error TS2375: Type '{ name: string; bio: undefined; }' is not assignable to type 'Profile' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.\n  Types of property 'bio' are incompatible.\n    Type 'undefined' is not assignable to type 'string'.",
+          "explanation": "With `exactOptionalPropertyTypes`, `bio?: string` means the key is either missing or holds a string. `bio: undefined` is neither, so `tsc` reports TS2375. There are two fixes:\n\n- Leave the key out: `{ name: \"Ada\" }`. This is the usual one.\n- Widen the type to `bio?: string | undefined`, when your data really holds explicit `undefined` values.\n\nWith the wider type, the key exists even though its value is `undefined`:\n\n```typescript\ntype Profile = {\n  name: string;\n  bio?: string | undefined;\n};\n\nconst ada: Profile = { name: \"Ada\", bio: undefined };\nconsole.log(Object.keys(ada).join(\", \")); // name, bio\n```"
+        }
+      ],
+      "practice": {
+        "title": "Account settings",
+        "prompt": "Model a user's settings with a read-only id and two optional settings.\n\n1. Complete `Settings`: a `readonly` `userId` (a number), and optional `theme` (a string) and `fontSize` (a number).\n2. Make `describeSettings` return a line like `user 7: dark theme, 16px`, using `light` and `16` for a setting that is missing.\n\nExpected output:\n\n```text\nuser 7: dark theme, 16px\nuser 8: light theme, 20px\n```",
+        "starter": "export type Settings = {\n  // TODO: a readonly userId (a number), and optional theme (a string) and fontSize (a number)\n};\n\nexport function describeSettings(settings: Settings): string {\n  // TODO: return \"user 7: dark theme, 16px\", with light and 16 for missing settings\n  return \"\";\n}\n\nconst mine: Settings = { userId: 7, theme: \"dark\" };\nconst yours: Settings = { userId: 8, fontSize: 20 };\n\nconsole.log(describeSettings(mine));\nconsole.log(describeSettings(yours));\n",
+        "solution": "export type Settings = {\n  readonly userId: number;\n  theme?: string;\n  fontSize?: number;\n};\n\nexport function describeSettings(settings: Settings): string {\n  const theme = settings.theme ?? \"light\";\n  const fontSize = settings.fontSize ?? 16;\n  return `user ${settings.userId}: ${theme} theme, ${fontSize}px`;\n}\n\nconst mine: Settings = { userId: 7, theme: \"dark\" };\nconst yours: Settings = { userId: 8, fontSize: 20 };\n\nconsole.log(describeSettings(mine));\nconsole.log(describeSettings(yours));\n",
+        "tests": [
+          {
+            "output": "user 7: dark theme, 16px\nuser 8: light theme, 20px"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { type Settings } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects changing userId",
+              "expect": "error",
+              "errorCode": "TS2540",
+              "code": "declare const s: Settings;\ns.userId = 2;"
+            },
+            {
+              "name": "rejects a theme set to undefined",
+              "expect": "error",
+              "errorCode": "TS2375",
+              "code": "const bad: Settings = { userId: 1, theme: undefined };"
+            },
+            {
+              "name": "accepts settings with only a userId",
+              "expect": "ok",
+              "code": "const good: Settings = { userId: 1 };"
+            }
+          ]
+        },
+        "hints": [
+          "`readonly` goes before a property's name, and `?` goes right after it, as in `bio?: string`.",
+          "Read each optional setting with `??` and its default, like `settings.theme ?? \"light\"`.",
+          "Write `theme?: string`, not `theme?: string | undefined`: the checks expect `theme: undefined` to be rejected."
+        ]
+      }
+    },
+    {
+      "title": "Structural typing and excess properties",
+      "body": "TypeScript compares shapes, not names. A value fits a type when it has every property the type needs, with the right types, whatever the type is called:\n\n```typescript\ntype Point = { x: number; y: number };\ntype Size = { x: number; y: number };\n\nconst screen: Size = { x: 640, y: 480 };\nconst corner: Point = screen;\nconsole.log(`${corner.x} by ${corner.y}`); // 640 by 480\n```\n\nExtra properties are fine too, since a value with more can still do everything the type needs. This is called structural typing.\n\nThere is one exception. An object literal written straight into a typed place, like an annotated variable or a function argument, may not have properties the type lacks. TypeScript reports each one as an excess property (TS2353), because an extra key in a fresh literal is almost always a typo. When the key is close to a real one, the message suggests it (TS2561).\n\nSo pass options as a literal, or annotate the variable that holds them, and the checker catches `colour` where you meant `color`. A literal stored in an unannotated variable first gets no such check.",
+      "examples": [
+        {
+          "title": "Same shape, same type",
+          "prompt": "Pass a point that has an extra z property to a function that wants x and y.",
+          "code": "type Point = {\n  x: number;\n  y: number;\n};\n\nfunction printPoint(point: Point): void {\n  console.log(`(${point.x}, ${point.y})`);\n}\n\nconst corner = { x: 4, y: 7 };\nconst spot = { x: 1, y: 2, z: 3 };\n//    ^? const spot: { x: number; y: number; z: number; }\n\nprintPoint(corner);\nprintPoint(spot);\n",
+          "output": "(4, 7)\n(1, 2)",
+          "explanation": "`corner` was never declared as a `Point`, yet `printPoint` accepts it, because it has the shape. `spot` also has a `z`, and that is fine too: `printPoint` only reads `x` and `y`. Neither object is fresh at the call, since both were stored in variables first, so there is no excess property check. TypeScript compares the inferred type of `spot`, shown in the bubble, with `Point`, and it fits."
+        },
+        {
+          "title": "Extra property in a literal",
+          "prompt": "Write the point as an object literal straight into a variable annotated with Point.",
+          "code": "type Point = {\n  x: number;\n  y: number;\n};\n\nconst p: Point = { x: 1, y: 2, z: 3 };\nconsole.log(`(${p.x}, ${p.y})`);\n",
+          "expect": "type-error",
+          "output": "main.ts(6,32): error TS2353: Object literal may only specify known properties, and 'z' does not exist in type 'Point'.",
+          "explanation": "Here the object literal goes straight into a place typed `Point`, so TypeScript checks it for extra properties. Nothing could ever read `z` through `p`, so the checker treats it as a mistake and reports TS2353 at the `z`, column 32. If the point really needs a `z`, it is a different shape and deserves its own type, like `type Point3D = { x: number; y: number; z: number }`."
+        },
+        {
+          "title": "A typo in an options object",
+          "prompt": "Misspell an optional property in the options passed to createUser.",
+          "code": "type NewUser = {\n  name: string;\n  email?: string;\n};\n\nfunction createUser(options: NewUser): string {\n  return `${options.name} <${options.email ?? \"no email\"}>`;\n}\n\nconsole.log(createUser({ name: \"Ada\", emial: \"ada@example.com\" }));\n",
+          "expect": "type-error",
+          "output": "main.ts(10,39): error TS2561: Object literal may only specify known properties, but 'emial' does not exist in type 'NewUser'. Did you mean to write 'email'?",
+          "explanation": "Because `email` is optional, the object is a valid `NewUser` without it. Without the excess property check, `emial` would slip through and Ada would silently get `no email`. The literal goes straight into `createUser`, so `tsc` checks its keys, finds `emial`, and suggests `email` (TS2561). This is why options objects are usually written right in the call."
+        }
+      ],
+      "practice": {
+        "title": "Shipping quote",
+        "prompt": "Price parcels from an options object whose optional flags add to the cost.\n\n1. Complete `QuoteOptions`: `weightKg` (a number), and optional `express` and `insured` (both booleans).\n2. Make `quote` return the price in cents: 500, plus 200 per kg, plus 700 when `express` is true and 150 when `insured` is true.\n\nExpected output:\n\n```text\n2 kg: 900 cents\n2 kg express: 1600 cents\n5 kg express insured: 2350 cents\n```",
+        "starter": "export type QuoteOptions = {\n  // TODO: weightKg (a number), and optional express and insured (both booleans)\n};\n\nexport function quote(options: QuoteOptions): number {\n  // TODO: 500 cents, plus 200 per kg, plus 700 for express and 150 for insured\n  return 0;\n}\n\nconsole.log(`2 kg: ${quote({ weightKg: 2 })} cents`);\nconsole.log(`2 kg express: ${quote({ weightKg: 2, express: true })} cents`);\nconsole.log(`5 kg express insured: ${quote({ weightKg: 5, express: true, insured: true })} cents`);\n",
+        "solution": "export type QuoteOptions = {\n  weightKg: number;\n  express?: boolean;\n  insured?: boolean;\n};\n\nexport function quote(options: QuoteOptions): number {\n  const base = 500 + 200 * options.weightKg;\n  const express = options.express ? 700 : 0;\n  const insured = options.insured ? 150 : 0;\n  return base + express + insured;\n}\n\nconsole.log(`2 kg: ${quote({ weightKg: 2 })} cents`);\nconsole.log(`2 kg express: ${quote({ weightKg: 2, express: true })} cents`);\nconsole.log(`5 kg express insured: ${quote({ weightKg: 5, express: true, insured: true })} cents`);\n",
+        "tests": [
+          {
+            "output": "2 kg: 900 cents\n2 kg express: 1600 cents\n5 kg express insured: 2350 cents"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { quote } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects a misspelled option",
+              "expect": "error",
+              "errorCode": "TS2561",
+              "code": "quote({ weightKg: 2, expres: true });"
+            },
+            {
+              "name": "accepts a weight alone",
+              "expect": "ok",
+              "code": "quote({ weightKg: 2 });"
+            }
+          ]
+        },
+        "hints": [
+          "Optional flags are written like `email?: string` in the last example, with `boolean` as the type.",
+          "A missing flag reads as `undefined`, which a condition treats like `false`.",
+          "Add the fees with conditionals: `options.express ? 700 : 0` gives the express fee only when the flag is set."
+        ]
+      }
+    },
+    {
+      "title": "Index signatures and Record",
+      "body": "Some objects are dictionaries: any number of keys, all holding the same type of value. `Record<string, number>` is the type of such an object, with string keys and number values. An index signature, `{ [key: string]: number }`, says the same thing in another form.\n\n```typescript\nconst stock: Record<string, number> = { apple: 3, pear: 0 };\nstock[\"kiwi\"] = 12;\nconsole.log(Object.keys(stock).join(\", \")); // apple, pear, kiwi\n```\n\nAny key may be missing, so with this course's `noUncheckedIndexedAccess`, reading one gives `number | undefined`. Handle the missing case with `??` or a check before you use the value:\n\n```typescript\nconst stock: Record<string, number> = { apple: 3, pear: 0 };\nconst kiwis = stock[\"kiwi\"];\n//    ^? const kiwis: number | undefined\nconsole.log(kiwis ?? 0); // 0\n```\n\nA `Map<string, number>` does the same job, and its `get` also returns `number | undefined`. Prefer a `Map` when keys come and go while the program runs, or come from input: it has a `size`, keeps keys in the exact order you add them, and has no inherited keys like `toString`. A `Record` is plain data, so `JSON.stringify` prints it as is.",
+      "examples": [
+        {
+          "title": "Stock levels",
+          "prompt": "Look up the stock of four fruits, including one the stock list has never heard of.",
+          "code": "const stock: Record<string, number> = { apple: 3, pear: 0 };\n\nfunction inStock(fruit: string): string {\n  const count = stock[fruit] ?? 0;\n  return count > 0 ? `${fruit}: ${count} left` : `${fruit}: sold out`;\n}\n\nstock[\"kiwi\"] = 12;\n\nconsole.log(inStock(\"apple\"));\nconsole.log(inStock(\"pear\"));\nconsole.log(inStock(\"kiwi\"));\nconsole.log(inStock(\"mango\"));\n",
+          "output": "apple: 3 left\npear: sold out\nkiwi: 12 left\nmango: sold out",
+          "explanation": "`Record<string, number>` lets any string be a key, so adding `kiwi` later is fine. `stock[fruit]` has the type `number | undefined`, because nothing guarantees that `fruit` is in the object, and `?? 0` turns a missing fruit into 0. `pear` is in the record with the value 0, and `mango` is not there at all. Both print as sold out: `pear` because of its stored 0, which `??` keeps since it only replaces `undefined` and `null`, and `mango` because of the default."
+        },
+        {
+          "title": "Counting words",
+          "prompt": "Count how often each word appears in a sentence, using an index signature.",
+          "code": "const sentence = \"the cat and the hat and the bat\";\nconst counts: { [word: string]: number } = {};\n\nfor (const word of sentence.split(\" \")) {\n  counts[word] = (counts[word] ?? 0) + 1;\n}\n\nfor (const [word, count] of Object.entries(counts)) {\n  console.log(`${word}: ${count}`);\n}\n",
+          "output": "the: 3\ncat: 1\nand: 2\nhat: 1\nbat: 1",
+          "explanation": "`{ [word: string]: number }` is the same type as `Record<string, number>`, written as an index signature. The name `word` is only a label for the key. The first time a word appears, `counts[word]` is missing, so `?? 0` starts it at 0 before adding 1. `Object.entries` gives `[string, number]` pairs in the order the keys were added. Leave out the `??` and the checker stops the program, since the value may be `undefined`:\n\n```typescript error\nconst counts: { [word: string]: number } = {};\ncounts[\"the\"] = counts[\"the\"] + 1;\n```"
+        },
+        {
+          "title": "Record versus Map",
+          "prompt": "Count the same words with a Map, then sort them by count.",
+          "code": "const sentence = \"the cat and the hat and the bat\";\nconst counts = new Map<string, number>();\n\nfor (const word of sentence.split(\" \")) {\n  counts.set(word, (counts.get(word) ?? 0) + 1);\n}\n\nconst the = counts.get(\"the\");\n//    ^? const the: number | undefined\nconsole.log(`the: ${the ?? 0}, words: ${counts.size}`);\n\nconst sorted = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));\nconsole.log(sorted.map(([word, count]) => `${word} ${count}`).join(\", \"));\n",
+          "output": "the: 3, words: 5\nthe 3, and 2, bat 1, cat 1, hat 1",
+          "explanation": "`new Map<string, number>()` names the key and value types, since an empty map has nothing to infer them from. Without them it would be a `Map<any, any>`, which checks nothing. `get` returns `number | undefined`, like reading a `Record`, so the same `?? 0` default works. To choose between the two:\n\n- Use a `Record` for keys you know as you write the code, and for data that becomes JSON.\n- Use a `Map` when keys arrive while the program runs, especially from input, or when keys are not strings."
+        }
+      ],
+      "practice": {
+        "title": "Word frequency",
+        "prompt": "Count the words of a sentence, ignoring case, and print them from most to least common.\n\n1. Count each lowercased word of `sentence` in a `Record<string, number>`.\n2. Sort the counts from highest to lowest, and break ties by the word in alphabetical order.\n3. Print one `word: n` line per word.\n\nExpected output:\n\n```text\nfish: 4\nred: 2\nblue: 1\none: 1\ntwo: 1\n```",
+        "starter": "const sentence = \"One fish two fish Red fish Blue fish red\";\n\n// TODO: count each lowercased word in a Record<string, number>\n\n// TODO: sort by count (highest first), then by word, and print \"word: n\" lines\n",
+        "solution": "const sentence = \"One fish two fish Red fish Blue fish red\";\n\nconst counts: Record<string, number> = {};\nfor (const word of sentence.toLowerCase().split(\" \")) {\n  counts[word] = (counts[word] ?? 0) + 1;\n}\n\nconst ranked = Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));\nfor (const [word, count] of ranked) {\n  console.log(`${word}: ${count}`);\n}\n",
+        "tests": [
+          {
+            "output": "fish: 4\nred: 2\nblue: 1\none: 1\ntwo: 1"
+          }
+        ],
+        "hints": [
+          "Start from an empty `Record<string, number>`, and lowercase the sentence before you split it.",
+          "A word you have not seen yet reads as `undefined`, so add 1 to `counts[word] ?? 0`.",
+          "Sort `Object.entries(counts)` with `(a, b) => b[1] - a[1] || a[0].localeCompare(b[0])`, then print each pair."
+        ]
+      }
+    }
+  ],
+  "recap": "- `type User = { id: number; name: string }` names an object shape. Every property is required unless it has a `?`.\n- Shapes nest, and `User[]` is an array of them. Aliases are erased before the code runs.\n- `bio?: string` may be missing, and reading it gives `string | undefined`. Default it with `??`.\n- `readonly id: number` cannot be assigned once the object exists (TS2540).\n- With `exactOptionalPropertyTypes`, leave a missing key out instead of setting it to `undefined` (TS2375).\n- Types compare by shape: any value with the right properties fits, extra properties included.\n- An object literal written straight into a typed place is checked for excess properties (TS2353, or TS2561 with a suggestion), which catches typos.\n- `Record<string, number>` and `{ [key: string]: number }` type dictionaries, and reading a key gives `number | undefined` in this course.\n- Use a `Map` when keys come and go or come from input."
+}

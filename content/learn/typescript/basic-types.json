@@ -1,0 +1,179 @@
+{
+  "id": "basic-types",
+  "title": "Annotations and Inference",
+  "section": "TypeScript on Node",
+  "summary": "Annotate the primitive types, let TypeScript infer the rest, and see why const keeps a literal type while let widens it.",
+  "intro": "Annotations tell TypeScript what a value should be. You need fewer of them than you might think, because TypeScript infers most types from the code itself. In this lesson you annotate the primitive types, read the types TypeScript infers, and learn where an annotation still pays off.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Primitive types",
+      "body": "The primitive types hold single values. These are the ones you will write most:\n\n- `string` for text, and `number` for every number, whole or decimal.\n- `boolean` for `true` and `false`.\n- `bigint` for whole numbers of any size, written with an `n` at the end.\n- `null` and `undefined`, each a type with just that one value.\n\nAnnotate a variable with `name: type`:\n\n```typescript\nconst title: string = \"Dune\";\nconst pages: number = 412;\nconst signed: boolean = false;\nconsole.log(`${title}, ${pages} pages, signed: ${signed}`); // Dune, 412 pages, signed: false\n```\n\nThe course config turns on `strict`, so `null` and `undefined` only fit where a type says so. A `string` always holds a string, so you can call `.toUpperCase()` on it without checking for `null` first. Without `strict`, `null` would fit every type, and that call would crash at runtime instead.\n\n`number` and `bigint` don't mix either: arithmetic needs both sides to be the same kind of number.",
+      "examples": [
+        {
+          "title": "Profile card",
+          "prompt": "Annotate one variable of each kind and print them as a profile card.",
+          "code": "const name: string = \"Ada\";\nconst age: number = 36;\nconst admin: boolean = true;\nconst views: bigint = 9007199254740993n;\n\nconsole.log(`${name}, age ${age}`);\nconsole.log(`Admin: ${admin}`);\nconsole.log(`Views: ${views}`);\n",
+          "output": "Ada, age 36\nAdmin: true\nViews: 9007199254740993",
+          "explanation": "Each annotation matches its value, so the check passes. `views` needs `bigint`: its value is past `Number.MAX_SAFE_INTEGER` (9007199254740991), so a `number` can't hold it exactly. A template literal prints a bigint without its `n`, while `console.log` on its own keeps it:\n\n```typescript\nconsole.log(9007199254740993); // 9007199254740992\nconsole.log(9007199254740993n); // 9007199254740993n\n```"
+        },
+        {
+          "title": "null is not a string",
+          "prompt": "Start a nickname as `null` in a variable annotated `string`.",
+          "code": "let nickname: string = null;\n\nconsole.log(nickname);\n",
+          "expect": "type-error",
+          "output": "main.ts(1,5): error TS2322: Type 'null' is not assignable to type 'string'.",
+          "explanation": "Under `strict`, `null` has a type of its own, and `string` doesn't include it. That is what makes `string` trustworthy: code that reads `nickname` can call string methods on it without checking for `null` first. A variable that may be empty says so in its type, as in `string | null`, which the Unions and Narrowing lesson covers."
+        },
+        {
+          "title": "bigint and number do not mix",
+          "prompt": "Add one more view to a `bigint` counter.",
+          "code": "const views: bigint = 9007199254740993n;\n\nconsole.log(views + 1);\n",
+          "expect": "type-error",
+          "output": "main.ts(3,13): error TS2365: Operator '+' cannot be applied to types 'bigint' and '1'.",
+          "explanation": "`views` is a `bigint` and `1` is a `number`, and `+` won't mix them. The message names the type of `1` as `'1'`, because TypeScript gives a literal value a type of its own, which the last part of this lesson covers. JavaScript would throw a `TypeError` here while the program runs, and TypeScript stops it before. Write the one as a bigint, `1n`:\n\n```typescript\nconst views: bigint = 9007199254740993n;\nconsole.log(views + 1n); // 9007199254740994n\n```"
+        }
+      ],
+      "practice": {
+        "title": "Weather reading",
+        "prompt": "Print a weather reading from three annotated variables.\n\n1. Declare `station` as a `string` holding `\"Oslo\"`, `tempC` as a `number` holding `-3.5`, and `raining` as a `boolean` holding `false`.\n2. Convert `tempC` to Fahrenheit with `tempC * 9 / 5 + 32`, in a `number` variable named `tempF`.\n3. Print the reading in exactly this format, with `tempF` to 1 decimal.\n\nExpected output:\n\n```text\nOslo: -3.5°C (25.7°F), raining: false\n```",
+        "starter": "// TODO: declare station, tempC, and raining with their types\n\n// TODO: convert tempC to Fahrenheit in tempF, a number\n\n// TODO: print the reading in the format the prompt shows\n",
+        "solution": "const station: string = \"Oslo\";\nconst tempC: number = -3.5;\nconst raining: boolean = false;\n\nconst tempF: number = tempC * 9 / 5 + 32;\n\nconsole.log(`${station}: ${tempC}°C (${tempF.toFixed(1)}°F), raining: ${raining}`);\n",
+        "tests": [
+          {
+            "output": "Oslo: -3.5°C (25.7°F), raining: false"
+          }
+        ],
+        "hints": [
+          "Annotate each variable the way the profile card does: `const raining: boolean = false;`.",
+          "`tempF.toFixed(1)` rounds to 1 decimal. A number or a boolean in a template literal prints as it is, so `${tempC}` shows `-3.5`.",
+          "Copy the degree signs from the expected output: `°C` and `°F`."
+        ]
+      }
+    },
+    {
+      "title": "Let TypeScript infer",
+      "body": "You rarely need to annotate a variable. TypeScript infers its type from the value it starts with, and a function's return type from its `return` statements.\n\nIn this course a comment line with `^?` is a type query. Its `^` sits under a name, and the text after `^?` is the type TypeScript gives that name. The course checks every query against the compiler, so you can trust them:\n\n```typescript\nconst half = 7 / 2;\n//    ^? const half: number\nconst loud = \"hi\".toUpperCase();\n//    ^? const loud: string\nconsole.log(half, loud); // 3.5 HI\n```\n\nParameters are the exception. TypeScript never guesses a parameter's type from the calls, so a parameter needs an annotation. Here is where annotations go:\n\n- Parameters: always.\n- Return types: on the functions a module exports for other code to call, so a mistake inside shows up inside the function. Within a file, inference is enough.\n- Local variables: rarely, since the value they start with already says what they hold.",
+      "examples": [
+        {
+          "title": "Inferred variables",
+          "prompt": "Compute a total and a label with no annotations, and read the types TypeScript infers.",
+          "code": "const total = 19.99 * 3;\n//    ^? const total: number\nconst label = \"Total: \" + total.toFixed(2);\n//    ^? const label: string\n\nconsole.log(label);\n",
+          "output": "Total: 59.97",
+          "explanation": "Multiplying two numbers gives a `number`, so `total` is a `number` without an annotation. `toFixed` returns a string, and a string plus a string is a `string`. An annotation on either line would only repeat what the queries already show."
+        },
+        {
+          "title": "Inferred return types",
+          "prompt": "Write a function without a return type annotation, then pass it to `map`.",
+          "code": "function double(n: number) {\n//       ^? function double(n: number): number\n  return n * 2;\n}\n\nconst doubled = [1, 2, 3].map(double);\n//    ^? const doubled: number[]\n\nconsole.log(doubled.join(\", \"));\n",
+          "output": "2, 4, 6",
+          "explanation": "`double` has no return annotation, but its only `return` gives a number, so TypeScript infers the return type `number`. `map` then knows its callback returns a number, which makes `doubled` a `number[]`, an array of numbers (the next lesson covers array types). Inference carries types from one line to the next like this through a whole program."
+        },
+        {
+          "title": "Parameters need annotations",
+          "prompt": "Leave a parameter without an annotation.",
+          "code": "function shout(text) {\n  return text.toUpperCase() + \"!\";\n}\n\nconsole.log(shout(\"hello\"));\n",
+          "expect": "type-error",
+          "output": "main.ts(1,16): error TS7006: Parameter 'text' implicitly has an 'any' type.",
+          "explanation": "TypeScript doesn't look at the calls to guess what `text` is. Without an annotation it would be `any`, a type that turns checking off for that value, and `strict` reports that as an error instead of letting it slide. Annotate the parameter and the file type-checks:\n\n```typescript\nfunction shout(text: string) {\n  return text.toUpperCase() + \"!\";\n}\n\nconsole.log(shout(\"hello\")); // HELLO!\n```"
+        }
+      ],
+      "practice": {
+        "title": "Perimeter",
+        "prompt": "Write a function that returns a rectangle's perimeter, and let TypeScript infer its return type.\n\n1. Complete `perimeter(width: number, height: number)` so it returns `2 * (width + height)`.\n2. Leave the return type out this time, so TypeScript infers it. Check runs hidden type tests that make sure it infers `number`, and that a string width is a type error.\n3. Keep `export` in front of the function: it lets the type tests import `perimeter` from your file.\n4. Print the perimeters of a 3 by 4 and a 2.5 by 2.5 rectangle, one per line.\n\nExpected output:\n\n```text\n14\n10\n```",
+        "starter": "export function perimeter(width: number, height: number) {\n  // TODO: return the perimeter of a width by height rectangle\n  return 0;\n}\n\n// TODO: print the perimeters of a 3 by 4 and a 2.5 by 2.5 rectangle\n",
+        "solution": "export function perimeter(width: number, height: number) {\n  return 2 * (width + height);\n}\n\nconsole.log(perimeter(3, 4));\nconsole.log(perimeter(2.5, 2.5));\n",
+        "tests": [
+          {
+            "output": "14\n10"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { perimeter } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "returns a number",
+              "expect": "ok",
+              "code": "const p: number = perimeter(1, 1);"
+            },
+            {
+              "name": "rejects a string width",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "perimeter(\"3\", 4);"
+            }
+          ]
+        },
+        "hints": [
+          "Return the expression, the way `double` returns `n * 2`.",
+          "Print each result with its own `console.log(perimeter(...))` call."
+        ]
+      }
+    },
+    {
+      "title": "const, let, and literal types",
+      "body": "A literal type has exactly one value: the type `\"active\"` holds the string \"active\" and nothing else. TypeScript gives a `const` the literal type of its value, because a `const` can never change:\n\n```typescript\nconst answer = 42;\n//    ^? const answer: 42\nlet guess = 42;\n//  ^? let guess: number\nconsole.log(answer === guess); // true\n```\n\nA `let` can be reassigned, so TypeScript widens its type to the general one: `string`, `number`, or `boolean`. Object properties widen too, because `const` stops you from replacing the object, not from changing its properties. Either way, the inferred type then holds just like an annotation.\n\nLiteral types pay off once you combine them into choices like `\"dark\" | \"light\"`, which the Literal Types lesson shows. For now, use `const` for every value that never changes. A reader sees at once that it stays put, and the checker gets the most precise type.",
+      "examples": [
+        {
+          "title": "const versus let",
+          "prompt": "Declare a status with `const` and a mode with `let`, and compare their inferred types.",
+          "code": "const status = \"active\";\n//    ^? const status: \"active\"\nlet mode = \"dark\";\n//  ^? let mode: string\n\nmode = \"light\";\nconsole.log(`${status}, ${mode}`);\n",
+          "output": "active, light",
+          "explanation": "`status` can only ever be `\"active\"`, so that is its type. `mode` is a `let`, so TypeScript widens it to `string`, and assigning `\"light\"` later type-checks. Both print as ordinary strings: literal types exist only for the checker."
+        },
+        {
+          "title": "Objects widen",
+          "prompt": "Change the properties of an object held in a `const`.",
+          "code": "const config = { mode: \"dark\", retries: 3 };\n//    ^? const config: { mode: string; retries: number; }\n\nconfig.mode = \"light\";\nconfig.retries = 5;\nconsole.log(`${config.mode}, ${config.retries} retries`);\n",
+          "output": "light, 5 retries",
+          "explanation": "`const` stops `config` from pointing at another object, but its properties can still change. So TypeScript widens each property: `mode` is a `string` and `retries` a `number`, and both assignments type-check. The Literal Types lesson shows `as const`, which keeps the literal types for a whole object."
+        },
+        {
+          "title": "Inference locks the type",
+          "prompt": "Start a count at `0` with `let`, then assign it a string.",
+          "code": "let count = 0;\ncount = \"zero\";\n\nconsole.log(count);\n",
+          "expect": "type-error",
+          "output": "main.ts(2,1): error TS2322: Type 'string' is not assignable to type 'number'.",
+          "explanation": "`let count = 0` infers `number`, and from then on `count` is a `number` exactly as if you had written `let count: number = 0`. The error is the same TS2322 an annotation gives. Inference saves you typing, not checking."
+        }
+      ],
+      "practice": {
+        "title": "Settings summary",
+        "prompt": "The starter declares every setting with `let`, but the program only ever changes `pageSize`. Use `const` wherever a value never changes, and keep the output the same.\n\n1. Make `theme` and `locale` `const`, and keep their `export`.\n2. Leave `pageSize` a `let`, since the program changes it.\n\nCheck also runs type tests that import `theme` and `locale` and expect the literal types `\"dark\"` and `\"en-GB\"`.\n\nExpected output:\n\n```text\nTheme: dark, locale: en-GB, page size: 20\nPage size is now 50\n```",
+        "starter": "// TODO: use const for each setting the program never changes\nexport let theme = \"dark\";\nexport let locale = \"en-GB\";\nlet pageSize = 20;\n\nconsole.log(`Theme: ${theme}, locale: ${locale}, page size: ${pageSize}`);\n\npageSize = 50;\nconsole.log(`Page size is now ${pageSize}`);\n",
+        "solution": "export const theme = \"dark\";\nexport const locale = \"en-GB\";\nlet pageSize = 20;\n\nconsole.log(`Theme: ${theme}, locale: ${locale}, page size: ${pageSize}`);\n\npageSize = 50;\nconsole.log(`Page size is now ${pageSize}`);\n",
+        "tests": [
+          {
+            "output": "Theme: dark, locale: en-GB, page size: 20\nPage size is now 50"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { locale, theme } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "theme has the literal type \"dark\"",
+              "expect": "ok",
+              "code": "const t: \"dark\" = theme;"
+            },
+            {
+              "name": "locale has the literal type \"en-GB\"",
+              "expect": "ok",
+              "code": "const l: \"en-GB\" = locale;"
+            },
+            {
+              "name": "theme can't be \"light\"",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const t: \"light\" = theme;"
+            }
+          ]
+        },
+        "hints": [
+          "Which settings does the program assign again after declaring them? Only those need `let`.",
+          "Change `export let theme` to `export const theme`, and do the same for `locale`."
+        ]
+      }
+    }
+  ],
+  "recap": "- The primitive types are `string`, `number`, `boolean`, `bigint`, `null`, and `undefined`. Annotate with `name: type`.\n- Under `strict`, `null` and `undefined` only fit where a type allows them, and `bigint` and `number` don't mix in arithmetic.\n- TypeScript infers a variable's type from its first value and a function's return type from its `return` statements. A `^?` query line shows the type it inferred.\n- Annotate every parameter, since an unannotated one is TS7006. Annotate the return types of exported functions, and local variables rarely.\n- `const` keeps a literal type like `\"active\"`. `let` and object properties widen to `string`, `number`, or `boolean`.\n- An inferred type holds like an annotation: assigning a string to an inferred `number` is TS2322."
+}
