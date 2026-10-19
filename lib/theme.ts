@@ -295,3 +295,45 @@ export const useLayoutLines = layoutLines.use;
 const contentLines = lineSetting(CONTENT_LINES_KEY, "--content-lines");
 export const setContentLines = contentLines.set;
 export const useContentLines = contentLines.use;
+
+/**
+ * Comments in the code examples of lessons and cheatsheets: shown (the
+ * default) or hidden. Hidden is <html data-code-comments="hidden">, applied
+ * before first paint by the bootstrap in app/layout.tsx, and CSS hides each
+ * comment there (the `.code-cmt` spans from lib/highlight.tsx). Code you've
+ * edited yourself always shows as you wrote it.
+ */
+export const CODE_COMMENTS_KEY = "hu-code-comments";
+const CODE_COMMENTS_EVENT = "hu:code-comments-changed";
+
+const commentsHidden = () => document.documentElement.getAttribute("data-code-comments") === "hidden";
+
+function applyCodeComments(hidden: boolean) {
+  if (hidden) document.documentElement.setAttribute("data-code-comments", "hidden");
+  else document.documentElement.removeAttribute("data-code-comments");
+}
+
+/** Hide or show comments in the examples, persist it, and broadcast. */
+export function setCodeCommentsHidden(hidden: boolean) {
+  applyCodeComments(hidden);
+  try {
+    if (hidden) localStorage.setItem(CODE_COMMENTS_KEY, "hidden");
+    else localStorage.removeItem(CODE_COMMENTS_KEY);
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.dispatchEvent(new Event(CODE_COMMENTS_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+const subscribeCodeComments = subscribeTo(CODE_COMMENTS_EVENT, CODE_COMMENTS_KEY, (stored) =>
+  applyCodeComments(stored === "hidden")
+);
+
+/** Whether comments in the examples are hidden, any tab. */
+export function useCodeCommentsHidden(): boolean {
+  return useSyncExternalStore(subscribeCodeComments, commentsHidden, () => false);
+}

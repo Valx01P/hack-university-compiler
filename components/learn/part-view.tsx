@@ -666,7 +666,7 @@ function PartSection({
         </div>
         <h3 className="mt-1.5 font-medium text-ink">{example.title}</h3>
         <Prose md={example.prompt} className="mt-1.5 text-ink-muted" />
-        <CopyableCodeBlock code={example.code} label="Example code" className="mt-3" preClassName={CODE_BLOCK}>
+        <CopyableCodeBlock code={example.code} language={language} label="Example code" className="mt-3" preClassName={CODE_BLOCK}>
           <Highlight code={example.code} language={language} />
         </CopyableCodeBlock>
         {example.stdin ? (
@@ -754,7 +754,7 @@ function PartSection({
         {solution === "shown" && (
           <div ref={solutionRef} tabIndex={-1} className="mt-4 rounded-card">
             <p className="text-xs font-medium text-ink-faint">One solution</p>
-            <CopyableCodeBlock code={practice.solution} label="Solution code" className="mt-1.5" preClassName={CODE_BLOCK}>
+            <CopyableCodeBlock code={practice.solution} language={language} label="Solution code" className="mt-1.5" preClassName={CODE_BLOCK}>
               <Highlight code={practice.solution} language={language} />
             </CopyableCodeBlock>
           </div>

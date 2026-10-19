@@ -173,7 +173,110 @@ export function tokenize(code: string, language: string): Token[] {
   return tokens;
 }
 
-/** Highlight source to React spans (server- and client-safe). */
+interface Piece extends Token {
+  /** Part of what hiding comments removes. */
+  hide: boolean;
+}
+
+/**
+ * The code as pieces, marked with what hiding comments takes out: a comment
+ * on a line of its own goes with that whole line, a comment after code goes
+ * with the spaces before it, and one in the middle of a line goes with the
+ * spaces after it. Blank lines the removed lines leave at the start, at the
+ * end, or doubled up go too. Without comments, nothing is marked, and a
+ * block that is nothing but comments keeps them, rather than going blank.
+ */
+function commentPieces(code: string, language: string): Piece[] {
+  const lines: Piece[][] = [[]];
+  for (const t of tokenize(code, language)) {
+    t.text.split("\n").forEach((part, i) => {
+      if (i > 0) lines.push([]);
+      if (part) lines[lines.length - 1].push({ type: t.type, text: part, hide: false });
+    });
+  }
+  const blank = lines.map((l) => !l.some((p) => p.text.trim()));
+  const commentOnly = lines.map((l, k) => !blank[k] && l.every((p) => !p.text.trim() || p.type === "comment"));
+  if (lines.every((_, k) => blank[k] || commentOnly[k])) {
+    return lines.flatMap((line, k) => [...(k > 0 ? [{ type: null, text: "\n", hide: false }] : []), ...line]);
+  }
+
+  // Which lines stay.
+  const visible = commentOnly.map((c) => !c);
+  let previous = -1;
+  let hiddenSince = false;
+  lines.forEach((_, k) => {
+    if (commentOnly[k]) hiddenSince = true;
+    else if (blank[k] && hiddenSince && (previous < 0 || blank[previous])) visible[k] = false;
+    else {
+      previous = k;
+      hiddenSince = false;
+    }
+  });
+  for (let k = lines.length - 1, after = false; k >= 0; k--) {
+    if (commentOnly[k]) after = true;
+    else if (blank[k] && after && visible[k]) visible[k] = false;
+    else break;
+  }
+
+  // In the lines that stay, the comments and the spaces they leave.
+  lines.forEach((line, k) => {
+    if (!visible[k]) {
+      line.forEach((p) => (p.hide = true));
+      return;
+    }
+    for (let i = 0; i < line.length; i++) {
+      if (line[i].type !== "comment") continue;
+      line[i].hide = true;
+      const trailing = line.slice(i + 1).every((p) => p.type === "comment" || !p.text.trim());
+      if (trailing) {
+        line.slice(i + 1).forEach((p) => (p.hide = true));
+        // The spaces before it: whole pieces, then the end of the one before.
+        let j = i - 1;
+        for (; j >= 0 && !line[j].text.trim(); j--) line[j].hide = true;
+        const ws = j >= 0 ? /\s+$/.exec(line[j].text) : null;
+        if (ws && !line[j].hide) {
+          line.splice(j + 1, 0, { type: line[j].type, text: ws[0], hide: true });
+          line[j] = { ...line[j], text: line[j].text.slice(0, -ws[0].length) };
+          i++;
+        }
+        break;
+      }
+      // In the middle of a line: the spaces after it.
+      const next = line[i + 1];
+      const ws = next && !next.hide ? /^\s+/.exec(next.text) : null;
+      if (ws) {
+        line.splice(i + 1, 0, { type: next.type, text: ws[0], hide: true });
+        line[i + 2] = { ...next, text: next.text.slice(ws[0].length) };
+        i++;
+      }
+    }
+  });
+
+  // Join the lines. A line break stays when a kept line follows it and
+  // another kept line came before it.
+  const pieces: Piece[] = [];
+  let keptBefore = false;
+  lines.forEach((line, k) => {
+    if (k > 0) pieces.push({ type: null, text: "\n", hide: !(visible[k] && keptBefore) });
+    pieces.push(...line.filter((p) => p.text));
+    keptBefore ||= visible[k];
+  });
+  return pieces;
+}
+
+/** The code as it reads with its comments hidden (see commentPieces). */
+export function stripComments(code: string, language: string): string {
+  return commentPieces(code, language)
+    .filter((p) => !p.hide)
+    .map((p) => p.text)
+    .join("");
+}
+
+/**
+ * Highlight source to React spans (server- and client-safe). Each comment,
+ * with the line or spaces it would leave behind, sits in a `.code-cmt` span,
+ * so the "code comments" setting can hide it with CSS before first paint.
+ */
 export function Highlight({
   code,
   language,
@@ -181,17 +284,30 @@ export function Highlight({
   code: string;
   language: string;
 }) {
-  return (
-    <>
-      {tokenize(code, language).map((token, i) =>
-        token.type ? (
-          <span key={i} className={`tok-${token.type}`}>
-            {token.text}
-          </span>
-        ) : (
-          token.text
-        )
-      )}
-    </>
-  );
+  const token = (p: Token, key: number) =>
+    p.type ? (
+      <span key={key} className={`tok-${p.type}`}>
+        {p.text}
+      </span>
+    ) : (
+      p.text
+    );
+  // Runs of pieces that hide together share one span.
+  const out: React.ReactNode[] = [];
+  const pieces = commentPieces(code, language);
+  for (let i = 0; i < pieces.length; ) {
+    if (!pieces[i].hide) {
+      out.push(token(pieces[i], i));
+      i++;
+      continue;
+    }
+    const start = i;
+    while (i < pieces.length && pieces[i].hide) i++;
+    out.push(
+      <span key={`c${start}`} className="code-cmt">
+        {pieces.slice(start, i).map((p, k) => token(p, k))}
+      </span>
+    );
+  }
+  return <>{out}</>;
 }

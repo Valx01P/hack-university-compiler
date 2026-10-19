@@ -7,10 +7,12 @@ import {
   setContrast,
   setLayoutLines,
   setContentLines,
+  setCodeCommentsHidden,
   setTheme,
   useContrast,
   useLayoutLines,
   useContentLines,
+  useCodeCommentsHidden,
   useTheme,
 } from "@/lib/theme";
 import { CodeBackgroundPicker } from "@/components/code/code-background";
@@ -21,7 +23,8 @@ import { POP, usePresence } from "@/lib/motion";
  * Light, moon for Dark, snowflake for Nord, …); clicking it drops a small menu
  * of every theme, each with its own glyph, plus a Normal / High / Super
  * contrast picker that deepens whichever theme is active, and a code
- * background for every editor, code block, and terminal. Goes through
+ * background for every editor, code block, and terminal, how visible lines
+ * are, and whether code examples show their comments. Goes through
  * setTheme() so the `data-dark` flag and the editor's code theme stay in sync.
  * The icon starts as the Light sun on first paint (SSR) and corrects after
  * hydration — same pattern as the rest of the theme bootstrap, so there's no
@@ -33,6 +36,7 @@ export function ThemeToggle() {
   const contrast = useContrast();
   const lines = useLayoutLines();
   const contentLines = useContentLines();
+  const commentsShown = !useCodeCommentsHidden();
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuShown = usePresence(open, menuRef, POP);
@@ -205,6 +209,45 @@ export function ThemeToggle() {
               </>
             }
           />
+
+          {/* Comments in lesson and cheatsheet examples, for reading the code
+              alone (running an example prints its results anyway). */}
+          <div role="separator" className="my-1 h-px bg-edge" />
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={commentsShown}
+            onClick={() => setCodeCommentsHidden(commentsShown)}
+            className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="mt-0.5 size-4 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              aria-hidden
+            >
+              <path d="M10.5 5 6.5 19M17.5 5l-4 14" />
+            </svg>
+            <span className="flex-1">
+              <span className="block">Code comments</span>
+              <span className="mt-0.5 block text-xs text-ink-faint">In lesson and cheatsheet examples</span>
+            </span>
+            <span
+              aria-hidden
+              className={`relative mt-0.5 inline-flex h-[18px] w-8 shrink-0 rounded-full border transition-colors ${
+                commentsShown ? "border-ink bg-ink" : "border-edge-strong"
+              }`}
+            >
+              <span
+                className={`absolute left-[2px] top-[2px] size-3 rounded-full transition-transform ${
+                  commentsShown ? "translate-x-[14px] bg-canvas" : "bg-ink-faint"
+                }`}
+              />
+            </span>
+          </button>
         </div>
       )}
     </div>

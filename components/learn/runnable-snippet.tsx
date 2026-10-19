@@ -1,13 +1,14 @@
 "use client";
 
-import { lazy, Suspense, useRef, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { Play, RotateCcw, X } from "lucide-react";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { CodeCopyButton } from "@/components/ui/code-copy-button";
-import { Highlight } from "@/lib/highlight";
+import { Highlight, stripComments } from "@/lib/highlight";
 import { runInSandbox, type RunState } from "@/lib/run-code";
 import { buildProgram, type SnippetRuntime } from "@/lib/snippet-harness.mjs";
 import { saveSnippetEdit, useSnippetEdit } from "@/lib/snippet-edits";
+import { useCodeCommentsHidden } from "@/lib/theme";
 
 const loadEditor = () => import("@/components/code/cm-editor");
 const CmEditor = lazy(() => loadEditor().then((m) => ({ default: m.CmEditor })));
@@ -38,7 +39,9 @@ const TOOL =
  * code until you click or tab into it, then becomes an editor that looks the
  * same (loaded while you hover). Run (or Mod-Enter) runs it in the sandbox,
  * through its hidden harness when it has one, and the output opens below.
- * Your changes are saved until you reset them.
+ * Your changes are saved until you reset them. With comments hidden (the
+ * Code comments setting) it reads, and edits, without them, but runs as
+ * written until you change it. Your own edits always show as you wrote them.
  */
 export function RunnableSnippet({
   code,
@@ -60,13 +63,18 @@ export function RunnableSnippet({
   className?: string;
 }) {
   const edited = useSnippetEdit(storageKey);
-  const current = edited ?? code;
-  const modified = edited !== null && edited !== code;
+  const hideComments = useCodeCommentsHidden();
+  // The example as it reads: without its comments while they're hidden.
+  const shown = useMemo(() => (hideComments ? stripComments(code, runtime) : code), [hideComments, code, runtime]);
+  // What the editor and the copy button get.
+  const current = edited ?? shown;
+  const modified = edited !== null && edited !== code && edited !== shown;
   // False while it's static; an editor (with where to put the cursor) after.
   const [editing, setEditing] = useState<{ x: number; y: number } | false>(false);
   const [run, setRun] = useState<RunState | null>(null);
-  const latest = useRef(current);
-  latest.current = current;
+  // What runs: the example as written until you change it.
+  const latest = useRef(edited ?? code);
+  latest.current = edited ?? code;
 
   async function execute() {
     setRun({ status: "running" });
@@ -96,9 +104,10 @@ export function RunnableSnippet({
         const r = e.currentTarget.getBoundingClientRect();
         edit({ x: r.left + 16, y: r.top + 28 });
       }}
+      data-own-code={edited !== null ? "" : undefined}
       className={`${box} cursor-text p-4 pr-28 ${BLOCK} focus-visible:outline-2 focus-visible:outline-offset-2`}
     >
-      <Highlight code={current} language={runtime} />
+      <Highlight code={edited ?? code} language={runtime} />
     </pre>
   );
 
@@ -114,7 +123,7 @@ export function RunnableSnippet({
               value={current}
               language={runtime}
               ariaLabel={`Edit this ${LABELS[runtime]} example`}
-              onChange={(next) => saveSnippetEdit(storageKey, next === code ? null : next)}
+              onChange={(next) => saveSnippetEdit(storageKey, next === code || next === shown ? null : next)}
               onRun={() => void execute()}
               focusAt={editing}
             />

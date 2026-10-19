@@ -271,6 +271,12 @@ blocks and `inline code`, search boxes and dropdowns, and the dividers in
 lessons, cheatsheets, challenges, and results. A focused field always shows its
 border.
 
+**Code comments**, the switch at the bottom of the theme menu, shows or hides
+the comments in the code examples of lessons and cheatsheets, for reading the
+code on its own (an example still prints its results when you run it). A
+comment on its own line goes with its line, and copying or editing an example
+leaves them out too. Code you changed yourself always shows as you wrote it.
+
 ## How it works
 
 ```
@@ -297,7 +303,8 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
   the page's compile instead, since Next.js only prefetches in production.)
 - Saved in the browser's local storage: your code (per language), your edits
   to examples, editor zoom, tab size, intellisense, theme, editor theme,
-  contrast level, code background, layout lines, and content lines. Everything
+  contrast level, code background, layout lines, content lines, and code
+  comments. Everything
   visual is applied before the page paints, so nothing shifts on reload, and
   the menus read what's applied, so opening one never flashes the default
   first. The editor/output split isn't saved, so

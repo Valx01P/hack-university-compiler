@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Check, Clipboard } from "lucide-react";
+import { stripComments } from "@/lib/highlight";
 
 function fallbackCopy(text: string) {
   const textarea = document.createElement("textarea");
@@ -16,11 +17,15 @@ function fallbackCopy(text: string) {
 }
 
 export function CodeCopyButton({
-  text,
+  text: code,
   className = "",
   compact = false,
+  language,
 }: {
   text: string;
+  /** The code's language: when comments are hidden (the Code comments
+      setting), the copy leaves them out too, like the block shows. */
+  language?: string;
   className?: string;
   /** Just the icon (the label stays for screen readers and the tooltip). */
   compact?: boolean;
@@ -28,6 +33,8 @@ export function CodeCopyButton({
   const [copied, setCopied] = useState(false);
 
   async function copy() {
+    const hidden = document.documentElement.getAttribute("data-code-comments") === "hidden";
+    const text = language && hidden ? stripComments(code, language) : code;
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);

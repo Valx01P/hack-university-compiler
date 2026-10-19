@@ -267,6 +267,7 @@ export function LessonMarkdown({ md, runnable }: { md: string; runnable?: Runnab
             <CopyableCodeBlock
               key={i}
               code={seg.content}
+              language={seg.language}
               className="my-5"
               preClassName="code-dark slim-scroll overflow-x-auto rounded-card border border-code-content-line bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink"
             >
