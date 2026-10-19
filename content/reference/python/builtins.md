@@ -5,66 +5,66 @@ Built-ins need no import: `len`, `min`, `max`, `sum`, `abs`, `pow`, `round`, `so
 ### Numbers
 
 ```python
-abs(-7)             # 7
-pow(2, 10)          # 1024  same as 2 ** 10
-2 ^ 10              # 8     careful, ^ is XOR, not power
-pow(2, 10, 1000)    # 24    (2 ** 10) % 1000, fast for big powers
-round(3.14159, 2)   # 3.14
-round(7.5)          # 8
-divmod(17, 5)       # (3, 2)  quotient and remainder
-int(3.99)           # 3   truncates toward zero
-int(-3.99)          # -3
+print(abs(-7))              # 7
+print(pow(2, 10))           # 1024  same as 2 ** 10
+print(2 ^ 10)               # 8     careful, ^ is XOR, not power
+print(pow(2, 10, 1000))     # 24    (2 ** 10) % 1000, fast for big powers
+print(round(3.14159, 2))    # 3.14
+print(round(7.5))           # 8
+print(divmod(17, 5))        # (3, 2)  quotient and remainder
+print(int(3.99))            # 3   truncates toward zero
+print(int(-3.99))           # -3
 ```
 
 ### min, max, sum
 
 ```python
 nums = [4, 9, 1, 7]
-min(nums)                       # 1
-max(nums)                       # 9
-max(3, 8, 5)                    # 8  also takes separate arguments
-sum(nums)                       # 21
-sum(nums, 100)                  # 121  with a start value
-max([], default=0)              # 0  instead of a ValueError
+print(min(nums))                # 1
+print(max(nums))                # 9
+print(max(3, 8, 5))             # 8  also takes separate arguments
+print(sum(nums))                # 21
+print(sum(nums, 100))           # 121  with a start value
+print(max([], default=0))       # 0  instead of a ValueError
 
 words = ["kiwi", "fig", "banana"]
-min(words, key=len)             # 'fig'
-max(words, key=len)             # 'banana'
+print(min(words, key=len))      # fig
+print(max(words, key=len))      # banana
 ```
 
 ### Sequences
 
 ```python
-len("hello")                    # 5
-sorted([3, 1, 2])               # [1, 2, 3]
-sorted([3, 1, 2], reverse=True) # [3, 2, 1]
-list(reversed([1, 2, 3]))       # [3, 2, 1]
-list(enumerate("ab"))           # [(0, 'a'), (1, 'b')]
-list(zip([1, 2], "ab"))         # [(1, 'a'), (2, 'b')]
-list(range(3))                  # [0, 1, 2]
+print(len("hello"))                     # 5
+print(sorted([3, 1, 2]))                # [1, 2, 3]
+print(sorted([3, 1, 2], reverse=True))  # [3, 2, 1]
+print(list(reversed([1, 2, 3])))        # [3, 2, 1]
+print(list(enumerate("ab")))            # [(0, 'a'), (1, 'b')]
+print(list(zip([1, 2], "ab")))          # [(1, 'a'), (2, 'b')]
+print(list(range(3)))                   # [0, 1, 2]
 ```
 
 ### Apply and test over a list
 
 ```python
 nums = [4, 9, 1, 7]
-list(map(str, nums))                    # ['4', '9', '1', '7']
-list(filter(lambda n: n > 5, nums))     # [9, 7]
-any(n > 8 for n in nums)                # True  at least one
-all(n > 0 for n in nums)                # True  every one
-list(map(int, "1 2 3".split()))         # [1, 2, 3]  parse a line of numbers
+print(list(map(str, nums)))                 # ['4', '9', '1', '7']
+print(list(filter(lambda n: n > 5, nums)))  # [9, 7]
+print(any(n > 8 for n in nums))             # True  at least one
+print(all(n > 0 for n in nums))             # True  every one
+print(list(map(int, "1 2 3".split())))      # [1, 2, 3]  parse a line of numbers
 ```
 
 ### Convert and inspect
 
 ```python
-int("101", 2)       # 5   from base 2
-bin(10)             # '0b1010'
-hex(255)            # '0xff'
-oct(8)              # '0o10'
-ord("a"), chr(98)   # (97, 'b')
-type(3.0)           # <class 'float'>
-isinstance(3, int)  # True
+print(int("101", 2))        # 5   from base 2
+print(bin(10))              # 0b1010
+print(hex(255))             # 0xff
+print(oct(8))               # 0o10
+print(ord("a"), chr(98))    # 97 b
+print(type(3.0))            # <class 'float'>
+print(isinstance(3, int))   # True
 ```
 
 `int`, `float`, `str`, `bool`, `list`, and `set` as converters are in Variables and Types.
@@ -73,17 +73,17 @@ isinstance(3, int)  # True
 
 ```python
 it = iter([1, 2, 3])
-next(it)                        # 1
-next(it)                        # 2
-list(it)                        # [3]  what is left
-next(it, None)                  # None  default instead of StopIteration
+print(next(it))                 # 1
+print(next(it))                 # 2
+print(list(it))                 # [3]  what is left
+print(next(it, None))           # None  default instead of StopIteration
 ```
 
 ### Use it in a loop
 
 ```python
 scores = {"ana": 82, "bo": 95, "cy": 77}
-best = max(scores, key=scores.get)          # 'bo'
+print(max(scores, key=scores.get))          # bo
 for name in sorted(scores):
     print(name, abs(scores[name] - 80))     # ana 2, bo 15, cy 3
 ```

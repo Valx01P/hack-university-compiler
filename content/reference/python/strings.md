@@ -11,105 +11,105 @@ c = """two
 lines"""
 path = r"C:\new\table"          # raw: backslashes stay as typed
 name, n = "Ana", 3
-msg = f"{name} has {n} items"   # 'Ana has 3 items', see Printing Variables
-len(a)                          # 5
+print(f"{name} has {n} items")  # Ana has 3 items, see Printing Variables
+print(len(a))                   # 5
 ```
 
 ### Index and slice
 
 ```python
 s = "Python"
-s[0]                # 'P'
-s[-1]               # 'n'
-s[1:4]              # 'yth'
-s[:2]               # 'Py'
-s[2:]               # 'thon'
-s[::-1]             # 'nohtyP'  reversed
-s[::2]              # 'Pto'
+print(s[0])         # P
+print(s[-1])        # n
+print(s[1:4])       # yth
+print(s[:2])        # Py
+print(s[2:])        # thon
+print(s[::-1])      # nohtyP  reversed
+print(s[::2])       # Pto
 ```
 
 ### Case and whitespace
 
 ```python
-"Hello".upper()             # 'HELLO'
-"Hello".lower()             # 'hello'
-"hello world".title()       # 'Hello World'
-"hello".capitalize()        # 'Hello'
-"  hi  ".strip()            # 'hi'
-"  hi  ".lstrip()           # 'hi  '
-"line\n".rstrip()           # 'line'
-"xxhixx".strip("x")         # 'hi'
-"7".zfill(3)                # '007'
-"ab".ljust(5, ".")          # 'ab...'
-"ab".rjust(5)               # '   ab'
-"ab".center(6, "*")         # '**ab**'
+print("Hello".upper())          # HELLO
+print("Hello".lower())          # hello
+print("hello world".title())    # Hello World
+print("hello".capitalize())     # Hello
+print("  hi  ".strip())         # hi
+print(repr("  hi  ".lstrip()))  # 'hi  '
+print("line\n".rstrip())        # line
+print("xxhixx".strip("x"))      # hi
+print("7".zfill(3))             # 007
+print("ab".ljust(5, "."))       # ab...
+print(repr("ab".rjust(5)))      # '   ab'
+print("ab".center(6, "*"))      # **ab**
 ```
 
 ### Search
 
 ```python
 s = "banana"
-"nan" in s                  # True
-s.find("an")                # 1   first index, -1 if missing
-s.rfind("an")               # 3   last index
-s.index("an")               # 1   like find, but ValueError if missing
-s.count("a")                # 3
-s.startswith("ba")          # True
-s.endswith(("na", "ne"))    # True  any of a tuple
+print("nan" in s)                # True
+print(s.find("an"))              # 1   first index, -1 if missing
+print(s.rfind("an"))             # 3   last index
+print(s.index("an"))             # 1   like find, but ValueError if missing
+print(s.count("a"))              # 3
+print(s.startswith("ba"))        # True
+print(s.endswith(("na", "ne")))  # True  any of a tuple
 ```
 
 ### Split and join
 
 ```python
-"a,b,c".split(",")              # ['a', 'b', 'c']
-"  one   two ".split()          # ['one', 'two']  any whitespace
-"k=v=w".split("=", 1)           # ['k', 'v=w']  at most 1 split
-"a\nb\n".splitlines()           # ['a', 'b']
-"-".join(["2024", "01", "05"])  # '2024-01-05'
-"".join(["a", "b", "c"])        # 'abc'
-" ".join(str(n) for n in [1, 2, 3])   # '1 2 3'
-"key: val".partition(": ")      # ('key', ': ', 'val')
+print("a,b,c".split(","))              # ['a', 'b', 'c']
+print("  one   two ".split())          # ['one', 'two']  any whitespace
+print("k=v=w".split("=", 1))           # ['k', 'v=w']  at most 1 split
+print("a\nb\n".splitlines())           # ['a', 'b']
+print("-".join(["2024", "01", "05"]))  # 2024-01-05
+print("".join(["a", "b", "c"]))        # abc
+print(" ".join(str(n) for n in [1, 2, 3]))   # 1 2 3
+print("key: val".partition(": "))      # ('key', ': ', 'val')
 ```
 
 ### Replace and remove
 
 ```python
-"a-b-c".replace("-", "")        # 'abc'
-"aaa".replace("a", "b", 2)      # 'bba'  first 2 only
-"test_x".removeprefix("test_")  # 'x'
-"data.csv".removesuffix(".csv") # 'data'
+print("a-b-c".replace("-", ""))         # abc
+print("aaa".replace("a", "b", 2))       # bba  first 2 only
+print("test_x".removeprefix("test_"))   # x
+print("data.csv".removesuffix(".csv"))  # data
 ```
 
 ### Check characters
 
 ```python
-"abc".isalpha()     # True
-"123".isdigit()     # True
-"ab12".isalnum()    # True
-" \t".isspace()     # True
-"abc".islower()     # True
-"ABC".isupper()     # True
+print("abc".isalpha())   # True
+print("123".isdigit())   # True
+print("ab12".isalnum())  # True
+print(" \t".isspace())   # True
+print("abc".islower())   # True
+print("ABC".isupper())   # True
 ```
 
 ### Build and convert
 
 ```python
-"ab" + "cd"         # 'abcd'
-"5" * 3             # '555'
-"n=" + str(42)      # 'n=42'
-int("42")           # 42  more conversions in Variables and Types
-list("abc")         # ['a', 'b', 'c']
-ord("A")            # 65  code point
-chr(97)             # 'a'
+print("ab" + "cd")     # abcd
+print("5" * 3)         # 555
+print("n=" + str(42))  # n=42
+print(int("42"))       # 42  more conversions in Variables and Types
+print(list("abc"))     # ['a', 'b', 'c']
+print(ord("A"))        # 65  code point
+print(chr(97))         # a
 ```
 
 ### Compare
 
 ```python
-"apple" < "banana"          # True  dictionary order
-"Zebra" < "apple"           # True  uppercase sorts first
-"Hi".lower() == "hi"        # True  case-insensitive compare
-sorted(["b", "A", "c"], key=str.lower)   # ['A', 'b', 'c']
+print("apple" < "banana")    # True  dictionary order
+print("Zebra" < "apple")     # True  uppercase sorts first
+print("Hi".lower() == "hi")  # True  case-insensitive compare
+print(sorted(["b", "A", "c"], key=str.lower))   # ['A', 'b', 'c']
 ```
 
 ### Use it in a loop

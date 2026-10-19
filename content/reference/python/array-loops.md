@@ -80,7 +80,7 @@ for n in nums:
 print(doubled)              # [14, 4, 18, 8]
 
 doubled = [n * 2 for n in nums]           # same, as a comprehension
-big = [n for n in nums if n > 5]          # [7, 9]
+print([n for n in nums if n > 5])         # [7, 9]
 ```
 
 ### Search: stop at the first match
@@ -94,15 +94,16 @@ for i, name in enumerate(names):
 else:
     print("not found")          # only if the loop never broke
 
-names.index("bo") if "bo" in names else -1   # 1
-next((n for n in names if len(n) == 2), None)  # 'bo'
+print(names.index("bo") if "bo" in names else -1)     # 1
+print(next((n for n in names if len(n) == 2), None))  # bo
 ```
 
 ### Remove items while looping
 
 ```python
 xs = [1, 2, 3, 4, 5, 6]
-xs = [x for x in xs if x % 2 == 1]   # keep odds: [1, 3, 5]
+xs = [x for x in xs if x % 2 == 1]   # keep odds
+print(xs)                            # [1, 3, 5]
 
 ys = [1, 2, 3, 4, 5, 6]
 for i in range(len(ys) - 1, -1, -1):  # backwards, so indexes don't shift

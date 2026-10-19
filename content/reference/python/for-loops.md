@@ -6,17 +6,17 @@ Python's `for` walks over the items of anything iterable: a list, a string, a `r
 
 ```python
 for i in range(3):
-    print(i)                # 0, 1, 2
+    print(i)                  # 0, 1, 2
 
-for _ in range(3):          # _ means "I don't use the variable"
-    print("hi")             # hi, hi, hi
+for _ in range(3):            # _ means "I don't use the variable"
+    print("hi")               # hi, hi, hi
 
-list(range(5))              # [0, 1, 2, 3, 4]
-list(range(2, 6))           # [2, 3, 4, 5]  start, stop (stop is excluded)
-list(range(0, 10, 3))       # [0, 3, 6, 9]  step
-list(range(5, 0, -1))       # [5, 4, 3, 2, 1]  count down
-list(range(1, 11, 2))       # [1, 3, 5, 7, 9]
-list(range(0))              # []  the body never runs
+print(list(range(5)))         # [0, 1, 2, 3, 4]
+print(list(range(2, 6)))      # [2, 3, 4, 5]  start, stop (stop is excluded)
+print(list(range(0, 10, 3)))  # [0, 3, 6, 9]  step
+print(list(range(5, 0, -1)))  # [5, 4, 3, 2, 1]  count down
+print(list(range(1, 11, 2)))  # [1, 3, 5, 7, 9]
+print(list(range(0)))         # []  the body never runs
 ```
 
 ### Loop over items
@@ -98,16 +98,16 @@ def find(grid, target):
                 return r, c
     return None
 
-find([[1, 2], [3, 4]], 3)       # (1, 0)
+print(find([[1, 2], [3, 4]], 3))  # (1, 0)
 ```
 
 ### One-line loops (comprehensions)
 
 ```python
-squares = [i * i for i in range(5)]           # [0, 1, 4, 9, 16]
-evens = [n for n in range(10) if n % 2 == 0]  # [0, 2, 4, 6, 8]
-total = sum(i for i in range(101))            # 5050
-pairs = [(a, b) for a in "ab" for b in "xy"]  # [('a', 'x'), ('a', 'y'), ('b', 'x'), ('b', 'y')]
+print([i * i for i in range(5)])             # [0, 1, 4, 9, 16]
+print([n for n in range(10) if n % 2 == 0])  # [0, 2, 4, 6, 8]
+print(sum(i for i in range(101)))            # 5050
+print([(a, b) for a in "ab" for b in "xy"])  # [('a', 'x'), ('a', 'y'), ('b', 'x'), ('b', 'y')]
 ```
 
 | Call | Does |

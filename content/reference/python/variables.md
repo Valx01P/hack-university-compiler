@@ -12,6 +12,7 @@ is_ready = True     # bool
 nothing = None      # NoneType, Python's null
 count = "ten"       # legal: names are not typed
 MAX_SIZE = 100      # a constant by convention only
+print(type(count))  # <class 'str'>
 ```
 
 ### Core types
@@ -42,18 +43,18 @@ print(isinstance(True, int))        # True  (bool is an int)
 ### Convert
 
 ```python
-int("42")           # 42
-int(3.99)           # 3  (truncates toward zero)
-int(-3.99)          # -3
-int("ff", 16)       # 255
-int(float("3.5"))   # 3  (int("3.5") is a ValueError)
-float("2.5")        # 2.5
-str(7)              # '7'
-bool(0)             # False
-bool("False")       # True  (any non-empty string)
-list((1, 2))        # [1, 2]
-tuple([1, 2])       # (1, 2)
-set([1, 1, 2])      # {1, 2}
+print(int("42"))            # 42
+print(int(3.99))            # 3  (truncates toward zero)
+print(int(-3.99))           # -3
+print(int("ff", 16))        # 255
+print(int(float("3.5")))    # 3  (int("3.5") is a ValueError)
+print(float("2.5"))         # 2.5
+print(str(7))               # 7
+print(bool(0))              # False
+print(bool("False"))        # True  (any non-empty string)
+print(list((1, 2)))         # [1, 2]
+print(tuple([1, 2]))        # (1, 2)
+print(set([1, 1, 2]))       # {1, 2}
 ```
 
 Which values count as false in an `if` is in Conditions and Logic.
@@ -64,6 +65,7 @@ Which values count as false in an `if` is in Conditions and Logic.
 age: int = 30
 scores: list[int] = [90, 85]
 nickname: str | None = None
+print(age, scores, nickname)  # 30 [90, 85] None
 ```
 
 Hints document intent. Python does not check them when the program runs.

@@ -8,7 +8,7 @@ Define a function with `def`, indent the body, and `return` a value. A function 
 def add(a, b):
     return a + b
 
-add(2, 3)                   # 5
+print(add(2, 3))            # 5
 
 def greet(name):
     """Print a greeting. This string is the docstring."""
@@ -24,14 +24,14 @@ print(result)               # None
 def power(base, exp=2):
     return base ** exp
 
-power(3)                    # 9
-power(2, 10)                # 1024
-power(exp=3, base=2)        # 8  by name, any order
+print(power(3))                 # 9
+print(power(2, 10))             # 1024
+print(power(exp=3, base=2))     # 8  by name, any order
 
 def box(w, h, *, fill="#"):     # after *, keyword only
     return "\n".join(fill * w for _ in range(h))
 
-print(box(3, 2, fill="o"))  # ooo, ooo on two lines
+print(box(3, 2, fill="o"))      # ooo, ooo on two lines
 ```
 
 ### Return several values
@@ -52,39 +52,38 @@ def add(a, b):
 
 
 {{code}}
-print(total(1, 2, 3), tag("img", src="a.png", w=20), add(*args))
 ```
 
 ```python
-def total(*nums):               # nums is a tuple
+def total(*nums):                     # nums is a tuple
     return sum(nums)
 
-total(1, 2, 3)                  # 6
+print(total(1, 2, 3))                 # 6
 
-def tag(name, **attrs):         # attrs is a dict
+def tag(name, **attrs):               # attrs is a dict
     return name + "".join(f" {k}={v}" for k, v in attrs.items())
 
-tag("img", src="a.png", w=20)   # 'img src=a.png w=20'
+print(tag("img", src="a.png", w=20))  # img src=a.png w=20
 
 args = [5, 7]
-add(*args)                      # 12  unpack a list into arguments
+print(add(*args))                     # 12  unpack a list into arguments
 ```
 
 ### Lambdas and functions as values
 
 ```python
 square = lambda x: x * x
-square(4)                               # 16
+print(square(4))                            # 16
 
 words = ["kiwi", "fig", "banana"]
-sorted(words, key=len)                  # ['fig', 'kiwi', 'banana']
-sorted(words, key=lambda w: w[-1])      # ['banana', 'fig', 'kiwi']
-max(words, key=len)                     # 'banana'
+print(sorted(words, key=len))               # ['fig', 'kiwi', 'banana']
+print(sorted(words, key=lambda w: w[-1]))   # ['banana', 'fig', 'kiwi']
+print(max(words, key=len))                  # banana
 
 def apply_twice(f, x):
     return f(f(x))
 
-apply_twice(square, 3)                  # 81
+print(apply_twice(square, 3))               # 81
 ```
 
 ### Use it in a loop
@@ -123,8 +122,8 @@ def make_counter():
     return step
 
 c = make_counter()
-c()                             # 1
-c()                             # 2
+print(c())                      # 1
+print(c())                      # 2
 ```
 
 ### Recursion and caching
@@ -135,13 +134,13 @@ from functools import cache
 def fact(n):
     return 1 if n <= 1 else n * fact(n - 1)
 
-fact(5)                         # 120
+print(fact(5))                  # 120
 
 @cache                          # memoize: arguments must be hashable
 def fib(n):
     return n if n < 2 else fib(n - 1) + fib(n - 2)
 
-fib(80)                         # 23416728348467685
+print(fib(80))                  # 23416728348467685
 ```
 
 ### Type hints (optional, not enforced)
@@ -153,7 +152,7 @@ def average(xs: list[float]) -> float:
 def find(xs: list[int], target: int) -> int | None:
     return xs.index(target) if target in xs else None
 
-average([1.0, 2.0, 4.5])        # 2.5
+print(average([1.0, 2.0, 4.5]))  # 2.5
 ```
 
 | Syntax | Means |

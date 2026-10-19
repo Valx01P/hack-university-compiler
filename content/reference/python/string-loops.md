@@ -31,9 +31,9 @@ while i < len(s):
 for ch in reversed("cat"):
     print(ch)                   # t, a, c
 
-"cat"[::-1]                     # 'tac'
-"abcdef"[::2]                   # 'ace'
-"abcdef"[1::2]                  # 'bdf'
+print("cat"[::-1])              # tac
+print("abcdef"[::2])            # ace
+print("abcdef"[1::2])           # bdf
 ```
 
 ### Count characters
@@ -51,8 +51,8 @@ for ch in s:
         digits += 1
 print(vowels, digits)           # 3 2
 
-Counter("banana")               # Counter({'a': 3, 'n': 2, 'b': 1})
-Counter("banana").most_common(1)    # [('a', 3)]
+print(Counter("banana"))        # Counter({'a': 3, 'n': 2, 'b': 1})
+print(Counter("banana").most_common(1))    # [('a', 3)]
 ```
 
 ### Build a new string
@@ -65,7 +65,7 @@ for ch in s:
         out.append(ch.upper())
 print("".join(out))             # HLLWRLD
 
-"".join(ch for ch in s if ch != " ")    # 'h3ll0w0rld'
+print("".join(ch for ch in s if ch != " "))    # h3ll0w0rld
 ```
 
 ### Shift letters with ord and chr
@@ -80,7 +80,7 @@ def caesar(text, k):
             out.append(ch)
     return "".join(out)
 
-caesar("xyz abc", 3)            # 'abc def'
+print(caesar("xyz abc", 3))     # abc def
 ```
 
 ### Words and lines
@@ -111,7 +111,7 @@ for i in range(1, len(s) + 1):
         count = 1
 print("".join(runs))            # a3b1c2d2
 
-"".join(f"{ch}{len(list(g))}" for ch, g in groupby(s))   # 'a3b1c2d2'
+print("".join(f"{ch}{len(list(g))}" for ch, g in groupby(s)))   # a3b1c2d2
 ```
 
 ### Both ends: palindrome check
@@ -127,7 +127,7 @@ def is_palindrome(s):
         j -= 1
     return True
 
-is_palindrome("Race car!")      # True
+print(is_palindrome("Race car!"))  # True
 ```
 
 | Want | Write |

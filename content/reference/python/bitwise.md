@@ -5,7 +5,8 @@ Bitwise operators work on the binary digits of integers. Python ints have unlimi
 ### Operators
 
 ```python
-a, b = 0b1100, 0b1010     # 12, 10
+a, b = 0b1100, 0b1010
+print(a, b)               # 12 10
 print(a & b)              # 8    AND: 1 where both are 1   (0b1000)
 print(a | b)              # 14   OR: 1 where either is 1   (0b1110)
 print(a ^ b)              # 6    XOR: 1 where they differ  (0b0110)

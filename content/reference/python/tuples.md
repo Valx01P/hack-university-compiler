@@ -10,7 +10,7 @@ pair = "ana", 31              # parentheses are optional
 one = (5,)                    # the comma makes the tuple
 not_a_tuple = (5)             # just the int 5
 empty = ()
-from_list = tuple([1, 2, 3])  # (1, 2, 3)
+print(tuple([1, 2, 3]))       # (1, 2, 3)
 print(type(one).__name__, type(not_a_tuple).__name__)  # tuple int
 ```
 
@@ -43,7 +43,7 @@ print(grid[(2, 3)])           # goal
 people = [("bo", 25), ("ana", 31), ("cy", 25)]
 people.sort(key=lambda p: (p[1], p[0]))   # by age, then name
 print(people)                 # [('bo', 25), ('cy', 25), ('ana', 31)]
-print((1, 2) < (1, 3))        # True: compared item by item
+print((1, 2) < (1, 3))        # True, compared item by item
 ```
 
 ### Named tuples

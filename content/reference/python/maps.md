@@ -7,10 +7,10 @@ Python's map is the built-in `dict`: a hash table from keys to values. Keys must
 ```python
 ages = {"ana": 31, "bo": 25}
 empty = {}                              # {} is a dict, not a set
-d = dict(a=1, b=2)                      # {'a': 1, 'b': 2}
-d = dict(zip(["x", "y"], [1, 2]))       # {'x': 1, 'y': 2}
-d = dict.fromkeys(["a", "b"], 0)        # {'a': 0, 'b': 0}
-squares = {n: n * n for n in range(4)}  # {0: 0, 1: 1, 2: 4, 3: 9}
+print(dict(a=1, b=2))                   # {'a': 1, 'b': 2}
+print(dict(zip(["x", "y"], [1, 2])))    # {'x': 1, 'y': 2}
+print(dict.fromkeys(["a", "b"], 0))     # {'a': 0, 'b': 0}
+print({n: n * n for n in range(4)})     # {0: 0, 1: 1, 2: 4, 3: 9}
 ```
 
 ### Access
@@ -34,7 +34,7 @@ ages["cy"] = 40               # add or overwrite
 ages["ana"] += 1              # update in place
 ages.update({"bo": 26, "di": 19})
 del ages["di"]                # KeyError if missing
-old = ages.pop("cy")          # remove and return: 40
+print(ages.pop("cy"))         # 40  remove and return
 ages.pop("zz", None)          # no error if missing
 print(ages)                   # {'ana': 32, 'bo': 26}
 merged = ages | {"ed": 50}    # new dict, right side wins

@@ -6,8 +6,9 @@ Python assigns several names in one statement by unpacking: the right side is bu
 
 ```python
 a, b, c = 1, 2, 3
-x = y = z = 0           # chained: all three names get 0
+x = y = z = 0                       # chained: all three names get 0
 name, age = "Ada", 36
+print(a, b, c, x, y, z, name, age)  # 1 2 3 0 0 0 Ada 36
 ```
 
 ### Swap
@@ -22,20 +23,28 @@ print(a, b)             # 2 1
 
 ```python
 point = (3, 4)
-x, y = point            # x = 3, y = 4
-q, r = divmod(17, 5)    # q = 3, r = 2
-first, second = "hi"    # first = 'h', second = 'i'
+x, y = point
+print(x, y)             # 3 4
+q, r = divmod(17, 5)
+print(q, r)             # 3 2
+first, second = "hi"
+print(first, second)    # h i
 k, v = ["key", "value"]
-(a, b), c = (1, 2), 3   # nested: a = 1, b = 2, c = 3
+(a, b), c = (1, 2), 3   # nested
+print(a, b, c)          # 1 2 3
 ```
 
 ### Star grabs the rest
 
 ```python
-first, *rest = [1, 2, 3, 4]     # first = 1, rest = [2, 3, 4]
-*init, last = [1, 2, 3, 4]      # init = [1, 2, 3], last = 4
-head, *_, tail = "python"       # head = 'p', tail = 'n'
-only, *empty = [7]              # only = 7, empty = []
+first, *rest = [1, 2, 3, 4]
+print(first, rest)              # 1 [2, 3, 4]
+*init, last = [1, 2, 3, 4]
+print(init, last)               # [1, 2, 3] 4
+head, *_, tail = "python"
+print(head, tail)               # p n
+only, *empty = [7]
+print(only, empty)              # 7 []
 ```
 
 ### Ignore a value
@@ -43,6 +52,7 @@ only, *empty = [7]              # only = 7, empty = []
 ```python
 _, y = (10, 20)                 # _ means "don't care"
 name, _, city = ("Ada", 36, "London")
+print(y, name, city)            # 20 Ada London
 ```
 
 ### Use it in a loop
@@ -82,6 +92,7 @@ point = {
     "x": 1,
     "y": 2,
 }
+print(total, point)             # 6 {'x': 1, 'y': 2}
 ```
 
 ### Gotchas

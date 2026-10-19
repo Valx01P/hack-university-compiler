@@ -5,30 +5,33 @@
 ### Arithmetic
 
 ```python
-7 + 2       # 9
-7 - 2       # 5
-7 * 2       # 14
-7 / 2       # 3.5   always a float
-6 / 2       # 3.0
-7 // 2      # 3     floor division
-7 % 2       # 1     remainder
-2 ** 10     # 1024  power
--7 // 2     # -4    floors toward negative infinity
--7 % 3      # 2     result takes the sign of the divisor
-7.0 // 2    # 3.0   float in, float out
+print(7 + 2)       # 9
+print(7 - 2)       # 5
+print(7 * 2)       # 14
+print(7 / 2)       # 3.5   always a float
+print(6 / 2)       # 3.0
+print(7 // 2)      # 3     floor division
+print(7 % 2)       # 1     remainder
+print(2 ** 10)     # 1024  power
+print(-7 // 2)     # -4    floors toward negative infinity
+print(-7 % 3)      # 2     result takes the sign of the divisor
+print(7.0 // 2)    # 3.0   float in, float out
 ```
 
 ### Compound assignment
 
 ```python
 x = 10
-x += 5      # 15
-x -= 3      # 12
-x *= 2      # 24
-x //= 5     # 4
-x **= 2     # 16
-x %= 5      # 1
-x /= 2      # 0.5
+x += 5      # x = x + 5
+print(x)    # 15
+x -= 3      # x = x - 3
+x *= 2      # x = x * 2
+x //= 5     # x = x // 5
+print(x)    # 4
+x **= 2     # x = x ** 2
+x %= 5      # x = x % 5
+x /= 2      # x = x / 2
+print(x)    # 0.5
 ```
 
 There is no `++` or `--`. Write `i += 1`.
@@ -36,12 +39,12 @@ There is no `++` or `--`. Write `i += 1`.
 ### Precedence
 
 ```python
-2 + 3 * 4       # 14
-(2 + 3) * 4     # 20
--2 ** 2         # -4   ** binds tighter than unary minus
-(-2) ** 2       # 4
-2 ** 3 ** 2     # 512  ** groups right to left
-10 - 4 - 3      # 3    everything else left to right
+print(2 + 3 * 4)      # 14
+print((2 + 3) * 4)    # 20
+print(-2 ** 2)        # -4   ** binds tighter than unary minus
+print((-2) ** 2)      # 4
+print(2 ** 3 ** 2)    # 512  ** groups right to left
+print(10 - 4 - 3)     # 3    everything else left to right
 ```
 
 | Level | Operators |
@@ -59,22 +62,22 @@ There is no `++` or `--`. Write `i += 1`.
 ```python
 import math
 
-math.sqrt(16)       # 4.0
-math.isqrt(17)      # 4   integer square root
-math.floor(-2.5)    # -3
-math.ceil(2.1)      # 3
-math.trunc(-2.7)    # -2
-math.gcd(12, 18)    # 6
-math.lcm(4, 6)      # 12
-math.factorial(5)   # 120
-math.comb(5, 2)     # 10  ways to choose 2 of 5
-math.perm(5, 2)     # 20  ordered picks of 2 of 5
-math.prod([2, 3, 4])    # 24
-math.log(8, 2)      # 3.0
-math.log10(1000)    # 3.0
-math.hypot(3, 4)    # 5.0
-math.pi             # 3.141592653589793
-math.sin(math.pi / 2)   # 1.0  trig uses radians
+print(math.sqrt(16))           # 4.0
+print(math.isqrt(17))          # 4   integer square root
+print(math.floor(-2.5))        # -3
+print(math.ceil(2.1))          # 3
+print(math.trunc(-2.7))        # -2
+print(math.gcd(12, 18))        # 6
+print(math.lcm(4, 6))          # 12
+print(math.factorial(5))       # 120
+print(math.comb(5, 2))         # 10  ways to choose 2 of 5
+print(math.perm(5, 2))         # 20  ordered picks of 2 of 5
+print(math.prod([2, 3, 4]))    # 24
+print(math.log(8, 2))          # 3.0
+print(math.log10(1000))        # 3.0
+print(math.hypot(3, 4))        # 5.0
+print(math.pi)                 # 3.141592653589793
+print(math.sin(math.pi / 2))   # 1.0  trig uses radians
 ```
 
 ### Use it in a loop

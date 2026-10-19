@@ -8,7 +8,8 @@ A `set` is an unordered collection of unique, hashable values with O(1) average 
 seen = set()                  # empty set ({} would be a dict)
 colors = {"red", "green", "red"}
 print(len(colors))            # 2
-letters = set("hello")        # {'h', 'e', 'l', 'o'} in some order
+letters = set("hello")
+print(sorted(letters))        # ['e', 'h', 'l', 'o']
 evens = {n for n in range(10) if n % 2 == 0}
 frozen = frozenset([1, 2, 3])  # immutable, can be a dict key
 ```
@@ -17,7 +18,8 @@ frozen = frozenset([1, 2, 3])  # immutable, can be a dict key
 
 ```python
 s = {1, 2}
-s.add(3)                      # s is now {1, 2, 3}
+s.add(3)
+print(s)                      # {1, 2, 3}
 s.update([4, 5])              # add many
 s.remove(5)                   # KeyError if missing
 s.discard(99)                 # no error if missing

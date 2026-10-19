@@ -4,6 +4,7 @@ Most patterns are a `range` with the right start, stop, and step, or a slice `xs
 
 ```python
 xs = [10, 20, 30, 40, 50, 60]
+print(len(xs))                      # 6
 ```
 
 ### Reverse
@@ -20,7 +21,7 @@ for x in reversed(xs):
 for i in range(len(xs) - 1, -1, -1):
     print(i, xs[i])                 # 5 60, 4 50, ..., 0 10
 
-xs[::-1]                            # [60, 50, 40, 30, 20, 10]
+print(xs[::-1])                     # [60, 50, 40, 30, 20, 10]
 ```
 
 ### Every other, skip odd, every k-th
@@ -31,15 +32,15 @@ xs = [10, 20, 30, 40, 50, 60]
 ```
 
 ```python
-xs[::2]                             # [10, 30, 50]  even indexes
-xs[1::2]                            # [20, 40, 60]  odd indexes
-xs[::3]                             # [10, 40]
+print(xs[::2])                          # [10, 30, 50]  even indexes
+print(xs[1::2])                         # [20, 40, 60]  odd indexes
+print(xs[::3])                          # [10, 40]
 
-for i in range(0, len(xs), 2):      # even indexes only
-    print(i, xs[i])                 # 0 10, 2 30, 4 50
+for i in range(0, len(xs), 2):          # even indexes only
+    print(i, xs[i])                     # 0 10, 2 30, 4 50
 
 nums = [1, 2, 3, 4, 5, 6]
-[n for n in nums if n % 2 == 0]     # [2, 4, 6]  even values, skip odd ones
+print([n for n in nums if n % 2 == 0])  # [2, 4, 6]  even values, skip odd ones
 ```
 
 ### First n, last n, skip the ends
@@ -50,9 +51,9 @@ xs = [10, 20, 30, 40, 50, 60]
 ```
 
 ```python
-xs[:3]                              # [10, 20, 30]
-xs[-2:]                             # [50, 60]
-xs[1:-1]                            # [20, 30, 40, 50]
+print(xs[:3])                       # [10, 20, 30]
+print(xs[-2:])                      # [50, 60]
+print(xs[1:-1])                     # [20, 30, 40, 50]
 for x in xs[1:]:                    # skip the first
     print(x)                        # 20, 30, 40, 50, 60
 ```
@@ -70,7 +71,7 @@ for i in range(1, len(temps)):
 for a, b in zip(temps, temps[1:]):
     print(b - a)                    # 2, -1, 4
 
-list(pairwise(temps))               # [(3, 5), (5, 4), (4, 8)]
+print(list(pairwise(temps)))        # [(3, 5), (5, 4), (4, 8)]
 ```
 
 ### Chunks and sliding windows
@@ -86,7 +87,7 @@ from itertools import batched
 for i in range(0, len(xs), 4):
     print(xs[i:i + 4])              # [10, 20, 30, 40], [50, 60]
 
-list(batched(xs, 4))                # [(10, 20, 30, 40), (50, 60)]
+print(list(batched(xs, 4)))         # [(10, 20, 30, 40), (50, 60)]
 
 k = 3
 for i in range(len(xs) - k + 1):
@@ -123,7 +124,7 @@ for i in range(len(nums)):
     for j in range(i + 1, len(nums)):
         print(nums[i], nums[j])     # 1 2, 1 3, 2 3
 
-list(combinations(nums, 2))         # [(1, 2), (1, 3), (2, 3)]
+print(list(combinations(nums, 2)))  # [(1, 2), (1, 3), (2, 3)]
 ```
 
 ### Running total (prefix sums)
@@ -139,7 +140,7 @@ for n in nums:
     running.append(total)
 print(running)                      # [1, 3, 6, 10]
 
-list(accumulate(nums))              # [1, 3, 6, 10]
+print(list(accumulate(nums)))       # [1, 3, 6, 10]
 ```
 
 | Want | Write |

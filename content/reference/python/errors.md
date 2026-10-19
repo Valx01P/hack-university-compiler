@@ -88,6 +88,7 @@ from contextlib import suppress
 
 with open("notes.txt", "w") as f:     # closed even if an error happens
     f.write("hi\n")
+print(f.closed)                       # True
 
 with suppress(FileNotFoundError):     # ignore one specific error
     os.remove("missing.txt")
