@@ -417,19 +417,20 @@ export function CompilerApp({
     const { runs } = outcome;
     const compileError = runs.find((r) => r.compileCode != null && r.compileCode !== 0);
     if (compileError) return finish({ status: "compile-error", output: compileError.compileOutput || "Compilation failed." });
-    // The runner's courses also want a clean exit (lib/single-checks.mjs).
+    // The runner's courses also want a clean exit (lib/single-checks.mjs),
+    // and a failed test says what was wrong, since its output can be right.
     // The rest compare output, as they always have.
     const onTheRunner = onRunner(lang.slug);
     const results = runs.map((r, i) => {
       const timedOut = r.verdict === "TO";
+      const judged = onTheRunner ? judgeTest(tests[i], { ...r, status: r.verdict }) : null;
       return {
         stdin: tests[i].stdin ?? "",
         expected: tests[i].output,
         actual: r.stdout,
         stderr: timedOut ? "Timed out. Your code ran too long (usually an infinite loop). It was stopped." : r.stderr,
-        passed: onTheRunner
-          ? judgeTest(tests[i], { ...r, status: r.verdict }).passed
-          : !timedOut && normalizeOutput(r.stdout) === normalizeOutput(tests[i].output),
+        passed: judged ? judged.passed : !timedOut && normalizeOutput(r.stdout) === normalizeOutput(tests[i].output),
+        ...(judged && !judged.passed ? { problems: judged.problems } : {}),
       };
     });
     if (results.every((r) => r.passed)) markChallengeSolved(lang.slug, id);
