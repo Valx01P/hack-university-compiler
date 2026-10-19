@@ -19,6 +19,11 @@ browser ──(ws://127.0.0.1:3100, ticket first)──▶ hu-runner
 - It starts with Docker off: `/v1/health` says `"down"`, a run answers 503
   `docker_unavailable` ("Start Docker to run this."), and it picks Docker up
   within 5 seconds of it starting.
+- It takes its port before it touches Docker, so a second runner started on a
+  port that's taken (`npm run runner` beside `npm run up`) exits at once and
+  leaves the first one's jobs alone. A request that arrives while it first
+  looks at Docker waits for that look (a moment), so the first `/v1/health`
+  is already right.
 
 Design: `architecture.md` §2.6, §3.2, §3.3, §3.5, §4.1, §11 in the expansion
 plan. This file is the contract the app codes against.
@@ -152,7 +157,7 @@ many tests there are.
 | `fixtures`, `fixtureSets` | bash | `fixtureSets` maps a set's name to its files (the same shape as `files`). `fixtures` names the set every run starts from |
 | `tests` | both | 1 to 20 tests. Each may set `stdin`, `args`, `env`, `clock`, and for Bash `fixtures` (another set, so a hardcoded answer fails), `cwd` (a subfolder to run from), `wrap` (an argv the script runs inside, like `["flock", "job.lock"]`), `files` and `absent` (paths to read back), and `collect` (more paths). For TypeScript, `tryIt` replaces everything after the program's `// --- try it ---` line with hidden calls. `output`, `exitCode`, and `stderrIncludes` are accepted and ignored: `lib/single-checks.mjs` judges them |
 | `typeTests` | typescript | Up to 6 cases, compiled with `main.ts` in the same tsc pass, never run |
-| `forbid` | typescript | Honesty rules to scan `main.ts` for |
+| `forbid` | typescript | Accepted and ignored, like `output`. `lib/single-checks.mjs` judges the honesty rules from the source (architecture §3.5), so Check and the verifiers share one scanner. The runner returns no `forbid` field |
 
 **Answer to a Run:**
 
@@ -180,7 +185,6 @@ many tests there are.
     { "name": "rejects a card without last4", "expect": "error", "pass": true,
       "diagnostics": [{ "line": 1, "col": 10, "code": "TS2345", "message": "Argument of type … is not assignable …" }] }
   ],
-  "forbid": [{ "rule": "as", "line": 15, "col": 17, "message": "A type assertion (as) makes the checker trust you. Fix the type instead of asserting it." }],
   "timing": { "…": "…" }
 }
 ```
@@ -193,6 +197,12 @@ many tests there are.
   `EL` past 1 MB of stdout or stderr (the rest is cut, and the program is
   stopped at once), and `XX` when the step couldn't report. Unlike Piston,
   `exit 130` and a death by `SIGINT` are told apart (`docker/shared/hu-exec.c`).
+- **`XX`** is never the program's fault. A sandbox stopped from outside (a
+  Docker restart, the reaper after the Mac wakes from sleep) says `"message":
+  "The sandbox stopped unexpectedly. Run it again."` with `code: null`, never
+  Docker's 137 dressed up as an exit status. A test whose files couldn't be
+  loaded or read back is `XX` too, with the reason on `stderr`, and the other
+  tests still run and report.
 - **`limit`** names what stopped it: `time`, `memory` (killed at 512 MB),
   `pids` (128 processes, a fork bomb), `fsize` (a 64 MB file), `output`, or
   `null`.
@@ -203,16 +213,18 @@ many tests there are.
   for a C++ compile error, and a Check's results each say `"skipped": "compile"`.
 - **`results[i].files`** holds the contents of every path test `i` named in
   `files`, `absent`, or `collect` (relative to the test folder, `null` where no
-  regular file is), and **`exists`** says whether anything is there.
+  regular file is), and **`exists`** says whether anything is there (a file, a
+  folder, or a symlink, which isn't followed). Whether a path exists is read
+  apart from any contents, so it is always right. Each file is read on its own,
+  up to 1 MB, and up to about 9 MB in all.
+- **`results[i].truncated`**, only when there are some: the paths whose
+  contents were cut, of which `files` holds the first 1 MB. A judge must
+  count a truncated file as not matching (`files` expectations are at most
+  1 MB, so the whole file can't match), while `exists` still says it's there.
 - **`typeTests`**: each case's diagnostics, with `line` and `col` counted from
   the start of the case's own code. `pass` follows the case's `expect` (and
   `errorCode`), and `message` says why a case failed. A diagnostic on the
   imports line fails every case ("The type tests couldn't import from main.ts").
-- **`forbid`** (only when asked): every hit of `any`, `as` (except `as
-  const`), a postfix `!`, and `@ts-ignore`, `@ts-expect-error`, or
-  `@ts-nocheck` comments. A token scan that skips strings, template text,
-  regular expressions, and comments, and leaves names and renames
-  (`Promise.any`, `import * as z`) alone. `recipes/honesty.ts`.
 - **`timing`** is for measuring, not for learners.
 
 ### `POST /v1/tickets`
@@ -276,8 +288,15 @@ ride along. No cookie is ever used for authentication.
 
 | Recipe | Image | In the job | Steps | Limits |
 | --- | --- | --- | --- | --- |
-| `typescript` | `hu/node` | `/work`: `main.ts`, the course `tsconfig.json`, `package.json` with `"type": "module"` (without it tsc treats `main.ts` as CommonJS), `type-tests.ts` when there are type tests, and `t<n>/main.ts` for each `tryIt` test | `tsc -p . --pretty false` once, then `node main.ts` per test (with `docker/node/stdio.mjs` preloaded, so a program printing in a loop meets the 1 MB limit instead of running out of heap) | 512 MB, 1 CPU, 128 processes, 64 MB of space, compile 30 s, run 10 s, 1 MB per stream |
+| `typescript` | `hu/node` | `/work`: `main.ts`, the course `tsconfig.json`, `package.json` with `"type": "module"` (without it tsc treats `main.ts` as CommonJS), `type-tests.ts` when there are type tests, and `t<n>/main.ts` for each `tryIt` test | `tsc -p . --pretty false` once, then `node main.ts` per test, from a fresh copy each time (with `docker/node/stdio.mjs` preloaded, so a program printing in a loop meets the 1 MB limit instead of running out of heap) | 512 MB, 1 CPU, 128 processes, 64 MB of space, compile 30 s, run 10 s, 1 MB per stream |
 | `bash` | `hu/bash` | `/home/learner` (the home folder): the fixture set, then `main.sh` | `bash main.sh ARGS` per test, from a fresh copy each time, inside `wrap`, inside `faketime @<clock>` when there's a clock | 512 MB, 1 CPU, 128 processes, 64 MB of space, run 10 s, 1 MB per stream |
+
+- **A fresh copy** means that before every test after the first, the work
+  folder, `/tmp`, `/dev/shm`, and `/dev/mqueue` (everywhere a job can write)
+  are emptied and the files extracted again, so a program passes or fails the
+  same whichever test it is: a `mkdir /tmp/job.lock`, a `mktemp` file, or a
+  line appended to `log.txt` never reaches the next test. Modes come back
+  first, so a test that ran `chmod -R a-x .` doesn't stop the next.
 
 - Programs import `node:` built-ins and `zod` (4.6.7), found through
   `/node_modules` in the image. tsc finds `@types/node` the same way.
@@ -292,7 +311,10 @@ ride along. No cookie is ever used for authentication.
   `../main.sh`, the way you'd type it standing there.
 - Every step goes through `hu-exec` (`docker/shared/hu-exec.c`), which stops
   it at its deadline, kills whatever it left running (so a background job
-  never leaks into the next test), and reports exactly how it ended.
+  never leaks into the next test), and reports exactly how it ended. It spares
+  only PID 1, the job's main process (the oldest child of PID 1), itself, and
+  the runner's own execs (whose parent is outside the container), never a
+  process by its name: a learner's process called `hu-exec` goes too.
 
 ## Jobs and containers
 
@@ -316,10 +338,16 @@ CPU on average. The `standard` and `sysadmin` workspace profiles are here too,
 for P1, and `verify-security` already holds them to S1 and S2.
 
 Labels (§5.3): `hu.managed=1`, `hu.kind=job`, `hu.ns`, `hu.runner=<boot id>`,
-`hu.port`, `hu.recipe`, and `hu.expires`. At startup the runner removes jobs
-its port left behind (a `kill -9` mid-run), and every 5 seconds it removes
-any job in its namespace 10 s past `hu.expires`. It acts on nothing without
-its labels. On Ctrl+C it removes its own jobs before exiting.
+`hu.port`, `hu.recipe`, and `hu.expires`. At startup, once it holds its port,
+the runner removes jobs its port left behind (a `kill -9` mid-run), and every
+5 seconds it removes any job in its namespace 10 s past `hu.expires`. It acts
+on nothing without its labels. On Ctrl+C it removes its own jobs before
+exiting.
+
+Files go in with `tar -x` and come back as a listing (what is at each path)
+followed by each regular file's first bytes in base64, one line per file, so
+nothing read from the container is trusted for a length. `tar.ts` still reads
+archives (P1 needs them) and stops at the first header that doesn't add up.
 
 ## Images
 
@@ -351,9 +379,9 @@ docker.ts        finding Docker, the connection, labels, and namespaces
 images.ts        content-hash tags, builds, pruning (and npm run images)
 jobs.ts          the job primitive and the job pool
 profiles.ts      container profiles and limits (§11.2, §11.3)
-recipes/         typescript, bash, and the honesty scan
+recipes/         typescript and bash
 reaper.ts        reconcile at startup, and the reaper
-tar.ts           just enough tar to load files in and read them back
+tar.ts           just enough tar to load files in, and to read archives safely
 log.ts           ~/.hack-university/logs/runner.log
 verify.ts        the library the verifiers import (verify namespace)
 bench.ts         times the job path end to end against the budgets
@@ -362,13 +390,15 @@ bench.ts         times the job path end to end against the budgets
 ## Tests
 
 - `npm run runner:test` runs the unit tests (tokens, tickets, the Host and
-  Origin rules, schemas, recipe commands, type-test layout, the honesty scan,
-  profiles and limits, labels, tar, the exec stream, the job pool, image
-  hashes, and the REST and WebSocket front door on a real server), and
-  `runner/integration.test.ts`, which runs real jobs and is skipped when
-  Docker is off or the images aren't built.
+  Origin rules, schemas, recipe commands, type-test layout, profiles and
+  limits, labels, tar from good and malformed bytes, the exec stream, the job
+  pool, image hashes and builds, and the REST and WebSocket front door on a
+  real server), and `runner/integration.test.ts`, which runs real jobs (test
+  isolation, read-back, outside kills) and is skipped when Docker is off or
+  the images aren't built.
 - `npm run security:verify` runs S1 (hardening), S2 (egress), S4 (limits), S9
-  (runner auth), S14 (cleanup after `kill -9`), and S16 (Piston) against real
-  containers and a real runner in the verify namespace.
+  (runner auth), S14 (cleanup after `kill -9`, and a second runner on a taken
+  port), and S16 (Piston) against real containers and a real runner in the
+  verify namespace.
 - `node runner/bench.ts` times Run and Check against a running runner.
 - Type-check with `npx tsc -p runner`.
