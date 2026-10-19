@@ -28,7 +28,7 @@ and Rosetta makes them run close to native speed.
 git clone https://github.com/Valx01P/hack-university-compiler.git
 cd hack-university-compiler
 npm install
-npm run setup   # starts the sandbox and installs all five languages (one time, ~3 min)
+npm run setup   # starts the sandbox, installs all five languages, and gets the search model (one time, ~3 min)
 npm run dev
 ```
 
@@ -54,6 +54,7 @@ npm run piston:install -- python javascript
 | `npm run piston:down` | Stop the sandbox (installed languages are kept) |
 | `npm run piston:install` | Install every language, or `-- <ids>` for just some |
 | `npm run piston:status` | Show which languages are installed |
+| `npm run search:setup` | Download the cheatsheet search's model (30 MB, part of `setup`) |
 | `npm run lessons:verify` | Check every Learn lesson in the sandbox (`-- <language> [ids]` for some) |
 | `npm run challenges:verify` | Check every challenge in every language (`-- <ids>`, `--lang=<language>`) |
 | `npm run reference:verify` | Lint the cheatsheets (`-- <language> [categories]`) |
@@ -170,12 +171,18 @@ filters and scroll, and the challenge you're on with its hints.
 
 - **Cheatsheet**: a direct reference for the language, one section per topic
   from printing to OOP: the syntax, what to import, the methods people use, a
-  loop example, and the gotchas. Search it ("append", "import", "split") or
-  jump to a topic.
+  loop example, and the gotchas. Search it or jump to a topic. The search goes
+  by what you mean, not just the words: "list methods" finds adding,
+  removing, and sorting, and "remove from a dictionary" finds a Map's delete in
+  JavaScript. Each part of the cheatsheet is ranked by a small embedding model
+  on this machine (word vectors distilled from a sentence transformer,
+  downloaded once by `npm run setup`), together with the words themselves,
+  synonyms across languages, and the topic they're under. Without the model it
+  still ranks by words.
 - **Challenges**: 81 short problems grouped by topic, very easy to medium, the
   same set in every language. Open one and the editor fills with its starter
   (your own code comes back when you leave it). **Check** runs it against the
-  tests, and **Next** takes you on. Opened challenges get an eye, solved ones a
+  tests, and **Previous** and **Next** move through the list. Opened challenges get an eye, solved ones a
   green check. The eye next to `{}` reveals the answer, the same way as in
   Learn mode.
 
@@ -262,6 +269,16 @@ blocks in lessons, and the output terminal. Pick the theme's own, a dark preset
 editor theme's, and the picker warns you if they'd be hard to read on your
 color.
 
+**Selection color**, under it (and in the editor's settings gear), sets the
+color selected code is highlighted with in every editor and code block: the
+theme's own, Blue, Purple, Green, Amber, Pink, Gray, or any custom color.
+It's drawn at 40% over the background, so selected code keeps its syntax
+colors and stays readable on dark and light editor themes, and the picker
+warns you when a color would make selections hard to see. In both pickers
+the custom swatch keeps the last color you picked, even after you switch to a
+preset or reload: click it to bring that color back, and click it again to
+change it.
+
 **Layout lines**, at the bottom of the theme menu, is a slider for the lines
 that divide the page: the panel's outline, the language rail, the lesson list
 and its dividers, the editor and output boxes, the cheatsheet and challenges
@@ -305,7 +322,8 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──▶ Pis
   the page's compile instead, since Next.js only prefetches in production.)
 - Saved in the browser's local storage: your code (per language), your edits
   to examples, editor zoom, tab size, intellisense, theme, editor theme,
-  contrast level, code background, layout lines, content lines, and code
+  contrast level, code background, selection color (and the last custom
+  color of each), layout lines, content lines, and code
   comments. Everything
   visual is applied before the page paints, so nothing shifts on reload, and
   the menus read what's applied, so opening one never flashes the default
@@ -332,10 +350,12 @@ lib/sql/                     SQL: the PGlite playground, the sample database, an
                              the psql-style runner shared with the verifiers
 lib/learn.ts                 reads courses and lessons at build time
 lib/snippet-harness.mjs      turns a lesson or cheatsheet code block into a program
+lib/search/                  the cheatsheet search (served by app/api/search)
 lib/runtimes.json            language id to Piston runtime and package
 lib/piston.ts                server-side Piston client
 docker-compose.yml           the sandbox and its limits
 scripts/setup-piston.mjs     runtime installer
+scripts/setup-search.mjs     downloads the search model into .models/
 scripts/verify-lessons.mjs   runs every lesson's programs in the sandbox
 scripts/verify-challenges.mjs runs every challenge in every language
 scripts/verify-reference.mjs lints the cheatsheets
@@ -375,6 +395,8 @@ scripts/try-sql.mjs          runs SQL on a fresh PostgreSQL, printed like psql
   PostgreSQL License).
 - Animations by [GSAP](https://gsap.com) (free under its standard "no charge"
   license).
+- Cheatsheet search by [Model2Vec](https://github.com/MinishLab/model2vec)'s
+  [potion-base-8M](https://huggingface.co/minishlab/potion-base-8M) (MIT).
 - The Java coffee cup icon is from [Devicon](https://github.com/devicons/devicon)
   (MIT). The other language icons are from [Simple Icons](https://simpleicons.org)
   (CC0).
