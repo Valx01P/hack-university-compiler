@@ -67,7 +67,6 @@ export function superviseRunner({ port, token, appPort, watch = false, onLine = 
   const crashes = [];
   let child = null;
   let stopping = false;
-  let ready = false;
   const exited = new Set();
 
   const start = () => {
@@ -105,10 +104,7 @@ export function superviseRunner({ port, token, appPort, watch = false, onLine = 
     const until = Date.now() + timeoutMs;
     while (Date.now() < until) {
       const report = await health(port, token);
-      if (report) {
-        ready = true;
-        return report;
-      }
+      if (report) return report;
       await new Promise((r) => setTimeout(r, 150));
     }
     throw new Error(`The workspace runner didn't answer on port ${port} within ${timeoutMs / 1000} s.`);
@@ -116,9 +112,6 @@ export function superviseRunner({ port, token, appPort, watch = false, onLine = 
 
   return {
     ready: waitReady,
-    get isReady() {
-      return ready;
-    },
     /** Stops it for good: SIGTERM, so it removes its containers first. */
     stop(signal = "SIGTERM") {
       stopping = true;
