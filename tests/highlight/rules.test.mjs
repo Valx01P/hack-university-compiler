@@ -115,6 +115,10 @@ test("TODO lines never hide, with the comment lines under them", () => {
   assert.equal(stripComments("// TODO: do it\n\n// a note\nrun();", "javascript"), "// TODO: do it\n\nrun();");
   assert.equal(stripComments("-- TODO: select the names\nSELECT 1;", "sql"), "-- TODO: select the names\nSELECT 1;");
   assert.equal(stripComments("# TODO: print it\necho hi # a note", "bash"), "# TODO: print it\necho hi");
+  // A starter of nothing but comments keeps them all, not just its TODOs.
+  const starter = "-- The tasks table: id, title, next_id\n\n-- TODO: select the first task\n";
+  assert.equal(stripComments(starter, "sql"), starter);
+  assert.equal(stripComments("// Course card\n// TODO: print it\n", "javascript"), "// Course card\n// TODO: print it\n");
 });
 
 test("JSDoc types stay in JavaScript, where TypeScript reads them", () => {
