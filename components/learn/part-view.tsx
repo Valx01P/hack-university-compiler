@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
@@ -22,6 +22,7 @@ import { partHref, problemId, type Lesson, type LessonStep } from "@/lib/learn-t
 import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolvedState } from "@/lib/learn-progress";
 import { normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
 import { useEnter } from "@/lib/motion";
+import { revealWorkspace, urlCount, urlParam, writeHash, writeUrl } from "@/lib/url-state";
 
 /** Where Previous or Next goes: another part of this lesson, or a lesson. */
 export interface PartLink {
@@ -43,6 +44,9 @@ const PLAIN_BLOCK =
 // compiler's split it lasts for the session but isn't saved, so a reload
 // never shifts.
 const SPLIT = { min: 30, max: 70, initial: 50 };
+// Where #example, #practice, and #recap land: clear of the sticky header
+// when the page scrolls, a little below the top of the lesson column.
+const PLACE_MARGIN = "scroll-mt-[calc(4rem+1rem)] lg:scroll-mt-4";
 const session = { split: SPLIT.initial };
 
 /** Lesson markdown with the outer margins trimmed, for use inside cards. */
@@ -162,6 +166,76 @@ export function PartView({
     setLastLesson(lang.slug, lesson.id, part + 1);
   }, [lang.slug, lesson.id, part]);
 
+  // The address keeps your place (lib/url-state.ts): ?tab=code while you're
+  // on Your code, and #example, #practice, or #recap for where you are in
+  // the part, so a reload comes back to it. A reload that restores the tab
+  // keeps the page hidden until it has (the hints restore with it).
+  useLayoutEffect(() => {
+    if (urlParam("tab") === "code") openTab("practice", { scroll: false });
+    // A reload doesn't scroll the lesson column to the #fragment (the browser
+    // restores its old scroll instead), so go there by hand, on the next
+    // frame, once the hints restored with it are laid out: the column on
+    // wide screens, the page below that. Then show the page.
+    requestAnimationFrame(() => {
+      const place = window.location.hash.slice(1);
+      const target = ["example", "practice", "recap"].includes(place) ? document.getElementById(place) : null;
+      const column = columnRef.current;
+      if (target && column && getComputedStyle(column).overflowY === "auto") {
+        column.scrollTop += target.getBoundingClientRect().top - column.getBoundingClientRect().top - 16;
+      } else if (target) {
+        window.scrollTo(0, window.scrollY + target.getBoundingClientRect().top - 80);
+      }
+      // A frame later, the editor has taken a restored tab's code too.
+      if (document.documentElement.hasAttribute("data-restore")) requestAnimationFrame(revealWorkspace);
+    });
+    // Once, on load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    writeUrl({ tab: active === "practice" ? "code" : null });
+  }, [active]);
+  const columnRef = useRef<HTMLDivElement>(null);
+  const placeFrame = useRef(0);
+  const lastPlace = useRef<string | null>(null);
+  // The block at the top of the view (the lesson column scrolls on wide
+  // screens, the page below that) becomes the #fragment.
+  function trackPlace() {
+    if (placeFrame.current) return;
+    placeFrame.current = requestAnimationFrame(() => {
+      placeFrame.current = 0;
+      const column = columnRef.current;
+      const inColumn = column !== null && getComputedStyle(column).overflowY === "auto";
+      const top = inColumn ? column.getBoundingClientRect().top : 64;
+      const bottom = inColumn ? column.getBoundingClientRect().bottom : window.innerHeight;
+      // Scrolled all the way down, the last block that shows is the place,
+      // even when it can't reach the top.
+      const atEnd = inColumn
+        ? column.scrollTop > 0 && column.scrollTop + column.clientHeight >= column.scrollHeight - 2
+        : window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+      let at = "";
+      for (const id of ["example", "practice", "recap"]) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const elTop = el.getBoundingClientRect().top;
+        if (elTop - 32 <= top || (atEnd && elTop < bottom)) at = id;
+      }
+      if (lastPlace.current === null) lastPlace.current = window.location.hash.slice(1);
+      if (at === lastPlace.current) return;
+      lastPlace.current = at;
+      writeHash(at);
+    });
+  }
+  useEffect(() => {
+    window.addEventListener("scroll", trackPlace, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", trackPlace);
+      cancelAnimationFrame(placeFrame.current);
+      placeFrame.current = 0;
+    };
+    // trackPlace only reads refs and the DOM.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function openTab(kind: TabKind, { scroll = true }: { scroll?: boolean } = {}) {
     setActive(kind);
     setShowStdin(stdins[kind] !== "");
@@ -280,13 +354,14 @@ export function PartView({
   return (
     <div
       ref={gridRef}
+      data-workspace
       className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[var(--learn-split)_9px_minmax(0,1fr)]"
       style={{ "--learn-split": `${split}%` } as React.CSSProperties}
     >
       {/* Left: the part. Its scroll padding (and, on narrow screens, the
           focusables' scroll margin) keeps keyboard focus clear of the floating
           nav. */}
-      <div className={`slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto ${hasNav ? "lg:scroll-pb-24" : ""}`}>
+      <div ref={columnRef} onScroll={trackPlace} className={`slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto ${hasNav ? "lg:scroll-pb-24" : ""}`}>
         <article
           ref={articleRef}
           className={`mx-auto w-full max-w-[46rem] flex-1 px-5 pb-10 pt-6 sm:px-7 ${
@@ -352,7 +427,7 @@ export function PartView({
           />
 
           {lastPart && lesson.recap && (
-            <section className="mt-12 border-t border-content-line pt-6">
+            <section id="recap" className={`mt-12 border-t border-content-line pt-6 ${PLACE_MARGIN}`}>
               <p className="eyebrow">Lesson recap</p>
               <Prose md={lesson.recap} className="mt-3" runnable={runnable} />
             </section>
@@ -630,6 +705,16 @@ function PartSection({
   const { example, practice } = step;
   const hints = practice.hints ?? [];
   const [hintsShown, setHintsShown] = useState(0);
+  // The hints you've seen are kept in the address (&hints), so a reload
+  // shows them again. Read after hydration: the server can't see it.
+  useLayoutEffect(() => {
+    setHintsShown(urlCount("hints", hints.length));
+    // Once, on load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    writeUrl({ hints: hintsShown ? String(hintsShown) : null });
+  }, [hintsShown]);
   // Two clicks to reveal the solution, so it is never shown by accident.
   const [solution, setSolution] = useState<"hidden" | "armed" | "shown">("hidden");
   const hintRef = useRef<HTMLLIElement>(null);
@@ -653,7 +738,7 @@ function PartSection({
       <h2 className="font-display text-title">{step.title}</h2>
       <Prose md={step.body} className="mt-3" runnable={runnable} />
 
-      <div className="mt-7 border-l-2 border-content-line pl-5">
+      <div id="example" className={`mt-7 border-l-2 border-content-line pl-5 ${PLACE_MARGIN}`}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="eyebrow">Example</p>
           <button
@@ -685,7 +770,7 @@ function PartSection({
         <Prose md={example.explanation} className="mt-1 text-ink-muted" runnable={runnable} />
       </div>
 
-      <div className="mt-8 border-l-2 border-content-line-strong pl-5">
+      <div id="practice" className={`mt-8 border-l-2 border-content-line-strong pl-5 ${PLACE_MARGIN}`}>
         <p className="eyebrow">
           Your turn{" "}
           {/* Always laid out, shown once solved, so it never moves the page. */}
