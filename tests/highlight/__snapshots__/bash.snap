@@ -1,0 +1,128 @@
+# tokenize(sample, "bash")
+# «k|…» keyword, «s|…» string, «e|…» escape, «n|…» number, «c|…» comment, «f|…» fn, «d|…» directive, anything else plain
+«c|#!/usr/bin/env bash»
+«c|# A sample for the tokenizer snapshots: the rules the Bash course needs.»
+«c|# shellcheck disable=SC2034»
+set -euo pipefail
+
+name=«s|"World"»
+greeting=«s|'single #quoted'»
+count=${«c|#name}»
+first=${name:«n|0»:«n|1»}
+path=/srv/app/releases/v1.«n|2.3»
+base=${path«c|##*/}»
+dir=${path%/*}
+ext=${file«c|#*.}»
+args=$«c|#»
+«k|echo» «s|"Hello, $name! You have $# args and ${#greeting} chars."»
+«k|echo» «s|'It'»\«s|''»s a «c|#hash' $'tab\there\nnewline \x41 \u00e9 \e[0m \q' $"locale"»
+«k|echo» «s|"escapes: »«e|\$»«s|HOME »«e|\`»«s|cmd»«e|\`»«s| »«e|\"»«s|quoted»«e|\"»«s| »«e|\\»«s| and \n stays"» «c|# a real comment»
+«k|echo» a«c|#b c#d url=https://example.com/#section #comment after url»
+«k|echo» \«c|#escaped not-a-comment»
+arr=(one two «s|"three four"») «c|# an array»
+«k|echo» «s|"${arr[@]}"» «s|"${#arr[@]}"» «s|"$((1 + 2))"» «s|"$(date +%F)"»
+total=$(( count * «n|16»«c|#ff + 0x10 ))»
+(( i = «n|2»«c|#101 ))»
+«k|for» ((i = «n|0»; i < «n|3»; i++)); «k|do»
+  «k|echo» «s|"$i"»
+«k|done»
+«k|for» f «k|in» *.txt; «k|do»
+  [[ -f «s|"$f"» ]] && wc -l «s|"$f"» «c|# count lines»
+«k|done»
+«k|while» «k|read» -r line; «k|do» «k|echo» «s|"$line"»; «k|done» < input.txt
+«k|case» «s|"$1"» «k|in»
+  start|run) «k|echo» «s|"starting"»;;
+  stop) «k|echo» «s|"stopping"» ;;
+  *) «k|echo» «s|"usage: $0 {start|stop}"» >&«n|2»; «k|exit» «n|1» ;;
+«k|esac»
+«f|greet»() {
+  «k|local» who=«s|"${1:-friend}"»
+  printf «s|'Hello, %s\n'» «s|"$who"»
+  «k|return» «n|0»
+}
+«k|function» cleanup {
+  rm -f «s|"$tmp"» «n|2»>/dev/null || «k|true»
+}
+trap cleanup EXIT
+tmp=$(mktemp)
+result=«s|"$(basename "»$path«s|")"»
+nested=«s|"$(echo "»inner $(«k|echo» deep)«s|")"»
+files=$(
+  «c|# every log, even the hidden ones»
+  find . -name «s|'*.log'»
+)
+cat <<EOF
+«c|# not a comment: part of the heredoc»
+Home is $HOME and \$HOME, cost \`$«n|5»\`
+EOF
+cat <<-«s|'RAW'»
+	$HOME stays \n raw
+	RAW
+cat <<< «s|"here string"» «c|# comment»
+npm test && docker exec app ls
+«k|echo» «k|done» «k|in» time «c|# keywords as arguments»
+«k|if» [ «s|"$count"» -gt «n|3» ]; «k|then» «k|echo» big; «k|elif» [ «s|"$count"» -eq «n|0» ]; «k|then» «k|echo» none; «k|else» «k|echo» small; «k|fi»
+«c|# TODO: print the totals»
+«c|#       one per line»
+«k|exit» «n|0»
+
+# stripComments(sample, "bash")
+set -euo pipefail
+
+name="World"
+greeting='single #quoted'
+count=${
+first=${name:0:1}
+path=/srv/app/releases/v1.2.3
+base=${path
+dir=${path%/*}
+ext=${file
+args=$
+echo "Hello, $name! You have $# args and ${#greeting} chars."
+echo 'It'\''s a
+echo "escapes: \$HOME \`cmd\` \"quoted\" \\ and \n stays"
+echo a
+echo \
+arr=(one two "three four")
+echo "${arr[@]}" "${#arr[@]}" "$((1 + 2))" "$(date +%F)"
+total=$(( count * 16
+(( i = 2
+for ((i = 0; i < 3; i++)); do
+  echo "$i"
+done
+for f in *.txt; do
+  [[ -f "$f" ]] && wc -l "$f"
+done
+while read -r line; do echo "$line"; done < input.txt
+case "$1" in
+  start|run) echo "starting";;
+  stop) echo "stopping" ;;
+  *) echo "usage: $0 {start|stop}" >&2; exit 1 ;;
+esac
+greet() {
+  local who="${1:-friend}"
+  printf 'Hello, %s\n' "$who"
+  return 0
+}
+function cleanup {
+  rm -f "$tmp" 2>/dev/null || true
+}
+trap cleanup EXIT
+tmp=$(mktemp)
+result="$(basename "$path")"
+nested="$(echo "inner $(echo deep)")"
+files=$(
+  find . -name '*.log'
+)
+cat <<EOF
+Home is $HOME and \$HOME, cost \`$5\`
+EOF
+cat <<-'RAW'
+	$HOME stays \n raw
+	RAW
+cat <<< "here string"
+npm test && docker exec app ls
+echo done in time
+if [ "$count" -gt 3 ]; then echo big; elif [ "$count" -eq 0 ]; then echo none; else echo small; fi
+exit 0
+

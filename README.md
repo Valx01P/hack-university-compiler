@@ -71,6 +71,7 @@ npm run piston:install -- python javascript
 | `npm run reference:verify` | Lint the cheatsheets (`-- <language> [categories]`) |
 | `npm run snippets:verify` | Run every code example in the lessons and cheatsheets the way the app does (`-- <languages>`, `--source=learn` or `reference`, `--pages=<ids>`) |
 | `npm run sql:try -- <file.sql>` | Run SQL on a fresh PostgreSQL and print what psql would (`--setup <file.sql>`, `--sample` for the playground's tables) |
+| `npm run highlight:test` | Check the syntax highlighter against its snapshots in `tests/highlight/` (`UPDATE_SNAPSHOTS=1` rewrites them after a change you meant) |
 
 ## Languages
 
@@ -390,6 +391,7 @@ lib/sql/                     SQL: the PGlite playground, the sample database, an
                              the psql-style runner shared with the verifiers
 lib/learn.ts                 reads courses and lessons at build time
 lib/snippet-harness.mjs      turns a lesson or cheatsheet code block into a program
+lib/tokenize.mjs             the syntax highlighter's tokenizer, for code blocks, editors, and verifiers
 lib/search/                  the cheatsheet search (served by app/api/search)
 lib/runtimes.json            language id to Piston runtime and package
 lib/piston.ts                server-side Piston client
@@ -401,6 +403,7 @@ scripts/verify-challenges.mjs runs every challenge in every language
 scripts/verify-reference.mjs lints the cheatsheets
 scripts/verify-snippets.mjs  runs every code example in the lessons and cheatsheets
 scripts/try-sql.mjs          runs SQL on a fresh PostgreSQL, printed like psql
+tests/highlight/             the tokenizer's samples and snapshots, one per language
 ```
 
 ## Adding a language
