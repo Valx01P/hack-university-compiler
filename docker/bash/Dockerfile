@@ -96,9 +96,12 @@ RUN mkdir -p /out/opt/hu/bin \
 
 FROM debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
 
-# Lesson 1 uses man, and the slim image leaves man pages out. Taking out its
-# exclusion list and reinstalling the base tools brings their pages back.
-RUN rm /etc/dpkg/dpkg.cfg.d/docker \
+# Lesson 1 uses man, and the slim image leaves man pages out. Letting English
+# pages in (docs and translations stay out) and reinstalling the base tools
+# brings their pages back.
+RUN sed -i 's|^path-exclude /usr/share/man/\*$|path-exclude /usr/share/man/??/*\npath-exclude /usr/share/man/??_*/*|' \
+      /etc/dpkg/dpkg.cfg.d/docker \
+ && grep -q '^path-exclude /usr/share/man/??/\*$' /etc/dpkg/dpkg.cfg.d/docker \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
       bash-completion bc bsdextrautils bzip2 ca-certificates cron curl diffutils faketime file \
