@@ -397,7 +397,7 @@ the custom swatch keeps the last color you picked, even after you switch to a
 preset or reload: click it to bring that color back, and click it again to
 change it.
 
-**Layout lines**, at the bottom of the theme menu, is a slider for the lines
+**Layout lines**, at the top of the theme menu's right column, is a slider for the lines
 that divide the page: the panel's outline, the language rail, the lesson list
 and its dividers, the editor and output boxes, the cheatsheet and challenges
 panel, and the outlined buttons (Cheatsheet, Challenges, Learn, Compiler, and
@@ -407,12 +407,25 @@ blocks and `inline code`, search boxes and dropdowns, and the dividers in
 lessons, cheatsheets, challenges, and results. A focused field always shows its
 border.
 
-**Code comments**, the switch at the bottom of the theme menu, shows or hides
+**Code comments**, the switch at the bottom of the theme menu's left column, shows or hides
 the comments in the code examples of lessons and cheatsheets, for reading the
 code on its own (an example still prints its results when you run it). A
 comment on its own line goes with its line, and copying or editing an example
 leaves them out too. Directives and `TODO` lines (a starter's instructions)
 always stay. Code you changed yourself always shows as you wrote it.
+
+**Stars**, the switch under the line sliders, puts a starry sky behind the
+whole app: twinkling stars that drift slowly, and soft clouds, in the theme's
+colors (yellow on Light). While it's on, the page's large backgrounds go
+see-through so the sky shows behind the panels, the editors and code blocks,
+the output, and the terminal. Menus, dialogs, and small controls keep their
+fills. **Brightness** and **Amount** set how bright the stars are and how many
+there are. **Clouds** picks one of five versions: Wisps, Swirl, Band (a river
+of light across the screen), Bloom (a cluster of soft glows), or Aurora
+(curtains). **Cover** sets how much cloud there is, and **Where** picks the
+spot it gathers around, from the top left to the bottom right. The sky runs
+at up to 30 frames a second, pauses in a hidden tab, and holds still when the
+system asks for reduced motion.
 
 ## How it works
 
@@ -453,8 +466,9 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
 - Saved in the browser's local storage: your code (per language), your edits
   to examples, editor zoom, tab size, intellisense, theme, editor theme,
   contrast level, code background, selection color (and the last custom
-  color of each), layout lines, content lines, and code
-  comments. Everything
+  color of each), layout lines, content lines, code comments, and the
+  stars (their brightness and amount, and the clouds' version, cover, and
+  place). Everything
   visual is applied before the page paints, so nothing shifts on reload, and
   the menus read what's applied, so opening one never flashes the default
   first. The editor/output split isn't saved, so

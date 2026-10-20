@@ -3,10 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import {
   APP_THEMES,
+  CLOUD_PLACES,
+  CLOUD_STYLES,
   CONTRAST_LEVELS,
   setContrast,
   setLayoutLines,
   setContentLines,
+  setCloudPlace,
+  setCloudStyle,
+  setCloudsAmount,
   setCodeCommentsHidden,
   setStarsAmount,
   setStarsBrightness,
@@ -15,6 +20,9 @@ import {
   useContrast,
   useLayoutLines,
   useContentLines,
+  useCloudPlace,
+  useCloudStyle,
+  useCloudsAmount,
   useCodeCommentsHidden,
   useStarsAmount,
   useStarsBrightness,
@@ -32,7 +40,8 @@ import { POP, usePresence } from "@/lib/motion";
  * contrast picker that deepens whichever theme is active, and a code
  * background for every editor, code block, and terminal, how visible lines
  * are, whether code examples show their comments, and the stars behind the
- * app with their brightness and amount. Goes through
+ * app with their brightness and amount and the clouds' version, cover, and
+ * place. Goes through
  * setTheme() so the `data-dark` flag and the editor's code theme stay in sync.
  * The icon starts as the Light sun on first paint (SSR) and corrects after
  * hydration — same pattern as the rest of the theme bootstrap, so there's no
@@ -50,6 +59,9 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
   const starsOn = useStarsOn();
   const starsBrightness = useStarsBrightness();
   const starsAmount = useStarsAmount();
+  const cloudStyle = useCloudStyle();
+  const cloudPlace = useCloudPlace();
+  const cloudCover = useCloudsAmount();
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuShown = usePresence(open, menuRef, POP);
@@ -96,257 +108,352 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
           role="menu"
           aria-label="Theme"
           style={{ transformOrigin: floating ? "bottom right" : "top right" }}
-          className={`slim-scroll absolute right-0 z-[60] w-[22rem] overflow-y-auto rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card) ${
+          className={`slim-scroll absolute right-0 z-[60] w-[22rem] max-w-[calc(100vw-2rem)] sm:w-[40rem] overflow-y-auto rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card) ${
             floating ? "bottom-[calc(100%+0.5rem)] max-h-[calc(100dvh-5rem)]" : "top-[calc(100%+0.4rem)] max-h-[calc(100dvh-4.5rem)]"
           }`}
         >
-          {/* Two columns, so the whole menu fits without scrolling. */}
-          <div className="grid grid-cols-2">
-            {APP_THEMES.map((t) => {
-              const active = t.id === theme;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={active}
-                  onClick={() => {
-                    setTheme(t.id);
-                    setOpen(false);
-                  }}
-                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
-                    active
-                      ? "text-ink dark:text-gold"
-                      : "text-ink-muted hover:bg-raised hover:text-ink"
-                  }`}
-                >
-                  <ThemeIcon id={t.id} className="size-4 shrink-0" />
-                  <span className="flex-1 text-left">{t.label}</span>
-                  {active && (
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="size-4 shrink-0"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+          {/* Two columns on wider screens, so it all fits without
+              scrolling: how things look on the left, lines and the sky on
+              the right. On a phone they stack. */}
+          <div className="sm:grid sm:grid-cols-2 sm:divide-x sm:divide-edge">
+            <div>
+              {/* The themes, in two columns. */}
+              <div className="grid grid-cols-2">
+                {APP_THEMES.map((t) => {
+                  const active = t.id === theme;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={active}
+                      onClick={() => {
+                        setTheme(t.id);
+                        setOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                        active
+                          ? "text-ink dark:text-gold"
+                          : "text-ink-muted hover:bg-raised hover:text-ink"
+                      }`}
                     >
-                      <path d="M5 12l4 4 9-10" />
-                    </svg>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                      <ThemeIcon id={t.id} className="size-4 shrink-0" />
+                      <span className="flex-1 text-left">{t.label}</span>
+                      {active && (
+                        <svg
+                          viewBox="0 0 24 24"
+                          className="size-4 shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M5 12l4 4 9-10" />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
 
-          {/* A modifier, not a theme: picking a level keeps the menu open so
-              you can see it apply, and it sticks as you switch themes. */}
-          <div role="separator" className="my-1 h-px bg-edge" />
-          <div role="group" aria-label="Contrast" className="px-3 pb-2 pt-1.5">
-            <p className="flex items-center gap-2.5 text-sm text-ink-muted">
-              <svg
-                viewBox="0 0 24 24"
-                className="size-4 shrink-0"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.5}
-                aria-hidden
-              >
-                <circle cx="12" cy="12" r="8.5" />
-                <path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none" />
-              </svg>
-              Contrast
-            </p>
-            <div className="mt-2 flex rounded-btn border border-edge-strong p-0.5">
-              {CONTRAST_LEVELS.map((c) => {
-                const active = c.id === contrast;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={active}
-                    onClick={() => setContrast(c.id)}
-                    className={`flex-1 rounded-[5px] px-1 py-1 text-xs font-medium transition-colors ${
-                      active ? "bg-ink text-canvas" : "text-ink-muted hover:text-ink"
-                    }`}
+              {/* A modifier, not a theme: picking a level keeps the menu open so
+                  you can see it apply, and it sticks as you switch themes. */}
+              <div role="separator" className="my-1 h-px bg-edge" />
+              <div role="group" aria-label="Contrast" className="px-3 pb-2 pt-1.5">
+                <p className="flex items-center gap-2.5 text-sm text-ink-muted">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="size-4 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    aria-hidden
                   >
-                    {c.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                    <circle cx="12" cy="12" r="8.5" />
+                    <path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none" />
+                  </svg>
+                  Contrast
+                </p>
+                <div className="mt-2 flex rounded-btn border border-edge-strong p-0.5">
+                  {CONTRAST_LEVELS.map((c) => {
+                    const active = c.id === contrast;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={active}
+                        onClick={() => setContrast(c.id)}
+                        className={`flex-1 rounded-[5px] px-1 py-1 text-xs font-medium transition-colors ${
+                          active ? "bg-ink text-canvas" : "text-ink-muted hover:text-ink"
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-          {/* Also a modifier: one background for every editor, code block,
-              and terminal, the syntax colors unchanged. */}
-          <div role="separator" className="my-1 h-px bg-edge" />
-          <div role="group" aria-label="Code background" className="px-3 pb-2.5 pt-1.5">
-            <p className="flex items-center gap-2.5 text-sm text-ink-muted">
-              <svg
-                viewBox="0 0 24 24"
-                className="size-4 shrink-0"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
+              {/* Also a modifier: one background for every editor, code block,
+                  and terminal, the syntax colors unchanged. */}
+              <div role="separator" className="my-1 h-px bg-edge" />
+              <div role="group" aria-label="Code background" className="px-3 pb-2.5 pt-1.5">
+                <p className="flex items-center gap-2.5 text-sm text-ink-muted">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="size-4 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+                    <path d="M7.5 10l2.5 2-2.5 2M12.5 14.5h4" />
+                  </svg>
+                  Code background
+                </p>
+                <div className="mt-2.5">
+                  <CodeBackgroundPicker compact />
+                </div>
+              </div>
+
+              {/* And the color selected code is highlighted with. */}
+              <div role="group" aria-label="Selection color" className="px-3 pb-2.5 pt-1.5">
+                <p className="flex items-center gap-2.5 text-sm text-ink-muted">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="size-4 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <rect x="3.5" y="8" width="11" height="8" rx="1.5" fill="currentColor" fillOpacity={0.25} stroke="none" />
+                    <path d="M17 5v14M15 5h4M15 19h4" />
+                  </svg>
+                  Selection color
+                </p>
+                <div className="mt-2.5">
+                  <SelectionColorPicker compact />
+                </div>
+              </div>
+
+              {/* Comments in lesson and cheatsheet examples, for reading the code
+                  alone (running an example prints its results anyway). */}
+              <div role="separator" className="my-1 h-px bg-edge" />
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={commentsShown}
+                onClick={() => setCodeCommentsHidden(commentsShown)}
+                className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
               >
-                <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
-                <path d="M7.5 10l2.5 2-2.5 2M12.5 14.5h4" />
-              </svg>
-              Code background
-            </p>
-            <div className="mt-2.5">
-              <CodeBackgroundPicker compact />
+                <svg
+                  viewBox="0 0 24 24"
+                  className="mt-0.5 size-4 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                  aria-hidden
+                >
+                  <path d="M10.5 5 6.5 19M17.5 5l-4 14" />
+                </svg>
+                <span className="flex-1">
+                  <span className="block">Code comments</span>
+                  <span className="mt-0.5 block text-xs text-ink-faint">In lesson and cheatsheet examples</span>
+                </span>
+                <SwitchTrack on={commentsShown} className="mt-0.5" />
+              </button>
             </div>
-          </div>
-
-          {/* And the color selected code is highlighted with. */}
-          <div role="group" aria-label="Selection color" className="px-3 pb-2.5 pt-1.5">
-            <p className="flex items-center gap-2.5 text-sm text-ink-muted">
-              <svg
-                viewBox="0 0 24 24"
-                className="size-4 shrink-0"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <rect x="3.5" y="8" width="11" height="8" rx="1.5" fill="currentColor" fillOpacity={0.25} stroke="none" />
-                <path d="M17 5v14M15 5h4M15 19h4" />
-              </svg>
-              Selection color
-            </p>
-            <div className="mt-2.5">
-              <SelectionColorPicker compact />
-            </div>
-          </div>
-
-          {/* How visible the layout's big lines are, and, separately, the
-              lines inside the content, each down to none. */}
-          <div role="separator" className="my-1 h-px bg-edge" />
-          <div className="grid grid-cols-2">
-            <PercentSlider
-              id="layout-lines"
-              label="Layout lines"
-              hint="Panels, sidebars, outlined buttons"
-              value={lines}
-              onChange={setLayoutLines}
-              icon={
-                <>
-                  <rect x="3" y="4.5" width="18" height="15" rx="2.5" strokeDasharray="3 2.5" />
-                  <path d="M9 4.5v15" />
-                </>
-              }
-            />
-            <PercentSlider
-              id="content-lines"
-              label="Content lines"
-              hint="Tables, code, search boxes, dividers"
-              value={contentLines}
-              onChange={setContentLines}
-              icon={
-                <>
-                  <rect x="3" y="4.5" width="18" height="15" rx="2" />
-                  <path d="M3 9.5h18M3 14.5h18M10 4.5v15" />
-                </>
-              }
-            />
-          </div>
-
-          {/* Comments in lesson and cheatsheet examples, for reading the code
-              alone (running an example prints its results anyway). */}
-          <div role="separator" className="my-1 h-px bg-edge" />
-          <button
-            type="button"
-            role="menuitemcheckbox"
-            aria-checked={commentsShown}
-            onClick={() => setCodeCommentsHidden(commentsShown)}
-            className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="mt-0.5 size-4 shrink-0"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              strokeLinecap="round"
-              aria-hidden
-            >
-              <path d="M10.5 5 6.5 19M17.5 5l-4 14" />
-            </svg>
-            <span className="flex-1">
-              <span className="block">Code comments</span>
-              <span className="mt-0.5 block text-xs text-ink-faint">In lesson and cheatsheet examples</span>
-            </span>
-            <SwitchTrack on={commentsShown} className="mt-0.5" />
-          </button>
-
-          {/* A starry sky behind the app, then how bright it is and how
-              many stars it has. */}
-          <div role="separator" className="my-1 h-px bg-edge" />
-          <button
-            type="button"
-            role="menuitemcheckbox"
-            aria-checked={starsOn}
-            onClick={() => setStarsOn(!starsOn)}
-            className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="mt-0.5 size-4 shrink-0"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M11 3.5l1.8 4.9 4.9 1.8-4.9 1.8L11 16.9l-1.8-4.9-4.9-1.8 4.9-1.8z" />
-              <path d="M18.5 15.5v4M16.5 17.5h4" />
-            </svg>
-            <span className="flex-1">
-              <span className="block">Stars</span>
-              <span className="mt-0.5 block text-xs text-ink-faint">A starry sky behind the app</span>
-            </span>
-            <SwitchTrack on={starsOn} className="mt-0.5" />
-          </button>
-          {starsOn && (
-            <div className="grid grid-cols-2">
+            <div>
+              {/* How visible the layout's big lines are, and, separately, the
+                  lines inside the content, each down to none. */}
+              <div role="separator" className="my-1 h-px bg-edge sm:hidden" />
               <PercentSlider
-                id="stars-brightness"
-                label="Brightness"
-                value={starsBrightness}
-                onChange={setStarsBrightness}
+                id="layout-lines"
+                label="Layout lines"
+                hint="Panels, sidebars, outlined buttons"
+                value={lines}
+                onChange={setLayoutLines}
                 icon={
                   <>
-                    <circle cx="12" cy="12" r="3.5" />
-                    <path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" />
+                    <rect x="3" y="4.5" width="18" height="15" rx="2.5" strokeDasharray="3 2.5" />
+                    <path d="M9 4.5v15" />
                   </>
                 }
               />
               <PercentSlider
-                id="stars-amount"
-                label="Amount"
-                value={starsAmount}
-                onChange={setStarsAmount}
+                id="content-lines"
+                label="Content lines"
+                hint="Tables, code, search boxes, dividers"
+                value={contentLines}
+                onChange={setContentLines}
                 icon={
                   <>
-                    <circle cx="6" cy="7" r="1.25" fill="currentColor" stroke="none" />
-                    <circle cx="16.5" cy="5.5" r="1.25" fill="currentColor" stroke="none" />
-                    <circle cx="11" cy="12" r="1.25" fill="currentColor" stroke="none" />
-                    <circle cx="18.5" cy="14.5" r="1.25" fill="currentColor" stroke="none" />
-                    <circle cx="7" cy="18" r="1.25" fill="currentColor" stroke="none" />
+                    <rect x="3" y="4.5" width="18" height="15" rx="2" />
+                    <path d="M3 9.5h18M3 14.5h18M10 4.5v15" />
                   </>
                 }
               />
+
+              {/* A starry sky behind the app, then how bright it is and how
+                  many stars it has. */}
+              <div role="separator" className="my-1 h-px bg-edge" />
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={starsOn}
+                onClick={() => setStarsOn(!starsOn)}
+                className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="mt-0.5 size-4 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M11 3.5l1.8 4.9 4.9 1.8-4.9 1.8L11 16.9l-1.8-4.9-4.9-1.8 4.9-1.8z" />
+                  <path d="M18.5 15.5v4M16.5 17.5h4" />
+                </svg>
+                <span className="flex-1">
+                  <span className="block">Stars</span>
+                  <span className="mt-0.5 block text-xs text-ink-faint">A starry sky behind the app</span>
+                </span>
+                <SwitchTrack on={starsOn} className="mt-0.5" />
+              </button>
+              {starsOn && (
+                <>
+                  <div className="grid grid-cols-2">
+                    <PercentSlider
+                      id="stars-brightness"
+                      label="Brightness"
+                      value={starsBrightness}
+                      onChange={setStarsBrightness}
+                      icon={
+                        <>
+                          <circle cx="12" cy="12" r="3.5" />
+                          <path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" />
+                        </>
+                      }
+                    />
+                    <PercentSlider
+                      id="stars-amount"
+                      label="Amount"
+                      value={starsAmount}
+                      onChange={setStarsAmount}
+                      icon={
+                        <>
+                          <circle cx="6" cy="7" r="1.25" fill="currentColor" stroke="none" />
+                          <circle cx="16.5" cy="5.5" r="1.25" fill="currentColor" stroke="none" />
+                          <circle cx="11" cy="12" r="1.25" fill="currentColor" stroke="none" />
+                          <circle cx="18.5" cy="14.5" r="1.25" fill="currentColor" stroke="none" />
+                          <circle cx="7" cy="18" r="1.25" fill="currentColor" stroke="none" />
+                        </>
+                      }
+                    />
+                  </div>
+
+                  {/* The clouds drawn with the stars: one of five versions,
+                      how much of them, and where on the screen they gather. */}
+                  <div role="group" aria-label="Clouds" className="px-3 pb-2 pt-1.5">
+                    <p className="flex items-center gap-2.5 text-sm text-ink-muted">
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="size-4 shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                        strokeLinejoin="round"
+                        aria-hidden
+                      >
+                        <path d="M7 18.5h10.5a4 4 0 0 0 .4-7.98A6 6 0 0 0 6.3 9.4 4.6 4.6 0 0 0 7 18.5z" />
+                      </svg>
+                      Clouds
+                    </p>
+                    <div className="mt-2 flex rounded-btn border border-edge-strong p-0.5">
+                      {CLOUD_STYLES.map((c) => {
+                        const active = c.id === cloudStyle;
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={active}
+                            onClick={() => setCloudStyle(c.id)}
+                            className={`flex-1 rounded-[5px] px-1 py-1 text-xs font-medium transition-colors ${
+                              active ? "bg-ink text-canvas" : "text-ink-muted hover:text-ink"
+                            }`}
+                          >
+                            {c.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2">
+                    <PercentSlider
+                      id="clouds-cover"
+                      label="Cover"
+                      value={cloudCover}
+                      onChange={setCloudsAmount}
+                      icon={
+                        <>
+                          <path d="M5 15.5h9a3.25 3.25 0 0 0 .3-6.49A5 5 0 0 0 4.6 8.2 3.7 3.7 0 0 0 5 15.5z" />
+                          <path d="M9 19h11" />
+                        </>
+                      }
+                    />
+                    <div role="group" aria-label="Where the clouds gather" className="flex flex-col px-3 pb-3 pt-1.5">
+                      <p className="flex items-center gap-2.5 text-sm text-ink-muted">
+                        <svg
+                          viewBox="0 0 24 24"
+                          className="size-4 shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={1.5}
+                          aria-hidden
+                        >
+                          <circle cx="12" cy="12" r="7.5" />
+                          <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+                        </svg>
+                        Where
+                      </p>
+                      <div className="mt-auto grid w-fit grid-cols-3 gap-1 pl-[1.625rem] pt-2.5">
+                        {CLOUD_PLACES.map((place) => {
+                          const active = place.id === cloudPlace;
+                          return (
+                            <button
+                              key={place.id}
+                              type="button"
+                              role="menuitemradio"
+                              aria-checked={active}
+                              aria-label={place.label}
+                              title={place.label}
+                              onClick={() => setCloudPlace(place.id)}
+                              className={`size-3.5 rounded-[3px] border transition-colors ${
+                                active ? "border-ink bg-ink" : "border-edge-strong hover:border-ink"
+                              }`}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

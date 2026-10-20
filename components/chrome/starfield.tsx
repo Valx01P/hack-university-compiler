@@ -1,13 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useStarsAmount, useStarsBrightness, useStarsOn } from "@/lib/theme";
+import {
+  CLOUD_STYLES,
+  type CloudPlace,
+  useCloudPlace,
+  useCloudStyle,
+  useCloudsAmount,
+  useStarsAmount,
+  useStarsBrightness,
+  useStarsOn,
+} from "@/lib/theme";
 
 /**
  * The Stars setting (lib/theme.ts): a starry background behind the whole app,
  * off by default. One WebGL fragment shader on a fixed canvas behind the page
- * draws three layers of twinkling stars that drift slowly, and a soft nebula
- * glow. While it's on, the app's large backgrounds are see-through, code
+ * draws three layers of twinkling stars that drift slowly, and soft clouds
+ * in one of five versions (wisps, swirl, band, bloom, aurora), as much of
+ * them as the Cover slider says, gathered where the Where picker says. While it's on, the app's large backgrounds are see-through, code
  * editors and code blocks included, so the sky shows behind everything
  * (globals.css), and floating menus keep their fills.
  *
@@ -36,6 +46,9 @@ uniform vec3 u_star;
 uniform vec3 u_glow;
 uniform float u_bright;
 uniform float u_amount;
+uniform float u_cloudStyle;
+uniform float u_cloudAmount;
+uniform vec2 u_cloudAt;
 
 float hash21(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -85,6 +98,64 @@ vec4 stars(vec2 px, float cell, float density, float size, float seed) {
   return vec4(mix(u_star, u_glow, tint * 0.9) * s, s);
 }
 
+// The clouds, in the version picked in the theme menu (0 wisps, 1 swirl,
+// 2 band, 3 bloom, 4 aurora). d is the distance from where they gather, in
+// screen heights, and spread is how far they reach. More cover reaches a
+// little further and fills more of the sky, so the spot stays clear.
+float clouds(vec2 px, vec2 uv, float aspect) {
+  vec2 p = px / 480.0 + vec2(u_time * 0.012, 0.0);
+  vec2 d = (uv - u_cloudAt) * vec2(aspect, 1.0);
+  float spread = mix(0.35, 0.85, u_cloudAmount);
+  float gather = exp(-dot(d, d) / (spread * spread));
+  float lo = mix(0.58, 0.3, u_cloudAmount);
+  if (u_cloudStyle < 0.5) {
+    // wisps: soft drifting streaks over a faint glow at the spot, so the
+    // spot always shows wherever the streaks fall
+    return (0.35 + smoothstep(lo, lo + 0.5, fbm(p))) * gather * 1.4;
+  }
+  if (u_cloudStyle < 1.5) {
+    // swirl: the same noise folded into itself, so it curls, over the same
+    // faint glow at the spot
+    vec2 q = vec2(fbm(p + vec2(0.0, u_time * 0.01)), fbm(p + vec2(5.2, 1.3)));
+    return (0.3 + smoothstep(lo - 0.05, lo + 0.5, fbm(p + 1.8 * q))) * gather * 1.35;
+  }
+  if (u_cloudStyle < 2.5) {
+    // band: a river of light across the screen through the spot, with dark
+    // dust lanes in it
+    vec2 dir = normalize(vec2(1.0, -0.45));
+    float off = dot(d, vec2(-dir.y, dir.x));
+    float width = mix(0.07, 0.22, u_cloudAmount);
+    float band = exp(-(off * off) / (width * width));
+    float lanes = smoothstep(0.25, 0.75, fbm(p * 2.2 + 3.0));
+    return band * (0.45 + 0.75 * fbm(p * 1.4)) * (0.55 + 0.45 * lanes);
+  }
+  if (u_cloudStyle < 3.5) {
+    // bloom: a cluster of soft round glows around the spot, slowly breathing
+    float c = 0.0;
+    float size = 0.7 + 0.6 * u_cloudAmount;
+    for (int i = 0; i < 5; i++) {
+      float fi = float(i);
+      vec2 o = vec2(hash21(vec2(fi, 1.3)), hash21(vec2(fi, 7.9))) - 0.5;
+      vec2 b = d - o * spread * 0.6 - 0.03 * vec2(sin(u_time * 0.07 + fi), cos(u_time * 0.05 + fi * 2.0));
+      float r = (0.09 + 0.1 * hash21(vec2(fi, 4.4))) * size;
+      c += exp(-dot(b, b) / (r * r)) * (0.5 + 0.5 * hash21(vec2(fi, 2.2)));
+    }
+    return c * (0.6 + 0.6 * fbm(p * 1.5));
+  }
+  // aurora: curtains hung across at the spot's height (kept on screen), with
+  // a sharp lower edge that fades upward, and soft shifting rays
+  vec2 at = vec2(u_cloudAt.x, clamp(u_cloudAt.y, 0.22, 0.85));
+  vec2 e = (uv - at) * vec2(aspect, 1.0);
+  float wave = 0.05 * sin(e.x * 4.0 + u_time * 0.15) + 0.06 * (fbm(vec2(e.x * 2.5, u_time * 0.02)) - 0.5);
+  float y = e.y + wave;
+  float curtain = exp(-(y * y) / (y < 0.0 ? 0.035 : 0.0018));
+  float y2 = y + 0.09;
+  float upper = 0.55 * exp(-(y2 * y2) / (y2 < 0.0 ? 0.02 : 0.0015));
+  float rays = 0.62 + 0.38 * sin(e.x * 36.0 + fbm(p * 2.0 + vec2(u_time * 0.05, 0.0)) * 10.0);
+  float reach = smoothstep(0.0, 0.4, 1.0 - abs(e.x) / (spread * 1.7));
+  return (curtain + upper) * rays * reach;
+}
+
 void main() {
   // css px from the top left of the viewport
   vec2 px = vec2(gl_FragCoord.x, u_res.y - gl_FragCoord.y) / u_scale;
@@ -98,12 +169,9 @@ void main() {
   vec3 col = s1.rgb * 0.5 + s2.rgb * 0.75 + s3.rgb;
   float a = s1.a * 0.5 + s2.a * 0.75 + s3.a;
 
-  // the nebula: soft clouds in the glow color, brightest at the top
-  float pageY = px.y + u_scroll;
-  vec2 np = vec2(px.x, px.y + u_scroll * 0.35) / 480.0;
-  float n = smoothstep(0.42, 0.95, fbm(np + vec2(u_time * 0.012, 0.0)));
-  float near = exp(-pow(pageY / 1000.0, 2.0)) * 0.85 + 0.2;
-  float neb = n * 0.17 * near;
+  // the clouds, in the glow color (cover 50% is the homepage's strength)
+  vec2 view = u_res / u_scale;
+  float neb = clouds(px, px / view, view.x / view.y) * 0.17 * u_cloudAmount * 2.0;
   col += u_glow * neb;
   a += neb;
 
@@ -174,8 +242,24 @@ function build(gl: WebGLRenderingContext) {
     glow: u("u_glow"),
     bright: u("u_bright"),
     amount: u("u_amount"),
+    cloudStyle: u("u_cloudStyle"),
+    cloudAmount: u("u_cloudAmount"),
+    cloudAt: u("u_cloudAt"),
   };
 }
+
+/** Where each Where pick gathers the clouds, as a fraction of the screen. */
+const CLOUD_AT: Record<CloudPlace, [number, number]> = {
+  "top-left": [0.15, 0.12],
+  top: [0.5, 0.06],
+  "top-right": [0.85, 0.12],
+  left: [0.1, 0.5],
+  center: [0.5, 0.5],
+  right: [0.9, 0.5],
+  "bottom-left": [0.15, 0.88],
+  bottom: [0.5, 0.94],
+  "bottom-right": [0.85, 0.88],
+};
 
 export function Starfield() {
   const on = useStarsOn();
@@ -189,15 +273,25 @@ function Sky() {
   const [canvasKey, setCanvasKey] = useState(0);
   const brightness = useStarsBrightness();
   const amount = useStarsAmount();
-  // The sliders, read by the draw loop. 70% brightness and 60% amount are the
-  // defaults, the same sky as the homepage of hackuniversity.dev.
-  const levels = useRef({ bright: brightness / 70, amount: amount / 60 });
+  const cloudStyle = useCloudStyle();
+  const cloudPlace = useCloudPlace();
+  const cloudCover = useCloudsAmount();
+  // The settings, read by the draw loop (this effect runs before the one that
+  // starts it). 70% brightness, 60% amount, and wisps at the top at 50% cover
+  // are the defaults, the same sky as the homepage of hackuniversity.dev.
+  const levels = useRef({ bright: 1, amount: 1, cloudStyle: 0, cloudAt: CLOUD_AT.top, cloudAmount: 0.5 });
   const redrawRef = useRef<() => void>(() => {});
 
   useEffect(() => {
-    levels.current = { bright: brightness / 70, amount: amount / 60 };
+    levels.current = {
+      bright: brightness / 70,
+      amount: amount / 60,
+      cloudStyle: Math.max(0, CLOUD_STYLES.findIndex((c) => c.id === cloudStyle)),
+      cloudAt: CLOUD_AT[cloudPlace],
+      cloudAmount: cloudCover / 100,
+    };
     redrawRef.current();
-  }, [brightness, amount]);
+  }, [brightness, amount, cloudStyle, cloudPlace, cloudCover]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -262,6 +356,9 @@ function Sky() {
       gl.uniform1f(gpu.scroll, window.scrollY);
       gl.uniform1f(gpu.bright, levels.current.bright);
       gl.uniform1f(gpu.amount, levels.current.amount);
+      gl.uniform1f(gpu.cloudStyle, levels.current.cloudStyle);
+      gl.uniform1f(gpu.cloudAmount, levels.current.cloudAmount);
+      gl.uniform2f(gpu.cloudAt, levels.current.cloudAt[0], levels.current.cloudAt[1]);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       if (!shown) {
         shown = true;

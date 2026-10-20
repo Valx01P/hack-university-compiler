@@ -448,3 +448,83 @@ export const useStarsBrightness = starsBrightness.use;
 const starsAmount = percentSetting(STARS_AMOUNT_KEY, "--stars-amount", 60);
 export const setStarsAmount = starsAmount.set;
 export const useStarsAmount = starsAmount.use;
+
+/** A setting that is one of a fixed set of ids, kept as an attribute on
+    <html> and stored only when it differs from its default. */
+function choiceSetting<T extends string>(key: string, attr: string, ids: readonly T[], fallback: T) {
+  const event = `hu:${key}-changed`;
+  const valid = (value: unknown): T => (ids.includes(value as T) ? (value as T) : fallback);
+  const current = () => valid(document.documentElement.getAttribute(attr));
+  const apply = (value: T) => {
+    if (value === fallback) document.documentElement.removeAttribute(attr);
+    else document.documentElement.setAttribute(attr, value);
+  };
+
+  /** Pick one, persist it, and broadcast. */
+  function set(value: T) {
+    const id = valid(value);
+    apply(id);
+    try {
+      if (id === fallback) localStorage.removeItem(key);
+      else localStorage.setItem(key, id);
+    } catch {
+      /* ignore */
+    }
+    try {
+      window.dispatchEvent(new Event(event));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const subscribe = subscribeTo(event, key, (stored) => apply(valid(stored)));
+  function use(): T {
+    return useSyncExternalStore(subscribe, current, () => fallback);
+  }
+
+  return { set, use };
+}
+
+/**
+ * Clouds: the soft glow drawn with the stars. One of five versions, how much
+ * of it there is (0 to 100, none at 0), and where on the screen it gathers,
+ * each applied before first paint by the bootstrap in app/layout.tsx and
+ * saved in this browser. Wisps at the top is the homepage of
+ * hackuniversity.dev.
+ */
+export const CLOUD_STYLES = [
+  { id: "wisps", label: "Wisps" },
+  { id: "swirl", label: "Swirl" },
+  { id: "band", label: "Band" },
+  { id: "bloom", label: "Bloom" },
+  { id: "aurora", label: "Aurora" },
+] as const;
+export type CloudStyle = (typeof CLOUD_STYLES)[number]["id"];
+
+export const CLOUD_PLACES = [
+  { id: "top-left", label: "Top left" },
+  { id: "top", label: "Top" },
+  { id: "top-right", label: "Top right" },
+  { id: "left", label: "Left" },
+  { id: "center", label: "Center" },
+  { id: "right", label: "Right" },
+  { id: "bottom-left", label: "Bottom left" },
+  { id: "bottom", label: "Bottom" },
+  { id: "bottom-right", label: "Bottom right" },
+] as const;
+export type CloudPlace = (typeof CLOUD_PLACES)[number]["id"];
+
+export const CLOUDS_KEY = "hu-clouds";
+const cloudStyle = choiceSetting<CloudStyle>(CLOUDS_KEY, "data-clouds", CLOUD_STYLES.map((c) => c.id), "wisps");
+export const setCloudStyle = cloudStyle.set;
+export const useCloudStyle = cloudStyle.use;
+
+export const CLOUDS_PLACE_KEY = "hu-clouds-place";
+const cloudPlace = choiceSetting<CloudPlace>(CLOUDS_PLACE_KEY, "data-clouds-place", CLOUD_PLACES.map((c) => c.id), "top");
+export const setCloudPlace = cloudPlace.set;
+export const useCloudPlace = cloudPlace.use;
+
+export const CLOUDS_AMOUNT_KEY = "hu-clouds-amount";
+const cloudsAmount = percentSetting(CLOUDS_AMOUNT_KEY, "--clouds-amount", 50);
+export const setCloudsAmount = cloudsAmount.set;
+export const useCloudsAmount = cloudsAmount.use;
