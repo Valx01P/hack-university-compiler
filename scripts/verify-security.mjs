@@ -3,7 +3,8 @@
 // proves an invariant against the real thing: containers made from the real
 // profiles, jobs run through the real recipes, a real runner process, and
 // the real Piston. It gates every phase. P0 built jobs and the runner, so it
-// has S1, S2, S4, S9, S14, and S16. The rest arrive with what they test.
+// has S1, S2, S4, S9, S14, and S16, and P2's databases add S8. The rest
+// arrive with what they test.
 //
 //   npm run security:verify               # every test
 //   npm run security:verify -- S1 S9      # some
@@ -13,11 +14,14 @@
 // runners it starts listen on 127.0.0.1:3311 (HU_VERIFY_PORT), or on any
 // free port when something else has it.
 import dns from "node:dns/promises";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { capabilityMask, jobProfile, SCRIPT_JOB, standardProfile, sysadminProfile, SYSADMIN_CAPS, WORKSPACE_LIMITS } from "../runner/profiles.ts";
 import { WebSocket, execText, freePort, startRunner, verifyKit } from "../runner/verify.ts";
+import { pgEnv } from "../runner/db/clients.ts";
+import { Databases } from "../runner/db/index.ts";
+import { quietLog } from "../runner/log.ts";
 
 const PREFERRED_PORT = Number(process.env.HU_VERIFY_PORT ?? 3311);
 const PORT = await freePort(PREFERRED_PORT);
@@ -442,12 +446,98 @@ async function S16() {
   check("a text/plain execute request gets 415, so a page can't run code with a simple request", plain.status === 415, `status ${plain.status}`);
 }
 
+// ---------------------------------------------------------------- S8
+
+/** Every statement the runner may send into hu-postgres: its fixed templates, filled with names and passwords, and its own catalog reads. */
+function allowedSql() {
+  const dir = path.join(import.meta.dirname, "..", "runner", "db", "sql");
+  const escape = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = (text) =>
+    new RegExp(`^${escape(text).replace(/\\\{\\\{password\\\}\\\}/g, "[0-9a-f]{32}").replace(/\\\{\\\{\w+\\\}\\\}/g, "[a-z0-9_]+")}$`);
+  const sql = readdirSync(dir).filter((f) => f.endsWith(".sql")).map((f) => pattern(readFileSync(path.join(dir, f), "utf8")));
+  return [
+    ...sql,
+    /^SELECT datname, datistemplate FROM pg_database;$/,
+    /^SELECT rolname FROM pg_roles;$/,
+    /^SELECT datname, pg_database_size\(datname\) FROM pg_database WHERE datname IN \('[a-z0-9_]+'(, '[a-z0-9_]+')*\);$/,
+  ];
+}
+
+async function S8(kit) {
+  // Servers of its own, named after a port no runner uses, in a data folder of its own.
+  const owner = { ns: "verify", boot: kit.owner.boot, port: await freePort(PORT + 1) };
+  const dataDir = mkdtempSync(path.join(tmpdir(), "hv-s8-"));
+  const db = new Databases({ docker: kit.docker, owner, dataDir, log: quietLog, env: {} });
+  // A trace of every docker exec into hu-postgres and every statement sent to it.
+  const execs = [];
+  const sent = [];
+  const pg = db.services.pg;
+  const container = pg.container;
+  const exec = container.exec.bind(container);
+  container.exec = (options) => (execs.push(options.Cmd), exec(options));
+  for (const method of ["run", "script"]) {
+    const original = pg[method].bind(pg);
+    pg[method] = (sql, ...rest) => (sent.push(sql), original(sql, ...rest));
+  }
+  try {
+    const spec = {
+      postgres: { sql: [{ name: "db/schema.sql", text: "CREATE TABLE notes (id int);\nINSERT INTO notes VALUES (1);" }] },
+      mongo: { documents: JSON.stringify({ notes: [{ n: 1 }] }) },
+    };
+    const env = (await db.attach("wsecurityaa", { course: "security", template: "s8" }, spec)).env;
+    await db.attach("wsecuritybb", { course: "security", template: "s8" }, spec);
+    const url = new URL(env.find((e) => e.startsWith("DATABASE_URL=")).slice("DATABASE_URL=".length));
+    const conn = { role: url.username, password: url.password, database: url.pathname.slice(1) };
+    const asLearner = async (sql, database = conn.database) => {
+      const r = await db.clients.run("ws:wsecurityaa", ["psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-f", "-"], { env: pgEnv({ ...conn, database }), stdin: sql, timeoutMs: 20_000 });
+      return r.stderr.toString();
+    };
+    const refused = [
+      ["run COPY … TO PROGRAM", "COPY (SELECT 1) TO PROGRAM 'id';", /permission denied to COPY to or from an external program/],
+      ["create the dblink extension", "CREATE EXTENSION dblink;", /permission denied to create extension "dblink"/],
+      ["call pg_read_file", "SELECT pg_read_file('/etc/passwd');", /permission denied for function pg_read_file/],
+      ["use ALTER SYSTEM", "ALTER SYSTEM SET work_mem = '1GB';", /permission denied to set parameter/],
+      ["raise temp_file_limit", "SET temp_file_limit = '10GB';", /permission denied to set parameter "temp_file_limit"/],
+      ["write a function in an untrusted language", "CREATE FUNCTION f() RETURNS int LANGUAGE c AS '/lib/x', 'f';", /permission denied for language c/],
+    ];
+    for (const [what, sql, expected] of refused) {
+      const err = await asLearner(sql);
+      check(`a learner role can't ${what}`, expected.test(err), err.trim().split("\n")[0]);
+    }
+    const other = await asLearner("SELECT 1;", "ws_wsecuritybb");
+    check("a learner role can't log in to another workspace's database", /permission denied for database "ws_wsecuritybb"/.test(other), other.trim());
+    const maintenance = await asLearner("SELECT 1;", "postgres");
+    check("…or to the postgres database", /permission denied for database "postgres"/.test(maintenance), maintenance.trim());
+    const where = await db.query("wsecurityaa", { collection: "notes", filter: { $where: "true" } });
+    check("Mongo $where fails (no server-side JavaScript)", Boolean(where.error), JSON.stringify(where.error));
+    const own = await db.query("wsecurityaa", { collection: "notes", filter: { n: 1 } });
+    check("…while an ordinary filter works", own.rows?.length === 1, JSON.stringify(own));
+
+    // Exactly what reached hu-postgres.
+    const commands = execs.map((c) => c.join(" "));
+    check(
+      "every docker exec into hu-postgres is the runner's own psql or pg_isready",
+      commands.length > 0 && commands.every((c) => c.startsWith("psql -U postgres -d ") || c.startsWith("pg_isready ")),
+      commands.filter((c) => !c.startsWith("psql -U postgres -d ") && !c.startsWith("pg_isready ")).join("; ")
+    );
+    const allowed = allowedSql();
+    const foreign = sent.filter((sql) => !allowed.some((re) => re.test(sql)));
+    check(`every statement sent into hu-postgres is template SQL (${sent.length} sent)`, foreign.length === 0, foreign.slice(0, 3).join(" | "));
+    const statementsSent = sent.map((sql) => sql.replace(/^--.*$/gm, ""));
+    check("no learner or template text ever reached it", !statementsSent.some((sql) => /CREATE TABLE notes|INSERT INTO notes|dblink|pg_read_file|TO PROGRAM/.test(sql)));
+  } finally {
+    await db.shutdown();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+}
+
 // ---------------------------------------------------------------- run
 
 const TESTS = [
   ["S1", "Hardening", S1],
   ["S2", "Egress", S2],
   ["S4", "Limits", S4],
+  ["S8", "Databases", S8],
   ["S9", "Runner auth", S9],
   ["S14", "Cleanup", S14],
   ["S16", "Piston", S16],
