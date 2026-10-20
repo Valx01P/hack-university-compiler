@@ -6,13 +6,14 @@ import { TerminalView, type TerminalHandle } from "@/components/ide/terminal-vie
 import { ServerPanel } from "@/components/ide/server-panel";
 import { PortsPanel } from "@/components/ide/ports-panel";
 import { ApiPanel } from "@/components/ide/api-panel";
+import { DatabasePanel } from "@/components/ide/database-panel";
 import { ProblemsPanel } from "@/components/ide/problems-panel";
 import { ResultsPanel } from "@/components/ide/results-panel";
 import { useStore, type DockPanel, type WorkspaceStore } from "@/lib/workspace-store";
 
 /**
  * The bottom dock (architecture §8.1, §8.3): Terminal 1 to 4 and +, then the
- * Server log, Ports, API, Problems, and Results, each behind its tab. Only
+ * Server log, Ports, API, Database, Problems, and Results, each behind its tab. Only
  * the template's panels show, plus Ports and API once something listens, and
  * Results when the workspace has checks. Hidden terminals stay mounted, so
  * they keep their screens. It opens on Terminal 1. Run opens Server, Check
@@ -192,6 +193,7 @@ export function Dock({
         {store.dock === "server" && <ServerPanel store={store} />}
         {store.dock === "ports" && <PortsPanel store={store} />}
         {store.dock === "api" && <ApiPanel store={store} />}
+        {store.dock === "database" && <DatabasePanel store={store} />}
         {store.dock === "problems" && <ProblemsPanel store={store} />}
         {store.dock === "results" && <ResultsPanel store={store} next={onNext ?? null} />}
       </div>

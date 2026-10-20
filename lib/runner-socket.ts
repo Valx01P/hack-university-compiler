@@ -16,7 +16,7 @@ export type RunnerEvent =
   | { t: "terminal"; sid: string; state: "exited"; code?: number | null }
   | { t: "status"; status: string; detail?: string; mem?: { usedMb: number; limitMb: number } }
   | { t: "fs"; seq: number; events: FsEvent[] }
-  | { t: "port"; port: number; url: string; state: "listening" | "closed"; bind?: string; process?: string; framable?: boolean; reason?: string; note?: string }
+  | { t: "port"; port: number; url: string; state: "listening" | "closed"; bind?: string; process?: string; framable?: boolean; reason?: string; note?: string; env?: string; label?: string; preview?: boolean }
   | { t: "task"; name: string; state: "starting" | "running" | "exited"; code?: number | null; signal?: string | null; sid?: string }
   | { t: "check"; checkId: string; phase: string; test?: Record<string, unknown>; result?: Record<string, unknown> }
   | { t: "diag"; source: string; items: { file: string; line: number; col: number; severity: string; code?: string; message: string }[] }

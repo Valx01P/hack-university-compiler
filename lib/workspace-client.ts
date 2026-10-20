@@ -151,9 +151,17 @@ export const workspaceApi = {
     return json<{ undo?: string }>(await post(`${base(id)}/fs`, op));
   },
   async reset(id: string, scope: "file" | "dir" | "all" | "db" | "everything", path?: string, dryRun = false) {
-    return json<{ snapshot?: string | null; restored?: string[]; removed?: string[] }>(
+    return json<{ snapshot?: string | null; restored?: string[]; removed?: string[]; databases?: string[]; ms?: number }>(
       await post(`${base(id)}/reset`, { scope, ...(path ? { path } : {}), ...(dryRun ? { dryRun } : {}) })
     );
+  },
+  /** The workspace database's tables (PostgreSQL) or collections (MongoDB), read as its own role. */
+  async dbSchema(id: string, engine?: "postgres" | "mongo") {
+    return json<DbSchema>(await call(`${base(id)}/db/schema${engine ? `?engine=${engine}` : ""}`));
+  },
+  /** SQL through psql as the workspace's role, or a Mongo find() as its user: at most 500 rows, 10 s. */
+  async dbQuery(id: string, query: { sql: string } | { collection: string; filter?: Record<string, unknown>; limit?: number }) {
+    return json<DbAnswer>(await post(`${base(id)}/db/query`, query));
   },
   async snapshots(id: string) {
     const data = await json<{ snapshots?: Snapshot[] } | Snapshot[]>(await call(`${base(id)}/snapshots`));
@@ -213,6 +221,34 @@ export const workspaceApi = {
     return json<{ restored?: string[]; removed?: string[]; snapshot?: string | null }>(await post(`${base(id)}/carry`, { from }));
   },
 };
+
+/** GET …/db/schema (runner/README.md, "Databases"). */
+export type DbSchema =
+  | {
+      engine: "postgres";
+      database: string;
+      sizeBytes: number;
+      tables: { schema: string; name: string; kind: "table" | "view" | "materialized view"; rows: number | null; columns: { name: string; type: string; nullable: boolean; key: boolean }[] }[];
+    }
+  | {
+      engine: "mongo";
+      database: string;
+      sizeBytes: number;
+      collections: { name: string; type: "collection" | "view"; count: number | null; indexes: { name: string; key: Record<string, unknown>; unique: boolean }[] }[];
+    };
+
+/** POST …/db/query: every statement's result (the shape lib/sql/core.mjs's SqlRun has), or a find()'s documents. */
+export interface DbAnswer {
+  engine: "postgres" | "mongo";
+  database: string;
+  columns: { name: string; type?: number }[];
+  rows: (string | null)[][];
+  tag: string | null;
+  error: { message: string; statement: string | null } | null;
+  truncated: boolean;
+  results?: ({ kind: "rows"; statement: string; columns: { name: string; type: number }[]; rows: (string | null)[][] } | { kind: "command"; statement: string; tag: string })[];
+  ms: number;
+}
 
 export interface Snapshot {
   /** The runner's `id` (older answers say `sid`). */

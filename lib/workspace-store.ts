@@ -20,7 +20,7 @@ import { WorkspaceEvents, type FsEvent, type RunnerEvent, type SocketState } fro
  * in the app.
  */
 
-export type Slice = "tree" | "files" | "status" | "ports" | "tasks" | "terminals" | "dock" | "check" | "diag" | "preview" | "notice";
+export type Slice = "tree" | "files" | "status" | "ports" | "tasks" | "terminals" | "dock" | "check" | "diag" | "preview" | "notice" | "db";
 
 export interface FileNode {
   path: string;
@@ -347,9 +347,11 @@ export class WorkspaceStore {
         this.applyFs(e.events);
         break;
       case "port": {
-        const declared = this.props.template.ports.find((p) => p.env === "PORT");
+        // Each port by its own variable's label (an API and its admin port are
+        // two). A port found listening has none of the template's.
+        const declared = e.env ? this.props.template.ports.find((p) => p.env === e.env) : undefined;
         if (e.state === "closed") this.ports.delete(e.port);
-        else this.ports.set(e.port, { ...e, label: this.ports.get(e.port)?.label ?? declared?.label });
+        else this.ports.set(e.port, { ...e, env: e.env ?? undefined, label: e.label ?? declared?.label ?? this.ports.get(e.port)?.label });
         // A preview of a server that restarts (node --watch) reloads.
         if (e.state === "listening" && this.preview.open && this.preview.port === e.port) this.reloadPreview();
         this.emit("ports");
@@ -382,6 +384,10 @@ export class WorkspaceStore {
         this.limit = { kind: e.kind, message: e.message };
         this.announce(e.message);
         this.emit("status");
+        break;
+      case "db":
+        // A reset (from any tab): the Database panel reads the tables again.
+        this.emit("db");
         break;
     }
   }
@@ -952,8 +958,23 @@ export class WorkspaceStore {
     await this.op(() => workspaceApi.fs(this.id, { op: "restore", undo: last.undo }), `Put ${last.path} back`);
   }
 
+  /** The database back to the template's rows (POST …/reset, scope db).
+      Servers that hold connections restart when the template says so. */
+  async resetDatabase(): Promise<boolean> {
+    try {
+      const { ms } = await workspaceApi.reset(this.id, "db");
+      this.emit("db");
+      this.announce(`The database is back to its starting point${typeof ms === "number" ? ` (${Math.round(ms)} ms)` : ""}`);
+      return true;
+    } catch (err) {
+      this.announce(err instanceof WorkspaceError ? err.message : "The database reset didn't work. Try again.");
+      return false;
+    }
+  }
+
   /** Reset: one file, one folder, or everything, back to the starting point.
-      Unsaved edits to what resets are dropped. */
+      Unsaved edits to what resets are dropped. Everything takes the
+      database back too, when the template has one. */
   async reset(scope: "file" | "dir" | "all" | "everything", path?: string): Promise<string | null> {
     try {
       const { snapshot } = await workspaceApi.reset(this.id, scope, path);
@@ -992,6 +1013,7 @@ export class WorkspaceStore {
       }
       this.persist();
       this.emit("files");
+      if (scope === "everything") this.emit("db");
       this.announce(scope === "file" ? `Reset ${path}` : scope === "dir" ? `Reset ${path}/` : "Reset everything to the starting point");
       return snapshot ?? null;
     } catch (err) {
@@ -1066,6 +1088,18 @@ export class WorkspaceStore {
 
   runTask(): string | null {
     return this.props.template.tasks.find((t) => t.run)?.name ?? null;
+  }
+
+  /** Every task Run starts, in the template's order: Next.js's lab marks its mock services and its dev server. */
+  runTasks(): string[] {
+    return this.props.template.tasks.filter((t) => t.run).map((t) => t.name);
+  }
+
+  /** Where a preview opens: the port the template asks to preview once it listens, else the first that listens. */
+  previewPort(): number | undefined {
+    const listening = [...this.ports.values()].filter((p) => p.state === "listening");
+    if (this.props.template.ports.some((p) => p.preview)) return listening.find((p) => p.preview)?.port;
+    return listening[0]?.port;
   }
 
   async startTask(name: string, action: "start" | "restart" | "stop" = "start") {

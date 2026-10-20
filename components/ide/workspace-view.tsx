@@ -167,7 +167,7 @@ export function WorkspaceView({
   useStore(store, "ports");
   useEffect(() => {
     if (!wantPreview.current) return;
-    const port = [...store.ports.values()].find((p) => p.state === "listening")?.port;
+    const port = store.previewPort();
     if (port) {
       store.openPreview(port, wantPreview.current);
       wantPreview.current = null;
@@ -185,14 +185,19 @@ export function WorkspaceView({
   const run = useCallback(async () => {
     if (!runName || offline) return;
     store.setDock("server");
-    const ok = await store.startTask(runName, running ? "restart" : "start");
+    // Every task the template marks starts (or restarts), in its order.
+    let ok = true;
+    for (const name of store.runTasks()) {
+      const state = store.tasks.get(name)?.state;
+      ok = (await store.startTask(name, state === "running" || state === "starting" ? "restart" : "start")) && ok;
+    }
     // A web stack's server opens its preview on Run.
     if (ok && tpl.ports.some((p) => p.preview)) {
-      const port = [...store.ports.values()].find((p) => p.state === "listening")?.port;
+      const port = store.previewPort();
       if (port) store.openPreview(port, "/");
       else wantPreview.current = "/";
     }
-  }, [runName, offline, store, running, tpl.ports]);
+  }, [runName, offline, store, tpl.ports]);
   const check = useCallback(() => void store.runCheck(), [store]);
 
   const focusTerminal = useCallback(

@@ -106,7 +106,7 @@ const RULES: Rule[] = [
   { method: "DELETE", path: /^ports\/\d{1,5}$/ },
   { method: "POST", path: /^http$/, body: { json: HttpRequest }, timeoutMs: 125_000 },
   { method: "DELETE", path: /^cookies$/ },
-  { method: "GET", path: /^db\/schema$/ },
+  { method: "GET", path: /^db\/schema$/, query: ["engine", "database"] },
   { method: "POST", path: /^db\/query$/, body: { json: DbQuery }, timeoutMs: 30_000 },
   { method: "POST", path: /^check$/, body: { json: CheckRequest }, rewrite: checkBody as Rule["rewrite"], timeoutMs: 30_000 },
   // A check's final result, for a socket that dropped (GET /v1/checks/:checkId).

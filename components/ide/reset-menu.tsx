@@ -7,14 +7,16 @@ import { workspaceApi, type Snapshot } from "@/lib/workspace-client";
 import { useStore, type WorkspaceStore } from "@/lib/workspace-store";
 
 /**
- * The reset menu (architecture §4.2.7, §8.2): this file, this folder, or
- * everything back to the starting point, and save points. Each reset first
- * says exactly what changes ("2 files restored, 1 new file removed, 1
- * unsaved buffer discarded"). Resetting everything takes a save point first,
- * so Undo brings your version back. Resets never stop a running server.
+ * The reset menu (architecture §4.2.7, §8.2): this file, this folder, the
+ * database, or everything back to the starting point, and save points. Each
+ * reset first says exactly what changes ("2 files restored, 1 new file
+ * removed, 1 unsaved buffer discarded"). Resetting everything takes a save
+ * point first, so Undo brings your version back, and takes the database
+ * back too when the template has one. Only a template that says
+ * restartOnReset restarts its running server after a database reset.
  */
 
-type Scope = "file" | "dir" | "all";
+type Scope = "file" | "dir" | "all" | "db";
 
 function plural(n: number, one: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
@@ -69,7 +71,7 @@ export function ResetMenu({ store, className }: { store: WorkspaceStore; classNa
 
   useEffect(() => {
     setSummary(null);
-    if (!confirm) return;
+    if (!confirm || confirm === "db") return;
     const path = confirm === "file" ? active : confirm === "dir" ? folder : null;
     let cancelled = false;
     workspaceApi
@@ -99,14 +101,19 @@ export function ResetMenu({ store, className }: { store: WorkspaceStore; classNa
 
   async function doReset(scope: Scope) {
     setOpen(false);
+    if (scope === "db") {
+      await store.resetDatabase();
+      return;
+    }
     const path = scope === "file" ? active : scope === "dir" ? folder : undefined;
-    const snapshot = await store.reset(scope === "all" ? "all" : scope, path ?? undefined);
+    const snapshot = await store.reset(scope === "all" ? (hasDb ? "everything" : "all") : scope, path ?? undefined);
     if (scope === "all" && snapshot) setUndo(snapshot);
   }
 
   const item = "flex w-full items-center justify-between gap-3 rounded-btn px-2.5 py-1.5 text-left text-[13px] text-ink-muted hover:bg-raised hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent";
   const fileChanged = active ? store.nodes.get(active)?.state === "modified" || store.buffers.get(active)?.dirty : false;
   const inOriginal = active ? store.props.tree.entries.some((e) => e.path === active) : false;
+  const hasDb = store.props.template.services.length > 0;
 
   return (
     <>
@@ -141,10 +148,16 @@ export function ResetMenu({ store, className }: { store: WorkspaceStore; classNa
           {confirm ? (
             <div className="p-2" role="dialog" aria-label="Confirm the reset">
               <p className="font-medium text-ink">
-                {confirm === "file" ? `Reset ${active}?` : confirm === "dir" ? `Reset ${folder || "the workspace root"}/?` : "Reset everything?"}
+                {confirm === "file" ? `Reset ${active}?` : confirm === "dir" ? `Reset ${folder || "the workspace root"}/?` : confirm === "db" ? "Reset the database?" : "Reset everything?"}
               </p>
-              <p className="mt-1 text-xs text-ink-muted">{summary ?? resetSummary(store, confirm, confirm === "file" ? active : confirm === "dir" ? folder : null)}</p>
-              {confirm === "all" && <p className="mt-1 text-xs text-ink-faint">A save point is taken first, so Undo brings your version back.</p>}
+              <p className="mt-1 text-xs text-ink-muted">
+                {confirm === "db"
+                  ? "Every table goes back to the starting point's rows. Your files stay as they are."
+                  : (summary ?? resetSummary(store, confirm, confirm === "file" ? active : confirm === "dir" ? folder : null))}
+              </p>
+              {confirm === "all" && (
+                <p className="mt-1 text-xs text-ink-faint">A save point is taken first, so Undo brings your version back.{hasDb ? " The database goes back to its starting rows too." : ""}</p>
+              )}
               <div className="mt-3 flex justify-end gap-2">
                 <button type="button" onClick={() => setConfirm(null)} className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:bg-raised hover:text-ink">
                   Cancel
@@ -164,6 +177,11 @@ export function ResetMenu({ store, className }: { store: WorkspaceStore; classNa
                 Reset this folder
                 <span className="truncate font-mono text-[11px] text-ink-faint">{folder ? `${folder}/` : "/"}</span>
               </button>
+              {hasDb && (
+                <button type="button" role="menuitem" className={item} disabled={offline} onClick={() => setConfirm("db")}>
+                  Reset the database
+                </button>
+              )}
               <button type="button" role="menuitem" className={item} disabled={offline} onClick={() => setConfirm("all")}>
                 Reset everything
               </button>
