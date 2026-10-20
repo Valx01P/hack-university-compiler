@@ -286,6 +286,64 @@ describe("workspaces", { skip }, () => {
     await runner.request("POST", `/v1/workspaces/${id}/fs`, { body: { op: "delete", path: "made-in-terminal.txt" } });
   });
 
+  it("pauses a flooding terminal until it's acknowledged, answers Ctrl+C at once, and has one writer", async () => {
+    const id = workspaceId("learn/typescript/runner-test/1/practice");
+    const { sid } = (await runner.request("POST", `/v1/workspaces/${id}/terminals`, { body: { cols: 100, rows: 30 } })).json;
+    const t = await terminal(runner, id, sid);
+    await until(() => t.state.out.includes("$ "), 10_000);
+    const viewer = await terminal(runner, id, sid);
+    assert.equal(viewer.state.texts.find((m) => m.t === "ready").readonly, true, "a second socket is read-only");
+    viewer.type("echo from-viewer\r");
+    t.type("yes\r");
+    // Without acks the runner stops reading after 100,000 bytes (plus what was in flight).
+    await new Promise((r) => setTimeout(r, 1000));
+    const before = t.state.out.length;
+    await new Promise((r) => setTimeout(r, 500));
+    assert.ok(t.state.out.length - before < 300_000, `paused: ${t.state.out.length - before} more bytes arrived`);
+    assert.ok(t.state.out.length < 2_000_000, `bounded: ${t.state.out.length} bytes`);
+    const sent = Date.now();
+    t.ws.send(JSON.stringify({ t: "signal", sig: "INT" }));
+    // Acknowledge everything from here on, so the rest drains.
+    const ack = setInterval(() => t.ws.send(JSON.stringify({ t: "ack", bytes: 1_000_000 })), 20);
+    t.type("echo after-$((2*3))\r");
+    await until(() => t.state.out.includes("after-6"), 10_000);
+    clearInterval(ack);
+    assert.ok(Date.now() - sent < 5_000, `Ctrl+C answered in ${Date.now() - sent} ms`);
+    assert.ok(!t.state.out.includes("from-viewer"), "a read-only socket can't type");
+    viewer.ws.send(JSON.stringify({ t: "takeover" }));
+    await until(() => t.state.texts.some((m) => m.t === "mode" && m.readonly === true), 5_000);
+    viewer.type("echo viewer-$((3*3))\r");
+    await until(() => viewer.state.out.includes("viewer-9"), 5_000);
+    t.ws.close();
+    viewer.ws.close();
+    assert.equal((await runner.request("DELETE", `/v1/workspaces/${id}/terminals/${sid}`)).status, 204);
+  });
+
+  it("forwards a server it finds listening on a port it didn't lease, and snapshots while running", async () => {
+    const id = workspaceId("learn/typescript/runner-test/1/practice");
+    const ev = await events(runner, id);
+    const extra = half - 1;
+    const { sid } = (await runner.request("POST", `/v1/workspaces/${id}/terminals`, { body: { cols: 100, rows: 30 } })).json;
+    const t = await terminal(runner, id, sid);
+    await until(() => t.state.out.includes("$ "), 10_000);
+    t.type(`node -e "require('http').createServer((q,s)=>s.end('extra')).listen(${extra}, '127.0.0.1')" &\r`);
+    const found = await ev.wait((m) => m.t === "port" && m.target === extra && m.state === "listening", 10_000);
+    assert.equal(found.m.declared, false);
+    assert.equal(found.m.bind, "127.0.0.1", "a loopback bind is noted");
+    assert.equal(found.m.port, extra, "the same number when the Mac has it free");
+    assert.equal((await get(found.m.port, "/")).body, "extra");
+    const ports = (await runner.request("GET", `/v1/workspaces/${id}/ports`)).json;
+    assert.ok(ports.some((p: { target: number }) => p.target === extra));
+    const snap = (await runner.request("POST", `/v1/workspaces/${id}/snapshots`, { body: { label: "before kill" } })).json;
+    assert.equal(snap.label, "before kill");
+    assert.ok((await runner.request("GET", `/v1/workspaces/${id}/snapshots`)).json.snapshots.some((x: { id: string }) => x.id === snap.id));
+    t.type("kill %1\r");
+    await ev.wait((m) => m.t === "port" && m.target === extra && m.state === "closed", 10_000);
+    t.ws.close();
+    ev.ws.close();
+    await runner.request("DELETE", `/v1/workspaces/${id}/terminals/${sid}`);
+  });
+
   it("serves a task's server on its leased port, from the Mac and through the API panel", async () => {
     const id = workspaceId("learn/typescript/runner-test/1/practice");
     const ev = await events(runner, id);
