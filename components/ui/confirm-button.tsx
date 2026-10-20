@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AnchoredPanel } from "@/components/ui/anchored-panel";
 
@@ -12,7 +13,10 @@ const CONFIRM =
  * same kind of panel as the editor settings. Focus moves to Cancel when it
  * opens, Tab cycles between Cancel and the confirm, and Escape and Cancel
  * hand focus back to the button. A click outside just closes it, so the click
- * still does what you meant and the page stays put.
+ * still does what you meant and the page stays put. With `confirmAgain` (the
+ * default for a confirm that goes somewhere, like Learn or Compiler), clicking
+ * the button again while it's open confirms, so Cancel or a click outside is
+ * how it closes.
  */
 export function ConfirmButton({
   title,
@@ -23,6 +27,7 @@ export function ConfirmButton({
   label,
   tooltip,
   align = "right",
+  confirmAgain = href !== undefined,
   className,
   children,
 }: {
@@ -41,10 +46,14 @@ export function ConfirmButton({
   tooltip?: string;
   /** Which edge of the button the confirm lines up with. */
   align?: "left" | "right";
+  /** Clicking the button again while it's open confirms, instead of closing
+      it. On by default for a link (`href`), off for an action. */
+  confirmAgain?: boolean;
   className: string;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLElement | null>(null);
@@ -100,7 +109,14 @@ export function ConfirmButton({
       <button
         ref={anchorRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) return setOpen(true);
+          if (!confirmAgain) return setOpen(false);
+          // The second click confirms, like the confirm button.
+          onConfirm?.();
+          setOpen(false);
+          if (href) router.push(href);
+        }}
         aria-label={label}
         title={tooltip ?? label}
         aria-haspopup="dialog"
