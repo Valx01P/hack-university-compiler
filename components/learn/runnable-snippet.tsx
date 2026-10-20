@@ -54,6 +54,8 @@ export function RunnableSnippet({
   stdin,
   storageKey,
   setup,
+  fixtures,
+  clock,
   className = "",
 }: {
   code: string;
@@ -64,6 +66,9 @@ export function RunnableSnippet({
   storageKey: string;
   /** SQL that builds the tables the snippet works on. */
   setup?: string;
+  /** On the runner: the fixture set it starts in, and its frozen clock. */
+  fixtures?: string;
+  clock?: string;
   className?: string;
 }) {
   const edited = useSnippetEdit(storageKey);
@@ -90,7 +95,7 @@ export function RunnableSnippet({
     setRun({ status: "running" });
     const program = buildProgram(runtime, latest.current, harness);
     const input = runtime === "sql" ? [setup, stdin].filter((x) => x && x.trim()).join("\n") : (stdin ?? "");
-    const r = await runInSandbox(runtime, program, input);
+    const r = await runInSandbox(runtime, program, input, { fixtures, clock });
     setRun(r.ok ? { status: "done", ...r.run } : { status: "error", error: r.error });
   }
 

@@ -236,11 +236,15 @@ function renderLines(text: string, keyBase: string): React.ReactNode[] {
 
 /** Where a page's code examples run: `course` is the course whose fences
     they are (content/courses.json), `scope` names the page for saving your
-    edits, `setup` builds the tables SQL examples work on. */
+    edits, `setup` builds the tables SQL examples work on, and on the runner
+    `fixtures` and `clock` are the lesson's own fixture set and frozen time,
+    so a Bash example reads the files its lesson describes. */
 export interface RunnableContext {
   course: string;
   scope: string;
   setup?: string;
+  fixtures?: string;
+  clock?: string;
 }
 
 /**
@@ -263,6 +267,8 @@ export function LessonMarkdown({ md, runnable }: { md: string; runnable?: Runnab
               stdin={seg.stdin}
               storageKey={`${runnable.scope}:${snippetHash(seg.content)}`}
               setup={runnable.setup}
+              fixtures={runnable.fixtures}
+              clock={runnable.clock}
               className="my-5"
             />
           ) : (

@@ -192,9 +192,16 @@ export function PartView({
   const outputRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Partial<Record<TabKind, HTMLButtonElement | null>>>({});
   const gridRef = useRef<HTMLDivElement>(null);
-  // The lesson's code examples run here (on the lesson's tables, for SQL),
-  // and keep your edits under the lesson.
-  const runnable: RunnableContext = { course: lang.slug, scope: `learn/${lang.slug}/${lesson.id}`, setup: sqlSetup };
+  // The lesson's code examples run here (on the lesson's tables, for SQL,
+  // and in its fixture set at its clock, on the runner), and keep your edits
+  // under the lesson.
+  const runnable: RunnableContext = {
+    course: lang.slug,
+    scope: `learn/${lang.slug}/${lesson.id}`,
+    setup: sqlSetup,
+    fixtures: lesson.fixtures,
+    clock: lesson.clock,
+  };
   // Moving to another part fades the new one in (never on first paint).
   const articleRef = useRef<HTMLElement>(null);
   useEnter(articleRef);
