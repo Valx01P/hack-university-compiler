@@ -1,0 +1,158 @@
+{
+  "id": "grep",
+  "title": "Searching with grep",
+  "section": "Text Processing",
+  "summary": "Find matching lines with grep, describe text with regular expressions, show the lines around a match, and use grep's exit status in scripts.",
+  "intro": "When something breaks, the answer is usually a line in a log, and `grep` finds it: it prints every line that matches a pattern. In this lesson you search files and folders, describe text by its shape with regular expressions, and let grep's exit status make decisions in a script. Your scripts run next to `app.log`, `access.log`, `errors.log`, and `src/`, a small folder of scripts and docs.",
+  "format": "single",
+  "fixtures": "textbox",
+  "steps": [
+    {
+      "title": "Find matching lines",
+      "body": "`grep PATTERN FILE` prints every line of the file that contains the pattern. Put a pattern with spaces or special characters in single quotes, so the shell hands it to grep untouched. Options shape the result:\n\n- `-i` ignores case, and `-v` prints the lines that *don't* match.\n- `-n` adds line numbers, and `-c` prints only how many lines match.\n- `-w` matches whole words only, and `-x` whole lines.\n- `-m 2` stops after 2 matching lines.\n- `-r` searches every file under a folder, and `--include='*.sh'` keeps only the file names that match.\n- `-l` prints just the names of the files that match, and `-L` the names of the files that don't.\n\n```bash\ngrep -c ERROR app.log\ngrep -n -m 2 'slow' app.log\ngrep -x kiwi fruits.txt\n```\n\nWith more than one file, grep starts each line with the file's name, like `src/users.sh:id=...`.",
+      "examples": [
+        {
+          "title": "Match and count",
+          "prompt": "Print the ERROR lines of `app.log`, then the same lines with their line numbers, then how many there are.",
+          "code": "grep ERROR app.log\necho \"with line numbers:\"\ngrep -n ERROR app.log\necho \"how many:\"\ngrep -c ERROR app.log\n",
+          "output": "2026-10-03T13:52:07Z ERROR checkout: payment declined order=1040 ms=512\n2026-10-03T14:05:44Z ERROR payments: gateway timeout order=1042 ms=3004\n2026-10-03T14:05:51Z ERROR inventory: stock check Timeout after 2s order=1042\n2026-10-03T14:18:12Z ERROR refunds: refund failed order=987 ms=498\n2026-10-03T14:31:09Z ERROR db: connection pool exhausted ms=5001\n2026-10-03T14:44:03Z ERROR payments: TIMEOUT talking to gateway order=1048 ms=3001\n2026-10-03T15:03:58Z ERROR checkout: address check failed order=1051 ms=231\nwith line numbers:\n3:2026-10-03T13:52:07Z ERROR checkout: payment declined order=1040 ms=512\n13:2026-10-03T14:05:44Z ERROR payments: gateway timeout order=1042 ms=3004\n14:2026-10-03T14:05:51Z ERROR inventory: stock check Timeout after 2s order=1042\n21:2026-10-03T14:18:12Z ERROR refunds: refund failed order=987 ms=498\n35:2026-10-03T14:31:09Z ERROR db: connection pool exhausted ms=5001\n42:2026-10-03T14:44:03Z ERROR payments: TIMEOUT talking to gateway order=1048 ms=3001\n61:2026-10-03T15:03:58Z ERROR checkout: address check failed order=1051 ms=231\nhow many:\n7",
+          "explanation": "`grep ERROR app.log` prints each line that contains `ERROR`, in file order. `-n` puts the line number and a colon in front, so you know where to look in the file. `-c` prints only the number of matching lines, 7. The match is case-sensitive: a line with `error` in lowercase wouldn't count."
+        },
+        {
+          "title": "Shape the match",
+          "prompt": "Find timeouts in any case, skip the DEBUG noise, and search the scripts in `src` for the word `id`.",
+          "code": "echo \"timeouts, any case:\"\ngrep -i timeout app.log\necho \"the first lines without DEBUG:\"\ngrep -v DEBUG app.log | head -n 3\necho \"id as a whole word:\"\ngrep -w id src/*.sh\necho \"what -w skipped in backup.sh:\"\ngrep id src/backup.sh\n",
+          "output": "timeouts, any case:\n2026-10-03T13:51:12Z DEBUG http: client timeout=30s keepalive=on\n2026-10-03T14:05:44Z ERROR payments: gateway timeout order=1042 ms=3004\n2026-10-03T14:05:51Z ERROR inventory: stock check Timeout after 2s order=1042\n2026-10-03T14:31:40Z WARN http: GET /api/orders status=504 ms=30002 upstream_timeout=true\n2026-10-03T14:44:03Z ERROR payments: TIMEOUT talking to gateway order=1048 ms=3001\nthe first lines without DEBUG:\n2026-10-03T13:52:07Z ERROR checkout: payment declined order=1040 ms=512\n2026-10-03T13:52:48Z INFO mailer: queue empty ms=1\n2026-10-03T13:52:58Z INFO auth: login ok user=u403 ms=72\nid as a whole word:\nsrc/deploy.sh:deployer=\"$(id -un)\"\nsrc/users.sh:# Prints the users.csv row for one user id.\nsrc/users.sh:id=\"${1:?usage: users.sh ID}\"\nsrc/users.sh:if [[ ! $id =~ ^[0-9]+$ ]]; then\nsrc/users.sh:  echo \"not a valid id: $id\" >&2\nsrc/users.sh:grep \"^$id,\" users.csv\nwhat -w skipped in backup.sh:\nbackup_id=\"$(date -u +%Y%m%d)\"\ntarget=\"/srv/backups/shop-${backup_id}.sql.gz\"",
+          "explanation": "`-i` matches `timeout`, `Timeout`, and `TIMEOUT` alike. `timed out` is different text, so it never matches. `-v` flips the test, and `head` shows the first lines that don't contain DEBUG. `-w` matches `id` only as a word of its own. `$(id -un)` and `$id` count, because `(` and `$` aren't word characters, but `backup_id` doesn't: the `_` before `id` makes it part of a longer word. The last grep shows the two `backup_id` lines that `-w` skipped. With several files, each line starts with the file's name."
+        },
+        {
+          "title": "Search a folder",
+          "prompt": "Find every TODO in the shell scripts under `src`, and list which files have one and which don't.",
+          "code": "echo \"TODO lines in the scripts:\"\ngrep -rn TODO src --include='*.sh' | sort -t: -k1,1 -k2,2n\necho \"files with a TODO:\"\ngrep -rl TODO src | sort\necho \"files without one:\"\ngrep -rL TODO src | sort\n",
+          "output": "TODO lines in the scripts:\nsrc/backup.sh:8:# TODO: read the database name from config.ini\nsrc/backup.sh:10:# TODO: delete backups older than 14 days\nsrc/deploy.sh:8:# TODO: refuse to deploy when the working tree is dirty\nsrc/lib/log.sh:8:# TODO: add log levels and hide debug lines by default\nsrc/users.sh:10:# TODO: look users up by email as well as by user_id\nfiles with a TODO:\nsrc/README.md\nsrc/backup.sh\nsrc/deploy.sh\nsrc/docs/runbook.md\nsrc/lib/log.sh\nsrc/users.sh\nfiles without one:\nsrc/docs/changelog.md",
+          "explanation": "`-r` reads every file under `src`, and `--include='*.sh'` skips the files whose names don't match. Each result is `file:line:text`. grep reads a folder in whatever order the file system lists it, which isn't alphabetical, so sort the results. `sort -t: -k1,1 -k2,2n` orders them by file name, then by line number as a number, so line 8 comes before line 10. `-l` prints the name of each matching file once, and `-L` prints the files with no match, which leaves only the changelog."
+        }
+      ],
+      "practice": {
+        "title": "Timeout report",
+        "prompt": "Print a short timeout report for `app.log`.\n\n1. Print `ERROR lines: ` followed by the number of lines that contain `ERROR`.\n2. Print every line that mentions `timeout` in any case, such as `Timeout` or `TIMEOUT`, with its line number.\n\nExpected output:\n\n```text\nERROR lines: 7\n2:2026-10-03T13:51:12Z DEBUG http: client timeout=30s keepalive=on\n13:2026-10-03T14:05:44Z ERROR payments: gateway timeout order=1042 ms=3004\n14:2026-10-03T14:05:51Z ERROR inventory: stock check Timeout after 2s order=1042\n36:2026-10-03T14:31:40Z WARN http: GET /api/orders status=504 ms=30002 upstream_timeout=true\n42:2026-10-03T14:44:03Z ERROR payments: TIMEOUT talking to gateway order=1048 ms=3001\n```",
+        "starter": "# TODO: print the label, then the number of ERROR lines\necho \"ERROR lines: 0\"\n# TODO: print every line that mentions timeout in any case, with line numbers\n",
+        "solution": "echo -n \"ERROR lines: \"\ngrep -c ERROR app.log\ngrep -in timeout app.log\n",
+        "tests": [
+          {
+            "output": "ERROR lines: 7\n2:2026-10-03T13:51:12Z DEBUG http: client timeout=30s keepalive=on\n13:2026-10-03T14:05:44Z ERROR payments: gateway timeout order=1042 ms=3004\n14:2026-10-03T14:05:51Z ERROR inventory: stock check Timeout after 2s order=1042\n36:2026-10-03T14:31:40Z WARN http: GET /api/orders status=504 ms=30002 upstream_timeout=true\n42:2026-10-03T14:44:03Z ERROR payments: TIMEOUT talking to gateway order=1048 ms=3001"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "ERROR lines: 5\n20:2026-10-08T09:03:05Z ERROR payments: Timeout waiting for gateway order=2214 ms=3002\n34:2026-10-08T09:27:55Z ERROR mailer: smtp timeout order=2215 ms=10004\n50:2026-10-08T09:58:20Z WARN api: upstream TIMEOUT on /api/search ms=8000"
+          }
+        ],
+        "hints": [
+          "`echo -n` prints the label without ending the line, so the next command's output lands right after it.",
+          "`grep -c ERROR app.log` prints the count. For the timeouts, combine two options.",
+          "`grep -in timeout app.log` ignores case and numbers the lines."
+        ]
+      }
+    },
+    {
+      "title": "Regular expressions",
+      "body": "A grep pattern is a *regular expression*: it describes the shape of text, not just exact text.\n\n- `^` and `$` match the start and the end of a line.\n- `.` matches any one character.\n- `[abc]` matches one character from the set, and `[^abc]` one that isn't in it. `[0-9]` is a range, and `[[:digit:]]` is the same set as a class.\n- `*` repeats the item before it 0 or more times, `+` 1 or more, `?` 0 or 1, `{2,4}` 2 to 4 times, and `{4,}` 4 or more.\n- `a|b` matches either side, and parentheses group: `(GET|POST)`.\n- `\\b` matches the edge of a word.\n\nBy default grep reads *basic* syntax, where `+`, `?`, `{`, `|`, and `(` are plain characters unless you put a backslash before them. `-E` turns on *extended* syntax, so they work as written. `-F` reads the pattern as fixed text, and `-o` prints only the part of each line that matched:\n\n```bash\ngrep -oE 'ms=[0-9]{4,}' app.log | head -n 3\n```\n\n`-P` (Perl syntax) also exists, for lookarounds and the like, but `-E` covers almost every job.",
+      "examples": [
+        {
+          "title": "Anchors",
+          "prompt": "Print the log lines from the 15:00 hour, and compare lines that contain `ms=` with lines that end with it.",
+          "code": "echo \"lines from the 15:00 hour:\"\ngrep '^2026-10-03T15' app.log\necho \"lines with ms= anywhere:\"\ngrep -c 'ms=' app.log\necho \"lines that end with ms=NUMBER:\"\ngrep -c 'ms=[0-9]*$' app.log\necho \"two with ms= in the middle:\"\ngrep 'ms=' app.log | grep -v 'ms=[0-9]*$' | head -n 2\n",
+          "output": "lines from the 15:00 hour:\n2026-10-03T15:03:58Z ERROR checkout: address check failed order=1051 ms=231\n2026-10-03T15:07:09Z INFO http: GET / status=200 ms=62 bytes=17764\nlines with ms= anywhere:\n53\nlines that end with ms=NUMBER:\n35\ntwo with ms= in the middle:\n2026-10-03T13:55:15Z INFO http: GET /products status=200 ms=34 bytes=17138\n2026-10-03T14:12:15Z INFO http: GET /search status=200 ms=87 bytes=18220",
+          "explanation": "`^` pins the pattern to the start of the line, so only timestamps from the 15:00 hour match, not a line that mentions that time further on. `$` pins it to the end: `ms=[0-9]*$` needs `ms=`, then digits, then nothing else. HTTP lines put `bytes=` after `ms=`, so 53 lines contain `ms=` but only 35 end with it, and the last pipeline shows two of the others. `*` works in basic syntax, so these patterns need no `-E`."
+        },
+        {
+          "title": "Alternation and repeats",
+          "prompt": "Count the POST requests to two paths, and list the requests that ended with a 5xx status.",
+          "code": "echo \"POST requests to /login or /api/orders:\"\ngrep -cE '\"POST /(login|api/orders) ' access.log\necho \"5xx responses:\"\ngrep -E '\" 5[0-9]{2} ' access.log | cut -d' ' -f7,9\necho \"the same count in basic syntax:\"\ngrep -c '\" 5[0-9]\\{2\\} ' access.log\n",
+          "output": "POST requests to /login or /api/orders:\n30\n5xx responses:\n/api/orders 502\n/api/orders 503\n/api/cart 500\n/products 502\nthe same count in basic syntax:\n4",
+          "explanation": "`(login|api/orders)` matches either path. The `\"POST ` before it matches the start of the request field, which opens with a quote, so a referer URL can't match by accident. `5[0-9]{2}` is a 5 followed by exactly two digits. The quote and the spaces around it pick out the status field, which comes right after the request's closing quote, so the `500` inside a byte count like `15003` can't match. `cut` then keeps the path and the status. Without `-E`, the braces need backslashes: `\\{2\\}`."
+        },
+        {
+          "title": "Only the match",
+          "prompt": "Pull out the `ms=` values and the client addresses, and see how `-F` treats dots.",
+          "code": "echo \"the first ms= values:\"\ngrep -oE 'ms=[0-9]+' app.log | head -n 3\necho \"the first client addresses:\"\ngrep -oE '\\b([0-9]{1,3}\\.){3}[0-9]{1,3}\\b' access.log | sort -u | head -n 3\necho \"a dot matches any character:\"\necho \"1.2.3.4 1x2y3z4\" | grep -o '1.2.3.4'\necho \"with -F, a dot is a dot:\"\necho \"1.2.3.4 1x2y3z4\" | grep -oF '1.2.3.4'\n",
+          "output": "the first ms= values:\nms=4\nms=512\nms=1\nthe first client addresses:\n10.0.4.17\n192.0.2.146\n192.0.2.159\na dot matches any character:\n1.2.3.4\n1x2y3z4\nwith -F, a dot is a dot:\n1.2.3.4",
+          "explanation": "`-o` prints each match on its own line instead of the whole line, which turns grep into a tool for pulling values out. `([0-9]{1,3}\\.){3}[0-9]{1,3}` describes an IPv4 address: 1 to 3 digits and a dot, three times, then 1 to 3 more digits. `\\.` is a literal dot, and `\\b` keeps a match from starting or ending inside a longer number. A plain `.` matches any character, so `1.2.3.4` also matches `1x2y3z4`. `-F` reads the pattern as fixed text, which is what you want for addresses and version numbers."
+        }
+      ],
+      "practice": {
+        "title": "Failed order ids",
+        "prompt": "Print the order ids that appear on the ERROR lines of `app.log`, each once, smallest first.\n\n1. Keep only the lines that contain `ERROR`.\n2. Pull out each `order=` and its digits with `grep -o`.\n3. Keep the number after the `=`.\n4. Sort the ids as numbers and drop the repeats.\n\nExpected output:\n\n```text\n987\n1040\n1042\n1048\n1051\n```",
+        "starter": "# TODO: pull out order=NUMBER, keep the number, then sort as numbers and drop repeats\ngrep ERROR app.log\n",
+        "solution": "grep ERROR app.log | grep -oE 'order=[0-9]+' | cut -d= -f2 | sort -nu\n",
+        "tests": [
+          {
+            "output": "987\n1040\n1042\n1048\n1051"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "998\n2208\n2214\n2215"
+          },
+          {
+            "fixtures": "textbox-c",
+            "output": "9871\n9996\n9998\n9999\n10003"
+          }
+        ],
+        "hints": [
+          "Pipe one grep into another: the first keeps the ERROR lines, and the second pulls out the ids with `-oE`.",
+          "`grep -oE 'order=[0-9]+'` prints values like `order=1042`. `cut -d= -f2` keeps the part after the `=`.",
+          "As text, `1040` sorts before `987`. `sort -nu` sorts as numbers and drops the repeats."
+        ]
+      }
+    },
+    {
+      "title": "Context and exit status",
+      "body": "The line that matches isn't always the whole story. A Python traceback starts with a line that says only `Traceback`, and the useful part comes after it. Context options print the lines around each match:\n\n- `-A 2` prints 2 lines after each match, `-B 1` prints 1 line before, and `-C 1` prints 1 on each side.\n- grep puts `--` between groups of lines that aren't next to each other.\n\n```bash\ngrep -B 1 KeyError errors.log\n```\n\nIn a script you often only need to know *whether* something matches. `-q` prints nothing, and grep's exit status answers:\n\n- 0 means at least one line matched.\n- 1 means no line matched.\n- 2 means an error, such as a missing file.\n\nSo `grep -q` goes straight into `&&` and `||`:\n\n```bash\ngrep -q 'status=ok' notes.txt && echo \"healthy\"\n```",
+      "examples": [
+        {
+          "title": "Context",
+          "prompt": "Show each traceback with the two lines after it, the line before the first ERROR, and the lines around a database error.",
+          "code": "grep -A 2 '^Traceback' errors.log\necho \"the first ERROR and the line before it:\"\ngrep -B 1 -m 1 ERROR app.log\necho \"around the pool error:\"\ngrep -C 1 'pool exhausted' app.log\n",
+          "output": "Traceback (most recent call last):\n  File \"/srv/shop/app/checkout.py\", line 88, in place_order\n    receipt = payments.charge(order)\n--\nTraceback (most recent call last):\n  File \"/srv/shop/app/cart.py\", line 52, in update\n    item = self.items[sku]\n--\nTraceback (most recent call last):\n  File \"/srv/shop/jobs/report.py\", line 19, in run\n    rows = db.fetch_all(QUERY)\nthe first ERROR and the line before it:\n2026-10-03T13:51:12Z DEBUG http: client timeout=30s keepalive=on\n2026-10-03T13:52:07Z ERROR checkout: payment declined order=1040 ms=512\naround the pool error:\n2026-10-03T14:29:56Z INFO search: query results=21 ms=199\n2026-10-03T14:31:09Z ERROR db: connection pool exhausted ms=5001\n2026-10-03T14:31:40Z WARN http: GET /api/orders status=504 ms=30002 upstream_timeout=true",
+          "explanation": "`-A 2` prints each `Traceback` line and the two after it, which name the file and the line where the error started. The `--` lines separate the three groups. `-B 1 -m 1` stops at the first ERROR and still prints the line before it. `-C 1` shows what happened just before and after the connection pool ran out: a search, then a request that timed out with a 504."
+        },
+        {
+          "title": "Ask, don't print",
+          "prompt": "Decide from `notes.txt` whether the service is healthy, and check for a status that isn't there.",
+          "code": "grep -q 'status=ok' notes.txt && echo \"healthy\" || echo \"unhealthy\"\ngrep -q 'status=down' notes.txt && echo \"down\" || echo \"not down\"\n",
+          "output": "healthy\nnot down",
+          "explanation": "`-q` keeps grep quiet: it prints nothing and stops at the first match. Its exit status still tells what it found. `status=ok` is in `notes.txt`, so grep exits 0 and `&&` prints `healthy`. `status=down` isn't, so grep exits 1 and `||` prints `not down`. This is the `a && b || c` pattern, and here it's safe, because an `echo` after `&&` doesn't fail."
+        },
+        {
+          "title": "Exit codes",
+          "prompt": "Print grep's exit status for a match, no match, and a missing file, then compare counting lines with counting matches.",
+          "code": "grep -q ERROR app.log\necho \"match: $?\"\ngrep -q zzz app.log\necho \"no match: $?\"\ngrep -q zzz nofile.log 2> /dev/null\necho \"missing file: $?\"\necho \"lines with db.internal:\"\ngrep -c 'db\\.internal' app.conf\necho \"matches of db.internal:\"\ngrep -o 'db\\.internal' app.conf | wc -l\n",
+          "output": "match: 0\nno match: 1\nmissing file: 2\nlines with db.internal:\n2\nmatches of db.internal:\n3",
+          "explanation": "`$?` holds the exit status of the command before it: 0 for a match, 1 for none, and 2 when grep couldn't read the file. grep's error message went to `/dev/null`. Only 2 means something went wrong, so scripts treat 1 as an ordinary answer. Last, `-c` counts matching *lines*, the same number `grep ... | wc -l` gives. One line of `app.conf` holds `db.internal` twice, so `-c` says 2 while `-o` finds 3 matches. Count with `-o` and `wc -l` when every match matters."
+        }
+      ],
+      "practice": {
+        "title": "Stop on FATAL",
+        "prompt": "Make the script fail when `app.log` has a FATAL line.\n\n1. If `app.log` has a line with `FATAL`, print the first one and the line right after it, then exit with status 1.\n2. Otherwise print `no fatal errors`, and the script ends with status 0.\n\nWhen you press Run, your script runs on an `app.log` with FATAL lines. Check also runs it on one without any.\n\nExpected output:\n\n```text\n2026-10-08T09:02:40Z FATAL db: cannot connect to db.internal:5432 after 5 attempts\n2026-10-08T09:02:41Z INFO supervisor: restarting app attempt=1\n```",
+        "starter": "# TODO: if app.log has a FATAL line, print it and the line after it, then exit 1\necho \"no fatal errors\"\n",
+        "solution": "grep -m 1 -A 1 FATAL app.log && exit 1\necho \"no fatal errors\"\n",
+        "tests": [
+          {
+            "fixtures": "textbox-b",
+            "exitCode": 1,
+            "output": "2026-10-08T09:02:40Z FATAL db: cannot connect to db.internal:5432 after 5 attempts\n2026-10-08T09:02:41Z INFO supervisor: restarting app attempt=1"
+          },
+          {
+            "output": "no fatal errors"
+          }
+        ],
+        "hints": [
+          "grep's exit status says whether it found a FATAL line, and `&&` runs the next command only when it did.",
+          "`-m 1` stops at the first match, and `-A 1` adds the line after it.",
+          "`grep -m 1 -A 1 FATAL app.log && exit 1` prints the two lines and ends the script. With no match, the script goes on to the `echo`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `grep PATTERN FILE` prints matching lines. `-i` ignores case, `-v` inverts, `-n` numbers lines, `-c` counts them, `-w` and `-x` match whole words and lines, and `-m N` stops after N.\n- `-r` searches a folder, `--include` filters file names, and `-l` or `-L` list the files that do or don't match. Sort what `-r` finds.\n- Regular expressions: `^`, `$`, `.`, `[...]`, `[^...]`, `*`, `+`, `?`, `{n,m}`, groups and `|` with `-E`, and `\\b` for word edges. `-F` searches for fixed text, and `-o` prints just the match.\n- `-A`, `-B`, and `-C` print context around each match.\n- The exit status is 0 for a match, 1 for none, and 2 for an error. `grep -q` answers yes or no for `&&` and `||`."
+}

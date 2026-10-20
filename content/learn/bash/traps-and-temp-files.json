@@ -1,0 +1,174 @@
+{
+  "id": "traps-and-temp-files",
+  "title": "Cleanup with trap and mktemp",
+  "section": "Robust Scripts",
+  "summary": "Create scratch files with mktemp, clean up with trap however a script ends, report where it failed, and run one copy of a job at a time.",
+  "intro": "A script that creates files, edits data in place, or holds a lock has to leave things tidy however it ends: after its last line, at an `exit`, when `set -e` stops it, or when someone presses Ctrl-C. This lesson builds that habit with four tools: `mktemp` for scratch files that nothing else can collide with, `trap` to run cleanup on the way out, an ERR trap that says which line failed, and `flock` so only one copy of a job runs at a time. The examples work in `scriptbox`, the project folder from the scripting lessons.",
+  "fixtures": "scriptbox",
+  "steps": [
+    {
+      "title": "Temp files and EXIT traps",
+      "body": "Never make up a scratch file name like `/tmp/out.txt`. Two copies of the script would write to the same file, and a crash leaves it behind. `mktemp` creates a new, empty file with a random name that only you can read and write, and prints its path, so you capture it with `$(...)`. `mktemp -d` makes a folder instead, and `mktemp NAME.XXXXXX` makes the file in the current folder, with the Xs replaced by random characters.\n\n```bash\ntmp=$(mktemp)\nstat -c '%a' \"$tmp\"  # 600\nrm -f \"$tmp\"\n```\n\nSet up the cleanup right after you create the file. `trap 'commands' EXIT` saves the commands and runs them when the script ends, however it ends: after the last line, at `exit N`, or when `set -e` stops it.\n\n```bash\ntmp=$(mktemp)\ntrap 'rm -f \"$tmp\"; echo \"temp file removed\"' EXIT\necho \"working\"\n```\n\nWrite the trap in single quotes, so `$tmp` expands when the trap runs, not when you set it. ShellCheck warns about double quotes there.",
+      "examples": [
+        {
+          "title": "Cleanup runs last",
+          "prompt": "Collect the engineers from `employees.csv` in a temp file, report on them, and remove the file at the end.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\ntmp=$(mktemp)\ntrap 'rm -f \"$tmp\"; echo \"cleaned up\"' EXIT\n\ngrep ',eng,' employees.csv > \"$tmp\"\necho \"engineers: $(wc -l < \"$tmp\")\"\ncut -d, -f2 \"$tmp\"\necho \"report done\"\n",
+          "output": "engineers: 3\nAda Okonkwo\nCarla Mendes\nErin Walsh\nreport done\ncleaned up",
+          "explanation": "The trap is set before any work happens, but it runs last: Bash keeps its commands and runs them as the script exits, which is why `cleaned up` prints after `report done`. Setting the trap on the line right after `mktemp` matters. Any later line could fail, and the file would still be removed."
+        },
+        {
+          "title": "Even on failure",
+          "prompt": "Sort `hosts.txt` into a temp file next to it, check that the sorted list has a proxy host, and only then replace the original.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\ntmp=$(mktemp hosts.txt.XXXXXX)\ntrap 'rm -f \"$tmp\"; echo \"cleaned up\"' EXIT\n\nsort hosts.txt > \"$tmp\"\necho \"sorted $(wc -l < \"$tmp\") hosts\"\ngrep -q '^proxy-' \"$tmp\"\nmv \"$tmp\" hosts.txt\necho \"hosts.txt replaced\"\n",
+          "output": "sorted 5 hosts\ncleaned up",
+          "exitCode": 1,
+          "explanation": "There's no proxy host, so `grep -q` fails and `set -e` stops the script before the `mv`, with exit status 1. The EXIT trap runs anyway: the temp file is gone and `hosts.txt` is exactly as it was.\n\nThis is the safe way to change a file. Write the new version next to it, check it, then `mv` it over the original. A move within one folder is atomic, so anyone reading `hosts.txt` sees the old file or the new one, never half of each. When the `mv` does run, the trap's `rm -f` finds nothing to remove, and `-f` keeps that quiet. The moved file keeps mktemp's private mode, 600, so run `chmod 644 \"$tmp\"` before the `mv` when other users need to read it."
+        },
+        {
+          "title": "A work folder",
+          "prompt": "Split the employees into one file per department inside a temp folder, then count the lines of each file.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nworkdir=$(mktemp -d)\ntrap 'rm -rf \"$workdir\"' EXIT\n\nwhile IFS=, read -r _ name dept _; do\n  echo \"$name\" >> \"$workdir/$dept.txt\"\ndone < <(tail -n +2 employees.csv)\n\nfor f in \"$workdir\"/*.txt; do\n  file=${f##*/}\n  echo \"${file%.txt}: $(wc -l < \"$f\")\"\ndone\n",
+          "output": "eng: 3\nops: 2\nsales: 2\nsupport: 1",
+          "explanation": "`mktemp -d` makes a private folder, and the loop fills it with one file per department. `rm -rf` in the trap removes the folder and everything in it, so one trap covers any number of scratch files. The folder's name is random, so the script never prints it. It prints the department, cut from each path with `${f##*/}` and `${file%.txt}`."
+        }
+      ],
+      "practice": {
+        "title": "Safe rewrite",
+        "prompt": "Uppercase every name in `employees.csv`, and replace the file only when every row is valid.\n\n1. Make a temp file next to the CSV with `mktemp employees.csv.XXXXXX`, and set an EXIT trap that removes it.\n2. Write the header line to the temp file unchanged, then each data row with its name (the second field) in uppercase.\n3. Every row needs an email, its sixth field. On a row without one, print `error: bad row N` to stderr and exit 1, leaving `employees.csv` as it was. N counts data rows from 1, so the header isn't counted.\n4. When every row is valid, `mv` the temp file over `employees.csv` and print `uppercased N names`.\n\nExpected output:\n\n```text\nuppercased 8 names\n```\n\nThe second test runs on another `employees.csv`, whose sixth row has no email.",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n\ndie() {\n  printf 'error: %s\\n' \"$*\" >&2\n  exit 1\n}\n\nfile=employees.csv\n# TODO: make a temp file next to $file, and an EXIT trap that removes it\n\n# TODO: write the header, then each row with its name in uppercase,\n# calling die \"bad row N\" for a row without an email\n\n# TODO: move the temp file over $file and print \"uppercased N names\"\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\n\ndie() {\n  printf 'error: %s\\n' \"$*\" >&2\n  exit 1\n}\n\nfile=employees.csv\ntmp=$(mktemp \"$file.XXXXXX\")\ntrap 'rm -f \"$tmp\"' EXIT\n\nhead -n 1 \"$file\" > \"$tmp\"\nn=0\nwhile IFS=, read -r id name dept salary start email || [[ -n $id ]]; do\n  n=$((n + 1))\n  [[ -n $email ]] || die \"bad row $n\"\n  printf '%s,%s,%s,%s,%s,%s\\n' \"$id\" \"${name^^}\" \"$dept\" \"$salary\" \"$start\" \"$email\"\ndone < <(tail -n +2 \"$file\") >> \"$tmp\"\n\nmv \"$tmp\" \"$file\"\necho \"uppercased $n names\"\n",
+        "tests": [
+          {
+            "output": "uppercased 8 names",
+            "files": {
+              "employees.csv": "id,name,dept,salary,start_date,email\n1,ADA OKONKWO,eng,104000,2020-04-06,ada.okonkwo@shop.example\n2,BEN DUARTE,sales,68000,2022-01-17,ben.duarte@shop.example\n3,CARLA MENDES,eng,98765,2021-09-13,carla.mendes@shop.example\n4,DEV PATEL,ops,83500,2019-11-25,dev.patel@shop.example\n5,ERIN WALSH,eng,121300,2018-02-05,erin.walsh@shop.example\n6,FEMI ADEYEMI,support,59900,2024-06-03,femi.adeyemi@shop.example\n7,GWEN MORRIS,sales,73250,2023-03-20,gwen.morris@shop.example\n8,HUGO LAMBERT,ops,88100,2025-08-11,hugo.lambert@shop.example"
+            }
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "output": "",
+            "exitCode": 1,
+            "stderrIncludes": "error: bad row 6",
+            "files": {
+              "employees.csv": "id,name,dept,salary,start_date,email\n1,Ida Kowalski,support,61200,2021-05-10,ida.kowalski@shop.example\n2,Jamal Wright,eng,112000,2019-08-19,jamal.wright@shop.example\n3,Kira Sato,sales,70500,2022-11-07,kira.sato@shop.example\n4,Leo Fontaine,eng,99999,2023-04-24,leo.fontaine@shop.example\n5,Maya Gold,ops,86400,2020-12-14,maya.gold@shop.example\n6,Nils Berg,sales,74000,2024-09-30\n7,Olu Bakare,support,63800,2025-02-17,olu.bakare@shop.example\n8,Pia Romano,ops,90250,2018-06-04,pia.romano@shop.example\n9,Quinn Hale,eng,107500,2026-03-09,quinn.hale@shop.example"
+            }
+          }
+        ],
+        "hints": [
+          "Create the file and its trap together: `tmp=$(mktemp \"$file.XXXXXX\")`, then `trap 'rm -f \"$tmp\"' EXIT` on the next line.",
+          "Write the header with `head -n 1 \"$file\" > \"$tmp\"`. Then read the rows with `while IFS=, read -r id name dept salary start email; do ... done < <(tail -n +2 \"$file\") >> \"$tmp\"`, counting them as you go.",
+          "Inside the loop, `[[ -n $email ]] || die \"bad row $n\"` stops before anything is moved. Print each good row with `\"${name^^}\"` in place of the name, and run `mv \"$tmp\" \"$file\"` after the loop."
+        ]
+      }
+    },
+    {
+      "title": "Error reports with ERR",
+      "body": "`set -e` stops a script at the first failing command, but it doesn't say which one. An ERR trap runs every time a command fails, and two variables tell it where: `$LINENO` is the line number, and `$BASH_COMMAND` is the command as written.\n\n```bash\ntrap 'echo \"failed on line $LINENO: $BASH_COMMAND\"' ERR\n[[ -f nope.txt ]]\necho \"without set -e, the script goes on\"\n```\n\nTwo details make it work in real scripts. Functions don't inherit the ERR trap unless `set -E` is on, so strict scripts start with `set -eEuo pipefail`. And an EXIT trap can report how the script ended, because `$?` holds the exit status when the trap starts. Every command replaces `$?`, so save it first. When cleanup is more than one line, put it in a function, `trap on_exit EXIT`, and start the function with `local rc=$?`.",
+      "examples": [
+        {
+          "title": "Line and command",
+          "prompt": "Copy two build files into `release/`, and have an ERR trap report the copy that fails.",
+          "code": "#!/usr/bin/env bash\nset -eEuo pipefail\ntrap 'echo \"error on line $LINENO: $BASH_COMMAND\" >&2' ERR\n\nmkdir -p release\ncp build/index.html release/\necho \"copied index.html\"\ncp build/app.min.js release/\necho \"copied app.min.js\"\n",
+          "expect": "runtime-error",
+          "output": "copied index.html",
+          "errorIncludes": "error on line 8: cp build/app.min.js release/",
+          "exitCode": 1,
+          "explanation": "There's no `build/app.min.js`, so the second `cp` fails. Before `set -e` stops the script, the ERR trap prints `$LINENO`, which is 8, and `$BASH_COMMAND`, the command exactly as written. It writes to stderr with `>&2`, next to cp's own message, so a log shows both what went wrong and where. The script exits with cp's status, 1."
+        },
+        {
+          "title": "Inside functions",
+          "prompt": "Call a function whose check fails, once without `set -E` and once with it.",
+          "code": "#!/usr/bin/env bash\nset -uo pipefail\ntrap 'echo \"ERR trap: line $LINENO: $BASH_COMMAND\"' ERR\n\nhas_target() {\n  grep -q '^target=' \"$1\"\n  echo \"checked $1\"\n}\n\nhas_target empty.txt\nset -E\nhas_target empty.txt\n",
+          "output": "checked empty.txt\nERR trap: line 6: grep -q '^target=' \"$1\"\nchecked empty.txt",
+          "explanation": "This script leaves out `-e`, so it keeps going after a failure and you can compare two calls. The trap prints to stdout here, so its line lands in order between the others.\n\nIn the first call, `grep` fails inside `has_target` and nothing reports it, because a function doesn't inherit the ERR trap. After `set -E`, the same call reports line 6, inside the function. `$BASH_COMMAND` shows `\"$1\"` as written, not its value. In a strict script, `set -eEuo pipefail` gives you both: stop at the first failure, and say where it was."
+        },
+        {
+          "title": "Keep the status",
+          "prompt": "Print the exit status from an EXIT trap, and end with the status of the command that failed.",
+          "code": "#!/usr/bin/env bash\nset -eEuo pipefail\n\non_exit() {\n  local rc=$?\n  echo \"exit status: $rc\"\n  exit \"$rc\"\n}\ntrap on_exit EXIT\ntrap 'echo \"error on line $LINENO: $BASH_COMMAND\" >&2' ERR\n\necho \"checking the build\"\nls build/app.js build/main.js > /dev/null\necho \"build complete\"\n",
+          "expect": "runtime-error",
+          "output": "checking the build\nexit status: 2",
+          "errorIncludes": "error on line 13: ls build/app.js build/main.js > /dev/null",
+          "exitCode": 2,
+          "explanation": "`ls` exits with 2 when a file it was given is missing. The EXIT trap calls `on_exit`, whose first line saves that 2 in `rc` before `echo` replaces `$?` with 0. Then `exit \"$rc\"` makes the status explicit: whatever cleanup you add to the function later, the script still ends with 2. A CI job or a calling script can tell that apart from other failures."
+        }
+      ],
+      "practice": {
+        "title": "Explain the failure",
+        "prompt": "Make this packaging script say where it failed.\n\n1. Add `-E` to the `set` options, so the ERR trap reaches inside `package`.\n2. Add an ERR trap that prints `FAILED at line N: CMD` to stderr, with the failing line's number and the command as written.\n3. Add an EXIT trap that prints `exit status: N` to stdout, where N is the status the script is ending with, and then exits with that status.\n\nExpected output:\n\n```text\npackaged 1.4.2\nexit status: 0\n```\n\nThe second test runs it where `build/app.js` is missing, and expects exit status 1 with `FAILED at line` on stderr.",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n# TODO: let the ERR trap reach inside functions, then add the ERR and EXIT traps\n\npackage() {\n  mkdir -p release\n  cp build/index.html build/app.js build/app.css release/\n  cp build/VERSION release/\n}\n\npackage\necho \"packaged $(< release/VERSION)\"\n",
+        "solution": "#!/usr/bin/env bash\nset -eEuo pipefail\n\non_exit() {\n  local rc=$?\n  echo \"exit status: $rc\"\n  exit \"$rc\"\n}\ntrap on_exit EXIT\ntrap 'echo \"FAILED at line $LINENO: $BASH_COMMAND\" >&2' ERR\n\npackage() {\n  mkdir -p release\n  cp build/index.html build/app.js build/app.css release/\n  cp build/VERSION release/\n}\n\npackage\necho \"packaged $(< release/VERSION)\"\n",
+        "tests": [
+          {
+            "output": "packaged 1.4.2\nexit status: 0"
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "output": "exit status: 1",
+            "exitCode": 1,
+            "stderrIncludes": "FAILED at line"
+          }
+        ],
+        "hints": [
+          "`set -eEuo pipefail` turns on `-E` together with the options the script already has.",
+          "The ERR trap is one line: `trap 'echo \"FAILED at line $LINENO: $BASH_COMMAND\" >&2' ERR`. The single quotes keep both variables until the trap runs.",
+          "For the EXIT trap, write a function that saves the status before anything else, `local rc=$?`, then prints the line and runs `exit \"$rc\"`. Register it with `trap on_exit EXIT`."
+        ]
+      }
+    },
+    {
+      "title": "Locks and signals",
+      "body": "A job that runs on a schedule can start again before its last run has finished, and two copies then fight over the same files. A lock lets one copy run and turns the others away. `exec 9> job.lock` opens `job.lock` on file descriptor 9 for the rest of the script, the way 1 is stdout. `flock -n 9` then takes the lock, or fails at once when another process holds it (`-n` means don't wait). When the script exits, even in a crash, the lock goes with it. For a single command, `flock -n job.lock CMD` does both steps.\n\nSignals end scripts early too. Ctrl-C sends INT and `kill` sends TERM, and by default Bash runs the EXIT trap and stops wherever it was. A trap for the signal lets you decide what happens: print a message, finish the current step, and exit with the usual status, 128 plus the signal's number, so 130 for INT and 143 for TERM. `trap '' INT` ignores a signal, and `trap - INT` puts the default back:\n\n```bash\ntrap '' INT\necho \"copying: Ctrl-C is ignored here\"\ntrap - INT\necho \"Ctrl-C works again\"\n```",
+      "examples": [
+        {
+          "title": "One copy at a time with flock",
+          "prompt": "Take a lock on `job.lock`, then try to take it again from a second copy of the script and with `flock -n job.lock`.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nexec 9> job.lock\nif ! flock -n 9; then\n  echo \"already running\"\n  exit 1\nfi\necho \"got the lock\"\n\nbash \"$0\" || echo \"the second copy exited with $?\"\nflock -n job.lock ./deploy.sh || echo \"deploy.sh skipped: job.lock is taken\"\necho \"done\"\n",
+          "output": "got the lock\nalready running\nthe second copy exited with 1\ndeploy.sh skipped: job.lock is taken\ndone",
+          "explanation": "The first copy opens `job.lock` on descriptor 9 and takes the lock. While it holds it, the script starts a second copy of itself with `bash \"$0\"` (`$0` is the script's own name). That copy opens the same file, its `flock -n 9` fails at once, so it prints `already running` and exits 1.\n\n`flock -n job.lock ./deploy.sh` is the one-line form: it would run `deploy.sh` holding the lock, but the lock is taken, so flock exits 1 without running it. Nobody has to remove the lock: it goes away when the first copy exits."
+        },
+        {
+          "title": "Signals",
+          "prompt": "Send TERM to the script itself, and watch the TERM trap and then the EXIT trap run.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\ntmp=$(mktemp)\ntrap 'rm -f \"$tmp\"; echo \"cleanup ran\"' EXIT\ntrap 'echo \"interrupted\"; exit 130' INT\ntrap 'echo \"terminated\"; exit 143' TERM\n\necho \"working on $(wc -l < hosts.txt) hosts\" > \"$tmp\"\ncat \"$tmp\"\nkill -TERM \"$$\"\necho \"never printed\"\n",
+          "output": "working on 5 hosts\nterminated\ncleanup ran",
+          "exitCode": 143,
+          "explanation": "`$$` is the script's own process ID, so `kill -TERM \"$$\"` sends TERM to itself, the way a service manager or a `kill` from another terminal would. The TERM trap runs instead of the default: it prints its line and exits with 143, which is 128 plus TERM's number, 15. That `exit` runs the EXIT trap, so the temp file is still removed, and the last `echo` never runs. Ctrl-C would run the INT trap the same way and end with 130."
+        },
+        {
+          "title": "A lock folder",
+          "prompt": "Use a folder as the lock with `mkdir`, and remove it on the way out.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nif ! mkdir lockdir 2> /dev/null; then\n  echo \"already running\"\n  exit 1\nfi\ntrap 'rmdir lockdir; echo \"lock released\"' EXIT\necho \"got the lock\"\n\nif ! mkdir lockdir 2> /dev/null; then\n  echo \"a second copy would stop here\"\nfi\necho \"working\"\n",
+          "output": "got the lock\na second copy would stop here\nworking\nlock released",
+          "explanation": "`mkdir` either creates the folder or fails because it already exists, in one step, so two copies can never both get it. That makes a folder a lock that works anywhere. The catch is cleanup: the EXIT trap has to remove the folder, and if the script is killed with KILL, which no trap can catch, the folder stays and blocks every later run until someone deletes it. A `flock` lock can't get stuck that way, because it ends with the process."
+        }
+      ],
+      "practice": {
+        "title": "Single instance job",
+        "prompt": "Make a job that never runs twice at the same time.\n\n1. Open `job.lock` on file descriptor 9, and try to take the lock with `flock -n`.\n2. If another process holds it, print `skipped: already running` and exit 0. A skipped run isn't a failure.\n3. With the lock, print `running`, wait with `sleep 0.2`, print `checked N hosts` with the number of lines in `hosts.txt`, then print `done`.\n\nExpected output:\n\n```text\nrunning\nchecked 5 hosts\ndone\n```\n\nThe second test runs your script while another process holds `job.lock`, and expects only `skipped: already running`.",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n\n# TODO: open job.lock on descriptor 9, and skip the run when flock -n can't lock it\n\necho \"running\"\nsleep 0.2\n# TODO: print \"checked N hosts\" for the lines in hosts.txt, then \"done\"\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\n\nexec 9> job.lock\nif ! flock -n 9; then\n  echo \"skipped: already running\"\n  exit 0\nfi\n\necho \"running\"\nsleep 0.2\necho \"checked $(wc -l < hosts.txt) hosts\"\necho \"done\"\n",
+        "tests": [
+          {
+            "output": "running\nchecked 5 hosts\ndone"
+          },
+          {
+            "wrap": "flock job.lock",
+            "output": "skipped: already running"
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "output": "running\nchecked 7 hosts\ndone"
+          }
+        ],
+        "hints": [
+          "`exec 9> job.lock` opens the file for the whole script, and `flock -n 9` fails at once when another process holds the lock.",
+          "Wrap the check in `if ! flock -n 9; then ... fi`, printing the skip line and running `exit 0` inside.",
+          "`wc -l < hosts.txt` prints just the number, so `echo \"checked $(wc -l < hosts.txt) hosts\"` builds the line."
+        ]
+      }
+    }
+  ],
+  "recap": "- `mktemp` makes a private file with a random name, `mktemp -d` a folder, and `mktemp NAME.XXXXXX` a file in the current folder.\n- Set `trap '...' EXIT` right after creating what it cleans up. It runs after the last line, at `exit`, and when `set -e` stops the script.\n- Change a file safely: write a temp file next to it, check it, then `mv` it over the original.\n- `set -eEuo pipefail` with `trap '... $LINENO: $BASH_COMMAND' ERR` reports where a script failed, inside functions too.\n- In an EXIT trap, save the status before anything else: `local rc=$?` as the first line of a trap function.\n- Trap INT and TERM and exit with 130 or 143, so the EXIT trap still runs. `trap '' INT` ignores a signal, and `trap - INT` restores the default.\n- `exec 9> job.lock` and `flock -n 9` let one copy run, and the lock ends with the process. A `mkdir` lock needs a trap to remove it."
+}

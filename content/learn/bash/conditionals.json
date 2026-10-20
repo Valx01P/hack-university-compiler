@@ -1,0 +1,201 @@
+{
+  "id": "conditionals",
+  "title": "Conditions with if, [[ ]] and case",
+  "section": "Bash Scripting",
+  "summary": "Branch on a command's exit status with if, test strings, numbers, and files with [[ ]] and (( )), and match patterns with case.",
+  "intro": "So far your scripts ran every line, with `&&` and `||` for small choices. `if` runs a block of commands only when a condition holds, and `case` picks one branch by matching a value against patterns. A condition is just a command: `if` looks at its exit status, so `grep -q`, `[[ ]]`, and `(( ))` all work as tests. The folder your script runs in holds a small project, with `config.ini`, `deploy.sh`, `hosts.txt`, and the folders `logs/` and `build/`.",
+  "format": "single",
+  "fixtures": "scriptbox",
+  "steps": [
+    {
+      "title": "if, commands and [[ ]]",
+      "body": "`if` runs a command and looks at its exit status. 0 runs the `then` block. Anything else tries each `elif` in order, then the `else` block. `fi` closes it:\n\n```bash\nif grep -q db-1 hosts.txt; then\n  echo \"db-1 is in hosts.txt\"\nelse\n  echo \"no db-1\"\nfi\n```\n\n`[[ ]]` is the command made for tests. On strings: `==` and `!=`, `-z` for empty, and `-n` for not empty, and a glob on the right of `==` matches like a file name. On files: `-e` exists, `-f` is a file, `-d` is a folder, `-s` exists and isn't empty, `-r`, `-w`, and `-x` can be read, written, and run, `-L` is a symlink, and `a -nt b` is newer. `&&`, `||`, and `!` combine tests inside it:\n\n```bash\nfile=\"logs/app.log\"\nif [[ -f $file && $file == *.log ]]; then echo \"a log file\"; fi\nif [[ ! -e notes.txt ]]; then echo \"no notes.txt\"; fi\n```\n\nYou'll also see `[ ]` and `test`, the older forms. They split an unquoted variable into words, so an empty one leaves a gap and the test breaks. Inside `[[ ]]`, variables never split.",
+      "examples": [
+        {
+          "title": "A command as the condition",
+          "prompt": "Check the app log for errors with `grep -q`, then pick the worst kind of line it has with `elif`.",
+          "code": "if grep -q ERROR logs/app.log; then\n  echo \"errors found: $(grep -c ERROR logs/app.log)\"\nelse\n  echo \"clean\"\nfi\n\nif grep -q FATAL logs/app.log; then\n  echo \"fatal errors found\"\nelif grep -q WARN logs/app.log; then\n  echo \"no fatal errors, but warnings\"\nelse\n  echo \"clean\"\nfi\n",
+          "output": "errors found: 3\nno fatal errors, but warnings",
+          "explanation": "`grep -q` prints nothing. It exits 0 when it finds a match and 1 when it doesn't, and `if` only looks at that status. The log has ERROR lines, so the first `if` runs its `then` block. It has no FATAL line, so the second `if` moves on to the `elif`, whose `grep` finds WARN lines. The `else` block would run only if every test before it failed."
+        },
+        {
+          "title": "File tests",
+          "prompt": "Check three things about the project, print a line for each, and exit 1 if any check failed.",
+          "code": "status=0\n\nif [[ -d build ]]; then\n  echo \"ok: build is a folder\"\nelse\n  echo \"fail: build\"\n  status=1\nfi\n\nif [[ -L current ]]; then\n  echo \"ok: current is a symlink\"\nelse\n  echo \"fail: current\"\n  status=1\nfi\n\nif [[ -s empty.txt ]]; then\n  echo \"ok: empty.txt has content\"\nelse\n  echo \"fail: empty.txt is empty\"\n  status=1\nfi\n\nexit \"$status\"\n",
+          "output": "ok: build is a folder\nok: current is a symlink\nfail: empty.txt is empty",
+          "exitCode": 1,
+          "explanation": "`build` is a folder and `current` is a symlink to it, so the first two checks pass. `empty.txt` exists, but `-s` also needs at least one byte, so the third check fails and sets `status` to 1. Each check prints its line and moves on, so you see every problem at once, and `exit \"$status\"` ends the script with 1 because something failed. Times work too: `a -nt b` is true when `a` changed more recently than `b`. Every file here starts with the same time, so this snippet first gives two files times of their own with `touch -d`, which sets a file's time and creates the file when it doesn't exist:\n\n```bash\ntouch -d '2026-10-18 09:00' last-deploy.stamp\ntouch -d '2026-10-19 08:30' build/VERSION\nif [[ build/VERSION -nt last-deploy.stamp ]]; then echo \"the build changed after the last deploy\"; fi\n```"
+        },
+        {
+          "title": "Strings, and why [[ ]]",
+          "prompt": "Compare strings with `[[ ]]`, then try a test with `[ ]` on an empty variable.",
+          "code": "env=\"prod\"\nname=\"\"\nfile=\"logs/app.log\"\n\nif [[ $env == prod ]]; then echo \"env is prod\"; fi\nif [[ $env != dev ]]; then echo \"env is not dev\"; fi\nif [[ -z $name ]]; then echo \"name is empty\"; fi\nif [[ $file == *.log ]]; then echo \"$file ends in .log\"; fi\nif [[ $file == \"*.log\" ]]; then echo \"quoted: match\"; else echo \"quoted: no match\"; fi\n\n[ $name == guest ]\n",
+          "expect": "runtime-error",
+          "output": "env is prod\nenv is not dev\nname is empty\nlogs/app.log ends in .log\nquoted: no match",
+          "errorIncludes": "[: ==: unary operator expected",
+          "exitCode": 2,
+          "explanation": "`*.log` on the right of `==` is a glob, so it matches any name that ends in `.log`. Quoted, `\"*.log\"` is plain text and only matches a name that really is `*.log`. The last line uses the old `[ ]`. `name` is empty and unquoted, so it disappears, and `[` sees only `== guest`. It reports `unary operator expected` and exits 2, which ends this script with 2. `[[ $name == guest ]]` would just be false."
+        }
+      ],
+      "practice": {
+        "title": "Preflight",
+        "prompt": "Check that the project is ready to deploy. Print one line per check, `ok: NAME` when it passes or `fail: NAME` when it doesn't.\n\n1. `config.ini` exists and isn't empty.\n2. `logs` is a folder.\n3. `deploy.sh` is executable.\n4. Exit with status 1 if any check failed, or 0 when all of them passed.\n\nCheck also runs your script on a copy of the project with problems, and from an empty folder.\n\nExpected output:\n\n```text\nok: config.ini\nok: logs\nok: deploy.sh\n```",
+        "starter": "# TODO: check that config.ini exists and isn't empty, and print ok: or fail:\n\n# TODO: check that logs is a folder\n\n# TODO: check that deploy.sh is executable\n\n# TODO: exit 1 if any check failed\n",
+        "solution": "status=0\n\nif [[ -s config.ini ]]; then\n  echo \"ok: config.ini\"\nelse\n  echo \"fail: config.ini\"\n  status=1\nfi\n\nif [[ -d logs ]]; then\n  echo \"ok: logs\"\nelse\n  echo \"fail: logs\"\n  status=1\nfi\n\nif [[ -x deploy.sh ]]; then\n  echo \"ok: deploy.sh\"\nelse\n  echo \"fail: deploy.sh\"\n  status=1\nfi\n\nexit \"$status\"\n",
+        "tests": [
+          {
+            "output": "ok: config.ini\nok: logs\nok: deploy.sh"
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "output": "fail: config.ini\nok: logs\nfail: deploy.sh",
+            "exitCode": 1
+          },
+          {
+            "cwd": "elsewhere",
+            "output": "fail: config.ini\nfail: logs\nfail: deploy.sh",
+            "exitCode": 1
+          }
+        ],
+        "hints": [
+          "Use one `if`/`else` per check, as in the file tests example: `-s` for a file that exists and isn't empty, `-d` for a folder, and `-x` for executable.",
+          "Start with `status=0`, set `status=1` in every `else`, and end with `exit \"$status\"`."
+        ]
+      }
+    },
+    {
+      "title": "Numbers and regex",
+      "body": "For numbers, use `(( ))`. It compares with `<`, `>`, `<=`, `>=`, `==`, and `!=`, and names inside need no `$`:\n\n```bash\ncount=12\nif (( count > 10 )); then echo \"more than 10\"; fi\n```\n\n`[[ ]]` has its own number tests, `-eq`, `-ne`, `-lt`, `-le`, `-gt`, and `-ge`, which you'll see in many scripts. Never use `<` or `>` inside `[[ ]]` for numbers: there they compare text, character by character.\n\n`=~` matches a regular expression. Put the regex in a variable and leave it unquoted on the right, since a quoted regex is matched as plain text. What each group in parentheses matched lands in `BASH_REMATCH`: `${BASH_REMATCH[0]}` is the whole match, `${BASH_REMATCH[1]}` the first group, and so on:\n\n```bash\nre='^([a-z]+)-([0-9]+)$'\nhost=\"web-12\"\nif [[ $host =~ $re ]]; then\n  echo \"role ${BASH_REMATCH[1]}, number ${BASH_REMATCH[2]}\"\nfi\n```\n\nEach match replaces `BASH_REMATCH`, so copy the groups into variables before you match again.",
+      "examples": [
+        {
+          "title": "Numbers, not text",
+          "prompt": "Compare 12 with 10 two ways, then see what `[[ 9 > 10 ]]` says.",
+          "code": "count=12\nif (( count > 10 )); then\n  echo \"(( )): $count is more than 10\"\nfi\nif [[ $count -gt 10 ]]; then\n  echo \"-gt: $count is more than 10\"\nfi\n\nif [[ 9 > 10 ]]; then\n  echo \"[[ 9 > 10 ]] is true: it compares text\"\nfi\nif (( 9 > 10 )); then\n  echo \"(( 9 > 10 )) is true\"\nelse\n  echo \"(( 9 > 10 )) is false: it compares numbers\"\nfi\n",
+          "output": "(( )): 12 is more than 10\n-gt: 12 is more than 10\n[[ 9 > 10 ]] is true: it compares text\n(( 9 > 10 )) is false: it compares numbers",
+          "explanation": "`(( count > 10 ))` and `[[ $count -gt 10 ]]` both compare numbers, so both agree that 12 is more. `[[ 9 > 10 ]]` is a bug on purpose: inside `[[ ]]`, `>` compares text the way `sort` orders it, character by character, and `9` comes after the `1` of `10`. So it says yes. ShellCheck, the Bash linter, warns about that line, which is why this example turns it off. `(( ))` reads both sides as numbers and gets it right.",
+          "shellcheck": "off"
+        },
+        {
+          "title": "Capture groups",
+          "prompt": "Split a version tag into its three numbers, work out the next minor version, then try a tag that doesn't fit.",
+          "code": "re='^v([0-9]+)\\.([0-9]+)\\.([0-9]+)$'\n\ntag=\"v2.14.0\"\nif [[ $tag =~ $re ]]; then\n  major=${BASH_REMATCH[1]}\n  minor=${BASH_REMATCH[2]}\n  patch=${BASH_REMATCH[3]}\n  echo \"major $major, minor $minor, patch $patch\"\n  echo \"next minor: v$major.$(( minor + 1 )).0\"\nfi\n\ntag=\"release-2.14\"\nif [[ $tag =~ $re ]]; then\n  echo \"match: $tag\"\nelse\n  echo \"no match: $tag\"\nfi\n",
+          "output": "major 2, minor 14, patch 0\nnext minor: v2.15.0\nno match: release-2.14",
+          "explanation": "`^` and `$` make the regex cover the whole tag, `\\.` is a literal dot, and each `([0-9]+)` is a group of digits. After a match, `BASH_REMATCH` holds what the groups matched, and copying them into `major`, `minor`, and `patch` keeps them safe from the next match. `$(( minor + 1 ))` turns 14 into 15. `release-2.14` doesn't start with `v` and has only two numbers, so `=~` fails and the `else` runs."
+        },
+        {
+          "title": "Validate input",
+          "prompt": "Read two ports, one per line, and stop with status 2 at the first one that isn't a whole number from 1 to 65535.",
+          "code": "read -r port\nread -r admin_port\n\nif [[ $port =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )); then\n  echo \"port: $port\"\nelse\n  echo \"invalid port: $port\"\n  exit 2\nfi\n\nif [[ $admin_port =~ ^[0-9]+$ ]] && (( admin_port >= 1 && admin_port <= 65535 )); then\n  echo \"admin port: $admin_port\"\nelse\n  echo \"invalid admin port: $admin_port\"\n  exit 2\nfi\n",
+          "stdin": "8080\n80a\n",
+          "output": "port: 8080\ninvalid admin port: 80a",
+          "exitCode": 2,
+          "explanation": "A short regex can be written as is, unquoted: `^[0-9]+$` means only digits, from start to end. `&&` runs `(( ))` only when the regex matched, which matters: to `(( ))`, `80a` isn't a number but a broken expression, and it would print an error. `8080` passes both tests. `80a` fails the regex, so the `else` prints its message, and `exit 2` stops the script with status 2, a common code for bad input."
+        }
+      ],
+      "practice": {
+        "title": "Version bump",
+        "prompt": "Read two versions, the old one and then the new one, and say which part went up.\n\n1. Read the two lines. A valid version looks like `v1.4.2`: a `v`, then three whole numbers with a dot between each.\n2. If either one isn't valid, print `invalid` and exit with status 2.\n3. Otherwise print `major` if the new major number is bigger. Print `minor` if the majors are equal and the new minor is bigger, and `patch` if the majors and the minors are equal and the new patch is bigger. Print `none` in every other case.\n\nInput:\n\n```text\nv1.4.2\nv1.5.3\n```\n\nExpected output:\n\n```text\nminor\n```",
+        "starter": "re='^v([0-9]+)\\.([0-9]+)\\.([0-9]+)$'\n\n# TODO: read the old version, then the new one\n\n# TODO: if the old one doesn't match re, print invalid and exit 2\n# TODO: otherwise copy its three numbers out of BASH_REMATCH\n\n# TODO: do the same for the new one\n\n# TODO: print major, minor, patch, or none\n",
+        "solution": "re='^v([0-9]+)\\.([0-9]+)\\.([0-9]+)$'\n\nread -r old\nread -r new\n\nif [[ ! $old =~ $re ]]; then\n  echo \"invalid\"\n  exit 2\nfi\nold_major=${BASH_REMATCH[1]}\nold_minor=${BASH_REMATCH[2]}\nold_patch=${BASH_REMATCH[3]}\n\nif [[ ! $new =~ $re ]]; then\n  echo \"invalid\"\n  exit 2\nfi\nnew_major=${BASH_REMATCH[1]}\nnew_minor=${BASH_REMATCH[2]}\nnew_patch=${BASH_REMATCH[3]}\n\nif (( new_major > old_major )); then\n  echo \"major\"\nelif (( new_major == old_major && new_minor > old_minor )); then\n  echo \"minor\"\nelif (( new_major == old_major && new_minor == old_minor && new_patch > old_patch )); then\n  echo \"patch\"\nelse\n  echo \"none\"\nfi\n",
+        "tests": [
+          {
+            "stdin": "v1.4.2\nv1.5.3\n",
+            "output": "minor"
+          },
+          {
+            "stdin": "v1.4.9\nv1.4.10\n",
+            "output": "patch"
+          },
+          {
+            "stdin": "v2.1.0\nv1.9.9\n",
+            "output": "none"
+          },
+          {
+            "stdin": "v1.4.2\n1.5.0\n",
+            "output": "invalid",
+            "exitCode": 2
+          }
+        ],
+        "hints": [
+          "Match each version with `[[ $old =~ $re ]]`, and copy `${BASH_REMATCH[1]}` to `${BASH_REMATCH[3]}` into variables right away, as in the capture groups example: the next match replaces them.",
+          "Compare with `(( ))`, never `>` inside `[[ ]]`. As text, `10` comes before `9`.",
+          "Use one `if`/`elif`/`else` chain, and make each branch require the bigger parts to be equal: `elif (( new_major == old_major && new_minor > old_minor ))`."
+        ]
+      }
+    },
+    {
+      "title": "Match patterns with case",
+      "body": "`case` compares one value against patterns, top to bottom, and runs the commands of the first one that matches. Each branch ends with `;;`, and `esac` closes the whole thing:\n\n```bash\nday=\"Sat\"\ncase \"$day\" in\n  Sat|Sun)\n    echo \"weekend\"\n    ;;\n  *)\n    echo \"weekday\"\n    ;;\nesac\n```\n\nThe patterns are globs, the same as for file names: `*` matches anything, `?` one character, and `[Yy]` either letter. `|` separates alternatives. `*)` matches everything, so it goes last as the default. Since the first match wins, put specific patterns before general ones. A short branch fits on one line, like `stop) echo \"stopping\" ;;`.\n\n`case` reads better than a chain of `elif`s whenever you're checking one value against several fixed choices: a command name, a file extension, a yes or no answer.",
+      "examples": [
+        {
+          "title": "Commands",
+          "prompt": "Pick what to do from the `ACTION` variable, which this example sets to `run`.",
+          "code": "case \"$ACTION\" in\n  start|run)\n    echo \"starting the worker\"\n    ;;\n  stop)\n    echo \"stopping the worker\"\n    ;;\n  status)\n    echo \"the worker is running\"\n    ;;\n  *)\n    echo \"usage: ACTION=start|run|stop|status\" >&2\n    exit 64\n    ;;\nesac\necho \"done: $ACTION\"\n",
+          "env": {
+            "ACTION": "run"
+          },
+          "output": "starting the worker\ndone: run",
+          "explanation": "`ACTION` comes from the environment, like the variables in the Parameter Expansion lesson. `start|run)` matches either word, so `run` starts the worker, and after `;;` the script carries on after `esac`. Any value no branch names falls to `*)`, which writes a usage message to stderr and exits with status 64, a code many tools use for wrong usage."
+        },
+        {
+          "title": "File types",
+          "prompt": "Print how to look inside the file named in `FILE` without unpacking it.",
+          "code": "case \"$FILE\" in\n  *.tar.gz|*.tgz)\n    echo \"tar -tzf $FILE\"\n    ;;\n  *.zip)\n    echo \"unzip -l $FILE\"\n    ;;\n  *.gz)\n    echo \"zcat $FILE\"\n    ;;\n  *)\n    echo \"cat $FILE\"\n    ;;\nesac\n",
+          "env": {
+            "FILE": "logs-2026-10.tar.gz"
+          },
+          "output": "tar -tzf logs-2026-10.tar.gz",
+          "explanation": "`logs-2026-10.tar.gz` matches `*.tar.gz`, so `case` prints the `tar` command and stops. It would match `*.gz` too, which is why the order matters: with `*.gz)` first, every tarball would get `zcat`. `*.tar.gz|*.tgz)` puts both spellings of a gzipped tarball in one branch, and `*)` catches every other file."
+        },
+        {
+          "title": "Yes or no",
+          "prompt": "Ask whether to deploy, and accept any capitalization of yes.",
+          "code": "read -rp \"Deploy now? [y/N] \" answer\n\ncase \"$answer\" in\n  [Yy]|[Yy][Ee][Ss])\n    echo \"deploying\"\n    ;;\n  [Nn]*)\n    echo \"cancelled\"\n    ;;\n  *)\n    echo \"no answer, so no deploy\"\n    ;;\nesac\n",
+          "stdin": "Yes\n",
+          "output": "deploying",
+          "explanation": "Each `[Yy]` matches one letter in either case, so the first branch takes `y`, `Y`, `yes`, `Yes`, `YES`, and every other mix. `[Nn]*` takes any answer that starts with an n, like `no` or `nope`. Anything else, an empty line included, falls to `*)`, which is what the capital `N` in `[y/N]` promises: no is the default."
+        }
+      ],
+      "practice": {
+        "title": "Extract command",
+        "prompt": "Print the command that unpacks the file named in the `FILE` environment variable. Run sends the first test's value, `FILE=site-backup.tar.gz`.\n\n1. For a name ending in `.tar.gz` or `.tgz`, print `tar -xzf FILE`.\n2. For `.tar.xz`, print `tar -xJf FILE`.\n3. For `.zip`, print `unzip FILE`.\n4. For any other `.gz`, print `gunzip FILE`.\n5. For anything else, print `unknown: FILE` to stderr and exit with status 1.\n\nIn each line, FILE stands for the file's name.\n\nExpected output:\n\n```text\ntar -xzf site-backup.tar.gz\n```",
+        "starter": "# FILE comes from the environment, like FILE=site-backup.tar.gz\n# TODO: print the command that unpacks FILE, with one case\n\n# TODO: for anything else, print unknown: FILE to stderr and exit 1\n",
+        "solution": "case \"$FILE\" in\n  *.tar.gz|*.tgz)\n    echo \"tar -xzf $FILE\"\n    ;;\n  *.tar.xz)\n    echo \"tar -xJf $FILE\"\n    ;;\n  *.zip)\n    echo \"unzip $FILE\"\n    ;;\n  *.gz)\n    echo \"gunzip $FILE\"\n    ;;\n  *)\n    echo \"unknown: $FILE\" >&2\n    exit 1\n    ;;\nesac\n",
+        "tests": [
+          {
+            "env": {
+              "FILE": "site-backup.tar.gz"
+            },
+            "output": "tar -xzf site-backup.tar.gz"
+          },
+          {
+            "env": {
+              "FILE": "logs-2026-10.tgz"
+            },
+            "output": "tar -xzf logs-2026-10.tgz"
+          },
+          {
+            "env": {
+              "FILE": "access.log.1.gz"
+            },
+            "output": "gunzip access.log.1.gz"
+          },
+          {
+            "env": {
+              "FILE": "notes.txt"
+            },
+            "output": "",
+            "exitCode": 1,
+            "stderrIncludes": "unknown: notes.txt"
+          }
+        ],
+        "hints": [
+          "Start from the file types example: one `case \"$FILE\" in` with a branch for each kind of name.",
+          "`case` takes the first pattern that matches, and `*.gz` also matches `site-backup.tar.gz`. Put `*.tar.gz|*.tgz)` above `*.gz)`.",
+          "The last branch is `*)`, with `echo \"unknown: $FILE\" >&2` and then `exit 1`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `if CMD; then ...; elif CMD; then ...; else ...; fi` branches on an exit status, so any command can be a condition: `grep -q`, `[[ ]]`, or `(( ))`.\n- `[[ ]]` tests strings (`==`, `!=`, `-z`, `-n`, globs like `*.log`) and files (`-e`, `-f`, `-d`, `-s`, `-r`, `-w`, `-x`, `-L`, `-nt`), and combines tests with `&&`, `||`, and `!`.\n- Prefer `[[ ]]` to `[ ]` and `test`, which break on an empty, unquoted variable.\n- Compare numbers with `(( a > b ))` or `-gt` and its friends, never with `>` inside `[[ ]]`, which compares text.\n- `=~` matches a regex, kept in a variable and unquoted, and puts its groups in `BASH_REMATCH`.\n- `case` matches one value against glob patterns, and the first match wins: `a|b)` for alternatives, `[Yy]*)` for either case, `*)` last as the default, and `;;` after each branch."
+}

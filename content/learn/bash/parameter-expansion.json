@@ -1,0 +1,187 @@
+{
+  "id": "parameter-expansion",
+  "title": "Parameter Expansion",
+  "section": "Bash Scripting",
+  "summary": "Measure, default, trim, replace and recase values with parameter expansion, and read the settings your script receives as environment variables.",
+  "intro": "Parameter expansion is everything Bash can do between `${` and `}`. It gives a missing setting a default, stops a script when a required value is missing, cuts a path into its folder, name and extension, and replaces or recases text without starting another program. From this lesson on, your scripts also receive values from whoever runs them, as environment variables.",
+  "format": "single",
+  "fixtures": "scriptbox",
+  "steps": [
+    {
+      "title": "Length, defaults and required values",
+      "body": "Your script can receive values from whoever runs it. `PORT=9090 bash main.sh` runs `main.sh` with an environment variable `PORT` set to `9090`, and the script reads it like any other variable, as `$PORT`. Check runs each test of a practice with its own variables, and Run on Your code uses the first test's. A later lesson covers where environment variables come from.\n\nA value like that may be missing, so give it a default:\n\n- `${var:-default}` expands to `default` when `var` is unset or empty.\n- `${var:=default}` does the same and also assigns it, so later lines see it.\n- `${var:?message}` prints `message` on stderr and stops the script with status 1.\n- `${var:+other}` expands to `other` only when `var` has a value.\n\n`${#var}` is the length of the value, in characters.\n\n```bash\nname=\"devbox\"\necho \"${#name}\"  # 6\necho \"${EDITOR:-nano}\"\necho \"[${name:+set}] [${NICKNAME:+set}]\"\n```",
+      "examples": [
+        {
+          "title": "Length of a value",
+          "prompt": "Print the length of a host name, of a release tag, and of an empty value.",
+          "code": "name=\"devbox\"\necho \"${#name}\"  # 6\ntag=\"release-2026-10\"\necho \"$tag has ${#tag} characters\"\nnote=\"\"\necho \"an empty value has length ${#note}\"\n",
+          "output": "6\nrelease-2026-10 has 15 characters\nan empty value has length 0",
+          "explanation": "`${#name}` counts the characters in the value, which is how a script checks that a value isn't too short or too long. The `#` right after `${` means length, not a comment. An empty value has length 0, and so does a variable that was never set."
+        },
+        {
+          "title": "Defaults for missing settings",
+          "prompt": "With `PORT=9000` in the environment, print the port, the number of workers and the log folder, each with a default.",
+          "code": "echo \"Port: ${PORT:-8080}\"\necho \"Workers: ${WORKERS:-4}\"\n: \"${LOG_DIR:=logs}\"\necho \"Logs go to $LOG_DIR\"\n",
+          "env": {
+            "PORT": "9000"
+          },
+          "output": "Port: 9000\nWorkers: 4\nLogs go to logs",
+          "explanation": "This example runs with `PORT=9000` set, as its Environment shows, so the first line prints 9000 and the default 8080 is never used. Nothing sets `WORKERS`, so its default fills in. `:` is a command that does nothing, so `: \"${LOG_DIR:=logs}\"` is there only for what the expansion does on the way: it assigns `logs` to `LOG_DIR`, and the last line can use plain `$LOG_DIR`. Keep the quotes, or a value with a star in it would be globbed."
+        },
+        {
+          "title": "Stop when a value is required",
+          "prompt": "Require an API token before calling an API, with no token in the environment.",
+          "code": "echo \"Checking settings\"\ntoken=\"${API_TOKEN:?API_TOKEN is required}\"\necho \"Calling the API with a ${#token}-character token\"\n",
+          "expect": "runtime-error",
+          "output": "Checking settings",
+          "errorIncludes": "API_TOKEN: API_TOKEN is required",
+          "exitCode": 1,
+          "explanation": "`API_TOKEN` isn't set, so `${API_TOKEN:?...}` prints `main.sh: line 2: API_TOKEN: API_TOKEN is required` on stderr and ends the script right there with status 1. The last line never runs. Stopping early with a clear message beats carrying on with an empty token and failing later with a confusing error."
+        }
+      ],
+      "practice": {
+        "title": "Config with defaults",
+        "prompt": "Print a service's settings from three environment variables, with a default for each.\n\n1. Print `host=` and `APP_HOST`, or `localhost` when it's not set.\n2. Print `port=` and `APP_PORT`, or `8080`.\n3. Print `env=` and `APP_ENV`, or `development`.\n\nCheck runs it three times: with none of these variables set (test 1, below), with `APP_PORT=9090 APP_ENV=production`, and with `APP_HOST=db.local`.\n\nExpected output:\n\n```text\nhost=localhost\nport=8080\nenv=development\n```",
+        "starter": "# APP_HOST, APP_PORT and APP_ENV come from whoever runs the script\n# TODO: default APP_HOST to localhost\necho \"host=$APP_HOST\"\n# TODO: print port= with APP_PORT, or 8080 when it's not set\n# TODO: print env= with APP_ENV, or development when it's not set\n",
+        "solution": "echo \"host=${APP_HOST:-localhost}\"\necho \"port=${APP_PORT:-8080}\"\necho \"env=${APP_ENV:-development}\"\n",
+        "tests": [
+          {
+            "output": "host=localhost\nport=8080\nenv=development"
+          },
+          {
+            "env": {
+              "APP_PORT": "9090",
+              "APP_ENV": "production"
+            },
+            "output": "host=localhost\nport=9090\nenv=production"
+          },
+          {
+            "env": {
+              "APP_HOST": "db.local"
+            },
+            "output": "host=db.local\nport=8080\nenv=development"
+          }
+        ],
+        "hints": [
+          "`${APP_HOST:-localhost}` is the value of `APP_HOST`, or `localhost` when it's unset or empty.",
+          "Use one `echo` per line, like `echo \"port=${APP_PORT:-8080}\"`."
+        ]
+      }
+    },
+    {
+      "title": "Trim prefixes and suffixes",
+      "body": "Four expansions cut a pattern off one end of a value. The pattern is a glob like the ones that match file names, so `*` matches any text.\n\n- `${var#pattern}` removes the shortest match from the front, and `${var##pattern}` the longest.\n- `${var%pattern}` removes the shortest match from the end, and `${var%%pattern}` the longest.\n\nOn a US keyboard `#` sits left of `$` and `%` right of it, like the ends they cut.\n\n```bash\nfile=\"backup.2026-10-19.tar.gz\"\necho \"${file#*.}\"   # 2026-10-19.tar.gz\necho \"${file##*.}\"  # gz\necho \"${file%.*}\"   # backup.2026-10-19.tar\necho \"${file%%.*}\"  # backup\n```\n\nWhen the pattern doesn't match, you get the value back unchanged. To take characters by position instead, use `${var:offset:length}`, counting from 0. A negative offset counts from the end and needs a space after the colon, so Bash doesn't read `:-` as a default:\n\n```bash\nstamp=\"2026-10-19T09:00:00Z\"\necho \"year ${stamp:0:4}, month ${stamp:5:2}, time ${stamp:11:8}, zone ${stamp: -1}\"\n```",
+      "examples": [
+        {
+          "title": "Path pieces",
+          "prompt": "Split a log file's path into its name, its folder and its extension, and drop the `.gz`.",
+          "code": "path=/var/log/nginx/access.log.2.gz\necho \"name: ${path##*/}\"\necho \"folder: ${path%/*}\"\necho \"extension: ${path##*.}\"\necho \"unzipped: ${path%.gz}\"\n",
+          "output": "name: access.log.2.gz\nfolder: /var/log/nginx\nextension: gz\nunzipped: /var/log/nginx/access.log.2",
+          "explanation": "`##*/` removes the longest match of `*/` from the front, everything up to the last slash, which leaves the file name. `%/*` removes the shortest match of `/*` from the end, the last slash and what follows it, which leaves the folder. That's what the `basename` and `dirname` commands do, without starting a new program. `##*.` keeps what follows the last dot. A pattern without a star, like `.gz`, removes exactly that text when the value ends with it."
+        },
+        {
+          "title": "Change an extension",
+          "prompt": "Change a photo's extension from .jpeg to .jpg, see what happens when the pattern doesn't match, and turn a report's .csv into .txt.",
+          "code": "f=\"photo.jpeg\"\necho \"${f%.jpeg}.jpg\"\nf=\"photo.JPEG\"\necho \"${f%.jpeg}.jpg\"\nreport=\"reports/sales-2026-09.csv\"\necho \"${report%.csv}.txt\"\n",
+          "output": "photo.jpg\nphoto.JPEG.jpg\nreports/sales-2026-09.txt",
+          "explanation": "`${f%.jpeg}` drops `.jpeg` from the end, and the `.jpg` after the braces is plain text that follows it. Patterns are case-sensitive, so `.jpeg` doesn't match `photo.JPEG`, nothing is removed, and the result gets a second extension. That's the usual surprise with this trick, so check what a pattern does with the names you really have."
+        },
+        {
+          "title": "Strip a prefix",
+          "prompt": "Remove the v from a version tag, and the refs/heads/ prefix from two git branch names.",
+          "code": "version=\"v2.14.0\"\necho \"${version#v}\"\nref=\"refs/heads/main\"\necho \"${ref#refs/heads/}\"\nref=\"refs/heads/feature/login\"\necho \"${ref#refs/heads/}\"\necho \"${ref##*/}\"\n",
+          "output": "2.14.0\nmain\nfeature/login\nlogin",
+          "explanation": "Version tags are often written `v2.14.0`, and `#v` removes just the leading `v`. Git names a branch `refs/heads/` plus the branch's name, and a fixed prefix comes off with `#`. For `feature/login`, removing the prefix keeps the whole branch name, while `##*/` keeps only `login`, which is a different thing. Pick the form that removes exactly what you mean."
+        }
+      ],
+      "practice": {
+        "title": "Split a path",
+        "prompt": "Print the folder, the name, the base name and the extension of the path in `FILE`.\n\n1. `dir:` is everything before the last `/`.\n2. `name:` is everything after the last `/`.\n3. `base:` is the name without its last extension.\n4. `ext:` is the part of the name after its last dot.\n\nCheck runs it with `FILE=/srv/app/releases/build.tar.gz` (test 1, below), then `FILE=notes/todo.txt`, then `FILE=/etc/hosts.allow`.\n\nExpected output:\n\n```text\ndir: /srv/app/releases\nname: build.tar.gz\nbase: build.tar\next: gz\n```",
+        "starter": "# FILE comes from whoever runs the script, like /srv/app/releases/build.tar.gz\n# TODO: print dir:, name:, base: and ext: for FILE\necho \"dir: $FILE\"\n",
+        "solution": "name=\"${FILE##*/}\"\necho \"dir: ${FILE%/*}\"\necho \"name: $name\"\necho \"base: ${name%.*}\"\necho \"ext: ${name##*.}\"\n",
+        "tests": [
+          {
+            "env": {
+              "FILE": "/srv/app/releases/build.tar.gz"
+            },
+            "output": "dir: /srv/app/releases\nname: build.tar.gz\nbase: build.tar\next: gz"
+          },
+          {
+            "env": {
+              "FILE": "notes/todo.txt"
+            },
+            "output": "dir: notes\nname: todo.txt\nbase: todo\next: txt"
+          },
+          {
+            "env": {
+              "FILE": "/etc/hosts.allow"
+            },
+            "output": "dir: /etc\nname: hosts.allow\nbase: hosts\next: allow"
+          }
+        ],
+        "hints": [
+          "Save the name first: `name=\"${FILE##*/}\"`. The base and the extension both come from `name`, not from the whole path.",
+          "`%/*` trims the last slash and what follows it. `%.*` and `##*.` do the same around the last dot."
+        ]
+      }
+    },
+    {
+      "title": "Replace and change case",
+      "body": "`${var/old/new}` replaces the first match of a pattern with new text, and `${var//old/new}` replaces every match. Start the pattern with `#` to match only at the start of the value, or with `%` to match only at the end. Leave out the new text to delete the match.\n\n```bash\nfile=\"draft-report-draft.txt\"\necho \"${file/draft/final}\"\necho \"${file//draft/final}\"\necho \"${file/#draft-/}\"\necho \"${file/%.txt/.md}\"\n```\n\nFour more change the case. `${var^}` uppercases the first letter and `${var^^}` every letter, and `${var,}` and `${var,,}` lowercase them the same way.\n\n`${var@Q}` shows the value quoted the way you'd type it in a script. That helps when you debug a value with a tab, a newline or a trailing space in it, which `echo` doesn't show.",
+      "examples": [
+        {
+          "title": "Replace text",
+          "prompt": "Replace a word, then every o, then only the first o, then delete the space.",
+          "code": "msg=\"hello world\"\necho \"${msg/world/bash}\"\necho \"${msg//o/0}\"\necho \"${msg/o/0}\"\necho \"${msg// /}\"\n",
+          "output": "hello bash\nhell0 w0rld\nhell0 world\nhelloworld",
+          "explanation": "Two slashes replace every match and one slash replaces only the first, which is the difference between the second and third lines. `${msg// /}` replaces every space with nothing, which deletes them. `msg` itself never changes: each expansion makes a new string, and you assign it to keep it."
+        },
+        {
+          "title": "Make a slug",
+          "prompt": "Turn a post title into a slug for its web address: hyphens for spaces, all lowercase.",
+          "code": "title=\"My Blog Post\"\nslug=\"${title// /-}\"\necho \"$slug\"\necho \"${slug,,}\"\n",
+          "output": "My-Blog-Post\nmy-blog-post",
+          "explanation": "Expansions don't nest, so a slug takes two steps: replace the spaces and keep the result in `slug`, then lowercase `slug` with `,,`. Web addresses use slugs like `my-blog-post` because spaces and capital letters cause trouble in a URL."
+        },
+        {
+          "title": "Change case and show quoting",
+          "prompt": "Capitalize a name, shout it, quiet a warning, and show a value with a hidden tab.",
+          "code": "name=\"ada\"\necho \"${name^}\"\necho \"${name^^}\"\nlevel=\"WARNING\"\necho \"${level,,}\"\nteam=$'ops team\\t'\necho \"[$team]\"\necho \"${team@Q}\"\n",
+          "output": "Ada\nADA\nwarning\n[ops team\t]\n$'ops team\\t'",
+          "explanation": "`^` uppercases the first letter and `^^` all of them, and `,,` lowercases them all. `team` ends with a tab, which `echo` prints as plain blank space before the `]`. `${team@Q}` shows the value as you'd write it in a script, `$'ops team\\t'`, so the tab is plain to see."
+        }
+      ],
+      "practice": {
+        "title": "Slugify a title",
+        "prompt": "Turn the title in `TITLE` into a slug, a file name and a shout.\n\n1. `slug:` is the title in lowercase, with every space replaced by a hyphen.\n2. `file:` is the slug followed by `.md`.\n3. `shout:` is the title in capitals, spaces kept.\n\nCheck runs it with three titles, the first `TITLE=\"Release Notes October\"` (test 1, below).\n\nExpected output:\n\n```text\nslug: release-notes-october\nfile: release-notes-october.md\nshout: RELEASE NOTES OCTOBER\n```",
+        "starter": "# TITLE comes from whoever runs the script, like \"Release Notes October\"\n# TODO: print slug:, file: and shout: for TITLE\necho \"slug: $TITLE\"\n",
+        "solution": "slug=\"${TITLE// /-}\"\nslug=\"${slug,,}\"\necho \"slug: $slug\"\necho \"file: $slug.md\"\necho \"shout: ${TITLE^^}\"\n",
+        "tests": [
+          {
+            "env": {
+              "TITLE": "Release Notes October"
+            },
+            "output": "slug: release-notes-october\nfile: release-notes-october.md\nshout: RELEASE NOTES OCTOBER"
+          },
+          {
+            "env": {
+              "TITLE": "How We Fixed Checkout"
+            },
+            "output": "slug: how-we-fixed-checkout\nfile: how-we-fixed-checkout.md\nshout: HOW WE FIXED CHECKOUT"
+          },
+          {
+            "env": {
+              "TITLE": "Deploy With ZERO Downtime"
+            },
+            "output": "slug: deploy-with-zero-downtime\nfile: deploy-with-zero-downtime.md\nshout: DEPLOY WITH ZERO DOWNTIME"
+          }
+        ],
+        "hints": [
+          "Build the slug in two steps, like the blog post example: replace the spaces, then lowercase the result.",
+          "`${TITLE^^}` uppercases every letter and leaves the spaces alone."
+        ]
+      }
+    }
+  ],
+  "recap": "- Environment variables reach your script from whoever runs it, as in `PORT=9090 bash main.sh`, and read like any other variable.\n- `${#var}` is the length. `${var:-x}` gives a default, `${var:=x}` also assigns it, `${var:?message}` stops the script with status 1, and `${var:+x}` gives `x` only when `var` has a value.\n- `${var:offset:length}` takes characters by position, and `${var: -3}` counts from the end.\n- `#` and `##` trim a pattern from the front, `%` and `%%` from the end, shortest and longest match.\n- `${var/old/new}` replaces the first match and `${var//old/new}` every match, and `/#` and `/%` anchor the pattern to the start or the end.\n- `${var^}`, `${var^^}`, `${var,}` and `${var,,}` change case, and `${var@Q}` shows a value quoted."
+}

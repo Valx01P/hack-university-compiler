@@ -1,0 +1,153 @@
+{
+  "id": "variables-and-quoting",
+  "title": "Variables and Quoting",
+  "section": "Bash Scripting",
+  "summary": "Store values in variables, choose between single, double and ANSI-C quotes, and quote every expansion so names with spaces stay whole.",
+  "intro": "A script needs names for the values it works with: a file to read, a count, a message to print. In this lesson you store values in Bash variables, learn exactly what single quotes, double quotes and `$'...'` do to the text inside them, and meet the most common Bash bug, an unquoted variable that splits a file name in two.",
+  "format": "single",
+  "fixtures": "scriptbox",
+  "steps": [
+    {
+      "title": "Assign and use",
+      "body": "Assign a value with `name=value` and read it back with `$name`. There are no spaces around `=`. With spaces, Bash reads `name` as a command to run.\n\n```bash\ncity=\"Lisbon\"\necho \"I live in $city\"\n```\n\nEvery value is a string. `count=3` stores the text `3`, which a later lesson does math with. Write `${name}` when letters, digits or underscores follow the name, since `$names` reads a variable called `names`. A variable that was never set expands to nothing, with no error, so a typo in a name prints an empty value instead of failing.\n\n`unset name` removes a variable, and `readonly NAME=value` makes one that can't change.\n\nBy convention your script's variables are lowercase (`file`, `count`), and UPPERCASE names belong to environment variables, which the system and other programs set (`HOME`, `PATH`, `USER`). Keeping your names lowercase means you never overwrite one of theirs by accident:\n\n```bash\necho \"$USER lives in $HOME\"\n```",
+      "examples": [
+        {
+          "title": "Hello, name",
+          "prompt": "Store a name and a count, print them inside messages, then change the name.",
+          "code": "name=\"Ada\"\necho \"Hello, $name\"\ncount=3\necho \"$count items in your cart\"\nname=\"Grace\"\necho \"Hello, $name\"\n",
+          "output": "Hello, Ada\n3 items in your cart\nHello, Grace",
+          "explanation": "An assignment has no `$` and a read has one. Inside double quotes, `$name` is replaced by its value while the rest of the text stays as it is. Assigning again replaces the old value, so the last line greets Grace. `count` holds the text `3`, which prints like any other text."
+        },
+        {
+          "title": "Spaces around the equals sign",
+          "prompt": "Assign a name the right way, then try again with spaces around `=`.",
+          "code": "name=\"Ada\"\necho \"Hello, $name\"\nname = \"Grace\"\n",
+          "expect": "runtime-error",
+          "output": "Hello, Ada",
+          "errorIncludes": "name: command not found",
+          "exitCode": 127,
+          "shellcheck": "off",
+          "explanation": "Line 3 has spaces, so Bash splits it into three words and runs the first one, `name`, as a command with the arguments `=` and `Grace`. There is no command called `name`, so Bash prints `main.sh: line 3: name: command not found`, the script ends with status 127, and `name` still holds `Ada`. This example shows the mistake on purpose, and ShellCheck, the linter a later lesson covers, flags line 3. Write `name=\"Grace\"` with nothing around the `=`."
+        },
+        {
+          "title": "Braces, unset and readonly",
+          "prompt": "Add an s after a variable's value, see what a misspelled name expands to, remove a variable, and try to change a read-only one.",
+          "code": "fruit=\"apple\"\necho \"I ate 3 ${fruit}s\"\necho \"I ate 3 $fruits\"\nunset fruit\necho \"fruit is now [$fruit]\"\nreadonly MAX=3\nMAX=4\n",
+          "expect": "runtime-error",
+          "output": "I ate 3 apples\nI ate 3\nfruit is now []",
+          "errorIncludes": "MAX: readonly variable",
+          "exitCode": 1,
+          "shellcheck": "off",
+          "explanation": "`${fruit}s` marks where the name ends, so the `s` is plain text. `$fruits` asks for a variable named `fruits`, which doesn't exist, so it expands to nothing and line 3 prints `I ate 3` with no error at all. This example shows that bug on purpose, and ShellCheck flags `$fruits` as a variable that was never assigned. After `unset`, `fruit` is empty too. Assigning to `MAX` after `readonly` fails with `MAX: readonly variable`. Bash prints the error and carries on, so the script's status is 1, the status of its last command."
+        }
+      ],
+      "practice": {
+        "title": "Profile card",
+        "prompt": "Print a profile card from four variables.\n\n1. Set `name` to `Grace Hopper`, `role` to `Admiral`, `city` to `Arlington` and `count` to `1`.\n2. Print the `Name:`, `Role:` and `City:` lines with the variables.\n3. Print the last line from `role`, `city` and `count`, adding the `s` with `${role}s`.\n\nExpected output:\n\n```text\nName: Grace Hopper\nRole: Admiral\nCity: Arlington\nAdmirals in Arlington: 1\n```",
+        "starter": "# TODO: set name, role, city and count\n\n# TODO: print the Name:, Role: and City: lines\n# TODO: print the last line with ${role}s, city and count\n",
+        "solution": "name=\"Grace Hopper\"\nrole=\"Admiral\"\ncity=\"Arlington\"\ncount=1\n\necho \"Name: $name\"\necho \"Role: $role\"\necho \"City: $city\"\necho \"${role}s in $city: $count\"\n",
+        "tests": [
+          {
+            "output": "Name: Grace Hopper\nRole: Admiral\nCity: Arlington\nAdmirals in Arlington: 1"
+          }
+        ],
+        "hints": [
+          "Quote a value that has a space, with nothing around the `=`: `name=\"Grace Hopper\"`.",
+          "`$roles` would read a variable named `roles`. Write `${role}s` so the `s` is plain text."
+        ]
+      }
+    },
+    {
+      "title": "Single, double and ANSI-C quotes",
+      "body": "Quotes decide what the shell does to the text inside them.\n\n- Single quotes keep everything literal. `'$HOME'` stays five characters, and nothing inside is special, not even a backslash.\n- Double quotes keep spaces and stop file name patterns, but `$` still expands variables, backticks still run commands (an old form a later lesson replaces), and a backslash still escapes `$`, a backtick, `\"` and `\\`.\n- `$'...'` (ANSI-C quotes) turns escapes into the characters they name: `\\n` is a newline, `\\t` a tab, and `\\'` a single quote.\n\n```bash\nitem=\"tea\"\necho 'Literal: $item'\necho \"Expanded: $item\"\necho $'Tab:\\t'\"$item\"\n```\n\nQuotes that touch join into one word, so the last line passes `echo` one argument: `Tab:` and a tab from `$'Tab:\\t'`, then the value from `\"$item\"`. A single quote can't appear inside single quotes, even after a backslash. End the quote, add an escaped quote, and start a new one: `'It'\\''s'`. Or use double quotes, where `'` is an ordinary character.",
+      "examples": [
+        {
+          "title": "Literal or expanded",
+          "prompt": "Print a price and your home folder in single quotes and in double quotes.",
+          "code": "echo 'Cost: $5'\necho \"Cost: $5\"\necho \"Home: $HOME\"\necho 'Home: $HOME'\n",
+          "output": "Cost: $5\nCost:\nHome: /home/learner\nHome: $HOME",
+          "explanation": "In double quotes `$5` means the script's fifth argument, a later lesson's topic. This script got none, so `$5` expands to nothing and the price disappears. In single quotes the same text prints as written. `$HOME` is an environment variable the system sets, here `/home/learner`, and it expands only in the double-quoted line. So use single quotes for text that must stay exactly as typed, and double quotes for text with variables in it."
+        },
+        {
+          "title": "Escapes inside double quotes",
+          "prompt": "Print double quotes, a literal dollar sign and an apostrophe, using the quotes that allow each one.",
+          "code": "echo \"She said \\\"hi\\\"\"\necho \"\\$HOME is $HOME\"\necho \"It's fine\"\necho 'It'\\''s fine'\n",
+          "output": "She said \"hi\"\n$HOME is /home/learner\nIt's fine\nIt's fine",
+          "explanation": "Inside double quotes, `\\\"` is a double quote that doesn't end the string, and `\\$` is a dollar sign that doesn't expand, so the second line shows both the name and its value. An apostrophe is an ordinary character inside double quotes. The last line is three pieces that touch: `'It'`, then `\\'`, an escaped quote outside any quotes, then `'s fine'`. Bash joins them into one word."
+        },
+        {
+          "title": "Tabs and newlines",
+          "prompt": "Print `\\t` in single and double quotes, then a two line table with real tabs, and keep a tab in a variable.",
+          "code": "echo 'name\\tAda'\necho \"name\\tAda\"\necho $'name\\tAda\\nage\\t36'\nrow=$'tea\\t3.50'\necho \"$row\"\n",
+          "output": "name\\tAda\nname\\tAda\nname\tAda\nage\t36\ntea\t3.50",
+          "explanation": "`echo` prints a backslash as it is, so `\\t` in single or double quotes shows up as two characters. `$'...'` turns `\\t` into a real tab and `\\n` into a real newline before `echo` ever runs, so the third command prints two lines whose columns are separated by tabs. The same works in an assignment: `row` holds a real tab, and `\"$row\"` keeps it."
+        }
+      ],
+      "practice": {
+        "title": "Price label",
+        "prompt": "Print a price label with exactly the quotes and the dollar sign shown.\n\n1. Keep `item=\"Desk Lamp\"` and `price=24.99` from the starter.\n2. Print `Item: ` followed by the item inside double quotes, using `$item`.\n3. Print `Price: $` followed by the price, using `$price`.\n4. Print `Note: it's on sale`.\n\nExpected output:\n\n```text\nItem: \"Desk Lamp\"\nPrice: $24.99\nNote: it's on sale\n```",
+        "starter": "item=\"Desk Lamp\"\nprice=24.99\n\n# TODO: print Item: \"Desk Lamp\" using $item\n# TODO: print Price: $24.99 using $price\n# TODO: print Note: it's on sale\n",
+        "solution": "item=\"Desk Lamp\"\nprice=24.99\n\necho \"Item: \\\"$item\\\"\"\necho \"Price: \\$$price\"\necho \"Note: it's on sale\"\n",
+        "tests": [
+          {
+            "output": "Item: \"Desk Lamp\"\nPrice: $24.99\nNote: it's on sale"
+          }
+        ],
+        "hints": [
+          "Double quotes let `$item` expand. Inside them, write a double quote that should print as `\\\"`.",
+          "`\\$` is a dollar sign that doesn't expand, so `\"\\$$price\"` prints `$` and then the price."
+        ]
+      }
+    },
+    {
+      "title": "Quote every expansion",
+      "body": "After Bash expands an unquoted `$var`, it does two more things to the result. Word splitting cuts it into separate words at every run of spaces, tabs and newlines. Then globbing treats any `*`, `?` or `[` in those words as a file name pattern and replaces it with the matching names. Both help when you type a command, and both break values that come from variables:\n\n```bash error\nfile=\"to do.txt\"\nwc -l < $file\n```\n\nThe unquoted `$file` became two words, so the redirect fails with `ambiguous redirect`. In double quotes a variable expands to exactly its value, as one word, whatever it holds:\n\n```bash\nfile=\"to do.txt\"\nwc -l < \"$file\"\n```\n\nSo the rule is to put double quotes around every expansion: `\"$var\"`. That includes values that look safe today, because names with spaces, empty values and stars arrive later from users, files and other programs.",
+      "examples": [
+        {
+          "title": "Two files instead of one",
+          "prompt": "Print `meeting notes.txt` with its name in a variable, quoted and then unquoted.",
+          "code": "file=\"meeting notes.txt\"\ncat \"$file\"\ncat $file\n",
+          "expect": "runtime-error",
+          "output": "Weekly sync, 2026-10-14\n- checkout latency is back under 200 ms\n- Ben owns the backup restore drill\n- the deploy moves to Thursday\n- Carla reviews the new alerts\nNext meeting: 2026-10-21",
+          "errorIncludes": "cat: meeting: No such file or directory",
+          "exitCode": 1,
+          "explanation": "The quoted `\"$file\"` reaches `cat` as one argument, `meeting notes.txt`, and prints the file. Unquoted, the value is split at its space into two arguments, `meeting` and `notes.txt`, so `cat` looks for two files that don't exist, prints two errors on stderr, and ends the script with status 1. This example shows the bug on purpose. ShellCheck, the linter a later lesson covers, warns about every unquoted `$var` for exactly this reason."
+        },
+        {
+          "title": "Spaces collapse",
+          "prompt": "Print a message that has several spaces in a row, unquoted and then quoted.",
+          "code": "msg=\"total:    3 files\"\necho $msg\necho \"$msg\"\n",
+          "output": "total: 3 files\ntotal:    3 files",
+          "explanation": "Unquoted, the value splits into the words `total:`, `3` and `files`, and `echo` prints its arguments with one space between them, so the extra spaces are gone. Quoted, `echo` gets the value as one argument with every space in place. Tabs and newlines split the same way, which matters when a variable holds several lines."
+        },
+        {
+          "title": "Surprise globs",
+          "prompt": "Store a file name pattern in a variable and print it, unquoted and then quoted.",
+          "code": "pattern=\"*.txt\"\necho $pattern\necho \"$pattern\"\n",
+          "output": "a.txt b.txt empty.txt hosts.txt meeting notes.txt to do.txt\n*.txt",
+          "explanation": "Unquoted, the `*.txt` in the value is a glob, so Bash replaces it with every matching file name in the folder, sorted. With two names that hold spaces, you can't even tell where one name ends. Quoted, the star is just a character and the pattern prints as it is. Any value can hold a star, like a note that reads just `*`, so quote it."
+        }
+      ],
+      "practice": {
+        "title": "Spaces in names",
+        "prompt": "Print how many lines are in two files whose names have spaces.\n\n1. Set `first` to `meeting notes.txt` and `second` to `to do.txt`.\n2. For each file, print its name, a colon and a space with `echo -n`, then its line count with `wc -l <`.\n3. Quote every variable.\n\nExpected output:\n\n```text\nmeeting notes.txt: 6\nto do.txt: 4\n```",
+        "starter": "first=\"meeting notes.txt\"\nsecond=\"to do.txt\"\n\n# TODO: print \"meeting notes.txt: \" with echo -n, then its line count with wc -l <\n# TODO: the same for to do.txt\n",
+        "solution": "first=\"meeting notes.txt\"\nsecond=\"to do.txt\"\n\necho -n \"$first: \"\nwc -l < \"$first\"\necho -n \"$second: \"\nwc -l < \"$second\"\n",
+        "tests": [
+          {
+            "output": "meeting notes.txt: 6\nto do.txt: 4"
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "output": "meeting notes.txt: 9\nto do.txt: 2"
+          }
+        ],
+        "hints": [
+          "`echo -n` prints without ending the line, so the count from `wc` lands on the same line.",
+          "Without quotes, `wc -l < $first` fails with `ambiguous redirect`. Write `wc -l < \"$first\"`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `name=value` with no spaces around `=`, and `$name` or `${name}` to read it. An unset variable expands to nothing, with no error.\n- `unset` removes a variable and `readonly` stops it from changing. Name your variables in lowercase, since UPPERCASE names belong to environment variables.\n- Single quotes keep everything literal. Double quotes still expand `$`, backticks and backslash escapes. `$'...'` turns `\\n` and `\\t` into a newline and a tab.\n- An unquoted expansion is split into words and globbed. Quote every expansion: `\"$var\"`."
+}

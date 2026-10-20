@@ -1,0 +1,276 @@
+{
+  "id": "arguments-and-getopts",
+  "title": "Arguments and Options",
+  "section": "Robust Scripts",
+  "summary": "Read a script's arguments by position, parse short options with getopts and long ones with a case loop, and take input from a file or stdin.",
+  "intro": "Real scripts take arguments, as in `deploy.sh -n 3 staging` or `report.sh --since 09:00 app.log`. This lesson reads them by position, parses options the way standard tools do, and reports usage mistakes with exit 64, the usual status for them. From here on, examples and tests pass arguments: they show in the Arguments field next to stdin, and you can type your own there. The programs run in a folder holding the scriptbox files.",
+  "format": "single",
+  "fixtures": "scriptbox",
+  "steps": [
+    {
+      "title": "Positional arguments",
+      "body": "The words after the script's name arrive as numbered parameters. For `bash main.sh alpha \"beta gamma\"`:\n\n- `$0` is the script's name, `main.sh`\n- `$1` is `alpha`, and `$2` is `beta gamma`, since the quotes kept those words together\n- `$#` is the number of arguments, 2\n- `\"$@\"` is every argument, each one kept as a separate word\n\nFrom the tenth on you need braces, `${10}`, because `$10` means `$1` followed by a 0. `shift` drops `$1` and moves the others down one place, and `shift 2` drops two. `set --` replaces the arguments, which lets a snippet try all this:\n\n```bash\nset -- alpha \"beta gamma\" delta\necho \"count: $#, first: $1\"\nshift\necho \"after shift: $# left, first: $1\"\nfor arg in \"$@\"; do echo \"[$arg]\"; done\n```\n\nQuote them like any expansion: `\"$1\"`, `\"$@\"`. Unquoted, `beta gamma` splits into two words.",
+      "examples": [
+        {
+          "title": "What arrived",
+          "prompt": "Print the script's name, its first two arguments, and how many arguments there are, with a default for a third.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\necho \"script: $0\"\necho \"first: $1\"\necho \"second: $2\"\necho \"count: $#\"\necho \"third: ${3:-none}\"\n",
+          "args": [
+            "alpha",
+            "beta gamma"
+          ],
+          "output": "script: main.sh\nfirst: alpha\nsecond: beta gamma\ncount: 2\nthird: none",
+          "explanation": "The Arguments field holds `alpha 'beta gamma'`, written the way you'd type it in a terminal, so the quotes make `beta gamma` one argument and `$#` is 2. `$0` is the name the script was started as, and the runner starts it as `bash main.sh`. Under `set -u`, reading a missing argument like `$3` is an error, so an optional argument gets a default: `${3:-none}`."
+        },
+        {
+          "title": "Walk the arguments",
+          "prompt": "Visit every argument twice: with a `for` loop over `\"$@\"`, then with `shift` in a `while` loop.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nfor file in \"$@\"; do\n  echo \"$file: $(wc -l < \"$file\") lines\"\ndone\n\necho \"---\"\nwhile (( $# > 0 )); do\n  echo \"next: $1 ($# left)\"\n  shift\ndone\necho \"left at the end: $#\"\n",
+          "args": [
+            "a.txt",
+            "meeting notes.txt",
+            "b.txt"
+          ],
+          "output": "a.txt: 12 lines\nmeeting notes.txt: 6 lines\nb.txt: 7 lines\n---\nnext: a.txt (3 left)\nnext: meeting notes.txt (2 left)\nnext: b.txt (1 left)\nleft at the end: 0",
+          "explanation": "`\"$@\"` expands to every argument as its own word, so `meeting notes.txt` stays one file name, and the `for` loop needs nothing else. The `while` loop reads `$1`, then `shift` drops it and moves the rest down, so `$1` is the next argument and `$#` shrinks by one. When `$#` reaches 0 the loop ends. Option parsers walk their arguments the same way: look at `$1`, handle it, shift it off."
+        },
+        {
+          "title": "Usage errors",
+          "prompt": "Require at least one argument, and print a usage message to stderr with exit 64 when there's none. This run passes no arguments.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nusage() {\n  cat <<EOF\nusage: $0 NAME...\nGreets each NAME.\nEOF\n}\n\n(( $# >= 1 )) || { usage >&2; exit 64; }\n\nfor name in \"$@\"; do\n  echo \"Hello, $name!\"\ndone\n",
+          "expect": "runtime-error",
+          "output": "",
+          "errorIncludes": "usage: main.sh NAME...\nGreets each NAME.",
+          "exitCode": 64,
+          "explanation": "With no arguments, `$#` is 0, so the `(( $# >= 1 ))` test fails and the group after `||` runs: the usage goes to stderr with `>&2`, and the script exits 64. That status is the usual one for a command used the wrong way (`EX_USAGE` in the BSD `sysexits.h` list), so callers can tell a typo from a real failure. Type `Ada Grace` in the Arguments field and run it again to see the greetings."
+        }
+      ],
+      "practice": {
+        "title": "Sum numbers",
+        "prompt": "Write `main.sh N...`, which adds up the whole numbers it gets as arguments.\n\n1. Print `count: N`, how many numbers there are, then `sum: N`.\n2. With no arguments, print `usage: main.sh N...` to stderr, with `$0` for the name, and exit 64.\n3. Check every argument before printing anything. For the first one that isn't a whole number (digits, with an optional `-` in front), print `error: not a number: X` to stderr and exit 65.\n\nCheck runs it with two lists of numbers, with no arguments, and with a list that holds a word.\n\nArguments:\n\n```text\n3 4 5\n```\n\nExpected output:\n\n```text\ncount: 3\nsum: 12\n```",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n\n# TODO: with no arguments, print \"usage: main.sh N...\" to stderr and exit 64\n# TODO: check every argument, then count and add them up\necho \"count: 0\"\necho \"sum: 0\"\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\n\nusage() {\n  echo \"usage: $0 N...\"\n}\n\n(( $# >= 1 )) || { usage >&2; exit 64; }\n\nre='^-?[0-9]+$'\nfor n in \"$@\"; do\n  if [[ ! $n =~ $re ]]; then\n    echo \"error: not a number: $n\" >&2\n    exit 65\n  fi\ndone\n\nsum=0\nfor n in \"$@\"; do\n  sum=$(( sum + n ))\ndone\necho \"count: $#\"\necho \"sum: $sum\"\n",
+        "tests": [
+          {
+            "args": [
+              "3",
+              "4",
+              "5"
+            ],
+            "output": "count: 3\nsum: 12"
+          },
+          {
+            "args": [
+              "-5",
+              "20",
+              "7",
+              "100"
+            ],
+            "output": "count: 4\nsum: 122"
+          },
+          {
+            "args": [],
+            "output": "",
+            "exitCode": 64,
+            "stderrIncludes": "usage: main.sh N..."
+          },
+          {
+            "args": [
+              "10",
+              "x",
+              "2.5"
+            ],
+            "output": "",
+            "exitCode": 65,
+            "stderrIncludes": "error: not a number: x"
+          }
+        ],
+        "hints": [
+          "Start with the check from the usage example: `(( $# >= 1 )) || { usage >&2; exit 64; }`.",
+          "Loop over `\"$@\"` once to test each argument with `[[ $n =~ $re ]]`, where `re='^-?[0-9]+$'`, and once more to add them up.",
+          "`$#` is already the count. Add with `sum=$(( sum + n ))`."
+        ]
+      }
+    },
+    {
+      "title": "Short options with getopts",
+      "body": "`getopts` parses short options the standard Unix way, one option per call, so it runs in a `while` loop. Its first argument lists the letters it accepts, and a colon after a letter means that option takes a value, which arrives in `OPTARG`. In `\":n:v\"`, `-n` takes a value and `-v` doesn't.\n\n```bash\nset -- -v -n 3 a.txt\nwhile getopts \":n:v\" opt; do\n  echo \"opt=$opt OPTARG=${OPTARG:-}\"\ndone\necho \"OPTIND=$OPTIND\"\n```\n\ngetopts stops at the first word that isn't an option, `a.txt` here. `OPTIND` is the number of the next argument to read, so `shift $((OPTIND - 1))` removes the options and leaves the file names in `\"$@\"`. A lone `--` ends the options early, so a file name can start with a dash.\n\nThe leading colon in `\":n:v\"` turns off getopts' own error messages. For an unknown option it sets the variable to `?`, and for a missing value to `:`, with the letter in `OPTARG`, so your script decides what to say:\n\n```bash\nset -- -x -n\nwhile getopts \":n:v\" opt; do\n  echo \"opt=$opt OPTARG=$OPTARG\"\ndone\n```",
+      "examples": [
+        {
+          "title": "The getopts loop",
+          "prompt": "A small `tail`: `-n N` sets how many lines to print (5 by default), and `-v` prints a heading for each file. Mistakes exit 64.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\ncount=5\nverbose=0\nwhile getopts \":n:v\" opt; do\n  case $opt in\n    n) count=$OPTARG ;;\n    v) verbose=1 ;;\n    \\?) echo \"unknown option: -$OPTARG\" >&2; exit 64 ;;\n    :) echo \"option -$OPTARG needs a value\" >&2; exit 64 ;;\n  esac\ndone\nshift $((OPTIND - 1))\n\nfor file in \"$@\"; do\n  if (( verbose )); then\n    echo \"==> $file (last $count lines) <==\"\n  fi\n  tail -n \"$count\" -- \"$file\"\ndone\n",
+          "args": [
+            "-v",
+            "-n",
+            "3",
+            "logs/app.log"
+          ],
+          "output": "==> logs/app.log (last 3 lines) <==\n2026-10-16T11:12:05Z INFO auth: login ok user=u400 ms=103\n2026-10-16T11:19:43Z DEBUG cache: hit key=product:79\n2026-10-16T11:20:48Z INFO search: query results=26 ms=25",
+          "explanation": "Each pass of the loop handles one option: `v` sets the flag, and `n` copies its value from `OPTARG`. The `\\?` and `:` branches catch an unknown option like `-x` and an `-n` with nothing after it, print a message, and exit 64. Then `shift $((OPTIND - 1))` removes the three option words, `-v -n 3`, so `\"$@\"` holds just `logs/app.log`. `\\?` needs its backslash because a bare `?` in a `case` pattern matches any single character."
+        },
+        {
+          "title": "How people type options",
+          "prompt": "The same script, run with both options packed into one word, `-vn2`, and two files after them. It also prints what it parsed.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\ncount=5\nverbose=0\nwhile getopts \":n:v\" opt; do\n  case $opt in\n    n) count=$OPTARG ;;\n    v) verbose=1 ;;\n    \\?) echo \"unknown option: -$OPTARG\" >&2; exit 64 ;;\n    :) echo \"option -$OPTARG needs a value\" >&2; exit 64 ;;\n  esac\ndone\nshift $((OPTIND - 1))\necho \"count=$count verbose=$verbose files=$#\"\n\nfor file in \"$@\"; do\n  if (( verbose )); then\n    echo \"==> $file (last $count lines) <==\"\n  fi\n  tail -n \"$count\" -- \"$file\"\ndone\n",
+          "args": [
+            "-vn2",
+            "a.txt",
+            "b.txt"
+          ],
+          "output": "count=2 verbose=1 files=2\n==> a.txt (last 2 lines) <==\nNovember\nDecember\n==> b.txt (last 2 lines) <==\nSaturday\nSunday",
+          "explanation": "`-vn2` packs both options into one word. getopts reads the `v`, then sees that `n` takes a value and uses the rest of the word, `2`, as `OPTARG`. `-v -n 2`, `-vn 2`, `-n2 -v`, and `-n 2 -v` all parse the same way. The options must come first: getopts stops at `a.txt`, so in `a.txt -v` the `-v` would be taken for a file name. `--` ends the options on purpose, as in `-n 2 -- -odd-name.txt`."
+        },
+        {
+          "title": "Help with -h",
+          "prompt": "Add `-h`, which prints a usage message from a heredoc and exits 0. This run passes `-h`.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nusage() {\n  cat <<EOF\nusage: $0 [-h] [-v] [-n COUNT] FILE...\nPrints the last COUNT lines (default 5) of each FILE.\n\n  -h        show this help and exit\n  -v        print a heading before each file\n  -n COUNT  print COUNT lines\nEOF\n}\n\ncount=5\nverbose=0\nwhile getopts \":hn:v\" opt; do\n  case $opt in\n    h) usage; exit 0 ;;\n    n) count=$OPTARG ;;\n    v) verbose=1 ;;\n    \\?) echo \"unknown option: -$OPTARG\" >&2; usage >&2; exit 64 ;;\n    :) echo \"option -$OPTARG needs a value\" >&2; usage >&2; exit 64 ;;\n  esac\ndone\nshift $((OPTIND - 1))\n(( $# >= 1 )) || { usage >&2; exit 64; }\n\nfor file in \"$@\"; do\n  if (( verbose )); then\n    echo \"==> $file <==\"\n  fi\n  tail -n \"$count\" -- \"$file\"\ndone\n",
+          "args": [
+            "-h"
+          ],
+          "output": "usage: main.sh [-h] [-v] [-n COUNT] FILE...\nPrints the last COUNT lines (default 5) of each FILE.\n\n  -h        show this help and exit\n  -v        print a heading before each file\n  -n COUNT  print COUNT lines",
+          "explanation": "Asking for help isn't a mistake, so `-h` prints the usage to stdout and exits 0. A real mistake prints the specific complaint, then the same usage, both to stderr, and exits 64. A person sees how to fix the command, and a script that called yours sees the failure. The usage lives in a heredoc inside a function, so it's written once and reads in the code the way it prints. Note the `h` added to `\":hn:v\"`: getopts only accepts the letters you list."
+        }
+      ],
+      "practice": {
+        "title": "Mini head",
+        "prompt": "Write a small `head`: `main.sh [-n N] [-q] FILE...`.\n\n1. Parse the options with `getopts`. `-n N` sets how many lines to print, 10 when it isn't given, and `-q` turns the headings off.\n2. For each file, print the heading `==> FILE <==` unless `-q` is on, then the file's first N lines.\n3. For an unknown option, print `unknown option: -X` to stderr and exit 64. For `-n` without a value, print `option -n needs a value` to stderr and exit 64.\n\nCheck runs it on these files, on a set where `a.txt` and `b.txt` hold other lines, and with each of the two mistakes.\n\nArguments:\n\n```text\n-n 3 a.txt b.txt\n```\n\nExpected output:\n\n```text\n==> a.txt <==\nJanuary\nFebruary\nMarch\n==> b.txt <==\nMonday\nTuesday\nWednesday\n```",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n\ncount=10\nquiet=0\nwhile getopts \":n:q\" opt; do\n  case $opt in\n    n) count=$OPTARG ;;\n    # TODO: handle q, an unknown option (\\?), and a missing value (:)\n  esac\ndone\nshift $((OPTIND - 1))\n\nfor file in \"$@\"; do\n  # TODO: print \"==> FILE <==\" first, unless -q is on\n  head -n \"$count\" -- \"$file\"\ndone\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\n\ncount=10\nquiet=0\nwhile getopts \":n:q\" opt; do\n  case $opt in\n    n) count=$OPTARG ;;\n    q) quiet=1 ;;\n    \\?) echo \"unknown option: -$OPTARG\" >&2; exit 64 ;;\n    :) echo \"option -$OPTARG needs a value\" >&2; exit 64 ;;\n  esac\ndone\nshift $((OPTIND - 1))\n\nfor file in \"$@\"; do\n  if (( ! quiet )); then\n    echo \"==> $file <==\"\n  fi\n  head -n \"$count\" -- \"$file\"\ndone\n",
+        "tests": [
+          {
+            "args": [
+              "-n",
+              "3",
+              "a.txt",
+              "b.txt"
+            ],
+            "output": "==> a.txt <==\nJanuary\nFebruary\nMarch\n==> b.txt <==\nMonday\nTuesday\nWednesday"
+          },
+          {
+            "args": [
+              "-q",
+              "b.txt",
+              "a.txt"
+            ],
+            "fixtures": "scriptbox-b",
+            "output": "red\ngreen\nblue\nHydrogen\nHelium\nLithium\nBeryllium\nBoron\nCarbon\nNitrogen\nOxygen\nFluorine\nNeon"
+          },
+          {
+            "args": [
+              "-x",
+              "a.txt"
+            ],
+            "output": "",
+            "exitCode": 64,
+            "stderrIncludes": "unknown option: -x"
+          },
+          {
+            "args": [
+              "-q",
+              "-n"
+            ],
+            "output": "",
+            "exitCode": 64,
+            "stderrIncludes": "option -n needs a value"
+          }
+        ],
+        "hints": [
+          "The starter's loop already handles `n`. Add the other three branches the way the examples do.",
+          "`q)` sets `quiet=1`. The `\\?)` and `:)` branches print their message with `-$OPTARG`, then `exit 64`.",
+          "Before `head`, add `if (( ! quiet )); then echo \"==> $file <==\"; fi`."
+        ]
+      }
+    },
+    {
+      "title": "Long options and stdin",
+      "body": "getopts only knows single letters. For options like `--level ERROR`, walk the arguments yourself: a `while` loop that looks at `$1`, a `case` that handles it, and a `shift` at the end of every pass.\n\n```bash\nset -- --level=ERROR --quiet app.log\nwhile (( $# > 0 )); do\n  case $1 in\n    --level=*) echo \"level: ${1#*=}\" ;;\n    --quiet) echo \"quiet: on\" ;;\n    *) break ;;\n  esac\n  shift\ndone\necho \"left: $*\"\n```\n\n`--level=*` matches the `=` form, and `${1#*=}` cuts off everything up to the first `=`. For the `--level ERROR` form the value is `$2`, so that branch shifts one extra time. `--` means no more options, and any other word that starts with `-` is an unknown option.\n\nTools like `grep` read the file you name, or stdin when you name none. `input=\"${1:--}\"` does the same: it's the first argument, or `-` when there isn't one. `cat -- \"$input\"` prints that file, or stdin when `input` is `-`, so a loop fed by `< <(cat -- \"$input\")` handles both.",
+      "examples": [
+        {
+          "title": "A long option parser",
+          "prompt": "Parse `--level=VALUE`, `--level VALUE`, `--quiet`, and `--`, then show what was found.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nlevel=INFO\nquiet=0\nwhile (( $# > 0 )); do\n  case $1 in\n    --level=*) level=${1#*=} ;;\n    --level)\n      (( $# >= 2 )) || { echo \"--level needs a value\" >&2; exit 64; }\n      level=$2\n      shift\n      ;;\n    --quiet) quiet=1 ;;\n    --) shift; break ;;\n    -*) echo \"unknown option: $1\" >&2; exit 64 ;;\n    *) break ;;\n  esac\n  shift\ndone\n\necho \"level=$level quiet=$quiet\"\necho \"files: $#\"\nfor file in \"$@\"; do\n  echo \"file: $file\"\ndone\n",
+          "args": [
+            "--quiet",
+            "--level",
+            "WARN",
+            "--",
+            "--odd-name.log"
+          ],
+          "output": "level=WARN quiet=1\nfiles: 1\nfile: --odd-name.log",
+          "explanation": "Each pass looks at `$1` and shifts it off at the bottom of the loop. `--level` with a separate value reads `$2` and shifts once more, so the value isn't mistaken for a file, and it exits 64 when there's no value left to read. `--` shifts itself off and leaves the loop, so `--odd-name.log` stays a file name even though it starts with dashes. The `-*` branch catches anything else that looks like an option, and `*` stops at the first ordinary word, just as getopts does."
+        },
+        {
+          "title": "A file or stdin",
+          "prompt": "Number the lines of the file named by the first argument, or of stdin when there's no argument. This run has no arguments and reads the Input.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\ninput=\"${1:--}\"\nn=0\nwhile IFS= read -r line; do\n  n=$(( n + 1 ))\n  printf '%3d  %s\\n' \"$n\" \"$line\"\ndone < <(cat -- \"$input\")\necho \"($n lines from $input)\"\n",
+          "stdin": "deploy started\ncopied 3 files\ndeploy finished\n",
+          "output": "  1  deploy started\n  2  copied 3 files\n  3  deploy finished\n(3 lines from -)",
+          "explanation": "There's no first argument, so `input` is `-`, and `cat -- -` copies stdin, which is the Input shown above. Put `'meeting notes.txt'` in the Arguments field and run it again: `cat` reads that file instead, and the loop doesn't change. The `--` tells `cat` that what follows is a file name even if it starts with a dash. The loop reads from `< <(cat ...)`, not from a pipe, so `n` is still set after the loop. It counts with `n=$(( n + 1 ))` because under `set -e`, `(( n++ ))` fails when `n` is 0 and would stop the script."
+        },
+        {
+          "title": "Options and input together",
+          "prompt": "A small tool for the to-do list format: `--open` or `--done` picks tasks, `--prefix TEXT` or `--prefix=TEXT` starts each line, and the list comes from a file or stdin.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nusage() {\n  echo \"usage: $0 [--open | --done] [--prefix TEXT] [FILE]\"\n}\n\nmain() {\n  local want=\"\" prefix=\"- \"\n  while (( $# > 0 )); do\n    case $1 in\n      --open) want=\"[ ]\" ;;\n      --done) want=\"[x]\" ;;\n      --prefix=*) prefix=${1#*=} ;;\n      --prefix)\n        (( $# >= 2 )) || { usage >&2; exit 64; }\n        prefix=$2\n        shift\n        ;;\n      --help) usage; exit 0 ;;\n      --) shift; break ;;\n      -?*) echo \"unknown option: $1\" >&2; usage >&2; exit 64 ;;\n      *) break ;;\n    esac\n    shift\n  done\n\n  local input=\"${1:--}\" line\n  while IFS= read -r line; do\n    [[ -z $want || ${line:2:3} == \"$want\" ]] || continue\n    printf '%s%s\\n' \"$prefix\" \"${line:6}\"\n  done < <(cat -- \"$input\")\n}\n\nmain \"$@\"\n",
+          "args": [
+            "--open",
+            "--prefix=TODO: ",
+            "to do.txt"
+          ],
+          "output": "TODO: renew the TLS certificate\nTODO: archive the September logs\nTODO: write the restore runbook",
+          "explanation": "`main` parses the options first, then reads the list. `--prefix=TODO: ` arrives as one argument because the Arguments field quotes it, and `${1#*=}` keeps everything after the first `=`, the space included. The `-?*` pattern means a dash followed by at least one more character, so a lone `-` still counts as a file name, the usual way to ask for stdin by name. `${line:2:3}` is each task's box, `[ ]` or `[x]`, and `${line:6}` is the text after it."
+        }
+      ],
+      "practice": {
+        "title": "Log filter",
+        "prompt": "Write `main.sh --level LEVEL [--since HH:MM] [FILE]`, which filters an app log such as `logs/app.log`.\n\n1. Accept `--level LEVEL` and `--level=LEVEL`, and both forms of `--since` too.\n2. Print the lines whose level, the second field, equals LEVEL. With `--since`, print only those whose time, the `HH:MM` in the first field, is at or after it.\n3. Read FILE when one is given, and stdin when it isn't.\n4. `--help` prints `usage: main.sh --level LEVEL [--since HH:MM] [FILE]`, with `$0` for the name, and exits 0. An unknown option prints `unknown option: X` to stderr and exits 64.\n\nCheck runs it on `logs/app.log`, on log lines sent to stdin with `--since 10:00 --level=WARN`, with `--help`, and with an unknown option after the other two.\n\nArguments:\n\n```text\n--level ERROR logs/app.log\n```\n\nExpected output:\n\n```text\n2026-10-16T08:14:22Z ERROR worker: thumbnail failed image=4411 ms=930\n2026-10-16T10:02:47Z ERROR checkout: payment declined order=5101 ms=512\n2026-10-16T10:45:10Z ERROR worker: thumbnail failed image=4502 ms=1204\n```",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n\nusage() {\n  echo \"usage: $0 --level LEVEL [--since HH:MM] [FILE]\"\n}\n\nlevel=\"\"\nsince=\"00:00\"\n# TODO: parse --level and --since (both forms of each), --help, --,\n# TODO: and unknown options (exit 64), shifting each one away\n\ninput=\"${1:--}\"\nwhile IFS= read -r line; do\n  read -r stamp lvl _ <<< \"$line\"\n  # TODO: skip lines at another level, or earlier than $since\n  echo \"$line\"\ndone < <(cat -- \"$input\")\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\n\nusage() {\n  echo \"usage: $0 --level LEVEL [--since HH:MM] [FILE]\"\n}\n\nlevel=\"\"\nsince=\"00:00\"\nwhile (( $# > 0 )); do\n  case $1 in\n    --level=*) level=${1#*=} ;;\n    --since=*) since=${1#*=} ;;\n    --level)\n      (( $# >= 2 )) || { usage >&2; exit 64; }\n      level=$2\n      shift\n      ;;\n    --since)\n      (( $# >= 2 )) || { usage >&2; exit 64; }\n      since=$2\n      shift\n      ;;\n    --help) usage; exit 0 ;;\n    --) shift; break ;;\n    -?*) echo \"unknown option: $1\" >&2; usage >&2; exit 64 ;;\n    *) break ;;\n  esac\n  shift\ndone\n[[ -n $level ]] || { usage >&2; exit 64; }\n\ninput=\"${1:--}\"\nwhile IFS= read -r line; do\n  read -r stamp lvl _ <<< \"$line\"\n  [[ $lvl == \"$level\" ]] || continue\n  [[ ${stamp:11:5} < \"$since\" ]] && continue\n  echo \"$line\"\ndone < <(cat -- \"$input\")\n",
+        "tests": [
+          {
+            "args": [
+              "--level",
+              "ERROR",
+              "logs/app.log"
+            ],
+            "output": "2026-10-16T08:14:22Z ERROR worker: thumbnail failed image=4411 ms=930\n2026-10-16T10:02:47Z ERROR checkout: payment declined order=5101 ms=512\n2026-10-16T10:45:10Z ERROR worker: thumbnail failed image=4502 ms=1204"
+          },
+          {
+            "stdin": "2026-10-18T09:58:12Z WARN disk: /srv usage=88%\n2026-10-18T10:00:00Z WARN payments: slow gateway response ms=2210\n2026-10-18T10:04:51Z INFO auth: login ok user=u77 ms=88\n2026-10-18T10:15:09Z ERROR checkout: payment declined order=5230 ms=498\n2026-10-18T11:42:37Z WARN disk: /srv usage=91%\n",
+            "args": [
+              "--since",
+              "10:00",
+              "--level=WARN"
+            ],
+            "output": "2026-10-18T10:00:00Z WARN payments: slow gateway response ms=2210\n2026-10-18T11:42:37Z WARN disk: /srv usage=91%"
+          },
+          {
+            "args": [
+              "--help"
+            ],
+            "output": "usage: main.sh --level LEVEL [--since HH:MM] [FILE]"
+          },
+          {
+            "args": [
+              "--since=09:30",
+              "--level",
+              "ERROR",
+              "--tail",
+              "5",
+              "logs/app.log"
+            ],
+            "output": "",
+            "exitCode": 64,
+            "stderrIncludes": "unknown option: --tail"
+          }
+        ],
+        "hints": [
+          "Start from the parser in the first example: one `case` branch per form, and a `shift` at the bottom of every pass.",
+          "`${stamp:11:5}` is the `HH:MM` of a stamp like `2026-10-16T10:02:47Z`. Times written this way compare correctly as strings, so `[[ ${stamp:11:5} < \"$since\" ]] && continue` skips the early lines.",
+          "`[[ $lvl == \"$level\" ]] || continue` skips the other levels. Put both tests before the `echo`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `$1` to `$9`, then `${10}`, hold the arguments, `$#` counts them, and `\"$@\"` passes them all on, each as its own word.\n- `shift` drops `$1`, which is how loops walk the arguments.\n- Usage mistakes print to stderr and exit 64. `-h` and `--help` print the usage to stdout and exit 0.\n- `getopts \":n:v\" opt` parses short options. A colon after a letter means a value in `OPTARG`, `\\?` is an unknown option, and `:` is a missing value.\n- `shift $((OPTIND - 1))` leaves only the file names and other operands after getopts.\n- Long options need a `while (( $# > 0 ))` loop with a `case` on `$1`, for `--name=value`, `--name value`, flags, and `--`.\n- `input=\"${1:--}\"` with `cat -- \"$input\"` reads the named file, or stdin."
+}

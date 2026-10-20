@@ -1,0 +1,173 @@
+{
+  "id": "pipes-and-filters",
+  "title": "Pipes and Filters",
+  "section": "Streams and Pipes",
+  "summary": "Connect commands with pipes, cut out lines with head and tail, count with wc, and keep a copy of a stream with tee.",
+  "intro": "A pipe, `|`, connects one command's stdout to the next command's stdin. Tools built for this are called filters: they read stdin, keep, change, or count what passes through, and write the result to stdout. Chaining a few small filters answers most questions about a file in one line.",
+  "format": "single",
+  "fixtures": "textbox",
+  "steps": [
+    {
+      "title": "Connect commands",
+      "body": "`a | b` runs both commands at once, and everything `a` prints flows into `b` instead of to the screen. `b` reads it as its stdin, so it needs no file name.\n\n```bash\nhead -n 3 fruits.txt | tail -n 1\n```\n\n`head -n N` keeps the first N lines, and `tail -n N` keeps the last N. `tail -n +N` starts at line N and keeps the rest, so `tail -n +2` drops a header line. Together they cut out any range of lines.\n\nWhen a pipeline would start with `cat file`, give the file to the next command instead: `head -n 3 file` beats `cat file | head -n 3`. It does the same job with one process fewer, and the command still knows which file it's reading. Save `cat` for when it really concatenates several files.",
+      "examples": [
+        {
+          "title": "Same result, fewer processes",
+          "prompt": "Print the first three lines of `employees.csv`, with and without `cat`.",
+          "code": "head -n 3 employees.csv\necho \"---\"\ncat employees.csv | head -n 3\n",
+          "output": "id,name,dept,salary,start_date,email\n1,Priya Natarajan,eng,128000,2019-03-11,priya.natarajan@shop.example\n2,Marcus Bell,sales,72000,2021-06-01,marcus.bell@Shop.Example\n---\nid,name,dept,salary,start_date,email\n1,Priya Natarajan,eng,128000,2019-03-11,priya.natarajan@shop.example\n2,Marcus Bell,sales,72000,2021-06-01,marcus.bell@Shop.Example",
+          "explanation": "Both print the same three lines: the header and the first two rows. In the second, `cat` reads the file and `head` reads `cat`'s output through the pipe, so two processes do one job. Handing the file to `head` directly is shorter and does less work."
+        },
+        {
+          "title": "Skip the header",
+          "prompt": "Print the first three data rows of `employees.csv`, without the header.",
+          "code": "tail -n +2 employees.csv | head -n 3\n",
+          "output": "1,Priya Natarajan,eng,128000,2019-03-11,priya.natarajan@shop.example\n2,Marcus Bell,sales,72000,2021-06-01,marcus.bell@Shop.Example\n3,Lena Fischer,eng,115000,2020-01-20,lena.fischer@shop.example",
+          "explanation": "`tail -n +2` prints from line 2 to the end, which is every row without the header. `head -n 3` keeps the first three of those. Read a pipeline left to right: each command works on what the one before it printed."
+        },
+        {
+          "title": "Count anything",
+          "prompt": "Show the first names in the `src` folder, then count all of them.",
+          "code": "ls src | head -n 3\nls src | wc -l\n",
+          "output": "README.md\nbackup.sh\ndeploy.sh\n6",
+          "explanation": "When its output goes into a pipe, `ls` prints one name per line, so any line tool can work on a listing. `head -n 3` keeps the first three names, and `wc -l` counts every line it receives: `src` holds 6 entries, its two folders included."
+        }
+      ],
+      "practice": {
+        "title": "Rows 4 to 6",
+        "prompt": "Print data rows 4 to 6 of `scores.csv`. The header isn't a row, so row 1 is line 2 of the file.\n\n1. Start at the right line with `tail -n +N`.\n2. Pipe the result into `head` to keep three rows.\n\nCheck runs it on two different score files.\n\nExpected output:\n\n```text\nDara Novak,7C,67\nEli Shapiro,7B,85\nFarah Aziz,7A,79\n```",
+        "starter": "# TODO: print data rows 4 to 6 of scores.csv, with tail and head in one pipeline\n",
+        "solution": "tail -n +5 scores.csv | head -n 3\n",
+        "tests": [
+          {
+            "output": "Dara Novak,7C,67\nEli Shapiro,7B,85\nFarah Aziz,7A,79"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "Oscar Lind,8A,81\nPia Jensen,8B,88\nQuinn Avery,8C,73"
+          }
+        ],
+        "hints": [
+          "Row 1 is line 2, so row 4 is line 5.",
+          "`tail -n +5 scores.csv` prints from line 5 to the end of the file.",
+          "Pipe that into `head -n 3` to stop after row 6."
+        ]
+      }
+    },
+    {
+      "title": "Count with wc",
+      "body": "`wc` counts lines, words, and bytes. With no option it prints all three, then the file's name. Options pick the counts you want: `-l` for lines, `-w` for words, and `-c` for bytes.\n\n```bash\nwc -c fruits.txt\n```\n\nGive `wc` a file name and it prints the name too. Feed it the file through `<` or a pipe, and it prints just the number, ready to use.\n\n`wc -l` really counts newline characters. A last line without a newline at its end isn't counted. `echo -n` prints its text without the newline, which shows this, and is also how you print a label and a count on the same line.\n\n```bash\necho -n \"fruits: \"\nwc -l < fruits.txt\n```",
+      "examples": [
+        {
+          "title": "All three counts",
+          "prompt": "Count the lines, words, and bytes of `poem.txt`, then just its lines and words.",
+          "code": "wc poem.txt\nwc -l -w poem.txt\n",
+          "output": "  9  56 289 poem.txt\n  9  56 poem.txt",
+          "explanation": "Plain `wc` prints lines, words, and bytes, in that order, then the name. `-l -w` keeps lines and words, still in that order whichever option comes first. The blank line between the stanzas counts as a line, so the poem has 9."
+        },
+        {
+          "title": "Just the number",
+          "prompt": "Count the lines of `access.log` with and without its name, then count the names in this folder.",
+          "code": "wc -l access.log\nwc -l < access.log\nls | wc -l\n",
+          "output": "400 access.log\n400\n22",
+          "explanation": "With the name as an argument, `wc` prints the name after the count. Through `<` it prints the number alone. `ls | wc -l` counts the names in the folder: this lesson's files, the `src` folder, and `main.sh`, your script, which sits beside them."
+        },
+        {
+          "title": "Label and count on one line",
+          "prompt": "Print a label and a count on one line, then count text that has no newline.",
+          "code": "echo -n \"lines: \"\nwc -l < app.log\necho -n \"no newline\" | wc -l\necho \"one newline\" | wc -l\n",
+          "output": "lines: 62\n0\n1",
+          "explanation": "`echo -n` prints `lines: ` without ending the line, so the count from `wc` lands right after it. `echo -n \"no newline\"` sends text with no newline at all, and `wc -l` counts 0. A plain `echo` ends its text with a newline, which counts as 1."
+        }
+      ],
+      "practice": {
+        "title": "Log stats",
+        "prompt": "Print how many lines and words `app.log` has, each on its own labeled line.\n\n1. Print `lines: ` and the line count of `app.log` on one line.\n2. Print `words: ` and its word count on the next line.\n\nCheck runs it on three different logs.\n\nExpected output:\n\n```text\nlines: 62\nwords: 445\n```",
+        "starter": "# TODO: print lines: and the line count of app.log on one line\n\n# TODO: print words: and its word count on the next line\n",
+        "solution": "echo -n \"lines: \"\nwc -l < app.log\necho -n \"words: \"\nwc -w < app.log\n",
+        "tests": [
+          {
+            "output": "lines: 62\nwords: 445"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "lines: 54\nwords: 368"
+          },
+          {
+            "fixtures": "textbox-c",
+            "output": "lines: 58\nwords: 399"
+          }
+        ],
+        "hints": [
+          "`echo -n` prints a label without ending the line.",
+          "Feed the file with `<`, so `wc` prints only the number.",
+          "`wc -w < app.log` prints just the word count."
+        ]
+      }
+    },
+    {
+      "title": "Longer pipelines and tee",
+      "body": "Build a long pipeline one stage at a time: run the first command, check its output, add the next stage, and run it again.\n\n`tee FILE` copies its stdin to the file and to its stdout, like a T-joint in a pipe, so you can save what flows past and keep going. `tee -a FILE` appends instead of overwriting.\n\n```bash\nhead -n 2 fruits.txt | tee picked.txt | wc -l\ncat picked.txt\n```\n\nA pipe carries stdout only. Errors skip it and go straight to the screen. `|&` sends stderr down the pipe too, the same as `2>&1 |`.\n\nA pipeline's exit status is its last command's. So a failure early in the pipeline goes unnoticed, which the strict mode lesson fixes later with `set -o pipefail`.",
+      "examples": [
+        {
+          "title": "Stage by stage",
+          "prompt": "Build a pipeline that prints lines 16 to 20 of `access.log`, counting after each stage.",
+          "code": "head -n 20 access.log | wc -l\nhead -n 20 access.log | tail -n 5 | wc -l\nhead -n 20 access.log | tail -n 5\n",
+          "output": "20\n5\n198.51.100.190 - - [03/Oct/2026:14:02:13 +0000] \"GET /products HTTP/1.1\" 200 13667 \"-\" \"Mozilla/5.0 (Android 16; Mobile; rv:150.0) Gecko/150.0 Firefox/150.0\" 0.019\n192.0.2.146 - - [03/Oct/2026:14:02:15 +0000] \"GET /products HTTP/1.1\" 200 9912 \"https://shop.example/\" \"Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0\" 0.019\n203.0.113.184 - - [03/Oct/2026:14:02:31 +0000] \"GET /login HTTP/1.1\" 200 5009 \"https://shop.example/\" \"Mozilla/5.0 (Android 16; Mobile; rv:150.0) Gecko/150.0 Firefox/150.0\" 0.018\n198.51.100.88 - - [03/Oct/2026:14:02:35 +0000] \"GET /search HTTP/1.1\" 200 4956 \"https://shop.example/products\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15\" 0.098\n192.0.2.165 - - [03/Oct/2026:14:02:39 +0000] \"POST /api/orders HTTP/1.1\" 201 130 \"https://shop.example/account\" \"Mozilla/5.0 (Android 16; Mobile; rv:150.0) Gecko/150.0 Firefox/150.0\" 0.329",
+          "explanation": "Each line adds a stage. `head -n 20` keeps the first 20 lines, and `wc -l` confirms there are 20. `tail -n 5` keeps the last 5 of those, lines 16 to 20 of the log, and `wc -l` confirms 5. Once the counts look right, drop the `wc -l` and read the lines themselves. Checking each stage catches a mistake before the pipeline grows around it."
+        },
+        {
+          "title": "Save mid-stream",
+          "prompt": "Save the last 50 lines of `access.log` while counting them, then append one more line with `tee -a`.",
+          "code": "tail -n 50 access.log | tee recent.log | wc -l\nhead -n 1 recent.log\necho \"end of sample\" | tee -a recent.log\nwc -l < recent.log\n",
+          "output": "50\n203.0.113.64 - - [03/Oct/2026:14:51:38 +0000] \"POST /api/orders HTTP/1.1\" 201 1775 \"https://shop.example/account\" \"Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1\" 0.265\nend of sample\n51",
+          "explanation": "`tee recent.log` writes the 50 lines into the file and passes them on, so `wc -l` still counts 50, and `head -n 1 recent.log` shows the file kept them. `tee -a` adds its line to the end of the file instead of replacing it, and prints that line too, so the file ends with 51 lines."
+        },
+        {
+          "title": "Stderr and pipes",
+          "prompt": "Pipe a failing `ls` into `wc -l` with `|` and with `|&`, then run it alone.",
+          "code": "ls nope.txt | wc -l\necho \"pipeline status: $?\"\nls nope.txt |& wc -l\nls nope.txt\n",
+          "expect": "runtime-error",
+          "output": "0\npipeline status: 0\n1",
+          "errorIncludes": "ls: cannot access 'nope.txt': No such file or directory\nls: cannot access 'nope.txt': No such file or directory",
+          "exitCode": 2,
+          "explanation": "The first `ls` writes its error to stderr, which skips the pipe and goes to the screen, so `wc` gets nothing and prints 0. The pipeline's status is `wc`'s, 0, even though `ls` failed. `|&` sends stderr into the pipe as well, so `wc` counts the error as 1 line and none of it reaches the screen. The last `ls` runs alone, so its status, 2, becomes the script's, and the exit badge shows it."
+        }
+      ],
+      "practice": {
+        "title": "Sample the log",
+        "prompt": "Keep a sample of the newest log lines in a file, and show where the sample starts.\n\n1. Take the last 20 lines of `app.log`.\n2. Save them to `recent.log` with `tee`.\n3. In the same pipeline, print only the first of those 20 lines.\n\nCheck runs it on three logs and reads `recent.log` afterwards.\n\nExpected output:\n\n```text\n2026-10-03T14:45:49Z INFO http: GET /cart status=200 ms=135 bytes=7108\n```",
+        "starter": "# TODO: save the last 20 lines of app.log to recent.log with tee, and print only the first of them\n",
+        "solution": "tail -n 20 app.log | tee recent.log | head -n 1\n",
+        "tests": [
+          {
+            "output": "2026-10-03T14:45:49Z INFO http: GET /cart status=200 ms=135 bytes=7108",
+            "files": {
+              "recent.log": "2026-10-03T14:45:49Z INFO http: GET /cart status=200 ms=135 bytes=7108\n2026-10-03T14:46:14Z INFO auth: login ok user=u365 ms=122\n2026-10-03T14:46:59Z INFO checkout: order placed order=1049 items=1 ms=167\n2026-10-03T14:47:00Z INFO http: GET /products status=200 ms=160 bytes=5374\n2026-10-03T14:47:29Z DEBUG cache: hit key=product:50\n2026-10-03T14:51:01Z INFO http: GET /search status=200 ms=159 bytes=2889\n2026-10-03T14:51:11Z DEBUG cache: miss key=product:65 ms=5\n2026-10-03T14:52:18Z INFO http: GET /account status=200 ms=171 bytes=20293\n2026-10-03T14:52:26Z WARN mailer: smtp request timed out, retrying order=1049\n2026-10-03T14:52:33Z INFO http: GET /products/58 status=200 ms=176 bytes=15856\n2026-10-03T14:53:32Z INFO http: GET /account status=200 ms=39 bytes=11721\n2026-10-03T14:53:44Z DEBUG cache: hit key=product:80\n2026-10-03T14:54:02Z WARN payments: slow gateway response ms=2598\n2026-10-03T14:54:16Z DEBUG cache: hit key=product:56\n2026-10-03T14:54:53Z WARN payments: slow gateway response ms=1368\n2026-10-03T14:56:55Z DEBUG cache: miss key=product:47 ms=1\n2026-10-03T14:57:55Z INFO auth: login ok user=u116 ms=78\n2026-10-03T14:59:05Z INFO checkout: order placed order=1050 items=1 ms=271\n2026-10-03T15:03:58Z ERROR checkout: address check failed order=1051 ms=231\n2026-10-03T15:07:09Z INFO http: GET / status=200 ms=62 bytes=17764"
+            }
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "2026-10-08T09:29:27Z INFO auth: login ok user=u238 ms=113",
+            "files": {
+              "recent.log": "2026-10-08T09:29:27Z INFO auth: login ok user=u238 ms=113\n2026-10-08T09:30:52Z INFO mailer: receipt sent order=2210 ms=87\n2026-10-08T09:35:54Z INFO search: query results=33 ms=152\n2026-10-08T09:39:15Z INFO auth: login ok user=u372 ms=97\n2026-10-08T09:41:12Z FATAL db: cannot connect to db.internal:5432 after 5 attempts\n2026-10-08T09:41:13Z INFO supervisor: restarting app attempt=2\n2026-10-08T09:47:44Z INFO search: query results=1 ms=102\n2026-10-08T09:49:47Z ERROR refunds: refund failed order=998 ms=610\n2026-10-08T09:51:22Z INFO search: query results=35 ms=173\n2026-10-08T09:51:28Z DEBUG cache: hit key=product:55\n2026-10-08T09:51:47Z DEBUG cache: hit key=product:78\n2026-10-08T09:52:04Z DEBUG cache: hit key=product:49\n2026-10-08T09:54:32Z DEBUG cache: miss key=product:28 ms=9\n2026-10-08T09:57:10Z INFO http: GET /products/17 status=200 ms=13 bytes=13350\n2026-10-08T09:57:15Z INFO http: GET /products/42 status=200 ms=179 bytes=16219\n2026-10-08T09:58:20Z WARN api: upstream TIMEOUT on /api/search ms=8000\n2026-10-08T09:58:37Z INFO checkout: order placed order=2216 items=3 ms=320\n2026-10-08T10:02:49Z DEBUG cache: hit key=product:6\n2026-10-08T10:04:23Z WARN payments: slow gateway response ms=2427\n2026-10-08T10:04:28Z INFO http: GET / status=200 ms=80 bytes=6135"
+            }
+          },
+          {
+            "fixtures": "textbox-c",
+            "output": "2026-10-12T20:05:10Z DEBUG cache: miss key=product:28 ms=6",
+            "files": {
+              "recent.log": "2026-10-12T20:05:10Z DEBUG cache: miss key=product:28 ms=6\n2026-10-12T20:05:18Z ERROR refunds: refund failed order=9871 ms=702\n2026-10-12T20:06:43Z INFO mailer: receipt sent order=9997 ms=100\n2026-10-12T20:07:47Z INFO auth: login ok user=u310 ms=110\n2026-10-12T20:10:06Z INFO checkout: order placed order=10001 items=2 ms=236\n2026-10-12T20:10:43Z DEBUG cache: hit key=product:86\n2026-10-12T20:11:11Z INFO http: GET /products/17 status=200 ms=124 bytes=11921\n2026-10-12T20:12:27Z ERROR db: deadlock detected table=orders ms=1180\n2026-10-12T20:15:23Z INFO checkout: order placed order=10002 items=4 ms=415\n2026-10-12T20:16:06Z INFO http: GET /products status=200 ms=100 bytes=7482\n2026-10-12T20:22:06Z INFO http: GET /account status=200 ms=95 bytes=17650\n2026-10-12T20:26:21Z WARN payments: slow gateway response ms=1630\n2026-10-12T20:28:09Z INFO http: GET /cart status=200 ms=54 bytes=9463\n2026-10-12T20:29:51Z ERROR checkout: payment declined order=10003 ms=489\n2026-10-12T20:32:34Z INFO http: GET /cart status=200 ms=174 bytes=7620\n2026-10-12T20:33:03Z INFO checkout: order placed order=10004 items=4 ms=436\n2026-10-12T20:33:05Z WARN cache: TIMEOUT reading key=cart:88 ms=250\n2026-10-12T20:36:55Z INFO http: GET /products/17 status=200 ms=66 bytes=13250\n2026-10-12T20:38:01Z INFO auth: login ok user=u172 ms=60\n2026-10-12T20:38:32Z INFO checkout: order placed order=10005 items=2 ms=146"
+            }
+          }
+        ],
+        "hints": [
+          "`tee recent.log` saves everything that flows through it and passes it on.",
+          "Put `tee` between `tail` and the command that keeps one line.",
+          "`head -n 1` at the end prints the first line, while `recent.log` still gets all 20."
+        ]
+      }
+    }
+  ],
+  "recap": "- `a | b` sends `a`'s stdout into `b`'s stdin. Filters read stdin and write stdout.\n- `head -n N` keeps the first N lines, `tail -n N` the last N, and `tail -n +N` everything from line N on.\n- `wc` counts lines, words, and bytes with `-l`, `-w`, and `-c`. Feed it through `<` or a pipe to get just the number.\n- `echo -n` prints its text without a newline.\n- `tee FILE` saves a copy of what flows past and passes it on, and `tee -a` appends.\n- A pipe carries stdout only, and `|&` adds stderr. A pipeline's status is its last command's.\n- Give a file straight to a command instead of starting with `cat file |`."
+}

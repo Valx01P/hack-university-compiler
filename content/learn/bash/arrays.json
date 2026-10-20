@@ -1,0 +1,174 @@
+{
+  "id": "arrays",
+  "title": "Arrays and Associative Arrays",
+  "section": "Data in Bash",
+  "summary": "Keep lists in arrays, fill them from files, build commands safely with them, and count and look up values by name with associative arrays.",
+  "intro": "A variable holds one string. A list of hosts, the columns of a CSV header, or a count for each IP address needs more than one, and that's what arrays are for. In this lesson you build and loop over indexed arrays, fill them from files, keep a command's options in an array, and map names to values with associative arrays.",
+  "fixtures": "scriptbox",
+  "steps": [
+    {
+      "title": "Indexed arrays",
+      "body": "An indexed array holds a list of strings in numbered slots, starting at 0. Create one with parentheses, and quote any element that has a space in it:\n\n```bash\ntasks=(\"write docs\" \"fix login\" \"deploy\")\necho \"${tasks[0]}\"   # write docs\necho \"${#tasks[@]}\"  # 3\n```\n\nThe braces are required. Without them, `$tasks` is the first element and `[1]` is plain text after it:\n\n```bash\ntasks=(\"write docs\" \"fix login\")\necho \"$tasks[1]\"     # write docs[1]\necho \"${tasks[1]}\"   # fix login\n```\n\n`\"${tasks[@]}\"` expands to every element, each one still a separate word, the same way `\"$@\"` does for arguments. `tasks+=(\"ship\")` appends, `\"${!tasks[@]}\"` lists the indexes, and `\"${tasks[@]:1:2}\"` is a slice: 2 elements, starting at index 1.\n\n`unset 'tasks[1]'` deletes one element, but the others keep their numbers, so the array has a gap at index 1. Quote `'tasks[1]'` so Bash never reads the brackets as a glob.",
+      "examples": [
+        {
+          "title": "Create and read",
+          "prompt": "Make an array of tasks, read elements by index, count them, and append one.",
+          "code": "tasks=(\"write docs\" \"fix login\" \"deploy\")\necho \"second: ${tasks[1]}\"\necho \"count: ${#tasks[@]}\"\n\ntasks+=(\"celebrate\")\necho \"count: ${#tasks[@]}\"\necho \"last: ${tasks[-1]}\"\n",
+          "output": "second: fix login\ncount: 3\ncount: 4\nlast: celebrate",
+          "explanation": "Indexes start at 0, so `${tasks[1]}` is the second task. `${#tasks[@]}` counts the elements, and `tasks+=(\"celebrate\")` adds one at the end. A negative index counts back from the end, so `${tasks[-1]}` is always the last element. Keep the parentheses in `+=`: without them, Bash adds the text to the end of the first element instead of adding an element:\n\n```bash\ntasks=(\"write docs\" \"fix login\")\ntasks+=\"!\"\necho \"${tasks[0]}\"   # write docs!\necho \"${#tasks[@]}\"  # 2\n```"
+        },
+        {
+          "title": "Loop safely",
+          "prompt": "Loop over the tasks by value and by index, then join them into one line.",
+          "code": "tasks=(\"write docs\" \"fix login\" \"deploy\")\n\nfor t in \"${tasks[@]}\"; do\n  echo \"task: $t\"\ndone\n\nfor i in \"${!tasks[@]}\"; do\n  echo \"$((i + 1)). ${tasks[i]}\"\ndone\n\necho \"all: ${tasks[*]}\"\n",
+          "output": "task: write docs\ntask: fix login\ntask: deploy\n1. write docs\n2. fix login\n3. deploy\nall: write docs fix login deploy",
+          "explanation": "`\"${tasks[@]}\"` gives one word per element, so `write docs` stays whole. `\"${!tasks[@]}\"` gives the indexes instead, which you need to number lines or to reach the same position in another array. The index inside `[...]` is arithmetic, so `${tasks[i]}` needs no `$` before `i`. `\"${tasks[*]}\"` joins the elements into one string with spaces, for a message. Leave the quotes off, and every space splits again:\n\n```bash\ntasks=(\"write docs\" \"fix login\" \"deploy\")\nfor t in ${tasks[*]}; do\n  echo \"task: $t\"\ndone\n```"
+        },
+        {
+          "title": "Slices and gaps",
+          "prompt": "Take a slice of the array, delete one element, and look at the gap it leaves.",
+          "code": "tasks=(\"write docs\" \"fix login\" \"deploy\" \"celebrate\")\nprintf '%s\\n' \"${tasks[@]:1:2}\"\n\nunset 'tasks[1]'\necho \"count: ${#tasks[@]}, indexes: ${!tasks[*]}\"\necho \"slot 1: [${tasks[1]}]\"\n\ntasks=(\"${tasks[@]}\")\necho \"indexes now: ${!tasks[*]}\"\necho \"slot 1: [${tasks[1]}]\"\n",
+          "output": "fix login\ndeploy\ncount: 3, indexes: 0 2 3\nslot 1: []\nindexes now: 0 1 2\nslot 1: [deploy]",
+          "explanation": "`\"${tasks[@]:1:2}\"` takes 2 elements starting at index 1, and `printf` prints each on its own line. `unset 'tasks[1]'` removes `fix login` but doesn't renumber the rest, so the indexes are 0, 2, and 3, and slot 1 reads as empty. Copying the array into itself with `tasks=(\"${tasks[@]}\")` numbers it from 0 again. To drop the first elements in one step, keep a slice instead: `tasks=(\"${tasks[@]:2}\")` keeps everything from index 2 on."
+        }
+      ],
+      "practice": {
+        "title": "Task queue",
+        "prompt": "Work through a queue of tasks kept in the `tasks` array.\n\n1. Print `count: N`, `first: TASK`, and `last: TASK`.\n2. Remove the first two tasks from `tasks`, then append `rotate keys` and `update docs`.\n3. Print every task that's left, numbered from 1, as `N. TASK`.\n\nCheck also prints `tasks` after your code runs, so change the array itself.\n\nExpected output:\n\n```text\ncount: 5\nfirst: renew TLS certificate\nlast: write release notes\n1. review pull requests\n2. archive old logs\n3. write release notes\n4. rotate keys\n5. update docs\n```",
+        "starter": "tasks=(\"renew TLS certificate\" \"back up database\" \"review pull requests\" \"archive old logs\" \"write release notes\")\n\n# TODO: print count: N, first: TASK and last: TASK\n# TODO: remove the first two tasks, then append \"rotate keys\" and \"update docs\"\n# TODO: print every task numbered from 1, as \"N. TASK\"\n",
+        "solution": "tasks=(\"renew TLS certificate\" \"back up database\" \"review pull requests\" \"archive old logs\" \"write release notes\")\n\necho \"count: ${#tasks[@]}\"\necho \"first: ${tasks[0]}\"\necho \"last: ${tasks[-1]}\"\n\ntasks=(\"${tasks[@]:2}\")\ntasks+=(\"rotate keys\" \"update docs\")\n\nfor i in \"${!tasks[@]}\"; do\n  echo \"$((i + 1)). ${tasks[i]}\"\ndone\n",
+        "tests": [
+          {
+            "output": "count: 5\nfirst: renew TLS certificate\nlast: write release notes\n1. review pull requests\n2. archive old logs\n3. write release notes\n4. rotate keys\n5. update docs"
+          },
+          {
+            "append": "echo \"tasks now: ${#tasks[@]}\"\nprintf '[%s]\\n' \"${tasks[@]}\"\n",
+            "output": "count: 5\nfirst: renew TLS certificate\nlast: write release notes\n1. review pull requests\n2. archive old logs\n3. write release notes\n4. rotate keys\n5. update docs\ntasks now: 5\n[review pull requests]\n[archive old logs]\n[write release notes]\n[rotate keys]\n[update docs]"
+          }
+        ],
+        "hints": [
+          "`${#tasks[@]}` counts the tasks, `${tasks[0]}` is the first one, and `${tasks[-1]}` the last.",
+          "`tasks=(\"${tasks[@]:2}\")` keeps the tasks from index 2 on, numbered from 0. Then add both new tasks with one `tasks+=(...)`.",
+          "Loop over `\"${!tasks[@]}\"` and print `$((i + 1)). ${tasks[i]}`."
+        ]
+      }
+    },
+    {
+      "title": "Fill arrays from files",
+      "body": "`mapfile` reads a whole file into an array, one line per element. Always give it `-t`, which drops the newline from the end of each line:\n\n```bash\nmapfile -t months < a.txt\necho \"${#months[@]} months, the last is ${months[-1]}\"\n```\n\nTo split one line into an array, use `read -a`, with the separator in `IFS`. A plain redirect gives `read` the first line of the file, which in a CSV file is the header:\n\n```bash\nIFS=, read -ra cols < data.csv\necho \"${#cols[@]} columns: ${cols[*]}\"\n```\n\nArrays also fix a classic quoting problem: keeping a command's options in a variable. A string like `opts=\"-sS --max-time 5\"` works only unquoted, and then any option that holds a space falls apart. An array keeps each option a separate word, and `\"${opts[@]}\"` passes them on exactly as written.",
+      "examples": [
+        {
+          "title": "mapfile",
+          "prompt": "Read `hosts.txt` into an array, then count it, pick one host by index, and loop over all of them.",
+          "code": "mapfile -t hosts < hosts.txt\necho \"${#hosts[@]} hosts\"\necho \"third: ${hosts[2]}\"\n\nfor host in \"${hosts[@]}\"; do\n  echo \"checking $host\"\ndone\n",
+          "output": "5 hosts\nthird: db-1\nchecking web-1\nchecking web-2\nchecking db-1\nchecking cache-1\nchecking backup-1",
+          "explanation": "`mapfile -t hosts < hosts.txt` puts every line of the file in `hosts`, so `${hosts[2]}` is the third line. Without `-t`, each element would keep its newline. Reach for `mapfile` when you need the lines more than once, or by position. For a file too big to hold in memory, stay with a `while read` loop, which holds one line at a time."
+        },
+        {
+          "title": "Split a line",
+          "prompt": "Read the header of `employees.csv` into an array, and list its columns by index.",
+          "code": "IFS=, read -ra cols < employees.csv\necho \"${#cols[@]} columns\"\n\nfor i in \"${!cols[@]}\"; do\n  echo \"$i: ${cols[i]}\"\ndone\n",
+          "output": "6 columns\n0: id\n1: name\n2: dept\n3: salary\n4: start_date\n5: email",
+          "explanation": "`read` reads only the first line, the header. `-a cols` stores its fields in an array instead of separate variables, `-r` keeps backslashes as always, and `IFS=,` splits at commas for this one `read`. Array indexes start at 0, while `cut -f` counts fields from 1, so the `salary` column is index 3 here and field 4 for `cut`:\n\n```bash\nIFS=, read -ra cols < employees.csv\necho \"${cols[3]} is field $((3 + 1))\"\ntail -n +2 employees.csv | cut -d, -f4 | head -n 3\n```"
+        },
+        {
+          "title": "Commands as arrays",
+          "prompt": "Build a `curl` command's options in an array, adding `-v` only when `VERBOSE` is set, and print each word of the command.",
+          "code": "url=\"https://api.example.com/health\"\nopts=(-sS --max-time 5)\nif [[ -n ${VERBOSE:-} ]]; then\n  opts+=(-v)\nfi\nopts+=(--header \"Accept: application/json\")\n\nprintf '%s\\n' curl \"${opts[@]}\" \"$url\"\n",
+          "output": "curl\n-sS\n--max-time\n5\n--header\nAccept: application/json\nhttps://api.example.com/health",
+          "explanation": "`printf '%s\\n'` prints each word on its own line, so you can see exactly what `curl` would get: `Accept: application/json` is one word, space and all. `VERBOSE` isn't set here, so `-v` was never added. A real script runs `curl \"${opts[@]}\" \"$url\"` instead of printing it, and the curl lessons later in the course do. Keep the same options in a string instead, and the header splits in two:\n\n```bash\nopts=\"-sS --max-time 5 --header Accept: application/json\"\nprintf '%s\\n' curl $opts\n```"
+        }
+      ],
+      "practice": {
+        "title": "Column picker",
+        "prompt": "Print one column of `employees.csv`, chosen by its name in the header.\n\n1. Read the header of `employees.csv` into an array.\n2. Find the column whose name is the value of `COLUMN`, a variable your script receives.\n3. Print that column's value from every row after the header.\n4. If no column has that name, print `no such column: NAME` to stderr and exit with status 1.\n\nCheck runs it with `COLUMN=dept` (test 1, below), then `COLUMN=email` on a different `employees.csv`, then `COLUMN=age`. Run sends the first test's value, `COLUMN=dept`.\n\nExpected output:\n\n```text\neng\nsales\neng\nops\neng\nsupport\nsales\nops\n```",
+        "starter": "# TODO: read the header of employees.csv into an array\n# TODO: find the index of the column named \"$COLUMN\"\n# TODO: print that column for every row after the header\n# TODO: if there's no such column, print \"no such column: NAME\" to stderr and exit 1\n",
+        "solution": "IFS=, read -ra cols < employees.csv\n\nfield=0\nfor i in \"${!cols[@]}\"; do\n  if [[ ${cols[i]} == \"$COLUMN\" ]]; then\n    field=$((i + 1))\n  fi\ndone\n\nif (( field == 0 )); then\n  echo \"no such column: $COLUMN\" >&2\n  exit 1\nfi\ntail -n +2 employees.csv | cut -d, -f\"$field\"\n",
+        "tests": [
+          {
+            "env": {
+              "COLUMN": "dept"
+            },
+            "output": "eng\nsales\neng\nops\neng\nsupport\nsales\nops"
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "env": {
+              "COLUMN": "email"
+            },
+            "output": "ida.kowalski@shop.example\njamal.wright@shop.example\nkira.sato@shop.example\nleo.fontaine@shop.example\nmaya.gold@shop.example\n\nolu.bakare@shop.example\npia.romano@shop.example\nquinn.hale@shop.example"
+          },
+          {
+            "env": {
+              "COLUMN": "age"
+            },
+            "output": "",
+            "exitCode": 1,
+            "stderrIncludes": "no such column: age"
+          }
+        ],
+        "hints": [
+          "Follow the split a line example: `IFS=, read -ra cols < employees.csv` puts the column names in `cols`.",
+          "Loop over `\"${!cols[@]}\"` and compare `${cols[i]}` with `\"$COLUMN\"`. `cut` counts fields from 1, so the field number is `i + 1`.",
+          "`tail -n +2 employees.csv | cut -d, -f\"$field\"` prints the column without its header."
+        ]
+      }
+    },
+    {
+      "title": "Associative arrays",
+      "body": "An associative array maps string keys to values, like a dictionary in Python or an object in JavaScript. Declare it with `declare -A` before you use it, or Bash treats it as an indexed array:\n\n```bash\ndeclare -A port=([web]=8080 [db]=5432)\nport[cache]=6379\necho \"db: ${port[db]}\"\necho \"${#port[@]} services\"\n```\n\nThe array syntax you know works on keys too: `\"${!port[@]}\"` lists the keys, `\"${port[@]}\"` the values, `[[ -v port[db] ]]` asks whether a key exists, and `unset 'port[db]'` deletes one.\n\nKeys come back in no set order, and the order can change from one Bash version to the next. Sort them before you print them:\n\n```bash\ndeclare -A port=([web]=8080 [db]=5432 [cache]=6379)\nfor name in \"${!port[@]}\"; do\n  echo \"$name ${port[$name]}\"\ndone | sort\n```\n\nAssociative arrays are made for counting: `((count[$key]++))` adds one to a key's count, starting from nothing, and `${count[$key]:-0}` reads a count that may not exist yet.",
+      "examples": [
+        {
+          "title": "Lookup",
+          "prompt": "Look up capitals by country code, with a fallback for a code that isn't in the array.",
+          "code": "declare -A capital=([pt]=Lisbon [fr]=Paris)\ncapital[jp]=Tokyo\n\necho \"pt: ${capital[pt]}\"\necho \"jp: ${capital[jp]}\"\nfor code in fr de; do\n  echo \"$code: ${capital[$code]:-unknown}\"\ndone\necho \"${#capital[@]} countries\"\n",
+          "output": "pt: Lisbon\njp: Tokyo\nfr: Paris\nde: unknown\n3 countries",
+          "fixtures": "textbox",
+          "explanation": "`declare -A` makes `capital` associative, and `([pt]=Lisbon [fr]=Paris)` fills it with `[key]=value` pairs. `capital[jp]=Tokyo` adds a key later. A key that isn't there reads as empty, so `${capital[$code]:-unknown}` falls back to `unknown`, the same default syntax as for any variable. Looping over a list of keys you choose, like `fr de`, also fixes the order of the output."
+        },
+        {
+          "title": "Counting",
+          "prompt": "Count the requests per IP address in `access.log`, then print the top 3.",
+          "code": "declare -A hits\nwhile read -r ip _; do\n  ((hits[$ip]++))\ndone < access.log\n\nfor ip in \"${!hits[@]}\"; do\n  echo \"${hits[$ip]} $ip\"\ndone | sort -k1,1nr -k2,2 | head -n 3\n",
+          "output": "46 10.0.4.17\n38 203.0.113.9\n31 192.0.2.44",
+          "fixtures": "textbox",
+          "explanation": "`read -r ip _` puts the first field of each line, the client's address, in `ip`, and `_` takes the rest. `((hits[$ip]++))` adds one to that address's count, and a key that isn't there yet starts from 0. The keys come out in no set order, so the loop's output goes through `sort`: by count, highest first, then by address. Two addresses tie at 31 for third place, and the second key puts `192.0.2.44` ahead of `198.51.100.23` on every run, so the top 3 never changes."
+        },
+        {
+          "title": "Exists, delete, sorted keys",
+          "prompt": "Check whether two addresses are in the counts, delete the private address `10.0.4.17`, and list the first few keys in order.",
+          "code": "declare -A hits\nwhile read -r ip _; do\n  ((hits[$ip]++))\ndone < access.log\necho \"${#hits[@]} addresses\"\n\nfor ip in 10.0.4.17 10.9.9.9; do\n  if [[ -v hits[$ip] ]]; then\n    echo \"$ip: ${hits[$ip]} requests\"\n  else\n    echo \"$ip: not in the log\"\n  fi\ndone\n\nunset 'hits[10.0.4.17]'\necho \"${#hits[@]} addresses without 10.0.4.17\"\nprintf '%s\\n' \"${!hits[@]}\" | sort | head -n 3\n",
+          "output": "33 addresses\n10.0.4.17: 46 requests\n10.9.9.9: not in the log\n32 addresses without 10.0.4.17\n192.0.2.146\n192.0.2.159\n192.0.2.165",
+          "fixtures": "textbox",
+          "explanation": "`[[ -v hits[$ip] ]]` is true when the key exists, whatever its value, even 0 or an empty string, which a default like `:-0` can't tell apart from a missing key. `unset 'hits[10.0.4.17]'` deletes that address's key, quoted so the brackets are never read as a glob. `\"${!hits[@]}\"` lists the keys in no set order, so `sort` puts them in text order before `head` takes the first three."
+        }
+      ],
+      "practice": {
+        "title": "Status classes",
+        "prompt": "Count the requests in `access.log` by status class.\n\n1. Read `access.log` line by line. The status code is the 9th field, like `200` or `404`.\n2. Count the requests in each status class in an associative array: `2xx` for 200 to 299, `3xx` for 300 to 399, and so on.\n3. Print `2xx: N`, `3xx: N`, `4xx: N`, and `5xx: N`, in that order, with 0 for a class without requests.\n\nCheck also runs your script on other access logs.\n\nExpected output:\n\n```text\n2xx: 338\n3xx: 39\n4xx: 19\n5xx: 4\n```",
+        "starter": "declare -A count\n\n# TODO: read access.log line by line, and count each status class, like 2xx, in count\n# TODO: print 2xx, 3xx, 4xx and 5xx in that order, with 0 for a class without requests\n",
+        "solution": "declare -A count\nwhile read -ra fields; do\n  class=\"${fields[8]:0:1}xx\"\n  ((count[$class]++))\ndone < access.log\n\nfor class in 2xx 3xx 4xx 5xx; do\n  echo \"$class: ${count[$class]:-0}\"\ndone\n",
+        "fixtures": "textbox",
+        "tests": [
+          {
+            "output": "2xx: 338\n3xx: 39\n4xx: 19\n5xx: 4"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "2xx: 336\n3xx: 0\n4xx: 21\n5xx: 3"
+          },
+          {
+            "fixtures": "textbox-c",
+            "output": "2xx: 353\n3xx: 45\n4xx: 17\n5xx: 5"
+          }
+        ],
+        "hints": [
+          "Start from the counting example. `read -ra fields` splits a line into an array, so the status code is `${fields[8]}`.",
+          "`${code:0:1}` is the first character of `code`, so `\"${code:0:1}xx\"` is its class.",
+          "Loop over `2xx 3xx 4xx 5xx` and print `${count[$class]:-0}`, the way the lookup example falls back for a missing country."
+        ]
+      }
+    }
+  ],
+  "recap": "- `arr=(a \"b c\")` makes an indexed array. `${arr[0]}`, `${arr[-1]}`, `${#arr[@]}`, `arr+=(x)`, and `\"${arr[@]:1:2}\"` read, count, append to, and slice it.\n- Loop with `for x in \"${arr[@]}\"`, or over the indexes with `for i in \"${!arr[@]}\"`. `unset 'arr[1]'` leaves a gap.\n- `mapfile -t lines < file` reads a file's lines, and `IFS=, read -ra cols < file` splits its first line.\n- Keep a command's options in an array and pass them on with `\"${opts[@]}\"`.\n- `declare -A map` makes an associative array. `((count[$k]++))` counts, `[[ -v map[$k] ]]` checks for a key, and `${map[$k]:-0}` gives a default.\n- Keys come back in no set order, so sort them before you print them."
+}

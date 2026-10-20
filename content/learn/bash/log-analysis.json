@@ -1,0 +1,233 @@
+{
+  "id": "log-analysis",
+  "title": "Log Analysis",
+  "section": "Automation and DevOps",
+  "summary": "Answer incident questions from logs: top talkers, error rates, spikes by the minute across rotated files, latency percentiles, and JSON error digests.",
+  "intro": "During an incident the questions come fast: who is hitting us, what is failing, since when, and how slow is it? The answers are in the logs, and the tools from earlier lessons get them in seconds. This lesson works on one afternoon of a shop's traffic in `logbox`: `access.log`, the older `access.log.1.gz` that was rotated out of it and gzipped, the app's JSON log `app.jsonl`, and `errors.log` with Python tracebacks. Somewhere in them are a checkout outage, a bot, and a slow endpoint, waiting to be found.",
+  "fixtures": "logbox",
+  "steps": [
+    {
+      "title": "Who, what and how often",
+      "body": "Each line of `access.log` is one request in the combined log format, with the request time in seconds added at the end. Split on spaces, as awk does by default, `$1` is the client IP, `$4` the time (after a `[`), `$7` the path, `$9` the status, `$10` the bytes sent, and `$NF` the request time. The user agent has spaces inside, so split on double quotes instead: with `awk -F'\"'`, `$2` is the request, `$4` the referrer and `$6` the user agent. Here are both splits, on one line of the log:\n\n```bash\nline='203.0.113.39 - - [03/Oct/2026:14:00:12 +0000] \"GET /static/app.css HTTP/1.1\" 200 31877 \"https://shop.example/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:150.0) Gecko/20100101 Firefox/150.0\" 0.003'\nawk '{print \"ip=\" $1, \"time=\" $4, \"path=\" $7, \"status=\" $9, \"secs=\" $NF}' <<< \"$line\"\nawk -F'\"' '{print \"request=\" $2; print \"agent=\" $6}' <<< \"$line\"\n```\n\nTo count by a field, use `sort | uniq -c | sort -k1,1nr -k2,2` or an awk array, and always add a second sort key, so ties come out in the same order every time. A share is `100 * count / NR` in awk's END block.",
+      "examples": [
+        {
+          "title": "Top IPs",
+          "prompt": "Count the requests and the different client IPs, then list the five busiest IPs.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\necho \"requests: $(wc -l < access.log)\"\necho \"unique ips: $(awk '{print $1}' access.log | sort -u | wc -l)\"\nawk '{print $1}' access.log | sort | uniq -c | sort -k1,1nr -k2,2 | head -n 5\n",
+          "output": "requests: 1385\nunique ips: 135\n    154 203.0.113.50\n    120 10.0.0.5\n     83 203.0.113.101\n     68 198.51.100.3\n     47 198.51.100.186",
+          "explanation": "`wc -l` counts requests, and `sort -u | wc -l` counts different IPs. The last pipeline sorts the IPs so `uniq -c` can count each run of the same one, then sorts by count, high to low, with the IP as the tie-break so the order never changes. One address, 203.0.113.50, sent 154 requests, more than 10.0.0.5, the health check that calls once a minute."
+        },
+        {
+          "title": "Status mix",
+          "prompt": "Count the responses by status code with each one's share, then the share of server errors.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nawk '{n[$9]++} END {for (s in n) printf \"%s %d %.1f%%\\n\", s, n[s], 100 * n[s] / NR}' access.log | sort\nawk '$9 >= 500 {n++} END {printf \"5xx: %d of %d (%.1f%%)\\n\", n, NR, 100 * n / NR}' access.log\n",
+          "output": "200 1069 77.2%\n201 43 3.1%\n302 46 3.3%\n304 34 2.5%\n400 4 0.3%\n401 157 11.3%\n402 2 0.1%\n404 5 0.4%\n500 2 0.1%\n502 9 0.6%\n504 14 1.0%\n5xx: 25 of 1385 (1.8%)",
+          "explanation": "The array counts each status, and END turns each count into a share of `NR`, which by then is the number of lines. `%%` prints a percent sign. `for (s in n)` visits the keys in no fixed order, so the output goes through `sort`. The second command counts a whole class with `$9 >= 500`: 25 server errors, 1.8% of all requests. 401 stands out at 11.3%, and that many failed logins is worth a look."
+        },
+        {
+          "title": "User agents",
+          "prompt": "List the four most common user agents, then follow the one that isn't a browser.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nawk -F'\"' '{print $6}' access.log | sort | uniq -c | sort -k1,1nr | head -n 4\nawk -F'\"' '$6 ~ /^python-requests/ {print $2}' access.log | sort | uniq -c\ngrep 'python-requests' access.log | awk '{print $1, $9}' | sort | uniq -c\n",
+          "output": "    271 Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15\n    246 Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:150.0) Gecko/20100101 Firefox/150.0\n    192 Mozilla/5.0 (Android 16; Mobile; rv:150.0) Gecko/150.0 Firefox/150.0\n    154 python-requests/2.32.5\n    154 POST /login HTTP/1.1\n    154 203.0.113.50 401",
+          "explanation": "Split on `\"`, field 6 is the whole user agent, spaces and all. Three browsers lead, then `python-requests`, which is a script, not a person. The next two commands follow it: all 154 of its requests are a `POST /login` from 203.0.113.50, and every one got a 401. That's a bot guessing passwords, from the same address that topped the IP list."
+        }
+      ],
+      "practice": {
+        "title": "Traffic report",
+        "prompt": "Write a short traffic summary of `access.log`.\n\n1. Print `requests: N`, the number of lines.\n2. Print `unique ips: N`, the number of different client IPs.\n3. Print the 3 most requested paths as `count path`, with one space between them and no padding, by count high to low, ties by path A to Z.\n4. Print `4xx: N` and `5xx: N`, the number of requests whose status starts with 4, and with 5.\n\nExpected output:\n\n```text\nrequests: 1385\nunique ips: 135\n221 /login\n126 /products\n120 /healthz\n4xx: 168\n5xx: 25\n```",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n\necho \"requests: $(wc -l < access.log)\"\n# TODO: unique ips, the top 3 paths as \"count path\", then the 4xx and 5xx counts\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\n\necho \"requests: $(wc -l < access.log)\"\necho \"unique ips: $(awk '{print $1}' access.log | sort -u | wc -l)\"\nawk '{n[$7]++} END {for (p in n) print n[p], p}' access.log | sort -k1,1nr -k2,2 | head -n 3\nawk '$9 ~ /^4/ {c4++} $9 ~ /^5/ {c5++} END {printf \"4xx: %d\\n5xx: %d\\n\", c4, c5}' access.log\n",
+        "tests": [
+          {
+            "output": "requests: 1385\nunique ips: 135\n221 /login\n126 /products\n120 /healthz\n4xx: 168\n5xx: 25"
+          },
+          {
+            "fixtures": "logbox-b",
+            "output": "requests: 1298\nunique ips: 140\n120 /healthz\n103 /api/cart\n91 /products\n4xx: 24\n5xx: 2"
+          },
+          {
+            "fixtures": "logbox-c",
+            "output": "requests: 1579\nunique ips: 135\n303 /search\n158 /products\n138 /\n4xx: 45\n5xx: 27"
+          }
+        ],
+        "hints": [
+          "`sort -u | wc -l` counts different values, so feed it the first field of every line.",
+          "Count paths with an awk array, `n[$7]++`, and print `n[p], p` for each path in END. Then `sort -k1,1nr -k2,2 | head -n 3`.",
+          "One awk pass can count both classes: `$9 ~ /^4/ {c4++} $9 ~ /^5/ {c5++}`, then print both counts in END."
+        ]
+      }
+    },
+    {
+      "title": "Time windows and buckets",
+      "body": "The time sits in field 4 as `[03/Oct/2026:14:00:12`. Every timestamp has the same width, so `substr` cuts any part out by position: characters 14 and 15 are the hour, and `substr($4, 14, 5)` is `HH:MM`. A bucket is then just a value to count.\n\n```bash\nline='10.0.0.5 - - [03/Oct/2026:14:00:07 +0000] \"GET /healthz HTTP/1.1\" 200 15 \"-\" \"kube-probe/1.34\" 0.003'\nawk '{print substr($4, 2, 11), substr($4, 14, 2), substr($4, 14, 5)}' <<< \"$line\"\n```\n\nFixed-width times also compare correctly as strings, `\"14:05\" < \"14:30\"`, so a time window is two string comparisons.\n\nLogs rotate: when `access.log` gets old, it's renamed `access.log.1` and later gzipped. `zcat -f` decompresses `.gz` files and passes plain files through unchanged, so `zcat -f access.log.1.gz access.log` reads both as one stream, oldest first.",
+      "examples": [
+        {
+          "title": "Per hour",
+          "prompt": "Count all requests per hour, then only the server errors.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\necho \"requests per hour:\"\nawk '{print substr($4, 14, 2)}' access.log | sort | uniq -c\necho \"5xx per hour:\"\nawk '$9 >= 500 {print substr($4, 14, 2)}' access.log | sort | uniq -c\n",
+          "output": "requests per hour:\n    775 14\n    610 15\n5xx per hour:\n     24 14\n      1 15",
+          "explanation": "`substr($4, 14, 2)` is the hour, and `sort | uniq -c` counts each one. The second command keeps only server errors before counting: 24 of the 25 came in the 14:00 hour, so that's where to zoom in."
+        },
+        {
+          "title": "A window",
+          "prompt": "Count the requests from 14:00 to 14:30, then the server errors from 14:00 to 14:10, with the window in Bash variables.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nawk '{t = substr($4, 14, 5)} t >= \"14:00\" && t < \"14:30\"' access.log | wc -l\n\nstart=\"14:00\"\nend=\"14:10\"\nawk -v start=\"$start\" -v end=\"$end\" '{t = substr($4, 14, 5)} t >= start && t < end && $9 >= 500' access.log | wc -l\n",
+          "output": "419\n23",
+          "explanation": "The first rule runs on every line and sets `t` to the line's `HH:MM`. The second rule is a pattern with no action, so awk prints the lines it matches: the 419 requests from 14:00 up to, but not including, 14:30. `-v` hands the window in from Bash variables, and adding `$9 >= 500` counts the server errors in the first ten minutes: 23 of them."
+        },
+        {
+          "title": "Across rotations",
+          "prompt": "Read the rotated log and the current one as one stream, and count the server errors per minute.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\necho \"lines: $(zcat -f access.log.1.gz access.log | wc -l)\"\nzcat -f access.log.1.gz access.log | awk '$9 >= 500 {print substr($4, 14, 5)}' | sort | uniq -c\n",
+          "output": "lines: 2437\n      1 12:17\n      1 13:33\n      3 13:58\n      2 13:59\n      4 14:01\n      2 14:02\n      4 14:03\n      1 14:04\n      4 14:05\n      3 14:06\n      1 14:07\n      3 14:08\n      1 14:09\n      1 14:26\n      1 15:12",
+          "explanation": "`access.log.1.gz` holds 12:00 to 13:59 and `access.log` the hours after, and `zcat -f` joins them into 2437 lines in time order. Now the spike shows its real start. Apart from single errors at 12:17 and 13:33, the run of 5xx minutes begins at 13:58, in the rotated file, two minutes before `access.log` starts. A report on `access.log` alone would get the start of the incident wrong."
+        }
+      ],
+      "practice": {
+        "title": "When did it break",
+        "prompt": "Find the minutes with server errors in a time window, across the rotated log and the current one.\n\n1. `main.sh START END` takes two times as `HH:MM`. The window starts at START and ends just before END.\n2. Read `access.log.1.gz`, then `access.log`.\n3. For every minute in the window with at least one response of status 500 or above, print `HH:MM count`, earliest first.\n4. With anything but two arguments, print a usage line to stderr and exit 64, as the starter already does.\n\nArguments:\n\n```text\n13:55 14:10\n```\n\nExpected output:\n\n```text\n13:58 3\n13:59 2\n14:01 4\n14:02 2\n14:03 4\n14:04 1\n14:05 4\n14:06 3\n14:07 1\n14:08 3\n14:09 1\n```",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n\nusage() {\n  echo \"usage: $0 START END (times as HH:MM)\"\n}\n\n(( $# == 2 )) || { usage >&2; exit 64; }\nstart=$1\nend=$2\n# TODO: print \"HH:MM count\" for each minute from $start to just before $end\n# with a 5xx response, reading access.log.1.gz and then access.log\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\n\nusage() {\n  echo \"usage: $0 START END (times as HH:MM)\"\n}\n\n(( $# == 2 )) || { usage >&2; exit 64; }\nstart=$1\nend=$2\nzcat -f access.log.1.gz access.log |\n  awk -v start=\"$start\" -v end=\"$end\" '\n    {t = substr($4, 14, 5)}\n    t >= start && t < end && $9 >= 500 {n[t]++}\n    END {for (m in n) print m, n[m]}' |\n  sort\n",
+        "tests": [
+          {
+            "args": [
+              "13:55",
+              "14:10"
+            ],
+            "output": "13:58 3\n13:59 2\n14:01 4\n14:02 2\n14:03 4\n14:04 1\n14:05 4\n14:06 3\n14:07 1\n14:08 3\n14:09 1"
+          },
+          {
+            "args": [
+              "12:41",
+              "13:05"
+            ],
+            "fixtures": "logbox-b",
+            "output": "12:41 3\n12:42 5\n12:43 2\n12:44 2\n12:45 3\n12:46 3\n12:47 4\n12:48 3\n12:49 4"
+          },
+          {
+            "args": [
+              "15:30",
+              "15:36"
+            ],
+            "fixtures": "logbox-c",
+            "output": "15:31 1\n15:32 5\n15:33 3\n15:34 4\n15:35 2"
+          },
+          {
+            "args": [],
+            "output": "",
+            "exitCode": 64,
+            "stderrIncludes": "usage"
+          }
+        ],
+        "hints": [
+          "`zcat -f access.log.1.gz access.log | awk ...` reads both files as one stream, oldest first.",
+          "Pass the window in with `-v start=\"$start\" -v end=\"$end\"`, set `t = substr($4, 14, 5)` on every line, and match lines where `t >= start && t < end && $9 >= 500`.",
+          "Count the matches in an array, `n[t]++`, print each minute and its count in END, and pipe the result to `sort` so the minutes come out in order."
+        ]
+      }
+    },
+    {
+      "title": "Latency percentiles",
+      "body": "The last field is how long the request took, in seconds. An average is easy to compute and easy to fool: a hundred fast requests can hide a few that took five seconds. Percentiles don't hide them. The p95 is the time that 95% of requests stay at or under, and the p50 is the median.\n\nThe nearest-rank method sorts the N times from fastest to slowest, and the p-th percentile is the one at position p% of N, rounded up, counting from 1. awk has no function to round up, but for a whole number p, `int((N * p + 99) / 100)` gives the same position:\n\n```bash\nawk 'BEGIN {n = 20; print int((n * 95 + 99) / 100), int((n * 50 + 99) / 100)}'\n```\n\nOnly trust a percentile from enough requests: the p95 of three requests is just the slowest one.",
+      "examples": [
+        {
+          "title": "p50 and p95",
+          "prompt": "Compute the median, the p95 and the maximum request time of the whole log, and compare them with the average.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nawk '{print $NF}' access.log | sort -n | awk '\n  {a[NR] = $1}\n  END {\n    print \"requests\", NR\n    print \"p50\", a[int((NR * 50 + 99) / 100)]\n    print \"p95\", a[int((NR * 95 + 99) / 100)]\n    print \"max\", a[NR]\n  }'\nawk '{s += $NF} END {printf \"avg %.3f\\n\", s / NR}' access.log\n",
+          "output": "requests 1385\np50 0.039\np95 0.710\nmax 5.012\navg 0.175",
+          "explanation": "After `sort -n`, `a[1]` holds the fastest request and `a[NR]` the slowest, so each percentile is one lookup. Half the requests took 0.039 seconds or less and 95% took 0.710 or less, but the slowest took 5.012. The average, 0.175, describes none of them: it mixes the many fast requests with the few very slow ones."
+        },
+        {
+          "title": "Per endpoint",
+          "prompt": "For each API path, print its request count, average, p50 and maximum time.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nawk '$7 ~ /^\\/api\\// {print $7, $NF}' access.log | sort -k2,2n | awk '\n  {n[$1]++; t[$1, n[$1]] = $2; sum[$1] += $2}\n  END {\n    for (p in n) {\n      if (n[p] >= 20) {\n        printf \"%s %d avg %.3f p50 %s max %s\\n\", p, n[p], sum[p] / n[p], t[p, int((n[p] * 50 + 99) / 100)], t[p, n[p]]\n      }\n    }\n  }' | sort\n",
+          "output": "/api/cart 119 avg 0.068 p50 0.061 max 0.149\n/api/checkout 53 avg 0.732 p50 0.316 max 5.012\n/api/orders 62 avg 0.869 p50 0.066 max 5.011\n/api/recommendations 52 avg 0.153 p50 0.144 max 0.300",
+          "explanation": "Sorting by time first means each path's times reach the last awk from fastest to slowest. `n[$1]` counts a path's requests so far, and `t[$1, n[$1]]` stores the time under a two-part key, the path and its position, so `t[p, 1]` is the path's fastest request and `t[p, n[p]]` its slowest. `if` works in awk as it does in Bash, and here it skips any path with fewer than 20 requests (every API path has more).\n\nLook at `/api/orders`: an average of 0.869 seconds says it's slow, but its p50 of 0.066 says most of its requests are fast, and its max of 5.011 says a few hit a five second timeout."
+        },
+        {
+          "title": "Slowest requests",
+          "prompt": "Count the requests that took a second or more, and show the five slowest with their time, status and path.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\necho \"over 1 second: $(awk '$NF >= 1' access.log | wc -l)\"\nawk '$NF >= 1 {print $NF, substr($4, 14, 8), $9, $7}' access.log | sort -k1,1nr | head -n 5\n",
+          "output": "over 1 second: 48\n5.012 14:05:16 504 /api/checkout\n5.011 14:06:59 504 /api/orders\n5.010 14:07:40 504 /api/orders\n5.008 14:01:19 504 /api/orders\n5.007 14:02:41 504 /api/orders",
+          "explanation": "Putting the request time first lets `sort -k1,1nr` order the lines by it, and the awk pattern keeps only the 48 requests of a second or more, so the sort has little to do. All five of the slowest are 504s that took just over five seconds: a gateway giving up on a backend that didn't answer, during the spike you found minute by minute."
+        }
+      ],
+      "practice": {
+        "title": "Latency by endpoint",
+        "prompt": "Find the slowest endpoints in `access.log` by their p95.\n\n1. For each path with at least 20 requests, find its request count, p50, p95 and maximum time, using the nearest-rank method.\n2. Print the 5 paths with the highest p95 as `path count p50 p95 max`, highest p95 first, ties by path A to Z.\n3. Print the times as the log writes them, with three decimals.\n\nExpected output:\n\n```text\n/api/orders 62 0.066 5.007 5.011\n/api/checkout 53 0.316 5.003 5.012\n/search 91 0.743 2.545 2.821\n/api/recommendations 52 0.144 0.293 0.300\n/login 221 0.107 0.216 0.249\n```",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n\n# Each path's times reach the last awk from fastest to slowest.\nawk '{print $7, $NF}' access.log | sort -k2,2n | awk '\n  {n[$1]++; t[$1, n[$1]] = $2}\n  END {\n    for (p in n) {\n      print p, n[p]\n    }\n  }'\n# TODO: print \"path count p50 p95 max\" for paths with at least 20 requests,\n# then sort by p95 (high to low, ties by path) and keep the first 5\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\n\nawk '{print $7, $NF}' access.log | sort -k2,2n | awk '\n  {n[$1]++; t[$1, n[$1]] = $2}\n  END {\n    for (p in n) {\n      if (n[p] >= 20) {\n        print p, n[p], t[p, int((n[p] * 50 + 99) / 100)], t[p, int((n[p] * 95 + 99) / 100)], t[p, n[p]]\n      }\n    }\n  }' | sort -k4,4nr -k1,1 | head -n 5\n",
+        "tests": [
+          {
+            "output": "/api/orders 62 0.066 5.007 5.011\n/api/checkout 53 0.316 5.003 5.012\n/search 91 0.743 2.545 2.821\n/api/recommendations 52 0.144 0.293 0.300\n/login 221 0.107 0.216 0.249"
+          },
+          {
+            "fixtures": "logbox-b",
+            "output": "/api/recommendations 65 1.147 2.492 2.804\n/api/checkout 43 0.389 0.775 0.884\n/search 87 0.111 0.252 0.297\n/login 43 0.083 0.217 0.233\n/api/orders 45 0.076 0.188 0.190"
+          },
+          {
+            "fixtures": "logbox-c",
+            "output": "/api/checkout 46 0.422 5.010 5.011\n/api/orders 60 1.215 5.005 5.011\n/api/recommendations 61 0.139 0.271 0.287\n/search 303 0.095 0.271 0.299\n/login 54 0.080 0.210 0.238"
+          }
+        ],
+        "hints": [
+          "With the times sorted, a percentile is one lookup per path: the p95 is `t[p, int((n[p] * 95 + 99) / 100)]`.",
+          "Wrap the print in END in `if (n[p] >= 20) { ... }` so rare paths are skipped.",
+          "Finish the pipeline with `| sort -k4,4nr -k1,1 | head -n 5`: field 4 of each line is the p95."
+        ]
+      }
+    },
+    {
+      "title": "JSON logs and stack traces",
+      "body": "Apps often log one JSON object per line, like this line from `app.jsonl`:\n\n```text\n{\"ts\":\"2026-10-03T14:01:08Z\",\"level\":\"error\",\"route\":\"/api/checkout\",\"ms\":3497,\"msg\":\"db timeout\",\"trace_id\":\"73351147805c442b\",\"user_id\":221}\n```\n\nThere are no columns to cut, so use jq. Without flags, jq runs the filter once per line, which suits `select` and `@tsv`. With `-s` it slurps every line into one array first, which is what `group_by`, `max_by` and `length` need.\n\nOther logs hold records that span several lines, like a Python traceback. In awk's paragraph mode, `RS = \"\"`, each block of lines separated by a blank line is one record, and `FS = \"\\n\"` makes each of its lines a field, so `$1` is the first line and `$NF` the last.\n\n```bash\nprintf 'Traceback (most recent call last):\\n  File \"cart.py\", line 61, in add_item\\nOutOfStock: LAMP-01\\n\\nWARNING db pool exhausted\\n' |\n  awk 'BEGIN {RS = \"\"; FS = \"\\n\"} {print \"record \" NR \": \" NF \" line(s), ending with \" $NF}'\n```",
+      "examples": [
+        {
+          "title": "Errors as a table",
+          "prompt": "List the errors that took more than 4 seconds as a table, then count the error messages.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\njq -r 'select(.level == \"error\" and .ms > 4000) | [.ts, .route, .ms, .msg] | @tsv' app.jsonl\njq -r 'select(.level == \"error\") | .msg' app.jsonl | sort | uniq -c | sort -k1,1nr -k2\n",
+          "output": "2026-10-03T14:02:42Z\t/api/checkout\t4432\tdb timeout\n2026-10-03T14:02:57Z\t/api/checkout\t4982\tdb timeout\n2026-10-03T14:05:08Z\t/api/checkout\t4219\tdb timeout\n2026-10-03T14:06:01Z\t/api/orders\t4897\tdb timeout\n2026-10-03T14:06:31Z\t/api/checkout\t5012\tdb timeout\n2026-10-03T14:08:16Z\t/api/orders\t4721\tdb timeout\n     15 db timeout\n      5 payment declined\n      4 invalid coupon\n      2 item out of stock\n      2 search backend unavailable",
+          "explanation": "jq reads `app.jsonl` one object at a time, and `select` keeps the errors that took over 4 seconds. `@tsv` prints them as tab separated columns. The second command turns the messages into plain lines and feeds them to the counting pipeline you already know, with the message as the tie-break. `db timeout` leads with 15, and every slow error in the table is one of them."
+        },
+        {
+          "title": "Errors per route",
+          "prompt": "Count the errors per route, most first, then find the most common error message.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\njq -s -r '\n  map(select(.level == \"error\"))\n  | group_by(.route)\n  | map({route: .[0].route, errors: length})\n  | sort_by(-.errors, .route)\n  | .[]\n  | \"\\(.route) \\(.errors)\"' app.jsonl\n\njq -s -r 'map(select(.level == \"error\")) | group_by(.msg) | max_by(length) | \"most common error: \\(.[0].msg) (\\(length))\"' app.jsonl\n",
+          "output": "/api/checkout 14\n/api/cart 6\n/api/orders 6\n/search 2\nmost common error: db timeout (15)",
+          "explanation": "`-s` turns the file into one array, so `group_by(.route)` can split the errors into one array per route. `sort_by(-.errors, .route)` sorts by two keys: errors high to low, because the minus sign flips the numbers, then route A to Z for ties, which is why `/api/cart` comes before `/api/orders`. The second command asks another question of the same errors: `group_by(.msg)` groups them by message, and `max_by(length)` picks the biggest group."
+        },
+        {
+          "title": "Tracebacks",
+          "prompt": "Count the Python tracebacks in `errors.log`, tally the exceptions they end with, and find the blocks that aren't tracebacks.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nawk 'BEGIN {RS = \"\"} /Traceback/ {n++} END {print n \" tracebacks\"}' errors.log\nawk 'BEGIN {RS = \"\"; FS = \"\\n\"} /Traceback/ {print $NF}' errors.log | sort | uniq -c | sort -k1,1nr -k2\nawk 'BEGIN {RS = \"\"; FS = \"\\n\"} !/Traceback/ {print $1}' errors.log\n",
+          "output": "5 tracebacks\n      3 psycopg.errors.QueryCanceled: canceling statement due to statement timeout\n      1 app.inventory.OutOfStock: LAMP-01\n      1 elastic_transport.ConnectionError: Connection refused\n2026-10-03T14:03:02Z WARNING db pool exhausted",
+          "explanation": "With `RS = \"\"`, each block separated by a blank line is one record, so `/Traceback/` matches whole tracebacks, not single lines: there are 5. A Python traceback ends with the exception, so `$NF`, the block's last line, names what went wrong: three of them are statement timeouts from the database. The last command prints the first line of each block that isn't a traceback, which finds the warning between them: the database's connection pool ran out."
+        }
+      ],
+      "practice": {
+        "title": "Error digest",
+        "prompt": "Turn `app.jsonl` into an error digest for the incident channel.\n\n1. For every route with errors, print `route errors top_message`: the route, how many error lines it has, and its most common error `msg`.\n2. Order the routes by errors, high to low, ties by route A to Z.\n3. Then print `slowest error: TRACE_ID (MS ms)` for the error line with the highest `ms`.\n\nExpected output:\n\n```text\n/api/checkout 14 db timeout\n/api/cart 6 invalid coupon\n/api/orders 6 db timeout\n/search 2 search backend unavailable\nslowest error: b5296f671d708433 (5012 ms)\n```",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n\n# TODO: print \"route errors top_message\" per route, most errors first, ties by route\n# TODO: then print \"slowest error: TRACE_ID (MS ms)\"\njq -s 'map(select(.level == \"error\")) | length' app.jsonl\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\n\njq -s -r '\n  map(select(.level == \"error\"))\n  | group_by(.route)\n  | map({route: .[0].route, errors: length, top: (group_by(.msg) | max_by(length) | .[0].msg)})\n  | sort_by(-.errors, .route)\n  | .[]\n  | \"\\(.route) \\(.errors) \\(.top)\"' app.jsonl\n\njq -s -r 'map(select(.level == \"error\")) | max_by(.ms) | \"slowest error: \\(.trace_id) (\\(.ms) ms)\"' app.jsonl\n",
+        "tests": [
+          {
+            "output": "/api/checkout 14 db timeout\n/api/cart 6 invalid coupon\n/api/orders 6 db timeout\n/search 2 search backend unavailable\nslowest error: b5296f671d708433 (5012 ms)"
+          },
+          {
+            "fixtures": "logbox-b",
+            "output": "/api/recommendations 10 model server timeout\n/api/cart 5 item out of stock\n/api/checkout 5 payment declined\n/login 3 too many attempts\nslowest error: a4189d833b4e50cf (8044 ms)"
+          },
+          {
+            "fixtures": "logbox-c",
+            "output": "/api/orders 10 db timeout\n/api/checkout 6 payment declined\n/search 3 rate limited\nslowest error: 0518d7027bb3b24d (6120 ms)"
+          }
+        ],
+        "hints": [
+          "Slurp with `-s`, keep the errors with `map(select(.level == \"error\"))`, and `group_by(.route)` to get one array per route.",
+          "Inside one route's array, `group_by(.msg) | max_by(length) | .[0].msg` is its most common message. Build `{route: .[0].route, errors: length, top: (...)}` for each route, then `sort_by(-.errors, .route)`.",
+          "A second jq call finds the slowest: `map(select(.level == \"error\")) | max_by(.ms)`, then a string with `\\(.trace_id)` and `\\(.ms)`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Combined log fields, split on spaces: `$1` IP, `$4` time, `$7` path, `$9` status, `$NF` request time. Split on `\"` for the user agent, `$6`.\n- Count with `sort | uniq -c | sort -k1,1nr -k2,2` or an awk array, and always add a tie-break key.\n- Fixed-width times compare as strings: `substr($4, 14, 5)` is `HH:MM`, and a window is `t >= start && t < end`.\n- `zcat -f access.log.1.gz access.log` reads the rotated and the current log as one stream.\n- Nearest-rank percentiles: sort the times, then take position `int((N * p + 99) / 100)`. Averages hide slow requests.\n- JSON logs go through jq: per line for `select` and `@tsv`, with `-s` for `group_by`, `max_by` and `length`.\n- `awk 'BEGIN {RS = \"\"}'` reads blank-line separated blocks, like tracebacks, as one record each."
+}

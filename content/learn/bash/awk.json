@@ -1,0 +1,199 @@
+{
+  "id": "awk",
+  "title": "Reports with awk",
+  "section": "Text Processing",
+  "summary": "Pick fields out of lines, filter rows with patterns, total and group columns, and print aligned reports from logs and CSV files with awk.",
+  "intro": "awk reads its input one line at a time, splits each line into fields, and runs a small program on them. That makes it the tool for questions about columns: which rows match, what they add up to, and how they group. In this lesson you pick fields out of the access log and the employee CSV, filter rows with patterns, total and group them with arrays, and print reports whose columns line up, even from a CSV whose fields hold commas.",
+  "format": "single",
+  "fixtures": "textbox",
+  "steps": [
+    {
+      "title": "Fields and lines",
+      "body": "An awk program is a list of rules, each a `pattern { action }`. awk reads the input one line at a time, splits the line into fields, and runs every action whose pattern matches the line. A rule with no pattern runs on every line. By default, runs of spaces and tabs separate the fields.\n\nInside an action, `$1` is the first field, `$2` the second, and `$0` the whole line. `NF` holds the number of fields, so `$NF` is the last one, and `NR` is the line number. Put the program in single quotes, so the shell passes `$1` to awk instead of expanding it.\n\n```bash\necho \"alpha beta gamma\" | awk '{print NF, $1, $NF}'\n```\n\nIn `print`, a comma puts a space between values. Values written side by side join with nothing between them, which is how you add your own text. `-F,` splits on commas instead, for CSV files:\n\n```bash\nhead -n 3 employees.csv | awk -F, '{print $2 \" works in \" $3}'\n```",
+      "examples": [
+        {
+          "title": "Pick fields from the access log",
+          "prompt": "Print the client address, the request time, and the line number with the path for the first three requests in `access.log`.",
+          "code": "# Field 1 is the client's address\nawk '{print $1}' access.log | head -n 3\n# The last field is how long the request took, in seconds\nawk '{print $NF}' access.log | head -n 3\n# The line number, then field 7, the path\nawk '{print NR \": \" $7}' access.log | head -n 3\n",
+          "output": "192.0.2.159\n198.51.100.23\n198.51.100.23\n0.084\n0.074\n0.006\n1: /login\n2: /api/orders\n3: /static/app.js",
+          "explanation": "awk splits each log line at its spaces, so the address is `$1`, the method is `$6` (with the quote that opens the request), and the path is `$7`. The user agent near the end of the line has spaces of its own, so lines have different numbers of fields. `$NF` always reaches the last field, the request time, however many fields come before it. `NR \": \" $7` joins the line number, a colon and a space, and the path into one value."
+        },
+        {
+          "title": "Split a CSV on commas",
+          "prompt": "Print names and salaries from `employees.csv`, then every name and department with a bar between them, without the header.",
+          "code": "# -F, splits on commas, so \"Priya Natarajan\" stays one field\nawk -F, '{print $2, $4}' employees.csv | head -n 4\necho \"---\"\n# OFS is what a comma in print writes between values\nawk -F, -v OFS=' | ' 'NR > 1 {print $2, $3}' employees.csv\n",
+          "output": "name salary\nPriya Natarajan 128000\nMarcus Bell 72000\nLena Fischer 115000\n---\nPriya Natarajan | eng\nMarcus Bell | sales\nLena Fischer | eng\nOmar Haddad | ops\nSofia Marino | support\nDaniel Okafor | eng\nHana Kim | legal\nRavi Shah | sales\nChloe Martin | ops\nJonas Berg | eng\nAisha Bello | eng\nMateo Ruiz | sales\nGrace Liu | eng\nBen Carter | support",
+          "explanation": "With `-F,` the fields are the CSV's columns, so a name with a space in it stays one field. The first command prints the header too, since line 1 is just another line to awk. In the second, `NR > 1` is a pattern: the action runs only when the line number is above 1, which skips the header. `-v OFS=' | '` sets awk's output field separator before the program starts, so each comma in `print` writes ` | ` instead of a space."
+        },
+        {
+          "title": "Read a system file",
+          "prompt": "Print the user name and login shell of the first three accounts in `/etc/passwd`, then the user name and home folder of the last one.",
+          "code": "# Each line of /etc/passwd is one account, its fields split by colons\nhead -n 3 /etc/passwd | awk -F: '{print $1, $7}'\n# awk can read the file itself too\nawk -F: '{print $1, $6}' /etc/passwd | tail -n 1\n",
+          "output": "root /bin/bash\ndaemon /usr/sbin/nologin\nbin /usr/sbin/nologin\nlearner /home/learner",
+          "explanation": "Every Linux system lists its accounts in `/etc/passwd`: the name, a password placeholder, the user and group ids, a comment, the home folder and the shell, separated by colons. `-F:` makes each of those a field. With no file named, awk reads its standard input, so it works at the end of a pipe like `head`. Accounts like `daemon` have `/usr/sbin/nologin` as their shell, which means nobody can log in as them. The last account is `learner`, the user your scripts run as."
+        }
+      ],
+      "practice": {
+        "title": "Name and department",
+        "prompt": "Print every employee's name followed by their department in parentheses.\n\n1. Read `employees.csv` with `-F,`. Its columns are `id,name,dept,salary,start_date,email`.\n2. Skip the header line.\n3. Print the name, a space, and the department inside parentheses.\n\nExpected output:\n\n```text\nPriya Natarajan (eng)\nMarcus Bell (sales)\nLena Fischer (eng)\nOmar Haddad (ops)\nSofia Marino (support)\nDaniel Okafor (eng)\nHana Kim (legal)\nRavi Shah (sales)\nChloe Martin (ops)\nJonas Berg (eng)\nAisha Bello (eng)\nMateo Ruiz (sales)\nGrace Liu (eng)\nBen Carter (support)\n```",
+        "starter": "# employees.csv: id,name,dept,salary,start_date,email\n# TODO: skip the header, and add the department in parentheses\nawk -F, '{print $2}' employees.csv\n",
+        "solution": "# employees.csv: id,name,dept,salary,start_date,email\nawk -F, 'NR > 1 {print $2 \" (\" $3 \")\"}' employees.csv\n",
+        "tests": [
+          {
+            "output": "Priya Natarajan (eng)\nMarcus Bell (sales)\nLena Fischer (eng)\nOmar Haddad (ops)\nSofia Marino (support)\nDaniel Okafor (eng)\nHana Kim (legal)\nRavi Shah (sales)\nChloe Martin (ops)\nJonas Berg (eng)\nAisha Bello (eng)\nMateo Ruiz (sales)\nGrace Liu (eng)\nBen Carter (support)"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "Noah Fischer (support)\nYara Haddad (eng)\nKenji Mori (eng)\nLucia Romero (finance)\nFelix Wagner (sales)\nZara Ahmed (eng)\nOwen Price (design)\nMila Novak (finance)\nArjun Rao (sales)\nEmma Laurent (eng)\nKofi Mensah (support)\nIvy Chen (sales)"
+          }
+        ],
+        "hints": [
+          "`NR > 1` in front of the action skips line 1, the header.",
+          "Text in double quotes and fields written side by side join into one value: `$2 \" (\" $3 \")\"`."
+        ]
+      }
+    },
+    {
+      "title": "Patterns, BEGIN and END",
+      "body": "A pattern decides which lines an action runs on. It can compare a field (`$4 > 100000`, `$3 == \"eng\"`), test the line number (`NR > 1`), match the whole line against a regular expression (`/POST/`), or match one field (`$9 ~ /^5/`, and `!~` for does not match). Combine patterns with `&&` and `||`.\n\n`BEGIN { }` runs before the first line and `END { }` after the last, which is where totals go. Variables need no declaration. They start empty, which counts as 0 in math, so `sum += $4` and `n++` just work. `-v` passes a value in from the command line:\n\n```bash\nawk -F, -v min=130000 'NR > 1 && $4 >= min {n++} END {print n \" earn at least \" min}' employees.csv\n```\n\nTo find a maximum, keep the biggest value so far and whatever belongs with it:\n\n```bash\nawk -F, 'NR > 1 && $4 > max {max = $4; who = $2} END {print who, max}' employees.csv\n```\n\n`printf` formats its values: `%d` is a whole number, `%s` is text, `%.2f` is a number with 2 decimals, and `\\n` ends the line, since `printf` never adds one.",
+      "examples": [
+        {
+          "title": "Filter rows",
+          "prompt": "Print who earns more than 120000, then everyone in sales or support with their department.",
+          "code": "awk -F, 'NR > 1 && $4 > 120000 {print $2}' employees.csv\necho \"---\"\nawk -F, '$3 == \"sales\" || $3 == \"support\" {print $3, $2}' employees.csv\n",
+          "output": "Priya Natarajan\nHana Kim\nJonas Berg\n---\nsales Marcus Bell\nsupport Sofia Marino\nsales Ravi Shah\nsales Mateo Ruiz\nsupport Ben Carter",
+          "explanation": "`NR > 1 && $4 > 120000` is true only for data lines whose salary is above 120000, so the header is never compared. awk compares two values as numbers when both look like numbers, and as text otherwise, so `$3 == \"sales\"` is an exact text match. The second command needs no `NR > 1`: the header's department field holds `dept`, which is neither value."
+        },
+        {
+          "title": "Totals, averages and a maximum",
+          "prompt": "Print the average salary to 2 decimals, then the slowest request in the access log.",
+          "code": "# Add up and count every data row, then divide once at the end\nawk -F, 'NR > 1 {sum += $4; n++} END {printf \"avg %.2f\\n\", sum / n}' employees.csv\n# Keep the longest request time so far, and its path\nawk '$NF > max {max = $NF; path = $7} END {print \"slowest: \" path \" (\" max \" s)\"}' access.log\n",
+          "output": "avg 96696.43\nslowest: /search (0.882 s)",
+          "explanation": "The first rule runs on every data row, adding the salary to `sum` and 1 to `n`. Only `END` divides, after the last line, and `printf` rounds the average to 2 decimals. The second program has no `NR > 1`, since a log has no header line. Its pattern `$NF > max` is true whenever a request took longer than every request before it, so the action replaces the record, and `END` prints the winner."
+        },
+        {
+          "title": "Count matches with BEGIN and END",
+          "prompt": "Print a title line, then count the POST requests, the server errors (status 5xx) and the client errors (status 4xx) in the access log.",
+          "code": "awk '\nBEGIN {print \"Status check for access.log\"}\n/POST/ {posts++}\n$9 ~ /^5/ {server++}\n$9 ~ /^4/ {client++}\nEND {\n  print posts \" POST requests\"\n  print server \" server errors\"\n  print client \" client errors\"\n}\n' access.log\n",
+          "output": "Status check for access.log\n30 POST requests\n4 server errors\n19 client errors",
+          "explanation": "A program can span several lines inside its single quotes, one rule per line, and a block can hold one statement per line too. `BEGIN` prints before awk reads anything. `/POST/` matches anywhere in the line, while `$9 ~ /^5/` looks only at the status code and is true when it starts with 5. Each rule counts its own kind of line, so in `END` every count is complete. A count that never went up is still empty, so with no matches its line would print as ` server errors`. Write `server + 0` to print 0 instead."
+        }
+      ],
+      "practice": {
+        "title": "Payroll summary",
+        "prompt": "Print a four line payroll summary of `employees.csv`.\n\n1. Skip the header. Count every employee and add their salary (column 4) to a total.\n2. Keep the highest salary and the name that goes with it.\n3. In `END`, print the count, the total, the average salary to 2 decimals, and the top earner with their salary in parentheses, labeled as below.\n\nExpected output:\n\n```text\nemployees: 14\ntotal: 1353750\naverage: 96696.43\ntop: Jonas Berg (142000)\n```",
+        "starter": "# employees.csv: id,name,dept,salary,start_date,email\n# TODO: total the salaries, and keep the top earner and their salary\n# TODO: in END, also print total:, average: (2 decimals) and top:\nawk -F, 'NR > 1 {n++} END {print \"employees: \" n}' employees.csv\n",
+        "solution": "# employees.csv: id,name,dept,salary,start_date,email\nawk -F, '\nNR > 1 {n++; total += $4}\nNR > 1 && $4 > max {max = $4; top = $2}\nEND {\n  print \"employees: \" n\n  print \"total: \" total\n  printf \"average: %.2f\\n\", total / n\n  print \"top: \" top \" (\" max \")\"\n}\n' employees.csv\n",
+        "tests": [
+          {
+            "output": "employees: 14\ntotal: 1353750\naverage: 96696.43\ntop: Jonas Berg (142000)"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "employees: 12\ntotal: 1073000\naverage: 89416.67\ntop: Emma Laurent (138000)"
+          }
+        ],
+        "hints": [
+          "Use two rules for the data rows: one that counts and totals every row, and one with the pattern `NR > 1 && $4 > max` that keeps the top earner.",
+          "`printf \"average: %.2f\\n\", total / n` rounds to 2 decimals and ends the line.",
+          "Fields and text side by side join into one value: `print \"top: \" top \" (\" max \")\"`."
+        ]
+      }
+    },
+    {
+      "title": "Group by with arrays",
+      "body": "An awk array maps keys to values, like a dictionary, and a key can be any text, such as a field. `count[$3]++` adds 1 to the entry for this line's department, and creates it at 0 the first time that department shows up. `sum[$3] += $4` keeps a running total per department the same way.\n\nIn `END`, `for (k in a)` visits every key, so you print one line per group:\n\n```bash\nawk -F, 'NR > 1 {count[$3]++} END {for (d in count) print d, count[d]}' employees.csv | sort\n```\n\n`for (k in a)` visits the keys in no particular order, so pipe the result to `sort`. gawk can also order the loop itself: set `PROCINFO[\"sorted_in\"]` in `BEGIN` to `\"@ind_str_asc\"` for keys A to Z, or to `\"@val_num_desc\"` for values from largest to smallest.\n\n```bash\nawk -F, 'BEGIN {PROCINFO[\"sorted_in\"] = \"@ind_str_asc\"} NR > 1 {count[$3]++} END {for (d in count) print d, count[d]}' employees.csv\n```\n\n`PROCINFO` is a gawk feature. gawk is the usual awk on Linux, but macOS ships a different awk without it.",
+      "examples": [
+        {
+          "title": "Totals per department",
+          "prompt": "Add up the salaries in each department and print one line per department, sorted.",
+          "code": "awk -F, 'NR > 1 {total[$3] += $4} END {for (d in total) print d, total[d]}' employees.csv | sort\n",
+          "output": "eng 695000\nlegal 134000\nops 176000\nsales 223250\nsupport 125500",
+          "explanation": "Each data row adds its salary to the entry for its own department, so after the last line `total` holds one sum per department. The loop in `END` prints them in whatever order awk keeps its keys, and `sort` puts the lines in order by department. A department with one employee, like `legal`, gets its line like any other."
+        },
+        {
+          "title": "Count requests per status",
+          "prompt": "Count the requests in `access.log` for each status code.",
+          "code": "awk '{count[$9]++} END {for (c in count) print c, count[c]}' access.log | sort\n",
+          "output": "200 323\n201 15\n301 2\n302 12\n304 25\n400 4\n401 3\n403 4\n404 8\n500 1\n502 2\n503 1",
+          "explanation": "This is the awk version of `sort | uniq -c`: one array entry per distinct status, counted as the lines go by. Every status code has three digits, so sorting the lines as text puts them in numeric order too. To rank them by count instead, sort on the second field with `sort -k2,2nr`."
+        },
+        {
+          "title": "Averages in key order",
+          "prompt": "Print each class's number of students and average score from `scores.csv`, classes in order, without piping to `sort`.",
+          "code": "awk -F, '\nBEGIN {PROCINFO[\"sorted_in\"] = \"@ind_str_asc\"}\nNR > 1 {n[$2]++; sum[$2] += $3}\nEND {for (c in n) printf \"%s %d %.2f\\n\", c, n[c], sum[c] / n[c]}\n' scores.csv\n",
+          "output": "7A 4 85.00\n7B 3 72.00\n7C 3 77.00",
+          "explanation": "Two arrays share the same keys: `n` counts the students in each class and `sum` adds up their scores, so `sum[c] / n[c]` in `END` is the average for class `c`. Setting `PROCINFO[\"sorted_in\"]` before awk reads a line makes every `for (c in n)` loop visit the keys A to Z, so the lines come out in order with no `sort`."
+        }
+      ],
+      "practice": {
+        "title": "Department report",
+        "prompt": "Print one line per department with its head count and average salary.\n\n1. Skip the header. Count the employees in each department and total their salaries, in two arrays.\n2. In `END`, print each department, its count, and its average salary to 1 decimal, separated by spaces.\n3. List the departments A to Z.\n\nExpected output:\n\n```text\neng 6 115833.3\nlegal 1 134000.0\nops 2 88000.0\nsales 3 74416.7\nsupport 2 62750.0\n```",
+        "starter": "# employees.csv: id,name,dept,salary,start_date,email\n# TODO: also total the salaries per department in a second array\n# TODO: print \"dept count average\" with the average to 1 decimal, departments A to Z\nawk -F, 'NR > 1 {count[$3]++} END {for (d in count) print d, count[d]}' employees.csv\n",
+        "solution": "# employees.csv: id,name,dept,salary,start_date,email\nawk -F, '\nBEGIN {PROCINFO[\"sorted_in\"] = \"@ind_str_asc\"}\nNR > 1 {count[$3]++; total[$3] += $4}\nEND {for (d in count) printf \"%s %d %.1f\\n\", d, count[d], total[d] / count[d]}\n' employees.csv\n",
+        "tests": [
+          {
+            "output": "eng 6 115833.3\nlegal 1 134000.0\nops 2 88000.0\nsales 3 74416.7\nsupport 2 62750.0"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "design 1 99000.0\neng 4 117062.5\nfinance 2 92000.0\nsales 3 68583.3\nsupport 2 58000.0"
+          }
+        ],
+        "hints": [
+          "Keep a second array beside the count: `total[$3] += $4`.",
+          "In `END`, the average for department `d` is `total[d] / count[d]`, and `printf \"%s %d %.1f\\n\"` prints it with 1 decimal.",
+          "Set `PROCINFO[\"sorted_in\"] = \"@ind_str_asc\"` in `BEGIN`, or pipe the output to `sort`."
+        ]
+      }
+    },
+    {
+      "title": "printf reports and real CSV",
+      "body": "A number between the `%` and the letter of a `printf` format sets a width. `%12s` right-aligns text in 12 characters and `%-12s` left-aligns it, `%6d` right-aligns a whole number, and `%10.2f` right-aligns a decimal with 2 places. Fixed widths make columns line up:\n\n```bash\nawk -F, 'NR > 1 && NR <= 4 {printf \"%-16s %-6s %8d\\n\", $2, $3, $4}' employees.csv\n```\n\n`-F,` splits on every comma, even one inside quotes, so a CSV field like `\"Desk Lamp, Brass\"` breaks in two. gawk 5.3 and later read real CSV with `--csv`: a quoted field stays one field and loses its quotes.\n\nawk has string functions too:\n\n- `length(s)` counts the characters in `s`, and `toupper(s)` and `tolower(s)` change its case.\n- `substr(s, start, count)` takes `count` characters from position `start`, counting from 1.\n- `split(s, parts, sep)` fills the array `parts` with the pieces of `s` and returns how many there are.\n- `gsub(/regex/, \"new\", s)` replaces every match in `s`, or in `$0` when you leave `s` out.",
+      "examples": [
+        {
+          "title": "An aligned table",
+          "prompt": "Print the total salary of each department under a header row, the totals right-aligned with 2 decimals.",
+          "code": "awk -F, '\nBEGIN {\n  PROCINFO[\"sorted_in\"] = \"@ind_str_asc\"\n  printf \"%-10s %12s\\n\", \"dept\", \"total\"\n}\nNR > 1 {total[$3] += $4}\nEND {for (d in total) printf \"%-10s %12.2f\\n\", d, total[d]}\n' employees.csv\n",
+          "output": "dept              total\neng           695000.00\nlegal         134000.00\nops           176000.00\nsales         223250.00\nsupport       125500.00",
+          "explanation": "The header and the rows use the same widths, 10 for the department and 12 for the total, so every column starts and ends in the same place. `%-10s` pads the department on the right, while `%12s` and `%12.2f` pad on the left, which lines the numbers up on their last digit. `BEGIN` sets the loop order and prints the header before awk reads the file."
+        },
+        {
+          "title": "Quoted commas",
+          "prompt": "Print the product column of `orders.csv`, first with `-F,`, then with `--csv`.",
+          "code": "awk -F, '{print $3}' orders.csv\necho \"---\"\nawk --csv '{print $3}' orders.csv\n",
+          "output": "product\n\"Desk Lamp\nNotebook\n\"Chair\nUSB-C Cable\n\"Mug\nMonitor Arm\n---\nproduct\nDesk Lamp, Brass\nNotebook\nChair, Ergonomic, Grey\nUSB-C Cable\nMug, Enamel\nMonitor Arm",
+          "explanation": "`-F,` treats every comma as a separator, so `\"Desk Lamp, Brass\"` becomes two fields, `\"Desk Lamp` and ` Brass\"`, and every column after it moves one place to the right. `--csv` follows the CSV rules: a comma inside double quotes belongs to the field, and the quotes themselves go away. Use it whenever a CSV can have quoted fields, which is any CSV a spreadsheet or a database exported. macOS's awk and gawk before 5.3 don't have it."
+        },
+        {
+          "title": "String functions",
+          "prompt": "Print the first three employees with their department capitalized, their start year, the length of their name, and their name with underscores for spaces.",
+          "code": "awk -F, 'NR > 1 && NR <= 4 {\n  dept = toupper(substr($3, 1, 1)) substr($3, 2)\n  split($5, date, \"-\")\n  size = length($2)\n  gsub(/ /, \"_\", $2)\n  print dept, date[1], size, $2\n}' employees.csv\n",
+          "output": "Eng 2019 15 Priya_Natarajan\nSales 2021 11 Marcus_Bell\nEng 2020 12 Lena_Fischer",
+          "explanation": "`substr($3, 1, 1)` is the first letter of the department and `substr($3, 2)` the rest, so `toupper` capitalizes just the first letter. `split` cuts a date like `2019-03-11` at each `-` into `date[1]`, `date[2]` and `date[3]`, numbered from 1. `length` counts the characters in the name, the space included. `gsub` changes `$2` itself, which is why the program measures the name before the spaces become underscores."
+        }
+      ],
+      "practice": {
+        "title": "Invoice table",
+        "prompt": "Print an aligned invoice from `orders.csv`, whose columns are `order_id,customer,product,qty,unit_price`.\n\n1. Read the file with `--csv`, since product names hold commas.\n2. Print a header with `printf \"%-24s %4s %10s\\n\", \"product\", \"qty\", \"total\"`.\n3. For each order, print the product, the quantity, and its total (quantity times unit price) with the format `\"%-24s %4d %10.2f\\n\"`.\n4. Last, print `TOTAL` and the sum of all the totals with the format `\"%-24s %4s %10.2f\\n\"`, giving an empty string for the quantity.\n\nExpected output:\n\n```text\nproduct                   qty      total\nDesk Lamp, Brass            2      49.98\nNotebook                    5      17.50\nChair, Ergonomic, Grey      1     189.00\nUSB-C Cable                 3      21.75\nMug, Enamel                 4      35.60\nMonitor Arm                 1      64.00\nTOTAL                             377.83\n```",
+        "starter": "# orders.csv: order_id,customer,product,qty,unit_price\n# TODO: read it with --csv, then print the header, one row per order, and the TOTAL line\nawk -F, 'NR > 1 {print $3, $4 * $5}' orders.csv\n",
+        "solution": "# orders.csv: order_id,customer,product,qty,unit_price\nawk --csv '\nBEGIN {printf \"%-24s %4s %10s\\n\", \"product\", \"qty\", \"total\"}\nNR > 1 {\n  line = $4 * $5\n  sum += line\n  printf \"%-24s %4d %10.2f\\n\", $3, $4, line\n}\nEND {printf \"%-24s %4s %10.2f\\n\", \"TOTAL\", \"\", sum}\n' orders.csv\n",
+        "tests": [
+          {
+            "output": "product                   qty      total\nDesk Lamp, Brass            2      49.98\nNotebook                    5      17.50\nChair, Ergonomic, Grey      1     189.00\nUSB-C Cable                 3      21.75\nMug, Enamel                 4      35.60\nMonitor Arm                 1      64.00\nTOTAL                             377.83"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "product                   qty      total\nStanding Desk, Oak          1     349.00\nPen Set                     3      37.50\nHeadphones, Wireless        2     159.98\nDesk Mat                    1      19.00\nLamp, LED, Warm White       4      63.00\nTOTAL                             628.48"
+          }
+        ],
+        "hints": [
+          "With `awk --csv`, `\"Desk Lamp, Brass\"` is one field, so the product is always `$3`, the quantity `$4` and the unit price `$5`.",
+          "Compute each order's total once, print it, and add it to a running sum for the `END` line.",
+          "In `END`, `printf \"%-24s %4s %10.2f\\n\", \"TOTAL\", \"\", sum` leaves the qty column blank."
+        ]
+      }
+    }
+  ],
+  "recap": "- `awk 'pattern { action }' file` runs the action on each line the pattern matches, or on every line when there's no pattern.\n- `$1` to `$NF` are the fields, `$0` is the whole line, `NF` the number of fields and `NR` the line number. `-F,` splits on commas, and `-v OFS=' | '` sets what a comma in `print` writes.\n- Patterns compare fields (`$4 > 120000`, `$3 == \"eng\"`), match regular expressions (`/POST/`, `$9 ~ /^5/`), and combine with `&&` and `||`. `NR > 1` skips a header.\n- `BEGIN` runs before the first line and `END` after the last. Variables start empty, which is 0 in math, so `sum += $4` and `n++` need no setup.\n- Arrays group rows: `count[$3]++` and `sum[$3] += $4`, then `for (k in a)` in `END`, piped to `sort` or ordered with `PROCINFO[\"sorted_in\"]`.\n- `printf \"%-10s %8.2f\\n\"` lines up columns, `length`, `substr`, `split`, `toupper` and `gsub` work on text, and `--csv` reads quoted fields that hold commas."
+}

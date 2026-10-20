@@ -1,0 +1,178 @@
+{
+  "id": "redirection",
+  "title": "Redirection",
+  "section": "Streams and Pipes",
+  "summary": "Send a command's output to a file, keep its errors apart, feed a file in as input, and stop a script from overwriting files by accident.",
+  "intro": "In a terminal you type one command at a time. From here on you write commands in `main.sh`, a script, which is just commands saved in a file. Run and Check execute it top to bottom in a fresh folder that holds this lesson's files, so every run starts from the same files. Open the files row below the editor to read them.\n\nEvery command has three standard streams. It reads input from stdin, writes results to stdout, and writes errors to stderr. The output panel shows stdout, then stderr in the error color, and an exit badge when the script's last command failed. Redirection connects these streams to files.",
+  "format": "single",
+  "fixtures": "textbox",
+  "steps": [
+    {
+      "title": "Send output to a file",
+      "body": "`>` sends a command's stdout to a file instead of the screen. If the file exists, `>` empties it first, so whatever it held is gone. `>>` appends to the end and keeps what was there.\n\n```bash\necho \"Hello\" > greeting.txt\necho \"Hello again\" >> greeting.txt\ncat greeting.txt\n```\n\nThe shell does the redirecting, not the command. It opens the file before the command starts, creating or emptying it, so the file exists even when the command prints nothing.\n\n`<` goes the other way: it connects a file to a command's stdin. The command reads the contents but never sees the file's name.\n\n`: > file` empties a file. `:` is a command that does nothing and succeeds, so the redirection is the only thing that happens.",
+      "examples": [
+        {
+          "title": "Write and append",
+          "prompt": "Write a line with `>`, add one with `>>`, then use `>` again on the same file.",
+          "code": "echo \"first\" > log.txt\necho \"second\" >> log.txt\ncat log.txt\necho \"---\"\necho \"third\" > log.txt\ncat log.txt\n",
+          "output": "first\nsecond\n---\nthird",
+          "explanation": "`>` creates `log.txt` and writes `first`. `>>` adds `second` below it, so the first `cat` prints both lines. The next `>` empties the file before `echo` writes `third`, so the last `cat` prints that line alone. Use `>` for a file each run should rewrite, and `>>` for a log that grows."
+        },
+        {
+          "title": "The file exists first",
+          "prompt": "List an empty folder into a file inside that same folder.",
+          "code": "mkdir reports\nls reports > reports/listing.txt\ncat reports/listing.txt\n",
+          "output": "listing.txt",
+          "explanation": "`reports` is empty when the second line starts. Before `ls` runs, the shell creates `reports/listing.txt` to hold its output, so `ls` finds that file and lists it. The same thing happens with `ls > listing.txt` in any folder: the listing includes `listing.txt` itself."
+        },
+        {
+          "title": "Input or argument",
+          "prompt": "Count the lines of `fruits.txt` two ways, then empty a file with `: >`.",
+          "code": "wc -l fruits.txt\nwc -l < fruits.txt\necho \"old entry\" > log.txt\n: > log.txt\nwc -l log.txt\n",
+          "output": "12 fruits.txt\n12\n0 log.txt",
+          "explanation": "Given the name as an argument, `wc` opens `fruits.txt` itself and prints the name beside the count. With `< fruits.txt`, the shell opens the file and hands `wc` its contents on stdin, so there is no name to print, just the number. `: > log.txt` empties the file: `>` empties `log.txt` before `:` runs, and `:` writes nothing, so `wc` counts 0 lines."
+        }
+      ],
+      "practice": {
+        "title": "Shopping list",
+        "prompt": "Write a shopping list to a file, one item per line, then print the file.\n\n1. Write `milk` into `list.txt` with `>`.\n2. Append `eggs`, then `bread`, with `>>`.\n3. Print `list.txt` with `cat`.\n\nCheck also reads `list.txt` after the run, so the file must hold the three lines.\n\nExpected output:\n\n```text\nmilk\neggs\nbread\n```",
+        "starter": "# TODO: write milk into list.txt with >\n\n# TODO: append eggs, then bread, with >>\n\n# TODO: print list.txt\n",
+        "solution": "echo \"milk\" > list.txt\necho \"eggs\" >> list.txt\necho \"bread\" >> list.txt\ncat list.txt\n",
+        "tests": [
+          {
+            "output": "milk\neggs\nbread",
+            "files": {
+              "list.txt": "milk\neggs\nbread"
+            }
+          }
+        ],
+        "hints": [
+          "`>` starts the file fresh, and `>>` adds to its end.",
+          "Use `>` once, for the first line. A second `>` would empty the file again.",
+          "`echo \"eggs\" >> list.txt` adds one line to the end of the file."
+        ]
+      }
+    },
+    {
+      "title": "Errors go to stderr",
+      "body": "Commands write errors to stderr, a separate stream, so `>` doesn't capture them. That's deliberate: when you save results to a file, you still see what went wrong.\n\nEach stream has a number, its file descriptor: 0 is stdin, 1 is stdout, and 2 is stderr. A number in front of `>` picks the stream, and plain `>` means `1>`.\n\n```bash\nls nope.txt 2> err.txt\ncat err.txt\n```\n\n- `2> file` sends stderr to a file, and `2>> file` appends.\n- `2> /dev/null` throws errors away. `/dev/null` discards everything written to it.\n- `&> file` sends stdout and stderr to the same file.\n- `2>&1` points stderr wherever stdout points at that moment.\n\nThe shell applies redirections left to right, so their order matters. `> out.txt 2>&1` sends both streams to the file. `2>&1 > out.txt` points stderr at the screen, where stdout still goes, and only then moves stdout to the file.",
+      "examples": [
+        {
+          "title": "Errors stay visible",
+          "prompt": "Save a listing with `>` and see the errors still reach the screen.",
+          "code": "ls fruits.txt missing.txt > out.txt\ncat out.txt\ncat missing.txt > copy.txt\n",
+          "expect": "runtime-error",
+          "output": "fruits.txt",
+          "errorIncludes": "ls: cannot access 'missing.txt': No such file or directory\ncat: missing.txt: No such file or directory",
+          "exitCode": 1,
+          "explanation": "`> out.txt` redirects stdout only. `ls` writes `fruits.txt` into the file, and its complaint about `missing.txt` goes to stderr, which still points at the screen. `cat out.txt` shows the file holds just the one name. The last `cat` fails the same way: its error shows even though its stdout goes to `copy.txt`. It is also the script's last command, which is why the output shows `exit 1`."
+        },
+        {
+          "title": "Capture both",
+          "prompt": "Give each stream its own file, then send both streams to one file.",
+          "code": "ls fruits.txt missing.txt > out.txt 2> err.txt\necho \"out.txt:\"\ncat out.txt\necho \"err.txt:\"\ncat err.txt\nls fruits.txt missing.txt &> all.txt\necho \"all.txt:\"\ncat all.txt\n",
+          "output": "out.txt:\nfruits.txt\nerr.txt:\nls: cannot access 'missing.txt': No such file or directory\nall.txt:\nls: cannot access 'missing.txt': No such file or directory\nfruits.txt",
+          "explanation": "With `> out.txt 2> err.txt`, results and errors land in separate files, and nothing reaches the screen. `&> all.txt` collects both streams in one file. There the error comes first: `ls` reports a missing name as soon as it checks it, and prints the names it found afterwards."
+        },
+        {
+          "title": "Order matters",
+          "prompt": "Hide an error, then put `2>&1` on each side of `> out.txt`.",
+          "code": "ls missing.txt 2> /dev/null\necho \"2>&1 before > out.txt:\"\nls missing.txt 2>&1 > out.txt\necho \"2>&1 after > out.txt:\"\nls missing.txt > out.txt 2>&1\ncat out.txt\n",
+          "output": "2>&1 before > out.txt:\nls: cannot access 'missing.txt': No such file or directory\n2>&1 after > out.txt:\nls: cannot access 'missing.txt': No such file or directory",
+          "explanation": "The first `ls` prints nothing at all, since `2> /dev/null` discards its error. In `2>&1 > out.txt`, `2>&1` comes first and points stderr at stdout's target at that moment, the screen. Then `> out.txt` moves stdout alone, so the error still prints. It even shows as normal output here, because stderr now goes where stdout went before the move. In `> out.txt 2>&1`, stdout already points at the file when `2>&1` copies it, so the error goes into `out.txt`, and `cat` prints it from there. `2>&1 > file` is such a common slip that ShellCheck, the linter you meet later in the course, flags it, which is why this example skips that check.",
+          "shellcheck": "off"
+        }
+      ],
+      "practice": {
+        "title": "Split the streams",
+        "prompt": "List three names with `ls`, keeping what it finds and what it can't find in separate files, then print both files under a heading.\n\n1. Run `ls fruits.txt config.ini nope.txt` with stdout going to `found.txt` and stderr to `errors.txt`.\n2. Print `Found:`, then the contents of `found.txt`.\n3. Print `Errors:`, then the contents of `errors.txt`.\n\nCheck runs it in this lesson's files and again in a folder without `config.ini`, and reads both files afterwards.\n\nExpected output:\n\n```text\nFound:\nconfig.ini\nfruits.txt\nErrors:\nls: cannot access 'nope.txt': No such file or directory\n```",
+        "starter": "# TODO: run ls fruits.txt config.ini nope.txt with stdout to found.txt and stderr to errors.txt\n\necho \"Found:\"\n# TODO: print found.txt\n\necho \"Errors:\"\n# TODO: print errors.txt\n",
+        "solution": "ls fruits.txt config.ini nope.txt > found.txt 2> errors.txt\necho \"Found:\"\ncat found.txt\necho \"Errors:\"\ncat errors.txt\n",
+        "tests": [
+          {
+            "output": "Found:\nconfig.ini\nfruits.txt\nErrors:\nls: cannot access 'nope.txt': No such file or directory",
+            "files": {
+              "found.txt": "config.ini\nfruits.txt",
+              "errors.txt": "ls: cannot access 'nope.txt': No such file or directory"
+            }
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "Found:\nfruits.txt\nErrors:\nls: cannot access 'config.ini': No such file or directory\nls: cannot access 'nope.txt': No such file or directory",
+            "files": {
+              "found.txt": "fruits.txt",
+              "errors.txt": "ls: cannot access 'config.ini': No such file or directory\nls: cannot access 'nope.txt': No such file or directory"
+            }
+          }
+        ],
+        "hints": [
+          "One `ls` line can carry two redirections: one for stdout and one for stderr.",
+          "`> found.txt` catches stdout, and `2> errors.txt` catches stderr.",
+          "The whole first line is `ls fruits.txt config.ini nope.txt > found.txt 2> errors.txt`. Then print each file with `cat` under its heading."
+        ]
+      }
+    },
+    {
+      "title": "Input, stderr on purpose, and noclobber",
+      "body": "`<` feeds a file to a command's stdin. `head`, `wc`, and most text tools read stdin when you give them no file name.\n\n```bash\nhead -n 2 < fruits.txt\n```\n\n`>&2` sends your own message to stderr, where warnings and errors belong. It's short for `1>&2`: point stdout at wherever stderr points. Keep results on stdout and messages on stderr, so whoever saves your output with `>` gets clean data and still sees the warnings. Check ignores stderr unless a test asks about it.\n\n`>` overwrites without asking. After `set -o noclobber`, the shell refuses to overwrite an existing file with `>`, while `>>` still appends. `>|` overwrites anyway, for when you mean it, and `set +o noclobber` turns the guard off.\n\n```bash\nset -o noclobber\necho \"second draft\" >| draft.txt\ncat draft.txt\n```",
+      "examples": [
+        {
+          "title": "Stdin from a file",
+          "prompt": "Feed three files to `head` and `wc` through stdin.",
+          "code": "head -n 2 < fruits.txt\nwc -w < words.txt\nwc -l < poem.txt\n",
+          "output": "apple\nbanana\n12\n9",
+          "explanation": "With no file name, `head` and `wc` read stdin, and `<` connects each file to it. `head -n 2` keeps the first 2 lines. `wc -w` counts words instead of lines, and `words.txt` holds 12 of them. `poem.txt` has 9 lines, counting the blank line between its two stanzas."
+        },
+        {
+          "title": "Your own messages",
+          "prompt": "Report progress on stderr while the counts go to stdout.",
+          "code": "echo \"step 1: counting fruits\" >&2\nwc -l < fruits.txt\necho \"step 2: counting sales\" >&2\nwc -l < sales.csv\n",
+          "expect": "runtime-error",
+          "output": "12",
+          "errorIncludes": "step 1: counting fruits\nstep 2: counting sales\nmain.sh: line 4: sales.csv: No such file or directory",
+          "exitCode": 1,
+          "explanation": "Each `echo ... >&2` writes to stderr, so the progress messages show with the errors and stdout holds nothing but the count, ready for a file or another command. Step 2 fails: with `<`, the shell opens `sales.csv` before `wc` starts, so the shell itself reports the missing file, naming the script and the line. That failed command is the script's last, hence `exit 1`."
+        },
+        {
+          "title": "noclobber",
+          "prompt": "Turn on noclobber, append and force a write, then try a plain `>` on a file that exists.",
+          "code": "set -o noclobber\necho \"kiwi\" >> fruits.txt\ntail -n 2 fruits.txt\necho \"new draft\" >| draft.txt\ncat draft.txt\necho \"kiwi\" > fruits.txt\n",
+          "expect": "runtime-error",
+          "output": "orange\nkiwi\nnew draft",
+          "errorIncludes": "main.sh: line 6: fruits.txt: cannot overwrite existing file",
+          "exitCode": 1,
+          "explanation": "With noclobber on, `>>` still works, since appending never destroys anything, and `tail -n 2` shows the new last line. `>|` replaces `draft.txt` on purpose. The plain `>` on the last line is refused: the shell reports `cannot overwrite existing file`, `fruits.txt` keeps every line, and the failed redirection gives the script its `exit 1`."
+        }
+      ],
+      "practice": {
+        "title": "Protect the report",
+        "prompt": "Save the top of a word list with noclobber on, then force a fresh draft.\n\n1. Turn on noclobber.\n2. Save the first 3 lines of `words.txt` into `top3.txt`, feeding `words.txt` to `head` with `<`.\n3. Append a line `---` to `top3.txt`.\n4. Overwrite the existing `draft.txt` with the single line `draft`, using `>|`.\n5. Print `top3.txt`, then `draft.txt`.\n\nCheck runs it on two word lists and reads both files afterwards.\n\nExpected output:\n\n```text\nriver\nStone\nlantern\n---\ndraft\n```",
+        "starter": "# TODO: turn on noclobber\n\n# TODO: save the first 3 lines of words.txt into top3.txt, reading words.txt with <\n\n# TODO: append --- to top3.txt\n\n# TODO: overwrite draft.txt with draft, using >|\n\n# TODO: print top3.txt, then draft.txt\n",
+        "solution": "set -o noclobber\nhead -n 3 < words.txt > top3.txt\necho \"---\" >> top3.txt\necho \"draft\" >| draft.txt\ncat top3.txt draft.txt\n",
+        "tests": [
+          {
+            "output": "river\nStone\nlantern\n---\ndraft",
+            "files": {
+              "top3.txt": "river\nStone\nlantern\n---",
+              "draft.txt": "draft"
+            }
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "Falcon\notter\nheron\n---\ndraft",
+            "files": {
+              "top3.txt": "Falcon\notter\nheron\n---",
+              "draft.txt": "draft"
+            }
+          }
+        ],
+        "hints": [
+          "`set -o noclobber` goes first, so every later `>` is guarded.",
+          "`head -n 3 < words.txt > top3.txt` reads with `<` and writes with `>`. That `>` is allowed, because `top3.txt` doesn't exist yet.",
+          "`draft.txt` already exists, so only `>|` can replace it while noclobber is on. `cat` prints several files in the order you name them."
+        ]
+      }
+    }
+  ],
+  "recap": "- `>` replaces a file with a command's stdout, `>>` appends, and `<` feeds a file to stdin.\n- The shell sets up redirections before the command runs, so `>` creates or empties the file first.\n- Errors go to stderr, stream 2, which `>` leaves alone. `2>` redirects it, `2> /dev/null` discards it, and `&>` sends both streams to one file.\n- `2>&1` copies where stdout points right now, so write `> file 2>&1`, not `2>&1 > file`.\n- `>&2` sends your own messages to stderr.\n- `set -o noclobber` stops `>` from overwriting a file, `>|` overrides it, and `: > file` empties a file."
+}

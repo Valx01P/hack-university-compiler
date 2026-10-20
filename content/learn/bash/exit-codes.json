@@ -1,0 +1,172 @@
+{
+  "id": "exit-codes",
+  "title": "Exit Codes and Chaining",
+  "section": "Streams and Pipes",
+  "summary": "Read every command's exit status, run a command only when another succeeds or fails, and end a script with the status you choose.",
+  "intro": "Every command ends with an exit status, a number from 0 to 255. 0 means it worked, and any other number means it failed, often with a code that says how. Scripts read these numbers to decide what happens next: carry on, try something else, or stop. When a script ends with a status other than 0, the output panel shows it in an exit badge.",
+  "format": "single",
+  "fixtures": "textbox",
+  "steps": [
+    {
+      "title": "Read the status with $?",
+      "body": "When a command finishes, the shell stores its exit status in `$?`. Read it right after the command you care about, because the next command replaces it.\n\n```bash\nls fruits.txt > /dev/null\necho \"status: $?\"\n```\n\n0 means success. The failure codes depend on the tool, and its man page lists them. `ls` returns 2 when it can't access a name you gave it, while `cat` and `mkdir` return 1 when they fail.\n\n`true` does nothing and succeeds, and `false` does nothing and fails, which makes them handy for trying out the rules.\n\n```bash\nfalse\necho \"false: $?\"\n```\n\nHiding an error with `2> /dev/null` doesn't change the status. The command still failed, it just said nothing about it.",
+      "examples": [
+        {
+          "title": "Success and failure",
+          "prompt": "Report the status of `ls` on a file that exists, `ls` on one that doesn't, and `cat` on the missing one.",
+          "code": "ls fruits.txt > /dev/null\necho \"ls fruits.txt: $?\"\nls nope.txt 2> /dev/null\necho \"ls nope.txt: $?\"\ncat nope.txt 2> /dev/null\necho \"cat nope.txt: $?\"\n",
+          "output": "ls fruits.txt: 0\nls nope.txt: 2\ncat nope.txt: 1",
+          "explanation": "Each `echo` runs right after the command it reports on, so `$?` still holds that command's status. `ls` found `fruits.txt` and returned 0. For the missing `nope.txt` it returned 2, its code for a name it can't access, while `cat` uses 1 for the same problem. The redirections only hide the output: the statuses stay the same."
+        },
+        {
+          "title": "true, false, and mkdir",
+          "prompt": "Print the status of `true` and `false`, then of `mkdir` making the same folder twice.",
+          "code": "true\necho \"true: $?\"\nfalse\necho \"false: $?\"\nmkdir logs\necho \"mkdir logs: $?\"\nmkdir logs 2> /dev/null\necho \"mkdir logs again: $?\"\n",
+          "output": "true: 0\nfalse: 1\nmkdir logs: 0\nmkdir logs again: 1",
+          "explanation": "`true` always returns 0 and `false` always returns 1. The first `mkdir logs` creates the folder and returns 0. The second finds `logs` already there and fails with 1, and `2> /dev/null` hides its message but not that status."
+        },
+        {
+          "title": "It changes every time",
+          "prompt": "Read `$?` twice after a failing command.",
+          "code": "ls nope.txt 2> /dev/null\necho \"first: $?\"\necho \"second: $?\"\n",
+          "output": "first: 2\nsecond: 0",
+          "explanation": "The first `echo` reports the failed `ls`, 2. But that `echo` is a command too, and it succeeded, so the second `echo` sees 0. Read `$?` once, right after the command you care about, and a later lesson shows how to keep it in a variable. Reading `$?` after an `echo` is such a common slip that ShellCheck, the linter you meet later in the course, warns about it, which is why this example skips that check.",
+          "shellcheck": "off"
+        }
+      ],
+      "practice": {
+        "title": "Exit code report",
+        "prompt": "Run four commands and report each one's exit status on its own line.\n\n1. `mkdir data`, reported as `mkdir`.\n2. `mkdir data` again, with stderr hidden, reported as `mkdir again`.\n3. `cat missing.txt`, with stderr hidden, reported as `cat`.\n4. `ls config.ini`, with stdout and stderr hidden, reported as `ls`.\n\nPrint each report right after its command: the label, a colon, a space, and the status. Check runs it in this lesson's files and again in a folder without `config.ini`.\n\nExpected output:\n\n```text\nmkdir: 0\nmkdir again: 1\ncat: 1\nls: 0\n```",
+        "starter": "mkdir data\necho \"mkdir: $?\"\n\n# TODO: run mkdir data again with stderr hidden, then print mkdir again: and its status\n\n# TODO: run cat missing.txt with stderr hidden, then print cat: and its status\n\n# TODO: run ls config.ini with stdout and stderr hidden, then print ls: and its status\n",
+        "solution": "mkdir data\necho \"mkdir: $?\"\nmkdir data 2> /dev/null\necho \"mkdir again: $?\"\ncat missing.txt 2> /dev/null\necho \"cat: $?\"\nls config.ini > /dev/null 2>&1\necho \"ls: $?\"\n",
+        "tests": [
+          {
+            "output": "mkdir: 0\nmkdir again: 1\ncat: 1\nls: 0"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "mkdir: 0\nmkdir again: 1\ncat: 1\nls: 2"
+          }
+        ],
+        "hints": [
+          "Put each `echo` on the line right after its command, before anything else runs.",
+          "`2> /dev/null` hides stderr. `> /dev/null 2>&1` hides both streams.",
+          "`ls config.ini > /dev/null 2>&1`, then `echo \"ls: $?\"`."
+        ]
+      }
+    },
+    {
+      "title": "Chain with && and ||",
+      "body": "`a && b` runs `b` only if `a` succeeded. `a || b` runs `b` only if `a` failed. `a ; b` runs both, one after the other, whatever happens, just like two lines.\n\n```bash\nmkdir logs && echo \"made logs\"\ncat nope.txt 2> /dev/null || echo \"no nope.txt\"\n```\n\nA chain's status is the status of the last command that ran in it, so chains can grow. `a && b && c` stops at the first failure, a compact way to run steps that each need the one before.\n\n`a && b || c` looks like if and else, but it isn't one. `c` runs when `a` fails, and also when `a` succeeds and then `b` fails. Use it only when `b` can't fail, like an `echo`, or when running `c` after any failure is what you want. A later lesson covers `if`.",
+      "examples": [
+        {
+          "title": "On success",
+          "prompt": "Make a folder and say so, then try to make it again.",
+          "code": "mkdir build && echo \"created build\"\nmkdir build 2> /dev/null && echo \"created build again\"\necho \"status: $?\"\n",
+          "output": "created build\nstatus: 1",
+          "explanation": "The first `mkdir` succeeds, so `&&` lets its `echo` run. The second `mkdir` fails because `build` exists, so its `echo` is skipped. That line's status is the 1 from `mkdir`, the last command that ran in it, and the final `echo` prints it."
+        },
+        {
+          "title": "On failure",
+          "prompt": "Print a config file, or a fallback message when the file isn't there.",
+          "code": "cat config.ini 2> /dev/null || echo \"no config.ini, using defaults\"\ncat settings.ini 2> /dev/null || echo \"no settings.ini, using defaults\"\n",
+          "output": "[app]\nname=shopfront\nenv=staging\n\n[server]\nhost=0.0.0.0\nport=8080\nno settings.ini, using defaults",
+          "explanation": "`cat config.ini` works, so `||` skips the fallback and you see the file. There is no `settings.ini`, so that `cat` fails without a word and the fallback prints instead. In a folder without `config.ini`, the first line would print `no config.ini, using defaults` the same way."
+        },
+        {
+          "title": "The caveat",
+          "prompt": "Run a chain that works as intended, then one where `||` fires for the wrong reason.",
+          "code": "mkdir -p out && cp fruits.txt out/ && echo \"copied\" || echo \"failed\"\nls fruits.txt > /dev/null && cat nope.txt 2> /dev/null || echo \"fruits.txt is missing\"\n",
+          "output": "copied\nfruits.txt is missing",
+          "explanation": "The first line is the intended use: every step has to succeed for `copied`, and a failure anywhere prints `failed`. The second line is the trap. `ls` finds `fruits.txt`, then `cat nope.txt` fails, and `||` reacts to that failure with a message that is plainly wrong. `||` answers whatever ran last on its left, not just the first command."
+        }
+      ],
+      "practice": {
+        "title": "Backup or explain",
+        "prompt": "Back up `notes.txt` if it's there, and say what happened, in one line.\n\n1. Copy `notes.txt` to `notes.bak` with `cp`, hiding its error.\n2. If the copy worked, print `backed up notes.txt`.\n3. If it failed, print `nothing to back up`.\n\nCheck runs it in this lesson's files, then in a folder without `notes.txt`, where `notes.bak` must not exist afterwards.\n\nExpected output:\n\n```text\nbacked up notes.txt\n```",
+        "starter": "# TODO: copy notes.txt to notes.bak with cp's error hidden, then use && and || to print the right message\n",
+        "solution": "cp notes.txt notes.bak 2> /dev/null && echo \"backed up notes.txt\" || echo \"nothing to back up\"\n",
+        "tests": [
+          {
+            "output": "backed up notes.txt",
+            "files": {
+              "notes.bak": "2026-10-16 standup\ndeploy of 2.14.0 went out at 14:05\ncheckout errors are back to normal\nstatus=ok\nnext: rotate the old logs"
+            }
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "nothing to back up",
+            "absent": [
+              "notes.bak"
+            ]
+          }
+        ],
+        "hints": [
+          "`&&` runs the next command only when `cp` worked, and `||` runs the last one when something before it failed.",
+          "`echo` can't fail here, so `a && b || c` behaves like if and else.",
+          "Put `2> /dev/null` right after the `cp` command, before `&&`, so only its error is hidden."
+        ]
+      }
+    },
+    {
+      "title": "Exit, invert, and group",
+      "body": "`exit N` ends the script on the spot with status N, and the lines after it never run. Without `exit`, a script's status is its last command's.\n\n`!` before a command flips its status: success becomes 1, and failure becomes 0.\n\n```bash\n! ls nope.txt 2> /dev/null && echo \"no nope.txt here\"\n```\n\nBraces group commands, so one `&&` or `||` can run several. Leave a space after `{`, and end every command inside with `;`, the last one too.\n\n```bash\nls fruits.txt > /dev/null && { echo \"found it\"; echo \"moving on\"; }\n```\n\nThe shell has codes of its own: 126 when a file can't be executed, 127 when no command has that name, and 128 plus N when signal N stopped the command, such as 130 after Ctrl-C.",
+      "examples": [
+        {
+          "title": "Command not found",
+          "prompt": "Run a command that doesn't exist and a file that isn't executable, keeping their errors in a file.",
+          "code": "nosuchcmd 2> err.txt\necho \"nosuchcmd: $?\"\n./fruits.txt 2>> err.txt\necho \"./fruits.txt: $?\"\ncat err.txt\n",
+          "output": "nosuchcmd: 127\n./fruits.txt: 126\nmain.sh: line 1: nosuchcmd: command not found\nmain.sh: line 3: ./fruits.txt: Permission denied",
+          "explanation": "Bash finds no program called `nosuchcmd` and returns 127. `./fruits.txt` names a file that exists but isn't executable, so the shell returns 126. The shell writes both errors to stderr, naming the script and the line, and `2>` and `2>>` collect them in `err.txt`. The codes the shell itself uses:\n\n| Status | Meaning |\n| --- | --- |\n| 126 | The file exists but can't be executed |\n| 127 | No command has that name |\n| 130 | Stopped with Ctrl-C, which sends signal 2 (128 + 2) |\n| 137 | Killed with signal 9, SIGKILL (128 + 9) |\n| 143 | Stopped with signal 15, SIGTERM (128 + 15) |\n\nSignals have a lesson of their own later in the course."
+        },
+        {
+          "title": "Fail with a message",
+          "prompt": "Stop with status 2 and a message on stderr when a required file is missing.",
+          "code": "ls config.ini > /dev/null 2>&1 || { echo \"config.ini missing\" >&2; exit 2; }\necho \"config.ini found\"\nls secrets.env > /dev/null 2>&1 || { echo \"secrets.env missing\" >&2; exit 2; }\necho \"secrets.env found\"\n",
+          "expect": "runtime-error",
+          "output": "config.ini found",
+          "errorIncludes": "secrets.env missing",
+          "exitCode": 2,
+          "explanation": "`config.ini` exists, so `||` skips its group and the script carries on. `secrets.env` doesn't, so the group runs: `>&2` sends the message to stderr, and `exit 2` ends the script right there, which is why the last `echo` never runs. Without the braces, `exit 2` would sit outside the `||`, and the script would stop even when the file was there."
+        },
+        {
+          "title": "Invert and stop",
+          "prompt": "Use `!` to act on a missing file, then end the script early with status 3.",
+          "code": "! ls nope.txt 2> /dev/null && echo \"nope.txt is missing, as expected\"\necho \"stopping with status 3\"\nexit 3\necho \"this line never runs\"\n",
+          "output": "nope.txt is missing, as expected\nstopping with status 3",
+          "exitCode": 3,
+          "explanation": "`ls` fails, `!` turns that failure into success, and `&&` runs the `echo`. `exit 3` ends the script on the spot with status 3, which the exit badge shows, and the last line never runs. Give different failures different codes, so whoever runs your script can tell them apart."
+        }
+      ],
+      "practice": {
+        "title": "Required files",
+        "prompt": "Make sure the files a job needs are present before it starts.\n\n1. Check `config.ini`, then `fruits.txt`, with `ls`, hiding both of its streams.\n2. For the first one that's missing, print `missing: config.ini` or `missing: fruits.txt` to stderr, and exit with status 2.\n3. If both are there, print `all files present`.\n\nCheck runs it in this lesson's files, in a folder without `config.ini` (status 2, nothing on stdout, and `missing: config.ini` on stderr), and in a folder that has `config.ini` but no `fruits.txt`.\n\nExpected output:\n\n```text\nall files present\n```",
+        "starter": "# TODO: if config.ini is missing, print missing: config.ini to stderr and exit 2\n\n# TODO: if fruits.txt is missing, print missing: fruits.txt to stderr and exit 2\n\necho \"all files present\"\n",
+        "solution": "ls config.ini > /dev/null 2>&1 || { echo \"missing: config.ini\" >&2; exit 2; }\nls fruits.txt > /dev/null 2>&1 || { echo \"missing: fruits.txt\" >&2; exit 2; }\necho \"all files present\"\n",
+        "tests": [
+          {
+            "output": "all files present"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "",
+            "exitCode": 2,
+            "stderrIncludes": "missing: config.ini"
+          },
+          {
+            "fixtures": "scriptbox",
+            "output": "",
+            "exitCode": 2,
+            "stderrIncludes": "missing: fruits.txt"
+          }
+        ],
+        "hints": [
+          "`ls` fails on a missing file, so `||` can react to it.",
+          "Two commands handle a missing file, so group them: `{ echo \"...\" >&2; exit 2; }`.",
+          "`ls config.ini > /dev/null 2>&1 || { echo \"missing: config.ini\" >&2; exit 2; }` covers the first file."
+        ]
+      }
+    }
+  ],
+  "recap": "- Every command exits with a status: 0 for success, 1 to 255 for failure. `$?` holds the last one, so read it right away.\n- `ls` returns 2 for a name it can't access, `cat` and `mkdir` return 1, `true` returns 0, and `false` returns 1.\n- `a && b` runs `b` after a success, `a || b` runs it after a failure, and `a ; b` runs both.\n- `a && b || c` is not if and else: `c` also runs when `b` fails.\n- `{ cmd1; cmd2; }` groups commands, `!` flips a status, and `exit N` ends the script with status N.\n- The shell's own codes: 126 can't execute, 127 not found, and 128 + N stopped by signal N (130 for Ctrl-C)."
+}

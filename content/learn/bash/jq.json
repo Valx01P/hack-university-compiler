@@ -1,0 +1,170 @@
+{
+  "id": "jq",
+  "title": "JSON with jq",
+  "section": "Web APIs from the Terminal",
+  "summary": "Read, filter, and reshape JSON with jq, then get plain text out for Bash and pass Bash values in safely.",
+  "intro": "APIs, config files and structured logs all speak JSON, and Bash has no JSON parser of its own. jq is the standard tool: a small language of filters that reads JSON, picks out values, and writes new JSON or plain text. This lesson works on the files in `jsonbox`: one user, a list of users, orders with their items, a health check, and an event log with one JSON object per line. When you call a real API with curl, jq is how your script reads the answer.",
+  "fixtures": "jsonbox",
+  "steps": [
+    {
+      "title": "Navigate JSON",
+      "body": "A jq program is a filter: JSON goes in, and JSON comes out. The simplest filter, `.`, passes its input through, pretty-printed. `.name` picks a field, `.address.city` follows a path, `.[0]` picks an array's first item, and `.[]` produces every item, one after another. A missing field gives `null`, not an error.\n\n```bash\njq '.address.city' <<< '{\"name\": \"Ada\", \"address\": {\"city\": \"Lisbon\"}}'\n```\n\n`|` passes each result to the next filter, the way a shell pipe does, and `-r` prints strings raw, without their JSON quotes, which is what a script wants. `A // B` gives B when A is `null` or `false`, so it's how you write a default. Inside a string, `\\(...)` inserts a value. Put the whole filter in single quotes, so the shell leaves its `$`, `|` and quotes alone.\n\n```bash\njq -r '.[] | \"\\(.name) is \\(.age // \"unknown\")\"' <<< '[{\"name\": \"Ada\", \"age\": 36}, {\"name\": \"Lin\"}]'\n```",
+      "examples": [
+        {
+          "title": "Fields",
+          "prompt": "Print the whole user in `user.json`, then its name as JSON and as plain text, its field names, and whether it has a phone.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\njq . user.json\njq .name user.json\njq -r .name user.json\njq -c 'keys' user.json\njq 'has(\"phone\")' user.json\n",
+          "output": "{\n  \"id\": 1,\n  \"name\": \"Ada\",\n  \"email\": \"ada@example.com\",\n  \"role\": \"admin\",\n  \"active\": true,\n  \"address\": {\n    \"street\": \"12 Rua das Flores\",\n    \"city\": \"Lisbon\",\n    \"country\": \"PT\"\n  },\n  \"tags\": [\n    \"billing\",\n    \"beta\"\n  ],\n  \"created_at\": \"2025-03-14T10:22:00Z\"\n}\n\"Ada\"\nAda\n[\"active\",\"address\",\"created_at\",\"email\",\"id\",\"name\",\"role\",\"tags\"]\nfalse",
+          "explanation": "`.` prints the whole document with two-space indents. `.name` is a JSON string, so jq prints it with its quotes, and `-r` (raw) drops them, which is what you want in a variable or a loop. `keys` lists an object's field names in sorted order, and `-c` prints the result on one line. `has(\"phone\")` asks whether a field exists, and this user has no phone."
+        },
+        {
+          "title": "Arrays",
+          "prompt": "Pick from `users.json`, which is an array of users: the first user's email, every name, and how many users there are.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\njq '.[0].email' users.json\njq -r '.[].name' users.json\njq 'length' users.json\n",
+          "output": "\"ada.park@example.com\"\nAda Park\nBruno Costa\nChioma Eze\nDmitri Volkov\nSiobhan O'Brien\nElif Demir\nFarid Haddad\nGreta Lund\nHugo Martins\nInes Rocha\n10",
+          "explanation": "`.[0]` is the first user, so `.[0].email` is that user's email. `.[]` produces each item in turn, and `.[].name` the name of each, one per line with `-r`. `length` counts the items of an array. On an object it counts the fields, and on a string the characters."
+        },
+        {
+          "title": "Nested and missing",
+          "prompt": "Read a city two levels down, see what a missing one gives, supply a default, and build a sentence from one user.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\njq -r '.[0].address.city' users.json\njq '.[3].address.city' users.json\njq -r '.[3].address.city // \"unknown\"' users.json\njq -r '.[4] | \"\\(.name) lives in \\(.address.city)\"' users.json\n",
+          "output": "Lisbon\nnull\nunknown\nSiobhan O'Brien lives in Dublin",
+          "explanation": "The user at index 3 (counting from 0) has no `address`, and jq doesn't fail on the missing path: `.address` is `null`, and `.city` of `null` is `null` too. `//` swaps in a default for `null`. The last command pipes one user into a string, where each `\\(...)` inserts a value, so you build exactly the line you want. The name `Siobhan O'Brien` holds a quote, and it's no trouble here because it's data, not part of the filter."
+        }
+      ],
+      "practice": {
+        "title": "Who and where",
+        "prompt": "Print where every user in `users.json` lives.\n\n1. Print one line per user, in the file's order, as `name (city)`.\n2. When a user has no city, print `unknown` in its place.\n\nExpected output:\n\n```text\nAda Park (Lisbon)\nBruno Costa (Porto)\nChioma Eze (Lagos)\nDmitri Volkov (unknown)\nSiobhan O'Brien (Dublin)\nElif Demir (Izmir)\nFarid Haddad (Beirut)\nGreta Lund (unknown)\nHugo Martins (Lisbon)\nInes Rocha (Coimbra)\n```",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n\n# TODO: print \"name (city)\" for every user, with \"unknown\" for a missing city\njq -r '.[].name' users.json\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\n\njq -r '.[] | \"\\(.name) (\\(.address.city // \"unknown\"))\"' users.json\n",
+        "tests": [
+          {
+            "output": "Ada Park (Lisbon)\nBruno Costa (Porto)\nChioma Eze (Lagos)\nDmitri Volkov (unknown)\nSiobhan O'Brien (Dublin)\nElif Demir (Izmir)\nFarid Haddad (Beirut)\nGreta Lund (unknown)\nHugo Martins (Lisbon)\nInes Rocha (Coimbra)"
+          },
+          {
+            "fixtures": "jsonbox-b",
+            "output": "Lina Haddad (Haifa)\nMarco Bianchi (unknown)\nNadia Petrova (Varna)\nOliver Grant (Leeds)\nPriscila Alves (Recife)\nQuentin Moreau (unknown)\nRania Aziz (Aswan)\nSven Olsen (Bergen)\nTara Singh (Shimla)\nUmar Farouk (Kano)\nVera Nowak (unknown)\nWill Turner (Hull)"
+          }
+        ],
+        "hints": [
+          "Start the filter with `.[] |`, so everything after the pipe runs once per user.",
+          "`.address.city // \"unknown\"` gives the city, or `unknown` when it's missing or `null`.",
+          "Build the line with a string, `\"\\(.name) (\\(...))\"`, and run jq with `-r` so it prints without quotes."
+        ]
+      }
+    },
+    {
+      "title": "Filter and transform",
+      "body": "`select(condition)` keeps an item when the condition is true and drops it otherwise, so `.[] | select(.active)` produces only the active users. Put a filter inside `[...]` to collect its results into an array. `map(f)` runs `f` on every item of an array and keeps the results as an array: `map(.total)` is the same as `[.[] | .total]`.\n\nTo build objects, `{name, email}` copies those two fields, and `{id, total: (.qty * .price)}` adds a computed one. Arrays have functions of their own: `length`, `add` (the sum), `sort_by(.field)`, `reverse`, `.[:3]` (the first three), `group_by(.field)`, `unique_by(.field)`, `min_by(.field)` and `max_by(.field)`.\n\n```bash\njq -c 'map({sku, line: (.qty * .price)}) | max_by(.line)' <<< '[{\"sku\": \"MUG\", \"qty\": 3, \"price\": 9}, {\"sku\": \"LAMP\", \"qty\": 1, \"price\": 49}]'\n```",
+      "examples": [
+        {
+          "title": "select",
+          "prompt": "Keep the users that match a condition: the active ones, the admins (counted), and the active editors.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\njq -r '.[] | select(.active) | .name' users.json\njq '[.[] | select(.role == \"admin\")] | length' users.json\njq -r '.[] | select(.role == \"editor\" and .active) | .email' users.json\n",
+          "output": "Ada Park\nBruno Costa\nDmitri Volkov\nSiobhan O'Brien\nElif Demir\nGreta Lund\nHugo Martins\nInes Rocha\n2\nbruno.costa@example.com\ndmitri.volkov@example.com\nhugo.martins@example.com",
+          "explanation": "`select(.active)` keeps the users whose `active` is `true`. `select(.role == \"admin\")` compares a field, and wrapping the whole thing in `[...]` collects the matches into an array, so `length` can count them. Conditions combine with `and` and `or`, so the last line keeps editors who are also active."
+        },
+        {
+          "title": "Reshape",
+          "prompt": "Build smaller objects: a user's contact card, the item count of the first orders, and each line total of one order.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\njq -c '{name, email, city: .address.city}' user.json\njq -c 'map({id, items: (.items | length)}) | .[:3]' orders.json\njq -c '.[2].items | map({name, line_total: (.qty * .price)})' orders.json\n",
+          "output": "{\"name\":\"Ada\",\"email\":\"ada@example.com\",\"city\":\"Lisbon\"}\n[{\"id\":5001,\"items\":1},{\"id\":5002,\"items\":2},{\"id\":5003,\"items\":2}]\n[{\"name\":\"Office Chair\",\"line_total\":378},{\"name\":\"Monitor Arm\",\"line_total\":128}]",
+          "explanation": "`{name, email}` is short for `{name: .name, email: .email}`, and `city: .address.city` names a value from deeper in. `map` builds one object per order, with `(.items | length)` in parentheses as a value, and `.[:3]` keeps the first three. Arithmetic works on numbers, so each line total is `.qty * .price`."
+        },
+        {
+          "title": "Sort and group",
+          "prompt": "Find the three biggest orders, count the orders in each status, and add up the pending totals.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\njq -c 'sort_by(.total) | reverse | .[:3] | map({id, total})' orders.json\njq -c 'group_by(.status) | map({status: .[0].status, count: length})' orders.json\njq '[.[] | select(.status == \"pending\") | .total] | add' orders.json\n",
+          "output": "[{\"id\":5003,\"total\":506},{\"id\":5015,\"total\":378},{\"id\":5020,\"total\":237}]\n[{\"status\":\"cancelled\",\"count\":4},{\"status\":\"paid\",\"count\":13},{\"status\":\"pending\",\"count\":5},{\"status\":\"refunded\",\"count\":3}]\n250",
+          "explanation": "`sort_by(.total)` sorts from low to high, `reverse` flips it, and `.[:3]` keeps three: the biggest orders. `group_by(.status)` sorts by status and splits the array into one array per status, so `.[0].status` names each group and `length` counts it. `add` sums an array of numbers, here the totals of the pending orders."
+        }
+      ],
+      "practice": {
+        "title": "Order summary",
+        "prompt": "Summarize the paid orders in `orders.json`.\n\n1. Print one compact line per order whose `status` is `paid`, as `{\"id\":...,\"customer\":...,\"total\":...}`, from the highest total to the lowest.\n2. Then print one compact line `{\"paid\":N,\"revenue\":X}`: how many orders were paid, and the sum of their totals.\n\nExpected output:\n\n```text\n{\"id\":5003,\"customer\":\"Amina Diallo\",\"total\":506}\n{\"id\":5015,\"customer\":\"Amina Diallo\",\"total\":378}\n{\"id\":5014,\"customer\":\"Mei Lin\",\"total\":192}\n{\"id\":5008,\"customer\":\"Mei Lin\",\"total\":122}\n{\"id\":5022,\"customer\":\"Lucas Meyer\",\"total\":100}\n{\"id\":5025,\"customer\":\"Rita Gomes\",\"total\":58}\n{\"id\":5024,\"customer\":\"Mei Lin\",\"total\":31}\n{\"id\":5011,\"customer\":\"Sara Lindqvist\",\"total\":24}\n{\"id\":5009,\"customer\":\"Jon Eriksen\",\"total\":22}\n{\"id\":5012,\"customer\":\"Leila Karimi\",\"total\":20}\n{\"id\":5018,\"customer\":\"Amina Diallo\",\"total\":16}\n{\"id\":5013,\"customer\":\"Rita Gomes\",\"total\":9}\n{\"id\":5021,\"customer\":\"Ken Watanabe\",\"total\":8}\n{\"paid\":13,\"revenue\":1486}\n```",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n\n# TODO: one compact {id, customer, total} line per paid order, highest total first\n# TODO: then one {\"paid\":N,\"revenue\":X} line for the paid orders\njq -c '.[0] | {id, customer, total}' orders.json\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\n\njq -c 'map(select(.status == \"paid\")) | sort_by(.total) | reverse | .[] | {id, customer, total}' orders.json\njq -c 'map(select(.status == \"paid\")) | {paid: length, revenue: (map(.total) | add)}' orders.json\n",
+        "tests": [
+          {
+            "output": "{\"id\":5003,\"customer\":\"Amina Diallo\",\"total\":506}\n{\"id\":5015,\"customer\":\"Amina Diallo\",\"total\":378}\n{\"id\":5014,\"customer\":\"Mei Lin\",\"total\":192}\n{\"id\":5008,\"customer\":\"Mei Lin\",\"total\":122}\n{\"id\":5022,\"customer\":\"Lucas Meyer\",\"total\":100}\n{\"id\":5025,\"customer\":\"Rita Gomes\",\"total\":58}\n{\"id\":5024,\"customer\":\"Mei Lin\",\"total\":31}\n{\"id\":5011,\"customer\":\"Sara Lindqvist\",\"total\":24}\n{\"id\":5009,\"customer\":\"Jon Eriksen\",\"total\":22}\n{\"id\":5012,\"customer\":\"Leila Karimi\",\"total\":20}\n{\"id\":5018,\"customer\":\"Amina Diallo\",\"total\":16}\n{\"id\":5013,\"customer\":\"Rita Gomes\",\"total\":9}\n{\"id\":5021,\"customer\":\"Ken Watanabe\",\"total\":8}\n{\"paid\":13,\"revenue\":1486}"
+          },
+          {
+            "fixtures": "jsonbox-b",
+            "output": "{\"id\":7108,\"customer\":\"Emeka Obi\",\"total\":984}\n{\"id\":7105,\"customer\":\"Goran Petrovic\",\"total\":146}\n{\"id\":7116,\"customer\":\"Freya Holm\",\"total\":104}\n{\"id\":7111,\"customer\":\"Bilal Khan\",\"total\":71}\n{\"id\":7119,\"customer\":\"Diego Rojas\",\"total\":58}\n{\"id\":7106,\"customer\":\"Freya Holm\",\"total\":50}\n{\"id\":7122,\"customer\":\"Goran Petrovic\",\"total\":44}\n{\"id\":7118,\"customer\":\"Hina Malik\",\"total\":36}\n{\"id\":7117,\"customer\":\"Goran Petrovic\",\"total\":18}\n{\"id\":7103,\"customer\":\"Bilal Khan\",\"total\":9}\n{\"paid\":10,\"revenue\":1520}"
+          }
+        ],
+        "hints": [
+          "`map(select(.status == \"paid\"))` keeps just the paid orders, as an array.",
+          "For the order lines, continue with `sort_by(.total) | reverse | .[] | {id, customer, total}`, and run jq with `-c`.",
+          "Run a second `jq -c` that starts from the same paid array and builds `{paid: length, revenue: (map(.total) | add)}`."
+        ]
+      }
+    },
+    {
+      "title": "jq in scripts",
+      "body": "In a script, jq sits between JSON and Bash, and both directions have a safe way.\n\nOut of jq: `@tsv` and `@csv` turn an array into one line of tab or comma separated values, printed with `-r`. Names don't contain tabs, so `@tsv` pairs well with `while IFS=$'\\t' read -r`.\n\nInto jq: never paste a variable into the filter text, where a quote in the value breaks it. Pass the value with `--arg name value`, and the filter sees `$name` as a string. `--argjson` passes a number or other JSON instead, and `-n` runs a filter with no input, to build new JSON.\n\n```bash\njq -n -c --arg user \"O'Brien\" --argjson age 36 '{user: $user, age: $age}'\n```\n\n`-e` sets jq's exit status from its last output, 1 for `false` or `null`, so `if jq -e ...` works. `-s` (slurp) reads every JSON value in the input into one array, which turns a file of JSON lines into something `length` and `map` can use. Since jq 1.7, `pick(.a.b)` keeps only the paths you name.",
+      "examples": [
+        {
+          "title": "Text for loops",
+          "prompt": "Print a table of users from a Bash loop fed by `@tsv`, then the first two users as CSV.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nwhile IFS=$'\\t' read -r id name role; do\n  printf '%-4s %-16s %s\\n' \"$id\" \"$name\" \"$role\"\ndone < <(jq -r '.[] | [.id, .name, .role] | @tsv' users.json)\n\njq -r '.[:2][] | [.id, .name, .email] | @csv' users.json\n",
+          "output": "104  Ada Park         admin\n101  Bruno Costa      editor\n109  Chioma Eze       viewer\n102  Dmitri Volkov    editor\n107  Siobhan O'Brien  admin\n103  Elif Demir       viewer\n110  Farid Haddad     editor\n105  Greta Lund       viewer\n108  Hugo Martins     editor\n106  Ines Rocha       viewer\n104,\"Ada Park\",\"ada.park@example.com\"\n101,\"Bruno Costa\",\"bruno.costa@example.com\"",
+          "explanation": "`[.id, .name, .role] | @tsv` turns each user into one tab separated line, and `IFS=$'\\t'` makes `read` split on tabs only, so `Siobhan O'Brien`, with its space and its quote, stays one field. Feeding the loop with `< <(...)` keeps it in the main shell, as with any command. `@csv` writes the same kind of row as CSV: strings in double quotes, numbers bare, ready for a spreadsheet."
+        },
+        {
+          "title": "Values in",
+          "prompt": "Build JSON from a title that contains double quotes, first by pasting it into the filter, then with `--arg`, and find a user by a name with a quote in it.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\ntitle='Fix \"login\" bug'\njq -n \"{title: \\\"$title\\\"}\" 2> /dev/null || echo \"pasted into the filter: jq can't parse it\"\njq -n -c --arg title \"$title\" --argjson priority 2 '{title: $title, priority: $priority}'\n\nname=\"Siobhan O'Brien\"\njq -r --arg name \"$name\" '.[] | select(.name == $name) | .email' users.json\n",
+          "output": "pasted into the filter: jq can't parse it\n{\"title\":\"Fix \\\"login\\\" bug\",\"priority\":2}\nsiobhan.obrien@example.com",
+          "explanation": "Pasting `$title` into the filter text puts its quotes into jq's program, and jq stops with a syntax error (its message is hidden here). `--arg title \"$title\"` passes the value as data instead: inside the filter, `$title` is a string, and jq escapes its quotes when it writes JSON. `--argjson` passes JSON, so `priority` arrives as the number 2, not the string `\"2\"`. Filtering works the same way: `select(.name == $name)` finds the user whatever characters the name holds."
+        },
+        {
+          "title": "Exit status and JSON lines",
+          "prompt": "Turn the health check's status into an `if`, then count the events in a JSON lines file by level.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nif jq -e '.status == \"ok\"' health.json > /dev/null; then\n  echo \"healthy\"\nelse\n  echo \"unhealthy: $(jq -r '.status' health.json)\"\nfi\n\njq -s 'map(select(.level == \"error\")) | length' events.jsonl\njq -s -r 'group_by(.level) | map(\"\\(.[0].level): \\(length)\") | .[]' events.jsonl\n",
+          "output": "healthy\n5\nerror: 5\ninfo: 21\nwarn: 4",
+          "explanation": "With `-e`, jq exits 1 when its last output is `false` or `null`, so the comparison drives `if` directly, and `> /dev/null` hides the `true` it prints. With a `health.json` whose status is `degraded`, the same script prints `unhealthy: degraded`. `events.jsonl` holds one JSON object per line, not an array, so `-s` slurps them all into one array first, and then `map`, `group_by` and `length` work on the whole file."
+        }
+      ],
+      "practice": {
+        "title": "Users to CSV",
+        "prompt": "Export the users that have one role as CSV.\n\n1. Print the header `id,name,email`.\n2. Then print one `@csv` row per user whose `role` equals the `ROLE` environment variable, passed to jq with `--arg`, sorted by id.\n3. When no user has that role, print only the header.\n\nTest 1 runs with `ROLE=admin`.\n\nExpected output:\n\n```text\nid,name,email\n104,\"Ada Park\",\"ada.park@example.com\"\n107,\"Siobhan O'Brien\",\"siobhan.obrien@example.com\"\n```",
+        "starter": "#!/usr/bin/env bash\nset -euo pipefail\n\nrole=\"${ROLE:?set ROLE to a role, like admin}\"\necho \"id,name,email\"\n# TODO: one @csv row per user whose role is $role (pass it with --arg), sorted by id\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\n\nrole=\"${ROLE:?set ROLE to a role, like admin}\"\necho \"id,name,email\"\njq -r --arg role \"$role\" 'map(select(.role == $role)) | sort_by(.id) | .[] | [.id, .name, .email] | @csv' users.json\n",
+        "tests": [
+          {
+            "env": {
+              "ROLE": "admin"
+            },
+            "output": "id,name,email\n104,\"Ada Park\",\"ada.park@example.com\"\n107,\"Siobhan O'Brien\",\"siobhan.obrien@example.com\""
+          },
+          {
+            "env": {
+              "ROLE": "editor"
+            },
+            "output": "id,name,email\n101,\"Bruno Costa\",\"bruno.costa@example.com\"\n102,\"Dmitri Volkov\",\"dmitri.volkov@example.com\"\n108,\"Hugo Martins\",\"hugo.martins@example.com\"\n110,\"Farid Haddad\",\"farid.haddad@example.com\""
+          },
+          {
+            "env": {
+              "ROLE": "nobody"
+            },
+            "output": "id,name,email"
+          },
+          {
+            "env": {
+              "ROLE": "editor"
+            },
+            "fixtures": "jsonbox-b",
+            "output": "id,name,email\n204,\"Umar Farouk\",\"umar.farouk@example.com\"\n207,\"Sven Olsen\",\"sven.olsen@example.com\"\n209,\"Oliver Grant\",\"oliver.grant@example.com\"\n210,\"Quentin Moreau\",\"quentin.moreau@example.com\"\n212,\"Lina Haddad\",\"lina.haddad@example.com\""
+          }
+        ],
+        "hints": [
+          "`jq -r --arg role \"$role\" '...'` makes `$role` a string inside the filter.",
+          "Keep the matching users with `map(select(.role == $role))`, then order them with `sort_by(.id)`.",
+          "Turn each user into a row with `.[] | [.id, .name, .email] | @csv`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `.` pretty-prints, `.a.b` follows a path, `.[0]` picks an item, `.[]` produces every item, and `|` chains filters.\n- `-r` prints raw strings for scripts, and `-c` prints each JSON value on one line.\n- A missing field is `null`, and `A // B` supplies a default.\n- `select(cond)` filters, `map(f)` transforms, `[...]` collects, and `{name, total: (.qty * .price)}` builds objects.\n- `sort_by`, `reverse`, `.[:3]`, `group_by`, `unique_by`, `min_by`, `max_by`, `length` and `add` work on arrays.\n- `\"\\(.name) <\\(.email)>\"` builds text, and `@tsv` or `@csv` builds lines for Bash.\n- Pass values in with `--arg` for strings or `--argjson` for JSON, never by pasting them into the filter.\n- `-e` turns a result into an exit status, and `-s` slurps JSON lines into one array."
+}

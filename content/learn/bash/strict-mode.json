@@ -1,0 +1,190 @@
+{
+  "id": "strict-mode",
+  "title": "Strict Mode with set -euo pipefail",
+  "section": "Robust Scripts",
+  "summary": "Stop a script at the first failure with set -e, catch typos with set -u, see hidden pipeline failures with pipefail, and start every script from one header.",
+  "intro": "By default Bash carries on after a command fails, so a script that couldn't copy a file can still announce that the deploy worked. Strict mode is three options that make a script stop at the first sign of trouble. This lesson adds them one at a time, then builds the header that every script in the rest of the course starts with. The programs run in a folder holding the scriptbox files.",
+  "format": "single",
+  "fixtures": "scriptbox",
+  "steps": [
+    {
+      "title": "set -e",
+      "body": "Bash runs each line of a script whatever happened on the line before. `set -e` (errexit) changes that: when a command fails, the script stops right there, with that command's exit status.\n\n```bash error\nset -e\ncp missing.txt backup/\necho \"backup done\"\n```\n\n`set -e` leaves alone the failures that are part of a test, because there a failure is an answer, not an error:\n\n- the condition of an `if`, `while`, or `until`\n- any command in an `&&` or `||` list except the last one\n- a command after `!`\n\nSo when a failure is fine, say so with `|| true`, which makes the line succeed either way:\n\n```bash\nset -e\nnotes=\"the deploy moves to Thursday\"\ntodos=$(grep -c TODO <<< \"$notes\" || true)\necho \"TODOs: $todos\"\n```\n\nOne more gap: in `local x=$(cmd)`, the status of the line is the status of `local`, and `local` succeeds even when `cmd` fails. Declare first, then assign: `local x` on one line, `x=$(cmd)` on the next.",
+      "examples": [
+        {
+          "title": "Without and with set -e",
+          "prompt": "Run the same failing `cp` twice: first without `set -e`, then with it.",
+          "code": "mkdir -p out\n\ncp missing.txt out/\necho \"still running after the first cp\"\n\nset -e\ncp missing.txt out/\necho \"this line never runs\"\n",
+          "expect": "runtime-error",
+          "output": "still running after the first cp",
+          "errorIncludes": "cp: cannot stat 'missing.txt': No such file or directory\ncp: cannot stat 'missing.txt': No such file or directory",
+          "exitCode": 1,
+          "explanation": "Both `cp` commands fail, and each prints its complaint to stderr. The first failure changes nothing: Bash moves on to the `echo`, which is how broken scripts end up reporting success. After `set -e`, the second failure stops the script on the spot with `cp`'s status, 1, so the last `echo` never runs. Whoever started the script, a person or a deploy pipeline, sees exit 1 and knows it failed."
+        },
+        {
+          "title": "Failures you expect",
+          "prompt": "Under `set -e`, count the TODOs in `meeting notes.txt`, which has none, then run two tests that fail.",
+          "code": "set -e\n\ntodos=$(grep -c TODO \"meeting notes.txt\" || true)\necho \"TODOs: $todos\"\n\nif grep -q rollback \"meeting notes.txt\"; then\n  echo \"a rollback is planned\"\nelse\n  echo \"no rollback planned\"\nfi\n\n[[ -f release/STAMP ]] && echo \"already released\"\necho \"finished\"\n",
+          "output": "TODOs: 0\nno rollback planned\nfinished",
+          "explanation": "`grep -c` prints 0 and exits 1 when nothing matches, and under `set -e` that 1 would end the script. `|| true` turns the line into a list whose last command succeeds, so the script keeps going, and `todos` still holds the 0 that `grep` printed. The `grep -q` in the `if` fails too, but a failing condition just picks the `else` branch. The `[[ -f release/STAMP ]]` test before `&&` fails as well, since there's no `release` folder: the `echo` after it is skipped, and the script carries on to `finished`."
+        },
+        {
+          "title": "The local trap",
+          "prompt": "Call two functions under `set -e`. Both run a command that fails inside `$(...)`, but only one of them stops the script.",
+          "code": "set -e\n\nwith_local() {\n  local out=$(false)\n  echo \"with_local: still running, out is [$out]\"\n}\n\ndeclared_first() {\n  local out\n  out=$(false)\n  echo \"declared_first: never printed\"\n}\n\nwith_local\ndeclared_first\necho \"never printed either\"\n",
+          "output": "with_local: still running, out is []",
+          "exitCode": 1,
+          "explanation": "In `with_local`, `false` fails inside `$(...)`, but the status of that line is the status of `local`, which succeeded at creating the variable. So `set -e` never sees the failure, and the function carries on with an empty `out`. In `declared_first`, `out=$(false)` is a plain assignment, and its status is the command substitution's, so the script stops there with exit 1. ShellCheck warns about the first form (SC2155) for exactly this reason. This example shows the bug on purpose.",
+          "shellcheck": "off"
+        }
+      ],
+      "practice": {
+        "title": "Fail fast",
+        "prompt": "This deploy script copies the build into `release/` and stamps it with the version. When a file is missing, it still prints `Deploy complete` and exits 0. Make it stop at the first failure.\n\n1. Add `set -e` below the shebang.\n2. Counting TODOs is allowed to find none: add `|| true` so a count of 0 doesn't stop the script.\n3. Leave everything else as it is.\n\nCheck runs it on these files, where it must finish and leave the version in `release/STAMP`. Then it runs it on a set where `build/app.js` is missing, where it must stop after `Deploying 1.4.3` with exit 1 and no `release/STAMP`.\n\nExpected output:\n\n```text\nDeploying 1.4.2\ncopied 3 files\nTODOs left: 0\nDeploy complete\n```",
+        "starter": "#!/usr/bin/env bash\n# Copies the build into release/ and stamps it with its version.\n# TODO: stop at the first command that fails\n\necho \"Deploying $(< build/VERSION)\"\nmkdir -p release\ncp build/index.html release/\ncp build/app.js release/\ncp build/app.css release/\necho \"copied 3 files\"\n\n# TODO: finding no TODOs is fine, so don't let a count of 0 stop the script\ntodos=$(grep -c TODO build/index.html)\necho \"TODOs left: $todos\"\n\ncp build/VERSION release/STAMP\necho \"Deploy complete\"\n",
+        "solution": "#!/usr/bin/env bash\n# Copies the build into release/ and stamps it with its version.\nset -e\n\necho \"Deploying $(< build/VERSION)\"\nmkdir -p release\ncp build/index.html release/\ncp build/app.js release/\ncp build/app.css release/\necho \"copied 3 files\"\n\ntodos=$(grep -c TODO build/index.html || true)\necho \"TODOs left: $todos\"\n\ncp build/VERSION release/STAMP\necho \"Deploy complete\"\n",
+        "tests": [
+          {
+            "output": "Deploying 1.4.2\ncopied 3 files\nTODOs left: 0\nDeploy complete",
+            "files": {
+              "release/STAMP": "1.4.2"
+            }
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "output": "Deploying 1.4.3",
+            "exitCode": 1,
+            "stderrIncludes": "cp: cannot stat 'build/app.js'",
+            "absent": [
+              "release/STAMP"
+            ]
+          }
+        ],
+        "hints": [
+          "`set -e` goes on its own line near the top, before the first command that can fail.",
+          "With `set -e` on, the script now stops after `copied 3 files` even on good files, because `grep -c` exits 1 when it counts 0.",
+          "Write `todos=$(grep -c TODO build/index.html || true)`."
+        ]
+      }
+    },
+    {
+      "title": "set -u and pipefail",
+      "body": "`set -u` (nounset) makes a variable that was never set an error, so a typo stops the script instead of quietly expanding to nothing. When a variable may be missing on purpose, give it a default with `${NAME:-value}`, or `${NAME:-}` for an empty one:\n\n```bash\nset -u\necho \"debug is [${DEBUG:-}]\"\necho \"level is ${LOG_LEVEL:-info}\"\n```\n\n`set -o pipefail` fixes a blind spot. A pipeline's status is normally its last command's, so `grep ERROR missing.log | wc -l` succeeds even though `grep` failed. With pipefail, the status is the last non-zero status in the pipeline, or 0 when every command succeeded. `PIPESTATUS` holds each command's status from the pipeline that just ran:\n\n```bash\nset -o pipefail\ngrep ERROR missing.log 2> /dev/null | wc -l\necho \"statuses: ${PIPESTATUS[*]}\"\n```\n\nAll three options fit on one line, `set -euo pipefail`, and that line is what people mean by strict mode.",
+      "examples": [
+        {
+          "title": "A typo stops the script",
+          "prompt": "Misspell a variable under `set -u`, next to an optional one that has a default.",
+          "code": "set -u\n\nuser=\"ada\"\necho \"debug is [${DEBUG:-}]\"\necho \"deploying as $usr\"\necho \"never printed\"\n",
+          "expect": "runtime-error",
+          "output": "debug is []",
+          "errorIncludes": "main.sh: line 5: usr: unbound variable",
+          "exitCode": 1,
+          "explanation": "`DEBUG` isn't set either, but `${DEBUG:-}` asks for an empty default, so that line is fine. `$usr` is a typo for `$user`. Without `set -u` it would expand to nothing, and the script would print `deploying as ` and carry on. With it, Bash stops at line 5 with `usr: unbound variable` and exit 1, which points straight at the typo. This example shows the bug on purpose. ShellCheck would flag `usr` too, before the script ever ran.",
+          "shellcheck": "off"
+        },
+        {
+          "title": "Hidden pipeline failures",
+          "prompt": "Count the ERROR lines of a log that doesn't exist, without and with pipefail.",
+          "code": "grep ERROR missing.log 2> /dev/null | wc -l\necho \"without pipefail: $?\"\n\nset -o pipefail\ngrep ERROR missing.log 2> /dev/null | wc -l\necho \"with pipefail: $?\"\n\ngrep ERROR missing.log 2> /dev/null | wc -l\necho \"each command: ${PIPESTATUS[*]}\"\n",
+          "output": "0\nwithout pipefail: 0\n0\nwith pipefail: 2\n0\neach command: 2 0",
+          "explanation": "`grep` exits 2 because the file is missing, and `wc -l` counts the 0 lines it got. Without pipefail the pipeline reports `wc`'s 0, so a script would think the log was clean. With pipefail it reports 2, the failure you need to see, and under `set -e` that would stop the script. `PIPESTATUS` lists each command's status from left to right, but only until the next command runs, so read it right after the pipeline."
+        },
+        {
+          "title": "The SIGPIPE surprise",
+          "prompt": "Take the first line of a long `seq` with `head`, without and with pipefail.",
+          "code": "seq 1 100000 | head -n 1\necho \"without pipefail: $?\"\n\nset -o pipefail\nseq 1 100000 | head -n 1\necho \"with pipefail: $?\"\n",
+          "output": "1\nwithout pipefail: 0\n1\nwith pipefail: 141",
+          "explanation": "`seq` prints the numbers 1 to 100000, and `head` exits after the first line. `seq` still has numbers to write, and a program that writes to a pipe nobody reads any more is killed by the SIGPIPE signal, number 13. A command killed by signal N exits with 128 + N, so `seq` exits 141. Without pipefail nobody notices. With it, 141 becomes the pipeline's status, and under `set -e` the script would stop even though the output is exactly what you wanted. When a pipeline stops reading early on purpose, end it with `|| true`."
+        }
+      ],
+      "practice": {
+        "title": "Strict report",
+        "prompt": "This report lists the paid orders in `data.csv`. It hides a typo, and it carries on when `data.csv` is missing. Make it strict.\n\n1. Add `set -euo pipefail` below the shebang.\n2. Run it. `set -u` now stops at two variables. Give `REPORT_TITLE` the default `Paid orders`, and fix the misspelled one.\n3. When the `grep | sort` pipeline fails, print `error: no data` to stderr and exit 3.\n\nCheck runs it on these files without `REPORT_TITLE`, then with `REPORT_TITLE=Weekly paid orders`, and then on a set without `data.csv`, where it must exit 3 after printing the title line.\n\nExpected output:\n\n```text\n== Paid orders ==\n2026-10-13,east,200\n2026-10-15,north,150\n2026-10-12,north,120\n2026-10-14,south,95\n2026-10-13,north,80\n2026-10-15,west,75\nrows: 6\n```",
+        "starter": "#!/usr/bin/env bash\n# Lists the paid orders in data.csv, biggest first.\n# TODO: turn on strict mode\n\ntitle=\"$REPORT_TITLE\"\necho \"== $title ==\"\n\npaid=$(grep ',paid,' data.csv | sort -t, -k4,4nr)\n# TODO: when the pipeline above fails, print \"error: no data\" to stderr and exit 3\n\ncut -d, -f1,2,4 <<< \"$paid\"\nrows=$(wc -l <<< \"$paid\")\necho \"rows: $row\"\n",
+        "solution": "#!/usr/bin/env bash\n# Lists the paid orders in data.csv, biggest first.\nset -euo pipefail\n\ntitle=\"${REPORT_TITLE:-Paid orders}\"\necho \"== $title ==\"\n\npaid=$(grep ',paid,' data.csv | sort -t, -k4,4nr) || {\n  echo \"error: no data\" >&2\n  exit 3\n}\n\ncut -d, -f1,2,4 <<< \"$paid\"\nrows=$(wc -l <<< \"$paid\")\necho \"rows: $rows\"\n",
+        "tests": [
+          {
+            "output": "== Paid orders ==\n2026-10-13,east,200\n2026-10-15,north,150\n2026-10-12,north,120\n2026-10-14,south,95\n2026-10-13,north,80\n2026-10-15,west,75\nrows: 6"
+          },
+          {
+            "env": {
+              "REPORT_TITLE": "Weekly paid orders"
+            },
+            "output": "== Weekly paid orders ==\n2026-10-13,east,200\n2026-10-15,north,150\n2026-10-12,north,120\n2026-10-14,south,95\n2026-10-13,north,80\n2026-10-15,west,75\nrows: 6"
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "output": "== Paid orders ==",
+            "exitCode": 3,
+            "stderrIncludes": "error: no data"
+          }
+        ],
+        "hints": [
+          "Add the line, press Run, and read the error: it names the variable `set -u` stopped at.",
+          "`${REPORT_TITLE:-Paid orders}` gives the default. The misspelled variable is on the last line: compare it with the variable the line before it sets.",
+          "End the `paid=$(...)` line with `|| { echo \"error: no data\" >&2; exit 3; }`, so a failed pipeline runs your handler instead of stopping the script with `grep`'s status."
+        ]
+      }
+    },
+    {
+      "title": "The script header",
+      "body": "Here is the template the rest of the course builds its scripts from:\n\n```bash\n#!/usr/bin/env bash\nset -euo pipefail\nSCRIPT_DIR=\"$(cd -- \"$(dirname -- \"${BASH_SOURCE[0]}\")\" && pwd)\"\n\ndie() { printf 'error: %s\\n' \"$*\" >&2; exit 1; }\n\nmain() {\n  echo \"running from $SCRIPT_DIR\"\n}\n\nmain \"$@\"\n```\n\n- `SCRIPT_DIR` is the folder the script sits in, as an absolute path, whichever folder it was started from. `BASH_SOURCE[0]` is the script's path, `dirname` keeps its folder part, and `cd ... && pwd` turns that into an absolute path.\n- `die` prints an error to stderr and exits 1.\n- `main \"$@\"` runs the script's body with all its arguments, once every function above it is defined.\n\nEvery script keeps the first two lines. Add `SCRIPT_DIR`, `die`, and `main` when it reads files that sit next to it, has errors to report, or grows functions.\n\nOne gap remains: Bash turns `set -e` off inside `$(...)`, so a failure there goes unnoticed when a later command in it succeeds. This prints `out is: kept going`:\n\n```bash\nset -e\nout=$(false; echo \"kept going\")\necho \"out is: $out\"\n```\n\nWith `shopt -s inherit_errexit` (Bash 4.4 and later) after `set -e`, the same lines stop at `false` with exit 1:\n\n```bash error\nset -e\nshopt -s inherit_errexit\nout=$(false; echo \"kept going\")\necho \"out is: $out\"\n```",
+      "examples": [
+        {
+          "title": "The template",
+          "prompt": "A complete script in the template. It checks every host in `hosts.txt`, and dies with a clear message if the file is missing.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\nSCRIPT_DIR=\"$(cd -- \"$(dirname -- \"${BASH_SOURCE[0]}\")\" && pwd)\"\n\ndie() {\n  printf 'error: %s\\n' \"$*\" >&2\n  exit 1\n}\n\nmain() {\n  local hosts=\"$SCRIPT_DIR/hosts.txt\"\n  [[ -f $hosts ]] || die \"no host list at $hosts\"\n\n  echo \"Checking $(wc -l < \"$hosts\") hosts from $hosts\"\n  while IFS= read -r host; do\n    echo \"- $host: ok\"\n  done < \"$hosts\"\n}\n\nmain \"$@\"\n",
+          "output": "Checking 5 hosts from /home/learner/hosts.txt\n- web-1: ok\n- web-2: ok\n- db-1: ok\n- cache-1: ok\n- backup-1: ok",
+          "explanation": "Read it top to bottom: the shebang, strict mode, and `SCRIPT_DIR`, which is `/home/learner` because that's where `main.sh` sits. `die` and `main` are only defined at first. Nothing runs until the last line calls `main \"$@\"`, which passes on the script's arguments, none here. Inside `main`, `local` keeps `hosts` private to the function, and the `[[ -f $hosts ]] || die` line turns a missing file into one clear error instead of a confusing failure further down."
+        },
+        {
+          "title": "Paths that work from anywhere",
+          "prompt": "Change into `elsewhere/`, as if the script had been started from another folder, then read `config.ini` through `SCRIPT_DIR` and by its bare name.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\nSCRIPT_DIR=\"$(cd -- \"$(dirname -- \"${BASH_SOURCE[0]}\")\" && pwd)\"\n\ncd elsewhere\necho \"working folder: $(pwd)\"\necho \"script folder:  $SCRIPT_DIR\"\n\ngrep '^target=' \"$SCRIPT_DIR/config.ini\"\ngrep '^target=' config.ini\necho \"never printed\"\n",
+          "expect": "runtime-error",
+          "output": "working folder: /home/learner/elsewhere\nscript folder:  /home/learner\ntarget=release",
+          "errorIncludes": "grep: config.ini: No such file or directory",
+          "exitCode": 2,
+          "explanation": "A bare name like `config.ini` is looked up in the working folder, which is wherever the script was started, not where it lives. After `cd elsewhere` the bare name fails, and `set -e` stops the script with `grep`'s status, 2. `$SCRIPT_DIR/config.ini` still works, because `SCRIPT_DIR` came from the script's own path before the `cd`. The same thing happens when someone runs your script from another folder, for example `bash ../main.sh` from inside `elsewhere`. Then `BASH_SOURCE[0]` is `../main.sh`, and `SCRIPT_DIR` is still `/home/learner`."
+        },
+        {
+          "title": "die with a clear reason",
+          "prompt": "Total three monthly reports, and `die` with the reason when one is missing.",
+          "code": "#!/usr/bin/env bash\nset -euo pipefail\nSCRIPT_DIR=\"$(cd -- \"$(dirname -- \"${BASH_SOURCE[0]}\")\" && pwd)\"\n\ndie() {\n  printf 'error: %s\\n' \"$*\" >&2\n  exit 1\n}\n\nmain() {\n  local month input\n  for month in 08 09 10; do\n    input=\"$SCRIPT_DIR/reports/sales-2026-$month.csv\"\n    [[ -f $input ]] || die \"no such file: reports/sales-2026-$month.csv\"\n    printf '2026-%s revenue: %s\\n' \"$month\" \"$(awk -F, 'NR > 1 {sum += $3} END {print sum}' \"$input\")\"\n  done\n}\n\nmain \"$@\"\n",
+          "expect": "runtime-error",
+          "output": "2026-08 revenue: 20110\n2026-09 revenue: 19475",
+          "errorIncludes": "error: no such file: reports/sales-2026-10.csv",
+          "exitCode": 1,
+          "explanation": "The loop totals each month's report with `awk`. The August and September reports exist, so their lines print. There's no October report in this folder, so `die` prints the reason to stderr and exits 1. Without that check, `awk` would complain on stderr, but its failure happens inside `$(...)` in `printf`'s arguments, where `set -e` doesn't look. The script would print `2026-10 revenue: ` with no number and exit 0, and nobody would notice the missing month."
+        }
+      ],
+      "practice": {
+        "title": "Template-ize the totals",
+        "prompt": "This script totals `data.csv` by status. It only works when it's started from its own folder, and when `data.csv` is missing it prints a heading and nothing else. Rewrite it in the template.\n\n1. Start with the shebang and `set -euo pipefail`, then set `SCRIPT_DIR`.\n2. Add `die`, move the work into `main`, and call `main \"$@\"` on the last line.\n3. Read `data.csv` from `SCRIPT_DIR`. When it's missing, call `die \"data.csv not found\"` before printing anything.\n\nCheck runs it from its own folder, then from `elsewhere/` as `bash ../main.sh`, and then on a set without `data.csv`, where it must print nothing, exit 1, and say `error: data.csv not found` on stderr.\n\nExpected output:\n\n```text\nTotals from data.csv\npaid 720\npending 60\nrefunded 45\n```",
+        "starter": "# Totals the amounts in data.csv by status.\n# TODO: rewrite this in the template: the shebang, strict mode,\n# TODO: SCRIPT_DIR, die, and main \"$@\", reading data.csv from SCRIPT_DIR\necho \"Totals from data.csv\"\ntail -n +2 data.csv | awk -F, '{total[$3] += $4} END {for (s in total) print s, total[s]}' | sort\n",
+        "solution": "#!/usr/bin/env bash\nset -euo pipefail\nSCRIPT_DIR=\"$(cd -- \"$(dirname -- \"${BASH_SOURCE[0]}\")\" && pwd)\"\n\ndie() {\n  printf 'error: %s\\n' \"$*\" >&2\n  exit 1\n}\n\nmain() {\n  local data=\"$SCRIPT_DIR/data.csv\"\n  [[ -f $data ]] || die \"data.csv not found\"\n\n  echo \"Totals from data.csv\"\n  tail -n +2 \"$data\" | awk -F, '{total[$3] += $4} END {for (s in total) print s, total[s]}' | sort\n}\n\nmain \"$@\"\n",
+        "tests": [
+          {
+            "output": "Totals from data.csv\npaid 720\npending 60\nrefunded 45"
+          },
+          {
+            "cwd": "elsewhere",
+            "output": "Totals from data.csv\npaid 720\npending 60\nrefunded 45"
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "output": "",
+            "exitCode": 1,
+            "stderrIncludes": "error: data.csv not found"
+          }
+        ],
+        "hints": [
+          "Copy the header from the template example, then wrap the two working lines in `main() { ... }`.",
+          "In `main`, set `local data=\"$SCRIPT_DIR/data.csv\"`, and use `\"$data\"` wherever the script reads the file.",
+          "Put `[[ -f $data ]] || die \"data.csv not found\"` before the first `echo`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `set -e` stops a script at the first failing command, except in conditions, before `&&` or `||`, and after `!`.\n- Add `|| true` to a command that may fail on purpose, such as a `grep -c` that counts 0.\n- `local x=$(cmd)` hides a failure of `cmd`. Declare with `local x`, then assign.\n- `set -u` turns unset variables into errors, and `${NAME:-default}` marks the ones that are optional.\n- `set -o pipefail` makes a pipeline fail when any command in it fails, and `PIPESTATUS` holds each status. A reader that stops early, like `head`, can make the writer exit 141.\n- `shopt -s inherit_errexit` keeps `set -e` on inside `$(...)`.\n- The header: `#!/usr/bin/env bash`, `set -euo pipefail`, then `SCRIPT_DIR`, `die`, and `main \"$@\"` as the script needs them."
+}

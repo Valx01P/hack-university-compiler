@@ -1,0 +1,174 @@
+{
+  "id": "read-and-printf",
+  "title": "Input with read, Output with printf",
+  "section": "Bash Scripting",
+  "summary": "Read lines of input into variables with read, and print values in exactly the format you want with printf.",
+  "intro": "So far your scripts worked on files and on values written into the code. Most real scripts also take input: a name someone types, or lines piped in from another command. `read` takes one line from stdin and splits it into variables, and `printf` prints values in exactly the format you choose. From this lesson on, a practice can have several tests, and each one feeds your script a different input on stdin. To try an input yourself, type it in the stdin box under the editor before you press Run. The folder your script runs in also holds this lesson's files, like `hosts.txt` and `build/VERSION`.",
+  "format": "single",
+  "fixtures": "scriptbox",
+  "steps": [
+    {
+      "title": "Read a line",
+      "body": "`read` takes one line from stdin and stores it in a variable. Always write `-r`: without it, `read` treats a backslash as an escape character and drops it.\n\n```stdin\nAda Lovelace\n```\n\n```bash\nread -r name\necho \"Hello, $name!\"\n```\n\nGive `read` several names and it splits the line into words, on spaces and tabs. Each name gets one word, and the last name gets everything left over:\n\n```stdin\nweb-1 10.0.0.5 eu-west production\n```\n\n```bash\nread -r host ip rest\necho \"$host is at $ip, rest: $rest\"\n```\n\n`IFS` holds the characters `read` splits on. Set it right before the command, as in `IFS=, read -r a b`, and it changes for that one `read` only.\n\n`read` can also take a line from a file with `<`. When there's no line left to read, it exits 1, so it works as a test:\n\n```bash\nread -r version < build/VERSION\necho \"version $version\"\nread -r first < empty.txt || echo \"empty.txt has no lines\"\n```",
+      "examples": [
+        {
+          "title": "One value per line",
+          "prompt": "Read a name and an age, one per line, and greet the person.",
+          "code": "read -r name\nread -r age\necho \"Hello, $name!\"\necho \"In 10 years you'll be $(( age + 10 )).\"\n",
+          "stdin": "Ada\n36\n",
+          "output": "Hello, Ada!\nIn 10 years you'll be 46.",
+          "explanation": "Each `read` takes the next line of stdin, so `name` gets `Ada` and `age` gets `36`. `read` stores text, but `$(( ))` reads `36` as a number, so the age plus 10 prints as 46. Change the input in the stdin box and press Run to see the output follow it."
+        },
+        {
+          "title": "The last name takes the rest",
+          "prompt": "Split a full name into its first word and the rest, then split a line that has fewer words than names.",
+          "code": "read -r first rest\necho \"first: $first\"\necho \"rest: $rest\"\n\nread -r a b c d\necho \"a=$a b=$b c=$c d=[$d]\"\n",
+          "stdin": "Grace Brewster Hopper\n  x   y  z\n",
+          "output": "first: Grace\nrest: Brewster Hopper\na=x b=y c=z d=[]",
+          "explanation": "`read` splits on spaces. `first` takes the first word, and `rest`, the last name given, takes everything after it, the space between `Brewster` and `Hopper` included. The second line starts with spaces and has runs of spaces between its words: a run counts as one separator, and spaces at the ends are dropped. It has three words for four names, so `d` stays empty."
+        },
+        {
+          "title": "Commas and backslashes",
+          "prompt": "Split a line on commas, then read the same Windows path with and without `-r`.",
+          "code": "IFS=, read -r city temp\necho \"$city: $temp degrees\"\n\nread -r path\necho \"with -r: $path\"\nread path\necho \"without -r: $path\"\n",
+          "stdin": "Lisbon,21\nC:\\temp\\new\nC:\\temp\\new\n",
+          "output": "Lisbon: 21 degrees\nwith -r: C:\\temp\\new\nwithout -r: C:tempnew",
+          "explanation": "`IFS=,` before `read` makes the comma the separator for that one command, so `city` is `Lisbon` and `temp` is `21`. The next two lines hold the same path. With `-r`, `read` keeps every backslash. Without it, a backslash escapes the character after it and disappears, so the path comes out as `C:tempnew`. That's why every `read` you write should have `-r`."
+        }
+      ],
+      "practice": {
+        "title": "Next birthday",
+        "prompt": "Read a name and an age from one line of input, and say how old the person turns next.\n\n1. Read the line into `name` and `age` with one `read -r`.\n2. Print `Hi NAME, next year you'll be N`, where N is the age plus 1.\n\nInput:\n\n```text\nAda 36\n```\n\nExpected output:\n\n```text\nHi Ada, next year you'll be 37\n```",
+        "starter": "# TODO: read the name and the age from one line\n\n# TODO: print the greeting with the age plus 1\n",
+        "solution": "read -r name age\necho \"Hi $name, next year you'll be $(( age + 1 ))\"\n",
+        "tests": [
+          {
+            "stdin": "Ada 36\n",
+            "output": "Hi Ada, next year you'll be 37"
+          },
+          {
+            "stdin": "Linus 56\n",
+            "output": "Hi Linus, next year you'll be 57"
+          },
+          {
+            "stdin": "  Grace   85\n",
+            "output": "Hi Grace, next year you'll be 86"
+          }
+        ],
+        "hints": [
+          "One `read -r name age` splits the line: the first word goes to `name`, and the rest to `age`.",
+          "`$(( age + 1 ))` adds one. The apostrophe in `you'll` is fine inside double quotes."
+        ]
+      }
+    },
+    {
+      "title": "Format output with printf",
+      "body": "`printf FORMAT ARGUMENTS...` prints its arguments in the shape the format gives. In the format, `%s` stands for a string and `%d` for a whole number. `printf` never adds a newline by itself, so end the format with `\\n`:\n\n```bash\nprintf '%s has %d hosts\\n' web 3\n```\n\nBetween the `%` and the letter go a width and a precision. `%8s` pads to 8 characters on the left, `%-8s` pads on the right, `%05d` pads with zeros, and `%.2f` keeps 2 decimals. `%%` prints a percent sign:\n\n```bash\nprintf '[%8s] [%-8s] [%05d] [%.2f] 100%%\\n' tea tea 42 3.14159\n```\n\nWhen there are more arguments than the format uses, `printf` runs the format again for the rest, which turns a list into lines:\n\n```bash\nprintf '%s\\n' web-1 web-2 db-1\n```\n\nIn scripts, prefer `printf` to `echo -e` and `echo -n`, because shells disagree on what `echo` does with options and backslashes. On this system `sh` is dash, not Bash, and its `echo` prints the `-e` as text. `printf` gives the same result in both:\n\n```bash\nprintf 'a\\tb\\n'\necho -e 'a\\tb'\nsh -c \"echo -e 'a\\tb'\"\n```",
+      "examples": [
+        {
+          "title": "Widths and decimals",
+          "prompt": "Print a sentence, then a few padded fields between brackets to show where each one starts and ends.",
+          "code": "printf '%s is %d years old\\n' Ada 36\nprintf '[%-8s|%6.2f]\\n' tea 3.5\nprintf '[%8s|%-6d|%05d]\\n' coffee 42 42\n",
+          "output": "Ada is 36 years old\n[tea     |  3.50]\n[  coffee|42    |00042]",
+          "explanation": "Each `%` spec takes the next argument in order. `%-8s` pads `tea` to 8 characters with spaces after it, and `%6.2f` prints 3.5 with 2 decimals, padded to 6 characters on the left. Without the minus, `%8s` pads on the left, so `coffee` lines up on the right. `%-6d` puts 42 on the left of its 6 characters, and `%05d` fills them with zeros instead of spaces."
+        },
+        {
+          "title": "A table from input",
+          "prompt": "Read two items and their prices, then print them as a table under a header.",
+          "code": "read -r item1 price1\nread -r item2 price2\n\nprintf '%-8s %6s\\n' item price\nprintf '%-8s %6.2f\\n' \"$item1\" \"$price1\" \"$item2\" \"$price2\"\n",
+          "stdin": "tea 3.5\ncoffee 4.25\n",
+          "output": "item      price\ntea        3.50\ncoffee     4.25",
+          "explanation": "The header and the rows use the same widths, so the columns line up: names padded to 8 on the right, prices to 6 on the left. The second `printf` gets four arguments for a format that uses two, so it runs the format twice, once per row. `%6.2f` also gives both prices the same 2 decimals, so `3.5` prints as `3.50`."
+        },
+        {
+          "title": "Dollars from cents",
+          "prompt": "Build strings with `printf -v` instead of printing them: a padded ticket number and a price kept in cents.",
+          "code": "printf -v padded '%03d' 7\necho \"ticket-$padded\"\n\ncents=1205\nprintf -v price '%d.%02d' $(( cents / 100 )) $(( cents % 100 ))\necho \"price: $price\"\n\nprintf 'paid: 100%%\\n'\n",
+          "output": "ticket-007\nprice: 12.05\npaid: 100%",
+          "explanation": "`printf -v padded` stores the result in `padded` instead of printing it, so `padded` holds `007`. Money is often kept in cents, a whole number, so Bash's math can work on it. `cents / 100` is 12, the dollars, and `cents % 100` is 5, the cents. `%02d` pads the cents to two digits, so 5 becomes `05` and the price reads `12.05`. With `%d.%d`, it would read `12.5`. The last line shows `%%`, a literal percent sign."
+        }
+      ],
+      "practice": {
+        "title": "Receipt",
+        "prompt": "Print a receipt for two items. Each input line holds an item name, a quantity, and a unit price in cents.\n\n1. Read the two lines with `read -r`.\n2. For each item, work out its total in cents, the quantity times the price.\n3. Turn each total into dollars with `printf -v` and `%d.%02d`.\n4. Print each item with the format `%-10s x%-3d %8s\\n`: the name, the quantity, and the dollars.\n5. Print the last line with the format `%-15s %8s\\n`: the word `TOTAL` and the sum of both totals in dollars.\n\nInput:\n\n```text\ntea 2 350\ncookies 3 125\n```\n\nExpected output:\n\n```text\ntea        x2       7.00\ncookies    x3       3.75\nTOTAL              10.75\n```",
+        "starter": "# TODO: read the two lines: item, quantity, and price in cents\n\n# TODO: work out each item's total in cents, and the sum of both\n\n# TODO: turn each total and the sum into dollars with printf -v and %d.%02d\n\n# TODO: print both items with '%-10s x%-3d %8s\\n', then TOTAL with '%-15s %8s\\n'\n",
+        "solution": "read -r item1 qty1 cents1\nread -r item2 qty2 cents2\n\ntotal1=$(( qty1 * cents1 ))\ntotal2=$(( qty2 * cents2 ))\nsum=$(( total1 + total2 ))\n\nprintf -v dollars1 '%d.%02d' $(( total1 / 100 )) $(( total1 % 100 ))\nprintf -v dollars2 '%d.%02d' $(( total2 / 100 )) $(( total2 % 100 ))\nprintf -v dollars '%d.%02d' $(( sum / 100 )) $(( sum % 100 ))\n\nprintf '%-10s x%-3d %8s\\n' \"$item1\" \"$qty1\" \"$dollars1\"\nprintf '%-10s x%-3d %8s\\n' \"$item2\" \"$qty2\" \"$dollars2\"\nprintf '%-15s %8s\\n' TOTAL \"$dollars\"\n",
+        "tests": [
+          {
+            "stdin": "tea 2 350\ncookies 3 125\n",
+            "output": "tea        x2       7.00\ncookies    x3       3.75\nTOTAL              10.75"
+          },
+          {
+            "stdin": "notebook 1 1299\nstamps 5 61\n",
+            "output": "notebook   x1      12.99\nstamps     x5       3.05\nTOTAL              16.04"
+          },
+          {
+            "stdin": "monitor 2 18999\ncable 4 1001\n",
+            "output": "monitor    x2     379.98\ncable      x4      40.04\nTOTAL             420.02"
+          }
+        ],
+        "hints": [
+          "Give the second line its own names: `read -r item1 qty1 cents1`, then `read -r item2 qty2 cents2`.",
+          "`$(( qty1 * cents1 ))` is a total in cents. `printf -v dollars1 '%d.%02d' $(( total1 / 100 )) $(( total1 % 100 ))` turns 700 into `7.00`.",
+          "Add the two totals in cents first, then format the sum the same way for the TOTAL line."
+        ]
+      }
+    },
+    {
+      "title": "Prompts, secrets and defaults",
+      "body": "Scripts that people run by hand ask before they read. `-p` shows a prompt, `-s` hides what's typed, for passwords, and `-t SECONDS` stops waiting after that long. The options combine, with `p` last because the prompt text follows it:\n\n```stdin\nAda\ns3cret\nyes\n```\n\n```bash\nread -rp \"Name: \" name\nread -rsp \"Password: \" pw\nread -r -t 5 answer\necho \"$name, ${#pw} characters, $answer\"\n```\n\n`read` writes its prompt to stderr, and only when the input comes from a terminal. On Run and Check, stdin is piped in, so the prompts never print and the output stays clean.\n\nWhen there is no line left, `read` fails and leaves its variable empty, so a fallback after `||` gives it a default. Here stdin is empty:\n\n```bash\nread -r answer || answer=\"no\"\necho \"answer: $answer\"\n```\n\nAn empty line is different: `read` succeeds and stores nothing. `${answer:-no}` covers both cases.",
+      "examples": [
+        {
+          "title": "Prompts stay hidden",
+          "prompt": "Ask for a name and a city with prompts, then greet the person.",
+          "code": "read -rp \"Name: \" name\nread -rp \"City: \" city\necho \"Hi $name from $city\"\n",
+          "stdin": "Grace\nArlington\n",
+          "output": "Hi Grace from Arlington",
+          "explanation": "In a terminal, you'd see `Name: ` and wait for your answer, then `City: `. Here the input comes from the stdin box, not a terminal, so `read` skips both prompts and the output is only the greeting. Check feeds your script the same way, which is why a practice never expects a prompt in its output."
+        },
+        {
+          "title": "A hidden password",
+          "prompt": "Read a password without showing it, then print its length and a masked copy.",
+          "code": "read -rsp \"Password: \" pw\necho >&2\necho \"length: ${#pw}\"\necho \"masked: ${pw//?/*}\"\n",
+          "stdin": "hunter2\n",
+          "output": "length: 7\nmasked: *******",
+          "explanation": "In a terminal, `-s` keeps the typed characters off the screen. The Enter key doesn't show either, so the cursor stays on the prompt's line, and the bare `echo` moves it down. It writes to stderr, like the prompt, so stdout holds only the real output. `${#pw}` is the length, 7. In `${pw//?/*}`, `?` matches any one character and `//` replaces every match, so each character becomes a `*`."
+        },
+        {
+          "title": "Defaults for missing input",
+          "prompt": "Read three answers, falling back to `no`, from input that has one answer, then an empty line, then nothing.",
+          "code": "read -r -t 1 first || first=\"no\"\necho \"first: $first\"\n\nread -r -t 1 second || second=\"no\"\necho \"second: [$second]\"\necho \"second with a default: ${second:-no}\"\n\nread -r -t 1 third || third=\"no\"\necho \"third: $third\"\n",
+          "stdin": "yes\n\n",
+          "output": "first: yes\nsecond: []\nsecond with a default: no\nthird: no",
+          "explanation": "The first `read` gets `yes`. The second gets the empty line: that's still a line, so `read` succeeds, `||` never runs, and `second` is empty. `${second:-no}` catches that case. The third finds no line at all, so `read` fails and `||` sets `no`. `-t 1` would give up after a second if nobody typed, but here all the input is there at once, so it never waits."
+        }
+      ],
+      "practice": {
+        "title": "Sign-up form",
+        "prompt": "Read a sign-up form from three lines of input and print what to save.\n\n1. Read the username, the email, and the password, one line each. Give each `read` a prompt with `-p`, hide the password with `-s`, and after it end the prompt's line on stderr, as the hidden password example does.\n2. Print `user=NAME`. An empty username line means `guest`.\n3. Print `domain=DOMAIN`, the part of the email after the `@`.\n4. Print `password=` followed by one `*` for each character of the password.\n\nInput:\n\n```text\nada\nada@shop.example\nhunter22\n```\n\nExpected output:\n\n```text\nuser=ada\ndomain=shop.example\npassword=********\n```",
+        "starter": "# TODO: read the username, the email, and the password with prompts\n\n# TODO: print user=, with guest for an empty username\n\n# TODO: print domain=, the part of the email after the @\n\n# TODO: print password= and one * per character\n",
+        "solution": "read -rp \"Username: \" user\nread -rp \"Email: \" email\nread -rsp \"Password: \" pw\necho >&2\n\necho \"user=${user:-guest}\"\necho \"domain=${email#*@}\"\necho \"password=${pw//?/*}\"\n",
+        "tests": [
+          {
+            "stdin": "ada\nada@shop.example\nhunter22\n",
+            "output": "user=ada\ndomain=shop.example\npassword=********"
+          },
+          {
+            "stdin": "\ngrace@navy.example\nc0b0l-1959\n",
+            "output": "user=guest\ndomain=navy.example\npassword=**********"
+          },
+          {
+            "stdin": "linus\nlinus@kernel.example\ntux\n",
+            "output": "user=linus\ndomain=kernel.example\npassword=***"
+          }
+        ],
+        "hints": [
+          "Three `read` lines, one per field: `-rp` for the first two, and `-rsp` for the password followed by `echo >&2`. A plain `echo` would put an empty line at the top of your output.",
+          "`${user:-guest}` gives `guest` for an empty line, and `${email#*@}` drops everything up to and including the `@`.",
+          "`${pw//?/*}` turns every character into a `*`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `read -r name` reads one line of stdin into `name`. Always use `-r`, so backslashes survive.\n- With several names, `read` splits the line on spaces and tabs, and the last name takes the rest. `IFS=, read -r a b` splits on commas for that one command.\n- `read` exits 1 when no line is left, so `read -r x || x=default` sets a fallback, and `${x:-default}` also covers an empty line.\n- `-p` shows a prompt on stderr, only on a terminal. `-s` hides typing, and `-t N` stops waiting after N seconds.\n- `printf` prints exactly its format: `%s`, `%d`, `%.2f`, widths like `%-10s` and `%8s`, zero padding with `%05d`, and `%%` for a percent sign. It adds no newline unless you write `\\n`.\n- Extra arguments run the format again, and `printf -v var` stores the result instead of printing it."
+}

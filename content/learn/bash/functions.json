@@ -1,0 +1,166 @@
+{
+  "id": "functions",
+  "title": "Functions",
+  "section": "Bash Scripting",
+  "summary": "Group commands into functions with arguments, answer with a status or a printed value, keep variables local, and share functions through a library.",
+  "intro": "Once a script grows past a screenful, its pieces need names. A Bash function is a named group of commands that you call like any other command, with arguments of its own. In this lesson you define and call functions, return a status for `if` or a value for `$(...)`, keep their variables private with `local`, and load shared functions from a library file.",
+  "fixtures": "scriptbox",
+  "steps": [
+    {
+      "title": "Define and call",
+      "body": "Define a function with a name, `()`, and a body in braces. Call it like a command, with its arguments after the name. Inside the body the arguments are `$1`, `$2`, and so on, and `$#` counts them:\n\n```bash\ngreet() {\n  echo \"Hello, $1 (arguments: $#)\"\n}\n\ngreet Ada\ngreet \"Grace Hopper\" Linus\n```\n\n`\"$@\"` expands to all the arguments, each one still its own word, so `for a in \"$@\"` loops over them safely. `$*` joins them into one string, which is handy inside a message. Use `\"$@\"` unless you want that one string.\n\nBash runs a script from top to bottom, and a function exists only once Bash has run its definition. So define each function above the first line that calls it. You'll also see `function greet { ...; }` in older scripts. It means the same, but `greet() { ...; }` is the form every shell understands, so prefer it.",
+      "examples": [
+        {
+          "title": "Greet",
+          "prompt": "Define two small functions and call them with different arguments.",
+          "code": "greet() {\n  echo \"Hello, $1!\"\n}\n\nunderline() {\n  echo \"$1\"\n  echo \"${1//?/-}\"\n}\n\ngreet Ada\ngreet \"Grace Hopper\"\ngreet Grace Hopper\nunderline \"Release notes\"\n",
+          "output": "Hello, Ada!\nHello, Grace Hopper!\nHello, Grace!\nRelease notes\n-------------",
+          "explanation": "A function's arguments split the same way a command's do. `greet \"Grace Hopper\"` passes one argument, so `$1` is the full name, while `greet Grace Hopper` passes two, and `greet` only uses the first. In `underline`, `${1//?/-}` replaces every character of `$1` with `-`: `?` matches any one character, and `//` replaces every match, so the line comes out exactly as long as the text."
+        },
+        {
+          "title": "All the arguments",
+          "prompt": "Show how many arguments a function got, join them into one string, and loop over them with `\"$@\"`.",
+          "code": "show() {\n  echo \"args: $#, joined: $*\"\n  for a in \"$@\"; do\n    echo \"  [$a]\"\n  done\n}\n\nshow \"a b\" c\nshow \"one two three\"\n",
+          "output": "args: 2, joined: a b c\n  [a b]\n  [c]\nargs: 1, joined: one two three\n  [one two three]",
+          "explanation": "`\"$@\"` keeps every argument exactly as it was passed, so `\"a b\"` stays one word in the loop. `$*` inside double quotes joins the arguments with spaces into one string, which suits a message. Unquoted, `$*` and `$@` both split again at every space, which is almost never what you want:\n\n```bash\nshow() {\n  for a in $*; do\n    echo \"[$a]\"\n  done\n}\n\nshow \"a b\" c\n```"
+        },
+        {
+          "title": "Define before you call",
+          "prompt": "Call a function on a line above its definition.",
+          "code": "echo \"Greeting the team\"\ngreet Ada || exit\n\ngreet() {\n  echo \"Hello, $1!\"\n}\n",
+          "expect": "runtime-error",
+          "output": "Greeting the team",
+          "errorIncludes": "greet: command not found",
+          "exitCode": 127,
+          "explanation": "Bash runs the script one command at a time, and the definition of `greet` hasn't run yet when line 2 calls it. So Bash looks for a program named `greet`, finds none, and fails with status 127, command not found. `exit` without a number ends the script with the status of the command before it, here 127. Move the definition above the first call and the script works:\n\n```bash\ngreet() {\n  echo \"Hello, $1!\"\n}\n\necho \"Greeting the team\"\ngreet Ada || exit\n```"
+        }
+      ],
+      "practice": {
+        "title": "Banner",
+        "prompt": "Write a function that frames a title between two lines of `=`.\n\n1. Write `banner TEXT`. It prints a line of `=` exactly as long as TEXT, then TEXT, then the same line of `=` again.\n2. Call `banner` for `Deploy`, `Weekly Report`, and `Q3 Sales Review`, in that order.\n\nCheck also calls `banner` with other titles.\n\nExpected output:\n\n```text\n======\nDeploy\n======\n=============\nWeekly Report\n=============\n===============\nQ3 Sales Review\n===============\n```",
+        "starter": "# TODO: define banner TEXT: a line of = as long as TEXT, then TEXT, then the line again\n\n# TODO: call banner for \"Deploy\", \"Weekly Report\" and \"Q3 Sales Review\"\n",
+        "solution": "banner() {\n  line=\"${1//?/=}\"\n  echo \"$line\"\n  echo \"$1\"\n  echo \"$line\"\n}\n\nbanner \"Deploy\"\nbanner \"Weekly Report\"\nbanner \"Q3 Sales Review\"\n",
+        "tests": [
+          {
+            "output": "======\nDeploy\n======\n=============\nWeekly Report\n=============\n===============\nQ3 Sales Review\n==============="
+          },
+          {
+            "append": "banner \"OK\"\nbanner \"Release 2.0 is out\"\n",
+            "output": "======\nDeploy\n======\n=============\nWeekly Report\n=============\n===============\nQ3 Sales Review\n===============\n==\nOK\n==\n==================\nRelease 2.0 is out\n=================="
+          }
+        ],
+        "hints": [
+          "`banner` works like `underline` from the greet example, with `=` instead of `-` and a second line above the text.",
+          "`${1//?/=}` turns every character of `$1` into `=`.",
+          "Keep that line in a variable, then `echo` it, `echo \"$1\"`, and `echo` it again."
+        ]
+      }
+    },
+    {
+      "title": "Return a status or a value",
+      "body": "A function gives back two kinds of answer. Its **status** is the status of its last command, or the number after `return`: 0 means success, and 1 to 255 mean failure. That makes a function a condition for `if`, `&&`, and `||`:\n\n```bash\nis_even() {\n  (( $1 % 2 == 0 ))\n}\n\nif is_even 42; then\n  echo \"42 is even\"\nfi\nis_even 7 || echo \"7 is odd\"\n```\n\nA **value**, like a word or a number, is whatever the function prints. Capture it with `$(...)`, the same as any command's output:\n\n```bash\ndouble() {\n  echo \"$(( $1 * 2 ))\"\n}\n\nresult=$(double 21)\necho \"result: $result\"\n```\n\nKeep the two apart. `return` takes only a number from 0 to 255, so it can't hand back text. A message for people belongs on stderr, `echo \"...\" >&2`, so it never ends up inside a captured value. And `exit` inside a function ends the whole script, not just the function.",
+      "examples": [
+        {
+          "title": "Predicate",
+          "prompt": "Write a function that answers yes or no with its status, and use it in an `if`.",
+          "code": "is_weekend() {\n  [[ $1 == Sat || $1 == Sun ]]\n}\n\nfor day in Fri Sat Sun Mon; do\n  if is_weekend \"$day\"; then\n    echo \"$day: weekend\"\n  else\n    echo \"$day: workday\"\n  fi\ndone\n",
+          "output": "Fri: workday\nSat: weekend\nSun: weekend\nMon: workday",
+          "explanation": "The last command in `is_weekend` is the `[[ ]]` test, so the function's status is the test's: 0 for `Sat` and `Sun`, and 1 for any other day. `if` runs the function and branches on that status, exactly as it does with `grep -q`. A name that reads as a question, like `is_weekend` or `has_errors`, makes the `if` read like a sentence."
+        },
+        {
+          "title": "Value",
+          "prompt": "Return a string by printing it, and capture it with `$(...)`.",
+          "code": "to_upper() {\n  echo \"${1^^}\"\n}\n\nname=$(to_upper ada)\necho \"name: $name\"\necho \"Welcome, $(to_upper \"grace hopper\")!\"\n",
+          "output": "name: ADA\nWelcome, GRACE HOPPER!",
+          "explanation": "`to_upper` prints its answer, and `$(...)` captures what it prints, minus the trailing newline, so the value can go into a variable or the middle of a string. Everything the function prints to stdout lands in the value, so send messages for people to stderr. Here the message shows in the output panel, and the captured name stays clean:\n\n```bash\nto_upper() {\n  echo \"converting $1\" >&2\n  echo \"${1^^}\"\n}\n\nname=$(to_upper ada)\necho \"name: $name\"\n```"
+        },
+        {
+          "title": "Gotchas",
+          "prompt": "Return a number that's too big for a status, then call a function that runs `exit`.",
+          "code": "big() {\n  return 300\n}\n\nstop() {\n  echo \"stopping the script\"\n  exit 3\n}\n\nbig\necho \"big returned $?\"\nstop\necho \"never printed\"\n",
+          "output": "big returned 44\nstopping the script",
+          "exitCode": 3,
+          "explanation": "This example breaks two rules on purpose, so ShellCheck is off for it. A status is a single byte, so `return 300` comes back as 300 minus 256, which is 44. And `exit 3` inside `stop` ends the whole script with status 3, so the last `echo` never runs. Use `return` to leave just the function. A `return` with text is an error: Bash prints `numeric argument required`, and the function returns 2:\n\n```bash error\ncheck() {\n  return \"ok\"\n}\n\ncheck\n```",
+          "shellcheck": "off"
+        }
+      ],
+      "practice": {
+        "title": "Validators",
+        "prompt": "Check `host port` pairs with two functions that answer with their status.\n\n1. Write `is_port N`, which succeeds when N is a whole number from 1 to 65535.\n2. Write `is_hostname S`, which succeeds when S has only letters, digits, dots, and hyphens, and doesn't start with a hyphen.\n3. Read `HOST PORT` lines from stdin. For each one, print `HOST:PORT valid`, `HOST:PORT invalid: bad hostname`, or `HOST:PORT invalid: bad port`. Check the hostname first.\n\nInput:\n\n```text\nweb-1 8080\ndb.internal 5432\n-cache 6379\napi 70000\n```\n\nExpected output:\n\n```text\nweb-1:8080 valid\ndb.internal:5432 valid\n-cache:6379 invalid: bad hostname\napi:70000 invalid: bad port\n```",
+        "starter": "# TODO: succeed when $1 is a whole number from 1 to 65535\nis_port() {\n  return 1\n}\n\n# TODO: succeed when $1 has only letters, digits, dots and hyphens, and doesn't start with a hyphen\nis_hostname() {\n  return 1\n}\n\n# TODO: for each line, print HOST:PORT valid, or HOST:PORT invalid: bad hostname, or HOST:PORT invalid: bad port\nwhile read -r host port; do\n  echo \"$host:$port\"\ndone\n",
+        "solution": "port_re='^[0-9]+$'\nhost_re='^[A-Za-z0-9.][A-Za-z0-9.-]*$'\n\nis_port() {\n  [[ $1 =~ $port_re ]] && (( $1 >= 1 && $1 <= 65535 ))\n}\n\nis_hostname() {\n  [[ $1 =~ $host_re ]]\n}\n\nwhile read -r host port; do\n  if ! is_hostname \"$host\"; then\n    echo \"$host:$port invalid: bad hostname\"\n  elif ! is_port \"$port\"; then\n    echo \"$host:$port invalid: bad port\"\n  else\n    echo \"$host:$port valid\"\n  fi\ndone\n",
+        "tests": [
+          {
+            "stdin": "web-1 8080\ndb.internal 5432\n-cache 6379\napi 70000\n",
+            "output": "web-1:8080 valid\ndb.internal:5432 valid\n-cache:6379 invalid: bad hostname\napi:70000 invalid: bad port"
+          },
+          {
+            "stdin": "localhost 22\nbackup_1 873\nmail.example.com 0\nproxy 3128x\nqueue-1 65535\n",
+            "output": "localhost:22 valid\nbackup_1:873 invalid: bad hostname\nmail.example.com:0 invalid: bad port\nproxy:3128x invalid: bad port\nqueue-1:65535 valid"
+          },
+          {
+            "stdin": "grafana 3000\nWEB-2 65536\ncache-1\n10.0.0.5 443\n",
+            "output": "grafana:3000 valid\nWEB-2:65536 invalid: bad port\ncache-1: invalid: bad port\n10.0.0.5:443 valid"
+          }
+        ],
+        "hints": [
+          "Each function's last command is a test, like in `is_weekend`. `[[ $1 =~ $re ]]` matches a regex kept in a variable.",
+          "For a port, match `^[0-9]+$` first, then check `(( $1 >= 1 && $1 <= 65535 ))`, and join the two with `&&`.",
+          "In the loop: `if ! is_hostname \"$host\"; then ... elif ! is_port \"$port\"; then ... else ... fi`."
+        ]
+      }
+    },
+    {
+      "title": "Local variables and libraries",
+      "body": "Variables in Bash are global, even inside a function. A function that sets `i` or `total` changes the caller's `i` or `total`, and that breaks loops in ways that are hard to spot. Declare a function's own variables with `local`, and they exist only while it runs:\n\n```bash\ntotal=100\nadd_tax() {\n  local total=$(( $1 * 120 / 100 ))\n  echo \"with tax: $total\"\n}\n\nadd_tax 50\necho \"total is still $total\"\n```\n\nFunctions that many scripts share go in a library, a file of definitions that you load with `source ./lib/strings.sh`. `source` runs the file in the current shell, so its functions and variables exist afterwards, as if you had typed them in. The `./` makes Bash read the file from this folder instead of searching `PATH` for it.\n\nLonger scripts often put their steps in a `main` function at the top, with helpers below it, and call `main \"$@\"` on the last line. By then every function is defined, so the order inside the file no longer matters.",
+      "examples": [
+        {
+          "title": "The clobber bug",
+          "prompt": "Print three sections, each with a line of dashes made by a helper that forgets `local`.",
+          "code": "dashes() {\n  line=\"\"\n  for ((i = 0; i < $1; i++)); do\n    line+=\"-\"\n  done\n  echo \"$line\"\n}\n\nfor ((i = 1; i <= 3; i++)); do\n  echo \"section $i\"\n  dashes 9\ndone\necho \"after the loop, i is $i\"\n",
+          "output": "section 1\n---------\nafter the loop, i is 10",
+          "explanation": "The loop should print three sections, but it prints one. `dashes` uses the same global `i` as the caller and leaves it at 9 when its own loop ends. The caller's `i++` makes that 10, which fails `i <= 3`, so the outer loop stops after one pass. Make `line` and `i` local to `dashes`, and every section prints:\n\n```bash\ndashes() {\n  local line=\"\" i\n  for ((i = 0; i < $1; i++)); do\n    line+=\"-\"\n  done\n  echo \"$line\"\n}\n\nfor ((i = 1; i <= 3; i++)); do\n  echo \"section $i\"\n  dashes 9\ndone\necho \"after the loop, i is $i\"\n```\n\n`line+=\"-\"` appends to a string, the same way `lib/strings.sh` builds its lines."
+        },
+        {
+          "title": "A library",
+          "prompt": "Load `lib/strings.sh`, then use its `trim` and `repeat` functions and its `FILL` variable.",
+          "code": "source ./lib/strings.sh\n\nname=$(trim \"   Ada Okonkwo   \")\necho \"[$name]\"\nrepeat \"-\" 13\necho \"fill: [$FILL]\"\n",
+          "output": "[Ada Okonkwo]\n-------------\nfill: [.]",
+          "explanation": "`source` runs `lib/strings.sh` in this script's shell, so the functions `trim` and `repeat` and the variable `FILL` exist from the next line on. `trim` prints its answer, so `$(...)` captures it, while `repeat` prints its line straight to the output. Open `lib/strings.sh` in the Files strip: both functions declare their variables with `local`, so loading the library can't change yours, and it holds only definitions, so sourcing it prints nothing."
+        },
+        {
+          "title": "Structure with main",
+          "prompt": "Put the script's steps in `main` at the top, with its helpers below it.",
+          "code": "main() {\n  header \"Hosts\"\n  count_lines hosts.txt\n  header \"Months\"\n  count_lines a.txt\n}\n\nheader() {\n  echo \"== $1 ==\"\n}\n\ncount_lines() {\n  local n\n  n=$(wc -l < \"$1\")\n  echo \"$1: $n lines\"\n}\n\nmain \"$@\"\n",
+          "output": "== Hosts ==\nhosts.txt: 5 lines\n== Months ==\na.txt: 12 lines",
+          "explanation": "`main` calls `header` and `count_lines` above their definitions, and that's fine: nothing runs until `main \"$@\"` on the last line, and by then all three are defined. Reading top down, you see the steps first and the details after. `main \"$@\"` hands the script's own arguments to `main`, so the pattern keeps working once a script takes arguments. In `count_lines`, `local n` sits on its own line before `n=$(...)`: written as one line, `local` would hide the exit status of the command inside `$(...)`, and ShellCheck warns about it."
+        }
+      ],
+      "practice": {
+        "title": "Center text",
+        "prompt": "Center titles in a line 30 characters wide, padded with the library's fill character.\n\n1. Load `lib/strings.sh` with `source`.\n2. Write `center WIDTH TEXT`, which prints TEXT padded on both sides with `\"$FILL\"` to WIDTH characters. Build each side with `repeat`, and keep the function's variables `local`.\n3. When the padding is odd, put the extra character on the right.\n4. Center `Status`, `Weekly Report`, and `Incident 1403 Review` in 30 characters.\n\nCheck also runs your script with a library whose `FILL` is different, and calls `center` with other widths and titles.\n\nExpected output:\n\n```text\n............Status............\n........Weekly Report.........\n.....Incident 1403 Review.....\n```",
+        "starter": "# TODO: load lib/strings.sh\n\n# TODO: pad $2 on both sides with \"$FILL\" to $1 characters, using repeat and local variables\n# TODO: when the padding is odd, put the extra character on the right\ncenter() {\n  echo \"$2\"\n}\n\ncenter 30 \"Status\"\ncenter 30 \"Weekly Report\"\ncenter 30 \"Incident 1403 Review\"\n",
+        "solution": "source ./lib/strings.sh\n\ncenter() {\n  local width=\"$1\" text=\"$2\"\n  local pad=$(( width - ${#text} ))\n  local left=$(( pad / 2 ))\n  local right=$(( pad - left ))\n  echo \"$(repeat \"$FILL\" \"$left\")$text$(repeat \"$FILL\" \"$right\")\"\n}\n\ncenter 30 \"Status\"\ncenter 30 \"Weekly Report\"\ncenter 30 \"Incident 1403 Review\"\n",
+        "tests": [
+          {
+            "output": "............Status............\n........Weekly Report.........\n.....Incident 1403 Review....."
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "output": "------------Status------------\n--------Weekly Report---------\n-----Incident 1403 Review-----"
+          },
+          {
+            "append": "center 8 \"abc\"\ncenter 16 \"on call\"\n",
+            "output": "............Status............\n........Weekly Report.........\n.....Incident 1403 Review.....\n..abc...\n....on call....."
+          }
+        ],
+        "hints": [
+          "Start like the library example, with `source ./lib/strings.sh`. After it, `repeat` and `FILL` exist.",
+          "The padding is `width - ${#text}`. The left side gets `pad / 2`, and the right side gets the rest, `pad - left`.",
+          "`repeat` ends its line, so capture each side with `$(repeat \"$FILL\" \"$left\")`, and print the three pieces with one `echo`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `name() { ...; }` defines a function. Define it above the first line that calls it.\n- Inside, `$1`, `$2`, and `$#` work as in a script, and `\"$@\"` passes on every argument as its own word.\n- A function's status is its last command's, or `return N` (0 to 255), so a function can be the condition of `if`, `&&`, and `||`.\n- To return a value, print it, and capture it with `$(...)`. Messages for people go to stderr.\n- `local` keeps a function's variables private. `exit` in a function ends the whole script.\n- `source ./lib/strings.sh` loads a library, and `main \"$@\"` on the last line runs a script whose `main` sits at the top."
+}

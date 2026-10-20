@@ -1,0 +1,128 @@
+{
+  "id": "heredocs",
+  "title": "Here Documents and Here Strings",
+  "section": "Data in Bash",
+  "summary": "Write blocks of text into commands and files with heredocs, feed one string to a command with a here string, and redirect a whole group of commands at once.",
+  "intro": "Scripts often need to write more than one line: a usage message, a config file, a report. A here document feeds a block of text to a command's stdin, and a here string does the same for a single string. Every program in this lesson runs in a fresh folder holding the scriptbox files, such as `hosts.txt` and `build/VERSION`, which the Files strip lists.",
+  "format": "single",
+  "fixtures": "scriptbox",
+  "steps": [
+    {
+      "title": "Here documents",
+      "body": "A here document, or heredoc, feeds the lines between `<<EOF` and a line holding just `EOF` to a command's stdin. Bash expands variables and `$(...)` inside it first, as it does in double quotes:\n\n```bash\nname=\"Ada\"\ncat <<EOF\nHello, $name.\nYou are logged in as $(whoami).\nEOF\n```\n\nQuote the word, as in `<<'EOF'`, and nothing expands. That's what you want when the text is itself a script. In an unquoted heredoc, `\\$` gives a literal dollar sign.\n\n```bash\ncat <<'EOF'\necho \"Hello, $USER\"\nEOF\n```\n\nTo write a file, redirect the command: `cat > site.conf <<EOF`. `EOF` is only a habit: any word works. The closing line must hold that word alone, with nothing before or after it. With `<<-EOF`, Bash removes leading tabs (not spaces) from every line, so a heredoc can be indented inside an `if` or a function.",
+      "examples": [
+        {
+          "title": "A usage message",
+          "prompt": "Print a script's usage message, with the version read from `build/VERSION` and the script's own name from `$0`.",
+          "code": "version=\"$(< build/VERSION)\"\n\ncat <<EOF\ndeploy $version: copy the build to every host\n\nUsage: $0 [--dry-run] [HOST...]\nWith no HOST, it deploys to the $(wc -l < hosts.txt) hosts in hosts.txt.\nEOF\n",
+          "output": "deploy 1.4.2: copy the build to every host\n\nUsage: main.sh [--dry-run] [HOST...]\nWith no HOST, it deploys to the 5 hosts in hosts.txt.",
+          "explanation": "`cat` prints its stdin, and the heredoc is its stdin. Before `cat` sees the text, Bash fills in `$version`, `$0`, and the `$(wc -l < hosts.txt)` command. `$0` is the name the script was started as, `main.sh` here. The blank line stays, because a heredoc keeps every line exactly as written up to the closing `EOF`. That's why usage messages are nearly always heredocs: the code looks like the message it prints."
+        },
+        {
+          "title": "Generate a config file",
+          "prompt": "Write an nginx server block into `site.conf` from three variables, then print the file.",
+          "code": "server_name=\"shop.local\"\nport=8080\nroot=\"/srv/shop/current\"\n\ncat > site.conf <<EOF\nserver {\n    listen $port;\n    server_name $server_name;\n    root $root;\n\n    location / {\n        try_files \\$uri \\$uri/ /index.html;\n    }\n}\nEOF\n\ncat site.conf\n",
+          "output": "server {\n    listen 8080;\n    server_name shop.local;\n    root /srv/shop/current;\n\n    location / {\n        try_files $uri $uri/ /index.html;\n    }\n}",
+          "explanation": "`cat > site.conf <<EOF` sends the heredoc to `cat`, and `cat`'s output into the file, so `site.conf` holds the text with the three variables filled in. nginx has variables of its own that also start with `$`, like `$uri`. Writing them as `\\$uri` keeps them literal, while `$port` still expands. Deploy scripts generate configs this way: one template in the script, different values per server."
+        },
+        {
+          "title": "Literal and indented heredocs",
+          "prompt": "Write a small script with a quoted heredoc so its `$HOME` stays as typed, run it, then print a note from an indented `<<-` heredoc.",
+          "code": "cat > hello.sh <<'EOF'\n#!/usr/bin/env bash\necho \"Hello from $HOME\"\nEOF\n\ncat hello.sh\nbash hello.sh\n\nif [[ -f hello.sh ]]; then\n\tcat <<-EOF\n\t\thello.sh is ready.\n\t\tRun it with: bash hello.sh\n\tEOF\nfi\n",
+          "output": "#!/usr/bin/env bash\necho \"Hello from $HOME\"\nHello from /home/learner\nhello.sh is ready.\nRun it with: bash hello.sh",
+          "explanation": "With `<<'EOF'` nothing expands, so `hello.sh` gets `$HOME` exactly as typed, which `cat hello.sh` shows. When `bash hello.sh` runs the new script, its `$HOME` expands to `/home/learner`. The second heredoc uses `<<-EOF`, which removes the leading tabs from each line and from the closing `EOF`, so the block can sit indented inside the `if` and still print flush left. It only works with tabs: an `EOF` indented with spaces isn't the closing line, and Bash reads on to the end of the file looking for one."
+        }
+      ],
+      "practice": {
+        "title": "Generate a unit file",
+        "prompt": "Write a systemd unit file from three environment variables: `SERVICE`, `RUN_USER`, and `PORT`. (`USER` already holds your own user name, which is why this one is `RUN_USER`.)\n\n1. Write `app.service` with one heredoc, laid out exactly like the expected output below.\n2. Use `$SERVICE` wherever the output shows `shopfront`, `$RUN_USER` for `deploy`, and `$PORT` for `8080`.\n3. Print the file with `cat`.\n\nTest 1 runs with `SERVICE=shopfront`, `RUN_USER=deploy`, and `PORT=8080`, and test 2 with other values. Check compares what you print and what `app.service` holds.\n\nExpected output:\n\n```text\n[Unit]\nDescription=shopfront service\nAfter=network.target\n\n[Service]\nUser=deploy\nExecStart=/srv/shopfront/bin/server --port 8080\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target\n```",
+        "starter": "# Writes a systemd unit for $SERVICE, run by $RUN_USER, on port $PORT.\n# TODO: finish the heredoc: add the [Service] and [Install] sections\n# TODO: and put the three variables where the values change\ncat > app.service <<EOF\n[Unit]\nDescription=my service\nEOF\n\ncat app.service\n",
+        "solution": "cat > app.service <<EOF\n[Unit]\nDescription=$SERVICE service\nAfter=network.target\n\n[Service]\nUser=$RUN_USER\nExecStart=/srv/$SERVICE/bin/server --port $PORT\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target\nEOF\n\ncat app.service\n",
+        "tests": [
+          {
+            "env": {
+              "SERVICE": "shopfront",
+              "RUN_USER": "deploy",
+              "PORT": "8080"
+            },
+            "output": "[Unit]\nDescription=shopfront service\nAfter=network.target\n\n[Service]\nUser=deploy\nExecStart=/srv/shopfront/bin/server --port 8080\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target",
+            "files": {
+              "app.service": "[Unit]\nDescription=shopfront service\nAfter=network.target\n\n[Service]\nUser=deploy\nExecStart=/srv/shopfront/bin/server --port 8080\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target"
+            }
+          },
+          {
+            "env": {
+              "SERVICE": "thumbnailer",
+              "RUN_USER": "worker",
+              "PORT": "9100"
+            },
+            "output": "[Unit]\nDescription=thumbnailer service\nAfter=network.target\n\n[Service]\nUser=worker\nExecStart=/srv/thumbnailer/bin/server --port 9100\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target",
+            "files": {
+              "app.service": "[Unit]\nDescription=thumbnailer service\nAfter=network.target\n\n[Service]\nUser=worker\nExecStart=/srv/thumbnailer/bin/server --port 9100\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target"
+            }
+          }
+        ],
+        "hints": [
+          "Follow the example that writes `site.conf`: `cat > app.service <<EOF`, the lines, `EOF`, then `cat app.service`.",
+          "Leave the word unquoted, `<<EOF` and not `<<'EOF'`, or the file gets `$SERVICE` as typed instead of its value.",
+          "The line with two variables is `ExecStart=/srv/$SERVICE/bin/server --port $PORT`."
+        ]
+      }
+    },
+    {
+      "title": "Here strings and grouped output",
+      "body": "A here string, `<<<`, feeds one string to a command's stdin, with a newline added at the end:\n\n```bash\nline=\"ada devbox 22\"\nread -r user host port <<< \"$line\"\necho \"$user on $host, port $port\"\n```\n\nIt looks like `echo \"$line\" | read -r user host port`, but that version doesn't work. Each command in a pipeline runs in a subshell, so `read` sets the variables in a copy of your shell that ends right away. A here string runs `read` in your shell. Quote the string, `<<< \"$line\"`, so it arrives exactly as stored.\n\nTo send the output of several commands to one file, group them with braces and redirect the group once:\n\n```bash\n{ echo \"# Report\"; date -u -d @0; echo \"rows: 3\"; } > report.md\ncat report.md\n```\n\nThe braces need a space after `{` and a `;` or a line break before `}`. The file is opened once for the whole group, so you don't repeat `>> report.md` on every line.",
+      "examples": [
+        {
+          "title": "Split a string",
+          "prompt": "Split strings into variables with `read` and a here string, including a line taken from `config.ini`.",
+          "code": "read -r user host <<< \"ada devbox\"\necho \"user: $user\"\necho \"host: $host\"\n\nIFS=: read -r key value <<< \"port:8080\"\necho \"$key is $value\"\n\nIFS='=' read -r key value <<< \"$(grep '^target=' config.ini)\"\necho \"$key is $value\"\n",
+          "output": "user: ada\nhost: devbox\nport is 8080\ntarget is release",
+          "explanation": "`read` splits its line on spaces, so `ada` lands in `user` and `devbox` in `host`. `IFS=:` in front of `read` splits on the colon instead, for that one command only, and `IFS='='` splits a `key=value` line. The last here string holds a command substitution: `grep` finds the `target=` line in `config.ini`, and `read` splits it. `read` runs in your shell, not in a pipeline's subshell, so the variables are still set on the next line."
+        },
+        {
+          "title": "Count text in a variable",
+          "prompt": "Count the words and the matching lines in text that's already in a variable.",
+          "code": "sentence=\"the deploy moves to Thursday\"\necho \"words: $(wc -w <<< \"$sentence\")\"\n\noutput=$(printf '%s\\n' \"web-1 ok\" \"web-2 ok\" \"db-1 timeout\" \"cache-1 ok\")\necho \"healthy: $(grep -c ok <<< \"$output\")\"\necho \"problems: $(grep -v ok <<< \"$output\")\"\n",
+          "output": "words: 5\nhealthy: 3\nproblems: db-1 timeout",
+          "explanation": "`wc` and `grep` read stdin when you name no file, and a here string is stdin, so you can count text that never touched a file. `wc -w` counts the 5 words of `sentence`. `output` holds four lines, and the here string passes them on with their line breaks, so `grep -c ok` counts 3 lines and `grep -v ok` prints the one without `ok`. This is how a script looks at a command's captured output several times without running the command again."
+        },
+        {
+          "title": "One redirect for many lines",
+          "prompt": "Build `inventory.txt` from a heredoc header and a loop over `hosts.txt`, with one redirect for the whole group.",
+          "code": "{\n  cat <<EOF\n# Inventory, generated by $0\n# $(wc -l < hosts.txt) hosts\nEOF\n  while IFS= read -r host; do\n    printf '%-10s %s\\n' \"$host\" \"${host%-*}\"\n  done < hosts.txt\n} > inventory.txt\n\ncat inventory.txt\n",
+          "output": "# Inventory, generated by main.sh\n# 5 hosts\nweb-1      web\nweb-2      web\ndb-1       db\ncache-1    cache\nbackup-1   backup",
+          "explanation": "Everything between `{` and `}` goes to `inventory.txt`: first the heredoc's two comment lines, then one line per host from the loop. `%-10s` pads each name to 10 characters, and `${host%-*}` cuts the `-1` off the end to get the role. The loop reads `hosts.txt` through its own `<`, and the group's `>` decides where all the output goes. The closing `EOF` still sits alone at the start of its line, even inside the braces. Without the braces you'd write `>` on the first command and `>>` on the others, and one wrong `>` would wipe what came before."
+        }
+      ],
+      "practice": {
+        "title": "Hosts file",
+        "prompt": "Turn `NAME IP` lines from stdin into a hosts file.\n\n1. Send everything below into `hosts.out` with one redirect on a `{ ...; }` group.\n2. Inside the group, start with a heredoc that writes the two header lines shown below. The first one names the script with `$0`.\n3. Then read each `NAME IP` line and write it with `printf '%-15s %s\\n' \"$ip\" \"$name\"`.\n4. After the group, print `hosts.out` with `cat`.\n\nCheck compares what you print and what `hosts.out` holds, for two lists of hosts.\n\nInput:\n\n```text\nweb-1 10.0.0.11\nweb-2 10.0.0.12\ndb-1 10.0.0.21\n```\n\nExpected output:\n\n```text\n# Generated by main.sh from stdin. Do not edit.\n127.0.0.1       localhost\n10.0.0.11       web-1\n10.0.0.12       web-2\n10.0.0.21       db-1\n```",
+        "starter": "# Builds hosts.out from NAME IP lines on stdin.\n# TODO: write the two header lines with a heredoc before the loop,\n# TODO: send both to hosts.out with one { ...; } group, then print it\nwhile read -r name ip; do\n  printf '%-15s %s\\n' \"$ip\" \"$name\"\ndone\n",
+        "solution": "{\n  cat <<EOF\n# Generated by $0 from stdin. Do not edit.\n127.0.0.1       localhost\nEOF\n  while read -r name ip; do\n    printf '%-15s %s\\n' \"$ip\" \"$name\"\n  done\n} > hosts.out\n\ncat hosts.out\n",
+        "tests": [
+          {
+            "stdin": "web-1 10.0.0.11\nweb-2 10.0.0.12\ndb-1 10.0.0.21\n",
+            "output": "# Generated by main.sh from stdin. Do not edit.\n127.0.0.1       localhost\n10.0.0.11       web-1\n10.0.0.12       web-2\n10.0.0.21       db-1",
+            "files": {
+              "hosts.out": "# Generated by main.sh from stdin. Do not edit.\n127.0.0.1       localhost\n10.0.0.11       web-1\n10.0.0.12       web-2\n10.0.0.21       db-1"
+            }
+          },
+          {
+            "stdin": "cache-1 10.0.5.3\nqueue-1 10.0.5.4\nbackup-nas-01 192.168.100.200\nsearch-1 10.0.5.17\n",
+            "output": "# Generated by main.sh from stdin. Do not edit.\n127.0.0.1       localhost\n10.0.5.3        cache-1\n10.0.5.4        queue-1\n192.168.100.200 backup-nas-01\n10.0.5.17       search-1",
+            "files": {
+              "hosts.out": "# Generated by main.sh from stdin. Do not edit.\n127.0.0.1       localhost\n10.0.5.3        cache-1\n10.0.5.4        queue-1\n192.168.100.200 backup-nas-01\n10.0.5.17       search-1"
+            }
+          }
+        ],
+        "hints": [
+          "Start from the inventory example: a heredoc and a loop inside `{` and `}`, and `> hosts.out` after the closing brace.",
+          "Copy the `127.0.0.1` line from the expected output into the heredoc as it is. Leave the heredoc's word unquoted so `$0` expands.",
+          "The shape is `{`, then `cat <<EOF`, the two header lines, `EOF`, the `while read -r name ip` loop, `} > hosts.out`, and finally `cat hosts.out`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `cmd <<EOF` feeds the lines up to `EOF` to a command's stdin, with variables and `$(...)` expanded.\n- `<<'EOF'` keeps the text literal, and `\\$` gives one literal `$` in an unquoted heredoc.\n- `cat > file <<EOF` writes a file from a template in your script.\n- `<<-EOF` removes leading tabs, so a heredoc can be indented with tabs.\n- `cmd <<< \"$var\"` feeds one string to a command, and `read -r a b <<< \"$line\"` splits it in your own shell.\n- `{ cmd1; cmd2; } > file` sends the output of a whole group to one file."
+}

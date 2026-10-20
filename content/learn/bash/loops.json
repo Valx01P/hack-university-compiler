@@ -1,0 +1,152 @@
+{
+  "id": "loops",
+  "title": "Loops",
+  "section": "Bash Scripting",
+  "summary": "Repeat commands for every word, file, number, or line, read files and CSV rows safely, and steer loops with until, break, and continue.",
+  "intro": "Scripts earn their keep by doing the same job many times: once per file, per line, per CSV row, or until something is ready. In this lesson you loop over words, files, and numbers with `for`, read files line by line with `while read`, and steer loops with `until`, `break`, and `continue`. Every run starts in a fresh copy of the lesson's files: a small project with CSV reports, a log, and config files.",
+  "fixtures": "scriptbox",
+  "steps": [
+    {
+      "title": "For loops",
+      "body": "A `for` loop runs its body once for each word in a list. Each pass sets the loop variable to the next word, and `do` and `done` wrap the body:\n\n```bash\nfor size in small medium large; do\n  echo \"size: $size\"\ndone\n```\n\nThe list can be anything that expands to words. A glob like `reports/*.csv` gives the matching file names, sorted, and each name stays one word even when it has a space in it, as long as the body quotes it as `\"$f\"`. A brace range like `{1..5}` gives numbers, and `for ((i = 0; i < n; i++))` counts with arithmetic, like the classic `for` loop in JavaScript.\n\nWhen a glob matches nothing, Bash keeps the pattern as typed, so the loop runs once with the pattern itself. `shopt -s nullglob` makes a pattern without matches expand to nothing at all:\n\n```bash\nfor f in logs/*.csv; do\n  echo \"found: $f\"\ndone\nshopt -s nullglob\nfor f in logs/*.csv; do\n  echo \"found: $f\"\ndone\necho \"checked logs/\"\n```",
+      "examples": [
+        {
+          "title": "Words",
+          "prompt": "Loop over two lists of words. In the second, one item is two words in quotes.",
+          "code": "for fruit in apple banana cherry; do\n  echo \"I like $fruit\"\ndone\n\nfor name in Ada \"Grace Hopper\" Linus; do\n  echo \"Hello, $name\"\ndone\n",
+          "output": "I like apple\nI like banana\nI like cherry\nHello, Ada\nHello, Grace Hopper\nHello, Linus",
+          "explanation": "Bash splits the list after `in` into words the usual way: spaces separate words, and quotes keep `\"Grace Hopper\"` together as one. Each pass sets `fruit`, or `name`, to the next word and runs the body. The `;` before `do` is there only because `do` shares the line with `for`. Putting `do` on a line of its own works too, but most scripts keep it on the `for` line."
+        },
+        {
+          "title": "Files",
+          "prompt": "Count the lines of every `.txt` file in the folder, two of which have a space in their names, and add up a total.",
+          "code": "total=0\nfor f in *.txt; do\n  lines=$(wc -l < \"$f\")\n  echo \"$f: $lines lines\"\n  (( total += lines ))\ndone\necho \"total: $total lines\"\n",
+          "output": "a.txt: 12 lines\nb.txt: 7 lines\nempty.txt: 0 lines\nhosts.txt: 5 lines\nmeeting notes.txt: 6 lines\nto do.txt: 4 lines\ntotal: 34 lines",
+          "explanation": "`*.txt` expands to the matching names in sorted order before the loop starts, and `meeting notes.txt` arrives as one word. Inside the body it has to stay quoted: with `wc -l < $f`, Bash would split the name at the space and fail with the error `$f: ambiguous redirect`. The `total` variable lives outside the loop, so each pass adds to it.\n\nA loop's output is one stream, so you can pipe the whole loop into another command after `done`. Here it sorts the files by their line count:\n\n```bash\nfor f in *.txt; do\n  echo \"$(wc -l < \"$f\") $f\"\ndone | sort -n\n```"
+        },
+        {
+          "title": "Numbers",
+          "prompt": "Count up with a brace range, then count down by threes with a C-style loop.",
+          "code": "for i in {1..3}; do\n  echo \"run $i\"\ndone\n\nfor ((i = 10; i > 0; i -= 3)); do\n  echo \"countdown $i\"\ndone\n",
+          "output": "run 1\nrun 2\nrun 3\ncountdown 10\ncountdown 7\ncountdown 4\ncountdown 1",
+          "explanation": "`{1..3}` is brace expansion: Bash writes out the words `1 2 3` before the loop runs. That happens before variables expand, so `{1..$n}` doesn't count to `n`. It stays a single word. When the end comes from a variable, use the C-style loop. Its three parts are the start, the condition checked before each pass, and the step:\n\n```bash\nn=3\nfor i in {1..$n}; do\n  echo \"brace: $i\"\ndone\nfor ((i = 1; i <= n; i++)); do\n  echo \"C-style: $i\"\ndone\n```"
+        }
+      ],
+      "practice": {
+        "title": "Rows per CSV",
+        "prompt": "Count the data rows in every CSV report.\n\n1. Loop over every `.csv` file in the `reports/` folder.\n2. For each file, print its name without the folder, then `: N rows`, where N doesn't count the header line.\n\nCheck also runs your script on a different set of reports.\n\nExpected output:\n\n```text\nq3 summary.csv: 3 rows\nsales-2026-08.csv: 5 rows\nsales-2026-09.csv: 4 rows\n```",
+        "starter": "# TODO: loop over every .csv file in reports/\n# TODO: for each one, print \"NAME: N rows\", where NAME has no \"reports/\" and N leaves out the header\n",
+        "solution": "for f in reports/*.csv; do\n  rows=$(( $(wc -l < \"$f\") - 1 ))\n  echo \"${f##*/}: $rows rows\"\ndone\n",
+        "tests": [
+          {
+            "output": "q3 summary.csv: 3 rows\nsales-2026-08.csv: 5 rows\nsales-2026-09.csv: 4 rows"
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "output": "refunds oct.csv: 0 rows\nsales-2026-09.csv: 4 rows\nsales-2026-10.csv: 2 rows"
+          }
+        ],
+        "hints": [
+          "Start from the files example: `for f in reports/*.csv; do ... done`, with `\"$f\"` quoted inside the loop.",
+          "`${f##*/}` removes everything up to the last `/`, which leaves the file name.",
+          "`$(( $(wc -l < \"$f\") - 1 ))` counts the lines and takes the header away."
+        ]
+      }
+    },
+    {
+      "title": "Reading files line by line",
+      "body": "To work through a file one line at a time, pair `while` with `read`. Each pass, `read` puts the next line in a variable, and at the end of the file it fails, which ends the loop. The redirect after `done` feeds the file to the whole loop:\n\n```bash\nn=0\nwhile IFS= read -r host; do\n  ((n++))\n  echo \"$n: $host\"\ndone < hosts.txt\n```\n\nWrite it exactly like that. `IFS=` keeps the spaces at the start and end of each line, and `-r` keeps backslashes as they are. Don't loop over `$(cat file)` instead: that splits the file into words, not lines.\n\nWith `IFS=,`, the same `read` splits a CSV row into fields, one per variable, and the last variable gets everything left over. Two traps wait here. A last line without a newline at its end makes `read` fail even though it filled the variables, so add `|| [[ -n $var ]]` to keep it. And a loop at the end of a pipe runs in a subshell, a copy of the script, so the changes it makes to variables are lost when it ends. Feed a command's output to the loop with `done < <(cmd)` instead.",
+      "examples": [
+        {
+          "title": "Quote a file",
+          "prompt": "Print every line of the meeting notes with `> ` in front, like a quoted email.",
+          "code": "while IFS= read -r line; do\n  echo \"> $line\"\ndone < \"meeting notes.txt\"\n",
+          "output": "> Weekly sync, 2026-10-14\n> - checkout latency is back under 200 ms\n> - Ben owns the backup restore drill\n> - the deploy moves to Thursday\n> - Carla reviews the new alerts\n> Next meeting: 2026-10-21",
+          "explanation": "`read -r line` takes one line per pass, without its newline, and the loop stops when `read` reaches the end of the file. `IFS=` and `-r` make sure each line arrives exactly as written. Compare a `for` loop over `$(cat ...)`, which splits at every space and loses the indent:\n\n```bash\nprintf '%s\\n' 'fix the login bug' '  then ship it' > tasks.txt\nfor word in $(cat tasks.txt); do\n  echo \"[$word]\"\ndone\nwhile IFS= read -r line; do\n  echo \"[$line]\"\ndone < tasks.txt\n```"
+        },
+        {
+          "title": "CSV rows",
+          "prompt": "Print the employees as a table, one CSV row per pass, skipping the header.",
+          "code": "while IFS=, read -r id name dept salary _ || [[ -n $id ]]; do\n  printf '%2d %-13s %-8s %7d\\n' \"$id\" \"$name\" \"$dept\" \"$salary\"\ndone < <(tail -n +2 employees.csv)\n",
+          "output": " 1 Ada Okonkwo   eng       104000\n 2 Ben Duarte    sales      68000\n 3 Carla Mendes  eng        98765\n 4 Dev Patel     ops        83500\n 5 Erin Walsh    eng       121300\n 6 Femi Adeyemi  support    59900\n 7 Gwen Morris   sales      73250\n 8 Hugo Lambert  ops        88100",
+          "explanation": "`IFS=,` applies to this one `read` and splits the row at its commas: `id`, `name`, `dept`, and `salary` get the first four fields, and `_`, a common name for fields you don't need, takes the rest. `tail -n +2` drops the header, and `< <(...)` feeds its output to the loop. `<(cmd)` is process substitution: Bash hands the loop the command's output as if it were a file, so the loop runs in the script itself, not in a subshell.\n\nThe `|| [[ -n $id ]]` is for files whose last line has no newline at its end, which exports and editors produce more often than you'd think. On that line `read` fills the variables but fails, and without the check the loop ends one row early:\n\n```bash\nprintf 'id,name\\n1,Ada\\n2,Ben' > short.csv\nwhile IFS=, read -r id name; do\n  echo \"$id $name\"\ndone < short.csv\necho \"---\"\nwhile IFS=, read -r id name || [[ -n $id ]]; do\n  echo \"$id $name\"\ndone < short.csv\n```"
+        },
+        {
+          "title": "The subshell trap",
+          "prompt": "Count the bullet points in the meeting notes twice: once with the file piped into the loop, once with a redirect.",
+          "code": "count=0\ncat \"meeting notes.txt\" | while IFS= read -r line; do\n  if [[ $line == \"- \"* ]]; then\n    ((count++))\n  fi\ndone\necho \"with a pipe: $count\"\n\ncount=0\nwhile IFS= read -r line; do\n  if [[ $line == \"- \"* ]]; then\n    ((count++))\n  fi\ndone < \"meeting notes.txt\"\necho \"with a redirect: $count\"\n",
+          "output": "with a pipe: 0\nwith a redirect: 4",
+          "explanation": "Each command in a pipeline runs in a subshell, a copy of the script's process. The first loop counts the 4 bullet points in its own copy of `count`, and that copy disappears when the pipeline ends, so the script still sees 0. The redirect runs the loop in the script itself, so its count stays. When the lines come from a command rather than a file, keep the loop out of the pipe with process substitution: `done < <(grep -v '^#' worker.conf)`."
+        }
+      ],
+      "practice": {
+        "title": "Raises for engineers",
+        "prompt": "Print a 5% raise for every engineer in `employees.csv`.\n\n1. Read the rows of `employees.csv` after the header line, split at their commas.\n2. For each employee in the `eng` department, print `NAME: OLD -> NEW`, where NEW is the salary with 5% added and rounded down: `$(( salary * 105 / 100 ))`.\n3. Keep the last row even when the file doesn't end with a newline.\n\nCheck also runs your script on a different `employees.csv`.\n\nExpected output:\n\n```text\nAda Okonkwo: 104000 -> 109200\nCarla Mendes: 98765 -> 103703\nErin Walsh: 121300 -> 127365\n```",
+        "starter": "# TODO: read employees.csv after its header, one row per pass, split at the commas\n# TODO: for each employee in eng, print \"NAME: OLD -> NEW\" with NEW = salary * 105 / 100\n",
+        "solution": "while IFS=, read -r id name dept salary _ || [[ -n $id ]]; do\n  if [[ $dept == eng ]]; then\n    echo \"$name: $salary -> $(( salary * 105 / 100 ))\"\n  fi\ndone < <(tail -n +2 employees.csv)\n",
+        "tests": [
+          {
+            "output": "Ada Okonkwo: 104000 -> 109200\nCarla Mendes: 98765 -> 103703\nErin Walsh: 121300 -> 127365"
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "output": "Jamal Wright: 112000 -> 117600\nLeo Fontaine: 99999 -> 104998\nQuinn Hale: 107500 -> 112875"
+          }
+        ],
+        "hints": [
+          "Follow the CSV rows example: `while IFS=, read -r id name dept salary _ ...; do ... done < <(tail -n +2 employees.csv)`.",
+          "`if [[ $dept == eng ]]` picks the engineers, and `$(( salary * 105 / 100 ))` is the new salary.",
+          "In the other file the last row has no newline. Add `|| [[ -n $id ]]` after `read` to keep it."
+        ]
+      }
+    },
+    {
+      "title": "While, until, break and continue",
+      "body": "`while` repeats its body as long as its condition command succeeds, and `until` repeats it as long as the condition fails. The condition is any command, so `(( ))`, `[[ ]]`, and `grep -q` all work:\n\n```bash\nn=1\nwhile (( n < 100 )); do\n  (( n *= 2 ))\ndone\necho \"$n\"  # 128\n```\n\nInside any loop, `continue` skips the rest of the body and starts the next pass, and `break` leaves the loop at once. Together they handle messy input: skip what you don't care about, and stop at an end marker.\n\n```bash\nfor i in {1..10}; do\n  (( i % 3 == 0 )) && continue\n  (( i > 7 )) && break\n  echo \"$i\"\ndone\n```\n\n`until` fits waiting for something to become true, like a file appearing or a server answering. Give such a loop a limit, so a service that never comes up can't keep your script waiting forever.",
+      "examples": [
+        {
+          "title": "Countdown",
+          "prompt": "Count down from 3 with a `while` loop, then lift off.",
+          "code": "n=3\nwhile (( n > 0 )); do\n  echo \"$n\"\n  ((n--))\ndone\necho \"Liftoff!\"\n",
+          "output": "3\n2\n1\nLiftoff!",
+          "explanation": "`(( n > 0 ))` succeeds while `n` is above zero, so the body runs for 3, 2, and 1. `((n--))` is what moves the loop toward its end. Leave it out and the condition never changes, so the loop runs until Run stops the script at its time limit."
+        },
+        {
+          "title": "Retry until ready",
+          "prompt": "Wait for a service to create its `ready.flag` file, trying at most 3 times.",
+          "code": "attempt=1\nuntil [[ -f ready.flag ]] || (( attempt > 3 )); do\n  echo \"attempt $attempt: not ready\"\n  # A stand-in for a slow service, which comes up during attempt 2.\n  if (( attempt == 2 )); then\n    touch ready.flag\n  fi\n  ((attempt++))\ndone\n\nif [[ -f ready.flag ]]; then\n  echo \"ready after $(( attempt - 1 )) attempts\"\nelse\n  echo \"gave up after 3 attempts\"\nfi\n",
+          "output": "attempt 1: not ready\nattempt 2: not ready\nready after 2 attempts",
+          "explanation": "`until` checks its condition before every pass and stops as soon as it succeeds: when the flag exists, or when 3 attempts are used up. The `touch` stands in for a real service, which would create the file from another process. A real script would also wait between attempts, with a `sleep 2` at the end of the body. The condition has two ways out, so after the loop, test which one happened."
+        },
+        {
+          "title": "Skip and stop",
+          "prompt": "Print the settings in `worker.conf`, skipping blank lines and comments, and stopping at `[end]`.",
+          "code": "while IFS= read -r line; do\n  [[ -z $line || $line == \"#\"* ]] && continue\n  [[ $line == \"[end]\" ]] && break\n  echo \"setting: $line\"\ndone < worker.conf\n",
+          "output": "setting: name=thumbnailer\nsetting: batch=10\nsetting: concurrency=4\nsetting: retries\nsetting: filter=status=open\nsetting: log_level: debug\nsetting: timeout=30",
+          "explanation": "`-z $line` is true for a blank line and `$line == \"#\"*` for a comment, and for both `continue` skips straight to the next line. At `[end]`, `break` leaves the loop, so the lines after it are never read. Both patterns quote their special characters. Unquoted, `#` would start a comment, and `[end]` would be a glob that matches a single `e`, `n`, or `d`."
+        }
+      ],
+      "practice": {
+        "title": "Parse a config",
+        "prompt": "Read the settings in `worker.conf` up to its `[end]` line, and count the lines that aren't settings.\n\n1. Skip blank lines and lines that start with `#`.\n2. Stop at the line `[end]`.\n3. For each line with an `=`, print `KEY -> VALUE`. The key is the text before the first `=`, and the value is the text after it.\n4. Count the lines without an `=` as invalid, and end with `skipped N invalid lines`.\n\nCheck also runs your script on a different `worker.conf`.\n\nExpected output:\n\n```text\nname -> thumbnailer\nbatch -> 10\nconcurrency -> 4\nfilter -> status=open\ntimeout -> 30\nskipped 2 invalid lines\n```",
+        "starter": "invalid=0\n# TODO: read worker.conf line by line\n# TODO: skip blank lines and # comments, and stop at [end]\n# TODO: print \"KEY -> VALUE\" for each line with an =, and count the lines without one in invalid\necho \"skipped $invalid invalid lines\"\n",
+        "solution": "invalid=0\nwhile IFS= read -r line; do\n  [[ -z $line || $line == \"#\"* ]] && continue\n  [[ $line == \"[end]\" ]] && break\n  if [[ $line == *=* ]]; then\n    echo \"${line%%=*} -> ${line#*=}\"\n  else\n    ((invalid++))\n  fi\ndone < worker.conf\necho \"skipped $invalid invalid lines\"\n",
+        "tests": [
+          {
+            "output": "name -> thumbnailer\nbatch -> 10\nconcurrency -> 4\nfilter -> status=open\ntimeout -> 30\nskipped 2 invalid lines"
+          },
+          {
+            "fixtures": "scriptbox-b",
+            "output": "name -> resizer\nbatch -> 25\nmax_size -> 20MB\nretries -> 3\ngreeting -> hello world\nskipped 3 invalid lines"
+          }
+        ],
+        "hints": [
+          "Start from the skip and stop example, and replace its `echo` with the key and value logic.",
+          "`[[ $line == *=* ]]` is true when the line has an `=` anywhere in it.",
+          "`${line%%=*}` keeps the text before the first `=`, and `${line#*=}` keeps the text after it."
+        ]
+      }
+    }
+  ],
+  "recap": "- `for` loops over words (`for x in a b c`), files (`for f in reports/*.csv`, with `\"$f\"` quoted, and `shopt -s nullglob` when nothing may match), or numbers (`for i in {1..5}` and `for ((i = 0; i < n; i++))`).\n- `while IFS= read -r line; do ...; done < file` reads a file line by line, exactly as written. Never loop over `$(cat file)`.\n- `IFS=, read -r a b rest` splits a CSV row, and `|| [[ -n $a ]]` keeps a last line that has no newline.\n- A loop at the end of a pipe runs in a subshell and loses its variables. Use `done < file`, or `done < <(cmd)` for a command's output.\n- `while` loops while its command succeeds, and `until` while it fails. `continue` starts the next pass, and `break` leaves the loop.\n- A loop's output is one stream: `done | sort` sorts it."
+}

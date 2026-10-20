@@ -1,0 +1,157 @@
+{
+  "id": "sort-uniq-cut",
+  "title": "Sort, Uniq, Cut and Tr",
+  "section": "Streams and Pipes",
+  "summary": "Sort lines as text or numbers, cut out columns, change characters with tr, and count repeats with uniq to build top-N lists.",
+  "intro": "Logs and CSV files are lines of text, and four small tools turn them into answers. `sort` puts lines in order, `cut` picks out columns, `tr` changes characters, and `uniq` counts repeats. Chained with pipes, they answer questions like \"which pages get the most traffic?\" in a single line. Your scripts run in a folder that holds this lesson's files, such as `fruits.txt`, `employees.csv`, and `access.log`. Open the Files strip to read them.",
+  "format": "single",
+  "fixtures": "textbox",
+  "steps": [
+    {
+      "title": "Sorting lines",
+      "body": "`sort` prints the lines of its input in order. It compares them as text, one character at a time, so `100` sorts before `25`, and capital letters sort before lowercase ones. Options change the comparison:\n\n- `-r` reverses the order.\n- `-n` compares numbers, and `-h` reads sizes like `512K` and `2G`.\n- `-f` ignores case.\n- `-u` prints each line once.\n\n```bash\nsort words.txt | head -n 3\nsort -f words.txt | head -n 3\n```\n\nFor rows with fields, `-t,` sets the separator and `-k` picks the key. `-k4,4` is field 4 alone. Without the `,4`, the key would run to the end of the line. Letters after a key apply to that key only, so `-k4,4nr` compares field 4 as a number, high to low.\n\nMore `-k` options break ties: sort looks at the next key only when the earlier keys are equal. When every key ties, sort compares the whole lines as text. `-s` (stable) skips that last step and keeps tied lines in file order:\n\n```bash\ntail -n +2 employees.csv | sort -t, -k3,3 | head -n 3\ntail -n +2 employees.csv | sort -s -t, -k3,3 | head -n 3\n```\n\nBoth start with the eng rows. Without `-s`, the tied rows are compared as whole lines, so ids 1, 10, and 11 come first. With `-s`, ids 1, 3, and 6 keep the file's order.",
+      "examples": [
+        {
+          "title": "Text order",
+          "prompt": "Sort the fruit list, reverse it, and list each fruit once.",
+          "code": "echo \"sorted:\"\nsort fruits.txt\necho \"reversed, first 3:\"\nsort -r fruits.txt | head -n 3\necho \"each fruit once:\"\nsort -u fruits.txt\n",
+          "output": "sorted:\napple\napple\napple\nbanana\nbanana\ncherry\nkiwi\nkiwi\nmango\norange\norange\npear\nreversed, first 3:\npear\norange\norange\neach fruit once:\napple\nbanana\ncherry\nkiwi\nmango\norange\npear",
+          "explanation": "`sort` compares the lines as text, so the three apples come first and pear comes last. `-r` turns the order around, and `head -n 3` keeps the first three lines of it. `-u` sorts and then drops repeated lines, so 12 lines become 7 fruits. None of these change `fruits.txt`: sort reads the file and prints a sorted copy."
+        },
+        {
+          "title": "Numbers and sizes",
+          "prompt": "Sort `numbers.txt` as text and as numbers, then sort `sizes.txt` by its sizes.",
+          "code": "echo \"as text:\"\nsort numbers.txt\necho \"as numbers:\"\nsort -n numbers.txt\necho \"by size:\"\nsort -h sizes.txt\n",
+          "output": "as text:\n10\n100\n25\n3\n42\n7\n9\nas numbers:\n3\n7\n9\n10\n25\n42\n100\nby size:\n900\tnotes.txt\n512K\tmusic\n1.5M\tphotos\n2G\tbackups",
+          "explanation": "As text, `100` sorts before `25` because the first characters decide, and `1` comes before `2`. `-n` reads each line as a number, so 3 comes first and 100 last. Each line of `sizes.txt` holds a size, a tab, and a name. `-h` knows that `K`, `M`, and `G` stand for kilobytes, megabytes, and gigabytes, so the plain `900` is smallest and `2G` largest. With `-n` alone, sort would see only 1.5, 2, 512, and 900, and put `1.5M` first."
+        },
+        {
+          "title": "By department, then salary",
+          "prompt": "Sort the employees by department, and within each department by salary, high to low.",
+          "code": "# Skip the header row, then sort by department and by salary, high to low\ntail -n +2 employees.csv | sort -t, -k3,3 -k4,4nr\n",
+          "output": "10,Jonas Berg,eng,142000,2018-05-14,jonas.berg@SHOP.example\n1,Priya Natarajan,eng,128000,2019-03-11,priya.natarajan@shop.example\n3,Lena Fischer,eng,115000,2020-01-20,lena.fischer@shop.example\n6,Daniel Okafor,eng,115000,2021-11-29,daniel.okafor@Shop.example\n13,Grace Liu,eng,98500,2023-08-21,grace.liu@shop.example\n11,Aisha Bello,eng,96500,2025-01-08,aisha.bello@Northwind.Example\n7,Hana Kim,legal,134000,2020-07-06,hana.kim@shop.example\n4,Omar Haddad,ops,88000,2022-09-05,omar.haddad@SHOP.EXAMPLE\n9,Chloe Martin,ops,88000,2019-10-01,chloe.martin@shop.example\n12,Mateo Ruiz,sales,79250,2022-03-28,mateo.ruiz@shop.example\n2,Marcus Bell,sales,72000,2021-06-01,marcus.bell@Shop.Example\n8,Ravi Shah,sales,72000,2024-04-15,ravi.shah@northwind.example\n14,Ben Carter,support,64500,2026-02-02,ben.carter@mail.example\n5,Sofia Marino,support,61000,2023-02-13,sofia.marino@shop.example",
+          "explanation": "`-t,` splits each row at commas, so field 3 is the department and field 4 the salary. `-k3,3` sorts by department alone. Rows in the same department go on to `-k4,4nr`, which compares salaries as numbers, high to low. Lena Fischer and Daniel Okafor tie on both keys (eng, 115000), so sort compares their whole lines, and `3,Lena` comes before `6,Daniel`. `tail -n +2` drops the header first, or it would be sorted in with the rows."
+        }
+      ],
+      "practice": {
+        "title": "Highest paid first",
+        "prompt": "Print the rows of `employees.csv` with the highest salary first.\n\n1. Skip the header row.\n2. Sort by salary, field 4, as a number from high to low.\n3. Break salary ties by name, field 2, from A to Z.\n\nExpected output:\n\n```text\n10,Jonas Berg,eng,142000,2018-05-14,jonas.berg@SHOP.example\n7,Hana Kim,legal,134000,2020-07-06,hana.kim@shop.example\n1,Priya Natarajan,eng,128000,2019-03-11,priya.natarajan@shop.example\n6,Daniel Okafor,eng,115000,2021-11-29,daniel.okafor@Shop.example\n3,Lena Fischer,eng,115000,2020-01-20,lena.fischer@shop.example\n13,Grace Liu,eng,98500,2023-08-21,grace.liu@shop.example\n11,Aisha Bello,eng,96500,2025-01-08,aisha.bello@Northwind.Example\n9,Chloe Martin,ops,88000,2019-10-01,chloe.martin@shop.example\n4,Omar Haddad,ops,88000,2022-09-05,omar.haddad@SHOP.EXAMPLE\n12,Mateo Ruiz,sales,79250,2022-03-28,mateo.ruiz@shop.example\n2,Marcus Bell,sales,72000,2021-06-01,marcus.bell@Shop.Example\n8,Ravi Shah,sales,72000,2024-04-15,ravi.shah@northwind.example\n14,Ben Carter,support,64500,2026-02-02,ben.carter@mail.example\n5,Sofia Marino,support,61000,2023-02-13,sofia.marino@shop.example\n```",
+        "starter": "# TODO: sort by salary, high to low, and break ties by name, A to Z\ntail -n +2 employees.csv\n",
+        "solution": "tail -n +2 employees.csv | sort -t, -k4,4nr -k2,2\n",
+        "tests": [
+          {
+            "output": "10,Jonas Berg,eng,142000,2018-05-14,jonas.berg@SHOP.example\n7,Hana Kim,legal,134000,2020-07-06,hana.kim@shop.example\n1,Priya Natarajan,eng,128000,2019-03-11,priya.natarajan@shop.example\n6,Daniel Okafor,eng,115000,2021-11-29,daniel.okafor@Shop.example\n3,Lena Fischer,eng,115000,2020-01-20,lena.fischer@shop.example\n13,Grace Liu,eng,98500,2023-08-21,grace.liu@shop.example\n11,Aisha Bello,eng,96500,2025-01-08,aisha.bello@Northwind.Example\n9,Chloe Martin,ops,88000,2019-10-01,chloe.martin@shop.example\n4,Omar Haddad,ops,88000,2022-09-05,omar.haddad@SHOP.EXAMPLE\n12,Mateo Ruiz,sales,79250,2022-03-28,mateo.ruiz@shop.example\n2,Marcus Bell,sales,72000,2021-06-01,marcus.bell@Shop.Example\n8,Ravi Shah,sales,72000,2024-04-15,ravi.shah@northwind.example\n14,Ben Carter,support,64500,2026-02-02,ben.carter@mail.example\n5,Sofia Marino,support,61000,2023-02-13,sofia.marino@shop.example"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "10,Emma Laurent,eng,138000,2017-06-12,emma.laurent@acme.example\n2,Yara Haddad,eng,121250,2019-09-02,yara.haddad@Acme.Example\n3,Kenji Mori,eng,104500,2021-03-15,kenji.mori@acme.example\n6,Zara Ahmed,eng,104500,2024-01-22,zara.ahmed@Partners.Example\n7,Owen Price,design,99000,2022-02-07,owen.price@acme.example\n4,Lucia Romero,finance,92000,2020-11-30,lucia.romero@ACME.EXAMPLE\n8,Mila Novak,finance,92000,2025-04-01,mila.novak@Acme.example\n9,Arjun Rao,sales,71750,2021-08-23,arjun.rao@partners.example\n5,Felix Wagner,sales,67000,2023-07-10,felix.wagner@acme.example\n12,Ivy Chen,sales,67000,2024-10-14,ivy.chen@freelance.example\n11,Kofi Mensah,support,58000,2023-12-04,kofi.mensah@ACME.example\n1,Noah Fischer,support,58000,2022-05-16,noah.fischer@acme.example"
+          }
+        ],
+        "hints": [
+          "It's the pipeline from the department example, with different keys.",
+          "The first key is the salary: `-k4,4nr`. Keep `-t,` so sort splits the rows at commas.",
+          "Add the name as a second key: `sort -t, -k4,4nr -k2,2`."
+        ]
+      }
+    },
+    {
+      "title": "Columns and characters",
+      "body": "`cut` prints part of every line. `-d,` sets the delimiter, and `-f` picks fields: one (`-f2`), a list (`-f2,4`), or a range (`-f2-` runs to the end). `-c` picks characters by position instead, which suits fixed-width text like timestamps:\n\n```bash\ncut -d, -f2,3 employees.csv | head -n 3\ncut -c12-19 app.log | head -n 2\n```\n\n`tr` changes characters one for one: `tr 'a-z' 'A-Z'` maps each lowercase letter to its capital. Classes like `[:upper:]`, `[:lower:]`, and `[:digit:]` name whole sets. `-d` deletes characters, `-s` squeezes a run of the same character into one, and `-cd` deletes everything *not* in the set. `tr` reads only stdin, so feed it with `<` or a pipe:\n\n```bash\necho \"Hello,   World\" | tr -s ' ' | tr '[:upper:]' '[:lower:]'\n```\n\nTwo tools put lines back together. `paste -sd,` joins all of its input lines into one, with commas between them. `column -t -s,` lines up comma-separated fields in columns, for people to read.",
+      "examples": [
+        {
+          "title": "Pick columns",
+          "prompt": "Print the name column, the name and salary columns, and everything after the id, then cut the dates and the levels out of the log lines.",
+          "code": "echo \"names:\"\ncut -d, -f2 employees.csv | head -n 3\necho \"name and salary:\"\ncut -d, -f2,4 employees.csv | head -n 3\necho \"everything after the id:\"\ncut -d, -f2- employees.csv | head -n 2\necho \"days in app.log:\"\ncut -c1-10 app.log | sort -u\necho \"levels in app.log:\"\ncut -d' ' -f2 app.log | sort -u\n",
+          "output": "names:\nname\nPriya Natarajan\nMarcus Bell\nname and salary:\nname,salary\nPriya Natarajan,128000\nMarcus Bell,72000\neverything after the id:\nname,dept,salary,start_date,email\nPriya Natarajan,eng,128000,2019-03-11,priya.natarajan@shop.example\ndays in app.log:\n2026-10-03\nlevels in app.log:\nDEBUG\nERROR\nINFO\nWARN",
+          "explanation": "`-d,` splits each line at commas. `-f2` keeps the name, `-f2,4` keeps the name and the salary joined by the same comma, and `-f2-` keeps field 2 through the last. The header is a line like any other, so it comes out first. Every line of `app.log` starts with a timestamp of the same width, so characters 1 to 10 are always the date, and `sort -u` shows that the whole log is from one day. `-d` takes any single character: `-d' '` splits at spaces, so field 2 of a log line is its level."
+        },
+        {
+          "title": "Change characters",
+          "prompt": "Shout a few words, squeeze spaces, split a list, keep only digits, and strip the carriage returns from a file saved on Windows.",
+          "code": "tr 'a-z' 'A-Z' < words.txt | head -n 3\necho \"too    many     spaces\" | tr -s ' '\necho \"web-1,web-2,db-1\" | tr ',' '\\n'\necho \"order #1042 (paid)\" | tr -cd '0-9\\n'\necho \"windows.txt in bytes, before and after:\"\nwc -c < windows.txt\ntr -d '\\r' < windows.txt | wc -c\n",
+          "output": "RIVER\nSTONE\nLANTERN\ntoo many spaces\nweb-1\nweb-2\ndb-1\n1042\nwindows.txt in bytes, before and after:\n77\n73",
+          "explanation": "`tr` maps the first set onto the second, position by position, so each of `a` to `z` becomes the capital in the same place. `-s ' '` squeezes each run of spaces into one. `tr ',' '\\n'` turns every comma into a newline, which splits one line into three. `-cd '0-9\\n'` deletes the complement of the set: everything that isn't a digit or a newline. Last, `windows.txt` was saved on Windows, so each line ends in `\\r\\n`, not just `\\n`. The `\\r` is invisible, but it sticks to the last field, so `ops` would really be `ops\\r` and never equal `ops`. Deleting the four `\\r` characters takes the file from 77 bytes to 73."
+        },
+        {
+          "title": "Join and align",
+          "prompt": "List the departments on one line, then print the first rows of `employees.csv` as an aligned table.",
+          "code": "echo \"departments:\"\ntail -n +2 employees.csv | cut -d, -f3 | sort -u | paste -sd,\ncut -d, -f2-4 employees.csv | column -t -s, | head -n 4\n",
+          "output": "departments:\neng,legal,ops,sales,support\nname             dept     salary\nPriya Natarajan  eng      128000\nMarcus Bell      sales    72000\nLena Fischer     eng      115000",
+          "explanation": "`sort -u` leaves one line per department, and `paste -s` joins all of its input lines into one, with `-d,` putting a comma between them. `column -t` builds a table: `-s,` says the fields are separated by commas, and each column is padded to its widest value, so the rows line up. The padding is for people. Keep the commas when another tool reads the data next."
+        }
+      ],
+      "practice": {
+        "title": "Email domains",
+        "prompt": "Print the email domains used in `employees.csv`, in lowercase, sorted, each once.\n\n1. Skip the header and cut out the email column, field 6.\n2. Keep the part after the `@`.\n3. Turn it into lowercase.\n4. Sort the domains and drop the repeats.\n\nExpected output:\n\n```text\nmail.example\nnorthwind.example\nshop.example\n```",
+        "starter": "# TODO: keep the domain after the @, lowercase it, then sort and drop repeats\ntail -n +2 employees.csv | cut -d, -f6\n",
+        "solution": "tail -n +2 employees.csv | cut -d, -f6 | cut -d@ -f2 | tr '[:upper:]' '[:lower:]' | sort -u\n",
+        "tests": [
+          {
+            "output": "mail.example\nnorthwind.example\nshop.example"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "acme.example\nfreelance.example\npartners.example"
+          }
+        ],
+        "hints": [
+          "`cut` can split lines at any single character, not just commas.",
+          "`cut -d@ -f2` keeps what comes after the `@`. `tr '[:upper:]' '[:lower:]'` lowercases it.",
+          "Lowercase before you sort, so `Shop.Example` and `shop.example` become the same line: `... | tr '[:upper:]' '[:lower:]' | sort -u`."
+        ]
+      }
+    },
+    {
+      "title": "Counting repeats with uniq",
+      "body": "`uniq` drops a line when it's the same as the line right before it. It only compares neighbors, so sort first: then every copy of a line sits together.\n\n```bash\nsort fruits.txt | uniq | wc -l\n```\n\nIts options:\n\n- `-c` puts a count before each line.\n- `-d` prints only the lines that repeat.\n- `-u` prints only the lines that don't.\n\n`sort | uniq -c` builds a frequency table. Sort that by its counts, keep the top lines, and you have a top-N list, the pipeline behind most \"what happens most?\" questions:\n\n```bash\ncut -d' ' -f9 access.log | sort | uniq -c | sort -k1,1nr -k2,2 | head -n 3\n```\n\nRead it left to right: cut out a field (here the HTTP status), sort so equal values meet, count them, put the biggest count first with ties in A to Z order, and keep the first lines.",
+      "examples": [
+        {
+          "title": "Count repeats",
+          "prompt": "Count each fruit, and see what `uniq` keeps without `sort`.",
+          "code": "sort fruits.txt | uniq -c\necho \"lines uniq keeps without sort:\"\nuniq fruits.txt | wc -l\necho \"lines it keeps after sort:\"\nsort fruits.txt | uniq | wc -l\n",
+          "output": "      3 apple\n      2 banana\n      1 cherry\n      2 kiwi\n      1 mango\n      2 orange\n      1 pear\nlines uniq keeps without sort:\n11\nlines it keeps after sort:\n7",
+          "explanation": "After `sort`, the three apples sit together, so `uniq -c` folds them into one line with the count 3. The count comes first, right-aligned in a column 7 characters wide. Without `sort`, `uniq` only folds the two kiwis, the one pair that happens to sit together in the file, and keeps 11 of the 12 lines. Sorted first, it keeps 7, one per fruit."
+        },
+        {
+          "title": "Repeated or not",
+          "prompt": "List the fruits that repeat and the ones that appear once, and compare `uniq -u` with `sort -u`.",
+          "code": "echo \"fruits that repeat:\"\nsort fruits.txt | uniq -d\necho \"fruits that appear once:\"\nsort fruits.txt | uniq -u\necho \"sort -u keeps every fruit once:\"\nsort -u fruits.txt | wc -l\n",
+          "output": "fruits that repeat:\napple\nbanana\nkiwi\norange\nfruits that appear once:\ncherry\nmango\npear\nsort -u keeps every fruit once:\n7",
+          "explanation": "`uniq -d` prints one copy of each line that repeats: apple, banana, kiwi, and orange. `uniq -u` prints the lines that have no copy at all. Mind the two `-u` options: `sort -u` keeps one of every line, 7 fruits, just like `sort | uniq`, while `uniq -u` keeps only the 3 fruits that never repeat."
+        },
+        {
+          "title": "Top IPs",
+          "prompt": "Find the three addresses that sent the most requests, and see why the second sort key matters.",
+          "code": "echo \"top 3, ties by address:\"\ncut -d' ' -f1 access.log | sort | uniq -c | sort -k1,1nr -k2,2 | head -n 3\necho \"top 3 with sort -rn:\"\ncut -d' ' -f1 access.log | sort | uniq -c | sort -rn | head -n 3\n",
+          "output": "top 3, ties by address:\n     46 10.0.4.17\n     38 203.0.113.9\n     31 192.0.2.44\ntop 3 with sort -rn:\n     46 10.0.4.17\n     38 203.0.113.9\n     31 198.51.100.23",
+          "explanation": "Field 1 of each access log line is the client's address. `sort | uniq -c` counts the requests per address, and `-k1,1nr` puts the biggest count first. Two addresses tie at 31. `-k2,2` breaks the tie by address, from A to Z, so `192.0.2.44` is third. The common shortcut `sort -rn` has no second key, so the tie falls back to comparing whole lines, and `-r` reverses that too: `198.51.100.23` takes third place. Naming the tie-break yourself makes the list say exactly what you meant."
+        }
+      ],
+      "practice": {
+        "title": "Busiest pages",
+        "prompt": "Print the 5 most requested paths in `access.log`, with their counts.\n\n1. Cut out the path, which is field 7 when you split a line at spaces.\n2. Count the requests for each path.\n3. Sort by count from high to low, and break ties by path from A to Z.\n4. Keep the first 5 lines.\n\nExpected output:\n\n```text\n     64 /products\n     51 /api/cart\n     43 /api/orders\n     43 /search\n     43 /static/app.css\n```",
+        "starter": "# TODO: count each path, sort by count (ties by path), and keep the top 5\ncut -d' ' -f7 access.log | head -n 5\n",
+        "solution": "cut -d' ' -f7 access.log | sort | uniq -c | sort -k1,1nr -k2,2 | head -n 5\n",
+        "tests": [
+          {
+            "output": "     64 /products\n     51 /api/cart\n     43 /api/orders\n     43 /search\n     43 /static/app.css"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "     58 /products\n     47 /api/cart\n     47 /search\n     39 /static/app.js\n     35 /"
+          },
+          {
+            "fixtures": "textbox-c",
+            "output": "     72 /products\n     57 /api/cart\n     44 /search\n     44 /static/app.js\n     38 /"
+          }
+        ],
+        "hints": [
+          "It's the top IPs pipeline from the examples, with another field.",
+          "`sort | uniq -c` counts each path. Then sort by the count with `-k1,1nr`.",
+          "`sort -k1,1nr -k2,2 | head -n 5`: the second key puts tied counts in path order."
+        ]
+      }
+    }
+  ],
+  "recap": "- `sort` compares text. `-n` compares numbers, `-h` sizes, `-r` reverses, `-f` ignores case, and `-u` drops repeats.\n- `-t,` sets the separator, and `-k4,4nr` sorts by field 4 alone, as a number, high to low. More `-k` keys break ties, and `-s` keeps tied lines in file order.\n- `cut -d, -f2,4` picks fields, and `cut -c1-10` picks characters.\n- `tr` maps characters, and deletes (`-d`), squeezes (`-s`), or keeps only (`-cd`) a set. `tr -d '\\r'` fixes Windows line endings.\n- `paste -sd,` joins lines into one, and `column -t -s,` aligns fields for reading.\n- `uniq` only folds neighbors, so sort first. `-c` counts, `-d` keeps the repeats, and `-u` keeps the lines that never repeat.\n- A top-N list: `sort | uniq -c | sort -k1,1nr -k2,2 | head -n 5`."
+}

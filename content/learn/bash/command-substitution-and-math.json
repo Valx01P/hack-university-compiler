@@ -1,0 +1,165 @@
+{
+  "id": "command-substitution-and-math",
+  "title": "Command Substitution and Arithmetic",
+  "section": "Bash Scripting",
+  "summary": "Capture a command's output with $(...), do whole-number math with $(( )), and hand decimals to awk and printf.",
+  "intro": "Scripts often need one command's output inside another command: today's date in a file name, a line count in a sentence. `$(...)` does that. Bash also does whole-number math with `$(( ))`, and when you need decimals, you hand the numbers to awk or `printf`. Every program in this lesson runs in a folder that holds the lesson's files, like `app.log` and `df.txt`, and its clock is frozen at 2026-10-19 09:00 UTC, so dates print the same on every run.",
+  "format": "single",
+  "fixtures": "textbox",
+  "clock": "2026-10-19T09:00:00Z",
+  "steps": [
+    {
+      "title": "Capture output with $(...)",
+      "body": "`$(command)` runs a command and puts what it printed right there. Store it in a variable, or drop it into a string:\n\n```bash\ntoday=$(date +%F)\necho \"Report for $today\"\necho \"fruits.txt has $(wc -l < fruits.txt) lines\"\n```\n\nBash drops the newlines at the end of the output, so `$(wc -l < fruits.txt)` is just `12`. Newlines in the middle stay, as long as you quote the expansion. Unquoted, the output is split into words, like any other expansion:\n\n```bash\ntop=$(head -n 3 fruits.txt)\necho \"$top\"\necho $top\n```\n\nAn assignment never splits, so `top=$(...)` needs no quotes. Substitutions nest, each with its own quotes, and the inner one runs first:\n\n```bash\necho \"apple: $(grep -c \"$(head -n 1 fruits.txt)\" fruits.txt) lines\"\n```\n\nOld scripts use backticks for the same thing. They nest badly, so write `$(...)` in your own code:\n\n```bash\ntoday=`date +%F`\necho \"$today\"\n```",
+      "examples": [
+        {
+          "title": "Dates and counts",
+          "prompt": "Put today's date and the number of files in this folder into variables, then print them.",
+          "code": "today=$(date +%F)\necho \"Report for $today\"\n\nfiles=$(ls | wc -l)\necho \"Files here: $files\"\n",
+          "output": "Report for 2026-10-19\nFiles here: 22",
+          "explanation": "`date +%F` prints the date as year-month-day, and `$(...)` stores it in `today` without the newline that `date` ends with. The lesson's clock is frozen, so `today` is 2026-10-19 on every run. `ls | wc -l` counts the names `ls` prints: the folder holds your script, `main.sh`, plus the lesson's 21 files and folders, so `files` is 22."
+        },
+        {
+          "title": "Into a sentence",
+          "prompt": "Count the lines of `app.log` and its error lines, and say both in sentences.",
+          "code": "lines=$(wc -l < app.log)\necho \"app.log has $lines lines\"\n\nerrors=$(grep -c ERROR app.log)\necho \"$errors of them are errors\"\n",
+          "output": "app.log has 62 lines\n7 of them are errors",
+          "explanation": "`wc -l < app.log` reads the file on stdin, so it prints only the count, `62`, with no file name after it. `wc -l app.log` would print `62 app.log`, and that name would end up in the sentence. `grep -c` prints a count too. Each `$(...)` keeps exactly what its command printed, minus the final newline, so the numbers drop neatly into the strings."
+        },
+        {
+          "title": "Nesting and files",
+          "prompt": "Pull the time of the first error out of `app.log`, then read all of `config.ini` into a variable.",
+          "code": "echo \"First error: $(grep -m1 ERROR app.log | cut -d' ' -f1)\"\n\nconfig=$(< config.ini)\necho \"$config\" | head -n 3\necho \"config.ini has $(echo \"$config\" | wc -l) lines\"\n",
+          "output": "First error: 2026-10-03T13:52:07Z\n[app]\nname=shopfront\nenv=staging\nconfig.ini has 7 lines",
+          "explanation": "A whole pipeline can run inside `$(...)`: `grep -m1` stops at the first ERROR line, and `cut -d' ' -f1` keeps its first field, the timestamp. `$(< config.ini)` reads the file into `config` without starting `cat`. Quoting `\"$config\"` keeps its line breaks, so `head` and `wc` see the file's 7 lines. Look at the quotes in the last line: each `$(...)` starts fresh, so the quotes around `$config` inside it don't end the outer string."
+        }
+      ],
+      "practice": {
+        "title": "Log summary line",
+        "prompt": "Print one summary line about `app.log`.\n\n1. Store the number of lines in `app.log` in `lines`.\n2. Store the number of lines that contain `ERROR` in `errors`.\n3. Store the time of the first ERROR line in `first`: the first space-separated field of that line.\n4. Print them in exactly this format: `app.log: LINES lines, ERRORS errors, first at TIME`.\n\nCheck also runs your script on two other versions of `app.log`, so print what the file holds, not these numbers.\n\nExpected output:\n\n```text\napp.log: 62 lines, 7 errors, first at 2026-10-03T13:52:07Z\n```",
+        "starter": "# TODO: store the number of lines in app.log in lines\n\n# TODO: store how many lines contain ERROR in errors\n\n# TODO: store the first field of the first ERROR line in first\n\n# TODO: print the summary line\n",
+        "solution": "lines=$(wc -l < app.log)\nerrors=$(grep -c ERROR app.log)\nfirst=$(grep -m1 ERROR app.log | cut -d' ' -f1)\n\necho \"app.log: $lines lines, $errors errors, first at $first\"\n",
+        "tests": [
+          {
+            "output": "app.log: 62 lines, 7 errors, first at 2026-10-03T13:52:07Z"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "app.log: 54 lines, 5 errors, first at 2026-10-08T08:47:13Z"
+          },
+          {
+            "fixtures": "textbox-c",
+            "output": "app.log: 58 lines, 7 errors, first at 2026-10-12T19:21:36Z"
+          }
+        ],
+        "hints": [
+          "Each value is one command inside `$(...)`, like `lines=$(wc -l < app.log)` in the examples.",
+          "`grep -c ERROR app.log` counts the error lines. For the time, `grep -m1 ERROR app.log` stops at the first match, and `cut -d' ' -f1` keeps its first field.",
+          "Print all three in one double-quoted string: `echo \"app.log: $lines lines, $errors errors, first at $first\"`."
+        ]
+      }
+    },
+    {
+      "title": "Integer math",
+      "body": "`$(( expression ))` does whole-number math and puts the result in place. It knows `+`, `-`, `*`, `/`, `%` (the remainder), and `**` (a power), and parentheses group. Inside it, write variable names without `$`:\n\n```bash\napples=7\necho \"$(( apples * 2 + 1 ))\"\necho \"$(( (apples + 1) / 2 ))\"\n```\n\nThere are no decimals: `/` drops the remainder, so `7 / 2` is 3. Multiply before you divide to keep precision, as in `part * 100 / total` for a percentage.\n\n`(( ))` without the `$` is a command. It can change variables, and it exits 0 when its result is true (not zero), so comparisons work with `&&` and `||`:\n\n```bash\ncount=0\n((count++))\n((count += 5))\necho \"$count\"\n((count > 3)) && echo \"more than 3\"\n```\n\nBash reads a number that starts with 0 as octal, base 8, so `08` and `09` are errors. `10#08` says base 10.",
+      "examples": [
+        {
+          "title": "Operators",
+          "prompt": "Try each operator, then divide a negative number.",
+          "code": "echo \"7 + 5 = $(( 7 + 5 ))\"\necho \"7 - 5 = $(( 7 - 5 ))\"\necho \"7 * 5 = $(( 7 * 5 ))\"\necho \"7 / 2 = $(( 7 / 2 ))\"\necho \"7 % 2 = $(( 7 % 2 ))\"\necho \"2 ** 10 = $(( 2 ** 10 ))\"\necho \"-7 / 2 = $(( -7 / 2 ))\"\n",
+          "output": "7 + 5 = 12\n7 - 5 = 2\n7 * 5 = 35\n7 / 2 = 3\n7 % 2 = 1\n2 ** 10 = 1024\n-7 / 2 = -3",
+          "explanation": "Each `$(( ))` is replaced by its result before `echo` runs. `/` keeps only the whole part: `7 / 2` is 3, and `-7 / 2` is -3, because Bash cuts toward zero instead of rounding down. `%` gives what's left over, so `7 % 2` is 1, which is how you test whether a number is odd. The `*` in the strings doesn't glob, because it sits inside double quotes."
+        },
+        {
+          "title": "With variables",
+          "prompt": "Price an order, test it for free shipping, then add one more item.",
+          "code": "price=250\nqty=3\ntotal=$(( price * qty ))\necho \"total: $total\"\n((total > 500)) && echo \"free shipping\"\n\n((qty++))\ntotal=$(( price * qty ))\necho \"qty: $qty, total: $total\"\n((total > 1000)) || echo \"no gift yet\"\n",
+          "output": "total: 750\nfree shipping\nqty: 4, total: 1000\nno gift yet",
+          "explanation": "Inside `$(( ))` and `(( ))`, `price` and `qty` are read as numbers, no `$` needed. `((total > 500))` prints nothing itself. It exits 0 because 750 is more than 500, so `&&` runs the `echo`. `((qty++))` adds one to `qty` in place. The new total is exactly 1000, so `total > 1000` is false, `(( ))` exits 1, and `||` runs its `echo` instead."
+        },
+        {
+          "title": "Leading zeros",
+          "prompt": "Add one to a month written with a leading zero, first with `10#`, then without it.",
+          "code": "month=08\necho \"next month: $(( 10#$month + 1 ))\"\necho \"and without 10#:\"\necho \"next month: $(( month + 1 ))\"\n",
+          "expect": "runtime-error",
+          "output": "next month: 9\nand without 10#:",
+          "errorIncludes": "08: value too great for base (error token is \"08\")",
+          "exitCode": 1,
+          "explanation": "In Bash math, a number that starts with 0 is octal, and octal has no digit 8. So the last line stops with `value too great for base`, and its `echo` never runs. That failed command is the script's last, so the script exits 1. The second line works: `$month` expands to `08` first, and `10#08` reads it in base 10, so the result is 9. Here the `$` is required, because `10#` applies to the digits written after it. Dates are where this bites: `date +%m` prints `08` in August."
+        }
+      ],
+      "practice": {
+        "title": "Disk math",
+        "prompt": "`df.txt` holds what `df -P` printed for the disk mounted at `/`: a header line, then one line of numbers counted in 1 KB blocks. Print how full the disk is and how much space is free.\n\n1. The starter reads the `1024-blocks` column (field 2 of line 2) into `blocks`. Read `Used` (field 3) into `used` and `Available` (field 4) into `avail` the same way.\n2. Print `used: N%`, where N is `used` times 100, divided by `blocks`.\n3. Print `free: N MB`, where N is `avail` divided by 1024.\n\nBoth numbers are whole and rounded down, the way Bash's `/` rounds. Don't copy the `Capacity` column: `df` rounds that one up.\n\nExpected output:\n\n```text\nused: 45%\nfree: 22164 MB\n```",
+        "starter": "# Line 2 of df.txt holds the numbers, and awk splits it on spaces.\nblocks=$(awk 'NR == 2 {print $2}' df.txt)\n\n# TODO: read Used (field 3) into used and Available (field 4) into avail\n\n# TODO: print used: N%\n\n# TODO: print free: N MB\n",
+        "solution": "# Line 2 of df.txt holds the numbers, and awk splits it on spaces.\nblocks=$(awk 'NR == 2 {print $2}' df.txt)\nused=$(awk 'NR == 2 {print $3}' df.txt)\navail=$(awk 'NR == 2 {print $4}' df.txt)\n\necho \"used: $(( used * 100 / blocks ))%\"\necho \"free: $(( avail / 1024 )) MB\"\n",
+        "tests": [
+          {
+            "output": "used: 45%\nfree: 22164 MB"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "used: 79%\nfree: 20950 MB"
+          }
+        ],
+        "hints": [
+          "Copy the `blocks=` line twice and change the field: `$3` is Used and `$4` is Available.",
+          "Multiply before you divide: `$(( used * 100 / blocks ))`. The other way round, `used / blocks` is 0, and 0 times 100 is still 0.",
+          "The second line is `echo \"free: $(( avail / 1024 )) MB\"`."
+        ]
+      }
+    },
+    {
+      "title": "Decimals with awk and printf",
+      "body": "Bash math only knows whole numbers. Division drops the fraction, and a decimal point is an error:\n\n```bash error\necho \"$(( 10 / 4 ))\"\necho \"$(( 2.5 + 1 ))\"\n```\n\nFor decimals, hand the numbers to awk. Pass Bash values in with `-v name=value`, and do the work in a `BEGIN` block, which runs before awk reads any input, so it needs no file:\n\n```bash\ntotal=10\ncount=4\nawk -v t=\"$total\" -v c=\"$count\" 'BEGIN {printf \"%.2f\\n\", t / c}'\n```\n\nBash's own `printf` formats a number you already have. `%.2f` rounds it to 2 decimals, and a width like `%8.2f` pads it to 8 characters:\n\n```bash\nprintf '%.2f\\n' 3.14159\nprintf '[%8.2f]\\n' 42.5\n```\n\nCapture either one with `$(...)` to keep the result in a variable.",
+      "examples": [
+        {
+          "title": "Divide",
+          "prompt": "Divide 10 by 3 in Bash, then in awk, and keep awk's answer in a variable.",
+          "code": "echo \"bash: $(( 10 / 3 ))\"\nawk -v a=10 -v b=3 'BEGIN {printf \"awk: %.2f\\n\", a / b}'\n\nshare=$(awk -v a=10 -v b=3 'BEGIN {printf \"%.1f\", a / b}')\necho \"each share: $share\"\n",
+          "output": "bash: 3\nawk: 3.33\neach share: 3.3",
+          "explanation": "Bash cuts `10 / 3` to 3. awk divides with decimals, and its `printf` rounds to the places you ask for, so `%.2f` prints 3.33. `-v a=10` sets the awk variable `a` before the program starts, and `BEGIN` runs once without reading input. The last awk prints `3.3` with no newline, and `$(...)` stores that in `share`, ready for Bash to use."
+        },
+        {
+          "title": "Format numbers",
+          "prompt": "Format a few numbers with `printf`: decimal places, zero padding, and a width.",
+          "code": "printf '%.1f\\n' 3.14159\nprintf '%.3f\\n' 2\nprintf '%05.1f\\n' 7.25\nprintf '[%8.2f]\\n' 42.5\n",
+          "output": "3.1\n2.000\n007.2\n[   42.50]",
+          "explanation": "The number after the dot is how many decimals to keep. `printf` rounds the rest away, so 3.14159 becomes 3.1, and 2 gets three zeros. A number before the dot is the total width: `%05.1f` pads to five characters with zeros, and `%8.2f` pads with spaces on the left. Why 7.2 and not 7.3? 7.25 sits exactly halfway, and `printf` rounds an exact tie to the even digit. Every other number rounds to the nearest value, as you'd expect."
+        },
+        {
+          "title": "Average a column",
+          "prompt": "Average the `ms=` values in `app.log`, after checking which matches count.",
+          "code": "echo \"ms= matches: $(grep -oE 'ms=[0-9]+' app.log | wc -l)\"\necho \"whole-word matches: $(grep -oE '\\bms=[0-9]+' app.log | wc -l)\"\n\ngrep -oE '\\bms=[0-9]+' app.log | cut -d= -f2 |\n  awk '{sum += $1} END {printf \"average: %.2f ms\\n\", sum / NR}'\n",
+          "output": "ms= matches: 61\nwhole-word matches: 53\naverage: 1065.53 ms",
+          "explanation": "The two counts differ because the checkout lines say `items=1 ms=227`, and `items=1` contains `ms=1`. `\\b` matches only at the edge of a word, so `\\bms=` needs `ms` to start a word, and it skips the item counts. `grep -o` prints each match on its own line, and `cut -d= -f2` keeps the number after the `=`. In awk's `END` block, `NR` is how many lines were read, so `sum / NR` is the average, and `%.2f` rounds it to 2 decimals."
+        }
+      ],
+      "practice": {
+        "title": "Average response time",
+        "prompt": "Report the average and the slowest response time in `app.log`, from its `ms=` values.\n\n1. Get every `ms=` number from `app.log`, one per line, without the `items=` counts.\n2. Print `avg: X.XX ms`, the average rounded to 2 decimals.\n3. Print `max: N ms`, the largest value.\n\nCheck also runs your script on two other versions of `app.log`.\n\nExpected output:\n\n```text\navg: 1065.53 ms\nmax: 30002 ms\n```",
+        "starter": "# TODO: store every ms= number in app.log in ms, one per line\n\n# TODO: store the average, to 2 decimals, in avg\n\n# TODO: store the largest value in max\n\n# TODO: print avg: X.XX ms and max: N ms\n",
+        "solution": "ms=$(grep -oE '\\bms=[0-9]+' app.log | cut -d= -f2)\n\navg=$(echo \"$ms\" | awk '{sum += $1} END {printf \"%.2f\", sum / NR}')\nmax=$(echo \"$ms\" | sort -n | tail -n 1)\n\necho \"avg: $avg ms\"\necho \"max: $max ms\"\n",
+        "tests": [
+          {
+            "output": "avg: 1065.53 ms\nmax: 30002 ms"
+          },
+          {
+            "fixtures": "textbox-b",
+            "output": "avg: 785.38 ms\nmax: 10004 ms"
+          },
+          {
+            "fixtures": "textbox-c",
+            "output": "avg: 360.13 ms\nmax: 3003 ms"
+          }
+        ],
+        "hints": [
+          "Start from the average example: `grep -oE '\\bms=[0-9]+' app.log | cut -d= -f2` prints one number per line.",
+          "Capture the numbers once with `ms=$(...)`, then pipe them on with `echo \"$ms\" | awk ...`. Quoting `\"$ms\"` keeps one number per line.",
+          "For the largest value, `sort -n` puts the biggest number last, and `tail -n 1` keeps it."
+        ]
+      }
+    }
+  ],
+  "recap": "- `$(cmd)` runs a command and puts its output in place, without the newlines at the end. Quote it, `\"$(cmd)\"`, except in an assignment.\n- `$(< file)` reads a whole file. Substitutions nest, each with its own quotes. Backticks are the old spelling.\n- `$(( ))` does whole-number math with `+ - * / % **`, and names inside need no `$`. `/` cuts toward zero, so multiply before you divide.\n- `(( ))` is a command that changes variables and tests numbers: `((count++))`, `((total > 500)) && echo \"free shipping\"`.\n- A leading zero means octal. Write `10#$n` for values like `08`.\n- For decimals, use awk with `-v` and a `BEGIN` block, or format with `printf '%.2f'`."
+}
