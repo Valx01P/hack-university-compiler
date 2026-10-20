@@ -134,8 +134,7 @@ export interface WorkspaceContainer {
   /** The volume for /home/learner. */
   homeVolume: string;
   limits: (typeof WORKSPACE_LIMITS)["typescript"];
-  /** none, or the database network (hu-db, or a verify runner's own). */
-  network?: string;
+  network?: "none" | "hu-db";
 }
 
 /** The `standard` profile (§11.2), for every code-course workspace. */

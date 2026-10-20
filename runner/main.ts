@@ -44,8 +44,9 @@ const watch = new DockerWatch(endpoint);
 const images = new Images(config.root, watch.docker, endpoint.dockerHost);
 const pool = new JobPool(config.jobSlots);
 const tickets = new Tickets(config.ticketTtlMs);
-const services: Services = { piston: false, postgres: "absent", mongo: "absent" };
 const databases = new Databases({ docker: watch.docker, owner, dataDir: config.dataDir, log });
+
+const services: Services = { piston: false, postgres: "absent", mongo: "absent" };
 
 /** Whenever Docker is (back) up: clear leftovers, and look the images and shared services up. */
 async function onDockerReady() {
@@ -65,10 +66,12 @@ async function refreshServices() {
     return c ? (c.State === "running" ? "running" : "stopped") : "absent";
   };
   services.piston = state("hu-piston") === "running";
-  // The database servers under this namespace's names (a verify runner has its own).
+  // The database servers under this namespace's names (a verify runner has its
+  // own), and their upkeep: idle stops, the size watch, parking.
   await databases.refresh();
   services.postgres = databases.state("postgres");
   services.mongo = databases.state("mongo");
+  await databases.tick();
 }
 
 // Requests wait for the first look at Docker, so the first /v1/health already
@@ -109,7 +112,6 @@ const reaper = setInterval(async () => {
   try {
     await reap(watch.docker, owner, log);
     await refreshServices();
-    await databases.tick();
   } catch (err) {
     log.warn("reaper.failed", { error: (err as Error).message });
   }
