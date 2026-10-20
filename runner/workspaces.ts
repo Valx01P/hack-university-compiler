@@ -814,7 +814,7 @@ export class Workspace {
     }
     if (this.m.images.state(imageName) !== "ready") await this.m.images.refresh();
     if (this.m.images.state(imageName) !== "ready") {
-      throw new HttpError(503, "image_missing", `The ${this.meta.course} sandbox isn't built yet. Prepare this course first (npm run images).`);
+      throw new HttpError(503, "image_missing", `The ${this.meta.course} sandbox isn't built yet. In a terminal, run npm run images -- --stacks=${this.meta.course}, then press Run again.`);
     }
     const limits = this.limits;
     this.setStatus("starting", null);
