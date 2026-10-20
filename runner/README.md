@@ -90,7 +90,7 @@ Every error has one shape:
 | 405 | `method_not_allowed` | Wrong method |
 | 413 | `too_large` | Body over its cap |
 | 409 | `conflict` | A save whose `If-Match` no longer matches the file (the body also has the current `etag`) |
-| 409 | `exists`, `not_a_file`, `too_many_terminals`, `not_running` | A rename, copy, or restore onto something that exists; a file route on a folder, link, or FIFO; a fifth shell; a request that needs the workspace running |
+| 409 | `exists`, `not_a_file`, `too_many_terminals`, `not_running` | A rename, copy, or restore onto something that exists. A file route on a folder, link, or FIFO. A fifth shell. A request that needs the workspace running (the API panel, forwarding a port) |
 | 415 | `unsupported_media_type` | Not JSON |
 | 499 | `cancelled` | The caller hung up while its run was queued or running (the job is stopped) |
 | 500 | `job_failed`, `internal` | Something broke in the runner or the sandbox. `message` says what |
@@ -100,6 +100,7 @@ Every error has one shape:
 | 503 | `image_missing` | The recipe's image isn't built: run `npm run up` or `npm run images` |
 | 503 | `busy` | 64 runs are already waiting for a job slot |
 | 503 | `ports_exhausted` | Every workspace port is in use by a running workspace ("Stop one on /workspaces, or widen HU_WS_PORTS.") |
+| 503 | `waiting_for_memory` | A terminal or task needs the workspace started, and its start is queued for memory (the `status` events say when it runs) |
 | 504 | `timeout` | An API panel request ran past its `timeoutMs` |
 
 ## Routes
@@ -422,7 +423,8 @@ The budget is Docker's `MemTotal`, less 512 MiB of headroom, less 2 GiB while
 Piston runs, 768 MiB while `hu-postgres` runs, and 1 GiB while `hu-mongo`
 runs, less the reserved check slot of the most demanding course open in a
 visible tab (512 MiB for Bash, 1 GiB for TypeScript, Express, and FastAPI,
-1.5 GiB for Web and React, 2 GiB for Go, Spring Boot, and Next.js).
+1.5 GiB for Web and React, 2 GiB for Go, Spring Boot, and Next.js, and 1 GiB
+when no tab has sent a visible heartbeat in the last minute).
 `HU_MEM_BUDGET_MB` replaces the whole calculation. Each running workspace
 reserves its memory limit. A start that doesn't fit stops running workspaces
 that no tab shows (no visible heartbeat for 60 s), least recently active
@@ -499,7 +501,8 @@ first 12 hex characters of SHA-256 over its lines,
 `host` storage keeps files in `HU_DATA_DIR/workspaces/<id>/files`, bind-mounted
 at `/workspace`. It is the default and what every code course uses. `volume`
 storage (the Bash course, so `chown`, groups, and setuid behave as on Linux)
-answers **501** `not_implemented` at open until it lands.
+opens (its files and settings are kept) but answers **501** `not_implemented`
+at start until it lands, and so does the `sysadmin` profile that needs it.
 
 ### Terminals
 
@@ -553,9 +556,11 @@ skips 24678, 26257, 27017 to 27019, and 28017, and probes each port by binding
 it on `127.0.0.1` and `::1`.
 
 No container publishes a port. While the workspace runs, the runner listens on
-each port on `127.0.0.1` and `::1` only, and for each connection reads the
-request head (at most 16 KiB), refuses any `Host` but `localhost:<port>`,
-`127.0.0.1:<port>`, or `[::1]:<port>` (**421**, DNS rebinding), answers
+each port on `127.0.0.1` and `::1` only (loopback, so nothing off the Mac can
+reach it), and for each connection reads the request head (at most 16 KiB),
+refuses any `Host` but `localhost:<port>`, `127.0.0.1:<port>`, or
+`[::1]:<port>` (**421**, DNS rebinding: browsers pool connections per origin,
+so checking a connection's first request covers it), answers
 `/__hu/clear-site-data` itself (`Clear-Site-Data: "storage"`, then a redirect
 to `/`), and otherwise pipes the connection through
 `docker exec hu-ws-<id> socat -T600 STDIO TCP:127.0.0.1:<port>` as uid 1000.
@@ -621,9 +626,9 @@ sets, so login flows work. `DELETE …/cookies` empties the jar (**204**).
 
 `headers` holds every response header (repeated ones joined with `, `, except
 `set-cookie`, which is an array). `body` is text when it decodes as UTF-8, else
-`base64`, and stops at 1 MB with `truncated: true`. A port nothing listens on
-gives **502** `not_listening`, and a request past `timeoutMs` (at most 120 s)
-**504** `timeout`.
+`base64`, and stops at 1 MB with `truncated: true`. A port that isn't one of
+the workspace's gives **404**, one nothing listens on **502** `not_listening`,
+and a request past `timeoutMs` (at most 120 s) **504** `timeout`.
 
 ### Checks
 
@@ -729,10 +734,10 @@ message.
 | Direction | Frame | Message |
 | --- | --- | --- |
 | Client to runner | text | `{"t":"hello","ticket":"…","cols":120,"rows":32}`, first, so the first prompt wraps right |
-| Runner to client | text | `{"t":"ready","sid":"…","cwd":"/workspace","shell":"bash","kind":"shell","readonly":false}`, then `{"t":"replay","data":"…"}` with the serialized screen and up to 5,000 lines of scrollback when there is any (always on a reattach) |
+| Runner to client | text | `{"t":"ready","sid":"…","cwd":"/workspace","shell":"bash","kind":"shell","task":null,"readonly":false}` (a log view has `"kind":"log"`, its `task`, and `"shell":null`), then `{"t":"replay","data":"…"}` with the serialized screen and up to 5,000 lines of scrollback when there is any (always on a reattach): write it into the terminal before any output |
 | Both | binary | Keystrokes in, output out, as raw bytes |
 | Client to runner | text | `{"t":"resize","cols":132,"rows":30}` |
-| Client to runner | text | `{"t":"ack","bytes":131072}`: flow control. The runner pauses the shell's output above 100,000 unacknowledged bytes and resumes below 10,000 (the xterm.js guide's numbers), so Ctrl+C answers at once during `yes` |
+| Client to runner | text | `{"t":"ack","bytes":131072}`: flow control, the output bytes the terminal has written since the previous ack (from `term.write(data, callback)`). The runner pauses the shell's output above 100,000 unacknowledged bytes and resumes below 10,000 (the xterm.js guide's numbers), so Ctrl+C answers at once during `yes`. Only the writer's acks count, and a read-only socket that falls 8 MB behind is closed (4408) |
 | Client to runner | text | `{"t":"signal","sig":"INT"}` from a Stop button: Ctrl+C for a shell, the signal to the process group for a task's log view |
 | Client to runner | text | `{"t":"takeover"}` |
 | Runner to client | text | `{"t":"mode","readonly":true}` when another tab takes over, and `false` when this one does |
@@ -923,6 +928,7 @@ ports.ts         the lease table and ports.json
 tunnel.ts        the port bridge, the API panel's requests, the framing probe
 capacity.ts      the memory budget, LRU stops, and the queue
 checks/          the check sandbox: suite schema, cmd, http, and process steps, results
+test-fixtures/   content for the workspace tests: the TypeScript playground template and a part overlay
 log.ts           ~/.hack-university/logs/runner.log
 verify.ts        the library the verifiers import (verify namespace)
 bench.ts         times the job path end to end against the budgets
@@ -933,10 +939,27 @@ bench.ts         times the job path end to end against the budgets
 - `npm run runner:test` runs the unit tests (tokens, tickets, the Host and
   Origin rules, schemas, recipe commands, type-test layout, profiles and
   limits, labels, tar from good and malformed bytes, the exec stream, the job
-  pool, image hashes and builds, and the REST and WebSocket front door on a
-  real server), and `runner/integration.test.ts`, which runs real jobs (test
-  isolation, read-back, outside kills) and is skipped when Docker is off or
-  the images aren't built.
+  pool, image hashes and builds, the REST and WebSocket front door on a real
+  server, workspace ids and routes, port leases with 1,000 scopes and reclaim,
+  host path safety with links and FIFOs, check matchers, and the memory
+  budget), and two suites against real Docker that skip when Docker is off or
+  the images aren't built:
+  - `runner/integration.test.ts` runs real jobs (test isolation, read-back,
+    outside kills);
+  - `runner/workspaces.test.ts` runs real workspaces through a real runner in
+    the verify namespace, on the TypeScript playground template in
+    `runner/test-fixtures/content` plus a part overlay with a small server:
+    materializing and a full reset reproduce the manifest hash, paths through
+    links or out of the root are refused stopped and running, a file made in
+    a terminal arrives as an `fs` event within 1 s, a terminal survives a
+    reattach with its scrollback, flow control and Ctrl+C during `yes`, one
+    writer per terminal, a task's server answers on its leased port from the
+    Mac (and `Host: evil.example` gets 421) and through the API panel with its
+    cookie jar, a detected port is forwarded, two workspaces never share a
+    port, cmd, http, and process checks pass and fail when they should, and an
+    idle workspace stops. Set `HU_TEST_DATA_DIR`, `HU_TEST_RUNNER_PORT`, and
+    `HU_TEST_WS_PORTS` to keep its runners' data, port, and leases where you
+    want them. It removes every container and volume it made.
 - `npm run security:verify` runs S1 (hardening), S2 (egress), S4 (limits), S9
   (runner auth), S14 (cleanup after `kill -9`, and a second runner on a taken
   port), and S16 (Piston) against real containers and a real runner in the
