@@ -21,7 +21,10 @@ import { capabilityMask, jobProfile, SCRIPT_JOB, standardProfile, sysadminProfil
 import { WebSocket, execText, freePort, startRunner, verifyKit } from "../runner/verify.ts";
 import { pgEnv } from "../runner/db/clients.ts";
 import { Databases } from "../runner/db/index.ts";
+import { JobPool } from "../runner/jobs.ts";
 import { quietLog } from "../runner/log.ts";
+import { runRecipe } from "../runner/recipes/index.ts";
+import { RunRequest } from "../runner/schemas.ts";
 
 const PREFERRED_PORT = Number(process.env.HU_VERIFY_PORT ?? 3311);
 const PORT = await freePort(PREFERRED_PORT);
@@ -228,6 +231,43 @@ async function S2(kit) {
     ],
   });
   check("typescript job: every target unreachable from node:net", nodeJob.run.stdout.trim().split("\n").every((l) => l.endsWith("=blocked")), nodeJob.run.stdout.trim().replace(/\n/g, " "));
+
+  // A run with a database: its job is on the real database network, with servers of its own.
+  const dbData = mkdtempSync(path.join(tmpdir(), "hv-s2-db-"));
+  const databases = new Databases({ docker: kit.docker, owner: { ns: "verify", boot: kit.owner.boot, port: await freePort(PORT + 2) }, dataDir: dbData, log: quietLog, env: {} });
+  try {
+    const deps = { docker: kit.docker, owner: kit.owner, images: kit.images, pool: new JobPool(1), log: quietLog, databases };
+    const dbRun = await runRecipe(
+      deps,
+      RunRequest.parse({
+        recipe: "typescript",
+        setup: "CREATE TABLE t (a int);",
+        files: [
+          {
+            name: "main.ts",
+            content: [
+              'import { connect } from "node:net";',
+              `const targets: [string, number][] = ${JSON.stringify([...targets.map((t) => [t[1], t[2]]), ["db", 5432]])};`,
+              "for (const [host, port] of targets) {",
+              "  const ok = await new Promise<boolean>((resolve) => {",
+              "    const s = connect({ host, port, timeout: 3000 }, () => { s.destroy(); resolve(true); });",
+              "    s.on(\"error\", () => resolve(false));",
+              "    s.on(\"timeout\", () => { s.destroy(); resolve(false); });",
+              "  });",
+              "  console.log(`${host}:${port}=${ok ? \"reached\" : \"blocked\"}`);",
+              "}",
+            ].join("\n"),
+          },
+        ],
+      })
+    );
+    const lines = dbRun.run.stdout.trim().split("\n");
+    check("run with a database (the database network): every target unreachable", lines.filter((l) => !l.startsWith("db:")).every((l) => l.endsWith("=blocked")), lines.join(" "));
+    check("…while its own database answers on db:5432", lines.includes("db:5432=reached"), lines.join(" "));
+  } finally {
+    await databases.shutdown();
+    rmSync(dbData, { recursive: true, force: true });
+  }
 
   // A workspace on no network, and one on an internal network (what hu-db is).
   const files = mkdtempSync(path.join(tmpdir(), "hv-files-"));
