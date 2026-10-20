@@ -294,19 +294,24 @@ export class WorkspaceStore {
 
   private adoptStatus(s: Record<string, unknown>) {
     if (typeof s.status === "string") this.status = s.status as WorkspaceStatus;
-    const terminals = Array.isArray(s.terminals) ? (s.terminals as { sid?: string }[]) : [];
-    const live = new Set(terminals.map((t) => t.sid).filter((sid): sid is string => typeof sid === "string"));
+    // Shells come back as tabs (a task's log view belongs to its task).
+    const terminals = Array.isArray(s.terminals) ? (s.terminals as { sid?: string; kind?: string; exited?: boolean }[]) : [];
+    const live = new Set(
+      terminals.filter((t) => t.kind !== "log" && !t.exited).map((t) => t.sid).filter((sid): sid is string => typeof sid === "string")
+    );
     const before = this.terminals.length;
     // Keep the tabs whose sessions still run, in their order, with their names.
     this.terminals = this.terminals.filter((t) => live.has(t.sid));
     for (const sid of live) if (!this.terminals.some((t) => t.sid === sid)) this.terminals.push({ sid, title: this.nextTerminalTitle() });
     if (this.terminals.length !== before || live.size) this.emit("terminals");
-    const tasks = Array.isArray(s.tasks) ? (s.tasks as { name?: string; state?: string; sid?: string }[]) : [];
+    const tasks = Array.isArray(s.tasks) ? (s.tasks as { name?: string; state?: string; sid?: string; code?: number | null; signal?: string | null }[]) : [];
     for (const t of tasks) {
       if (!t.name) continue;
       const cur = this.tasks.get(t.name) ?? { name: t.name, state: "idle" };
-      this.tasks.set(t.name, { ...cur, state: (t.state as TaskState["state"]) ?? cur.state, sid: t.sid ?? cur.sid });
+      this.tasks.set(t.name, { ...cur, state: (t.state as TaskState["state"]) ?? cur.state, sid: t.sid ?? cur.sid, code: t.code ?? null, signal: t.signal ?? null });
     }
+    if (s.mem && typeof s.mem === "object") this.mem = s.mem as { usedMb: number; limitMb: number };
+    if (typeof s.detail === "string") this.statusDetail = s.detail;
     const ports = Array.isArray(s.ports) ? (s.ports as PortInfo[]) : [];
     for (const p of ports) if (typeof p.port === "number") this.ports.set(p.port, p);
     this.persist();
@@ -316,8 +321,12 @@ export class WorkspaceStore {
   private onEvent(e: RunnerEvent) {
     switch (e.t) {
       case "ready":
-        // Whatever changed while no socket listened.
-        this.refreshTree();
+        // Whatever changed while no socket listened (the runner says resync
+        // when it no longer has every batch since then).
+        this.refreshTree(e.resync ? 0 : 250);
+        break;
+      case "terminal":
+        if (e.state === "exited") this.terminalGone(e.sid);
         break;
       case "status":
         this.status = e.status as WorkspaceStatus;
@@ -347,7 +356,7 @@ export class WorkspaceStore {
       }
       case "task": {
         const cur = this.tasks.get(e.name) ?? { name: e.name, state: "idle" };
-        this.tasks.set(e.name, { ...cur, state: e.state, code: e.code ?? null, signal: e.signal ?? null });
+        this.tasks.set(e.name, { ...cur, state: e.state, code: e.code ?? null, signal: e.signal ?? null, sid: e.sid ?? cur.sid });
         this.emit("tasks");
         break;
       }
@@ -410,7 +419,7 @@ export class WorkspaceStore {
     for (const e of entries) {
       if (!e.path || e.path.includes("\0")) continue;
       const node: FileNode = { ...e, name: e.name ?? nameOf(e.path) };
-      if (node.type === "mount" || (node.type === "dir" && HEAVY.has(node.name))) node.lazy = true;
+      if (node.type === "mount" || (e as { heavy?: boolean }).heavy || (node.type === "dir" && HEAVY.has(node.name))) node.lazy = true;
       this.nodes.set(e.path, node);
       // A file listed without its folders still shows.
       let dir = parentOf(e.path);
@@ -520,6 +529,8 @@ export class WorkspaceStore {
       } else {
         const known = this.nodes.get(p);
         const isNew = !this.props.tree.entries.some((e) => e.path === p);
+        // The runner sends each path's tree row, its mark included.
+        const guess = known ? (kind === "change" ? (known.state === "new" ? "new" : "modified") : known.state) : isNew ? "new" : "modified";
         this.nodes.set(p, {
           ...(known ?? {}),
           path: p,
@@ -528,7 +539,9 @@ export class WorkspaceStore {
           size: m?.size ?? known?.size,
           mtimeMs: m?.mtimeMs ?? known?.mtimeMs,
           mode: m?.mode ?? known?.mode,
-          state: known ? (kind === "change" ? (known.state === "new" ? "new" : "modified") : known.state) : isNew ? "new" : "modified",
+          state: (m?.state as FileNode["state"]) ?? guess,
+          ...(m?.target ? { target: m.target, outside: m.outside } : {}),
+          ...(m?.heavy ? { lazy: true } : {}),
         });
         let dir = parentOf(p);
         while (dir && !this.nodes.has(dir)) {
@@ -881,7 +894,10 @@ export class WorkspaceStore {
   }
 
   async remove(path: string) {
-    const ok = await this.op(() => workspaceApi.fs(this.id, { op: "delete", path }), `Deleted ${path}`);
+    const ok = await this.op(async () => {
+      const { undo } = await workspaceApi.fs(this.id, { op: "delete", path });
+      this.undoDelete = undo ? { path, undo } : null;
+    }, `Deleted ${path}`);
     if (ok) {
       for (const p of [...this.buffers.keys()]) {
         if (p !== path && !p.startsWith(`${path}/`)) continue;
@@ -908,8 +924,20 @@ export class WorkspaceStore {
     return this.op(() => workspaceApi.fs(this.id, { op: "copy", path, to }), `Copied to ${to}`);
   }
 
+  /** Puts a file of the starting point you removed back (the Removed group). */
   restore(path: string) {
-    return this.op(() => workspaceApi.fs(this.id, { op: "restore", path }), `Restored ${path}`);
+    return this.reset("file", path);
+  }
+
+  /** The last delete, which Undo puts back (for 24 hours). */
+  undoDelete: { path: string; undo: string } | null = null;
+
+  async undoLastDelete() {
+    const last = this.undoDelete;
+    if (!last) return;
+    this.undoDelete = null;
+    this.emit("tree");
+    await this.op(() => workspaceApi.fs(this.id, { op: "restore", undo: last.undo }), `Put ${last.path} back`);
   }
 
   /** Reset: one file, one folder, or everything, back to the starting point.

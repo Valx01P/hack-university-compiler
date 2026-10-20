@@ -143,12 +143,17 @@ export async function resolveScope(scope: string): Promise<ResolvedScope> {
           : null;
         return done(templateId, practice.workspace?.checkpoint, starter, suite);
       }
-      const k = parsed.tab === "example" ? parsed.example! : 1;
-      const example = step.examples[k - 1] as unknown as { kind?: string; workspace?: { checkpoint?: string; overlay?: string } } | undefined;
+      // A run example's own workspace, or (in templates that share one) the
+      // part's examples workspace, which starts as its first run example.
+      const examples = step.examples as unknown as { kind?: string; workspace?: { checkpoint?: string; overlay?: string } }[];
+      const example = parsed.tab === "examples" ? examples.find((e) => e.kind !== "tour") : examples[(parsed.example ?? 1) - 1];
       if (!example || example.kind === "tour") throw new ScopeError("That example has no workspace.");
+      const k = examples.indexOf(example) + 1;
       const overlay = example.workspace?.overlay;
       const extra = !overlay
-        ? []
+        ? exists("content", "learn", course, parsed.lesson, `part-${parsed.part}`, `example-${k}`)
+          ? [`@learn/${course}/${partDir}/example-${k}`]
+          : []
         : overlay.startsWith("examples/")
           ? [overlay]
           : [`@learn/${course}/${partDir}/${overlay}`];
@@ -170,17 +175,25 @@ export function runnerOpenBody(r: ResolvedScope) {
   return {
     scope: r.scope,
     template: `${r.course}/${r.templateId}`,
+    course: r.course,
     layers: r.layers,
-    image: `hu/${t.image}`,
+    image: t.image,
     storage: t.storage,
     profile: t.profile,
     start: t.start,
-    ports: t.ports,
+    examples: t.examples,
+    ports: t.ports.map((p) => ({ env: p.env, label: p.label, ...(p.readyPath ? { readyPath: p.readyPath } : {}), ...(p.preview ? { preview: true } : {}) })),
     services: t.services,
-    ...(t.deps ? { deps: { mode: t.deps.mode, kind: t.deps.kind, ...(lockHash ? { lockHash } : {}) } } : {}),
+    ...(t.deps ? { deps: { mode: t.deps.mode, kind: t.deps.kind, ...(t.deps.lock ? { lock: t.deps.lock } : {}), ...(lockHash ? { lockHash } : {}) } } : {}),
     build: t.build,
-    tasks: Object.fromEntries(Object.entries(t.tasks).map(([name, task]) => [name, task.cmd])),
+    tasks: Object.fromEntries(
+      Object.entries(t.tasks).map(([name, task]) => [name, { cmd: task.cmd, ...(task.label ? { label: task.label } : {}), ...(task.run ? { run: true } : {}) }])
+    ),
     env: t.env,
+    hidden: t.hidden,
+    readonly: t.readonly,
+    restartOnReset: t.restartOnReset,
+    diagnostics: t.diagnostics,
     ...(t.limits ? { limits: t.limits } : {}),
   };
 }

@@ -1,5 +1,4 @@
 import { getCourseEntry } from "@/lib/courses";
-import { playgroundScope } from "@/lib/workspace-id.mjs";
 import { getTemplate, playgroundTemplateOf, sandboxTemplates } from "@/lib/workspaces";
 
 /**
@@ -42,11 +41,11 @@ export function playgroundRoute(course: string, slot?: string): { scope: string;
   const label = getCourseEntry(course)?.label ?? course;
   const own = playgroundTemplateOf(course);
   if (!own) return null;
-  if (slot === undefined) return { scope: playgroundScope(course), title: `${label} playground` };
-  if (SCRATCH_SLOTS.includes(slot)) return { scope: playgroundScope(course, slot), title: `${label} playground · Scratch ${slot}` };
+  if (slot === undefined) return { scope: `playground/${course}`, title: `${label} playground` };
+  if (SCRATCH_SLOTS.includes(slot)) return { scope: `playground/${course}/${slot}`, title: `${label} playground · Scratch ${slot}` };
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slot) || /^\d+$/.test(slot) || slot === own) return null;
   const template = getTemplate(course, slot);
-  return template ? { scope: playgroundScope(course, slot), title: `${template.title} · sandbox` } : null;
+  return template ? { scope: `sandbox/${course}/${slot}`, title: `${template.title} · sandbox` } : null;
 }
 
 /** Hides the IDE until it has restored (or 1.5 seconds pass), before the

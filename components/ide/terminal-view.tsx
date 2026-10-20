@@ -100,6 +100,9 @@ export function TerminalView({
   const fitRef = useRef<{ fit(): void } | null>(null);
   const settings = useIdeSettings();
   const [ended, setEnded] = useState<string | null>(null);
+  // Another tab is the writer: this one watches until it takes over.
+  const [watching, setWatching] = useState(false);
+  const sessionRef = useRef<TerminalSession | null>(null);
   const live = useRef({ onExit, settings });
   live.current = { onExit, settings };
 
@@ -198,6 +201,7 @@ export function TerminalView({
           live.current.onExit?.(exit);
           if (!readOnly) setEnded(`The shell exited${exit.code !== null ? ` (${exit.code})` : ""}.`);
         },
+        onMode: (ro) => setWatching(ro),
         onGone: (reason) => {
           setEnded(reason);
           try {
@@ -208,6 +212,7 @@ export function TerminalView({
           if (!readOnly) store.terminalGone(sid);
         },
       });
+      sessionRef.current = session;
       const resize = term.onResize(({ cols, rows }) => session?.resize(cols, rows));
       // The screen, saved a moment after it changes.
       let saveTimer = 0;
@@ -273,6 +278,18 @@ export function TerminalView({
   return (
     <div className={`code-dark relative h-full min-h-0 bg-code-bg ${visible ? "" : "hidden"}`} role="region" aria-label={label}>
       <div ref={hostRef} data-terminal className="h-full min-h-0 py-1 pl-2" />
+      {watching && !ended && (
+        <p className="absolute inset-x-0 top-0 flex items-center gap-2 bg-code-bg/95 px-3 py-1 font-mono text-xs text-code-gutter" role="status">
+          Another tab is typing in this terminal, so this one only watches.
+          <button
+            type="button"
+            onClick={() => sessionRef.current?.takeOver()}
+            className="rounded-btn border border-code-content-line px-2 py-0.5 text-code-ink hover:bg-code-edge"
+          >
+            Take over
+          </button>
+        </p>
+      )}
       {ended && (
         <p className="absolute inset-x-0 bottom-0 bg-code-bg px-3 py-1 font-mono text-xs text-code-gutter" role="status">
           {ended}

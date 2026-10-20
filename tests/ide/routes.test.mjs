@@ -51,17 +51,20 @@ describe("POST /api/workspaces", () => {
     const data = await res.json();
     assert.equal(data.id, workspaceId("playground/typescript"));
     assert.equal(data.scope, "playground/typescript");
-    assert.ok(data.tree.some((e) => e.path === "README.md" && e.type === "file"));
-    assert.ok(data.tree.some((e) => e.path === "src/main.ts"));
+    // The tree comes in GET …/tree's shape: {path, entries, removed, more}.
+    const entries = data.tree.entries;
+    assert.ok(entries.some((e) => e.path === "README.md" && e.type === "file"));
+    assert.ok(entries.some((e) => e.path === "src/main.ts"));
   });
 
   test("sends the runner what content says, never what the browser says", async () => {
     const id = workspaceId("playground/typescript");
     const ws = fake.workspaces.get(id);
-    assert.equal(ws.body.image, "hu/node");
+    assert.equal(ws.body.image, "node");
     assert.deepEqual(ws.body.layers, ["base"]);
-    assert.equal(ws.body.tasks.dev, "npm run dev");
+    assert.deepEqual(ws.body.tasks.dev, { cmd: "npm run dev", label: "Watch" });
     assert.equal(ws.body.template, "typescript/playground");
+    assert.equal(ws.body.course, "typescript");
   });
 
   test("refuses a body with anything but a scope", async () => {
@@ -157,6 +160,8 @@ describe("/api/workspaces/:id/...", () => {
   test("checks file operations", async () => {
     const bad = await proxy.POST(req(`/api/workspaces/${id}/fs`, { method: "POST", body: { op: "rename", path: "a.ts" } }), ctx(id, ["fs"]));
     assert.equal(bad.status, 400);
+    const restoreByPath = await proxy.POST(req(`/api/workspaces/${id}/fs`, { method: "POST", body: { op: "restore", path: "a.ts" } }), ctx(id, ["fs"]));
+    assert.equal(restoreByPath.status, 400);
     const escape = await proxy.POST(req(`/api/workspaces/${id}/fs`, { method: "POST", body: { op: "mkdir", path: "../up" } }), ctx(id, ["fs"]));
     assert.equal(escape.status, 400);
     const ok = await proxy.POST(req(`/api/workspaces/${id}/fs`, { method: "POST", body: { op: "mkdir", path: "src/models" } }), ctx(id, ["fs"]));
@@ -181,6 +186,8 @@ describe("/api/workspaces/:id/...", () => {
 
   test("starts only the template's tasks, by name", async () => {
     const res = await proxy.POST(req(`/api/workspaces/${id}/tasks/dev/start`, { method: "POST" }), ctx(id, ["tasks", "dev", "start"]));
+    const signal = await proxy.POST(req(`/api/workspaces/${id}/tasks/dev/signal`, { method: "POST", body: { sig: "EXEC" } }), ctx(id, ["tasks", "dev", "signal"]));
+    assert.equal(signal.status, 400);
     assert.equal(res.status, 200);
     assert.match((await res.json()).sid, /^s/);
     const unknown = await proxy.POST(req(`/api/workspaces/${id}/tasks/deploy/start`, { method: "POST" }), ctx(id, ["tasks", "deploy", "start"]));

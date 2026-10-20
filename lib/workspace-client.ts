@@ -44,11 +44,17 @@ const json = async <T>(res: Response): Promise<T> => (res.status === 204 ? ({} a
 const post = (url: string, body?: unknown) =>
   call(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: body === undefined ? "{}" : JSON.stringify(body) });
 
-/** The tree as the runner sends it: a list, or `{tree | entries, removed}`. */
-export function readTree(data: unknown): { tree: TreeEntry[]; removed: string[] } {
-  if (Array.isArray(data)) return { tree: data as TreeEntry[], removed: [] };
-  const d = (data ?? {}) as { tree?: TreeEntry[]; entries?: TreeEntry[]; removed?: string[] };
-  return { tree: d.tree ?? d.entries ?? [], removed: d.removed ?? [] };
+/** The tree as the runner sends it: `{path, entries, removed, more}` from
+    GET …/tree, the same object as an open's `tree` (with `removed` beside
+    it), or a bare list. */
+export function readTree(data: unknown): { tree: TreeEntry[]; removed: string[]; more: Record<string, number> } {
+  if (Array.isArray(data)) return { tree: data as TreeEntry[], removed: [], more: {} };
+  const d = (data ?? {}) as { tree?: unknown; entries?: TreeEntry[]; removed?: string[]; more?: Record<string, number> };
+  if (d.tree && !Array.isArray(d.tree) && typeof d.tree === "object") {
+    const inner = readTree(d.tree);
+    return { ...inner, removed: d.removed ?? inner.removed };
+  }
+  return { tree: (Array.isArray(d.tree) ? (d.tree as TreeEntry[]) : undefined) ?? d.entries ?? [], removed: d.removed ?? [], more: d.more ?? {} };
 }
 
 export interface OpenResult {
@@ -82,8 +88,9 @@ const q = (path: string) => `?path=${encodeURIComponent(path)}`;
 function decodeFile(res: Response, bytes: ArrayBuffer): FileRead {
   const type = res.headers.get("content-type") ?? "";
   const etag = res.headers.get("etag");
-  // A binary file answers a small JSON description instead of its bytes.
-  if (!etag && type.startsWith("application/json")) {
+  // A binary file answers a small JSON description instead of its bytes
+  // (text files, .json ones included, come as text/plain).
+  if (type.startsWith("application/json")) {
     try {
       const data = JSON.parse(new TextDecoder().decode(bytes)) as { binary?: boolean; size?: number; mime?: string };
       if (data && data.binary === true) return { kind: "binary", size: data.size ?? 0, mime: data.mime ?? "application/octet-stream" };
@@ -100,7 +107,9 @@ export const workspaceApi = {
   async status(id: string) {
     return json<Record<string, unknown>>(await call(base(id)));
   },
-  async tree(id: string, path = "", depth?: number) {
+  /** A folder's entries, `depth` levels down (the whole tree by default:
+      heavy folders like node_modules stay closed until named). */
+  async tree(id: string, path = "", depth = 64) {
     const params = new URLSearchParams();
     if (path) params.set("path", path);
     if (depth !== undefined) params.set("depth", String(depth));
@@ -131,18 +140,27 @@ export const workspaceApi = {
     const data = await json<{ etag?: string }>(res);
     return { etag: data.etag ?? res.headers.get("etag") };
   },
-  async fs(id: string, op: { op: "mkdir" | "rename" | "delete" | "copy" | "chmod" | "restore"; path: string; to?: string; mode?: number }) {
+  async fs(
+    id: string,
+    op:
+      | { op: "mkdir" | "delete"; path: string }
+      | { op: "rename" | "copy"; path: string; to: string }
+      | { op: "chmod"; path: string; mode: number }
+      | { op: "restore"; undo: string }
+  ) {
     return json<{ undo?: string }>(await post(`${base(id)}/fs`, op));
   },
-  async reset(id: string, scope: "file" | "dir" | "all" | "db" | "everything", path?: string) {
-    return json<{ snapshot?: string | null }>(await post(`${base(id)}/reset`, path ? { scope, path } : { scope }));
+  async reset(id: string, scope: "file" | "dir" | "all" | "db" | "everything", path?: string, dryRun = false) {
+    return json<{ snapshot?: string | null; restored?: string[]; removed?: string[] }>(
+      await post(`${base(id)}/reset`, { scope, ...(path ? { path } : {}), ...(dryRun ? { dryRun } : {}) })
+    );
   },
   async snapshots(id: string) {
     const data = await json<{ snapshots?: Snapshot[] } | Snapshot[]>(await call(`${base(id)}/snapshots`));
-    return Array.isArray(data) ? data : (data.snapshots ?? []);
+    return (Array.isArray(data) ? data : (data.snapshots ?? [])).map(snapshotOf);
   },
   async saveSnapshot(id: string, label?: string) {
-    return json<Snapshot>(await post(`${base(id)}/snapshots`, label ? { label } : {}));
+    return snapshotOf(await json<Snapshot>(await post(`${base(id)}/snapshots`, label ? { label } : {})));
   },
   async restoreSnapshot(id: string, sid: string) {
     return json(await post(`${base(id)}/snapshots/${encodeURIComponent(sid)}/restore`));
@@ -165,6 +183,12 @@ export const workspaceApi = {
   async task(id: string, name: string, action: "start" | "stop" | "restart") {
     return json<{ sid?: string }>(await post(`${base(id)}/tasks/${encodeURIComponent(name)}/${action}`));
   },
+  async signalTask(id: string, name: string, sig: "INT" | "TERM" = "INT") {
+    await post(`${base(id)}/tasks/${encodeURIComponent(name)}/signal`, { sig });
+  },
+  async clearCookies(id: string) {
+    await call(`${base(id)}/cookies`, { method: "DELETE" });
+  },
   async forwardPort(id: string, port: number) {
     return json(await post(`${base(id)}/ports`, { port }));
   },
@@ -186,11 +210,14 @@ export const workspaceApi = {
 };
 
 export interface Snapshot {
+  /** The runner's `id` (older answers say `sid`). */
   sid: string;
   label?: string;
   auto?: boolean;
-  createdAt?: number;
+  createdAt?: number | string;
 }
+
+const snapshotOf = (s: Snapshot & { id?: string }): Snapshot => ({ ...s, sid: s.id ?? s.sid });
 
 export interface HttpRequest {
   port: number;
@@ -204,10 +231,13 @@ export interface HttpRequest {
 export interface HttpResponse {
   status: number;
   statusText?: string;
-  headers: Record<string, string>;
-  cookies?: { name: string; value: string; raw?: string }[];
+  /** Every header, repeated ones joined, except set-cookie, a list. */
+  headers: Record<string, string | string[]>;
+  cookies?: { name: string; value: string; path?: string; httpOnly?: boolean; sameSite?: string; expires?: string | null }[];
   body: string;
+  bodyEncoding?: "utf8" | "base64";
   size?: number;
+  truncated?: boolean;
   timingMs?: number;
 }
 

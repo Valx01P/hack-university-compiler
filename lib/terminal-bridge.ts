@@ -23,6 +23,8 @@ import { getTicket } from "@/lib/workspace-client";
 export interface TerminalSession {
   /** Sends Ctrl+C as a signal (the Stop button), not as typed text. */
   interrupt(): void;
+  /** Makes this tab the terminal's writer (another tab typed in it last). */
+  takeOver(): void;
   /** Types text at the prompt without pressing Enter (Paste into terminal). */
   type(text: string): void;
   /** Sends the terminal's current size. */
@@ -40,6 +42,8 @@ export interface BridgeOptions {
   /** The session is gone (the runner closed it, or it restarted). */
   onGone?: (reason: string) => void;
   onConnection?: (state: "connecting" | "open" | "closed") => void;
+  /** Read only (another tab writes), or the writer again. */
+  onMode?: (readOnly: boolean) => void;
 }
 
 const ACK_EVERY = 64 * 1024;
@@ -103,7 +107,7 @@ export function attachTerminal(term: Terminal, opts: BridgeOptions): TerminalSes
         });
         return;
       }
-      let msg: { t?: string; data?: string; cwd?: string; shell?: string; code?: number | null; signal?: string | null };
+      let msg: { t?: string; data?: string; cwd?: string; shell?: string; code?: number | null; signal?: string | null; readonly?: boolean };
       try {
         msg = JSON.parse(e.data);
       } catch {
@@ -117,6 +121,9 @@ export function attachTerminal(term: Terminal, opts: BridgeOptions): TerminalSes
         pendingBytes = 0;
         opts.onConnection?.("open");
         opts.onReady?.({ cwd: msg.cwd, shell: msg.shell });
+        if (!opts.readOnly) opts.onMode?.(msg.readonly === true);
+      } else if (msg.t === "mode") {
+        if (!opts.readOnly) opts.onMode?.(msg.readonly === true);
       } else if (msg.t === "replay" && typeof msg.data === "string") {
         // The screen as it was, over a clean one: a reload, or a reconnect.
         // The reset (ESC c) rides in the same write, so no frame shows the
@@ -153,6 +160,9 @@ export function attachTerminal(term: Terminal, opts: BridgeOptions): TerminalSes
   return {
     interrupt() {
       sendText({ t: "signal", sig: "INT" });
+    },
+    takeOver() {
+      sendText({ t: "takeover" });
     },
     type(text: string) {
       sendBytes(encoder.encode(text));

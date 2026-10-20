@@ -76,7 +76,15 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
   };
   const error = (res, status, code, message) => sendJson(res, status, { error: code, message });
 
-  function treeOf(ws) {
+  /** GET …/tree's answer: entries under `path`, `depth` levels down. */
+  function treeOf(ws, path = "", depth = 64) {
+    const all = treeRows(ws);
+    const base = path ? `${path}/` : "";
+    const entries = all.tree.filter((e) => e.path.startsWith(base) && e.path.slice(base.length).split("/").length <= depth);
+    return { path, entries, removed: all.removed, more: {} };
+  }
+
+  function treeRows(ws) {
     const tree = [];
     for (const [p, f] of ws.files) {
       const orig = ws.manifest.get(p);
@@ -87,7 +95,7 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
         type: f.type,
         ...(f.type === "file" ? { size: f.data.length } : {}),
         mtimeMs: f.mtimeMs,
-        mode: f.mode | (f.type === "dir" ? 0o040000 : 0o100000),
+        mode: f.mode,
         state,
       });
     }
@@ -388,11 +396,12 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
             tasks: new Map(),
             ports: new Map(),
             snapshots: [],
+            trash: new Map(),
           };
           workspaces.set(id, ws);
         }
-        const { tree, removed } = treeOf(ws);
-        return sendJson(res, 200, { id, status: ws.status, templateHash: "fake0000hash", updated: [], ports: {}, tree, removed });
+        const tree = treeOf(ws);
+        return sendJson(res, 200, { id, status: ws.status, templateHash: "fake0000hash", created: true, updated: [], ports: {}, tree, removed: tree.removed });
       }
       const ws = workspaces.get(id);
       if (!ws) return error(res, 404, "not_found", "No such workspace. Open it first.");
@@ -403,16 +412,16 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
           status: ws.status,
           ports: [...ws.ports.values()],
           tasks: [...ws.tasks.values()].map((t) => ({ name: t.name, state: t.state, sid: t.term.sid })),
-          terminals: [...ws.terminals.values()].filter((t) => t.kind === "shell").map((t) => ({ sid: t.sid })),
+          terminals: [...ws.terminals.values()].map((t) => ({ sid: t.sid, kind: t.kind === "shell" ? "shell" : "log", task: t.task, exited: false })),
         });
       }
-      if (req.method === "GET" && sub === "tree") return sendJson(res, 200, treeOf(ws));
+      if (req.method === "GET" && sub === "tree") return sendJson(res, 200, treeOf(ws, p, Number(url.searchParams.get("depth") ?? 1)));
       if (req.method === "GET" && (sub === "file" || sub === "original")) {
         const source = sub === "file" ? ws.files : materialize(ws.course, ws.template, ws.body.layers);
         const f = source.get(p);
         if (!f || f.type !== "file") return error(res, 404, "not_found", `${p} isn't a file.`);
-        if (f.data.subarray(0, 8000).includes(0)) return sendJson(res, 200, { binary: true, size: f.data.length, mime: "application/octet-stream" });
-        res.writeHead(200, { "Content-Type": "application/octet-stream", ETag: `"${sha(f.data)}"`, "Cache-Control": "no-store" });
+        if (f.data.subarray(0, 8000).includes(0)) return sendJson(res, 200, { binary: true, size: f.data.length, mime: "application/octet-stream", etag: `"${sha(f.data)}"` }, { ETag: `"${sha(f.data)}"` });
+        res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", ETag: `"${sha(f.data)}"`, "Cache-Control": "no-store" });
         return res.end(f.data);
       }
       if (req.method === "PUT" && sub === "file") {
@@ -442,7 +451,13 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
           fsEvent(ws, events);
           return sendJson(res, 200, {});
         }
-        if (body.op === "delete") return removePath(ws, body.path) ? sendJson(res, 200, { undo: `trash-${now()}` }) : error(res, 404, "not_found", "Nothing there.");
+        if (body.op === "delete") {
+          const kept = [...ws.files].filter(([k]) => k === body.path || k.startsWith(`${body.path}/`));
+          if (!removePath(ws, body.path)) return error(res, 404, "not_found", "Nothing there.");
+          const undo = `t${randomBytes(6).toString("hex")}`;
+          ws.trash.set(undo, kept);
+          return sendJson(res, 200, { undo });
+        }
         if (body.op === "rename") {
           if (ws.files.has(body.to)) return error(res, 409, "exists", `${body.to} already exists.`);
           return movePath(ws, body.path, body.to) ? sendJson(res, 200, {}) : error(res, 404, "not_found", "Nothing there.");
@@ -454,30 +469,43 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
           return sendJson(res, 200, {});
         }
         if (body.op === "restore") {
-          reset(ws, "file", body.path);
+          const kept = ws.trash.get(body.undo);
+          if (!kept) return error(res, 404, "not_found", "That delete can't be undone anymore.");
+          ws.trash.delete(body.undo);
+          for (const [k, f] of kept) {
+            ws.files.set(k, f);
+          }
+          fsEvent(ws, kept.map(([k, f]) => [f.type === "dir" ? "addDir" : "add", k, meta(f)]));
           return sendJson(res, 200, {});
         }
         return error(res, 400, "bad_request", "Unknown op.");
       }
       if (req.method === "POST" && sub === "reset") {
         const body = JSON.parse((await readBody(req)).toString());
-        const snapshot = body.scope === "all" || body.scope === "everything" ? `auto-${now()}` : null;
-        if (snapshot) ws.snapshots.push({ sid: snapshot, label: "Before reset", auto: true, createdAt: now(), files: new Map(ws.files) });
+        if (body.dryRun) {
+          const original = materialize(ws.course, ws.template, ws.body.layers);
+          const inScope = (k) => body.scope === "all" || body.scope === "everything" || k === body.path || (body.scope === "dir" && k.startsWith(`${body.path}/`));
+          const removed = [...ws.files.keys()].filter((k) => inScope(k) && !original.has(k) && ws.files.get(k).type === "file");
+          const restored = [...original].filter(([k, f]) => inScope(k) && f.type === "file" && (!ws.files.has(k) || sha(ws.files.get(k).data ?? "") !== sha(f.data))).map(([k]) => k);
+          return sendJson(res, 200, { restored, removed });
+        }
+        const snapshot = body.scope === "all" || body.scope === "everything" ? `auto${now()}` : null;
+        if (snapshot) ws.snapshots.unshift({ id: snapshot, label: "Before reset", auto: true, createdAt: now(), files: new Map(ws.files) });
         reset(ws, body.scope, body.path);
-        return sendJson(res, 200, { snapshot });
+        return sendJson(res, 200, { snapshot, restored: [], removed: [] });
       }
       if (sub === "snapshots" && req.method === "GET") {
-        return sendJson(res, 200, { snapshots: ws.snapshots.map((s) => ({ sid: s.sid, label: s.label, auto: s.auto, createdAt: s.createdAt })) });
+        return sendJson(res, 200, { snapshots: ws.snapshots.map((s) => ({ id: s.id, label: s.label, auto: s.auto, createdAt: s.createdAt })) });
       }
       if (sub === "snapshots" && req.method === "POST") {
         const body = JSON.parse((await readBody(req)).toString() || "{}");
-        const snap = { sid: `sp-${now()}`, label: body.label ?? "Save point", auto: false, createdAt: now(), files: new Map([...ws.files].map(([k, f]) => [k, { ...f }])) };
-        ws.snapshots.push(snap);
-        return sendJson(res, 200, { sid: snap.sid, label: snap.label, createdAt: snap.createdAt });
+        const snap = { id: `sp${now()}`, label: body.label ?? "Save point", auto: false, createdAt: now(), files: new Map([...ws.files].map(([k, f]) => [k, { ...f }])) };
+        ws.snapshots.unshift(snap);
+        return sendJson(res, 200, { id: snap.id, label: snap.label, auto: false, createdAt: snap.createdAt });
       }
       const restore = /^snapshots\/([^/]+)\/restore$/.exec(sub);
       if (restore && req.method === "POST") {
-        const snap = ws.snapshots.find((s) => s.sid === restore[1]);
+        const snap = ws.snapshots.find((s) => s.id === restore[1]);
         if (!snap) return error(res, 404, "not_found", "No such save point.");
         const events = [];
         for (const k of [...ws.files.keys()]) if (!snap.files.has(k)) events.push([ws.files.get(k).type === "dir" ? "unlinkDir" : "unlink", k]);
@@ -492,6 +520,21 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
           setStatus(ws, "stopped");
         } else start(ws);
         return sendJson(res, 200, { status: ws.status });
+      }
+      if (req.method === "GET" && sub === "terminals") {
+        return sendJson(res, 200, [...ws.terminals.values()].map((t) => ({ sid: t.sid, kind: t.kind === "shell" ? "shell" : "log", task: t.task, exited: false })));
+      }
+      if (req.method === "GET" && sub === "ports") return sendJson(res, 200, [...ws.ports.values()]);
+      if (req.method === "DELETE" && sub === "cookies") {
+        res.writeHead(204);
+        return res.end();
+      }
+      const sig = /^tasks\/([a-z][a-z0-9-]*)\/signal$/.exec(sub);
+      if (sig && req.method === "POST") {
+        const task = ws.tasks.get(sig[1]);
+        if (task?.state === "running") stopTask(ws, sig[1]);
+        res.writeHead(204);
+        return res.end();
       }
       if (req.method === "POST" && sub === "terminals") {
         start(ws);
@@ -530,7 +573,7 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
           r.end();
         });
         const headers = {};
-        for (const [k, v] of Object.entries(answer.up.headers)) headers[k] = Array.isArray(v) ? v.join(", ") : String(v);
+        for (const [k, v] of Object.entries(answer.up.headers)) headers[k] = k === "set-cookie" ? v : Array.isArray(v) ? v.join(", ") : String(v);
         return sendJson(res, 200, {
           status: answer.up.statusCode,
           statusText: answer.up.statusMessage,
@@ -554,7 +597,7 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
           checks.set(checkId, result);
           emit(ws, { t: "check", checkId, phase: "done", result });
         }, 60);
-        return sendJson(res, 200, { checkId });
+        return sendJson(res, 202, { checkId });
       }
       return error(res, 404, "not_found", `No route ${req.method} ${sub}.`);
     } catch (err) {
@@ -592,7 +635,7 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
         if (!term) {
           ws.events.add(sock);
           sock.on("close", () => ws.events.delete(sock));
-          sock.send(JSON.stringify({ t: "ready", workspace: ws.id, seq: ws.seq }));
+          sock.send(JSON.stringify({ t: "ready", workspace: ws.id, seq: ws.seq, resync: false }));
           sock.send(JSON.stringify({ t: "docker", state: "up" }));
           sock.send(JSON.stringify({ t: "status", status: ws.status, mem: { usedMb: ws.status === "running" ? 96 : 0, limitMb: 1024 } }));
           const since = Number(hello.since);
@@ -606,7 +649,7 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
         if (!t) return sock.close(4404, "No such terminal");
         t.sockets.add(sock);
         sock.on("close", () => t.sockets.delete(sock));
-        sock.send(JSON.stringify({ t: "ready", cwd: "/workspace", shell: "bash" }));
+        sock.send(JSON.stringify({ t: "ready", sid: t.sid, cwd: "/workspace", shell: t.kind === "shell" ? "bash" : null, kind: t.kind === "shell" ? "shell" : "log", task: t.task, readonly: t.kind !== "shell" }));
         if (t.scroll) sock.send(JSON.stringify({ t: "replay", data: t.scroll }));
         sock.on("message", (msg, isBinary) => {
           if (isBinary) return t.input(msg.toString("utf8"));

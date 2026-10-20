@@ -285,6 +285,14 @@ export function Explorer({
           <ChevronsDownUp className="size-3.5" aria-hidden />
         </button>
       </div>
+      {store.undoDelete && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1 text-xs text-ink-muted" role="status">
+          <span className="min-w-0 flex-1 truncate">Deleted {store.undoDelete.path}</span>
+          <button type="button" onClick={() => void store.undoLastDelete()} className="shrink-0 rounded-btn px-1.5 font-medium text-ink hover:bg-raised">
+            Undo
+          </button>
+        </div>
+      )}
       <div
         ref={containerRef}
         {...tree.getContainerProps("Files")}

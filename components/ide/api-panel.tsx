@@ -43,7 +43,7 @@ export function ApiPanel({ store }: { store: WorkspaceStore }) {
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [bearer, setBearer] = useState("");
   const [busy, setBusy] = useState(false);
-  const [response, setResponse] = useState<(HttpResponse & { url: string; curl: string }) | null>(null);
+  const [response, setResponse] = useState<(Omit<HttpResponse, "headers"> & { headers: Record<string, string>; url: string; curl: string }) | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [files, setFiles] = useState<{ path: string; requests: HttpFileRequest[]; variables: Record<string, string> }[]>([]);
   const [named, setNamed] = useState<Record<string, NamedResponse>>({});
@@ -119,8 +119,10 @@ export function ApiPanel({ store }: { store: WorkspaceStore }) {
         ...(draft.body && draft.method !== "GET" && draft.method !== "HEAD" ? { body: draft.body } : {}),
         jar: true,
       });
-      setResponse({ ...res, url, curl: asCurl(draft.method, url, headers, draft.body || undefined) });
-      if (draft.name) setNamed((n) => ({ ...n, [draft.name!]: { status: res.status, headers: res.headers, body: res.body } }));
+      // Repeated headers come joined, and set-cookie as a list.
+      const flat = Object.fromEntries(Object.entries(res.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : v]));
+      setResponse({ ...res, headers: flat, url, curl: asCurl(draft.method, url, headers, draft.body || undefined) });
+      if (draft.name) setNamed((n) => ({ ...n, [draft.name!]: { status: res.status, headers: flat, body: res.body } }));
     } catch (err) {
       setError(err instanceof WorkspaceError ? err.message : "The request didn't go through.");
       setResponse(null);
@@ -243,6 +245,15 @@ export function ApiPanel({ store }: { store: WorkspaceStore }) {
               <button type="button" onClick={() => void navigator.clipboard?.writeText(response.curl)} className="ms-auto rounded-btn px-2 py-0.5 text-ink-muted hover:bg-raised hover:text-ink">
                 Copy as curl
               </button>
+              {response.cookies && response.cookies.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void workspaceApi.clearCookies(store.id).then(() => store.announce("Cleared the API panel's cookies"))}
+                  className="rounded-btn px-2 py-0.5 text-ink-muted hover:bg-raised hover:text-ink"
+                >
+                  Clear cookies
+                </button>
+              )}
             </p>
             <details>
               <summary className="cursor-pointer text-ink-faint">Headers ({Object.keys(response.headers).length})</summary>
@@ -258,8 +269,9 @@ export function ApiPanel({ store }: { store: WorkspaceStore }) {
               </p>
             )}
             <pre className="code-dark slim-scroll max-h-72 min-h-16 overflow-auto rounded-btn border border-code-content-line bg-code-bg px-3 py-2 font-mono text-code-ink">
-              {pretty || "(empty body)"}
+              {response.bodyEncoding === "base64" ? `(${response.size ?? 0} bytes of binary data)` : pretty || "(empty body)"}
             </pre>
+            {response.truncated && <p className="text-ink-faint">The body is over 1 MB, so only its start shows.</p>}
           </div>
         )}
       </div>

@@ -12,11 +12,12 @@ import { getTicket, WorkspaceError } from "@/lib/workspace-client";
  */
 
 export type RunnerEvent =
-  | { t: "ready"; workspace: string; seq: number }
+  | { t: "ready"; workspace: string; seq: number; resync?: boolean }
+  | { t: "terminal"; sid: string; state: "exited"; code?: number | null }
   | { t: "status"; status: string; detail?: string; mem?: { usedMb: number; limitMb: number } }
   | { t: "fs"; seq: number; events: FsEvent[] }
   | { t: "port"; port: number; url: string; state: "listening" | "closed"; bind?: string; process?: string; framable?: boolean; reason?: string; note?: string }
-  | { t: "task"; name: string; state: "starting" | "running" | "exited"; code?: number | null; signal?: string | null }
+  | { t: "task"; name: string; state: "starting" | "running" | "exited"; code?: number | null; signal?: string | null; sid?: string }
   | { t: "check"; checkId: string; phase: string; test?: Record<string, unknown>; result?: Record<string, unknown> }
   | { t: "diag"; source: string; items: { file: string; line: number; col: number; severity: string; code?: string; message: string }[] }
   | { t: "limit"; kind: string; message: string }
@@ -24,8 +25,13 @@ export type RunnerEvent =
   | { t: "docker"; state: "up" | "down" | "waking" }
   | { t: "db"; state: string };
 
-/** One file change: ["add" | "change" | "unlink" | "addDir" | "unlinkDir", path, meta?]. */
-export type FsEvent = [string, string, { type?: string; size?: number; mtimeMs?: number; mode?: number }?];
+/** One file change: ["add" | "change" | "unlink" | "addDir" | "unlinkDir", path, entry?],
+    where entry is the path's tree row (its mark included). */
+export type FsEvent = [
+  string,
+  string,
+  { type?: string; size?: number; mtimeMs?: number; mode?: number; state?: string; target?: string; outside?: boolean; heavy?: boolean }?,
+];
 
 export type SocketState = "connecting" | "open" | "closed";
 
@@ -73,12 +79,13 @@ export class WorkspaceEvents {
     this.onState(state, error);
   }
 
-  private onVisibility = () => {
-    if (document.visibilityState === "visible") this.beat();
-  };
+  private onVisibility = () => this.beat();
 
+  /** A heartbeat: it keeps the workspace from stopping as idle, and while the
+      tab is visible, from being stopped to make room (LRU). A hidden tab says
+      so at once. */
   private beat() {
-    if (this.ws?.readyState === WebSocket.OPEN && document.visibilityState === "visible") this.ws.send(JSON.stringify({ t: "hb" }));
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ t: "hb", visible: document.visibilityState === "visible" }));
   }
 
   private async connect() {
@@ -108,7 +115,8 @@ export class WorkspaceEvents {
         this.since ??= event.seq;
         this.setState("open");
         window.clearInterval(this.heartbeat);
-        this.heartbeat = window.setInterval(() => this.beat(), HEARTBEAT_MS);
+        // Only a tab that shows the workspace keeps it awake.
+        this.heartbeat = window.setInterval(() => document.visibilityState === "visible" && this.beat(), HEARTBEAT_MS);
         this.beat();
       }
       if (event.t === "fs") {

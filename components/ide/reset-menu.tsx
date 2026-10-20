@@ -47,6 +47,8 @@ export function ResetMenu({ store, className }: { store: WorkspaceStore; classNa
   const [snapshots, setSnapshots] = useState<Snapshot[] | null>(null);
   const [label, setLabel] = useState("");
   const [undo, setUndo] = useState<string | null>(null);
+  // What the confirm says: the runner's own count (a dry run) when it answers.
+  const [summary, setSummary] = useState<string | null>(null);
   const anchorRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const active = store.active;
@@ -64,6 +66,31 @@ export function ResetMenu({ store, className }: { store: WorkspaceStore; classNa
       cancelled = true;
     };
   }, [open, offline, store.id]);
+
+  useEffect(() => {
+    setSummary(null);
+    if (!confirm) return;
+    const path = confirm === "file" ? active : confirm === "dir" ? folder : null;
+    let cancelled = false;
+    workspaceApi
+      .reset(store.id, confirm, path ?? undefined, true)
+      .then((dry) => {
+        if (cancelled || !dry.restored || !dry.removed) return;
+        const unsaved = [...store.buffers.values()].filter(
+          (b) => b.dirty && (confirm === "all" || b.path === path || (confirm === "dir" && path !== null && (path === "" || b.path.startsWith(`${path}/`))))
+        ).length;
+        const parts = [
+          dry.restored.length && `${plural(dry.restored.length, "file")} restored`,
+          dry.removed.length && `${plural(dry.removed.length, "new file")} removed`,
+          unsaved && `${plural(unsaved, "unsaved buffer")} discarded`,
+        ].filter(Boolean);
+        setSummary(parts.length ? `${parts.join(", ")}.` : "Nothing differs from the starting point.");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [confirm, active, folder, store]);
 
   useEffect(() => {
     if (!open) setConfirm(null);
@@ -116,7 +143,7 @@ export function ResetMenu({ store, className }: { store: WorkspaceStore; classNa
               <p className="font-medium text-ink">
                 {confirm === "file" ? `Reset ${active}?` : confirm === "dir" ? `Reset ${folder || "the workspace root"}/?` : "Reset everything?"}
               </p>
-              <p className="mt-1 text-xs text-ink-muted">{resetSummary(store, confirm, confirm === "file" ? active : confirm === "dir" ? folder : null)}</p>
+              <p className="mt-1 text-xs text-ink-muted">{summary ?? resetSummary(store, confirm, confirm === "file" ? active : confirm === "dir" ? folder : null)}</p>
               {confirm === "all" && <p className="mt-1 text-xs text-ink-faint">A save point is taken first, so Undo brings your version back.</p>}
               <div className="mt-3 flex justify-end gap-2">
                 <button type="button" onClick={() => setConfirm(null)} className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:bg-raised hover:text-ink">

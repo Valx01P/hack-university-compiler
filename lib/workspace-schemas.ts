@@ -33,18 +33,21 @@ export const TicketRequest = z
   })
   .refine((t) => (t.kind === "term") === (t.sid !== undefined), "a term ticket needs a sid, and only it does");
 
-export const FsRequest = z
-  .strictObject({
-    op: z.enum(["mkdir", "rename", "delete", "copy", "chmod", "restore"]),
-    path: RelPath,
-    to: RelPath.optional(),
-    mode: z.number().int().min(0).max(0o777).optional(),
-  })
-  .refine((r) => (r.op === "rename" || r.op === "copy") === (r.to !== undefined), "rename and copy need a destination, and only they do")
-  .refine((r) => (r.op === "chmod") === (r.mode !== undefined), "chmod needs a mode, and only it does");
+const Mode = z.number().int().min(0).max(0o7777);
+/** What a delete answers (`undo`), to put it back. */
+const UndoToken = z.string().regex(/^[a-z0-9]{8,40}$/, "isn't an undo token");
+
+export const FsRequest = z.discriminatedUnion("op", [
+  z.strictObject({ op: z.literal("mkdir"), path: RelPath }),
+  z.strictObject({ op: z.literal("rename"), path: RelPath, to: RelPath }),
+  z.strictObject({ op: z.literal("copy"), path: RelPath, to: RelPath }),
+  z.strictObject({ op: z.literal("delete"), path: RelPath }),
+  z.strictObject({ op: z.literal("chmod"), path: RelPath, mode: Mode }),
+  z.strictObject({ op: z.literal("restore"), undo: UndoToken }),
+]);
 
 export const ResetRequest = z
-  .strictObject({ scope: z.enum(["file", "dir", "all", "db", "everything"]), path: RelPath.optional() })
+  .strictObject({ scope: z.enum(["file", "dir", "all", "db", "everything"]), path: RelPath.optional(), dryRun: z.boolean().optional() })
   .refine((r) => (r.scope === "file" || r.scope === "dir") === (r.path !== undefined), "file and dir resets name a path, and only they do");
 
 export const SnapshotRequest = z.strictObject({ label: z.string().trim().min(1).max(80).optional() });
@@ -55,18 +58,21 @@ export const TerminalRequest = z.strictObject({
   cwd: RelPath.optional(),
 });
 export const PortRequest = z.strictObject({ port: z.number().int().min(1).max(65535) });
+export const SignalRequest = z.strictObject({ sig: z.enum(["INT", "TERM", "HUP", "KILL", "QUIT", "USR1", "USR2"]) });
 
 const HeaderName = z.string().regex(/^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,128}$/, "isn't a header name");
 export const HttpRequest = z.strictObject({
   port: z.number().int().min(1).max(65535),
-  method: z.enum(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]),
-  path: z.string().min(1).max(8192).startsWith("/").refine((p) => !/[\r\n\0]/.test(p), "has a line break"),
+  method: z.string().regex(/^[A-Z]{1,16}$/, "isn't an HTTP method"),
+  path: z.string().min(1).max(8192).startsWith("/").refine((p) => !/[\r\n\0 ]/.test(p), "has a space or a line break"),
   headers: z
     .record(HeaderName, z.string().max(16_384).refine((v) => !/[\r\n\0]/.test(v), "has a line break"))
     .refine((h) => Object.keys(h).length <= 64, "has more than 64 headers")
     .default({}),
   body: z.string().max(1_000_000).optional(),
+  bodyEncoding: z.enum(["utf8", "base64"]).optional(),
   jar: z.boolean().default(true),
+  timeoutMs: z.number().int().min(100).max(120_000).optional(),
 });
 
 export const DbQuery = z.union([

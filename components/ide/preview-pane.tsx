@@ -25,6 +25,8 @@ const WIDTHS = [
   { id: "1280", label: "1280" },
 ];
 const SANDBOX = "allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads";
+// Ports whose old site data this page load already cleared.
+const clearedPorts = new Set<number>();
 
 export function PreviewPane({ store }: { store: WorkspaceStore }) {
   useStore(store, "preview", "ports");
@@ -38,7 +40,10 @@ export function PreviewPane({ store }: { store: WorkspaceStore }) {
   const info = port !== null ? store.ports.get(port) : undefined;
   const current = history.list[history.at] ?? "/";
   const host = typeof window === "undefined" ? "localhost" : window.location.hostname;
-  const src = port !== null ? `http://${host}:${port}${current}` : "about:blank";
+  // A port another lesson used before gets its site data cleared once, by
+  // the runner's /__hu/clear-site-data (which then sends the frame to /).
+  const clearFirst = Boolean(info?.clearSiteData) && port !== null && !clearedPorts.has(port);
+  const src = port !== null ? `http://${host}:${port}${clearFirst ? "/__hu/clear-site-data" : current}` : "about:blank";
 
   // A new path from outside (a link in the terminal, the Ports panel).
   useEffect(() => {
@@ -136,7 +141,10 @@ export function PreviewPane({ store }: { store: WorkspaceStore }) {
             title={`Preview of port ${port}`}
             sandbox={noJs ? SANDBOX.replace("allow-scripts ", "") : SANDBOX}
             referrerPolicy="no-referrer"
-            onLoad={() => setLoaded(true)}
+            onLoad={() => {
+              if (clearFirst && port !== null) clearedPorts.add(port);
+              setLoaded(true);
+            }}
             style={{ width: width === "fit" ? "100%" : `${width}px` }}
             className={`mx-auto block h-full border-0 bg-white ${loaded ? "" : "invisible"}`}
           />

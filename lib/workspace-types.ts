@@ -86,10 +86,17 @@ export interface PortInfo {
   bind?: string;
   process?: string;
   framable?: boolean;
-  reason?: string;
+  reason?: string | null;
   label?: string;
   /** Why it isn't the number the server asked for. */
-  note?: string;
+  note?: string | null;
+  /** The number inside the sandbox (the same unless note says why). */
+  target?: number;
+  env?: string;
+  declared?: boolean;
+  preview?: boolean;
+  /** The lease last belonged to another scope: clear its site data once. */
+  clearSiteData?: boolean;
 }
 
 /** One acceptance criterion's result (§7.3). */
