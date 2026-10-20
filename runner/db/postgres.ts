@@ -175,6 +175,14 @@ export class PgAdmin {
     await this.run(fill("drop-db", { db }));
   }
 
+  /**
+   * Drops a database off the session, as its own psql, so the next reset
+   * never waits for the files of the last one to be deleted.
+   */
+  async dropDatabaseAside(db: string): Promise<void> {
+    await this.script(fill("drop-db", { db }));
+  }
+
   async dropRole(role: string): Promise<void> {
     await this.run(fill("drop-role", { role }));
   }

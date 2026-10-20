@@ -169,6 +169,7 @@ export class Databases {
   private readonly config: { sizeWarnBytes: number; sizeLimitBytes: number; parkMs: number; sizePollMs: number };
   private lastSizeCheck = 0;
   private lastParkCheck = 0;
+  private dropping: Promise<void> = Promise.resolve();
 
   constructor(options: DatabasesOptions) {
     const env = options.env ?? process.env;
@@ -478,16 +479,24 @@ export class Databases {
       rec.lastUsedAt = Date.now();
       this.save();
       // The set-aside databases go after the answer, off the clock.
-      void (async () => {
-        for (const old of later) {
-          await this.services.pg.dropDatabase(old).catch((err: Error) => this.log.warn("db.drop_failed", { db: old, error: err.message }));
-          this.active.delete(old);
-        }
-      })();
+      for (const old of later) this.dropAside(old);
       this.emit(id, { t: "db", state: "reset" });
       this.log.info("db.reset", { workspace: id, databases: done.join(" "), ms: Math.round(ms), pgMs: Math.round(pgMs) });
       return { databases: done, ms: Math.round(ms * 10) / 10 };
     });
+  }
+
+  /**
+   * Drops set-aside databases one at a time, beside the admin session rather
+   * than in it, and a moment later, so a burst of resets doesn't share the
+   * disk with the drops.
+   */
+  private dropAside(db: string) {
+    this.dropping = this.dropping
+      .then(() => new Promise((resolve) => setTimeout(resolve, 2_000).unref()))
+      .then(() => this.services.pg.dropDatabaseAside(db))
+      .catch((err: Error) => this.log.warn("db.drop_failed", { db, error: err.message }))
+      .finally(() => this.active.delete(db));
   }
 
   /** Removes a workspace's databases, role, user, and parked dumps (DELETE /v1/workspaces/:id). */
@@ -768,7 +777,7 @@ export class Databases {
     }
     const db = which === "test" ? dbs[1] : dbs[0];
     if (!db) throw new DbError(409, "no_database", "This workspace has no test database.");
-    if (rec.blocked?.includes(db)) throw new DbError(409, "db_blocked", "This database passed its 1 GB limit and was closed. Reset the database to keep going.");
+    if (rec.blocked?.includes(db)) throw new DbError(409, "db_blocked", `This database passed its ${mb(this.config.sizeLimitBytes)} limit and was closed. Reset the database to keep going.`);
     return { rec, kind, db };
   }
 
@@ -954,6 +963,7 @@ export class Databases {
   }
 
   async shutdown(): Promise<void> {
+    await this.dropping;
     await this.clients.shutdown();
     await this.services.shutdown();
   }
