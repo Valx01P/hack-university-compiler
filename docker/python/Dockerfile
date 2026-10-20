@@ -73,6 +73,7 @@ COPY --from=templates . /tmp/templates/
 RUN set -eu; \
     find /tmp/templates -name uv.lock | sort | while read -r lock; do \
       dir=$(dirname "$lock"); \
+      if [ ! -f "$dir/pyproject.toml" ]; then echo "skipped, no pyproject.toml: ${dir#/tmp/templates/}"; continue; fi; \
       echo "template lockfile: ${dir#/tmp/templates/}"; \
       (cd "$dir" && UV_PROJECT_ENVIRONMENT=/tmp/venv /opt/hu/uv/uv sync --frozen --all-groups --no-install-project); \
       rm -rf /tmp/venv; \

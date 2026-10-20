@@ -71,12 +71,18 @@ RUN set -eu; \
 
 # Every template's lockfile, from the templates build context the runner
 # stages (content/workspaces/{web,react,nextjs,express}/**, beside its
-# package.json).
+# package.json). A checkpoint overlay may change the lockfile alone, so a
+# lockfile with no package.json beside it gets one written from its root entry.
 COPY --from=templates . /tmp/templates/
 RUN set -eu; \
     find /tmp/templates -name package-lock.json | sort | while read -r lock; do \
       dir=$(dirname "$lock"); \
       echo "template lockfile: ${dir#/tmp/templates/}"; \
+      [ -f "$dir/package.json" ] || node -e ' \
+        const root = require(process.argv[1]).packages[""]; \
+        const keys = ["name", "version", "dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]; \
+        require("fs").writeFileSync(process.argv[2], JSON.stringify(Object.fromEntries(keys.map((k) => [k, root[k]])))); \
+      ' "$lock" "$dir/package.json"; \
       (cd "$dir" && npm ci --ignore-scripts --no-audit --no-fund --cache /opt/hu/npm-cache > /dev/null); \
       rm -rf "$dir/node_modules"; \
     done
