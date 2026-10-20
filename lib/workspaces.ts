@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "fs";
 import path from "path";
 import * as z from "zod";
 import { getCourseEntry } from "@/lib/courses";
-import { getLesson } from "@/lib/learn";
+import { getCourseDir, getLesson } from "@/lib/learn";
 import type { StartingTree, WorkspaceProps, WorkspaceTemplateInfo } from "@/lib/workspace-types";
 import { isScope, parseScope, workspaceId } from "@/lib/workspace-id.mjs";
 import { checkpointLayers, layerTree, listTemplates, readTemplate, sortedEntries, templateDir, treeHash } from "@/lib/workspace-layers.mjs";
@@ -128,19 +128,18 @@ export async function resolveScope(scope: string): Promise<ResolvedScope> {
     }
     case "learn": {
       const lesson = await getLesson(course, parsed.lesson);
+      const lessons = await getCourseDir(course);
       const step = lesson?.steps[parsed.part - 1];
       if (!lesson || !step) throw new ScopeError("There's no such part.");
       const templateId = lesson.template;
       if (!templateId) throw new ScopeError("That part has no codebase.");
       const partDir = `${parsed.lesson}/part-${parsed.part}`;
+      // The part's own folder: content/learn/<course>/<lesson>/part-<n>, or a draft's.
+      const here = (...more: string[]) => existsSync(path.join(lessons, parsed.lesson, `part-${parsed.part}`, ...more));
       if (parsed.tab === "practice") {
         const practice = step.practice as unknown as { workspace?: { checkpoint?: string } };
-        const starter = exists("content", "learn", course, parsed.lesson, `part-${parsed.part}`, "practice", "starter")
-          ? [`@learn/${course}/${partDir}/practice/starter`]
-          : [];
-        const suite = exists("content", "learn", course, parsed.lesson, `part-${parsed.part}`, "practice", "checks", "suite.json")
-          ? `learn/${course}/${partDir}/practice/checks`
-          : null;
+        const starter = here("practice", "starter") ? [`@learn/${course}/${partDir}/practice/starter`] : [];
+        const suite = here("practice", "checks", "suite.json") ? `learn/${course}/${partDir}/practice/checks` : null;
         return done(templateId, practice.workspace?.checkpoint, starter, suite);
       }
       // A run example's own workspace, or (in templates that share one) the
@@ -151,7 +150,7 @@ export async function resolveScope(scope: string): Promise<ResolvedScope> {
       const k = examples.indexOf(example) + 1;
       const overlay = example.workspace?.overlay;
       const extra = !overlay
-        ? exists("content", "learn", course, parsed.lesson, `part-${parsed.part}`, `example-${k}`)
+        ? here(`example-${k}`)
           ? [`@learn/${course}/${partDir}/example-${k}`]
           : []
         : overlay.startsWith("examples/")

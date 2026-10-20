@@ -43,7 +43,7 @@ export function StatusPill({ store }: { store: WorkspaceStore }) {
   }
   const mem = store.status === "running" && store.mem ? `${store.mem.usedMb} MB` : "";
   return (
-    <span title={hint} className="inline-flex w-44 shrink-0 items-center gap-1.5 overflow-hidden px-1 font-mono text-xs text-ink-faint" role="status">
+    <span title={hint} className="inline-flex w-32 shrink-0 items-center gap-1.5 overflow-hidden px-1 font-mono text-xs text-ink-faint @3xl:w-56" role="status">
       <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${on ? "bg-gold" : "border border-ink-faint"}`} />
       <span className="truncate">{label}</span>
       {mem && <span className="shrink-0 text-ink-faint">· {mem}</span>}

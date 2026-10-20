@@ -9,6 +9,7 @@ import { Explorer } from "@/components/ide/explorer";
 import { PreviewPane } from "@/components/ide/preview-pane";
 import { QuickOpen } from "@/components/ide/quick-open";
 import { ResetMenu } from "@/components/ide/reset-menu";
+import { checkSummary } from "@/components/ide/results-panel";
 import { StatusPill } from "@/components/ide/status-pill";
 import type { TerminalHandle } from "@/components/ide/terminal-view";
 import { ResizeHandle } from "@/components/ui/resize-handle";
@@ -77,7 +78,8 @@ export function WorkspaceView({
   toolbarEnd?: React.ReactNode;
   /** Where Next goes once every check passes. */
   next?: { href: string; label: string } | null;
-  onCheckDone?: (passed: boolean) => void;
+  /** A check finished: whether every criterion passed, and how many did. */
+  onCheckDone?: (passed: boolean, summary: string) => void;
   className?: string;
 }) {
   const store = useMemo(() => storeFor(props), [props]);
@@ -177,7 +179,7 @@ export function WorkspaceView({
   useEffect(() => {
     if (store.check === lastCheck.current) return;
     lastCheck.current = store.check;
-    if (store.check.status === "done") onCheckDone?.(store.check.result.status === "passed");
+    if (store.check.status === "done") onCheckDone?.(store.check.result.status === "passed", checkSummary(store.check.result.tests));
   });
 
   const run = useCallback(async () => {
