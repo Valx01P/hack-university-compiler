@@ -559,7 +559,7 @@ export function PartView({
       <div
         ref={editorRef}
         data-editor-pane
-        className="flex h-[88dvh] min-h-[30rem] min-w-0 scroll-mt-(--header-h) flex-col p-2 lg:h-auto lg:min-h-0"
+        className="flex h-[88dvh] min-h-[30rem] min-w-0 scroll-mt-[calc(4rem+1px)] flex-col p-2 lg:h-auto lg:min-h-0"
       >
         {/* The padding (offset by the negative margins) leaves room for focus
             rings inside these scrolling rows, the thicker super-contrast ring
@@ -771,7 +771,7 @@ export function PartView({
             </div>
           </div>
 
-          <div ref={outputRef} className="mt-2 flex min-h-[9rem] flex-[2] scroll-mb-2 scroll-mt-(--header-h) flex-col">
+          <div ref={outputRef} className="mt-2 flex min-h-[9rem] flex-[2] scroll-mb-2 scroll-mt-[calc(4rem+1px)] flex-col">
             <div className="flex shrink-0 items-center gap-1 pb-2">
               <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
                 {panel.mode === "check" ? "Results" : "Output"}

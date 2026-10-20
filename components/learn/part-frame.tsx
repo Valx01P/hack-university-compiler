@@ -24,7 +24,7 @@ export interface PartLink {
 // Where #example (and #example-2, #example-3), #practice, and #recap land:
 // clear of the sticky header when the page scrolls, a little below the top
 // of the lesson column.
-export const PLACE_MARGIN = "scroll-mt-[calc(var(--header-h)_+_1rem)] lg:scroll-mt-4";
+export const PLACE_MARGIN = "scroll-mt-[calc(4rem+1rem)] lg:scroll-mt-4";
 export const CODE_BLOCK =
   "code-dark slim-scroll overflow-x-auto rounded-card border border-code-content-line bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink";
 // Where each example sits in the part: #example, then #example-2 and
