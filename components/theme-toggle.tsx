@@ -95,7 +95,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                 open ? "text-ink" : "text-ink-muted hover:text-ink"
               }`
             : `inline-flex size-9 items-center justify-center rounded-btn transition-colors ${
-                open ? "bg-raised text-ink" : "text-ink-muted hover:bg-raised hover:text-ink"
+                open ? "bg-highlight text-ink" : "text-ink-muted hover:bg-highlight hover:text-ink"
               }`
         }
       >
@@ -134,7 +134,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                       className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
                         active
                           ? "text-ink dark:text-gold"
-                          : "text-ink-muted hover:bg-raised hover:text-ink"
+                          : "text-ink-muted hover:bg-highlight hover:text-ink"
                       }`}
                     >
                       <ThemeIcon id={t.id} className="size-4 shrink-0" />
@@ -252,7 +252,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                 role="menuitemcheckbox"
                 aria-checked={commentsShown}
                 onClick={() => setCodeCommentsHidden(commentsShown)}
-                className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+                className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -311,7 +311,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                 role="menuitemcheckbox"
                 aria-checked={starsOn}
                 onClick={() => setStarsOn(!starsOn)}
-                className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+                className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
               >
                 <svg
                   viewBox="0 0 24 24"

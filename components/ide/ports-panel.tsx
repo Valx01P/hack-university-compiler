@@ -17,7 +17,7 @@ export function PortsPanel({ store }: { store: WorkspaceStore }) {
   const [copied, setCopied] = useState<number | null>(null);
   const ports = [...store.ports.values()].sort((a, b) => a.port - b.port);
   const host = typeof window === "undefined" ? "localhost" : window.location.hostname;
-  const btn = "rounded-btn border border-edge-strong px-2 py-0.5 text-xs font-medium text-ink transition-colors hover:bg-raised";
+  const btn = "rounded-btn border border-edge-strong px-2 py-0.5 text-xs font-medium text-ink transition-colors hover:bg-highlight";
   if (!ports.length) {
     return (
       <p className="p-4 text-sm text-ink-faint">

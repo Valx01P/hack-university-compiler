@@ -110,7 +110,7 @@ export function ResetMenu({ store, className }: { store: WorkspaceStore; classNa
     if (scope === "all" && snapshot) setUndo(snapshot);
   }
 
-  const item = "flex w-full items-center justify-between gap-3 rounded-btn px-2.5 py-1.5 text-left text-[13px] text-ink-muted hover:bg-raised hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent";
+  const item = "flex w-full items-center justify-between gap-3 rounded-btn px-2.5 py-1.5 text-left text-[13px] text-ink-muted hover:bg-highlight hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent";
   const fileChanged = active ? store.nodes.get(active)?.state === "modified" || store.buffers.get(active)?.dirty : false;
   const inOriginal = active ? store.props.tree.entries.some((e) => e.path === active) : false;
   const hasDb = store.props.template.services.length > 0;
@@ -138,7 +138,7 @@ export function ResetMenu({ store, className }: { store: WorkspaceStore; classNa
             setUndo(null);
             await store.restoreSnapshot(sid);
           }}
-          className="shrink-0 rounded-btn border border-line-strong px-2 py-1 text-xs font-medium text-ink hover:bg-raised"
+          className="shrink-0 rounded-btn border border-line-strong px-2 py-1 text-xs font-medium text-ink hover:bg-highlight"
         >
           Undo reset
         </button>
@@ -159,7 +159,7 @@ export function ResetMenu({ store, className }: { store: WorkspaceStore; classNa
                 <p className="mt-1 text-xs text-ink-faint">A save point is taken first, so Undo brings your version back.{hasDb ? " The database goes back to its starting rows too." : ""}</p>
               )}
               <div className="mt-3 flex justify-end gap-2">
-                <button type="button" onClick={() => setConfirm(null)} className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:bg-raised hover:text-ink">
+                <button type="button" onClick={() => setConfirm(null)} className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:bg-highlight hover:text-ink">
                   Cancel
                 </button>
                 <button type="button" onClick={() => void doReset(confirm)} className="rounded-btn border border-edge-strong px-3 py-1.5 text-xs font-medium btn-grad">
@@ -209,7 +209,7 @@ export function ResetMenu({ store, className }: { store: WorkspaceStore; classNa
                   disabled={offline}
                   className="field min-w-0 flex-1 rounded-btn px-2 py-1 text-base sm:text-xs"
                 />
-                <button type="submit" disabled={offline} className="rounded-btn border border-edge-strong px-2 py-1 text-xs font-medium text-ink hover:bg-raised disabled:opacity-40">
+                <button type="submit" disabled={offline} className="rounded-btn border border-edge-strong px-2 py-1 text-xs font-medium text-ink hover:bg-highlight disabled:opacity-40">
                   Save
                 </button>
               </form>

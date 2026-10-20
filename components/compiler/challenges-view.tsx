@@ -102,7 +102,7 @@ export function ChallengeList({
                     <button
                       type="button"
                       onClick={() => onOpen(c.id)}
-                      className="flex w-full items-center gap-2.5 rounded-btn px-2 py-1.5 text-left text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+                      className="flex w-full items-center gap-2.5 rounded-btn px-2 py-1.5 text-left text-sm text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
                     >
                       <StatusIcon id={c.id} progress={progress} />
                       <span className="min-w-0 flex-1 truncate">{c.title}</span>
@@ -160,7 +160,7 @@ export function ChallengeDetail({
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 rounded-btn px-1.5 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+          className="inline-flex items-center gap-1.5 rounded-btn px-1.5 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
         >
           <List className="size-3.5" aria-hidden />
           All challenges
@@ -172,7 +172,7 @@ export function ChallengeDetail({
               onClick={onPrevious}
               title={previous.title}
               aria-label={`Previous challenge: ${previous.title}`}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-highlight"
             >
               <ArrowLeft className="size-3.5 shrink-0" aria-hidden />
               Previous
@@ -184,7 +184,7 @@ export function ChallengeDetail({
               onClick={onNext}
               title={next.title}
               className={`inline-flex min-w-0 items-center gap-1.5 rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium ${
-                solved ? "btn-grad" : "text-ink transition-colors hover:bg-raised"
+                solved ? "btn-grad" : "text-ink transition-colors hover:bg-highlight"
               }`}
             >
               <span className="truncate">Next: {next.title}</span>
@@ -225,7 +225,7 @@ export function ChallengeDetail({
               <button
                 type="button"
                 onClick={() => setHints((n) => n + 1)}
-                className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+                className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
               >
                 {hints === 0 ? "Show a hint" : `Another hint (${hints}/${challenge.hints.length})`}
               </button>

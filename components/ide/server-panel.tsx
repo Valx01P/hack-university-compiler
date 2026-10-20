@@ -26,7 +26,7 @@ export function ServerPanel({ store }: { store: WorkspaceStore }) {
   const state = name ? store.tasks.get(name) : undefined;
   const live = state?.state === "running" || state?.state === "starting";
   const offline = store.runner === "offline";
-  const btn = "rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised disabled:opacity-50";
+  const btn = "rounded-btn border border-edge-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-highlight disabled:opacity-50";
 
   if (!task) return <p className="p-4 text-sm text-ink-faint">This workspace has no tasks to run.</p>;
   const status =

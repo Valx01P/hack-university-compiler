@@ -157,7 +157,7 @@ export function ApiPanel({ store }: { store: WorkspaceStore }) {
                   type="button"
                   onClick={() => load(file, req)}
                   title={`${req.method} ${req.url}`}
-                  className="flex w-full items-baseline gap-2 px-3 py-1 text-left text-ink-muted hover:bg-raised hover:text-ink"
+                  className="flex w-full items-baseline gap-2 px-3 py-1 text-left text-ink-muted hover:bg-highlight hover:text-ink"
                 >
                   <span className="w-11 shrink-0 font-mono text-[11px] font-semibold text-ink">{req.method}</span>
                   <span className="min-w-0 truncate">{req.title}</span>
@@ -242,14 +242,14 @@ export function ApiPanel({ store }: { store: WorkspaceStore }) {
               </span>
               {response.timingMs !== undefined && <span className="text-ink-faint">{response.timingMs} ms</span>}
               <span className="text-ink-faint">{response.size ?? response.body.length} bytes</span>
-              <button type="button" onClick={() => void navigator.clipboard?.writeText(response.curl)} className="ms-auto rounded-btn px-2 py-0.5 text-ink-muted hover:bg-raised hover:text-ink">
+              <button type="button" onClick={() => void navigator.clipboard?.writeText(response.curl)} className="ms-auto rounded-btn px-2 py-0.5 text-ink-muted hover:bg-highlight hover:text-ink">
                 Copy as curl
               </button>
               {response.cookies && response.cookies.length > 0 && (
                 <button
                   type="button"
                   onClick={() => void workspaceApi.clearCookies(store.id).then(() => store.announce("Cleared the API panel's cookies"))}
-                  className="rounded-btn px-2 py-0.5 text-ink-muted hover:bg-raised hover:text-ink"
+                  className="rounded-btn px-2 py-0.5 text-ink-muted hover:bg-highlight hover:text-ink"
                 >
                   Clear cookies
                 </button>

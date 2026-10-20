@@ -137,7 +137,7 @@ export function PartNav({ prev, next, glow = 0 }: { prev: PartLink | null; next:
             href={prev.href}
             aria-label={`${prev.lesson ? "Previous lesson" : "Previous part"}: ${prev.title}`}
             title={prev.title}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
           >
             <ArrowLeft className="size-4" aria-hidden />
             Previous
@@ -148,7 +148,7 @@ export function PartNav({ prev, next, glow = 0 }: { prev: PartLink | null; next:
             href={next.href}
             aria-label={nextLabel(next)}
             title={next.title}
-            className="relative inline-flex min-w-0 items-center gap-1.5 rounded-btn border border-line-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-raised"
+            className="relative inline-flex min-w-0 items-center gap-1.5 rounded-btn border border-line-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-highlight"
           >
             {glow > 0 && <span key={glow} aria-hidden className="next-glow pointer-events-none absolute -inset-px rounded-btn" />}
             <span className="min-w-0 truncate">{nextLabel(next)}</span>

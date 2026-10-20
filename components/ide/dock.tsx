@@ -83,7 +83,7 @@ export function Dock({
     tabRefs.current.get(tab.id)?.focus();
   }
 
-  const iconBtn = "inline-flex size-6 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink";
+  const iconBtn = "inline-flex size-6 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-highlight hover:text-ink";
   const taskRunning = [...store.tasks.values()].some((t) => t.state === "running" || t.state === "starting");
 
   return (
@@ -116,7 +116,7 @@ export function Dock({
                     e.preventDefault();
                   }}
                   className={`inline-flex items-center gap-1.5 rounded-btn px-2 py-1 text-xs font-medium uppercase tracking-wider transition-colors ${
-                    selected ? "bg-raised text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
+                    selected ? "bg-highlight text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
                   }`}
                 >
                   {tab.label}

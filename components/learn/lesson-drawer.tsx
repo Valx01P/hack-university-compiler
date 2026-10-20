@@ -119,7 +119,7 @@ export function LessonDrawer({
           onClick={onClose}
           aria-label="Close the lesson list"
           title="Close the lesson list"
-          className="absolute right-2 top-2 z-10 inline-flex size-7 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink"
+          className="absolute right-2 top-2 z-10 inline-flex size-7 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-highlight hover:text-ink"
         >
           <X className="size-4" aria-hidden />
         </button>

@@ -155,7 +155,7 @@ export function LessonList({
                 <div key={l.id}>
                   <div
                     className={`flex items-start rounded-btn transition-colors ${
-                      current ? "bg-raised" : "hover:bg-raised"
+                      current ? "bg-highlight" : "hover:bg-highlight"
                     }`}
                   >
                     <Link
@@ -206,8 +206,8 @@ export function LessonList({
                               aria-current={here ? "page" : undefined}
                               className={`flex items-start gap-2 rounded-btn px-2 py-1 text-[13px] leading-5 transition-colors ${
                                 here
-                                  ? "bg-raised font-medium text-ink dark:text-gold"
-                                  : "text-ink-muted hover:bg-raised hover:text-ink"
+                                  ? "bg-highlight font-medium text-ink dark:text-gold"
+                                  : "text-ink-muted hover:bg-highlight hover:text-ink"
                               }`}
                             >
                               {partSolved ? (
@@ -350,7 +350,7 @@ function CourseLink({
       aria-label={`Learn ${label}`}
       aria-current={current ? "true" : undefined}
       className={`flex aspect-square w-full items-center justify-center rounded-btn transition-colors ${
-        current ? "bg-raised text-ink dark:text-gold" : "text-ink-muted hover:bg-raised hover:text-ink"
+        current ? "bg-highlight text-ink dark:text-gold" : "text-ink-muted hover:bg-highlight hover:text-ink"
       }`}
     >
       <LangIcon slug={slug} className="size-4" />

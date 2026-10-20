@@ -202,7 +202,7 @@ export function LearnShell({
               aria-expanded={shown}
               aria-label={shown ? "Hide the lesson list" : "Show the lesson list"}
               title={shown ? "Hide the lesson list" : "Show the lesson list"}
-              className="-ml-1 inline-flex size-7 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink"
+              className="-ml-1 inline-flex size-7 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-highlight hover:text-ink"
             >
               {/* Which icon depends on the screen: the docked sidebar starts
                   open, the drawer starts closed. CSS picks, so the first

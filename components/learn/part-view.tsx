@@ -481,7 +481,7 @@ export function PartView({
   const tabLabel = (kind: TabKind) =>
     kind === "practice" ? "Your code" : examples.length > 1 ? `Example ${EXAMPLE_TABS.indexOf(kind) + 1}` : "Example";
   const iconBtn =
-    "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink";
+    "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-highlight hover:text-ink";
 
   return (
     <div
@@ -585,7 +585,7 @@ export function PartView({
                   onClick={() => openTab(kind)}
                   onKeyDown={(e) => onTabKeyDown(e, i)}
                   className={`inline-flex shrink-0 items-center gap-1.5 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider transition-colors ${
-                    selected ? "bg-raised text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
+                    selected ? "bg-highlight text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
                   }`}
                 >
                   {tabLabel(kind)}
@@ -662,7 +662,7 @@ export function PartView({
                     onClick={run}
                     disabled={busy}
                     aria-busy={busyTab === "practice" && panel.mode === "run"}
-                    className="shrink-0 rounded-btn border border-edge-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-raised disabled:opacity-50"
+                    className="shrink-0 rounded-btn border border-edge-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-highlight disabled:opacity-50"
                   >
                     ▶ Run
                   </button>
@@ -1071,7 +1071,7 @@ function PartSection({
                 revealed.current = { target: "hint", scroll: e.detail === 0 };
                 setHintsShown((n) => n + 1);
               }}
-              className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+              className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
             >
               {hintsShown === 0 ? "Show a hint" : `Another hint (${hintsShown}/${hints.length})`}
             </button>
@@ -1084,7 +1084,7 @@ function PartSection({
                 setSolution(solution === "armed" ? "shown" : "armed");
               }}
               onBlur={() => solution === "armed" && setSolution("hidden")}
-              className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+              className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
             >
               {solution === "armed" ? "Click again to show the solution" : "Show solution"}
             </button>

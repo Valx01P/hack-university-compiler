@@ -51,7 +51,7 @@ export function AnswerToggle({
       aria-pressed={shown}
       aria-label={label}
       title={label}
-      className={`${className} ${armed ? "answer-armed" : ""} ${shown ? "bg-raised text-ink" : ""}`}
+      className={`${className} ${armed ? "answer-armed" : ""} ${shown ? "bg-highlight text-ink" : ""}`}
     >
       {shown ? <Eye className="size-[18px]" aria-hidden /> : <EyeClosed className="size-[18px]" aria-hidden />}
     </button>

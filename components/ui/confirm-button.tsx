@@ -131,7 +131,7 @@ export function ConfirmButton({
               ref={cancelRef}
               type="button"
               onClick={closeAndRefocus}
-              className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+              className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
             >
               Cancel
             </button>

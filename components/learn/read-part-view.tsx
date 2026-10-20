@@ -128,7 +128,7 @@ export function ReadPartView({
                 title={full ? "Exit full screen" : "Full screen"}
                 aria-label="Toggle full screen"
                 aria-pressed={full}
-                className="inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+                className="inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
               >
                 <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />

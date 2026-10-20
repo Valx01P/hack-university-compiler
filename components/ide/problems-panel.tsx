@@ -20,7 +20,7 @@ export function ProblemsPanel({ store }: { store: WorkspaceStore }) {
             <button
               type="button"
               onClick={() => store.openFile(file, { line: d.line })}
-              className="flex w-full items-baseline gap-2 px-3 py-1 text-left hover:bg-raised"
+              className="flex w-full items-baseline gap-2 px-3 py-1 text-left hover:bg-highlight"
             >
               <span className={`w-12 shrink-0 font-medium ${d.severity === "error" ? "text-ink" : "text-ink-faint"}`}>{d.severity}</span>
               <span className="min-w-0 flex-1 text-ink-muted">

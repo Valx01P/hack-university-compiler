@@ -99,7 +99,7 @@ export function DatabasePanel({ store }: { store: WorkspaceStore }) {
     setBusy(false);
   }
 
-  const btn = "inline-flex items-center gap-1 rounded-btn border border-edge-strong px-2 py-0.5 text-xs font-medium text-ink transition-colors hover:bg-raised disabled:opacity-40";
+  const btn = "inline-flex items-center gap-1 rounded-btn border border-edge-strong px-2 py-0.5 text-xs font-medium text-ink transition-colors hover:bg-highlight disabled:opacity-40";
   const tables = schema?.engine === "postgres" ? schema.tables : [];
   const collections = schema?.engine === "mongo" ? schema.collections : [];
   const name = (t: { schema: string; name: string }) => (t.schema === "public" ? t.name : `${t.schema}.${t.name}`);
@@ -159,7 +159,7 @@ export function DatabasePanel({ store }: { store: WorkspaceStore }) {
                     type="button"
                     onClick={() => setOpen(expanded ? null : key)}
                     aria-expanded={expanded}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-raised"
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-highlight"
                   >
                     <ChevronRight className={`size-3.5 shrink-0 text-ink-faint transition-transform ${expanded ? "rotate-90" : ""}`} aria-hidden />
                     {t.kind === "table" ? <Table2 className="size-3.5 shrink-0 text-ink-faint" aria-hidden /> : <Eye className="size-3.5 shrink-0 text-ink-faint" aria-hidden />}
@@ -246,7 +246,7 @@ export function DatabasePanel({ store }: { store: WorkspaceStore }) {
                     type="button"
                     onClick={() => setOpen(expanded ? null : c.name)}
                     aria-expanded={expanded}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-raised"
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-highlight"
                   >
                     <ChevronRight className={`size-3.5 shrink-0 text-ink-faint transition-transform ${expanded ? "rotate-90" : ""}`} aria-hidden />
                     <Table2 className="size-3.5 shrink-0 text-ink-faint" aria-hidden />

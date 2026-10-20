@@ -253,7 +253,7 @@ export function WorkspaceView({
     return () => window.removeEventListener("keydown", onKey);
   }, [store, run, check, tpl.checks, focusTerminal]);
 
-  const iconBtn = "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink";
+  const iconBtn = "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-highlight hover:text-ink";
   const previewOpen = store.preview.open && store.preview.port !== null;
   const checkBusy = store.check.status === "running";
   const ideStyle = {
@@ -313,7 +313,7 @@ export function WorkspaceView({
               aria-busy={runState === "starting"}
               title={offline ? store.runnerMessage : running ? `Restart ${runName}` : `Run ${tpl.tasks.find((t) => t.name === runName)?.cmd ?? runName}`}
               className={`shrink-0 rounded-btn border border-edge-strong px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
-                tpl.checks ? "text-ink hover:bg-raised" : "btn-grad px-4"
+                tpl.checks ? "text-ink hover:bg-highlight" : "btn-grad px-4"
               }`}
             >
               ▶ Run
@@ -350,7 +350,7 @@ export function WorkspaceView({
             role="tab"
             aria-selected={mobile === r}
             onClick={() => setMobile(r as typeof mobile)}
-            className={`rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider ${mobile === r ? "bg-raised text-ink dark:text-gold" : "text-ink-faint"}`}
+            className={`rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider ${mobile === r ? "bg-highlight text-ink dark:text-gold" : "text-ink-faint"}`}
           >
             {r === "files" ? "Files" : r === "code" ? "Code" : r === "dock" ? "Terminal" : "Preview"}
           </button>
@@ -469,7 +469,7 @@ function SettingRow({ label, hint, on, onToggle }: { label: string; hint?: strin
       role="switch"
       aria-checked={on}
       onClick={onToggle}
-      className="-mx-1 flex w-[calc(100%+0.5rem)] items-center justify-between gap-4 rounded-btn px-1 py-0.5 text-left transition-colors hover:bg-raised"
+      className="-mx-1 flex w-[calc(100%+0.5rem)] items-center justify-between gap-4 rounded-btn px-1 py-0.5 text-left transition-colors hover:bg-highlight"
     >
       <span>
         <span className="block text-ink-muted">{label}</span>

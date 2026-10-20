@@ -59,7 +59,7 @@ export function PreviewPane({ store }: { store: WorkspaceStore }) {
     setAddress(p);
     setLoaded(false);
   };
-  const btn = "inline-flex size-6 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink disabled:opacity-40";
+  const btn = "inline-flex size-6 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-highlight hover:text-ink disabled:opacity-40";
   const listening = info?.state === "listening";
   const refused = info?.framable === false;
 
@@ -112,7 +112,7 @@ export function PreviewPane({ store }: { store: WorkspaceStore }) {
             setLoaded(false);
           }}
           title="Reload without JavaScript: only what the server rendered"
-          className={`rounded-btn px-1.5 py-0.5 text-xs font-medium transition-colors ${noJs ? "bg-raised text-ink" : "text-ink-faint hover:text-ink"}`}
+          className={`rounded-btn px-1.5 py-0.5 text-xs font-medium transition-colors ${noJs ? "bg-highlight text-ink" : "text-ink-faint hover:text-ink"}`}
         >
           No JS
         </button>
