@@ -1,0 +1,97 @@
+{
+  "id": "semantic-html",
+  "title": "Semantic HTML and Forms",
+  "section": "HTML and CSS",
+  "summary": "Write pages whose elements say what they are, and forms that work with a keyboard, a screen reader, and a test before any script runs.",
+  "format": "read",
+  "intro": "Your markup is the contract between the design, the scripts, the tests, and the assistive technology your users run. Pick the element that says what a thing is, and the browser gives you keyboard support, names for screen readers, and landmarks to jump between, all for free. This lesson reads the two pages this course's codebases start from, line by line, the way you would review markup on a real team.",
+  "steps": [
+    {
+      "title": "A complete document",
+      "body": "Every page starts with the same skeleton, and each line has a job:\n\n- `<!DOCTYPE html>` puts the browser in standards mode. Without it, the page renders in quirks mode, with decades-old layout bugs kept on purpose.\n- `lang` on `html` picks the screen reader's voice, hyphenation, and spell checking.\n- `<meta charset=\"utf-8\">` comes first in `head`, so the browser decodes every byte after it correctly.\n- The viewport tag makes a phone lay the page out at its real width instead of a zoomed-out desktop width. Media queries depend on it.\n- `title` names the tab, bookmarks, and search results. A `meta name=\"description\"` gives search results their snippet.\n\nA script with `type=\"module\"` is deferred: it runs once the whole document is parsed, so it can sit in `head` and still find every element. Modules also run in strict mode and use `import` and `export`, and each file's names stay private unless it exports them.",
+      "examples": [
+        {
+          "title": "The playground's head",
+          "prompt": "The start of the playground page. Read it top to bottom: encoding, viewport, title, icon, styles, then the module script.",
+          "language": "html",
+          "file": "index.html",
+          "code": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Web playground</title>\n    <link rel=\"icon\" href=\"/favicon.svg\" type=\"image/svg+xml\">\n    <link rel=\"stylesheet\" href=\"/src/main.css\">\n    <script type=\"module\" src=\"/src/main.js\"></script>\n  </head>",
+          "explanation": "This is the page's whole contract with the browser, before any content. `charset` comes first because the browser needs it before it reads any text. The viewport tag is what lets the stylesheet's sizes and media queries see a phone's real width. The icon is an SVG, so it stays sharp at every size. And `type=\"module\"` makes the script wait until the parser is done, so it can live in `head`, start downloading early, and still find every element without a `DOMContentLoaded` listener."
+        }
+      ],
+      "codebase": {
+        "template": "web-playground",
+        "files": [
+          "index.html"
+        ]
+      }
+    },
+    {
+      "title": "Landmarks and structure",
+      "body": "Screen reader users move around a page by its landmarks and headings, the way sighted users scan it. Landmarks come from elements: `main` is the main content (one per page), `nav` is a group of links, and `header` and `footer` at the top level of `body` are the page's banner and footer. Name a landmark with `aria-label` when a page could have more than one of its kind, such as two `nav` elements.\n\nUse one `h1`, then `h2` and `h3` in order, without skipping levels. A list of things is a `ul` or an `ol`, so a screen reader announces \"list, 3 items\". Actions are `button` elements and navigation is `a href`. A `div` with a click handler gets no focus, no Enter or Space, and no role.\n\nTwo more built-ins carry a lot of weight. The `hidden` attribute removes an element from the page and from screen readers. A `template` holds markup that is parsed but never shown, until a script clones it.",
+      "examples": [
+        {
+          "title": "The tasks app shell",
+          "prompt": "The body of the tasks app. Find the landmark, the heading, the list, and the live region that announces the count.",
+          "language": "html",
+          "file": "index.html",
+          "code": "<body>\n  <main class=\"app\">\n    <h1 class=\"app-title\">Tasks</h1>\n\n    <form id=\"new-task\" class=\"new-task\" autocomplete=\"off\">\n      <label class=\"visually-hidden\" for=\"new-task-title\">New task</label>\n      <input id=\"new-task-title\" name=\"title\" type=\"text\" placeholder=\"What needs doing?\">\n      <button type=\"submit\">Add</button>\n    </form>\n\n    <ul id=\"task-list\" class=\"task-list\" aria-label=\"Tasks\"></ul>\n\n    <!-- Hidden until the script knows there are tasks to count. -->\n    <footer id=\"task-footer\" class=\"task-footer\" hidden>\n      <span class=\"task-count\" role=\"status\"></span>\n      <nav class=\"filters\" aria-label=\"Filter tasks\">\n        <a href=\"?filter=all\" data-filter=\"all\">All</a>\n        <a href=\"?filter=active\" data-filter=\"active\">Active</a>\n        <a href=\"?filter=completed\" data-filter=\"completed\">Completed</a>\n      </nav>\n      <button id=\"clear-completed\" class=\"clear-completed\" type=\"button\">Clear completed</button>\n    </footer>\n  </main>",
+          "explanation": "`main` holds everything, under one `h1`. The list is a real `ul` with `aria-label=\"Tasks\"`, so a screen reader says what it is a list of. The `footer` is inside `main`, so it isn't a page landmark, just the list's footer, and it starts `hidden` until the script knows there is something to count. The count has `role=\"status\"`, which makes it a live region: when its text changes, screen readers announce \"1 item left\" without moving focus. The filters are plain links in a named `nav`, so they behave like links: Ctrl-click opens a new tab, and the URL can be shared."
+        },
+        {
+          "title": "A row template",
+          "prompt": "The markup for one task. It sits at the end of `body`, inside a `template`, and the script clones it once per task.",
+          "language": "html",
+          "file": "index.html",
+          "code": "<!-- One row of the list. task-view.js clones it for each task and fills it in. -->\n<template id=\"task-item\">\n  <li class=\"task\">\n    <input class=\"task-toggle\" type=\"checkbox\" data-action=\"toggle\">\n    <span class=\"task-title\"></span>\n    <input class=\"task-title-input\" type=\"text\" aria-label=\"Task title\">\n    <button class=\"task-edit\" type=\"button\" data-action=\"edit\">Edit</button>\n    <button class=\"task-delete\" type=\"button\" data-action=\"delete\">Delete</button>\n  </li>\n</template>",
+          "explanation": "Nothing inside a `template` is rendered or reaches the accessibility tree, so the page never shows an empty row. Keeping the row's markup in HTML instead of a JavaScript string keeps it readable, checked by the HTML validator, and safe from injection. Every control is a real element: a checkbox and two `button` elements with `type=\"button\"`. The edit field has an `aria-label` because it has no visible label. The `data-action` attributes tell the script what each control does."
+        }
+      ],
+      "codebase": {
+        "template": "tasks-mvc",
+        "files": [
+          "index.html"
+        ]
+      }
+    },
+    {
+      "title": "Forms that work before JavaScript",
+      "body": "A `form` gives you a lot for free. Pressing Enter in a field submits it, the browser checks `required`, `type=\"email\"`, and `minlength` before anything is sent, and with no JavaScript at all the browser still sends the data as a request. Your script builds on that behavior instead of rebuilding it.\n\nThree habits make a form solid:\n\n- Every field gets a `label`, tied to it with `for` and `id`. The label is the field's accessible name, and clicking it focuses the field. A `placeholder` is not a label: it disappears as soon as you type.\n- Every field gets a `name`. It is the key the value is sent under, and scripts read the field through `form.elements`.\n- Every `button` gets a `type`. A button inside a form defaults to `submit`, so a forgotten `type=\"button\"` submits the form by accident.\n\nWhen a design has no visible label, hide the label visually but keep it in the page. `display: none` would hide it from screen readers too.",
+      "examples": [
+        {
+          "title": "The new task form",
+          "prompt": "The form that adds a task. Look at the `label`, the input's `name`, and the button's `type`.",
+          "language": "html",
+          "file": "index.html",
+          "code": "<form id=\"new-task\" class=\"new-task\" autocomplete=\"off\">\n  <label class=\"visually-hidden\" for=\"new-task-title\">New task</label>\n  <input id=\"new-task-title\" name=\"title\" type=\"text\" placeholder=\"What needs doing?\">\n  <button type=\"submit\">Add</button>\n</form>",
+          "explanation": "The label's `for` matches the input's `id`, so the field's accessible name is \"New task\" even though the label is hidden. `name=\"title\"` is how the controller finds the field, with `form.elements.namedItem(\"title\")`. The button is `type=\"submit\"`, so Enter in the field and a click on Add both fire one `submit` event, the only event the script needs for adding. `autocomplete=\"off\"` stops the browser from suggesting old entries, which would only get in the way of a to-do list."
+        },
+        {
+          "title": "A label only screen readers see",
+          "prompt": "The class that hides the form's label. It takes the element out of sight without taking it out of the page.",
+          "language": "css",
+          "file": "src/styles/app.css",
+          "code": ".visually-hidden {\n  position: absolute;\n  inline-size: 1px;\n  block-size: 1px;\n  margin: -1px;\n  padding: 0;\n  overflow: hidden;\n  clip-path: inset(50%);\n  white-space: nowrap;\n  border: 0;\n}",
+          "explanation": "Together these rules shrink the element to one clipped pixel that takes no space, while it stays in the accessibility tree. That is why it beats `display: none` and `visibility: hidden`, which hide the label from screen readers as well. Many CSS frameworks ship the same class, named `visually-hidden` or `sr-only`. Use it for labels and headings that the layout already makes obvious to sighted users."
+        },
+        {
+          "title": "Tests that find fields by name",
+          "prompt": "The helpers and the first test in the end-to-end tests. They find elements the way a person would: by role and by accessible name.",
+          "language": "js",
+          "file": "tests/e2e/tasks.spec.js",
+          "code": "const SEED_TITLES = [\"Read the README\", \"Add your first task\", \"Try the Active filter\"];\n\nconst titles = (page) => page.locator(\"#task-list .task-title\");\nconst newTask = (page) => page.getByRole(\"textbox\", { name: \"New task\" });\nconst count = (page) => page.getByRole(\"status\");\n\ntest.beforeEach(async ({ page }) => {\n  await page.goto(\"/\");\n});\n\ntest(\"shows the sample tasks on a first visit\", async ({ page }) => {\n  await expect(titles(page)).toHaveText(SEED_TITLES);\n  await expect(page.getByRole(\"checkbox\", { name: \"Read the README\" })).toBeChecked();\n  await expect(count(page)).toHaveText(\"2 items left\");\n});",
+          "explanation": "`getByRole(\"textbox\", { name: \"New task\" })` finds the field only because the label names it. If someone deletes the label or breaks its `for`, this test fails, which is the point: it checks the page the way a screen reader reads it. The checkbox is found by its task's title, a name the list view gives it with `aria-labelledby`. Prefer roles and names for anything a person interacts with. Where the tests do use a selector, like `#task-list .task-title`, the README lists it in the page's contract, so nobody renames it by accident."
+        }
+      ],
+      "codebase": {
+        "template": "tasks-mvc",
+        "files": [
+          "index.html",
+          "src/styles/app.css",
+          "tests/e2e/tasks.spec.js"
+        ]
+      }
+    }
+  ],
+  "recap": "- Start every page with the doctype, `lang`, `charset` first, the viewport tag, a `title`, and a module script in `head`.\n- Build with elements that say what they are: one `main`, ordered headings, real lists, `button` for actions, and `a href` for navigation.\n- Name what needs a name: `aria-label` on repeated landmarks, and a live region with `role=\"status\"` for text that changes.\n- Give every field a `label` and a `name`, and every button a `type`.\n- Hide labels with a visually hidden class, never `display: none`, and find elements in tests by role and name."
+}

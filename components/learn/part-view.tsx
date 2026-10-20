@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
@@ -13,16 +12,27 @@ import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { programTypeErrors, TypeCheckStrip } from "@/components/compiler/type-check";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
 import { ResizeHandle } from "@/components/ui/resize-handle";
-import { LessonMarkdown, type RunnableContext } from "@/components/learn/lesson-md";
+import type { RunnableContext } from "@/components/learn/lesson-md";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { CompilerButton } from "@/components/learn/compiler-button";
 import { CheckResults, checkSummary, type CheckState, type TestResult } from "@/components/learn/check-results";
 import { FixtureFiles } from "@/components/learn/fixture-files";
+import {
+  CODE_BLOCK,
+  LessonEyebrow,
+  PLACE_MARGIN,
+  PartNav,
+  PartNumbers,
+  Prose,
+  exampleId,
+  nextLabel,
+  usePartPlace,
+  type PartLink,
+} from "@/components/learn/part-frame";
 import { Highlight } from "@/lib/highlight";
 import { isSql, type CompilerLang } from "@/lib/compiler";
 import type { FixtureFile } from "@/lib/learn-fixtures";
 import {
-  partHref,
   problemId,
   type ForbidRule,
   type Lesson,
@@ -36,14 +46,7 @@ import { joinArgs, splitArgs } from "@/lib/shell-words";
 import { forbiddenUses, judgeTest, judgeTypeTests } from "@/lib/single-checks.mjs";
 import { useEnter } from "@/lib/motion";
 import { useFullScreen } from "@/lib/full-screen";
-import { revealWorkspace, urlCount, urlParam, writeHash, writeUrl } from "@/lib/url-state";
-
-/** Where Previous or Next goes: another part of this lesson, or a lesson. */
-export interface PartLink {
-  href: string;
-  title: string;
-  lesson: boolean;
-}
+import { revealWorkspace, urlCount, urlParam, writeUrl } from "@/lib/url-state";
 
 // Each worked example has a tab of its own, then Your code (the practice).
 type TabKind = "example" | "example2" | "example3" | "practice";
@@ -55,33 +58,15 @@ type Panel = { mode: "run"; run: RunState; code?: string } | { mode: "check"; ch
 const EXAMPLE_TABS: TabKind[] = ["example", "example2", "example3"];
 // The address's ?tab for each tab (lib/url-state.ts). Example 1 has none.
 const TAB_PARAM: Record<TabKind, string | null> = { example: null, example2: "ex2", example3: "ex3", practice: "code" };
-// Where each example sits in the part: #example, then #example-2 and
-// #example-3.
-const exampleId = (i: number) => (i === 0 ? "example" : `example-${i + 1}`);
 const TIMED_OUT = "Timed out. Your code ran too long (usually an infinite loop). It was stopped.";
-const CODE_BLOCK =
-  "code-dark slim-scroll overflow-x-auto rounded-card border border-code-content-line bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink";
 
 // How much of the width the lesson gets next to the editor. Like the
 // compiler's split it lasts for the session but isn't saved, so a reload
 // never shifts.
 const SPLIT = { min: 30, max: 70, initial: 50 };
-// Where #example (and #example-2, #example-3), #practice, and #recap land:
-// clear of the sticky header when the page scrolls, a little below the top
-// of the lesson column.
-const PLACE_MARGIN = "scroll-mt-[calc(4rem+1rem)] lg:scroll-mt-4";
 // How long Next glows once your practice passes (the .next-glow animation).
 const NEXT_GLOW_MS = 3600;
 const session = { split: SPLIT.initial };
-
-/** Lesson markdown with the outer margins trimmed, for use inside cards. */
-function Prose({ md, className = "", runnable }: { md: string; className?: string; runnable?: RunnableContext }) {
-  return (
-    <div className={`text-[0.95rem] leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${className}`}>
-      <LessonMarkdown md={md} runnable={runnable} />
-    </div>
-  );
-}
 
 /**
  * One part of a lesson in Learn mode: a single idea with its worked examples
@@ -270,6 +255,8 @@ export function PartView({
 
   // The places in the part the address can point at.
   const places = [...examples.map((_, i) => exampleId(i)), "practice", "recap"];
+  const columnRef = useRef<HTMLDivElement>(null);
+  const { trackPlace, goToPlace } = usePartPlace(places, columnRef);
 
   // The address keeps your place (lib/url-state.ts): ?tab=code while you're
   // on Your code, ?tab=ex2 or ex3 on another example, and #example,
@@ -279,19 +266,10 @@ export function PartView({
   useLayoutEffect(() => {
     const restored = tabs.find((kind) => TAB_PARAM[kind] !== null && TAB_PARAM[kind] === urlParam("tab"));
     if (restored) openTab(restored, { scroll: false });
-    // A reload doesn't scroll the lesson column to the #fragment (the browser
-    // restores its old scroll instead), so go there by hand, on the next
-    // frame, once the hints restored with it are laid out: the column on
-    // wide screens, the page below that. Then show the page.
+    // Back to the #fragment on the next frame, once the hints restored with
+    // it are laid out. Then show the page.
     requestAnimationFrame(() => {
-      const place = window.location.hash.slice(1);
-      const target = places.includes(place) ? document.getElementById(place) : null;
-      const column = columnRef.current;
-      if (target && column && getComputedStyle(column).overflowY === "auto") {
-        column.scrollTop += target.getBoundingClientRect().top - column.getBoundingClientRect().top - 16;
-      } else if (target) {
-        window.scrollTo(0, window.scrollY + target.getBoundingClientRect().top - 80);
-      }
+      goToPlace();
       // A frame later, the editor has taken a restored tab's code too.
       const html = document.documentElement;
       if (html.hasAttribute("data-restore") || html.hasAttribute("data-restore-editor")) requestAnimationFrame(revealWorkspace);
@@ -302,47 +280,6 @@ export function PartView({
   useEffect(() => {
     writeUrl({ tab: TAB_PARAM[active] });
   }, [active]);
-  const columnRef = useRef<HTMLDivElement>(null);
-  const placeFrame = useRef(0);
-  const lastPlace = useRef<string | null>(null);
-  // The block at the top of the view (the lesson column scrolls on wide
-  // screens, the page below that) becomes the #fragment.
-  function trackPlace() {
-    if (placeFrame.current) return;
-    placeFrame.current = requestAnimationFrame(() => {
-      placeFrame.current = 0;
-      const column = columnRef.current;
-      const inColumn = column !== null && getComputedStyle(column).overflowY === "auto";
-      const top = inColumn ? column.getBoundingClientRect().top : 64;
-      const bottom = inColumn ? column.getBoundingClientRect().bottom : window.innerHeight;
-      // Scrolled all the way down, the last block that shows is the place,
-      // even when it can't reach the top.
-      const atEnd = inColumn
-        ? column.scrollTop > 0 && column.scrollTop + column.clientHeight >= column.scrollHeight - 2
-        : window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
-      let at = "";
-      for (const id of places) {
-        const el = document.getElementById(id);
-        if (!el) continue;
-        const elTop = el.getBoundingClientRect().top;
-        if (elTop - 32 <= top || (atEnd && elTop < bottom)) at = id;
-      }
-      if (lastPlace.current === null) lastPlace.current = window.location.hash.slice(1);
-      if (at === lastPlace.current) return;
-      lastPlace.current = at;
-      writeHash(at);
-    });
-  }
-  useEffect(() => {
-    window.addEventListener("scroll", trackPlace, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", trackPlace);
-      cancelAnimationFrame(placeFrame.current);
-      placeFrame.current = 0;
-    };
-    // trackPlace only reads refs and the DOM.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   function openTab(kind: TabKind, { scroll = true }: { scroll?: boolean } = {}) {
     setActive(kind);
@@ -543,7 +480,6 @@ export function PartView({
   // One example keeps today's "Example". Several are numbered.
   const tabLabel = (kind: TabKind) =>
     kind === "practice" ? "Your code" : examples.length > 1 ? `Example ${EXAMPLE_TABS.indexOf(kind) + 1}` : "Example";
-  const nextLabel = (link: PartLink) => `${link.lesson ? "Next lesson" : "Next"}: ${link.title}`;
   const iconBtn =
     "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink";
 
@@ -573,52 +509,10 @@ export function PartView({
             hasNav ? "max-lg:[&_:is(a,button,pre,[tabindex])]:scroll-mb-24 full:max-lg:[&_:is(a,button,pre,[tabindex])]:scroll-mb-36" : ""
           }`}
         >
-          <p className="eyebrow">
-            {lesson.section} ·{" "}
-            {/* The complete mark is always laid out (shown once complete), so it
-                never moves the page, and it can't wrap onto a line of its own:
-                a long eyebrow wraps before "Lesson". */}
-            <span className="whitespace-nowrap">
-              Lesson {position.index + 1} of {position.total}
-              <span className={`ml-1.5 inline-flex h-4 items-center align-top ${complete ? "" : "invisible"}`}>
-                <CompleteIcon className="size-3.5" />
-              </span>
-            </span>
-            {complete && <span className="sr-only"> · Complete</span>}
-          </p>
+          <LessonEyebrow section={lesson.section} position={position} complete={complete} />
           <h1 className="font-display mt-2 text-headline">{lesson.title}</h1>
 
-          {parts.length > 1 && (
-            <nav aria-label="Parts of this lesson" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-              <span className="text-xs font-medium uppercase tracking-wider text-ink-faint">
-                Part {part + 1} of {parts.length}
-              </span>
-              <ol className="flex flex-wrap items-center gap-1.5">
-                {parts.map((title, i) => {
-                  const here = i === part;
-                  const done = isSolved(i);
-                  return (
-                    <li key={i}>
-                      <Link
-                        href={partHref(lang.slug, lesson.id, i + 1)}
-                        aria-current={here ? "page" : undefined}
-                        aria-label={`Part ${i + 1}: ${title}${done ? " (solved)" : ""}`}
-                        title={title}
-                        className={`inline-flex size-7 items-center justify-center rounded-full border text-xs font-medium transition-colors ${
-                          here
-                            ? "border-ink text-ink dark:border-gold dark:text-gold"
-                            : "border-edge-strong/60 text-ink-muted hover:border-ink hover:text-ink"
-                        }`}
-                      >
-                        {/* Same size solved or not, so nothing moves when progress loads. */}
-                        {done ? <CompleteIcon className="size-5" /> : i + 1}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ol>
-            </nav>
-          )}
+          <PartNumbers lang={lang.slug} lessonId={lesson.id} parts={parts} part={part} isDone={isSolved} />
 
           {part === 0 && <Prose md={lesson.intro} className="mt-4 text-ink-muted" runnable={runnable} />}
 
@@ -639,40 +533,7 @@ export function PartView({
           )}
         </article>
 
-        {/* Floating nav through the parts, then on to the next lesson: only
-            Next at the very start of the course, only Previous at its end. In
-            full screen it sits above the floating buttons in the corners. */}
-        {hasNav && (
-          <div
-            className="pointer-events-none sticky bottom-0 z-10 flex justify-center bg-gradient-to-t from-surface from-40% to-transparent px-4 pt-8 pb-4 full:pb-16"
-          >
-            <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-card border border-line bg-surface p-1.5 shadow-(--shadow-card)">
-              {prev && (
-                <Link
-                  href={prev.href}
-                  aria-label={`${prev.lesson ? "Previous lesson" : "Previous part"}: ${prev.title}`}
-                  title={prev.title}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
-                >
-                  <ArrowLeft className="size-4" aria-hidden />
-                  Previous
-                </Link>
-              )}
-              {next && (
-                <Link
-                  href={next.href}
-                  aria-label={nextLabel(next)}
-                  title={next.title}
-                  className="relative inline-flex min-w-0 items-center gap-1.5 rounded-btn border border-line-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-raised"
-                >
-                  {nextGlow > 0 && <span key={nextGlow} aria-hidden className="next-glow pointer-events-none absolute -inset-px rounded-btn" />}
-                  <span className="min-w-0 truncate">{nextLabel(next)}</span>
-                  <ArrowRight className="size-4 shrink-0" aria-hidden />
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
+        <PartNav prev={prev} next={next} glow={nextGlow} />
       </div>
 
       <ResizeHandle

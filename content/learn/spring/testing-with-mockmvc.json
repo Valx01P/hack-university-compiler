@@ -1,0 +1,112 @@
+{
+  "id": "testing-with-mockmvc",
+  "title": "Testing the API with MockMvc",
+  "section": "Security and Testing",
+  "summary": "Test controllers with @WebMvcTest and MockMvcTester, swap services for mocks with @MockitoBean, and pick the right kind of test for each layer.",
+  "format": "read",
+  "intro": "Teams merge a change when its tests pass, so tests are how you prove a change works and keep it working after you move on. Spring has a kind of test for each layer, and the one you write most in API work is the web slice: your controller, Spring MVC, and security, with no server and no database. In this lesson you read the tests that ship with spring-blank and shopfront, see what they print, and watch one catch a planted bug.",
+  "steps": [
+    {
+      "title": "A web slice test",
+      "body": "`@WebMvcTest(HelloController.class)` starts a thin slice of the app: Spring MVC, JSON, validation, your error handling, and the one controller you name. It leaves out services, repositories, and the database, so it starts in seconds. No server opens a port either. MockMvc hands each request straight to Spring's dispatcher, the same code that handles real HTTP.\n\n`MockMvcTester`, added in Spring Framework 6.2, reads like AssertJ:\n\n```java\nassertThat(mvc.get().uri(\"/api/hello\").param(\"name\", \"Ana\"))\n        .hasStatusOk()\n        .bodyJson().extractingPath(\"$.message\").isEqualTo(\"Hello, Ana!\");\n```\n\nYou build a request, then assert on its status, headers, and JSON body. `extractingPath` picks one value with a JSON path, and `bodyJson().isEqualTo(...)` compares whole JSON documents, so spacing and field order do not matter. Run one class with `./mvnw test -Dtest=HelloControllerTest`, or the whole suite with `./mvnw test`.",
+      "examples": [
+        {
+          "title": "The endpoint under test",
+          "prompt": "The playground's only controller, and its answer to a name longer than 40 characters.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/playground/hello/HelloController.java",
+          "code": "/**\n * Web layer: turns GET /api/hello into a JSON greeting. A controller only speaks HTTP,\n * so anything bigger than a greeting belongs in a service it calls.\n */\n@RestController\n@RequestMapping(\"/api/hello\")\npublic class HelloController {\n\n    public record Greeting(String message) {}\n\n    // A missing or empty ?name= falls back to the default. The constraints answer 400 for the rest.\n    @GetMapping\n    public Greeting hello(@RequestParam(defaultValue = \"World\") @NotBlank @Size(max = 40) String name) {\n        return new Greeting(\"Hello, \" + name + \"!\");\n    }\n}",
+          "output": "HTTP/1.1 400\nContent-Type: application/problem+json\n\n{\n  \"detail\": \"Validation failure\",\n  \"instance\": \"/api/hello\",\n  \"status\": 400,\n  \"title\": \"Bad Request\"\n}",
+          "explanation": "`@RequestParam(defaultValue = \"World\")` covers a missing name, and `@Size(max = 40)` on the parameter is checked by Spring's built-in method validation. A failure answers 400 as a problem, because `application.yml` turns problem details on. The nested `Greeting` record is the response body. Each of these is a behavior worth a test: the name is used, the default applies, and a long name is refused."
+        },
+        {
+          "title": "Testing the hello endpoint",
+          "prompt": "The playground's test class, and the test lines from what `./mvnw test` printed.",
+          "language": "java",
+          "file": "src/test/java/dev/hackuniversity/playground/hello/HelloControllerTest.java",
+          "code": "/**\n * A web slice test: only HelloController and Spring MVC start, with no server and no database,\n * and MockMvcTester sends requests straight to the controller.\n */\n@WebMvcTest(HelloController.class)\nclass HelloControllerTest {\n\n    @Autowired\n    MockMvcTester mvc;\n\n    @Test\n    void greetsByName() {\n        assertThat(mvc.get().uri(\"/api/hello\").param(\"name\", \"Ana\"))\n                .hasStatusOk()\n                .bodyJson().extractingPath(\"$.message\").isEqualTo(\"Hello, Ana!\");\n    }\n\n    @Test\n    void greetsTheWorldWithoutAName() {\n        assertThat(mvc.get().uri(\"/api/hello\"))\n                .hasStatusOk()\n                .bodyJson().isEqualTo(\"\"\"\n                        {\"message\": \"Hello, World!\"}\n                        \"\"\");\n    }\n\n    @Test\n    void rejectsANameLongerThan40Characters() {\n        assertThat(mvc.get().uri(\"/api/hello\").param(\"name\", \"a\".repeat(41)))\n                .hasStatus(HttpStatus.BAD_REQUEST)\n                .bodyJson().extractingPath(\"$.title\").isEqualTo(\"Bad Request\");\n    }\n}",
+          "output": "[INFO] Running dev.hackuniversity.playground.hello.HelloControllerTest\n[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.146 s -- in dev.hackuniversity.playground.hello.HelloControllerTest\n[INFO]\n[INFO] Results:\n[INFO]\n[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0\n[INFO]\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD SUCCESS",
+          "explanation": "Each test sends one request and checks one behavior, and its name says which, so a failure like `rejectsANameLongerThan40Characters` tells you what broke before you open the file. `MockMvcTester` arrives through `@Autowired` on a field. That is the one place field injection is normal, because JUnit creates test classes, not Spring. The class ran in about four seconds, Spring's startup included, with no database, which keeps web slice tests cheap enough to run all the time."
+        }
+      ],
+      "codebase": {
+        "template": "spring-blank",
+        "files": [
+          "src/test/java/dev/hackuniversity/playground/hello/HelloControllerTest.java",
+          "src/main/java/dev/hackuniversity/playground/hello/HelloController.java"
+        ]
+      }
+    },
+    {
+      "title": "Mocks, tokens, and bad input",
+      "body": "A controller calls a service, and a web slice does not start services. Put a mock in its place: `@MockitoBean CatalogService catalog` registers a Mockito mock as the bean, and each test tells it what to do with `given(...).willReturn(...)` or `willThrow(...)`. Spring Boot 4 removed the old `@MockBean`, so code copied from older answers no longer compiles.\n\nThe mock keeps the test about the web layer: routes, status codes, JSON, validation, and access rules. The service's own rules get their own tests.\n\nSecurity needs two more lines. `@Import(SecurityConfig.class)` loads the real rules, and a mocked `JwtDecoder` lets the resource server start. Then `.with(jwt().authorities(...))` from `spring-security-test` gives a request an already checked token with the roles the test picks, so you can test 401, 403, and success without signing anything.\n\nAfter a refused request, `then(catalog).shouldHaveNoInteractions()` proves it stopped before any business code ran.",
+      "examples": [
+        {
+          "title": "Setting up the slice",
+          "prompt": "The top of shopfront's product controller test: the slice, the mocks, and the first test.",
+          "language": "java",
+          "file": "src/test/java/dev/hackuniversity/shopfront/catalog/ProductControllerTest.java",
+          "code": "@WebMvcTest(ProductController.class)\n@Import(SecurityConfig.class)\nclass ProductControllerTest {\n\n    private static final String NEW_PRODUCT = \"\"\"\n            {\"sku\": \"KT-007\", \"name\": \"Salad Spinner\", \"priceCents\": 2299, \"stock\": 12, \"category\": \"kitchen\"}\n            \"\"\";\n\n    private static final ProductResponse SALAD_SPINNER =\n            new ProductResponse(\"KT-007\", \"Salad Spinner\", \"\", 2299, 12, \"kitchen\", true);\n\n    @Autowired\n    MockMvcTester mvc;\n\n    @MockitoBean\n    CatalogService catalog;\n\n    // The resource server needs a JwtDecoder to start. jwt() skips decoding, so a mock is enough.\n    @MockitoBean\n    JwtDecoder jwtDecoder;\n\n    @Test\n    void anyoneCanReadAProduct() {\n        given(catalog.get(\"KT-007\")).willReturn(SALAD_SPINNER);\n\n        assertThat(mvc.get().uri(\"/api/products/KT-007\"))\n                .hasStatusOk()\n                .bodyJson().extractingPath(\"$.name\").isEqualTo(\"Salad Spinner\");\n    }",
+          "explanation": "`@WebMvcTest(ProductController.class)` loads that controller and the `@RestControllerAdvice`, so errors come back as the same problems clients see. `given(catalog.get(\"KT-007\")).willReturn(SALAD_SPINNER)` decides what the service answers, so the test needs no data and no database. The request body sits in a text block, which reads like the JSON a client would send."
+        },
+        {
+          "title": "Testing the access rules",
+          "prompt": "Three requests to one route: no token, a customer's token, and an admin's. The output is this class run against a copy of shopfront with one line of `SecurityConfig` loosened.",
+          "language": "java",
+          "file": "src/test/java/dev/hackuniversity/shopfront/catalog/ProductControllerTest.java",
+          "code": "@Test\nvoid creatingWithoutATokenAnswers401() {\n    MvcTestResult result = mvc.post().uri(\"/api/products\")\n            .contentType(MediaType.APPLICATION_JSON).content(NEW_PRODUCT).exchange();\n\n    assertThat(result).hasStatus(HttpStatus.UNAUTHORIZED);\n    assertThat(result.getResponse().getHeader(\"WWW-Authenticate\")).startsWith(\"Bearer\");\n    then(catalog).shouldHaveNoInteractions();\n}\n\n@Test\nvoid aCustomerCannotCreateProducts() {\n    assertThat(mvc.post().uri(\"/api/products\").with(tokenWithRole(\"ROLE_CUSTOMER\"))\n            .contentType(MediaType.APPLICATION_JSON).content(NEW_PRODUCT))\n            .hasStatus(HttpStatus.FORBIDDEN);\n    then(catalog).shouldHaveNoInteractions();\n}\n\n@Test\nvoid anAdminCreatesAProduct() {\n    given(catalog.create(any(ProductRequest.class))).willReturn(SALAD_SPINNER);\n\n    assertThat(mvc.post().uri(\"/api/products\").with(tokenWithRole(\"ROLE_ADMIN\"))\n            .contentType(MediaType.APPLICATION_JSON).content(NEW_PRODUCT))\n            .hasStatus(HttpStatus.CREATED)\n            .hasHeader(\"Location\", \"/api/products/KT-007\")\n            .bodyJson().extractingPath(\"$.sku\").isEqualTo(\"KT-007\");\n}\n\n// ...\n\nprivate static JwtRequestPostProcessor tokenWithRole(String role) {\n    return jwt().authorities(new SimpleGrantedAuthority(role));\n}",
+          "output": "[ERROR] Failures:\n[ERROR]   ProductControllerTest.aCustomerCannotCreateProducts:85 [HTTP status code]\nexpected: 403\n but was: 500\n[INFO]\n[ERROR] Tests run: 6, Failures: 1, Errors: 0, Skipped: 0\n[INFO]\n[INFO] ------------------------------------------------------------------------\n[ERROR] BUILD FAILURE",
+          "explanation": "Together these tests pin down one line of `SecurityConfig`. The 401 test also checks the `WWW-Authenticate` header that bearer clients rely on, and the 401 and 403 tests both check that the service was never called. For the output, the admin-only rule was cut down to `/api/admin/**` in a copy of the code, so customers could write products. The customer's request reached the controller, the unstubbed mock returned null, `create` threw a `NullPointerException`, and the catch-all handler answered 500. The test still failed at line 85, because it expected 403. A good test fails whenever the behavior is wrong, whatever the code does instead."
+        },
+        {
+          "title": "Testing validation",
+          "prompt": "An admin sends a product with four bad fields.",
+          "language": "java",
+          "file": "src/test/java/dev/hackuniversity/shopfront/catalog/ProductControllerTest.java",
+          "code": "@Test\nvoid invalidFieldsAnswer400WithOneErrorPerField() {\n    assertThat(mvc.post().uri(\"/api/products\").with(tokenWithRole(\"ROLE_ADMIN\"))\n            .contentType(MediaType.APPLICATION_JSON)\n            .content(\"\"\"\n                    {\"sku\": \"kt7\", \"name\": \" \", \"priceCents\": 0, \"category\": \"kitchen\"}\n                    \"\"\"))\n            .hasStatus(HttpStatus.BAD_REQUEST)\n            .bodyJson().isLenientlyEqualTo(\"\"\"\n                    {\n                      \"title\": \"Bad Request\",\n                      \"errors\": {\n                        \"name\": \"must not be blank\",\n                        \"priceCents\": \"must be greater than 0\",\n                        \"sku\": \"must look like AB-123\",\n                        \"stock\": \"must not be null\"\n                      }\n                    }\n                    \"\"\");\n    then(catalog).shouldHaveNoInteractions();\n}",
+          "explanation": "`isLenientlyEqualTo` compares only the fields the expected JSON lists, so the test pins down the `title` and the `errors` map and ignores `instance` and `detail`, which could change without breaking clients. All four errors arrive in one response. `stock` is reported as null because the body left it out, the wrapper type rule from `ProductRequest` at work. The last line proves the bad request never reached the service."
+        }
+      ],
+      "codebase": {
+        "template": "shopfront",
+        "files": [
+          "src/test/java/dev/hackuniversity/shopfront/catalog/ProductControllerTest.java",
+          "src/main/java/dev/hackuniversity/shopfront/catalog/ProductController.java",
+          "src/main/java/dev/hackuniversity/shopfront/config/SecurityConfig.java"
+        ]
+      }
+    },
+    {
+      "title": "The right test for each layer",
+      "body": "A web slice cannot catch a wrong tax calculation, and a test that starts the whole app is too slow to cover every rule. Shopfront uses four kinds of test, each for what it does best:\n\n| Test | What starts | Use it for |\n| --- | --- | --- |\n| JUnit and Mockito | Nothing from Spring | Rules in services and entities |\n| `@WebMvcTest` | MVC, security, one controller | Routes, status codes, JSON, validation, access |\n| `@DataJpaTest` | JPA and Flyway on real PostgreSQL | Queries, mappings, constraints |\n| `@SpringBootTest` | The whole app on a random port | A few end-to-end flows |\n\nWrite most of your tests in the first two rows: they are fast, and they point straight at what broke. A service built with constructor injection needs no Spring to test. Create it with `new`, pass mocks for the repositories and a fixed `Clock`, and call it. Keep a handful of end-to-end tests for the paths that matter most, like logging in and placing an order.",
+      "examples": [
+        {
+          "title": "A service test without Spring",
+          "prompt": "Checkout rules tested with Mockito mocks and a fixed clock. `NOW` is 2026-03-31T12:00:00Z, and the class carries `@ExtendWith(MockitoExtension.class)`.",
+          "language": "java",
+          "file": "src/test/java/dev/hackuniversity/shopfront/order/OrderServiceTest.java",
+          "code": "@Mock\nOrderRepository orders;\n\n@Mock\nProductRepository products;\n\n@Mock\nCustomerRepository customers;\n\nOrderService service;\n\nfinal Customer ana = new Customer(\"ana@example.com\", \"Ana Lima\", \"{noop}unused\", Role.CUSTOMER, NOW);\nfinal Category kitchen = new Category(\"Kitchen\", \"kitchen\");\nfinal Product knife = new Product(\"KT-001\", \"Chef's Knife\", \"\", 7999, 20, kitchen);\nfinal Product board = new Product(\"KT-005\", \"Bamboo Cutting Board\", \"\", 2499, 28, kitchen);\n\n@BeforeEach\nvoid createService() {\n    ShopProperties shop = new ShopProperties(\"USD\", new BigDecimal(\"0.0825\"), 5000,\n            new ShopProperties.Jwt(\"a-test-secret-that-is-at-least-32-bytes\", Duration.ofHours(1)));\n    service = new OrderService(orders, products, customers, shop, Clock.fixed(NOW, ZoneOffset.UTC));\n}\n\n@Test\nvoid placingAnOrderCopiesPricesTakesStockAndAddsTax() {\n    given(customers.findByEmail(\"ana@example.com\")).willReturn(Optional.of(ana));\n    given(products.findBySkuIn(List.of(\"KT-001\", \"KT-005\"))).willReturn(List.of(knife, board));\n    given(orders.save(any(Order.class))).willAnswer(call -> withId(call.getArgument(0), 11L));\n\n    OrderResponse order = service.placeOrder(\"ana@example.com\", orderOf(line(\"KT-001\", 1), line(\"KT-005\", 2)));\n\n    assertThat(order.lines()).extracting(OrderResponse.Line::unitPriceCents).containsExactly(7999L, 2499L);\n    assertThat(order.subtotalCents()).isEqualTo(12_997);\n    assertThat(order.taxCents()).isEqualTo(1_072);\n    assertThat(order.totalCents()).isEqualTo(14_069);\n    assertThat(order.currency()).isEqualTo(\"USD\");\n    assertThat(knife.getStock()).isEqualTo(19);\n    assertThat(board.getStock()).isEqualTo(26);\n}",
+          "explanation": "The Mockito extension creates the three `@Mock` repositories, and `createService` builds the real service with `new`, which constructor injection makes possible. The clock is fixed at `NOW`, so \"24 hours ago\" means the same moment on every run. With no database to assign ids, `orders.save` is told to hand back the order with id 11. The asserts cover the whole rule: prices copied, subtotal, tax, and total right, and stock taken. In the suite run, this class's 13 tests took under a second, so you can afford one test per rule."
+        },
+        {
+          "title": "An end-to-end flow",
+          "prompt": "A test that logs in and places an order over real HTTP, and the results of shopfront's whole suite, one line per test class.",
+          "language": "java",
+          "file": "src/test/java/dev/hackuniversity/shopfront/order/OrderFlowTest.java",
+          "code": "@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)\n@AutoConfigureRestTestClient\n@Sql({\"/sql/order-flow-cleanup.sql\", \"/sql/order-flow-data.sql\"})\n@Sql(scripts = \"/sql/order-flow-cleanup.sql\", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)\nclass OrderFlowTest {\n\n    @Autowired\n    RestTestClient client;\n\n    @Autowired\n    Clock clock;\n\n    @Test\n    void aCustomerLogsInPlacesAnOrderAndFindsItInTheirList() {\n        String token = logIn(\"flow@example.com\", \"flow-pass-123\");\n\n        client.post().uri(\"/api/orders\")\n                .header(HttpHeaders.AUTHORIZATION, \"Bearer \" + token)\n                .contentType(MediaType.APPLICATION_JSON)\n                .body(Map.of(\"lines\", List.of(Map.of(\"sku\", \"ZZ-001\", \"quantity\", 2))))\n                .exchange()\n                .expectStatus().isCreated()\n                .expectHeader().valueMatches(HttpHeaders.LOCATION, \"/api/orders/\\\\d+\")\n                .expectBody()\n                .jsonPath(\"$.status\").isEqualTo(\"PLACED\")\n                .jsonPath(\"$.lines[0].unitPriceCents\").isEqualTo(1000)\n                .jsonPath(\"$.subtotalCents\").isEqualTo(2000)\n                .jsonPath(\"$.taxCents\").isEqualTo(165)\n                .jsonPath(\"$.totalCents\").isEqualTo(2165)\n                .jsonPath(\"$.placedAt\").isEqualTo(clock.instant().toString());\n        // ...\n    }",
+          "output": "[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.827 s -- in dev.hackuniversity.shopfront.order.OrderServiceTest\n[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.046 s -- in dev.hackuniversity.shopfront.order.OrderFlowTest\n[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.793 s -- in dev.hackuniversity.shopfront.catalog.ProductRepositoryTest\n[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.959 s -- in dev.hackuniversity.shopfront.catalog.ProductControllerTest\n[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.410 s -- in dev.hackuniversity.shopfront.ArchitectureTest\n[INFO] Results:\n[INFO]\n[INFO] Tests run: 31, Failures: 0, Errors: 0, Skipped: 0\n[INFO]\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD SUCCESS",
+          "explanation": "`@SpringBootTest(webEnvironment = RANDOM_PORT)` starts the real app on a free port against the real database, and `RestTestClient` sends real HTTP requests, token and all. The server commits its own transactions, so nothing rolls back by itself, and `@Sql` deletes the test's rows before and after each test. That lets the suite run again and again on the same database. The results show the trade-off: the 13 unit tests took under a second, and the 4 end-to-end tests took about 8."
+        }
+      ],
+      "codebase": {
+        "template": "shopfront",
+        "files": [
+          "src/test/java/dev/hackuniversity/shopfront/order/OrderServiceTest.java",
+          "src/test/java/dev/hackuniversity/shopfront/order/OrderFlowTest.java",
+          "src/test/java/dev/hackuniversity/shopfront/catalog/ProductRepositoryTest.java"
+        ]
+      }
+    }
+  ],
+  "recap": "- `@WebMvcTest(SomeController.class)` tests the web layer with no server and no database, and `MockMvcTester` asserts on status, headers, and JSON.\n- Replace the service with `@MockitoBean`, since Boot 4 removed `@MockBean`, and set its answers with `given(...)`.\n- Test security with `@Import(SecurityConfig.class)` and `.with(jwt().authorities(...))`, and check that refused requests never reach the service.\n- Test rules with plain JUnit and Mockito, queries with `@DataJpaTest` on real PostgreSQL, and a few key flows with `@SpringBootTest`.\n- A good test fails when the behavior is wrong. Break the code on purpose once, and watch your test catch it."
+}

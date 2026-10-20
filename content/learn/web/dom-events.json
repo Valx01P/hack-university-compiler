@@ -1,0 +1,105 @@
+{
+  "id": "dom-events",
+  "title": "The DOM and Events",
+  "section": "JavaScript in the Browser",
+  "summary": "Find and build elements safely, update a list without losing focus, and handle every row's events with one delegated listener.",
+  "format": "read",
+  "intro": "Every framework is built on a handful of DOM APIs: find elements, create them, change them, and listen for events. When React or Vue does something surprising, these APIs are what is really happening underneath, and for small features you often need nothing else. This lesson follows the tasks app's views and controller, which use only the platform.",
+  "steps": [
+    {
+      "title": "Finding and building elements",
+      "body": "`document.querySelector(selector)` returns the first element that matches a CSS selector, or `null`. `querySelectorAll` returns every match as a static `NodeList`, and `Array.from` turns that into an array. Both also work on an element, to search only inside it.\n\nTo build markup, clone a `template` instead of writing HTML strings:\n\n```js\nconst row = template.content.firstElementChild.cloneNode(true);\n```\n\nThen set only what changes:\n\n- `textContent` sets text. It never parses HTML, so a title like `<img src=x onerror=...>` shows up as text instead of running. Setting `innerHTML` from user data is how cross-site scripting (XSS) gets in.\n- `element.dataset.id` reads and writes the `data-id` attribute.\n- `classList.toggle(name, force)` adds the class when `force` is true and removes it when it is false.\n- `setAttribute` sets anything else, such as ARIA attributes.",
+      "examples": [
+        {
+          "title": "qs and qsa",
+          "prompt": "The two lookup helpers that the views and the controller use for every query.",
+          "language": "js",
+          "file": "src/lib/dom.js",
+          "code": "/** The first element that matches selector, or an error that names the selector. */\nexport function qs(selector, root = document) {\n  const element = root.querySelector(selector);\n  if (element === null) throw new Error(`Nothing matches ${selector}`);\n  return element;\n}\n\n/** Every element that matches selector, as an array. */\nexport function qsa(selector, root = document) {\n  return Array.from(root.querySelectorAll(selector));\n}",
+          "explanation": "`querySelector` returns `null` when nothing matches, and the mistake surfaces later as \"Cannot read properties of null\", far from the typo that caused it. `qs` throws right away with the selector in the message, so a renamed id fails loudly on the line that looks it up. `root` defaults to `document`, and the views pass a row instead to search only inside it. `qsa` returns a real array, so `map`, `filter`, and `some` work on the result."
+        },
+        {
+          "title": "Filling a row",
+          "prompt": "How the list view creates a row from the template and fills it in from a task.",
+          "language": "js",
+          "file": "src/view/task-view.js",
+          "code": "function createRow(page) {\n  const template = qs(\"#task-item\", page);\n  return template.content.firstElementChild.cloneNode(true);\n}\n\nfunction fillRow(row, task) {\n  const titleId = `task-${task.id}-title`;\n  row.dataset.id = task.id;\n  row.classList.toggle(\"is-done\", task.done);\n\n  const title = qs(\".task-title\", row);\n  title.id = titleId;\n  title.textContent = task.title;\n\n  // The checkbox is named by the title, and each button is described by it,\n  // so a screen reader says \"Delete, button, Buy milk\" instead of just \"Delete\".\n  const toggle = qs(\".task-toggle\", row);\n  toggle.checked = task.done;\n  toggle.setAttribute(\"aria-labelledby\", titleId);\n  for (const button of qsa(\"button\", row)) {\n    button.setAttribute(\"aria-describedby\", titleId);\n  }\n}",
+          "explanation": "`createRow` clones the template's `li` with `cloneNode(true)`, which copies its children too. `fillRow` then sets only what depends on the task. The title goes in with `textContent`, so a task named `<b>hi</b>` shows those characters instead of bold text. `classList.toggle(\"is-done\", task.done)` takes the state as its second argument, so one line marks and unmarks a row. The title gets an `id`, and the checkbox points at it with `aria-labelledby`, so the checkbox is named after its task."
+        }
+      ],
+      "codebase": {
+        "template": "tasks-mvc",
+        "files": [
+          "src/view/task-view.js",
+          "src/lib/dom.js"
+        ]
+      }
+    },
+    {
+      "title": "Updating without losing focus",
+      "body": "The easy way to re-render a list is to rebuild it: empty it, then append a new row for every item. It looks right, but every change destroys and recreates every element. The focused checkbox disappears, so a keyboard user is thrown back to the top of the page, a half-typed edit is lost, and a click is lost when the row under the pointer is replaced between the press and the release.\n\nThe fix is to key rows by id and update them in place:\n\n1. Remove the rows whose task is no longer shown.\n2. Reuse the row that already exists for each task, or create one when the task is new.\n3. Put each row in its position with `insertBefore`, which moves an element that is already in the list.\n\nThis is what React's `key` prop does for you. Without a framework, you write it once in your view.\n\nWhen a change removes the focused element, as a delete does, move focus somewhere sensible yourself, such as the next row.",
+      "examples": [
+        {
+          "title": "renderTasks",
+          "prompt": "The list view's render function. It runs after every change to the tasks.",
+          "language": "js",
+          "file": "src/view/task-view.js",
+          "code": "/**\n * Makes list show the tasks that pass filter, in order.\n *\n * Rows are matched to tasks by data-id and updated in place, and only rows\n * that appear or disappear are added or removed. Rebuilding every row on each\n * change would look the same, but it would drop keyboard focus and swallow a\n * click whenever the list changed under the pointer.\n */\nexport function renderTasks(list, tasks, filter) {\n  const visible = filterTasks(tasks, filter);\n  const ids = new Set(visible.map((task) => task.id));\n  for (const row of [...list.children]) {\n    if (!ids.has(row.dataset.id)) row.remove();\n  }\n\n  const rows = new Map([...list.children].map((row) => [row.dataset.id, row]));\n  visible.forEach((task, index) => {\n    const row = rows.get(task.id) ?? createRow(list.ownerDocument);\n    fillRow(row, task);\n    const current = list.children[index] ?? null;\n    if (row !== current) list.insertBefore(row, current);\n  });\n}",
+          "explanation": "First it removes the rows whose id isn't in the visible list. Then it builds a `Map` from id to the rows that remain, so each lookup is instant. For each visible task, it reuses that task's row or clones a new one, fills it, and moves it only if it isn't already at its index. Every element stays in place, so when you toggle a task only its checkbox and its class really change, and the focused checkbox stays focused. The doc comment explains why the function is written this way, which is exactly the comment a reviewer wants."
+        },
+        {
+          "title": "Putting focus back",
+          "prompt": "Where focus goes after a task changes, leaves the filtered list, or is deleted.",
+          "language": "js",
+          "file": "src/view/task-view.js",
+          "code": "/**\n * Focuses the control named by control (a data-action) in the row of task id.\n * When that task is no longer shown, it focuses the checkbox of the row that\n * took its place instead, or of the last row.\n * @returns {boolean} false when the list is empty and nothing was focused\n */\nexport function focusTask(list, { id, index, control }) {\n  const rows = [...list.children];\n  const same = rows.find((row) => row.dataset.id === id);\n  const row = same ?? rows[Math.min(index, rows.length - 1)];\n  if (row === undefined) return false;\n  qs(`[data-action=\"${same ? control : \"toggle\"}\"]`, row).focus();\n  return true;\n}",
+          "explanation": "If the task's row still exists, focus goes back to the same control in it, such as the Edit button after an edit. If the row is gone, focus goes to the row that took its place, or to the last row when it was at the end. When the list is empty, the function returns `false` and the controller focuses the new task field instead. Without this, deleting a task drops focus on `body`, and a keyboard user starts again from the top of the page."
+        }
+      ],
+      "codebase": {
+        "template": "tasks-mvc",
+        "files": [
+          "src/view/task-view.js"
+        ]
+      }
+    },
+    {
+      "title": "Events and delegation",
+      "body": "`element.addEventListener(type, handler)` calls `handler(event)` every time the event fires. `event.target` is the element where it started, and most events then bubble up through every ancestor to `document`.\n\nBubbling makes delegation possible: one listener on a container handles the events of all its children, including children added later. In the handler, `event.target.closest(selector)` finds the element you care about. That means one listener for a thousand rows, and no listeners to add or remove as rows come and go.\n\nA few details matter in real code:\n\n- `event.preventDefault()` cancels the browser's default action, such as a submit that reloads the page.\n- `focus` and `blur` don't bubble. Delegate `focusin` and `focusout` instead.\n- `event.key` names the key, like `\"Enter\"` or `\"Escape\"`. Ignore keys while `event.isComposing` is true, because the user is still typing a character with an input method.\n- Leave modified clicks on links (Ctrl, Cmd, Shift, or the middle button) to the browser, so they still open new tabs.",
+      "examples": [
+        {
+          "title": "The delegate helper",
+          "prompt": "The helper behind every list listener in the app.",
+          "language": "js",
+          "file": "src/lib/dom.js",
+          "code": "/**\n * Event delegation: one listener on root handles an event from any element\n * inside it that matches selector, including elements added later. The\n * handler gets the event and the matching element.\n * @returns {() => void} a function that removes the listener\n */\nexport function delegate(root, type, selector, handler) {\n  function listener(event) {\n    const match = event.target instanceof Element ? event.target.closest(selector) : null;\n    if (match !== null && root.contains(match)) handler(event, match);\n  }\n  root.addEventListener(type, listener);\n  return () => root.removeEventListener(type, listener);\n}",
+          "explanation": "The listener first checks that `event.target` is an `Element`, since a text node has no `closest`. `closest(selector)` walks up from the target, so a click anywhere inside a matching control finds it. `root.contains(match)` rejects a match outside the container, such as an ancestor of `root` that happens to fit the selector. The handler gets the matching element directly, and the helper returns a function that removes the listener."
+        },
+        {
+          "title": "Wiring the list",
+          "prompt": "The controller's `start` method, where every listener is attached once.",
+          "language": "js",
+          "file": "src/controller/task-controller.js",
+          "code": "/** Renders the first time and starts listening. Call it once. */\nstart(filter = \"all\") {\n  this.#filter = filter;\n  this.#store.subscribe(() => this.render());\n\n  this.#form.addEventListener(\"submit\", (event) => this.#onSubmit(event));\n\n  // The rows come and go, so one listener on the list handles them all.\n  delegate(this.#list, \"click\", \"[data-action]\", (event, control) => this.#onAction(control));\n  delegate(this.#list, \"dblclick\", \".task-title\", (event, title) => this.#edit(rowOf(title).row));\n  delegate(this.#list, \"keydown\", \".task-title-input\", (event, input) =>\n    this.#onEditKey(event, input),\n  );\n  // blur does not bubble, so delegation listens for focusout, which does.\n  delegate(this.#list, \"focusout\", \".task-title-input\", (event, input) =>\n    this.#save(input, { refocus: false }),\n  );\n\n  delegate(this.#footer, \"click\", \"a[data-filter]\", (event, link) =>\n    this.#onFilterLink(event, link),\n  );\n  qs(\"#clear-completed\", this.#footer).addEventListener(\"click\", () => this.#onClearCompleted());\n  window.addEventListener(\"popstate\", () => this.#show(filterFromSearch(location.search)));\n\n  this.render();\n}",
+          "explanation": "Four delegated listeners on the list cover every row, present and future: clicks on anything with `data-action`, double clicks on a title, and keys and focus leaving the edit field. Each handler is one line that calls a private method, so every event's logic has a name. The form listens for `submit`, not for a click on its button, so Enter and the button take the same path. `popstate` re-renders when the user presses Back or Forward. Last, `render()` draws the first screen, because the store only notifies about changes."
+        },
+        {
+          "title": "Enter and Escape in the editor",
+          "prompt": "The key handler for the field that edits a task's title.",
+          "language": "js",
+          "file": "src/controller/task-controller.js",
+          "code": "#onEditKey(event, input) {\n  // While an input method (for Japanese or Chinese, say) is composing, Enter\n  // confirms the composition. It must not save the task as well.\n  if (event.isComposing) return;\n  if (event.key === \"Enter\") {\n    // Saving moves focus to the row's Edit button. Without preventDefault,\n    // this same Enter would go on to press that button and reopen the editor.\n    event.preventDefault();\n    this.#save(input, { refocus: true });\n  } else if (event.key === \"Escape\") {\n    this.#cancel(input);\n  }\n}",
+          "explanation": "`isComposing` comes first: while someone types Japanese or Chinese with an input method, Enter confirms the characters and must not save the task. On Enter, `preventDefault()` matters for a subtle reason. Saving moves focus to the row's Edit button, and without it the same Enter would go on to press that button and reopen the editor. Escape cancels without touching the store at all."
+        }
+      ],
+      "codebase": {
+        "template": "tasks-mvc",
+        "files": [
+          "src/controller/task-controller.js",
+          "src/lib/dom.js"
+        ]
+      }
+    }
+  ],
+  "recap": "- Look elements up with `querySelector`, and fail loudly when one is missing, as `qs` does.\n- Build markup by cloning a `template`, and set text with `textContent`, never `innerHTML` with user data.\n- Key rows by id and update them in place, so focus and clicks survive a re-render, and put focus somewhere sensible after a delete.\n- Delegate events from a container with `closest`, and use `focusout` instead of `blur`.\n- Call `preventDefault` only where you replace the default, and respect `isComposing` and modified clicks."
+}

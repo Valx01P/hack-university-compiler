@@ -1,0 +1,120 @@
+{
+  "id": "layers-mvc",
+  "title": "MVC and Layers in an API",
+  "section": "How an Express API Is Built",
+  "summary": "See why an API splits into routes, controllers, services, repositories, models, and views, and follow one request through each layer.",
+  "format": "read",
+  "intro": "Small Express apps put everything in the route handler. That works until two routes need the same rule, a test has to run without a database, or a renamed column breaks every client. Layers fix this by giving each kind of code one home. This lesson follows a request through every layer of StagePass, then compares it with Cookbook, an API in the classic MVC folder layout that most MERN codebases use.",
+  "steps": [
+    {
+      "title": "One request through every layer",
+      "body": "In MVC for an API, the **model** is your data and its rules, the **view** is the JSON that clients get, and the **controller** turns HTTP into calls. Real codebases split the model further, so a request passes through these layers, in this order only:\n\n1. The **route** matches the method and path, and runs middleware.\n2. The **controller** reads the validated input and calls a service.\n3. The **service** applies the business rules.\n4. The **repository** runs the queries.\n5. The **view** shapes the result into JSON on the way out.\n\nEach layer only calls the one below it. A service never imports Express, and a controller never builds SQL. StagePass keeps a feature's layers together in one folder. `src/modules/venues/` is the smallest complete feature, and the one to copy when you add a new one. Here is `POST /v1/venues`, from the controller down.",
+      "examples": [
+        {
+          "title": "The controller",
+          "prompt": "`create` is the whole HTTP side of `POST /v1/venues`.",
+          "language": "ts",
+          "file": "src/modules/venues/venues.controller.ts",
+          "code": "export class VenuesController {\n  readonly #venues: VenuesService;\n\n  constructor(venues: VenuesService) {\n    this.#venues = venues;\n  }\n\n  list: RequestHandler = async (_req, res) => {\n    const venues = await this.#venues.list();\n    res.json(venues.map(toVenueJson));\n  };\n\n  get: RequestHandler = async (_req, res) => {\n    const { venueId } = res.locals.params as VenueIdParams;\n    res.json(toVenueJson(await this.#venues.get(venueId)));\n  };\n\n  create: RequestHandler = async (req, res) => {\n    const venue = await this.#venues.create(req.body as CreateVenue);\n    res.status(201).location(`/v1/venues/${venue.id}`).json(toVenueJson(venue));\n  };\n  // ...\n}",
+          "explanation": "The route already ran `validate({ body: CreateVenue })`, so `req.body` holds the parsed value. The controller calls `this.#venues.create(...)` and picks the answer: `201`, a `Location` header, and `toVenueJson(venue)`. That view is one small function in `venues.view.ts` that lists exactly the fields clients see, so a new database column never leaks into the API by accident."
+        },
+        {
+          "title": "The service",
+          "prompt": "The rules for venues. Look for anything about HTTP: there is none.",
+          "language": "ts",
+          "file": "src/modules/venues/venues.service.ts",
+          "code": "export class VenuesService {\n  readonly #db: Db;\n  readonly #venues: VenuesRepository;\n  readonly #cache: TtlCache<number, Venue>;\n\n  constructor(deps: VenuesServiceDeps) {\n    this.#db = deps.db;\n    this.#venues = deps.venues;\n    this.#cache = deps.cache ?? new TtlCache({ ttlMs: 60_000, maxEntries: 500 });\n  }\n\n  list(): Promise<Venue[]> {\n    return this.#venues.list(this.#db);\n  }\n\n  async get(id: number): Promise<Venue> {\n    const cached = this.#cache.get(id);\n    if (cached !== undefined) return cached;\n    const venue = await this.#venues.findById(this.#db, id);\n    if (venue === null) throw new NotFoundError(`No venue with id ${id}`);\n    this.#cache.set(id, venue);\n    return venue;\n  }\n\n  create(input: CreateVenue): Promise<Venue> {\n    return this.#venues.create(this.#db, input);\n  }\n\n  async update(id: number, changes: UpdateVenue): Promise<Venue> {\n    const venue = await this.#venues.update(this.#db, id, changes);\n    if (venue === null) throw new NotFoundError(`No venue with id ${id}`);\n    // Without this, GET would serve the old name until the entry expired.\n    this.#cache.delete(id);\n    return venue;\n  }\n}",
+          "explanation": "The service gets its repository and database through the constructor instead of importing them. That is dependency injection: `server.ts` passes the PostgreSQL repository, and tests pass an in-memory fake. A missing venue breaks a rule, so the service throws `NotFoundError` and lets the error handler turn it into a 404. It also owns a cache of single venues: `get` fills it, and `update` deletes the entry so `GET` never serves the old name."
+        },
+        {
+          "title": "The repository",
+          "prompt": "The interface is what the service depends on. The object under it is the PostgreSQL version, written with Drizzle.",
+          "language": "ts",
+          "file": "src/modules/venues/venues.repository.ts",
+          "code": "export interface VenuesRepository {\n  list(db: DbOrTx): Promise<Venue[]>;\n  findById(db: DbOrTx, id: number): Promise<Venue | null>;\n  create(db: DbOrTx, venue: NewVenue): Promise<Venue>;\n  /** The updated venue, or null when there is none with this id. */\n  update(db: DbOrTx, id: number, changes: Partial<NewVenue>): Promise<Venue | null>;\n}\n\n// A second \"Riverside Hall\" in the same city is a mistake the database refuses.\nfunction translateDuplicate(err: unknown): never {\n  if (pgErrorCode(err) === \"23505\" && pgConstraint(err) === \"venues_name_city_unique\") {\n    throw new ConflictError(\"venue-exists\", \"A venue with this name already exists in this city\");\n  }\n  throw err;\n}\n\nexport const venuesRepository: VenuesRepository = {\n  async list(db) {\n    return db.select().from(venues).orderBy(asc(venues.city), asc(venues.name), asc(venues.id));\n  },\n\n  async findById(db, id) {\n    const [venue] = await db.select().from(venues).where(eq(venues.id, id));\n    return venue ?? null;\n  },\n\n  async create(db, venue) {\n    try {\n      const [created] = await db.insert(venues).values(venue).returning();\n      return created as Venue;\n    } catch (err) {\n      return translateDuplicate(err);\n    }\n  },\n  // ...\n};",
+          "explanation": "Every venue query lives in this file, so a slow query or a schema change has one place to look. Each method takes `db` as its first argument, typed `DbOrTx`, so the same query can run alone or inside a transaction. The database refuses a second venue with the same name in the same city, and `translateDuplicate` turns that error (PostgreSQL code `23505`) into a `ConflictError`, a 409 that explains itself instead of a raw database error."
+        }
+      ],
+      "codebase": {
+        "template": "stagepass-api",
+        "files": [
+          "src/modules/venues/venues.routes.ts",
+          "src/modules/venues/venues.controller.ts",
+          "src/modules/venues/venues.service.ts",
+          "src/modules/venues/venues.repository.ts",
+          "src/modules/venues/venues.view.ts"
+        ]
+      }
+    },
+    {
+      "title": "Services, interfaces, and wiring",
+      "body": "A service is where the rules live: who may do what, which states an object may move between, and which writes must happen together. It never sees `req` or `res`, so a route, a script, or a test can call it the same way.\n\nServices depend on repository **interfaces**, not on PostgreSQL. One file, `src/services.ts`, builds every service and hands each one its repositories. `server.ts` gives it the PostgreSQL repositories, and the tests give it in-memory fakes from `test/support/fakes.ts`. The services cannot tell the difference, and that is the point.\n\nBroken rules travel back up as errors. A service throws `ConflictError` or `NotFoundError`, the controller does nothing special, and the error handler picks the status code. Each layer keeps to its one job.",
+      "examples": [
+        {
+          "title": "The rules for publishing",
+          "prompt": "Publishing an event has three conditions. Find each one.",
+          "language": "ts",
+          "file": "src/modules/events/events.service.ts",
+          "code": "/** Puts a draft on sale. It needs a future start time and at least one ticket type. */\nasync publish(user: AuthUser, eventId: number): Promise<EventWithVenue> {\n  const { db, events, ticketTypes, hooks } = this.#deps;\n  await withTx(db, async (tx) => {\n    const event = await this.#lockEditable(tx, user, eventId);\n    if (event.status !== \"draft\") {\n      throw new ConflictError(\"event-not-draft\", `Only a draft can be published, and this event is ${event.status}`);\n    }\n    if (event.startsAt <= now()) throw new ConflictError(\"event-in-past\", \"This event has already started\");\n    if ((await ticketTypes.listForEvent(tx, eventId)).length === 0) {\n      throw new ConflictError(\"no-ticket-types\", \"Add at least one ticket type before publishing\");\n    }\n    const published = await events.update(tx, eventId, { status: \"published\", publishedAt: now() });\n    await hooks.run(\"event.published\", { event: published, actor: user }, tx);\n  });\n  return this.get(user, eventId);\n}",
+          "explanation": "The method locks the event inside a transaction, then checks the rules in order: only a draft can be published, it must start in the future, and it needs at least one ticket type. Each broken rule throws a `ConflictError` with a short type such as `no-ticket-types`, which becomes a 409 whose `type` clients can switch on. The status change and the `event.published` hook run in the same transaction, so they commit together or not at all."
+        },
+        {
+          "title": "The wiring in one place",
+          "prompt": "`createServices` builds every service from the repositories it is given.",
+          "language": "ts",
+          "file": "src/services.ts",
+          "code": "export function createServices(deps: ServiceDeps): {\n  services: Services;\n  hooks: HookRegistry;\n  tokens: TokenService;\n  posters: PosterStorage;\n} {\n  const { db, repositories: repos, config, logger } = deps;\n\n  const hooks = new HookRegistry();\n  registerEventHooks(hooks, { events: repos.events });\n  registerAuditHooks(hooks, new AuditService(repos.audit));\n\n  const tokens = new TokenService(config.jwt);\n  const posters = deps.posters ?? new PosterStorage(config.uploadDir);\n\n  const services: Services = {\n    auth: new AuthService({\n      db,\n      users: repos.users,\n      refreshTokens: repos.refreshTokens,\n      passwords: deps.passwords ?? new PasswordHasher(),\n      tokens,\n      refreshTokenTtlDays: config.refreshTokenTtlDays,\n    }),\n    venues: new VenuesService({ db, venues: repos.venues }),\n    // ...\n  return { services, hooks, tokens, posters };\n}",
+          "explanation": "Each service gets exactly the repositories it needs, through its constructor. `server.ts` calls this function with `pgRepositories`, and `makeTestApp()` in `test/support/fakes.ts` calls it with fakes. So the API tests run the real services, policies, and hooks in milliseconds, without a database. The hooks are registered here as well, so no module has to know which other modules react to its writes."
+        }
+      ],
+      "codebase": {
+        "template": "stagepass-api",
+        "files": [
+          "src/modules/events/events.service.ts",
+          "src/services.ts",
+          "test/support/fakes.ts"
+        ]
+      }
+    },
+    {
+      "title": "Classic MVC, one folder per layer",
+      "body": "Most Express codebases you join, MERN apps included, group files by layer instead of by feature: `models/`, `controllers/`, `routes/`, and often `services/` and `views/`. Cookbook, a recipes API on MongoDB, uses that layout. The layers and their direction are the same as in StagePass: routes, then controllers, then services, then models.\n\nWhich layout should you pick? Folders by layer are quick to start and fine for a handful of resources. Folders by feature, like `modules/events/`, scale better, because a change to one feature stays in one folder. Either way, the habit that matters is the direction of the imports.\n\nIn this layout the Mongoose model is the M of MVC: the schema, its validation, and its hooks. A JSON view still decides what clients see.",
+      "examples": [
+        {
+          "title": "The folder map",
+          "prompt": "This map from Cookbook's README is the first thing to read in an unfamiliar codebase.",
+          "language": "text",
+          "file": "README.md",
+          "code": "src/server.ts            entry point: connect, build the app, listen on PORT, shut down on a signal\nsrc/app.ts               composition root: request id, pino-http, json, session, routes, 404, errors\nsrc/config.ts            the environment, checked by a zod schema\nsrc/clock.ts, logger.ts  the frozen-able clock (HU_FIXED_TIME) and the pino logger\nsrc/db/mongoose.ts       the connection, strictQuery and sanitizeFilter, command monitoring\nsrc/db/command-counter.ts counts a request's database commands into the X-Db-Commands header\nsrc/models/              Mongoose schemas: the Model, with validation, virtuals, indexes, and hooks\nsrc/models/plugins/      soft delete (query + aggregate hooks) and the shared toJSON shape\nsrc/schemas/             zod schemas for what clients send\nsrc/services/            rules that span models or need the current user (recipes, reviews, account)\nsrc/views/               JSON serializers (the \"V\" of MVC for an API)\nsrc/controllers/         HTTP in, service call, status and view out\nsrc/routes/              URL to handler, with validate() and requireUser\nsrc/middleware/          request id, validate, require-user, not-found, error handler\nscripts/                 the seed and the index sync\ntest/                    model tests and supertest API tests, one database per file",
+          "explanation": "Each folder is one layer. `routes/` maps URLs to handlers with `validate()` and `requireUser`, `controllers/` handle HTTP, `services/` hold the rules that span models or need the current user, `models/` hold the Mongoose schemas, and `views/` turn documents into JSON. Only `app.ts` wires them together, so you always know where to start reading."
+        },
+        {
+          "title": "The recipe routes",
+          "prompt": "The same route shape as StagePass, on a router exported from the module.",
+          "language": "ts",
+          "file": "src/routes/recipes.routes.ts",
+          "code": "export const recipesRouter: Router = Router();\n\nrecipesRouter.get(\"/\", validate({ query: ListRecipesQuery }), recipes.list);\nrecipesRouter.post(\"/search\", validate({ body: SearchRecipesBody }), recipes.search);\nrecipesRouter.post(\"/\", requireUser, validate({ body: CreateRecipeBody }), recipes.create);\nrecipesRouter.get(\"/:slug\", validate({ params: SlugParam }), recipes.getBySlug);\nrecipesRouter.patch(\"/:slug\", requireUser, validate({ params: SlugParam, body: UpdateRecipeBody }), recipes.patch);\nrecipesRouter.delete(\"/:slug\", requireUser, validate({ params: SlugParam }), recipes.remove);\nrecipesRouter.get(\"/:slug/reviews\", validate({ params: SlugParam }), reviews.listForRecipe);\nrecipesRouter.post(\"/:slug/reviews\", requireUser, validate({ params: SlugParam, body: CreateReviewBody }), reviews.create);",
+          "explanation": "Reads are open, and every write puts `requireUser` first, which loads the signed-in user from the session or answers 401. Each route names its zod schema in `validate()`, so the controller only sees valid input. The controllers are imported as modules of plain functions (`import * as recipes`), a common style when a controller holds no state."
+        },
+        {
+          "title": "A controller of plain functions",
+          "prompt": "These handlers are exported functions instead of class methods. The job is the same.",
+          "language": "ts",
+          "file": "src/controllers/recipes.controller.ts",
+          "code": "export const create: RequestHandler = async (req, res) => {\n  const user = res.locals.user as User;\n  const recipe = await createRecipe(user._id, req.body);\n  // Populate the author so create and read answer the same shape (author as { id, name }).\n  await recipe.populate(\"author\", \"name\");\n  res.status(201).location(`/api/recipes/${recipe.slug}`).json(presentRecipe(recipe));\n};\n\nexport const patch: RequestHandler = async (req, res) => {\n  const user = res.locals.user as User;\n  const recipe = await updateRecipe(String(req.params.slug), user._id, req.body);\n  await recipe.populate(\"author\", \"name\");\n  res.json(presentRecipe(recipe));\n};\n\nexport const remove: RequestHandler = async (req, res) => {\n  const user = res.locals.user as User;\n  await deleteRecipe(String(req.params.slug), user._id);\n  res.status(204).end();\n};",
+          "explanation": "`requireUser` put the user on `res.locals.user`, so `create` reads it there and passes its id to the service. The answer is `201` with a `Location` built from the slug, which is how a client fetches the recipe next. `remove` answers `204 No Content`, with no body. The rule that only the author may edit lives in `services/recipes.service.ts`, not here."
+        }
+      ],
+      "codebase": {
+        "template": "cookbook-api",
+        "files": [
+          "README.md",
+          "src/routes/recipes.routes.ts",
+          "src/controllers/recipes.controller.ts",
+          "src/services/recipes.service.ts"
+        ]
+      }
+    }
+  ],
+  "recap": "- MVC for an API: the model is data and rules, the view is the JSON shape, and the controller handles HTTP.\n- Requests flow one way: route, controller, service, repository, then a view on the way out.\n- Services hold the rules and never touch `req` or `res`. They throw error classes, and the error handler picks the status.\n- Pass dependencies in through constructors and build them in one composition root, so tests can swap in fakes.\n- Group by feature or by layer. The direction of the imports matters more than the folders."
+}

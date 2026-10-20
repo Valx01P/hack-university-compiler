@@ -1,0 +1,112 @@
+{
+  "id": "css-layout",
+  "title": "Layout and Responsive Design",
+  "section": "HTML and CSS",
+  "summary": "Lay out rows with flexbox and pages with grid, size things fluidly, adapt with media queries, and ship images that fit every screen.",
+  "format": "read",
+  "intro": "Most layout bugs in production come from fixed sizes: a row that overflows on a 320 pixel phone, or a card that stretches across a wide monitor. Modern CSS avoids them with two layout systems, flexbox for a row or a column and grid for two dimensions, plus sizes that adapt on their own. This lesson reads the stylesheets of both codebases, where almost nothing needs a breakpoint.",
+  "steps": [
+    {
+      "title": "Flexbox for rows",
+      "body": "`display: flex` lays a container's children out in a row. A few properties then do nearly all the work:\n\n- `gap` puts space between items, never at the edges, so you need no margin tricks.\n- `flex: 1` lets an item grow into the space that is left. `flex: none` keeps an item at its own size.\n- `align-items: center` lines items up on the row's middle, and `justify-content: space-between` pushes them to the ends.\n- `flex-wrap: wrap` lets items move to a new line when the row runs out of room.\n\nOne gotcha catches everyone. A flex item won't shrink below the minimum width of its content, and a text input's default width is about 20 characters. So a row with an input overflows on a narrow phone until you give the input `min-inline-size: 0`.\n\n`inline-size` and `block-size` are the logical names for width and height. They follow the writing mode, and this codebase uses them throughout.",
+      "examples": [
+        {
+          "title": "The new task row",
+          "prompt": "The form that adds a task: a field that takes the free space, and a button that keeps its size.",
+          "language": "css",
+          "file": "src/styles/app.css",
+          "code": "/* The new task form */\n\n.new-task {\n  display: flex;\n  gap: 0.5rem;\n}\n\ninput[type=\"text\"] {\n  min-inline-size: 0;\n  padding: 0.5rem 0.75rem;\n  background: var(--surface);\n  border: 1px solid var(--line);\n  border-radius: var(--radius);\n}\n\n.new-task input {\n  flex: 1;\n}",
+          "explanation": "The form is the flex container, and `gap` spaces the field from the button. `flex: 1` on the input makes it take whatever the button leaves. The button has no `flex` rule, so it keeps the width of its text. `min-inline-size: 0` is the fix for the gotcha: without it, the field keeps its default width however narrow the screen gets, and the row overflows instead of shrinking."
+        },
+        {
+          "title": "A task row",
+          "prompt": "One row of the list: a checkbox, a title that takes the space, and two buttons.",
+          "language": "css",
+          "file": "src/styles/app.css",
+          "code": ".task {\n  display: flex;\n  align-items: center;\n  gap: 0.75rem;\n  min-block-size: 3rem;\n  padding: 0.375rem 0.75rem;\n}\n\n.task + .task {\n  border-block-start: 1px solid var(--line);\n}\n\n.task-toggle {\n  flex: none;\n  inline-size: 1.25rem;\n  block-size: 1.25rem;\n  margin: 0;\n  accent-color: var(--accent);\n}\n\n.task-title {\n  flex: 1;\n  overflow-wrap: anywhere;\n}",
+          "explanation": "`flex: none` keeps the checkbox at exactly 1.25rem, whatever the title does. The title gets `flex: 1`, which pushes the buttons to the right edge. `overflow-wrap: anywhere` lets a long title with no spaces, like a pasted URL, break onto a new line instead of pushing the buttons out of the row. `.task + .task` draws a line between rows but not above the first one, because it matches only a task that follows another task. `min-block-size: 3rem` keeps every row tall enough to tap."
+        },
+        {
+          "title": "A footer that wraps",
+          "prompt": "The footer under the list: the count, the filter links, and Clear completed.",
+          "language": "css",
+          "file": "src/styles/app.css",
+          "code": "/* The footer */\n\n.task-footer {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: space-between;\n  gap: 0.5rem 1rem;\n  margin-block-start: 0.75rem;\n  font-size: 0.875rem;\n  color: var(--muted);\n}\n\n.filters {\n  display: flex;\n  gap: 0.25rem;\n}",
+          "explanation": "On a laptop the three parts sit in one row, pushed apart by `justify-content: space-between`. On a phone they don't fit, so `flex-wrap: wrap` moves the last ones to a second line instead of overflowing. The two values of `gap` space the lines 0.5rem apart and the items 1rem apart. This is responsive design with no media query: the layout adapts to the space it gets."
+        }
+      ],
+      "codebase": {
+        "template": "tasks-mvc",
+        "files": [
+          "src/styles/app.css"
+        ]
+      }
+    },
+    {
+      "title": "Grid, fluid sizes, and media queries",
+      "body": "`display: grid` lays children out in rows and columns. Even with one column it earns its place: `place-items: center` centers content in both directions, and `gap` spaces a stack of items.\n\nFluid sizes adapt without breakpoints. `min(100%, 28rem)` is the full width on a phone and stops at 28rem on a wide screen. Use `rem` for sizes, so the layout grows when a user picks a larger font.\n\nWhen the layout really must change, use a media query, and write it mobile first. The base rules are for the smallest screen, and each query adds to them as the screen gets wider:\n\n```css\n.cards { display: grid; gap: 1rem; }\n\n@media (width >= 48rem) {\n  .cards { grid-template-columns: repeat(3, 1fr); }\n}\n```\n\nMedia queries also read the user's settings. `prefers-color-scheme` reports a dark or light theme, and `prefers-reduced-motion` reports that the user asked for less animation.",
+      "examples": [
+        {
+          "title": "Centering a card",
+          "prompt": "The playground's page and card. Two short rules center the card and size it for any screen.",
+          "language": "css",
+          "file": "src/main.css",
+          "code": "/* Layout */\n\n.page {\n  display: grid;\n  place-items: center;\n  min-block-size: 100vh;\n  padding: 1.5rem;\n}\n\n/* The card */\n\n.card {\n  inline-size: min(100%, 28rem);\n  overflow: hidden;\n  background: var(--surface);\n  border: 1px solid var(--line);\n  border-radius: var(--radius);\n  box-shadow: var(--shadow);\n}",
+          "explanation": "`.page` is a grid with one cell, and `place-items: center` puts the card in the middle of it. `min-block-size: 100vh` makes the page at least as tall as the window, so the card is centered vertically too. On phones `100vh` is the height with the browser's toolbars hidden, so new code often uses `100dvh`, which follows the toolbars as they appear. The card's `inline-size: min(100%, 28rem)` is the whole responsive design: full width on a phone, never wider than 28rem on a desktop."
+        },
+        {
+          "title": "Dark mode from one media query",
+          "prompt": "The playground's design tokens. The rules below them only ever use these variables.",
+          "language": "css",
+          "file": "src/main.css",
+          "code": ":root {\n  color-scheme: light dark;\n  --font: system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif;\n  --bg: #f6f8fa;\n  --surface: #ffffff;\n  --text: #1f2328;\n  --muted: #59636e;\n  --line: #d1d9e0;\n  --radius: 0.75rem;\n  --shadow: 0 1px 2px rgb(31 35 40 / 0.06), 0 8px 24px rgb(31 35 40 / 0.08);\n}\n\n@media (prefers-color-scheme: dark) {\n  :root {\n    --bg: #0d1117;\n    --surface: #151b23;\n    --text: #f0f6fc;\n    --muted: #9198a1;\n    --line: #3d444d;\n    --shadow: 0 8px 24px rgb(0 0 0 / 0.4);\n  }\n}",
+          "explanation": "Custom properties hold the design's colors once, on `:root`, and every rule uses `var(--bg)` or `var(--text)` instead of a color. So dark mode is one media query that redefines the tokens, and no component changes. `color-scheme: light dark` tells the browser the page supports both, so form controls and scrollbars switch too. The tasks app's stylesheet uses the same pattern, and wraps its transitions in `@media (prefers-reduced-motion: no-preference)`, so motion runs only for users who haven't asked for less."
+        }
+      ],
+      "codebase": {
+        "template": "web-playground",
+        "files": [
+          "src/main.css"
+        ]
+      }
+    },
+    {
+      "title": "Images that fit every screen",
+      "body": "Images are usually the heaviest part of a page, and the usual reason content jumps around while it loads. Four habits fix both:\n\n- Make images fluid. `max-inline-size: 100%` keeps an image inside its container on any screen.\n- Give every `img` its `width` and `height`. The browser reserves a box with that ratio before the file arrives, so nothing below it jumps. CSS still decides the size it is shown at.\n- Serve modern formats with a fallback. In a `picture`, the browser takes the first `source` whose `type` it supports, and downloads only that file.\n- Serve the right size. `srcset` lists the same image at several widths and `sizes` says how wide it will be shown, so a phone never downloads a desktop image. Add `loading=\"lazy\"` to images far down the page, never to the main image at the top.\n\nEvery image that carries meaning gets an `alt` that says what it shows. A purely decorative one gets `alt=\"\"`, so screen readers skip it.",
+      "examples": [
+        {
+          "title": "One picture, three formats",
+          "prompt": "The picture on the playground's card. The project holds the same 800 by 600 image as AVIF, WebP, and JPEG.",
+          "language": "html",
+          "file": "index.html",
+          "code": "<!-- The browser downloads only the first source whose type it supports. -->\n<picture>\n  <source srcset=\"/images/sample-800.avif\" type=\"image/avif\">\n  <source srcset=\"/images/sample-800.webp\" type=\"image/webp\">\n  <img class=\"card-image\" src=\"/images/sample-800.jpg\" width=\"800\" height=\"600\"\n       alt=\"A sunset behind layered purple mountains, above a still lake\">\n</picture>",
+          "explanation": "Every current browser supports AVIF, so each one downloads only the first file, 12,600 bytes. The WebP is 30,672 bytes and the JPEG 32,090, so AVIF saves more than half here, and `wc -c public/images/*` in the terminal shows the same numbers. Only the `img` is rendered. The `source` elements just offer it other files, which is why the `alt`, the class, and the size all go on the `img`. Its `width` and `height` give a 4 to 3 ratio, so the card has the right height before a single byte of the image arrives."
+        },
+        {
+          "title": "A small reset",
+          "prompt": "The reset at the top of the playground's stylesheet. Most projects start with rules like these.",
+          "language": "css",
+          "file": "src/main.css",
+          "code": "/* Reset */\n\n*,\n*::before,\n*::after {\n  box-sizing: border-box;\n}\n\nbody {\n  margin: 0;\n  font: 1rem/1.5 var(--font);\n  color: var(--text);\n  background: var(--bg);\n}\n\nh1,\np {\n  margin: 0;\n}\n\nimg,\npicture {\n  display: block;\n  max-inline-size: 100%;\n}",
+          "explanation": "`box-sizing: border-box` makes `width` include padding and border, so an element set to 100% wide with padding never overflows its parent. `display: block` removes the small gap under images that comes from treating them as text sitting on a line. `max-inline-size: 100%` keeps every image inside its container. The `body` sets the font and colors once, from the tokens, and everything inherits them."
+        },
+        {
+          "title": "Keeping the ratio",
+          "prompt": "The rule that sizes the image on the card.",
+          "language": "css",
+          "file": "src/main.css",
+          "code": ".card-image {\n  inline-size: 100%;\n  block-size: auto;\n}",
+          "explanation": "The `height=\"600\"` attribute also acts as a CSS height. Without `block-size: auto`, the image would shrink in width on a phone but stay 600 pixels tall, squashed. With it, CSS computes the height from the width and the 4 to 3 ratio the attributes gave, so the image scales with the card and the space was still reserved before it loaded. Pair `width` and `height` attributes with `height: auto` or `block-size: auto` in CSS every time."
+        }
+      ],
+      "codebase": {
+        "template": "web-playground",
+        "files": [
+          "index.html",
+          "src/main.css"
+        ]
+      }
+    }
+  ],
+  "recap": "- Use flexbox for a row or a column: `gap` for spacing, `flex: 1` to fill, `flex-wrap: wrap` for narrow screens, and `min-inline-size: 0` on inputs.\n- Use grid for two dimensions, and `place-items: center` to center anything.\n- Prefer fluid sizes like `min(100%, 28rem)` and `rem` units, and write media queries mobile first for what fluid sizes can't handle.\n- Keep colors in custom properties, so dark mode is one `prefers-color-scheme` query, and respect `prefers-reduced-motion`.\n- Give every image `width`, `height`, and `alt`, serve AVIF or WebP through `picture`, and size it with `srcset` and `sizes`."
+}

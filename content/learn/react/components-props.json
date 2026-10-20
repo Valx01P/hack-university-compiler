@@ -1,0 +1,78 @@
+{
+  "id": "components-props",
+  "title": "Components, JSX, and Props",
+  "section": "React Fundamentals",
+  "summary": "Read and write typed function components: the JSX they return, props and children, and wrappers that forward native props.",
+  "format": "read",
+  "intro": "Nearly every ticket on a React team touches a component: a card that needs one more field, a new button variant, a message for an empty list. This course reads Taskboard, a team task tracker written in React 19 and TypeScript 7 the way strong teams write apps today. In this lesson you learn to read its building blocks: components, the JSX they return, and the props that configure them.",
+  "steps": [
+    {
+      "title": "Components and JSX",
+      "body": "A component is a function that returns JSX, and its name starts with a capital letter, because a lowercase tag like `<div>` means an HTML element. JSX looks like HTML but compiles to JavaScript calls, so a few names change: `className` instead of `class`, `htmlFor` instead of `for`, and camelCase events like `onClick`. Every tag is closed, and a component returns one root element, or several wrapped in a fragment, `<>...</>`.\n\nCurly braces hold any JavaScript expression: `{task.title}`, `{count + 1}`, or another element. `null`, `undefined`, `true`, and `false` render nothing, which is why `{error && <p>{error}</p>}` is the usual way to show something only when it exists. The number `0` does render, so write `{count > 0 && ...}`, not `{count && ...}`.\n\nRendering must be pure: the same props give the same JSX, and a render never changes anything outside itself. In development, `<StrictMode>` renders every component twice to expose the ones that do.",
+      "examples": [
+        {
+          "title": "A small component",
+          "prompt": "Read `EmptyState`, which every list in the app shows when it has nothing in it. Notice what renders when `children` or `action` is missing.",
+          "language": "tsx",
+          "file": "src/components/ui/EmptyState.tsx",
+          "code": "// What a list shows when it has nothing in it: a title, a sentence, and usually a next step.\nimport type { ReactNode } from \"react\";\nimport styles from \"./EmptyState.module.css\";\n\ninterface EmptyStateProps {\n  title: string;\n  children?: ReactNode;\n  action?: ReactNode;\n}\n\nexport function EmptyState({ title, children, action }: EmptyStateProps) {\n  return (\n    <div data-ui=\"empty-state\" className={styles.emptyState}>\n      <h2 className={styles.title}>{title}</h2>\n      {children && <p className={styles.text}>{children}</p>}\n      {action}\n    </div>\n  );\n}",
+          "explanation": "The props are typed with an interface, so TypeScript checks every place that renders `EmptyState`. `children` and `action` are optional and typed `ReactNode`, the type of anything React can render: text, elements, arrays, or `null`. `{children && <p>...</p>}` renders the paragraph only when there is text, and `{action}` renders the button the caller passed, or nothing. `styles.title` comes from a CSS Module, a stylesheet whose class names are scoped to this one file. `data-ui` is a plain attribute that tests and the design system can find."
+        },
+        {
+          "title": "Where rendering starts",
+          "prompt": "Read the entry point, which mounts the whole app into the page once.",
+          "language": "tsx",
+          "file": "src/main.tsx",
+          "code": "// The entry point. It loads the global styles, registers what happens when a session expires,\n// and renders the providers around the router inside <StrictMode>, which in development renders\n// twice and runs effects twice to surface impure code and missing cleanups. The root's error\n// options log errors that error boundaries caught and the ones they didn't.\nimport { StrictMode } from \"react\";\nimport { createRoot } from \"react-dom/client\";\nimport { RouterProvider } from \"react-router/dom\";\nimport { AppProviders } from \"@/app/providers\";\nimport { queryClient } from \"@/app/query-client\";\nimport { router } from \"@/app/router\";\nimport { redirectOnExpiredSession } from \"@/features/auth\";\nimport \"@/styles/tokens.css\";\nimport \"@/styles/global.css\";\n\nredirectOnExpiredSession(queryClient, (to) => router.navigate(to));\n\ncreateRoot(document.getElementById(\"root\")!, {\n  onCaughtError: (error, info) => console.warn(\"An error boundary caught:\", error, info.componentStack),\n  onUncaughtError: (error, info) => console.error(\"Uncaught error:\", error, info.componentStack),\n}).render(\n  <StrictMode>\n    <AppProviders queryClient={queryClient}>\n      <RouterProvider router={router} />\n    </AppProviders>\n  </StrictMode>,\n);",
+          "explanation": "`index.html` has an empty `<div id=\"root\">`, and `createRoot` takes it over. The `!` tells TypeScript the element exists. `render` mounts the tree once, and from then on React updates only what changes. `<StrictMode>` does nothing in production. In development it renders twice and runs effects twice, so a missing cleanup shows up on your machine instead of in a bug report. `AppProviders` and `RouterProvider` are components too: they wrap every page in the query cache, the toasts, the theme, and the router. The root's `onCaughtError` and `onUncaughtError` options are where a team plugs in error reporting."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-web",
+        "files": [
+          "src/components/ui/EmptyState.tsx",
+          "src/main.tsx"
+        ]
+      }
+    },
+    {
+      "title": "Props and children",
+      "body": "Props are the one object a component receives. Destructure them in the parameter list and type them with an `interface` or a `type`. Mark optional props with `?` and give them defaults in the destructuring, like `tone = \"neutral\"`. TypeScript then checks every call: a misspelled prop or a wrong value is a red squiggle, not a bug in production.\n\n`children` is whatever sits between a component's opening and closing tags, typed `ReactNode`. Other props can carry JSX too, like `action={<Button>Create a project</Button>}`.\n\nProps are read-only. A component never changes them: to show something different, the parent renders it again with new props. A prop can be any value: a string, a whole `task` object, a function like `onClose`, or JSX. Name callback props `onSomething`, like DOM events, and the handlers inside a component `handleSomething`.\n\nA wrapper around a native element should accept every prop of that element and pass the ones it doesn't use through. `ComponentProps<\"button\">` is the type of every prop a `<button>` takes.",
+      "examples": [
+        {
+          "title": "A typed Tag",
+          "prompt": "Read `Tag`, the colored label for priorities and task labels. Look at how its props are typed and defaulted.",
+          "language": "tsx",
+          "file": "src/components/ui/Tag.tsx",
+          "code": "// A small colored label for a priority, a status, or a task label. A tone picks a theme color; a\n// color (a label's own #rrggbb) overrides it through a CSS variable.\nimport { clsx } from \"clsx\";\nimport type { CSSProperties, ReactNode } from \"react\";\nimport styles from \"./Tag.module.css\";\n\nexport type TagTone = \"neutral\" | \"info\" | \"success\" | \"warning\" | \"danger\";\n\ninterface TagProps {\n  tone?: TagTone;\n  color?: string;\n  children: ReactNode;\n}\n\nexport function Tag({ tone = \"neutral\", color, children }: TagProps) {\n  const style = color ? ({ \"--tag-color\": color } as CSSProperties) : undefined;\n  return (\n    <span data-ui=\"tag\" className={clsx(styles.tag, styles[tone], color && styles.custom)} style={style}>\n      {children}\n    </span>\n  );\n}",
+          "explanation": "`TagTone` is a union of five strings, so `<Tag tone=\"red\">` doesn't compile, and the editor suggests the five values as you type. `tone` defaults to `\"neutral\"` in the destructuring, and `color` is optional. `children` is required here: a tag with no text makes no sense, and TypeScript says so at the call. `style` takes an object, not a string. A CSS custom property like `--tag-color` isn't in React's style type, hence the `as CSSProperties`. `clsx` joins class names and skips the falsy ones, so `color && styles.custom` adds the class only when there's a color."
+        },
+        {
+          "title": "The parent decides",
+          "prompt": "Read how `TaskCard` takes a whole task and renders parts of it only when they apply. The board decides `canDelete` and passes it in.",
+          "language": "tsx",
+          "file": "src/features/tasks/components/TaskCard.tsx",
+          "code": "interface TaskCardProps {\n  task: Task;\n  assignee: Member | undefined;\n  canDelete: boolean;\n}\n\nexport function TaskCard({ task, assignee, canDelete }: TaskCardProps) {\n  // ...\n  return (\n    <article data-ui=\"task-card\" className={styles.card} aria-labelledby={titleId} draggable={!renaming} onDragStart={handleDragStart} onMouseEnter={prefetch}>\n      {/* ... */}\n      <div className={styles.footer}>\n        {assignee ? <Avatar name={assignee.name} size={24} /> : <span className={styles.unassigned}>Unassigned</span>}\n        <div className={styles.actions}>\n          <StatusMenu task={task} />\n          {/* ... */}\n          {canDelete && <DeleteTaskButton task={task} />}\n        </div>\n      </div>\n    </article>\n  );\n}\n\nfunction DueDate({ task, dueOn }: { task: Task; dueOn: string }) {\n  if (task.status === \"done\") return <time dateTime={dueOn} className={styles.due}>{`Due ${formatDue(dueOn)}`}</time>;\n  const label = dueLabel(dueOn);\n  return (\n    <time dateTime={dueOn} className={clsx(styles.due, label.startsWith(\"Overdue\") && styles.overdue)}>\n      {label}\n    </time>\n  );\n}",
+          "explanation": "The card receives a whole `Task`, typed in `types.ts`, instead of a dozen separate props, so adding a field to tasks doesn't change every call site. `assignee` is `Member | undefined`, and the ternary renders an avatar or the word Unassigned. TypeScript won't let you read `assignee.name` without that check. `canDelete` is a decision the parent makes, because only the board knows whether you own the project. The card just renders what it's told, which keeps it easy to reuse and to test. `DueDate` is a second, smaller component in the same file, with an early `return` for tasks that are done."
+        },
+        {
+          "title": "Forwarding native props",
+          "prompt": "Read `Button`, the app's only styled button. It adds two props of its own and forwards everything else to the real `<button>`.",
+          "language": "tsx",
+          "file": "src/components/ui/Button.tsx",
+          "code": "// The app's button. Features never style a raw <button>: they pick a variant and a size, so every\n// button looks and behaves the same, and a design change happens here once.\nimport { clsx } from \"clsx\";\nimport type { ComponentProps } from \"react\";\nimport styles from \"./Button.module.css\";\n\nexport type ButtonProps = ComponentProps<\"button\"> & {\n  variant?: \"primary\" | \"secondary\" | \"ghost\" | \"danger\";\n  size?: \"sm\" | \"md\";\n};\n\nexport function Button({ variant = \"secondary\", size = \"md\", type = \"button\", className, ...props }: ButtonProps) {\n  return <button data-ui=\"button\" type={type} className={clsx(styles.button, styles[variant], size === \"sm\" && styles.small, className)} {...props} />;\n}",
+          "explanation": "`ComponentProps<\"button\">` is every prop a `<button>` accepts: `onClick`, `disabled`, `aria-label`, `children`, and the rest. The `&` adds `variant` and `size`. The destructuring pulls out what `Button` handles itself and collects everything else in `props`, which `{...props}` passes through, so `<Button disabled={isPending} onClick={save}>Save</Button>` works with no extra code. `type` defaults to `\"button\"` because a button inside a form submits it by default, a classic bug. `className` is merged with `clsx`, not replaced. Features never style a raw button, so a design change happens here, once."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-web",
+        "files": [
+          "src/components/ui/Tag.tsx",
+          "src/features/tasks/components/TaskCard.tsx",
+          "src/components/ui/Button.tsx"
+        ]
+      }
+    }
+  ],
+  "recap": "- A component is a capitalized function that returns JSX. Lowercase tags are HTML elements.\n- JSX uses `className`, `htmlFor`, and camelCase events, and `{}` holds any expression. `null`, `undefined`, and booleans render nothing, but `0` renders.\n- Type props with an interface, give defaults in the destructuring, and pass JSX through `children` or other `ReactNode` props.\n- Props are read-only: the parent decides, and the child renders what it's given.\n- Wrap native elements with `ComponentProps<\"button\">` and a rest spread, and default `type` to `\"button\"`."
+}

@@ -1,0 +1,103 @@
+{
+  "id": "app-router",
+  "title": "Pages, Layouts, and the App Router",
+  "section": "Foundations",
+  "summary": "Read a Next.js app the way its router does: folders become URLs, page.tsx makes them pages, and layouts wrap every page below them.",
+  "format": "read",
+  "intro": "On most jobs you join a Next.js app that already exists, and your first task is finding the code behind a URL. The App Router makes that quick, because the `app/` folder is a map of the site. In this lesson you read Trailhead Lab, a small outdoor-gear store, the way the router does: from the URL to the page to the data.",
+  "steps": [
+    {
+      "title": "Folders become URLs",
+      "body": "Next.js 16 routes with the App Router. Every folder inside `app/` is one segment of a URL, and a folder becomes a page people can visit only when it holds a `page.tsx`. That file's default export is a React component, and what it returns is the page.\n\n```text\napp/\n  layout.tsx          wraps every page\n  page.tsx            /\n  products/page.tsx   /products\n  about/page.tsx      /about\n  not-found.tsx       the 404 page for URLs that match nothing\n```\n\nA few other names are special too: `layout.tsx` wraps pages, `loading.tsx` and `error.tsx` show while a page loads or fails, and `route.ts` answers HTTP requests with data instead of a page. Any other file in `app/` never becomes a URL, so a page's helpers can sit next to it. To find the code behind a URL, read the URL as a folder path. To try it yourself, open the Next.js playground, a fresh `create-next-app` project, and add `app/about/page.tsx`.",
+      "examples": [
+        {
+          "title": "The products page",
+          "prompt": "This file is the whole `/products` route. Notice what's missing: no `fetch`, no `useEffect`, and no loading state.",
+          "language": "tsx",
+          "file": "app/products/page.tsx",
+          "code": "import { ProductCard } from \"@/components/product-card\";\nimport { listProducts } from \"@/lib/catalog\";\n\nexport default function ProductsPage() {\n  const products = listProducts();\n\n  return (\n    <main className=\"mx-auto max-w-6xl px-6 py-12\">\n      <h1 className=\"text-3xl font-semibold\">Products</h1>\n      <p className=\"mt-2 text-stone-600\">{products.length} products</p>\n      <ul className=\"mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4\">\n        {products.map((product) => (\n          <li key={product.slug}>\n            <ProductCard product={product} />\n          </li>\n        ))}\n      </ul>\n    </main>\n  );\n}",
+          "explanation": "Next.js finds this page by its path, so no router config lists it. The component runs on the server, which is why it can call `listProducts()` from `lib/catalog.ts` directly and render the result with no loading state. The browser gets finished HTML with all 12 products in it. Each `<li>` gets `key={product.slug}` because a slug is unique and never changes, which is what React needs to track the items of a list."
+        },
+        {
+          "title": "Routes the dev server knows",
+          "prompt": "With the dev server running, `npm run routes` lists the routes it found in `app/`.",
+          "language": "bash",
+          "code": "npm run routes",
+          "output": "npm notice run trailhead-lab@0.1.0 routes\nnpm notice run node scripts/routes.mjs\n/\n/about\n/favicon.ico\n/products",
+          "explanation": "The script, `scripts/routes.mjs`, asks the running dev server which routes it found, through the server's built-in `/_next/mcp` endpoint. `/favicon.ico` is listed because `app/favicon.ico` is a special file too, served as the tab icon. `not-found.tsx` isn't a route, so it isn't listed. It renders for any URL that matches nothing, with a 404 status. When a URL shows the wrong page or no page at all, this list tells you what the router actually sees."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "app/products/page.tsx",
+          "app/page.tsx",
+          "app/about/page.tsx",
+          "app/not-found.tsx",
+          "scripts/routes.mjs"
+        ]
+      }
+    },
+    {
+      "title": "Layouts wrap every page",
+      "body": "A `layout.tsx` wraps every page in its folder and in every folder below it. It gets the page as its `children` prop and renders it wherever `{children}` appears. The root layout, `app/layout.tsx`, is required. It renders `<html>` and `<body>`, so it's the place for fonts, global CSS, and the parts every page shares, like the header and the footer.\n\nLayouts nest. A file at `app/products/layout.tsx` would wrap only the pages under `/products`, inside the root layout. When you navigate between pages that share a layout, Next.js swaps only the page. The layout stays mounted, so it keeps its state and doesn't render again. That's why the header lives in the layout and not in each page. When you want the opposite, a fresh copy on every navigation, name the file `template.tsx` instead.",
+      "examples": [
+        {
+          "title": "The root layout",
+          "prompt": "Every page in the lab renders inside this component. Find the spot where the page goes.",
+          "language": "tsx",
+          "file": "app/layout.tsx",
+          "code": "import type { Metadata } from \"next\";\nimport { GeistSans } from \"geist/font/sans\";\nimport { GeistMono } from \"geist/font/mono\";\nimport { SiteHeader } from \"@/components/site-header\";\nimport \"./globals.css\";\n\nexport const metadata: Metadata = {\n  title: \"Trailhead\",\n  description: \"Packs, tents, layers, and camp kitchens for long days outside.\",\n};\n\nexport default function RootLayout({ children }: LayoutProps<\"/\">) {\n  return (\n    <html lang=\"en\" className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}>\n      <body className=\"flex min-h-screen flex-col\">\n        <SiteHeader />\n        <div className=\"flex-1\">{children}</div>\n        <footer className=\"border-t border-stone-200 py-8 text-center text-sm text-stone-600\">\n          <p>© 2026 Trailhead</p>\n        </footer>\n      </body>\n    </html>\n  );\n}",
+          "explanation": "`{children}` is the current page. It sits in a `div` that grows to fill the screen, which pushes the footer to the bottom. `<SiteHeader />` and the footer appear on every page without any page importing them. `LayoutProps<\"/\">` is a type that Next.js generates from your folders when the dev server starts, during a build, or when you run `next typegen`, so `children` is typed with no import. The `metadata` export sets the title and description for every page, and the last lesson of this course shows how a page overrides them. Global CSS is imported once, here."
+        },
+        {
+          "title": "A counter that shows what remounts",
+          "prompt": "The lab ships this small client component for testing layouts. Render `<Counter />` in `app/layout.tsx`, click it a few times, then follow the header links.",
+          "language": "tsx",
+          "file": "components/counter.tsx",
+          "code": "\"use client\";\n\nimport { useState } from \"react\";\n\n// The count lives in this component's state, so it survives exactly as long as the\n// component stays mounted: a layout keeps it across navigations, a template resets it.\nexport function Counter() {\n  const [count, setCount] = useState(0);\n\n  return (\n    <button\n      type=\"button\"\n      onClick={() => setCount((current) => current + 1)}\n      className=\"rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium\"\n    >\n      Clicked {count} {count === 1 ? \"time\" : \"times\"}\n    </button>\n  );\n}",
+          "explanation": "The count lives in `useState`, so it lasts exactly as long as the component stays mounted, as its comment says. In the root layout it keeps its count while you move between `/products` and `/about`, because Next.js keeps the layout mounted and swaps only the page inside it. In a `template.tsx` it would start again at 0 after every navigation, since Next.js mounts a fresh template each time. The `\"use client\"` line is what allows state at all, and the next lesson explains it."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "app/layout.tsx",
+          "components/counter.tsx",
+          "components/site-header.tsx"
+        ]
+      }
+    },
+    {
+      "title": "Where the rest of the code lives",
+      "body": "Only routing belongs in `app/`. The lab keeps everything else in folders with one job each, and the `@/*` alias in `tsconfig.json` lets any file import them from the project root, like `@/lib/catalog`.\n\n- `components/` holds UI that several routes share, like `ProductCard` and `Price`.\n- `lib/` holds data and helpers with no UI: the catalog, the team, formatting, and the fetch helpers for the mock services.\n- `public/` is served from the site root, so `public/logo.svg` is `/logo.svg`.\n\nA request flows down those layers. The URL picks a page in `app/`, the page renders components, and the page and its components get data and helpers from `lib/`. Nothing in `lib/` imports from `app/` or `components/`. That one rule keeps the data code testable without a browser or a server, and when the catalog moves into a database, only `lib/` has to change.",
+      "examples": [
+        {
+          "title": "The catalog module",
+          "prompt": "Pages never touch the product array itself. They go through these functions at the bottom of `lib/catalog.ts`.",
+          "language": "ts",
+          "file": "lib/catalog.ts",
+          "code": "export function listCategories(): Category[] {\n  return [...categories];\n}\n\nexport function getCategory(slug: string): Category | undefined {\n  return categories.find((category) => category.slug === slug);\n}\n\nexport function listProducts(): Product[] {\n  return [...products];\n}\n\nexport function listProductsInCategory(category: string): Product[] {\n  return products.filter((product) => product.category === category);\n}\n\nexport function getProductBySlug(slug: string): Product | undefined {\n  return products.find((product) => product.slug === slug);\n}",
+          "explanation": "These five functions are the catalog's whole public surface. `listProducts()` returns a copy, `[...products]`, so a caller that sorts or reverses its list can't reorder the catalog for every other page. Lookups return `undefined` for an unknown slug, and each caller decides what that means: a 404 page, or a 404 from an API. The return types are written out, `Product[]` and `Product | undefined`, so a change inside the module can't quietly change what callers get."
+        },
+        {
+          "title": "Testing lib without a server",
+          "prompt": "Because `lib/` has no UI, plain `node:test` tests can import it directly. Run the catalog's tests.",
+          "language": "bash",
+          "code": "npm test -- tests/catalog.test.ts",
+          "output": "npm notice run trailhead-lab@0.1.0 test\nnpm notice run node --test tests/catalog.test.ts\n✔ the catalog has 12 products, three in each of 4 categories (0.636667ms)\n✔ slugs are unique (0.070541ms)\n✔ seven products cost $100.00 or less (0.080292ms)\n✔ only the hip pack and the alpine tent are out of stock (0.068208ms)\n✔ lookups find known slugs and return undefined for unknown ones (0.08225ms)\n✔ listProducts returns a copy, so callers cannot reorder the catalog (0.053625ms)\n✔ every product photo and category banner exists in public/ (0.203542ms)\nℹ tests 7\nℹ suites 0\nℹ pass 7\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 64.76775",
+          "explanation": "`npm test` runs `node --test`, and anything after `--` passes through to it. Node runs `.ts` files directly by stripping their types, so there's no build step and the suite finishes in milliseconds. The test names read like the catalog's rules, including the copy that `listProducts()` returns. That's the habit to keep: test data and logic in `lib/` directly, and save browser tests for the few flows that need a real page."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "lib/catalog.ts",
+          "tests/catalog.test.ts",
+          "README.md"
+        ]
+      }
+    }
+  ],
+  "recap": "- Each folder in `app/` is a URL segment, and `page.tsx` makes it a page. Read a URL as a folder path to find its code.\n- Special files have fixed jobs: `layout.tsx`, `page.tsx`, `not-found.tsx`, `loading.tsx`, `error.tsx`, and `route.ts`.\n- A layout wraps every page below it and stays mounted across navigations, so shared UI like the header goes there.\n- Keep `app/` for routing, `components/` for shared UI, and `lib/` for data and helpers that never import UI.\n- Test `lib/` directly with fast unit tests, and check what the router sees with `npm run routes`."
+}

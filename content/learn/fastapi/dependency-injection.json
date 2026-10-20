@@ -1,0 +1,116 @@
+{
+  "id": "dependency-injection",
+  "title": "Dependency Injection with Depends",
+  "section": "FastAPI Fundamentals",
+  "summary": "Give each route its database session, clock, settings, current user, and permission checks through Depends, and swap them in tests.",
+  "format": "read",
+  "intro": "Almost every route needs the same few things: a database session, the current user, a check that this user may act, and the settings. Fetch them by hand at the top of each function and every route repeats the same lines, each a little differently. FastAPI's dependency injection lets a route declare what it needs as a parameter, and FastAPI builds it before the route runs. In this lesson you read Taskboard's dependencies, from a session to a role check, and see how its tests replace them.",
+  "steps": [
+    {
+      "title": "Depends and Annotated aliases",
+      "body": "A dependency is a function whose parameters FastAPI fills the same way it fills a route's: from the path, the query, the headers, or other dependencies. Declare a parameter as `Annotated[Session, Depends(get_session)]`, and FastAPI calls `get_session` for each request and passes in what it returns.\n\nWriting `Depends(...)` in every route gets noisy, so Taskboard names each dependency once, with an `Annotated` alias:\n\n```python\nSessionDep = Annotated[Session, Depends(get_session)]\n```\n\nA route then writes `session: SessionDep`, and your editor and type checker still see a `Session`.\n\nA dependency that uses `yield` gets setup and teardown. The code before `yield` runs before the route, and the code after it runs once the response is sent, even when the route raised. That's the shape for anything you must close, like a session.",
+      "examples": [
+        {
+          "title": "One session per request",
+          "prompt": "`app/db/session.py` creates the engine once, when it's imported, and a session for each request.",
+          "language": "python",
+          "file": "app/db/session.py",
+          "code": "engine = create_engine(\n    settings.database_url,\n    pool_size=settings.db_pool_size,\n    max_overflow=settings.db_max_overflow,\n    pool_pre_ping=True,\n    # UTC for every timestamp PostgreSQL hands back, and no endless wait for a dead server.\n    connect_args={\"options\": \"-c timezone=UTC\", \"connect_timeout\": 5},\n)\n\n# expire_on_commit=False keeps loaded values readable after commit, so a route can return\n# the object it just saved without another SELECT.\nSessionLocal = sessionmaker(bind=engine, expire_on_commit=False)\n\n\ndef get_engine() -> Engine:\n    return engine\n\n\ndef get_session(clock: ClockDep) -> Iterator[Session]:\n    with SessionLocal(info={\"clock\": clock, \"mail_log\": settings.mail_log}) as session:\n        yield session\n\n\nSessionDep = Annotated[Session, Depends(get_session)]",
+          "explanation": "The engine owns a pool of connections and lives as long as the process, so it's created once. `pool_pre_ping=True` checks a pooled connection before using it, so a database restart doesn't fail the next request. A session is cheap and belongs to one request. `get_session` opens one in a `with` block and yields it. When the request is done, the block closes the session, which rolls back anything a service didn't commit and returns the connection to the pool. `get_session` has a dependency of its own, `ClockDep`, and stores the clock on the session for the database hooks."
+        },
+        {
+          "title": "An injected clock",
+          "prompt": "`app/core/clock.py`, the only place the app asks what time it is.",
+          "language": "python",
+          "file": "app/core/clock.py",
+          "code": "@dataclass(frozen=True)\nclass Clock:\n    fixed: datetime | None = None\n\n    def now(self) -> datetime:\n        if self.fixed is not None:\n            return self.fixed.astimezone(UTC)\n        return datetime.now(UTC)\n\n    def today(self) -> date:\n        return self.now().date()\n\n\ndef clock_from(settings: Settings) -> Clock:\n    return Clock(fixed=settings.hu_fixed_time)\n\n\ndef get_clock() -> Clock:\n    return clock_from(get_settings())\n\n\nClockDep = Annotated[Clock, Depends(get_clock)]",
+          "explanation": "Code that calls `datetime.now()` directly can't be tested on a date you choose, and its idea of today depends on the server's time zone. Taskboard injects a `Clock` instead, and every time it hands out is in UTC. In the workspace, `HU_FIXED_TIME` freezes it at 2026-10-01 09:00 UTC, so new rows and tokens get predictable times. In production the setting is empty and the clock is real. Inject anything else that changes between runs the same way, like a call to another service."
+        },
+        {
+          "title": "Settings from the environment",
+          "prompt": "The start of `Settings` in `app/core/config.py`, and the function that builds it.",
+          "language": "python",
+          "file": "app/core/config.py",
+          "code": "class Settings(BaseSettings):\n    model_config = SettingsConfigDict(env_file=\".env\", env_file_encoding=\"utf-8\", extra=\"ignore\")\n\n    app_name: str = \"Taskboard API\"\n    environment: Literal[\"development\", \"test\", \"production\"] = \"development\"\n\n    database_url: str = \"postgresql+psycopg://taskboard:taskboard@db:5432/taskboard\"\n    test_database_url: str = \"postgresql+psycopg://taskboard:taskboard@db:5432/taskboard_test\"\n    db_pool_size: int = Field(default=5, ge=1)\n    db_max_overflow: int = Field(default=5, ge=0)\n\n    jwt_secret: SecretStr = Field(min_length=32)\n    access_token_minutes: int = Field(default=24 * 60, ge=1)\n\n\n@lru_cache\ndef get_settings() -> Settings:\n    # jwt_secret and internal_api_key have no defaults, so they must come from .env\n    # or the environment.\n    return Settings()  # type: ignore[call-arg]",
+          "explanation": "`BaseSettings` from pydantic-settings fills each field from the environment variable with the same name, like `JWT_SECRET` for `jwt_secret`, then from `.env`, then from the default. Real environment variables win, which is how production overrides `.env`. The values are validated like any model, so a `JWT_SECRET` shorter than 32 characters stops the app at startup instead of at the first login. `SecretStr` prints as `**********`, so the secret stays out of logs. `@lru_cache` builds the settings once, and `app/api/deps.py` exposes them as `SettingsDep = Annotated[Settings, Depends(get_settings)]`."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "app/db/session.py",
+          "app/core/clock.py",
+          "app/core/config.py"
+        ]
+      }
+    },
+    {
+      "title": "Chains of dependencies",
+      "body": "Dependencies can depend on other dependencies, and FastAPI solves the whole graph before the route runs. Taskboard's `CurrentUser` is a chain of two:\n\n1. `get_access_token` reads the bearer token or the session cookie, checks its signature and expiry, and returns an `AccessToken`, or raises a 401.\n2. `get_current_user` takes that token and a session, loads the user, and returns a `User`.\n\nWithin one request, each dependency runs once, however many times the graph asks for it. A route that asks for `CurrentUser` and `SessionDep` gets one session, shared with `get_current_user`, which asks for `SessionDep` too.\n\nPermission checks are dependencies as well. `require_project_role(min_role)` is a factory: it takes a role and returns a new dependency that loads the project from the path and checks the caller's role in it. Its aliases read like a sentence in the route's signature: `access: ProjectMember`.",
+      "examples": [
+        {
+          "title": "From a token to a user",
+          "prompt": "The end of the chain in `app/api/deps.py`.",
+          "language": "python",
+          "file": "app/api/deps.py",
+          "code": "AccessTokenDep = Annotated[AccessToken, Depends(get_access_token)]\n\n\ndef get_current_user(token: AccessTokenDep, session: SessionDep) -> User:\n    user = users.get(session, token.user_id)\n    if user is None or not user.is_active:\n        raise Unauthorized(\"the account no longer exists or is disabled\")\n    set_current_user(user.id)\n    return user\n\n\nCurrentUser = Annotated[User, Depends(get_current_user)]",
+          "explanation": "`get_current_user` never reads a header. It receives a checked `AccessToken`, so nobody can call it with a token that wasn't verified. An account may be disabled after its token was issued, so it checks `is_active` on every request. `set_current_user` records the id in the request context, where the JSON logs and the audit log read it. A route that declares `user: CurrentUser` gets a `User`, or it never runs."
+        },
+        {
+          "title": "A dependency factory for roles",
+          "prompt": "One function in `app/api/deps.py` makes a dependency for each minimum role.",
+          "language": "python",
+          "file": "app/api/deps.py",
+          "code": "def require_project_role(min_role: ProjectRole) -> Callable[..., ProjectAccess]:\n    def dependency(project_id: PathId, user: CurrentUser, session: SessionDep) -> ProjectAccess:\n        project = projects.load(session, project_id)\n        return projects.authorize(session, user, project, min_role)\n\n    return dependency\n\n\nProjectReader = Annotated[ProjectAccess, Depends(require_project_role(ProjectRole.VIEWER))]\nProjectMember = Annotated[ProjectAccess, Depends(require_project_role(ProjectRole.MEMBER))]\nProjectOwner = Annotated[ProjectAccess, Depends(require_project_role(ProjectRole.OWNER))]",
+          "explanation": "Here `projects` is the service module. The inner `dependency` reads `project_id` from the path as a `PathId`, a whole number from 1 to the largest value a PostgreSQL `INTEGER` holds, so any route under `/projects/{project_id}` can use it. `projects.load` raises `NotFound` for a missing project, and `projects.authorize` compares role ranks, never role names, since `\"viewer\" > \"member\"` is true for text. It returns a `ProjectAccess` with the project, the user, and their role, so the route doesn't load the project again. Read a route's signature and you know who may call it."
+        },
+        {
+          "title": "404 for strangers, 403 for the rest",
+          "prompt": "Margaret is in no project, and Ada is an admin who isn't a member of project 3. `$MARGARET` holds Margaret's token, from a login like Ada's.",
+          "language": "bash",
+          "code": "curl -s localhost:$PORT/v1/projects/1 -H \"Authorization: Bearer $MARGARET\" | jq\ncurl -s localhost:$PORT/v1/projects/3/tasks -H \"Authorization: Bearer $TOKEN\" \\\n  --json '{\"title\": \"Ship it\"}' | jq",
+          "output": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Not Found\",\n  \"status\": 404,\n  \"detail\": \"project 1 not found\",\n  \"request_id\": \"01a156f7-fde2-72d1-81cd-d43f736425f0\"\n}\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Forbidden\",\n  \"status\": 403,\n  \"detail\": \"admins can read every project, but change only their own\",\n  \"request_id\": \"01a156f7-fdea-7555-93e4-80f52593d86d\"\n}",
+          "explanation": "Both answers came from the dependency, before any route code ran. Someone who can't see a project gets 404, the same answer as for a project that doesn't exist, so nobody can probe which ids are real. Someone who can see it but may not change it gets 403. As an admin, Ada may read project 3, but `ProjectMember` asks for more than that."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "app/api/deps.py",
+          "app/services/projects.py"
+        ]
+      }
+    },
+    {
+      "title": "Swap dependencies in tests",
+      "body": "Because routes ask for what they need instead of building it, a test can hand them something else. `app.dependency_overrides` maps a dependency function to a replacement, and FastAPI calls the replacement wherever the original was declared, including deep inside a chain.\n\nTaskboard's tests swap the two things that must not be real in a test: the session and the clock. The session works on a test database, inside a transaction that rolls back after each test, and the clock stands still. Everything else, every route, dependency, service, and query, runs exactly as in production.\n\nOverrides are keyed by the function, so you override `get_session`, not `SessionDep`. Build a fresh app for each test with the factory, and an override can never leak into the next test.",
+      "examples": [
+        {
+          "title": "The app fixture",
+          "prompt": "`tests/conftest.py` builds an app for each test and swaps two dependencies.",
+          "language": "python",
+          "file": "tests/conftest.py",
+          "code": "@pytest.fixture\ndef app(db: Session) -> FastAPI:\n    app = create_app()\n    app.dependency_overrides[get_session] = lambda: db\n    app.dependency_overrides[get_clock] = lambda: CLOCK\n    return app\n\n\n@pytest.fixture\ndef client(app: FastAPI) -> Iterator[TestClient]:\n    with TestClient(app) as client:\n        yield client",
+          "explanation": "`create_app()` returns a new app, so these overrides belong to this test alone. `lambda: db` hands every request the test's own session, the one the test uses to create its rows, so the route sees them without a commit. `CLOCK` is fixed at 2026-10-01 09:00 UTC. `TestClient` calls the app in the same process, with no server and no port, and the `with` block runs the app's startup and shutdown around the test."
+        },
+        {
+          "title": "A test that reads like a spec",
+          "prompt": "`test_who_can_see_a_project` in `tests/test_projects.py` checks the role dependency through real requests. Run it with `uv run pytest tests/test_projects.py -k who_can_see -v`.",
+          "language": "python",
+          "file": "tests/test_projects.py",
+          "code": "@pytest.mark.parametrize(\n    (\"user_id\", \"project_id\", \"status\"),\n    [\n        (GRACE, 1, 200),\n        (ADA, 3, 200),\n        (MARGARET, 1, 404),\n        (LINUS, 1, 404),\n    ],\n    ids=[\"member\", \"admin-reads-any\", \"stranger\", \"other-projects-member\"],\n)\ndef test_who_can_see_a_project(\n    client: TestClient,\n    people: dict[int, User],\n    auth_headers: AuthHeaders,\n    user_id: int,\n    project_id: int,\n    status: int,\n) -> None:\n    \"\"\"Members and admins see a project. Everyone else gets 404, never 403.\"\"\"\n    response = client.get(f\"/v1/projects/{project_id}\", headers=auth_headers(people[user_id]))\n\n    assert response.status_code == status",
+          "output": "collecting ... collected 25 items / 21 deselected / 4 selected\n\ntests/test_projects.py::test_who_can_see_a_project[member] PASSED        [ 25%]\ntests/test_projects.py::test_who_can_see_a_project[admin-reads-any] PASSED [ 50%]\ntests/test_projects.py::test_who_can_see_a_project[stranger] PASSED      [ 75%]\ntests/test_projects.py::test_who_can_see_a_project[other-projects-member] PASSED [100%]\n\n======================= 4 passed, 21 deselected in 0.38s =======================",
+          "explanation": "`parametrize` turns one test into four, each with its own id in the report, so a failure names the exact case, like `[stranger]`. Each case goes through the real route, the real `require_project_role`, and real queries on PostgreSQL. Only the session and the clock were swapped. `auth_headers` is a fixture that makes a real token for a user, so the token check runs as well. The output starts where pytest begins collecting, after its header."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "tests/conftest.py",
+          "tests/test_projects.py"
+        ]
+      }
+    }
+  ],
+  "recap": "- A dependency is a function FastAPI calls before the route, with its parameters filled from the request or from other dependencies.\n- Name each one once with an `Annotated` alias, like `SessionDep` or `CurrentUser`, and routes list what they need in their signatures.\n- Use `yield` for resources you must close, like one session per request.\n- Inject the clock and the settings instead of reading them directly, and put permission checks in dependencies.\n- In tests, swap dependencies with `app.dependency_overrides` on a fresh app."
+}

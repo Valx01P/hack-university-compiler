@@ -129,7 +129,9 @@ export async function resolveScope(scope: string): Promise<ResolvedScope> {
       return done(challenge.template, challenge.checkpoint, starter, suite);
     }
     case "learn": {
-      const lesson = await getLesson(course, parsed.lesson);
+      const found = await getLesson(course, parsed.lesson);
+      // Read lessons have no workspace: their codebases open as sandboxes.
+      const lesson = found && found.format !== "read" ? found : null;
       const lessons = await getCourseDir(course);
       const step = lesson?.steps[parsed.part - 1];
       if (!lesson || !step) throw new ScopeError("There's no such part.");

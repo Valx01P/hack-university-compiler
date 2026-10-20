@@ -1,0 +1,94 @@
+{
+  "id": "rendering-images-metadata",
+  "title": "Rendering, Images, and Metadata",
+  "section": "Shipping to Production",
+  "summary": "Read the build's route table, serve images through next/image, and give every page its own title and description.",
+  "format": "read",
+  "intro": "Before a page ships, three things decide how it feels to users and how it looks in search: whether it renders once or on every request, how heavy its images are, and what its title and description say. A production build of the lab shows all three.",
+  "steps": [
+    {
+      "title": "Read the route table",
+      "body": "`npm run build` compiles the app, type-checks it, and prerenders every page it can. It ends with a route table, where a symbol shows how each route is served:\n\n| Symbol | Name | What happens |\n| --- | --- | --- |\n| `○` | Static | Rendered once at build time and served as stored HTML |\n| `◐` | Partial Prerender | A static shell, with dynamic parts streamed per request |\n| `ƒ` | Dynamic | Rendered on every request |\n\nStatic is the fastest and cheapest, so it's the goal for pages that look the same to everyone. A route stops being fully static when it reads request data, like `cookies()`, `headers()`, or `searchParams`, or awaits uncached data.\n\nJudge speed on a build, never on `next dev`, which renders on every request so it can pick up your edits. In the lab, `npm run start` serves the last build on port 3001, next to the dev server. Check the table whenever a change touches data, because a route that turns `ƒ` is a slowdown nobody sees in review.",
+      "examples": [
+        {
+          "title": "The lab's first build",
+          "prompt": "Build the lab as it ships, with no changes.",
+          "language": "bash",
+          "code": "npm run build",
+          "output": "npm notice run trailhead-lab@0.1.0 build\nnpm notice run next build\n▲ Next.js 16.4.2 (Turbopack)\n- Environments: .env\n✓ Running next.config.ts took 14ms\n- Cache Components enabled\n- Partial Prefetching enabled\n\n  Creating an optimized production build ...\n✓ Compiled successfully in 2.4s\n  Running TypeScript ...\n  Finished TypeScript in 1181ms ...\n  Collecting page data using 7 workers ...\n  Generating static pages using 7 workers (0/6) ...\n  Generating static pages using 7 workers (1/6)\n  Generating static pages using 7 workers (2/6)\n  Generating static pages using 7 workers (4/6)\n✓ Generating static pages using 7 workers (6/6) in 291ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n├ ○ /about\n└ ○ /products\n\n\n○  (Static)  prerendered as static content",
+          "explanation": "Every route is `○`. The pages read only module data from `lib/`, so Next.js rendered each one once during the build, and `npm run start` serves the stored HTML. `/_not-found` is the prerendered 404 page. The lines above the table matter too. The build loads `.env`, confirms that Cache Components is on, and runs TypeScript, so a type error fails the build before anything ships."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "package.json",
+          "next.config.ts",
+          "README.md"
+        ]
+      }
+    },
+    {
+      "title": "Images with next/image",
+      "body": "Images are usually the heaviest part of a page. The `Image` component from `next/image` handles the common problems:\n\n- it resizes each image to the widths devices need and serves a modern format, WebP by default\n- it lazy-loads images below the fold\n- it needs a size, `width` and `height` or `fill`, so the page doesn't jump while images load\n\nThe resizing happens on your server, at `/_next/image`, and with `images.localPatterns` in `next.config.ts` it accepts only the paths you list. The lab allows `/images/**`, so a request for any other file gets a 400.\n\nFor the one large image at the top of a page, add `preload`. It replaces the `priority` prop that Next.js 16 deprecated, and it puts a preload link in the page's `<head>` so the browser starts downloading the image early. A plain `<img>` gets none of this, and the lab's ESLint rules warn about it.",
+      "examples": [
+        {
+          "title": "The hero image",
+          "prompt": "The home page's hero image fills its section. Look at the props after `alt`.",
+          "language": "tsx",
+          "file": "app/page.tsx",
+          "code": "<section className=\"relative isolate overflow-hidden bg-brand-dark text-white\">\n  <Image\n    src=\"/images/hero.jpg\"\n    alt=\"\"\n    fill\n    preload\n    sizes=\"100vw\"\n    className=\"-z-10 object-cover opacity-80\"\n  />",
+          "explanation": "`fill` makes the image cover its parent, which is why the section is `relative`, and `object-cover` crops instead of stretching. `sizes=\"100vw\"` says the image is as wide as the screen, so the browser can pick the right file. In the built page, the `srcSet` lists eight widths from 640 to 3840 pixels, and at 640 pixels this 36 KB JPEG becomes a 5.6 KB WebP. `alt=\"\"` is deliberate: the image is decoration, so screen readers skip it. `preload` added a `<link rel=\"preload\" as=\"image\">` for it to the `<head>`."
+        },
+        {
+          "title": "The plain img the linter flags",
+          "prompt": "`ProductCard` still uses a plain `<img>`, and `npm run lint` flags it. The output is the linter's report.",
+          "language": "tsx",
+          "file": "components/product-card.tsx",
+          "code": "import { Price } from \"@/components/price\";\nimport type { Product } from \"@/lib/catalog\";\n\nexport function ProductCard({ product }: { product: Product }) {\n  return (\n    <article className=\"overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm\">\n      <img\n        src={product.image}\n        alt={product.name}\n        width={800}\n        height={600}\n        loading=\"lazy\"\n        className=\"aspect-4/3 w-full object-cover\"\n      />\n      <div className=\"flex items-baseline justify-between gap-4 p-4\">\n        <h2 className=\"font-medium\">{product.name}</h2>\n        <p className=\"text-stone-700\">\n          <Price cents={product.priceCents} />\n        </p>\n      </div>\n    </article>\n  );\n}",
+          "output": "npm notice run trailhead-lab@0.1.0 lint\nnpm notice run eslint\n\n/workspace/components/product-card.tsx\n  7:7  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element\n\n✖ 1 problem (0 errors, 1 warning)",
+          "explanation": "Each card sends the full 800 by 600 pixel file to every device, even a phone that shows it much smaller. LCP, Largest Contentful Paint, is the moment the largest image or text block on screen appears, and it's one of the Core Web Vitals that Google uses in search ranking. The fix is a swap: import `Image` from `next/image`, keep `src`, `alt`, `width`, and `height`, add a `sizes` that matches the card's width in the grid, and drop `loading=\"lazy\"`, which `Image` already does."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "app/page.tsx",
+          "components/product-card.tsx",
+          "next.config.ts"
+        ]
+      }
+    },
+    {
+      "title": "Titles and descriptions",
+      "body": "Search results and link previews show a page's `<title>` and its description. Next.js writes those tags from a `metadata` object that a layout or a page exports. Fields merge down the tree: the root layout sets defaults, and a page replaces the fields it sets.\n\nA `title.template` in the root layout keeps titles consistent. Each page sets a short title, and the template adds the site name:\n\n```ts\ntitle: { default: \"Trailhead\", template: \"%s | Trailhead\" },\n```\n\nPages without a title of their own, like the home page, get `default`. When the title depends on data, like a product's name, export an async `generateMetadata` function instead of the object. It receives the same `params` as the page.\n\n`metadata` works only in Server Components. Give every page its own title and description, because a site where every tab says the same thing is hard to search and hard to use.",
+      "examples": [
+        {
+          "title": "The root metadata",
+          "prompt": "The lab's root layout sets one title and one description. The output shows the `<title>` and `<meta>` tags in the built home page.",
+          "language": "tsx",
+          "file": "app/layout.tsx",
+          "code": "import type { Metadata } from \"next\";\nimport { GeistSans } from \"geist/font/sans\";\nimport { GeistMono } from \"geist/font/mono\";\nimport { SiteHeader } from \"@/components/site-header\";\nimport \"./globals.css\";\n\nexport const metadata: Metadata = {\n  title: \"Trailhead\",\n  description: \"Packs, tents, layers, and camp kitchens for long days outside.\",\n};",
+          "output": "<meta charSet=\"utf-8\"/>\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>\n<meta name=\"next-size-adjust\" content=\"\"/>\n<title>Trailhead</title>\n<meta name=\"description\" content=\"Packs, tents, layers, and camp kitchens for long days outside.\"/>",
+          "explanation": "The `<title>` and the description come from this object. Next.js added the `charSet` and `viewport` tags by itself, and `next-size-adjust` comes from its font loader. Every page in the lab shows this same title and description, because no page sets its own yet. That's the gap the next example closes."
+        },
+        {
+          "title": "A title for each page",
+          "prompt": "Put the template from this part in `app/layout.tsx`, then give the products page its own metadata. The output shows the tags in the built `/products` page.",
+          "language": "tsx",
+          "code": "import type { Metadata } from \"next\";\nimport { ProductCard } from \"@/components/product-card\";\nimport { listProducts } from \"@/lib/catalog\";\n\nexport const metadata: Metadata = {\n  title: \"Products\",\n  description: \"Every pack, tent, layer, and camp stove in the shop, with prices.\",\n};",
+          "output": "<title>Products | Trailhead</title>\n<meta name=\"description\" content=\"Every pack, tent, layer, and camp stove in the shop, with prices.\"/>",
+          "explanation": "The page's `\"Products\"` filled the `%s` in the root template, and its description replaced the root one. The home page still shows the default, `Trailhead`. `Metadata` is a type import, so it adds nothing to the page's code. Keep each description to a sentence or two that says what's on the page, since search results cut long ones off."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "app/layout.tsx",
+          "app/products/page.tsx"
+        ]
+      }
+    }
+  ],
+  "recap": "- Read the route table after every build: `○` static, `◐` partial prerender, `ƒ` dynamic. Aim for static wherever pages look the same to everyone.\n- Judge speed on `npm run build` and `npm run start`, never on the dev server.\n- Use `next/image` with a size and `sizes`, and `preload` only the large image above the fold.\n- Export `metadata` from layouts and pages, put a `title.template` in the root layout, and use `generateMetadata` when the title depends on data."
+}

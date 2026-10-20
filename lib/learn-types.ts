@@ -6,7 +6,9 @@
 import { runtimeKindOf } from "@/lib/courses";
 
 /** How a lesson (or one of its steps) is shown and run. Learn shows `single`
-    today: one program, its examples, and a practice checked by its tests. */
+    today: one program, its examples, and a practice checked by its tests.
+    A `read` lesson (ReadLesson) is the other kind Learn shows: parts to
+    read, with code that is shown and never run. */
 export type LessonFormat = "single" | "console" | "page" | "workspace";
 
 /** One run of a program: what it gets, and for a test what it must do. */
@@ -158,10 +160,56 @@ export interface Lesson {
   template?: string;
 }
 
+/** A read part's example: code to look at, shown in its own language and
+    never run. */
+export interface ReadExample {
+  title: string;
+  prompt: string;
+  /** The fence language it is highlighted as (ts, python, http...). */
+  language: string;
+  /** The path in the codebase it comes from. */
+  file?: string;
+  code: string;
+  /** Output it printed when it was really run, if it shows any. */
+  output?: string;
+  explanation: string;
+}
+
+/** A codebase a part opens in the IDE: a template in
+    content/workspaces/<course>/, at these files. */
+export interface StepCodebase {
+  template: string;
+  files: string[];
+}
+
+/** A part to read: no practice, just its examples (1 to 3). */
+export interface ReadStep {
+  title: string;
+  body: string;
+  examples: ReadExample[];
+  codebase?: StepCodebase;
+}
+
+/** A lesson of parts to read (2 or 3), for the short courses that teach
+    with code to look at instead of practices. */
+export interface ReadLesson {
+  id: string;
+  title: string;
+  section: string;
+  summary: string;
+  format: "read";
+  intro: string;
+  steps: ReadStep[];
+  recap?: string;
+}
+
+/** Any lesson Learn shows. A `read` format tells the two apart. */
+export type AnyLesson = Lesson | ReadLesson;
+
 /** A step as a lesson file may write it: a single `example` (what every
     lesson before several examples per part used) or `examples`. */
 export type LessonStepFile = Omit<LessonStep, "examples"> & { example?: LessonExample; examples?: LessonExample[] };
-export type LessonFile = Omit<Lesson, "steps"> & { steps: LessonStepFile[] };
+export type LessonFile = (Omit<Lesson, "steps"> & { steps: LessonStepFile[] }) | ReadLesson;
 
 /** The most worked examples a part has: the editor's Example 1 to 3 tabs. */
 export const MAX_EXAMPLES = 3;
@@ -169,7 +217,10 @@ export const MAX_EXAMPLES = 3;
 /** A lesson file as Learn reads it: every step's examples in `examples`, at
     most MAX_EXAMPLES of them, so the lesson column and the editor's tabs
     always show the same ones (scripts/verify-lessons.mjs refuses more). */
-export function normalizeLesson(file: LessonFile): Lesson {
+export function normalizeLesson(file: LessonFile): AnyLesson {
+  if (file.format === "read") {
+    return { ...file, steps: file.steps.map((step) => ({ ...step, examples: (step.examples ?? []).slice(0, MAX_EXAMPLES) })) };
+  }
   return {
     ...file,
     steps: file.steps.map(({ example, examples, ...step }) => ({
@@ -208,7 +259,8 @@ export interface LessonMeta {
   title: string;
   section: string;
   summary: string;
-  /** Number of practice problems (one per step). */
+  /** Number of practice problems (one per step). A read lesson's parts
+      count instead, each done once it's opened. */
   problems: number;
   /** Each step's title: the lesson's parts, in order. */
   parts: string[];
@@ -227,7 +279,8 @@ export interface Course {
   sections: { title: string; lessons: LessonMeta[] }[];
 }
 
-/** Stable id of a lesson's practice problem, used for progress. */
+/** Stable id of a lesson's practice problem (a read part's, for a read
+    lesson), used for progress. */
 export const problemId = (lessonId: string, step: number) => `${lessonId}/${step}`;
 
 /** Every step of a lesson is its own page, a part. `part` counts from 1. */

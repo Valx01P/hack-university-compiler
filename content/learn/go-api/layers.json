@@ -1,0 +1,79 @@
+{
+  "id": "layers",
+  "title": "Handlers, Services, and Stores",
+  "section": "Layers and PostgreSQL",
+  "summary": "Follow one request through a layered Go service, see what each layer owns, and how interfaces and one composition root wire them together.",
+  "format": "read",
+  "intro": "Open almost any Go service at work and you'll find the same three layers under different names. Handlers speak HTTP, services hold the business rules, and stores (also called repositories) talk to the database. Knowing which layer owns what tells you where a change belongs, and where to look when something breaks.",
+  "steps": [
+    {
+      "title": "One request, three layers",
+      "body": "Here is `GET /v1/tasks/3` in Taskboard, top to bottom:\n\n1. The **handler** `getTask` in `internal/api` reads the id from the path and calls `TaskService.Get`.\n2. The **service** in `internal/service` loads the task and applies the policy: may this user see it?\n3. The **store** `TaskRepo.Get` in `internal/store` runs the SQL and turns the row into a `domain.Task`.\n4. Back in the handler, the task becomes its JSON view and is written out.\n\nEach layer calls only the one below it. The handler never sees SQL, and the store never sees HTTP. Between them travel the **models** of `internal/domain`: plain types, their rules, and the shared errors. `domain` imports nothing else from the app, so every layer can use it.\n\nThat's MVC for an API: the models live in `domain`, the views are the response types in `dto.go`, and the handlers are the controllers.",
+      "examples": [
+        {
+          "title": "The service applies the rules",
+          "prompt": "Read `Get` and `load` in `TaskService`. The output is the response when Grace asks for task 16, which belongs to a project she isn't in.",
+          "language": "go",
+          "file": "internal/service/tasks.go",
+          "code": "// Get returns a task the actor may see.\nfunc (s *TaskService) Get(ctx context.Context, actor domain.User, id int64) (domain.Task, error) {\n\tt, _, err := s.load(ctx, actor, id)\n\treturn t, err\n}\n\n// load reads a task and what actor may do in its project. A task the actor may not\n// see is reported exactly like a task that does not exist.\nfunc (s *TaskService) load(ctx context.Context, actor domain.User, id int64) (domain.Task, access, error) {\n\tt, err := s.st.Tasks.Get(ctx, id)\n\tif err != nil {\n\t\treturn domain.Task{}, access{}, err\n\t}\n\ta, err := accessTo(ctx, s.st.Projects, actor, t.ProjectID)\n\tif err != nil {\n\t\treturn domain.Task{}, access{}, err\n\t}\n\tif !canView(a) {\n\t\treturn domain.Task{}, access{}, notFound(\"task\", id)\n\t}\n\treturn t, a, nil\n}\n",
+          "output": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Not Found\",\n  \"status\": 404,\n  \"detail\": \"task 16 not found\",\n  \"instance\": \"/v1/tasks/16\",\n  \"request_id\": \"docs-16\"\n}",
+          "explanation": "`load` is shared by every task method. It reads the task through the `TaskStore` interface, looks up the user's role in the task's project, and asks `canView`. A task this user may not see comes back as `notFound`, the same error as a task that doesn't exist, so guessing ids reveals nothing. The rule sits in the service so that every way in gets it: an HTTP handler, a background job, or a command-line tool calling the same method. There's no SQL and no HTTP here, only domain types and errors."
+        },
+        {
+          "title": "The store maps rows to models",
+          "prompt": "Read `TaskRepo.Get`, the PostgreSQL side of the same request.",
+          "language": "go",
+          "file": "internal/store/tasks.go",
+          "code": "// TaskRepo is the PostgreSQL TaskStore.\ntype TaskRepo struct{ s *Store }\n\n// NewTaskRepo returns the task repository of s.\nfunc NewTaskRepo(s *Store) *TaskRepo { return &TaskRepo{s: s} }\n\n// Get returns one task.\nfunc (r *TaskRepo) Get(ctx context.Context, id int64) (domain.Task, error) {\n\trow, err := r.s.queries(ctx).GetTask(ctx, id)\n\tif err != nil {\n\t\treturn domain.Task{}, mapError(err, \"task\", id)\n\t}\n\treturn toDomainTask(row)\n}\n",
+          "explanation": "`TaskRepo` is the PostgreSQL implementation of the service's `TaskStore`. `Get` runs one generated query, `GetTask`, and converts the result. `mapError` turns database errors into domain errors, so `pgx.ErrNoRows` leaves the store as `domain.ErrNotFound`, and no layer above imports pgx. `toDomainTask` converts the generated row type into a `domain.Task` and checks the status on the way. Every repository method has this shape: domain types in, SQL, then domain types and domain errors out."
+        },
+        {
+          "title": "The view is its own type",
+          "prompt": "Read `taskResponse`, the JSON view of a task.",
+          "language": "go",
+          "file": "internal/api/dto.go",
+          "code": "type taskResponse struct {\n\tID          int64      `json:\"id\"`\n\tProjectID   int64      `json:\"project_id\"`\n\tTitle       string     `json:\"title\"`\n\tDescription *string    `json:\"description\"`\n\tStatus      string     `json:\"status\"`\n\tPriority    int        `json:\"priority\"`\n\tDueOn       *string    `json:\"due_on\"`\n\tAssigneeID  *int64     `json:\"assignee_id\"`\n\tVersion     int64      `json:\"version\"`\n\tCompletedAt *time.Time `json:\"completed_at\"`\n\tCreatedAt   time.Time  `json:\"created_at\"`\n\tUpdatedAt   time.Time  `json:\"updated_at\"`\n\n\t// With ?include= on the task list only. omitzero leaves out a nil field but keeps\n\t// an empty list, so include=watchers gives \"watchers\": [] for a task nobody\n\t// watches, where omitempty would drop the key.\n\tAssignee *userRef  `json:\"assignee,omitzero\"`\n\tWatchers []userRef `json:\"watchers,omitzero\"`\n}\n",
+          "explanation": "`domain.Task` has no `json` tags. The wire format lives in this separate type, with snake_case names, and `toTaskResponse` copies the fields across, writing the due date as `2026-10-12` and every time in UTC. It's a few more lines, and they pay off: a field added to a model, like a password hash on a user, can't leak by accident, and renaming a Go field never changes the API your clients depend on. `omitzero` (Go 1.24) leaves out a nil `Assignee` but keeps an empty `Watchers` list as `[]`, where `omitempty` would drop it."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "internal/service/tasks.go",
+          "internal/store/tasks.go",
+          "internal/api/dto.go"
+        ]
+      }
+    },
+    {
+      "title": "Interfaces and wiring",
+      "body": "The service needs a store, but it doesn't import the store package. It declares the interface it needs in `internal/service/ports.go`, and any type with those methods satisfies it. Go interfaces are satisfied implicitly, so `store.TaskRepo` never says that it implements anything.\n\nThat's the Go habit: **the consumer declares the interface**, with only the methods it uses. It buys you two things. Tests can hand a service an in-memory fake instead of PostgreSQL, so they run in milliseconds. And the imports never form a cycle: `api` imports `service`, `service` and `store` both import `domain`, and neither of those two imports the other.\n\nSomething still has to pick the real types. In Taskboard that's `run` in `cmd/api/run.go`, the composition root, the one function that knows every concrete type. It builds the pool, the repositories, the services, and the HTTP handler, in that order, and passes each into the next through a constructor. Apart from the test helpers, no package keeps a global database or reads the environment on its own: `config.Load` gets `os.Getenv` passed in.",
+      "examples": [
+        {
+          "title": "The service's interface",
+          "prompt": "Read `TaskStore`, everything the task service may ask of its storage.",
+          "language": "go",
+          "file": "internal/service/ports.go",
+          "code": "// TaskStore keeps tasks. Like every store here, its methods run inside the\n// transaction that ctx carries when they are called from TxRunner.InTx.\ntype TaskStore interface {\n\tGet(ctx context.Context, id int64) (domain.Task, error)\n\t// List returns one page of tasks and how many tasks match the filter in all.\n\tList(ctx context.Context, f domain.TaskFilter) ([]domain.Task, int64, error)\n\tCountByStatus(ctx context.Context, projectID int64) (domain.TaskCounts, error)\n\tCreate(ctx context.Context, t domain.Task) (domain.Task, error)\n\t// Update saves t's fields if the stored task is still at t.Version, and returns it\n\t// at the next version. A stale version gives a *domain.StaleTaskError.\n\tUpdate(ctx context.Context, t domain.Task) (domain.Task, error)\n\t// Transition saves t's Status and CompletedAt, with the same version check.\n\tTransition(ctx context.Context, t domain.Task) (domain.Task, error)\n\tDelete(ctx context.Context, id int64) error\n}\n",
+          "explanation": "The interface speaks only in domain types. Its comments state promises the type system can't, such as returning a `*domain.StaleTaskError` for a stale version. Two types satisfy it: `store.TaskRepo` over PostgreSQL, and a map-and-mutex fake in `servicetest` for tests. A contract test, `internal/store/contract_test.go`, runs one suite against both, so the fake can't drift from the real thing."
+        },
+        {
+          "title": "The composition root",
+          "prompt": "Read the middle of `run`, where Taskboard is assembled.",
+          "language": "go",
+          "file": "cmd/api/run.go",
+          "code": "\tst := store.New(pool)\n\tjobRepo := store.NewJobRepo(st)\n\tstores := service.Stores{\n\t\tTasks:       store.NewTaskRepo(st),\n\t\tProjects:    store.NewProjectRepo(st),\n\t\tUsers:       store.NewUserRepo(st),\n\t\tComments:    store.NewCommentRepo(st),\n\t\tWatchers:    store.NewWatcherRepo(st),\n\t\tSessions:    store.NewSessionRepo(st),\n\t\tJobs:        jobRepo,\n\t\tAttachments: store.NewAttachmentRepo(st),\n\t\tFiles:       uploads,\n\t\tTx:          st,\n\t}\n\thooks := &service.Hooks{\n\t\tBeforeCreateTask: []func(context.Context, *domain.Task) error{service.TidyTitle},\n\t\tBeforeUpdateTask: []func(context.Context, *domain.Task) error{service.TidyTitle},\n\t}\n\thasher, err := auth.NewHasher(cfg.BcryptCost)\n\tif err != nil {\n\t\treturn err\n\t}\n\tjwt := auth.NewJWT(cfg.TokenSecret, clk)\n\n\thandler := api.NewServer(api.Deps{\n\t\tLog:          log,\n\t\tAuth:         service.NewAuthService(stores, hasher, jwt, service.AuthMode(cfg.AuthMode), clk, log),\n\t\tUsers:        service.NewUserService(stores),\n\t\tProjects:     service.NewProjectService(stores, clk),\n\t\tTasks:        service.NewTaskService(stores, hooks, clk, log),\n\t\tComments:     service.NewCommentService(stores, clk),\n\t\tWatchers:     service.NewWatcherService(stores, clk, log),\n\t\tAttachments:  service.NewAttachmentService(stores, clk, log),\n\t\tReady:        st.Ping,\n\t\tCORSOrigins:  cfg.CORSOrigins,\n\t\tTrustedProxy: cfg.TrustedProxy,\n\t\tDevelopment:  cfg.IsDevelopment(),\n\t})\n",
+          "explanation": "Read it from the bottom of the stack up: one `store.Store` wraps the pool, each repository is built from it, the `Stores` struct carries them into every service, and the services go into `api.Deps` for the HTTP layer. Every dependency arrives as a constructor argument, so what each part needs is visible in one place. The handler tests build the same `api.Deps` over fakes and a fixed clock, and nothing else changes. A new feature is registered here too: its repository, its service, and a field in `Deps`."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "internal/service/ports.go",
+          "cmd/api/run.go"
+        ]
+      }
+    }
+  ],
+  "recap": "- Handlers speak HTTP, services hold the rules, and stores are the only code that knows SQL.\n- Models in `domain` travel between the layers, and views are separate types, so the wire format never changes by accident.\n- Put authorization and business rules in the service, so every caller gets them.\n- The consumer declares the interface it needs, and fakes that satisfy it make service and handler tests fast.\n- One composition root, `run`, builds every concrete type and passes it down through constructors, with no globals."
+}

@@ -1,0 +1,99 @@
+{
+  "id": "request-lifecycle",
+  "title": "Routes, Controllers, and the Request Lifecycle",
+  "section": "How an Express API Is Built",
+  "summary": "Follow one request through an Express 5 app: the middleware chain in app.ts, the router that matches it, and the controller that answers.",
+  "format": "read",
+  "intro": "On a new team, your first question about an API is always the same: when a request arrives, what runs, and in what order? In Express the answer is a chain of functions, set up in one file and run from top to bottom. This lesson reads that chain in StagePass, a ticketing API built with Express 5, TypeScript on Node 26, and PostgreSQL. Once you can trace one request, you know where to look for any bug or feature.",
+  "steps": [
+    {
+      "title": "The middleware chain in app.ts",
+      "body": "An Express app is a list of functions. Each one gets `req`, `res`, and `next`, and it either answers the request or calls `next()` to pass it along. `app.use(fn)` adds a function that runs for every request, and `router.get(\"/\", fn)` adds one that runs only for that method and path.\n\nOrder is everything. Express runs the list from top to bottom, so each line can rely on the lines above it: the request id exists before the logger reads it, and the body is parsed before any route reads `req.body`. The not-found handler and the error handler go last, because they handle whatever nothing else answered.\n\nStagePass builds its app in `createApp(deps)`, which never opens a port. `server.ts` reads the config, builds the real database and services, calls `createApp`, and listens. Tests call the same `createApp` with fakes, so they test the real middleware chain.",
+      "examples": [
+        {
+          "title": "createApp from top to bottom",
+          "prompt": "Read the numbered comments in order. Every request takes this path through StagePass before any feature code runs.",
+          "language": "ts",
+          "file": "src/app.ts",
+          "code": "// 1. An id for the request, so every later log line and error can carry it.\napp.use(requestId());\n// 2. One structured log line per request, with that id. Health probes stay out of the logs.\napp.use(\n  pinoHttp({\n    logger: deps.logger,\n    genReqId: (req) => (req as Request).requestId,\n    autoLogging: { ignore: (req) => req.url === \"/healthz\" || req.url === \"/readyz\" },\n    customLogLevel: (_req, res, err) => (err !== undefined || res.statusCode >= 500 ? \"warn\" : \"info\"),\n  }),\n);\n// ...\n// 3. Security headers on everything, pages and API alike.\napp.use(helmet(helmetOptions(config)));\n// ...\n// 5. JSON bodies, at most 100 kB: anything bigger is refused before it is read into memory.\napp.use(express.json({ limit: \"100kb\" }));\n\n// 6. Routes. Health and the OpenAPI document first, then the API, then the HTML pages.\napp.use(healthRoutes({ readiness: deps.readiness, checkDatabase: deps.checkDatabase }));\n// ...\napp.use(\"/v1\", cors(corsOptions(config)), apiLimiter(config.apiRateLimitPerMinute));\napp.use(\"/v1\", authRoutes({ controller: new AuthController(services.auth), auth, authLimiter: authLimiter() }));\napp.use(\"/v1/me/favorites\", favoritesRoutes({ favorites: services.favorites, auth }));\napp.use(\"/v1/venues\", venuesRoutes({ controller: new VenuesController(services.venues), auth }));\napp.use(\"/v1/events/:eventId/ticket-types\", ticketTypesRoutes({ controller: new TicketTypesController(services.ticketTypes), auth }));\napp.use(\"/v1/events\", eventsRoutes({ controller: new EventsController(services.events, loadCalendar()), auth }));\napp.use(\"/v1/orders\", ordersRoutes({ controller: new OrdersController(services.checkout, services.orders), auth }));\napp.use(\"/v1/organizer\", statsRoutes({ stats: services.stats, auth }));\napp.use(pagesRoutes({ controller: new PagesController(services.events, services.ticketTypes) }));\n\n// 7. Last: anything no route answered, then every error any layer threw.\napp.use(notFound);\napp.use(errorHandler);\nreturn app;",
+          "explanation": "Each `app.use` line runs for every request that reaches it. Routers are mounted under a prefix: `app.use(\"/v1/events\", ...)` only sees paths that start with `/v1/events`, and inside that router the paths are relative, like `/` and `/:eventId`. `express.json({ limit: \"100kb\" })` parses JSON bodies and refuses bigger ones before reading them into memory. `notFound` sits after every router, so it only runs when no route answered. `errorHandler` is last because a thrown error skips the ordinary middleware and goes to the next error handler in the chain."
+        },
+        {
+          "title": "The composition root",
+          "prompt": "`server.ts` is the one file that builds the real objects and opens the port. Find where it hands them to `createApp`.",
+          "language": "ts",
+          "file": "src/server.ts",
+          "code": "const { services, tokens, posters } = createServices({ db: database.db, repositories: pgRepositories, config, logger });\nconst readiness = new Readiness();\nconst app = createApp({\n  config,\n  logger,\n  services,\n  tokens,\n  posters,\n  readiness,\n  checkDatabase: () => ping(database.pool, 1_000),\n  queries: database.queries,\n});\n\nconst server = app.listen(config.port, config.host, (err) => {\n  if (err !== undefined) {\n    logger.fatal({ err }, `could not listen on port ${config.port}`);\n    process.exit(1);\n  }\n  const address = server.address();\n  const port = typeof address === \"object\" && address !== null ? address.port : config.port;\n  logger.info({ config }, `Listening on http://localhost:${port}`);\n});",
+          "explanation": "This file is the composition root. It is the only file in `src/` that reads `process.env`, and it builds the pool, the repositories, and the services, then passes them in. Every other file gets what it needs as an argument, so any piece can be swapped for a fake in a test. In Express 5, `app.listen` passes startup errors such as `EADDRINUSE` (the port is taken) to its callback, so the server logs a fatal error and exits with code 1 instead of running half started."
+        }
+      ],
+      "codebase": {
+        "template": "stagepass-api",
+        "files": [
+          "src/app.ts",
+          "src/server.ts"
+        ]
+      }
+    },
+    {
+      "title": "Routers map paths to handlers",
+      "body": "Each feature keeps its routes in a router: `Router()` from Express, mounted in `app.ts` under a prefix. Read a route line from left to right and you know its whole contract: the method, the path, the guards, the schema that checks the input, and the controller method that answers.\n\n```ts\nrouter.post(\"/\", ...organizer, validate({ body: CreateEvent }), controller.create);\n```\n\nEvery function in that list has the same `(req, res, next)` shape. Guards come first, so a request without a token is refused before its body is even checked. Validation comes next, so the controller only ever sees valid input.\n\nExpress 5 changed a few things you will notice in older code. Wildcards need a name (`/*splat`), and regular expression characters in paths are gone. A rejected promise from an `async` handler now goes to the error handler, so handlers need no `try` and `catch`.",
+      "examples": [
+        {
+          "title": "The events router",
+          "prompt": "Each line is one endpoint. Compare the public GET routes with the ones that start with `...organizer`.",
+          "language": "ts",
+          "file": "src/modules/events/events.routes.ts",
+          "code": "export function eventsRoutes({ controller, auth }: { controller: EventsController; auth: AuthGuards }): Router {\n  const router = Router();\n  const organizer = [auth.required, requireRole(\"organizer\", \"admin\")];\n  const byId = validate({ params: EventIdParams });\n\n  router.get(\"/\", cacheControl(\"public, max-age=60\"), validate({ query: ListEventsQuery }), controller.list);\n  router.post(\"/\", ...organizer, validate({ body: CreateEvent }), controller.create);\n  router.get(\"/:eventId\", auth.optional, cacheControl(\"public, max-age=60\"), byId, controller.get);\n  router.patch(\"/:eventId\", ...organizer, validate({ params: EventIdParams, body: UpdateEvent }), controller.update);\n  router.delete(\"/:eventId\", ...organizer, byId, controller.remove);\n  router.post(\"/:eventId/publish\", ...organizer, byId, controller.publish);\n  router.post(\"/:eventId/cancel\", ...organizer, byId, controller.cancel);\n  // Authentication runs before multer, so anonymous uploads are refused before any bytes are buffered.\n  router.put(\"/:eventId/poster\", ...organizer, byId, posterUpload, controller.uploadPoster);\n  router.get(\"/:eventId/calendar.ics\", byId, controller.calendar);\n  return router;\n}",
+          "explanation": "`organizer` is an array of two middleware: `auth.required` checks the access token, and `requireRole(\"organizer\", \"admin\")` checks the role. Spreading it at the start of a route puts both guards in front. `byId` is built once and reused, so every route with `:eventId` rejects `abc` the same way. The poster upload authenticates before `posterUpload` runs, so an anonymous upload is refused before any file bytes are buffered. There is no logic here, only wiring."
+        },
+        {
+          "title": "One guard for a whole router",
+          "prompt": "The orders router puts its login check in `router.use`, so it covers every route below it.",
+          "language": "ts",
+          "file": "src/modules/orders/orders.routes.ts",
+          "code": "export function ordersRoutes({ controller, auth }: { controller: OrdersController; auth: AuthGuards }): Router {\n  const router = Router();\n  router.use(auth.required, noStore);\n  router.post(\"/\", requireRole(\"customer\"), requireIdempotencyKey, validate({ body: Checkout }), controller.checkout);\n  router.get(\"/\", validate({ query: ListOrdersQuery }), controller.list);\n  router.get(\"/:orderId\", validate({ params: OrderIdParams }), controller.get);\n  router.post(\"/:orderId/cancel\", validate({ params: OrderIdParams }), controller.cancel);\n  return router;\n}",
+          "explanation": "`router.use(auth.required, noStore)` runs before every orders route, so no endpoint can forget the login check, and `noStore` sets `Cache-Control: no-store` because orders are private. Only checkout adds `requireRole(\"customer\")`: anyone logged in may list their own orders, but only customers buy. `requireIdempotencyKey` checks a header before the body is validated."
+        }
+      ],
+      "codebase": {
+        "template": "stagepass-api",
+        "files": [
+          "src/modules/events/events.routes.ts",
+          "src/modules/orders/orders.routes.ts"
+        ]
+      }
+    },
+    {
+      "title": "Controllers stay thin",
+      "body": "The controller is the last stop before your business code, and its job is translation. It takes the validated input, calls one service method, then picks the status code and headers and renders the result through a view function. It holds no SQL and no business rules. That keeps it short, and it keeps the rules testable without HTTP.\n\nStagePass writes each controller as a class. Its methods are arrow functions typed `RequestHandler`, so `this` stays bound when Express calls them, and the service arrives through the constructor.\n\nValidated params come from `res.locals.params`, where the `validate` middleware stored the parsed values. A `POST` that creates something answers `201 Created` with a `Location` header that points at the new resource.",
+      "examples": [
+        {
+          "title": "The events controller",
+          "prompt": "Each method handles one endpoint. Notice how little each one does.",
+          "language": "ts",
+          "file": "src/modules/events/events.controller.ts",
+          "code": "export class EventsController {\n  readonly #events: EventsService;\n  readonly #calendar: Calendar;\n\n  constructor(events: EventsService, calendar: Calendar) {\n    this.#events = events;\n    this.#calendar = calendar;\n  }\n\n  list: RequestHandler = async (_req, res) => {\n    const page = await this.#events.list(res.locals.query as ListEventsQuery);\n    res.json({ data: page.data.map(toEventSummaryJson), nextCursor: page.nextCursor });\n  };\n\n  get: RequestHandler = async (req, res) => {\n    const { eventId } = res.locals.params as EventIdParams;\n    const event = await this.#events.get(req.user, eventId);\n    // The answer depends on who asks (drafts are visible to their owner), so caches must key on it.\n    res.vary(\"Authorization\");\n    if (event.status === \"draft\") res.set(\"Cache-Control\", \"private, no-store\");\n    res.json(toEventJson(event));\n  };\n\n  create: RequestHandler = async (req, res) => {\n    const event = await this.#events.create(currentUser(req), req.body as CreateEvent);\n    res.status(201).location(`/v1/events/${event.id}`).json(toEventJson(event));\n  };\n  // ...\n}",
+          "explanation": "`create` calls the service with the current user and the body, then answers `201` with a `Location` header and `toEventJson(event)`, the view. `get` sets caching headers, because its answer depends on who asks: `res.vary(\"Authorization\")` tells caches to keep a copy per token, and a draft gets `private, no-store`. There is no `try` and `catch`. When the service throws `NotFoundError`, Express 5 passes it to the error handler. `currentUser(req)` throws if a route forgot `requireAuth`, so that mistake fails loudly instead of quietly."
+        },
+        {
+          "title": "Create a draft",
+          "prompt": "This request from `requests.http` creates a draft as Olu, an organizer. The output is the response StagePass sent on the seeded database.",
+          "language": "http",
+          "file": "requests.http",
+          "code": "### An organizer creates a draft. A hook makes the slug from the title.\n# @name newEvent\nPOST /v1/events\nAuthorization: Bearer {{olu.response.body.$.accessToken}}\nContent-Type: application/json\n\n{\n  \"venueId\": 3,\n  \"title\": \"  Open Mic Night \",\n  \"category\": \"comedy\",\n  \"description\": \"Five minutes each, sign up at the door.\",\n  \"startsAt\": \"2026-12-10T02:00:00Z\",\n  \"endsAt\": \"2026-12-10T04:00:00Z\"\n}",
+          "output": "HTTP/1.1 201 Created\nlocation: /v1/events/25\n\n{\n  \"id\": 25,\n  \"slug\": \"open-mic-night\",\n  \"title\": \"Open Mic Night\",\n  \"description\": \"Five minutes each, sign up at the door.\",\n  \"category\": \"comedy\",\n  \"status\": \"draft\",\n  \"startsAt\": \"2026-12-10T02:00:00.000Z\",\n  \"endsAt\": \"2026-12-10T04:00:00.000Z\",\n  \"venue\": {\n    \"id\": 3,\n    \"name\": \"Lantern Theater\",\n    \"city\": \"Austin\",\n    \"address\": \"512 Congress Ave\"\n  },\n  \"organizerId\": 2,\n  \"posterUrl\": null,\n  \"publishedAt\": null,\n  \"cancelledAt\": null,\n  \"createdAt\": \"2026-10-01T09:00:00.000Z\",\n  \"updatedAt\": \"2026-10-01T09:00:00.000Z\"\n}",
+          "explanation": "The status is `201`, and `Location` points at the new event. The title arrived with extra spaces and comes back trimmed by the zod schema, and the slug `open-mic-night` was made from it by a hook that runs before the insert. The body is the view's shape: ISO date strings, a small venue object, and no internal columns."
+        }
+      ],
+      "codebase": {
+        "template": "stagepass-api",
+        "files": [
+          "src/modules/events/events.controller.ts",
+          "requests.http"
+        ]
+      }
+    }
+  ],
+  "recap": "- An Express app is an ordered list of `(req, res, next)` functions. Each one answers or calls `next()`.\n- `createApp(deps)` adds middleware, routers, the not-found handler, and the error handler, in that order. `server.ts` builds the real dependencies and listens.\n- A route line reads left to right: guards, validation, then the controller method.\n- A controller turns HTTP into one service call and back: status, headers, and a view. No SQL and no rules.\n- Express 5 sends a rejected promise from an `async` handler to the error handler, so handlers need no `try` and `catch`."
+}

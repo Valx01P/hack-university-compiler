@@ -1,0 +1,106 @@
+{
+  "id": "fetching-caching-streaming",
+  "title": "Fetching, Streaming, and Caching",
+  "section": "Data and Mutations",
+  "summary": "Fetch data in Server Components, stream slow parts behind Suspense, and cache what every visitor shares, the way Next.js 16 expects.",
+  "format": "read",
+  "intro": "Real pages wait on slow services for stock, reviews, and prices. Next.js 16 with Cache Components makes you decide, for each piece of data, whether the page streams it in or serves it from a cache, and the build fails until you do. In this lesson you add a deals page to the lab and take it through both choices, against mock services that answer after fixed delays.",
+  "steps": [
+    {
+      "title": "Fetch where the data is used",
+      "body": "A Server Component can be `async`, so it fetches data with a plain `await`. There's no `useEffect`, no loading flag, and no API route in between. The component calls the service from the server, and the browser never sees the service's address or its keys.\n\nDon't scatter `fetch` calls through components. The lab puts every call to its services in `lib/inventory.ts`, which owns three decisions:\n\n- where the services live, read from `MOCK_API_URL`\n- what each answer looks like, as TypeScript types\n- which errors are normal states and which are real failures\n\nComponents call `getDeals()` or `getInventory(slug)` and get typed data back. When two calls don't depend on each other, start them together with `Promise.all`, or put them in separate components. Two `await`s in a row are a waterfall: the second request waits for the first one to finish.",
+      "examples": [
+        {
+          "title": "The fetch helper",
+          "prompt": "Every service call in the lab goes through `getJson`. Look at how it treats a 404 differently from other errors.",
+          "language": "ts",
+          "file": "lib/inventory.ts",
+          "code": "function serviceUrl(path: string): string {\n  const base = process.env.MOCK_API_URL;\n  if (!base) {\n    throw new Error(\"MOCK_API_URL is not set. It belongs in .env (http://localhost:4000).\");\n  }\n  return new URL(path, base).toString();\n}\n\n// A 404 means \"the service has nothing for this slug\", which callers render as a normal state.\nasync function getJson<T>(path: string): Promise<T | null> {\n  const response = await fetch(serviceUrl(path));\n  if (response.status === 404) {\n    return null;\n  }\n  if (!response.ok) {\n    throw new Error(`GET ${path} failed with ${response.status} ${response.statusText}`);\n  }\n  return (await response.json()) as T;\n}\n\nexport function getInventory(slug: string): Promise<Inventory | null> {\n  return getJson<Inventory>(`/inventory/${encodeURIComponent(slug)}`);\n}",
+          "explanation": "`serviceUrl` fails with a message that says how to fix a missing `MOCK_API_URL`, which beats a confusing `fetch` error deep inside a page. `getJson` turns a 404 into `null`, because \"this service has nothing for that slug\" is a normal state the page can render. Any other bad status throws, so the nearest error boundary shows it. `encodeURIComponent` keeps a slug from changing the path. None of these calls are cached: since Next.js 15, `fetch` caches nothing unless you ask."
+        },
+        {
+          "title": "Calling the service by hand",
+          "prompt": "The lab's `requests.http` has a request for every mock route. These two ask the inventory service about a real product and a made-up one.",
+          "language": "bash",
+          "code": "curl -si localhost:4000/inventory/ridge-2p-tent\ncurl -si localhost:4000/inventory/no-such-product",
+          "output": "HTTP/1.1 200 OK\ncontent-type: application/json; charset=utf-8\ncache-control: no-store\ncontent-length: 72\nDate: Tue, 20 Oct 2026 01:32:22 GMT\nConnection: keep-alive\nKeep-Alive: timeout=5\n\n{\n  \"slug\": \"ridge-2p-tent\",\n  \"stock\": 14,\n  \"warehouse\": \"Portland\"\n}\n\nHTTP/1.1 404 Not Found\ncontent-type: application/json; charset=utf-8\ncache-control: no-store\ncontent-length: 50\nDate: Tue, 20 Oct 2026 01:32:22 GMT\nConnection: keep-alive\nKeep-Alive: timeout=5\n\n{\n  \"error\": \"Unknown product: no-such-product\"\n}",
+          "explanation": "Calling a service by hand shows you what your helper has to handle: a 200 with JSON, and a 404 with an error body, which `getJson` turns into `null`. The mock waits 600 ms before it answers `/inventory`, so a page that awaited this at the top would make every visitor wait 600 ms for the whole page. The next part shows why the build doesn't let that happen by accident."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "lib/inventory.ts",
+          "requests.http",
+          ".env"
+        ]
+      }
+    },
+    {
+      "title": "Stream slow parts with Suspense",
+      "body": "The lab's `next.config.ts` turns on `cacheComponents`, the default for new apps since Next.js 16.4. With it, Next.js prerenders as much of every page as it can at build time, and an uncached `fetch` becomes a choice you must make:\n\n- **Stream** it: wrap the component that fetches in `<Suspense fallback={...}>`.\n- **Cache** it: mark the work with `\"use cache\"`, as the next part shows.\n- **Block** on it: `export const instant = false` makes the whole page wait.\n\nStreaming is the usual answer for data that changes per request. Next.js sends the static shell at once, with the fallback in place, and keeps the response open. When the data arrives, React sends the finished HTML in the same response and swaps it in.\n\nPut the boundary around the slow part only. Everything outside it ships in the shell, so the fetch belongs in its own small component, not at the top of the page. A `loading.tsx` file does the same for a whole route.",
+      "examples": [
+        {
+          "title": "A deals page that streams",
+          "prompt": "Add this page to the lab as `app/deals/page.tsx`. It uses `getDeals()` from `lib/inventory.ts` and the lab's `Price` component.",
+          "language": "tsx",
+          "code": "import { Suspense } from \"react\";\nimport { Price } from \"@/components/price\";\nimport { getDeals } from \"@/lib/inventory\";\n\nexport default function DealsPage() {\n  return (\n    <main className=\"mx-auto max-w-4xl px-6 py-12\">\n      <h1 className=\"text-3xl font-semibold\">Deals</h1>\n      <Suspense fallback={<p className=\"mt-6 text-stone-600\">Loading deals…</p>}>\n        <DealList />\n      </Suspense>\n    </main>\n  );\n}\n\nasync function DealList() {\n  const deals = await getDeals();\n\n  return (\n    <ul className=\"mt-6 space-y-2\">\n      {deals.map((deal) => (\n        <li key={deal.id}>\n          {deal.title}: <Price cents={deal.salePriceCents} />\n        </li>\n      ))}\n    </ul>\n  );\n}",
+          "explanation": "`DealsPage` awaits nothing, so its heading and the fallback are rendered at build time. `DealList` is the only `async` part, and the `<Suspense>` around it tells Next.js to stream it. Against the production build, the first chunk of the response, with the heading and \"Loading deals…\", arrived after about 40 ms. The list arrived in the same response about half a second later, right after the mock's 500 ms delay for `/deals`."
+        },
+        {
+          "title": "The route table",
+          "prompt": "Build the lab with the deals page added. The output is the end of the build log.",
+          "language": "bash",
+          "code": "npm run build",
+          "output": "Route (app)\n┌ ○ /\n├ ○ /_not-found\n├ ○ /about\n├ ◐ /deals\n└ ○ /products\n\n\n○  (Static)             prerendered as static content\n◐  (Partial Prerender)  prerendered as static HTML with dynamic server-streamed content",
+          "explanation": "`◐` is a Partial Prerender: the shell of `/deals` was rendered once at build time, and the list streams on every request. The other routes stay `○` because they read only module data. The build didn't call the deals service at all, and the mock's request log stayed empty, because a streamed part runs only when someone visits."
+        },
+        {
+          "title": "Awaiting at the top",
+          "prompt": "Now replace the page with this version, which awaits `getDeals()` at the top with no `<Suspense>`, and run `npm run build` again.",
+          "language": "tsx",
+          "code": "import { Price } from \"@/components/price\";\nimport { getDeals } from \"@/lib/inventory\";\n\nexport default async function DealsPage() {\n  const deals = await getDeals();\n\n  return (\n    <main className=\"mx-auto max-w-4xl px-6 py-12\">\n      <h1 className=\"text-3xl font-semibold\">Deals</h1>\n      <ul className=\"mt-6 space-y-2\">\n        {deals.map((deal) => (\n          <li key={deal.id}>\n            {deal.title}: <Price cents={deal.salePriceCents} />\n          </li>\n        ))}\n      </ul>\n    </main>\n  );\n}",
+          "output": "Error: Route \"/deals\": Next.js encountered uncached or runtime data during prerendering.\n\n`fetch(...)`, `cookies()`, `headers()`, `params`, `searchParams`, or `connection()` accessed outside of `<Suspense>` prevents the route from being prerendered, blocking the page load and leading to a slower user experience.\n\nWays to fix this:\n  - [stream] Provide a placeholder with `<Suspense fallback={...}>` around the data access\n  - [cache] For uncached data (`fetch`, database calls): cache the access with `\"use cache\"` (does not apply to `connection()`)\n  - [block] Set `export const instant = false` to allow a blocking route\n\nLearn more: https://nextjs.org/docs/messages/blocking-prerender-dynamic",
+          "explanation": "The build stops at `/deals` and offers the same three choices: stream, cache, or block. This error is the feature. Without it, the page would quietly wait for the slowest service on every request, and so would every page someone copied from it. The full message also suggests opening the page under `next dev` to see which component is responsible."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "next.config.ts",
+          "lib/inventory.ts",
+          "components/price.tsx"
+        ]
+      }
+    },
+    {
+      "title": "Cache what every visitor shares",
+      "body": "With Cache Components, nothing is cached unless you say so, and you say so with `\"use cache\"` as the first line of an async function or component. Next.js stores the result, keyed by the arguments, and serves it until it goes stale. `cacheLife` sets how long, with profiles such as `\"minutes\"`, `\"hours\"`, `\"days\"`, and `\"max\"`.\n\nA cached component doesn't need to stream. Its output is ready at build time, so it moves into the static shell, and the route can become fully static again.\n\nCache what every visitor sees the same way: the catalog, deals, help pages. Never put one user's data in a shared cache. Don't call `cookies()` or `headers()` inside a cached function either. Read them outside and pass the value in as an argument, so it becomes part of the cache key. When the data changes, tag the entry with `cacheTag` and expire it after the write with `updateTag` in a Server Action.",
+      "examples": [
+        {
+          "title": "Caching the deal list",
+          "prompt": "Add two lines to `DealList`, the directive and a cache lifetime, and import `cacheLife`. The rest of the page stays as it was.",
+          "language": "tsx",
+          "code": "import { cacheLife } from \"next/cache\";\nimport { Suspense } from \"react\";\nimport { Price } from \"@/components/price\";\nimport { getDeals } from \"@/lib/inventory\";\n\nexport default function DealsPage() {\n  return (\n    <main className=\"mx-auto max-w-4xl px-6 py-12\">\n      <h1 className=\"text-3xl font-semibold\">Deals</h1>\n      <Suspense fallback={<p className=\"mt-6 text-stone-600\">Loading deals…</p>}>\n        <DealList />\n      </Suspense>\n    </main>\n  );\n}\n\nasync function DealList() {\n  \"use cache\";\n  cacheLife(\"hours\");\n  const deals = await getDeals();\n\n  return (\n    <ul className=\"mt-6 space-y-2\">\n      {deals.map((deal) => (\n        <li key={deal.id}>\n          {deal.title}: <Price cents={deal.salePriceCents} />\n        </li>\n      ))}\n    </ul>\n  );\n}",
+          "explanation": "`\"use cache\"` must be the first statement in the function. `cacheLife(\"hours\")` marks the result fresh for an hour. After that, the next visitor still gets the cached page at once while Next.js renders a new copy in the background. The `<Suspense>` boundary can stay. It costs nothing, and the page goes back to streaming if someone removes the cache later."
+        },
+        {
+          "title": "Static again",
+          "prompt": "Build again. The output is the end of the build log.",
+          "language": "bash",
+          "code": "npm run build",
+          "output": "Route (app)      Revalidate  Expire\n┌ ○ /\n├ ○ /_not-found\n├ ○ /about\n├ ○ /deals               1h      1d\n└ ○ /products\n\n\n○  (Static)  prerendered as static content",
+          "explanation": "`/deals` is `○` again, with two new columns. Revalidate `1h` is when Next.js renders a fresh copy in the background, and Expire `1d` is the longest it serves an old one. The mock's request log showed one call to `/deals`, made by the build to render the page. After that, three visits to the production server made no calls to the mock at all, and each one was answered in a few milliseconds."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "lib/inventory.ts",
+          "next.config.ts"
+        ]
+      }
+    }
+  ],
+  "recap": "- Fetch in async Server Components through typed helpers in `lib/` that decide what a 404 or a 500 means.\n- With Cache Components, each uncached fetch needs a choice: stream it, cache it, or block the page.\n- To stream, wrap only the slow component in `<Suspense>`. The shell ships at once, and the build shows `◐`.\n- To cache, add `\"use cache\"` and `cacheLife`. Shared data moves into the static shell, and the route can be `○` again.\n- Never cache one user's data in a shared cache, and pass cookie or header values into cached functions as arguments."
+}

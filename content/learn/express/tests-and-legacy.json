@@ -1,0 +1,134 @@
+{
+  "id": "tests-and-legacy",
+  "title": "API Tests and Legacy Bug Hunts",
+  "section": "Tests and Legacy Code",
+  "summary": "Test an Express app through HTTP with supertest, then read a legacy codebase the way a strong engineer does and find its bugs.",
+  "format": "read",
+  "intro": "Two skills let you change a codebase safely: testing behavior through the real HTTP layer, and reading unfamiliar code with a suspicious eye. This lesson starts with the supertest suite of StagePass. Then it drops you into QuickCart, a store API from 2018 that is still in production, with the bugs real legacy code has.",
+  "steps": [
+    {
+      "title": "API tests with supertest",
+      "body": "An API test sends real HTTP requests to your app and checks what comes back: the status, the headers, and the body. supertest makes that cheap. `request(app)` takes the Express app itself, binds it to a free port for you, and gives you a request to chain: `.post()`, `.set()` for headers, `.send()` for a JSON body, and `.expect(201)`.\n\nThis is where `createApp(deps)` pays off. StagePass's tests call `makeTestApp()`, which builds the real app, with its middleware, controllers, services, policies, and hooks, on top of in-memory repositories. The API tests need no database and run in milliseconds, and a separate set of integration tests checks the real SQL on PostgreSQL.\n\nTest the rules a client depends on, and above all the ones that protect data: who may see what, what a retry does, and what a sold-out checkout answers.",
+      "examples": [
+        {
+          "title": "The test app",
+          "prompt": "Every API test starts by calling this function.",
+          "language": "ts",
+          "file": "test/support/fakes.ts",
+          "code": "export function makeTestApp(options: { fakes?: Fakes; env?: Record<string, string> } = {}) {\n  const fakes = options.fakes ?? makeFakes();\n  const uploadDir = mkdtempSync(join(tmpdir(), \"stagepass-test-\"));\n  const config = loadConfig({\n    NODE_ENV: \"test\",\n    DATABASE_URL: \"postgres://fake:fake@localhost:5432/unused\",\n    UPLOAD_DIR: uploadDir,\n    LOG_LEVEL: \"silent\",\n    ...options.env,\n  });\n  const logger = createLogger(config);\n  const { services, hooks, tokens, posters } = createServices({ db: fakes.db, repositories: fakes.repositories, config, logger });\n  const readiness = new Readiness();\n  const app = createApp({ config, logger, services, tokens, posters, readiness, checkDatabase: async () => {} });\n  return { app, fakes, services, hooks, readiness, uploadDir };\n}",
+          "explanation": "It builds the same app that `server.ts` builds, through the same `createServices` and `createApp`, with fakes in place of the database. The config comes from `loadConfig` with `NODE_ENV: \"test\"` and silent logs, so tests use the test signing key and stay quiet. It returns `fakes` too, so a test can check what was stored, not only what was answered."
+        },
+        {
+          "title": "Who may see an order",
+          "prompt": "One table, four tests: the same request as each role. The output is a run of the whole file with `npx vitest run --configLoader native test/api/orders.api.test.ts --reporter=verbose`.",
+          "language": "ts",
+          "file": "test/api/orders.api.test.ts",
+          "code": "describe(\"GET /v1/orders/:orderId\", () => {\n  it.each<[keyof typeof as, number]>([\n    [\"cam\", 200],\n    [\"dee\", 404],\n    [\"olu\", 404],\n    [\"admin\", 200],\n  ])(\"Cam's order 4 as %s: %i\", async (who, status) => {\n    const { app } = makeTestApp();\n    await request(app).get(\"/v1/orders/4\").set(\"Authorization\", await bearer(as[who])).expect(status);\n  });\n  // ...\n});",
+          "output": " RUN  v5.0.5 /app/stagepass\n\n ✓ |api| test/api/orders.api.test.ts > POST /v1/orders > creates a paid order and answers 201 with its Location 36ms\n ✓ |api| test/api/orders.api.test.ts > POST /v1/orders > returns the same order for a retried key, marked Idempotent-Replayed 21ms\n ✓ |api| test/api/orders.api.test.ts > POST /v1/orders > answers 400 for no key 13ms\n ✓ |api| test/api/orders.api.test.ts > POST /v1/orders > answers 400 for a key that is too short 13ms\n ✓ |api| test/api/orders.api.test.ts > POST /v1/orders > answers 400 for a key with spaces 6ms\n ✓ |api| test/api/orders.api.test.ts > POST /v1/orders > answers 409 sold-out for the last seat taken, and lets only customers buy 9ms\n ✓ |api| test/api/orders.api.test.ts > GET /v1/orders > walks the customer's own orders newest first, each exactly once 10ms\n ✓ |api| test/api/orders.api.test.ts > GET /v1/orders > answers 400 for a tampered cursor and a limit over 50 7ms\n ✓ |api| test/api/orders.api.test.ts > GET /v1/orders/:orderId > Cam's order 4 as cam: 200 5ms\n ✓ |api| test/api/orders.api.test.ts > GET /v1/orders/:orderId > Cam's order 4 as dee: 404 5ms\n ✓ |api| test/api/orders.api.test.ts > GET /v1/orders/:orderId > Cam's order 4 as olu: 404 4ms\n ✓ |api| test/api/orders.api.test.ts > GET /v1/orders/:orderId > Cam's order 4 as admin: 200 5ms\n ✓ |api| test/api/orders.api.test.ts > GET /v1/orders/:orderId > answers 400 for an id that is not a number 4ms\n ✓ |api| test/api/orders.api.test.ts > POST /v1/orders/:orderId/cancel > cancels a paid order, gives the seats back, and refuses a second cancel 6ms\n ✓ |api| test/api/orders.api.test.ts > POST /v1/orders/:orderId/cancel > refuses orders for events that already started, and hides other customers' orders 5ms\n\n Test Files  1 passed (1)\n      Tests  15 passed (15)\n   Start at  01:45:30\n   Duration  856ms (import 46%, transform 34%, tests 19%, setup 1%)",
+          "explanation": "`it.each` turns each row into its own test, named from the `%s` and `%i` placeholders, so a failure says exactly which role broke. Cam owns order 4, so Cam and the admin get a 200, and Dee and Olu get a 404. A table like this pins your authorization rules: when someone adds a role or a route, the gaps show up as missing rows. `bearer(as[who])` signs a test token, so the test skips the login flow."
+        },
+        {
+          "title": "A checkout test",
+          "prompt": "One test buys tickets through the whole app, then checks the response and the stored data.",
+          "language": "ts",
+          "file": "test/api/orders.api.test.ts",
+          "code": "import request, { type Response } from \"supertest\";\nimport { describe, expect, it } from \"vitest\";\nimport { makeTestApp } from \"../support/fakes.ts\";\nimport { as, bearer } from \"../support/tokens.ts\";\n// ...\ndescribe(\"POST /v1/orders\", () => {\n  it(\"creates a paid order and answers 201 with its Location\", async () => {\n    const { app, fakes } = makeTestApp();\n    const response = await request(app)\n      .post(\"/v1/orders\")\n      .set(\"Authorization\", await bearer(as.cam))\n      .set(\"Idempotency-Key\", \"api-test-0001\")\n      .send({ items: [{ ticketTypeId: 22, quantity: 2 }, { ticketTypeId: 21, quantity: 1 }] })\n      .expect(201);\n    expect(response.headers.location).toBe(`/v1/orders/${response.body.id}`);\n    expect(response.body).toMatchObject({ status: \"paid\", totalCents: 2 * 3000 + 6500, event: { id: 7 } });\n    expect(fakes.store.ticketTypes.find((t) => t.id === 21)?.sold).toBe(2);\n    expect(fakes.store.audit).toEqual([expect.objectContaining({ action: \"order.paid\", entityId: response.body.id, actorId: 4 })]);\n  });\n  // ...\n});",
+          "explanation": "The test checks what a client sees, `201`, the `Location`, and the total, and what changed underneath. `fakes.store` is the in-memory data, so it can assert that ticket type 21's `sold` count went up and that the audit hook recorded Cam as the actor. Each test builds a fresh app, so tests never share state."
+        }
+      ],
+      "codebase": {
+        "template": "stagepass-api",
+        "files": [
+          "test/api/orders.api.test.ts",
+          "test/support/fakes.ts",
+          "test/support/tokens.ts"
+        ]
+      }
+    },
+    {
+      "title": "Reading a legacy codebase",
+      "body": "Sooner or later you join a codebase like QuickCart: plain JavaScript, every route inline in one `app.js`, SQL built from strings, callbacks mixed with promises, and a README from 2018. Read it in a deliberate order:\n\n1. Trust the code over the docs. The README says to run `npm run start:dev`, a script `package.json` does not have.\n2. Find the entry point (`\"main\": \"app.js\"`) and list every route with its middleware.\n3. Follow one request end to end, and question each line that touches input, auth, money, or the database.\n4. Write down what you find, and reproduce it with a request before you change anything.\n\nEvery output in this part was captured from QuickCart running on PostgreSQL with its seed data.",
+      "examples": [
+        {
+          "title": "Auth that fails open",
+          "prompt": "This middleware guards every route that needs a login. The output is QuickCart's log for `GET /orders/1` sent with `Authorization: Bearer not-a-real-token`.",
+          "language": "js",
+          "file": "auth.js",
+          "code": "function authMiddleware(req, res, next) {\n  const header = req.headers.authorization || '';\n  const token = header.replace('Bearer ', '');\n  try {\n    req.user = jwt.verify(token, SECRET);\n  } catch (e) {\n    console.log('auth: token did not verify:', e.message);\n  }\n  next();\n}",
+          "output": "auth: token did not verify: jwt malformed\n[db] SELECT * FROM orders WHERE id = $1 params= [\"1\"]\n[db] SELECT * FROM order_items WHERE order_id = $1 params= [\"1\"]",
+          "explanation": "When `jwt.verify` throws, the middleware logs the error and calls `next()` anyway, so the request goes on with no `req.user`. That is failing open. The log shows order 1 being read right after the token failed, and the response was a 200 with order 1, which belongs to user 2. `GET /orders/:id` never checks the owner either, so this is two bugs at once: broken authentication and broken object level authorization. A guard must fail closed: no valid token means a 401, and nothing else runs."
+        },
+        {
+          "title": "SQL built from a query string",
+          "prompt": "The product list pastes `search` and `sort` into the SQL text. The output is the response to `GET /products?search='`.",
+          "language": "js",
+          "file": "app.js",
+          "code": "app.get('/products', (req, res) => {\n  const search = req.query.search || '';\n  const sort = req.query.sort || 'id';\n  const page = paginate(req.query.page, req.query.limit);\n  let sql = \"SELECT * FROM products WHERE name ILIKE '%\" + search + \"%' ORDER BY \" + sort;\n  sql += ' LIMIT ' + page.limit + ' OFFSET ' + page.offset;\n  query(sql)\n    .then((r) => res.json(r.rows))\n    .catch((err) => res.status(500).json({ error: err.message }));\n});",
+          "output": "HTTP/1.1 500 Internal Server Error\n\n{\n  \"error\": \"unterminated quoted string at or near \\\"' ORDER BY id LIMIT 10 OFFSET 1\\\"\"\n}",
+          "explanation": "One quote broke the query, and the database error went straight back to the client. Both are bugs. Input that can end a string can also add conditions or read other tables, which is SQL injection. Send values as parameters (`ILIKE $1`, with the value passed separately), and check `sort` against an allowlist, since a column name cannot be a parameter. An error handler should log database errors, never send them."
+        },
+        {
+          "title": "Pagination off by one",
+          "prompt": "The README's TODO list says pagination is off by one somewhere. The output lists the id and name of each product that `GET /products?limit=3` returned.",
+          "language": "js",
+          "file": "utils.js",
+          "code": "function paginate(page, limit) {\n  page = parseInt(page, 10) || 0;\n  limit = parseInt(limit, 10) || 10;\n  return { limit: limit, offset: page * limit + 1 };\n}",
+          "output": "2 Espresso Roast 250g\n3 Pour-over Kettle\n4 Ceramic Dripper",
+          "explanation": "The first page should start at product 1, but `offset` is `page * limit + 1`, so page 0 starts at offset 1 and product 1 never appears. `limit` has no maximum either, so `?limit=1000000` asks for every row. Validate both with a schema, such as a page of at least 1 and a limit from 1 to 50, and compute the offset as `(page - 1) * limit`."
+        }
+      ],
+      "codebase": {
+        "template": "quickcart-legacy",
+        "files": [
+          "README.md",
+          "package.json",
+          "auth.js",
+          "app.js",
+          "utils.js"
+        ]
+      }
+    },
+    {
+      "title": "Bugs that hide in plain sight",
+      "body": "Some bugs only show when you read every branch. In legacy Express code, look for these first:\n\n- A response without `return`: `res.status(400).json(...)` sends the answer, but the function keeps running.\n- Writes that belong together with no transaction, so a failure halfway leaves partial data.\n- A promise chain with no `.catch()`, or a callback that ignores `err`: one bad input crashes the process.\n- Money in floating point numbers.\n- Different messages for an unknown email and a wrong password.\n\nThen pin the bug before you fix it. QuickCart's only test has been skipped since 2021, and `app.js` calls `app.listen` as soon as it is loaded, so a test cannot even import the app without opening a port. Split `createApp()` from `listen()`, write a supertest test that fails because of the bug, then make it pass.",
+      "examples": [
+        {
+          "title": "A 400 that keeps going",
+          "prompt": "A customer checks out with an empty cart and gets back `400 {\"error\": \"cart is empty\"}`. The output is the server's log for that same request.",
+          "language": "js",
+          "file": "app.js",
+          "code": "app.post('/checkout', authMiddleware, async (req, res) => {\n  const items = req.body.items;\n  const code = req.body.coupon;\n  if (!items || items.length === 0) {\n    res.status(400).json({ error: 'cart is empty' });\n  }\n  const userId = req.user ? req.user.id : null;\n  const created = await query('INSERT INTO orders (user_id, total, coupon_code) VALUES ($1, $2, $3) RETURNING id', [userId, 0, code || null]);\n  const orderId = created.rows[0].id;\n  // ...",
+          "output": "[db] INSERT INTO orders (user_id, total, coupon_code) VALUES ($1, $2, $3) RETURNING id params= [2,0,null]\n[db] UPDATE orders SET total = $1 WHERE id = $2 params= [0,21]\nError [ERR_HTTP_HEADERS_SENT]: Cannot set headers after they are sent to the client\n    at ServerResponse.setHeader (node:_http_outgoing:808:11)\n    at ServerResponse.header (/app/quickcart/node_modules/express/lib/response.js:685:10)\n    at ServerResponse.send (/app/quickcart/node_modules/express/lib/response.js:141:14)\n    at ServerResponse.json (/app/quickcart/node_modules/express/lib/response.js:249:15)\n    at /app/quickcart/app.js:138:19\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {\n  code: 'ERR_HTTP_HEADERS_SENT'\n}",
+          "explanation": "There is no `return` after the 400, so the handler kept going. It inserted order 21 with a total of 0, updated it, and then tried to send a second response, which threw `ERR_HTTP_HEADERS_SENT`. The client saw an error while the database gained an empty order. Every early answer needs `return res.status(400).json(...)`, or better, a thrown error that the error handler answers."
+        },
+        {
+          "title": "Checkout without a transaction",
+          "prompt": "The rest of checkout handles one item at a time. The output is a real checkout of products 5 and 6, priced 6.99 and 34.99.",
+          "language": "js",
+          "file": "app.js",
+          "code": "  let total = 0;\n  for (const item of items) {\n    const pr = await query('SELECT * FROM products WHERE id = $1', [item.product_id]);\n    const product = pr.rows[0];\n    if (product.stock < item.quantity) {\n      return res.status(409).json({ error: 'out of stock: ' + product.name });\n    }\n    await query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.quantity, product.id]);\n    await query('INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES ($1, $2, $3, $4)', [orderId, product.id, item.quantity, product.price]);\n    total += parseFloat(product.price) * item.quantity;\n  }\n  if (code) {\n    const cr = await query('SELECT * FROM coupons WHERE code = $1', [code]);\n    const coupon = cr.rows[0];\n    if (coupon) {\n      if (coupon.percent) {\n        total = total - (total * coupon.percent) / 100;\n      } else if (coupon.amount) {\n        total = total - parseFloat(coupon.amount);\n      }\n    }\n  }\n  await query('UPDATE orders SET total = $1 WHERE id = $2', [total, orderId]);\n  res.status(201).json({ order_id: orderId, total: total });\n});",
+          "output": "HTTP/1.1 201 Created\n\n{\n  \"order_id\": 22,\n  \"total\": 41.980000000000004\n}",
+          "explanation": "The total should be 41.98. Adding floats gave `41.980000000000004`, and the database stored that too, because `orders.total` is a `numeric` column with no scale. Money belongs in integer cents. The loop has worse problems. The order row exists before the first item is checked, so an out-of-stock second item returns 409 and leaves a half-written order behind. Stock is read, then written, so two buyers can both take the last unit. StagePass's checkout fixes all three with a transaction, an atomic `UPDATE`, and integer cents."
+        },
+        {
+          "title": "Two answers to one login",
+          "prompt": "The output is the response to an unknown email, then the response to a known email with the wrong password.",
+          "language": "js",
+          "file": "app.js",
+          "code": "app.post('/login', (req, res) => {\n  const email = req.body.email;\n  const password = req.body.password;\n  query('SELECT * FROM users WHERE email = $1', [email])\n    .then((r) => {\n      if (r.rows.length === 0) {\n        return res.status(404).json({ error: 'no account with that email' });\n      }\n      const user = r.rows[0];\n      if (!bcrypt.compareSync(password, user.password)) {\n        return res.status(401).json({ error: 'wrong password' });\n      }\n      res.json({ token: signToken(user) });\n    })\n    .catch((err) => res.status(500).json({ error: err.message }));\n});",
+          "output": "HTTP/1.1 404 Not Found\n\n{\n  \"error\": \"no account with that email\"\n}\n\nHTTP/1.1 401 Unauthorized\n\n{\n  \"error\": \"wrong password\"\n}",
+          "explanation": "The answers differ, so anyone can try a list of emails and learn which ones have accounts. That is user enumeration. A login must give the same status and body in both cases, and take about the same time. Look at `/signup` too: it logs `req.body`, which holds the plain text password."
+        }
+      ],
+      "codebase": {
+        "template": "quickcart-legacy",
+        "files": [
+          "app.js",
+          "db.js",
+          "test/legacy.test.js"
+        ]
+      }
+    }
+  ],
+  "recap": "- supertest drives the real app over HTTP without a running server. Build the app with `createApp(deps)`, so tests can pass fakes.\n- Test the rules clients depend on, and table-test authorization: every role against every resource.\n- In a legacy codebase, trust the code over the docs and follow one request end to end.\n- Watch for SQL built from strings, auth that fails open, a missing `return`, writes without a transaction, and floats for money.\n- Reproduce a bug with a failing test before you fix it."
+}

@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { CompilerButton } from "@/components/learn/compiler-button";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
-import type { PartLink } from "@/components/learn/part-view";
+import type { PartLink } from "@/components/learn/part-frame";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { storeFor, WorkspaceView } from "@/components/ide/workspace-view";

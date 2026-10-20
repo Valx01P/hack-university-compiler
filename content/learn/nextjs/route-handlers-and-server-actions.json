@@ -1,0 +1,67 @@
+{
+  "id": "route-handlers-and-server-actions",
+  "title": "Route Handlers and Server Actions",
+  "section": "Data and Mutations",
+  "summary": "Serve JSON to other clients with Route Handlers, and handle your own forms with Server Actions, both built on the same lib functions.",
+  "format": "read",
+  "intro": "Pages aren't the only thing a Next.js app serves. A mobile app or a partner needs JSON, and your own forms need to change data on the server. Next.js has a tool for each: Route Handlers for HTTP APIs, and Server Actions for changes made from your own pages.",
+  "steps": [
+    {
+      "title": "Route Handlers answer HTTP requests",
+      "body": "A `route.ts` file turns its folder into an HTTP endpoint. It exports one function per method, like `GET`, `POST`, or `DELETE`, and each one takes a standard Web `Request` and returns a `Response`. A folder holds a `page.tsx` or a `route.ts`, never both, so teams keep APIs under `app/api/`.\n\n```text\napp/api/products/route.ts          GET /api/products\napp/api/products/[slug]/route.ts   GET /api/products/ridge-2p-tent\n```\n\nA folder name in square brackets is a dynamic segment. Its value arrives in `params`, a promise you `await`.\n\nKeep handlers thin. A handler reads the request, calls a function in `lib/`, and maps the result to a status code: 200 with data, 404 when the thing doesn't exist, 400 when the input is wrong. And never call your own Route Handler from a Server Component. The page can call `lib/` directly and skip the extra HTTP round trip.",
+      "examples": [
+        {
+          "title": "A products endpoint",
+          "prompt": "Add this file as `app/api/products/route.ts`. The output is its response to `/api/products?category=tents`, formatted for reading.",
+          "language": "ts",
+          "code": "import type { NextRequest } from \"next/server\";\nimport { listProducts, listProductsInCategory } from \"@/lib/catalog\";\n\nexport async function GET(request: NextRequest) {\n  const category = request.nextUrl.searchParams.get(\"category\");\n  const products = category ? listProductsInCategory(category) : listProducts();\n\n  // Send only the fields clients need, so the API keeps its shape when Product grows.\n  return Response.json({\n    data: products.map(({ slug, name, priceCents, inStock }) => ({ slug, name, priceCents, inStock })),\n    total: products.length,\n  });\n}",
+          "output": "{\n  \"data\": [\n    {\n      \"slug\": \"ridge-2p-tent\",\n      \"name\": \"Ridge 2P Tent\",\n      \"priceCents\": 34900,\n      \"inStock\": true\n    },\n    {\n      \"slug\": \"alpine-1p-tent\",\n      \"name\": \"Alpine 1P Tent\",\n      \"priceCents\": 27900,\n      \"inStock\": false\n    },\n    {\n      \"slug\": \"basecamp-4p-tent\",\n      \"name\": \"Basecamp 4P Tent\",\n      \"priceCents\": 52900,\n      \"inStock\": true\n    }\n  ],\n  \"total\": 3\n}",
+          "explanation": "`request.nextUrl` is the parsed URL that `NextRequest` adds to the standard `Request`, so reading a query parameter is one call. `Response.json()` sets the status to 200 and the `content-type` to `application/json`. The handler maps each product to four fields on purpose. An API's shape is a promise to other teams, and it shouldn't change every time someone adds a field to `Product`. Because the handler reads the request, the build lists it as `ƒ`, rendered on every request."
+        },
+        {
+          "title": "One product or a 404",
+          "prompt": "Add `app/api/products/[slug]/route.ts` for a single product. The output is the response to `/api/products/no-such-product`, with its status code.",
+          "language": "ts",
+          "code": "import { getProductBySlug } from \"@/lib/catalog\";\n\nexport async function GET(_request: Request, ctx: RouteContext<\"/api/products/[slug]\">) {\n  const { slug } = await ctx.params;\n  const product = getProductBySlug(slug);\n\n  if (!product) {\n    return Response.json({ error: `Unknown product: ${slug}` }, { status: 404 });\n  }\n  return Response.json(product);\n}",
+          "output": "{\"error\":\"Unknown product: no-such-product\"}\nHTTP 404",
+          "explanation": "`RouteContext<\"/api/products/[slug]\">` is generated from your folders, like `LayoutProps`, so `params` is typed as a promise of `{ slug: string }` with no extra code. The handler asks `lib/catalog.ts` for the product and turns `undefined` into a 404 with a JSON error, so a client can tell a missing product from a server failure. The underscore in `_request` marks a parameter the function doesn't use."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "lib/catalog.ts",
+          "app/products/page.tsx"
+        ]
+      }
+    },
+    {
+      "title": "Server Actions handle your forms",
+      "body": "A Server Action is an async function in a file that starts with `\"use server\"`. Pass it to a form's `action` prop and Next.js does the plumbing: it gives the function an ID, posts the form to it, and runs it on the server with the form's `FormData`. You write no API route and no `fetch`.\n\nThe form works before any JavaScript loads, because it's a real HTML form that posts to the page. After hydration, React submits it without a full reload.\n\nTreat every action as a public endpoint. Its ID is in the page's HTML, and anyone can post to it with any data. So validate the input on the server even when the form already checks it, and check permissions inside the action. After a successful write, `redirect()` to another page or refresh the data the page shows, so a reload never submits the form twice. The lab's `FeedbackBox` only says thanks and never sends the message anywhere. An action is how a form like it reaches the server.",
+      "examples": [
+        {
+          "title": "The action",
+          "prompt": "Add `app/feedback/actions.ts`, plus a one-line thank-you page at `app/feedback/thanks/page.tsx`. The output is what the production server logged when the form in the next example was submitted.",
+          "language": "ts",
+          "code": "\"use server\";\n\nimport { redirect } from \"next/navigation\";\n\nexport async function sendFeedback(formData: FormData) {\n  const message = String(formData.get(\"message\") ?? \"\").trim();\n\n  // Anyone can call an action, not just your form, so check the input here too.\n  if (message.length === 0 || message.length > 500) {\n    throw new Error(\"Feedback must be 1 to 500 characters\");\n  }\n\n  console.log(`Feedback: ${message}`);\n  redirect(\"/feedback/thanks\");\n}",
+          "output": "Feedback: More ultralight tents, please",
+          "explanation": "`String(formData.get(\"message\") ?? \"\")` is the usual way to read a text field, because `get` returns `null` for a missing field and a `File` for an upload. The length check repeats the form's `maxLength` on purpose, since a crafted request skips the browser. `redirect()` works by throwing, so call it last and outside any `try` block. When the form was submitted without JavaScript, the server answered `303 See Other` with `Location: /feedback/thanks`."
+        },
+        {
+          "title": "The form",
+          "prompt": "Add `app/feedback/page.tsx`. The form's `action` is the function itself.",
+          "language": "tsx",
+          "code": "import { sendFeedback } from \"./actions\";\n\nexport default function FeedbackPage() {\n  return (\n    <main className=\"mx-auto max-w-2xl px-6 py-12\">\n      <h1 className=\"text-3xl font-semibold\">Send feedback</h1>\n      <form action={sendFeedback} className=\"mt-6 flex flex-col gap-3\">\n        <label htmlFor=\"message\">What should we stock next?</label>\n        <textarea id=\"message\" name=\"message\" required maxLength={500} className=\"rounded-md border p-2\" />\n        <button type=\"submit\" className=\"self-start rounded-md bg-brand px-3 py-1.5 text-white\">\n          Send\n        </button>\n      </form>\n    </main>\n  );\n}",
+          "explanation": "The page stays a Server Component: no `\"use client\"`, no `onSubmit`, and no state. Next.js renders the form with a hidden field that names the action, so the browser posts straight to it. `required` and `maxLength={500}` give instant feedback in the browser, and the action checks again on the server. Next.js also compares the request's `Origin` header with the site's host, and in the lab a post from another origin failed with \"Invalid Server Actions request\". To show errors next to the field, return them from the action and read them with `useActionState` in a Client Component."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "components/feedback-box.tsx"
+        ]
+      }
+    }
+  ],
+  "recap": "- A `route.ts` exports a function per HTTP method that takes a `Request` and returns a `Response`. Keep APIs under `app/api/`.\n- Dynamic segments like `[slug]` arrive in `params`, a promise you `await`, typed by `RouteContext`.\n- Use Route Handlers for other clients, like mobile apps, partners, and webhooks. Your own pages call `lib/` directly.\n- Use Server Actions for your own forms. They run on the server and work before JavaScript loads.\n- Every handler and action is public: validate input on the server, and redirect or refresh after a write."
+}
