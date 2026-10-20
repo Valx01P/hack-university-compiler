@@ -1,0 +1,171 @@
+# Cookbook's endpoints, one request each, for the API panel (and VS Code's REST Client or
+# JetBrains' HTTP Client). Paths are relative to the server, which listens on the port it prints
+# (the workspace's PORT). Sent top to bottom against the seeded database, each request gets what
+# its > lines say. The panel keeps the session cookie, so logging in once covers the writes
+# below. Passwords are all cook-with-node-26.
+
+### The service is up
+GET /health
+
+> status 200
+> json $ == {"status": "ok"}
+
+### Ready (the database is connected)
+GET /ready
+
+> status 200
+> json $.status == "ready"
+
+### Log in as Julia (admin, and the author of the Italian and French recipes)
+# @name login
+POST /api/auth/login
+Content-Type: application/json
+
+{ "email": "julia@cookbook.test", "password": "cook-with-node-26" }
+
+> status 200
+> json $.email == "julia@cookbook.test"
+> json $.role == "admin"
+
+### Who am I
+GET /api/auth/me
+
+> status 200
+> json $.name == "Julia Moreno"
+
+### The recipes, newest first
+GET /api/recipes
+
+> status 200
+> json $.total == 18
+> json $.items == $len:18
+
+### Only Italian recipes
+GET /api/recipes?cuisine=italian
+
+> status 200
+> json $.total == 3
+
+### Full text search
+GET /api/recipes?q=ramen
+
+> status 200
+> json $.items[0].slug == "tonkotsu-ramen"
+
+### One recipe by slug, with its seeded rating
+GET /api/recipes/cacio-e-pepe
+
+> status 200
+> json $.title == "Cacio e Pepe"
+> json $.cuisine == "italian"
+> json $.ratingAvg == 4
+> json $.ratingCount == 3
+> json $.totalMinutes == 30
+
+### A soft-deleted recipe is gone from reads
+GET /api/recipes/burnt-toast
+
+> status 404
+
+### Search with an allowlisted filter body
+POST /api/recipes/search
+Content-Type: application/json
+
+{ "cuisine": "japanese", "maxPrepMinutes": 60 }
+
+> status 200
+> json $.items[*].slug == ["chicken-katsu", "miso-soup"]
+
+### Create a recipe (as Julia). The slug is derived, and Location points at it
+# @name created
+POST /api/recipes
+Content-Type: application/json
+
+{
+  "title": "Weeknight Pasta",
+  "description": "Fast and good.",
+  "ingredients": [{ "name": "spaghetti", "quantity": 200, "unit": "g" }],
+  "steps": ["Boil the pasta.", "Toss with oil."],
+  "tags": ["pasta", "quick"],
+  "cuisine": "italian",
+  "difficulty": "easy",
+  "prepMinutes": 20
+}
+
+> status 201
+> header Location == /api/recipes/weeknight-pasta
+> json $.slug == "weeknight-pasta"
+> json $.author.name == "Julia Moreno"
+
+### Rename it: the slug follows the new title
+PATCH /api/recipes/weeknight-pasta
+Content-Type: application/json
+
+{ "title": "Sunday Pasta" }
+
+> status 200
+> json $.slug == "sunday-pasta"
+
+### An invalid field is a 400 with the field named
+PATCH /api/recipes/sunday-pasta
+Content-Type: application/json
+
+{ "difficulty": "impossible" }
+
+> status 400
+> json $.fields.difficulty == $string
+
+### A recipe's reviews
+GET /api/recipes/cacio-e-pepe/reviews
+
+> status 200
+> json $.items == $len:3
+
+### Cuisine stats (deleted recipes excluded)
+GET /api/stats/cuisines
+
+> status 200
+> json $.items == $len:6
+> json $.items[0].cuisine == "american"
+> json $.items[0].count == 3
+
+### Tag stats
+GET /api/stats/tags
+
+> status 200
+> json $.items[0].tag == $string
+
+### Julia's collections
+GET /api/collections
+
+> status 200
+
+### Delete the recipe Julia created (soft delete)
+DELETE /api/recipes/sunday-pasta
+
+> status 204
+
+### Switch to Sam (who has written no recipes) to add a review
+# @name samLogin
+POST /api/auth/login
+Content-Type: application/json
+
+{ "email": "sam@cookbook.test", "password": "cook-with-node-26" }
+
+> status 200
+> json $.name == "Sam Patel"
+
+### Review a recipe Sam has not reviewed (the post-save hook updates its rating)
+POST /api/recipes/butter-chicken/reviews
+Content-Type: application/json
+
+{ "rating": 5, "body": "Rich and good." }
+
+> status 201
+> json $.rating == 5
+> json $.authorName == "Sam Patel"
+
+### Log out
+POST /api/auth/logout
+
+> status 204

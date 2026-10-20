@@ -1,0 +1,7 @@
+-- Reserved for the capstone's refunds (lesson 42, part 2). It is empty on purpose, so every
+-- migration before it stays exactly as it was. Add the refund columns to orders here:
+-- refunded_at (ISO text), refund_cents (INTEGER), and refund_reason (TEXT).
+--
+-- SQLite cannot change a CHECK constraint in place, so allowing the new 'refunded' status
+-- means rebuilding orders: create orders_new with the wider CHECK, copy the rows, drop the
+-- old table, and rename the new one, with PRAGMA foreign_keys = OFF around it.

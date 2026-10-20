@@ -1,0 +1,106 @@
+# The playground API's routes, with a body that works. The API panel sends these (so do VS Code's
+# REST Client and JetBrains' HTTP Client), and paths are relative to the API, which listens on the
+# port it prints (the workspace's API_PORT). The Vite dev server forwards /v1 to it, so the same
+# paths also work against WEB_PORT.
+#
+# Sent top to bottom after npm run api:reset, each request gets what its > lines say: the status, a
+# header, or a value at a JSON path. "# @name created" names a request, so a later one can use
+# {{created.response.body.$.id}}.
+
+### The API is up
+GET /healthz
+
+> status 200
+> json $ == {"status": "ok"}
+
+### Every item
+GET /v1/items
+
+> status 200
+> json $ == $len:5
+> json $[0] == {"id": 1, "title": "Learn JSX", "done": true}
+
+### Items whose title contains "test"
+GET /v1/items?q=test
+
+> status 200
+> json $[*].id == [5]
+
+### Items not done yet
+GET /v1/items?done=false
+
+> status 200
+> json $[*].id == [3, 4, 5]
+
+### Add an item: the title is trimmed, and done starts false
+# @name created
+POST /v1/items
+Content-Type: application/json
+
+{"title": "  Try useOptimistic  "}
+
+> status 201
+> header Location ~ /v1/items/\d+$
+> json $ == {"id": 6, "title": "Try useOptimistic", "done": false, "created_at": "2026-10-01T09:00:00Z"}
+
+### The item just added
+GET /v1/items/{{created.response.body.$.id}}
+
+> status 200
+> json $.title == "Try useOptimistic"
+
+### Mark it done
+PATCH /v1/items/{{created.response.body.$.id}}
+Content-Type: application/json
+
+{"done": true}
+
+> status 200
+> json $.done == true
+
+### An empty title: 422, and errors says which field
+POST /v1/items
+Content-Type: application/json
+
+{"title": "   "}
+
+> status 422
+> header Content-Type ~ ^application/problem\+json
+> json $.errors.title == "must be 1 to 120 characters"
+
+### An item that doesn't exist: 404
+GET /v1/items/999
+
+> status 404
+
+### Delete it
+DELETE /v1/items/{{created.response.body.$.id}}
+
+> status 204
+
+### See exactly what a request sent
+POST /v1/echo?page=2
+Content-Type: application/json
+
+{"hello": "playground"}
+
+> status 200
+> json $ == {"method": "POST", "path": "/echo", "query": {"page": "2"}, "body": {"hello": "playground"}}
+
+### Slow on purpose: answers after 1.5 seconds
+GET /v1/items
+X-HU-Delay: 1500
+
+> status 200
+
+### Failing on purpose: answers 503
+GET /v1/items
+X-HU-Fail: 503
+
+> status 503
+> json $.status == 503
+
+### Back to the 5 seed items (outside /v1, for checks and resets)
+POST /_hu/reset
+
+> status 204

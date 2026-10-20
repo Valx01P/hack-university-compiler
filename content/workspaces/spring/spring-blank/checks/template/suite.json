@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "image": "java",
+  "db": "clone",
+  "copy": { "exclude": ["target"], "git": false },
+  "deadlineMs": 180000,
+  "server": { "task": "dev", "port": "PORT", "ready": { "path": "/actuator/health", "timeoutMs": 60000 } },
+  "steps": [
+    { "id": "compile", "kind": "cmd", "run": ["./mvnw", "-o", "-q", "compile"], "expect": { "exit": 0 }, "parse": "javac" },
+    { "id": "tests", "kind": "unit", "tool": "junit" },
+    {
+      "id": "schema",
+      "kind": "sql",
+      "query": "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'notes' ORDER BY ordinal_position",
+      "rows": [["id", "bigint"], ["body", "text"], ["created_at", "timestamp with time zone"]]
+    },
+    { "id": "api", "kind": "http-file", "file": "requests.http" },
+    {
+      "id": "mutants",
+      "kind": "mutants",
+      "mutants": [
+        { "id": "hello-ignores-name", "by": ["tests"], "says": "The tests still pass when the greeting ignores the name" }
+      ]
+    }
+  ],
+  "acceptance": {
+    "compile": "The project compiles",
+    "tests": "The project's own test passes",
+    "schema": "Flyway created the notes table from V1__create_notes.sql",
+    "api": "Every request in requests.http gets the answer it states",
+    "mutants": "The project's own test catches a greeting that drops the name"
+  }
+}

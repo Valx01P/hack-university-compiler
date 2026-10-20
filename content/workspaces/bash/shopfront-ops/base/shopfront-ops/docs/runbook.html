@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>On-call runbook - Shopfront Ops</title>
+  <style>
+    body { font: 16px/1.55 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #1d2433; }
+    code, pre { background: #f1f0eb; border-radius: 0.2rem; }
+    code { padding: 0.1rem 0.3rem; }
+    pre { padding: 0.75rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <p><a href="index.html">Shopfront Ops</a></p>
+  <h1>On-call runbook</h1>
+
+  <h2>The API is down</h2>
+  <ol>
+    <li>Check it: <code>bin/taskapictl status</code> and <code>bin/healthcheck.sh -r 3</code>.</li>
+    <li>Read the last errors: <code>bin/taskapictl logs</code>, or
+      <code>jq -r 'select(.level == "error") | [.ts, .route, .msg] | @tsv' logs/app.log | tail</code>.</li>
+    <li>Restart it: <code>bin/taskapictl restart</code>.</li>
+    <li>Still failing after a deploy? Roll back: point <code>releases/current</code> at the previous release and restart.</li>
+  </ol>
+
+  <h2>Port 8080 is taken</h2>
+  <pre>ss -Htlnp 'sport = :8080'
+fuser 8080/tcp</pre>
+  <p>Stop whatever holds it, or start taskapi on another port by changing <code>API_PORT</code> and
+    <code>API_URL</code> in <code>.env</code>.</p>
+
+  <h2>The disk is filling up</h2>
+  <pre>df -h /
+du -h --max-depth=1 . | sort -h</pre>
+  <p>Old logs and backups are the usual suspects: <code>bin/rotate-logs.sh</code> and pruning
+    <code>backups/</code> free the most.</p>
+
+  <h2>Restoring a backup</h2>
+  <pre>cd backups && sha256sum -c SHA256SUMS
+tmp=$(mktemp -d) && tar -xzf backups/shopfront-YYYYMMDD-HHMMSS.tar.gz -C "$tmp"
+diff -r "$tmp/config" config</pre>
+</body>
+</html>

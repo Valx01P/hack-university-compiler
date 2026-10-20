@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "image": "web",
+  "db": "none",
+  "copy": { "exclude": ["node_modules", ".vite", "dist", "api/data"], "git": false },
+  "deadlineMs": 120000,
+  "server": { "task": "dev:api", "port": "API_PORT", "ready": { "path": "/healthz", "timeoutMs": 15000 } },
+  "steps": [
+    { "id": "typecheck", "kind": "cmd", "run": ["npx", "tsc", "-b", "--pretty", "false"], "expect": { "exit": 0 }, "parse": "tsc" },
+    { "id": "lint", "kind": "cmd", "run": ["npx", "oxlint", "--deny-warnings"], "expect": { "exit": 0 }, "parse": "eslint" },
+    { "id": "tests", "kind": "unit", "tool": "vitest", "run": ["src"] },
+    { "id": "build", "kind": "cmd", "run": ["npx", "vite", "build", "--configLoader", "native"], "expect": { "exit": 0 } },
+    {
+      "id": "api-reset",
+      "kind": "cmd",
+      "run": ["npm", "run", "--silent", "api:reset"],
+      "expect": { "exit": 0, "stdout": "Restored api/data/db.json from api/seed.json.\n" }
+    },
+    { "id": "api", "kind": "http-file", "file": "requests.http" }
+  ],
+  "acceptance": {
+    "typecheck": "The project type-checks",
+    "lint": "oxlint reports nothing",
+    "tests": "The project's own test passes",
+    "build": "vite build builds dist/",
+    "api-reset": "npm run api:reset restores the 5 seed items",
+    "api": "Every request in requests.http gets the answer it states"
+  }
+}

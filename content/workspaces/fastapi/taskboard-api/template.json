@@ -1,0 +1,41 @@
+{
+  "id": "taskboard-api",
+  "course": "fastapi",
+  "title": "Taskboard API",
+  "image": "python",
+  "storage": "host",
+  "profile": "standard",
+  "layout": "ide",
+  "start": "run",
+  "services": {
+    "postgres": {
+      "build": ["sh", "-c", "uv run --frozen alembic upgrade head && uv run --frozen python -m scripts.seed"],
+      "databases": ["dev", "test"]
+    }
+  },
+  "ports": [
+    { "env": "PORT", "label": "API", "readyPath": "/healthz" },
+    { "env": "WEB_PORT", "label": "Board page", "readyPath": "/" }
+  ],
+  "tasks": {
+    "dev": { "cmd": "uv run fastapi dev --host 0.0.0.0 --port ${PORT:-8000}", "label": "Server", "run": true },
+    "start": { "cmd": "uv run fastapi run --host 0.0.0.0 --port ${PORT:-8000}", "label": "Server" },
+    "web": { "cmd": "uv run python -m http.server ${WEB_PORT:-5173} -d frontend", "label": "Board page" },
+    "test": { "cmd": "uv run pytest" },
+    "migrate": { "cmd": "uv run alembic upgrade head" },
+    "seed": { "cmd": "uv run python -m scripts.seed" },
+    "worker": { "cmd": "uv run python -m app.worker --once", "label": "Outbox" },
+    "lint": { "cmd": "uv run ruff check" }
+  },
+  "env": { "HU_FIXED_TIME": "2026-10-01T09:00:00Z" },
+  "deps": { "kind": "uv", "lock": "uv.lock", "mode": "shared" },
+  "open": ["README.md", "app/api/routes/tasks.py"],
+  "requests": "requests.http",
+  "readonly": ["README.md", "scripts/seed.json"],
+  "hidden": [".git"],
+  "panels": ["terminal", "server", "ports", "api", "database", "problems", "results"],
+  "diagnostics": [{ "on": "save", "cmd": ["uv", "run", "--frozen", "ruff", "check", "--output-format", "concise"], "parser": "ruff" }],
+  "autosave": true,
+  "restartOnReset": true,
+  "limits": { "memoryMb": 1024, "cpus": 2, "pids": 512 }
+}

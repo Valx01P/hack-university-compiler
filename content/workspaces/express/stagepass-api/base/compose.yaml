@@ -1,0 +1,52 @@
+# Runs StagePass outside Hack University: PostgreSQL, a one-off migration, then the API.
+#   JWT_SECRET=$(openssl rand -base64 48) docker compose up --build
+# Then open http://localhost:3000. (Read only in the workspace, which has no Docker.)
+services:
+  db:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_USER: stagepass
+      POSTGRES_PASSWORD: stagepass
+      POSTGRES_DB: stagepass
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stagepass -d stagepass"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  # The release step: applies new migrations, then exits. The API waits for it to succeed.
+  migrate:
+    build: .
+    command: ["node", "scripts/migrate.ts"]
+    environment:
+      DATABASE_URL: postgres://stagepass:stagepass@db:5432/stagepass
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to at least 32 random characters}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: .
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgres://stagepass:stagepass@db:5432/stagepass
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to at least 32 random characters}
+      LOG_LEVEL: info
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/readyz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+  uploads:

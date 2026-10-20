@@ -1,0 +1,86 @@
+# taskapi's routes as REST Client requests (VS Code's REST Client, JetBrains'
+# HTTP client). In this devbox, curl is the client: each request has its curl
+# line above it.
+
+@base = http://127.0.0.1:8080
+@token = dev-token-123
+
+### Health: {"status":"ok","version":"2.14.0"}
+# curl -s localhost:8080/health
+GET {{base}}/health
+
+### Users, paginated (per_page is capped at 25), filtered by q (name or email) and role
+# curl -sG localhost:8080/users --data-urlencode 'q=van der' --data-urlencode 'per_page=2'
+GET {{base}}/users?q=van%20der&per_page=2
+
+### One user. 404 for an unknown id. User 13 answers after 5 seconds.
+# curl -s localhost:8080/users/3
+GET {{base}}/users/3
+
+### Create a user (admin token): 201 with Location, 409 for a taken email, 422 for bad fields
+# curl -s --json '{"name":"Grace Ng","email":"grace.ng@shopfront.example","role":"editor"}' -H "Authorization: Bearer $API_TOKEN" localhost:8080/users
+POST {{base}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"name": "Grace Ng", "email": "grace.ng@shopfront.example", "role": "editor"}
+
+### Orders, paginated, optionally by status
+# curl -s 'localhost:8080/orders?page=2&per_page=10&status=delivered'
+GET {{base}}/orders?page=2&per_page=10
+
+### One order
+GET {{base}}/orders/9
+
+### Tasks, optionally by owner and done
+# curl -s 'localhost:8080/tasks?owner=ada&done=false'
+GET {{base}}/tasks?owner=ada&done=false
+
+### Create a task (editor or admin): 201, 401 without a token, 403 for a viewer
+# @name createTask
+POST {{base}}/tasks
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"title": "Write docs"}
+
+### Finish it
+PATCH {{base}}/tasks/{{createTask.response.body.$.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"done": true}
+
+### Delete it: 204
+DELETE {{base}}/tasks/{{createTask.response.body.$.id}}
+Authorization: Bearer {{token}}
+
+### Admin stats: 401 without a token, 403 with viewer-token-456
+GET {{base}}/admin/stats
+Authorization: Bearer {{token}}
+
+### Log in: sets an HttpOnly session cookie
+# curl -s -c jar.txt --json '{"user":"ada","password":"lovelace"}' localhost:8080/login
+POST {{base}}/login
+Content-Type: application/json
+
+{"user": "ada", "password": "lovelace"}
+
+### Who am I: reads the cookie
+# curl -s -b jar.txt localhost:8080/me
+GET {{base}}/me
+
+### Log out: 204, and the cookie expires
+POST {{base}}/logout
+
+### Answers after N milliseconds (at most 30000)
+# curl -s --max-time 1 'localhost:8080/slow?ms=3000'; echo $?    # 28: timed out
+GET {{base}}/slow?ms=3000
+
+### 503 twice for each X-Request-Id, then 200
+# curl -s --retry 3 --retry-all-errors -H 'X-Request-Id: demo-1' localhost:8080/flaky
+GET {{base}}/flaky
+X-Request-Id: demo-1
+
+### Always 500
+GET {{base}}/boom

@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "image": "node",
+  "db": "none",
+  "copy": {
+    "exclude": [
+      "node_modules"
+    ],
+    "git": false
+  },
+  "deadlineMs": 60000,
+  "server": {
+    "task": "start",
+    "port": "PORT",
+    "ready": {
+      "path": "/products",
+      "timeoutMs": 15000
+    }
+  },
+  "steps": [
+    {
+      "id": "tests",
+      "kind": "unit",
+      "tool": "node-test",
+      "run": [
+        "test/*.test.*"
+      ]
+    },
+    {
+      "id": "api",
+      "kind": "http-file",
+      "file": "requests.http"
+    },
+    {
+      "id": "mutants",
+      "kind": "mutants",
+      "mutants": [
+        {
+          "id": "tax-ignored",
+          "by": [
+            "tests"
+          ],
+          "says": "The tests still pass when no tax is added"
+        },
+        {
+          "id": "coupon-ignored",
+          "by": [
+            "api"
+          ],
+          "says": "requests.http still gets its answers when the coupon is never stored"
+        }
+      ]
+    }
+  ],
+  "acceptance": {
+    "tests": "The shop's own tests pass",
+    "api": "Every request in requests.http gets the answer it states",
+    "mutants": "The shop's own tests and requests.http catch each planted bug"
+  }
+}

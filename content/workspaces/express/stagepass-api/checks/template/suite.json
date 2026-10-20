@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "image": "web",
+  "db": "clone",
+  "copy": { "exclude": ["node_modules", ".vite-cache", "openapi.json"], "git": false },
+  "deadlineMs": 120000,
+  "env": { "NODE_ENV": "test", "HU_FIXED_TIME": "2026-10-01T09:00:00Z", "LOG_LEVEL": "warn" },
+  "server": { "task": "start", "port": "PORT", "ready": { "path": "/healthz", "timeoutMs": 15000 } },
+  "steps": [
+    {
+      "id": "typecheck",
+      "kind": "cmd",
+      "run": ["npx", "tsc", "--noEmit", "--pretty", "false"],
+      "expect": { "exit": 0 },
+      "parse": "tsc"
+    },
+    {
+      "id": "migrations-consistent",
+      "kind": "cmd",
+      "run": ["npx", "drizzle-kit", "check"],
+      "expect": { "exit": 0 }
+    },
+    {
+      "id": "schema-matches-migrations",
+      "kind": "cmd",
+      "run": ["npx", "drizzle-kit", "generate"],
+      "expect": { "exit": 0, "stdoutRegex": "No schema changes, nothing to migrate" }
+    },
+    {
+      "id": "tests",
+      "kind": "unit",
+      "tool": "vitest",
+      "run": ["test/**/*.test.ts"]
+    },
+    {
+      "id": "db-reset",
+      "kind": "cmd",
+      "run": ["npm", "run", "--silent", "db:reset"],
+      "expect": {
+        "exit": 0,
+        "stdout": "Applied 10 migrations, then seeded 6 users, 4 venues, 24 events, 42 ticket types, and 30 orders\n"
+      }
+    },
+    {
+      "id": "api",
+      "kind": "http-file",
+      "file": "requests.http"
+    },
+    {
+      "id": "sold-matches-paid-orders",
+      "kind": "sql",
+      "query": "SELECT count(*) FROM ticket_types t LEFT JOIN (SELECT i.ticket_type_id, sum(i.quantity) AS q FROM order_items i JOIN orders o ON o.id = i.order_id AND o.status = 'paid' GROUP BY i.ticket_type_id) p ON p.ticket_type_id = t.id WHERE t.sold <> coalesce(p.q, 0)",
+      "rows": [["0"]]
+    },
+    {
+      "id": "no-order-without-items",
+      "kind": "sql",
+      "query": "SELECT count(*) FROM orders o WHERE NOT EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id)",
+      "rows": [["0"]]
+    },
+    {
+      "id": "checkout-tests-catch-bugs",
+      "kind": "mutants",
+      "tests": ["test/unit/checkout.service.test.ts"],
+      "mutants": [
+        { "id": "no-sold-out-check", "says": "The tests still pass when checkout sells seats that are not there" },
+        { "id": "quantity-off-by-one", "says": "The tests still pass when 11 of one ticket type is allowed" },
+        { "id": "past-events-on-sale", "says": "The tests still pass when an event that already started is on sale" },
+        { "id": "total-ignores-quantity", "says": "The tests still pass when the total charges for one ticket per line" },
+        { "id": "idempotency-ignores-key", "says": "The tests still pass when a retried Idempotency-Key buys again" },
+        { "id": "idempotency-second-order", "says": "The tests still pass when a retry stores a second order" }
+      ]
+    },
+    {
+      "id": "authorization-tests-catch-bugs",
+      "kind": "mutants",
+      "tests": ["test/api/events.api.test.ts"],
+      "mutants": [
+        { "id": "draft-ticket-types-public", "says": "The tests still pass when anyone can read a draft's ticket types" },
+        { "id": "any-organizer-adds-ticket-types", "says": "The tests still pass when any organizer can add ticket types to any event" },
+        { "id": "admin-refused", "says": "The tests still pass when admins cannot add ticket types" },
+        { "id": "draft-403-not-404", "says": "The tests still pass when a hidden draft answers 403 instead of 404" }
+      ]
+    }
+  ],
+  "acceptance": {
+    "typecheck": "The project type-checks, tests and scripts included",
+    "migrations-consistent": "drizzle-kit check finds the migration history consistent",
+    "schema-matches-migrations": "src/db/schema.ts and the last migration snapshot agree",
+    "tests": "The project's own unit, API, and integration tests pass",
+    "db-reset": "npm run db:reset rebuilds the database from the migrations and the seed",
+    "api": "Every request in requests.http gets the answer it states",
+    "sold-matches-paid-orders": "Every ticket type's sold count equals the tickets in its paid orders",
+    "no-order-without-items": "No order is stored without its items",
+    "checkout-tests-catch-bugs": "The checkout unit tests catch each planted checkout bug",
+    "authorization-tests-catch-bugs": "The authorization matrix catches each planted permission bug"
+  }
+}

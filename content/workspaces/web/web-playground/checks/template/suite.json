@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "image": "check-web",
+  "db": "none",
+  "copy": {
+    "exclude": ["node_modules", "dist", ".vite-cache", "test-results", "playwright-report"],
+    "git": false
+  },
+  "deadlineMs": 90000,
+  "server": {
+    "task": "dev",
+    "port": "PORT",
+    "ready": { "path": "/", "timeoutMs": 15000 }
+  },
+  "steps": [
+    {
+      "id": "build",
+      "kind": "cmd",
+      "run": ["npm", "run", "--silent", "build"],
+      "expect": { "exit": 0 }
+    },
+    {
+      "id": "html",
+      "kind": "cmd",
+      "run": ["html-validate", "index.html"],
+      "expect": { "exit": 0 }
+    },
+    { "id": "smoke", "kind": "unit", "tool": "playwright", "run": ["tests"] },
+    { "id": "page", "kind": "dom", "files": ["playground.check.spec.js"] }
+  ],
+  "acceptance": {
+    "build": "npm run build bundles the page",
+    "html": "html-validate finds no problems in index.html",
+    "smoke": "The project's own Playwright smoke test passes",
+    "page": "The page renders its greeting, picks the AVIF, serves public/ with the right types, passes axe in light and dark, and fits a phone"
+  }
+}

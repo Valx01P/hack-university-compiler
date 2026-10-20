@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "image": "go",
+  "db": "clone",
+  "copy": { "exclude": ["bin", "data"], "git": false },
+  "deadlineMs": 90000,
+  "server": { "task": "dev", "port": "PORT", "ready": { "path": "/readyz", "timeoutMs": 30000 } },
+  "steps": [
+    { "id": "build", "kind": "cmd", "run": ["go", "build", "./..."], "expect": { "exit": 0 }, "parse": "go" },
+    { "id": "vet", "kind": "cmd", "run": ["go", "vet", "./..."], "expect": { "exit": 0 }, "parse": "go" },
+    { "id": "gofmt", "kind": "cmd", "run": ["sh", "-c", "test -z \"$(gofmt -l .)\""], "expect": { "exit": 0 } },
+    { "id": "sqlc", "kind": "cmd", "run": ["sqlc", "diff"], "expect": { "exit": 0 } },
+    { "id": "generate", "kind": "cmd", "run": ["sh", "-c", "cp internal/domain/priority_string.go /tmp/p.go && go generate ./internal/domain && cmp internal/domain/priority_string.go /tmp/p.go"], "expect": { "exit": 0 } },
+    { "id": "migrations", "kind": "cmd", "run": ["sh", "-c", "goose reset && goose up && goose status 2>&1"], "expect": { "exit": 0, "stdoutRegex": "00010_attachments\\.sql" } },
+    { "id": "seed", "kind": "cmd", "run": ["sh", "-c", "go run ./cmd/seed && go run ./cmd/seed"], "expect": { "exit": 0, "stdout": "loaded db/seed.sql: 4 users, 3 projects, 18 tasks, 31 comments, 6 watchers\nloaded db/seed.sql: 4 users, 3 projects, 18 tasks, 31 comments, 6 watchers\n" } },
+    { "id": "tests", "kind": "unit", "tool": "gotest", "run": ["./..."], "race": true },
+    { "id": "api", "kind": "http-file", "file": "requests.http" },
+    { "id": "jobs", "kind": "sql", "query": "SELECT kind, payload::text FROM jobs ORDER BY id", "rows": [["task.assigned", "{\"by\": 1, \"task_id\": 19, \"assignee_id\": 2}"], ["task.completed", "{\"task_id\": 19}"], ["watcher.added", "{\"by\": 1, \"task_id\": 3, \"user_id\": 2}"]] },
+    { "id": "mutants", "kind": "mutants", "mutants": [
+      { "id": "member-can-delete-tasks", "by": ["tests"], "says": "The tests still pass when any member can delete tasks" },
+      { "id": "done-back-to-todo", "by": ["tests"], "says": "The tests still pass when a done task can move back to todo" },
+      { "id": "stale-update-wins", "by": ["tests"], "says": "The tests still pass when a PATCH with an old If-Match overwrites a newer change" },
+      { "id": "cookie-beats-header", "by": ["tests"], "says": "The tests still pass when the cookie wins over the Authorization header" },
+      { "id": "not-found-is-500", "by": ["tests"], "says": "The tests still pass when a wrapped not-found error becomes a 500" },
+      { "id": "fake-delete-ignores-missing", "by": ["tests"], "says": "The tests still pass when the fake TaskStore's Delete reports nothing for a missing task" }
+    ] }
+  ],
+  "acceptance": {
+    "build": "The module builds",
+    "vet": "go vet reports nothing",
+    "gofmt": "Every file is gofmt-formatted",
+    "sqlc": "internal/store/sqlcdb matches the queries and migrations (sqlc diff)",
+    "generate": "priority_string.go matches what stringer generates",
+    "migrations": "Every migration rolls back and applies again",
+    "seed": "db/seed.sql loads, and loading it twice changes nothing",
+    "tests": "The project's own tests pass with the race detector, database tests included",
+    "api": "Every request in requests.http gets the answer it states",
+    "jobs": "Those requests queued exactly three jobs: task.assigned and task.completed for the new task, and watcher.added for Grace",
+    "mutants": "The project's own tests catch each planted bug"
+  }
+}

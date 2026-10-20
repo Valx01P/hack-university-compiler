@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "image": "node",
+  "db": "none",
+  "copy": { "exclude": ["node_modules"], "git": false },
+  "deadlineMs": 60000,
+  "steps": [
+    { "id": "typecheck", "kind": "cmd", "run": ["npx", "tsc", "--noEmit", "--pretty", "false"], "expect": { "exit": 0 }, "parse": "tsc" },
+    { "id": "lint", "kind": "cmd", "run": ["npx", "eslint", "."], "expect": { "exit": 0 }, "parse": "eslint" },
+    { "id": "tests", "kind": "unit", "tool": "node-test", "run": ["test/**/*.test.ts"] },
+    {
+      "id": "cli-list",
+      "kind": "cmd",
+      "run": ["node", "src/cli.ts", "list"],
+      "expect": {
+        "exit": 0,
+        "stdout": "SKU      Name               Category  Qty    Price\nMUG-001  Ceramic Mug        kitchen    24   $12.99\nMUG-002  Travel Mug         kitchen     3   $24.50\nKET-001  Pour-over Kettle   kitchen     7   $59.99\nPEN-010  Gel Pens, 10 pack  office    120    $8.99\nNTB-004  Dot Grid Notebook  office      2   $14.50\nLMP-002  Desk Lamp          office      9   $39.99\nCHR-001  Office Chair       office      0  $189.00\nSCI-007  Scissors           office     16    $7.49\nSEE-101  Tomato Seeds       garden     45    $3.49\nGLV-003  Garden Gloves      garden      4   $11.99\nHOS-015  Garden Hose, 15 m  garden      6   $28.99\nTRW-001  Hand Trowel        garden     11    $9.99\n"
+      }
+    },
+    {
+      "id": "cli-low-from-anywhere",
+      "kind": "cmd",
+      "cwd": "/",
+      "run": ["node", "{workspace}/src/cli.ts", "list", "--low"],
+      "expect": {
+        "exit": 0,
+        "stdout": "SKU      Name               Category  Qty    Price\nMUG-002  Travel Mug         kitchen     3   $24.50\nNTB-004  Dot Grid Notebook  office      2   $14.50\nCHR-001  Office Chair       office      0  $189.00\nGLV-003  Garden Gloves      garden      4   $11.99\n"
+      }
+    },
+    {
+      "id": "cli-report",
+      "kind": "cmd",
+      "run": ["node", "src/cli.ts", "report", "--format", "markdown"],
+      "expect": {
+        "exit": 0,
+        "stdout": "| Category | Items | Units | Value |\n| --- | ---: | ---: | ---: |\n| kitchen | 3 | 34 | $805.19 |\n| office | 5 | 147 | $1,587.55 |\n| garden | 4 | 66 | $488.84 |\n| Total | 12 | 247 | $2,881.58 |\n"
+      }
+    },
+    {
+      "id": "cli-not-found",
+      "kind": "cmd",
+      "run": ["node", "src/cli.ts", "remove", "NOPE-000"],
+      "expect": { "exit": 3, "stderrIncludes": "No item with SKU NOPE-000" }
+    },
+    {
+      "id": "cli-bad-file",
+      "kind": "cmd",
+      "env": { "STOCKROOM_DATA": "fixtures/broken.json" },
+      "run": ["node", "src/cli.ts", "list"],
+      "expect": { "exit": 1, "stderrIncludes": ["Invalid inventory file fixtures/broken.json:", "at items[1].qty", "at items[2].priceCents", "at items[3].category"] }
+    },
+    {
+      "id": "mutants",
+      "kind": "mutants",
+      "mutants": [
+        { "id": "low-stock-boundary", "by": ["tests"], "says": "The tests still pass when an item with exactly the threshold left is not low" },
+        { "id": "cents-from-floats", "by": ["tests"], "says": "The tests still pass when prices are read as floats and multiplied by 100" },
+        { "id": "csv-without-quotes", "by": ["tests"], "says": "The tests still pass when CSV cells with commas are not quoted" },
+        { "id": "save-without-rename", "by": ["tests"], "says": "The tests still pass when saving leaves the new inventory in the temporary file" },
+        { "id": "adjust-below-zero", "by": ["tests"], "says": "The tests still pass when a sale can take the quantity below zero" },
+        { "id": "report-ignores-quantity", "by": ["tests", "cli-report"], "says": "The tests still pass when the stock value ignores the quantity" },
+        { "id": "sku-any-digits", "by": ["tests"], "says": "The tests still pass when a SKU may have any number of digits" },
+        { "id": "migrate-drops-prices", "by": ["tests"], "says": "The tests still pass when upgrading a version 1 file loses its prices" }
+      ]
+    }
+  ],
+  "acceptance": {
+    "typecheck": "The project type-checks",
+    "lint": "ESLint reports nothing",
+    "tests": "The project's own tests pass",
+    "cli-list": "list prints the seed inventory as a table",
+    "cli-low-from-anywhere": "list --low works from any folder",
+    "cli-report": "report --format markdown totals each category",
+    "cli-not-found": "remove of an unknown SKU exits with 3",
+    "cli-bad-file": "A broken data file exits with 1 and names each problem's path",
+    "mutants": "The project's own tests catch each planted bug"
+  }
+}

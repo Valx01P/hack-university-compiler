@@ -1,0 +1,32 @@
+# sqlc reads the goose migrations as the schema (it skips the Down sections) and the
+# queries in db/queries, and writes type-safe Go into internal/store/sqlcdb. After
+# changing a query or a migration, run `make sqlc` (sqlc generate). `sqlc diff` fails
+# when the generated code is out of date, which `make ci` checks.
+version: "2"
+sql:
+  - engine: postgresql
+    schema: db/migrations
+    queries: db/queries
+    gen:
+      go:
+        package: sqlcdb
+        out: internal/store/sqlcdb
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        overrides:
+          # pgx/v5 would give pgtype.Timestamptz and pgtype.Date. Plain time.Time
+          # (and *time.Time for NULL) keeps pgtype out of every layer above the store.
+          - db_type: timestamptz
+            go_type: time.Time
+          - db_type: timestamptz
+            nullable: true
+            go_type:
+              type: time.Time
+              pointer: true
+          - db_type: date
+            go_type: time.Time
+          - db_type: date
+            nullable: true
+            go_type:
+              type: time.Time
+              pointer: true

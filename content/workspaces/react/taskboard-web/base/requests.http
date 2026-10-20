@@ -1,0 +1,276 @@
+# The Taskboard mock API, one request per idea, with a body that works. The API panel sends these
+# (so do VS Code's REST Client and JetBrains' HTTP Client). Paths are relative to the API, which
+# listens on the port it prints (the workspace's API_PORT); the Vite dev server forwards /v1,
+# /healthz, and /_hu to it, so the same paths also work against WEB_PORT.
+#
+# Sent top to bottom after npm run api:reset, each request gets what its > lines say. Logging in
+# sets the tb_session cookie, which every later request sends, the way a browser does. The full
+# contract, with every rule and status, is checked by content/contracts/taskboard/acceptance.http.
+
+@password = correct horse battery staple
+
+### Liveness, outside /v1
+GET /healthz
+
+> status 200
+> json $ == {"status": "ok"}
+
+### Not logged in: a 401 problem
+GET /v1/me
+
+> status 401
+> header Content-Type ~ ^application/problem\+json
+> header WWW-Authenticate ~ ^Bearer
+
+### Log in as Ada: a token, and the same token in an HttpOnly cookie
+# @name login
+POST /v1/auth/login
+Content-Type: application/json
+
+{"email": "ada@example.com", "password": "{{password}}"}
+
+> status 200
+> json $.user.name == "Ada Lovelace"
+> json $.expires_at == "2026-10-02T09:00:00Z"
+> header Set-Cookie ~ ^tb_session=[^;]+; HttpOnly; SameSite=Lax; Path=/$
+
+### Who am I (the cookie answers)
+GET /v1/me
+
+> status 200
+> json $ == {"id": 1, "role": "admin"}
+
+### The same with the bearer token, as a mobile app or a script would send it
+GET /v1/me
+Authorization: Bearer {{login.response.body.$.token}}
+
+> status 200
+> json $.email == "ada@example.com"
+
+### My projects, with task counts
+GET /v1/projects
+
+> status 200
+> json $[*].name == ["Website Relaunch", "Mobile App"]
+> json $[0].task_counts == {"todo": 3, "doing": 3, "done": 2}
+
+### One project, with its members
+GET /v1/projects/1
+
+> status 200
+> json $.members[*].name == ["Ada Lovelace", "Grace Hopper"]
+
+### Counts by status (the Stats tab)
+GET /v1/projects/1/stats
+
+> status 200
+> json $ == {"todo": 3, "doing": 3, "done": 2}
+
+### The board's request: every task, by due date
+GET /v1/projects/1/tasks?sort=due&order=asc&limit=100&offset=0
+
+> status 200
+> json $.total == 8
+> json $.items[0].title == "Set up analytics"
+
+### Filters: to-do tasks only
+GET /v1/projects/1/tasks?status=todo&sort=due
+
+> status 200
+> json $.items[*].id == [2, 5, 7]
+
+### Search the title and the description (2 characters at least)
+GET /v1/projects/1/tasks?q=login
+
+> status 200
+> json $.items[*].title == ["Fix login redirect"]
+
+### Tasks with the bug label (the labels tier)
+GET /v1/projects/1/tasks?label=bug
+
+> status 200
+> json $.items[*].id == [1]
+> json $.items[0].labels[*].name == ["bug", "design"]
+
+### A sort the API doesn't know: 400, naming the parameter
+GET /v1/projects/1/tasks?sort=password
+
+> status 400
+> json $.errors.sort == $string
+
+### Create a task: it starts in todo, at version 1
+# @name created
+POST /v1/projects/1/tasks
+Content-Type: application/json
+
+{"title": "Write the launch email", "priority": 3, "due_on": "2026-10-12", "assignee_id": 2}
+
+> status 201
+> header ETag == "v1"
+> json $ == {"title": "Write the launch email", "status": "todo", "priority": 3, "version": 1, "created_at": "2026-10-01T09:00:00Z"}
+
+### A title of only spaces: 422, with the field in errors
+POST /v1/projects/1/tasks
+Content-Type: application/json
+
+{"title": "   "}
+
+> status 422
+> json $.errors.title == "is required"
+
+### Read it back, with its ETag
+GET /v1/tasks/{{created.response.body.$.id}}
+
+> status 200
+> header ETag == "v1"
+
+### Edit it, sending the version you read in If-Match
+PATCH /v1/tasks/{{created.response.body.$.id}}
+Content-Type: application/json
+If-Match: "v1"
+
+{"title": "Write the launch emails"}
+
+> status 200
+> header ETag == "v2"
+> json $.version == 2
+
+### Edit again with the old version: 412, with the task as it is now
+PATCH /v1/tasks/{{created.response.body.$.id}}
+Content-Type: application/json
+If-Match: "v1"
+
+{"priority": 1}
+
+> status 412
+> json $.current.title == "Write the launch emails"
+
+### No If-Match at all: 428
+PATCH /v1/tasks/{{created.response.body.$.id}}
+Content-Type: application/json
+
+{"priority": 1}
+
+> status 428
+
+### Move it to Doing: status changes only go through transition
+POST /v1/tasks/{{created.response.body.$.id}}/transition
+Content-Type: application/json
+
+{"to": "doing"}
+
+> status 200
+> json $ == {"status": "doing", "version": 3}
+
+### Done goes back only to doing, so done to todo is a 422
+POST /v1/tasks/6/transition
+Content-Type: application/json
+
+{"to": "todo"}
+
+> status 422
+> json $.errors.to == $string
+
+### The first 10 of task 1's 23 comments, oldest first
+# @name page1
+GET /v1/tasks/1/comments?limit=10
+
+> status 200
+> json $.items == $len:10
+> json $.next_cursor == $string
+
+### The next 10, after the cursor
+GET /v1/tasks/1/comments?limit=10&cursor={{page1.response.body.$.next_cursor}}
+
+> status 200
+> json $.items[0].id == 11
+
+### Comment on a task
+POST /v1/tasks/{{created.response.body.$.id}}/comments
+Content-Type: application/json
+
+{"body": "Drafts are in the shared folder."}
+
+> status 201
+> json $.author == {"id": 1, "name": "Ada Lovelace"}
+
+### This mock's switch for a failing request: a body with #fail answers 500
+POST /v1/tasks/{{created.response.body.$.id}}/comments
+Content-Type: application/json
+
+{"body": "Please break #fail"}
+
+> status 500
+
+### Who watches task 1
+GET /v1/tasks/1/watchers
+
+> status 200
+> json $[*].name == ["Ada Lovelace", "Grace Hopper"]
+
+### Watch the new task (your own user id, from /v1/me)
+PUT /v1/tasks/{{created.response.body.$.id}}/watchers/1
+
+> status 204
+
+### Project 1's labels, with how many tasks carry each
+GET /v1/projects/1/labels
+
+> status 200
+> json $[*].name == ["backend", "bug", "design", "docs"]
+
+### Put the bug label (id 1) on the new task
+PUT /v1/tasks/{{created.response.body.$.id}}/labels/1
+
+> status 204
+
+### Find people (this route is slow on purpose: 440 ms for two letters)
+GET /v1/users?q=gr
+
+> status 200
+> json $ == [{"id": 2, "name": "Grace Hopper", "email": "grace@example.com"}]
+
+### Slow on purpose: X-HU-Delay answers after 1.5 seconds
+GET /v1/projects
+X-HU-Delay: 1500
+
+> status 200
+
+### Failing on purpose: X-HU-Fail answers with that status
+GET /v1/projects
+X-HU-Fail: 503
+
+> status 503
+
+### Delete the new task: owners only (Ada owns Website Relaunch)
+DELETE /v1/tasks/{{created.response.body.$.id}}
+
+> status 204
+
+### Log out: the cookie is cleared and the session ends
+POST /v1/auth/logout
+
+> status 204
+> header Set-Cookie ~ ^tb_session=;
+
+### The session is gone
+GET /v1/me
+Authorization: Bearer {{login.response.body.$.token}}
+
+> status 401
+
+### For checks only, outside the contract: the request log, the stored rows, and a reset to the seed
+GET /_hu/log
+
+> status 200
+
+###
+GET /_hu/state
+
+> status 200
+> json $.tasks == $len:18
+
+###
+POST /_hu/reset
+
+> status 204

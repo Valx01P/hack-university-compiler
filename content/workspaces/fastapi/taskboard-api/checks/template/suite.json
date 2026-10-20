@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "image": "python",
+  "db": "clone",
+  "copy": {
+    "exclude": [".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "var/mail.log"],
+    "git": false
+  },
+  "deadlineMs": 120000,
+  "server": {
+    "task": "start",
+    "port": "PORT",
+    "env": { "CORS_ORIGINS": "http://localhost:20013", "HU_FIXED_TIME": "2026-10-01T09:00:00Z" },
+    "ready": { "path": "/healthz", "timeoutMs": 20000 }
+  },
+  "steps": [
+    {
+      "id": "lock",
+      "kind": "cmd",
+      "run": ["uv", "lock", "--check", "--offline"],
+      "expect": { "exit": 0 }
+    },
+    {
+      "id": "lint",
+      "kind": "cmd",
+      "run": ["uv", "run", "--frozen", "--offline", "ruff", "check", "--output-format", "concise"],
+      "expect": { "exit": 0 },
+      "parse": "ruff"
+    },
+    {
+      "id": "format",
+      "kind": "cmd",
+      "run": ["uv", "run", "--frozen", "--offline", "ruff", "format", "--check"],
+      "expect": { "exit": 0 }
+    },
+    {
+      "id": "migrations",
+      "kind": "cmd",
+      "run": ["uv", "run", "--frozen", "--offline", "alembic", "check"],
+      "expect": { "exit": 0, "stdoutRegex": "No new upgrade operations detected" }
+    },
+    {
+      "id": "contract",
+      "kind": "http-file",
+      "file": "contracts/taskboard/acceptance.http",
+      "root": "content",
+      "openapi": "contracts/taskboard/openapi.yaml"
+    },
+    {
+      "id": "seed",
+      "kind": "cmd",
+      "run": ["uv", "run", "--frozen", "--offline", "python", "-m", "scripts.seed"],
+      "expect": {
+        "exit": 0,
+        "stdout": "Loaded the Taskboard seed 1.0.0: 4 users, 3 projects, 6 memberships, 18 tasks, 31 comments, 6 watchers, 6 tags, 5 audit rows\n"
+      }
+    },
+    {
+      "id": "api",
+      "kind": "http-file",
+      "file": "requests.http"
+    },
+    {
+      "id": "tests",
+      "kind": "unit",
+      "tool": "pytest",
+      "run": ["tests"]
+    },
+    {
+      "id": "mutants",
+      "kind": "mutants",
+      "mutants": [
+        { "id": "comments-newest-first", "by": ["tests"], "says": "The tests still pass when comments are listed newest first" },
+        { "id": "comments-outsiders-comment", "by": ["tests"], "says": "The tests still pass when someone outside the project can comment" },
+        { "id": "comments-anyone-edits", "by": ["tests"], "says": "The tests still pass when a member can edit someone else's comment" },
+        { "id": "comments-empty-body", "by": ["tests"], "says": "The tests still pass when an empty comment is accepted" },
+        { "id": "comments-author-lazy", "by": ["tests"], "says": "The tests still pass when each comment's author is loaded with its own query" },
+        { "id": "board-lazy-loads", "by": ["tests"], "says": "The tests still pass when the board loads each card's assignee and tags one by one" },
+        { "id": "my-tasks-everyone", "by": ["tests"], "says": "The tests still pass when GET /v1/me/tasks returns everyone's tasks" },
+        { "id": "roles-compared-as-text", "by": ["tests"], "says": "The tests still pass when roles are compared as text, so a viewer can write" },
+        { "id": "total-before-filters", "by": ["tests"], "says": "The tests still pass when the task list counts its total before filtering" },
+        { "id": "transitions-unchecked", "by": ["tests"], "says": "The tests still pass when a done task can move back to todo" },
+        { "id": "stale-etag-accepted", "by": ["tests"], "says": "The tests still pass when PATCH ignores a stale If-Match" },
+        { "id": "mail-before-commit", "by": ["tests"], "says": "The tests still pass when the assignment mail is written before the commit" },
+        { "id": "slugs-collide", "by": ["tests"], "says": "The tests still pass when two projects with one name get the same slug" }
+      ]
+    }
+  ],
+  "acceptance": {
+    "lock": "uv.lock matches pyproject.toml",
+    "lint": "Ruff reports nothing",
+    "format": "Every file is formatted as ruff format writes it",
+    "migrations": "The models and the migrations agree (alembic check)",
+    "contract": "The Taskboard contract's acceptance.http passes on a fresh seed, every response valid against openapi.yaml",
+    "seed": "uv run python -m scripts.seed reloads the contract's rows and the course's extras",
+    "api": "Every request in requests.http gets the answer it states",
+    "tests": "The project's own tests pass",
+    "mutants": "The project's own tests catch each planted bug"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "image": "web",
+  "db": "none",
+  "copy": { "exclude": ["node_modules", ".next"], "git": false },
+  "deadlineMs": 120000,
+  "server": { "task": "dev", "port": "PORT", "ready": { "path": "/", "timeoutMs": 60000 } },
+  "steps": [
+    { "id": "lint", "kind": "cmd", "run": ["npm", "run", "--silent", "lint"], "expect": { "exit": 0 }, "parse": "eslint" },
+    {
+      "id": "home",
+      "kind": "http",
+      "steps": [{ "method": "GET", "path": "/", "expect": { "status": 200, "bodyIncludes": "To get started, edit the" } }]
+    },
+    {
+      "id": "public-files",
+      "kind": "http",
+      "steps": [{ "method": "GET", "path": "/next.svg", "expect": { "status": 200, "headers": { "content-type": "image/svg+xml" } } }]
+    },
+    {
+      "id": "not-found",
+      "kind": "http",
+      "steps": [{ "method": "GET", "path": "/nothing-here", "expect": { "status": 404 } }]
+    },
+    { "id": "typecheck", "kind": "cmd", "run": ["npx", "tsc", "--noEmit", "--pretty", "false"], "expect": { "exit": 0 }, "parse": "tsc" },
+    {
+      "id": "build",
+      "kind": "cmd",
+      "run": ["npm", "run", "--silent", "build"],
+      "expect": { "exit": 0, "stdoutRegex": "┌ ○ /\\n└ ○ /_not-found" }
+    }
+  ],
+  "acceptance": {
+    "lint": "ESLint passes with the Next.js rules",
+    "home": "The dev server renders the starter page on /",
+    "public-files": "Files in public/ are served from the site root",
+    "not-found": "An unknown URL is a 404",
+    "typecheck": "TypeScript 7 finds no errors once the route types exist",
+    "build": "next build succeeds and prerenders / as static content"
+  }
+}

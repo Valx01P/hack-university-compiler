@@ -1,0 +1,239 @@
+{
+  "version": 1,
+  "image": "web",
+  "db": "none",
+  "copy": {
+    "exclude": [
+      "node_modules",
+      ".next"
+    ],
+    "git": false
+  },
+  "deadlineMs": 120000,
+  "server": {
+    "task": "dev",
+    "port": "PORT",
+    "ready": {
+      "path": "/",
+      "timeoutMs": 60000
+    }
+  },
+  "steps": [
+    {
+      "id": "lint",
+      "kind": "cmd",
+      "run": [
+        "npm",
+        "run",
+        "--silent",
+        "lint"
+      ],
+      "expect": {
+        "exit": 0
+      },
+      "parse": "eslint"
+    },
+    {
+      "id": "typecheck",
+      "kind": "cmd",
+      "run": [
+        "npm",
+        "run",
+        "--silent",
+        "typecheck"
+      ],
+      "expect": {
+        "exit": 0
+      },
+      "parse": "tsc"
+    },
+    {
+      "id": "tests",
+      "kind": "unit",
+      "tool": "node-test",
+      "run": [
+        "tests/**/*.test.ts"
+      ]
+    },
+    {
+      "id": "home",
+      "kind": "http",
+      "steps": [
+        {
+          "method": "GET",
+          "path": "/",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "Trailhead Outfitters"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "Featured gear"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "Trail Pack 45L"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "Hip Pack 5L"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "© 2026 Trailhead"
+          }
+        }
+      ]
+    },
+    {
+      "id": "products",
+      "kind": "http",
+      "steps": [
+        {
+          "method": "GET",
+          "path": "/products",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "12 products"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/products",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "Ridge 2P Tent"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/products",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "$349.00"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/products",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "Camp Kettle 1L"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/products",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "$34.00"
+          }
+        }
+      ]
+    },
+    {
+      "id": "about",
+      "kind": "http",
+      "steps": [
+        {
+          "method": "GET",
+          "path": "/about",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "Maya Lindgren"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/about",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "Owen Park"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/about",
+          "expect": {
+            "status": 200,
+            "bodyIncludes": "Rosa Alvarez"
+          }
+        }
+      ]
+    },
+    {
+      "id": "not-found",
+      "kind": "http",
+      "steps": [
+        {
+          "method": "GET",
+          "path": "/nothing-here",
+          "expect": {
+            "status": 404,
+            "bodyIncludes": "Page not found"
+          }
+        }
+      ]
+    },
+    {
+      "id": "images",
+      "kind": "http",
+      "steps": [
+        {
+          "method": "GET",
+          "path": "/_next/image?url=%2Fimages%2Fproducts%2Fridge-2p-tent.webp&w=640&q=75",
+          "headers": {
+            "accept": "image/avif,image/webp,*/*"
+          },
+          "expect": {
+            "status": 200,
+            "headers": {
+              "content-type": "image/webp"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "build",
+      "kind": "cmd",
+      "run": [
+        "npm",
+        "run",
+        "--silent",
+        "build"
+      ],
+      "expect": {
+        "exit": 0,
+        "stdoutRegex": "┌ ○ /\\n├ ○ /_not-found\\n├ ○ /about\\n└ ○ /products"
+      }
+    }
+  ],
+  "acceptance": {
+    "lint": "ESLint passes (the product card's plain <img> is the one expected warning)",
+    "typecheck": "The route types generate and TypeScript 7 finds no errors",
+    "tests": "The node:test suites for formatting, the catalog, and the mock services pass",
+    "home": "The home page renders the hero, the first three products, and the footer",
+    "products": "/products lists all 12 products with prices",
+    "about": "/about lists the team",
+    "not-found": "An unknown URL renders the site 404 page with status 404",
+    "images": "next/image optimizes product photos from public/images",
+    "build": "next build prerenders /, /about, and /products as static content"
+  }
+}

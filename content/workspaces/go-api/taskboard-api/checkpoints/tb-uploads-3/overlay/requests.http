@@ -1,0 +1,325 @@
+# Taskboard API: a tour of every endpoint, with bodies that work. The API panel sends
+# these (so do VS Code's REST Client and JetBrains' HTTP Client), and paths are relative
+# to the server, which listens on the port it prints (the workspace's PORT).
+#
+# Sent top to bottom on a fresh database (make db-reset, or the IDE's Reset database),
+# each request gets what its > lines say: the status, a header, or a value at a JSON
+# path. "# @name login" names a request, and {{login.response.body.$.token}} reads its
+# response. Login allows 5 attempts a minute per client, and this file logs in twice.
+
+@ada = {{login.response.body.$.token}}
+@grace = {{loginGrace.response.body.$.token}}
+
+### Liveness: the process is up (never touches the database)
+GET /healthz
+
+> status 200
+> json $ == {"status": "ok"}
+
+### Readiness: the database answers
+GET /readyz
+
+> status 200
+> json $ == {"status": "ready", "checks": {"db": "ok"}}
+
+### Without a token: a 401 problem
+# @no-cookie-jar
+GET /v1/me
+
+> status 401
+> header Content-Type ~ ^application/problem\+json
+> header WWW-Authenticate ~ ^Bearer
+
+### Log in as Ada. The token comes back in the body and as the tb_session cookie.
+# @name login
+POST /v1/auth/login
+Content-Type: application/json
+
+{"email": "ada@example.com", "password": "correct horse battery staple"}
+
+> status 200
+> json $.expires_at == "2026-10-02T09:00:00Z"
+> json $.user.name == "Ada Lovelace"
+> header Set-Cookie ~ ^tb_session=
+
+### Who am I
+GET /v1/me
+Authorization: Bearer {{ada}}
+
+> status 200
+> json $ == {"id": 1, "email": "ada@example.com", "role": "admin"}
+
+### Find people by name or email
+GET /v1/users?q=gr
+Authorization: Bearer {{ada}}
+
+> status 200
+> json $ == [{"id": 2, "name": "Grace Hopper", "email": "grace@example.com"}]
+
+### My projects, each with its task counts
+GET /v1/projects
+Authorization: Bearer {{ada}}
+
+> status 200
+> json $[*].id == [1, 2]
+> json $[0].task_counts == {"todo": 3, "doing": 3, "done": 2}
+
+### One project with its members
+GET /v1/projects/1
+Authorization: Bearer {{ada}}
+
+> status 200
+> json $.members[*].user_id == [1, 2]
+
+### Task counts by status
+GET /v1/projects/2/stats
+Authorization: Bearer {{ada}}
+
+> status 200
+> json $ == {"todo": 2, "doing": 3, "done": 2}
+
+### A project's tasks: a page in an envelope, with the total that match
+GET /v1/projects/1/tasks?limit=3
+Authorization: Bearer {{ada}}
+
+> status 200
+> json $.items[*].id == [1, 2, 3]
+> json $.total == 8
+
+### Filter, search, and sort: open tasks due first
+GET /v1/projects/1/tasks?status=todo&sort=due
+Authorization: Bearer {{ada}}
+
+> status 200
+> json $.items[*].id == [2, 5, 7]
+
+### Search the title and description, ignoring case
+GET /v1/projects/1/tasks?q=LOGIN
+Authorization: Bearer {{ada}}
+
+> status 200
+> json $.items[*].title == ["Fix login redirect"]
+
+### Load assignees and watchers with the page (one query each, not one per task)
+GET /v1/projects/1/tasks?limit=1&include=assignee,watchers
+Authorization: Bearer {{ada}}
+
+> status 200
+> json $.items[0].assignee == {"id": 2, "name": "Grace Hopper"}
+> json $.items[0].watchers[*].name == ["Ada Lovelace", "Grace Hopper"]
+
+### A sort outside the allow-list: 400, naming the parameter
+GET /v1/projects/1/tasks?sort=password
+Authorization: Bearer {{ada}}
+
+> status 400
+> json $.errors.sort == $string
+
+### One task. Its ETag is the version to send back in If-Match.
+GET /v1/tasks/3
+Authorization: Bearer {{ada}}
+
+> status 200
+> header ETag == "v1"
+> json $.title == "Design the pricing page"
+
+### Create a task
+# @name created
+POST /v1/projects/1/tasks
+Authorization: Bearer {{ada}}
+Content-Type: application/json
+
+{"title": "Write the launch email", "priority": 3, "due_on": "2026-10-12", "assignee_id": 2}
+
+> status 201
+> header Location ~ /v1/tasks/\d+$
+> header ETag == "v1"
+> json $ == {"title": "Write the launch email", "status": "todo", "version": 1, "created_at": "2026-10-01T09:00:00Z"}
+
+### An invalid task: 422 with a message per field
+POST /v1/projects/1/tasks
+Authorization: Bearer {{ada}}
+Content-Type: application/json
+
+{"title": "   ", "priority": 4}
+
+> status 422
+> json $.errors.title == $string
+> json $.errors.priority == $string
+
+### Edit it: send only what changes, with If-Match
+PATCH /v1/tasks/{{created.response.body.$.id}}
+Authorization: Bearer {{ada}}
+Content-Type: application/json
+If-Match: "v1"
+
+{"title": "Write the launch emails", "due_on": null}
+
+> status 200
+> header ETag == "v2"
+> json $ == {"title": "Write the launch emails", "due_on": null, "version": 2}
+
+### Edit it again from the old version: 412, with the task as it is now
+PATCH /v1/tasks/{{created.response.body.$.id}}
+Authorization: Bearer {{ada}}
+Content-Type: application/json
+If-Match: "v1"
+
+{"priority": 1}
+
+> status 412
+> json $.current.version == 2
+
+### Move it to doing
+POST /v1/tasks/{{created.response.body.$.id}}/transition
+Authorization: Bearer {{ada}}
+Content-Type: application/json
+
+{"to": "doing"}
+
+> status 200
+> json $ == {"status": "doing", "version": 3}
+
+### Then to done, which stamps completed_at and queues a task.completed job
+POST /v1/tasks/{{created.response.body.$.id}}/transition
+Authorization: Bearer {{ada}}
+Content-Type: application/json
+
+{"to": "done"}
+
+> status 200
+> json $ == {"status": "done", "completed_at": "2026-10-01T09:00:00Z"}
+
+### Done back to todo is not a move the board allows
+POST /v1/tasks/{{created.response.body.$.id}}/transition
+Authorization: Bearer {{ada}}
+Content-Type: application/json
+
+{"to": "todo"}
+
+> status 422
+> json $.errors.to == $string
+
+### Comments, oldest first, 10 per page
+# @name page1
+GET /v1/tasks/1/comments?limit=10
+Authorization: Bearer {{ada}}
+
+> status 200
+> json $.items == $len:10
+> json $.next_cursor == $string
+
+### The next page starts after the cursor
+GET /v1/tasks/1/comments?limit=10&cursor={{page1.response.body.$.next_cursor}}
+Authorization: Bearer {{ada}}
+
+> status 200
+> json $.items[0].id == 11
+
+### Comment on a task
+# @name comment
+POST /v1/tasks/3/comments
+Authorization: Bearer {{ada}}
+Content-Type: application/json
+
+{"body": "  Ship the yearly toggle too.  "}
+
+> status 201
+> json $ == {"body": "Ship the yearly toggle too.", "author": {"id": 1, "name": "Ada Lovelace"}}
+
+### Delete it (its author, or a project owner, may)
+DELETE /v1/comments/{{comment.response.body.$.id}}
+Authorization: Bearer {{ada}}
+
+> status 204
+
+### Who watches task 3
+GET /v1/tasks/3/watchers
+Authorization: Bearer {{ada}}
+
+> status 200
+> json $ == [{"id": 1, "name": "Ada Lovelace"}]
+
+### Make Grace watch it (doing it twice changes nothing)
+PUT /v1/tasks/3/watchers/2
+Authorization: Bearer {{ada}}
+
+> status 204
+
+### Stop watching
+DELETE /v1/tasks/3/watchers/2
+Authorization: Bearer {{ada}}
+
+> status 204
+
+### Attach a file to a task (a tiny PDF, sent as multipart/form-data)
+# @name upload
+POST /v1/tasks/3/attachments
+Authorization: Bearer {{ada}}
+Content-Type: multipart/form-data; boundary=taskboard
+
+--taskboard
+Content-Disposition: form-data; name="file"; filename="pricing.pdf"
+Content-Type: application/pdf
+
+%PDF-1.7 the pricing table
+--taskboard--
+
+> status 201
+> json $ == {"name": "pricing.pdf", "content_type": "application/pdf"}
+
+### Create a project: you become its owner
+# @name project
+POST /v1/projects
+Authorization: Bearer {{ada}}
+Content-Type: application/json
+
+{"name": "Launch Plan", "description": "Everything for the Q4 launch.", "color": "#f97316"}
+
+> status 201
+> json $.members == [{"user_id": 1, "role": "owner"}]
+
+### Add Grace to it
+POST /v1/projects/{{project.response.body.$.id}}/members
+Authorization: Bearer {{ada}}
+Content-Type: application/json
+
+{"user_id": 2}
+
+> status 201
+> json $ == {"user_id": 2, "name": "Grace Hopper", "role": "member"}
+
+### Log in as Grace, a member but not the owner of project 1
+# @name loginGrace
+POST /v1/auth/login
+Content-Type: application/json
+
+{"email": "grace@example.com", "password": "correct horse battery staple"}
+
+> status 200
+
+### Members may edit tasks, but only owners delete them: 403
+DELETE /v1/tasks/2
+Authorization: Bearer {{grace}}
+
+> status 403
+
+### Projects Grace is not in do not exist for her: 404, never 403
+GET /v1/projects/3
+Authorization: Bearer {{grace}}
+
+> status 404
+
+### Log out: the token stops working and the cookie is cleared
+POST /v1/auth/logout
+Authorization: Bearer {{grace}}
+
+> status 204
+> header Set-Cookie ~ Max-Age=0
+
+### The old token is refused
+# @no-cookie-jar
+GET /v1/me
+Authorization: Bearer {{grace}}
+
+> status 401

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Keeps one CPU busy at the lowest priority (lesson 30). With --runaway it
+# never stops by itself: TERM makes it write "stopped cleanly" to
+# logs/burner.log and exit 0. KILL leaves no such line. Without --runaway it
+# burns for two seconds and exits.
+set -euo pipefail
+
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+log="$ROOT/logs/burner.log"
+mkdir -p -- "$ROOT/logs"
+renice -n 19 -p "$$" > /dev/null
+
+running=1
+trap 'running=0' TERM INT
+
+runaway=false
+if [[ ${1:-} == --runaway ]]; then
+  runaway=true
+fi
+
+printf '%s started (runaway: %s)\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$runaway" >> "$log"
+deadline=$((SECONDS + 2))
+spins=0
+while ((running)); do
+  spins=$((spins + 1))
+  if [[ $runaway == false ]] && ((SECONDS >= deadline)); then
+    break
+  fi
+done
+printf '%s stopped cleanly after %d spins\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$spins" >> "$log"

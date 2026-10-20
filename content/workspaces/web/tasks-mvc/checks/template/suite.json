@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "image": "check-web",
+  "db": "none",
+  "copy": {
+    "exclude": ["node_modules", "dist", ".vite-cache", ".vitest", "test-results", "playwright-report"],
+    "git": false
+  },
+  "deadlineMs": 120000,
+  "server": {
+    "task": "dev",
+    "port": "PORT",
+    "ready": { "path": "/", "timeoutMs": 15000 }
+  },
+  "steps": [
+    { "id": "unit", "kind": "unit", "tool": "vitest", "run": ["tests/unit"] },
+    {
+      "id": "build",
+      "kind": "cmd",
+      "run": ["npm", "run", "--silent", "build"],
+      "expect": { "exit": 0 }
+    },
+    {
+      "id": "html",
+      "kind": "cmd",
+      "run": ["html-validate", "index.html"],
+      "expect": { "exit": 0 }
+    },
+    { "id": "e2e", "kind": "unit", "tool": "playwright", "run": ["tests/e2e"] },
+    { "id": "regression", "kind": "dom", "files": ["tasks.check.spec.js"] },
+    {
+      "id": "mutants",
+      "kind": "mutants",
+      "mutants": [
+        {
+          "id": "add-keeps-blanks",
+          "by": ["unit"],
+          "says": "The tests still pass when add() saves a blank title"
+        },
+        {
+          "id": "toggle-flips-every-task",
+          "by": ["unit"],
+          "says": "The tests still pass when toggle() checks off every task instead of one"
+        },
+        {
+          "id": "remove-by-index",
+          "by": ["unit"],
+          "says": "The tests still pass when remove() deletes the first task whatever id it gets"
+        },
+        {
+          "id": "rename-does-not-trim",
+          "by": ["unit"],
+          "says": "The tests still pass when rename() keeps the spaces around a title"
+        },
+        {
+          "id": "clear-completed-removes-active",
+          "by": ["unit"],
+          "says": "The tests still pass when Clear completed removes the tasks that are not done"
+        },
+        {
+          "id": "subscribe-does-not-notify",
+          "by": ["unit"],
+          "says": "The tests still pass when the store never tells its subscribers about a change"
+        }
+      ]
+    }
+  ],
+  "acceptance": {
+    "unit": "The project's own unit tests pass",
+    "build": "npm run build bundles the app",
+    "html": "html-validate finds no problems in index.html",
+    "e2e": "The project's own end-to-end tests pass",
+    "regression": "Everything the finished app does still works: editing, deleting, focus, filters in the URL, Clear completed, saved data, axe, and phone widths",
+    "mutants": "The project's own unit tests catch each planted bug in the store"
+  }
+}

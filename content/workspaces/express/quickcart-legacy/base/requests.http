@@ -1,0 +1,86 @@
+# QuickCart's endpoints, for the API panel (and VS Code's REST Client or JetBrains' HTTP
+# Client). Paths are relative to the server, which listens on the port it prints (the
+# workspace's PORT). These are the happy-path requests; the bug-hunt challenges send their own.
+# Tokens come back from /login and are reused with {{login.response.body.$.token}}.
+
+### Is the server up
+GET /health
+
+> status 200
+> json $.status == "ok"
+
+### Sign up a new shopper
+POST /signup
+Content-Type: application/json
+
+{ "email": "newbie@quickcart.test", "password": "hunter2", "name": "New Bie" }
+
+> status 201
+> json $.token == $string
+
+### Log in as the admin
+# @name login
+POST /login
+Content-Type: application/json
+
+{ "email": "admin@quickcart.test", "password": "quickcart-2018" }
+
+> status 200
+> json $.token == $string
+
+### The catalog (heads up: the listing starts at the second product -- pagination is off by one)
+GET /products?limit=100
+
+> status 200
+> json $[0].id == 2
+
+### Search the catalog
+GET /products?search=250g&limit=100
+
+> status 200
+> json $[0].name == "Espresso Roast 250g"
+
+### One product
+GET /products/3
+
+> status 200
+> json $.name == "Pour-over Kettle"
+> json $.price == "59.99"
+
+### Add an item to the cart
+POST /cart/items
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+
+{ "product_id": 1, "quantity": 2 }
+
+> status 201
+
+### View the cart
+GET /cart
+Authorization: Bearer {{login.response.body.$.token}}
+
+> status 200
+
+### Place an order
+POST /checkout
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+
+{ "items": [{ "product_id": 1, "quantity": 2 }] }
+
+> status 201
+> json $.total == 25
+
+### My orders
+GET /orders
+Authorization: Bearer {{login.response.body.$.token}}
+
+> status 200
+
+### One order
+GET /orders/1
+Authorization: Bearer {{login.response.body.$.token}}
+
+> status 200
+> json $.id == 1

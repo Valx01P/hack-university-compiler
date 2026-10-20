@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# Starts, stops and checks taskapi, the shop's local JSON API, which runs from
+# releases/current on API_PORT (from .env). Its pid lives in run/taskapi.pid.
+set -euo pipefail
+
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+# shellcheck source=lib/env.sh
+source "$ROOT/bin/lib/env.sh"
+load_env "$ROOT/.env"
+
+PIDFILE_NAME=run/taskapi.pid
+PIDFILE="$ROOT/$PIDFILE_NAME"
+SERVER="$ROOT/releases/current/server.py"
+DB="$ROOT/data/shop.db"
+HOST=127.0.0.1
+URL="http://$HOST:$API_PORT"
+
+usage() {
+  cat <<EOF
+usage: taskapictl COMMAND [SERVER OPTIONS]
+
+Commands:
+  start     start taskapi in the background and wait until it answers
+  stop      stop it: TERM, up to 5 seconds to finish, then KILL
+  restart   stop, then start
+  status    say whether it runs (exit 0) or not (exit 3)
+  health    "healthy" (exit 0) when /health answers 200 within 2 seconds, else "unhealthy" (exit 1)
+  logs      print the last 20 lines of the app log (logs -f follows it)
+  reset     rebuild data/shop.db from releases/current/seed.sql
+
+start and restart pass SERVER OPTIONS on to server.py, for example
+--mode slow-health or --rate-limit 5/s.
+EOF
+}
+
+# The pid in the pid file, when that process is alive and is taskapi. A stale
+# pid file (the process died, or the pid now belongs to something else) is
+# removed.
+running_pid() {
+  local pid
+  [[ -f $PIDFILE ]] || return 1
+  pid=$(< "$PIDFILE")
+  if [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2> /dev/null && grep -qa 'server\.py' "/proc/$pid/cmdline" 2> /dev/null; then
+    printf '%s\n' "$pid"
+    return 0
+  fi
+  rm -f -- "$PIDFILE"
+  echo "removed stale pid file $PIDFILE_NAME" >&2
+  return 1
+}
+
+build_db() {
+  local seed="$ROOT/releases/current/seed.sql"
+  rm -f -- "$DB.tmp"
+  sqlite3 -batch "$DB.tmp" < "$seed"
+  mv -f -- "$DB.tmp" "$DB"
+}
+
+start() {
+  local pid deadline
+  if pid=$(running_pid 2> /dev/null); then
+    echo "taskapi is already running (pid file $PIDFILE_NAME)"
+    return 0
+  fi
+  [[ -f $DB ]] || build_db
+  mkdir -p -- "$ROOT/run" "$ROOT/$LOG_DIR"
+  cd -- "$ROOT"
+  nohup python3 "$SERVER" --host "$HOST" --port "$API_PORT" --db "$DB" --log-dir "$ROOT/$LOG_DIR" "$@" \
+    > "$ROOT/run/taskapi.out" 2>&1 < /dev/null &
+  pid=$!
+  echo "$pid" > "$PIDFILE"
+  # Ready means it answers HTTP at all: a broken release still starts, and
+  # the health check decides whether it is healthy.
+  deadline=$((SECONDS + 10))
+  until curl -s -o /dev/null --max-time 3 "$URL/health"; do
+    if ! kill -0 "$pid" 2> /dev/null; then
+      rm -f -- "$PIDFILE"
+      echo "taskapi exited while starting:" >&2
+      tail -n 5 "$ROOT/run/taskapi.out" >&2
+      return 1
+    fi
+    if ((SECONDS >= deadline)); then
+      echo "taskapi did not answer on $HOST:$API_PORT within 10 seconds (see run/taskapi.out)" >&2
+      return 1
+    fi
+    sleep 0.1
+  done
+  echo "taskapi started on $HOST:$API_PORT"
+}
+
+stop() {
+  local pid
+  if ! pid=$(running_pid 2> /dev/null); then
+    echo "taskapi is not running"
+    return 0
+  fi
+  kill -TERM "$pid"
+  for _ in {1..50}; do
+    kill -0 "$pid" 2> /dev/null || break
+    sleep 0.1
+  done
+  if kill -0 "$pid" 2> /dev/null; then
+    kill -KILL "$pid"
+    echo "taskapi did not stop within 5 seconds, so it was killed" >&2
+  fi
+  rm -f -- "$PIDFILE"
+  echo "taskapi stopped"
+}
+
+status() {
+  if running_pid > /dev/null; then
+    echo "running (pid file $PIDFILE_NAME, port $API_PORT)"
+  else
+    echo "not running"
+    return 3
+  fi
+}
+
+health() {
+  if curl -fs -o /dev/null --max-time 2 "$URL/health"; then
+    echo healthy
+  else
+    echo unhealthy
+    return 1
+  fi
+}
+
+logs() {
+  if [[ ${1:-} == -f ]]; then
+    exec tail -n 20 -F "$ROOT/$LOG_DIR/app.log"
+  fi
+  tail -n 20 "$ROOT/$LOG_DIR/app.log"
+}
+
+reset() {
+  local was_running=false
+  if running_pid > /dev/null 2>&1; then
+    was_running=true
+    stop
+  fi
+  build_db
+  echo "data/shop.db rebuilt from releases/current/seed.sql"
+  if [[ $was_running == true ]]; then
+    start
+  fi
+}
+
+command=${1:-}
+shift || true
+case $command in
+  start) start "$@" ;;
+  stop) stop ;;
+  restart) stop && start "$@" ;;
+  status) status ;;
+  health) health ;;
+  logs) logs "$@" ;;
+  reset) reset ;;
+  -h | --help | help) usage ;;
+  *)
+    usage >&2
+    exit 64
+    ;;
+esac

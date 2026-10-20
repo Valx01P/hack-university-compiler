@@ -1,0 +1,68 @@
+[project]
+name = "taskboard-api"
+version = "1.0.0"
+description = "Taskboard: projects, tasks, comments, and watchers, as a layered FastAPI and PostgreSQL API."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "alembic==1.20.0",
+    "fastapi[standard-no-fastapi-cloud-cli]==0.148.0",
+    "psycopg[binary]==3.3.6",
+    "pwdlib[argon2]==0.3.1",
+    "pydantic==2.14.1",
+    "pydantic-settings==2.16.0",
+    "pyjwt==2.15.1",
+    "sqlalchemy==2.1.5",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2==2.14.0",
+    "pytest==9.1.1",
+    "ruff==0.17.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.fastapi]
+entrypoint = "app.main:app"
+
+[tool.pytest]
+minversion = "9.0"
+strict = true
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = ["-ra"]
+
+[tool.alembic]
+script_location = "%(here)s/migrations"
+file_template = "%%(rev)s_%%(slug)s"
+prepend_sys_path = ["."]
+
+# New revision files are formatted and their imports sorted as soon as Alembic writes them.
+[[tool.alembic.post_write_hooks]]
+name = "ruff_format"
+type = "module"
+module = "ruff"
+options = "format REVISION_SCRIPT_FILENAME"
+
+[[tool.alembic.post_write_hooks]]
+name = "ruff_fix"
+type = "module"
+module = "ruff"
+options = "check --fix --exit-zero REVISION_SCRIPT_FILENAME"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "N", "C4", "PT"]
+# B008: Depends() in defaults is FastAPI's idiom. N818: errors are named for their HTTP
+# problem (NotFound, Conflict). RUF012: SQLAlchemy reads __table_args__ and friends as
+# plain class attributes.
+ignore = ["B008", "N818", "RUF012"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "scripts", "tests"]

@@ -1,0 +1,357 @@
+# Shopfront's API: every endpoint, with bodies that work. The API panel sends these (so do
+# VS Code's REST Client and JetBrains' HTTP Client), and paths are relative to the server,
+# which listens on the port it prints (the workspace's PORT).
+#
+# Sent top to bottom on a freshly seeded database (Reset database, then Run), each request
+# gets what its > lines say: the status, a header, or a value at a JSON path. "# @name ana"
+# names a request, so a later one can send {{ana.response.body.$.token}}. The workspace's
+# clock is fixed at 2026-03-31T12:00:00Z, which is why new orders get that time.
+
+### The app is up
+GET /actuator/health
+
+> status 200
+> json $.status == "UP"
+
+### The categories, by name
+GET /api/categories
+
+> status 200
+> json $[*].slug == ["books", "electronics", "kitchen", "outdoors"]
+
+### The catalog: active products by name, 20 to a page
+GET /api/products
+
+> status 200
+> json $.content[0] == {"sku": "EL-006", "name": "14-inch Laptop", "priceCents": 129900, "inStock": true, "freeShipping": true}
+> json $.page == {"size": 20, "number": 0, "totalElements": 24, "totalPages": 2}
+
+### The second page holds the last four
+GET /api/products?page=1
+
+> status 200
+> json $.content[*].sku == ["OD-003", "OD-001", "EL-005", "EL-002"]
+
+### Search names and descriptions, most expensive first
+GET /api/products?q=usb&sort=priceCents,desc
+
+> status 200
+> json $.content[*].sku == ["EL-003", "EL-001", "EL-005"]
+
+### One category, in stock only (the sold-out coffee kit drops out)
+GET /api/products?category=kitchen&inStock=true
+
+> status 200
+> json $.content[*].sku == ["KT-005", "KT-002", "KT-001", "KT-006", "KT-004"]
+
+### One product in full
+GET /api/products/KT-004
+
+> status 200
+> json $ == {"sku": "KT-004", "name": "Stand Mixer", "priceCents": 34900, "stock": 1, "category": "kitchen", "active": true}
+
+### An unknown SKU is 404, as an RFC 9457 problem
+GET /api/products/ZZ-999
+
+> status 404
+> header Content-Type ~ ^application/problem\+json
+> json $.title == "Product not found"
+
+### Sorting by a property products do not have is 400
+GET /api/products?sort=colour
+
+> status 400
+> json $.title == "Unknown sort property"
+
+### Log in as ana (a customer). The token lasts an hour.
+# @name ana
+POST /api/auth/token
+Content-Type: application/json
+
+{"email": "ana@example.com", "password": "ana-pass-123"}
+
+> status 200
+> json $.token == $string
+> json $.tokenType == "Bearer"
+> json $.expiresIn == 3600
+
+### Log in as bob (a customer)
+# @name bob
+POST /api/auth/token
+Content-Type: application/json
+
+{"email": "bob@example.com", "password": "bob-pass-123"}
+
+> status 200
+
+### Log in as the admin
+# @name admin
+POST /api/auth/token
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin-pass-123"}
+
+> status 200
+
+### A wrong password is 401, and says nothing about whether the email exists
+POST /api/auth/token
+Content-Type: application/json
+
+{"email": "ana@example.com", "password": "not-her-password"}
+
+> status 401
+> json $.detail == "Wrong email or password."
+
+### Who am I?
+GET /api/customers/me
+Authorization: Bearer {{ana.response.body.$.token}}
+
+> status 200
+> json $ == {"id": 1, "email": "ana@example.com", "name": "Ana Lima", "role": "CUSTOMER"}
+
+### Ana's orders, newest first
+GET /api/orders
+Authorization: Bearer {{ana.response.body.$.token}}
+
+> status 200
+> json $.content[*].id == [10, 7, 4, 1]
+> json $.page.totalElements == 4
+
+### One of ana's orders, with the prices she paid
+GET /api/orders/4
+Authorization: Bearer {{ana.response.body.$.token}}
+
+> status 200
+> json $.lines[*].sku == ["BK-004", "BK-006", "KT-006"]
+> json $.subtotalCents == 5094
+> json $.taxCents == 420
+> json $.totalCents == 5514
+
+### Bob asking for ana's order gets 404, so ids reveal nothing
+GET /api/orders/4
+Authorization: Bearer {{bob.response.body.$.token}}
+
+> status 404
+
+### The admin can read any order
+GET /api/orders/4
+Authorization: Bearer {{admin.response.body.$.token}}
+
+> status 200
+
+### No token is 401, with the WWW-Authenticate header bearer clients look for
+GET /api/orders
+
+> status 401
+> header WWW-Authenticate ~ ^Bearer
+
+### Place an order. Prices come from the catalog, never from the client.
+# @name placed
+POST /api/orders
+Authorization: Bearer {{ana.response.body.$.token}}
+Content-Type: application/json
+
+{"lines": [{"sku": "BK-004", "quantity": 2}, {"sku": "OD-005", "quantity": 1}]}
+
+> status 201
+> header Location == /api/orders/11
+> json $.status == "PLACED"
+> json $.lines[*].unitPriceCents == [1299, 2499]
+> json $.subtotalCents == 5097
+> json $.taxCents == 421
+> json $.totalCents == 5518
+> json $.placedAt == "2026-03-31T12:00:00Z"
+
+### The order took the stock: Dune had 40
+GET /api/products/BK-004
+
+> status 200
+> json $.stock == 38
+
+### Cancel it, which is allowed within 24 hours
+POST /api/orders/{{placed.response.body.$.id}}/cancel
+Authorization: Bearer {{ana.response.body.$.token}}
+
+> status 200
+> json $.status == "CANCELLED"
+> json $.cancelledAt == "2026-03-31T12:00:00Z"
+
+### Cancelling put the stock back
+GET /api/products/BK-004
+
+> status 200
+> json $.stock == 40
+
+### Cancelling twice is 409
+POST /api/orders/{{placed.response.body.$.id}}/cancel
+Authorization: Bearer {{ana.response.body.$.token}}
+
+> status 409
+> json $.title == "Order already cancelled"
+
+### Order 4 was placed in February, too long ago to cancel
+POST /api/orders/4/cancel
+Authorization: Bearer {{ana.response.body.$.token}}
+
+> status 409
+> json $.title == "Cancellation window closed"
+
+### Order 1 has shipped
+POST /api/orders/1/cancel
+Authorization: Bearer {{ana.response.body.$.token}}
+
+> status 409
+> json $.title == "Order already shipped"
+
+### More than the stock is 409, naming the product
+POST /api/orders
+Authorization: Bearer {{bob.response.body.$.token}}
+Content-Type: application/json
+
+{"lines": [{"sku": "KT-003", "quantity": 1}]}
+
+> status 409
+> json $.title == "Out of stock"
+> json $.sku == "KT-003"
+
+### A well-formed SKU the shop does not sell is 422
+POST /api/orders
+Authorization: Bearer {{bob.response.body.$.token}}
+Content-Type: application/json
+
+{"lines": [{"sku": "ZZ-999", "quantity": 1}]}
+
+> status 422
+> json $.title == "Unknown product"
+> json $.sku == "ZZ-999"
+
+### A body with the wrong shape is 400, with one message per field
+POST /api/orders
+Authorization: Bearer {{bob.response.body.$.token}}
+Content-Type: application/json
+
+{"lines": [{"sku": "bk-1", "quantity": 0}, {"sku": "BK-001", "quantity": 51}]}
+
+> status 400
+> json $.errors == {"lines[0].quantity": "must be greater than 0", "lines[0].sku": "must look like AB-123", "lines[1].quantity": "must be less than or equal to 50"}
+
+### Only customers place orders, so the admin gets 403
+POST /api/orders
+Authorization: Bearer {{admin.response.body.$.token}}
+Content-Type: application/json
+
+{"lines": [{"sku": "BK-004", "quantity": 1}]}
+
+> status 403
+
+### Admin: add a product
+POST /api/products
+Authorization: Bearer {{admin.response.body.$.token}}
+Content-Type: application/json
+
+{"sku": "KT-007", "name": "Salad Spinner", "description": "Dries greens in seconds.", "priceCents": 2299, "stock": 12, "category": "kitchen"}
+
+> status 201
+> header Location == /api/products/KT-007
+> json $.active == true
+
+### A customer cannot change the catalog
+POST /api/products
+Authorization: Bearer {{ana.response.body.$.token}}
+Content-Type: application/json
+
+{"sku": "KT-008", "name": "Tea Towel", "priceCents": 599, "stock": 30, "category": "kitchen"}
+
+> status 403
+
+### The same SKU twice is 409
+POST /api/products
+Authorization: Bearer {{admin.response.body.$.token}}
+Content-Type: application/json
+
+{"sku": "KT-007", "name": "Another Spinner", "priceCents": 1999, "stock": 1, "category": "kitchen"}
+
+> status 409
+> json $.title == "SKU already exists"
+
+### Admin: change the price (PUT sends the whole product)
+PUT /api/products/KT-007
+Authorization: Bearer {{admin.response.body.$.token}}
+Content-Type: application/json
+
+{"sku": "KT-007", "name": "Salad Spinner", "description": "Dries greens in seconds.", "priceCents": 1999, "stock": 12, "category": "kitchen"}
+
+> status 200
+> json $.priceCents == 1999
+
+### Admin: five more stand mixers arrived
+POST /api/products/KT-004/stock
+Authorization: Bearer {{admin.response.body.$.token}}
+Content-Type: application/json
+
+{"change": 5}
+
+> status 200
+> json $.stock == 6
+
+### Stock never goes below zero
+POST /api/products/KT-004/stock
+Authorization: Bearer {{admin.response.body.$.token}}
+Content-Type: application/json
+
+{"change": -10}
+
+> status 409
+> json $.title == "Out of stock"
+
+### Admin: take a product off sale. The row stays, because orders point at it.
+DELETE /api/products/KT-007
+Authorization: Bearer {{admin.response.body.$.token}}
+
+> status 204
+
+### Off sale means gone from the catalog
+GET /api/products/KT-007
+
+> status 404
+
+### Sign up. New accounts are always customers.
+POST /api/customers
+Content-Type: application/json
+
+{"email": "dee@example.com", "name": "Dee Okafor", "password": "dee-pass-123"}
+
+> status 201
+> json $.role == "CUSTOMER"
+> json $.createdAt == "2026-03-31T12:00:00Z"
+
+### An email can belong to one account only
+POST /api/customers
+Content-Type: application/json
+
+{"email": "dee@example.com", "name": "Dee Again", "password": "dee-pass-456"}
+
+> status 409
+> json $.title == "Email already registered"
+
+### Sign-up fields are checked
+POST /api/customers
+Content-Type: application/json
+
+{"email": "not-an-email", "name": "", "password": "short"}
+
+> status 400
+> json $.errors == {"email": "must be a well-formed email address", "name": "must not be blank", "password": "size must be between 10 and 72"}
+
+### Metrics are for admins
+GET /actuator/metrics/http.server.requests
+Authorization: Bearer {{admin.response.body.$.token}}
+
+> status 200
+> json $.name == "http.server.requests"
+
+### The OpenAPI document, which Swagger UI at /swagger-ui.html draws
+GET /v3/api-docs
+
+> status 200
+> json $.info.title == "Shopfront API"

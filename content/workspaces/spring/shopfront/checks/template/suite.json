@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "image": "java",
+  "db": "clone",
+  "copy": { "exclude": ["target"], "git": false },
+  "deadlineMs": 180000,
+  "server": { "task": "dev", "port": "PORT", "ready": { "path": "/actuator/health", "timeoutMs": 60000 } },
+  "steps": [
+    { "id": "compile", "kind": "cmd", "run": ["./mvnw", "-o", "-q", "compile"], "expect": { "exit": 0 }, "parse": "javac" },
+    {
+      "id": "seed",
+      "kind": "sql",
+      "query": "SELECT (SELECT count(*) FROM customers), (SELECT count(*) FROM categories), (SELECT count(*) FROM products), (SELECT count(*) FROM orders), (SELECT count(*) FROM order_lines), (SELECT count(*) FROM orders WHERE total_cents <> subtotal_cents + tax_cents)",
+      "rows": [["4", "4", "24", "10", "18", "0"]]
+    },
+    { "id": "api", "kind": "http-file", "file": "requests.http" },
+    { "id": "tests", "kind": "unit", "tool": "junit" },
+    { "id": "architecture", "kind": "unit", "tool": "junit", "run": ["ArchitectureTest"] },
+    {
+      "id": "mutants",
+      "kind": "mutants",
+      "mutants": [
+        { "id": "tax-rounds-down", "by": ["tests"], "says": "The tests still pass when tax rounds half a cent down" },
+        { "id": "stock-not-taken", "by": ["tests"], "says": "The tests still pass when an order never takes the stock" },
+        { "id": "orders-visible-to-everyone", "by": ["tests"], "says": "The tests still pass when any customer can read any order" },
+        { "id": "customers-edit-the-catalog", "by": ["tests"], "says": "The tests still pass when a customer can add products" },
+        { "id": "controller-reads-repository", "by": ["architecture"], "says": "The architecture rules still pass when a controller reads a repository" }
+      ]
+    }
+  ],
+  "acceptance": {
+    "compile": "The project compiles",
+    "seed": "The template database holds the dev seed: 4 accounts, 4 categories, 24 products, 10 orders with 18 lines, and every total adds up",
+    "api": "Every request in requests.http gets the answer it states, on a freshly seeded database",
+    "tests": "The project's own 31 tests pass: unit, web slice, data slice, and end to end",
+    "architecture": "ArchitectureTest's layer rules hold",
+    "mutants": "The project's own tests catch each planted bug"
+  }
+}

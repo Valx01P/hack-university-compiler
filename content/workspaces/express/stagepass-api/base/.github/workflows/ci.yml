@@ -1,0 +1,39 @@
+# Runs on every push and pull request what you would run before merging: npm run ci
+# (typecheck, every test, and drizzle-kit check), with PostgreSQL as a service for the int
+# tests. A red run blocks the merge. Read only in Hack University, which runs nothing from it.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_USER: stagepass
+          POSTGRES_PASSWORD: stagepass
+          POSTGRES_DB: stagepass_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U stagepass -d stagepass_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgres://stagepass:stagepass@localhost:5432/stagepass_test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.12.0
+          cache: npm
+      # Exactly the versions in package-lock.json, or a failure if the two disagree.
+      - run: npm ci
+      - run: npm run ci

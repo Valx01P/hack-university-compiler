@@ -1,0 +1,148 @@
+# Bramble Coffee's order API: every endpoint, with a body that works. The API panel sends
+# these (so do VS Code's REST Client and JetBrains' HTTP Client), and paths are relative to
+# the server, which listens on the port it prints (the workspace's PORT).
+#
+# Sent top to bottom on a fresh database (npm run db:reset), each request gets what its
+# > lines say: the status, a header, or a value at a JSON path. "# @name created" names a
+# request, so a later one can use {{created.response.body.$.id}}.
+
+### The service is up
+GET /health
+
+> status 200
+> json $ == {"status": "ok"}
+
+### The catalog
+GET /products
+
+> status 200
+> json $.items == $len:8
+
+### One product
+GET /products/COF-ETH-250
+
+> status 200
+> json $.price == "14.50"
+
+### Orders, newest first, five at a time
+# @name firstPage
+GET /orders?limit=5
+
+> status 200
+> json $.items == $len:5
+> json $.items[0].id == "ord_0012"
+> json $.nextCursor == $string
+
+### The next five, after the first page's cursor
+GET /orders?limit=5&cursor={{firstPage.response.body.$.nextCursor}}
+
+> status 200
+> json $.items[0].id == "ord_0007"
+
+### Only the paid orders
+GET /orders?status=paid
+
+> status 200
+> json $.items[*].id == ["ord_0009", "ord_0008", "ord_0006"]
+
+### One order
+GET /orders/ord_0003
+
+> status 200
+> json $.status == "shipped"
+> json $.total == "37.00"
+
+### One customer's orders, newest first
+GET /customers/cus_01/orders
+
+> status 200
+> json $.items[*].id == ["ord_0010", "ord_0007", "ord_0003", "ord_0001"]
+
+### Place an order. The prices come from the catalog, and a hook tidies the note.
+# @name created
+POST /orders
+Content-Type: application/json
+
+{
+  "customerId": "cus_04",
+  "lines": [
+    { "sku": "COF-ETH-250", "quantity": 2 },
+    { "sku": "GEA-V60-02", "quantity": 1 }
+  ],
+  "note": "  Leave it with   the neighbors "
+}
+
+> status 201
+> header Location == /orders/ord_0013
+> json $.id == "ord_0013"
+> json $.total == "53.00"
+> json $.note == "Leave it with the neighbors"
+
+### Pay for it
+POST /orders/{{created.response.body.$.id}}/pay
+Content-Type: application/json
+
+{ "paymentRef": "pay_0013" }
+
+> status 200
+> json $.status == "paid"
+> json $.paidAt == "2026-10-01T09:00:00.000Z"
+
+### Ship it
+POST /orders/{{created.response.body.$.id}}/ship
+Content-Type: application/json
+
+{ "carrier": "ups", "trackingNumber": "1Z999AA10123456799" }
+
+> status 200
+> json $.status == "shipped"
+> json $.trackingNumber == "1Z999AA10123456799"
+
+### It arrived
+POST /orders/{{created.response.body.$.id}}/deliver
+
+> status 200
+> json $.status == "delivered"
+
+### Cancel a pending order
+POST /orders/ord_0011/cancel
+Content-Type: application/json
+
+{ "reason": "Found it cheaper" }
+
+> status 200
+> json $.status == "cancelled"
+> json $.cancelReason == "Found it cheaper"
+
+### A pending order cannot ship: 409, as a problem
+POST /orders/ord_0010/ship
+Content-Type: application/json
+
+{ "carrier": "dhl", "trackingNumber": "7350000001" }
+
+> status 409
+> header Content-Type ~ ^application/problem\+json
+> json $.code == "invalid_transition"
+> json $.detail == "A pending order cannot be shipped"
+
+### More than 10 of one product: the limitQuantity hook says 422
+POST /orders
+Content-Type: application/json
+
+{ "customerId": "cus_02", "lines": [{ "sku": "COF-COL-250", "quantity": 12 }] }
+
+> status 422
+> json $.issues[0].path == "lines[0].quantity"
+
+### An order that does not exist
+GET /orders/ord_9999
+
+> status 404
+> json $.detail == "No order with id ord_9999"
+
+### The daily report
+GET /reports/daily?date=2026-09-30
+
+> status 200
+> json $.orders == 4
+> json $.revenue == "38.50"

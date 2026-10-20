@@ -1,0 +1,2 @@
+ALTER TABLE "events" ADD COLUMN "search" "tsvector" GENERATED ALWAYS AS (setweight(to_tsvector('english', "title"), 'A') || setweight(to_tsvector('english', "description"), 'B')) STORED;--> statement-breakpoint
+CREATE INDEX "events_search_idx" ON "events" USING gin ("search");

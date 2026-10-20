@@ -1,0 +1,299 @@
+# Parcelly's public API, as the vendor publishes it: the contract the SDK in src/ is written
+# against, and what mock-api/ serves. It is not perfect, like most vendor documents: it
+# promises an ETA on every shipment, and USPS sends none (see src/schemas/shipment.ts).
+openapi: 3.1.0
+info:
+  title: Parcelly API
+  version: 1.6.0
+  description: |
+    Track parcels across carriers. Every request but GET /health needs a Bearer API key.
+    Lists are paged with an opaque cursor: pass nextCursor back as cursor until it is null.
+    Errors use one envelope, and 429 answers carry Retry-After in seconds.
+servers:
+  - url: http://localhost:4010
+    description: The local mock (npm run mock). In a workspace it listens on MOCK_PORT.
+security:
+  - apiKey: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Whether the API is up
+      security: []
+      responses:
+        "200":
+          description: Up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    const: ok
+  /v1/carriers:
+    get:
+      operationId: listCarriers
+      summary: The carriers Parcelly tracks
+      responses:
+        "200":
+          description: Every carrier
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Carrier"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /v1/shipments:
+    get:
+      operationId: listShipments
+      summary: Shipments, oldest first, a page at a time
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ShipmentStatus"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+        - name: cursor
+          in: query
+          description: The nextCursor of the previous page.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: One page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Shipment"
+                  nextCursor:
+                    type: [string, "null"]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /v1/shipments/{id}:
+    get:
+      operationId: getShipment
+      summary: One shipment
+      parameters:
+        - $ref: "#/components/parameters/ShipmentId"
+      responses:
+        "200":
+          description: The shipment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shipment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /v1/shipments/{id}/events:
+    get:
+      operationId: listShipmentEvents
+      summary: A shipment's tracking events, oldest first
+      parameters:
+        - $ref: "#/components/parameters/ShipmentId"
+      responses:
+        "200":
+          description: Every event
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TrackingEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v2/shipments/{id}:
+    get:
+      operationId: getShipmentV2
+      summary: One shipment in the v2 format
+      description: v2 renames eta to estimatedDelivery and nests the carrier as an object. v1 keeps working.
+      parameters:
+        - $ref: "#/components/parameters/ShipmentId"
+      responses:
+        "200":
+          description: The shipment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipmentV2"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  securitySchemes:
+    apiKey:
+      type: http
+      scheme: bearer
+  parameters:
+    ShipmentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^SHP-[0-9]{4}$"
+  schemas:
+    ShipmentStatus:
+      type: string
+      enum: [label_created, in_transit, out_for_delivery, delivered, exception]
+    Address:
+      type: object
+      required: [name, city, region, postalCode, country]
+      properties:
+        name: { type: string }
+        city: { type: string }
+        region: { type: string }
+        postalCode: { type: string }
+        country: { type: string }
+    Carrier:
+      type: object
+      required: [id, name, trackingUrlTemplate, supportsSignature]
+      properties:
+        id: { type: string, examples: [ups] }
+        name: { type: string, examples: [UPS] }
+        trackingUrlTemplate:
+          type: string
+          description: A URL with {trackingNumber} in it.
+        supportsSignature: { type: boolean }
+    Shipment:
+      type: object
+      required: [id, status, carrier, trackingNumber, weightGrams, eta, from, to, createdAt]
+      properties:
+        id: { type: string, pattern: "^SHP-[0-9]{4}$" }
+        status:
+          $ref: "#/components/schemas/ShipmentStatus"
+        carrier:
+          type: string
+          description: A carrier id from GET /v1/carriers.
+        trackingNumber: { type: string }
+        weightGrams: { type: integer, minimum: 1 }
+        eta:
+          type: string
+          format: date-time
+          description: When the carrier expects to deliver it.
+        from:
+          $ref: "#/components/schemas/Address"
+        to:
+          $ref: "#/components/schemas/Address"
+        createdAt: { type: string, format: date-time }
+    ShipmentV2:
+      type: object
+      required: [id, status, carrier, trackingNumber, weightGrams, estimatedDelivery, from, to, createdAt]
+      properties:
+        id: { type: string, pattern: "^SHP-[0-9]{4}$" }
+        status:
+          $ref: "#/components/schemas/ShipmentStatus"
+        carrier:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        trackingNumber: { type: string }
+        weightGrams: { type: integer, minimum: 1 }
+        estimatedDelivery:
+          type: [string, "null"]
+          format: date-time
+        from:
+          $ref: "#/components/schemas/Address"
+        to:
+          $ref: "#/components/schemas/Address"
+        createdAt: { type: string, format: date-time }
+    TrackingEvent:
+      type: object
+      required: [id, shipmentId, type, at]
+      description: |
+        The type decides the other fields. picked_up, in_transit, out_for_delivery, delivered,
+        and exception have a location. in_transit has a facility, delivered has signedBy (a
+        name or null), and exception has a reason (address_issue, damaged, or weather) and a
+        message.
+      properties:
+        id: { type: string }
+        shipmentId: { type: string }
+        type:
+          type: string
+          enum: [label_created, picked_up, in_transit, out_for_delivery, delivered, exception]
+        at: { type: string, format: date-time }
+        location: { type: string }
+        facility: { type: string }
+        signedBy: { type: [string, "null"] }
+        reason:
+          type: string
+          enum: [address_issue, damaged, weather]
+        message: { type: string }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code: { type: string, examples: [not_found] }
+            message: { type: string }
+            requestId: { type: string }
+  responses:
+    BadRequest:
+      description: A query parameter is not valid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: The API key is missing or wrong
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: No such shipment
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    RateLimited:
+      description: Too many requests. Wait as long as Retry-After says, then try again.
+      headers:
+        Retry-After:
+          description: Seconds to wait.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"

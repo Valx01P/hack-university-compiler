@@ -1,0 +1,56 @@
+# Taskboard and PostgreSQL the way they could run on a server: the database with a health
+# check, a one-off migrate step, then the API. The workspace cannot run Docker, so try it on
+# your own machine:
+#
+#   JWT_SECRET=$(openssl rand -hex 32) INTERNAL_API_KEY=$(openssl rand -hex 16) docker compose up --build
+#
+# then open http://localhost:8000/readyz. `docker compose down -v` removes the data too.
+name: taskboard
+
+x-app: &app
+  image: taskboard-api
+  build: .
+  environment:
+    ENVIRONMENT: production
+    DATABASE_URL: postgresql+psycopg://taskboard:taskboard@db:5432/taskboard
+    JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET to 32 or more random characters}
+    INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY to 16 or more random characters}
+    CORS_ORIGINS: ${CORS_ORIGINS:-}
+
+services:
+  db:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_USER: taskboard
+      POSTGRES_PASSWORD: taskboard
+      POSTGRES_DB: taskboard
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskboard -d taskboard"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  pgdata:

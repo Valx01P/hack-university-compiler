@@ -1,0 +1,135 @@
+# The Parcelly mock's endpoints, for the API panel (and VS Code's REST Client or JetBrains'
+# HTTP Client). Run starts the mock (npm run mock), and paths are relative to it: it listens
+# on the port it prints, the workspace's MOCK_PORT.
+#
+# Sent top to bottom on a freshly started mock, each request gets what its > lines say. The
+# last few use the mock's chaos headers (mock-api/chaos.ts) to make it misbehave on purpose.
+
+@key = test_key_123
+
+### The mock is up (no key needed)
+GET /health
+
+> status 200
+> json $ == {"status": "ok"}
+
+### The carriers
+GET /v1/carriers
+Authorization: Bearer {{key}}
+
+> status 200
+> json $.items == $len:4
+> json $.items[*].id == ["ups", "dhl", "usps", "parcelly-ground"]
+
+### A wrong key: 401, in Parcelly's error envelope
+GET /v1/carriers
+Authorization: Bearer not_a_key
+
+> status 401
+> json $.error.code == "unauthorized"
+> json $.error.requestId == $string
+
+### The first page of shipments
+# @name firstPage
+GET /v1/shipments?limit=5
+Authorization: Bearer {{key}}
+
+> status 200
+> json $.items == $len:5
+> json $.items[0].id == "SHP-1001"
+> json $.nextCursor == $string
+
+### The next page, with the first page's cursor
+GET /v1/shipments?limit=5&cursor={{firstPage.response.body.$.nextCursor}}
+Authorization: Bearer {{key}}
+
+> status 200
+> json $.items[0].id == "SHP-1006"
+
+### Only the shipments in transit
+GET /v1/shipments?status=in_transit&limit=20
+Authorization: Bearer {{key}}
+
+> status 200
+> json $.items[*].id == ["SHP-1001", "SHP-1004", "SHP-1006", "SHP-1009", "SHP-1011"]
+> json $.nextCursor == null
+
+### One shipment
+GET /v1/shipments/SHP-1001
+Authorization: Bearer {{key}}
+
+> status 200
+> json $.status == "in_transit"
+> json $.eta == "2026-10-03T20:00:00Z"
+
+### A USPS shipment: no ETA at all, though openapi.yaml promises one
+GET /v1/shipments/SHP-1003
+Authorization: Bearer {{key}}
+
+> status 200
+> json $.eta == null
+
+### A shipment's tracking events, oldest first
+GET /v1/shipments/SHP-1002/events
+Authorization: Bearer {{key}}
+
+> status 200
+> json $.items == $len:7
+> json $.items[6].type == "delivered"
+> json $.items[6].signedBy == "G. Hopper"
+
+### The same shipment in the v2 format
+GET /v2/shipments/SHP-1001
+Authorization: Bearer {{key}}
+
+> status 200
+> json $.carrier == {"id": "ups", "name": "UPS"}
+> json $.estimatedDelivery == "2026-10-03T20:00:00Z"
+> json $.eta == $absent
+
+### A shipment that does not exist
+GET /v1/shipments/SHP-9999
+Authorization: Bearer {{key}}
+
+> status 404
+> json $.error.code == "not_found"
+
+### Chaos: x-mock-fail 503x2 fails the first two times...
+GET /v1/shipments/SHP-1005
+Authorization: Bearer {{key}}
+x-mock-fail: 503x2
+
+> status 503
+> json $.error.code == "unavailable"
+
+### ...and the second time...
+GET /v1/shipments/SHP-1005
+Authorization: Bearer {{key}}
+x-mock-fail: 503x2
+
+> status 503
+
+### ...and then works, which is what retries count on
+GET /v1/shipments/SHP-1005
+Authorization: Bearer {{key}}
+x-mock-fail: 503x2
+
+> status 200
+> json $.status == "out_for_delivery"
+
+### Chaos: a rate limit, with Retry-After in seconds
+GET /v1/carriers
+Authorization: Bearer {{key}}
+x-mock-rate-limit: 2
+
+> status 429
+> header Retry-After == 2
+> json $.error.code == "rate_limited"
+
+### Chaos: a 200 whose body breaks the contract
+GET /v1/shipments
+Authorization: Bearer {{key}}
+x-mock-garbage: 1
+
+> status 200
+> json $.items[0].id == 42

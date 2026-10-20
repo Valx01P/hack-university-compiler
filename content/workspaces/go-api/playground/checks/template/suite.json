@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "image": "go",
+  "db": "empty",
+  "copy": { "exclude": [], "git": false },
+  "deadlineMs": 60000,
+  "server": { "task": "dev", "port": "PORT", "ready": { "path": "/hello", "timeoutMs": 30000 } },
+  "steps": [
+    { "id": "build", "kind": "cmd", "run": ["go", "build", "./..."], "expect": { "exit": 0 }, "parse": "go" },
+    { "id": "vet", "kind": "cmd", "run": ["go", "vet", "./..."], "expect": { "exit": 0 }, "parse": "go" },
+    { "id": "gofmt", "kind": "cmd", "run": ["sh", "-c", "test -z \"$(gofmt -l .)\""], "expect": { "exit": 0 } },
+    { "id": "tests", "kind": "unit", "tool": "gotest", "run": ["./..."] },
+    { "id": "scratch", "kind": "cmd", "run": ["sh", "-c", "psql \"$DATABASE_URL\" -X -q -v ON_ERROR_STOP=1 -f scratch.sql"], "expect": { "exit": 0 } },
+    { "id": "api", "kind": "http-file", "file": "requests.http" },
+    { "id": "mutants", "kind": "mutants", "mutants": [
+      { "id": "hello-ignores-name", "by": ["tests"], "says": "The tests still pass when /hello ignores ?name=" }
+    ] }
+  ],
+  "acceptance": {
+    "build": "The module builds",
+    "vet": "go vet reports nothing",
+    "gofmt": "Every file is gofmt-formatted",
+    "tests": "main_test.go passes",
+    "scratch": "scratch.sql loads into an empty database",
+    "api": "Both requests in requests.http get the answers they state",
+    "mutants": "main_test.go catches a /hello that ignores its name"
+  }
+}

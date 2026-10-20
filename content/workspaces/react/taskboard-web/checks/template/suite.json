@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "image": "check-web",
+  "db": "none",
+  "copy": { "exclude": ["node_modules", ".vite", "dist", "api/data", "test-results", "playwright-report"], "git": false },
+  "deadlineMs": 240000,
+  "server": { "task": "dev:api", "port": "API_PORT", "ready": { "path": "/healthz", "timeoutMs": 15000 } },
+  "steps": [
+    { "id": "typecheck", "kind": "cmd", "run": ["npx", "tsc", "-b", "--pretty", "false"], "expect": { "exit": 0 }, "parse": "tsc" },
+    { "id": "lint", "kind": "cmd", "run": ["npx", "oxlint", "--deny-warnings"], "expect": { "exit": 0 }, "parse": "eslint" },
+    { "id": "tests", "kind": "unit", "tool": "vitest", "run": ["src"] },
+    {
+      "id": "build",
+      "kind": "cmd",
+      "run": ["npx", "vite", "build", "--configLoader", "native"],
+      "expect": { "exit": 0, "stdoutRegex": "dist/assets/settings-[\\w-]+\\.js" },
+      "budgets": { "mainChunkGzipKb": 200 }
+    },
+    {
+      "id": "api-reset",
+      "kind": "cmd",
+      "run": ["npm", "run", "--silent", "api:reset"],
+      "expect": { "exit": 0, "stdout": "Restored api/data/db.json from api/seed.json.\n" }
+    },
+    { "id": "api", "kind": "http-file", "file": "requests.http" },
+    {
+      "id": "contract",
+      "kind": "http-file",
+      "contract": "taskboard",
+      "files": ["acceptance.http", "acceptance-labels.http"],
+      "openapi": "openapi.yaml",
+      "before": [{ "method": "POST", "path": "/_hu/reset", "expect": { "status": 204 } }],
+      "env": { "CORS_ORIGINS": "http://localhost:20013" }
+    },
+    { "id": "e2e", "kind": "unit", "tool": "playwright", "run": ["e2e"] },
+    {
+      "id": "mutants",
+      "kind": "mutants",
+      "mutants": [
+        { "id": "due-label-off-by-one", "by": ["tests"], "says": "The tests still pass when due labels are a day off" },
+        { "id": "safe-next-allows-other-sites", "by": ["tests"], "says": "The tests still pass when login follows ?next= to another site" },
+        { "id": "transition-sends-old-status", "by": ["tests"], "says": "The tests still pass when moving a card sends the status it already has" },
+        { "id": "filters-keep-page", "by": ["tests"], "says": "The tests still pass when changing a filter keeps the old page" },
+        { "id": "comments-one-page", "by": ["tests"], "says": "The tests still pass when comments stop after the first page" },
+        { "id": "field-errors-dropped", "by": ["tests"], "says": "The tests still pass when forms lose the API's field errors" },
+        { "id": "members-can-delete", "by": ["tests"], "says": "The tests still pass when members who don't own the project get Delete buttons" }
+      ]
+    }
+  ],
+  "acceptance": {
+    "typecheck": "tsc -b passes for the app, the Node files, and the API",
+    "lint": "oxlint reports nothing, warnings included",
+    "tests": "The project's own Vitest suite passes",
+    "build": "vite build passes, emits the settings page as its own chunk, and keeps the main chunk under 200 kB gzipped",
+    "api-reset": "npm run api:reset restores the seed",
+    "api": "Every request in requests.http gets the answer it states",
+    "contract": "The mock API passes the Taskboard contract's acceptance.http and acceptance-labels.http, and every response validates against openapi.yaml",
+    "e2e": "The Playwright journeys pass at desktop and phone sizes",
+    "mutants": "The project's own tests catch each planted bug"
+  }
+}

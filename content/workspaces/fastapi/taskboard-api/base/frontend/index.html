@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Taskboard</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.5; }
+    body { margin: 0 auto; max-width: 44rem; padding: 1.5rem; }
+    form { display: grid; gap: 0.5rem; grid-template-columns: 8rem 1fr; align-items: center; }
+    form button { grid-column: 2; justify-self: start; }
+    input, select, button { font: inherit; padding: 0.3rem 0.5rem; }
+    ul { list-style: none; padding: 0; display: grid; gap: 0.5rem; }
+    li { border: 1px solid #8884; border-radius: 0.5rem; padding: 0.6rem 0.8rem; display: flex; gap: 0.75rem; align-items: center; }
+    .dot { width: 0.8rem; height: 0.8rem; border-radius: 50%; flex: none; }
+    .counts { margin-left: auto; font-variant-numeric: tabular-nums; opacity: 0.8; }
+    #status { min-height: 1.5rem; }
+    #status.error { color: #dc2626; }
+  </style>
+</head>
+<body>
+  <h1>Taskboard</h1>
+  <p>
+    This page runs on its own port (WEB_PORT), so every call to the API on PORT is a
+    cross-origin request. The browser lets this page read the answers only if the API's
+    CORS settings allow this page's origin.
+  </p>
+
+  <form id="login">
+    <label for="api">API address</label>
+    <input id="api" type="url" required placeholder="http://localhost:23017">
+    <label for="email">Email</label>
+    <input id="email" type="email" required value="ada@example.com" autocomplete="username">
+    <label for="password">Password</label>
+    <input id="password" type="password" required value="correct horse battery staple" autocomplete="current-password">
+    <label for="send">Send the token as</label>
+    <select id="send">
+      <option value="header">Authorization header (a preflight first)</option>
+      <option value="cookie">tb_session cookie (credentials: include)</option>
+    </select>
+    <button type="submit">Log in and load my projects</button>
+  </form>
+
+  <p id="status" role="status"></p>
+  <ul id="projects"></ul>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const api = $("api");
+    api.value = new URLSearchParams(location.search).get("api") ?? localStorage.getItem("taskboard-api") ?? "";
+
+    function show(message, isError = false) {
+      $("status").textContent = message;
+      $("status").className = isError ? "error" : "";
+    }
+
+    async function call(path, options = {}) {
+      const response = await fetch(new URL(path, api.value), { credentials: "include", ...options });
+      const body = response.status === 204 ? null : await response.json();
+      if (!response.ok) throw new Error(`${response.status}: ${body?.detail ?? response.statusText}`);
+      return body;
+    }
+
+    function render(projects) {
+      $("projects").replaceChildren(...projects.map((project) => {
+        const item = document.createElement("li");
+        const dot = document.createElement("span");
+        dot.className = "dot";
+        dot.style.background = project.color;
+        const name = document.createElement("strong");
+        name.textContent = project.name;
+        const counts = document.createElement("span");
+        counts.className = "counts";
+        const { todo, doing, done } = project.task_counts;
+        counts.textContent = `${todo} to do · ${doing} doing · ${done} done`;
+        item.append(dot, name, counts);
+        return item;
+      }));
+    }
+
+    $("login").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      localStorage.setItem("taskboard-api", api.value);
+      show("Logging in…");
+      try {
+        const { token, user } = await call("/v1/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: $("email").value, password: $("password").value }),
+        });
+        const headers = $("send").value === "header" ? { Authorization: `Bearer ${token}` } : {};
+        const projects = await call("/v1/projects", { headers });
+        render(projects);
+        show(`${user.name} is in ${projects.length} project${projects.length === 1 ? "" : "s"}.`);
+      } catch (error) {
+        render([]);
+        const blocked = error instanceof TypeError;
+        show(blocked
+          ? "The browser blocked the request (CORS), or nothing answers at that address. The console says which."
+          : error.message, true);
+      }
+    });
+  </script>
+</body>
+</html>

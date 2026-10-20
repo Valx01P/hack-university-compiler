@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Starts, stops and checks taskapi, the shop's local JSON API, which runs from
+# releases/current on API_PORT (from .env). Its pid lives in run/taskapi.pid.
+set -euo pipefail
+
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+# shellcheck source=lib/env.sh
+source "$ROOT/bin/lib/env.sh"
+load_env "$ROOT/.env"
+
+PIDFILE_NAME=run/taskapi.pid
+PIDFILE="$ROOT/$PIDFILE_NAME"
+SERVER="$ROOT/releases/current/server.py"
+DB="$ROOT/data/shop.db"
+HOST=127.0.0.1
+URL="http://$HOST:$API_PORT"
+
+usage() {
+  cat <<EOF
+usage: taskapictl start|stop|status
+
+  start   start taskapi in the background and wait until it answers
+  stop    stop it: TERM, up to 5 seconds to finish, then KILL
+  status  say whether it runs (exit 0) or not (exit 3)
+EOF
+}
+
+running_pid() {
+  local pid
+  [[ -f $PIDFILE ]] || return 1
+  pid=$(< "$PIDFILE")
+  if [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2> /dev/null; then
+    printf '%s\n' "$pid"
+    return 0
+  fi
+  rm -f -- "$PIDFILE"
+  return 1
+}
+
+start() {
+  local pid
+  if running_pid > /dev/null; then
+    echo "taskapi is already running (pid file $PIDFILE_NAME)"
+    return 0
+  fi
+  if [[ ! -f $DB ]]; then
+    sqlite3 -batch "$DB" < "$ROOT/releases/current/seed.sql"
+  fi
+  mkdir -p -- "$ROOT/run" "$ROOT/$LOG_DIR"
+  cd -- "$ROOT"
+  nohup python3 "$SERVER" --host "$HOST" --port "$API_PORT" --db "$DB" --log-dir "$ROOT/$LOG_DIR" \
+    > "$ROOT/run/taskapi.out" 2>&1 < /dev/null &
+  pid=$!
+  echo "$pid" > "$PIDFILE"
+  for _ in {1..50}; do
+    if curl -s -o /dev/null --max-time 1 "$URL/health"; then
+      echo "taskapi started on $HOST:$API_PORT"
+      return 0
+    fi
+    sleep 0.1
+  done
+  echo "taskapi did not answer on $HOST:$API_PORT within 5 seconds (see run/taskapi.out)" >&2
+  return 1
+}
+
+stop() {
+  local pid
+  if ! pid=$(running_pid); then
+    echo "taskapi is not running"
+    return 0
+  fi
+  kill -TERM "$pid"
+  for _ in {1..50}; do
+    kill -0 "$pid" 2> /dev/null || break
+    sleep 0.1
+  done
+  if kill -0 "$pid" 2> /dev/null; then
+    kill -KILL "$pid"
+  fi
+  rm -f -- "$PIDFILE"
+  echo "taskapi stopped"
+}
+
+status() {
+  if running_pid > /dev/null; then
+    echo "running (pid file $PIDFILE_NAME, port $API_PORT)"
+  else
+    echo "not running"
+    return 3
+  fi
+}
+
+case ${1:-} in
+  start) start ;;
+  stop) stop ;;
+  status) status ;;
+  *)
+    usage >&2
+    exit 64
+    ;;
+esac

@@ -1,0 +1,682 @@
+# StagePass: one request for every endpoint, with a body that works. The API panel sends these
+# (so do VS Code's REST Client and JetBrains' HTTP Client). Paths are relative to the server,
+# which listens on the port it prints (the workspace's PORT).
+#
+# Sent top to bottom on a fresh database (npm run db:reset, with the clock at
+# 2026-10-01T09:00:00Z), each request gets what its > lines say. "# @name olu" names a
+# request, so later ones can use {{olu.response.body.$.accessToken}}. Every password is
+# stagepass-demo-2026.
+
+### Liveness: the process is up
+GET /healthz
+
+> status 200
+> json $ == {"status": "ok"}
+
+### Readiness: the database answers
+GET /readyz
+
+> status 200
+> json $.status == "ready"
+
+
+### ---------------------------------------------------------------- Auth
+
+### Log in as the admin
+# @name admin
+POST /v1/auth/login
+Content-Type: application/json
+
+{ "email": "admin@stagepass.test", "password": "stagepass-demo-2026" }
+
+> status 200
+> json $.tokenType == "Bearer"
+> json $.expiresIn == 900
+> json $.user == {"id": 1, "role": "admin"}
+
+### Log in as Olu, an organizer (events 1 to 14)
+# @name olu
+POST /v1/auth/login
+Content-Type: application/json
+
+{ "email": "olu@stagepass.test", "password": "stagepass-demo-2026" }
+
+> status 200
+> json $.user.role == "organizer"
+
+### Log in as Priya, the other organizer (events 15 to 24)
+# @name priya
+POST /v1/auth/login
+Content-Type: application/json
+
+{ "email": "priya@stagepass.test", "password": "stagepass-demo-2026" }
+
+> status 200
+> json $.user.id == 3
+
+### Log in as Cam, a customer. Emails ignore case.
+# @name cam
+POST /v1/auth/login
+Content-Type: application/json
+
+{ "email": "Cam@StagePass.test", "password": "stagepass-demo-2026" }
+
+> status 200
+> json $.user == {"id": 4, "email": "cam@stagepass.test", "role": "customer"}
+
+### Log in as Dee, the other customer
+# @name dee
+POST /v1/auth/login
+Content-Type: application/json
+
+{ "email": "dee@stagepass.test", "password": "stagepass-demo-2026" }
+
+> status 200
+> json $.refreshToken == $string
+
+### A wrong password and an unknown email get the same answer, so neither reveals who has an account
+POST /v1/auth/login
+Content-Type: application/json
+
+{ "email": "dee@stagepass.test", "password": "not-the-password" }
+
+> status 401
+> header Content-Type ~ ^application/problem\+json
+> json $.detail == "Invalid email or password"
+
+### Who am I?
+GET /v1/me
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+
+> status 200
+> json $ == {"id": 4, "name": "Cam Lee", "email": "cam@stagepass.test", "role": "customer"}
+> header Cache-Control == no-store
+
+### No token: 401, and WWW-Authenticate says how to authenticate
+GET /v1/me
+
+> status 401
+> header WWW-Authenticate == Bearer
+
+### Sign up: a new customer, logged in at once. The email is stored lowercase.
+# @name fan
+POST /v1/auth/signup
+Content-Type: application/json
+
+{ "email": "New.Fan@Example.TEST", "name": "New Fan", "password": "a long enough passphrase" }
+
+> status 201
+> header Location == /v1/me
+> json $.user == {"id": 7, "email": "new.fan@example.test", "role": "customer"}
+
+### The same email again: 409
+POST /v1/auth/signup
+Content-Type: application/json
+
+{ "email": "new.fan@example.test", "name": "Someone Else", "password": "another long passphrase" }
+
+> status 409
+> json $.type == "https://stagepass.test/problems/email-taken"
+
+### Trade Dee's refresh token for a new pair (rotation)
+# @name deeRefreshed
+POST /v1/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{dee.response.body.$.refreshToken}}" }
+
+> status 200
+> json $.user.id == 5
+> json $.refreshToken == $string
+
+### The old refresh token again: someone kept a copy, so the whole login is revoked
+POST /v1/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{dee.response.body.$.refreshToken}}" }
+
+> status 401
+
+### ...including the newest token of that login
+POST /v1/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{deeRefreshed.response.body.$.refreshToken}}" }
+
+> status 401
+
+### Log out: ends the login the refresh token belongs to
+POST /v1/auth/logout
+Content-Type: application/json
+
+{ "refreshToken": "{{fan.response.body.$.refreshToken}}" }
+
+> status 204
+
+### After logging out, the refresh token is dead
+POST /v1/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{fan.response.body.$.refreshToken}}" }
+
+> status 401
+
+
+### ---------------------------------------------------------------- Venues
+
+### Every venue, by city and name
+GET /v1/venues
+
+> status 200
+> json $[*].name == ["Lantern Theater", "The Blue Note Room", "Warehouse 9", "Riverside Hall"]
+
+### One venue
+GET /v1/venues/2
+
+> status 200
+> json $ == {"id": 2, "name": "Riverside Hall", "city": "Denver", "capacity": 400}
+
+### Only admins add venues
+POST /v1/venues
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "name": "Mill Street Studio", "city": "Austin", "address": "77 Mill St", "capacity": 90 }
+
+> status 403
+
+### The admin adds one
+# @name venue
+POST /v1/venues
+Authorization: Bearer {{admin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "name": "Mill Street Studio", "city": "Austin", "address": "77 Mill St", "capacity": 90 }
+
+> status 201
+> header Location == /v1/venues/5
+> json $.id == 5
+
+### And fixes its capacity
+PATCH /v1/venues/{{venue.response.body.$.id}}
+Authorization: Bearer {{admin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "capacity": 110 }
+
+> status 200
+> json $.capacity == 110
+
+
+### ---------------------------------------------------------------- Events
+
+### Published events, soonest first, three per page
+# @name page1
+GET /v1/events?limit=3
+
+> status 200
+> header Cache-Control == public, max-age=60
+> json $.data[*].id == [4, 17, 18]
+> json $.data[0].fromPriceCents == 1800
+> json $.nextCursor == $string
+
+### The next page continues after the cursor
+GET /v1/events?limit=3&cursor={{page1.response.body.$.nextCursor}}
+
+> status 200
+> json $.data[*].id == [2, 1, 5]
+
+### Four events start at the same moment: id breaks the tie
+GET /v1/events?from=2026-11-14&to=2026-11-15
+
+> status 200
+> json $.data[*].id == [8, 9, 10, 11]
+
+### Filters combine: talks only
+GET /v1/events?category=talk
+
+> status 200
+> json $.data[*].title == ["Designing for Accessibility", "Postgres at Scale", "Node in Production"]
+
+### Repeat a filter for several values, and match the city in any case
+GET /v1/events?category=music&category=theater&city=austin
+
+> status 200
+> json $.data[*].id == [4, 1, 5, 15, 7, 10, 16]
+
+### Full text search: "jazz" finds titles and descriptions
+GET /v1/events?q=jazz
+
+> status 200
+> json $.data[*].id == [1, 5, 3]
+
+### Web search syntax: a minus excludes a word
+GET /v1/events?q=jazz%20-brunch
+
+> status 200
+> json $.data[*].title == ["The Blue Note Jam", "Late Night Jazz Session"]
+
+### Latest first
+GET /v1/events?sort=-startsAt&limit=2
+
+> status 200
+> json $.data[*].id == [19, 16]
+
+### A cursor that this API did not make: 400
+GET /v1/events?cursor=bm90LWEtY3Vyc29y
+
+> status 400
+> json $.errors[0].field == "cursor"
+
+### At most 50 per page
+GET /v1/events?limit=51
+
+> status 400
+> json $.errors[0].field == "limit"
+
+### One event
+GET /v1/events/1
+
+> status 200
+> json $.title == "The Blue Note Jam"
+> json $.venue == {"id": 1, "name": "The Blue Note Room", "city": "Austin"}
+
+### A draft is invisible to everyone but its organizer and admins
+GET /v1/events/6
+
+> status 404
+
+### Its organizer sees it
+GET /v1/events/6
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+
+> status 200
+> json $.status == "draft"
+> header Cache-Control == private, no-store
+
+### An organizer creates a draft. A hook makes the slug from the title.
+# @name newEvent
+POST /v1/events
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "venueId": 3,
+  "title": "  Open Mic Night ",
+  "category": "comedy",
+  "description": "Five minutes each, sign up at the door.",
+  "startsAt": "2026-12-10T02:00:00Z",
+  "endsAt": "2026-12-10T04:00:00Z"
+}
+
+> status 201
+> header Location == /v1/events/25
+> json $.slug == "open-mic-night"
+> json $.title == "Open Mic Night"
+> json $.status == "draft"
+
+### Customers cannot create events
+POST /v1/events
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "venueId": 3, "title": "My Party", "category": "music", "startsAt": "2026-12-10T02:00:00Z", "endsAt": "2026-12-10T04:00:00Z" }
+
+> status 403
+
+### Publishing needs at least one ticket type
+POST /v1/events/{{newEvent.response.body.$.id}}/publish
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+
+> status 409
+> json $.type == "https://stagepass.test/problems/no-ticket-types"
+
+### Add a ticket type: whole cents, so 1200 is $12.00
+POST /v1/events/{{newEvent.response.body.$.id}}/ticket-types
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "name": "General", "priceCents": 1200, "capacity": 200 }
+
+> status 201
+> json $ == {"name": "General", "priceCents": 1200, "capacity": 200, "sold": 0, "available": 200, "soldOut": false}
+
+### An event never offers more seats than its venue holds (Lantern Theater: 250)
+POST /v1/events/{{newEvent.response.body.$.id}}/ticket-types
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "name": "Standing", "priceCents": 800, "capacity": 100 }
+
+> status 409
+> json $.type == "https://stagepass.test/problems/venue-capacity-exceeded"
+
+### Now it can go on sale
+POST /v1/events/{{newEvent.response.body.$.id}}/publish
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+
+> status 200
+> json $.status == "published"
+> json $.publishedAt == "2026-10-01T09:00:00.000Z"
+
+### Another organizer cannot change it
+PATCH /v1/events/{{newEvent.response.body.$.id}}
+Authorization: Bearer {{priya.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "title": "Priya Was Here" }
+
+> status 403
+
+### Its organizer renames it. A published event keeps its slug, because people shared the link.
+PATCH /v1/events/{{newEvent.response.body.$.id}}
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "title": "Open Mic Night: Holiday Edition" }
+
+> status 200
+> json $.title == "Open Mic Night: Holiday Edition"
+> json $.slug == "open-mic-night"
+
+### A second "Open Mic Night" gets the next free slug
+POST /v1/events
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "venueId": 3, "title": "Open Mic Night", "category": "comedy", "startsAt": "2026-12-17T02:00:00Z", "endsAt": "2026-12-17T04:00:00Z" }
+
+> status 201
+> json $.slug == "open-mic-night-2"
+
+### Only drafts can be deleted
+DELETE /v1/events/1
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+
+> status 409
+
+### A draft can
+DELETE /v1/events/14
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+
+> status 204
+
+### A poster upload without a file says what it needs
+# Posters are multipart uploads, which these text requests cannot carry. Send one with curl,
+#   curl -X PUT -H "Authorization: Bearer $TOKEN" -F poster=@test/fixtures/poster.png "localhost:$PORT/v1/events/1/poster"
+# or from the form at /static/upload-test.html in the Preview.
+PUT /v1/events/1/poster
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+
+> status 400
+> json $.errors[0] == {"field": "poster", "message": "Attach the image in a form field named poster"}
+
+### Add an event to a calendar
+GET /v1/events/1/calendar.ics
+
+> status 200
+> header Content-Type ~ ^text/calendar
+> header ETag ~ ^"
+
+
+### ---------------------------------------------------------------- Ticket types
+
+### Cheapest first. The VIP tickets are sold out.
+GET /v1/events/1/ticket-types
+
+> status 200
+> json $[*].name == ["General", "VIP"]
+> json $[1] == {"id": 2, "sold": 10, "available": 0, "soldOut": true}
+
+### A draft's ticket types are as private as the draft
+GET /v1/events/12/ticket-types
+
+> status 404
+
+
+### ---------------------------------------------------------------- Orders
+
+### Checkout: two General tickets for Last Call Quartet. The Idempotency-Key makes retries safe.
+# @name order
+POST /v1/orders
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+Content-Type: application/json
+Idempotency-Key: rest-client-demo-0001
+
+{ "items": [{ "ticketTypeId": 22, "quantity": 2 }] }
+
+> status 201
+> header Location == /v1/orders/31
+> json $.totalCents == 6000
+> json $.items[0] == {"name": "General", "quantity": 2, "unitPriceCents": 3000, "subtotalCents": 6000}
+
+### A retry with the same key returns the same order, and sells nothing more
+POST /v1/orders
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+Content-Type: application/json
+Idempotency-Key: rest-client-demo-0001
+
+{ "items": [{ "ticketTypeId": 22, "quantity": 2 }] }
+
+> status 201
+> header Idempotent-Replayed == true
+> json $.id == 31
+
+### The same key for a different cart is a mistake
+POST /v1/orders
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+Content-Type: application/json
+Idempotency-Key: rest-client-demo-0001
+
+{ "items": [{ "ticketTypeId": 22, "quantity": 3 }] }
+
+> status 422
+> json $.type == "https://stagepass.test/problems/idempotency-key-reused"
+
+### No key: 400
+POST /v1/orders
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "items": [{ "ticketTypeId": 22, "quantity": 1 }] }
+
+> status 400
+> json $.errors[0].field == "Idempotency-Key"
+
+### Sold out: 409
+POST /v1/orders
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+Content-Type: application/json
+Idempotency-Key: rest-client-demo-0002
+
+{ "items": [{ "ticketTypeId": 2, "quantity": 1 }] }
+
+> status 409
+> json $.type == "https://stagepass.test/problems/sold-out"
+> json $.ticketTypeId == 2
+
+### An event that already happened is not on sale
+POST /v1/orders
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+Content-Type: application/json
+Idempotency-Key: rest-client-demo-0003
+
+{ "items": [{ "ticketTypeId": 9, "quantity": 1 }] }
+
+> status 409
+> json $.type == "https://stagepass.test/problems/event-not-on-sale"
+
+### At most 10 of one ticket type per order
+POST /v1/orders
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+Content-Type: application/json
+Idempotency-Key: rest-client-demo-0004
+
+{ "items": [{ "ticketTypeId": 22, "quantity": 11 }] }
+
+> status 400
+> json $.errors[0].field == "items.0.quantity"
+
+### My orders, newest first, four per page
+# @name myOrders
+GET /v1/orders?limit=4
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+
+> status 200
+> json $.data[*].id == [31, 29, 27, 25]
+> json $.data[0] == {"eventTitle": "Last Call Quartet", "ticketCount": 2, "totalCents": 6000}
+
+### The next page continues after the cursor
+GET /v1/orders?limit=4&cursor={{myOrders.response.body.$.nextCursor}}
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+
+> status 200
+> json $.data[*].id == [23, 21, 19, 17]
+
+### One order
+GET /v1/orders/{{order.response.body.$.id}}
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+
+> status 200
+> json $.event == {"id": 7, "slug": "last-call-quartet"}
+
+### Another customer's order is not found, exactly like one that does not exist
+GET /v1/orders/{{order.response.body.$.id}}
+Authorization: Bearer {{dee.response.body.$.accessToken}}
+
+> status 404
+
+### Support (an admin) can see it
+GET /v1/orders/{{order.response.body.$.id}}
+Authorization: Bearer {{admin.response.body.$.accessToken}}
+
+> status 200
+
+### Cancel it: the seats go back on sale
+POST /v1/orders/{{order.response.body.$.id}}/cancel
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+
+> status 200
+> json $.status == "cancelled"
+> json $.cancelledAt == "2026-10-01T09:00:00.000Z"
+
+### Cancelling twice: 409
+POST /v1/orders/{{order.response.body.$.id}}/cancel
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+
+> status 409
+> json $.type == "https://stagepass.test/problems/order-cancelled"
+
+### Cancelling an event cancels its paid orders (Dee's order 20 for A Doll's House)
+POST /v1/events/16/cancel
+Authorization: Bearer {{priya.response.body.$.accessToken}}
+
+> status 200
+> json $.status == "cancelled"
+
+### Dee's order went with it
+GET /v1/orders/20
+Authorization: Bearer {{dee.response.body.$.accessToken}}
+
+> status 200
+> json $.status == "cancelled"
+
+
+### ---------------------------------------------------------------- Favorites
+
+### Cam's favorites, most recent first
+GET /v1/me/favorites
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+
+> status 200
+> json $[*].id == [20, 16, 9, 3]
+
+### Favorite an event (doing it twice changes nothing)
+PUT /v1/me/favorites/1
+Authorization: Bearer {{dee.response.body.$.accessToken}}
+
+> status 204
+
+### Dee's favorites
+GET /v1/me/favorites
+Authorization: Bearer {{dee.response.body.$.accessToken}}
+
+> status 200
+> json $[*].id == [1]
+
+### Unfavorite it
+DELETE /v1/me/favorites/1
+Authorization: Bearer {{dee.response.body.$.accessToken}}
+
+> status 204
+
+
+### ---------------------------------------------------------------- Organizer
+
+### Olu's events with tickets sold and revenue, soonest first
+GET /v1/organizer/events
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+
+> status 200
+> json $[2] == {"id": 1, "title": "The Blue Note Jam", "ticketsSold": 15, "revenueCents": 92500}
+
+### Priya's sales totals and sold-out ticket types
+GET /v1/organizer/stats
+Authorization: Bearer {{priya.response.body.$.accessToken}}
+
+> status 200
+> json $.totals.events == 10
+
+### Olu's: The Blue Note Jam's VIP is sold out
+GET /v1/organizer/stats
+Authorization: Bearer {{olu.response.body.$.accessToken}}
+
+> status 200
+> json $.events[2].soldOutTicketTypes == ["VIP"]
+
+### Customers have no organizer pages
+GET /v1/organizer/stats
+Authorization: Bearer {{cam.response.body.$.accessToken}}
+
+> status 403
+
+
+### ---------------------------------------------------------------- Pages, documents, errors
+
+### The upcoming events page (HTML, open it in the Preview)
+GET /
+
+> status 200
+> header Content-Type ~ ^text/html
+
+### One event's page
+GET /e/the-blue-note-jam
+
+> status 200
+> header Cache-Control == public, max-age=300
+
+### An unknown page
+GET /e/no-such-event
+
+> status 404
+
+### The OpenAPI document, generated from the zod schemas
+GET /openapi.json
+
+> status 200
+> json $.openapi == "3.1.1"
+
+### Malformed JSON: 400, as a problem
+POST /v1/auth/login
+Content-Type: application/json
+
+{ "email": "cam@stagepass.test",
+
+> status 400
+> json $.detail == "The body is not valid JSON"
+
+### A route that does not exist
+GET /v1/nope
+
+> status 404
+> json $.detail == "No route GET /v1/nope"

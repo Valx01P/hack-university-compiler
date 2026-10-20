@@ -1,0 +1,213 @@
+# Taskboard: one request for each kind of call. The API panel sends these (so do VS Code's
+# REST Client and JetBrains' HTTP Client). Paths are relative to the server, which listens
+# on the port it prints (the workspace's PORT).
+#
+# Sent top to bottom on a freshly seeded database (uv run python -m scripts.seed), each
+# request gets what its > lines say: the status, a header, or a value at a JSON path.
+# "# @name login" names a request, so a later one can use {{login.response.body.$.token}}.
+
+@token = {{login.response.body.$.token}}
+@task = {{created.response.body.$.id}}
+
+# The INTERNAL_API_KEY in .env. Change both together.
+@internalKey = dev-only-internal-key-0123456789
+
+### The process is up (it never touches the database)
+GET /healthz
+
+> status 200
+> json $ == {"status": "ok"}
+
+### The database answers too
+GET /readyz
+
+> status 200
+> json $ == {"status": "ready", "checks": {"db": "ok"}}
+
+### Log in as Ada: the token, when it expires, and who she is
+# @name login
+POST /v1/auth/login
+Content-Type: application/json
+
+{"email": "ada@example.com", "password": "correct horse battery staple"}
+
+> status 200
+> json $.expires_at == "2026-10-02T09:00:00Z"
+> json $.user == {"id": 1, "name": "Ada Lovelace", "role": "admin"}
+
+### Who the token belongs to
+GET /v1/me
+Authorization: Bearer {{token}}
+
+> status 200
+> json $.email == "ada@example.com"
+
+### Ada's projects, with her role and their task counts
+GET /v1/projects
+Authorization: Bearer {{token}}
+
+> status 200
+> json $[*].slug == ["website-relaunch", "mobile-app"]
+> json $[0].task_counts == {"todo": 3, "doing": 3, "done": 2}
+
+### One project and its members
+GET /v1/projects/1
+Authorization: Bearer {{token}}
+
+> status 200
+> json $.members[*].name == ["Ada Lovelace", "Grace Hopper"]
+
+### Website Relaunch's open tasks, soonest due first
+GET /v1/projects/1/tasks?status=todo&sort=due
+Authorization: Bearer {{token}}
+
+> status 200
+> json $.items[*].id == [2, 5, 7]
+> json $.total == 3
+
+### Search titles and descriptions, ignoring case
+GET /v1/projects/1/tasks?q=LOGIN
+Authorization: Bearer {{token}}
+
+> status 200
+> json $.items[*].title == ["Fix login redirect"]
+
+### A bad sort is a 400 problem that names the parameter
+GET /v1/projects/1/tasks?sort=password
+Authorization: Bearer {{token}}
+
+> status 400
+> header Content-Type ~ ^application/problem\+json
+> json $.errors.sort == $string
+
+### One task, with its tags
+GET /v1/tasks/3
+Authorization: Bearer {{token}}
+
+> status 200
+> json $.tags == ["design", "frontend"]
+
+### Create a task, assigned to Grace (who gets a line in var/mail.log)
+# @name created
+POST /v1/projects/1/tasks
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"title": "Write the launch email", "priority": 3, "due_on": "2026-10-12", "assignee_id": 2}
+
+> status 201
+> json $.status == "todo"
+> json $.created_at == "2026-10-01T09:00:00Z"
+
+### Edit it: only the fields sent change
+PATCH /v1/tasks/{{task}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"title": "Write the launch emails"}
+
+> status 200
+> json $.title == "Write the launch emails"
+
+### Grace watches the task
+PUT /v1/tasks/{{task}}/watchers/2
+Authorization: Bearer {{token}}
+
+> status 204
+
+### Its watchers
+GET /v1/tasks/{{task}}/watchers
+Authorization: Bearer {{token}}
+
+> status 200
+> json $ == [{"id": 2, "name": "Grace Hopper"}]
+
+### Start it: Grace, a watcher, gets a message in the outbox
+POST /v1/tasks/{{task}}/transition
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"to": "doing"}
+
+> status 200
+> json $.status == "doing"
+
+### Drag it to the top of the Doing column
+POST /v1/tasks/{{task}}/move
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"position": 0}
+
+> status 200
+> json $.position == 0
+
+### Comment on it
+POST /v1/tasks/{{task}}/comments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"body": "  The draft is in the shared folder.  "}
+
+> status 201
+> json $.body == "The draft is in the shared folder."
+> json $.author == {"id": 1, "name": "Ada Lovelace"}
+
+### Task 1's comments, ten at a time, oldest first
+# @name page1
+GET /v1/tasks/1/comments?limit=10
+Authorization: Bearer {{token}}
+
+> status 200
+> json $.items == $len:10
+> json $.next_cursor == $string
+
+### The next page, from the first page's cursor
+GET /v1/tasks/1/comments?limit=10&cursor={{page1.response.body.$.next_cursor}}
+Authorization: Bearer {{token}}
+
+> status 200
+> json $.items[0].id == 11
+
+### Counts by status, now that one more task is in Doing
+GET /v1/projects/1/stats
+Authorization: Bearer {{token}}
+
+> status 200
+> json $ == {"todo": 3, "doing": 4, "done": 2}
+
+### The board: a column per status, each card with its assignee, tags, and comments
+GET /v1/projects/1/board
+Authorization: Bearer {{token}}
+
+> status 200
+> json $.columns[*].status == ["todo", "doing", "done"]
+> json $.columns[1].tasks[0].title == "Write the launch emails"
+
+### Tasks assigned to me, soonest due first
+GET /v1/me/tasks
+Authorization: Bearer {{token}}
+
+> status 200
+> json $.items[*].id == [6, 2, 7, 13]
+
+### People whose name or email contains "gr"
+GET /v1/users?q=gr
+Authorization: Bearer {{token}}
+
+> status 200
+> json $ == [{"id": 2, "name": "Grace Hopper", "email": "grace@example.com"}]
+
+### Send what waits in the outbox (internal, outside the contract): Grace's message
+POST /internal/outbox/run
+X-Internal-Key: {{internalKey}}
+
+> status 200
+> json $ == {"sent": 1}
+
+### Log out: the token stops working and the cookie is cleared
+POST /v1/auth/logout
+Authorization: Bearer {{token}}
+
+> status 204
+> header Set-Cookie ~ Max-Age=0

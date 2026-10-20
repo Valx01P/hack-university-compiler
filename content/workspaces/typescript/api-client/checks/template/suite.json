@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "image": "node",
+  "db": "none",
+  "copy": {
+    "exclude": [
+      "node_modules"
+    ],
+    "git": false
+  },
+  "deadlineMs": 60000,
+  "server": {
+    "task": "mock",
+    "port": "MOCK_PORT",
+    "ready": {
+      "path": "/health",
+      "timeoutMs": 15000
+    }
+  },
+  "steps": [
+    {
+      "id": "typecheck",
+      "kind": "cmd",
+      "run": [
+        "npx",
+        "tsc",
+        "--noEmit",
+        "--pretty",
+        "false"
+      ],
+      "expect": {
+        "exit": 0
+      },
+      "parse": "tsc"
+    },
+    {
+      "id": "tests",
+      "kind": "unit",
+      "tool": "node-test",
+      "run": [
+        "test/**/*.test.ts"
+      ]
+    },
+    {
+      "id": "mock-api",
+      "kind": "http-file",
+      "file": "requests.http"
+    },
+    {
+      "id": "mutants",
+      "kind": "mutants",
+      "mutants": [
+        {
+          "id": "retries-client-errors",
+          "by": [
+            "tests"
+          ],
+          "says": "The tests still pass when a 404 or a 422 is retried"
+        },
+        {
+          "id": "retry-after-as-ms",
+          "by": [
+            "tests"
+          ],
+          "says": "The tests still pass when Retry-After is read as milliseconds instead of seconds"
+        },
+        {
+          "id": "retry-without-backoff",
+          "by": [
+            "tests"
+          ],
+          "says": "The tests still pass when every retry waits the same short time"
+        },
+        {
+          "id": "paginate-drops-last-page",
+          "by": [
+            "tests"
+          ],
+          "says": "The tests still pass when the last page of a list is never yielded"
+        },
+        {
+          "id": "filter-on-first-page-only",
+          "by": [
+            "tests"
+          ],
+          "says": "The tests still pass when the status filter is sent with the first page only"
+        },
+        {
+          "id": "eta-always-a-date",
+          "by": [
+            "tests"
+          ],
+          "says": "The tests still pass when the schema refuses a shipment without an ETA"
+        },
+        {
+          "id": "body-not-checked",
+          "by": [
+            "tests"
+          ],
+          "says": "The tests still pass when a body is used without checking it against the schema"
+        },
+        {
+          "id": "timeout-as-network",
+          "by": [
+            "tests"
+          ],
+          "says": "The tests still pass when a timeout is reported as a network error"
+        }
+      ]
+    }
+  ],
+  "acceptance": {
+    "typecheck": "The project type-checks, type tests included",
+    "tests": "The SDK's own tests pass against the mock",
+    "mock-api": "Every request in requests.http gets the answer it states from a fresh mock",
+    "mutants": "The SDK's own tests catch each planted bug"
+  }
+}

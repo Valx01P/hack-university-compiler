@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "image": "node",
+  "db": "none",
+  "copy": {
+    "exclude": [
+      "node_modules",
+      "data/bramble.db"
+    ],
+    "git": false
+  },
+  "deadlineMs": 60000,
+  "server": {
+    "task": "start",
+    "port": "PORT",
+    "ready": {
+      "path": "/health",
+      "timeoutMs": 15000
+    }
+  },
+  "steps": [
+    {
+      "id": "typecheck",
+      "kind": "cmd",
+      "run": [
+        "npx",
+        "tsc",
+        "--noEmit",
+        "--pretty",
+        "false"
+      ],
+      "expect": {
+        "exit": 0
+      },
+      "parse": "tsc"
+    },
+    {
+      "id": "lint",
+      "kind": "cmd",
+      "run": [
+        "npx",
+        "eslint",
+        "."
+      ],
+      "expect": {
+        "exit": 0
+      },
+      "parse": "eslint"
+    },
+    {
+      "id": "tests",
+      "kind": "unit",
+      "tool": "node-test",
+      "run": [
+        "test/**/*.test.ts"
+      ]
+    },
+    {
+      "id": "db-reset",
+      "kind": "cmd",
+      "run": [
+        "npm",
+        "run",
+        "--silent",
+        "db:reset"
+      ],
+      "expect": {
+        "exit": 0,
+        "stdout": "Rebuilt data/bramble.db from 3 migrations and db/seed.sql: 4 customers, 8 products, 12 orders\n"
+      }
+    },
+    {
+      "id": "api",
+      "kind": "http-file",
+      "file": "requests.http"
+    },
+    {
+      "id": "mutants",
+      "kind": "mutants",
+      "mutants": [
+        {
+          "id": "cancel-no-event",
+          "by": [
+            "tests"
+          ],
+          "survivesAt": "os-40-1",
+          "says": "The tests still pass when cancelling emits no order.cancelled event"
+        },
+        {
+          "id": "cancel-allows-shipped",
+          "by": [
+            "tests"
+          ],
+          "survivesAt": "os-40-1",
+          "says": "The tests still pass when a shipped order can be cancelled"
+        },
+        {
+          "id": "cancel-wrong-error",
+          "by": [
+            "tests"
+          ],
+          "survivesAt": "os-40-1",
+          "says": "The tests still pass when cancelling a shipped order says not_found"
+        },
+        {
+          "id": "cancel-not-saved",
+          "by": [
+            "tests"
+          ],
+          "survivesAt": "os-40-1",
+          "says": "The tests still pass when the cancelled order is never saved"
+        },
+        {
+          "id": "ship-errors-200",
+          "by": [
+            "tests"
+          ],
+          "survivesAt": "os-40-2",
+          "says": "The tests still pass when ship answers 200 for an error"
+        },
+        {
+          "id": "view-drops-tracking",
+          "by": [
+            "tests"
+          ],
+          "survivesAt": "os-40-2",
+          "says": "The tests still pass when the response drops the tracking number"
+        },
+        {
+          "id": "ship-skips-validation",
+          "by": [
+            "tests"
+          ],
+          "survivesAt": "os-40-2",
+          "says": "The tests still pass when ship skips checking its body"
+        },
+        {
+          "id": "ship-accepts-any-order",
+          "by": [
+            "typecheck"
+          ],
+          "survivesAt": "os-40-3",
+          "says": "The type tests still compile when ship() accepts any order"
+        },
+        {
+          "id": "status-label-string",
+          "by": [
+            "typecheck"
+          ],
+          "survivesAt": "os-40-3",
+          "says": "The type tests still compile when statusLabel is any string"
+        },
+        {
+          "id": "customer-id-optional",
+          "by": [
+            "typecheck"
+          ],
+          "survivesAt": "os-40-3",
+          "says": "The type tests still compile when a new order may leave out its customer"
+        },
+        {
+          "id": "cursor-from-first-row",
+          "by": [
+            "tests"
+          ],
+          "says": "The tests still pass when the next page starts after the first row instead of the last"
+        },
+        {
+          "id": "hooks-keep-going",
+          "by": [
+            "tests"
+          ],
+          "says": "The tests still pass when a failing hook does not stop the hooks after it"
+        }
+      ]
+    }
+  ],
+  "acceptance": {
+    "typecheck": "The project type-checks, type tests included",
+    "lint": "ESLint reports nothing",
+    "tests": "The project's own unit and HTTP tests pass",
+    "db-reset": "npm run db:reset rebuilds the database from the migrations and the seed",
+    "api": "Every request in requests.http gets the answer it states",
+    "mutants": "The project's own tests catch each planted bug"
+  }
+}

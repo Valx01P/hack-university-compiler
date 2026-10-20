@@ -1,0 +1,44 @@
+# golangci-lint v2 settings for `make lint` (lesson 42). Each linter catches a kind of
+# bug that compiles fine: unchecked errors (errcheck), suspicious code (govet,
+# staticcheck), unidiomatic names and docs (revive), and security mistakes (gosec).
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - revive
+    - gosec
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*database/sql.DB).Close
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+        - name: error-strings
+        - name: receiver-naming
+    gosec:
+      excludes:
+        - G104 # unhandled errors: errcheck reports those already
+        - G115 # int conversions: limits and priorities are checked before they reach SQL
+  exclusions:
+    generated: strict # skips sqlc's and stringer's code, which say "Code generated"
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - example.com/taskboard

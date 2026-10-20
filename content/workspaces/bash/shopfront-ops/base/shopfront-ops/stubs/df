@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# A fake df for tests and examples. Put stubs/ first in PATH:
+#   PATH="$PWD/stubs:$PATH" STUB_DF_USE=91 df -P /
+# Every mount is a 60 GB disk STUB_DF_USE percent full (default 42).
+# STUB_DF_OUTPUT, when set, is printed instead, to test odd output.
+set -euo pipefail
+
+if [[ -n ${STUB_DF_OUTPUT+set} ]]; then
+  printf '%s\n' "$STUB_DF_OUTPUT"
+  exit 0
+fi
+
+use=${STUB_DF_USE:-42}
+human=false
+mounts=()
+for arg in "$@"; do
+  case $arg in
+    -h | --human-readable) human=true ;;
+    -*) ;;
+    *) mounts+=("$arg") ;;
+  esac
+done
+if (( ${#mounts[@]} == 0 )); then
+  mounts=(/)
+fi
+
+total_kb=61202244
+used_kb=$((total_kb * use / 100))
+free_kb=$((total_kb - used_kb))
+if [[ $human == true ]]; then
+  printf '%-14s %5s %5s %5s %4s %s\n' Filesystem Size Used Avail Use% 'Mounted on'
+  for mount in "${mounts[@]}"; do
+    printf '%-14s %5s %5s %5s %3d%% %s\n' overlay 59G "$((used_kb / 1048576))G" "$((free_kb / 1048576))G" "$use" "$mount"
+  done
+else
+  printf '%-14s %11s %9s %9s %8s %s\n' Filesystem 1024-blocks Used Available Capacity 'Mounted on'
+  for mount in "${mounts[@]}"; do
+    printf '%-14s %11d %9d %9d %7d%% %s\n' overlay "$total_kb" "$used_kb" "$free_kb" "$use" "$mount"
+  done
+fi
