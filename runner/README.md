@@ -422,8 +422,29 @@ from the size watch, and `{ "t": "db", "state": "reset" }` after a reset.
 
 `ref` names the template database: `{ course, template, checkpoint?, hash? }`
 (`hash` is the template's own hash, for builds that depend on more than their
-SQL). `services` is template.json's `services` with the content Next resolves
-from the template's `db/` folder:
+SQL). `services` is template.json's `services` with the content read from the
+template's original files, which `db/spec.ts` does:
+
+```ts
+import { serviceSpec } from "./db/spec.ts";
+
+// files.read(rel) answers a template file's original bytes (or null), and
+// files.list(dir) the names in one of its folders.
+const { spec, build } = serviceSpec(meta.config.services, files);
+const builder = build ? (target) => runInTemplateImage(build, target) : undefined; // a job on target.network with target.env
+const { env, network } = await databases.attach(id, ref, spec, builder);
+```
+
+| template.json `services` | What the database starts from |
+| --- | --- |
+| `"postgres": {}` (or with `"databases": ["dev", "test"]`) | The convention: `schema.sql`, `seed.sql`, then `migrations/*.sql` in name order, in `db/` or at the template's top (a goose file's Up section only). The test database gets the schema and migrations without the seed |
+| `"postgres": { "sql": ["db/a.sql", "db/b.sql"], "testSql": [ … ] }` | Those files, in that order |
+| `"postgres": { "build": ["npm", "run", "db:build"] }` | The command, run by the caller in a job from the template's image, against the empty template database |
+| `"postgres": { "empty": true }` | An empty database (startup-migration parts) |
+| `"mongo": {}` | `db/seed.json` (Extended JSON, below) or `db/seed.archive.gz` (`mongodump --archive --gzip` of one database, whatever its name) |
+| `"mongo": { "seed": "…", "testSeed": "…" }` | Those files. The test database starts empty without a `testSeed` |
+
+What `attach` takes, spelled out:
 
 ```json
 {
@@ -450,8 +471,9 @@ from the template's `db/` folder:
   template's image with the `env` (`DATABASE_URL` and the rest) and `network`
   it is given.
 - `documents` is Extended JSON text, one array of documents per collection
-  plus `$indexes`. The test database starts empty unless `testDocuments` is
-  given.
+  plus `$indexes`, or `archive` a `mongodump --archive --gzip` (its database
+  restored under the template's name, documents, indexes, and options). The
+  test database starts empty unless `testDocuments` is given.
 
 The variables a workspace's container gets (a check's and a run's are the same,
 pointing at their own databases):
@@ -681,6 +703,7 @@ db/mongo.ts       the admin mongosh session and its fixed helpers
 db/clients.ts     client containers, where learner and template SQL runs as its own role
 db/panel.ts       the panel's psql script, how its output is read, and the schema query
 db/routes.ts      GET and POST /v1/workspaces/:id/db/*
+db/spec.ts        template.json's services, read against a template's files
 db/names.ts       every role, database, container, network, and volume name, and the checks on them
 db/exec.ts        docker exec: one command, or a long-lived shell
 db/sql/*.sql      the fixed SQL
@@ -691,8 +714,12 @@ output reading, and the schemas without Docker. `runner/db/db.integration.test.t
 runs real servers in the verify namespace: hardening, resets under 50 ms, a
 check that never sees learner rows, a Mongo transaction (`rs.status().members.length`
 is 1), two workspaces that can't read each other's data, S8's escalations,
-template ownership, parking, the size watch, a single-file TypeScript run
-with a fresh database per test, Mongo setups, and the routes' shapes.
+template ownership, parking, the size watch, Mongo templates from archives,
+leftovers after a crash, idle stops and restarts, a single-file TypeScript
+run with a fresh database per test, Mongo setups, the routes' shapes, and a
+runner process of its own that removes its servers when it stops.
+`npm run security:verify -- S8` holds learner roles to their own databases
+and traces that only template SQL ever reaches the server.
 
 ## Jobs and containers
 
