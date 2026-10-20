@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { gsap } from "gsap";
 import { ScrollToPlugin } from "gsap/ScrollToPlugin";
 import { useGSAP } from "@gsap/react";
@@ -96,15 +96,21 @@ export const POP = {
   exit: { opacity: 0, y: -4, scale: 0.98, duration: 0.12, ease: EASE.in },
 } satisfies { enter: gsap.TweenVars; exit: gsap.TweenVars };
 
+const subscribeNothing = () => () => {};
+
 /**
  * A short entrance (fade and rise) when the element mounts, for content that
  * replaces other content: the next lesson part, a challenge, the challenge
- * list. Skipped on the first paint.
+ * list. Skipped on the first paint, and whenever the element mounts by
+ * hydrating the server's markup: a load or reload paints the page before
+ * React hydrates it, often a few frames before, so `hasPainted` alone would
+ * fade in what is already showing.
  */
 export function useEnter(ref: RefObject<HTMLElement | null>, from: gsap.TweenVars = { opacity: 0, y: 8 }) {
+  const hydrating = !useSyncExternalStore(subscribeNothing, () => true, () => false);
   useGSAP(
     () => {
-      if (!ref.current || !hasPainted()) return;
+      if (!ref.current || hydrating || !hasPainted()) return;
       gsap.from(ref.current, { ...from, duration: dur(0.24), ease: EASE.out, clearProps: "opacity,transform" });
     },
     { scope: ref }
