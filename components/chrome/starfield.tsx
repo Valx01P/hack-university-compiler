@@ -7,8 +7,9 @@ import { useStarsAmount, useStarsBrightness, useStarsOn } from "@/lib/theme";
  * The Stars setting (lib/theme.ts): a starry background behind the whole app,
  * off by default. One WebGL fragment shader on a fixed canvas behind the page
  * draws three layers of twinkling stars that drift slowly, and a soft nebula
- * glow. While it's on, the page's frame and panels let it through
- * (globals.css `.stars-through`), and code and menus keep their fills.
+ * glow. While it's on, the app's large backgrounds are see-through, code
+ * editors and code blocks included, so the sky shows behind everything
+ * (globals.css), and floating menus keep their fills.
  *
  * Every color comes from the theme tokens (--ink for the stars and --gold for
  * the tinted ones and the glow, or the theme's yellow for every star on the

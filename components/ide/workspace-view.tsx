@@ -269,7 +269,7 @@ export function WorkspaceView({
       data-workspace-id={store.id}
       data-settled={store.settled ? "" : undefined}
       style={ideStyle}
-      className={`stars-through @container flex min-h-0 flex-1 flex-col bg-surface ${className}`}
+      className={`@container flex min-h-0 flex-1 flex-col bg-surface ${className}`}
     >
       {/* Toolbar */}
       <div className="slim-scroll flex h-11 shrink-0 items-center gap-2 overflow-x-auto border-b border-line px-2">

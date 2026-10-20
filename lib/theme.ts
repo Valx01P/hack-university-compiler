@@ -400,8 +400,9 @@ export function useCodeCommentsHidden(): boolean {
 /**
  * Stars: a starry background behind the app (components/chrome/starfield.tsx),
  * off by default. On is <html data-stars>, applied before first paint by the
- * bootstrap in app/layout.tsx, and while it's on the page's frame and its
- * panels let the stars through (globals.css `.stars-through`). Their
+ * bootstrap in app/layout.tsx, and while it's on the app's large backgrounds,
+ * code editors and code blocks included, let the stars through (globals.css).
+ * Their
  * brightness and amount are 0 to 100 settings, like the line sliders.
  */
 export const STARS_KEY = "hu-stars";

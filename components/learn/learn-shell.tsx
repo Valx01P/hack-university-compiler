@@ -192,7 +192,7 @@ export function LearnShell({
 
   return (
     <div className="px-3 pt-2 pb-2 lg:h-[calc(100dvh-4rem-1px)] lg:overflow-hidden">
-      <section className="stars-through flex min-h-0 flex-col rounded-card border border-line bg-surface lg:h-full lg:overflow-hidden">
+      <section className="flex min-h-0 flex-col rounded-card border border-line bg-surface lg:h-full lg:overflow-hidden">
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3 py-1.5">
           <span className="flex min-w-0 items-center gap-0.5">
             <button

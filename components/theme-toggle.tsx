@@ -96,46 +96,49 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
           role="menu"
           aria-label="Theme"
           style={{ transformOrigin: floating ? "bottom right" : "top right" }}
-          className={`slim-scroll absolute right-0 z-[60] w-60 overflow-y-auto rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card) ${
+          className={`slim-scroll absolute right-0 z-[60] w-[22rem] overflow-y-auto rounded-card border border-edge bg-surface py-1 shadow-(--shadow-card) ${
             floating ? "bottom-[calc(100%+0.5rem)] max-h-[calc(100dvh-5rem)]" : "top-[calc(100%+0.4rem)] max-h-[calc(100dvh-4.5rem)]"
           }`}
         >
-          {APP_THEMES.map((t) => {
-            const active = t.id === theme;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                role="menuitemradio"
-                aria-checked={active}
-                onClick={() => {
-                  setTheme(t.id);
-                  setOpen(false);
-                }}
-                className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
-                  active
-                    ? "text-ink dark:text-gold"
-                    : "text-ink-muted hover:bg-raised hover:text-ink"
-                }`}
-              >
-                <ThemeIcon id={t.id} className="size-4 shrink-0" />
-                <span className="flex-1 text-left">{t.label}</span>
-                {active && (
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="size-4 shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M5 12l4 4 9-10" />
-                  </svg>
-                )}
-              </button>
-            );
-          })}
+          {/* Two columns, so the whole menu fits without scrolling. */}
+          <div className="grid grid-cols-2">
+            {APP_THEMES.map((t) => {
+              const active = t.id === theme;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={active}
+                  onClick={() => {
+                    setTheme(t.id);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                    active
+                      ? "text-ink dark:text-gold"
+                      : "text-ink-muted hover:bg-raised hover:text-ink"
+                  }`}
+                >
+                  <ThemeIcon id={t.id} className="size-4 shrink-0" />
+                  <span className="flex-1 text-left">{t.label}</span>
+                  {active && (
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="size-4 shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M5 12l4 4 9-10" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
           {/* A modifier, not a theme: picking a level keeps the menu open so
               you can see it apply, and it sticks as you switch themes. */}
@@ -227,32 +230,34 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
           {/* How visible the layout's big lines are, and, separately, the
               lines inside the content, each down to none. */}
           <div role="separator" className="my-1 h-px bg-edge" />
-          <PercentSlider
-            id="layout-lines"
-            label="Layout lines"
-            hint="Panels, sidebars, outlined buttons"
-            value={lines}
-            onChange={setLayoutLines}
-            icon={
-              <>
-                <rect x="3" y="4.5" width="18" height="15" rx="2.5" strokeDasharray="3 2.5" />
-                <path d="M9 4.5v15" />
-              </>
-            }
-          />
-          <PercentSlider
-            id="content-lines"
-            label="Content lines"
-            hint="Tables, code, search boxes, dividers"
-            value={contentLines}
-            onChange={setContentLines}
-            icon={
-              <>
-                <rect x="3" y="4.5" width="18" height="15" rx="2" />
-                <path d="M3 9.5h18M3 14.5h18M10 4.5v15" />
-              </>
-            }
-          />
+          <div className="grid grid-cols-2">
+            <PercentSlider
+              id="layout-lines"
+              label="Layout lines"
+              hint="Panels, sidebars, outlined buttons"
+              value={lines}
+              onChange={setLayoutLines}
+              icon={
+                <>
+                  <rect x="3" y="4.5" width="18" height="15" rx="2.5" strokeDasharray="3 2.5" />
+                  <path d="M9 4.5v15" />
+                </>
+              }
+            />
+            <PercentSlider
+              id="content-lines"
+              label="Content lines"
+              hint="Tables, code, search boxes, dividers"
+              value={contentLines}
+              onChange={setContentLines}
+              icon={
+                <>
+                  <rect x="3" y="4.5" width="18" height="15" rx="2" />
+                  <path d="M3 9.5h18M3 14.5h18M10 4.5v15" />
+                </>
+              }
+            />
+          </div>
 
           {/* Comments in lesson and cheatsheet examples, for reading the code
               alone (running an example prints its results anyway). */}
@@ -312,7 +317,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
             <SwitchTrack on={starsOn} className="mt-0.5" />
           </button>
           {starsOn && (
-            <>
+            <div className="grid grid-cols-2">
               <PercentSlider
                 id="stars-brightness"
                 label="Brightness"
@@ -340,7 +345,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                   </>
                 }
               />
-            </>
+            </div>
           )}
         </div>
       )}
@@ -367,7 +372,8 @@ function PercentSlider({
   icon: React.ReactNode;
 }) {
   return (
-    <div role="group" aria-label={label} className="px-3 pb-3 pt-1.5">
+    // A column: paired side by side, the two sliders line up at the bottom.
+    <div role="group" aria-label={label} className="flex flex-col px-3 pb-3 pt-1.5">
       <label className="flex items-center gap-2.5 text-sm text-ink-muted" htmlFor={id}>
         <svg
           viewBox="0 0 24 24"
@@ -380,20 +386,22 @@ function PercentSlider({
         >
           {icon}
         </svg>
-        <span className="flex-1">{label}</span>
+        <span className="flex-1 whitespace-nowrap">{label}</span>
         <span className="font-mono text-xs text-ink-faint">{value === 0 ? "off" : `${value}%`}</span>
       </label>
       {hint && <p className="mt-0.5 pl-[1.625rem] text-xs text-ink-faint">{hint}</p>}
-      <input
-        id={id}
-        type="range"
-        min={0}
-        max={100}
-        step={5}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-2.5 w-full accent-ink"
-      />
+      <div className="mt-auto pt-2.5">
+        <input
+          id={id}
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="w-full accent-ink"
+        />
+      </div>
     </div>
   );
 }

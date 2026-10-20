@@ -227,7 +227,7 @@ export function RunnableSnippet({
       </div>
 
       {run && (
-        <div role="region" aria-label="Output" className="stars-through code-terminal mt-2 overflow-hidden rounded-card border border-content-line bg-surface">
+        <div role="region" aria-label="Output" className="code-terminal mt-2 overflow-hidden rounded-card border border-content-line bg-surface">
           <div className="flex items-center justify-between border-b border-content-line px-3 py-1">
             <span className="text-[11px] font-medium uppercase tracking-wider text-ink-faint">Output</span>
             <button

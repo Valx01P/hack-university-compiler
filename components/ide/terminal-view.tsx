@@ -49,13 +49,17 @@ function themeFrom(host: HTMLElement) {
   probe.style.display = "none";
   host.appendChild(probe);
   const v = (name: string, fallback: string) => resolveColor(probe, `var(${name}, ${fallback})`, fallback);
-  const background = v("--code-bg", "#0a0a0a");
+  const solid = v("--code-bg", "#0a0a0a");
+  // With the stars on (lib/theme.ts) the terminal is see-through like the rest
+  // of the app. Its own color stays in the rgb, for the contrast checks, and
+  // the cursor keeps it solid.
+  const background = document.documentElement.hasAttribute("data-stars") ? `${solid}00` : solid;
   const foreground = v("--code-ink", "#f0ece6");
   const theme: Record<string, string> = {
     background,
     foreground,
     cursor: foreground,
-    cursorAccent: background,
+    cursorAccent: solid,
     selectionBackground: v("--code-selection", "#555555"),
     scrollbarSliderBackground: v("--code-edge", "#333333"),
   };
@@ -136,6 +140,7 @@ export function TerminalView({
         screenReaderMode: live.current.settings.screenReader,
         minimumContrastRatio: CONTRAST[contrast] ?? 1,
         theme: themeFrom(host),
+        allowTransparency: true,
         allowProposedApi: false,
       });
       termRef.current = term;
@@ -233,7 +238,8 @@ export function TerminalView({
       });
       handleRef?.({ session, term, focus: () => term?.focus() });
 
-      // Re-theme when the code theme, contrast, background, or selection changes.
+      // Re-theme when the code theme, contrast, background, selection, or the
+      // stars change.
       const observer = new MutationObserver(() => {
         if (!term) return;
         term.options.theme = themeFrom(host);
@@ -241,7 +247,7 @@ export function TerminalView({
         term.options.fontSize = fontSize();
         if (host.offsetWidth > 0) fit.fit();
       });
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-code-theme", "data-contrast", "data-code-bg", "data-code-sel", "style"] });
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-code-theme", "data-contrast", "data-code-bg", "data-code-sel", "data-stars", "style"] });
       const sized = new ResizeObserver(() => {
         if (host.offsetWidth > 0 && host.offsetHeight > 0) requestAnimationFrame(() => fit.fit());
       });

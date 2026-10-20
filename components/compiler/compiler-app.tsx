@@ -554,7 +554,7 @@ export function CompilerApp({
   return (
     <div
       data-workspace
-      className={`stars-through flex bg-canvas ${
+      className={`flex bg-canvas ${
         // In the shell the app fills the panel's content area exactly
         // (definite height on lg); on phones the panel isn't height-capped, so
         // fall back to a viewport-sized block.
@@ -862,7 +862,7 @@ export function CompilerApp({
               role="region"
               aria-labelledby={outputId}
               tabIndex={0}
-              className="stars-through code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface"
+              className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface"
             >
               {playground ? (
                 sqlView === "database" ? (
