@@ -370,7 +370,8 @@ files, and later calls return the live state. The id must be
 | `env` | Extra variables for the container. `HOME`, `HOST`, and the port variables always win |
 | `limits` | Lower the course's caps (`memoryMb`, `cpus`, `pids`), never raise them |
 | `build` | Folders that live on their own volume (`dist`, `.next`, `target`) |
-| `hidden`, `readonly`, `restartOnReset`, `examples`, `deps`, `services`, `diagnostics` | Kept in `meta.json`. `deps` and `services` take effect in P2 |
+| `diagnostics` | `[{ "on": "save", "cmd": ["npx", "tsc", "--noEmit", "--pretty", "false"], "parser": "tsc" }]`: commands run in `/workspace` (as uid 1000, at most 60 s) a second after the last save while the workspace runs, and once when it starts. Their findings arrive as `diag` events |
+| `hidden`, `readonly`, `restartOnReset`, `examples`, `deps`, `services` | Kept in `meta.json`. `deps` and `services` take effect in P2 |
 | `id`, `course`, `title`, `layout`, `open`, `requests`, `panels`, `autosave` | Accepted so a `template.json` can be spread in, and ignored |
 
 **200** `{ "id", "status", "templateHash", "created", "updated", "ports", "tree", "removed" }`:
@@ -724,6 +725,7 @@ ride along. No cookie is ever used for authentication.
 | Runner to client | `{"t":"port", …port}`, when a port opens, closes, or changes (see "Ports") |
 | Runner to client | `{"t":"task","name":"dev","state":"starting\|running\|exited","code":1,"signal":null,"sid":"…"}` |
 | Runner to client | `{"t":"check","checkId":"c7m2xqa3k9","phase":"copy\|server\|tests\|done","test":{…}}`: a `tests` message carries one finished test, and `done` carries the whole `result` |
+| Runner to client | `{"t":"diag","source":"tsc","items":[{"file":"src/app.ts","line":12,"col":7,"severity":"error","code":"TS2322","message":"…"}]}`: the template's save-time diagnostics, run a second after the last save (and once at start) while the workspace runs. Each message replaces every earlier item from its `source` (an empty `items` clears them). `tsc` output is parsed as tsc prints it, and any other parser reads the `file:line:col: severity: message` form of go vet, ruff, and `shellcheck -f gcc` |
 | Runner to client | `{"t":"limit","kind":"oom\|pids\|fsize\|idle\|lru","message":"Your workspace used more than its 1 GB and a process was stopped"}` |
 | Runner to client | `{"t":"terminal","sid":"…","state":"exited","code":0}` when a shell ends |
 | Runner to client | `{"t":"docker","state":"up\|down\|waking"}` |
@@ -929,6 +931,8 @@ tasks.ts         detached tasks with pid files, and the per-second poll (ports, 
 ports.ts         the lease table and ports.json
 tunnel.ts        the port bridge, the API panel's requests, the framing probe
 capacity.ts      the memory budget, LRU stops, and the queue
+diagnostics.ts   on-save diagnostics and their parsers
+zip.ts           just enough zip for Download
 checks/          the check sandbox: suite schema, cmd, http, and process steps, results
 test-fixtures/   content for the workspace tests: the TypeScript playground template and a part overlay
 log.ts           ~/.hack-university/logs/runner.log

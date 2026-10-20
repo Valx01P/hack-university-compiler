@@ -51,6 +51,7 @@ const openBody = (scope: string) => ({
   tasks: TASKS,
   ports: [{ env: "PORT", label: "API", readyPath: "/healthz" }],
   env: { HU_FIXED_TIME: "2026-10-01T09:00:00Z" },
+  diagnostics: [{ on: "save", cmd: ["npx", "tsc", "--noEmit", "--pretty", "false"], parser: "tsc" }],
 });
 
 let runner: RunnerProcess;
@@ -524,8 +525,16 @@ describe("workspaces", { skip }, () => {
     assert.equal(byId.hello.request.path, "/hello?name=Ada");
     assert.equal(byId.hello.response.status, 200);
 
-    // A type error shows where it is.
+    // A type error shows where it is, in the Problems panel a second after the save and in the check.
+    const saved = Date.now();
     await raw(runner, "PUT", `/v1/workspaces/${id}/file?path=src/greet.ts`, Buffer.from("export function greet(name: string): string {\n  return 42;\n}\n"));
+    // (A run already under way when the save lands can report it too, so no timing is asserted.)
+    const diag = (await until(() => ev.got.find((g) => g.at >= saved && g.m.t === "diag" && g.m.items.length > 0), 20_000))!;
+    assert.equal(diag.m.source, "tsc");
+    assert.deepEqual(
+      { file: diag.m.items[0].file, line: diag.m.items[0].line, col: diag.m.items[0].col, severity: diag.m.items[0].severity, code: diag.m.items[0].code },
+      { file: "src/greet.ts", line: 2, col: 3, severity: "error", code: "TS2322" }
+    );
     const typed = await run("workspaces/typescript/playground/checks/runner");
     const typecheck = typed.tests.find((t: { id: string }) => t.id === "typecheck");
     assert.equal(typecheck.status, "fail");

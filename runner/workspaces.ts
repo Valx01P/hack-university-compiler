@@ -5,6 +5,7 @@ import type Docker from "dockerode";
 import { parseScope, workspaceId } from "../lib/workspace-id.mjs";
 import type { Capacity, Candidate } from "./capacity.ts";
 import type { Config } from "./config.ts";
+import { diagSpecs, runDiagnostics } from "./diagnostics.ts";
 import { LABEL, isDockerDown, labelsFor, type DockerWatch, type Owner } from "./docker.ts";
 import { EventHub, type EventMessage, type FsEvent, type Subscriber } from "./events.ts";
 import { execCollect } from "./exec.ts";
@@ -220,6 +221,8 @@ export class Workspace {
   private memSentAt = 0;
   private counters: { oom: number; pids: number } | null = null;
   private startPromise: Promise<void> | null = null;
+  private diagTimer: NodeJS.Timeout | null = null;
+  private diagRunning: Promise<void> | null = null;
 
   constructor(m: Workspaces, meta: Meta) {
     this.m = m;
@@ -435,6 +438,7 @@ export class Workspace {
       if (this.running && this.cfs) await this.cfs.writeFile(rel, data);
       else this.files.writeFile(rel, data);
       this.watcher.touch(rel);
+      this.saved();
       return { etag: sha256(data) };
     });
   }
@@ -466,6 +470,7 @@ export class Workspace {
           if (inside) await this.cfs!.remove(op.path!);
           else this.files.remove(op.path!);
           for (const p of [op.path!, op.to].filter(Boolean)) this.watcher.touch(p as string);
+          this.saved();
           return undo ? { undo } : {};
         }
         case "restore":
@@ -473,6 +478,7 @@ export class Workspace {
           return {};
       }
       for (const p of [op.path, op.to]) if (p) this.watcher.touch(p);
+      this.saved();
       return {};
     });
   }
@@ -527,6 +533,42 @@ export class Workspace {
         this.files.symlink(e.path, e.target ?? "");
       }
     }
+  }
+
+  // Diagnostics
+
+  /** A save: the template's diagnostics run a second after the last one, while the workspace runs. */
+  saved() {
+    if (!this.running || !diagSpecs(this.meta.config.diagnostics).length) return;
+    if (this.diagTimer) clearTimeout(this.diagTimer);
+    this.diagTimer = setTimeout(() => {
+      this.diagTimer = null;
+      void this.diagnose();
+    }, 1_000);
+    this.diagTimer.unref();
+  }
+
+  /** Runs every save-time diagnostic once, one run at a time, and sends what each found. */
+  async diagnose(): Promise<void> {
+    if (this.diagRunning) {
+      await this.diagRunning;
+      return this.saved();
+    }
+    const container = this.container;
+    if (!this.running || !container) return;
+    this.diagRunning = (async () => {
+      for (const spec of diagSpecs(this.meta.config.diagnostics)) {
+        try {
+          const items = await runDiagnostics(container, spec);
+          if (this.running) this.emit({ t: "diag", source: spec.parser, items });
+        } catch (err) {
+          this.m.log.warn("workspace.diagnostics_failed", { id: this.id, error: (err as Error).message });
+        }
+      }
+    })().finally(() => {
+      this.diagRunning = null;
+    });
+    await this.diagRunning;
   }
 
   // Reset and snapshots
@@ -610,6 +652,7 @@ export class Workspace {
       }
     }
     for (const p of [...remove, ...restore]) this.watcher.touch(p);
+    if (remove.length || restore.length) this.saved();
     return { restored: restore.filter((p) => targetManifest[p].type !== "dir"), removed: remove };
   }
 
@@ -760,6 +803,7 @@ export class Workspace {
         await this.openDeclaredBridges(leases);
         this.startPolling();
         this.setStatus("running", null);
+        this.saved();
         this.m.log.info("workspace.started", { id: this.id, image: imageName });
       } catch (err) {
         for (const step of undo.reverse()) await step();
@@ -861,6 +905,8 @@ export class Workspace {
     const container = this.container;
     this.setStatus("stopping", null);
     this.stopPolling();
+    if (this.diagTimer) clearTimeout(this.diagTimer);
+    this.diagTimer = null;
     if (container && reason !== "docker") {
       const running = [...this.tasks.values()].filter((t) => t.state === "running" || t.state === "starting");
       if (running.length) {
