@@ -21,6 +21,8 @@ export interface WorkspaceTemplateInfo {
   /** <course>/<template>. */
   id: string;
   title: string;
+  /** What the codebase is and what it's for, under its title. */
+  description: string | null;
   layout: "ide" | "preview-first";
   /** `open` starts the container when the workspace opens. */
   start: "run" | "open";

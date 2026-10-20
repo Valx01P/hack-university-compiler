@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { InlineScript } from "@/components/inline-script";
 import { PlaygroundView } from "@/components/ide/playground-view";
 import { COURSES, getCourseEntry } from "@/lib/courses";
+import { getCourse } from "@/lib/learn";
 import { IDE_GATE, playgroundCourses, playgroundLinks, playgroundRoute } from "@/lib/playgrounds";
 import { workspaceProps } from "@/lib/workspaces";
 
@@ -34,7 +35,7 @@ export default async function PlaygroundSlotPage(props: PageProps<"/[lang]/playg
   return (
     <>
       <InlineScript html={IDE_GATE("data-restore")} />
-      <PlaygroundView props={workspace} title={route.title} langLabel={entry.label} links={playgroundLinks(lang)} current={`/${lang}/playground/${slot}`} />
+      <PlaygroundView props={workspace} title={route.title} langLabel={entry.label} links={playgroundLinks(lang)} current={`/${lang}/playground/${slot}`} learnHref={(await getCourse(lang)) ? `/${lang}/learn` : null} />
     </>
   );
 }

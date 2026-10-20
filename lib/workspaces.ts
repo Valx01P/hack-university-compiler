@@ -24,6 +24,8 @@ const Template = z.looseObject({
   id: z.string(),
   course: z.string(),
   title: z.string(),
+  /** One or two sentences on what the codebase is and what it's for. */
+  description: z.string().max(300).optional(),
   image: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/),
   storage: z.enum(["host", "volume"]).default("host"),
   profile: z.enum(["standard", "sysadmin"]).default("standard"),
@@ -215,6 +217,7 @@ export function templateInfo(r: Pick<ResolvedScope, "course" | "templateId" | "t
   return {
     id: `${r.course}/${r.templateId}`,
     title: t.title,
+    description: t.description ?? null,
     layout: t.layout,
     start: t.start,
     storage: t.storage,
