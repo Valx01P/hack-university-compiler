@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import type Docker from "dockerode";
 import { ROOT } from "./config.ts";
-import { Images, imageHash } from "./images.ts";
+import { CORE_IMAGES, IMAGES, Images, imageHash, templateFiles } from "./images.ts";
 
 describe("image tags", () => {
   it("hash the Dockerfile and every file it copies, and nothing else", () => {
@@ -21,6 +21,53 @@ describe("image tags", () => {
     assert.equal(imageHash(copy, "node"), before.node);
     writeFileSync(path.join(copy, "docker/shared/hu-exec.c"), "/* changed */\n", { flag: "a" });
     assert.notEqual(imageHash(copy, "node"), before.node);
+  });
+});
+
+describe("stack images", () => {
+  function copyOfDocker(): string {
+    const copy = mkdtempSync(path.join(tmpdir(), "hu-images-"));
+    cpSync(path.join(ROOT, "docker"), path.join(copy, "docker"), { recursive: true });
+    return copy;
+  }
+
+  it("leave npm run up with the core images only", () => {
+    assert.deepEqual(CORE_IMAGES, ["node", "bash"]);
+    for (const name of Object.keys(IMAGES)) assert.ok(existsSync(path.join(ROOT, IMAGES[name as keyof typeof IMAGES].dockerfile)), name);
+  });
+
+  it("hash their parent's tag, so hu/web follows hu/node", () => {
+    const copy = copyOfDocker();
+    const before = { web: imageHash(copy, "web"), python: imageHash(copy, "python") };
+    writeFileSync(path.join(copy, "docker/node/Dockerfile"), "# changed\n", { flag: "a" });
+    assert.notEqual(imageHash(copy, "web"), before.web);
+    assert.equal(imageHash(copy, "python"), before.python);
+  });
+
+  it("hash their courses' template lockfiles, and nothing else in a template", () => {
+    const copy = copyOfDocker();
+    const before = { web: imageHash(copy, "web"), python: imageHash(copy, "python"), go: imageHash(copy, "go") };
+    const template = path.join(copy, "content/workspaces/express/taskboard-api");
+    mkdirSync(path.join(template, "base/node_modules/zod"), { recursive: true });
+    mkdirSync(path.join(template, "checkpoints/cp-02/overlay"), { recursive: true });
+    writeFileSync(path.join(template, "base/package.json"), '{"name":"t"}');
+    writeFileSync(path.join(template, "base/package-lock.json"), '{"lockfileVersion":3}');
+    writeFileSync(path.join(template, "base/node_modules/zod/package.json"), '{"name":"zod"}');
+    writeFileSync(path.join(template, "base/server.ts"), "export {};");
+    writeFileSync(path.join(template, "checkpoints/cp-02/overlay/package-lock.json"), '{"lockfileVersion":3}');
+    assert.deepEqual(templateFiles(copy, "web"), [
+      "express/taskboard-api/base/package-lock.json",
+      "express/taskboard-api/base/package.json",
+      "express/taskboard-api/checkpoints/cp-02/overlay/package-lock.json",
+    ]);
+    const withLock = imageHash(copy, "web");
+    assert.notEqual(withLock, before.web);
+    writeFileSync(path.join(template, "base/server.ts"), "export const changed = 1;");
+    assert.equal(imageHash(copy, "web"), withLock);
+    assert.equal(imageHash(copy, "python"), before.python);
+    mkdirSync(path.join(copy, "content/workspaces/go-api/notes-api/base"), { recursive: true });
+    writeFileSync(path.join(copy, "content/workspaces/go-api/notes-api/base/go.sum"), "");
+    assert.notEqual(imageHash(copy, "go"), before.go);
   });
 });
 

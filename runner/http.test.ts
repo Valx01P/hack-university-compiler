@@ -123,11 +123,22 @@ describe("the REST API", () => {
     const body = res.json as Record<string, Record<string, unknown>>;
     assert.equal(body.docker.state, "ready");
     assert.equal(body.docker.belowFloor, false);
-    assert.deepEqual(body.images, { "hu/node": "ready", "hu/bash": "ready" });
+    assert.deepEqual(body.images, {
+      "hu/node": "ready", "hu/bash": "ready", "hu/web": "ready", "hu/python": "ready", "hu/java": "ready", "hu/go": "ready",
+    });
     assert.equal((body.recipes.typescript as Record<string, unknown>).image, "hu/node:0123456789ab");
     assert.deepEqual(body.jobs, { running: 0, queued: 0, slots: 4 });
     // 7,933 MiB, less 512 of headroom and Piston's 2,048.
     assert.equal(body.workspaces.budgetMb, 5373);
+  });
+
+  it("prepares a course by building the image it runs in, and knows no other courses", async () => {
+    const express = await request("POST", "/v1/stacks/express/prepare", { headers: auth });
+    assert.equal(express.status, 202);
+    assert.deepEqual(express.json, { stack: "express", images: { "hu/web": "ready" } });
+    const go = await request("POST", "/v1/stacks/go-api/prepare", { headers: auth });
+    assert.deepEqual(go.json, { stack: "go-api", images: { "hu/go": "ready" } });
+    assert.equal((await request("POST", "/v1/stacks/python/prepare", { headers: auth })).status, 404);
   });
 
   it("wants JSON bodies that pass the schema", async () => {
