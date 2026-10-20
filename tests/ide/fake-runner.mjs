@@ -63,11 +63,12 @@ function materialize(course, template, layers) {
 }
 
 /** Starts a fake runner. Options: port (0 picks one), token, appPort, portRange [from, to]. */
-export async function startFakeRunner({ port = 0, token = "fake-token", appPort = 3000, portRange = [24100, 24199] } = {}) {
+export async function startFakeRunner({ port = 0, token = "fake-token", appPort = 3000, portRange = null } = {}) {
   const workspaces = new Map();
   const tickets = new Map();
   const checks = new Map();
-  let nextPort = portRange[0];
+  // Dev servers take ports from the range, or any free one without a range.
+  let nextPort = portRange ? portRange[0] : 0;
 
   const sendJson = (res, status, body, headers = {}) => {
     const text = body === undefined ? "" : JSON.stringify(body);
@@ -277,9 +278,8 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
     emit(ws, { t: "task", name, state: "starting", code: null, signal: null });
     term.write(`\x1b[2m$ ${ws.body.tasks?.[name] ?? name}\x1b[0m\r\n`);
     if (name === "dev") {
-      const p = nextPort;
-      nextPort = nextPort >= portRange[1] ? portRange[0] : nextPort + 1;
-      task.port = p;
+      const wanted = nextPort;
+      if (portRange) nextPort = nextPort >= portRange[1] ? portRange[0] : nextPort + 1;
       task.server = http.createServer((req, res) => {
         if (req.url?.startsWith("/api/")) {
           res.writeHead(200, { "Content-Type": "application/json", "Set-Cookie": "fake_session=1; Path=/; HttpOnly" });
@@ -289,7 +289,9 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end("<!doctype html><title>fake dev server</title><h1>Hello from the fake dev server</h1>");
       });
-      task.server.listen(p, "127.0.0.1", () => {
+      task.server.listen(wanted, "127.0.0.1", () => {
+        const p = task.server.address().port;
+        task.port = p;
         task.state = "running";
         term.write(`Listening on http://localhost:${p}\r\n`);
         ws.ports.set(p, { port: p, url: `http://localhost:${p}`, state: "listening", bind: "0.0.0.0", process: "node", framable: true });
