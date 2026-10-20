@@ -528,11 +528,14 @@ export class Databases {
     });
   }
 
-  /** Marks a workspace's databases used, for the parking clock. */
+  /** Marks a workspace's databases used, for the parking clock (saved at most once a minute). */
   touch(id: string) {
     const rec = this.store.workspaces[id];
     if (!rec) return;
-    rec.lastUsedAt = Date.now();
+    const now = Date.now();
+    const stale = now - rec.lastUsedAt > 60_000;
+    rec.lastUsedAt = now;
+    if (stale) this.save();
     if (rec.postgres) this.services.touch("postgres");
     if (rec.mongo) this.services.touch("mongo");
   }

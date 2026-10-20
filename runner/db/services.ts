@@ -217,7 +217,8 @@ export class DbServices {
       await this.docker.getContainer(name).remove({ force: true, v: false });
       container = null;
     }
-    await this.ensureVolume(volume);
+    // A replaced volume takes the containers that used it along.
+    if (await this.ensureVolume(volume)) container = await this.inspect(name);
     if (!container) await this.docker.createContainer(kind === "postgres" ? this.postgresSpec(volume) : this.mongoSpec(volume, image));
     const c = this.docker.getContainer(name);
     if (!container?.State.Running) await c.start().catch((err: { statusCode?: number }) => {
@@ -395,10 +396,11 @@ export class DbServices {
     }
   }
 
-  private async ensureVolume(name: string): Promise<void> {
+  /** Makes the volume when it's missing or another data folder's. Answers whether it made one. */
+  private async ensureVolume(name: string): Promise<boolean> {
     try {
       const v = await this.docker.getVolume(name).inspect();
-      if (v.Labels?.["hu.instance"] === this.secrets.instance) return;
+      if (v.Labels?.["hu.instance"] === this.secrets.instance) return false;
       // Its data belongs to a data folder that is gone, with every workspace that used it.
       this.log.warn("db.volume_replaced", { name });
       for (const c of await this.docker.listContainers({ all: true, filters: { volume: [name] } })) {
@@ -409,6 +411,7 @@ export class DbServices {
       if ((err as { statusCode?: number }).statusCode !== 404) throw err;
     }
     await this.docker.createVolume({ Name: name, Labels: { ...labelsFor(this.owner, "db"), "hu.instance": this.secrets.instance } });
+    return true;
   }
 
   private async inspect(name: string): Promise<Docker.ContainerInspectInfo | null> {

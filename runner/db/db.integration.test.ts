@@ -577,3 +577,25 @@ describe("idle servers", { skip }, () => {
     assert.equal(db.state("mongo"), "running");
   });
 });
+
+describe("a server another data folder left", { skip }, () => {
+  it("is replaced with its volume, rather than left with passwords nobody has", async () => {
+    const port = PORT + 3;
+    const ownerOf = (boot: string): Owner => ({ ns: "verify", boot, port });
+    const first = new Databases({ docker, owner: ownerOf(owner.boot), dataDir: mkdtempSync(path.join(tmpdir(), "hv-db-old-")), log: quietLog, env: {} });
+    await first.attach("woldfoldera", REF, PG_SPEC);
+    // That data folder is gone, and its runner with it: no shutdown.
+    await first.clients.shutdown();
+    first.services.pg.close();
+    const second = new Databases({ docker, owner: ownerOf(owner.boot), dataDir: mkdtempSync(path.join(tmpdir(), "hv-db-new-")), log: quietLog, env: {} });
+    try {
+      await second.attach("wnewfoldera", REF, PG_SPEC);
+      const q = await second.query("wnewfoldera", { sql: "SELECT count(*) FROM tasks" });
+      assert.equal(q.engine === "postgres" && q.rows[0][0], "3");
+      assert.ok(!(await second.services.pg.roles()).has("ws_woldfoldera"), "the old server's data went with it");
+    } finally {
+      await second.shutdown();
+    }
+    assert.deepEqual((await docker.listContainers({ all: true, filters: { label: [`hu.port=${port}`, "hu.ns=verify"] } })).map((c) => c.Names[0]), []);
+  });
+});
