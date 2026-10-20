@@ -217,9 +217,9 @@ practice problems for each programming language, and 114 for SQL.
 - Stuck? The eye next to the editor's `{}` shows the answer in place of your
   code (your code is kept, and the eye closes back onto it). The first time on
   a page it asks first: click once, and again within 3 seconds while it glows.
-- A part gets a green check once its practice passes, and a lesson once all its
-  parts do. When it passes, the floating **Next** glows for a few seconds, like
-  the eye, to point the way on.
+- A part gets a check once its practice passes (green, or blue in Nord and
+  Solarized), and a lesson once all its parts do. When it passes, the floating
+  **Next** glows for a few seconds, like the eye, to point the way on.
 - The panel button at the top left shows and hides the lesson list: docked on
   the left on wide screens, sliding in as a drawer on narrower ones. Each
   lesson's parts fold out under it (the lesson you're on opens by itself). The
@@ -277,7 +277,7 @@ SQL the database view (`&view=database`), with nothing popping in.
   same set in every language. Open one and the editor fills with its starter
   (your own code comes back when you leave it). **Check** runs it against the
   tests, and **Previous** and **Next** move through the list. Opened challenges get an eye, solved ones a
-  green check. The eye next to `{}` reveals the answer, the same way as in
+  check. The eye next to `{}` reveals the answer, the same way as in
   Learn mode.
 
 Content lives in `content/reference/<language>/<topic>.md` and
