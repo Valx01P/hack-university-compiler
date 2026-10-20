@@ -29,6 +29,7 @@ export function LessonDrawer({
   anyWidth?: boolean;
   lang: string;
   langLabel: string;
+  compiler: boolean;
   course: Course;
   currentId: string | null;
   currentPart: number;

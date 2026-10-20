@@ -50,12 +50,16 @@ const clampWidth = (width: number) =>
 export function LearnShell({
   lang,
   langLabel,
+  compiler,
   course,
   courses,
   children,
 }: {
   lang: string;
   langLabel: string;
+  /** Whether the course has a compiler page. One without (a course whose
+      lessons are all read lessons) hides every way back to it. */
+  compiler: boolean;
   course: Course;
   /** Lessons in course order for every language that has a course. */
   courses: Record<string, LessonRef[]>;
@@ -183,7 +187,7 @@ export function LearnShell({
     else setDrawer((open) => !open);
   };
 
-  const listProps = { lang, langLabel, course, currentId, currentPart, courses };
+  const listProps = { lang, langLabel, compiler, course, currentId, currentPart, courses };
 
   return (
     <div className="px-3 pt-2 pb-2 lg:h-[calc(100dvh-4rem-1px)] lg:overflow-hidden">
@@ -217,16 +221,20 @@ export function LearnShell({
               </span>
             )}
           </span>
-          <span className="flex shrink-0 items-center gap-2">
-            {/* No room on phones; a run still reports sandbox problems. The
-                badge shows up once the sandbox answers, so it gets a slot as
-                wide as its longest label ("sandbox offline") in the server
-                markup, and nothing moves when it appears. */}
-            <span className="hidden min-w-32 justify-end sm:flex">
-              <SandboxStatus lang={lang} />
+          {/* A course without a compiler page runs nothing in Learn, so it
+              has neither the sandbox badge nor the Compiler button. */}
+          {compiler && (
+            <span className="flex shrink-0 items-center gap-2">
+              {/* No room on phones; a run still reports sandbox problems. The
+                  badge shows up once the sandbox answers, so it gets a slot as
+                  wide as its longest label ("sandbox offline") in the server
+                  markup, and nothing moves when it appears. */}
+              <span className="hidden min-w-32 justify-end sm:flex">
+                <SandboxStatus lang={lang} />
+              </span>
+              <CompilerButton lang={lang} langLabel={langLabel} />
             </span>
-            <CompilerButton lang={lang} langLabel={langLabel} />
-          </span>
+          )}
         </div>
 
         <div ref={rowRef} className="flex min-h-0 flex-1">

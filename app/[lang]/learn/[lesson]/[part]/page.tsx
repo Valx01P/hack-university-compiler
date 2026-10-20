@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { PartView, type PartLink } from "@/components/learn/part-view";
+import type { PartLink } from "@/components/learn/part-frame";
+import { PartView } from "@/components/learn/part-view";
+import { ReadPartView } from "@/components/learn/read-part-view";
 import { getCompilerLang } from "@/lib/compiler";
-import { getAllPartParams, getLesson, getLessonOrder } from "@/lib/learn";
+import { getCourseEntry, isCompilerCourse } from "@/lib/courses";
+import { codebaseHref, getAllPartParams, getLesson, getLessonOrder } from "@/lib/learn";
 import { getFixtureSet, type FixtureFile } from "@/lib/learn-fixtures";
 import { partHref, singleFileFeatures, type Lesson } from "@/lib/learn-types";
 
@@ -26,13 +29,17 @@ export function generateStaticParams() {
   return getAllPartParams();
 }
 
+// A read lesson needs only its course. Every other kind runs in the
+// course's compiler, so its course needs a compiler page.
 async function load(params: PageProps<"/[lang]/learn/[lesson]/[part]">["params"]) {
   const { lang: slug, lesson: id, part: raw } = await params;
-  const lang = getCompilerLang(slug);
+  const course = getCourseEntry(slug);
   const lesson = await getLesson(slug, id);
   const part = Number(raw) - 1;
-  if (!lang || !lesson || !Number.isInteger(part) || part < 0 || part >= lesson.steps.length) return null;
-  return { lang, lesson, part };
+  if (!course || !lesson || !Number.isInteger(part) || part < 0 || part >= lesson.steps.length) return null;
+  if (lesson.format === "read") return { course, lang: null, lesson, part };
+  const lang = getCompilerLang(slug);
+  return lang ? { course, lang, lesson, part } : null;
 }
 
 export async function generateMetadata(
@@ -40,9 +47,9 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const found = await load(props.params);
   if (!found) return { title: "Learn" };
-  const { lang, lesson, part } = found;
+  const { course, lesson, part } = found;
   return {
-    title: `${lesson.steps[part].title} · ${lesson.title} · Learn ${lang.label}`,
+    title: `${lesson.steps[part].title} · ${lesson.title} · Learn ${course.label}`,
     description: lesson.summary,
   };
 }
@@ -50,9 +57,9 @@ export async function generateMetadata(
 export default async function PartPage(props: PageProps<"/[lang]/learn/[lesson]/[part]">) {
   const found = await load(props.params);
   if (!found) notFound();
-  const { lang, lesson, part } = found;
+  const { course, lang, lesson, part } = found;
 
-  const order = await getLessonOrder(lang.slug);
+  const order = await getLessonOrder(course.slug);
   const index = order.findIndex((l) => l.id === lesson.id);
   const before = index > 0 ? order[index - 1] : null;
   const after = index >= 0 && index < order.length - 1 ? order[index + 1] : null;
@@ -60,16 +67,36 @@ export default async function PartPage(props: PageProps<"/[lang]/learn/[lesson]/
   // Prev and next walk through the parts, then on to the next lesson.
   const prev: PartLink | null =
     part > 0
-      ? { href: partHref(lang.slug, lesson.id, part), title: lesson.steps[part - 1].title, lesson: false }
+      ? { href: partHref(course.slug, lesson.id, part), title: lesson.steps[part - 1].title, lesson: false }
       : before
-        ? { href: partHref(lang.slug, before.id, before.parts.length), title: before.title, lesson: true }
+        ? { href: partHref(course.slug, before.id, before.parts.length), title: before.title, lesson: true }
         : null;
   const next: PartLink | null =
     part < count - 1
-      ? { href: partHref(lang.slug, lesson.id, part + 2), title: lesson.steps[part + 1].title, lesson: false }
+      ? { href: partHref(course.slug, lesson.id, part + 2), title: lesson.steps[part + 1].title, lesson: false }
       : after
-        ? { href: partHref(lang.slug, after.id, 1), title: after.title, lesson: true }
+        ? { href: partHref(course.slug, after.id, 1), title: after.title, lesson: true }
         : null;
+
+  if (lesson.format === "read") {
+    return (
+      <ReadPartView
+        key={`${lesson.id}/${part}`}
+        course={{ slug: course.slug, label: course.label }}
+        compiler={isCompilerCourse(course.slug)}
+        lesson={{ id: lesson.id, title: lesson.title, section: lesson.section, intro: lesson.intro, recap: lesson.recap }}
+        parts={lesson.steps.map((s) => s.title)}
+        part={part}
+        step={lesson.steps[part]}
+        position={{ index, total: order.length }}
+        prev={prev}
+        next={next}
+        ide={await codebaseHref(course.slug, lesson.steps[part].codebase)}
+      />
+    );
+  }
+  // load found the compiler for every other kind of lesson.
+  if (!lang) notFound();
 
   const fixtures = await partFixtures(lang.slug, lesson, part);
 

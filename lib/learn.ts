@@ -1,8 +1,8 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { cache } from "react";
-import { normalizeLesson, type Course, type Lesson, type LessonFile, type LessonMeta, type LessonRef } from "@/lib/learn-types";
-import { COMPILER_COURSES } from "@/lib/courses";
+import { normalizeLesson, type AnyLesson, type Course, type LessonFile, type LessonMeta, type LessonRef, type StepCodebase } from "@/lib/learn-types";
+import { COURSES, getCourseEntry } from "@/lib/courses";
 
 /**
  * Reads Learn mode content from content/learn at build time. Every lesson page
@@ -46,7 +46,7 @@ const courseDir = cache(async (lang: string): Promise<string> => {
 
 /** A lesson, with every step's examples in `examples` (a lesson file may
     still give a step a single `example`). */
-export const getLesson = cache(async (lang: string, id: string): Promise<Lesson | null> => {
+export const getLesson = cache(async (lang: string, id: string): Promise<AnyLesson | null> => {
   if (!ID_RE.test(lang) || !ID_RE.test(id)) return null;
   const file = await readJson<LessonFile>(path.join(await courseDir(lang), `${id}.json`));
   return file && normalizeLesson(file);
@@ -97,9 +97,10 @@ export async function getLessonRefs(lang: string): Promise<LessonRef[]> {
   return (await getLessonOrder(lang)).map((l) => ({ id: l.id, parts: l.parts.length }));
 }
 
-// Learn covers the courses whose compiler page exists (content/courses.json),
-// so every course's "Back to the compiler" has somewhere to go.
-const COURSE_SLUGS = COMPILER_COURSES.map((c) => c.slug);
+// Learn covers every registered course with lessons (content/courses.json),
+// its compiler page shipped or not. A course without one has only read
+// lessons, and Learn hides its way back to the compiler.
+const COURSE_SLUGS = COURSES.map((c) => c.slug);
 
 /** Lessons in course order for every course that has a Learn mode (at
     least one lesson), keyed by course in registry order. */
@@ -126,4 +127,23 @@ export async function getAllPartParams(): Promise<{ lang: string; lesson: string
     )
   );
   return all.flat();
+}
+
+const WORKSPACES = path.join(process.cwd(), "content", "workspaces");
+
+/** Where a read part's "Open in the IDE" goes: the IDE on its codebase, at
+    the first of its files. Null when the part names none, or its template
+    isn't in content/workspaces yet (the IDE opens only the ones that are).
+    A course's own playground template opens at /<course>/playground. */
+export async function codebaseHref(course: string, codebase: StepCodebase | undefined): Promise<string | null> {
+  if (!codebase || !ID_RE.test(course) || !ID_RE.test(codebase.template)) return null;
+  const found = await fs.stat(path.join(WORKSPACES, course, codebase.template)).then(
+    (stat) => stat.isDirectory(),
+    () => false
+  );
+  if (!found) return null;
+  const own = getCourseEntry(course)?.playground === `${course}/${codebase.template}`;
+  const href = own ? `/${course}/playground` : `/${course}/playground/${codebase.template}`;
+  const [file] = codebase.files ?? [];
+  return file ? `${href}?file=${encodeURIComponent(file).replaceAll("%2F", "/")}` : href;
 }

@@ -7,7 +7,7 @@ import { LangIcon } from "@/components/compiler/lang-icon";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Collapse } from "@/components/ui/collapse";
-import { COMPILER_COURSES, courseRows, type CourseEntry } from "@/lib/courses";
+import { COURSES, courseRows, type CourseEntry } from "@/lib/courses";
 import { partHref, problemId, type Course, type LessonRef } from "@/lib/learn-types";
 import { useResumeHref, useSolvedState } from "@/lib/learn-progress";
 
@@ -27,6 +27,7 @@ export function isLessonComplete(solved: Set<string>, id: string, problems: numb
 export function LessonList({
   lang,
   langLabel,
+  compiler,
   course,
   currentId,
   currentPart,
@@ -35,6 +36,8 @@ export function LessonList({
 }: {
   lang: string;
   langLabel: string;
+  /** Whether the course has a compiler page to go back to. */
+  compiler: boolean;
   course: Course;
   currentId: string | null;
   /** The part you're on, counting from 0. */
@@ -48,8 +51,9 @@ export function LessonList({
   const done = lessons.filter((l) => isLessonComplete(solved, l.id, l.problems)).length;
   const currentRef = useRef<HTMLAnchorElement>(null);
   const uid = useId();
-  // Only courses with lessons have a Learn mode to switch to.
-  const langs = COMPILER_COURSES.filter((c) => courses[c.slug]?.length);
+  // Only courses with lessons have a Learn mode to switch to, whether or not
+  // their compiler page has shipped.
+  const langs = COURSES.filter((c) => courses[c.slug]?.length);
 
   // Which lessons show their parts. The current one opens by itself (in the
   // server markup too, so nothing moves on load), and stays open until you
@@ -105,19 +109,22 @@ export function LessonList({
             onNavigate={onNavigate}
           />
         )}
-        {/* Asks first, like the compiler's Learn button. */}
-        <ConfirmButton
-          title="Back to the compiler?"
-          description="Your lesson progress and the code in each part stay saved."
-          confirmLabel="Open compiler"
-          href={`/${lang}`}
-          onConfirm={onNavigate}
-          align="left"
-          className={`${langs.length > 1 ? "mt-2" : "mt-3"} inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink`}
-        >
-          <ArrowLeft className="size-3.5" aria-hidden />
-          Back to the {langLabel} compiler
-        </ConfirmButton>
+        {/* Asks first, like the compiler's Learn button. A course without a
+            compiler page has nowhere to go back to. */}
+        {compiler && (
+          <ConfirmButton
+            title="Back to the compiler?"
+            description="Your lesson progress and the code in each part stay saved."
+            confirmLabel="Open compiler"
+            href={`/${lang}`}
+            onConfirm={onNavigate}
+            align="left"
+            className={`${langs.length > 1 ? "mt-2" : "mt-3"} inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink`}
+          >
+            <ArrowLeft className="size-3.5" aria-hidden />
+            Back to the {langLabel} compiler
+          </ConfirmButton>
+        )}
       </div>
 
       <div className="slim-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-3">
