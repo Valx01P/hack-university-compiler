@@ -1,7 +1,7 @@
 import { EditorState, RangeSetBuilder, StateEffect, StateField, type Extension, type Text, type Transaction, type TransactionSpec } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
 import { SearchQuery, setSearchQuery } from "@codemirror/search";
-import { commentPieces } from "@/lib/highlight";
+import { commentPieces } from "@/lib/tokenize.mjs";
 
 /**
  * The Code comments switch in editable files (architecture §8.4, decision
@@ -37,8 +37,10 @@ const MAX_LINES = 5000;
 export const setComments = StateEffect.define<{ hidden: boolean; original: string | null | undefined }>();
 
 class HiddenWidget extends WidgetType {
-  constructor(readonly block: boolean) {
+  readonly block: boolean;
+  constructor(block: boolean) {
     super();
+    this.block = block;
   }
   eq(other: HiddenWidget) {
     return other.block === this.block;
@@ -215,9 +217,12 @@ export function commentDecorations({
     });
     const change = single as { from: number; to: number; text: string } | null;
     if (count !== 1 || !change || change.from !== change.to || change.text.includes("\n")) return tr;
+    // Typing inside hidden text, or right after a hidden comment that ends
+    // its line, goes before the comment, on its visible side.
     let moveTo = -1;
     deco.between(change.from, change.from, (a, b, value) => {
-      if (value.spec.block !== true && b === change.from && doc.lineAt(a).to === b) moveTo = a;
+      if (change.from > a && change.from < b) moveTo = value.spec.block === true ? doc.lineAt(a).from : a;
+      else if (value.spec.block !== true && b === change.from && doc.lineAt(a).to === b) moveTo = a;
     });
     if (moveTo < 0) return tr;
     return [{ changes: { from: moveTo, insert: change.text }, selection: { anchor: moveTo + change.text.length }, userEvent: "input.type", scrollIntoView: true }];

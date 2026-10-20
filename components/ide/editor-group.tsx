@@ -6,7 +6,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { X } from "lucide-react";
 import { useCodeEditorSettings } from "@/components/code/editor-settings";
 import { FileIcon } from "@/components/ide/file-icon";
-import { formatBytes } from "@/components/ide/explorer";
+import { formatBytes } from "@/lib/ide-names";
 import { commentDecorations, KEPT_MESSAGE, setComments } from "@/lib/comment-decorations";
 import { editorCompartments, editorExtensions, reconfigureSettings } from "@/lib/editor-extensions";
 import { positionAt, showDiagnostics } from "@/lib/editor-diagnostics";
