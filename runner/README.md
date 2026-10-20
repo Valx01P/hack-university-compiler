@@ -399,7 +399,8 @@ import type { Databases, ServiceSpec, TemplateRef } from "./db/index.ts";
 // Start, when template.json has `services`: the first call makes the role and
 // databases (building the template database once per hash); later calls
 // answer at once. Put `env` in the container's Env and `network` in its
-// NetworkMode (standardProfile's `network`), so `db` and `mongo` resolve.
+// NetworkMode (standardProfile's `network`, whose type widens to string: a
+// verify runner's network is hv-db-<port>), so `db` and `mongo` resolve.
 const { env, network } = await databases.attach(id, ref, services);
 
 // POST …/reset with scope "db" or "everything" (and restart tasks that
@@ -409,7 +410,7 @@ const { databases: reset, ms } = await databases.resetWorkspace(id, "all"); // o
 // A check: a fresh clone of the template (never of the learner's database),
 // or an empty database for suites with "db": "empty". Drop it when done.
 const ck = await databases.checkDatabase(id, suite.db);
-try { /* the check's job gets ck.env on ck.network */ } finally { await ck.drop(); }
+try { /* the check's job gets ck.env on ck.network (JobSpec.network) */ } finally { await ck.drop(); }
 
 await databases.dropWorkspace(id);           // DELETE /v1/workspaces/:id
 databases.touch(id);                         // activity, for the parking clock
@@ -617,6 +618,31 @@ The same as `databases.resetWorkspace`, for the IDE's "Reset database" until
 | 502 | `db_error` | The server answered with an error the runner didn't expect |
 | 503 | `image_missing`, `db_failed`, `docker_unavailable` | The image couldn't be downloaded, the server didn't start, or Docker is off |
 
+### `sql` and `mongo` check steps
+
+`db/checks.ts` judges a suite's `sql` and `mongo` steps (architecture §6.8)
+against the check's own database (`checkDatabase`), as the check's own role,
+after the learner's code has had its turn:
+
+```json
+{ "id": "no-row", "kind": "sql", "query": "SELECT count(*) FROM tasks WHERE title = 't6'", "rows": [["0"]] }
+{ "id": "five", "kind": "sql", "query": "SELECT * FROM tasks WHERE owner = 1", "count": 5 }
+{ "id": "indexed", "kind": "sql", "query": "SELECT * FROM tasks WHERE owner = 1", "plan": { "usesIndex": "tasks_owner_idx" } }
+{ "id": "kept", "kind": "mongo", "collection": "recipes", "filter": { "title": "Pancakes" }, "documents": [{ "servings": 4 }] }
+```
+
+- `rows` are exact, as psql prints them (text, `null` for NULL), `count` the
+  number of rows, and `plan.usesIndex` an index name (or `true` for any) in
+  `EXPLAIN`'s plan with sequential scans discouraged.
+- `documents` are the documents found, in order, each holding the named
+  fields with those values (Extended JSON read as plain values), and `count`
+  how many match.
+- A query that fails (a table the learner never made) fails the step with
+  PostgreSQL's message. The check runner calls
+  `sqlCheck(databases, ck, SqlCheckStep.parse(raw))` and `mongoCheck(…)`,
+  whose answers are a result row's `status`, `message`, `expected`, and
+  `actual`.
+
 ### Single-file runs with a database
 
 `POST /v1/run` takes the lesson's `setup` (architecture §6.3 and §6.4, the
@@ -704,6 +730,7 @@ db/clients.ts     client containers, where learner and template SQL runs as its 
 db/panel.ts       the panel's psql script, how its output is read, and the schema query
 db/routes.ts      GET and POST /v1/workspaces/:id/db/*
 db/spec.ts        template.json's services, read against a template's files
+db/checks.ts      the sql and mongo check steps
 db/names.ts       every role, database, container, network, and volume name, and the checks on them
 db/exec.ts        docker exec: one command, or a long-lived shell
 db/sql/*.sql      the fixed SQL
