@@ -8,7 +8,7 @@ import { Cancelled, type Capacity, type Candidate } from "./capacity.ts";
 import type { Config } from "./config.ts";
 import { diagSpecs, runDiagnostics } from "./diagnostics.ts";
 import { LABEL, isDockerDown, labelsFor, type DockerWatch, type Owner } from "./docker.ts";
-import { EventHub, type EventMessage, type FsEvent, type Subscriber } from "./events.ts";
+import { EventHub, type EventMessage, type Subscriber } from "./events.ts";
 import { execCollect } from "./exec.ts";
 import { HttpError } from "./http-util.ts";
 import { isImageName, type Images } from "./images.ts";
@@ -134,7 +134,6 @@ export interface Changes {
 
 const MiB = 1024 * 1024;
 const WRITE_CAP = 1 * MiB;
-const UPLOAD_CAP = 5 * MiB;
 const READ_CAP = 5 * MiB;
 const TRASH_CAP = 50 * MiB;
 const TRASH_TTL_MS = 24 * 3_600_000;
@@ -352,7 +351,7 @@ export class Workspace {
       else if (state === "modified") changes.modified.push(e.path);
     }
     const removed: string[] = [];
-    for (const [p, orig] of Object.entries(this.meta.manifest)) {
+    for (const p of Object.keys(this.meta.manifest)) {
       if (present.has(p)) continue;
       const parent = p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
       // Only the top of a removed subtree: its children go with it.
