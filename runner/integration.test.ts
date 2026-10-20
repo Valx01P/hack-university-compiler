@@ -315,11 +315,13 @@ describe("the bash recipe", { skip }, () => {
   });
 
   it("says the sandbox stopped, not that the program failed, when the container goes from outside", async () => {
+    // Only this run's container: an earlier test's may still be on its way out.
+    const earlier = new Set((await docker.listContainers({ all: true, filters: { label: [`${LABEL.runner}=${owner.boot}`] } })).map((c) => c.Id));
     const run = sh("sleep 5\necho never\n");
     let jobs: Docker.ContainerInfo[] = [];
     for (let i = 0; i < 100 && !jobs.length; i++) {
       await new Promise((r) => setTimeout(r, 50));
-      jobs = await docker.listContainers({ filters: { label: [`${LABEL.runner}=${owner.boot}`], status: ["running"] } });
+      jobs = (await docker.listContainers({ filters: { label: [`${LABEL.runner}=${owner.boot}`], status: ["running"] } })).filter((c) => !earlier.has(c.Id));
     }
     // Into the sleep, past the load. Then another runner's cleanup, or
     // Docker restarting, looks like this.

@@ -207,6 +207,14 @@ describe("template.json services", () => {
     assert.deepEqual(serviceSpec({ mongo: {} }, tree({})).spec.mongo, { databases: ["dev"] });
   });
 
+  it("hand back a Mongo build command when there's no seed file, and start an empty build empty", () => {
+    const built = serviceSpec({ mongo: { build: ["npm", "run", "db:reset"], databases: ["dev", "test"] } }, tree({}));
+    assert.deepEqual(built, { spec: { mongo: { databases: ["dev", "test"] } }, build: null, mongoBuild: ["npm", "run", "db:reset"] });
+    const seeded = serviceSpec({ mongo: { build: ["npm", "run", "db:reset"] } }, tree({ "db/seed.json": "{}" }));
+    assert.equal(seeded.mongoBuild, undefined, "a seed file wins over the command");
+    assert.deepEqual(serviceSpec({ postgres: { build: [], databases: ["dev"] } }, tree({})), { spec: { postgres: { databases: ["dev"], empty: true } }, build: null });
+  });
+
   it("keep a goose file's Up section only", () => {
     assert.equal(upOnly({ name: "x.sql", text: "SELECT 1;" }).text, "SELECT 1;");
     assert.equal(upOnly({ name: "x.sql", text: "-- +goose Up\n-- +goose StatementBegin\nSELECT 2;\n-- +goose StatementEnd\n" }).text, "\n-- +goose StatementBegin\nSELECT 2;\n-- +goose StatementEnd\n");

@@ -37,7 +37,10 @@ try {
   skip = "Docker isn't running";
 }
 
-const base = process.env.HU_TEST_DATA_DIR ?? fs.mkdtempSync(path.join(tmpdir(), "hv-ws-"));
+// The real path: macOS's tmpdir() is under /var, a symbolic link, and the
+// manifest helpers below never follow one (O_NOFOLLOW_ANY), as the runner doesn't.
+if (process.env.HU_TEST_DATA_DIR) fs.mkdirSync(process.env.HU_TEST_DATA_DIR, { recursive: true });
+const base = fs.realpathSync(process.env.HU_TEST_DATA_DIR ?? fs.mkdtempSync(path.join(tmpdir(), "hv-ws-")));
 const [first, last] = (process.env.HU_TEST_WS_PORTS ?? "24000-24099").split("-").map(Number);
 const half = Math.floor((first + last) / 2);
 const APP = "http://localhost:3000";

@@ -76,6 +76,32 @@ describe("the job profile (architecture §11.2)", () => {
     assert.match(tmpfs["/work"], /^rw,exec,nosuid,nodev,size=67108864,/);
     assert.match(tmpfs["/tmp"], /noexec,nosuid,nodev,size=67108864/);
   });
+
+  it("gives checks and template builds their volumes, a /tmp that runs programs, and a home, and nothing else", () => {
+    const build = jobProfile({
+      name: "hu-job-2",
+      image: "hu/go:abc",
+      labels: labelsFor(owner, "job"),
+      workDir: "/workspace",
+      hostname: "workspace",
+      env: [],
+      limits: SCRIPT_JOB,
+      network: "hu-db",
+      mounts: [{ source: "hu-deps-npm-e53825f19fa4", target: "/workspace/node_modules", readOnly: true }, { source: "hu-go-build", target: "/opt/hu/go-build" }],
+      tmpExec: true,
+      home: "/home/learner",
+    });
+    const h = build.HostConfig as Record<string, unknown>;
+    assert.equal(h.NetworkMode, "hu-db");
+    assert.deepEqual(h.Mounts, [
+      { Type: "volume", Source: "hu-deps-npm-e53825f19fa4", Target: "/workspace/node_modules", ReadOnly: true },
+      { Type: "volume", Source: "hu-go-build", Target: "/opt/hu/go-build" },
+    ]);
+    const tmpfs = h.Tmpfs as Record<string, string>;
+    assert.match(tmpfs["/tmp"], /^rw,exec,nosuid,nodev,/);
+    assert.match(tmpfs["/home/learner"], /^rw,nosuid,nodev,size=67108864,mode=0755,uid=1000,gid=1000$/);
+    assert.equal(h.Binds, undefined);
+  });
 });
 
 describe("workspace profiles (architecture §11.2)", () => {
@@ -99,6 +125,30 @@ describe("workspace profiles (architecture §11.2)", () => {
     assert.equal(host.NanoCpus, 2e9);
     assert.equal(host.PidsLimit, 512);
     assert.deepEqual((host.Mounts as { Target: string }[]).map((m) => m.Target), ["/workspace", "/home/learner"]);
+    // Docker mounts a tmpfs noexec unless told: go run and go test build in /tmp.
+    assert.match((host.Tmpfs as Record<string, string>)["/tmp"], /^rw,exec,nosuid,nodev,/);
+  });
+
+  it("standard with a database: its network, and dependency and build volumes over the files", () => {
+    const o = standardProfile({
+      name: "hv-ws-3",
+      image: "hu/web:abc",
+      labels: {},
+      env: [],
+      filesDir: "/Users/me/.hack-university/workspaces/w/files",
+      homeVolume: "hv-ws-3-home",
+      limits: WORKSPACE_LIMITS.typescript,
+      network: "hv-db-3460",
+      mounts: [{ source: "hv-ws-3-build-dist", target: "/workspace/dist" }, { source: "hv-deps-abcd1234-npm-e53825f19fa4", target: "/workspace/node_modules", readOnly: true }],
+    });
+    const host = o.HostConfig as Record<string, unknown>;
+    assert.equal(host.NetworkMode, "hv-db-3460");
+    assert.deepEqual(host.Mounts, [
+      { Type: "bind", Source: "/Users/me/.hack-university/workspaces/w/files", Target: "/workspace" },
+      { Type: "volume", Source: "hv-ws-3-home", Target: "/home/learner" },
+      { Type: "volume", Source: "hv-ws-3-build-dist", Target: "/workspace/dist" },
+      { Type: "volume", Source: "hv-deps-abcd1234-npm-e53825f19fa4", Target: "/workspace/node_modules", ReadOnly: true },
+    ]);
   });
 
   it("sysadmin: root with Docker's defaults minus NET_RAW, MKNOD, SYS_CHROOT, and SETFCAP, and no host mounts", () => {
