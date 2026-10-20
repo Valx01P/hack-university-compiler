@@ -46,7 +46,7 @@ import { checkInSandbox, normalizeOutput, refreshSandboxStatus, runInSandbox, ty
 import { joinArgs, splitArgs } from "@/lib/shell-words";
 import { forbiddenUses, judgeTest, judgeTypeTests } from "@/lib/single-checks.mjs";
 import { useEnter } from "@/lib/motion";
-import { useFullScreen } from "@/lib/full-screen";
+import { FULL_SCREEN_TITLE, useFullScreen } from "@/lib/full-screen";
 import { revealWorkspace, urlCount, urlParam, writeUrl } from "@/lib/url-state";
 
 // Each worked example has a tab of its own, then Your code (the practice).
@@ -192,11 +192,11 @@ export function PartView({
   const articleRef = useRef<HTMLElement>(null);
   useEnter(articleRef);
 
-  // Full screen, the same one the compiler uses: the lesson and the editor
-  // over the whole window. It lasts while you move between parts and to the
-  // compiler and back, is in the address (?full=1), and Escape leaves it.
-  const [full, setFull] = useFullScreen();
-  const toggleFull = () => setFull((was) => !was);
+  // Full screen, the same one the compiler uses: the header hidden first,
+  // then the lesson and the editor over the whole window. It lasts while you
+  // move between parts and to the compiler and back, is in the address
+  // (?full=semi, ?full=1), and Escape leaves it.
+  const [full, stepFull, screenMode] = useFullScreen();
 
   const [split, setSplitPct] = useState(session.split);
   const setSplit = (pct: number) => {
@@ -559,7 +559,7 @@ export function PartView({
       <div
         ref={editorRef}
         data-editor-pane
-        className="flex h-[88dvh] min-h-[30rem] min-w-0 scroll-mt-[calc(4rem+1px)] flex-col p-2 lg:h-auto lg:min-h-0"
+        className="flex h-[88dvh] min-h-[30rem] min-w-0 scroll-mt-(--header-h) flex-col p-2 lg:h-auto lg:min-h-0"
       >
         {/* The padding (offset by the negative margins) leaves room for focus
             rings inside these scrolling rows, the thicker super-contrast ring
@@ -621,10 +621,10 @@ export function PartView({
             <div className="ms-auto flex shrink-0 items-center gap-1">
               <button
                 type="button"
-                onClick={toggleFull}
-                title={full ? "Exit full screen" : "Full screen"}
+                onClick={stepFull}
+                title={FULL_SCREEN_TITLE[screenMode]}
                 aria-label="Toggle full screen"
-                aria-pressed={full}
+                aria-pressed={screenMode === "full" ? true : screenMode === "semi" ? "mixed" : false}
                 className={`${iconBtn} hidden lg:inline-flex`}
               >
                 <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -771,7 +771,7 @@ export function PartView({
             </div>
           </div>
 
-          <div ref={outputRef} className="mt-2 flex min-h-[9rem] flex-[2] scroll-mb-2 scroll-mt-[calc(4rem+1px)] flex-col">
+          <div ref={outputRef} className="mt-2 flex min-h-[9rem] flex-[2] scroll-mb-2 scroll-mt-(--header-h) flex-col">
             <div className="flex shrink-0 items-center gap-1 pb-2">
               <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
                 {panel.mode === "check" ? "Results" : "Output"}

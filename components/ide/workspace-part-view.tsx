@@ -34,7 +34,7 @@ const SPLIT = { min: 25, max: 70, initial: 38 };
 const session = { split: SPLIT.initial };
 const CODE_BLOCK =
   "code-dark slim-scroll overflow-x-auto rounded-card border border-code-content-line bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink";
-const PLACE_MARGIN = "scroll-mt-[calc(4rem+1rem)] lg:scroll-mt-4";
+const PLACE_MARGIN = "scroll-mt-[calc(var(--header-h)_+_1rem)] lg:scroll-mt-4";
 const NEXT_GLOW_MS = 3600;
 
 function Prose({ md, className = "" }: { md: string; className?: string }) {

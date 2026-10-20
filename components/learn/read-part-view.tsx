@@ -22,7 +22,7 @@ import { Highlight } from "@/lib/highlight";
 import { problemId, type ReadExample, type ReadLesson, type ReadStep } from "@/lib/learn-types";
 import { markSolved, setLastLesson, useSolvedState } from "@/lib/learn-progress";
 import { useEnter } from "@/lib/motion";
-import { useFullScreen } from "@/lib/full-screen";
+import { FULL_SCREEN_TITLE, useFullScreen } from "@/lib/full-screen";
 import { revealWorkspace } from "@/lib/url-state";
 
 /**
@@ -79,7 +79,7 @@ export function ReadPartView({
   useEnter(articleRef);
 
   // Full screen, the same one every other part and the compiler use.
-  const [full, setFull] = useFullScreen();
+  const [full, stepFull, screenMode] = useFullScreen();
 
   // The address keeps your place (lib/url-state.ts): #example, #example-2,
   // #example-3, or #recap. A reload goes back to it on the next frame, then
@@ -126,10 +126,10 @@ export function ReadPartView({
               )}
               <button
                 type="button"
-                onClick={() => setFull((was) => !was)}
-                title={full ? "Exit full screen" : "Full screen"}
+                onClick={stepFull}
+                title={FULL_SCREEN_TITLE[screenMode]}
                 aria-label="Toggle full screen"
-                aria-pressed={full}
+                aria-pressed={screenMode === "full" ? true : screenMode === "semi" ? "mixed" : false}
                 className="inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink"
               >
                 <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

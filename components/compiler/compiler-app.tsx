@@ -14,7 +14,7 @@ import { OutputPanel } from "@/components/compiler/output-panel";
 import { ReferencePanel, useReferenceData, type ReferenceTab } from "@/components/compiler/reference-panel";
 import { CourseRail } from "@/components/chrome/course-rail";
 import { FloatingNav } from "@/components/chrome/floating-nav";
-import { useFullScreen } from "@/lib/full-screen";
+import { FULL_SCREEN_TITLE, useFullScreen } from "@/lib/full-screen";
 import { cheatsheetPlace, readCompilerUrl, revealWorkspace, urlParam, writeUrl } from "@/lib/compiler-url";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { SqlDatabase } from "@/components/compiler/sql-database";
@@ -101,9 +101,10 @@ export function CompilerApp({
   const [orient, setOrient] = useState<Orient>(() => sessionLayout.orient);
   const [splitPct, setSplitPct] = useState(() => sessionLayout.splitPct);
   // Full screen, the same one Learn uses, lasts while you switch languages
-  // and go to Learn and back. It's in the address (?full=1), and Escape
-  // leaves it.
-  const [full, setFull] = useFullScreen();
+  // and go to Learn and back. Its button hides the header first, then covers
+  // the window. It's in the address (?full=semi, ?full=1), and Escape leaves
+  // it.
+  const [full, stepFull, screenMode] = useFullScreen();
 
   // The cheatsheet or the challenges, in a panel on the right with the
   // output tucked under the editor (refTab says which).
@@ -558,7 +559,7 @@ export function CompilerApp({
         // In the shell the app fills the panel's content area exactly
         // (definite height on lg); on phones the panel isn't height-capped, so
         // fall back to a viewport-sized block.
-        full ? "fixed inset-0 z-[100]" : "h-[calc(100dvh-4rem-1px)] lg:h-full lg:shrink-0"
+        full ? "fixed inset-0 z-[100]" : "h-[calc(100dvh_-_var(--header-h))] lg:h-full lg:shrink-0"
       }`}
     >
       {/* Language rail: every course, in the Learn icon rows' order */}
@@ -575,7 +576,7 @@ export function CompilerApp({
         {/* Editor | output split */}
         <div
           ref={splitRef}
-          className={`min-h-0 flex-1 ${refOpen ? "max-lg:h-[calc(100dvh-4rem-1px)] max-lg:shrink-0 lg:h-full" : ""} ${
+          className={`min-h-0 flex-1 ${refOpen ? "max-lg:h-[calc(100dvh_-_var(--header-h))] max-lg:shrink-0 lg:h-full" : ""} ${
             horizontal
               ? "flex flex-col lg:grid lg:grid-cols-[var(--compiler-left)_10px_minmax(0,1fr)] lg:gap-0 lg:overflow-hidden"
               : "flex flex-col lg:grid lg:grid-rows-[var(--split-pct)_10px_minmax(0,1fr)] lg:gap-0 lg:overflow-hidden"
@@ -617,9 +618,10 @@ export function CompilerApp({
                 )}
                 <button
                   type="button"
-                  onClick={() => setFull((v) => !v)}
-                  title={full ? "Exit full screen" : "Full screen"}
+                  onClick={stepFull}
+                  title={FULL_SCREEN_TITLE[screenMode]}
                   aria-label="Toggle full screen"
+                  aria-pressed={screenMode === "full" ? true : screenMode === "semi" ? "mixed" : false}
                   className={`${iconBtn} hidden sm:inline-flex`}
                 >
                   <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

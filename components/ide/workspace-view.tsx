@@ -14,7 +14,7 @@ import { StatusPill } from "@/components/ide/status-pill";
 import type { TerminalHandle } from "@/components/ide/terminal-view";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { SwitchTrack } from "@/components/ui/switch-track";
-import { useFullScreen } from "@/lib/full-screen";
+import { FULL_SCREEN_TITLE, useFullScreen } from "@/lib/full-screen";
 import { setIdeSetting, useIdeSettings } from "@/lib/ide-settings";
 import { revealWorkspace, urlParam, writeUrl } from "@/lib/url-state";
 import { useStore, WorkspaceStore, type DockPanel } from "@/lib/workspace-store";
@@ -85,7 +85,7 @@ export function WorkspaceView({
   const store = useMemo(() => storeFor(props), [props]);
   useStore(store, "status", "tasks", "check", "dock", "preview", "files", "notice");
   const ideSettings = useIdeSettings();
-  const [full, setFull] = useFullScreen();
+  const [full, stepFull, screenMode] = useFullScreen();
   const [quickOpen, setQuickOpen] = useState(false);
   const [mobile, setMobile] = useState<"files" | "code" | "dock" | "preview">("code");
   const [explorerWidth, setExplorerWidth] = useState(session.explorer);
@@ -278,10 +278,10 @@ export function WorkspaceView({
         <div className="ms-auto flex shrink-0 items-center gap-1">
           <button
             type="button"
-            onClick={() => setFull((was) => !was)}
-            title={full ? "Exit full screen" : "Full screen"}
+            onClick={stepFull}
+            title={FULL_SCREEN_TITLE[screenMode]}
             aria-label="Toggle full screen"
-            aria-pressed={full}
+            aria-pressed={screenMode === "full" ? true : screenMode === "semi" ? "mixed" : false}
             className={`${iconBtn} hidden lg:inline-flex`}
           >
             <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

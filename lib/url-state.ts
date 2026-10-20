@@ -15,7 +15,8 @@
  *   problems, results), and &preview (the preview's path, when it's open).
  *   Open tabs, unsaved text, and opened folders stay in localStorage per
  *   workspace instead (lib/workspace-store.ts).
- * - Both: &full=1 in full screen (lib/full-screen.ts).
+ * - Both: &full=semi with the header hidden, &full=1 in full screen
+ *   (lib/full-screen.ts).
  *
  * A reload that restores something you'd see change is restored before you
  * see it: the bootstrap in app/layout.tsx marks <html data-restore>, which

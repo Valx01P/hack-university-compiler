@@ -125,8 +125,12 @@ await step("the address keeps the file and the panel across a reload", async () 
   await page.locator("[role=tab][aria-selected=true]", { hasText: /^Server/ }).waitFor({ timeout: 5000 });
 });
 
-await step("full screen covers the window and Escape leaves it", async () => {
-  await page.locator("[data-ide]").getByRole("button", { name: "Toggle full screen" }).click();
+await step("full screen hides the header, then covers the window, and Escape leaves it", async () => {
+  const toggle = page.locator("[data-ide]").getByRole("button", { name: "Toggle full screen" });
+  await toggle.click();
+  await page.waitForFunction(() => document.documentElement.hasAttribute("data-semi"));
+  await page.waitForFunction(() => /full=semi/.test(location.search), null, { timeout: 3000 });
+  await toggle.click();
   await page.waitForFunction(() => document.documentElement.hasAttribute("data-full"));
   const box = await page.locator("[data-workspace]").boundingBox();
   assert.ok(box && box.y === 0 && box.width === 1440, `covers the window (${JSON.stringify(box)})`);
