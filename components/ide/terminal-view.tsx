@@ -13,7 +13,7 @@ import type { WorkspaceStore } from "@/lib/workspace-store";
  * session by lib/terminal-bridge.ts.
  *
  * - Colors come from the code theme's CSS variables (the 16 --ansi-* tokens,
- *   the code background and text, the selection), re-read whenever the
+ *   the code background and text, the selection, the scrollbar), re-read whenever the
  *   theme, contrast, background, or selection changes. Contrast raises dim
  *   colors as the terminal draws (1, 4.5:1, 7:1 for Normal, High, Super).
  * - The font is the bundled JetBrains Mono, loaded before the terminal opens
@@ -44,11 +44,41 @@ function resolveColor(probe: HTMLElement, value: string, fallback: string): stri
   return `#${[m[1], m[2], m[3]].map((n) => Math.round(Number(n)).toString(16).padStart(2, "0")).join("")}`;
 }
 
+let canvas: CanvasRenderingContext2D | null | undefined;
+
+/** Like resolveColor, for opaque colors that compute to something other than
+    rgb(), like color-mix() in oklab (a picked code background's scrollbar):
+    a 1px canvas turns those back into sRGB. */
+function solidColor(probe: HTMLElement, value: string, fallback: string): string {
+  probe.style.color = "";
+  probe.style.color = value;
+  const css = getComputedStyle(probe).color;
+  if (/^rgba?\(/.test(css)) return resolveColor(probe, value, fallback);
+  canvas ??= document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  if (!canvas) return fallback;
+  canvas.fillStyle = "#010203";
+  canvas.fillStyle = css;
+  if (canvas.fillStyle === "#010203") return fallback;
+  canvas.clearRect(0, 0, 1, 1);
+  canvas.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = canvas.getImageData(0, 0, 1, 1).data;
+  if (!a) return fallback;
+  return `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`;
+}
+
 function themeFrom(host: HTMLElement) {
   const probe = document.createElement("span");
   probe.style.display = "none";
   host.appendChild(probe);
   const v = (name: string, fallback: string) => resolveColor(probe, `var(${name}, ${fallback})`, fallback);
+  // The scrollbar is the code surface's own thumb (app/globals.css), a little
+  // stronger under the pointer and while it's dragged.
+  const thumb = (inkPercent: number) =>
+    solidColor(
+      probe,
+      inkPercent ? `color-mix(in oklab, var(--scrollbar, #4d4d4d) ${100 - inkPercent}%, var(--code-ink, #f0ece6))` : "var(--scrollbar, #4d4d4d)",
+      "#4d4d4d"
+    );
   const solid = v("--code-bg", "#0a0a0a");
   // With the stars on (lib/theme.ts) the terminal is see-through like the rest
   // of the app. Its own color stays in the rgb, for the contrast checks, and
@@ -61,7 +91,9 @@ function themeFrom(host: HTMLElement) {
     cursor: foreground,
     cursorAccent: solid,
     selectionBackground: v("--code-selection", "#555555"),
-    scrollbarSliderBackground: v("--code-edge", "#333333"),
+    scrollbarSliderBackground: thumb(0),
+    scrollbarSliderHoverBackground: thumb(20),
+    scrollbarSliderActiveBackground: thumb(35),
   };
   ANSI.forEach((name, i) => (theme[name] = v(`--ansi-${i}`, "#888888")));
   probe.remove();
