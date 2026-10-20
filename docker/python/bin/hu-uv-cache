@@ -1,0 +1,21 @@
+#!/bin/sh
+# hu-uv-cache: makes /tmp/uv-cache, the cache UV_CACHE_DIR names, once per
+# container. uv locks and marks its cache on every run, so it can't use the
+# image's read-only cache in /opt/hu/uv-cache directly. The view copies the
+# small parts (index pages, wheel records, interpreter facts, under 1 MB) and
+# links archive-v0, the unpacked wheels, which uv only reads and copies from.
+# Nothing is shared between containers, and the image's cache never changes.
+set -eu
+view=/tmp/uv-cache
+[ -f "$view/CACHEDIR.TAG" ] && exit 0
+src=/opt/hu/uv-cache
+tmp=$(mktemp -d /tmp/.uv-cache.XXXXXX)
+for entry in "$src"/* "$src"/.[!.]*; do
+  [ -e "$entry" ] || continue
+  case "${entry##*/}" in
+    archive-v*) ln -s "$entry" "$tmp/${entry##*/}" ;;
+    *) cp -R "$entry" "$tmp/${entry##*/}" ;;
+  esac
+done
+# Another uv may have made it first: then this copy goes.
+mv -T "$tmp" "$view" 2>/dev/null || rm -rf "$tmp"

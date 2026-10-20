@@ -63,14 +63,14 @@ function npmRun(...npmArgs) {
   if (r.status !== 0) fail(`npm ${npmArgs.join(" ")} failed (see above). Fix that, then run npm run up again.`);
 }
 
-// The courses whose sandboxes exist so far, by the image each one runs on.
-const STACKS = { typescript: "node", bash: "bash" };
-const LATER_STACKS = ["web", "react", "nextjs", "express", "fastapi", "spring", "go-api"];
-const stacks = stacksArg === "all" ? Object.keys(STACKS) : (stacksArg?.split(",").map((s) => s.trim()).filter(Boolean) ?? []);
+// The courses that run in the runner, whose sandboxes --stacks prepares now.
+// runner/stacks.ts names the image each one runs on.
+const COURSES = JSON.parse(readFileSync(path.join(ROOT, "content", "courses.json"), "utf8"))
+  .courses.filter((c) => c.runtime.startsWith("runner:") || c.runtime === "browser")
+  .map((c) => c.slug);
+const stacks = stacksArg === "all" ? COURSES : (stacksArg?.split(",").map((s) => s.trim()).filter(Boolean) ?? []);
 for (const stack of stacks) {
-  if (!STACKS[stack] && !LATER_STACKS.includes(stack)) {
-    fail(`There is no course named ${stack}. The courses are: ${[...Object.keys(STACKS), ...LATER_STACKS].join(", ")}.`);
-  }
+  if (!COURSES.includes(stack)) fail(`There is no course named ${stack}. The courses are: ${COURSES.join(", ")}.`);
 }
 
 // 1. Node and Docker -------------------------------------------------------
@@ -139,17 +139,14 @@ const token = freshToken(data);
 done(`${data} (your workspaces and the runner's log live here, outside the repo)`);
 
 // 6. The sandbox images, and Docker's memory -----------------------------------
-step("Building the TypeScript and Bash sandboxes");
+step(stacks.length ? "Building the sandboxes" : "Building the TypeScript and Bash sandboxes");
 if (!docker) {
   warn("skipped until Docker runs");
 } else if (noImages) {
   warn("skipped (--no-images). Build them later with npm run images");
 } else {
-  const r = run(process.execPath, [path.join("runner", "images.ts"), "build", ...new Set(["node", "bash", ...stacks.map((s) => STACKS[s]).filter(Boolean)])]);
+  const r = run(process.execPath, [path.join("runner", "images.ts"), "build", "node", "bash", ...(stacks.length ? [`--stacks=${stacks.join(",")}`] : [])]);
   if (r.status !== 0) fail("Building the sandbox images failed (see above). Fix that, then run npm run up again, or skip them with --no-images.");
-  for (const stack of stacks.filter((s) => LATER_STACKS.includes(s))) {
-    console.log(`   · ${stack}: its sandbox comes with the course, which offers Prepare this course`);
-  }
 }
 if (docker) {
   const host = os.totalmem();

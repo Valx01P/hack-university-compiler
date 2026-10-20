@@ -1,0 +1,20 @@
+#!/bin/sh
+# install-psql: the PostgreSQL 18 client (psql, pg_dump, pg_restore, pg_isready)
+# from the PostgreSQL project's apt repository, for the stack images' terminals
+# and Database panels. Debian 13 and Ubuntu ship older majors.
+#
+# ACCC4CF8.asc beside this script is the repository's signing key,
+# fingerprint B97B 0AFC AA1A 47F0 44F2 44A0 7FCC 7D46 ACCC 4CF8 (checked with
+# gpg --show-keys when it was added). The minor version follows the
+# repository, so a rebuild picks up PostgreSQL's security releases. The major
+# is checked.
+set -eu
+here=$(dirname "$0")
+. /etc/os-release
+install -m 644 "$here/ACCC4CF8.asc" /usr/share/keyrings/pgdg.asc
+echo "deb [signed-by=/usr/share/keyrings/pgdg.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+  > /etc/apt/sources.list.d/pgdg.list
+apt-get update
+apt-get install -y --no-install-recommends postgresql-client-18
+rm -rf /var/lib/apt/lists/*
+psql --version | grep -q '^psql (PostgreSQL) 18\.'

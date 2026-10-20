@@ -8,6 +8,7 @@ import { DB_ROUTE, dbRoute } from "./db/routes.ts";
 import type { DockerWatch, Owner } from "./docker.ts";
 import { HttpError, parse, readJson, send, sendError } from "./http-util.ts";
 import { IMAGES, isImageName, type ImageName, type Images } from "./images.ts";
+import { STACKS, isStack } from "./stacks.ts";
 import { JobError, type JobPool } from "./jobs.ts";
 import type { Log } from "./log.ts";
 import { HEADROOM_BYTES, PISTON_BYTES, belowFloor } from "./profiles.ts";
@@ -185,8 +186,9 @@ async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerR
   if (prepare) {
     if (method !== "POST") throw new HttpError(405, "method_not_allowed", "Use POST.");
     const stack = prepare[1];
-    const names = (Object.keys(IMAGES) as ImageName[]).filter((n) => (IMAGES[n].recipes as readonly string[]).includes(stack));
-    if (!names.length) throw new HttpError(404, "not_found", `There is no stack named ${stack}.`);
+    if (!isStack(stack)) throw new HttpError(404, "not_found", `There is no stack named ${stack}.`);
+    // A course's image, which builds its parent first (hu/web on hu/node).
+    const names: ImageName[] = [STACKS[stack].image];
     await needDocker(deps);
     for (const name of names) {
       if (deps.images.state(name) === "ready") continue;
@@ -230,7 +232,7 @@ async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerR
 }
 
 function imageMissing(name: ImageName, state: string): HttpError {
-  const course = IMAGES[name].recipes.join(", ");
+  const course = Object.keys(STACKS).filter((s) => STACKS[s as keyof typeof STACKS].image === name).join(", ");
   return new HttpError(
     503,
     "image_missing",

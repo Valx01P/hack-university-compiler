@@ -266,10 +266,12 @@ nothing yet.
 
 ### `POST /v1/stacks/:stack/prepare`
 
-"Prepare this course": builds the stack's images in the background and
-answers **202** `{ "stack": "typescript", "images": { "hu/node": "building" } }`.
-The stacks so far are `typescript` and `bash`. Others answer 404 until their
-phase. Progress shows in `/v1/health` (and as `image` events from P1).
+"Prepare this course": builds the course's image in the background (and its
+parent first, so `express` builds `hu/node` before `hu/web` when it's missing)
+and answers **202** `{ "stack": "express", "images": { "hu/web": "building" } }`.
+A stack is any course in `runner/stacks.ts`: typescript, bash, web, react,
+nextjs, express, fastapi, spring, go-api. Anything else answers 404. Progress
+shows in `/v1/health` (and as `image` events from P1).
 
 ### Admin routes
 
@@ -1323,18 +1325,33 @@ back to a plain recursive copy on other file systems.
 
 `docker/<name>/Dockerfile`, built with the `docker/` folder as context and
 tagged `hu/<name>:<sha12>` of the Dockerfile and every file it copies, so a
-rebuild happens only when they change. The previous tag is kept and older
-ones pruned. Bases are pinned by digest and every download by SHA-256.
+rebuild happens only when they change. A stack image's tag also covers its
+parent's tag and its courses' template lockfiles, which it bakes into its
+offline cache. The previous tag is kept and older ones pruned. Bases are
+pinned by digest and every download by SHA-256. `docker/README.md` lists what
+each image holds, where, and what a workspace must mount for it.
 
-| Image | From | Adds | First build |
-| --- | --- | --- | --- |
-| `hu/node` | `node:26.12.0-trixie-slim` | npm 12.2.0, TypeScript 7.0.2 (the native `tsc`), `@types/node` 26.6.5, zod 4.6.7, bash, git, curl, jq, less, nano, procps, socat, tree | about 1 min |
-| `hu/bash` | `debian:trixie-slim` (13.7) | Bash 5.3 patch 20 and gawk 5.4.1 built from source, the static jq 1.8.2 and ShellCheck 0.11.0, bats-core 1.14.0 with bats-support, bats-assert, and bats-file, faketime, cron, sudo, git, sqlite3, man pages, socat, python3 | about 2 min |
+| Image | From | Adds | Size | First build |
+| --- | --- | --- | --- | --- |
+| `hu/node` | `node:26.12.0-trixie-slim` | npm 12.2.0, TypeScript 7.0.2 (the native `tsc`), `@types/node` 26.6.5, zod 4.6.7, bash, git, curl, jq, less, nano, procps, socat, tree | 0.62 GB | about 1 min |
+| `hu/bash` | `debian:trixie-slim` (13.7) | Bash 5.3 patch 20 and gawk 5.4.1 built from source, the static jq 1.8.2 and ShellCheck 0.11.0, bats-core 1.14.0 with bats-support, bats-assert, and bats-file, faketime, cron, sudo, git, sqlite3, man pages, socat, python3 | 0.55 GB | about 2 min |
+| `hu/web` | `hu/node` | An offline npm cache for the web, React, Next.js, and Express templates, the express and nextjs script environments, psql 18, mongosh 2.13.0 | 1.77 GB | about 1.5 min |
+| `hu/python` | `python:3.14.8-slim-trixie` | uv 0.13.1 with an offline cache of the FastAPI stack (FastAPI 0.148.0), the fastapi script venv, the `hu_check` pytest plugin, psql 18 | 0.81 GB | about 1 min |
+| `hu/java` | `eclipse-temurin:25-jdk` | Maven 3.10.0, a read-only repository for Spring Boot 4.1.1, the wrapper offline, the spring recipe's jar profiles, psql 18 | 1.12 GB | about 1.5 min |
+| `hu/go` | `golang:1.27.2-trixie` | A file module proxy, the seed of the shared `hu-go-build` caches, sqlc, goose, gotestsum, golangci-lint, air, psql 18 | 2.24 GB | about 3 min |
 
-Both run as `learner` (uid 1000), have `hu-exec` and `hu-init` in
-`/opt/hu/bin`, and fail their own build if a pinned version drifts.
-`npm run images` builds what's missing, `npm run images -- bash --force`
-rebuilds one, and `npm run images:status` lists them.
+Every image runs as `learner` (uid 1000), has `hu-exec` and `hu-init` in
+`/opt/hu/bin`, and fails its own build if a pinned version drifts or, with no
+network, an offline install or build stops working. `npm run images` builds
+the core images (`hu/node`, `hu/bash`) when missing, `npm run images --
+--stacks=express` (or `--stacks=all`) adds courses' images,
+`npm run images -- bash --force` rebuilds one, and `npm run images:status`
+lists tags, sizes, and the kept previous tags.
+
+`runner/stacks.ts` maps each course in `content/courses.json` that runs here
+to its image, its default dev, test, and install commands, its dependencies,
+the volumes it shares, and its single-file environment. `POST
+/v1/stacks/:stack/prepare` and `--stacks` build from it.
 
 ## Source files
 
@@ -1347,6 +1364,7 @@ ws.ts            the WebSocket upgrade and the ticket handshake
 schemas.ts       zod schemas for every body
 docker.ts        finding Docker, the connection, labels, and namespaces
 images.ts        content-hash tags, builds, pruning (and npm run images)
+stacks.ts        each course's image, commands, dependencies, and shared volumes
 jobs.ts          the job primitive and the job pool
 profiles.ts      container profiles and limits (§11.2, §11.3)
 recipes/         typescript and bash
