@@ -16,7 +16,9 @@ import type { ServiceSpec, SqlSource } from "./index.ts";
  * migrations without the seed. A `build` command (`npm run db:build`) is
  * handed back for the caller to run in a job instead. MongoDB loads
  * db/seed.json (Extended JSON) or db/seed.archive.gz (mongodump --archive
- * --gzip), or the files template.json names.
+ * --gzip), or the files template.json names, and with none of them its
+ * `build` command (the codebase's own seed script) comes back as
+ * `mongoBuild`, run the same way.
  */
 
 /** What a template.json may say under `services`. */
@@ -37,6 +39,8 @@ export interface TemplateServices {
     /** db/seed.json or db/seed.archive.gz when left out. */
     seed?: string;
     testSeed?: string;
+    /** A command that seeds the template database (`npm run db:reset`), when there's no seed file. */
+    build?: string[];
   };
 }
 
@@ -49,9 +53,10 @@ export interface TemplateFiles {
 
 export class SpecError extends Error {}
 
-export function serviceSpec(services: unknown, files: TemplateFiles): { spec: ServiceSpec; build: string[] | null } {
+export function serviceSpec(services: unknown, files: TemplateFiles): { spec: ServiceSpec; build: string[] | null; mongoBuild?: string[] } {
   const spec: ServiceSpec = {};
   let build: string[] | null = null;
+  let mongoBuild: string[] | undefined;
   if (!services || typeof services !== "object") return { spec, build };
   const s = services as TemplateServices;
   const text = (rel: string): SqlSource => {
@@ -71,7 +76,8 @@ export function serviceSpec(services: unknown, files: TemplateFiles): { spec: Se
   if (s.postgres) {
     const pg = s.postgres;
     const databases = pg.databases?.length ? pg.databases : ["dev" as const];
-    if (pg.empty) {
+    if (pg.empty || (pg.build && !pg.build.length && !pg.sql?.length)) {
+      // An empty build command builds nothing: the database starts empty.
       spec.postgres = { databases, empty: true };
     } else if (pg.sql?.length || !pg.build) {
       let sql: SqlSource[];
@@ -104,6 +110,8 @@ export function serviceSpec(services: unknown, files: TemplateFiles): { spec: Se
       if (!data) throw new SpecError(`template.json names ${seed}, which the template doesn't have.`);
       if (seed.endsWith(".json")) out.documents = data.toString("utf8");
       else out.archive = data;
+    } else if (m.build?.length) {
+      mongoBuild = m.build;
     }
     if (m.testSeed) {
       const data = files.read(m.testSeed);
@@ -112,7 +120,7 @@ export function serviceSpec(services: unknown, files: TemplateFiles): { spec: Se
     }
     spec.mongo = out;
   }
-  return { spec, build };
+  return mongoBuild ? { spec, build, mongoBuild } : { spec, build };
 }
 
 /** A goose migration's Up section: the file also holds its Down, which psql would run right after. */

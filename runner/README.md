@@ -94,7 +94,7 @@ Every error has one shape:
 | 415 | `unsupported_media_type` | Not JSON |
 | 499 | `cancelled` | The caller hung up while its run was queued or running (the job is stopped) |
 | 500 | `job_failed`, `internal` | Something broke in the runner or the sandbox. `message` says what |
-| 501 | `not_implemented` | A route or option the architecture defines for a later phase (`/v1/pages/*`, `volume` storage, a database reset) |
+| 501 | `not_implemented` | A route or option the architecture defines for a later phase (`/v1/pages/*`, `volume` storage) |
 | 502 | `not_listening` | An API panel request to a port nothing listens on |
 | 503 | `docker_unavailable` | Docker is off ("Start Docker to run this."), or still waking up |
 | 503 | `image_missing` | The recipe's image isn't built: run `npm run up` or `npm run images` |
@@ -364,16 +364,18 @@ files, and later calls return the live state. The id must be
 | --- | --- |
 | `scope`, `template` | The workspace's scope, and `<course>/<template>` (the folder `content/workspaces/<course>/<template>/`) |
 | `layers` | 1 to 32 layers, copied in order. `base` is the template's `base/`. `checkpoints/<cp>` and `examples/<id>` are the template's `<that folder>/overlay/`, then its `delete.txt`. `@<path>` is any folder under `content/` (a part's `practice/starter`, an `example-<k>`): its `overlay/` when it has one, else the folder itself without its top-level `delete.txt`, `transcript.json`, and `extends`, then its `delete.txt`. Next resolves `extends` chains and lists every layer |
-| `image` | Optional: `node`, `bash`, `web`, `check-web`, `python`, `java`, or `go`. Without it, the course's runtime in `content/courses.json` picks the image (`runner/workspace-images.ts`: `runner:typescript` is `hu/node`, `runner:bash` is `hu/bash`, and so on). An image this runner can't build yet answers **503** `image_missing` at start, never at open |
+| `image` | Optional: `node`, `bash`, `web`, `check-web`, `python`, `java`, or `go`. Without it, the course's runtime in `content/courses.json` picks the image (`runner/workspace-images.ts`: `runner:typescript` is `hu/node`, `runner:bash` is `hu/bash`, and so on). An image this runner can't build yet answers **503** `image_missing` at start, never at open, except `check-web` (hu/web and Chromium, for end-to-end tests and DOM checks), whose workspaces run in `hu/web` until it lands (`STAND_INS` in `workspace-images.ts`): everything but a browser works there |
 | `storage`, `profile` | `host` (default) or `volume`, and `standard` (default) or `sysadmin`. See "Storage" below |
 | `start` | `run` (default: the container starts on Run, a terminal, a task, or Check) or `open` (the IDE starts it right after opening) |
 | `ports` | One entry per server: the variable that carries its port (`PORT`, `API_PORT`), a label, an optional `readyPath`, and `preview`. A template with none still gets `PORT` |
 | `tasks` | The only commands Run, Stop, and the Server tab can start: a command string, or `{ cmd, label?, run? }` |
-| `env` | Extra variables for the container. `HOME`, `HOST`, and the port variables always win |
+| `env` | Extra variables for the container. `HOME`, `HOST`, the port variables, and the database's always win. `${NAME}` in a value is the workspace's own `NAME` (`"GOOSE_DBSTRING": "${DATABASE_URL}"`), and a name it doesn't set stays as written |
 | `limits` | Lower the course's caps (`memoryMb`, `cpus`, `pids`), never raise them |
 | `build` | Folders that live on their own volume (`dist`, `.next`, `target`) |
 | `diagnostics` | `[{ "on": "save", "cmd": ["npx", "tsc", "--noEmit", "--pretty", "false"], "parser": "tsc" }]`: commands run in `/workspace` (as uid 1000, at most 60 s) a second after the last save while the workspace runs, and once when it starts. Their findings arrive as `diag` events |
-| `hidden`, `readonly`, `restartOnReset`, `examples`, `deps`, `services` | Kept in `meta.json`. `deps` and `services` take effect in P2 |
+| `deps` | `{ kind, lock, mode }`: the dependency volume the workspace mounts, shared per lockfile or its own (see "Dependencies") |
+| `services` | `postgres` and `mongo`: the databases it gets at start (see "What a workspace gets" under Databases) |
+| `hidden`, `readonly`, `restartOnReset`, `examples` | Kept in `meta.json`. `restartOnReset` restarts the running tasks after a database reset |
 | `id`, `course`, `title`, `layout`, `open`, `requests`, `panels`, `autosave` | Accepted so a `template.json` can be spread in, and ignored |
 
 **200** `{ "id", "status", "templateHash", "created", "updated", "ports", "tree", "removed" }`:
@@ -412,12 +414,23 @@ answers **202** `{ "status": "starting", "queued": true, "detail": "Waiting for 
 and proceeds by itself when memory frees (watch the `status` events). Starting:
 
 1. the image must be built (**503** `image_missing` otherwise: "Prepare this course");
-2. the start is admitted against the memory budget (below);
-3. leases are taken for the declared ports (below);
-4. `hu-ws-<id>` is created (first time) and started with its profile;
-5. on the first start only, `git init` and a "Starting point" commit by
+2. its dependency volume is filled when it's new, once per lockfile (see
+   "Dependencies"), with the status detail "Installing the dependencies";
+3. when the template has `services`, its databases are made or found, the
+   template database built first when its hash is new (see "What a
+   workspace gets"), with the status detail "Setting up the database";
+4. the start is admitted against the memory budget (below);
+5. leases are taken for the declared ports (below);
+6. `hu-ws-<id>` is created (first time, or when anything it was made with
+   changed: its options' hash is its `hu.hash` label) and started with its
+   profile;
+7. on the first start only, `git init` and a "Starting point" commit by
    "Hack University", so `git status` and `git diff` work as teaching tools;
-6. the port bridges open and `status: running` goes out.
+8. the port bridges open and `status: running` goes out.
+
+A failure in step 2 or 3 sets `status: error` with the reason as its detail
+and answers it: **500** `deps_failed` or `template_failed` with the end of the
+install's or the build's output, or **503** `image_missing`.
 
 Stopping sends tasks `TERM` (then `KILL` after 5 s), closes terminals and the
 bridges, and stops the container. Leases stay.
@@ -457,7 +470,7 @@ and never opened (**409** `not_a_file`).
 | `GET …/changes` | | `{ "added": [path], "modified": [path], "removed": [path] }` against the manifest (files and links; heavy folders and `.git` aside) |
 | `GET …/archive?git=` | | A zip of the files (`Content-Disposition: attachment`), without `.git` unless `git=1`, without the dependency and build folders, and without links (so none points outside), at most 200 MB |
 | `POST …/carry` | `{ "from": "<scope>" }` | "Continue with my code": the files of another opened workspace (the previous part's practice) replace these, heavy folders and `.git` aside. `{ "restored", "removed", "snapshot" }`, with an automatic snapshot first for Undo. **404** when `from` was never opened |
-| `POST …/reset` | `{ "scope": "file" \| "dir" \| "all" \| "db" \| "everything", "path"?, "dryRun"? }` | `{ "restored": [path], "removed": [path], "snapshot"? }`. `all` and `everything` save an automatic snapshot first (its id is `snapshot`, for Undo). `dryRun` answers what would change without changing it ("2 files restored, 1 new file removed"). `db` answers **501** until P2 |
+| `POST …/reset` | `{ "scope": "file" \| "dir" \| "all" \| "db" \| "everything", "path"?, "dryRun"? }` | `{ "restored": [path], "removed": [path], "snapshot"?, "databases"?, "ms"? }`. `all` and `everything` save an automatic snapshot first (its id is `snapshot`, for Undo). `db` puts the databases back to their template (`databases` names them, `ms` says how long it took), and `everything` does both. After either, a template with `restartOnReset` restarts its running tasks, which held connections. `db` on a workspace with no database yet answers **409** `no_database`. `dryRun` answers what would change without changing it ("2 files restored, 1 new file removed") |
 | `GET …/snapshots` | | `{ "snapshots": [{ id, label, auto, createdAt }] }`, newest first. The last 5 automatic and 20 named are kept |
 | `POST …/snapshots` | `{ "label"? }` | `{ id, label, auto: false, createdAt }`, a save point |
 | `POST …/snapshots/:sid/restore` | | `{ "restored", "removed", "snapshot" }`, after saving an automatic snapshot of the current files |
@@ -510,6 +523,46 @@ at `/workspace`. It is the default and what every code course uses. `volume`
 storage (the Bash course, so `chown`, groups, and setuid behave as on Linux)
 opens (its files and settings are kept) but answers **501** `not_implemented`
 at start until it lands, and so does the `sysadmin` profile that needs it.
+
+A codebase that ships `.env.example` and no `.env` at its top gets `.env` as
+a copy of it when it opens, the way its README's first step makes one (`cp
+.env.example .env`): its scripts read `.env` (`node --env-file=.env`,
+pydantic-settings), and real environment variables still win there, so the
+workspace's `PORT` and `DATABASE_URL` hold. The copy is part of the original
+(resets keep it), and `lib/workspace-layers.mjs` paints it in the starting
+tree too.
+
+### Dependencies
+
+A workspace's packages live in Docker volumes, never in its files on the Mac
+(`architecture.md` §4.4, `deps.ts`), for templates whose `template.json` has
+`deps`:
+
+| Stack | Volume | Mounted at | Filled by |
+| --- | --- | --- | --- |
+| npm (TypeScript, web, React, Next.js, Express) | `hu-deps-npm-<lockhash>`, shared and read-only, or `hu-ws-<id>-deps`, the workspace's own and read-write, when `deps.mode` is `own` | `/workspace/node_modules` | `npm ci --offline --ignore-scripts` from hu/web's cache (hu/node has none yet, so TypeScript's come from there too) |
+| uv (FastAPI) | `hu-deps-uv-<lockhash>`, or the workspace's own | `/deps/venv` (`UV_PROJECT_ENVIRONMENT`) | `uv sync --frozen --offline` |
+| Maven (Spring Boot) | none: the image's read-only repository is Maven's tail, so `./mvnw -o` works, and the head is `~/.m2` in the home volume | | |
+| Go | none: the image's module proxy (`GOPROXY=file:///opt/hu/goproxy,off`) | `hu-go-build` on `/opt/hu/go-build` (`GOCACHE`, `GOMODCACHE`), shared by every Go container, seeded by Docker from the image the first time | |
+
+- `<lockhash>` is the first 12 hex characters of the SHA-256 of the
+  template's lockfile (the manifest's). A shared volume fills from the
+  template's original files, an own one from the workspace's.
+- A fill is a job from the image with the cache: the lockfile and what the
+  install reads (`package.json` and `.npmrc`, or `pyproject.toml` and
+  `.python-version`) in `/workspace`, the volume on its target, 1.5 GiB, 2
+  CPUs, network `none`, in a job slot and the check slot's memory. It holds
+  the volume's lock, so two starts never fill it twice, and its last step
+  writes `.hu-deps` in the volume: a fill a crash cut short is wiped and run
+  again. 0.5 to 2 s for the templates here.
+- `HU_DATA_DIR/deps.json` remembers the volumes this runner filled, by the
+  random `hu.made` label each gets when it's made (a volume removed and made
+  again is filled again), and when each was last used. Shared volumes unused for 30 days are removed (hourly, and
+  never one a container still uses), and fill again when needed.
+- Checks and template builds mount the same volumes read-only, at their own
+  work folder (a check's `/work/node_modules`).
+- A verify runner names them `hv-deps-<home>-<kind>-<lockhash>` and
+  `hv-go-build-<home>`, and removes the ones no container uses when it stops.
 
 ### Terminals
 
@@ -656,7 +709,12 @@ followed while it is stopped, without `.git` unless `copy.git`, and without
 from the suite's `image` (default: the workspace's), on a tmpfs `/work` of
 512 MB, with the course's check limits (1 GiB, 2 CPUs, 512 processes for
 TypeScript), network `none`, `TZ=UTC`, `LANG=C.UTF-8`, and the workspace's
-`env`. Then it starts `server` when the suite has one (its `task`'s command
+`env`, its dependencies mounted read-only as its container has them (see
+"Dependencies"), a tmpfs home, and a `/tmp` it can run programs from (`go
+test` builds there). A template with a database gives the check a fresh
+clone of its template database (`checkDatabase`, or an empty one for a suite
+with `"db": "empty"`, none with `"none"`) on the database network, dropped
+when the check ends. Then it starts `server` when the suite has one (its `task`'s command
 with the port variable set, ready when `ready.path` answers below 500 within
 `ready.timeoutMs`), runs every step in order (a failing step never stops the
 next), and removes the container. Past `deadlineMs` (default 60 s) the run is
@@ -866,7 +924,8 @@ connections. Each Mongo user also has `hu_rs_status` (`replSetGetStatus` and
 ### What a workspace gets
 
 The workspace lane calls these from its start, reset, check, and delete
-paths (`main.ts` makes one `Databases` and passes it in `ApiDeps.databases`):
+paths (`main.ts` makes one `Databases` and passes it to the routes in
+`ApiDeps.databases`, and to `Workspaces` and `Checks`):
 
 ```ts
 import type { Databases, ServiceSpec, TemplateRef } from "./db/index.ts";
@@ -911,14 +970,41 @@ const builder = build ? (target) => runInTemplateImage(build, target) : undefine
 const { env, network } = await databases.attach(id, ref, spec, builder);
 ```
 
+How `workspaces.ts` does it:
+
+- **Start** reads `services` against the template's original files, and
+  attaches before the memory admission: the container gets `env` (its
+  `DATABASE_URL` and the rest win over the template's own `env`) and joins
+  `network`. A FastAPI workspace's `DATABASE_URL` and `TEST_DATABASE_URL`
+  say `postgresql+psycopg://` (the stack's `databaseUrl` in `stacks.ts`),
+  since SQLAlchemy names its driver there.
+- **The builder** runs the template's command in a job (recipe `db-build`)
+  from the course's image: the template's original files in `/workspace`,
+  its dependencies mounted read-only, the template's `env`, `target.env`
+  (as the template's builder role, never a superuser), a tmpfs home, and
+  `/tmp` it can run programs from, on `target.network`, at most 1.5 GiB
+  (2 GiB for Java, whose build compiles and starts the app) and 5 minutes,
+  in a job slot and the check slot's memory. A non-zero exit fails the
+  start with the end of its output (**500** `template_failed`). The
+  template's hash is in `ref`, so a changed template builds anew.
+- **MongoDB** templates built by a command (`"mongo": { "build": [...] }`,
+  when there's no seed file) run the same way, logged in as a user of the
+  template's own, which goes when the build ends. Every Mongo user has
+  `dbAdmin` beside `readWrite` on its own databases, so a codebase's seed
+  script may drop and rebuild its database (Mongoose's `dropDatabase`).
+- **Reset**, **check**, **delete**, and the events are as above: `limit`
+  and `db` events go to the workspace's events socket, and when the size
+  watch closes a database the workspace's running tasks stop.
+
 | template.json `services` | What the database starts from |
 | --- | --- |
 | `"postgres": {}` (or with `"databases": ["dev", "test"]`) | The convention: `schema.sql`, `seed.sql`, then `migrations/*.sql` in name order, in `db/` or at the template's top (a goose file's Up section only). The test database gets the schema and migrations without the seed |
 | `"postgres": { "sql": ["db/a.sql", "db/b.sql"], "testSql": [ … ] }` | Those files, in that order |
-| `"postgres": { "build": ["npm", "run", "db:build"] }` | The command, run by the caller in a job from the template's image, against the empty template database |
+| `"postgres": { "build": ["npm", "run", "db:build"] }` | The command, run by the caller in a job from the template's image, against the empty template database. An empty `build` (`[]`) starts empty |
 | `"postgres": { "empty": true }` | An empty database (startup-migration parts) |
 | `"mongo": {}` | `db/seed.json` (Extended JSON, below) or `db/seed.archive.gz` (`mongodump --archive --gzip` of one database, whatever its name) |
 | `"mongo": { "seed": "…", "testSeed": "…" }` | Those files. The test database starts empty without a `testSeed` |
+| `"mongo": { "build": ["npm", "run", "db:reset"] }` | With no seed file, the command, run like PostgreSQL's against the empty template database |
 
 What `attach` takes, spelled out:
 
@@ -1241,8 +1327,13 @@ and cgroup namespaces, 512 MB of memory with no swap, 128 processes, `nofile`
 64 MB, OOM score +500, and no logs. One CPU is counted over a 1 s period
 instead of Docker's 100 ms, so tsc's short multithreaded burst isn't
 throttled from about 60 ms into 90 to 170 ms, while a busy loop still gets one
-CPU on average. The `standard` and `sysadmin` workspace profiles are here too,
-for P1, and `verify-security` already holds them to S1 and S2.
+CPU on average. `/tmp` is `noexec` for single-file runs. Checks, template
+builds, and dependency fills run a codebase's own toolchain instead, so they
+may mount its dependency volumes and the stack's caches, join the database
+network, and (checks and builds) get a `/tmp` that runs programs (`go test`
+and `go run` build there) and a tmpfs home (Maven's `~/.m2` follows the
+password file, not `HOME`). The `standard` and `sysadmin` workspace profiles
+are here too, and `verify-security` holds them to S1 and S2.
 
 Labels (§5.3): `hu.managed=1`, `hu.kind=job`, `hu.ns`, `hu.runner=<boot id>`,
 `hu.port`, `hu.recipe`, and `hu.expires`. At startup, once it holds its port,
@@ -1265,12 +1356,21 @@ share a container) runs `/opt/hu/bin/hu-init` under tini with the profile of
 
 - **`standard`** (every code course): uid 1000, every capability dropped,
   `no-new-privileges`, a read-only root, no privileges, private IPC and cgroup
-  namespaces, network `none` (`hu-db` from P2, for templates with a database),
-  memory equal to memory plus swap, CPUs, processes, `nofile` 4096/8192,
-  `fsize` 512 MB, OOM score +500, `/tmp` a 256 MB tmpfs (512 MB for Go), the
-  files bind-mounted at `/workspace`, `hu-ws-<id>-home` at `/home/learner`, and
-  one `hu-ws-<id>-build-<name>` volume per `build` folder. No published ports,
+  namespaces, network `none` (the database network, `hu-db` or a verify
+  runner's `hv-db-<port>`, for templates with a database), memory equal to
+  memory plus swap, CPUs, processes, `nofile` 4096/8192, `fsize` 512 MB, OOM
+  score +500, `/tmp` a 256 MB tmpfs (512 MB for Go) that runs programs (Docker
+  mounts a tmpfs `noexec` unless told, and `go run` builds there), the files
+  bind-mounted at `/workspace`, `hu-ws-<id>-home` at `/home/learner`, one
+  `hu-ws-<id>-build-<name>` volume per `build` folder, and its dependency
+  volume and the stack's caches (see "Dependencies"). No published ports,
   devices, sysctls, extra hosts, or host environment.
+
+A new or empty build volume is made learner's before the container is: a
+container is created (never started) with it on `/work`, which every hu image
+has empty and learner's, since Docker gives a new volume the owner of the
+image's folder at its mount point and root's where the image has none
+(`.vite` in `hu/web`).
 - **`sysadmin`** (Bash): as in `profiles.ts`, root inside with Docker's default
   capabilities minus `NET_RAW`, `MKNOD`, `SYS_CHROOT`, and `SETFCAP`, no host
   mounts, network `none`. It needs volume storage.
@@ -1296,8 +1396,10 @@ course's workspaces open (files work) and answer **503** `image_missing` at
 start.
 
 Labels: `hu.managed=1`, `hu.kind=workspace`, `hu.workspace=<id>`, `hu.ns`,
-`hu.home`, `hu.runner=<boot id>`, `hu.port`. Volumes carry `hu.managed`,
-`hu.ns`, `hu.home`, and `hu.workspace`. At startup (and whenever Docker comes
+`hu.home`, `hu.runner=<boot id>`, `hu.port`, and `hu.hash` (of everything the
+container was made with). Volumes carry `hu.managed`, `hu.ns`, `hu.home`, and
+`hu.workspace`, and shared dependency volumes `hu.kind=deps` and `hu.hash` of
+their lockfile instead of `hu.workspace`. At startup (and whenever Docker comes
 back) the runner re-adopts its running workspace containers: bridges reopen,
 tasks are found again by their pid files, and terminals start fresh. It never
 touches a container without its namespace and `hu.home`.
@@ -1308,6 +1410,7 @@ touches a container without its namespace and `hu.home`.
 HU_DATA_DIR/                       ~/.hack-university by default
   runner-token                     0600
   ports.json                       leases: { version, leases: [{ port, scope, env, lastUse }], freed: [port] }
+  deps.json                        dependency volumes filled: { version, volumes: { <name>: { made, filledAt, usedAt } } }
   workspaces/<id>/
     meta.json                      scope, template, layers, templateHash, manifest, config, ports, snapshots, lastCheck, times
     original/                      the materialized layers (APFS clones), the source of resets and GET …/original
@@ -1370,7 +1473,9 @@ profiles.ts      container profiles and limits (§11.2, §11.3)
 recipes/         typescript and bash
 reaper.ts        reconcile at startup, and the reaper
 tar.ts           just enough tar to load files in, and to read archives safely
-workspaces.ts    workspaces: identity, states, locks, materializing, start and stop, idle and LRU stops
+workspaces.ts    workspaces: identity, states, locks, materializing, start and stop, idle and LRU stops,
+                 their databases and the template builds
+deps.ts          dependency volumes: names, fills, mounts, and pruning
 workspace-routes.ts  the /v1/workspaces and /v1/checks routes
 workspace-images.ts  the course to image table, and each course's limits
 storage/host.ts  host files: O_NOFOLLOW_ANY reads, safe host writes, cp -c clones, the manifest
@@ -1399,11 +1504,23 @@ bench.ts         times the job path end to end against the budgets
   limits, labels, tar from good and malformed bytes, the exec stream, the job
   pool, image hashes and builds, the REST and WebSocket front door on a real
   server, workspace ids and routes, port leases with 1,000 scopes and reclaim,
-  host path safety with links and FIFOs, check matchers, and the memory
-  budget), and two suites against real Docker that skip when Docker is off or
-  the images aren't built:
+  host path safety with links and FIFOs, check matchers, the memory budget,
+  and dependency volumes' names, plans, and mounts), and suites against real
+  Docker that skip when Docker is off or the images aren't built:
   - `runner/integration.test.ts` runs real jobs (test isolation, read-back,
     outside kills);
+  - `runner/deps.test.ts` fills a dependency volume from hu/web's cache once
+    for three starts that ask at once, mounts it read-only, trusts its record
+    after a restart, fills again a volume made again, and wipes a fill a crash
+    cut short;
+  - `runner/workspace-services.test.ts` starts workspaces of the express
+    fixtures through a real runner: `.env` made from `.env.example`, the
+    shared dependency volume read-only, PostgreSQL databases with
+    `DATABASE_URL` on the database network and a template variable that names
+    it, a check that gets the dependencies and a clone of the template's
+    database (never the learner's rows), a db reset with its event and task
+    restarts, PostgreSQL and MongoDB templates built by the template's own
+    commands in jobs, and the databases dropped with the workspace;
   - `runner/workspaces.test.ts` runs real workspaces through a real runner in
     the verify namespace, on the TypeScript playground template in
     `runner/test-fixtures/content` plus a part overlay with a small server:

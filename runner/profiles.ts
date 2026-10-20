@@ -61,6 +61,13 @@ export const PISTON_BYTES = 2 * GiB;
 /** Headroom the memory budget keeps free for the VM itself. */
 export const HEADROOM_BYTES = 512 * MiB;
 
+/** A Docker volume a container mounts: a dependency volume, a build folder, a shared cache. */
+export interface VolumeMount {
+  source: string;
+  target: string;
+  readOnly?: boolean;
+}
+
 export interface JobContainer {
   name: string;
   image: string;
@@ -72,6 +79,19 @@ export interface JobContainer {
   limits: JobLimits;
   /** The internal database network (hu-db) for a run with a database. Network none otherwise. */
   network?: string;
+  /** Volumes: a workspace's dependencies and the stack's shared caches, for checks and builds (§4.4). None otherwise. */
+  mounts?: VolumeMount[];
+  /**
+   * /tmp allows exec, as a workspace's does: checks and template builds run a
+   * codebase's own toolchain, and go run and go test build their binaries in
+   * /tmp. Single-file runs keep it noexec.
+   */
+  tmpExec?: boolean;
+  /**
+   * A tmpfs for the user's home folder (/home/learner), for tools that write
+   * there whatever HOME says: Maven's ~/.m2 head follows the password file.
+   */
+  home?: string;
 }
 
 /**
@@ -107,10 +127,12 @@ export function jobProfile(job: JobContainer): Docker.ContainerCreateOptions {
     ],
     Tmpfs: {
       [job.workDir]: `rw,exec,nosuid,nodev,size=${limits.workBytes},mode=0755,uid=1000,gid=1000`,
-      "/tmp": `rw,noexec,nosuid,nodev,size=${limits.workBytes},mode=1777`,
+      "/tmp": `rw,${job.tmpExec ? "exec" : "noexec"},nosuid,nodev,size=${limits.workBytes},mode=1777`,
+      ...(job.home ? { [job.home]: `rw,nosuid,nodev,size=${limits.workBytes},mode=0755,uid=1000,gid=1000` } : {}),
     },
     LogConfig: { Type: "none", Config: {} },
   };
+  if (job.mounts?.length) host.Mounts = job.mounts.map(volumeMount);
   return {
     name: job.name,
     Image: job.image,
@@ -134,7 +156,14 @@ export interface WorkspaceContainer {
   /** The volume for /home/learner. */
   homeVolume: string;
   limits: { memoryBytes: number; cpus: number; pids: number; fsizeBytes: number; tmpBytes: number };
-  network?: "none" | "hu-db";
+  /** none, or the database network (hu-db, and hv-db-<port> for a verify runner) when the template uses a database. */
+  network?: string;
+  /** Build folders, dependencies, and the stack's shared caches (§4.4), mounted over the files. */
+  mounts?: VolumeMount[];
+}
+
+function volumeMount(m: VolumeMount): Docker.MountSettings {
+  return { Type: "volume", Source: m.source, Target: m.target, ...(m.readOnly ? { ReadOnly: true } : {}) };
 }
 
 /** The `standard` profile (§11.2), for every code-course workspace. */
@@ -159,10 +188,14 @@ export function standardProfile(ws: WorkspaceContainer): Docker.ContainerCreateO
       { Name: "nofile", Soft: 4096, Hard: 8192 },
       { Name: "fsize", Soft: limits.fsizeBytes, Hard: limits.fsizeBytes },
     ],
-    Tmpfs: { "/tmp": `rw,nosuid,nodev,size=${limits.tmpBytes},mode=1777` },
+    // exec, said outright: Docker mounts a tmpfs noexec unless told, and
+    // go run and go test build their binaries in /tmp. Code runs from
+    // /workspace anyway, so it gives no new power.
+    Tmpfs: { "/tmp": `rw,exec,nosuid,nodev,size=${limits.tmpBytes},mode=1777` },
     Mounts: [
       { Type: "bind", Source: ws.filesDir, Target: "/workspace" },
       { Type: "volume", Source: ws.homeVolume, Target: "/home/learner" },
+      ...(ws.mounts ?? []).map(volumeMount),
     ],
     LogConfig: { Type: "none", Config: {} },
   };

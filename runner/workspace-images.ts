@@ -34,6 +34,19 @@ export const RUNTIME_IMAGES: Record<string, WorkspaceImageName> = {
 /** A course whose image isn't the one its runtime implies goes here. */
 export const COURSE_IMAGES: Record<string, WorkspaceImageName> = {};
 
+/**
+ * Images a template may name that the runner doesn't build yet, and what
+ * their workspaces run in meanwhile: hu/check-web (hu/web and Chromium, for
+ * end-to-end tests and DOM checks) arrives with the web checks, and the rest
+ * of a web project (its dev server, unit tests, and builds) runs in hu/web.
+ */
+export const STAND_INS: Partial<Record<WorkspaceImageName, WorkspaceImageName>> = { "check-web": "web" };
+
+/** The image a workspace's containers actually run: its own, or its stand-in until that exists. */
+export function runnableImage(name: string | null): string | null {
+  return (name && STAND_INS[name as WorkspaceImageName]) || name;
+}
+
 export interface WorkspaceLimits {
   memoryBytes: number;
   cpus: number;

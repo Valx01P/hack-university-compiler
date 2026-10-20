@@ -3,7 +3,7 @@ import type { Duplex } from "node:stream";
 import type Docker from "dockerode";
 import { LABEL, labelsFor, namePrefix, type Owner } from "./docker.ts";
 import type { Log } from "./log.ts";
-import { jobProfile, type JobLimits } from "./profiles.ts";
+import { jobProfile, type JobLimits, type VolumeMount } from "./profiles.ts";
 import { packTar, type TarEntry } from "./tar.ts";
 
 /**
@@ -207,6 +207,12 @@ export interface JobSpec {
   deadlineMs: number;
   /** The database network, when the run has a database (db/). None otherwise. */
   network?: string;
+  /** Dependency volumes and shared caches, for a check or a template's build (deps.ts). None otherwise. */
+  mounts?: VolumeMount[];
+  /** /tmp allows exec (checks and template builds: profiles.ts). */
+  tmpExec?: boolean;
+  /** A tmpfs home folder (checks and template builds: profiles.ts). */
+  home?: string;
 }
 
 /** One running job container. Make it with Job.start, and always dispose it. */
@@ -244,7 +250,7 @@ export class Job {
     let container: Docker.Container;
     try {
       container = await docker.createContainer(
-        jobProfile({ name, image: spec.image, labels, workDir: spec.workDir, hostname: spec.hostname, env: spec.env, limits: spec.limits, network: spec.network })
+        jobProfile({ name, image: spec.image, labels, workDir: spec.workDir, hostname: spec.hostname, env: spec.env, limits: spec.limits, network: spec.network, mounts: spec.mounts, tmpExec: spec.tmpExec, home: spec.home })
       );
     } catch (err) {
       if ((err as { statusCode?: number }).statusCode === 404) {

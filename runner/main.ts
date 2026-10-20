@@ -62,8 +62,8 @@ const capacity: Capacity = new Capacity(
   }),
   config.memBudgetMb
 );
-const workspaces: Workspaces = new Workspaces({ config, watch, images, owner, log, leases, capacity, appOrigins: appOrigins(config.appPort) });
-const checks = new Checks({ docker: watch.docker, owner, images, pool, log, capacity, contentDir: config.contentDir });
+const workspaces: Workspaces = new Workspaces({ config, watch, images, owner, log, leases, capacity, appOrigins: appOrigins(config.appPort), databases, pool });
+const checks = new Checks({ docker: watch.docker, owner, images, pool, log, capacity, contentDir: config.contentDir, databases });
 
 /** Whenever Docker is (back) up: clear leftovers, and look the images and shared services up. */
 async function onDockerReady() {
@@ -90,6 +90,9 @@ async function refreshServices() {
   services.postgres = databases.state("postgres");
   services.mongo = databases.state("mongo");
   await databases.tick();
+  // A server that stopped (an idle database, Piston) frees its share of the
+  // budget: a start waiting in the queue may fit now.
+  capacity.drain();
 }
 
 // Requests wait for the first look at Docker, so the first /v1/health already

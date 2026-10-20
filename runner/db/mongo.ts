@@ -33,7 +33,7 @@ globalThis.__huInit = function () {
 };
 globalThis.__huUser = function (user, pwd, dbs) {
   const admin = db.getSiblingDB("admin");
-  const roles = dbs.map((d) => ({ role: "readWrite", db: d })).concat([{ role: "hu_rs_status", db: "admin" }]);
+  const roles = dbs.flatMap((d) => [{ role: "readWrite", db: d }, { role: "dbAdmin", db: d }]).concat([{ role: "hu_rs_status", db: "admin" }]);
   if (admin.getUser(user)) admin.updateUser(user, { pwd, roles });
   else admin.createUser({ user, pwd, roles });
   return true;
@@ -201,7 +201,12 @@ export class MongoAdmin {
     return this.call("__huInit", [], 60_000);
   }
 
-  /** A user with readWrite on exactly `dbs`, plus rs.status(). Users live in admin, so URIs say authSource=admin. */
+  /**
+   * A user with readWrite and dbAdmin on exactly `dbs`, plus rs.status().
+   * dbAdmin lets a codebase's own seed script drop and rebuild its database
+   * (Mongoose's dropDatabase, syncIndexes), and reaches nothing outside it.
+   * Users live in admin, so URIs say authSource=admin.
+   */
   async user(user: string, password: string, dbs: string[]): Promise<void> {
     await this.call("__huUser", [lit(checkIdent(user)), lit(checkPassword(password)), lit(dbs.map(checkIdent))]);
   }

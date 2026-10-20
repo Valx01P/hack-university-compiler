@@ -6,16 +6,23 @@ import type Docker from "dockerode";
 import { parseScope, workspaceId } from "../lib/workspace-id.mjs";
 import { Cancelled, type Capacity, type Candidate } from "./capacity.ts";
 import type { Config } from "./config.ts";
+import { DbError, type Attachment, type Builder, type Databases, type DbEvent, type TemplateRef } from "./db/index.ts";
+import { MongoError } from "./db/mongo.ts";
+import { PgError } from "./db/postgres.ts";
+import { SpecError, serviceSpec, type TemplateFiles } from "./db/spec.ts";
+import { Deps, type DepsConfig, type DepsPlan } from "./deps.ts";
 import { diagSpecs, runDiagnostics } from "./diagnostics.ts";
-import { LABEL, isDockerDown, labelsFor, type DockerWatch, type Owner } from "./docker.ts";
+import { LABEL, isDockerDown, labelsFor, namePrefix, type DockerWatch, type Owner } from "./docker.ts";
 import { EventHub, type EventMessage, type Subscriber } from "./events.ts";
 import { execCollect } from "./exec.ts";
 import { HttpError } from "./http-util.ts";
 import { isImageName, type Images } from "./images.ts";
+import { Job, type JobPool } from "./jobs.ts";
 import type { Log } from "./log.ts";
 import { PortsExhausted, RESERVED, portFree, type PortLeases } from "./ports.ts";
-import { standardProfile } from "./profiles.ts";
+import { standardProfile, type JobLimits, type VolumeMount } from "./profiles.ts";
 import type { HttpPanelRequest, OpenWorkspace } from "./schemas.ts";
+import { isStack, stack } from "./stacks.ts";
 import { ContainerFs } from "./storage/container.ts";
 import {
   HEAVY,
@@ -35,7 +42,7 @@ import { TerminalSession } from "./terminals.ts";
 import { Bridge, HttpThroughError, framing, requestThrough } from "./tunnel.ts";
 import { Watcher } from "./watch.ts";
 import { zip } from "./zip.ts";
-import { isCourse, workspaceImage, workspaceLimits, type WorkspaceLimits } from "./workspace-images.ts";
+import { isCourse, runnableImage, workspaceImage, workspaceLimits, type WorkspaceLimits } from "./workspace-images.ts";
 
 /**
  * Workspaces (architecture §4.2): one project a learner works in, named by its
@@ -165,6 +172,10 @@ export interface ManagerDeps {
   capacity: Capacity;
   /** The app's origins, for the framing probe. */
   appOrigins: string[];
+  /** The databases of templates with `services` (db/). Without it such a workspace starts with none. */
+  databases?: Databases;
+  /** The job slots that dependency fills and template builds share with runs and checks. */
+  pool?: JobPool;
 }
 
 /** Text when it is valid UTF-8 with no NUL in its first 8 KB. */
@@ -656,15 +667,51 @@ export class Workspace {
     return { restored: restore.filter((p) => targetManifest[p].type !== "dir"), removed: remove };
   }
 
+  /**
+   * POST …/reset. `db` puts the workspace's databases back to their
+   * template, and `everything` does that and resets every file. Either one
+   * restarts the running tasks afterwards when the template says
+   * restartOnReset, since they held connections to what was replaced.
+   */
   async reset(scope: "file" | "dir" | "all" | "db" | "everything", rel: string | undefined, dryRun: boolean) {
-    if (scope === "db") throw new HttpError(501, "not_implemented", "Databases arrive in P2: this workspace has none to reset yet.");
-    return this.lock.run(async () => {
+    const databases = this.m.databases?.info(this.id) ? this.databaseNames() : null;
+    if (scope === "db") {
+      if (!databases) throw new HttpError(409, "no_database", "This workspace has no database yet. Run it once to create it.");
+      if (dryRun) return { restored: [], removed: [], databases };
+      return { restored: [], removed: [], ...(await this.resetDatabases()) };
+    }
+    const result = await this.lock.run(async () => {
       let snapshot: string | undefined;
       if (!dryRun && (scope === "all" || scope === "everything")) snapshot = (await this.snapshotLocked(null, true)).id;
       const target = scope === "file" || scope === "dir" ? { kind: scope, path: checkRel(rel!) } : ({ kind: "all" } as const);
       const result = await this.converge(this.original, this.meta.manifest, target, dryRun);
       return snapshot ? { ...result, snapshot } : result;
     });
+    if (scope !== "everything" || !databases) return result;
+    if (dryRun) return { ...result, databases };
+    return { ...result, ...(await this.resetDatabases()) };
+  }
+
+  /** The databases a db reset puts back: PostgreSQL's by name, MongoDB's as mongo:<name>. */
+  private databaseNames(): string[] {
+    const info = this.m.databases?.info(this.id);
+    return [...(info?.postgres?.databases ?? []), ...(info?.mongo?.databases ?? []).map((d) => `mongo:${d}`)];
+  }
+
+  private async resetDatabases(): Promise<{ databases: string[]; ms: number }> {
+    let r: { databases: string[]; ms: number };
+    try {
+      r = await this.m.databases!.resetWorkspace(this.id, "all");
+    } catch (err) {
+      throw dbHttpError(err);
+    }
+    if (this.meta.config.restartOnReset && this.running) {
+      for (const t of [...this.tasks.values()]) {
+        if (t.state !== "running" && t.state !== "starting") continue;
+        await this.restartTask(t.name).catch((err: Error) => this.m.log.warn("workspace.restart_after_reset_failed", { id: this.id, task: t.name, error: err.message }));
+      }
+    }
+    return r;
   }
 
   listSnapshots(): SnapshotInfo[] {
@@ -761,7 +808,7 @@ export class Workspace {
     await this.m.needDocker();
     const config = this.meta.config;
     if (config.storage === "volume") throw new HttpError(501, "not_implemented", "Volume storage (the Bash course's workspaces) isn't available yet.");
-    const imageName = config.image;
+    const imageName = runnableImage(config.image);
     if (!imageName || !isImageName(imageName)) {
       throw new HttpError(503, "image_missing", `The ${this.meta.course} sandbox isn't available yet. It arrives with its course.`);
     }
@@ -771,6 +818,22 @@ export class Workspace {
     }
     const limits = this.limits;
     this.setStatus("starting", null);
+    // Dependencies and databases come first (§4.2.3): a fill or a template
+    // database's build can take a while the first time, and holds neither
+    // the lock nor memory meanwhile.
+    let prepared: { mounts: VolumeMount[]; db: Attachment | null };
+    try {
+      const mounts = await this.dependencies();
+      prepared = { mounts, db: await this.saying("Setting up the database (the first time builds it)…", this.attachDatabases()) };
+    } catch (err) {
+      const known = err instanceof HttpError || err instanceof DbError || err instanceof PgError || err instanceof MongoError;
+      const failure = known ? dbHttpError(err) : new HttpError(500, "internal", `The workspace couldn't start: ${(err as Error).message}`);
+      this.setStatus("error", failure.message);
+      this.m.log.warn("workspace.prepare_failed", { id: this.id, error: failure.message });
+      if (isDockerDown(err)) throw new HttpError(503, "docker_unavailable", "Docker stopped. Start Docker to run this.");
+      throw failure;
+    }
+    if (this.detail) this.setStatus("starting", null);
     // Memory first, outside the lock: a start may wait here for a while.
     try {
       await this.m.capacity.admit(this.id, limits.memoryBytes, {
@@ -789,7 +852,7 @@ export class Workspace {
       try {
         const leases = await this.takeLeases();
         undo.push(() => this.m.leases.unpin(this.meta.scope));
-        const container = await this.ensureContainer(imageName, limits, leases);
+        const container = await this.ensureContainer(imageName, limits, leases, prepared);
         this.container = container;
         await container.start().catch((err: { statusCode?: number }) => {
           if (err.statusCode !== 304) throw err;
@@ -838,25 +901,25 @@ export class Workspace {
     return out;
   }
 
-  /** The container, reused when its image and ports still match, else made anew. */
+  /**
+   * The container, reused while everything it was made with still matches
+   * (a hash of its options is its hu.hash label), else made anew: a new
+   * port lease, database, lockfile, or profile recreates it in about 100 ms.
+   */
   private async ensureContainer(
     imageName: string,
     limits: WorkspaceLimits,
-    leases: Map<string, { port: number }>
+    leases: Map<string, { port: number }>,
+    prepared: { mounts: VolumeMount[]; db: Attachment | null }
   ): Promise<Docker.Container> {
     const docker = this.m.docker;
     const image = this.m.images.tag(imageName as never);
-    const env = this.containerEnv(leases);
-    const existing = docker.getContainer(this.containerName);
-    const info = await existing.inspect().catch(() => null);
-    if (info) {
-      const same = info.Config.Image === image && JSON.stringify([...(info.Config.Env ?? [])].sort()) === JSON.stringify([...env].sort());
-      if (same) return existing;
-      await existing.remove({ force: true }).catch(() => {});
-    }
+    const env = this.containerEnv(leases, prepared.db?.env);
+    const network = prepared.db?.network ?? "none";
+    const builds: VolumeMount[] = [];
+    for (const b of this.meta.config.build) builds.push({ source: await this.m.volume(this.id, `build-${b.toLowerCase().replace(/[^a-z0-9]/g, "")}`), target: `/workspace/${b}` });
+    const mounts = [...builds, ...prepared.mounts];
     const home = await this.m.volume(this.id, "home");
-    const builds: { name: string; target: string }[] = [];
-    for (const b of this.meta.config.build) builds.push({ name: await this.m.volume(this.id, `build-${b.toLowerCase().replace(/[^a-z0-9]/g, "")}`), target: `/workspace/${b}` });
     const options = standardProfile({
       name: this.containerName,
       image,
@@ -865,9 +928,20 @@ export class Workspace {
       filesDir: this.files.root,
       homeVolume: home,
       limits: { memoryBytes: limits.memoryBytes, cpus: limits.cpus, pids: limits.pids, fsizeBytes: limits.fsizeBytes, tmpBytes: limits.tmpBytes },
-      network: "none",
+      network,
+      mounts,
     });
-    for (const b of builds) options.HostConfig!.Mounts!.push({ Type: "volume", Source: b.name, Target: b.target });
+    // The network by its id too: one made again since (a database server that came back) means a new container.
+    const networkId = network === "none" ? network : ((await docker.getNetwork(network).inspect().catch(() => null)) as { Id?: string } | null)?.Id ?? network;
+    const hash = sha256(JSON.stringify({ ...options, Labels: undefined, Env: [...env].sort(), networkId })).slice(0, 12);
+    options.Labels = { ...options.Labels, [LABEL.hash]: hash };
+    const existing = docker.getContainer(this.containerName);
+    const info = await existing.inspect().catch(() => null);
+    if (info) {
+      if (info.Config.Image === image && info.Config.Labels?.[LABEL.hash] === hash) return existing;
+      await existing.remove({ force: true }).catch(() => {});
+    }
+    for (const b of builds) await this.m.prime(b.source, image);
     try {
       return await docker.createContainer(options);
     } catch (err) {
@@ -876,14 +950,210 @@ export class Workspace {
     }
   }
 
-  private containerEnv(leases: Map<string, { port: number }>): string[] {
-    const env: Record<string, string> = { ...this.meta.config.env };
-    env.HOME = "/home/learner";
-    env.HOST = "0.0.0.0";
-    env.TZ = env.TZ ?? "UTC";
-    env.LANG = env.LANG ?? "C.UTF-8";
-    for (const [name, lease] of leases) env[name] = String(lease.port);
-    return Object.entries(env).map(([k, v]) => `${k}=${v}`);
+  /** The container's variables, with HOME, HOST, and the leased ports. */
+  private containerEnv(leases: Map<string, { port: number }>, db: string[] = []): string[] {
+    const ports = Object.fromEntries([...leases].map(([name, lease]) => [name, String(lease.port)]));
+    const env = this.envFor(db, { HOME: "/home/learner", HOST: "0.0.0.0", ...ports });
+    env.TZ ??= "UTC";
+    env.LANG ??= "C.UTF-8";
+    return envLines(env);
+  }
+
+  /**
+   * The variables a container of this workspace gets: the stack's
+   * (UV_PROJECT_ENVIRONMENT), the template's, its databases' (`db`, the
+   * DATABASE_URL lines), then `extra` (HOME, HOST, the ports), which always
+   * win. A template's value may name the workspace's own variables, like
+   * GOOSE_DBSTRING=${DATABASE_URL}, and gets their values.
+   */
+  envFor(db: string[], extra: Record<string, string>): Record<string, string> {
+    const env: Record<string, string> = { ...this.stackEnv(), ...this.meta.config.env };
+    for (const line of db) env[line.slice(0, line.indexOf("="))] = line.slice(line.indexOf("=") + 1);
+    Object.assign(env, extra);
+    for (const [name, value] of Object.entries(this.meta.config.env)) {
+      if (env[name] === value && value.includes("${")) env[name] = expand(value, env);
+    }
+    return env;
+  }
+
+  /** The variables the course's stack adds to its image's own (runner/stacks.ts). */
+  stackEnv(): Record<string, string> {
+    return isStack(this.meta.course) ? { ...stack(this.meta.course).env } : {};
+  }
+
+  /** The image this workspace's containers run (a stand-in until its own is built). */
+  get imageName(): string | null {
+    return runnableImage(this.meta.config.image);
+  }
+
+  // Dependencies and databases
+
+  /** The workspace's dependency volume (deps.ts), or null when its template has none. */
+  depsPlan(): DepsPlan | null {
+    return this.m.deps.plan(this.meta.course, this.meta.config.deps as DepsConfig | null, this.meta.manifest, {
+      volume: this.m.volumeName(this.id, "deps"),
+      labels: this.m.volumeLabels(this.id),
+    });
+  }
+
+  /**
+   * The volumes a container of this workspace mounts for its dependencies
+   * and its stack's caches (§4.4), filling the dependency volume first when
+   * it's new: the template's original files fill a shared one, the
+   * workspace's own files its own. `workdir` is where the container keeps
+   * the files (a check's /work), and `readOnly` mounts even an own volume
+   * read-only, so a check or a build never changes it.
+   */
+  async dependencies(workdir = "/workspace", readOnly = false): Promise<VolumeMount[]> {
+    const plan = this.depsPlan();
+    if (plan) await this.saying("Installing the dependencies (once for this lockfile)…", this.m.deps.ensure(plan, plan.own ? this.files : this.original, envLines(this.stackEnv())));
+    const mounts = await this.m.deps.mounts(this.meta.course, plan, workdir);
+    return readOnly ? mounts.map((m) => (m.source === plan?.volume ? { ...m, readOnly: true } : m)) : mounts;
+  }
+
+  /** Waits for `work`, and when it takes a moment during a start, the status says why. */
+  private async saying<T>(detail: string, work: Promise<T>): Promise<T> {
+    const quick = await Promise.race([work.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 300).unref())]);
+    if (!quick && this.status === "starting") this.setStatus("starting", detail);
+    return work;
+  }
+
+  /** The template's original files, as db/spec.ts reads them. */
+  private templateFiles(): TemplateFiles {
+    return {
+      read: (rel) => (this.meta.manifest[rel]?.type === "file" ? this.original.readFile(rel, 64 * MiB).data : null),
+      list: (dir) => {
+        const prefix = `${dir}/`;
+        return Object.entries(this.meta.manifest)
+          .filter(([p, e]) => e.type === "file" && p.startsWith(prefix) && !p.slice(prefix.length).includes("/"))
+          .map(([p]) => p.slice(prefix.length));
+      },
+    };
+  }
+
+  /** Which template database this workspace clones: its template, its checkpoint, and for a build, its files' hash. */
+  private templateRef(built: boolean): TemplateRef {
+    const checkpoint = [...this.meta.layers].reverse().find((l) => l.startsWith("checkpoints/"))?.slice("checkpoints/".length);
+    return {
+      course: this.meta.course,
+      template: this.meta.template.split("/")[1],
+      ...(checkpoint ? { checkpoint } : {}),
+      ...(built ? { hash: this.meta.templateHash } : {}),
+    };
+  }
+
+  /**
+   * Gives the workspace its databases when its template has `services`
+   * (README "What a workspace gets"): the role and databases, made the first
+   * time from the template database (built once per hash, by the template's
+   * own command when it names one), and the variables and network the
+   * container needs to reach them.
+   */
+  async attachDatabases(): Promise<Attachment | null> {
+    const services = this.meta.config.services;
+    const databases = this.m.databases;
+    if (!databases || !services || !Object.keys(services).length) return null;
+    let parsed: ReturnType<typeof serviceSpec>;
+    try {
+      parsed = serviceSpec(services, this.templateFiles());
+    } catch (err) {
+      if (err instanceof SpecError) throw new HttpError(500, "template_failed", err.message);
+      throw err;
+    }
+    const { spec, build, mongoBuild } = parsed;
+    if (!spec.postgres && !spec.mongo) return null;
+    const builder = (cmd: string[]): Builder => (target) => this.buildDatabase(cmd, target);
+    const attachment = await databases.attach(this.id, this.templateRef(Boolean(build || mongoBuild)), spec, {
+      ...(build ? { postgres: builder(build) } : {}),
+      ...(mongoBuild ? { mongo: builder(mongoBuild) } : {}),
+    });
+    return { env: this.dbEnv(attachment.env), network: attachment.network };
+  }
+
+  /** Database variables as the stack's code reads them: SQLAlchemy wants postgresql+psycopg:// (stacks.ts). */
+  dbEnv(lines: string[]): string[] {
+    const scheme = isStack(this.meta.course) ? stack(this.meta.course).databaseUrl?.scheme : undefined;
+    if (!scheme) return lines;
+    return lines.map((l) => (/^(TEST_)?DATABASE_URL=postgres:\/\//.test(l) ? l.replace("=postgres://", `=${scheme}://`) : l));
+  }
+
+  /**
+   * Builds a template database with the template's own command
+   * (services.postgres.build, `npm run db:build`): a job from the course's
+   * image with the template's original files in /workspace, its
+   * dependencies, its variables, and the database's, on the database
+   * network as the template's builder (never a superuser). The end of its
+   * output comes back when it fails.
+   */
+  private async buildDatabase(cmd: string[], target: { env: string[]; network: string; database: string }): Promise<void> {
+    const imageName = this.imageName;
+    if (!imageName || !isImageName(imageName)) throw new DbError(503, "image_missing", `The ${this.meta.course} sandbox isn't available yet.`);
+    const mounts = await this.dependencies("/workspace", true);
+    const java = imageName === "java";
+    const limits: JobLimits = {
+      // The course's check slot, at most 1.5 GiB (2 GiB for Java, whose build compiles and starts the app).
+      memoryBytes: Math.min(this.limits.checkBytes, (java ? 2048 : 1536) * MiB),
+      cpus: Math.max(1, this.limits.cpus),
+      pids: 512,
+      workBytes: 512 * MiB,
+      fsizeBytes: 512 * MiB,
+      compileMs: 0,
+      runMs: 5 * 60_000,
+      outputBytes: MiB,
+    };
+    const env = envLines(this.envFor(this.dbEnv(target.env), { HOME: "/home/learner", TZ: "UTC", LANG: "C.UTF-8", HOST: "0.0.0.0", CI: "1" }));
+    const entries = this.original.pack("", 256 * MiB, (p) => keptAside(p) || this.meta.config.build.some((b) => p === b || p.startsWith(`${b}/`)));
+    const started = Date.now();
+    const release = await this.m.capacity.admitCheck(limits.memoryBytes);
+    const run = async () => {
+      const job = await Job.start(
+        this.m.docker,
+        this.m.owner,
+        {
+          image: this.m.images.tag(imageName),
+          recipe: "db-build",
+          workDir: "/workspace",
+          hostname: "workspace",
+          env,
+          limits,
+          deadlineMs: limits.runMs + 60_000,
+          network: target.network,
+          mounts,
+          tmpExec: true,
+          home: "/home/learner",
+        },
+        this.m.log
+      );
+      try {
+        await job.load("/workspace", entries);
+        const r = await job.step(cmd, { workDir: "/workspace", env, timeoutMs: limits.runMs, maxBytes: limits.outputBytes });
+        if (r.code !== 0) {
+          const tail = r.output.trim().split("\n").slice(-15).join("\n");
+          this.m.log.warn("workspace.db_build_failed", { id: this.id, database: target.database, code: r.code, status: r.status, output: tail.slice(-2000) });
+          throw new DbError(500, "template_failed", `The template's database didn't build (${cmd.join(" ")}): ${tail || r.message || "no output"}`);
+        }
+      } finally {
+        await job.dispose();
+      }
+    };
+    try {
+      await (this.m.pool ? this.m.pool.run(run) : run());
+    } finally {
+      release();
+    }
+    this.m.log.info("workspace.db_built", { id: this.id, database: target.database, ms: Date.now() - started });
+  }
+
+  /**
+   * A database event (db/index.ts) goes to the IDE: a reset, a size warning.
+   * When the size watch closed a database, the tasks holding it stop.
+   */
+  dbEvent(event: DbEvent) {
+    this.emit(event as EventMessage);
+    if (event.t !== "limit" || !this.running || !this.m.databases?.info(this.id)?.blocked.length) return;
+    for (const t of this.tasks.values()) {
+      if (t.state === "running" || t.state === "starting") void this.stopTask(t.name).catch(() => {});
+    }
   }
 
   /** The first start's commit, so git status and git diff work as teaching tools. */
@@ -1478,6 +1748,8 @@ export class Workspace {
   heartbeat(visible: boolean) {
     this.touch();
     if (visible) this.lastVisible = Date.now();
+    // Its databases are in use too, for their idle stop and parking clock.
+    this.m.databases?.touch(this.id);
   }
 
   /** Re-adopts a container found running at runner start. */
@@ -1495,13 +1767,15 @@ export class Workspace {
     });
   }
 
-  /** Removes everything: container, volumes, leases, files. */
+  /** Removes everything: container, volumes, databases, leases, files. */
   async destroy() {
     await this.stop("delete").catch(() => {});
     await this.lock.run(async () => {
       this.watcher.stop();
       await this.m.docker.getContainer(this.containerName).remove({ force: true, v: true }).catch(() => {});
       await this.m.removeVolumes(this.id);
+      this.m.deps.forget(this.m.volumeName(this.id, "deps"));
+      await this.m.databases?.dropWorkspace(this.id).catch((err: Error) => this.m.log.warn("workspace.db_drop_failed", { id: this.id, error: err.message }));
       this.m.leases.release(this.meta.scope);
       fs.rmSync(this.dir, { recursive: true, force: true });
     });
@@ -1599,6 +1873,23 @@ function keptAside(p: string): boolean {
   return KEEP_ROOT.has(first) || HEAVY.has(first);
 }
 
+export function envLines(env: Record<string, string>): string[] {
+  return Object.entries(env).map(([k, v]) => `${k}=${v}`);
+}
+
+/** `${NAME}` becomes NAME's value in `vars`. A name it doesn't hold stays as written. */
+export function expand(value: string, vars: Record<string, string>): string {
+  return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (all, name: string) => (Object.hasOwn(vars, name) ? vars[name] : all));
+}
+
+/** A database failure as the REST error it answers (db/routes.ts maps them the same way). */
+function dbHttpError(err: unknown): HttpError {
+  if (err instanceof HttpError) return err;
+  if (err instanceof DbError) return new HttpError(err.status, err.code, err.message);
+  if (err instanceof PgError || err instanceof MongoError) return new HttpError(502, "db_error", err.message);
+  return new HttpError(500, "internal", (err as Error).message);
+}
+
 /** A minimal cookie jar for the API panel: every response's cookies, sent back by path. */
 class CookieJar {
   private readonly cookies = new Map<string, { name: string; value: string; path: string; expires: number | null }>();
@@ -1671,6 +1962,10 @@ export class Workspaces {
   readonly appOrigins: string[];
   /** 8 hex characters of the data folder: two runners never share a container in the verify namespace. */
   readonly home: string;
+  /** Dependency volumes and the stacks' shared caches. */
+  readonly deps: Deps;
+  readonly databases: Databases | null;
+  readonly pool: JobPool | null;
   private readonly watch: DockerWatch;
   private readonly loaded = new Map<string, Workspace>();
 
@@ -1683,9 +1978,23 @@ export class Workspaces {
     this.images = deps.images;
     this.appOrigins = deps.appOrigins;
     this.watch = deps.watch;
+    this.databases = deps.databases ?? null;
+    this.pool = deps.pool ?? null;
     this.root = path.join(deps.config.dataDir, "workspaces");
     fs.mkdirSync(this.root, { recursive: true, mode: 0o700 });
     this.home = createHash("sha256").update(deps.config.dataDir).digest("hex").slice(0, 8);
+    this.deps = new Deps({
+      docker: () => this.docker,
+      owner: this.owner,
+      images: this.images,
+      log: this.log,
+      dataDir: deps.config.dataDir,
+      home: this.home,
+      pool: deps.pool,
+      capacity: deps.capacity,
+    });
+    // Resets and size limits reach the workspace's events socket.
+    this.databases?.onEvent((id, event) => this.loaded.get(id)?.dbEvent(event));
   }
 
   get docker(): Docker {
@@ -1706,18 +2015,44 @@ export class Workspaces {
     throw new HttpError(503, "docker_unavailable", this.watch.state === "waking" ? "Docker is still waking up. Try again in a moment." : "Start Docker to run this.");
   }
 
+  /** The labels of a workspace's own volumes, which go when it is deleted. */
+  volumeLabels(id: string): Record<string, string> {
+    return { [LABEL.managed]: "1", [LABEL.ns]: this.owner.ns, [LABEL.home]: this.home, [LABEL.workspace]: id };
+  }
+
   /** A labeled volume for a workspace, made when missing. */
   async volume(id: string, what: string): Promise<string> {
     const name = this.volumeName(id, what);
     try {
       await this.docker.getVolume(name).inspect();
     } catch {
-      await this.docker.createVolume({
-        Name: name,
-        Labels: { [LABEL.managed]: "1", [LABEL.ns]: this.owner.ns, [LABEL.home]: this.home, [LABEL.workspace]: id },
-      });
+      await this.docker.createVolume({ Name: name, Labels: this.volumeLabels(id) });
     }
     return name;
+  }
+
+  /**
+   * Makes an empty volume learner's: Docker gives a new volume the owner of
+   * the image's folder at its mount point, and root's where the image has
+   * none (a build folder like .vite), and it does so for any container made
+   * while the volume is still empty. So a container is made, never started,
+   * with the volume on /work, which every hu image has empty and learner's.
+   */
+  async prime(volume: string, image: string): Promise<void> {
+    const container = await this.docker
+      .createContainer({
+        name: `${namePrefix(this.owner.ns)}-prime-${randomBytes(6).toString("hex")}`,
+        Image: image,
+        Cmd: ["true"],
+        User: "1000:1000",
+        Labels: labelsFor(this.owner, "job", { [LABEL.expires]: String(Date.now() + 60_000) }),
+        HostConfig: { NetworkMode: "none", Mounts: [{ Type: "volume", Source: volume, Target: "/work" }] },
+      })
+      .catch((err: Error) => {
+        this.log.warn("workspace.prime_failed", { volume, error: err.message });
+        return null;
+      });
+    await container?.remove({ force: true }).catch(() => {});
   }
 
   async removeVolumes(id: string) {
@@ -1814,6 +2149,7 @@ export class Workspaces {
       try {
         for (const layer of layers) await applyLayer(layer, tmp);
         fs.mkdirSync(tmp, { recursive: true });
+        dotenv(tmp);
         const manifest = buildManifest(tmp);
         return { tmp, manifest, hash: manifestHash(manifest) };
       } catch (err) {
@@ -1963,7 +2299,7 @@ export class Workspaces {
     for (const w of this.running()) w.dockerGone();
   }
 
-  /** One pass: idle stops, long-stopped containers, old trash. */
+  /** One pass: idle stops, long-stopped containers, old trash, and (hourly) dependency volumes unused for 30 days. */
   async sweep() {
     const now = Date.now();
     for (const w of [...this.loaded.values()]) {
@@ -1973,6 +2309,7 @@ export class Workspaces {
         this.log.warn("workspace.sweep_failed", { id: w.id, error: (err as Error).message });
       }
     }
+    await this.deps.prune(now).catch((err: Error) => this.log.warn("deps.prune_failed", { error: err.message }));
   }
 
   async remove(id: string) {
@@ -1986,6 +2323,7 @@ export class Workspaces {
   async shutdown() {
     await Promise.all(this.running().map((w) => w.stop("user").catch(() => {})));
     for (const w of this.loaded.values()) w.unwatch();
+    await this.deps.shutdown();
   }
 }
 
@@ -2009,6 +2347,23 @@ function isFile(p: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * A codebase that ships .env.example and no .env gets one copied from it, as
+ * its README's first step would make it (cp .env.example .env): its scripts
+ * read .env (node --env-file=.env, pydantic-settings), and real environment
+ * variables still win there, so the workspace's PORT and DATABASE_URL hold.
+ * It is part of the original, so resets keep it. lib/workspace-layers.mjs
+ * paints the same file in the starting tree.
+ */
+function dotenv(dir: string) {
+  const example = path.join(dir, ".env.example");
+  const target = path.join(dir, ".env");
+  const st = fs.lstatSync(example, { throwIfNoEntry: false });
+  if (!st?.isFile() || fs.lstatSync(target, { throwIfNoEntry: false })) return;
+  fs.copyFileSync(example, target);
+  fs.chmodSync(target, st.mode & 0o777);
 }
 
 /** Copies one layer over the tree being built, then removes what its delete.txt lists. */

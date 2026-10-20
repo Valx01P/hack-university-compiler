@@ -74,6 +74,9 @@ function hexIp(hex: string): string {
   return hex;
 }
 
+/** Where Docker's embedded DNS server listens inside a container on a user-defined network. */
+const DOCKER_DNS = "127.0.0.11";
+
 export function parsePoll(text: string): PollResult {
   const result: PollResult = { listening: new Map(), memUsed: null, memMax: null, oomKills: 0, pidsMax: 0, procs: new Map() };
   let section = "";
@@ -90,6 +93,9 @@ export function parsePoll(text: string): PollResult {
       const [ip, portHex] = f[1].split(":");
       const port = parseInt(portHex, 16);
       const bind = hexIp(ip);
+      // Docker's own DNS on a user-defined network (the database network's
+      // `db` and `mongo` names) listens on 127.0.0.11, no server of the learner's.
+      if (bind === DOCKER_DNS) continue;
       const known = result.listening.get(port);
       // 0.0.0.0 or :: says more than a loopback bind on the same port.
       if (!known || bind === "0.0.0.0" || bind === "::") result.listening.set(port, { port, bind, inode: f[9] });

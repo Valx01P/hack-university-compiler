@@ -4,17 +4,18 @@ import path from "node:path";
 import type Docker from "dockerode";
 import { base32 } from "../../lib/workspace-id.mjs";
 import type { Capacity } from "../capacity.ts";
+import type { CheckDatabase, Databases } from "../db/index.ts";
 import type { Owner } from "../docker.ts";
 import { execCollect } from "../exec.ts";
 import { HttpError } from "../http-util.ts";
 import { isImageName, type Images } from "../images.ts";
 import { Job, type JobPool } from "../jobs.ts";
 import type { Log } from "../log.ts";
-import type { JobLimits } from "../profiles.ts";
+import type { JobLimits, VolumeMount } from "../profiles.ts";
 import { checkRel } from "../storage/host.ts";
 import { launchTask, signalTask } from "../tasks.ts";
 import { HttpThroughError, requestThrough } from "../tunnel.ts";
-import type { Workspace } from "../workspaces.ts";
+import { envLines, type Workspace } from "../workspaces.ts";
 import { fill, jsonPath, matchJson } from "./match.ts";
 import { CmdStep, HttpStep, ProcessStep, Suite, type HttpCall } from "./suite.ts";
 
@@ -22,10 +23,13 @@ import { CmdStep, HttpStep, ProcessStep, Suite, type HttpCall } from "./suite.ts
  * The check sandbox (architecture §7.2): a check never runs in the learner's
  * container. The files are copied (tar) into a fresh job container from the
  * suite's image, on a tmpfs /work, with the course's check limits and network
- * none. The suite's server starts there when a step needs one, then every
- * step runs in order (a failure never stops the next), each finished step
- * streams to the browser as a check event, and the container is removed.
- * Results follow §7.3.
+ * none. Its dependencies mount read-only as the workspace's do (deps.ts),
+ * and a template with a database gives the check a fresh clone of its
+ * template database on the database network, dropped when it ends. The
+ * suite's server starts there when a step needs one, then every step runs in
+ * order (a failure never stops the next), each finished step streams to the
+ * browser as a check event, and the container is removed. Results follow
+ * §7.3.
  */
 
 const MiB = 1024 * 1024;
@@ -71,6 +75,8 @@ export interface ChecksDeps {
   log: Log;
   capacity: Capacity;
   contentDir: string;
+  /** For suites of templates with a database: each check gets a fresh clone of the template's. */
+  databases?: Databases;
 }
 
 const cap = (s: string, n = FIELD_CAP) => (s.length > n ? `${s.slice(0, n)}…` : s);
@@ -167,7 +173,7 @@ export class Checks {
   private async run(ws: Workspace, suite: Suite, result: CheckResult) {
     const started = Date.now();
     const deadlineMs = suite.deadlineMs ?? 60_000;
-    const imageName = suite.image ?? ws.meta.config.image ?? "";
+    const imageName = suite.image ?? ws.imageName ?? "";
     this.emit(ws, { checkId: result.checkId, phase: "copy" });
     if (!isImageName(imageName) || this.deps.images.state(imageName) !== "ready") {
       if (isImageName(imageName)) await this.deps.images.refresh();
@@ -177,11 +183,25 @@ export class Checks {
       }
     }
     let archive: Buffer;
+    let mounts: VolumeMount[];
     try {
       archive = await ws.archiveForCheck(suite.copy?.exclude ?? [], suite.copy?.git ?? false);
+      mounts = await ws.dependencies(WORK, true);
     } catch (err) {
       result.infra = { kind: "copy", message: cap((err as Error).message) };
       return this.finish(ws, result, started);
+    }
+    // The check's own databases: a fresh clone of the template's, never the learner's.
+    let ck: CheckDatabase | null = null;
+    const databases = this.deps.databases;
+    if (databases && suite.db !== "none" && Object.keys(ws.meta.config.services ?? {}).length) {
+      try {
+        if (!databases.info(ws.id)) await ws.attachDatabases();
+        if (databases.info(ws.id)) ck = await databases.checkDatabase(ws.id, suite.db === "empty" ? "empty" : "clone");
+      } catch (err) {
+        result.infra = { kind: "server", message: cap(`The check's database couldn't be made: ${(err as Error).message}`) };
+        return this.finish(ws, result, started);
+      }
     }
     const limits = ws.limits;
     const release = await this.deps.capacity.admitCheck(limits.checkBytes);
@@ -200,20 +220,33 @@ export class Checks {
         const leases = ws.leasedPorts();
         const portVar = suite.server?.port ?? "PORT";
         const port = leases[portVar] ?? 8080;
-        const env = [
-          ...Object.entries(ws.meta.config.env).map(([k, v]) => `${k}=${v}`),
-          "HOME=/tmp",
-          "npm_config_cache=/tmp/.npm",
-          "TZ=UTC",
-          "LANG=C.UTF-8",
-          "HOST=0.0.0.0",
-          `${portVar}=${port}`,
-          "CI=1",
-        ];
+        const env = envLines(
+          ws.envFor(ck ? ws.dbEnv(ck.env) : [], {
+            HOME: "/tmp",
+            npm_config_cache: "/tmp/.npm",
+            TZ: "UTC",
+            LANG: "C.UTF-8",
+            HOST: "0.0.0.0",
+            [portVar]: String(port),
+            CI: "1",
+          })
+        );
         const job = await Job.start(
           this.deps.docker,
           this.deps.owner,
-          { image: this.deps.images.tag(imageName as never), recipe: "check", workDir: WORK, hostname: "workspace", env, limits: jobLimits, deadlineMs: deadlineMs + 15_000 },
+          {
+            image: this.deps.images.tag(imageName as never),
+            recipe: "check",
+            workDir: WORK,
+            hostname: "workspace",
+            env,
+            limits: jobLimits,
+            deadlineMs: deadlineMs + 15_000,
+            mounts,
+            tmpExec: true,
+            home: "/home/learner",
+            ...(ck ? { network: ck.network } : {}),
+          },
           this.deps.log
         );
         let timedOut = false;
@@ -257,6 +290,7 @@ export class Checks {
       result.infra = { kind: "crash", message: cap((err as Error).message) };
     } finally {
       release();
+      await ck?.drop().catch((err: Error) => this.deps.log.warn("check.db_drop_failed", { checkId: result.checkId, error: err.message }));
     }
     this.finish(ws, result, started);
   }

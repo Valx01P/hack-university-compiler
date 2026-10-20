@@ -84,6 +84,12 @@ export interface TemplateRef {
  */
 export type Builder = (target: { env: string[]; network: string; database: string }) => Promise<void>;
 
+/** A builder per server, for a template whose Mongo seed is a command too (`services.mongo.build`). */
+export interface Builders {
+  postgres?: Builder;
+  mongo?: Builder;
+}
+
 interface PgRecord {
   role: string;
   password: string;
@@ -321,15 +327,20 @@ export class Databases {
     return build;
   }
 
-  /** The template database for a Mongo template: its documents (or archive) loaded once per hash. */
-  async mongoTemplate(ref: TemplateRef, documents: string | Buffer | undefined): Promise<string | null> {
-    if (!documents) return null;
-    const template = templateName(ref, hashOf(ref.hash ?? "", typeof documents === "string" ? documents : hashOf(documents.toString("base64"))));
-    await this.buildMongo(template, documents);
+  /**
+   * The template database for a Mongo template: its documents (or archive)
+   * loaded once per hash, or with no documents, what its builder writes
+   * (the codebase's own seed script, logged in as a user of its own).
+   */
+  async mongoTemplate(ref: TemplateRef, documents: string | Buffer | undefined, builder?: Builder): Promise<string | null> {
+    if (!documents && !builder) return null;
+    const content = documents === undefined ? "build" : typeof documents === "string" ? documents : hashOf(documents.toString("base64"));
+    const template = templateName(ref, hashOf(ref.hash ?? "", content));
+    await this.buildMongo(template, documents ?? null, builder);
     return template;
   }
 
-  private buildMongo(template: string, documents: string | Buffer): Promise<void> {
+  private buildMongo(template: string, documents: string | Buffer | null, builder?: Builder): Promise<void> {
     let build = this.building.get(template);
     if (!build) {
       build = this.services
@@ -339,9 +350,20 @@ export class Databases {
           await this.services.mongo.dropDatabase(template);
           try {
             if (typeof documents === "string") await this.services.mongo.load(template, documents);
-            else await this.services.mongo.restoreInto(template, this.services.secrets.mongo.password, documents);
+            else if (documents) await this.services.mongo.restoreInto(template, this.services.secrets.mongo.password, documents);
+            else if (builder) {
+              // The builder logs in as the template's own user, never as root, and the user goes when it's done.
+              const password = newPassword();
+              await this.services.mongo.user(template, password, [template]);
+              try {
+                await builder({ env: [`MONGODB_URI=${mongoUrl(template, password, template)}`], network: this.services.network, database: template });
+              } finally {
+                await this.services.mongo.dropUser(template).catch(() => {});
+              }
+            }
           } catch (err) {
             await this.services.mongo.dropDatabase(template).catch(() => {});
+            if (err instanceof DbError) throw err;
             throw new DbError(500, "template_failed", `The template database ${template} didn't load: ${(err as Error).message}`);
           }
           this.store.mongoTemplates[template] = Date.now();
@@ -362,13 +384,14 @@ export class Databases {
    * network it joins. When content changed the template, the workspace keeps
    * its data and later resets use the new template.
    */
-  attach(id: string, ref: TemplateRef, spec: ServiceSpec, builder?: Builder): Promise<Attachment> {
+  attach(id: string, ref: TemplateRef, spec: ServiceSpec, builder?: Builder | Builders): Promise<Attachment> {
+    const builders: Builders = typeof builder === "function" ? { postgres: builder } : (builder ?? {});
     return this.lock(`ws:${id}`, async () => {
       const names = workspaceNames(id);
       const rec: WorkspaceRecord = this.store.workspaces[id] ?? { createdAt: Date.now(), lastUsedAt: Date.now() };
       if (rec.parkedAt) await this.unpark(id, rec);
       if (spec.postgres) {
-        const { template, testTemplate } = await this.postgresTemplate(ref, spec.postgres, builder);
+        const { template, testTemplate } = await this.postgresTemplate(ref, spec.postgres, builders.postgres);
         const want = [names.dev, ...(spec.postgres.databases?.includes("test") ? [names.test] : [])];
         const pg = rec.postgres ?? { role: names.role, password: newPassword(), template, testTemplate, databases: [] };
         pg.template = template;
@@ -385,7 +408,7 @@ export class Databases {
         rec.postgres = pg;
       }
       if (spec.mongo) {
-        const template = await this.mongoTemplate(ref, spec.mongo.archive ?? spec.mongo.documents);
+        const template = await this.mongoTemplate(ref, spec.mongo.archive ?? spec.mongo.documents, builders.mongo);
         const testTemplate = spec.mongo.testDocuments ? await this.mongoTemplate({ ...ref, checkpoint: `${ref.checkpoint ?? "base"}_test` }, spec.mongo.testDocuments) : null;
         const want = [names.dev, ...(spec.mongo.databases?.includes("test") ? [names.test] : [])];
         const mongo = rec.mongo ?? { user: names.role, password: newPassword(), template, testTemplate, databases: [] };

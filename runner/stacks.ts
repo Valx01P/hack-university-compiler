@@ -21,11 +21,20 @@ export interface Stack {
   /**
    * Dependencies, by lockfile (§4.4). `target` is where a shared, read-only
    * dependency volume (hu-deps-<kind>-<lockhash>) or a workspace's own one
-   * mounts, filled once by a job running `install` from the image's cache.
+   * mounts, filled once by a job running `install` from the image's cache
+   * (`image`'s, when the course's own has none). Maven and Go have no target:
+   * the image's read-only repository and module proxy are the cache, read in
+   * place, so nothing fills.
    */
-  deps: { kind: "npm" | "uv" | "maven" | "go" | "none"; lockfile?: string; target?: string };
+  deps: { kind: "npm" | "uv" | "maven" | "go" | "none"; lockfile?: string; target?: string; image?: ImageName };
   /** Variables a workspace adds to the image's own. */
   env?: Record<string, string>;
+  /**
+   * The scheme DATABASE_URL and TEST_DATABASE_URL take, when the stack's
+   * code doesn't read libpq's postgres:// (SQLAlchemy names its driver:
+   * postgresql+psycopg://, outlines/fastapi.md §1).
+   */
+  databaseUrl?: { scheme: string };
   /** Volumes every container of the course mounts, shared by them all (§4.4, §5.3). */
   volumes?: { name: string; target: string }[];
   /**
@@ -42,7 +51,9 @@ const npm = {
 } as const;
 
 export const STACKS = {
-  typescript: { image: "node", workdir: "/workspace", ...npm },
+  // hu/node has no npm cache yet (architecture §2.4 puts the course's there),
+  // so a TypeScript lockfile installs from hu/web's, which holds its packages.
+  typescript: { image: "node", workdir: "/workspace", ...npm, deps: { ...npm.deps, image: "web" } },
   bash: {
     image: "bash",
     workdir: "/home/learner",
@@ -74,6 +85,7 @@ export const STACKS = {
     },
     deps: { kind: "uv", lockfile: "uv.lock", target: "/deps/venv" },
     env: { UV_PROJECT_ENVIRONMENT: "/deps/venv" },
+    databaseUrl: { scheme: "postgresql+psycopg" },
     script: { workdir: "/opt/hu/env/fastapi/work", run: ["/opt/hu/env/fastapi/.venv/bin/python", "main.py"] },
   },
   spring: {
