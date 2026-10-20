@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { ArrowRight } from "lucide-react";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
 import { CompilerButton } from "@/components/learn/compiler-button";
+import { playgroundHref } from "@/lib/courses";
 import {
   CODE_BLOCK,
   LessonEyebrow,
@@ -116,9 +117,9 @@ export function ReadPartView({
                 editor's toolbar. Full screen covers the top bar, so the way
                 to the compiler joins it then. */}
             <span className="-my-2 -mr-2 hidden shrink-0 items-center gap-1 lg:flex">
-              {compiler && (
+              {(compiler || playgroundHref(course.slug)) && (
                 <span className="hidden full:contents">
-                  <CompilerButton lang={course.slug} langLabel={course.label} className="shrink-0" />
+                  <CompilerButton lang={course.slug} langLabel={course.label} to={compiler ? "compiler" : "playground"} className="shrink-0" />
                 </span>
               )}
               <button

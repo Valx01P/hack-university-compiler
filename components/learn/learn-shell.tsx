@@ -10,6 +10,7 @@ import { CompilerButton } from "@/components/learn/compiler-button";
 import { LessonDrawer } from "@/components/learn/lesson-drawer";
 import { LessonList } from "@/components/learn/lesson-list";
 import { ResizeHandle } from "@/components/ui/resize-handle";
+import { playgroundHref } from "@/lib/courses";
 import { useIsFullScreen } from "@/lib/full-screen";
 import { EASE, dur, gsap } from "@/lib/motion";
 import type { Course, LessonRef } from "@/lib/learn-types";
@@ -221,9 +222,9 @@ export function LearnShell({
               </span>
             )}
           </span>
-          {/* A course without a compiler page runs nothing in Learn, so it
-              has neither the sandbox badge nor the Compiler button. */}
-          {compiler && (
+          {/* A course without a compiler page leads to its playground
+              instead (React, Spring Boot, and the other project courses). */}
+          {(compiler || playgroundHref(lang)) && (
             <span className="flex shrink-0 items-center gap-2">
               {/* No room on phones; a run still reports sandbox problems. The
                   badge shows up once the sandbox answers, so it gets a slot as
@@ -232,7 +233,7 @@ export function LearnShell({
               <span className="hidden min-w-32 justify-end sm:flex">
                 <SandboxStatus lang={lang} />
               </span>
-              <CompilerButton lang={lang} langLabel={langLabel} />
+              <CompilerButton lang={lang} langLabel={langLabel} to={compiler ? "compiler" : "playground"} />
             </span>
           )}
         </div>
