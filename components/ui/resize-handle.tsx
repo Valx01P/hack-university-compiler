@@ -5,6 +5,8 @@
  * drawn like the compiler's editor and output divider. Arrow keys nudge it
  * (Shift for bigger steps), Home and End go to the limits, and a double-click
  * puts it back. Pass the display classes (`hidden lg:flex`) in `className`.
+ * With `orientation="horizontal"` it's a border you drag up and down (the
+ * IDE's dock), with the up and down arrows.
  */
 export function ResizeHandle({
   label,
@@ -17,6 +19,7 @@ export function ResizeHandle({
   onDrag,
   onReset,
   quiet = false,
+  orientation = "vertical",
   className = "",
 }: {
   label: string;
@@ -26,13 +29,16 @@ export function ResizeHandle({
   step: number;
   bigStep: number;
   onChange: (next: number) => void;
-  /** The pointer's x while dragging. */
+  /** The pointer's x while dragging (its y for a horizontal border). */
   onDrag: (clientX: number) => void;
   onReset: () => void;
   /** No line until hovered or focused, for a border at the panel's edge. */
   quiet?: boolean;
+  /** "vertical" (the default) drags sideways, "horizontal" up and down. */
+  orientation?: "vertical" | "horizontal";
   className?: string;
 }) {
+  const across = orientation === "horizontal";
   // Pointer capture keeps move events coming over the code editor, and no text
   // selection while dragging stops it from highlighting the lesson.
   function start(e: React.PointerEvent<HTMLDivElement>) {
@@ -43,8 +49,8 @@ export function ResizeHandle({
     const prevSelect = document.body.style.userSelect;
     const prevCursor = document.body.style.cursor;
     document.body.style.userSelect = "none";
-    document.body.style.cursor = "col-resize";
-    const move = (ev: PointerEvent) => onDrag(ev.clientX);
+    document.body.style.cursor = across ? "row-resize" : "col-resize";
+    const move = (ev: PointerEvent) => onDrag(across ? ev.clientY : ev.clientX);
     const up = () => {
       document.body.style.userSelect = prevSelect;
       document.body.style.cursor = prevCursor;
@@ -61,8 +67,8 @@ export function ResizeHandle({
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     const by = e.shiftKey ? bigStep : step;
     const next =
-      e.key === "ArrowLeft" ? value - by
-      : e.key === "ArrowRight" ? value + by
+      e.key === (across ? "ArrowUp" : "ArrowLeft") ? value - by
+      : e.key === (across ? "ArrowDown" : "ArrowRight") ? value + by
       : e.key === "Home" ? min
       : e.key === "End" ? max
       : null;
@@ -74,7 +80,7 @@ export function ResizeHandle({
   return (
     <div
       role="separator"
-      aria-orientation="vertical"
+      aria-orientation={across ? "horizontal" : "vertical"}
       aria-label={label}
       aria-valuemin={min}
       aria-valuemax={max}
@@ -84,12 +90,14 @@ export function ResizeHandle({
       onDoubleClick={onReset}
       onKeyDown={onKeyDown}
       title="Drag to resize. Double-click to reset."
-      className={`group w-[9px] shrink-0 cursor-col-resize touch-none select-none items-stretch justify-center outline-none ${className}`}
+      className={`group shrink-0 touch-none select-none outline-none ${
+        across ? "h-[9px] cursor-row-resize flex-col items-stretch justify-center" : "w-[9px] cursor-col-resize items-stretch justify-center"
+      } ${className}`}
     >
       <div
-        className={`pointer-events-none w-px transition-colors group-hover:w-[2px] group-hover:bg-accent-strong group-focus-visible:bg-accent-strong group-active:bg-accent-strong ${
-          quiet ? "bg-transparent" : "bg-line"
-        }`}
+        className={`pointer-events-none transition-colors group-hover:bg-accent-strong group-focus-visible:bg-accent-strong group-active:bg-accent-strong ${
+          across ? "h-px group-hover:h-[2px]" : "w-px group-hover:w-[2px]"
+        } ${quiet ? "bg-transparent" : "bg-line"}`}
       />
     </div>
   );

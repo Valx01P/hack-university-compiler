@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { InlineScript } from "@/components/inline-script";
+import { WorkspacePartView } from "@/components/ide/workspace-part-view";
 import { PartView, type PartLink } from "@/components/learn/part-view";
+import { workspacePartData } from "@/lib/learn-workspace";
+import { IDE_GATE } from "@/lib/playgrounds";
 import { getCompilerLang } from "@/lib/compiler";
 import { getAllPartParams, getLesson, getLessonOrder } from "@/lib/learn";
 import { getFixtureSet, type FixtureFile } from "@/lib/learn-fixtures";
@@ -70,6 +74,34 @@ export default async function PartPage(props: PageProps<"/[lang]/learn/[lesson]/
       : after
         ? { href: partHref(lang.slug, after.id, 1), title: after.title, lesson: true }
         : null;
+
+  // A part in the workspace format shows the IDE where the editor was.
+  const format = lesson.steps[part].format ?? lesson.format ?? "single";
+  if (format === "workspace") {
+    const data = await workspacePartData(lang.slug, lesson, part);
+    return (
+      <>
+        <InlineScript html={IDE_GATE("data-restore-editor")} />
+        <WorkspacePartView
+          key={`${lesson.id}/${part}`}
+          lang={lang}
+          lesson={{ id: lesson.id, title: lesson.title, section: lesson.section, intro: lesson.intro, recap: lesson.recap }}
+          parts={lesson.steps.map((s) => s.title)}
+          part={part}
+          step={{ title: lesson.steps[part].title, body: lesson.steps[part].body }}
+          data={data}
+          position={{ index, total: order.length }}
+          prev={prev}
+          next={next}
+          carryFrom={
+            part > 0 && (lesson.steps[part - 1].format ?? lesson.format) === "workspace"
+              ? { scope: `learn/${lang.slug}/${lesson.id}/${part}/practice`, part }
+              : null
+          }
+        />
+      </>
+    );
+  }
 
   const fixtures = await partFixtures(lang.slug, lesson, part);
 

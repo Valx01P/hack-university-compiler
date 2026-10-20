@@ -44,6 +44,11 @@ const courseDir = cache(async (lang: string): Promise<string> => {
   return path.join(DIR, lang);
 });
 
+/** The folder a course's lessons (and their part folders) are read from. */
+export async function getCourseDir(lang: string): Promise<string> {
+  return courseDir(lang);
+}
+
 /** A lesson, with every step's examples in `examples` (a lesson file may
     still give a step a single `example`). */
 export const getLesson = cache(async (lang: string, id: string): Promise<Lesson | null> => {

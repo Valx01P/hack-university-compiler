@@ -17,6 +17,12 @@ if (!existsSync(path.join(ROOT, "runner", "node_modules"))) {
   const r = spawnSync(npm, ["ci", "--prefix", "runner", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: ROOT, stdio: "inherit" });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
+// The file icons and the workspaces' starting trees the app builds from
+// (.generated/). Change a template while next dev runs and run it again.
+{
+  const r = spawnSync(process.execPath, [path.join("scripts", "build-content.mjs")], { cwd: ROOT, stdio: "inherit" });
+  if (r.status !== 0) process.exit(r.status ?? 1);
+}
 for (const [port, what] of [
   [RUNNER_PORT, "the workspace runner (HU_RUNNER_PORT)"],
   [PORT, "the app (PORT)"],
