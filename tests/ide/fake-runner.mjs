@@ -269,7 +269,8 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
     emit(ws, { t: "task", name, state: "starting", code: null, signal: null });
     term.write(`\x1b[2m$ ${ws.body.tasks?.[name] ?? name}\x1b[0m\r\n`);
     if (name === "dev") {
-      const p = nextPort++;
+      const p = nextPort;
+      nextPort = nextPort >= portRange[1] ? portRange[0] : nextPort + 1;
       task.port = p;
       task.server = http.createServer((req, res) => {
         if (req.url?.startsWith("/api/")) {

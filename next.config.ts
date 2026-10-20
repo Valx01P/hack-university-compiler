@@ -33,6 +33,9 @@ const csp = [
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
   `connect-src 'self' ws://127.0.0.1:${RUNNER_PORT} ws://localhost:${RUNNER_PORT}${isProd ? "" : " ws:"}`,
+  // The IDE's preview frames a workspace's server on its own localhost port
+  // (another origin, the same site, architecture §11.4).
+  "frame-src 'self' http://localhost:* http://127.0.0.1:*",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

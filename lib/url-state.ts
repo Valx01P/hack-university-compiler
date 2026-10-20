@@ -10,6 +10,11 @@
  * - Learn: ?tab=code (the Your code tab) or ?tab=ex2 and ex3 (the second
  *   and third examples), &hints, and #example, #example-2, #example-3,
  *   #practice, or #recap for where you are in the part.
+ * - The IDE (playgrounds and workspace parts): &file (the file open in the
+ *   editor) and &line, &dock (the panel open under it: server, ports, api,
+ *   problems, results), and &preview (the preview's path, when it's open).
+ *   Open tabs, unsaved text, and opened folders stay in localStorage per
+ *   workspace instead (lib/workspace-store.ts).
  * - Both: &full=1 in full screen (lib/full-screen.ts).
  *
  * A reload that restores something you'd see change is restored before you
@@ -21,7 +26,7 @@
  */
 
 // The order params are written in, for a readable address.
-const ORDER = ["panel", "challenge", "hints", "difficulty", "status", "q", "at", "view", "tab", "full"];
+const ORDER = ["panel", "challenge", "hints", "difficulty", "status", "q", "at", "view", "tab", "file", "line", "dock", "preview", "tour", "vp", "drawer", "full"];
 const rank = (key: string) => {
   const i = ORDER.indexOf(key);
   return i < 0 ? ORDER.length : i;
