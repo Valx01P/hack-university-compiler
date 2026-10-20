@@ -172,6 +172,7 @@ export class WorkspaceStore {
   private listeners = new Map<Slice, Set<() => void>>();
   private events: WorkspaceEvents | null = null;
   private autosaveTimers = new Map<string, number>();
+  private diskTimers = new Map<string, number>();
   private persistTimer = 0;
   private treeTimer = 0;
   private persisted: Persisted;
@@ -521,6 +522,7 @@ export class WorkspaceStore {
       touched = true;
       if (kind === "unlink" || kind === "unlinkDir") {
         for (const key of [...this.nodes.keys()]) if (key === p || key.startsWith(`${p}/`)) this.nodes.delete(key);
+        window.clearTimeout(this.diskTimers.get(p));
         const buf = this.buffers.get(p);
         if (buf && !buf.deleted) {
           buf.deleted = true;
@@ -554,7 +556,17 @@ export class WorkspaceStore {
             buf.deleted = false;
             this.emit("files");
           }
-          if (kind === "change" || kind === "add") void this.diskChanged(p);
+          // A moment later, so an unlink right behind it (a rename, a
+          // delete) cancels the read instead of racing it.
+          if (kind === "change" || kind === "add") {
+            window.clearTimeout(this.diskTimers.get(p));
+            this.diskTimers.set(
+              p,
+              window.setTimeout(() => {
+                if (this.nodes.has(p)) void this.diskChanged(p);
+              }, 120)
+            );
+          }
         }
       }
     }
@@ -988,28 +1000,60 @@ export class WorkspaceStore {
     }
   }
 
+  /** Continue with my code: the previous part's practice files replace
+      this part's (a snapshot first, so Undo works). */
+  async carry(from: string): Promise<string | null> {
+    try {
+      const { snapshot } = await workspaceApi.carry(this.id, from);
+      await this.reloadAll();
+      this.announce("Your code from the previous part is here");
+      return snapshot ?? null;
+    } catch (err) {
+      this.announce(err instanceof WorkspaceError ? err.message : "Couldn't bring your code over.");
+      return null;
+    }
+  }
+
+  /** Every open file again from disk, and the tree, after something replaced
+      many files at once (a save point, Continue with my code). */
+  private async reloadAll() {
+    try {
+      const { tree, removed } = await workspaceApi.tree(this.id);
+      this.setTree(tree, removed);
+    } catch {
+      this.refreshTree(0);
+    }
+    for (const [p, b] of [...this.buffers]) {
+      if (this.nodes.get(p)?.type !== "file") {
+        this.buffers.delete(p);
+        this.host?.close(p);
+        this.tabs = this.tabs.filter((t) => t !== p);
+        if (this.active === p) this.active = this.tabs.at(-1) ?? null;
+        continue;
+      }
+      try {
+        const read = await workspaceApi.readFile(this.id, p);
+        if (read.kind === "text") {
+          b.saved = read.text;
+          b.etag = read.etag;
+          b.dirty = false;
+          b.conflict = null;
+          b.deleted = false;
+          this.host?.replace(p, read.text, { clean: true });
+        }
+      } catch {
+        b.deleted = true;
+      }
+    }
+    this.persisted.unsaved = {};
+    this.persist();
+    this.emit("files");
+  }
+
   async restoreSnapshot(sid: string) {
     try {
       await workspaceApi.restoreSnapshot(this.id, sid);
-      for (const [p, b] of this.buffers) {
-        try {
-          const read = await workspaceApi.readFile(this.id, p);
-          if (read.kind === "text") {
-            b.saved = read.text;
-            b.etag = read.etag;
-            b.dirty = false;
-            b.conflict = null;
-            b.deleted = false;
-            this.host?.replace(p, read.text, { clean: true });
-          }
-        } catch {
-          b.deleted = true;
-        }
-      }
-      this.persisted.unsaved = {};
-      this.persist();
-      this.refreshTree(0);
-      this.emit("files");
+      await this.reloadAll();
       this.announce("Restored the save point");
       return true;
     } catch (err) {

@@ -207,6 +207,11 @@ export const workspaceApi = {
   archiveUrl(id: string) {
     return `${base(id)}/archive`;
   },
+  /** Continue with my code: another workspace's files (the previous part's
+      practice) replace these, after a snapshot. */
+  async carry(id: string, from: string) {
+    return json<{ restored?: string[]; removed?: string[]; snapshot?: string | null }>(await post(`${base(id)}/carry`, { from }));
+  },
 };
 
 export interface Snapshot {

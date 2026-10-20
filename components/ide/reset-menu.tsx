@@ -195,6 +195,16 @@ export function ResetMenu({ store, className }: { store: WorkspaceStore; classNa
                   Save
                 </button>
               </form>
+              <a
+                href={workspaceApi.archiveUrl(store.id)}
+                download
+                role="menuitem"
+                className={`${item} ${offline ? "pointer-events-none opacity-40" : ""}`}
+                onClick={() => setOpen(false)}
+              >
+                Download as a zip
+                <span className="text-[11px] text-ink-faint">without .git</span>
+              </a>
               {snapshots === null ? (
                 <p className="px-2.5 py-1 text-xs text-ink-faint">{offline ? store.runnerMessage : "Loading…"}</p>
               ) : snapshots.length === 0 ? (

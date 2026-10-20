@@ -9,7 +9,7 @@ import { LessonMarkdown } from "@/components/learn/lesson-md";
 import type { PartLink } from "@/components/learn/part-view";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
 import { ResizeHandle } from "@/components/ui/resize-handle";
-import { WorkspaceView } from "@/components/ide/workspace-view";
+import { storeFor, WorkspaceView } from "@/components/ide/workspace-view";
 import { Highlight } from "@/lib/highlight";
 import type { CompilerLang } from "@/lib/compiler";
 import type { WorkspacePartData, WorkspaceExampleView } from "@/lib/learn-workspace";
@@ -55,6 +55,7 @@ export function WorkspacePartView({
   position,
   prev,
   next,
+  carryFrom = null,
 }: {
   lang: CompilerLang;
   lesson: Pick<Lesson, "id" | "title" | "section" | "intro" | "recap">;
@@ -65,6 +66,8 @@ export function WorkspacePartView({
   position: { index: number; total: number };
   prev: PartLink | null;
   next: PartLink | null;
+  /** The previous part's practice, when Continue with my code can bring it over. */
+  carryFrom?: { scope: string; part: number } | null;
 }) {
   const { solved } = useSolvedState(lang.slug);
   const isSolved = (i: number) => solved.has(problemId(lesson.id, i));
@@ -210,7 +213,25 @@ export function WorkspacePartView({
             {data.examples.map((ex, i) => (
               <ExampleView key={i} example={ex} index={i} count={data.examples.length} onOpen={(t) => setTab(t)} />
             ))}
-            <Practice data={data} solved={partSolved} criteria={criteria} onStart={() => setTab("code")} />
+            <Practice
+              data={data}
+              solved={partSolved}
+              criteria={criteria}
+              onStart={() => setTab("code")}
+              carry={
+                carryFrom
+                  ? {
+                      part: carryFrom.part,
+                      run: async () => {
+                        const practice = data.tabs.find((t) => t.tab === "code");
+                        if (!practice) return false;
+                        setTab("code");
+                        return (await storeFor(practice.props).carry(carryFrom.scope)) !== null;
+                      },
+                    }
+                  : null
+              }
+            />
           </section>
           {lastPart && lesson.recap && (
             <section id="recap" className={`mt-12 border-t border-content-line pt-6 ${PLACE_MARGIN}`}>
@@ -358,9 +379,22 @@ function ExampleView({ example, index, count, onOpen }: { example: WorkspaceExam
   );
 }
 
-function Practice({ data, solved, criteria, onStart }: { data: WorkspacePartData; solved: boolean; criteria: string | null; onStart: () => void }) {
+function Practice({
+  data,
+  solved,
+  criteria,
+  onStart,
+  carry,
+}: {
+  data: WorkspacePartData;
+  solved: boolean;
+  criteria: string | null;
+  onStart: () => void;
+  carry: { part: number; run: () => Promise<boolean> } | null;
+}) {
   const { practice } = data;
   const [hintsShown, setHintsShown] = useState(0);
+  const [carried, setCarried] = useState<"idle" | "armed" | "busy" | "done">("idle");
   useLayoutEffect(() => {
     setHintsShown(urlCount("hints", practice.hints.length));
     // Once, on load.
@@ -420,6 +454,22 @@ function Practice({ data, solved, criteria, onStart }: { data: WorkspacePartData
             <ArrowRight className="size-3.5" aria-hidden />
           </span>
         </button>
+        {carry && carried !== "done" && (
+          <button
+            type="button"
+            disabled={carried === "busy"}
+            onClick={async () => {
+              // Two clicks, like Show solution: it replaces this part's files.
+              if (carried !== "armed") return setCarried("armed");
+              setCarried("busy");
+              setCarried((await carry.run()) ? "done" : "idle");
+            }}
+            onBlur={() => carried === "armed" && setCarried("idle")}
+            className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink disabled:opacity-50"
+          >
+            {carried === "armed" ? "Click again: your part " + carry.part + " files replace these" : `Continue with my code from part ${carry.part}`}
+          </button>
+        )}
         {practice.hints.length > 0 && hintsShown < practice.hints.length && (
           <button
             type="button"
@@ -430,6 +480,12 @@ function Practice({ data, solved, criteria, onStart }: { data: WorkspacePartData
           </button>
         )}
       </div>
+      {carried === "done" && (
+        <p className="mt-3 text-sm text-ink-muted" role="status">
+          Your code from part {carry?.part} is in your workspace (Undo is under the reset menu&apos;s save points). Check still expects what this part
+          asks, from where it starts.
+        </p>
+      )}
       {hintsShown > 0 && (
         <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-ink-muted">
           {practice.hints.slice(0, hintsShown).map((h, i) => (

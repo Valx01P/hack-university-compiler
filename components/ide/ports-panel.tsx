@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { workspaceApi } from "@/lib/workspace-client";
 import { useStore, type WorkspaceStore } from "@/lib/workspace-store";
 
 /**
@@ -77,6 +78,16 @@ export function PortsPanel({ store }: { store: WorkspaceStore }) {
                     >
                       {copied === p.port ? "Copied" : "Copy"}
                     </button>
+                    {p.declared === false && (
+                      <button
+                        type="button"
+                        className={btn}
+                        title="Stop forwarding this port (the server keeps running in the sandbox)"
+                        onClick={() => void workspaceApi.stopPort(store.id, p.port).catch(() => store.announce(`Couldn't stop forwarding ${p.port}.`))}
+                      >
+                        Stop
+                      </button>
+                    )}
                   </span>
                 </td>
               </tr>

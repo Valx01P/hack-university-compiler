@@ -93,6 +93,11 @@ export default async function PartPage(props: PageProps<"/[lang]/learn/[lesson]/
           position={{ index, total: order.length }}
           prev={prev}
           next={next}
+          carryFrom={
+            part > 0 && (lesson.steps[part - 1].format ?? lesson.format) === "workspace"
+              ? { scope: `learn/${lang.slug}/${lesson.id}/${part}/practice`, part }
+              : null
+          }
         />
       </>
     );

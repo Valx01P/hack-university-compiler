@@ -18,7 +18,7 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 950 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("response", (r) => { if (r.status() >= 400 && r.url().includes("/api/")) errors.push(`${r.url()} ${r.status()}`); });
-const step = async (name, fn) => { try { await fn(); console.log("✔", name); } catch (e) { console.log("✖", name, e.message.split("\n")[0]); await page.screenshot({ path: `${shots}/learn-fail.png` }); } };
+const step = async (name, fn) => { try { await fn(); console.log("✔", name); } catch (e) { console.log("✖", name, process.env.DEBUG ? e.message : e.message.split("\n")[0]); await page.screenshot({ path: `${shots}/learn-fail.png` }); } };
 const settled = () => page.waitForFunction(() => !document.documentElement.hasAttribute("data-restore") && !document.documentElement.hasAttribute("data-restore-editor") && document.querySelector("[data-ide][data-settled]"), null, { timeout: 10000 });
 await step("opens the part with the lesson beside the IDE", async () => {
   await page.goto(`${base}/typescript/learn/playground-tour/1?tab=code`, { waitUntil: "domcontentloaded" });
