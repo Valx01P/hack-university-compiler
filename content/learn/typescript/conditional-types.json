@@ -1,0 +1,237 @@
+{
+  "id": "conditional-types",
+  "title": "Conditional Types and infer",
+  "section": "Type Transformations",
+  "summary": "Choose between two types with a condition, see how conditions spread over unions, and pull types out of promises, arrays, and functions with infer.",
+  "intro": "Some types depend on other types. A `Date` in your code is a string once it's JSON, and a handler's payload is whatever its parameter says. Conditional types write such rules down: if this type fits that one, use one type, else another. They're how `Exclude`, `Extract`, `ReturnType`, and `Awaited` are written, and how library types adapt to what you pass them. In this lesson you write your own, see how they behave on unions, and use `infer` to take one type out of another.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Conditional types",
+      "body": "A conditional type is a ternary for types. `T extends U ? X : Y` checks whether `T` fits `U`, the same question an assignment asks, and becomes `X` if it does, else `Y`. Chain them like ternaries to test several cases in order:\n\n```typescript types\ntype IsText<T> = T extends string ? \"text\" : \"not text\";\n\ntype A = IsText<\"hello\">;\n//   ^? type A = \"text\"\ntype B = IsText<42>;\n//   ^? type B = \"not text\"\n```\n\nConditions earn their keep in generic types, where `T` is whatever the caller passes. TypeScript's own library has several. `Exclude<T, U>`, for example, is declared as `T extends U ? never : T`, and `Extract<T, U>` as `T extends U ? T : never`.\n\nA condition exists only for `tsc`. It picks a type, and nothing of it runs. To check a value while the program runs, you still use `typeof`, `in`, and type guards.",
+      "examples": [
+        {
+          "title": "Naming a type",
+          "prompt": "Name the type of a value with a chain of conditions, and make a function's second argument depend on its first.",
+          "code": "type TypeName<T> = T extends string ? \"string\" : T extends number ? \"number\" : \"other\";\n\ntype A = TypeName<\"Ada\">;\n//   ^? type A = \"string\"\ntype B = TypeName<36>;\n//   ^? type B = \"number\"\ntype C = TypeName<string[]>;\n//   ^? type C = \"other\"\n\nfunction describe<T>(value: T, name: TypeName<T>): string {\n  return `${JSON.stringify(value)}: ${name}`;\n}\n\nconsole.log(describe(\"Ada\", \"string\"));\nconsole.log(describe(36, \"number\"));\nconsole.log(describe([\"a\", \"b\"], \"other\"));\n",
+          "output": "\"Ada\": string\n36: number\n[\"a\",\"b\"]: other",
+          "explanation": "The conditions run in order, like an `if` followed by `else if`. `string[]` is neither a string nor a number, so it gets `\"other\"`. In `describe`, `T` comes from `value`, and the type of `name` is computed from it, so the name has to match the value:\n\n```typescript error\ntype TypeName<T> = T extends string ? \"string\" : T extends number ? \"number\" : \"other\";\n\nfunction describe<T>(value: T, name: TypeName<T>): string {\n  return `${JSON.stringify(value)}: ${name}`;\n}\n\ndescribe(36, \"string\");\n```\n\nFor `36`, `name` must be `\"number\"`, so `tsc` reports TS2345: `Argument of type '\"string\"' is not assignable to parameter of type '\"number\"'.`"
+        },
+        {
+          "title": "NonNullable from scratch",
+          "prompt": "Write your own NonNullable with a condition, and compare it with the built-in.",
+          "code": "type MyNonNullable<T> = T extends null | undefined ? never : T;\n\ntype MaybeName = string | null | undefined;\n\ntype Name = MyNonNullable<MaybeName>;\n//   ^? type Name = string\ntype Same = NonNullable<MaybeName>;\n//   ^? type Same = string\n\nfunction greet(name: Name): string {\n  return `Hello, ${name}!`;\n}\n\nconst names: MaybeName[] = [\"Ada\", null, \"Grace\", undefined];\nfor (const n of names) {\n  console.log(n === null || n === undefined ? \"Hello, guest!\" : greet(n));\n}\n",
+          "output": "Hello, Ada!\nHello, guest!\nHello, Grace!\nHello, guest!",
+          "explanation": "A member that fits `null | undefined` becomes `never`, and every other member stays as it is, so only `string` is left. That works because a condition on a type parameter checks a union one member at a time, which the next part explains. `never` is the empty type, so it disappears from any union. The built-in gets the same answer another way: the library declares `NonNullable<T>` as `T & {}`, and `{}` accepts every value except `null` and `undefined`. In the loop, the check narrows `n` to `string`, which is exactly `Name`."
+        },
+        {
+          "title": "An item or a list of items",
+          "prompt": "Get the type of one item from config fields that hold either a single value or a list.",
+          "code": "type ElementOrSelf<T> = T extends readonly unknown[] ? T[number] : T;\n\ntype Config = {\n  hosts: string[];\n  port: number;\n  sizes: readonly [\"S\", \"M\", \"L\"];\n};\n\ntype Host = ElementOrSelf<Config[\"hosts\"]>;\n//   ^? type Host = string\ntype Port = ElementOrSelf<Config[\"port\"]>;\n//   ^? type Port = number\ntype Size = ElementOrSelf<Config[\"sizes\"]>;\n//   ^? type Size = \"L\" | \"M\" | \"S\"\n\nfunction url(host: Host, port: Port): string {\n  return `https://${host}:${port}`;\n}\n\nconst config: Config = { hosts: [\"api.example.com\", \"backup.example.com\"], port: 8443, sizes: [\"S\", \"M\", \"L\"] };\nconst defaultSize: Size = \"M\";\n\nfor (const host of config.hosts) {\n  console.log(url(host, config.port));\n}\nconsole.log(`Default size: ${defaultSize}`);\n",
+          "output": "https://api.example.com:8443\nhttps://backup.example.com:8443\nDefault size: M",
+          "explanation": "For an array, `T[number]` is the type of its items, the same `[number]` indexing that turns an `as const` array into the union of its items. Anything that isn't an array comes back as it is, so `Port` is just `number`. The check uses `readonly unknown[]` on purpose: a normal array fits a readonly one, but not the other way round. With `unknown[]`, the readonly `sizes` tuple would fail the check and come back whole, instead of as the union of its three sizes."
+        }
+      ],
+      "practice": {
+        "title": "JSON shapes",
+        "prompt": "Describe what an order looks like once it's JSON, where every `Date` is a string, and convert an order to that shape.\n\n1. Make `ApiField<T>` a conditional type: `string` when `T` is a `Date`, else `T` itself.\n2. Make `Jsonified<T>` a mapped type that gives each key `K` of `T` the type `ApiField<T[K]>`.\n3. Make `toJson` return the order with `createdAt` turned into a string with `toISOString()`, with the keys in the order `id`, `createdAt`, `totalCents`. A `Date` in a template string prints its long local form, so the first line shows whether `createdAt` really became a string.\n4. Keep `export`: hidden type tests use `ApiField`, `Jsonified`, `Order`, and `toJson`.\n\nExpected output:\n\n```text\nPlaced at 2026-10-01T09:00:00.000Z\n{\"id\":\"ord_1001\",\"createdAt\":\"2026-10-01T09:00:00.000Z\",\"totalCents\":4599}\n```",
+        "starter": "export type Order = { id: string; createdAt: Date; totalCents: number };\n\n// TODO: string when T is a Date, else T itself\nexport type ApiField<T> = T;\n\n// TODO: give each key K of T the type ApiField<T[K]>\nexport type Jsonified<T> = T;\n\nexport function toJson(order: Order): Jsonified<Order> {\n  // TODO: return the order with createdAt as an ISO string\n  return order;\n}\n\nconst order: Order = { id: \"ord_1001\", createdAt: new Date(\"2026-10-01T09:00:00Z\"), totalCents: 4599 };\nconst json = toJson(order);\n\nconsole.log(`Placed at ${json.createdAt}`);\nconsole.log(JSON.stringify(json));\n",
+        "solution": "export type Order = { id: string; createdAt: Date; totalCents: number };\n\nexport type ApiField<T> = T extends Date ? string : T;\n\nexport type Jsonified<T> = { [K in keyof T]: ApiField<T[K]> };\n\nexport function toJson(order: Order): Jsonified<Order> {\n  return { id: order.id, createdAt: order.createdAt.toISOString(), totalCents: order.totalCents };\n}\n\nconst order: Order = { id: \"ord_1001\", createdAt: new Date(\"2026-10-01T09:00:00Z\"), totalCents: 4599 };\nconst json = toJson(order);\n\nconsole.log(`Placed at ${json.createdAt}`);\nconsole.log(JSON.stringify(json));\n",
+        "tests": [
+          {
+            "output": "Placed at 2026-10-01T09:00:00.000Z\n{\"id\":\"ord_1001\",\"createdAt\":\"2026-10-01T09:00:00.000Z\",\"totalCents\":4599}"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { toJson, type ApiField, type Jsonified, type Order } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "toJson returns the JSON shape of an order",
+              "expect": "ok",
+              "code": "declare const o: Order;\nconst j: Jsonified<Order> = toJson(o);\n"
+            },
+            {
+              "name": "createdAt is no longer a Date",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "declare const j: Jsonified<Order>;\nconst d: Date = j.createdAt;\n"
+            },
+            {
+              "name": "createdAt is a string",
+              "expect": "ok",
+              "code": "declare const j: Jsonified<Order>;\nconst s: string = j.createdAt;\n"
+            },
+            {
+              "name": "keeps the fields that aren't dates",
+              "expect": "ok",
+              "code": "declare const j: Jsonified<Order>;\nconst n: number = j.totalCents;\n"
+            },
+            {
+              "name": "turns a Date into a string",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const f: ApiField<Date> = new Date();\n"
+            }
+          ]
+        },
+        "hints": [
+          "`TypeName` in the first example chains two conditions. `ApiField` needs only one: `T extends Date ? ... : ...`.",
+          "`Jsonified` maps over the keys like the types in the Mapped Types lesson, with `ApiField<T[K]>` after the colon.",
+          "`return { id: order.id, createdAt: order.createdAt.toISOString(), totalCents: order.totalCents };`"
+        ]
+      }
+    },
+    {
+      "title": "Distribution over unions",
+      "body": "When the type a condition checks is a bare type parameter, and the caller passes a union, the condition runs once for each member, and the results are joined back into a union. That's called distribution:\n\n```typescript types\ntype ToArray<T> = T extends unknown ? T[] : never;\n\ntype Lists = ToArray<string | number>;\n//   ^? type Lists = string[] | number[]\n```\n\n`string | number` is checked as `string`, giving `string[]`, then as `number`, giving `number[]`. Every type fits `unknown`, so this condition is always true. It's there only to make the type distribute.\n\nDistribution is also how a condition filters a union: a member that becomes `never` drops out, because `never` vanishes from any union. That's how `Exclude` removes members.\n\nTo check a union as a whole instead, wrap both sides in square brackets: `[T] extends [unknown]`. A one-item tuple isn't a bare type parameter, so nothing distributes.",
+      "examples": [
+        {
+          "title": "One list type per member",
+          "prompt": "Type a column of a table, which holds only strings or only numbers, never both.",
+          "code": "type ToArray<T> = T extends unknown ? T[] : never;\n\ntype Column = ToArray<string | number>;\n//   ^? type Column = string[] | number[]\n\nfunction describe(column: Column): string {\n  return `${column.length} values: ${column.join(\", \")}`;\n}\n\nconst names: Column = [\"Ada\", \"Grace\", \"Linus\"];\nconst scores: Column = [91, 78];\n\nconsole.log(describe(names));\nconsole.log(describe(scores));\n",
+          "output": "3 values: Ada, Grace, Linus\n2 values: 91, 78",
+          "explanation": "`ToArray` distributes, so a `Column` is a list of strings or a list of numbers, as the bubble shows. Each column holds one kind of value, and a mixed one doesn't compile:\n\n```typescript error\ntype ToArray<T> = T extends unknown ? T[] : never;\n\nconst mixed: ToArray<string | number> = [\"Ada\", 91];\n```\n\n`tsc` reports TS2322, because `(string | number)[]` is neither of the two list types. `length` and `join` exist on both kinds of list, so `describe` can use them without narrowing first."
+        },
+        {
+          "title": "Exclude from scratch",
+          "prompt": "Write Exclude yourself, and follow how it removes members from a union.",
+          "code": "type MyExclude<T, U> = T extends U ? never : T;\n\ntype Status = \"draft\" | \"review\" | \"published\" | \"archived\";\n\ntype Live = MyExclude<Status, \"draft\" | \"archived\">;\n//   ^? type Live = \"published\" | \"review\"\ntype BuiltIn = Exclude<Status, \"draft\" | \"archived\">;\n//   ^? type BuiltIn = \"published\" | \"review\"\n\nconst BADGES: Record<Live, string> = {\n  review: \"In review\",\n  published: \"Live\",\n};\n\nconst posts: { title: string; status: Live }[] = [\n  { title: \"Mapped types\", status: \"published\" },\n  { title: \"Conditional types\", status: \"review\" },\n];\n\nfor (const post of posts) {\n  console.log(`${post.title}: ${BADGES[post.status]}`);\n}\n",
+          "output": "Mapped types: Live\nConditional types: In review",
+          "explanation": "`MyExclude` checks each member of `Status` on its own. `\"draft\"` fits `\"draft\" | \"archived\"`, so it becomes `never`. `\"review\"` doesn't, so it stays, and so does `\"published\"`. `\"archived\"` becomes `never`. The four results make the union `never | \"review\" | \"published\" | never`, and the two `never`s drop out. The library declares `Exclude` with this exact line, which is why the bubbles match. `BADGES` is a `Record<Live, string>`, so it needs a badge for both live statuses, and a badge for `\"draft\"` would be an error."
+        },
+        {
+          "title": "Turning distribution off",
+          "prompt": "Type a row of a table, which mixes strings and numbers, by checking the union as a whole.",
+          "code": "type ToArray<T> = T extends unknown ? T[] : never;\ntype ToMixedArray<T> = [T] extends [unknown] ? T[] : never;\n\ntype Column = ToArray<string | number>;\n//   ^? type Column = string[] | number[]\ntype Row = ToMixedArray<string | number>;\n//   ^? type Row = (string | number)[]\n\nconst header: Row = [\"name\", \"age\", \"city\"];\nconst row: Row = [\"Ada\", 36, \"London\"];\n\nconsole.log(header.join(\",\"));\nconsole.log(row.join(\",\"));\n",
+          "output": "name,age,city\nAda,36,London",
+          "explanation": "In `ToMixedArray`, the condition checks `[T]`, a one-item tuple, instead of `T` itself, so it doesn't distribute. `T` stays the whole union, and `Row` is one array type whose items may be strings or numbers, as the bubble shows. A table needs both types: a column holds one kind of value, and a row mixes them. The brackets are the usual way to turn distribution off, and you'll meet them in library types wherever a union must be treated as one type."
+        }
+      ],
+      "practice": {
+        "title": "Events with a user",
+        "prompt": "Keep only the events that carry a user id, both in the types and in the data, and list the users who show up.\n\n1. Make `HasField<T, K>` a conditional type that keeps `T` when it fits `Record<K, unknown>`, which means it has a field named `K`, and gives `never` otherwise. On a union, it keeps just the members with that field.\n2. Make `hasUser` return `true` for the events that have a `userId`.\n3. After the count, print `Users:` followed by the user ids in the order they first appear, without repeats, separated by a comma and a space.\n4. Keep `export`: hidden type tests use `AppEvent`, `HasField`, `WithUser`, and `hasUser`.\n\nExpected output:\n\n```text\n5 of 7 events have a user\nUsers: u1, u2, u3\n```",
+        "starter": "export type AppEvent =\n  | { type: \"login\"; userId: string }\n  | { type: \"logout\"; userId: string }\n  | { type: \"tick\"; at: number };\n\n// TODO: keep T when it has a field named K, else never\nexport type HasField<T, K extends string> = T;\n\nexport type WithUser = HasField<AppEvent, \"userId\">;\n\nexport function hasUser(e: AppEvent): e is WithUser {\n  // TODO: return true when e has a userId\n  return false;\n}\n\nconst events: AppEvent[] = [\n  { type: \"login\", userId: \"u1\" },\n  { type: \"tick\", at: 1 },\n  { type: \"login\", userId: \"u2\" },\n  { type: \"logout\", userId: \"u1\" },\n  { type: \"tick\", at: 2 },\n  { type: \"login\", userId: \"u3\" },\n  { type: \"logout\", userId: \"u2\" },\n];\n\nconst withUser = events.filter(hasUser);\nconsole.log(`${withUser.length} of ${events.length} events have a user`);\n\n// TODO: print the user ids in the order they first appear, without repeats\n",
+        "solution": "export type AppEvent =\n  | { type: \"login\"; userId: string }\n  | { type: \"logout\"; userId: string }\n  | { type: \"tick\"; at: number };\n\nexport type HasField<T, K extends string> = T extends Record<K, unknown> ? T : never;\n\nexport type WithUser = HasField<AppEvent, \"userId\">;\n\nexport function hasUser(e: AppEvent): e is WithUser {\n  return \"userId\" in e;\n}\n\nconst events: AppEvent[] = [\n  { type: \"login\", userId: \"u1\" },\n  { type: \"tick\", at: 1 },\n  { type: \"login\", userId: \"u2\" },\n  { type: \"logout\", userId: \"u1\" },\n  { type: \"tick\", at: 2 },\n  { type: \"login\", userId: \"u3\" },\n  { type: \"logout\", userId: \"u2\" },\n];\n\nconst withUser = events.filter(hasUser);\nconsole.log(`${withUser.length} of ${events.length} events have a user`);\n\nconst users = new Set(withUser.map((e) => e.userId));\nconsole.log(`Users: ${[...users].join(\", \")}`);\n",
+        "tests": [
+          {
+            "output": "5 of 7 events have a user\nUsers: u1, u2, u3"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { hasUser, type AppEvent, type HasField, type WithUser } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "a login has a user",
+              "expect": "ok",
+              "code": "const e: WithUser = { type: \"login\", userId: \"u1\" };\n"
+            },
+            {
+              "name": "a tick has no user",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const e: WithUser = { type: \"tick\" };\n"
+            },
+            {
+              "name": "works on any union",
+              "expect": "ok",
+              "code": "const n: HasField<{ name: string } | { id: number }, \"name\"> = { name: \"Ada\" };\n"
+            },
+            {
+              "name": "drops the members without the field",
+              "expect": "error",
+              "errorCode": "TS2353",
+              "code": "const n: HasField<{ name: string } | { id: number }, \"name\"> = { id: 1 };\n"
+            },
+            {
+              "name": "narrows an event to one with a user",
+              "expect": "ok",
+              "code": "declare const e: AppEvent;\nif (hasUser(e)) {\n  const id: string = e.userId;\n}\n"
+            }
+          ]
+        },
+        "hints": [
+          "A member fits `Record<K, unknown>` when it has a field named `K`, whatever that field holds. Keep it with `T` and drop it with `never`, the way `MyExclude` in the second example drops members.",
+          "`\"userId\" in e` is `true` for exactly the events with a user. A `Set` keeps the first of each value in the order it was added.",
+          "`export type HasField<T, K extends string> = T extends Record<K, unknown> ? T : never;` and `new Set(withUser.map((e) => e.userId))`"
+        ]
+      }
+    },
+    {
+      "title": "Pulling types out with infer",
+      "body": "Inside the `extends` part of a condition, `infer U` declares a new type variable, and TypeScript fills it in from whatever is in that spot of the matched type. The true branch can then use it:\n\n```typescript types\ntype Unwrap<T> = T extends Promise<infer U> ? U : T;\n\ntype A = Unwrap<Promise<string>>;\n//   ^? type A = string\ntype B = Unwrap<number>;\n//   ^? type B = number\n```\n\n`Promise<string>` matches `Promise<infer U>` with `U` as `string`. A `number` doesn't match, so it comes back unchanged. A type variable from `infer` exists only in the true branch.\n\nThe utility types that take functions apart are written this way. The library declares `ReturnType<T>` as `T extends (...args: any) => infer R ? R : any`: match a function type, and name its return type `R`. `Parameters<T>` puts `infer P` in place of the whole parameter list, which is why it gives a tuple.",
+      "examples": [
+        {
+          "title": "Unwrapping a promise",
+          "prompt": "Unwrap the value of a promise with infer, and compare your version with the built-in Awaited.",
+          "code": "type Unwrap<T> = T extends Promise<infer U> ? U : T;\n\nasync function loadUser(id: number) {\n  return { id, name: id === 1 ? \"Ada\" : \"Grace\" };\n}\n\ntype User = Unwrap<ReturnType<typeof loadUser>>;\n//   ^? type User = { id: number; name: string; }\n\ntype Nested = Promise<Promise<boolean>>;\ntype OneLevel = Unwrap<Nested>;\n//   ^? type OneLevel = Promise<boolean>\ntype AllLevels = Awaited<Nested>;\n//   ^? type AllLevels = boolean\n\nfunction label(user: User): string {\n  return `#${user.id} ${user.name}`;\n}\n\nconsole.log(label(await loadUser(1)));\nconsole.log(label(await loadUser(2)));\n",
+          "output": "#1 Ada\n#2 Grace",
+          "explanation": "`ReturnType<typeof loadUser>` is a promise of a user, and `Unwrap` takes the user out of it, the same type `await` gives you. `Unwrap` looks only one level deep, so a promise of a promise leaves a promise behind. `Awaited` unwraps every level, as `await` itself does. Use `Awaited` in real code. Writing `Unwrap` shows how it works inside."
+        },
+        {
+          "title": "The item type of an array",
+          "prompt": "Get the item type of any array with infer, and use it for a list of sizes kept as data.",
+          "code": "type ElementOf<T> = T extends readonly (infer E)[] ? E : never;\n\nconst SIZES = [\"S\", \"M\", \"L\", \"XL\"] as const;\n\ntype Size = ElementOf<typeof SIZES>;\n//   ^? type Size = \"L\" | \"M\" | \"S\" | \"XL\"\ntype Score = ElementOf<number[]>;\n//   ^? type Score = number\ntype NotAList = ElementOf<string>;\n//   ^? type NotAList = never\n\nconst PRICES: Record<Size, number> = { S: 18, M: 20, L: 22, XL: 25 };\n\nfor (const size of SIZES) {\n  console.log(`${size}: $${PRICES[size]}`);\n}\n",
+          "output": "S: $18\nM: $20\nL: $22\nXL: $25",
+          "explanation": "`readonly (infer E)[]` matches any array, readonly or not, and names the type of its items `E`. The parentheses around `infer E` are required: without them, `tsc` can't parse the line. On the `SIZES` tuple, `E` is the union of the four sizes, so `PRICES` must price every size. A `string` isn't an array, so it gets `never`, which tells you the type was used on the wrong thing. When you have the array itself, `(typeof SIZES)[number]` gives the same union. `infer` earns its place when the array sits inside something else, as in `T extends { items: readonly (infer E)[] } ? E : never` for the items of a page of results."
+        },
+        {
+          "title": "A function's first parameter",
+          "prompt": "Name the type of a function's first parameter with infer, and build the arguments for it ahead of time.",
+          "code": "type FirstArg<F> = F extends (first: infer A, ...rest: never[]) => unknown ? A : never;\n\nfunction sendWelcome(user: { name: string; email: string }, template: string): string {\n  return `${template} to ${user.name} <${user.email}>`;\n}\n\ntype Recipient = FirstArg<typeof sendWelcome>;\n//   ^? type Recipient = { name: string; email: string; }\n\nconst recipients: Recipient[] = [\n  { name: \"Ada\", email: \"ada@example.com\" },\n  { name: \"Grace\", email: \"grace@example.com\" },\n];\n\nfor (const r of recipients) {\n  console.log(sendWelcome(r, \"welcome-v2\"));\n}\n",
+          "output": "welcome-v2 to Ada <ada@example.com>\nwelcome-v2 to Grace <grace@example.com>",
+          "explanation": "The pattern is a function type with `infer A` as its first parameter, so `A` becomes whatever `sendWelcome` takes first: here an inline user type that had no name of its own. `...rest: never[]` lets the pattern match a function with any number of further parameters, because `never` fits every parameter type. The return type is `unknown` because any return type will do. `Parameters<typeof sendWelcome>[0]` gives the same type, and `FirstArg` shows how such a type is built."
+        }
+      ],
+      "practice": {
+        "title": "Handler payloads",
+        "prompt": "Infer each handler's payload type, then line up payloads for both handlers and run them.\n\n1. Make `PayloadOf<F>` a conditional type that matches `F` against a function with one parameter, `(payload: infer P) => void`, and gives `P`, or `never` when `F` doesn't match.\n2. Type `greetings` as a list of `handlers.greet` payloads and `sums` as a list of `handlers.add` payloads, with `PayloadOf` and `typeof`.\n3. Call `handlers.greet` on each greeting, then `handlers.add` on each sum, and print each result.\n4. Keep `export`: hidden type tests use `handlers` and `PayloadOf`.\n\nExpected output:\n\n```text\nHello, Ada!\nHello, Grace!\n2 + 3 = 5\n10 + -4 = 6\n```",
+        "starter": "export const handlers = {\n  greet: (p: { name: string }) => `Hello, ${p.name}!`,\n  add: (p: { a: number; b: number }) => `${p.a} + ${p.b} = ${p.a + p.b}`,\n};\n\n// TODO: infer the type of a handler's one parameter, or never\nexport type PayloadOf<F> = unknown;\n\n// TODO: type these lists with PayloadOf and typeof\nconst greetings = [{ name: \"Ada\" }, { name: \"Grace\" }];\nconst sums = [\n  { a: 2, b: 3 },\n  { a: 10, b: -4 },\n];\n\n// TODO: call handlers.greet on each greeting, then handlers.add on each\n// sum, and print each result\n",
+        "solution": "export const handlers = {\n  greet: (p: { name: string }) => `Hello, ${p.name}!`,\n  add: (p: { a: number; b: number }) => `${p.a} + ${p.b} = ${p.a + p.b}`,\n};\n\nexport type PayloadOf<F> = F extends (payload: infer P) => void ? P : never;\n\nconst greetings: PayloadOf<typeof handlers.greet>[] = [{ name: \"Ada\" }, { name: \"Grace\" }];\nconst sums: PayloadOf<typeof handlers.add>[] = [\n  { a: 2, b: 3 },\n  { a: 10, b: -4 },\n];\n\nfor (const p of greetings) {\n  console.log(handlers.greet(p));\n}\nfor (const p of sums) {\n  console.log(handlers.add(p));\n}\n",
+        "tests": [
+          {
+            "output": "Hello, Ada!\nHello, Grace!\n2 + 3 = 5\n10 + -4 = 6"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { handlers, type PayloadOf } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "a greet payload has a name",
+              "expect": "ok",
+              "code": "const p: PayloadOf<typeof handlers.greet> = { name: \"x\" };\n"
+            },
+            {
+              "name": "an add payload needs both numbers",
+              "expect": "error",
+              "errorCode": "TS2741",
+              "code": "const p: PayloadOf<typeof handlers.add> = { a: 1 };\n"
+            },
+            {
+              "name": "a name must be a string",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const p: PayloadOf<typeof handlers.greet> = { name: 1 };\n"
+            },
+            {
+              "name": "works on any one-parameter function",
+              "expect": "ok",
+              "code": "const n: PayloadOf<(count: number) => void> = 5;\n"
+            },
+            {
+              "name": "is never for something that isn't a function",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const s: PayloadOf<string> = \"x\";\n"
+            }
+          ]
+        },
+        "hints": [
+          "`FirstArg` in the third example matches the first of several parameters. A handler has just one, so its pattern is simpler: `(payload: infer P) => void`.",
+          "`typeof handlers.greet` is the type of the greet function, so `PayloadOf<typeof handlers.greet>[]` is a list of its payloads.",
+          "`export type PayloadOf<F> = F extends (payload: infer P) => void ? P : never;`"
+        ]
+      }
+    }
+  ],
+  "recap": "- `T extends U ? X : Y` is `X` when `T` fits `U`, else `Y`. Chain conditions like ternaries to test several cases.\n- On a bare type parameter, a condition distributes: a union is checked one member at a time, and members that become `never` drop out. `Exclude` and `Extract` work this way.\n- `[T] extends [U]` checks a union as a whole, with no distribution.\n- `infer X` in the `extends` part names a piece of the matched type for the true branch. `ReturnType`, `Parameters`, and `Awaited` are built with it.\n- Conditional types exist only for `tsc`. To check a value while the program runs, use `typeof`, `in`, and type guards."
+}

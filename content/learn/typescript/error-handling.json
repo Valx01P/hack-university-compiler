@@ -1,0 +1,253 @@
+{
+  "id": "error-handling",
+  "title": "Error Handling with Types",
+  "section": "Async and Errors",
+  "summary": "Narrow caught errors from unknown, write error classes with typed fields, report failures from concurrent work, and clean up with using.",
+  "intro": "TypeScript types what a function returns, but not what it throws. A `catch` can receive any value at all, so its variable is `unknown`, and turning it into something useful is your job. This lesson builds the habits real codebases rely on: one helper that turns any thrown value into a message, error classes that carry typed details, honest reports when several async jobs fail, and cleanup that runs however a block ends.",
+  "steps": [
+    {
+      "title": "catch gives you unknown",
+      "body": "JavaScript lets you `throw` any value: an `Error`, a string, even a plain object. TypeScript can't know which one a `catch` receives, so under `strict` the variable is `unknown`, and you narrow it before you read anything:\n\n```typescript\ntry {\n  throw new RangeError(\"quantity must be 1 to 99\");\n} catch (err) {\n  if (err instanceof RangeError) {\n    console.log(`${err.name}: ${err.message}`); // RangeError: quantity must be 1 to 99\n  }\n}\n```\n\n`err instanceof Error` matches errors made by this program's `Error` class and its subclasses. `Error.isError(err)`, which Node 26 supports, also recognizes errors from other realms, such as code run with `node:vm`, and isn't fooled by an object that merely has a `name` and a `message`. Both narrow `unknown` to `Error`.\n\nRather than repeating those checks in every `catch`, write one `toMessage(err: unknown): string` helper and call it wherever you report an error. Catch only what you can handle, and rethrow the rest with `throw err`, so a real bug still surfaces.",
+      "examples": [
+        {
+          "title": "A toMessage helper",
+          "prompt": "Throw an error, a string, and a plain object, and turn each one into a message with a single helper.",
+          "code": "function toMessage(err: unknown): string {\n  if (err instanceof Error) {\n    return err.message;\n  }\n  if (typeof err === \"string\") {\n    return err;\n  }\n  return `unexpected value: ${JSON.stringify(err)}`;\n}\n\nconst failures: (() => void)[] = [\n  () => {\n    throw new RangeError(\"quantity must be 1 to 99\");\n  },\n  () => {\n    throw \"disk full\";\n  },\n  () => {\n    throw { code: 503 };\n  },\n];\n\nfor (const fail of failures) {\n  try {\n    fail();\n  } catch (err) {\n    console.log(toMessage(err));\n  }\n}\n",
+          "output": "quantity must be 1 to 99\ndisk full\nunexpected value: {\"code\":503}",
+          "explanation": "Each function throws a different kind of value, and the same `catch` handles all three. `toMessage` takes `unknown`, so it accepts whatever was thrown, and it narrows step by step: an `Error`, including subclasses like `RangeError`, gives its `message`, a string is already a message, and anything else is shown as JSON. Code that reports errors calls `toMessage(err)` and never needs to know what was thrown."
+        },
+        {
+          "title": "Error.isError",
+          "prompt": "Compare `instanceof Error` with `Error.isError` on real errors, an error made in another realm, and an object that only looks like an error.",
+          "code": "import { runInNewContext } from \"node:vm\";\n\nconst samples: [label: string, value: unknown][] = [\n  [\"new Error\", new Error(\"boom\")],\n  [\"new TypeError\", new TypeError(\"bad type\")],\n  [\"error from a vm\", runInNewContext(\"new Error('from a vm')\")],\n  [\"look-alike object\", { name: \"Error\", message: \"fake\" }],\n];\n\nfor (const [label, value] of samples) {\n  console.log(`${label}: instanceof ${value instanceof Error}, isError ${Error.isError(value)}`);\n}\n\nconst fromVm: unknown = runInNewContext(\"new RangeError('out of range in a vm')\");\nif (Error.isError(fromVm)) {\n  console.log(`narrowed: ${fromVm.message}`);\n  //                       ^? const fromVm: Error\n}\n",
+          "output": "new Error: instanceof true, isError true\nnew TypeError: instanceof true, isError true\nerror from a vm: instanceof false, isError true\nlook-alike object: instanceof false, isError false\nnarrowed: out of range in a vm",
+          "explanation": "`node:vm` runs code in a separate realm: a fresh set of globals with its own `Error` class. An error made there isn't an instance of this program's `Error`, so `instanceof` says `false`, while `Error.isError` checks what the value really is and says `true`. It also turns down the look-alike, which has the right properties but was never an error. Both checks narrow `unknown` to `Error`, as the bubble shows. Within one program `instanceof` works fine. Reach for `Error.isError` when values can come from workers, `vm`, or other frames."
+        },
+        {
+          "title": "Rethrow what you don't handle",
+          "prompt": "Read a port from a config text, falling back to a default when the text isn't JSON, but let every other error reach the caller.",
+          "code": "function loadPort(text: string): number {\n  try {\n    const config: unknown = JSON.parse(text);\n    if (\n      typeof config === \"object\" &&\n      config !== null &&\n      \"port\" in config &&\n      typeof config.port === \"number\"\n    ) {\n      return config.port;\n    }\n    throw new TypeError(\"config has no numeric port\");\n  } catch (err) {\n    if (err instanceof SyntaxError) {\n      console.log(\"not JSON, using the default port\");\n      return 3000;\n    }\n    throw err;\n  }\n}\n\nfor (const text of ['{\"port\": 8080}', \"port=8080\", '{\"port\": \"8080\"}']) {\n  try {\n    console.log(`port ${loadPort(text)}`);\n  } catch (err) {\n    console.log(`failed: ${err instanceof Error ? err.message : String(err)}`);\n  }\n}\n",
+          "output": "port 8080\nnot JSON, using the default port\nport 3000\nfailed: config has no numeric port",
+          "explanation": "`loadPort` can fail in two ways. Text that isn't JSON makes `JSON.parse` throw a `SyntaxError`, which `loadPort` knows how to handle, so it falls back to port 3000. A config with the wrong shape throws a `TypeError`, which `loadPort` has no good answer for, so `throw err` passes it on and the caller's `catch` prints it. A bare `catch` that returned 3000 for everything would have hidden the bad config."
+        }
+      ],
+      "practice": {
+        "title": "Sum the lines",
+        "prompt": "Add up a list of numbers, one per line, and report the first line that isn't a number.\n\n1. Write `toMessage(err: unknown): string`. Return an `Error`'s message, a thrown string as it is, and `unknown error` for anything else.\n2. Export `parseNumberList(text: string): number[]`. Split the text into lines, trim each one, skip blank lines, and convert the rest with `Number`. For a line that isn't a number, throw `new Error(\"not a number: <line>\")` with the trimmed line.\n3. Print `sum: <total>`. When `parseNumberList` throws, print `error: <message>`, using `toMessage`.\n\nInput:\n\n```text\n4\n8\n15\n16\n23\n42\n```\n\nExpected output:\n\n```text\nsum: 108\n```",
+        "starter": "import { readFileSync } from \"node:fs\";\n\n// TODO: return an Error's message, a thrown string as it is,\n// and \"unknown error\" for anything else\nfunction toMessage(err: unknown): string {\n  return \"\";\n}\n\n// TODO: convert each non-blank line with Number, and throw\n// new Error(`not a number: ${line}`) for a line that isn't one\nexport function parseNumberList(text: string): number[] {\n  return [];\n}\n\nconst input = readFileSync(0, \"utf8\");\n// TODO: print \"sum: <total>\", or \"error: <message>\" when parsing throws\n",
+        "solution": "import { readFileSync } from \"node:fs\";\n\nfunction toMessage(err: unknown): string {\n  if (err instanceof Error) {\n    return err.message;\n  }\n  if (typeof err === \"string\") {\n    return err;\n  }\n  return \"unknown error\";\n}\n\nexport function parseNumberList(text: string): number[] {\n  const numbers: number[] = [];\n  for (const raw of text.split(\"\\n\")) {\n    const line = raw.trim();\n    if (line === \"\") {\n      continue;\n    }\n    const n = Number(line);\n    if (Number.isNaN(n)) {\n      throw new Error(`not a number: ${line}`);\n    }\n    numbers.push(n);\n  }\n  return numbers;\n}\n\nconst input = readFileSync(0, \"utf8\");\ntry {\n  const sum = parseNumberList(input).reduce((total, n) => total + n, 0);\n  console.log(`sum: ${sum}`);\n} catch (err) {\n  console.log(`error: ${toMessage(err)}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "4\n8\n15\n16\n23\n42\n",
+            "output": "sum: 108"
+          },
+          {
+            "stdin": "12\nseven\n3\n",
+            "output": "error: not a number: seven"
+          },
+          {
+            "stdin": "2.5\n\n  10\n",
+            "output": "sum: 12.5"
+          }
+        ],
+        "forbid": [
+          "any"
+        ],
+        "hints": [
+          "`toMessage` is three checks in order: `err instanceof Error`, then `typeof err === \"string\"`, then the fallback.",
+          "In `parseNumberList`, trim each line, `continue` past empty ones, and use `Number.isNaN(Number(line))` to spot a line that isn't a number.",
+          "Put the parsing and the sum inside `try`, and print `error: ${toMessage(err)}` in the `catch`."
+        ]
+      }
+    },
+    {
+      "title": "Custom error classes",
+      "body": "A class for each kind of failure lets a `catch` tell them apart with `instanceof` and read their details as typed fields. Extend `Error`, call `super(message)` first, then assign your own fields, declared as usual, since parameter properties aren't erasable:\n\n```typescript\nclass ValidationError extends Error {\n  override readonly name = \"ValidationError\";\n  readonly field: string;\n\n  constructor(field: string, message: string) {\n    super(message);\n    this.field = field;\n  }\n}\n\nconst err = new ValidationError(\"email\", \"email is required\");\nconsole.log(`${err.name} on ${err.field}: ${err.message}`); // ValidationError on email: email is required\n```\n\n`name` is already a property of `Error`, so redefining it needs `override` under this course's `noImplicitOverride`. Make it `readonly` with a string literal, and its type is that literal. The name also shows up in stack traces and in `String(err)`, which makes logs easier to read.\n\nTo add context while keeping the original error, pass it as the `cause` option: `new Error(\"could not load config\", { cause: err })`. The `cause` property is typed `unknown`, since anything can be thrown.",
+      "examples": [
+        {
+          "title": "NotFoundError",
+          "prompt": "Look up two users, and handle a missing one with an error class that records what was looked up.",
+          "code": "class NotFoundError extends Error {\n  override readonly name = \"NotFoundError\";\n  readonly resource: string;\n  readonly id: string;\n\n  constructor(resource: string, id: string) {\n    super(`${resource} ${id} not found`);\n    this.resource = resource;\n    this.id = id;\n  }\n}\n\nconst users = new Map([\n  [\"u1\", \"Ada\"],\n  [\"u2\", \"Grace\"],\n]);\n\nfunction findUser(id: string): string {\n  const name = users.get(id);\n  if (name === undefined) {\n    throw new NotFoundError(\"user\", id);\n  }\n  return name;\n}\n\nfor (const id of [\"u1\", \"u7\"]) {\n  try {\n    console.log(`found ${findUser(id)}`);\n  } catch (err) {\n    if (err instanceof NotFoundError) {\n      console.log(`404: no ${err.resource} with id ${err.id}`);\n      //                     ^? var err: NotFoundError\n      console.log(String(err));\n    } else {\n      throw err;\n    }\n  }\n}\n",
+          "output": "found Ada\n404: no user with id u7\nNotFoundError: user u7 not found",
+          "explanation": "`instanceof NotFoundError` narrows `err` from `unknown` to the class, as the bubble shows, so `resource` and `id` are typed fields rather than guesses. `String(err)` starts with the overridden `name`, which is what a log would show. Any other error isn't this `catch`'s business, so the `else` branch rethrows it."
+        },
+        {
+          "title": "A code union",
+          "prompt": "Use one error class with a code from a literal union, and turn each code into an HTTP status with a `switch`.",
+          "code": "type ErrorCode = \"NOT_FOUND\" | \"CONFLICT\" | \"INVALID\";\n\nclass AppError extends Error {\n  override readonly name = \"AppError\";\n  readonly code: ErrorCode;\n\n  constructor(code: ErrorCode, message: string) {\n    super(message);\n    this.code = code;\n  }\n}\n\nfunction statusFor(err: AppError): number {\n  switch (err.code) {\n    case \"NOT_FOUND\":\n      return 404;\n    case \"CONFLICT\":\n      return 409;\n    case \"INVALID\":\n      return 422;\n  }\n}\n\nconst failures = [\n  new AppError(\"NOT_FOUND\", \"order o-9 does not exist\"),\n  new AppError(\"CONFLICT\", \"order o-2 is already paid\"),\n  new AppError(\"INVALID\", \"quantity must be at least 1\"),\n];\n\nfor (const err of failures) {\n  console.log(`${statusFor(err)} ${err.code}: ${err.message}`);\n}\n",
+          "output": "404 NOT_FOUND: order o-9 does not exist\n409 CONFLICT: order o-2 is already paid\n422 INVALID: quantity must be at least 1",
+          "explanation": "One class with a `code` field suits errors that only differ in kind. The code is a literal union, so `new AppError(\"MISSING\", ...)` wouldn't compile, and the `switch` in `statusFor` covers every code. TypeScript sees that each case returns, so it doesn't ask for a `return` after the `switch`. Add `\"GONE\"` to `ErrorCode` without a new case, and `statusFor` stops compiling with TS2366, \"Function lacks ending return statement\", until you handle it."
+        },
+        {
+          "title": "Errors with a cause",
+          "prompt": "Wrap a JSON error in two layers of context with `cause`, then print the whole chain.",
+          "code": "function parseConfig(text: string): unknown {\n  try {\n    return JSON.parse(text);\n  } catch (err) {\n    throw new Error(\"config.json is not valid JSON\", { cause: err });\n  }\n}\n\nfunction startServer(configText: string): void {\n  try {\n    parseConfig(configText);\n    console.log(\"server started\");\n  } catch (err) {\n    throw new Error(\"could not start the server\", { cause: err });\n  }\n}\n\ntry {\n  startServer(\"port=8080\");\n} catch (err) {\n  let current: unknown = err;\n  let depth = 0;\n  while (current instanceof Error) {\n    console.log(`${\"  \".repeat(depth)}${current.message}`);\n    current = current.cause;\n    depth++;\n  }\n}\n",
+          "output": "could not start the server\n  config.json is not valid JSON\n    Unexpected token 'p', \"port=8080\" is not valid JSON",
+          "explanation": "Each layer adds what it was trying to do and keeps the error it caught as `cause`, so nothing is lost: the top message says what failed, and the bottom one, from `JSON.parse`, says why. `cause` is `unknown`, so the loop checks `current instanceof Error` before reading each `message`, and stops at the end of the chain, where `cause` is `undefined`."
+        }
+      ],
+      "practice": {
+        "title": "Inventory errors",
+        "prompt": "Reserve stock for four requests, and report each failure with the details its error carries.\n\n1. Finish `UnknownSkuError`: a `readonly sku: string` field set in the constructor, and `override readonly name = \"UnknownSkuError\"`.\n2. Finish `OutOfStockError` the same way: `readonly` fields `sku: string`, `requested: number`, and `available: number`, and the name `\"OutOfStockError\"`.\n3. Make `reserve(sku, qty)` throw `UnknownSkuError` for a SKU that isn't in `STOCK`, and `OutOfStockError` when `qty` is more than what's left.\n4. In the loop's `catch`, print `<sku>: only <available> left, <requested> requested` or `<sku>: no such product`, and rethrow anything else.\n5. Keep `export`: hidden type tests import both classes from your file.\n\nExpected output:\n\n```text\nreserved 2 x MUG-01, 3 left\nMUG-01: only 3 left, 4 requested\nLAMP-09: no such product\nTEA-02: only 0 left, 1 requested\n```",
+        "starter": "const STOCK = new Map<string, number>([\n  [\"MUG-01\", 5],\n  [\"TEA-02\", 0],\n]);\n\n// TODO: add a readonly sku field, and override name with \"UnknownSkuError\"\nexport class UnknownSkuError extends Error {\n  constructor(sku: string) {\n    super(`unknown SKU ${sku}`);\n  }\n}\n\n// TODO: add readonly sku, requested, and available fields,\n// and override name with \"OutOfStockError\"\nexport class OutOfStockError extends Error {\n  constructor(sku: string, requested: number, available: number) {\n    super(`only ${available} of ${sku} left, ${requested} requested`);\n  }\n}\n\n// TODO: throw UnknownSkuError or OutOfStockError instead of returning -1\nexport function reserve(sku: string, qty: number): number {\n  const available = STOCK.get(sku);\n  if (available === undefined || qty > available) {\n    return -1;\n  }\n  STOCK.set(sku, available - qty);\n  return available - qty;\n}\n\nconst requests: [sku: string, qty: number][] = [\n  [\"MUG-01\", 2],\n  [\"MUG-01\", 4],\n  [\"LAMP-09\", 1],\n  [\"TEA-02\", 1],\n];\n\nfor (const [sku, qty] of requests) {\n  try {\n    const left = reserve(sku, qty);\n    console.log(`reserved ${qty} x ${sku}, ${left} left`);\n  } catch (err) {\n    // TODO: print a line for each error class, and rethrow anything else\n    throw err;\n  }\n}\n",
+        "solution": "const STOCK = new Map<string, number>([\n  [\"MUG-01\", 5],\n  [\"TEA-02\", 0],\n]);\n\nexport class UnknownSkuError extends Error {\n  override readonly name = \"UnknownSkuError\";\n  readonly sku: string;\n\n  constructor(sku: string) {\n    super(`unknown SKU ${sku}`);\n    this.sku = sku;\n  }\n}\n\nexport class OutOfStockError extends Error {\n  override readonly name = \"OutOfStockError\";\n  readonly sku: string;\n  readonly requested: number;\n  readonly available: number;\n\n  constructor(sku: string, requested: number, available: number) {\n    super(`only ${available} of ${sku} left, ${requested} requested`);\n    this.sku = sku;\n    this.requested = requested;\n    this.available = available;\n  }\n}\n\nexport function reserve(sku: string, qty: number): number {\n  const available = STOCK.get(sku);\n  if (available === undefined) {\n    throw new UnknownSkuError(sku);\n  }\n  if (qty > available) {\n    throw new OutOfStockError(sku, qty, available);\n  }\n  STOCK.set(sku, available - qty);\n  return available - qty;\n}\n\nconst requests: [sku: string, qty: number][] = [\n  [\"MUG-01\", 2],\n  [\"MUG-01\", 4],\n  [\"LAMP-09\", 1],\n  [\"TEA-02\", 1],\n];\n\nfor (const [sku, qty] of requests) {\n  try {\n    const left = reserve(sku, qty);\n    console.log(`reserved ${qty} x ${sku}, ${left} left`);\n  } catch (err) {\n    if (err instanceof OutOfStockError) {\n      console.log(`${err.sku}: only ${err.available} left, ${err.requested} requested`);\n    } else if (err instanceof UnknownSkuError) {\n      console.log(`${err.sku}: no such product`);\n    } else {\n      throw err;\n    }\n  }\n}\n",
+        "tests": [
+          {
+            "output": "reserved 2 x MUG-01, 3 left\nMUG-01: only 3 left, 4 requested\nLAMP-09: no such product\nTEA-02: only 0 left, 1 requested"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { OutOfStockError, UnknownSkuError } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "reads the available count",
+              "expect": "ok",
+              "code": "const n: number = new OutOfStockError(\"A\", 2, 1).available;"
+            },
+            {
+              "name": "an unknown SKU error needs its SKU",
+              "expect": "error",
+              "errorCode": "TS2554",
+              "code": "new UnknownSkuError();"
+            },
+            {
+              "name": "both are errors",
+              "expect": "ok",
+              "code": "const errors: Error[] = [new UnknownSkuError(\"A\"), new OutOfStockError(\"A\", 2, 1)];"
+            },
+            {
+              "name": "the fields can't be reassigned",
+              "expect": "error",
+              "errorCode": "TS2540",
+              "code": "const e = new UnknownSkuError(\"A\");\ne.sku = \"B\";"
+            },
+            {
+              "name": "the name is a literal type",
+              "expect": "ok",
+              "code": "const name: \"OutOfStockError\" = new OutOfStockError(\"A\", 2, 1).name;"
+            }
+          ]
+        },
+        "hints": [
+          "Declare each field with `readonly` and its type, then assign it in the constructor after `super(...)`, like `NotFoundError` in the first example.",
+          "In `reserve`, throw `new UnknownSkuError(sku)` when `available === undefined`, then `new OutOfStockError(sku, qty, available)` when `qty > available`.",
+          "In the `catch`, `if (err instanceof OutOfStockError)` gives you `err.available` and `err.requested`, and `else if (err instanceof UnknownSkuError)` gives you `err.sku`. End with `else { throw err; }`."
+        ]
+      }
+    },
+    {
+      "title": "Errors in concurrent code",
+      "body": "When several promises run at once, several can fail, and each way of combining them reports failure differently:\n\n- `Promise.all` rejects with the first rejection and ignores any later ones.\n- `Promise.allSettled` never rejects. Each failure is a result with `status: \"rejected\"` and a `reason`.\n- `Promise.any` rejects only when every promise rejects, with an `AggregateError` whose `errors` array holds every reason, in the order of the input promises.\n\n```typescript\ntry {\n  await Promise.any([Promise.reject(new Error(\"eu down\")), Promise.reject(new Error(\"us down\"))]);\n} catch (err) {\n  if (err instanceof AggregateError) {\n    console.log(`${err.errors.length} failures`); // 2 failures\n  }\n}\n```\n\n`reason` and the items of `errors` are typed `any`, because a promise can reject with anything, so pass each one through a `toMessage(err: unknown)` helper rather than reading `.message` directly.\n\nNever write an empty `catch {}` around work that can fail. It turns a failure into silence, and the bug shows up later as wrong data. Log what failed, or rethrow it.",
+      "examples": [
+        {
+          "title": "AggregateError",
+          "prompt": "Try three mirrors with `Promise.any` when all of them fail, and print every reason.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nfunction toMessage(err: unknown): string {\n  return err instanceof Error ? err.message : String(err);\n}\n\nasync function download(mirror: string, ms: number, problem: string): Promise<string> {\n  await sleep(ms);\n  throw new Error(`${mirror}: ${problem}`);\n}\n\ntry {\n  const from = await Promise.any([\n    download(\"eu\", 30, \"certificate expired\"),\n    download(\"us\", 10, \"503 Service Unavailable\"),\n    download(\"asia\", 20, \"connection refused\"),\n  ]);\n  console.log(`downloaded from ${from}`);\n} catch (err) {\n  if (!(err instanceof AggregateError)) {\n    throw err;\n  }\n  console.log(`${err.message}:`);\n  for (const reason of err.errors) {\n    //                     ^? (property) AggregateError.errors: any[]\n    console.log(`- ${toMessage(reason)}`);\n  }\n}\n",
+          "output": "All promises were rejected:\n- eu: certificate expired\n- us: 503 Service Unavailable\n- asia: connection refused",
+          "explanation": "All three downloads fail, so `Promise.any` rejects with an `AggregateError`, whose own message is `All promises were rejected`. Its `errors` array follows the order of the promises you passed in, not the order they failed: `us` failed first, at 10 ms, yet it's listed second. The bubble shows `errors` is `any[]`, so each reason goes through `toMessage` instead of trusting it to be an `Error`."
+        },
+        {
+          "title": "A partial failure report",
+          "prompt": "Run four background jobs with `Promise.allSettled`, and report how many succeeded and why the others failed.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nfunction toMessage(err: unknown): string {\n  return err instanceof Error ? err.message : String(err);\n}\n\ntype Job = { name: string; ms: number; problem?: string };\n\nconst jobs: Job[] = [\n  { name: \"resize images\", ms: 30 },\n  { name: \"send emails\", ms: 25, problem: \"SMTP server refused the login\" },\n  { name: \"update search\", ms: 20 },\n  { name: \"charge cards\", ms: 5, problem: \"payment provider timed out\" },\n];\n\nasync function run(job: Job): Promise<string> {\n  await sleep(job.ms);\n  if (job.problem !== undefined) {\n    throw new Error(`${job.name} failed: ${job.problem}`);\n  }\n  return job.name;\n}\n\nconst results = await Promise.allSettled(jobs.map(run));\nconst failed = results.filter((r) => r.status === \"rejected\");\n//    ^? const failed: PromiseRejectedResult[]\nconsole.log(`${results.length - failed.length} of ${results.length} jobs succeeded`);\nfor (const result of failed) {\n  console.log(toMessage(result.reason));\n}\n",
+          "output": "2 of 4 jobs succeeded\nsend emails failed: SMTP server refused the login\ncharge cards failed: payment provider timed out",
+          "explanation": "`allSettled` lets every job finish, so two failures don't hide two successes. The callback `(r) => r.status === \"rejected\"` is an inferred type predicate, so `filter` narrows the array to `PromiseRejectedResult[]`, as the bubble shows, and each item has a `reason`. The results keep the order of `jobs`, not the order the jobs finished: the card charge failed first, yet it's reported second. Each job puts its own name in its error message, which keeps the report useful without matching results to jobs by index."
+        },
+        {
+          "title": "The empty catch",
+          "prompt": "Send three receipts, one to an address with a typo, first with an empty `catch` and then with one that reports the failure.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nfunction toMessage(err: unknown): string {\n  return err instanceof Error ? err.message : String(err);\n}\n\nasync function sendReceipt(email: string): Promise<void> {\n  await sleep(5);\n  if (!email.includes(\"@\")) {\n    throw new Error(`invalid address: ${email}`);\n  }\n}\n\nconst customers = [\"ada@example.com\", \"grace.example.com\", \"alan@example.com\"];\n\nfor (const email of customers) {\n  try {\n    await sendReceipt(email);\n  } catch {}\n}\nconsole.log(`silent: receipts sent to ${customers.length} customers`);\n\nlet sent = 0;\nfor (const email of customers) {\n  try {\n    await sendReceipt(email);\n    sent++;\n  } catch (err) {\n    console.log(`logged: ${toMessage(err)}`);\n  }\n}\nconsole.log(`logged: receipts sent to ${sent} of ${customers.length} customers`);\n",
+          "output": "silent: receipts sent to 3 customers\nlogged: invalid address: grace.example.com\nlogged: receipts sent to 2 of 3 customers",
+          "explanation": "`grace.example.com` has a typo, a dot where the `@` belongs. The first loop's empty `catch {}` swallows the error, so the program claims 3 receipts went out, and nobody finds out that Grace never got hers. The second loop logs each failure with `toMessage` and counts only real successes. Logging fits when the rest of the work can carry on. When it can't, rethrow, or throw a new error with the original as its `cause`, and let the caller decide."
+        }
+      ],
+      "practice": {
+        "title": "Mirror download",
+        "prompt": "Download from whichever mirror answers first, and explain every failure when none of them does.\n\n1. Export `fastestMirror(mirrors: readonly Mirror[]): Promise<string>`. It runs `download` on every mirror with `Promise.any` and resolves to the name of the first one that succeeds.\n2. When every mirror fails, catch the `AggregateError` and throw `new Error(\"all mirrors failed: <reasons>\")`, with the reasons' messages joined by `, `. Rethrow any other error.\n3. Print `downloaded from <name>` for the `healthy` mirrors, then, inside `try`, do the same for the `broken` mirrors, and print the error's message in the `catch`.\n\nExpected output:\n\n```text\ndownloaded from us-1\nall mirrors failed: timeout, 503, refused\n```",
+        "starter": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nexport type Mirror = { name: string; ms: number; problem?: string };\n\nfunction toMessage(err: unknown): string {\n  return err instanceof Error ? err.message : String(err);\n}\n\nasync function download(mirror: Mirror): Promise<string> {\n  await sleep(mirror.ms);\n  if (mirror.problem !== undefined) {\n    throw new Error(mirror.problem);\n  }\n  return mirror.name;\n}\n\nconst healthy: Mirror[] = [\n  { name: \"eu-1\", ms: 30, problem: \"timeout\" },\n  { name: \"us-1\", ms: 20 },\n  { name: \"ap-1\", ms: 40 },\n];\n\nconst broken: Mirror[] = [\n  { name: \"eu-1\", ms: 30, problem: \"timeout\" },\n  { name: \"us-1\", ms: 10, problem: \"503\" },\n  { name: \"ap-1\", ms: 20, problem: \"refused\" },\n];\n\n// TODO: run download on every mirror with Promise.any, and turn an\n// AggregateError into new Error(\"all mirrors failed: <reasons>\")\nexport async function fastestMirror(mirrors: readonly Mirror[]): Promise<string> {\n  return \"nowhere\";\n}\n\nconsole.log(`downloaded from ${await fastestMirror(healthy)}`);\n// TODO: call fastestMirror(broken) inside try, and print the error's message\n",
+        "solution": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nexport type Mirror = { name: string; ms: number; problem?: string };\n\nfunction toMessage(err: unknown): string {\n  return err instanceof Error ? err.message : String(err);\n}\n\nasync function download(mirror: Mirror): Promise<string> {\n  await sleep(mirror.ms);\n  if (mirror.problem !== undefined) {\n    throw new Error(mirror.problem);\n  }\n  return mirror.name;\n}\n\nconst healthy: Mirror[] = [\n  { name: \"eu-1\", ms: 30, problem: \"timeout\" },\n  { name: \"us-1\", ms: 20 },\n  { name: \"ap-1\", ms: 40 },\n];\n\nconst broken: Mirror[] = [\n  { name: \"eu-1\", ms: 30, problem: \"timeout\" },\n  { name: \"us-1\", ms: 10, problem: \"503\" },\n  { name: \"ap-1\", ms: 20, problem: \"refused\" },\n];\n\nexport async function fastestMirror(mirrors: readonly Mirror[]): Promise<string> {\n  try {\n    return await Promise.any(mirrors.map(download));\n  } catch (err) {\n    if (err instanceof AggregateError) {\n      const reasons = err.errors.map(toMessage).join(\", \");\n      throw new Error(`all mirrors failed: ${reasons}`, { cause: err });\n    }\n    throw err;\n  }\n}\n\nconsole.log(`downloaded from ${await fastestMirror(healthy)}`);\ntry {\n  console.log(`downloaded from ${await fastestMirror(broken)}`);\n} catch (err) {\n  console.log(toMessage(err));\n}\n",
+        "tests": [
+          {
+            "output": "downloaded from us-1\nall mirrors failed: timeout, 503, refused"
+          }
+        ],
+        "hints": [
+          "`return await Promise.any(mirrors.map(download));` inside `try` resolves to the first mirror that succeeds.",
+          "In the `catch`, check `err instanceof AggregateError`. Its `errors` array holds one reason per mirror, in the mirrors' order, so `err.errors.map(toMessage).join(\", \")` builds the list.",
+          "Throw the new `Error` with that list, and `throw err` for anything that isn't an `AggregateError`. The caller's `catch` prints `toMessage(err)`."
+        ]
+      }
+    },
+    {
+      "title": "Cleanup with using",
+      "body": "Some objects need cleanup when you're done with them: a temporary folder, a lock, a database connection. `try`/`finally` works, but it's easy to forget and nests deeper with every resource. A `using` declaration ties the cleanup to the block instead. When the block ends, normally or by a throw, JavaScript calls the value's `[Symbol.dispose]()` method, a method named by the built-in symbol `Symbol.dispose`:\n\n```typescript\nclass Timer implements Disposable {\n  readonly label: string;\n\n  constructor(label: string) {\n    this.label = label;\n    console.log(`start ${label}`);\n  }\n\n  [Symbol.dispose](): void {\n    console.log(`stop ${this.label}`);\n  }\n}\n\n{\n  using timer = new Timer(\"import\");\n  console.log(`running ${timer.label}`);\n}\n```\n\n`Disposable` is the built-in interface with that one method, so `implements Disposable` has the checker confirm it, and `using` rejects a value without it. Several `using` declarations are disposed in reverse order: last acquired, first released. When cleanup has to `await`, implement `AsyncDisposable` with an async `[Symbol.asyncDispose]()` method, and declare the value with `await using`. Node 26 runs all of this natively.",
+      "examples": [
+        {
+          "title": "A temporary folder",
+          "prompt": "Export a report into a temporary folder twice, once successfully and once with a failure, and make sure the folder is removed both times.",
+          "code": "class TempDir implements Disposable {\n  readonly path: string;\n\n  constructor(path: string) {\n    this.path = path;\n    console.log(`created ${path}`);\n  }\n\n  [Symbol.dispose](): void {\n    console.log(`removed ${this.path}`);\n  }\n}\n\nfunction exportReport(name: string, fail: boolean): void {\n  using dir = new TempDir(`/tmp/${name}`);\n  console.log(`writing into ${dir.path}`);\n  if (fail) {\n    throw new Error(\"disk full\");\n  }\n  console.log(`${name} exported`);\n}\n\nexportReport(\"march\", false);\ntry {\n  exportReport(\"april\", true);\n} catch (err) {\n  console.log(`caught: ${err instanceof Error ? err.message : String(err)}`);\n}\n",
+          "output": "created /tmp/march\nwriting into /tmp/march\nmarch exported\nremoved /tmp/march\ncreated /tmp/april\nwriting into /tmp/april\nremoved /tmp/april\ncaught: disk full",
+          "explanation": "`using dir` ties the folder to the body of `exportReport`. When the first call returns, `[Symbol.dispose]()` runs and prints `removed`. The second call throws, and the folder is still removed, before the caller's `catch` runs, which is the order the output shows. This `TempDir` only prints what it would do, but a real one would delete the folder in `[Symbol.dispose]()`, and the calling code would look exactly the same."
+        },
+        {
+          "title": "await using",
+          "prompt": "Open a fake database connection that needs an async close, run one query, and let `await using` close it.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nclass Connection implements AsyncDisposable {\n  readonly name: string;\n\n  constructor(name: string) {\n    this.name = name;\n  }\n\n  static async open(name: string): Promise<Connection> {\n    await sleep(5);\n    console.log(`opened ${name}`);\n    return new Connection(name);\n  }\n\n  async query(sql: string): Promise<number> {\n    await sleep(5);\n    console.log(`${this.name} ran: ${sql}`);\n    return 3;\n  }\n\n  async [Symbol.asyncDispose](): Promise<void> {\n    await sleep(5);\n    console.log(`closed ${this.name}`);\n  }\n}\n\nasync function countOrders(): Promise<number> {\n  await using db = await Connection.open(\"orders-db\");\n  return await db.query(\"SELECT count(*) FROM orders\");\n}\n\nconsole.log(`orders: ${await countOrders()}`);\n",
+          "output": "opened orders-db\norders-db ran: SELECT count(*) FROM orders\nclosed orders-db\norders: 3",
+          "explanation": "Closing a connection takes time, so `Connection` implements `AsyncDisposable`, and `await using` waits for `[Symbol.asyncDispose]()` to finish when `countOrders` ends. The count prints last because `countOrders` resolves only after the connection is closed. `return await` matters here as it does in `try`: it makes the query finish while the connection is still open. A bare `return db.query(...)` would start disposing right away, racing the query it returned."
+        },
+        {
+          "title": "Order and DisposableStack",
+          "prompt": "Import a file into a database with two resources and a one-off cleanup step, and watch the order the cleanups run in.",
+          "code": "class Resource implements Disposable {\n  readonly name: string;\n\n  constructor(name: string) {\n    this.name = name;\n    console.log(`open ${name}`);\n  }\n\n  [Symbol.dispose](): void {\n    console.log(`close ${this.name}`);\n  }\n}\n\nfunction importFile(): void {\n  using file = new Resource(\"orders.csv\");\n  using db = new Resource(\"database\");\n  using cleanup = new DisposableStack();\n  cleanup.defer(() => console.log(\"delete temporary rows\"));\n  console.log(`importing ${file.name} into ${db.name}`);\n}\n\nimportFile();\n",
+          "output": "open orders.csv\nopen database\nimporting orders.csv into database\ndelete temporary rows\nclose database\nclose orders.csv",
+          "explanation": "The three `using` declarations are disposed in reverse order: the stack first, then the database, then the file, so nothing is closed while something opened after it still needs it. `DisposableStack` is a built-in disposable that collects cleanups. `defer` registers a plain function, which suits a one-off step that has no class of its own, and disposing the stack runs everything it holds, again last in, first out."
+        }
+      ],
+      "practice": {
+        "title": "Locks",
+        "prompt": "Move money between two accounts while holding a lock on each, and release both locks even when the transfer fails.\n\n1. Make `Lock` implement `Disposable`. Its constructor already keeps the `name`, and it prints `acquired <name>`. Add a `[Symbol.dispose]()` method that prints `released <name>`.\n2. In `transfer(from, to, fail)`, take a lock on `from`, then on `to`, each with `using`.\n3. Then throw `new Error(\"transfer <from> to <to> failed\")` when `fail` is true, or print `moved money from <from> to <to>`.\n4. Keep `export`: hidden type tests import `Lock` and `transfer` from your file.\n\nExpected output:\n\n```text\nacquired alice\nacquired bob\nmoved money from alice to bob\nreleased bob\nreleased alice\nacquired bob\nacquired carol\nreleased carol\nreleased bob\nerror: transfer bob to carol failed\n```",
+        "starter": "// TODO: implement Disposable, with a [Symbol.dispose]() method\n// that prints \"released <name>\"\nexport class Lock {\n  readonly name: string;\n\n  constructor(name: string) {\n    this.name = name;\n    console.log(`acquired ${name}`);\n  }\n}\n\n// TODO: take a lock on from, then on to, with using,\n// then throw when fail is true, or print the move\nexport function transfer(from: string, to: string, fail: boolean): void {\n  console.log(`moved money from ${from} to ${to}`);\n}\n\ntransfer(\"alice\", \"bob\", false);\ntry {\n  transfer(\"bob\", \"carol\", true);\n} catch (err) {\n  console.log(`error: ${err instanceof Error ? err.message : String(err)}`);\n}\n",
+        "solution": "export class Lock implements Disposable {\n  readonly name: string;\n\n  constructor(name: string) {\n    this.name = name;\n    console.log(`acquired ${name}`);\n  }\n\n  [Symbol.dispose](): void {\n    console.log(`released ${this.name}`);\n  }\n}\n\nexport function transfer(from: string, to: string, fail: boolean): void {\n  using fromLock = new Lock(from);\n  using toLock = new Lock(to);\n  if (fail) {\n    throw new Error(`transfer ${fromLock.name} to ${toLock.name} failed`);\n  }\n  console.log(`moved money from ${from} to ${to}`);\n}\n\ntransfer(\"alice\", \"bob\", false);\ntry {\n  transfer(\"bob\", \"carol\", true);\n} catch (err) {\n  console.log(`error: ${err instanceof Error ? err.message : String(err)}`);\n}\n",
+        "tests": [
+          {
+            "output": "acquired alice\nacquired bob\nmoved money from alice to bob\nreleased bob\nreleased alice\nacquired bob\nacquired carol\nreleased carol\nreleased bob\nerror: transfer bob to carol failed"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { Lock, transfer } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "an empty object isn't Disposable",
+              "expect": "error",
+              "errorCode": "TS2741",
+              "code": "const d: Disposable = {};"
+            },
+            {
+              "name": "a Lock is Disposable",
+              "expect": "ok",
+              "code": "const d: Disposable = new Lock(\"a\");"
+            },
+            {
+              "name": "a Lock works with using",
+              "expect": "ok",
+              "code": "{\n  using lock = new Lock(\"a\");\n}"
+            },
+            {
+              "name": "transfer needs all three arguments",
+              "expect": "error",
+              "errorCode": "TS2554",
+              "code": "transfer(\"a\", \"b\");"
+            }
+          ]
+        },
+        "hints": [
+          "Add `implements Disposable` after the class name, and a method written `[Symbol.dispose](): void { ... }` that prints the release.",
+          "In `transfer`, write `using fromLock = new Lock(from);` and then `using toLock = new Lock(to);`. They're released in reverse order when the function ends.",
+          "Throw after both locks are taken. The `using` declarations still release them, before the caller's `catch` prints the error."
+        ]
+      }
+    }
+  ],
+  "recap": "- A `catch` variable is `unknown`. Narrow it with `instanceof Error` or `Error.isError(err)`, and keep one `toMessage(err: unknown)` helper for reporting.\n- Catch only what you can handle, and rethrow the rest.\n- An error class extends `Error`, calls `super(message)`, declares `readonly` fields, and sets `override readonly name`.\n- `new Error(message, { cause: err })` adds context and keeps the original error.\n- `Promise.any` rejects with an `AggregateError` whose `errors` follow the input order, and `allSettled` reports each failure as a `reason`. Both are typed `any`, so go through `toMessage`.\n- An empty `catch {}` hides failures. Log them, or rethrow.\n- `using` calls `[Symbol.dispose]()` when its block ends, even on a throw, in reverse order of declaration. `await using` does the same with `[Symbol.asyncDispose]()`, and `DisposableStack` collects one-off cleanups."
+}

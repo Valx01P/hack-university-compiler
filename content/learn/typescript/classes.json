@@ -1,0 +1,346 @@
+{
+  "id": "classes",
+  "title": "Typed Classes",
+  "section": "Classes",
+  "summary": "Declare typed fields, hide state with private or #private, add getters, setters, and static factories, and override base methods safely.",
+  "intro": "You wrote classes in the JavaScript course: fields, constructors, methods, `#private` fields, getters, `static`, and `extends`. TypeScript keeps all of it and checks it. Every field has a type, and the constructor must give each one a value. `readonly`, `private`, and `protected` add rules that the checker enforces, and `override` keeps a subclass in step with its base class. One rule from the first lesson still holds: Node strips types and refuses parameter properties, so this course writes every field out.",
+  "steps": [
+    {
+      "title": "Fields and constructors",
+      "body": "A TypeScript class declares each field in its body, with a type. The constructor takes typed parameters and assigns the fields:\n\n```typescript\nclass Point {\n  x: number;\n  y: number;\n\n  constructor(x: number, y: number) {\n    this.x = x;\n    this.y = y;\n  }\n}\n\nconst p = new Point(3, 4);\nconsole.log(p.x + p.y); // 7\n```\n\nThe class name is also a type, the type of its instances, so you can write `const origin: Point` or a parameter `(p: Point)`.\n\nUnder `strict`, every field must get a value, either from an initializer where it's declared (`count = 0`) or from the constructor. A field that gets neither is TS2564, because reading it would give `undefined` where its type promises something else. A field with an initializer infers its type from it, the way a `let` variable does.\n\n`readonly` lets you set a field only in its declaration or in the constructor. Assigning it anywhere else is TS2540.",
+      "examples": [
+        {
+          "title": "A bank account",
+          "prompt": "Model a bank account with typed fields, and methods that change its balance.",
+          "code": "class BankAccount {\n  owner: string;\n  balance: number;\n\n  constructor(owner: string, balance: number) {\n    this.owner = owner;\n    this.balance = balance;\n  }\n\n  deposit(amount: number): void {\n    this.balance += amount;\n  }\n\n  withdraw(amount: number): boolean {\n    if (amount > this.balance) {\n      return false;\n    }\n    this.balance -= amount;\n    return true;\n  }\n}\n\nconst account = new BankAccount(\"Ada\", 100);\n//    ^? const account: BankAccount\naccount.deposit(50);\nconsole.log(`Withdraw 200: ${account.withdraw(200)}`);\nconsole.log(`Withdraw 120: ${account.withdraw(120)}`);\nconsole.log(`${account.owner} has $${account.balance} left`);\n",
+          "output": "Withdraw 200: false\nWithdraw 120: true\nAda has $30 left",
+          "explanation": "The class body declares `owner` and `balance` with their types, and the constructor assigns both, so every `BankAccount` is complete as soon as `new` returns. The bubble shows that `account` has the type `BankAccount`, the class itself. Methods are typed like functions. `deposit` returns `void`, and `withdraw` returns a `boolean` that tells the caller whether the money moved. After the deposit the balance is 150, so taking 200 fails and taking 120 leaves 30. Inside the methods `this.balance` is a `number`, and a call like `account.deposit(\"50\")` would be TS2345, just as it is for a function."
+        },
+        {
+          "title": "An uninitialized field",
+          "prompt": "Declare a status field on a ticket, but forget to give it a value.",
+          "code": "class Ticket {\n  title: string;\n  status: string;\n\n  constructor(title: string) {\n    this.title = title;\n  }\n}\n\nconst ticket = new Ticket(\"Fix login\");\nconsole.log(`${ticket.title}: ${ticket.status.toUpperCase()}`);\n",
+          "expect": "type-error",
+          "output": "main.ts(3,3): error TS2564: Property 'status' has no initializer and is not definitely assigned in the constructor.",
+          "explanation": "The constructor never sets `status`, so a new ticket would hold `undefined` there while its type says `string`, and `status.toUpperCase()` would crash. `tsc` reports the field at its declaration instead, before anything runs. Give it an initializer, or assign it in the constructor:\n\n```typescript\nclass Ticket {\n  title: string;\n  status = \"open\";\n\n  constructor(title: string) {\n    this.title = title;\n  }\n}\n\nconst ticket = new Ticket(\"Fix login\");\nconsole.log(`${ticket.title}: ${ticket.status.toUpperCase()}`); // Fix login: OPEN\n```\n\nThe initializer runs for every new ticket, before the constructor's body. When a field really can be empty, say so in its type and start it there, like `assignee: string | null = null`."
+        },
+        {
+          "title": "Readonly fields and initializers",
+          "prompt": "Give a ticket an id that can never change, and fields that start from initializers.",
+          "code": "class Ticket {\n  readonly id: string;\n  title: string;\n  status = \"open\";\n  //^? (property) Ticket.status: string\n  comments: string[] = [];\n\n  constructor(id: string, title: string) {\n    this.id = id;\n    this.title = title;\n  }\n\n  close(note: string): void {\n    this.comments.push(note);\n    this.status = \"closed\";\n  }\n}\n\nconst ticket = new Ticket(\"T-101\", \"Fix login\");\nticket.close(\"Fixed in 2.4.1\");\nconsole.log(`${ticket.id} ${ticket.title}: ${ticket.status}`);\nconsole.log(`Comments: ${ticket.comments.join(\", \")}`);\n",
+          "output": "T-101 Fix login: closed\nComments: Fixed in 2.4.1",
+          "explanation": "`readonly id` is assigned once, in the constructor, and never changes after that. `status` and `comments` start from initializers, so the constructor doesn't mention them. The bubble shows that `status` is a `string`, not `\"open\"`. A field can change, so its literal type widens the way a `let` does, which is why `close()` may set it to `\"closed\"`. To allow only some strings, annotate it: `status: \"open\" | \"closed\" = \"open\"`. `comments` needs its annotation for another reason: a bare `[]` would be a `never[]` that nothing can be pushed into.\n\nAssigning the id after the constructor is TS2540:\n\n```typescript error\nclass Ticket {\n  readonly id: string;\n\n  constructor(id: string) {\n    this.id = id;\n  }\n}\n\nconst ticket = new Ticket(\"T-101\");\nticket.id = \"T-102\";\nconsole.log(ticket.id);\n```"
+        }
+      ],
+      "practice": {
+        "title": "Library book",
+        "prompt": "Write a `Book` class with typed fields and a method that checks the book out.\n\n1. Declare `readonly isbn: string`, `title: string`, and `available`, which starts as `true`.\n2. Assign `isbn` and `title` in the constructor.\n3. Make `checkOut(): boolean` mark an available book as out and return `true`, or return `false` when it's already out.\n4. Print the summary line `<title> (<isbn>) available: <available>` after the two checkouts.\n5. Keep `export`: hidden type tests import `Book` from your file, and Check also checks out other books.\n\nExpected output:\n\n```text\nFirst checkout: true\nSecond checkout: false\nDune (9780441013593) available: false\n```",
+        "starter": "export class Book {\n  // TODO: declare readonly isbn and title (both strings),\n  // and available, which starts as true\n\n  constructor(isbn: string, title: string) {\n    // TODO: assign isbn and title\n  }\n\n  // TODO: mark an available book as out and return true,\n  // or return false when it's already out\n  checkOut(): boolean {\n    return false;\n  }\n}\n\nconst book = new Book(\"9780441013593\", \"Dune\");\nconsole.log(`First checkout: ${book.checkOut()}`);\nconsole.log(`Second checkout: ${book.checkOut()}`);\n// TODO: print \"<title> (<isbn>) available: <available>\"\n",
+        "solution": "export class Book {\n  readonly isbn: string;\n  title: string;\n  available = true;\n\n  constructor(isbn: string, title: string) {\n    this.isbn = isbn;\n    this.title = title;\n  }\n\n  checkOut(): boolean {\n    if (!this.available) {\n      return false;\n    }\n    this.available = false;\n    return true;\n  }\n}\n\nconst book = new Book(\"9780441013593\", \"Dune\");\nconsole.log(`First checkout: ${book.checkOut()}`);\nconsole.log(`Second checkout: ${book.checkOut()}`);\nconsole.log(`${book.title} (${book.isbn}) available: ${book.available}`);\n",
+        "tests": [
+          {
+            "output": "First checkout: true\nSecond checkout: false\nDune (9780441013593) available: false"
+          },
+          {
+            "append": "const hobbit = new Book(\"9780547928227\", \"The Hobbit\");\nconsole.log(`${hobbit.title} available: ${hobbit.available}`);\nconsole.log(`${hobbit.checkOut()} ${hobbit.checkOut()} ${hobbit.available}`);",
+            "output": "First checkout: true\nSecond checkout: false\nDune (9780441013593) available: false\nThe Hobbit available: true\ntrue false false"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { Book } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "isbn is read-only",
+              "expect": "error",
+              "errorCode": "TS2540",
+              "code": "declare const b: Book; b.isbn = \"x\";"
+            },
+            {
+              "name": "checkOut can be called on a new book",
+              "expect": "ok",
+              "code": "new Book(\"9780441013593\", \"Dune\").checkOut();"
+            },
+            {
+              "name": "checkOut returns a boolean",
+              "expect": "ok",
+              "code": "const ok: boolean = new Book(\"9780441013593\", \"Dune\").checkOut();"
+            },
+            {
+              "name": "the title can change",
+              "expect": "ok",
+              "code": "declare const b: Book; b.title = \"Dune Messiah\";"
+            },
+            {
+              "name": "available is a boolean",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "declare const b: Book; b.available = \"yes\";"
+            },
+            {
+              "name": "the constructor takes an ISBN and a title",
+              "expect": "error",
+              "errorCode": "TS2554",
+              "code": "new Book(\"9780441013593\");"
+            }
+          ]
+        },
+        "hints": [
+          "Declare each field in the class body with its type, like `title: string;`. `available = true` needs no annotation, since it infers `boolean` from its initializer.",
+          "A `readonly` field can still be assigned in the constructor: `this.isbn = isbn;`.",
+          "In `checkOut`, return `false` when `this.available` is already `false`. Otherwise set it to `false` and return `true`."
+        ]
+      }
+    },
+    {
+      "title": "private, #private, and protected",
+      "body": "TypeScript has two ways to make a field private. The `private` modifier is a TypeScript rule: the checker rejects any use outside the class, then Node erases it, so at runtime the field is an ordinary property. A `#` field is JavaScript's own private field, from the JavaScript course. The runtime enforces it, and it never shows up in `Object.keys` or `JSON.stringify`.\n\n```typescript\nclass Wallet {\n  private pin = \"1234\";\n  #balance = 50;\n}\n\nconst wallet = new Wallet();\nconsole.log(Object.keys(wallet).join(\", \")); // pin\nconsole.log(wallet[\"pin\"]); // 1234\n```\n\nOutside the class, `wallet.pin` and `wallet.#balance` are both type errors. But only the checker guards `private`, so code that gets around it still reaches the value. Even TypeScript lets a bracket lookup like `wallet[\"pin\"]` through.\n\n`protected` works like `private`, except that subclasses may use it too. Outside code still can't. `public` is the default, so you rarely write it.",
+      "examples": [
+        {
+          "title": "Two kinds of private",
+          "prompt": "Hide an account's PIN with private and its balance with a # field, then look at the object from outside.",
+          "code": "class Account {\n  owner: string;\n  private pin: string;\n  #balance: number;\n\n  constructor(owner: string, pin: string, balance: number) {\n    this.owner = owner;\n    this.pin = pin;\n    this.#balance = balance;\n  }\n\n  withdraw(pin: string, amount: number): string {\n    if (pin !== this.pin) {\n      return \"Wrong PIN\";\n    }\n    if (amount > this.#balance) {\n      return \"Not enough money\";\n    }\n    this.#balance -= amount;\n    return `Paid ${amount}, ${this.#balance} left`;\n  }\n}\n\nconst account = new Account(\"Ada\", \"4321\", 100);\nconsole.log(account.withdraw(\"0000\", 20));\nconsole.log(account.withdraw(\"4321\", 20));\nconsole.log(`Keys: ${Object.keys(account).join(\", \")}`);\nconsole.log(`JSON: ${JSON.stringify(account)}`);\n",
+          "output": "Wrong PIN\nPaid 20, 80 left\nKeys: owner, pin\nJSON: {\"owner\":\"Ada\",\"pin\":\"4321\"}",
+          "explanation": "To the checker, `pin` and `#balance` are equally private: `withdraw` uses both, and code outside the class can use neither. At runtime they differ. `private` is erased, so `pin` is an ordinary property. `Object.keys` lists it, and `JSON.stringify` writes the PIN out, where a log line or an API response could leak it. `#balance` lives in a slot that only the class's own code can reach, so neither of them sees it.\n\nHere's what reading them from outside looks like to the checker:\n\n```typescript error\nclass Account {\n  private pin = \"4321\";\n  #balance = 100;\n}\n\nconst account = new Account();\nconsole.log(account.pin);\nconsole.log(account.#balance);\n```\n\n`tsc` reports TS2341 for the first, `Property 'pin' is private and only accessible within class 'Account'.`, and TS18013 for the second, `Property '#balance' is not accessible outside class 'Account' because it has a private identifier.`"
+        },
+        {
+          "title": "Protected members",
+          "prompt": "Share a logger's label with a subclass, but not with the code that uses the logger.",
+          "code": "class Logger {\n  protected label: string;\n  lines: string[] = [];\n\n  constructor(label: string) {\n    this.label = label;\n  }\n\n  info(message: string): void {\n    this.lines.push(`[${this.label}] ${message}`);\n  }\n}\n\nclass AuditLogger extends Logger {\n  audit(user: string, action: string): void {\n    this.lines.push(`[${this.label} audit] ${user} ${action}`);\n  }\n}\n\nconst log = new AuditLogger(\"orders\");\nlog.info(\"server started\");\nlog.audit(\"ada\", \"refunded ord_42\");\nconsole.log(log.lines.join(\"\\n\"));\n",
+          "output": "[orders] server started\n[orders audit] ada refunded ord_42",
+          "explanation": "`label` is `protected`, so `AuditLogger`, a subclass, reads `this.label` to build its own lines. `AuditLogger` has no constructor of its own, so it uses the one it inherits, and `new AuditLogger(\"orders\")` sets the label. Code outside both classes can't read it:\n\n```typescript error\nclass Logger {\n  protected label: string;\n\n  constructor(label: string) {\n    this.label = label;\n  }\n}\n\nconst log = new Logger(\"orders\");\nconsole.log(log.label);\n```\n\nThat's TS2445: `Property 'label' is protected and only accessible within class 'Logger' and its subclasses.` Use `protected` for what subclasses need and callers don't. Like `private`, only `tsc` checks it, and JavaScript has no runtime version of it."
+        },
+        {
+          "title": "Choosing a modifier",
+          "prompt": "Write an API client with a public base URL that never changes, a secret key, and a private request log that callers can read but not change.",
+          "code": "class ApiClient {\n  readonly baseUrl: string;\n  #apiKey: string;\n  #log: string[] = [];\n\n  constructor(baseUrl: string, apiKey: string) {\n    this.baseUrl = baseUrl;\n    this.#apiKey = apiKey;\n  }\n\n  request(path: string): string {\n    const line = `GET ${this.baseUrl}${path} (key ...${this.#apiKey.slice(-4)})`;\n    this.#log.push(line);\n    return line;\n  }\n\n  log(): readonly string[] {\n    return this.#log;\n  }\n}\n\nconst client = new ApiClient(\"https://api.example.com\", \"sk_test_7f3a9c21\");\nclient.request(\"/orders\");\nclient.request(\"/orders/42\");\nconsole.log(client.log().join(\"\\n\"));\nconsole.log(JSON.stringify(client));\n",
+          "output": "GET https://api.example.com/orders (key ...9c21)\nGET https://api.example.com/orders/42 (key ...9c21)\n{\"baseUrl\":\"https://api.example.com\"}",
+          "explanation": "Each modifier answers a different question. `readonly baseUrl` is about change: anyone may read it, and nothing can reassign it after the constructor. `#apiKey` is about secrecy. As a `#` field, the runtime keeps it in, so `JSON.stringify`, logging the whole object, or a bracket lookup can't leak it, and the JSON line shows only `baseUrl`. `#log` is internal state that callers may read but not edit, so `log()` returns it typed `readonly string[]`:\n\n```typescript error\nclass ApiClient {\n  #log: string[] = [\"GET /orders\"];\n\n  log(): readonly string[] {\n    return this.#log;\n  }\n}\n\nconst client = new ApiClient();\nclient.log().push(\"DELETE /orders\");\nconsole.log(client.log().length);\n```\n\nThat's TS2339, because a `readonly string[]` has no `push`. It's still the same array at runtime, so return a copy, `[...this.#log]`, when code that skips the checker must not change it either. In existing codebases you'll often see `private` where this one uses `#`. It gets the same checks and is fine whenever the checker is the only guard you need. Prefer `#` for anything that must stay hidden at runtime."
+        }
+      ],
+      "practice": {
+        "title": "Counter with history",
+        "prompt": "Write a `Counter` that keeps its count and its history private, and lets callers read the history but not change it.\n\n1. Make `name` a `readonly` field.\n2. Add the private fields `#count`, starting at 0, and `#history`, an empty `number[]`.\n3. Make `increment(by = 1)` add `by` to the count, then push the new count onto the history. Make `value()` return the count.\n4. Make `history()` return the history, typed `readonly number[]`.\n5. Keep `export`: hidden type tests import `Counter` from your file, and Check also counts with other counters.\n\nExpected output:\n\n```text\nvisits: 7\nHistory: 1, 6, 7\nKeys: name\n```",
+        "starter": "export class Counter {\n  // TODO: make name readonly, and add the private fields #count,\n  // starting at 0, and #history, an empty number[]\n  name: string;\n\n  constructor(name: string) {\n    this.name = name;\n  }\n\n  // TODO: add by to the count, then push the new count onto the history\n  increment(by = 1): void {}\n\n  // TODO: return the count\n  value(): number {\n    return 0;\n  }\n\n  // TODO: return the history, typed readonly number[] so callers can't change it\n  history(): number[] {\n    return [];\n  }\n}\n\nconst visits = new Counter(\"visits\");\nvisits.increment();\nvisits.increment(5);\nvisits.increment();\nconsole.log(`${visits.name}: ${visits.value()}`);\nconsole.log(`History: ${visits.history().join(\", \")}`);\nconsole.log(`Keys: ${Object.keys(visits).join(\", \")}`);\n",
+        "solution": "export class Counter {\n  readonly name: string;\n  #count = 0;\n  #history: number[] = [];\n\n  constructor(name: string) {\n    this.name = name;\n  }\n\n  increment(by = 1): void {\n    this.#count += by;\n    this.#history.push(this.#count);\n  }\n\n  value(): number {\n    return this.#count;\n  }\n\n  history(): readonly number[] {\n    return this.#history;\n  }\n}\n\nconst visits = new Counter(\"visits\");\nvisits.increment();\nvisits.increment(5);\nvisits.increment();\nconsole.log(`${visits.name}: ${visits.value()}`);\nconsole.log(`History: ${visits.history().join(\", \")}`);\nconsole.log(`Keys: ${Object.keys(visits).join(\", \")}`);\n",
+        "tests": [
+          {
+            "output": "visits: 7\nHistory: 1, 6, 7\nKeys: name"
+          },
+          {
+            "append": "const likes = new Counter(\"likes\");\nlikes.increment(3);\nlikes.increment(2);\nconsole.log(`${likes.name}: ${likes.value()} [${likes.history().join(\", \")}]`);\nconsole.log(`${visits.name} is still ${visits.value()}`);",
+            "output": "visits: 7\nHistory: 1, 6, 7\nKeys: name\nlikes: 5 [3, 5]\nvisits is still 7"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { Counter } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "the history is read-only",
+              "expect": "error",
+              "errorCode": "TS2339",
+              "code": "declare const c: Counter; c.history().push(1);"
+            },
+            {
+              "name": "increment's step is optional",
+              "expect": "ok",
+              "code": "new Counter(\"a\").increment();"
+            },
+            {
+              "name": "increment takes a step",
+              "expect": "ok",
+              "code": "new Counter(\"a\").increment(5);"
+            },
+            {
+              "name": "the name is read-only",
+              "expect": "error",
+              "errorCode": "TS2540",
+              "code": "declare const c: Counter; c.name = \"b\";"
+            },
+            {
+              "name": "value returns a number",
+              "expect": "ok",
+              "code": "const n: number = new Counter(\"a\").value();"
+            },
+            {
+              "name": "the step must be a number",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "new Counter(\"a\").increment(\"2\");"
+            }
+          ]
+        },
+        "hints": [
+          "Declare the private fields with initializers, `#count = 0;` and `#history: number[] = [];`, and use them through `this`.",
+          "`increment` adds `by` to `this.#count`, then pushes `this.#count` onto `this.#history`.",
+          "Change the return type to `readonly number[]` and return `this.#history`. Callers can read it, and `push` on it is a type error."
+        ]
+      }
+    },
+    {
+      "title": "Getters, setters, and static members",
+      "body": "A getter is a method that reads like a field. Give it a return type, and callers use it without parentheses:\n\n```typescript\nclass Rectangle {\n  width: number;\n  height: number;\n\n  constructor(width: number, height: number) {\n    this.width = width;\n    this.height = height;\n  }\n\n  get area(): number {\n    return this.width * this.height;\n  }\n}\n\nconsole.log(new Rectangle(3, 4).area); // 12\n```\n\nA setter runs when you assign to the property, so it can check the value before storing it, and every assignment is checked against its parameter type. A getter with no setter is read-only, and assigning to it is TS2540.\n\nA `static` member belongs to the class itself, not to each instance, and you reach it through the class name. A static factory is a static method that returns a new instance, like `Temperature.fromJSON(json)`. It suits input from outside the program, such as parsed JSON: take it as `unknown`, narrow it, and only then call the constructor, so every instance starts out valid.",
+      "examples": [
+        {
+          "title": "A getter",
+          "prompt": "Give a shopping cart a total that you read like a field and that's always up to date.",
+          "code": "type CartLine = { name: string; priceCents: number; qty: number };\n\nclass Cart {\n  lines: CartLine[] = [];\n\n  add(line: CartLine): void {\n    this.lines.push(line);\n  }\n\n  get count(): number {\n    return this.lines.reduce((sum, line) => sum + line.qty, 0);\n  }\n\n  get total(): number {\n    return this.lines.reduce((sum, line) => sum + line.priceCents * line.qty, 0);\n  }\n}\n\nconst cart = new Cart();\ncart.add({ name: \"Mug\", priceCents: 1299, qty: 2 });\nconsole.log(`${cart.count} items: $${(cart.total / 100).toFixed(2)}`);\n\ncart.add({ name: \"Tea\", priceCents: 450, qty: 3 });\nconst total = cart.total;\n//    ^? const total: number\nconsole.log(`${cart.count} items: $${(total / 100).toFixed(2)}`);\n",
+          "output": "2 items: $25.98\n5 items: $39.48",
+          "explanation": "Both getters compute their value from `lines` each time they're read, so after the second `add` the count and the total are already up to date, with no extra field to keep in sync. Callers read `cart.total` like a field, and its type is the getter's return type, as the bubble on `total` shows. There's no setter, so `cart.total = 0` is TS2540, the same error as for a `readonly` field."
+        },
+        {
+          "title": "A validating setter",
+          "prompt": "Let callers set a thermostat's temperature, but refuse anything below absolute zero.",
+          "code": "class Thermostat {\n  static readonly ABSOLUTE_ZERO = -273.15;\n  #celsius = 20;\n\n  get celsius(): number {\n    return this.#celsius;\n  }\n\n  set celsius(value: number) {\n    if (value < Thermostat.ABSOLUTE_ZERO) {\n      throw new RangeError(`${value}°C is below absolute zero`);\n    }\n    this.#celsius = value;\n  }\n}\n\nconst thermostat = new Thermostat();\nthermostat.celsius = 22.5;\nconsole.log(`Set to ${thermostat.celsius}°C`);\n\ntry {\n  thermostat.celsius = -300;\n} catch (err) {\n  console.log(err instanceof Error ? err.message : String(err));\n}\nconsole.log(`Still ${thermostat.celsius}°C`);\n",
+          "output": "Set to 22.5°C\n-300°C is below absolute zero\nStill 22.5°C",
+          "explanation": "The setter runs on every assignment, so it refuses a bad value before storing it. The value lives in `#celsius`, so nothing outside the class can skip the check. The setter's parameter is a `number`, so `thermostat.celsius = \"22\"` would be TS2322 before the setter ever ran. `ABSOLUTE_ZERO` is a `static readonly` field, a constant that belongs to the class, so the setter reads it as `Thermostat.ABSOLUTE_ZERO`. `RangeError` is a built-in subclass of `Error`, so the `instanceof Error` check in `catch` can read its message."
+        },
+        {
+          "title": "A static factory",
+          "prompt": "Build temperatures from parsed JSON, checking the unknown input before calling the constructor.",
+          "code": "class Temperature {\n  readonly celsius: number;\n\n  constructor(celsius: number) {\n    this.celsius = celsius;\n  }\n\n  static fromJSON(json: unknown): Temperature {\n    if (\n      typeof json === \"object\" &&\n      json !== null &&\n      \"celsius\" in json &&\n      typeof json.celsius === \"number\"\n    ) {\n      return new Temperature(json.celsius);\n    }\n    throw new Error(`Not a temperature: ${JSON.stringify(json)}`);\n  }\n}\n\nconst inputs = ['{\"celsius\": 21.5}', '{\"celsius\": \"warm\"}', \"[]\"];\nfor (const text of inputs) {\n  try {\n    const temperature = Temperature.fromJSON(JSON.parse(text));\n    console.log(`Read ${temperature.celsius}°C`);\n  } catch (err) {\n    console.log(err instanceof Error ? err.message : String(err));\n  }\n}\n",
+          "output": "Read 21.5°C\nNot a temperature: {\"celsius\":\"warm\"}\nNot a temperature: []",
+          "explanation": "`fromJSON` is `static`, so you call it on the class, `Temperature.fromJSON(...)`, before any instance exists. Its parameter is `unknown`, because parsed JSON could be anything. Each check narrows `json` a little more, as in the lesson on unknown, any, and never, until `json.celsius` is known to be a `number` and can go to the constructor. Anything else throws, so a `Temperature` holding a string can't exist. A static method isn't on the instances: `temperature.fromJSON(text)` is TS2576, and its message asks whether you meant `Temperature.fromJSON`."
+        }
+      ],
+      "practice": {
+        "title": "Temperature",
+        "prompt": "Finish a `Temperature` class that stores Celsius, and reads and writes Fahrenheit too.\n\n1. Add `get fahrenheit(): number`, which converts with `c * 9 / 5 + 32`.\n2. Add `set fahrenheit(f: number)`, which stores `(f - 32) * 5 / 9` as the Celsius value.\n3. Add `static fromFahrenheit(f: number): Temperature`, which returns a new `Temperature`.\n4. Print the three lines below: 100°C in both scales, 98.6°F made with `fromFahrenheit` in both scales, and a 20°C room whose `fahrenheit` you set to 77. Show every temperature to 1 decimal place.\n5. Keep `export`: hidden type tests import `Temperature` from your file, and Check also converts other temperatures.\n\nExpected output:\n\n```text\n100.0°C = 212.0°F\n98.6°F = 37.0°C\nRoom: 25.0°C\n```",
+        "starter": "export class Temperature {\n  #celsius: number;\n\n  constructor(celsius: number) {\n    this.#celsius = celsius;\n  }\n\n  get celsius(): number {\n    return this.#celsius;\n  }\n\n  // TODO: add get fahrenheit() and set fahrenheit(f), converting with\n  // f = c * 9 / 5 + 32 and c = (f - 32) * 5 / 9\n\n  // TODO: add static fromFahrenheit(f: number), returning a new Temperature\n}\n\nconst boiling = new Temperature(100);\nconsole.log(`${boiling.celsius.toFixed(1)}°C`);\n// TODO: print boiling in both scales, then 98.6°F in both scales,\n// then a 20°C room whose fahrenheit you set to 77\n",
+        "solution": "export class Temperature {\n  #celsius: number;\n\n  constructor(celsius: number) {\n    this.#celsius = celsius;\n  }\n\n  get celsius(): number {\n    return this.#celsius;\n  }\n\n  get fahrenheit(): number {\n    return this.#celsius * 9 / 5 + 32;\n  }\n\n  set fahrenheit(f: number) {\n    this.#celsius = (f - 32) * 5 / 9;\n  }\n\n  static fromFahrenheit(f: number): Temperature {\n    return new Temperature((f - 32) * 5 / 9);\n  }\n}\n\nconst boiling = new Temperature(100);\nconsole.log(`${boiling.celsius.toFixed(1)}°C = ${boiling.fahrenheit.toFixed(1)}°F`);\n\nconst body = Temperature.fromFahrenheit(98.6);\nconsole.log(`${body.fahrenheit.toFixed(1)}°F = ${body.celsius.toFixed(1)}°C`);\n\nconst room = new Temperature(20);\nroom.fahrenheit = 77;\nconsole.log(`Room: ${room.celsius.toFixed(1)}°C`);\n",
+        "tests": [
+          {
+            "output": "100.0°C = 212.0°F\n98.6°F = 37.0°C\nRoom: 25.0°C"
+          },
+          {
+            "append": "const freezing = Temperature.fromFahrenheit(32);\nconsole.log(`${freezing.celsius.toFixed(1)} ${freezing.fahrenheit.toFixed(1)}`);\nconst cold = new Temperature(-40);\nconsole.log(cold.fahrenheit.toFixed(1));\ncold.fahrenheit = 212;\nconsole.log(cold.celsius.toFixed(1));",
+            "output": "100.0°C = 212.0°F\n98.6°F = 37.0°C\nRoom: 25.0°C\n0.0 32.0\n-40.0\n100.0"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { Temperature } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "fromFahrenheit takes a number",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "Temperature.fromFahrenheit(\"32\");"
+            },
+            {
+              "name": "fahrenheit can be set",
+              "expect": "ok",
+              "code": "new Temperature(0).fahrenheit = 212;"
+            },
+            {
+              "name": "fahrenheit reads as a number",
+              "expect": "ok",
+              "code": "const f: number = new Temperature(0).fahrenheit;"
+            },
+            {
+              "name": "the setter takes a number",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "new Temperature(0).fahrenheit = \"212\";"
+            },
+            {
+              "name": "fromFahrenheit returns a Temperature",
+              "expect": "ok",
+              "code": "const t: Temperature = Temperature.fromFahrenheit(32);"
+            },
+            {
+              "name": "fromFahrenheit is static",
+              "expect": "error",
+              "errorCode": "TS2576",
+              "code": "new Temperature(0).fromFahrenheit(32);"
+            }
+          ]
+        },
+        "hints": [
+          "A getter and a setter share a name: `get fahrenheit(): number { ... }` and `set fahrenheit(f: number) { ... }`.",
+          "The getter returns `this.#celsius * 9 / 5 + 32`, and the setter stores `(f - 32) * 5 / 9` in `this.#celsius`.",
+          "`static fromFahrenheit(f: number): Temperature` can return `new Temperature((f - 32) * 5 / 9)`. Call it on the class: `Temperature.fromFahrenheit(98.6)`."
+        ]
+      }
+    },
+    {
+      "title": "Inheritance with override",
+      "body": "`class Circle extends Shape` works as it does in JavaScript: the subclass gets every member of its base class, and its constructor calls `super(...)` before it touches `this`. TypeScript adds one keyword. A method that replaces a base class method is marked `override`:\n\n```typescript\nclass Animal {\n  speak(): string {\n    return \"...\";\n  }\n}\n\nclass Dog extends Animal {\n  override speak(): string {\n    return \"Woof\";\n  }\n}\n\nconsole.log(new Dog().speak()); // Woof\n```\n\nThe course config turns on `noImplicitOverride`, so replacing a method without `override` is TS4114, and `override` on a method the base doesn't have is TS4113. Together they catch a renamed base method: the subclass's method stops compiling, instead of quietly turning into a separate method that nothing calls.\n\nAn override must fit the base method's type. That's what lets a subclass instance stand in for its base: a `Circle` is a `Shape`, so a `Shape[]` can hold circles and rectangles, and calling `area()` on each item runs that object's own version.",
+      "examples": [
+        {
+          "title": "Overriding a method",
+          "prompt": "Make circles and rectangles replace the area method of their Shape base class.",
+          "code": "class Shape {\n  name: string;\n\n  constructor(name: string) {\n    this.name = name;\n  }\n\n  area(): number {\n    return 0;\n  }\n}\n\nclass Circle extends Shape {\n  radius: number;\n\n  constructor(radius: number) {\n    super(\"circle\");\n    this.radius = radius;\n  }\n\n  override area(): number {\n    return Math.PI * this.radius ** 2;\n  }\n}\n\nclass Rect extends Shape {\n  width: number;\n  height: number;\n\n  constructor(width: number, height: number) {\n    super(\"rect\");\n    this.width = width;\n    this.height = height;\n  }\n\n  override area(): number {\n    return this.width * this.height;\n  }\n}\n\nconst circle = new Circle(2);\nconst rect = new Rect(3, 4);\nconsole.log(`${circle.name}: ${circle.area().toFixed(2)}`);\nconsole.log(`${rect.name}: ${rect.area()}`);\n",
+          "output": "circle: 12.57\nrect: 12",
+          "explanation": "Each subclass constructor first calls `super(...)`, which runs `Shape`'s constructor and sets `name`, then assigns its own fields. A subclass declares its fields the same way a base class does, and the same rule applies: leave out `this.radius = radius` and it's TS2564. Both subclasses mark `area()` with `override`, so the checker knows they mean to replace `Shape`'s version, and it checks that each one still returns a `number`. The base `area()` returns 0 only as a stand-in. The next lesson's abstract classes let a base class declare a method with no body at all."
+        },
+        {
+          "title": "Forgetting override",
+          "prompt": "Replace a base class method without marking it override.",
+          "code": "class Shape {\n  area(): number {\n    return 0;\n  }\n}\n\nclass Square extends Shape {\n  side: number;\n\n  constructor(side: number) {\n    super();\n    this.side = side;\n  }\n\n  area(): number {\n    return this.side ** 2;\n  }\n}\n\nconsole.log(new Square(3).area());\n",
+          "expect": "type-error",
+          "output": "main.ts(15,3): error TS4114: This member must have an 'override' modifier because it overrides a member in the base class 'Shape'.",
+          "explanation": "`Square` replaces `area()` but doesn't say so, and `noImplicitOverride` turns that into TS4114. Writing `override area(): number` fixes it. The rule pays off later, when the base class changes. Say someone renames `area()` to `surface()`, and the subclass still says `override area()`:\n\n```typescript error\nclass Shape {\n  surface(): number {\n    return 0;\n  }\n}\n\nclass Square extends Shape {\n  side: number;\n\n  constructor(side: number) {\n    super();\n    this.side = side;\n  }\n\n  override area(): number {\n    return this.side ** 2;\n  }\n}\n\nconsole.log(new Square(3).surface());\n```\n\nNow it's TS4113: `This member cannot have an 'override' modifier because it is not declared in the base class 'Shape'.` Without the keyword, `area()` would quietly become a new method, and every call to `surface()` on a square would return 0."
+        },
+        {
+          "title": "Polymorphism and super",
+          "prompt": "Describe a mixed list of shapes, where a circle adds its radius to the description its base class writes.",
+          "code": "class Shape {\n  name: string;\n\n  constructor(name: string) {\n    this.name = name;\n  }\n\n  area(): number {\n    return 0;\n  }\n\n  describe(): string {\n    return `${this.name} with area ${this.area().toFixed(2)}`;\n  }\n}\n\nclass Circle extends Shape {\n  radius: number;\n\n  constructor(radius: number) {\n    super(\"circle\");\n    this.radius = radius;\n  }\n\n  override area(): number {\n    return Math.PI * this.radius ** 2;\n  }\n\n  override describe(): string {\n    return `${super.describe()} (radius ${this.radius})`;\n  }\n}\n\nclass Rect extends Shape {\n  width: number;\n  height: number;\n\n  constructor(width: number, height: number) {\n    super(\"rect\");\n    this.width = width;\n    this.height = height;\n  }\n\n  override area(): number {\n    return this.width * this.height;\n  }\n}\n\nconst shapes: Shape[] = [new Circle(1), new Rect(2, 3), new Circle(0.5)];\nfor (const shape of shapes) {\n  console.log(shape.describe());\n}\nconst total = shapes.reduce((sum, shape) => sum + shape.area(), 0);\nconsole.log(`Total area: ${total.toFixed(2)}`);\n",
+          "output": "circle with area 3.14 (radius 1)\nrect with area 6.00\ncircle with area 0.79 (radius 0.5)\nTotal area: 9.93",
+          "explanation": "`shapes` is a `Shape[]`, and circles and rectangles fit because a subclass has everything its base class has. The loop only knows that each item is a `Shape`, yet `describe()` runs each object's own version. That's polymorphism. `Circle` overrides `describe()` and calls `super.describe()` to reuse the base text before adding the radius, while `Rect` keeps the base version. The base `describe()` calls `this.area()`, which runs the override, so every line shows its shape's real area.\n\nThrough the `Shape` type you can only use `Shape`'s members:\n\n```typescript error\nclass Shape {\n  area(): number {\n    return 0;\n  }\n}\n\nclass Circle extends Shape {\n  radius = 1;\n\n  override area(): number {\n    return Math.PI * this.radius ** 2;\n  }\n}\n\nconst shapes: Shape[] = [new Circle()];\nfor (const shape of shapes) {\n  console.log(shape.radius);\n}\n```\n\nThat's TS2339, since a `Shape` has no `radius`. Narrow it first with `if (shape instanceof Circle)`."
+        }
+      ],
+      "practice": {
+        "title": "Employees and managers",
+        "prompt": "Add a `Manager` subclass whose description also lists the people who report to it.\n\n1. Give `Manager` a `reports: string[]` field, assigned in its constructor after `super(name, salary)`.\n2. Override `describe()` in `Manager` so it adds `and manages` and the names, joined by a comma and a space, to the base description, or `and manages no one` when there are no reports.\n3. Leave the loop as it is: it prints every person through the `Employee` type.\n4. Keep `export`: hidden type tests import `Employee` and `Manager` from your file, and Check also describes other people.\n\nExpected output:\n\n```text\nBen earns $85000\nAna earns $120000 and manages Ben, Caro\nDev earns $95000 and manages no one\n```",
+        "starter": "export class Employee {\n  name: string;\n  salary: number;\n\n  constructor(name: string, salary: number) {\n    this.name = name;\n    this.salary = salary;\n  }\n\n  describe(): string {\n    return `${this.name} earns $${this.salary}`;\n  }\n}\n\nexport class Manager extends Employee {\n  // TODO: declare reports, a string[], and assign it after super\n\n  constructor(name: string, salary: number, reports: string[]) {\n    super(name, salary);\n  }\n\n  // TODO: override describe() to add \"and manages\" and the names,\n  // or \"and manages no one\" when there are no reports\n}\n\nconst people: Employee[] = [\n  new Employee(\"Ben\", 85000),\n  new Manager(\"Ana\", 120000, [\"Ben\", \"Caro\"]),\n  new Manager(\"Dev\", 95000, []),\n];\n\nfor (const person of people) {\n  console.log(person.describe());\n}\n",
+        "solution": "export class Employee {\n  name: string;\n  salary: number;\n\n  constructor(name: string, salary: number) {\n    this.name = name;\n    this.salary = salary;\n  }\n\n  describe(): string {\n    return `${this.name} earns $${this.salary}`;\n  }\n}\n\nexport class Manager extends Employee {\n  reports: string[];\n\n  constructor(name: string, salary: number, reports: string[]) {\n    super(name, salary);\n    this.reports = reports;\n  }\n\n  override describe(): string {\n    const names = this.reports.length > 0 ? this.reports.join(\", \") : \"no one\";\n    return `${super.describe()} and manages ${names}`;\n  }\n}\n\nconst people: Employee[] = [\n  new Employee(\"Ben\", 85000),\n  new Manager(\"Ana\", 120000, [\"Ben\", \"Caro\"]),\n  new Manager(\"Dev\", 95000, []),\n];\n\nfor (const person of people) {\n  console.log(person.describe());\n}\n",
+        "tests": [
+          {
+            "output": "Ben earns $85000\nAna earns $120000 and manages Ben, Caro\nDev earns $95000 and manages no one"
+          },
+          {
+            "append": "const lead = new Manager(\"Eve\", 130000, [\"Fay\"]);\nconsole.log(lead.describe());\nconsole.log(new Employee(\"Gus\", 70000).describe());",
+            "output": "Ben earns $85000\nAna earns $120000 and manages Ben, Caro\nDev earns $95000 and manages no one\nEve earns $130000 and manages Fay\nGus earns $70000"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { Employee, Manager } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "a manager is an employee",
+              "expect": "ok",
+              "code": "const e: Employee = new Manager(\"Ana\", 100, []);"
+            },
+            {
+              "name": "employees have no reports",
+              "expect": "error",
+              "errorCode": "TS2339",
+              "code": "new Employee(\"Ben\", 1).reports;"
+            },
+            {
+              "name": "managers have their reports",
+              "expect": "ok",
+              "code": "const r: string[] = new Manager(\"Ana\", 100, [\"Ben\"]).reports;"
+            },
+            {
+              "name": "a manager needs its reports",
+              "expect": "error",
+              "errorCode": "TS2554",
+              "code": "new Manager(\"Ana\", 100);"
+            },
+            {
+              "name": "describe returns a string",
+              "expect": "ok",
+              "code": "const s: string = new Manager(\"Ana\", 100, []).describe();"
+            }
+          ]
+        },
+        "hints": [
+          "Declare `reports: string[];` in `Manager`, call `super(name, salary)` first in its constructor, then assign `this.reports = reports;`.",
+          "Mark the new method `override describe(): string`, or `tsc` stops with TS4114.",
+          "Start from the base text: `${super.describe()} and manages ${...}`, with `this.reports.join(\", \")`, or `no one` when the list is empty."
+        ]
+      }
+    }
+  ],
+  "recap": "- Declare every field in the class body with its type. Each one needs an initializer or an assignment in the constructor, or it's TS2564.\n- The class name is also the type of its instances. A field with an initializer infers its type, widened like a `let`.\n- A `readonly` field is set once, in its declaration or the constructor. Assigning it later is TS2540.\n- `private` and `protected` are checked by `tsc` only and erased at runtime. A `#` field stays private at runtime too, so prefer it for anything that must stay hidden.\n- Return internal arrays typed `readonly T[]`, so callers can read them but not change them.\n- Getters read like fields, setters can validate, and a `static` factory can narrow `unknown` input before it calls the constructor.\n- Mark every method that replaces a base class method with `override`. Leaving it off is TS4114, and an `override` with nothing to replace is TS4113.\n- A subclass instance fits wherever its base type is expected, and each object runs its own overrides."
+}

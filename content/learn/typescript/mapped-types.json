@@ -1,0 +1,237 @@
+{
+  "id": "mapped-types",
+  "title": "Mapped Types",
+  "section": "Type Transformations",
+  "summary": "Build one type from the keys of another with mapped types, add or remove readonly and optional, and rename or drop keys with as.",
+  "intro": "The utility types from the last lesson aren't special. `Partial`, `Required`, `Readonly`, `Pick`, and `Record` are short declarations in TypeScript's own library, and each one is a mapped type: a type that goes through the keys of another type and decides what each key becomes. In this lesson you write your own, so a form's errors, its validators, a draft you fill in step by step, and a set of event handlers all follow the one type they describe.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Mapping over keys",
+      "body": "A mapped type builds an object type from the keys of another. `[K in keyof T]` goes through the keys of `T` one at a time, with `K` holding the current key, and the type after the colon is what that key holds in the new type:\n\n```typescript types\ntype Settings = { theme: string; fontSize: number };\n\ntype Flags<T> = { [K in keyof T]: boolean };\ntype Changed = Flags<Settings>;\n//   ^? type Changed = { theme: boolean; fontSize: boolean; }\n```\n\nAfter the colon you can use `T[K]`, the type the key holds in `T`. So `{ [K in keyof T]: T[K] }` is an exact copy of `T`, and anything else changes every key the same way. A `?` after the brackets makes every key optional.\n\nA mapped type follows the type it maps. Add a key to `Settings`, and `Flags<Settings>` gains that key too, so every value typed with it must handle the new key before the code compiles again.",
+      "examples": [
+        {
+          "title": "Feature flags per plan",
+          "prompt": "Map every feature to an on or off switch, and list the features each plan turns on.",
+          "code": "type Features = {\n  darkMode: { theme: string };\n  search: { maxResults: number };\n  csvExport: { delimiter: string };\n};\n\ntype Flags<T> = { [K in keyof T]: boolean };\n\ntype FeatureFlags = Flags<Features>;\n//   ^? type FeatureFlags = { darkMode: boolean; search: boolean; csvExport: boolean; }\n\nconst free: FeatureFlags = { darkMode: true, search: true, csvExport: false };\nconst pro: FeatureFlags = { ...free, csvExport: true };\n\nfunction enabled(flags: FeatureFlags): string {\n  return Object.entries(flags)\n    .filter(([, on]) => on)\n    .map(([name]) => name)\n    .join(\", \");\n}\n\nconsole.log(`free: ${enabled(free)}`);\nconsole.log(`pro: ${enabled(pro)}`);\n",
+          "output": "free: darkMode, search\npro: darkMode, search, csvExport",
+          "explanation": "`Features` describes the settings of each feature. `Flags<Features>` keeps its three keys and gives every one the type `boolean`, as the bubble shows. What the keys held before doesn't matter here, only their names. A plan's flags must name every feature, so a plan that forgets one doesn't compile:\n\n```typescript error\ntype Features = { darkMode: { theme: string }; search: { maxResults: number } };\ntype Flags<T> = { [K in keyof T]: boolean };\n\nconst trial: Flags<Features> = { darkMode: true };\n```\n\n`tsc` reports TS2741, `Property 'search' is missing`. That's the reason to derive the type: add a feature to `Features`, and `tsc` points at every plan that hasn't decided whether to turn it on."
+        },
+        {
+          "title": "A validator per field",
+          "prompt": "Give every field of a contact form its own validator, and run them all in a loop over a list of the form's keys.",
+          "code": "type ContactForm = { name: string; email: string; message: string };\n\ntype Validators<T> = { [K in keyof T]: (value: T[K]) => string | null };\n\nconst validators: Validators<ContactForm> = {\n  name: (value) => (value.trim() === \"\" ? \"is required\" : null),\n  email: (value) => (value.includes(\"@\") ? null : \"needs an @\"),\n  message: (value) => (value.length >= 10 ? null : \"is too short\"),\n};\n\nconst FIELDS = [\"name\", \"email\", \"message\"] as const satisfies readonly (keyof ContactForm)[];\n\nfunction problems(form: ContactForm): string[] {\n  const found: string[] = [];\n  for (const field of FIELDS) {\n    const problem = validators[field](form[field]);\n    if (problem !== null) found.push(`${field} ${problem}`);\n  }\n  return found;\n}\n\nconst forms: ContactForm[] = [\n  { name: \"Ada\", email: \"ada@example.com\", message: \"Hello from London!\" },\n  { name: \" \", email: \"grace.example.com\", message: \"Hi\" },\n];\n\nfor (const form of forms) {\n  const found = problems(form);\n  console.log(found.length === 0 ? \"ok\" : found.join(\", \"));\n}\n",
+          "output": "ok\nname is required, email needs an @, message is too short",
+          "explanation": "`Validators<ContactForm>` gives each key a function that takes that key's own type, `T[K]`. Every field here is a `string`, so each `value` is a string. A `guests: number` field would get a validator that takes a `number`.\n\nThe loop needs the form's keys. `Object.keys(form)` would give a `string[]`, not a list of the form's keys, because an object can hold more keys than its type lists: thanks to structural typing, a bigger object fits a smaller type. Indexing `validators` with a plain `string` doesn't compile. So keep the keys you want in a list: `as const` keeps each one as a literal, and `satisfies readonly (keyof ContactForm)[]` checks that each is a real key, so a typo like `\"emial\"` is an error. It doesn't check that the list has every key, so keep it next to the type."
+        },
+        {
+          "title": "Errors only where they apply",
+          "prompt": "Validate a profile, and return an object with a message only for the fields that need one.",
+          "code": "type ProfileForm = { username: string; bio: string; website: string };\n\ntype FieldErrors<T> = { [K in keyof T]?: string };\n\nfunction validateProfile(form: ProfileForm): FieldErrors<ProfileForm> {\n  const errors: FieldErrors<ProfileForm> = {};\n  if (form.username.length < 3) {\n    errors.username = \"must be at least 3 characters\";\n  }\n  if (form.bio.length > 160) {\n    errors.bio = \"must be at most 160 characters\";\n  }\n  if (!form.website.startsWith(\"https://\")) {\n    errors.website = \"must start with https://\";\n  }\n  return errors;\n}\n\nconst good = validateProfile({ username: \"ada\", bio: \"Writes programs.\", website: \"https://ada.dev\" });\nconst bad = validateProfile({ username: \"al\", bio: \"\", website: \"http://al.dev\" });\n\nconsole.log(JSON.stringify(good));\nconsole.log(JSON.stringify(bad));\n",
+          "output": "{}\n{\"username\":\"must be at least 3 characters\",\"website\":\"must start with https://\"}",
+          "explanation": "The `?` after the brackets makes every key optional, and every key holds a `string`, whatever the field itself holds. So `errors` starts empty and gets one message per broken rule. A key you never set doesn't exist, which is why the valid profile prints `{}` and the JSON skips the fields without an error. The type still knows the form: `errors.email = \"...\"` is TS2339, because a profile has no `email`. And with this course's `exactOptionalPropertyTypes`, `errors.bio = undefined` is an error too, so a field with no error always looks the same: the key is missing."
+        }
+      ],
+      "practice": {
+        "title": "Form errors",
+        "prompt": "Write an errors type that works for any form, then use it to validate signup forms.\n\n1. Make `FieldErrors<T>` a mapped type over the keys of `T`, where every key is optional and holds a `string`.\n2. Make `validate` add an error for each rule the form breaks: an `email` without an `@` gets `must contain @`, a `password` shorter than 8 characters gets `must be at least 8 characters`, and an `age` under 13 gets `must be at least 13`.\n3. Check the rules in that order, so the keys print in that order. The loop that prints each form's errors as JSON is done.\n4. Keep `export`: hidden type tests use `FieldErrors`, `SignupForm`, and `validate`.\n\nExpected output:\n\n```text\n{}\n{\"email\":\"must contain @\",\"age\":\"must be at least 13\"}\n```",
+        "starter": "export type SignupForm = { email: string; password: string; age: number };\n\n// TODO: map every key of T to an optional string\nexport type FieldErrors<T> = Record<string, string>;\n\nexport function validate(form: SignupForm): FieldErrors<SignupForm> {\n  const errors: FieldErrors<SignupForm> = {};\n  // TODO: add an error for each rule the form breaks\n  return errors;\n}\n\nconst forms: SignupForm[] = [\n  { email: \"ada@example.com\", password: \"correct-horse\", age: 36 },\n  { email: \"grace.example.com\", password: \"battery-staple\", age: 12 },\n];\n\nfor (const form of forms) {\n  console.log(JSON.stringify(validate(form)));\n}\n",
+        "solution": "export type SignupForm = { email: string; password: string; age: number };\n\nexport type FieldErrors<T> = { [K in keyof T]?: string };\n\nexport function validate(form: SignupForm): FieldErrors<SignupForm> {\n  const errors: FieldErrors<SignupForm> = {};\n  if (!form.email.includes(\"@\")) {\n    errors.email = \"must contain @\";\n  }\n  if (form.password.length < 8) {\n    errors.password = \"must be at least 8 characters\";\n  }\n  if (form.age < 13) {\n    errors.age = \"must be at least 13\";\n  }\n  return errors;\n}\n\nconst forms: SignupForm[] = [\n  { email: \"ada@example.com\", password: \"correct-horse\", age: 36 },\n  { email: \"grace.example.com\", password: \"battery-staple\", age: 12 },\n];\n\nfor (const form of forms) {\n  console.log(JSON.stringify(validate(form)));\n}\n",
+        "tests": [
+          {
+            "output": "{}\n{\"email\":\"must contain @\",\"age\":\"must be at least 13\"}"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { validate, type FieldErrors, type SignupForm } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "accepts a form with no errors",
+              "expect": "ok",
+              "code": "const e: FieldErrors<SignupForm> = {};\n"
+            },
+            {
+              "name": "rejects a field the form doesn't have",
+              "expect": "error",
+              "errorCode": "TS2353",
+              "code": "const e: FieldErrors<SignupForm> = { name: \"x\" };\n"
+            },
+            {
+              "name": "holds a message, not the field's value",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const e: FieldErrors<SignupForm> = { age: 13 };\n"
+            },
+            {
+              "name": "works for any form",
+              "expect": "ok",
+              "code": "const e: FieldErrors<{ city: string }> = { city: \"is required\" };\n"
+            },
+            {
+              "name": "returns the errors of a signup form",
+              "expect": "ok",
+              "code": "const e: FieldErrors<SignupForm> = validate({ email: \"a@b.c\", password: \"12345678\", age: 20 });\n"
+            }
+          ]
+        },
+        "hints": [
+          "`FieldErrors` in the third example builds the same type for a profile form.",
+          "`[K in keyof T]?: string` gives every key of `T` an optional string. Then write one `if` per rule in `validate`.",
+          "`export type FieldErrors<T> = { [K in keyof T]?: string };` and, for the first rule, `if (!form.email.includes(\"@\")) { errors.email = \"must contain @\"; }`"
+        ]
+      }
+    },
+    {
+      "title": "Adding and removing modifiers",
+      "body": "A mapped type over `keyof T` copies each key's modifiers: a `readonly` key stays `readonly`, and an optional key stays optional. You can also change them for every key at once. Write `readonly` before the brackets and `?` after them, as in an object type. A `-` in front of either removes it, and a `+`, the default, adds it:\n\n```typescript types\ntype Article = { readonly id: string; title: string; body?: string };\n\ntype Editable = { -readonly [K in keyof Article]: Article[K] };\n//   ^? type Editable = { id: string; title: string; body?: string; }\ntype Complete = { [K in keyof Article]-?: Article[K] };\n//   ^? type Complete = { readonly id: string; title: string; body: string; }\n```\n\n`-?` also drops the `undefined` that reading an optional key adds, so `body` is a plain `string` in `Complete`.\n\nThat's all there is to three of the utility types. TypeScript's own library declares `Partial<T>` as `{ [P in keyof T]?: T[P] }`, `Required<T>` as `{ [P in keyof T]-?: T[P] }`, and `Readonly<T>` as `{ readonly [P in keyof T]: T[P] }`.",
+      "examples": [
+        {
+          "title": "Your own Partial",
+          "prompt": "Write Partial yourself, then use it for patches the same way as the built-in.",
+          "code": "type MyPartial<T> = { [K in keyof T]?: T[K] };\n\ntype User = { id: number; name: string; email: string };\n\ntype Patch = MyPartial<User>;\n//   ^? type Patch = { id?: number; name?: string; email?: string; }\ntype BuiltIn = Partial<User>;\n//   ^? type BuiltIn = { id?: number; name?: string; email?: string; }\n\nfunction update(user: User, patch: MyPartial<User>): User {\n  return { ...user, ...patch };\n}\n\nconst ada: User = { id: 1, name: \"Ada\", email: \"ada@example.com\" };\nconst newEmail: Partial<User> = { email: \"ada@lovelace.dev\" };\n\nconsole.log(JSON.stringify(update(ada, { name: \"Ada Lovelace\" })));\nconsole.log(JSON.stringify(update(ada, newEmail)));\n",
+          "output": "{\"id\":1,\"name\":\"Ada Lovelace\",\"email\":\"ada@example.com\"}\n{\"id\":1,\"name\":\"Ada\",\"email\":\"ada@lovelace.dev\"}",
+          "explanation": "`MyPartial` copies every key of `User` with its type, `T[K]`, and the `?` makes each one optional. The two bubbles are identical because the library declares `Partial` as this same mapped type. That's also why `update` accepts `newEmail`, a value typed with the built-in: TypeScript compares shapes, not names. Since `+` is the default, `+?` means the same as `?`, and you'll rarely see it written out."
+        },
+        {
+          "title": "A builder with Mutable",
+          "prompt": "Fill in a read-only invoice step by step inside a builder, then hand out the finished invoice as read-only.",
+          "code": "type Invoice = {\n  readonly id: string;\n  readonly lines: readonly string[];\n  readonly totalCents: number;\n};\n\ntype Mutable<T> = { -readonly [K in keyof T]: T[K] };\n\nfunction buildInvoice(id: string, items: [name: string, cents: number][]): Invoice {\n  const invoice: Mutable<Invoice> = { id, lines: [], totalCents: 0 };\n  for (const [name, cents] of items) {\n    invoice.lines = [...invoice.lines, `${name}: $${(cents / 100).toFixed(2)}`];\n    invoice.totalCents += cents;\n  }\n  return invoice;\n}\n\nconst invoice = buildInvoice(\"INV-7\", [\n  [\"Notebook\", 900],\n  [\"Fountain pen\", 2599],\n]);\n\nconsole.log(invoice.id);\nfor (const line of invoice.lines) {\n  console.log(`  ${line}`);\n}\nconsole.log(`Total: $${(invoice.totalCents / 100).toFixed(2)}`);\n",
+          "output": "INV-7\n  Notebook: $9.00\n  Fountain pen: $25.99\nTotal: $34.99",
+          "explanation": "Inside `buildInvoice`, `Mutable<Invoice>` removes `readonly` from all three keys, so the loop can reassign `lines` and add to `totalCents`. The function returns it as an `Invoice`, so every caller gets the read-only version, and `invoice.totalCents = 0` after the call is TS2540. `-readonly` only reaches the top level: `lines` is still a `readonly string[]`, so `invoice.lines.push(...)` fails even inside the builder, which is why the loop builds a new array. Like `Readonly`, `Mutable` only changes what `tsc` allows. Nothing is frozen or unfrozen while the program runs."
+        },
+        {
+          "title": "Options with every key set",
+          "prompt": "Resolve optional retry options against defaults, so the code after it reads every option without a fallback.",
+          "code": "type Concrete<T> = { [K in keyof T]-?: T[K] };\n\ntype RetryOptions = { retries?: number; delayMs?: number; verbose?: boolean };\n\nconst DEFAULTS: Concrete<RetryOptions> = { retries: 3, delayMs: 500, verbose: false };\n\nfunction resolve(options: RetryOptions): Concrete<RetryOptions> {\n  return { ...DEFAULTS, ...options };\n}\n\nconst options = resolve({ retries: 5 });\nconst total = options.retries * options.delayMs;\n//    ^? const total: number\n\nconsole.log(JSON.stringify(options));\nconsole.log(`Waits up to ${total} ms in all`);\n",
+          "output": "{\"retries\":5,\"delayMs\":500,\"verbose\":false}\nWaits up to 2500 ms in all",
+          "explanation": "`-?` removes the question mark from every key, so `Concrete<RetryOptions>` is the same type as `Required<RetryOptions>`. `DEFAULTS` must give all three options a value, or it doesn't compile. In `resolve`, the spread copies the defaults, then the options the caller passed. With `exactOptionalPropertyTypes`, a caller can't pass `retries: undefined`, so nothing in `options` can blank out a default. After `resolve`, `options.retries * options.delayMs` needs no `??`, because both are plain numbers, as the bubble on `total` shows."
+        }
+      ],
+      "practice": {
+        "title": "Draft to final",
+        "prompt": "Build an article as a draft, one field at a time, and turn it into a finished article once it has what it needs.\n\n1. Make `Draft<T>` a mapped type over the keys of `T` that removes `readonly` and makes every key optional.\n2. Make `finalize` return `null` when the draft has no `id` or no `title`, else an `Article` with all of the draft's fields.\n3. After the first print, set the draft's `id` to `\"a1\"` and its `tags` to `[\"typescript\", \"types\"]`, then print `show(finalize(draft))` again.\n4. Keep `export`: hidden type tests use `Article`, `Draft`, and `finalize`.\n\nExpected output:\n\n```text\nnot ready\na1: Mapped types [typescript, types]\n```",
+        "starter": "export type Article = { readonly id: string; title: string; body?: string; tags?: string[] };\n\n// TODO: remove readonly from every key of T, and make every key optional\nexport type Draft<T> = Partial<T>;\n\nfunction show(article: Article | null): string {\n  if (article === null) return \"not ready\";\n  return `${article.id}: ${article.title} [${(article.tags ?? []).join(\", \")}]`;\n}\n\nexport function finalize(d: Draft<Article>): Article | null {\n  // TODO: return null without an id or a title, else an Article with d's fields\n  return null;\n}\n\nconst draft: Draft<Article> = {};\ndraft.title = \"Mapped types\";\nconsole.log(show(finalize(draft)));\n\n// TODO: set the draft's id to \"a1\" and its tags to [\"typescript\", \"types\"],\n// then print show(finalize(draft)) again\n",
+        "solution": "export type Article = { readonly id: string; title: string; body?: string; tags?: string[] };\n\nexport type Draft<T> = { -readonly [K in keyof T]?: T[K] };\n\nfunction show(article: Article | null): string {\n  if (article === null) return \"not ready\";\n  return `${article.id}: ${article.title} [${(article.tags ?? []).join(\", \")}]`;\n}\n\nexport function finalize(d: Draft<Article>): Article | null {\n  if (d.id === undefined || d.title === undefined) return null;\n  return { ...d, id: d.id, title: d.title };\n}\n\nconst draft: Draft<Article> = {};\ndraft.title = \"Mapped types\";\nconsole.log(show(finalize(draft)));\n\ndraft.id = \"a1\";\ndraft.tags = [\"typescript\", \"types\"];\nconsole.log(show(finalize(draft)));\n",
+        "tests": [
+          {
+            "output": "not ready\na1: Mapped types [typescript, types]"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { finalize, type Article, type Draft } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "starts from an empty draft",
+              "expect": "ok",
+              "code": "const d: Draft<Article> = {};\n"
+            },
+            {
+              "name": "lets you set the id later",
+              "expect": "ok",
+              "code": "const d: Draft<Article> = {};\nd.id = \"a1\";\n"
+            },
+            {
+              "name": "keeps the type of each field",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const d: Draft<Article> = { title: 42 };\n"
+            },
+            {
+              "name": "keeps a finished article's id read-only",
+              "expect": "error",
+              "errorCode": "TS2540",
+              "code": "declare const a: Article;\na.id = \"x\";\n"
+            },
+            {
+              "name": "finalizes a draft with an id and a title",
+              "expect": "ok",
+              "code": "const a: Article | null = finalize({ id: \"a1\", title: \"Types\" });\n"
+            }
+          ]
+        },
+        "hints": [
+          "`Mutable` in the second example removes `readonly`, and `MyPartial` in the first adds `?`. `Draft` does both in one mapped type.",
+          "Write `-readonly` before the brackets and `?` after them. In `finalize`, return `null` first when `d.id` or `d.title` is `undefined`.",
+          "`export type Draft<T> = { -readonly [K in keyof T]?: T[K] };` and, after the check, `return { ...d, id: d.id, title: d.title };`"
+        ]
+      }
+    },
+    {
+      "title": "Renaming keys with as",
+      "body": "`as` after the key gives it a new name: `[K in keyof T as NewName]`. This `as` only renames keys. It has nothing to do with type assertions. Two kinds of `NewName` cover most code you'll read. The first is a template literal type, written in backticks like a template string, which builds the new name from the old one:\n\n```typescript types\ntype Account = { owner: string; balanceCents: number };\n\ntype Getters<T> = { [K in keyof T as `get${Capitalize<string & K>}`]: () => T[K] };\ntype AccountGetters = Getters<Account>;\n//   ^? type AccountGetters = { getBalanceCents: () => number; getOwner: () => string; }\n```\n\n`Capitalize` uppercases the first letter, so `owner` becomes `getOwner`. `string & K` keeps only the string keys, since `keyof` can also give number and symbol keys. The Template Literal Types lesson covers these types fully. The bubble sorts the new keys by name, and the order of keys in a type never matters.\n\nThe second is `never`: a key renamed to `never` is dropped. `T[K] extends string ? K : never` keeps a key only when its value is a string. That's a conditional type, an if for types, which the Conditional Types lesson covers.",
+      "examples": [
+        {
+          "title": "Getter methods",
+          "prompt": "Derive an account's getter methods from its fields, and build an object that has exactly those methods.",
+          "code": "type Account = { owner: string; balanceCents: number };\n\ntype Getters<T> = { [K in keyof T as `get${Capitalize<string & K>}`]: () => T[K] };\n\nfunction accountGetters(account: Account): Getters<Account> {\n  return {\n    getOwner: () => account.owner,\n    getBalanceCents: () => account.balanceCents,\n  };\n}\n\nconst getters = accountGetters({ owner: \"Ada\", balanceCents: 12050 });\nconst balance = getters.getBalanceCents();\n//    ^? const balance: number\n\nconsole.log(getters.getOwner());\nconsole.log(`$${(balance / 100).toFixed(2)}`);\n",
+          "output": "Ada\n$120.50",
+          "explanation": "For each key, `as` builds a new name: `owner` becomes `getOwner`, and `balanceCents` becomes `getBalanceCents`. The value type `() => T[K]` makes each one a function that returns the field's type, so `getBalanceCents()` returns a `number`. The return type holds `accountGetters` to exactly these names. Leave one out, and `tsc` reports it missing (TS2741). Misspell one, and the excess property check reports it (TS2353). Add a field to `Account`, and the function stops compiling until it has a getter for the new field."
+        },
+        {
+          "title": "Only the text fields",
+          "prompt": "Keep only the string fields of a product type, and use their names to search products by text.",
+          "code": "type Product = { sku: string; name: string; priceCents: number; inStock: boolean };\n\ntype StringFields<T> = { [K in keyof T as T[K] extends string ? K : never]: T[K] };\n\ntype ProductText = StringFields<Product>;\n//   ^? type ProductText = { sku: string; name: string; }\n\nfunction search(products: Product[], field: keyof ProductText, text: string): string[] {\n  return products\n    .filter((p) => p[field].toLowerCase().includes(text.toLowerCase()))\n    .map((p) => p.name);\n}\n\nconst products: Product[] = [\n  { sku: \"MUG-01\", name: \"Blue mug\", priceCents: 1299, inStock: true },\n  { sku: \"TEA-02\", name: \"Green tea\", priceCents: 650, inStock: false },\n  { sku: \"MUG-03\", name: \"Tall mug\", priceCents: 1499, inStock: true },\n];\n\nconsole.log(search(products, \"name\", \"mug\").join(\", \"));\nconsole.log(search(products, \"sku\", \"tea\").join(\", \"));\n",
+          "output": "Blue mug, Tall mug\nGreen tea",
+          "explanation": "For each key, the condition asks whether its value is a string. `sku` and `name` keep their names, while `priceCents` and `inStock` are renamed to `never`, which drops them. So `keyof ProductText` is `\"name\" | \"sku\"`, and `p[field]` is always a `string`, which is why `toLowerCase()` compiles. A field that isn't text is a type error:\n\n```typescript error\ntype Product = { sku: string; name: string; priceCents: number; inStock: boolean };\ntype StringFields<T> = { [K in keyof T as T[K] extends string ? K : never]: T[K] };\n\nfunction search(products: Product[], field: keyof StringFields<Product>, text: string): string[] {\n  return products.filter((p) => p[field].includes(text)).map((p) => p.name);\n}\n\nsearch([], \"priceCents\", \"12\");\n```\n\n`tsc` reports TS2345: `\"priceCents\"` isn't one of `\"name\" | \"sku\"`."
+        },
+        {
+          "title": "Handlers for every event",
+          "prompt": "Turn a map of upload events into handler names, and check an object of handlers against it with satisfies.",
+          "code": "type UploadEvents = {\n  started: { file: string };\n  progress: { file: string; percent: number };\n  finished: { file: string; bytes: number };\n};\n\ntype Handlers<E> = { [K in keyof E as `on${Capitalize<string & K>}`]: (payload: E[K]) => void };\n\nconst handlers = {\n  onStarted: (e) => console.log(`Uploading ${e.file}`),\n  onProgress: (e) => console.log(`${e.file}: ${e.percent}%`),\n  onFinished: (e) => console.log(`${e.file}: ${e.bytes} bytes`),\n} satisfies Handlers<UploadEvents>;\n\nhandlers.onStarted({ file: \"photo.jpg\" });\nhandlers.onProgress({ file: \"photo.jpg\", percent: 50 });\nhandlers.onFinished({ file: \"photo.jpg\", bytes: 204800 });\n",
+          "output": "Uploading photo.jpg\nphoto.jpg: 50%\nphoto.jpg: 204800 bytes",
+          "explanation": "`Handlers<UploadEvents>` turns each event name into an `on` name, and each handler takes its event's payload, `E[K]`. `satisfies` checks the object against that type: every handler must be there, and a name the type doesn't have, like a misspelled `onFinish`, is an error. It also gives each `e` its type from its event, so `e.percent` needs no annotation. And since `satisfies` keeps the object's own type, the calls know exactly which handlers exist."
+        }
+      ],
+      "practice": {
+        "title": "Cart handlers",
+        "prompt": "Derive the handler names for a cart's events, write one handler per event, and call each one once.\n\n1. Make `Handlers<E>` a mapped type that renames each key of `E` to `on` plus the key with a capital first letter (`added` becomes `onAdded`), and gives it a function that takes that event's payload and returns `void`.\n2. Write `handlers`, checked with `satisfies Handlers<CartEvents>`: `onAdded` prints `Added <sku>`, `onRemoved` prints `Removed <sku>`, and `onCleared` prints `Cart cleared at <at>`.\n3. Call `onAdded` with the sku `MUG-01`, `onRemoved` with the sku `TEA-02`, and `onCleared` with the time `2026-10-01T09:00:00Z`, in that order.\n4. Keep `export`: hidden type tests use `CartEvents`, `Handlers`, and `handlers`.\n\nExpected output:\n\n```text\nAdded MUG-01\nRemoved TEA-02\nCart cleared at 2026-10-01T09:00:00Z\n```",
+        "starter": "export type CartEvents = {\n  added: { sku: string };\n  removed: { sku: string };\n  cleared: { at: string };\n};\n\n// TODO: rename each key K of E to on plus K with a capital first letter,\n// holding a function that takes E[K] and returns void\nexport type Handlers<E> = Record<string, unknown>;\n\n// TODO: add onAdded, onRemoved, and onCleared\nexport const handlers = {} satisfies Handlers<CartEvents>;\n\n// TODO: call each handler once\n",
+        "solution": "export type CartEvents = {\n  added: { sku: string };\n  removed: { sku: string };\n  cleared: { at: string };\n};\n\nexport type Handlers<E> = { [K in keyof E as `on${Capitalize<string & K>}`]: (payload: E[K]) => void };\n\nexport const handlers = {\n  onAdded: (e) => console.log(`Added ${e.sku}`),\n  onRemoved: (e) => console.log(`Removed ${e.sku}`),\n  onCleared: (e) => console.log(`Cart cleared at ${e.at}`),\n} satisfies Handlers<CartEvents>;\n\nhandlers.onAdded({ sku: \"MUG-01\" });\nhandlers.onRemoved({ sku: \"TEA-02\" });\nhandlers.onCleared({ at: \"2026-10-01T09:00:00Z\" });\n",
+        "tests": [
+          {
+            "output": "Added MUG-01\nRemoved TEA-02\nCart cleared at 2026-10-01T09:00:00Z"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { handlers, type CartEvents, type Handlers } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "calls onAdded with a sku",
+              "expect": "ok",
+              "code": "handlers.onAdded({ sku: \"x\" });\n"
+            },
+            {
+              "name": "needs a handler for every event",
+              "expect": "error",
+              "errorCode": "TS2741",
+              "code": "const h: Handlers<CartEvents> = { onAdded: () => {}, onRemoved: () => {} };\n"
+            },
+            {
+              "name": "rejects a handler for an event that doesn't exist",
+              "expect": "error",
+              "errorCode": "TS2353",
+              "code": "const h: Handlers<CartEvents> = { onAdded: () => {}, onRemoved: () => {}, onCleared: () => {}, onSaved: () => {} };\n"
+            },
+            {
+              "name": "gives each handler its own payload",
+              "expect": "error",
+              "errorCode": "TS2353",
+              "code": "handlers.onCleared({ sku: \"x\" });\n"
+            },
+            {
+              "name": "works for any map of events",
+              "expect": "ok",
+              "code": "const h: Handlers<{ saved: { id: number } }> = { onSaved: (e) => console.log(e.id) };\n"
+            }
+          ]
+        },
+        "hints": [
+          "`Handlers` in the third example is the same type, written for upload events. Only the events differ.",
+          "After `as`, the new name is a template literal type: `on` followed by `${Capitalize<string & K>}`, all inside backticks. Each handler's parameter is `E[K]`.",
+          "Each handler is an arrow that prints one line, like `onAdded: (e) => console.log(...)`. `satisfies` gives `e` its payload type, so it needs no annotation."
+        ]
+      }
+    }
+  ],
+  "recap": "- `{ [K in keyof T]: X }` builds a type with the keys of `T`, and `T[K]` is the type each key held in `T`.\n- `readonly` before the brackets and `?` after them change every key at once, and a `-` in front removes them. `Partial`, `Required`, and `Readonly` are written exactly this way.\n- `as` after the key renames it. A template literal type with `${Capitalize<string & K>}` builds a new name from the old one, and a key renamed to `never` is dropped.\n- `Object.keys` returns `string[]`, because an object can hold more keys than its type lists. Loop over an `as const` list of keys, checked with `satisfies readonly (keyof T)[]`, instead.\n- Mapped types follow the type they map: add a key, and every type built from it gains the key."
+}

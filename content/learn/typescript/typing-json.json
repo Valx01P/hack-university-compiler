@@ -1,0 +1,197 @@
+{
+  "id": "typing-json",
+  "title": "Typing JSON",
+  "section": "Data at the Edges",
+  "summary": "Stop the any that JSON.parse returns at the boundary, validate parsed data by hand with a path in every error, and type what JSON.stringify can write.",
+  "intro": "JSON is how most data enters a program: config files, request bodies, API responses, settings a user saved. TypeScript can't see inside a string, so `JSON.parse` returns `any`, and a wrong guess about the data compiles and then fails at run time. In this lesson you stop that `any` at the boundary, write validators that say exactly which field is wrong, and type the other direction too, so `JSON.stringify` only gets values that JSON can hold.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Parse JSON into unknown",
+      "body": "`JSON.parse` is typed to return `any`, so anything you read from its result compiles, a misspelled property included:\n\n```typescript\nconst config = JSON.parse('{\"retries\": 3}');\n//    ^? const config: any\nconsole.log(config.retires); // undefined\n```\n\nStop the `any` where it starts. Put `JSON.parse` in a function whose return type is `unknown`, so every caller has to narrow the value before using it. Text that isn't JSON makes `JSON.parse` throw a `SyntaxError`, so the same function is the place to catch that and return a Result instead:\n\n```typescript types\ntype Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n```\n\nMost JSON holds objects, so one guard saves you from repeating the first checks every time:\n\n```typescript\nfunction isRecord(x: unknown): x is Record<string, unknown> {\n  return typeof x === \"object\" && x !== null && !Array.isArray(x);\n}\nconst data: unknown = JSON.parse('{\"port\": 8080}');\nif (isRecord(data)) {\n  const port = data.port;\n  //    ^? const port: unknown\n  console.log(port); // 8080\n}\n```\n\nAfter `isRecord`, every property you read is `unknown` again, ready for its own check: `typeof` narrows it to a primitive, and `===` narrows it to a literal like `\"dark\"`.",
+      "examples": [
+        {
+          "title": "A parseJson helper",
+          "prompt": "Wrap `JSON.parse` so that it returns a Result holding `unknown`, and try it on good and bad text.",
+          "code": "type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nfunction parseJson(text: string): Result<unknown, string> {\n  try {\n    return { ok: true, value: JSON.parse(text) };\n  } catch (err) {\n    return { ok: false, error: err instanceof Error ? err.message : String(err) };\n  }\n}\n\nfor (const text of ['{\"retries\": 3}', \"[1, 2\", \"null\"]) {\n  const result = parseJson(text);\n  if (result.ok) {\n    const value = result.value;\n    //    ^? const value: unknown\n    console.log(`ok: ${JSON.stringify(value)}`);\n  } else {\n    console.log(`error: ${result.error}`);\n  }\n}\n",
+          "output": "ok: {\"retries\":3}\nerror: Expected ',' or ']' after array element in JSON at position 5 (line 1 column 6)\nok: null",
+          "explanation": "`parseJson` never throws. The `try` returns the parsed value as `ok`, and the `catch` turns the `SyntaxError` into an `error` message. Callers check `result.ok` before they touch `value`, and even then the bubble shows that `value` is `unknown`, so the next step is narrowing, not guessing. `null` is valid JSON, so the third text parses fine. The message for `[1, 2` comes from `JSON.parse` itself and says where the text went wrong."
+        },
+        {
+          "title": "The any leak",
+          "prompt": "Read a retry count from parsed JSON without checking it, then pass in JSON that has no retry count.",
+          "code": "function retryLabel(text: string): string {\n  const config = JSON.parse(text);\n  //    ^? const config: any\n  return `retries: ${config.retries.toFixed()}`;\n}\n\nconsole.log(retryLabel('{\"retries\": 3}'));\nconsole.log(retryLabel('{\"timeout\": 30}'));\n",
+          "expect": "runtime-error",
+          "output": "retries: 3",
+          "errorIncludes": "TypeError: Cannot read properties of undefined (reading 'toFixed')",
+          "explanation": "The bubble shows that `config` is `any`, so `config.retries.toFixed()` compiles without a word. The first call has `retries` and prints. The second JSON has no `retries`, so reading it gives `undefined`, and calling `toFixed` on that crashes the program. The checker couldn't warn you, because `any` switched it off. Had `config` been `unknown`, that line would be a type error until you checked `retries`."
+        },
+        {
+          "title": "Narrowing nested fields",
+          "prompt": "Read one JSON profile per line from stdin, and print each city, but only when it really is a string inside an `address` object.",
+          "code": "import { readFileSync } from \"node:fs\";\n\nfunction isRecord(x: unknown): x is Record<string, unknown> {\n  return typeof x === \"object\" && x !== null && !Array.isArray(x);\n}\n\nfunction cityOf(data: unknown): string {\n  if (isRecord(data) && isRecord(data.address) && typeof data.address.city === \"string\") {\n    return data.address.city;\n    //     ^? (parameter) data: Record<string, unknown>\n  }\n  return \"(no city)\";\n}\n\nconst lines = readFileSync(0, \"utf8\").trim().split(\"\\n\");\nfor (const line of lines) {\n  const data: unknown = JSON.parse(line);\n  console.log(cityOf(data));\n}\n",
+          "stdin": "{\"name\": \"Ada\", \"address\": {\"city\": \"London\"}}\n{\"name\": \"Grace\", \"address\": {\"city\": 42}}\n{\"name\": \"Linus\"}\n[\"London\"]\n",
+          "output": "London\n(no city)\n(no city)\n(no city)",
+          "explanation": "Each check narrows one step further. `isRecord(data)` makes `data` a `Record<string, unknown>`, as the bubble shows, so `data.address` can be read, as an `unknown`. `isRecord(data.address)` narrows that property, and `typeof data.address.city === \"string\"` narrows the city, so the function can return it as a `string`. Grace's city is a number, Linus has no address, and the last line is an array, so all three get `(no city)` instead of a crash."
+        }
+      ],
+      "practice": {
+        "title": "Read settings",
+        "prompt": "Read a settings file from stdin, and fill in a default for every setting that is missing or wrong.\n\n1. Export `parseSettings(text: string): Settings`. It starts from the defaults `{ theme: \"light\", fontSize: 16 }`.\n2. Parse `text` so that the result is `unknown`. Text that isn't JSON, or JSON that isn't an object, keeps every default.\n3. Use the input's `theme` when it is `\"light\"` or `\"dark\"`, and its `fontSize` when it is a number. Ignore everything else.\n4. The starter prints the settings with `JSON.stringify`.\n\nInput:\n\n```text\n{\"theme\": \"dark\", \"fontSize\": 18}\n```\n\nExpected output:\n\n```text\n{\"theme\":\"dark\",\"fontSize\":18}\n```",
+        "starter": "import { readFileSync } from \"node:fs\";\n\nexport type Settings = { theme: \"light\" | \"dark\"; fontSize: number };\n\nexport function parseSettings(text: string): Settings {\n  const settings: Settings = { theme: \"light\", fontSize: 16 };\n  // TODO: parse text into an unknown, keeping the defaults when it isn't JSON\n  // TODO: copy theme when it is \"light\" or \"dark\", and fontSize when it is a number\n  return settings;\n}\n\nconsole.log(JSON.stringify(parseSettings(readFileSync(0, \"utf8\"))));\n",
+        "solution": "import { readFileSync } from \"node:fs\";\n\ntype Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nexport type Settings = { theme: \"light\" | \"dark\"; fontSize: number };\n\nfunction parseJson(text: string): Result<unknown, string> {\n  try {\n    return { ok: true, value: JSON.parse(text) };\n  } catch (err) {\n    return { ok: false, error: err instanceof Error ? err.message : String(err) };\n  }\n}\n\nfunction isRecord(x: unknown): x is Record<string, unknown> {\n  return typeof x === \"object\" && x !== null && !Array.isArray(x);\n}\n\nexport function parseSettings(text: string): Settings {\n  const settings: Settings = { theme: \"light\", fontSize: 16 };\n  const result = parseJson(text);\n  if (!result.ok || !isRecord(result.value)) {\n    return settings;\n  }\n  const data = result.value;\n  if (data.theme === \"light\" || data.theme === \"dark\") {\n    settings.theme = data.theme;\n  }\n  if (typeof data.fontSize === \"number\") {\n    settings.fontSize = data.fontSize;\n  }\n  return settings;\n}\n\nconsole.log(JSON.stringify(parseSettings(readFileSync(0, \"utf8\"))));\n",
+        "tests": [
+          {
+            "stdin": "{\"theme\": \"dark\", \"fontSize\": 18}\n",
+            "output": "{\"theme\":\"dark\",\"fontSize\":18}"
+          },
+          {
+            "stdin": "{\"theme\": \"sepia\", \"fontSize\": 20}\n",
+            "output": "{\"theme\":\"light\",\"fontSize\":20}"
+          },
+          {
+            "stdin": "theme=dark\n",
+            "output": "{\"theme\":\"light\",\"fontSize\":16}"
+          }
+        ],
+        "forbid": [
+          "any",
+          "as"
+        ],
+        "hints": [
+          "Write a `parseJson` like the one in the first example: `JSON.parse` inside `try`, and a `catch` that returns `{ ok: false, ... }`.",
+          "Narrow the parsed value with `isRecord` before you read any field. After it, `data.theme` and `data.fontSize` are `unknown`, and each needs its own check.",
+          "`data.theme === \"light\" || data.theme === \"dark\"` narrows the theme to the union, so `settings.theme = data.theme` type-checks without a cast."
+        ]
+      }
+    },
+    {
+      "title": "Validate with error paths",
+      "body": "A guard answers yes or no. When the data comes from someone else, they also need to know what's wrong and where, so a validator reports every problem with its **path**: the route to the field, written the way you'd reach it in code, like `address.city` or `items[2].qty`.\n\nThe pattern has three steps. Narrow the object, read each field through a small helper that checks it, and return the typed value only when nothing failed:\n\n```typescript\nfunction readNumber(value: unknown, path: string, errors: string[]): number {\n  if (typeof value === \"number\") {\n    return value;\n  }\n  errors.push(`${path}: expected a number`);\n  return 0;\n}\nconst errors: string[] = [];\nreadNumber(\"3\", \"items[0].qty\", errors);\nconsole.log(errors.join(\"\\n\")); // items[0].qty: expected a number\n```\n\nThe `0` that a failed read returns is a placeholder nobody sees: any error means the validator returns `{ ok: false, errors }` instead of the value. For an array, check `Array.isArray`, copy it into an `unknown[]`, and validate each element with its index in the path.",
+      "examples": [
+        {
+          "title": "Collecting every error",
+          "prompt": "Validate three users, and report every problem in each one with the path to its field.",
+          "code": "type User = { name: string; age: number; address: { city: string } };\ntype Validation<T> = { ok: true; value: T } | { ok: false; errors: string[] };\n\nfunction isRecord(x: unknown): x is Record<string, unknown> {\n  return typeof x === \"object\" && x !== null && !Array.isArray(x);\n}\n\nfunction readString(value: unknown, path: string, errors: string[]): string {\n  if (typeof value === \"string\") {\n    return value;\n  }\n  errors.push(`${path}: expected a string`);\n  return \"\";\n}\n\nfunction readNumber(value: unknown, path: string, errors: string[]): number {\n  if (typeof value === \"number\") {\n    return value;\n  }\n  errors.push(`${path}: expected a number`);\n  return 0;\n}\n\nfunction validateUser(x: unknown): Validation<User> {\n  if (!isRecord(x)) {\n    return { ok: false, errors: [\"expected an object\"] };\n  }\n  const errors: string[] = [];\n  const name = readString(x.name, \"name\", errors);\n  const age = readNumber(x.age, \"age\", errors);\n  let city = \"\";\n  if (isRecord(x.address)) {\n    city = readString(x.address.city, \"address.city\", errors);\n  } else {\n    errors.push(\"address: expected an object\");\n  }\n  if (errors.length > 0) {\n    return { ok: false, errors };\n  }\n  return { ok: true, value: { name, age, address: { city } } };\n}\n\nconst inputs = [\n  '{\"name\": \"Ada\", \"age\": 36, \"address\": {\"city\": \"London\"}}',\n  '{\"name\": \"Grace\", \"age\": \"85\", \"address\": {\"city\": null}}',\n  '{\"age\": 54}',\n];\nfor (const text of inputs) {\n  const result = validateUser(JSON.parse(text));\n  if (result.ok) {\n    console.log(`valid: ${result.value.name}, ${result.value.age}, ${result.value.address.city}`);\n  } else {\n    console.log(`invalid:\\n  ${result.errors.join(\"\\n  \")}`);\n  }\n}\n",
+          "output": "valid: Ada, 36, London\ninvalid:\n  age: expected a number\n  address.city: expected a string\ninvalid:\n  name: expected a string\n  address: expected an object",
+          "explanation": "`validateUser` doesn't stop at the first problem. Every read pushes its error and carries on, so Grace's user reports both the age written as a string and the `null` city. The city gets the path `address.city`, and an address that isn't an object gets one error at `address` and no checks inside. Only when `errors` is empty does the function build the `User`, so the `\"\"` and `0` placeholders never leave it. The return type is a union tagged by `ok`, so the caller can't reach `value` without checking."
+        },
+        {
+          "title": "Paths into arrays",
+          "prompt": "Validate a playlist from stdin, where every track in its array needs a title and a length in seconds.",
+          "code": "import { readFileSync } from \"node:fs\";\n\ntype Track = { title: string; seconds: number };\ntype Playlist = { name: string; tracks: Track[] };\ntype Validation<T> = { ok: true; value: T } | { ok: false; errors: string[] };\n\nfunction isRecord(x: unknown): x is Record<string, unknown> {\n  return typeof x === \"object\" && x !== null && !Array.isArray(x);\n}\n\nfunction readString(value: unknown, path: string, errors: string[]): string {\n  if (typeof value === \"string\") {\n    return value;\n  }\n  errors.push(`${path}: expected a string`);\n  return \"\";\n}\n\nfunction readNumber(value: unknown, path: string, errors: string[]): number {\n  if (typeof value === \"number\") {\n    return value;\n  }\n  errors.push(`${path}: expected a number`);\n  return 0;\n}\n\nfunction validatePlaylist(x: unknown): Validation<Playlist> {\n  if (!isRecord(x)) {\n    return { ok: false, errors: [\"expected an object\"] };\n  }\n  const errors: string[] = [];\n  const name = readString(x.name, \"name\", errors);\n  const tracks: Track[] = [];\n  if (Array.isArray(x.tracks)) {\n    const items: unknown[] = x.tracks;\n    for (const [i, item] of items.entries()) {\n      const path = `tracks[${i}]`;\n      if (isRecord(item)) {\n        const title = readString(item.title, `${path}.title`, errors);\n        const seconds = readNumber(item.seconds, `${path}.seconds`, errors);\n        tracks.push({ title, seconds });\n      } else {\n        errors.push(`${path}: expected an object`);\n      }\n    }\n  } else {\n    errors.push(\"tracks: expected an array\");\n  }\n  return errors.length > 0 ? { ok: false, errors } : { ok: true, value: { name, tracks } };\n}\n\nconst result = validatePlaylist(JSON.parse(readFileSync(0, \"utf8\")));\nif (result.ok) {\n  console.log(`${result.value.name}: ${result.value.tracks.length} tracks`);\n} else {\n  console.log(result.errors.join(\"\\n\"));\n}\n",
+          "stdin": "{\"name\": \"Focus\", \"tracks\": [{\"title\": \"Rain\", \"seconds\": 241}, {\"title\": \"Tides\"}, \"Dawn\", {\"title\": 7, \"seconds\": \"180\"}]}\n",
+          "output": "tracks[1].seconds: expected a number\ntracks[2]: expected an object\ntracks[3].title: expected a string\ntracks[3].seconds: expected a number",
+          "explanation": "`Array.isArray` narrows `x.tracks` to `any[]`, so the validator copies it into an `unknown[]` first, which keeps every element checked. `entries()` gives each element with its index, and the index goes into the path, like `tracks[1].seconds`. The third track isn't an object at all, so it gets one error at `tracks[2]` and no checks inside. The first track is fine and reports nothing. Since there were errors, the program prints them instead of the playlist."
+        },
+        {
+          "title": "What it costs",
+          "prompt": "Validate a customer with 12 fields the same way, and see how much code it takes.",
+          "code": "import { readFileSync } from \"node:fs\";\n\ntype Address = { line1: string; city: string; postcode: string; country: string };\ntype Customer = {\n  id: string;\n  name: string;\n  email: string;\n  phone: string;\n  age: number;\n  points: number;\n  tags: string[];\n  address: Address;\n};\ntype Validation<T> = { ok: true; value: T } | { ok: false; errors: string[] };\n\nfunction isRecord(x: unknown): x is Record<string, unknown> {\n  return typeof x === \"object\" && x !== null && !Array.isArray(x);\n}\n\nfunction readString(value: unknown, path: string, errors: string[]): string {\n  if (typeof value === \"string\") {\n    return value;\n  }\n  errors.push(`${path}: expected a string`);\n  return \"\";\n}\n\nfunction readNumber(value: unknown, path: string, errors: string[]): number {\n  if (typeof value === \"number\") {\n    return value;\n  }\n  errors.push(`${path}: expected a number`);\n  return 0;\n}\n\nfunction validateCustomer(x: unknown): Validation<Customer> {\n  if (!isRecord(x)) {\n    return { ok: false, errors: [\"expected an object\"] };\n  }\n  const errors: string[] = [];\n  const id = readString(x.id, \"id\", errors);\n  const name = readString(x.name, \"name\", errors);\n  const email = readString(x.email, \"email\", errors);\n  const phone = readString(x.phone, \"phone\", errors);\n  const age = readNumber(x.age, \"age\", errors);\n  const points = readNumber(x.points, \"points\", errors);\n  const tags: string[] = [];\n  if (Array.isArray(x.tags)) {\n    const items: unknown[] = x.tags;\n    for (const [i, tag] of items.entries()) {\n      tags.push(readString(tag, `tags[${i}]`, errors));\n    }\n  } else {\n    errors.push(\"tags: expected an array\");\n  }\n  const address: Address = { line1: \"\", city: \"\", postcode: \"\", country: \"\" };\n  if (isRecord(x.address)) {\n    address.line1 = readString(x.address.line1, \"address.line1\", errors);\n    address.city = readString(x.address.city, \"address.city\", errors);\n    address.postcode = readString(x.address.postcode, \"address.postcode\", errors);\n    address.country = readString(x.address.country, \"address.country\", errors);\n  } else {\n    errors.push(\"address: expected an object\");\n  }\n  if (errors.length > 0) {\n    return { ok: false, errors };\n  }\n  return { ok: true, value: { id, name, email, phone, age, points, tags, address } };\n}\n\nconst result = validateCustomer(JSON.parse(readFileSync(0, \"utf8\")));\nconsole.log(result.ok ? `valid: ${result.value.name}` : result.errors.join(\"\\n\"));\n",
+          "stdin": "{\"id\": \"cus_1\", \"name\": \"Ada\", \"email\": \"ada@example\", \"phone\": 4420, \"age\": -3, \"points\": \"12\", \"tags\": [\"vip\", 7], \"address\": {\"line1\": \"12 Byron St\", \"city\": \"London\", \"postcode\": \"N1 9GU\"}}\n",
+          "output": "phone: expected a string\npoints: expected a number\ntags[1]: expected a string\naddress.country: expected a string",
+          "explanation": "The two types take 11 lines. The checks, from `isRecord` to the end of `validateCustomer`, take 54. And those 54 lines check only types. The email `ada@example` has no dot in its domain, and an age of `-3` is not a real age, yet both pass, because each has the right type. Every rule like that is more code, and the shape is written twice, once as a type and once as checks. The next lesson's library, zod, states each field and its rules in one line, finds every problem with its path, and gives you the type from the same code."
+        }
+      ],
+      "practice": {
+        "title": "Validate an order payload",
+        "prompt": "Validate an order sent as JSON, and report every problem with its path.\n\n1. The starter defines `Order`, the result type, and the helpers from the examples, and the exported `validateOrder(x: unknown)` already reads `id`. Finish it.\n2. Report `items: expected an array` when `items` isn't an array.\n3. Otherwise check each element in order. Report `items[i]: expected an object` when it isn't an object. Else read its `sku` as a string and its `qty` as a number, at paths like `items[2].qty`, and add the item to `items`.\n4. The starter prints `valid: <id> with <n> items` for a valid order, or each error on its own line.\n\nInput:\n\n```text\n{\"id\": 7, \"items\": [{\"sku\": \"MUG-1\", \"qty\": 2}, \"TEA-4\", {\"sku\": 5, \"qty\": \"3\"}, {\"sku\": \"CUP-2\"}]}\n```\n\nExpected output:\n\n```text\nid: expected a string\nitems[1]: expected an object\nitems[2].sku: expected a string\nitems[2].qty: expected a number\nitems[3].qty: expected a number\n```",
+        "starter": "import { readFileSync } from \"node:fs\";\n\nexport type Item = { sku: string; qty: number };\nexport type Order = { id: string; items: Item[] };\ntype Validation<T> = { ok: true; value: T } | { ok: false; errors: string[] };\n\nfunction isRecord(x: unknown): x is Record<string, unknown> {\n  return typeof x === \"object\" && x !== null && !Array.isArray(x);\n}\n\nfunction readString(value: unknown, path: string, errors: string[]): string {\n  if (typeof value === \"string\") {\n    return value;\n  }\n  errors.push(`${path}: expected a string`);\n  return \"\";\n}\n\nfunction readNumber(value: unknown, path: string, errors: string[]): number {\n  if (typeof value === \"number\") {\n    return value;\n  }\n  errors.push(`${path}: expected a number`);\n  return 0;\n}\n\nexport function validateOrder(x: unknown): Validation<Order> {\n  if (!isRecord(x)) {\n    return { ok: false, errors: [\"expected an object\"] };\n  }\n  const errors: string[] = [];\n  const id = readString(x.id, \"id\", errors);\n  const items: Item[] = [];\n  // TODO: check that x.items is an array, then read each element's sku and\n  // qty with its index in the path, like items[2].qty, and add it to items\n  if (errors.length > 0) {\n    return { ok: false, errors };\n  }\n  return { ok: true, value: { id, items } };\n}\n\nconst result = validateOrder(JSON.parse(readFileSync(0, \"utf8\")));\nif (result.ok) {\n  console.log(`valid: ${result.value.id} with ${result.value.items.length} items`);\n} else {\n  console.log(result.errors.join(\"\\n\"));\n}\n",
+        "solution": "import { readFileSync } from \"node:fs\";\n\nexport type Item = { sku: string; qty: number };\nexport type Order = { id: string; items: Item[] };\ntype Validation<T> = { ok: true; value: T } | { ok: false; errors: string[] };\n\nfunction isRecord(x: unknown): x is Record<string, unknown> {\n  return typeof x === \"object\" && x !== null && !Array.isArray(x);\n}\n\nfunction readString(value: unknown, path: string, errors: string[]): string {\n  if (typeof value === \"string\") {\n    return value;\n  }\n  errors.push(`${path}: expected a string`);\n  return \"\";\n}\n\nfunction readNumber(value: unknown, path: string, errors: string[]): number {\n  if (typeof value === \"number\") {\n    return value;\n  }\n  errors.push(`${path}: expected a number`);\n  return 0;\n}\n\nexport function validateOrder(x: unknown): Validation<Order> {\n  if (!isRecord(x)) {\n    return { ok: false, errors: [\"expected an object\"] };\n  }\n  const errors: string[] = [];\n  const id = readString(x.id, \"id\", errors);\n  const items: Item[] = [];\n  if (Array.isArray(x.items)) {\n    const elements: unknown[] = x.items;\n    for (const [i, element] of elements.entries()) {\n      const path = `items[${i}]`;\n      if (isRecord(element)) {\n        const sku = readString(element.sku, `${path}.sku`, errors);\n        const qty = readNumber(element.qty, `${path}.qty`, errors);\n        items.push({ sku, qty });\n      } else {\n        errors.push(`${path}: expected an object`);\n      }\n    }\n  } else {\n    errors.push(\"items: expected an array\");\n  }\n  if (errors.length > 0) {\n    return { ok: false, errors };\n  }\n  return { ok: true, value: { id, items } };\n}\n\nconst result = validateOrder(JSON.parse(readFileSync(0, \"utf8\")));\nif (result.ok) {\n  console.log(`valid: ${result.value.id} with ${result.value.items.length} items`);\n} else {\n  console.log(result.errors.join(\"\\n\"));\n}\n",
+        "tests": [
+          {
+            "stdin": "{\"id\": 7, \"items\": [{\"sku\": \"MUG-1\", \"qty\": 2}, \"TEA-4\", {\"sku\": 5, \"qty\": \"3\"}, {\"sku\": \"CUP-2\"}]}\n",
+            "output": "id: expected a string\nitems[1]: expected an object\nitems[2].sku: expected a string\nitems[2].qty: expected a number\nitems[3].qty: expected a number"
+          },
+          {
+            "stdin": "{\"id\": \"ord_2\", \"items\": [{\"sku\": \"MUG-1\", \"qty\": 2}, {\"sku\": \"TEA-4\", \"qty\": 1}]}\n",
+            "output": "valid: ord_2 with 2 items"
+          },
+          {
+            "stdin": "{\"items\": {\"sku\": \"MUG-1\", \"qty\": 1}}\n",
+            "output": "id: expected a string\nitems: expected an array"
+          }
+        ],
+        "forbid": [
+          "any",
+          "as"
+        ],
+        "hints": [
+          "Follow the playlist example: check `Array.isArray(x.items)`, then copy the array into an `unknown[]` so that each element stays `unknown`.",
+          "Loop with `entries()` to get each element with its index, and build its path from the index, like `items[0]`. Check `isRecord` on the element before you read its `sku`.",
+          "Push every item you read into `items`, and return `{ ok: true, value: { id, items } }` only when `errors` is empty."
+        ]
+      }
+    },
+    {
+      "title": "JSON.stringify and JsonValue",
+      "body": "`JSON.stringify` accepts `any`, so the checker can't warn you when a value won't survive the trip. JSON has strings, numbers, booleans, `null`, arrays, and plain objects. Anything else is changed or dropped without an error:\n\n- `undefined` and functions disappear from objects, and become `null` in arrays.\n- A `Date` becomes its ISO string, through its own `toJSON` method.\n- A `Map` or a `Set` becomes `{}`.\n- `NaN` and `Infinity` become `null`.\n- A `bigint` throws a `TypeError`.\n\n```typescript\nconsole.log(JSON.stringify({ a: undefined, b: NaN, c: [undefined] })); // {\"b\":null,\"c\":[null]}\n```\n\nA recursive type says exactly what JSON can hold:\n\n```typescript types\ntype JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };\n```\n\nGive a function the return type `JsonValue`, and the checker rejects a `Date`, a `Map`, or `undefined` anywhere inside, so you convert them on purpose. A class can convert itself with a `toJSON()` method, and `JSON.stringify(value, replacer)` passes every value through a replacer function you write.",
+      "examples": [
+        {
+          "title": "What stringify does",
+          "prompt": "Stringify an order that holds `undefined`, `NaN`, a `Date`, a `Map`, and functions, then one that holds a `bigint`.",
+          "code": "const order = {\n  id: \"ord_1\",\n  note: undefined,\n  total: NaN,\n  placedAt: new Date(\"2026-10-01T09:00:00Z\"),\n  items: new Map([[\"MUG-1\", 2]]),\n  format: () => \"ord_1\",\n  extras: [undefined, () => 1, Infinity],\n};\nconsole.log(JSON.stringify(order));\n\ntry {\n  console.log(JSON.stringify({ id: \"ord_1\", totalCents: 1299n }));\n} catch (err) {\n  console.log(err instanceof Error ? `${err.name}: ${err.message}` : String(err));\n}\n",
+          "output": "{\"id\":\"ord_1\",\"total\":null,\"placedAt\":\"2026-10-01T09:00:00.000Z\",\"items\":{},\"extras\":[null,null,null]}\nTypeError: Do not know how to serialize a BigInt",
+          "explanation": "`note` and `format` are missing from the output. In the `extras` array, the `undefined`, the function, and `Infinity` each became `null` instead, since an array can't skip a position. `NaN` became `null` too. The `Date` became an ISO string, because `Date` has a `toJSON` method, but the `Map` lost its entry and became `{}`. None of that is an error. The `bigint` is different: it throws, and the `catch` prints the `TypeError`. The checker allowed every line, because `JSON.stringify` accepts anything."
+        },
+        {
+          "title": "A JsonValue type",
+          "prompt": "Declare the JSON type, and build an order's JSON as a `JsonValue`.",
+          "code": "type JsonValue =\n  | string\n  | number\n  | boolean\n  | null\n  | JsonValue[]\n  | { [key: string]: JsonValue };\n\nfunction orderJson(id: string, placedAt: Date, skus: string[]): JsonValue {\n  return {\n    id,\n    placedAt: placedAt.toISOString(),\n    skus,\n    gift: false,\n    note: null,\n  };\n}\n\nconst json = orderJson(\"ord_1\", new Date(\"2026-10-01T09:00:00Z\"), [\"MUG-1\", \"TEA-4\"]);\nconsole.log(JSON.stringify(json));\n",
+          "output": "{\"id\":\"ord_1\",\"placedAt\":\"2026-10-01T09:00:00.000Z\",\"skus\":[\"MUG-1\",\"TEA-4\"],\"gift\":false,\"note\":null}",
+          "explanation": "`JsonValue` refers to itself, so arrays and objects can nest to any depth, and every value inside them must be JSON too. `orderJson` converts the `Date` with `toISOString()` before it puts it in, so the function type-checks. Leave the conversion out, and it doesn't:\n\n```typescript error\ntype JsonValue =\n  | string\n  | number\n  | boolean\n  | null\n  | JsonValue[]\n  | { [key: string]: JsonValue };\n\nfunction orderJson(id: string, placedAt: Date): JsonValue {\n  return { id, placedAt };\n}\n\nconsole.log(JSON.stringify(orderJson(\"ord_1\", new Date(\"2026-10-01T09:00:00Z\"))));\n```\n\nTS2322 says the types of `placedAt` are incompatible. A `Date` isn't a primitive or an array, and it has no index signature, so it doesn't fit `{ [key: string]: JsonValue }` either. One gap remains: `NaN` is a `number`, so `JsonValue` can't catch it."
+        },
+        {
+          "title": "toJSON and a replacer",
+          "prompt": "Stringify a product whose price is a class with a `toJSON` method and whose stock is a `Map`, first as it is, then with a replacer.",
+          "code": "type JsonValue =\n  | string\n  | number\n  | boolean\n  | null\n  | JsonValue[]\n  | { [key: string]: JsonValue };\n\nclass Money {\n  cents: number;\n  currency: string;\n\n  constructor(cents: number, currency: string) {\n    this.cents = cents;\n    this.currency = currency;\n  }\n\n  toJSON(): JsonValue {\n    return `${(this.cents / 100).toFixed(2)} ${this.currency}`;\n  }\n}\n\nfunction replacer(key: string, value: unknown): unknown {\n  return value instanceof Map ? Object.fromEntries(value) : value;\n}\n\nconst product = {\n  sku: \"MUG-1\",\n  price: new Money(1299, \"GBP\"),\n  stock: new Map([\n    [\"london\", 4],\n    [\"leeds\", 0],\n  ]),\n};\n\nconsole.log(JSON.stringify(product));\nconsole.log(JSON.stringify(product, replacer));\n",
+          "output": "{\"sku\":\"MUG-1\",\"price\":\"12.99 GBP\",\"stock\":{}}\n{\"sku\":\"MUG-1\",\"price\":\"12.99 GBP\",\"stock\":{\"london\":4,\"leeds\":0}}",
+          "explanation": "`JSON.stringify` calls a value's `toJSON` method and writes what it returns, so `Money` chooses its own format, and the return type `JsonValue` makes sure that format is JSON. The `Map` still comes out as `{}` the first time. The second call passes `replacer`, which `JSON.stringify` calls for every key and value: it turns each `Map` into a plain object with `Object.fromEntries`, and passes everything else through unchanged."
+        }
+      ],
+      "practice": {
+        "title": "Serialize a cart",
+        "prompt": "Turn a shopping cart into JSON without losing anything.\n\n1. Replace `unknown` in the exported `JsonValue` with the recursive JSON type.\n2. Make `cartToJson(cart: Cart): JsonValue` return an object with the cart's `id`, its `items` as an object of SKUs and quantities, `createdAt` as an ISO string, and `totalCents` as a string, since a JSON number can't hold every `bigint`.\n3. The starter prints `JSON.stringify(cartToJson(cart))`. Check also serializes another cart, so build every field from `cart`.\n4. Keep `export`: hidden type tests import `JsonValue` from your file.\n\nExpected output:\n\n```text\n{\"id\":\"cart_42\",\"items\":{\"MUG-1\":2,\"TEA-4\":1},\"createdAt\":\"2026-10-01T09:00:00.000Z\",\"totalCents\":\"3897\"}\n```",
+        "starter": "// TODO: replace unknown with the recursive JSON type\nexport type JsonValue = unknown;\n\nexport type Cart = {\n  id: string;\n  items: Map<string, number>;\n  createdAt: Date;\n  totalCents: bigint;\n};\n\nexport function cartToJson(cart: Cart): JsonValue {\n  // TODO: return id, items as an object, createdAt as an ISO string,\n  // and totalCents as a string\n  return null;\n}\n\nconst cart: Cart = {\n  id: \"cart_42\",\n  items: new Map([\n    [\"MUG-1\", 2],\n    [\"TEA-4\", 1],\n  ]),\n  createdAt: new Date(\"2026-10-01T09:00:00Z\"),\n  totalCents: 3897n,\n};\n\nconsole.log(JSON.stringify(cartToJson(cart)));\n",
+        "solution": "export type JsonValue =\n  | string\n  | number\n  | boolean\n  | null\n  | JsonValue[]\n  | { [key: string]: JsonValue };\n\nexport type Cart = {\n  id: string;\n  items: Map<string, number>;\n  createdAt: Date;\n  totalCents: bigint;\n};\n\nexport function cartToJson(cart: Cart): JsonValue {\n  return {\n    id: cart.id,\n    items: Object.fromEntries(cart.items),\n    createdAt: cart.createdAt.toISOString(),\n    totalCents: cart.totalCents.toString(),\n  };\n}\n\nconst cart: Cart = {\n  id: \"cart_42\",\n  items: new Map([\n    [\"MUG-1\", 2],\n    [\"TEA-4\", 1],\n  ]),\n  createdAt: new Date(\"2026-10-01T09:00:00Z\"),\n  totalCents: 3897n,\n};\n\nconsole.log(JSON.stringify(cartToJson(cart)));\n",
+        "tests": [
+          {
+            "output": "{\"id\":\"cart_42\",\"items\":{\"MUG-1\":2,\"TEA-4\":1},\"createdAt\":\"2026-10-01T09:00:00.000Z\",\"totalCents\":\"3897\"}"
+          },
+          {
+            "harness": "{{code}}\nconst other: Cart = {\n  id: \"cart_7\",\n  items: new Map<string, number>(),\n  createdAt: new Date(\"2026-10-02T18:30:00Z\"),\n  totalCents: 0n,\n};\nconsole.log(JSON.stringify(cartToJson(other)));",
+            "output": "{\"id\":\"cart_42\",\"items\":{\"MUG-1\":2,\"TEA-4\":1},\"createdAt\":\"2026-10-01T09:00:00.000Z\",\"totalCents\":\"3897\"}\n{\"id\":\"cart_7\",\"items\":{},\"createdAt\":\"2026-10-02T18:30:00.000Z\",\"totalCents\":\"0\"}"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { type JsonValue } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects a Date",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const j: JsonValue = new Date();"
+            },
+            {
+              "name": "rejects undefined inside an object",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const j: JsonValue = { at: undefined };"
+            },
+            {
+              "name": "accepts nested arrays and null",
+              "expect": "ok",
+              "code": "const j: JsonValue = { a: [1, \"x\", null] };"
+            }
+          ]
+        },
+        "hints": [
+          "Write `JsonValue` like the examples: a union of the four JSON primitives, `JsonValue[]`, and `{ [key: string]: JsonValue }`.",
+          "Build each field yourself. `Object.fromEntries(cart.items)` turns the `Map` into an object, and `toISOString()` turns the `Date` into a string.",
+          "`cart.totalCents.toString()` gives `\"3897\"`. Leaving the `bigint` in is a type error once `JsonValue` is the real type, and it would throw in `JSON.stringify`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `JSON.parse` returns `any`. Wrap it in a function that returns `unknown`, or a Result that also carries the parse error.\n- Narrow parsed data one step at a time. A guard like `isRecord(x): x is Record<string, unknown>` does the first checks.\n- A validator reports every problem with its path, like `address.city` or `items[2].qty`, and returns the typed value only when there are none.\n- Hand-written validators grow fast and check only what you remember to check, which is why the next lesson uses zod.\n- `JSON.stringify` drops `undefined` and functions from objects, writes `NaN` as `null`, turns a `Map` into `{}`, and throws on a `bigint`.\n- `JsonValue` is the recursive type of everything JSON can hold. Return it, and the checker makes you convert dates, maps, and bigints yourself.\n- A `toJSON()` method lets a class choose its own JSON, and a replacer can convert values like a `Map` anywhere in the tree."
+}

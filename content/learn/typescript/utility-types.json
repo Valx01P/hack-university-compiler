@@ -1,0 +1,300 @@
+{
+  "id": "utility-types",
+  "title": "Built-in Utility Types",
+  "section": "Type Transformations",
+  "summary": "Build patches, create inputs, summaries, and lookup tables from one type with Partial, Omit, Pick, Record, Exclude, ReturnType, and more.",
+  "intro": "One kind of data takes many shapes in a codebase: the full record, a patch that changes a few fields, the input a create function takes, the summary a list shows. Written by hand, those shapes drift apart the first time the record changes. TypeScript ships utility types, generic types that build each shape from the one type you already have, so a change to the original reaches all of them.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Partial, Required, and Readonly",
+      "body": "A utility type is a generic type that comes with TypeScript. You pass it a type, and it gives back a new one. Three of them change every property at once:\n\n- `Partial<T>` makes every property optional. That's the shape of a patch: any subset of the fields.\n- `Required<T>` makes every property required. That's the shape of settings once the defaults are filled in.\n- `Readonly<T>` marks every property `readonly`, so assigning to one is a type error.\n\n```typescript types\ntype User = { id: number; name: string; email: string };\n\ntype UserPatch = Partial<User>;\n//   ^? type UserPatch = { id?: number; name?: string; email?: string; }\ntype FrozenUser = Readonly<User>;\n//   ^? type FrozenUser = { readonly id: number; readonly name: string; readonly email: string; }\n```\n\nAll three change the top level only, so a nested object keeps its own types. And `Readonly` exists only for the checker. Node strips it like any other type, so call `Object.freeze` as well when the value must not change while the program runs.",
+      "examples": [
+        {
+          "title": "Patches with Partial",
+          "prompt": "Update a user with a patch that holds only the fields that change.",
+          "code": "type User = { id: number; name: string; email: string };\n\nfunction updateUser(user: User, patch: Partial<User>): User {\n  return { ...user, ...patch };\n}\n\nfunction show(user: User): string {\n  return `#${user.id} ${user.name} <${user.email}>`;\n}\n\nconst ada: User = { id: 1, name: \"Ada\", email: \"ada@example.com\" };\nconst renamed = updateUser(ada, { name: \"Ada Lovelace\" });\nconst moved = updateUser(renamed, { email: \"ada@lovelace.dev\" });\n\nconsole.log(show(ada));\nconsole.log(show(renamed));\nconsole.log(show(moved));\n",
+          "output": "#1 Ada <ada@example.com>\n#1 Ada Lovelace <ada@example.com>\n#1 Ada Lovelace <ada@lovelace.dev>",
+          "explanation": "`Partial<User>` accepts any subset of a user's fields, so one function handles a new name and a new email alike. The spread copies `user`, then the fields in `patch` overwrite the ones they name. Spreading builds a new object, which is why `ada` still prints as it was.\n\nA patch is still checked against `User`. A field that `User` doesn't have is an error, and so is `undefined` for a field, because this course turns on `exactOptionalPropertyTypes`. So a patch can never blank out a name:\n\n```typescript harness\ntype User = { id: number; name: string; email: string };\n\nfunction updateUser(user: User, patch: Partial<User>): User {\n  return { ...user, ...patch };\n}\n\nconst ada: User = { id: 1, name: \"Ada\", email: \"ada@example.com\" };\n{{code}}\n```\n\n```typescript error\nupdateUser(ada, { name: undefined });\n```"
+        },
+        {
+          "title": "Defaults with Required",
+          "prompt": "Fill in the settings a user left out, and return a type where nothing is missing.",
+          "code": "type Settings = { theme?: string; fontSize?: number; compact?: boolean };\n\nfunction withDefaults(s: Settings): Required<Settings> {\n  return {\n    theme: s.theme ?? \"light\",\n    fontSize: s.fontSize ?? 16,\n    compact: s.compact ?? false,\n  };\n}\n\nconst settings = withDefaults({ fontSize: 18 });\nconst size = settings.fontSize;\n//    ^? const size: number\n\nconsole.log(`${settings.theme} theme, ${size}px, compact: ${settings.compact}`);\nconsole.log(JSON.stringify(withDefaults({ theme: \"dark\", compact: true })));\n",
+          "output": "light theme, 18px, compact: false\n{\"theme\":\"dark\",\"fontSize\":16,\"compact\":true}",
+          "explanation": "`Settings` is what a user saves, so every field is optional. `Required<Settings>` removes every `?`, and as the return type it promises all three fields. Leave one out of the returned object and `tsc` reports which one is missing. After the call, `settings.fontSize` is a plain `number`, as the bubble shows, so the code that uses it needs no `?? 16` of its own."
+        },
+        {
+          "title": "Readonly config",
+          "prompt": "Freeze a config object, then try to change its port.",
+          "code": "type Config = { host: string; port: number };\n\nconst config: Readonly<Config> = Object.freeze({ host: \"localhost\", port: 8080 });\n\nconfig.port = 3000;\nconsole.log(`${config.host}:${config.port}`);\n",
+          "expect": "type-error",
+          "output": "main.ts(5,8): error TS2540: Cannot assign to 'port' because it is a read-only property.",
+          "explanation": "`Readonly<Config>` marks both properties `readonly`, so `tsc` rejects the assignment on line 5, before anything runs. Delete that line and the program prints `localhost:8080`. The type and `Object.freeze` do different jobs: the type stops the code `tsc` checks, and `Object.freeze` makes the object itself refuse changes while the program runs."
+        }
+      ],
+      "practice": {
+        "title": "Apply a patch",
+        "prompt": "Write a function that applies a patch to a product, then patch a mug twice.\n\n1. Change the type of `patch` to `Partial<Product>`, so it accepts any subset of a product's fields.\n2. Make `applyPatch` return a new product: the fields of `p`, overwritten by the fields in `patch`.\n3. Apply `{ priceCents: 999 }` to `mug`, then `{ stock: 0 }` to the result, and print the product after each patch with `show`.\n4. Keep `export`: hidden type tests call `applyPatch`.\n\nExpected output:\n\n```text\nMUG-01 Mug: $12.99, 4 in stock\nMUG-01 Mug: $9.99, 4 in stock\nMUG-01 Mug: $9.99, 0 in stock\n```",
+        "starter": "export type Product = { sku: string; name: string; priceCents: number; stock: number };\n\nfunction show(p: Product): string {\n  return `${p.sku} ${p.name}: $${(p.priceCents / 100).toFixed(2)}, ${p.stock} in stock`;\n}\n\n// TODO: type patch so it takes any subset of a product's fields, and\n// return a new product with the patch's fields applied\nexport function applyPatch(p: Product, patch: Product): Product {\n  return p;\n}\n\nconst mug: Product = { sku: \"MUG-01\", name: \"Mug\", priceCents: 1299, stock: 4 };\nconsole.log(show(mug));\n\n// TODO: apply { priceCents: 999 } to mug, then { stock: 0 } to the result,\n// and print the product after each patch\n",
+        "solution": "export type Product = { sku: string; name: string; priceCents: number; stock: number };\n\nfunction show(p: Product): string {\n  return `${p.sku} ${p.name}: $${(p.priceCents / 100).toFixed(2)}, ${p.stock} in stock`;\n}\n\nexport function applyPatch(p: Product, patch: Partial<Product>): Product {\n  return { ...p, ...patch };\n}\n\nconst mug: Product = { sku: \"MUG-01\", name: \"Mug\", priceCents: 1299, stock: 4 };\nconsole.log(show(mug));\n\nconst cheaper = applyPatch(mug, { priceCents: 999 });\nconsole.log(show(cheaper));\n\nconst soldOut = applyPatch(cheaper, { stock: 0 });\nconsole.log(show(soldOut));\n",
+        "tests": [
+          {
+            "output": "MUG-01 Mug: $12.99, 4 in stock\nMUG-01 Mug: $9.99, 4 in stock\nMUG-01 Mug: $9.99, 0 in stock"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { applyPatch, type Product } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "accepts a patch with one field",
+              "expect": "ok",
+              "code": "declare const p: Product;\napplyPatch(p, { priceCents: 100 });\n"
+            },
+            {
+              "name": "accepts an empty patch and returns a Product",
+              "expect": "ok",
+              "code": "declare const p: Product;\nconst same: Product = applyPatch(p, {});\n"
+            },
+            {
+              "name": "rejects a field Product doesn't have",
+              "expect": "error",
+              "errorCode": "TS2353",
+              "code": "declare const p: Product;\napplyPatch(p, { colour: \"red\" });\n"
+            },
+            {
+              "name": "rejects a price that is a string",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "declare const p: Product;\napplyPatch(p, { priceCents: \"100\" });\n"
+            }
+          ]
+        },
+        "hints": [
+          "`updateUser` in the first example does the same job for users. Compare its `patch` parameter with this one.",
+          "Spread both objects into a new one, `p` first, so the fields in `patch` win.",
+          "`return { ...p, ...patch };`, then `const cheaper = applyPatch(mug, { priceCents: 999 });` and `console.log(show(cheaper));`"
+        ]
+      }
+    },
+    {
+      "title": "Pick, Omit, and Record for DTOs",
+      "body": "Data rarely crosses an edge of your code in its full shape. A create function takes the record without the fields the server makes, and a list shows a few fields per item. These shapes are often called DTOs, data transfer objects. Build them from the full type, so they follow it when it changes:\n\n- `Omit<T, K>` is `T` without the keys in `K`. `Omit<User, \"id\" | \"createdAt\">` is a create input.\n- `Pick<T, K>` keeps only the keys in `K`. `Pick<User, \"id\" | \"name\">` is a list item.\n- `Record<K, V>` is an object with every key in `K`, each holding a `V`.\n\n```typescript types\ntype User = { id: number; name: string; email: string; createdAt: string };\n\ntype NewUser = Omit<User, \"id\" | \"createdAt\">;\n//   ^? type NewUser = { name: string; email: string; }\ntype UserSummary = Pick<User, \"id\" | \"name\">;\n//   ^? type UserSummary = { id: number; name: string; }\n```\n\n`Pick` only takes keys the type has, so a typo in one is an error. `Omit` takes any string, so `Omit<User, \"createdat\">` quietly removes nothing. Check the spelling of what you omit.",
+      "examples": [
+        {
+          "title": "A create input with Omit",
+          "prompt": "Create users from an input that has no id and no creation time, because the function sets both.",
+          "code": "type User = { id: number; name: string; email: string; createdAt: string };\ntype NewUser = Omit<User, \"id\" | \"createdAt\">;\n\nfunction createUser(input: NewUser, id: number, now: string): User {\n  return { id, ...input, createdAt: now };\n}\n\nconst ada = createUser({ name: \"Ada\", email: \"ada@example.com\" }, 1, \"2026-10-01T09:00:00Z\");\nconst grace = createUser({ name: \"Grace\", email: \"grace@example.com\" }, 2, \"2026-10-01T09:05:00Z\");\n\nconsole.log(JSON.stringify(ada));\nconsole.log(JSON.stringify(grace));\n",
+          "output": "{\"id\":1,\"name\":\"Ada\",\"email\":\"ada@example.com\",\"createdAt\":\"2026-10-01T09:00:00Z\"}\n{\"id\":2,\"name\":\"Grace\",\"email\":\"grace@example.com\",\"createdAt\":\"2026-10-01T09:05:00Z\"}",
+          "explanation": "`NewUser` is `User` without `id` and `createdAt`, so callers pass only what they know. The function adds the rest, and its return type checks that the result is a whole `User`. A caller can't sneak in an id of its own either, because an object literal with an `id` key is an excess property error here. The time comes in as a parameter instead of from the clock, so the output is the same on every run, and a test can pass any time it likes."
+        },
+        {
+          "title": "A list view with Pick",
+          "prompt": "Turn full users into summaries for a list that shows only ids and names.",
+          "code": "type User = { id: number; name: string; email: string; createdAt: string };\ntype UserSummary = Pick<User, \"id\" | \"name\">;\n\nfunction summarize(user: User): UserSummary {\n  return { id: user.id, name: user.name };\n}\n\nconst users: User[] = [\n  { id: 1, name: \"Ada\", email: \"ada@example.com\", createdAt: \"2026-10-01T09:00:00Z\" },\n  { id: 2, name: \"Grace\", email: \"grace@example.com\", createdAt: \"2026-10-01T09:05:00Z\" },\n];\n\nconst summaries = users.map(summarize);\n//    ^? const summaries: UserSummary[]\n\nfor (const s of summaries) {\n  console.log(`#${s.id} ${s.name}`);\n}\nconsole.log(JSON.stringify(summaries));\n",
+          "output": "#1 Ada\n#2 Grace\n[{\"id\":1,\"name\":\"Ada\"},{\"id\":2,\"name\":\"Grace\"}]",
+          "explanation": "`UserSummary` has just `id` and `name`, with their types copied from `User`. `summarize` builds a new object with those two fields, so the JSON leaves the emails out. Types never remove fields at runtime, though. Because of structural typing, `return user;` would compile too, since a `User` has an `id` and a `name`, and then every email would end up in the JSON. Build the smaller object yourself."
+        },
+        {
+          "title": "A complete table with Record",
+          "prompt": "List what each role may do, and forget one of the roles.",
+          "code": "type Role = \"admin\" | \"editor\" | \"viewer\";\n\nconst permissions: Record<Role, string[]> = {\n  admin: [\"read\", \"write\", \"delete\"],\n  editor: [\"read\", \"write\"],\n};\n\nconsole.log(permissions.viewer.join(\", \"));\n",
+          "expect": "type-error",
+          "output": "main.ts(3,7): error TS2741: Property 'viewer' is missing in type '{ admin: string[]; editor: string[]; }' but required in type 'Record<Role, string[]>'.",
+          "explanation": "With a union of literals as its keys, `Record<Role, string[]>` needs every role, and `tsc` names the one that's missing. Add `viewer: [\"read\"]` and the program prints `read`. The same check protects you later: add `\"owner\"` to `Role`, and every table typed this way stops compiling until it says what an owner may do. Typed as `Record<string, string[]>`, the incomplete table would compile, and the missing role would only show up as `undefined` when you look it up."
+        }
+      ],
+      "practice": {
+        "title": "Create a task",
+        "prompt": "Build the input type for creating tasks from `Task`, and use it to create two tasks.\n\n1. Make `NewTask` the `Task` type without `id`, `done`, and `createdAt`, using `Omit`.\n2. Make `createTask` return a `Task`: the input's fields, the given `id`, `done` set to `false`, and `createdAt` set to `now`.\n3. Create task 1, `\"Write the report\"`, at `2026-10-01T09:00:00Z`, and task 2, `\"Book the venue\"`, at `2026-10-01T09:30:00Z`, and print each with `show`.\n4. Keep `export`: hidden type tests use `createTask` and `NewTask`.\n\nExpected output:\n\n```text\n1. Write the report (open, created 2026-10-01T09:00:00Z)\n2. Book the venue (open, created 2026-10-01T09:30:00Z)\n```",
+        "starter": "export type Task = { id: number; title: string; done: boolean; createdAt: string };\n\n// TODO: build NewTask from Task, without id, done, and createdAt\nexport type NewTask = Task;\n\nfunction show(t: Task): string {\n  return `${t.id}. ${t.title} (${t.done ? \"done\" : \"open\"}, created ${t.createdAt})`;\n}\n\nexport function createTask(input: NewTask, id: number, now: string): Task {\n  // TODO: return the input's fields with the id, done set to false, and\n  // createdAt set to now\n  return input;\n}\n\n// TODO: create the two tasks and print each with show\n",
+        "solution": "export type Task = { id: number; title: string; done: boolean; createdAt: string };\n\nexport type NewTask = Omit<Task, \"id\" | \"done\" | \"createdAt\">;\n\nfunction show(t: Task): string {\n  return `${t.id}. ${t.title} (${t.done ? \"done\" : \"open\"}, created ${t.createdAt})`;\n}\n\nexport function createTask(input: NewTask, id: number, now: string): Task {\n  return { id, ...input, done: false, createdAt: now };\n}\n\nconst report = createTask({ title: \"Write the report\" }, 1, \"2026-10-01T09:00:00Z\");\nconst venue = createTask({ title: \"Book the venue\" }, 2, \"2026-10-01T09:30:00Z\");\n\nconsole.log(show(report));\nconsole.log(show(venue));\n",
+        "tests": [
+          {
+            "output": "1. Write the report (open, created 2026-10-01T09:00:00Z)\n2. Book the venue (open, created 2026-10-01T09:30:00Z)"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { createTask, type NewTask } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "creates a task from just a title",
+              "expect": "ok",
+              "code": "createTask({ title: \"x\" }, 1, \"t\");\n"
+            },
+            {
+              "name": "rejects an input that sets done",
+              "expect": "error",
+              "errorCode": "TS2353",
+              "code": "createTask({ title: \"x\", done: true }, 1, \"t\");\n"
+            },
+            {
+              "name": "rejects an input that sets the id",
+              "expect": "error",
+              "errorCode": "TS2353",
+              "code": "createTask({ title: \"x\", id: 5 }, 1, \"t\");\n"
+            },
+            {
+              "name": "needs a title",
+              "expect": "error",
+              "errorCode": "TS2741",
+              "code": "const input: NewTask = {};\n"
+            }
+          ]
+        },
+        "hints": [
+          "`NewUser` in the first example is built the same way: `Omit` and a union of the keys to leave out.",
+          "Spread `input` into a new object between the fields you set yourself: `id` first, then `done` and `createdAt`.",
+          "`export type NewTask = Omit<Task, \"id\" | \"done\" | \"createdAt\">;` and `return { id, ...input, done: false, createdAt: now };`"
+        ]
+      }
+    },
+    {
+      "title": "Exclude, Extract, and NonNullable",
+      "body": "Some utility types filter a union instead of an object. They check each member of the union and keep it or drop it:\n\n- `Exclude<T, U>` drops the members of `T` that fit `U`.\n- `Extract<T, U>` keeps only the members that fit `U`. `U` can be a shape, like `{ type: \"click\" }`, to pick members of a tagged union.\n- `NonNullable<T>` drops `null` and `undefined`.\n\n```typescript types\ntype Status = \"draft\" | \"published\" | \"archived\";\n\ntype Visible = Exclude<Status, \"archived\">;\n//   ^? type Visible = \"draft\" | \"published\"\ntype Finished = Extract<Status, \"published\" | \"archived\">;\n//   ^? type Finished = \"archived\" | \"published\"\ntype Name = NonNullable<string | null | undefined>;\n//   ^? type Name = string\n```\n\nThe bubbles list the members in an order of TypeScript's choosing, and a union means the same in any order. Like every type, these filters are gone at runtime, so when values need filtering too, pair the type with a check, such as a type predicate.",
+      "examples": [
+        {
+          "title": "Active tickets with Exclude",
+          "prompt": "Derive the statuses that still need work from all ticket statuses, and say what happens next for each.",
+          "code": "type TicketStatus = \"new\" | \"assigned\" | \"waiting\" | \"solved\" | \"closed\";\ntype ActiveStatus = Exclude<TicketStatus, \"solved\" | \"closed\">;\n//   ^? type ActiveStatus = \"assigned\" | \"new\" | \"waiting\"\n\nfunction isActive(status: TicketStatus): status is ActiveStatus {\n  return status !== \"solved\" && status !== \"closed\";\n}\n\nfunction nextStep(status: ActiveStatus): string {\n  switch (status) {\n    case \"new\":\n      return \"assign an agent\";\n    case \"assigned\":\n      return \"reply to the customer\";\n    case \"waiting\":\n      return \"follow up in two days\";\n  }\n}\n\nconst statuses: TicketStatus[] = [\"new\", \"solved\", \"waiting\", \"closed\", \"assigned\"];\nfor (const s of statuses) {\n  console.log(isActive(s) ? `${s}: ${nextStep(s)}` : `${s}: nothing to do`);\n}\n",
+          "output": "new: assign an agent\nsolved: nothing to do\nwaiting: follow up in two days\nclosed: nothing to do\nassigned: reply to the customer",
+          "explanation": "`ActiveStatus` is computed from `TicketStatus`, so the two can't drift apart. `nextStep` only accepts active statuses, and its `switch` handles all three, so every path returns. The type predicate `isActive` does the same filtering on values while the program runs, and it narrows `s`, which is why the call to `nextStep` compiles. Add a status like `\"escalated\"` to `TicketStatus`, and it becomes active too: `nextStep` stops compiling until it has a case for it."
+        },
+        {
+          "title": "One event type with Extract",
+          "prompt": "Pick the click events out of a union of UI events, and handle only those.",
+          "code": "type UiEvent =\n  | { type: \"click\"; x: number; y: number }\n  | { type: \"keypress\"; key: string }\n  | { type: \"scroll\"; offset: number };\n\ntype ClickEvent = Extract<UiEvent, { type: \"click\" }>;\n//   ^? type ClickEvent = { type: \"click\"; x: number; y: number; }\n\nfunction describeClick(e: ClickEvent): string {\n  return `click at ${e.x},${e.y}`;\n}\n\nconst events: UiEvent[] = [\n  { type: \"keypress\", key: \"a\" },\n  { type: \"click\", x: 10, y: 20 },\n  { type: \"scroll\", offset: 300 },\n  { type: \"click\", x: 5, y: 8 },\n];\n\nfor (const e of events) {\n  if (e.type === \"click\") {\n    console.log(describeClick(e));\n  }\n}\n",
+          "output": "click at 10,20\nclick at 5,8",
+          "explanation": "`Extract` keeps the members of `UiEvent` that fit `{ type: \"click\" }`. Only the click member has that `type`, and it comes out whole, with `x` and `y`. You never retype its fields, so a field added to clicks in `UiEvent` reaches `ClickEvent` too. In the loop, `e.type === \"click\"` narrows `e` to the same member, which is why `describeClick(e)` compiles."
+        },
+        {
+          "title": "Dropping null with NonNullable",
+          "prompt": "Write a generic compact function that removes null and undefined from an array and keeps everything else, even 0.",
+          "code": "function compact<T>(xs: readonly (T | null | undefined)[]): NonNullable<T>[] {\n  return xs.filter((x) => x !== null && x !== undefined);\n}\n\nconst names = compact([\"Ada\", null, \"Grace\", undefined, \"Linus\"]);\n//    ^? const names: string[]\nconst ports = compact([8080, undefined, 0, 3000]);\n//    ^? const ports: number[]\n\nconsole.log(names.join(\", \"));\nconsole.log(ports.join(\", \"));\n",
+          "output": "Ada, Grace, Linus\n8080, 0, 3000",
+          "explanation": "`T` is the element type without the empty values: `string` for the names, `number` for the ports. `NonNullable<T>` in the return type promises that no `null` or `undefined` is left, and the arrow passed to `filter` keeps that promise. It is inferred as a type predicate, so `filter` returns the narrowed array. The arrow compares with `null` and `undefined` instead of testing truthiness, which is why the port `0` survives."
+        }
+      ],
+      "practice": {
+        "title": "Open orders",
+        "prompt": "Derive the open order statuses with `Exclude`, and say who to contact when an order is stuck in one.\n\n1. Make `OpenStatus` the `OrderStatus` type without `\"delivered\"` and `\"cancelled\"`.\n2. Make `escalate` return the contact for each open status: `billing team` for `\"pending\"`, `warehouse` for `\"paid\"`, and `carrier support` for `\"shipped\"`.\n3. Keep the loop that prints each stuck order, and keep `export`: hidden type tests use `escalate` and `OpenStatus`.\n\nExpected output:\n\n```text\npending: billing team\npaid: warehouse\nshipped: carrier support\n```",
+        "starter": "export type OrderStatus = \"pending\" | \"paid\" | \"shipped\" | \"delivered\" | \"cancelled\";\n\n// TODO: OpenStatus is OrderStatus without \"delivered\" and \"cancelled\"\nexport type OpenStatus = OrderStatus;\n\nexport function escalate(status: OpenStatus): string {\n  // TODO: return the contact for each open status\n  return \"\";\n}\n\nconst stuck: OpenStatus[] = [\"pending\", \"paid\", \"shipped\"];\nfor (const status of stuck) {\n  console.log(`${status}: ${escalate(status)}`);\n}\n",
+        "solution": "export type OrderStatus = \"pending\" | \"paid\" | \"shipped\" | \"delivered\" | \"cancelled\";\n\nexport type OpenStatus = Exclude<OrderStatus, \"delivered\" | \"cancelled\">;\n\nexport function escalate(status: OpenStatus): string {\n  switch (status) {\n    case \"pending\":\n      return \"billing team\";\n    case \"paid\":\n      return \"warehouse\";\n    case \"shipped\":\n      return \"carrier support\";\n  }\n}\n\nconst stuck: OpenStatus[] = [\"pending\", \"paid\", \"shipped\"];\nfor (const status of stuck) {\n  console.log(`${status}: ${escalate(status)}`);\n}\n",
+        "tests": [
+          {
+            "output": "pending: billing team\npaid: warehouse\nshipped: carrier support"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { escalate, type OpenStatus } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "escalates a paid order",
+              "expect": "ok",
+              "code": "escalate(\"paid\");\n"
+            },
+            {
+              "name": "rejects a delivered order",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "escalate(\"delivered\");\n"
+            },
+            {
+              "name": "rejects a cancelled order",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "escalate(\"cancelled\");\n"
+            },
+            {
+              "name": "keeps pending as an open status",
+              "expect": "ok",
+              "code": "const s: OpenStatus = \"pending\";\n"
+            },
+            {
+              "name": "has no cancelled open status",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const s: OpenStatus = \"cancelled\";\n"
+            }
+          ]
+        },
+        "hints": [
+          "`ActiveStatus` in the first example is derived the same way: `Exclude` and the members to drop.",
+          "A `switch` with a `case` for each of the three open statuses returns on every path, so it needs no `default`.",
+          "`export type OpenStatus = Exclude<OrderStatus, \"delivered\" | \"cancelled\">;`"
+        ]
+      }
+    },
+    {
+      "title": "ReturnType, Parameters, and Awaited",
+      "body": "Sometimes the code comes first: a function already returns the shape you need. Derive the type from it instead of writing it again, and the two can never disagree. In a type position, `typeof loadConfig` is the function's type, and three utility types take it apart:\n\n- `ReturnType<F>` is what `F` returns.\n- `Parameters<F>` is a tuple of its parameter types, so `Parameters<F>[0]` is the first one.\n- `Awaited<T>` is what a promise resolves to, so `Awaited<ReturnType<F>>` unwraps an async function's result.\n\n```typescript\nfunction loadConfig() {\n  return { port: 8080, host: \"localhost\" };\n}\n\ntype Config = ReturnType<typeof loadConfig>;\n//   ^? type Config = { port: number; host: string; }\n```\n\nThese utility types take a type, not a value. `ReturnType<loadConfig>` is an error that asks whether you meant `typeof loadConfig`.",
+      "examples": [
+        {
+          "title": "A config type from its loader",
+          "prompt": "Load a config from a map of environment variables, and name the type of what comes back.",
+          "code": "function loadConfig(env: Record<string, string>) {\n  return {\n    host: env[\"HOST\"] ?? \"localhost\",\n    port: Number(env[\"PORT\"] ?? \"3000\"),\n    debug: env[\"DEBUG\"] === \"1\",\n  };\n}\n\ntype Config = ReturnType<typeof loadConfig>;\n//   ^? type Config = { host: string; port: number; debug: boolean; }\n\nfunction describe(config: Config): string {\n  return `${config.host}:${config.port}${config.debug ? \" (debug)\" : \"\"}`;\n}\n\nconsole.log(describe(loadConfig({})));\nconsole.log(describe(loadConfig({ PORT: \"8080\", DEBUG: \"1\" })));\n",
+          "output": "localhost:3000\nlocalhost:8080 (debug)",
+          "explanation": "`loadConfig` has no written return type, so TypeScript infers one from its object literal, and `ReturnType<typeof loadConfig>` gives that inferred type the name `Config`. `describe` can then take a `Config` without anyone writing its fields out. Add a `timeoutMs` field to the object `loadConfig` returns, and `Config` has it at once."
+        },
+        {
+          "title": "Argument lists with Parameters",
+          "prompt": "Name the message type that sendEmail only writes inline, and queue up calls as argument lists.",
+          "code": "function sendEmail(to: string, message: { subject: string; urgent: boolean }): string {\n  return `${message.urgent ? \"URGENT \" : \"\"}to ${to}: ${message.subject}`;\n}\n\ntype EmailArgs = Parameters<typeof sendEmail>;\n//   ^? type EmailArgs = [to: string, message: { subject: string; urgent: boolean; }]\ntype Message = EmailArgs[1];\n//   ^? type Message = { subject: string; urgent: boolean; }\n\nconst reminder: Message = { subject: \"Your invoice\", urgent: false };\n\nconst queue: EmailArgs[] = [\n  [\"ada@example.com\", reminder],\n  [\"ops@example.com\", { subject: \"Disk almost full\", urgent: true }],\n];\n\nfor (const args of queue) {\n  console.log(sendEmail(...args));\n}\n",
+          "output": "to ada@example.com: Your invoice\nURGENT to ops@example.com: Disk almost full",
+          "explanation": "`Parameters` turns the parameter list into a tuple and keeps the names as labels. Indexing the tuple with `[1]` gives the second parameter's type, so the message shape gets a name, `Message`, without being written twice. Each entry in `queue` is a whole argument list, checked against the real parameters, and `sendEmail(...args)` spreads one back into a call."
+        },
+        {
+          "title": "Unwrapping a promise with Awaited",
+          "prompt": "Name the type an async function resolves to, and use it in a function that isn't async.",
+          "code": "const USERS = [\n  { id: 1, name: \"Ada\", plan: \"pro\" },\n  { id: 2, name: \"Grace\", plan: \"free\" },\n];\n\nasync function fetchUser(id: number) {\n  const user = USERS.find((u) => u.id === id);\n  if (user === undefined) {\n    throw new Error(`no user ${id}`);\n  }\n  return user;\n}\n\ntype Pending = ReturnType<typeof fetchUser>;\n//   ^? type Pending = Promise<{ id: number; name: string; plan: string; }>\ntype User = Awaited<ReturnType<typeof fetchUser>>;\n//   ^? type User = { id: number; name: string; plan: string; }\n\nfunction badge(user: User): string {\n  return `${user.name} [${user.plan}]`;\n}\n\nconsole.log(badge(await fetchUser(1)));\nconsole.log(badge(await fetchUser(2)));\n",
+          "output": "Ada [pro]\nGrace [free]",
+          "explanation": "An `async` function always returns a promise, so its `ReturnType` is a `Promise`, as the first bubble shows. `Awaited` takes the value out, which is what `await fetchUser(1)` gives you. `badge` needs a plain `User`, not a promise of one, and the derived type says exactly that. The `await` calls sit at the top level of `main.ts`, which works because the program is an ES module."
+        }
+      ],
+      "practice": {
+        "title": "Derive the invoice type",
+        "prompt": "`makeInvoice` already builds invoices. Name their type with `ReturnType`, then format an invoice as text.\n\n1. Make `Invoice` the type that `makeInvoice` returns, derived with `ReturnType` and `typeof`.\n2. Make `formatInvoice` return these lines joined with `\"\\n\"`: `Invoice for <customer>`, then one row per line of the invoice, `  <qty> x <description>: $<amount>` with two spaces in front, then `Total: $<total> <currency>`.\n3. Write every amount in dollars with 2 decimals.\n4. Keep `export`: hidden type tests use `makeInvoice` and `Invoice`.\n\nExpected output:\n\n```text\nInvoice for Ada Lovelace\n  2 x Notebook: $9.00\n  1 x Fountain pen: $25.99\nTotal: $34.99 USD\n```",
+        "starter": "type Line = { description: string; qty: number; unitCents: number };\n\nexport function makeInvoice(customer: string, lines: Line[]) {\n  const totalCents = lines.reduce((sum, line) => sum + line.qty * line.unitCents, 0);\n  return { customer, lines, totalCents, currency: \"USD\" };\n}\n\n// TODO: derive Invoice from what makeInvoice returns\nexport type Invoice = {};\n\nexport function formatInvoice(inv: Invoice): string {\n  // TODO: join the header, one row per line, and the total with \"\\n\"\n  return \"\";\n}\n\nconst invoice = makeInvoice(\"Ada Lovelace\", [\n  { description: \"Notebook\", qty: 2, unitCents: 450 },\n  { description: \"Fountain pen\", qty: 1, unitCents: 2599 },\n]);\nconsole.log(formatInvoice(invoice));\n",
+        "solution": "type Line = { description: string; qty: number; unitCents: number };\n\nexport function makeInvoice(customer: string, lines: Line[]) {\n  const totalCents = lines.reduce((sum, line) => sum + line.qty * line.unitCents, 0);\n  return { customer, lines, totalCents, currency: \"USD\" };\n}\n\nexport type Invoice = ReturnType<typeof makeInvoice>;\n\nfunction dollars(cents: number): string {\n  return `$${(cents / 100).toFixed(2)}`;\n}\n\nexport function formatInvoice(inv: Invoice): string {\n  const rows = inv.lines.map(\n    (line) => `  ${line.qty} x ${line.description}: ${dollars(line.qty * line.unitCents)}`\n  );\n  return [`Invoice for ${inv.customer}`, ...rows, `Total: ${dollars(inv.totalCents)} ${inv.currency}`].join(\"\\n\");\n}\n\nconst invoice = makeInvoice(\"Ada Lovelace\", [\n  { description: \"Notebook\", qty: 2, unitCents: 450 },\n  { description: \"Fountain pen\", qty: 1, unitCents: 2599 },\n]);\nconsole.log(formatInvoice(invoice));\n",
+        "tests": [
+          {
+            "output": "Invoice for Ada Lovelace\n  2 x Notebook: $9.00\n  1 x Fountain pen: $25.99\nTotal: $34.99 USD"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { makeInvoice, type Invoice } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "accepts what makeInvoice returns",
+              "expect": "ok",
+              "code": "const i: Invoice = makeInvoice(\"a\", []);\n"
+            },
+            {
+              "name": "has the customer as a string",
+              "expect": "ok",
+              "code": "declare const inv: Invoice;\nconst c: string = inv.customer;\n"
+            },
+            {
+              "name": "keeps totalCents a number",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "declare const inv: Invoice;\nconst t: string = inv.totalCents;\n"
+            },
+            {
+              "name": "has no fields makeInvoice doesn't return",
+              "expect": "error",
+              "errorCode": "TS2339",
+              "code": "declare const inv: Invoice;\nconsole.log(inv.dueDate);\n"
+            }
+          ]
+        },
+        "hints": [
+          "In a type position, `typeof makeInvoice` is the function's type, and `ReturnType` takes it from there, the way `Config` is made in the first example.",
+          "Build the rows with `map` over `inv.lines`, put the header in front and the total after, and join them with `\"\\n\"`. `(cents / 100).toFixed(2)` turns cents into dollars.",
+          "`export type Invoice = ReturnType<typeof makeInvoice>;`"
+        ]
+      }
+    }
+  ],
+  "recap": "- `Partial<T>`, `Required<T>`, and `Readonly<T>` change every property of `T` at once: all optional, all required, or all read-only.\n- `Omit<T, K>` and `Pick<T, K>` build smaller types from a bigger one, like a create input or a list item. `Omit` doesn't check its keys, so spell them carefully.\n- `Record<K, V>` with a union of literals as `K` must list every member.\n- `Exclude`, `Extract`, and `NonNullable` filter a union, member by member.\n- `ReturnType<typeof f>`, `Parameters<typeof f>`, and `Awaited<T>` derive types from functions you already wrote, so the types follow the code.\n- Types never change values. Pair `Readonly` with `Object.freeze`, and `Pick` with code that copies only the fields you want."
+}

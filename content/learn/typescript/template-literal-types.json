@@ -1,0 +1,226 @@
+{
+  "id": "template-literal-types",
+  "title": "Template Literal Types",
+  "section": "Type Transformations",
+  "summary": "Describe strings by their pattern, build unions of names from other unions, and pull typed parameters out of route strings with infer.",
+  "intro": "Plenty of strings in real code follow a pattern. Order IDs start with `ord_`, CSS sizes end in `px`, event names look like `order.created`, and routes look like `/orders/:orderId`. A template literal type writes that pattern as a type, with the same backtick syntax as a template string. In this lesson you check strings against patterns, build unions of names from other unions, and read the parameters out of a route string at the type level, the way typed routers do.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "String patterns",
+      "body": "A template literal type is written like a template string, between backticks, but it describes strings instead of building one. Each `${...}` holds a type: `${string}` matches any text, and `${number}` matches text that reads as a number.\n\n```typescript\ntype Hex = `#${string}`;\n\nconst brand: Hex = \"#336699\";\nconsole.log(brand); // #336699\n```\n\nA string literal fits when it matches the pattern, so `\"blue\"` is not a `Hex`. A plain `string` doesn't fit either, because it could hold anything. To turn one into a `Hex`, check it with a type guard:\n\n```typescript\ntype Hex = `#${string}`;\n\nfunction isHex(s: string): s is Hex {\n  return s.startsWith(\"#\");\n}\n\nconst input: string = \"#ffcc00\";\nconsole.log(isHex(input) ? `color ${input}` : \"not a color\"); // color #ffcc00\n```\n\nPatterns are loose. `${string}` also matches no text at all, so `\"#\"` is a `Hex` too. And the pattern only exists for the checker: at run time a `Hex` is an ordinary string.",
+      "examples": [
+        {
+          "title": "Hex colors",
+          "prompt": "Accept only colors that start with `#`, then pass a color name instead.",
+          "code": "type Hex = `#${string}`;\n\nfunction setColor(color: Hex): string {\n  return `color set to ${color}`;\n}\n\nconsole.log(setColor(\"#336699\"));\nconsole.log(setColor(\"blue\"));\n",
+          "expect": "type-error",
+          "output": "main.ts(8,22): error TS2345: Argument of type '\"blue\"' is not assignable to parameter of type '`#${string}`'.",
+          "explanation": "`\"#336699\"` starts with `#`, so the first call compiles. `\"blue\"` doesn't match the pattern, so the checker rejects the second call with TS2345, and nothing runs. The message writes the parameter's type as the pattern itself. Pass colors that match, and the program runs:\n\n```typescript\ntype Hex = `#${string}`;\n\nfunction setColor(color: Hex): string {\n  return `color set to ${color}`;\n}\n\nconsole.log(setColor(\"#336699\")); // color set to #336699\nconsole.log(setColor(\"#fff\")); // color set to #fff\n```"
+        },
+        {
+          "title": "ID prefixes",
+          "prompt": "Give user IDs and team IDs their own prefix types, and send each incoming ID to the function that takes its kind.",
+          "code": "type UserId = `usr_${string}`;\ntype TeamId = `team_${string}`;\n\nfunction isUserId(s: string): s is UserId {\n  return s.startsWith(\"usr_\");\n}\n\nfunction isTeamId(s: string): s is TeamId {\n  return s.startsWith(\"team_\");\n}\n\nfunction findUser(id: UserId): string {\n  return `looking up user ${id}`;\n}\n\nfunction findTeam(id: TeamId): string {\n  return `looking up team ${id}`;\n}\n\nconst incoming = [\"usr_7\", \"team_42\", \"cus_3\"];\nfor (const id of incoming) {\n  if (isUserId(id)) {\n    console.log(findUser(id));\n  } else if (isTeamId(id)) {\n    console.log(findTeam(id));\n  } else {\n    console.log(`unknown id ${id}`);\n  }\n}\n",
+          "output": "looking up user usr_7\nlooking up team team_42\nunknown id cus_3",
+          "explanation": "Each guard checks the prefix its type promises, so in each branch `id` has the narrowed type, and the matching function accepts it. `\"cus_3\"` passes neither guard and lands in the `else`. The two types can't be mixed up: a `TeamId` doesn't start with `usr_`, so passing one to `findUser` is a type error:\n\n```typescript error\ntype UserId = `usr_${string}`;\ntype TeamId = `team_${string}`;\n\nfunction findUser(id: UserId): string {\n  return `looking up user ${id}`;\n}\n\nconst team: TeamId = \"team_42\";\nconsole.log(findUser(team));\n```"
+        },
+        {
+          "title": "Pixel sizes",
+          "prompt": "Type CSS sizes as a number followed by `px`, and write a function that doubles one.",
+          "code": "type Px = `${number}px`;\n\nfunction width(value: Px): string {\n  return `width: ${value};`;\n}\n\nfunction double(size: Px): Px {\n  return `${Number.parseFloat(size) * 2}px`;\n}\n\nconsole.log(width(\"12px\"));\nconsole.log(width(\"0.5px\"));\nconsole.log(width(\"-3px\"));\nconsole.log(width(double(\"12px\")));\n",
+          "output": "width: 12px;\nwidth: 0.5px;\nwidth: -3px;\nwidth: 24px;",
+          "explanation": "`${number}` matches any text that reads as a number, so `\"0.5px\"` and `\"-3px\"` fit too. In `double`, the return type is `Px`, so the checker gives the template string a pattern type and checks it against `Px`. Without a pattern type to match, a template string is just a `string`. Text that isn't a number before `px`, or a missing `px`, is rejected:\n\n```typescript error\ntype Px = `${number}px`;\n\nconst missingUnit: Px = \"12\";\nconst notANumber: Px = \"widepx\";\nconsole.log(missingUnit, notANumber);\n```"
+        }
+      ],
+      "practice": {
+        "title": "Order IDs",
+        "prompt": "Order IDs in this shop start with `ord_`. Type them with a pattern, and build a link only for strings that pass the check.\n\n1. Export `type OrderId` as a template literal type: `ord_` followed by any text.\n2. Export `isOrderId(s: string): s is OrderId`, which returns `true` when `s` starts with `ord_`.\n3. `orderUrl(id: OrderId)` is done. For each string in `inputs`, print its URL when it's an order ID, or `not an order id` when it isn't.\n4. Keep `export`: hidden type tests import your names, and Check also runs your functions on other strings.\n\nExpected output:\n\n```text\nhttps://example.com/orders/ord_1001\nnot an order id\nhttps://example.com/orders/ord_2002\n```",
+        "starter": "// TODO: make OrderId a template literal type: \"ord_\" followed by any text\nexport type OrderId = string;\n\nexport function isOrderId(s: string): s is OrderId {\n  // TODO: return true when s starts with \"ord_\"\n  return false;\n}\n\nexport function orderUrl(id: OrderId): string {\n  return `https://example.com/orders/${id}`;\n}\n\nconst inputs = [\"ord_1001\", \"usr_42\", \"ord_2002\"];\nfor (const input of inputs) {\n  // TODO: print orderUrl(input) for an order id, else \"not an order id\"\n}\n",
+        "solution": "export type OrderId = `ord_${string}`;\n\nexport function isOrderId(s: string): s is OrderId {\n  return s.startsWith(\"ord_\");\n}\n\nexport function orderUrl(id: OrderId): string {\n  return `https://example.com/orders/${id}`;\n}\n\nconst inputs = [\"ord_1001\", \"usr_42\", \"ord_2002\"];\nfor (const input of inputs) {\n  console.log(isOrderId(input) ? orderUrl(input) : \"not an order id\");\n}\n",
+        "tests": [
+          {
+            "output": "https://example.com/orders/ord_1001\nnot an order id\nhttps://example.com/orders/ord_2002"
+          },
+          {
+            "append": "for (const s of [\"ord_77\", \"ORD_9\", \"order_5\"]) {\n  console.log(isOrderId(s) ? orderUrl(s) : \"not an order id\");\n}",
+            "output": "https://example.com/orders/ord_1001\nnot an order id\nhttps://example.com/orders/ord_2002\nhttps://example.com/orders/ord_77\nnot an order id\nnot an order id"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { isOrderId, orderUrl, type OrderId } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "accepts an order id",
+              "expect": "ok",
+              "code": "const url: string = orderUrl(\"ord_123\");"
+            },
+            {
+              "name": "rejects a user id",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "orderUrl(\"usr_1\");"
+            },
+            {
+              "name": "a checked string is an order id",
+              "expect": "ok",
+              "code": "declare const s: string;\nif (isOrderId(s)) {\n  const id: OrderId = s;\n  orderUrl(id);\n}"
+            }
+          ]
+        },
+        "hints": [
+          "Write the pattern the way the examples write `UserId` and `Hex`: the fixed text, then `${string}` for the rest, all between backticks.",
+          "`s.startsWith(\"ord_\")` is the whole check. The return type `s is OrderId` is what narrows `input` in the loop.",
+          "In the loop, print `isOrderId(input) ? orderUrl(input) : \"not an order id\"`."
+        ]
+      }
+    },
+    {
+      "title": "Names from unions",
+      "body": "Put a union inside a template literal type, and you get one string for each member. With two unions, you get every combination:\n\n```typescript types\ntype Entity = \"order\" | \"user\";\ntype Action = \"created\" | \"deleted\";\ntype EventName = `${Entity}.${Action}`;\n//   ^? type EventName = \"order.created\" | \"order.deleted\" | \"user.created\" | \"user.deleted\"\n```\n\nTwo members times two members makes four names. Add a third entity, and its two names join the union on their own.\n\nTypeScript also has four built-in types that change the case of string types: `Uppercase`, `Lowercase`, `Capitalize` (the first letter only), and `Uncapitalize`. They're how libraries derive names like `onClick` from `click`:\n\n```typescript types\ntype Method = Uppercase<\"get\" | \"post\">;\n//   ^? type Method = \"GET\" | \"POST\"\ntype Handler = `on${Capitalize<\"click\" | \"submit\">}`;\n//   ^? type Handler = \"onClick\" | \"onSubmit\"\n```\n\nThey only change types. To change the case of a value at run time, you still call a method like `toUpperCase()`.",
+      "examples": [
+        {
+          "title": "Event names",
+          "prompt": "Build all four event names from two lists, at the type level and at run time, and emit two events.",
+          "code": "const ENTITIES = [\"order\", \"user\"] as const;\nconst ACTIONS = [\"created\", \"deleted\"] as const;\n\ntype Entity = (typeof ENTITIES)[number];\ntype Action = (typeof ACTIONS)[number];\ntype EventName = `${Entity}.${Action}`;\n//   ^? type EventName = \"order.created\" | \"order.deleted\" | \"user.created\" | \"user.deleted\"\n\nfunction emit(event: EventName, id: string): string {\n  return `[${event}] ${id}`;\n}\n\nconst all: EventName[] = [];\nfor (const entity of ENTITIES) {\n  for (const action of ACTIONS) {\n    all.push(`${entity}.${action}`);\n  }\n}\n\nconsole.log(`${all.length} events: ${all.join(\", \")}`);\nconsole.log(emit(\"order.created\", \"ord_1001\"));\nconsole.log(emit(\"user.deleted\", \"usr_7\"));\n",
+          "output": "4 events: order.created, order.deleted, user.created, user.deleted\n[order.created] ord_1001\n[user.deleted] usr_7",
+          "explanation": "`Entity` and `Action` come from the two `as const` lists, and `EventName` combines them, so the bubble lists all four names. The loops build the same four strings at run time. `all.push` expects an `EventName`, so each template string is checked against the pattern. A misspelled event is caught where you use it:\n\n```typescript error\ntype EventName = `${\"order\" | \"user\"}.${\"created\" | \"deleted\"}`;\n\nfunction emit(event: EventName, id: string): string {\n  return `[${event}] ${id}`;\n}\n\nconsole.log(emit(\"order.updated\", \"ord_1001\"));\n```"
+        },
+        {
+          "title": "Getter names",
+          "prompt": "Derive getter names like `getName` from field names, and require one function for each.",
+          "code": "type Getter<K extends string> = `get${Capitalize<K>}`;\n\ntype UserField = \"name\" | \"email\";\ntype UserGetter = Getter<UserField>;\n//   ^? type UserGetter = \"getEmail\" | \"getName\"\n\nconst user = { name: \"Ada\", email: \"ada@example.com\" };\n\nconst getters: Record<UserGetter, () => string> = {\n  getName: () => user.name,\n  getEmail: () => user.email,\n};\n\nconsole.log(getters.getName());\nconsole.log(getters.getEmail());\n",
+          "output": "Ada\nada@example.com",
+          "explanation": "`Getter` is a generic type: give it field names, and it returns getter names, with each field's first letter capitalized. `K extends string` is required, because `Capitalize` only takes string types. `Record<UserGetter, () => string>` then needs exactly one function per name, so a missing or misspelled getter doesn't compile:\n\n```typescript error\ntype UserGetter = `get${Capitalize<\"name\" | \"email\">}`;\n\nconst getters: Record<UserGetter, () => string> = {\n  getName: () => \"Ada\",\n  getemail: () => \"ada@example.com\",\n};\nconsole.log(getters.getName());\n```\n\nThe checker reports TS2561 and asks whether you meant `getEmail`."
+        },
+        {
+          "title": "Style properties",
+          "prompt": "Type the four margin properties of CSS, and write a rule for each side.",
+          "code": "type Side = \"top\" | \"right\" | \"bottom\" | \"left\";\ntype Margin = `margin-${Side}`;\n//   ^? type Margin = \"margin-bottom\" | \"margin-left\" | \"margin-right\" | \"margin-top\"\n\nfunction marginRule(side: Side, px: number): string {\n  const property: Margin = `margin-${side}`;\n  return `${property}: ${px}px;`;\n}\n\nconst SIDES: Side[] = [\"top\", \"right\", \"bottom\", \"left\"];\nfor (const side of SIDES) {\n  console.log(marginRule(side, side === \"top\" || side === \"bottom\" ? 16 : 8));\n}\n",
+          "output": "margin-top: 16px;\nmargin-right: 8px;\nmargin-bottom: 16px;\nmargin-left: 8px;",
+          "explanation": "`Margin` holds the four property names, built from `Side`. In `marginRule`, the template string is checked against `Margin`, so a typo in its fixed text is a type error, and the checker even suggests the right name:\n\n```typescript error\ntype Side = \"top\" | \"right\" | \"bottom\" | \"left\";\ntype Margin = `margin-${Side}`;\n\nfunction marginRule(side: Side, px: number): string {\n  const property: Margin = `marign-${side}`;\n  return `${property}: ${px}px;`;\n}\nconsole.log(marginRule(\"top\", 8));\n```"
+        }
+      ],
+      "practice": {
+        "title": "Permission strings",
+        "prompt": "An admin panel checks permissions written as a resource, a colon, and an access level. Build every permission from two unions, and check what a clerk may do.\n\n1. Export `type Permission`, a template literal type built from `\"orders\" | \"products\"`, a colon, and `\"read\" | \"write\"`.\n2. Export `can(perms: readonly Permission[], p: Permission): boolean`, which returns `true` when `perms` includes `p`.\n3. For each permission in `checks`, print `<permission> is allowed` or `<permission> is denied` for the clerk.\n4. Keep `export`: hidden type tests import your names, and Check also calls `can` with other permissions.\n\nExpected output:\n\n```text\norders:read is allowed\norders:write is denied\nproducts:write is allowed\n```",
+        "starter": "// TODO: build Permission from \"orders\" | \"products\", a colon,\n// and \"read\" | \"write\"\nexport type Permission = string;\n\nexport function can(perms: readonly Permission[], p: Permission): boolean {\n  // TODO: return true when perms includes p\n  return false;\n}\n\nconst clerk: Permission[] = [\"orders:read\", \"products:read\", \"products:write\"];\nconst checks: Permission[] = [\"orders:read\", \"orders:write\", \"products:write\"];\n\n// TODO: print \"<permission> is allowed\" or \"<permission> is denied\" for each check\n",
+        "solution": "type Resource = \"orders\" | \"products\";\ntype Access = \"read\" | \"write\";\nexport type Permission = `${Resource}:${Access}`;\n\nexport function can(perms: readonly Permission[], p: Permission): boolean {\n  return perms.includes(p);\n}\n\nconst clerk: Permission[] = [\"orders:read\", \"products:read\", \"products:write\"];\nconst checks: Permission[] = [\"orders:read\", \"orders:write\", \"products:write\"];\n\nfor (const p of checks) {\n  console.log(`${p} is ${can(clerk, p) ? \"allowed\" : \"denied\"}`);\n}\n",
+        "tests": [
+          {
+            "output": "orders:read is allowed\norders:write is denied\nproducts:write is allowed"
+          },
+          {
+            "append": "const viewer: Permission[] = [\"orders:read\"];\nconsole.log(can(viewer, \"products:read\"), can(viewer, \"orders:read\"), can([], \"orders:write\"));",
+            "output": "orders:read is allowed\norders:write is denied\nproducts:write is allowed\nfalse true false"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { can, type Permission } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects an unknown access level",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "can([], \"orders:delete\");"
+            },
+            {
+              "name": "accepts a known permission",
+              "expect": "ok",
+              "code": "const ok: boolean = can([\"orders:read\"], \"orders:read\");"
+            },
+            {
+              "name": "has all four combinations",
+              "expect": "ok",
+              "code": "const all: Permission[] = [\"orders:read\", \"orders:write\", \"products:read\", \"products:write\"];"
+            }
+          ]
+        },
+        "hints": [
+          "Give each union its own `${...}` placeholder with a colon between them, like `EventName` in the first example.",
+          "`perms.includes(p)` is the whole body of `can`.",
+          "Loop over `checks`, and build each line with a template string: the permission, then `is`, then `allowed` or `denied`."
+        ]
+      }
+    },
+    {
+      "title": "Route parameters with infer",
+      "body": "`infer` works inside template literal types too. Write the shape of the string as a pattern, and each `infer` names the piece it matches:\n\n```typescript types\ntype Split<S> = S extends `${infer Head}.${infer Tail}` ? [Head, Tail] : [S];\n\ntype Event = Split<\"order.created\">;\n//   ^? type Event = [\"order\", \"created\"]\ntype Nested = Split<\"order.item.added\">;\n//   ^? type Nested = [\"order\", \"item.added\"]\n```\n\nEach placeholder takes the text up to the first place where the next fixed part appears, and the last one takes the rest. That's why `Head` stops at the first dot.\n\nTo walk a whole string, a type can refer to itself inside a branch of a conditional type: handle the first piece, then apply the same type to the rest, until a branch stops. That's how a route pattern like `/orders/:orderId/items/:itemId` becomes the parameter names `\"itemId\" | \"orderId\"`, and how a function can demand an object with exactly those keys. Express's type definitions type `req.params` this way.",
+      "examples": [
+        {
+          "title": "One parameter",
+          "prompt": "Pull the name out of a route segment like `:orderId`, at the type level and at run time.",
+          "code": "type ParamName<S> = S extends `:${infer P}` ? P : never;\n\ntype OrderParam = ParamName<\":orderId\">;\n//   ^? type OrderParam = \"orderId\"\ntype Fixed = ParamName<\"orders\">;\n//   ^? type Fixed = never\n\nfunction paramName(segment: string): string | null {\n  return segment.startsWith(\":\") ? segment.slice(1) : null;\n}\n\nconst segments = \"/orders/:orderId\".split(\"/\").filter((s) => s !== \"\");\nfor (const segment of segments) {\n  const name = paramName(segment);\n  console.log(name === null ? `${segment} is fixed text` : `${segment} is the parameter ${name}`);\n}\n",
+          "output": "orders is fixed text\n:orderId is the parameter orderId",
+          "explanation": "In `ParamName`, the pattern is a colon followed by `infer P`. A segment that starts with a colon matches, and `P` is the rest of it. `\"orders\"` has no colon, so the false branch gives `never`, the empty union. `paramName` applies the same rule to values at run time, with `startsWith` and `slice`. The type and the function follow one rule, one for the checker and one for the program."
+        },
+        {
+          "title": "All parameters",
+          "prompt": "Collect every parameter name of a route pattern with a recursive type, and list the same names at run time.",
+          "code": "type ExtractParams<P extends string> =\n  P extends `${string}:${infer Param}/${infer Rest}`\n    ? Param | ExtractParams<Rest>\n    : P extends `${string}:${infer Param}`\n      ? Param\n      : never;\n\ntype ItemParams = ExtractParams<\"/orders/:orderId/items/:itemId\">;\n//   ^? type ItemParams = \"itemId\" | \"orderId\"\ntype HealthParams = ExtractParams<\"/health\">;\n//   ^? type HealthParams = never\n\nfunction paramNames(pattern: string): string[] {\n  return pattern\n    .split(\"/\")\n    .filter((segment) => segment.startsWith(\":\"))\n    .map((segment) => segment.slice(1));\n}\n\nfor (const pattern of [\"/orders/:orderId/items/:itemId\", \"/users/:id\", \"/health\"]) {\n  console.log(`${pattern}: ${paramNames(pattern).join(\", \") || \"no params\"}`);\n}\n",
+          "output": "/orders/:orderId/items/:itemId: orderId, itemId\n/users/:id: id\n/health: no params",
+          "explanation": "Follow `\"/orders/:orderId/items/:itemId\"` through the type. The first pattern matches: `${string}` skips `/orders/`, `Param` is `orderId`, the text up to the next `/`, and `Rest` is `items/:itemId`. The type then runs again on `Rest`. No `/` follows `itemId`, so the first pattern fails there and the second one matches, giving `itemId`. The result is the union of both names. `/health` has no colon, so neither pattern matches, and the result is `never`. `paramNames` finds the same names at run time."
+        },
+        {
+          "title": "A typed path builder",
+          "prompt": "OpenAPI writes path parameters in braces, like `/orders/{orderId}/items/{itemId}`. Fill in such a path with a function whose type says which values a call must pass, and leave one out.",
+          "code": "type PathParams<P extends string> =\n  P extends `${string}{${infer Name}}${infer Rest}` ? Name | PathParams<Rest> : never;\n\nfunction fillPath<P extends string>(pattern: P, params: Record<PathParams<P>, string>): string {\n  const values: Record<string, string> = params;\n  return pattern\n    .split(\"/\")\n    .map((segment) => {\n      if (!segment.startsWith(\"{\") || !segment.endsWith(\"}\")) return segment;\n      return values[segment.slice(1, -1)] ?? segment;\n    })\n    .join(\"/\");\n}\n\nconsole.log(fillPath(\"/users/{id}\", { id: \"42\" }));\nconsole.log(fillPath(\"/orders/{orderId}/items/{itemId}\", { orderId: \"ord_1001\" }));\n",
+          "expect": "type-error",
+          "output": "main.ts(16,58): error TS2741: Property 'itemId' is missing in type '{ orderId: string; }' but required in type 'Record<\"itemId\" | \"orderId\", string>'.",
+          "explanation": "`P` is inferred from the pattern each call passes, so for the second call `PathParams<P>` is `\"itemId\" | \"orderId\"`, and `params` must have both keys. The call leaves out `itemId`, which is TS2741, and nothing runs.\n\nInside the function, `params[name]` with a `name` of type `string` would be an error, because the checker only knows the keys in `PathParams<P>`. So the function reads the same object through `values`, a `Record<string, string>`, where any key is allowed and each value is `string | undefined`. No cast is needed, since an object with known string keys is also a record of strings. Pass every value, and it runs:\n\n```typescript\ntype PathParams<P extends string> =\n  P extends `${string}{${infer Name}}${infer Rest}` ? Name | PathParams<Rest> : never;\n\nfunction fillPath<P extends string>(pattern: P, params: Record<PathParams<P>, string>): string {\n  const values: Record<string, string> = params;\n  return pattern\n    .split(\"/\")\n    .map((segment) => {\n      if (!segment.startsWith(\"{\") || !segment.endsWith(\"}\")) return segment;\n      return values[segment.slice(1, -1)] ?? segment;\n    })\n    .join(\"/\");\n}\n\nconsole.log(fillPath(\"/orders/{orderId}/items/{itemId}\", { orderId: \"ord_1001\", itemId: \"3\" })); // /orders/ord_1001/items/3\n```"
+        }
+      ],
+      "practice": {
+        "title": "Typed URL builder",
+        "prompt": "Express writes route parameters as `:name`. Write `buildPath`, which fills in a route's parameters and only accepts calls that pass every one of them.\n\n1. The starter has `ExtractParams`, the recursive type from the examples. Change `buildPath` to `buildPath<P extends string>(pattern: P, params: Record<ExtractParams<P>, string>): string`.\n2. Replace each segment that starts with `:` by the value for its name, and keep every other segment as it is.\n3. Read `params` through a `Record<string, string>` variable, so you need no cast. Check rejects `as`.\n4. Keep `export`: hidden type tests import `buildPath`, and Check also builds other paths.\n\nExpected output:\n\n```text\n/users/42\n/orders/ord_1001/items/3\n```",
+        "starter": "type ExtractParams<P extends string> =\n  P extends `${string}:${infer Param}/${infer Rest}`\n    ? Param | ExtractParams<Rest>\n    : P extends `${string}:${infer Param}`\n      ? Param\n      : never;\n\n// TODO: make buildPath generic in P, with params typed Record<ExtractParams<P>, string>.\n// TODO: replace each \":name\" segment with its value.\nexport function buildPath(pattern: string, params: Record<string, string>): string {\n  return pattern;\n}\n\nconsole.log(buildPath(\"/users/:id\", { id: \"42\" }));\nconsole.log(buildPath(\"/orders/:orderId/items/:itemId\", { orderId: \"ord_1001\", itemId: \"3\" }));\n",
+        "solution": "type ExtractParams<P extends string> =\n  P extends `${string}:${infer Param}/${infer Rest}`\n    ? Param | ExtractParams<Rest>\n    : P extends `${string}:${infer Param}`\n      ? Param\n      : never;\n\nexport function buildPath<P extends string>(pattern: P, params: Record<ExtractParams<P>, string>): string {\n  const values: Record<string, string> = params;\n  return pattern\n    .split(\"/\")\n    .map((segment) => (segment.startsWith(\":\") ? (values[segment.slice(1)] ?? segment) : segment))\n    .join(\"/\");\n}\n\nconsole.log(buildPath(\"/users/:id\", { id: \"42\" }));\nconsole.log(buildPath(\"/orders/:orderId/items/:itemId\", { orderId: \"ord_1001\", itemId: \"3\" }));\n",
+        "tests": [
+          {
+            "output": "/users/42\n/orders/ord_1001/items/3"
+          },
+          {
+            "append": "console.log(buildPath(\"/shops/:shopId/orders/:orderId\", { shopId: \"s7\", orderId: \"ord_2002\" }));\nconsole.log(buildPath(\"/health\", {}));",
+            "output": "/users/42\n/orders/ord_1001/items/3\n/shops/s7/orders/ord_2002\n/health"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { buildPath } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects a call without its params",
+              "expect": "error",
+              "errorCode": "TS2741",
+              "code": "buildPath(\"/users/:id\", {});"
+            },
+            {
+              "name": "accepts every param",
+              "expect": "ok",
+              "code": "const path: string = buildPath(\"/users/:id/posts/:postId\", { id: \"1\", postId: \"2\" });"
+            },
+            {
+              "name": "rejects a param the route doesn't have",
+              "expect": "error",
+              "errorCode": "TS2353",
+              "code": "buildPath(\"/users/:id\", { id: \"1\", page: \"2\" });"
+            },
+            {
+              "name": "a route without params takes an empty object",
+              "expect": "ok",
+              "code": "buildPath(\"/health\", {});"
+            }
+          ]
+        },
+        "forbid": [
+          "as"
+        ],
+        "hints": [
+          "Follow `fillPath` from the last example: the same generic signature, with `ExtractParams` in place of `PathParams`.",
+          "Start the body with `const values: Record<string, string> = params;`. Then `values[name]` is allowed for any string `name`, and it's `string | undefined`.",
+          "Split the pattern on `/`, map each segment that starts with `:` to `values[segment.slice(1)] ?? segment`, and join the segments with `/` again."
+        ]
+      }
+    }
+  ],
+  "recap": "- A template literal type, written between backticks like a template string, describes strings by a pattern. `${string}` matches any text, even none, and `${number}` matches text that reads as a number.\n- A literal fits when it matches the pattern. A plain `string` needs a type guard first.\n- A union inside a template makes one string per member, and several unions make every combination.\n- `Uppercase`, `Lowercase`, `Capitalize`, and `Uncapitalize` change the case of string types, never of values.\n- `infer` in a pattern pulls out a piece of a string type, and a type that refers to itself in a conditional branch can walk a whole string.\n- `Record<ExtractParams<P>, string>` makes a function demand exactly the parameters its pattern names. Read it through a `Record<string, string>` variable instead of casting."
+}

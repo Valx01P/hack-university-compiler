@@ -1,0 +1,264 @@
+{
+  "id": "typed-promises",
+  "title": "Async/Await and Typed Promises",
+  "section": "Async and Errors",
+  "summary": "Type async functions and the promises they return, run work at the same time, put time limits on it, and stream values with async generators.",
+  "intro": "Programs spend a lot of their time waiting: for a database, a file, or another service. JavaScript represents each wait with a promise, and TypeScript types the value the promise will hold, so whatever you get from `await` is fully typed. In this lesson you type async functions, run several at once, give slow work a time limit with `AbortSignal`, and read data that arrives a page at a time. The examples wait with `sleep` from `node:timers/promises`, a real timer kept short.",
+  "steps": [
+    {
+      "title": "Promise<T> and async functions",
+      "body": "An `async` function always returns a promise. Its return type is `Promise<T>`, where `T` is the type of what it returns, and `await` waits for the promise to settle and gives you that `T`:\n\n```typescript\nimport { setTimeout as sleep } from \"node:timers/promises\";\n\nasync function double(n: number): Promise<number> {\n  await sleep(10);\n  return n * 2;\n}\n\nconst pending = double(21);\n//    ^? const pending: Promise<number>\nconst result = await pending;\n//    ^? const result: number\nconsole.log(result); // 42\n```\n\n`node:timers/promises` exports a `setTimeout` that returns a promise. Inside the import braces, `as` only renames it to `sleep`, so it isn't a type assertion. `await sleep(10)` pauses for 10 milliseconds.\n\n`main.ts` is an ES module, so `await` also works at the top level, outside any function. Annotate the return type of async functions that other code calls, as you would any other function. It must be a `Promise`: writing `number` there is TS1064, because the function really returns a promise.",
+      "examples": [
+        {
+          "title": "Load a user",
+          "prompt": "Load a user from a fake database that takes 10 ms to answer, and build a greeting from it in a second async function.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\ntype User = { id: number; name: string; email: string };\n\nconst USERS = new Map<number, User>([\n  [1, { id: 1, name: \"Ada\", email: \"ada@example.com\" }],\n  [2, { id: 2, name: \"Grace\", email: \"grace@example.com\" }],\n]);\n\nasync function loadUser(id: number): Promise<User> {\n  await sleep(10);\n  const user = USERS.get(id);\n  if (user === undefined) {\n    throw new Error(`no user ${id}`);\n  }\n  return user;\n}\n\nasync function greeting(id: number): Promise<string> {\n  const user = await loadUser(id);\n  //    ^? const user: User\n  return `Hello, ${user.name} <${user.email}>`;\n}\n\ngreeting(2).then((text) => {\n  //              ^? (parameter) text: string\n  console.log(text);\n});\n",
+          "output": "Hello, Grace <grace@example.com>",
+          "explanation": "`loadUser` returns `Promise<User>`, so `await loadUser(id)` gives a `User`, as the first bubble shows, and `user.email` type-checks. `greeting` returns a template string, so its return type is `Promise<string>`. The callback you pass to `then` receives the value inside the promise, so `text` is a `string` with no annotation. A `throw` inside an async function doesn't escape as an exception: it rejects the promise, which is how `loadUser` reports an id it doesn't know."
+        },
+        {
+          "title": "Forgetting await",
+          "prompt": "Load a user and print its name, but leave out the `await`.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\ntype User = { id: number; name: string };\n\nasync function loadUser(id: number): Promise<User> {\n  await sleep(10);\n  return { id, name: \"Ada\" };\n}\n\nconst user = loadUser(1);\nconsole.log(`Hello, ${user.name}`);\n",
+          "expect": "type-error",
+          "output": "main.ts(11,28): error TS2339: Property 'name' does not exist on type 'Promise<User>'.",
+          "explanation": "Without `await`, `user` is the promise itself, a `Promise<User>`, and a promise has no `name` property. Plain JavaScript would run this and print `Hello, undefined`. The checker stops it before it runs, and the message names the type you're really holding. The fix is one word: `const user = await loadUser(1);`."
+        },
+        {
+          "title": "Top-level await",
+          "prompt": "Load two users, one after the other, at the top level of the file, and log each step.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\ntype User = { id: number; name: string };\n\nasync function loadUser(id: number): Promise<User> {\n  console.log(`loading user ${id}`);\n  await sleep(10);\n  return { id, name: id === 1 ? \"Ada\" : \"Grace\" };\n}\n\nconst first = await loadUser(1);\nconsole.log(`loaded ${first.name}`);\nconst second = await loadUser(2);\nconsole.log(`loaded ${second.name}`);\nconsole.log(\"done\");\n",
+          "output": "loading user 1\nloaded Ada\nloading user 2\nloaded Grace\ndone",
+          "explanation": "Every `await` here sits at the top level of the module, with no `async function main()` around it, which an ES module allows. The file waits at each `await` until that promise settles, so the second load starts only after the first one finishes, and the lines print in the order the code is written. Two 10 ms loads take about 20 ms this way. The next part starts independent work at the same time instead."
+        }
+      ],
+      "practice": {
+        "title": "Price lookup",
+        "prompt": "Add up a cart with a price service that takes a moment to answer.\n\n1. Make `getPrice` async, with the return type `Promise<number | undefined>`. Wait 5 ms with `await sleep(5)`, then return the SKU's price in cents from `PRICES`, which is `undefined` for an unknown SKU.\n2. Make `total` async, with the return type `Promise<number>`. Await the price of each SKU, add up the ones that exist, and skip unknown SKUs.\n3. Print the cart's total in dollars with 2 decimals.\n4. Keep `export`: hidden type tests import `getPrice` and `total` from your file.\n\nExpected output:\n\n```text\nTotal: $30.48\n```",
+        "starter": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nconst PRICES = new Map<string, number>([\n  [\"MUG-01\", 1299],\n  [\"TEA-02\", 450],\n  [\"POT-03\", 3400],\n]);\n\n// TODO: make getPrice async with the return type Promise<number | undefined>,\n// and wait 5 ms with sleep before it looks up the price\nexport function getPrice(sku: string) {\n  return PRICES.get(sku);\n}\n\n// TODO: make total async with the return type Promise<number>, and add up\n// the awaited price of every SKU that has one\nexport function total(skus: readonly string[]) {\n  return 0;\n}\n\nconst cart = [\"MUG-01\", \"TEA-02\", \"LAMP-09\", \"MUG-01\"];\nconst cents = await total(cart);\nconsole.log(`Total: $${(cents / 100).toFixed(2)}`);\n",
+        "solution": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nconst PRICES = new Map<string, number>([\n  [\"MUG-01\", 1299],\n  [\"TEA-02\", 450],\n  [\"POT-03\", 3400],\n]);\n\nexport async function getPrice(sku: string): Promise<number | undefined> {\n  await sleep(5);\n  return PRICES.get(sku);\n}\n\nexport async function total(skus: readonly string[]): Promise<number> {\n  let sum = 0;\n  for (const sku of skus) {\n    const price = await getPrice(sku);\n    if (price !== undefined) {\n      sum += price;\n    }\n  }\n  return sum;\n}\n\nconst cart = [\"MUG-01\", \"TEA-02\", \"LAMP-09\", \"MUG-01\"];\nconst cents = await total(cart);\nconsole.log(`Total: $${(cents / 100).toFixed(2)}`);\n",
+        "tests": [
+          {
+            "output": "Total: $30.48"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { getPrice, total } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "total resolves to a number",
+              "expect": "ok",
+              "code": "const p: Promise<number> = total([]);"
+            },
+            {
+              "name": "the total is a promise until you await it",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const n: number = total([]);"
+            },
+            {
+              "name": "getPrice can resolve to undefined",
+              "expect": "ok",
+              "code": "const p: Promise<number | undefined> = getPrice(\"MUG-01\");"
+            },
+            {
+              "name": "a price may be missing",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const p: Promise<number> = getPrice(\"MUG-01\");"
+            }
+          ]
+        },
+        "hints": [
+          "Put `async` before `function`, and write the return type after the parameters, like `loadUser(id: number): Promise<User>` in the examples.",
+          "In `getPrice`, `await sleep(5);` pauses first, and `return PRICES.get(sku);` resolves the promise with the price or `undefined`.",
+          "In `total`, loop with `for (const sku of skus)`, write `const price = await getPrice(sku);`, and add `price` to the sum only when `price !== undefined`."
+        ]
+      }
+    },
+    {
+      "title": "Running promises together",
+      "body": "Awaiting one call after another adds up their waits. When the calls don't depend on each other, start them all and wait once. `Promise.all` takes an array of promises and resolves to their values, in the same order. Given an array literal, TypeScript types the result as a tuple, with one type per position:\n\n```typescript\nimport { setTimeout as sleep } from \"node:timers/promises\";\n\nconst [count, unit] = await Promise.all([sleep(20, 3), sleep(10, \"items\")]);\n//     ^? const count: number\nconsole.log(`${count} ${unit}`); // 3 items\n```\n\n`sleep(ms, value)` resolves with `value`, so these two promises hold a `number` and a `string`.\n\n`Promise.all` rejects as soon as one promise rejects. `Promise.allSettled` waits for every promise and never rejects. Each of its results has a `status` of `\"fulfilled\"` with a `value`, or `\"rejected\"` with a `reason`, so checking `status` narrows a result like any tagged union. `Promise.race` settles like the first promise to settle, success or failure, while `Promise.any` resolves with the first success.",
+      "examples": [
+        {
+          "title": "Load a page's data at once",
+          "prompt": "Load a user and their orders at the same time with `Promise.all`, and log each load as it finishes.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\ntype User = { id: number; name: string };\ntype Order = { id: string; userId: number; totalCents: number };\n\nasync function loadUser(id: number): Promise<User> {\n  await sleep(30);\n  console.log(\"user loaded\");\n  return { id, name: \"Ada\" };\n}\n\nasync function loadOrders(userId: number): Promise<Order[]> {\n  await sleep(10);\n  console.log(\"orders loaded\");\n  return [\n    { id: \"o-1\", userId, totalCents: 1299 },\n    { id: \"o-2\", userId, totalCents: 450 },\n  ];\n}\n\nconst results = await Promise.all([loadUser(1), loadOrders(1)]);\n//    ^? const results: [User, Order[]]\nconst [user, orders] = results;\nconst spent = orders.reduce((sum, o) => sum + o.totalCents, 0);\nconsole.log(`${user.name}: ${orders.length} orders, $${(spent / 100).toFixed(2)}`);\n",
+          "output": "orders loaded\nuser loaded\nAda: 2 orders, $17.49",
+          "explanation": "Both loads start at once, so the pair takes about 30 ms instead of 40. The orders finish first, as the log shows, but `Promise.all` keeps the input order: the user comes first in the result because `loadUser(1)` comes first in the array. The bubble shows the tuple `[User, Order[]]`, so destructuring gives `user` and `orders` their own types with no annotations."
+        },
+        {
+          "title": "An optional widget fails",
+          "prompt": "Load three dashboard widgets with `Promise.allSettled`, and show the one that fails as unavailable instead of failing the whole page.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nasync function loadWeather(): Promise<string> {\n  await sleep(10);\n  return \"12°C and cloudy\";\n}\n\nasync function loadNews(): Promise<string> {\n  await sleep(20);\n  throw new Error(\"news service timed out\");\n}\n\nasync function loadQuote(): Promise<string> {\n  await sleep(15);\n  return \"Make it work, then make it fast.\";\n}\n\nfunction show(name: string, result: PromiseSettledResult<string>): string {\n  if (result.status === \"fulfilled\") {\n    return `${name}: ${result.value}`;\n    //                 ^? (parameter) result: PromiseFulfilledResult<string>\n  }\n  const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);\n  return `${name}: unavailable (${reason})`;\n}\n\nconst [weather, news, quote] = await Promise.allSettled([loadWeather(), loadNews(), loadQuote()]);\nconsole.log(show(\"weather\", weather));\nconsole.log(show(\"news\", news));\nconsole.log(show(\"quote\", quote));\n",
+          "output": "weather: 12°C and cloudy\nnews: unavailable (news service timed out)\nquote: Make it work, then make it fast.",
+          "explanation": "`Promise.allSettled` waits for all three widgets, so the failing news widget doesn't take the others down with it. Each result is a `PromiseSettledResult<string>`, a union tagged by `status`. After `result.status === \"fulfilled\"`, the bubble shows the fulfilled member, which has `value`. The rejected member has `reason` instead, typed `any`, because a promise can reject with anything. So `show` checks it with `instanceof Error`, just like a caught error, before it reads `message`."
+        },
+        {
+          "title": "race and any",
+          "prompt": "Ask three mirrors for the same file, where the fastest one is down, and compare what `Promise.race` and `Promise.any` give you.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nasync function fetchFrom(mirror: string, ms: number, up: boolean): Promise<string> {\n  await sleep(ms);\n  if (!up) {\n    throw new Error(`${mirror} is down`);\n  }\n  return mirror;\n}\n\nfunction mirrors(): Promise<string>[] {\n  return [fetchFrom(\"eu\", 10, false), fetchFrom(\"us\", 30, true), fetchFrom(\"asia\", 50, true)];\n}\n\ntry {\n  const first = await Promise.race(mirrors());\n  console.log(`race: ${first}`);\n} catch (err) {\n  console.log(`race failed: ${err instanceof Error ? err.message : String(err)}`);\n}\n\nconst winner = await Promise.any(mirrors());\n//    ^? const winner: string\nconsole.log(`any: ${winner}`);\n",
+          "output": "race failed: eu is down\nany: us",
+          "explanation": "`mirrors()` starts three fresh requests for each call. `Promise.race` settles with whichever promise settles first, and that's the `eu` mirror failing at 10 ms, so the race rejects. `Promise.any` skips failures and waits for the first success, `us` at 30 ms. Both return a `Promise<string>` here, so `winner` is a `string`. When every promise rejects, `Promise.any` rejects with an `AggregateError`, which the Error Handling with Types lesson covers."
+        }
+      ],
+      "practice": {
+        "title": "Dashboard",
+        "prompt": "Load what a dashboard shows at the same time, and keep the page working when its optional part fails.\n\n1. Load the profile, the orders, and the notifications with one `Promise.all`, and destructure the three results.\n2. Load the recommendations with `Promise.allSettled`. They always fail here.\n3. Print the four lines below. The orders line shows how many orders there are and their total in dollars.\n4. Print `recommendations: ` followed by the titles joined with `, ` when they load, and `recommendations: unavailable` when they don't.\n\nExpected output:\n\n```text\nprofile: Ada (pro)\norders: 2, total $43.98\nnotifications: 3 unread\nrecommendations: unavailable\n```",
+        "starter": "import { setTimeout as sleep } from \"node:timers/promises\";\n\ntype Profile = { name: string; plan: \"free\" | \"pro\" };\ntype Order = { id: string; totalCents: number };\n\nasync function loadProfile(): Promise<Profile> {\n  await sleep(30);\n  return { name: \"Ada\", plan: \"pro\" };\n}\n\nasync function loadOrders(): Promise<Order[]> {\n  await sleep(20);\n  return [\n    { id: \"o-1\", totalCents: 1299 },\n    { id: \"o-2\", totalCents: 3099 },\n  ];\n}\n\nasync function loadNotifications(): Promise<string[]> {\n  await sleep(10);\n  return [\"Order o-2 shipped\", \"New sign-in\", \"Weekly report ready\"];\n}\n\nasync function loadRecommendations(): Promise<string[]> {\n  await sleep(15);\n  throw new Error(\"recommendation service is down\");\n}\n\n// TODO: load the profile, orders, and notifications with one Promise.all\n// TODO: load the recommendations with Promise.allSettled\n// TODO: print the four lines\n",
+        "solution": "import { setTimeout as sleep } from \"node:timers/promises\";\n\ntype Profile = { name: string; plan: \"free\" | \"pro\" };\ntype Order = { id: string; totalCents: number };\n\nasync function loadProfile(): Promise<Profile> {\n  await sleep(30);\n  return { name: \"Ada\", plan: \"pro\" };\n}\n\nasync function loadOrders(): Promise<Order[]> {\n  await sleep(20);\n  return [\n    { id: \"o-1\", totalCents: 1299 },\n    { id: \"o-2\", totalCents: 3099 },\n  ];\n}\n\nasync function loadNotifications(): Promise<string[]> {\n  await sleep(10);\n  return [\"Order o-2 shipped\", \"New sign-in\", \"Weekly report ready\"];\n}\n\nasync function loadRecommendations(): Promise<string[]> {\n  await sleep(15);\n  throw new Error(\"recommendation service is down\");\n}\n\nconst [profile, orders, notifications] = await Promise.all([\n  loadProfile(),\n  loadOrders(),\n  loadNotifications(),\n]);\nconst [recommendations] = await Promise.allSettled([loadRecommendations()]);\n\nconst spent = orders.reduce((sum, o) => sum + o.totalCents, 0);\nconsole.log(`profile: ${profile.name} (${profile.plan})`);\nconsole.log(`orders: ${orders.length}, total $${(spent / 100).toFixed(2)}`);\nconsole.log(`notifications: ${notifications.length} unread`);\nif (recommendations.status === \"fulfilled\") {\n  console.log(`recommendations: ${recommendations.value.join(\", \")}`);\n} else {\n  console.log(\"recommendations: unavailable\");\n}\n",
+        "tests": [
+          {
+            "output": "profile: Ada (pro)\norders: 2, total $43.98\nnotifications: 3 unread\nrecommendations: unavailable"
+          }
+        ],
+        "hints": [
+          "`const [a, b, c] = await Promise.all([...])` gives each result its own type, in the order you list the calls.",
+          "`Promise.allSettled([loadRecommendations()])` resolves to a one-item tuple, so destructure it with `const [recommendations] = ...`.",
+          "Check `recommendations.status === \"fulfilled\"` before you read `recommendations.value`. The other branch prints `recommendations: unavailable`."
+        ]
+      }
+    },
+    {
+      "title": "Timeouts with AbortSignal",
+      "body": "You can't cancel a promise from outside. Instead, async APIs accept an `AbortSignal`, an object that says when to give up. `AbortSignal.timeout(ms)` makes a signal that aborts after `ms` milliseconds. Pass it as the `signal` option, and the API rejects as soon as the signal aborts:\n\n```typescript\nimport { setTimeout as sleep } from \"node:timers/promises\";\n\ntry {\n  await sleep(1000, undefined, { signal: AbortSignal.timeout(20) });\n} catch (err) {\n  console.log(err instanceof Error ? err.name : String(err)); // AbortError\n}\n```\n\n`sleep` takes its options as the third argument. `fetch`, `readFile` from `node:fs/promises`, and many other Node APIs take a `signal` too.\n\nYour own async functions can take a `signal: AbortSignal` parameter and pass it on to the APIs they call. Between steps of their own work, they can call `signal.throwIfAborted()`, which throws the signal's reason once it has aborted. `signal.aborted` is `true` from then on. A function that takes a signal should stop soon after it aborts, so check the signal inside long loops.",
+      "examples": [
+        {
+          "title": "A timed-out sleep",
+          "prompt": "Give a quick wait and a slow wait their own time limit, and print what happens to each.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nasync function wait(label: string, ms: number, limitMs: number): Promise<void> {\n  try {\n    await sleep(ms, undefined, { signal: AbortSignal.timeout(limitMs) });\n    console.log(`${label}: done after ${ms} ms`);\n  } catch (err) {\n    const name = err instanceof Error ? err.name : \"unknown error\";\n    console.log(`${label}: ${name} after ${limitMs} ms`);\n  }\n}\n\nawait wait(\"quick\", 10, 200);\nawait wait(\"slow\", 1000, 50);\n",
+          "output": "quick: done after 10 ms\nslow: AbortError after 50 ms",
+          "explanation": "Each call makes its own `AbortSignal.timeout`. The quick wait ends long before its 200 ms limit, so `sleep` resolves normally. The slow one would take a whole second, but its signal aborts at 50 ms, and `sleep` rejects right then with an `AbortError`, so the program never waits out the second. The `catch` variable is `unknown`, as always, so the code checks `instanceof Error` before it reads `name`."
+        },
+        {
+          "title": "Passing a signal through",
+          "prompt": "Build a report in four steps with a 200 ms limit, checking the signal before each step.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\ntype Step = { name: string; ms: number };\n\nconst steps: Step[] = [\n  { name: \"load rows\", ms: 10 },\n  { name: \"add totals\", ms: 10 },\n  { name: \"render PDF\", ms: 400 },\n  { name: \"email it\", ms: 10 },\n];\n\nasync function buildReport(signal: AbortSignal): Promise<number> {\n  let done = 0;\n  for (const step of steps) {\n    signal.throwIfAborted();\n    await sleep(step.ms);\n    console.log(`finished ${step.name}`);\n    done++;\n  }\n  return done;\n}\n\ntry {\n  const done = await buildReport(AbortSignal.timeout(200));\n  console.log(`report ready after ${done} steps`);\n} catch (err) {\n  console.log(`report stopped: ${err instanceof Error ? err.name : String(err)}`);\n}\n",
+          "output": "finished load rows\nfinished add totals\nfinished render PDF\nreport stopped: TimeoutError",
+          "explanation": "`buildReport` takes the signal as a parameter and checks it before every step. The limit passes while the PDF renders, but nothing interrupts that step, because `sleep(step.ms)` wasn't given the signal. The next check, before emailing, finds the signal aborted, and `throwIfAborted` throws its reason, a `TimeoutError`. Pass the signal into each step as well, as `sleep(step.ms, undefined, { signal })`, and the render itself stops at 200 ms with an `AbortError`."
+        },
+        {
+          "title": "A withTimeout helper",
+          "prompt": "Write a generic `withTimeout` that hands work a signal and turns a timeout into a value you can check, then use it on a fast and a slow stock lookup.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nasync function withTimeout<T>(\n  work: (signal: AbortSignal) => Promise<T>,\n  ms: number,\n): Promise<T | \"timeout\"> {\n  const signal = AbortSignal.timeout(ms);\n  try {\n    return await work(signal);\n  } catch (err) {\n    if (signal.aborted) {\n      return \"timeout\";\n    }\n    throw err;\n  }\n}\n\nasync function fetchStock(delayMs: number, signal: AbortSignal): Promise<number> {\n  await sleep(delayMs, undefined, { signal });\n  return 12;\n}\n\nconst fast = await withTimeout((signal) => fetchStock(10, signal), 100);\n//    ^? const fast: number | \"timeout\"\nconsole.log(`fast: ${fast}`);\n\nconst slow = await withTimeout((signal) => fetchStock(1000, signal), 100);\nif (slow === \"timeout\") {\n  console.log(\"slow: gave up after 100 ms\");\n} else {\n  console.log(`slow: ${slow.toFixed(0)} in stock`);\n}\n",
+          "output": "fast: 12\nslow: gave up after 100 ms",
+          "explanation": "`withTimeout` makes the signal, hands it to the work, and turns an abort into the string `\"timeout\"`. The return type `Promise<T | \"timeout\">` puts that outcome in the type, so `fast` is `number | \"timeout\"`, as the bubble shows, and code has to rule out `\"timeout\"` before it treats a result as a number, as the `else` branch does before it calls `toFixed`. Any other error is a real failure, and since `signal.aborted` is still `false` for it, it's rethrown. Write `return await` inside `try`: a plain `return work(signal)` hands back the promise before it settles, and its rejection skips this `catch`."
+        }
+      ],
+      "practice": {
+        "title": "Slow services",
+        "prompt": "Give two services a 50 ms time limit, and report which one answered in time.\n\n1. Export `withTimeout<T>(work: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T | \"timeout\">`. It runs `work` with a signal that aborts after `ms` milliseconds, and resolves to `\"timeout\"` when that signal aborted.\n2. Rethrow any error that isn't a timeout.\n3. For each service, call `withTimeout` with work that runs `ping(service, signal)` and a 50 ms limit. Print `<name>: <result>`.\n4. Keep `export`: hidden type tests import `withTimeout` from your file.\n\nExpected output:\n\n```text\nfast: ok\nslow: timeout\n```",
+        "starter": "import { setTimeout as sleep } from \"node:timers/promises\";\n\ntype Service = { name: string; delayMs: number };\n\nconst services: Service[] = [\n  { name: \"fast\", delayMs: 10 },\n  { name: \"slow\", delayMs: 500 },\n];\n\nasync function ping(service: Service, signal: AbortSignal): Promise<string> {\n  await sleep(service.delayMs, undefined, { signal });\n  return \"ok\";\n}\n\n// TODO: run work with a signal from AbortSignal.timeout(ms), resolve to\n// \"timeout\" when that signal aborted, and rethrow any other error\nexport async function withTimeout<T>(\n  work: (signal: AbortSignal) => Promise<T>,\n  ms: number,\n): Promise<T | \"timeout\"> {\n  return \"timeout\";\n}\n\nfor (const service of services) {\n  // TODO: print \"<name>: <result>\" for ping(service, signal) with a 50 ms limit\n}\n",
+        "solution": "import { setTimeout as sleep } from \"node:timers/promises\";\n\ntype Service = { name: string; delayMs: number };\n\nconst services: Service[] = [\n  { name: \"fast\", delayMs: 10 },\n  { name: \"slow\", delayMs: 500 },\n];\n\nasync function ping(service: Service, signal: AbortSignal): Promise<string> {\n  await sleep(service.delayMs, undefined, { signal });\n  return \"ok\";\n}\n\nexport async function withTimeout<T>(\n  work: (signal: AbortSignal) => Promise<T>,\n  ms: number,\n): Promise<T | \"timeout\"> {\n  const signal = AbortSignal.timeout(ms);\n  try {\n    return await work(signal);\n  } catch (err) {\n    if (signal.aborted) {\n      return \"timeout\";\n    }\n    throw err;\n  }\n}\n\nfor (const service of services) {\n  const result = await withTimeout((signal) => ping(service, signal), 50);\n  console.log(`${service.name}: ${result}`);\n}\n",
+        "tests": [
+          {
+            "output": "fast: ok\nslow: timeout"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { withTimeout } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "resolves to the work's type or timeout",
+              "expect": "ok",
+              "code": "const r: string | \"timeout\" = await withTimeout(async () => \"x\", 10);"
+            },
+            {
+              "name": "a timeout is a possible result",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const n: number = await withTimeout(async () => 1, 10);"
+            },
+            {
+              "name": "the work receives the signal",
+              "expect": "ok",
+              "code": "const r: boolean | \"timeout\" = await withTimeout(async (signal) => signal.aborted, 10);"
+            },
+            {
+              "name": "the limit is a number of milliseconds",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "withTimeout(async () => 1, \"50\");"
+            }
+          ]
+        },
+        "hints": [
+          "Make the signal first with `const signal = AbortSignal.timeout(ms);`, then call `work(signal)` inside `try`, as `withTimeout` does in the last example.",
+          "Write `return await work(signal);` so a rejection lands in your `catch`. There, return `\"timeout\"` when `signal.aborted` is `true`, and `throw err` otherwise.",
+          "In the loop, `await withTimeout((signal) => ping(service, signal), 50)` resolves to `ok` or `timeout`, ready to print."
+        ]
+      }
+    },
+    {
+      "title": "Async generators and for await",
+      "body": "A generator function, `function*`, produces values one at a time with `yield`. An async generator, `async function*`, can also `await` between values, which suits data that arrives over time, like pages from an API. Its return type is `AsyncGenerator<T>`, where `T` is the type of each value it yields. Read one with `for await`, which waits for each value in turn:\n\n```typescript\nimport { setTimeout as sleep } from \"node:timers/promises\";\n\nasync function* ticks(count: number): AsyncGenerator<number> {\n  for (let i = 1; i <= count; i++) {\n    await sleep(5);\n    yield i;\n  }\n}\n\nfor await (const tick of ticks(2)) {\n  console.log(`tick ${tick}`);\n}\nconsole.log(await Array.fromAsync(ticks(3))); // [ 1, 2, 3 ]\n```\n\nA generator's code runs only when you ask for the next value, and `break` out of a `for await` loop stops it for good. `Array.fromAsync` reads a generator to the end and resolves to an array of every value, as the last line shows.",
+      "examples": [
+        {
+          "title": "Countdown",
+          "prompt": "Count down from 3 with a pause before each number, then lift off.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nasync function* countdown(from: number): AsyncGenerator<number> {\n  for (let n = from; n > 0; n--) {\n    await sleep(10);\n    yield n;\n  }\n}\n\nfor await (const n of countdown(3)) {\n  //             ^? const n: number\n  console.log(n);\n}\nconsole.log(\"liftoff\");\n",
+          "output": "3\n2\n1\nliftoff",
+          "explanation": "`countdown` waits 10 ms before each number, then yields it. Its return type `AsyncGenerator<number>` says every yielded value is a number, so `n` in the loop is a `number`, as the bubble shows, and a `yield \"three\"` inside would be TS2322. `for await` asks for the next number only after the loop body has run, and the loop ends when the generator's own loop does, so `liftoff` prints last."
+        },
+        {
+          "title": "Pages, stopped early",
+          "prompt": "Search a product catalog that arrives one page at a time, and stop as soon as you find the cup.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\ntype Product = { sku: string; name: string };\n\nconst PAGES: Product[][] = [\n  [{ sku: \"MUG-01\", name: \"Mug\" }, { sku: \"TEA-02\", name: \"Teapot\" }],\n  [{ sku: \"CUP-03\", name: \"Cup\" }, { sku: \"POT-04\", name: \"Pot\" }],\n  [{ sku: \"JUG-05\", name: \"Jug\" }],\n];\n\nasync function* products(): AsyncGenerator<Product> {\n  for (const [i, page] of PAGES.entries()) {\n    console.log(`fetching page ${i + 1}`);\n    await sleep(10);\n    for (const product of page) {\n      yield product;\n    }\n  }\n}\n\nfor await (const product of products()) {\n  console.log(`checking ${product.sku}`);\n  if (product.name === \"Cup\") {\n    console.log(`found the cup: ${product.sku}`);\n    break;\n  }\n}\n",
+          "output": "fetching page 1\nchecking MUG-01\nchecking TEA-02\nfetching page 2\nchecking CUP-03\nfound the cup: CUP-03",
+          "explanation": "The generator fetches a page only when the loop needs its first product, which is why `fetching page 2` prints after the products of page 1. The cup is on page 2, and `break` stops the generator there, so page 3 is never fetched. Pages from a real API work the same way: the loop reads as if the whole catalog were an array, and you only pay for the pages you use."
+        },
+        {
+          "title": "Collect with Array.fromAsync",
+          "prompt": "Collect every product from the same paged catalog into arrays, once whole and once mapped to SKUs.",
+          "code": "import { setTimeout as sleep } from \"node:timers/promises\";\n\ntype Product = { sku: string; name: string };\n\nconst PAGES: Product[][] = [\n  [{ sku: \"MUG-01\", name: \"Mug\" }, { sku: \"TEA-02\", name: \"Teapot\" }],\n  [{ sku: \"CUP-03\", name: \"Cup\" }, { sku: \"POT-04\", name: \"Pot\" }],\n  [{ sku: \"JUG-05\", name: \"Jug\" }],\n];\n\nasync function* products(): AsyncGenerator<Product> {\n  for (const page of PAGES) {\n    await sleep(10);\n    for (const product of page) {\n      yield product;\n    }\n  }\n}\n\nconst all = await Array.fromAsync(products());\n//    ^? const all: Product[]\nconsole.log(`${all.length} products: ${all.map((p) => p.name).join(\", \")}`);\n\nconst skus = await Array.fromAsync(products(), (p) => p.sku);\n//    ^? const skus: string[]\nconsole.log(skus.join(\", \"));\n",
+          "output": "5 products: Mug, Teapot, Cup, Pot, Jug\nMUG-01, TEA-02, CUP-03, POT-04, JUG-05",
+          "explanation": "`Array.fromAsync` reads a generator to the end and resolves to an array, typed `Product[]` because the generator is an `AsyncGenerator<Product>`. Its optional second argument maps each value as it arrives, so the second call resolves to a `string[]`. Collecting is the simplest way to read everything, but it waits for every page and holds them all in memory. Use `for await` when you can handle values one at a time or might stop early."
+        }
+      ],
+      "practice": {
+        "title": "Paginated reader",
+        "prompt": "Read every fruit from a paged API with an async generator that follows its cursors.\n\n1. Export `readAll(fetchPage: (cursor: string | null) => Promise<Page<string>>): AsyncGenerator<string>` as an `async function*`.\n2. Fetch the first page with the cursor `null`, and yield each of its items. Then fetch the page that `nextCursor` names, and keep going until `nextCursor` is `null`.\n3. Print every fruit from `readAll(fetchFruit)` with `for await`, one per line. `fetchFruit` logs each fetch itself, so a lazy reader prints those lines between the fruits.\n4. Keep `export`: hidden type tests import `readAll` from your file.\n\nExpected output:\n\n```text\nfetch first page\napple\nbanana\nfetch p2\ncherry\nfetch p3\ndamson\nelderberry\n```",
+        "starter": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nexport type Page<T> = { items: T[]; nextCursor: string | null };\n\nasync function fetchFruit(cursor: string | null): Promise<Page<string>> {\n  console.log(`fetch ${cursor ?? \"first page\"}`);\n  await sleep(5);\n  if (cursor === null) {\n    return { items: [\"apple\", \"banana\"], nextCursor: \"p2\" };\n  }\n  if (cursor === \"p2\") {\n    return { items: [\"cherry\"], nextCursor: \"p3\" };\n  }\n  return { items: [\"damson\", \"elderberry\"], nextCursor: null };\n}\n\n// TODO: fetch the first page with a null cursor, yield each of its items,\n// then follow nextCursor until it is null\nexport async function* readAll(\n  fetchPage: (cursor: string | null) => Promise<Page<string>>,\n): AsyncGenerator<string> {}\n\n// TODO: print every fruit from readAll(fetchFruit) with for await\n",
+        "solution": "import { setTimeout as sleep } from \"node:timers/promises\";\n\nexport type Page<T> = { items: T[]; nextCursor: string | null };\n\nasync function fetchFruit(cursor: string | null): Promise<Page<string>> {\n  console.log(`fetch ${cursor ?? \"first page\"}`);\n  await sleep(5);\n  if (cursor === null) {\n    return { items: [\"apple\", \"banana\"], nextCursor: \"p2\" };\n  }\n  if (cursor === \"p2\") {\n    return { items: [\"cherry\"], nextCursor: \"p3\" };\n  }\n  return { items: [\"damson\", \"elderberry\"], nextCursor: null };\n}\n\nexport async function* readAll(\n  fetchPage: (cursor: string | null) => Promise<Page<string>>,\n): AsyncGenerator<string> {\n  let cursor: string | null = null;\n  while (true) {\n    const page = await fetchPage(cursor);\n    for (const item of page.items) {\n      yield item;\n    }\n    if (page.nextCursor === null) {\n      return;\n    }\n    cursor = page.nextCursor;\n  }\n}\n\nfor await (const fruit of readAll(fetchFruit)) {\n  console.log(fruit);\n}\n",
+        "tests": [
+          {
+            "output": "fetch first page\napple\nbanana\nfetch p2\ncherry\nfetch p3\ndamson\nelderberry"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { readAll } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "is an async generator of strings",
+              "expect": "ok",
+              "code": "const g: AsyncGenerator<string> = readAll(async () => ({ items: [], nextCursor: null }));"
+            },
+            {
+              "name": "yields strings, not numbers",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const g: AsyncGenerator<number> = readAll(async () => ({ items: [], nextCursor: null }));"
+            },
+            {
+              "name": "each page needs a nextCursor",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "readAll(async () => ({ items: [\"a\"] }));"
+            },
+            {
+              "name": "works with for await",
+              "expect": "ok",
+              "code": "for await (const item of readAll(async () => ({ items: [\"a\"], nextCursor: null }))) { const s: string = item; }"
+            }
+          ]
+        },
+        "hints": [
+          "Keep the cursor in a variable that starts as `null`, the cursor of the first page: `let cursor: string | null = null;`.",
+          "Loop: `const page = await fetchPage(cursor);`, `yield` each item of `page.items`, then stop when `page.nextCursor` is `null`, or set `cursor` to it and go around again.",
+          "Print with `for await (const fruit of readAll(fetchFruit))`. Each fetch line lands between the fruits because a page is fetched only when the loop asks for its first item."
+        ]
+      }
+    }
+  ],
+  "recap": "- An `async` function returns `Promise<T>`, and `await` unwraps it to a `T`. Forget `await`, and the checker reports that you're holding a promise.\n- `main.ts` is an ES module, so `await` works at the top level.\n- `Promise.all` runs promises at once and resolves to a typed tuple in input order. It rejects on the first failure.\n- `Promise.allSettled` never rejects. Narrow each result by `status`, and treat `reason`, typed `any`, like a caught error.\n- `Promise.race` settles like the first promise to settle, and `Promise.any` resolves with the first success.\n- `AbortSignal.timeout(ms)` aborts after a delay. Pass a `signal` to APIs that take one, and call `signal.throwIfAborted()` between steps of your own.\n- An `async function*` returns `AsyncGenerator<T>`. Read it with `for await`, stop it with `break`, or collect it with `Array.fromAsync`."
+}

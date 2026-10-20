@@ -1,0 +1,186 @@
+{
+  "id": "zod-basics",
+  "title": "Runtime Validation with zod",
+  "section": "Data at the Edges",
+  "summary": "Describe data once as a zod schema, derive its type with z.infer, and check input at run time with parse and safeParse and readable errors.",
+  "intro": "Hand-written validators work, but every field costs several lines, and the shape is written twice: once as a type and once as checks. zod is the validation library you'll meet most often in TypeScript codebases. You describe the data once, as a **schema**, which is an ordinary value that checks data at run time, and TypeScript derives the static type from it, so the two can never disagree. The course sandbox has zod 4 installed, and you import it as `import * as z from \"zod\"`.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Schemas and z.infer",
+      "body": "A schema describes a shape with the functions on `z`. Its `parse` method checks a value and returns it typed by the schema, or throws a `ZodError`:\n\n```typescript\nimport * as z from \"zod\";\n\nconst Point = z.object({ x: z.number(), y: z.number() });\nconst point = Point.parse(JSON.parse('{\"x\": 3, \"y\": 4}'));\nconsole.log(point.x + point.y); // 7\n```\n\nYou never write the type yourself. `z.infer<typeof Point>` derives it from the schema. A type and a value can share a name, so the type is usually named after its schema:\n\n```typescript types\nimport * as z from \"zod\";\n\nconst Point = z.object({ x: z.number(), y: z.number() });\ntype Point = z.infer<typeof Point>;\n//   ^? type Point = { x: number; y: number; }\n```\n\nMethods add rules: `z.string().min(1).max(80)`, `.regex(/^[A-Z]+$/)`, `z.number().int().min(0)`, and formats like `z.email()` and `z.iso.datetime()`. `z.enum([\"admin\", \"member\"])` accepts one string from a list, and `z.array(item)` an array of items. On a field, `.optional()` lets it be missing, `.nullable()` allows `null`, and `.default(value)` fills it in when it's missing. `z.object` also drops any key the schema doesn't name.",
+      "examples": [
+        {
+          "title": "A User schema",
+          "prompt": "Describe a user as a schema, derive its type, and parse a user from stdin.",
+          "code": "import { readFileSync } from \"node:fs\";\nimport * as z from \"zod\";\n\nconst User = z.object({\n  id: z.number().int(),\n  name: z.string().min(1),\n  email: z.email(),\n  role: z.enum([\"admin\", \"member\"]),\n});\ntype User = z.infer<typeof User>;\n//   ^? type User = { id: number; name: string; email: string; role: \"admin\" | \"member\"; }\n\nconst user: User = User.parse(JSON.parse(readFileSync(0, \"utf8\")));\nconsole.log(`${user.name} <${user.email}>, role ${user.role}`);\nconsole.log(JSON.stringify(user));\n",
+          "stdin": "{\"id\": 1, \"name\": \"Ada\", \"email\": \"ada@example.com\", \"role\": \"admin\", \"team\": \"compilers\"}\n",
+          "output": "Ada <ada@example.com>, role admin\n{\"id\":1,\"name\":\"Ada\",\"email\":\"ada@example.com\",\"role\":\"admin\"}",
+          "explanation": "The schema is a value built from `z` functions, and `z.infer<typeof User>` turns it into the type in the bubble, where `role` is the union of the two strings from `z.enum`. `User.parse` checks the parsed JSON against every rule and returns it typed as `User`, so the `any` from `JSON.parse` never gets through. The input had a `team` key that the schema doesn't name, and `parse` dropped it, as the second line shows. Change the schema, and the type changes with it."
+        },
+        {
+          "title": "parse throws",
+          "prompt": "Parse two users, one of them broken in four ways, and print zod's error for the broken one.",
+          "code": "import * as z from \"zod\";\n\nconst User = z.object({\n  id: z.number().int(),\n  name: z.string().min(1),\n  email: z.email(),\n  role: z.enum([\"admin\", \"member\"]),\n});\n\nconst inputs: unknown[] = [\n  { id: 2, name: \"Grace\", email: \"grace@example.com\", role: \"member\" },\n  { id: 1.5, name: \"\", email: \"ada\", role: \"owner\" },\n];\n\nfor (const input of inputs) {\n  try {\n    const user = User.parse(input);\n    console.log(`parsed ${user.name}`);\n  } catch (err) {\n    if (err instanceof z.ZodError) {\n      console.log(z.prettifyError(err));\n    } else {\n      throw err;\n    }\n  }\n}\n",
+          "output": "parsed Grace\n✖ Invalid input: expected int, received number\n  → at id\n✖ Too small: expected string to have >=1 characters\n  → at name\n✖ Invalid email address\n  → at email\n✖ Invalid option: expected one of \"admin\"|\"member\"\n  → at role",
+          "explanation": "`parse` checks the whole object before it throws, so the `ZodError` lists all four problems, not just the first one. `err` is `unknown` in the `catch`, and `err instanceof z.ZodError` narrows it, so `z.prettifyError(err)` type-checks. It writes each issue's message, then the issue's path after `→ at`. Anything that isn't a `ZodError` is a bug rather than bad input, so the `catch` throws it again."
+        },
+        {
+          "title": "Optional, nullable, and default",
+          "prompt": "Parse a profile that leaves out its optional fields, and compare the inferred type with what `parse` returns.",
+          "code": "import * as z from \"zod\";\n\nconst Profile = z.object({\n  name: z.string(),\n  bio: z.string().optional(),\n  avatarUrl: z.string().nullable(),\n  theme: z.enum([\"light\", \"dark\"]).default(\"light\"),\n  joinedAt: z.iso.datetime(),\n});\ntype Profile = z.infer<typeof Profile>;\n//   ^? type Profile = { name: string; bio?: string | undefined; avatarUrl: string | null; theme: \"dark\" | \"light\"; joinedAt: string; }\n\nconst profile = Profile.parse({ name: \"Ada\", avatarUrl: null, joinedAt: \"2026-10-01T09:00:00Z\" });\nconsole.log(JSON.stringify(profile));\nconsole.log(profile.bio ?? \"(no bio)\");\n",
+          "output": "{\"name\":\"Ada\",\"avatarUrl\":null,\"theme\":\"light\",\"joinedAt\":\"2026-10-01T09:00:00Z\"}\n(no bio)",
+          "explanation": "Each modifier shows up in the bubble. `.optional()` makes `bio` an optional property, and zod also accepts an explicit `undefined` there, so its type says `string | undefined`. `.nullable()` keeps `avatarUrl` required but lets it be `null`. `.default(\"light\")` lets `theme` be missing from the input, but `parse` fills it in, so the inferred type has `theme` as a required property, and the output shows `\"light\"`. `z.iso.datetime()` accepts only an ISO 8601 date and time, like `2026-10-01T09:00:00Z`, and its type stays `string`."
+        }
+      ],
+      "practice": {
+        "title": "Product schema",
+        "prompt": "Describe a product as a schema, and use it to check a product from stdin.\n\n1. Give the exported `Product` schema these rules, keeping its fields in this order: `sku` is a string matching `/^[A-Z]{3}-\\d{3}$/`, like `MUG-001`. `name` is a string of 1 to 80 characters. `priceCents` is a whole number of at least 0. `tags` is an array of strings that defaults to `[]`.\n2. Export `type Product`, inferred from the schema.\n3. Parse the input with `Product.parse` inside `try`, and print the product with `JSON.stringify`.\n4. When `parse` throws a `ZodError`, print `z.prettifyError(err)` instead. Its errors come in the order of the schema's fields.\n\nInput:\n\n```text\n{\"sku\": \"MUG-001\", \"name\": \"Ceramic Mug\", \"priceCents\": 1299}\n```\n\nExpected output:\n\n```text\n{\"sku\":\"MUG-001\",\"name\":\"Ceramic Mug\",\"priceCents\":1299,\"tags\":[]}\n```",
+        "starter": "import { readFileSync } from \"node:fs\";\nimport * as z from \"zod\";\n\n// TODO: add the rules from the prompt to each field\nexport const Product = z.object({\n  sku: z.string(),\n  name: z.string(),\n  priceCents: z.number(),\n  tags: z.array(z.string()),\n});\n// TODO: export type Product, inferred from the schema\n\nconst data: unknown = JSON.parse(readFileSync(0, \"utf8\"));\n// TODO: parse data inside try and print it with JSON.stringify,\n// or print z.prettifyError(err) when parse throws a ZodError\n",
+        "solution": "import { readFileSync } from \"node:fs\";\nimport * as z from \"zod\";\n\nexport const Product = z.object({\n  sku: z.string().regex(/^[A-Z]{3}-\\d{3}$/),\n  name: z.string().min(1).max(80),\n  priceCents: z.number().int().min(0),\n  tags: z.array(z.string()).default([]),\n});\nexport type Product = z.infer<typeof Product>;\n\nconst data: unknown = JSON.parse(readFileSync(0, \"utf8\"));\ntry {\n  const product: Product = Product.parse(data);\n  console.log(JSON.stringify(product));\n} catch (err) {\n  if (err instanceof z.ZodError) {\n    console.log(z.prettifyError(err));\n  } else {\n    throw err;\n  }\n}\n",
+        "tests": [
+          {
+            "stdin": "{\"sku\": \"MUG-001\", \"name\": \"Ceramic Mug\", \"priceCents\": 1299}\n",
+            "output": "{\"sku\":\"MUG-001\",\"name\":\"Ceramic Mug\",\"priceCents\":1299,\"tags\":[]}"
+          },
+          {
+            "stdin": "{\"sku\": \"TEA-104\", \"name\": \"Green Tea\", \"priceCents\": 450, \"tags\": [\"drinks\", \"organic\"], \"stock\": 12}\n",
+            "output": "{\"sku\":\"TEA-104\",\"name\":\"Green Tea\",\"priceCents\":450,\"tags\":[\"drinks\",\"organic\"]}"
+          },
+          {
+            "stdin": "{\"sku\": \"mug-1\", \"name\": \"\", \"priceCents\": 12.5, \"tags\": \"sale\"}\n",
+            "output": "✖ Invalid string: must match pattern /^[A-Z]{3}-\\d{3}$/\n  → at sku\n✖ Too small: expected string to have >=1 characters\n  → at name\n✖ Invalid input: expected int, received number\n  → at priceCents\n✖ Invalid input: expected array, received string\n  → at tags"
+          }
+        ],
+        "hints": [
+          "Chain the rules onto each field: `z.string().regex(/^[A-Z]{3}-\\d{3}$/)`, `z.string().min(1).max(80)`, and `z.number().int().min(0)`.",
+          "`z.array(z.string()).default([])` fills in `[]` when `tags` is missing. Then add `export type Product = z.infer<typeof Product>;`.",
+          "In the `catch`, check `err instanceof z.ZodError` before you call `z.prettifyError(err)`, as the parse throws example does."
+        ]
+      }
+    },
+    {
+      "title": "safeParse and error messages",
+      "body": "`parse` throws, which suits code that can't go on without valid data. Where bad input is normal, like a form or a request body, use `safeParse`. It never throws, and returns a result tagged by `success`:\n\n```typescript\nimport * as z from \"zod\";\n\nconst result = z.number().int().safeParse(2.5);\nif (!result.success) {\n  console.log(result.error.issues[0]?.message); // Invalid input: expected int, received number\n}\n```\n\nWhen `result.success` is `true`, `result.data` has the schema's type. Otherwise `result.error` is a `ZodError` holding every issue, each with a `path`, a `code`, and a `message`. zod formats them three ways, one for each kind of reader:\n\n- `z.prettifyError(error)` is one readable string, for logs and command-line tools.\n- `z.flattenError(error).fieldErrors` maps each top-level field to its messages, for forms.\n- `error.issues` is the raw list, with paths and codes, for API responses.\n\nEvery check takes a custom message, as a string or as `{ error: \"...\" }`. Given to a schema like `z.enum` instead, the `error` replaces every message that schema can give.",
+      "examples": [
+        {
+          "title": "safeParse returns a result",
+          "prompt": "Check one order per line of stdin, and print each valid order or why it was rejected.",
+          "code": "import { readFileSync } from \"node:fs\";\nimport * as z from \"zod\";\n\nconst Order = z.object({\n  id: z.string(),\n  qty: z.number().int().min(1),\n});\n\nconst lines = readFileSync(0, \"utf8\").trim().split(\"\\n\");\nfor (const [i, line] of lines.entries()) {\n  const result = Order.safeParse(JSON.parse(line));\n  //    ^? const result: z.ZodSafeParseResult<{ id: string; qty: number; }>\n  if (result.success) {\n    console.log(`line ${i + 1}: ${result.data.id}, qty ${result.data.qty}`);\n  } else {\n    console.log(`line ${i + 1}: rejected`);\n    console.log(z.prettifyError(result.error));\n  }\n}\n",
+          "stdin": "{\"id\": \"ord_1\", \"qty\": 2}\n{\"id\": \"ord_2\", \"qty\": 0}\n{\"id\": 3, \"qty\": 1.5}\n",
+          "output": "line 1: ord_1, qty 2\nline 2: rejected\n✖ Too small: expected number to be >=1\n  → at qty\nline 3: rejected\n✖ Invalid input: expected string, received number\n  → at id\n✖ Invalid input: expected int, received number\n  → at qty",
+          "explanation": "`safeParse` returns a `ZodSafeParseResult`, as the bubble shows: a union tagged by `success`, like the Result types you've written yourself. Inside `if (result.success)`, `result.data` has the schema's type, so `id` is a `string`. In the `else` branch, `result.error` is the `ZodError`. Nothing throws, so a bad line doesn't stop the loop, and the next line still gets checked."
+        },
+        {
+          "title": "Three error formats",
+          "prompt": "Validate a signup with three problems, and print its error in each of zod's three formats.",
+          "code": "import * as z from \"zod\";\n\nconst Signup = z.object({\n  email: z.email(),\n  password: z.string().min(8),\n  address: z.object({ city: z.string() }),\n});\n\nconst result = Signup.safeParse({ email: \"ada\", password: \"123\", address: {} });\nif (!result.success) {\n  console.log(z.prettifyError(result.error));\n  console.log(JSON.stringify(z.flattenError(result.error).fieldErrors));\n  for (const issue of result.error.issues) {\n    console.log(`${issue.code} at ${issue.path.join(\".\")}`);\n  }\n}\n",
+          "output": "✖ Invalid email address\n  → at email\n✖ Too small: expected string to have >=8 characters\n  → at password\n✖ Invalid input: expected string, received undefined\n  → at address.city\n{\"email\":[\"Invalid email address\"],\"password\":[\"Too small: expected string to have >=8 characters\"],\"address\":[\"Invalid input: expected string, received undefined\"]}\ninvalid_format at email\ntoo_small at password\ninvalid_type at address.city",
+          "explanation": "The prettified string is for a person reading a log. `fieldErrors` keys each message by its top-level field, which is what a form needs to show an error under each input, but it files the nested city under `address`, not `address.city`. `issues` keeps each full path as an array, here `[\"address\", \"city\"]` joined with dots, and a `code` like `too_small` or `invalid_type` that a program can switch on, which is why APIs send it back."
+        },
+        {
+          "title": "Custom messages",
+          "prompt": "Give an account schema messages written for its users, and see which errors each message replaces.",
+          "code": "import * as z from \"zod\";\n\nconst Account = z.object({\n  username: z.string().min(3, \"Username must be at least 3 characters\"),\n  password: z.string().min(8, { error: \"Password must be at least 8 characters\" }),\n  plan: z.enum([\"free\", \"pro\"], { error: \"Choose the free or pro plan\" }),\n});\n\nconst inputs: unknown[] = [\n  { username: \"al\", password: \"hunter2\", plan: \"gold\" },\n  { username: 42 },\n];\n\nfor (const [i, input] of inputs.entries()) {\n  const result = Account.safeParse(input);\n  if (!result.success) {\n    console.log(`input ${i + 1}:`);\n    console.log(z.prettifyError(result.error));\n  }\n}\n",
+          "output": "input 1:\n✖ Username must be at least 3 characters\n  → at username\n✖ Password must be at least 8 characters\n  → at password\n✖ Choose the free or pro plan\n  → at plan\ninput 2:\n✖ Invalid input: expected string, received number\n  → at username\n✖ Invalid input: expected string, received undefined\n  → at password\n✖ Choose the free or pro plan\n  → at plan",
+          "explanation": "A message given to a check, like `min`, replaces only that check's message. In the second input, `username` is a number, which fails before `min` runs, so zod's own message shows. The missing password fails the same way. The `error` on `z.enum` belongs to the whole schema, so it replaces every message the enum gives, for a wrong plan and a missing one alike. The string form and the `{ error }` form do the same job."
+        }
+      ],
+      "practice": {
+        "title": "Signup validation",
+        "prompt": "Validate a signup form from stdin, and print the errors a form would show.\n\n1. Finish the exported `Signup` schema. `email` is an email. `password` has at least 8 characters, with the message `Password must be at least 8 characters`. `age` is a whole number, with the message `Age must be a whole number`, and at least 13, with the message `You must be at least 13`.\n2. Check the input with `safeParse`, and print `ok` when it is valid.\n3. Otherwise print a `field: message` line for each message in `z.flattenError(error).fieldErrors`, sorted, so the order doesn't depend on the order of the schema's fields.\n\nInput:\n\n```text\n{\"email\": \"ada@example\", \"password\": \"hunter2\", \"age\": 12}\n```\n\nExpected output:\n\n```text\nage: You must be at least 13\nemail: Invalid email address\npassword: Password must be at least 8 characters\n```",
+        "starter": "import { readFileSync } from \"node:fs\";\nimport * as z from \"zod\";\n\n// TODO: add the password and age rules with the messages from the prompt\nexport const Signup = z.object({\n  email: z.email(),\n  password: z.string(),\n  age: z.number(),\n});\n\nconst data: unknown = JSON.parse(readFileSync(0, \"utf8\"));\n// TODO: safeParse data, then print \"ok\", or a \"field: message\" line\n// for each message in z.flattenError(...).fieldErrors, sorted\n",
+        "solution": "import { readFileSync } from \"node:fs\";\nimport * as z from \"zod\";\n\nexport const Signup = z.object({\n  email: z.email(),\n  password: z.string().min(8, \"Password must be at least 8 characters\"),\n  age: z.number().int(\"Age must be a whole number\").min(13, \"You must be at least 13\"),\n});\n\nconst data: unknown = JSON.parse(readFileSync(0, \"utf8\"));\nconst result = Signup.safeParse(data);\nif (result.success) {\n  console.log(\"ok\");\n} else {\n  const lines: string[] = [];\n  const { fieldErrors } = z.flattenError(result.error);\n  for (const [field, messages] of Object.entries(fieldErrors)) {\n    for (const message of messages) {\n      lines.push(`${field}: ${message}`);\n    }\n  }\n  console.log(lines.toSorted().join(\"\\n\"));\n}\n",
+        "tests": [
+          {
+            "stdin": "{\"email\": \"ada@example\", \"password\": \"hunter2\", \"age\": 12}\n",
+            "output": "age: You must be at least 13\nemail: Invalid email address\npassword: Password must be at least 8 characters"
+          },
+          {
+            "stdin": "{\"email\": \"grace@example.com\", \"password\": \"correct horse battery\", \"age\": 36}\n",
+            "output": "ok"
+          },
+          {
+            "stdin": "{\"email\": \"linus@example.com\", \"age\": 13.5}\n",
+            "output": "age: Age must be a whole number\npassword: Invalid input: expected string, received undefined"
+          }
+        ],
+        "hints": [
+          "Pass each message as the last argument of its check: `z.string().min(8, \"...\")` for the password, and `.int(\"...\")` then `.min(13, \"...\")` on the age's number.",
+          "Narrow on `result.success`. In the `else` branch, `z.flattenError(result.error).fieldErrors` is an object with an array of messages for each field that failed.",
+          "Loop over `Object.entries(fieldErrors)`, push a `field: message` line for every message, and print `lines.toSorted().join(\"\\n\")`."
+        ]
+      }
+    },
+    {
+      "title": "Unions, refine, and reuse",
+      "body": "`z.discriminatedUnion(key, options)` builds a tagged union from object schemas that share a tag field, written with `z.literal`. Its inferred type is the discriminated union you'd write by hand, so checking the tag narrows it:\n\n```typescript\nimport * as z from \"zod\";\n\nconst Shape = z.discriminatedUnion(\"kind\", [\n  z.object({ kind: z.literal(\"circle\"), radius: z.number() }),\n  z.object({ kind: z.literal(\"square\"), side: z.number() }),\n]);\nconst shape = Shape.parse({ kind: \"square\", side: 3 });\nconsole.log(shape.kind === \"square\" ? shape.side ** 2 : 0); // 9\n```\n\n`.refine(check, { error, path })` adds a rule that types can't express, like one field that depends on another. `path` names the field the issue belongs to, so the message lands on that field instead of on the whole object.\n\nObject schemas also mirror the utility types. `.pick({ id: true })` is `Pick`, `.omit` is `Omit`, `.partial()` is `Partial`, and `.extend({ ... })` adds fields. Each returns a new schema, so one base schema can serve a summary, a create form, and a patch.",
+      "examples": [
+        {
+          "title": "A union of payments",
+          "prompt": "Parse an array of payments from stdin, where each kind of payment has its own fields, and print a receipt line for each one.",
+          "code": "import { readFileSync } from \"node:fs\";\nimport * as z from \"zod\";\n\nconst Payment = z.discriminatedUnion(\"kind\", [\n  z.object({ kind: z.literal(\"card\"), last4: z.string().length(4) }),\n  z.object({ kind: z.literal(\"paypal\"), email: z.email() }),\n  z.object({ kind: z.literal(\"bank\"), iban: z.string() }),\n]);\ntype Payment = z.infer<typeof Payment>;\n//   ^? type Payment = { kind: \"card\"; last4: string; } | { kind: \"paypal\"; email: string; } | { kind: \"bank\"; iban: string; }\n\nfunction receiptLine(payment: Payment): string {\n  switch (payment.kind) {\n    case \"card\":\n      return `Paid by card ending ${payment.last4}`;\n    case \"paypal\":\n      return `Paid with PayPal (${payment.email})`;\n    case \"bank\":\n      return `Paid by bank transfer from ${payment.iban.slice(0, 4)}...${payment.iban.slice(-4)}`;\n  }\n}\n\nconst result = z.array(Payment).safeParse(JSON.parse(readFileSync(0, \"utf8\")));\nif (result.success) {\n  for (const payment of result.data) {\n    console.log(receiptLine(payment));\n  }\n} else {\n  console.log(z.prettifyError(result.error));\n}\n\nconst cash = Payment.safeParse({ kind: \"cash\" });\nif (!cash.success) {\n  console.log(z.prettifyError(cash.error));\n}\n",
+          "stdin": "[{\"kind\": \"card\", \"last4\": \"4242\"}, {\"kind\": \"paypal\", \"email\": \"ada@example.com\"}, {\"kind\": \"bank\", \"iban\": \"GB33BUKB20201555555555\"}]\n",
+          "output": "Paid by card ending 4242\nPaid with PayPal (ada@example.com)\nPaid by bank transfer from GB33...5555\n✖ Invalid discriminator value. Expected 'card' | 'paypal' | 'bank'\n  → at kind",
+          "explanation": "The bubble shows the inferred type: the same three-member union that the Discriminated Unions lesson wrote by hand, now produced by the schema. `z.discriminatedUnion` reads `kind` first and checks the rest of the object against that one member, so `receiptLine` can switch on `kind` like any tagged union. `z.array(Payment)` checks every element, and `.length(4)` requires exactly 4 characters. A payment of an unknown kind fails on the tag itself, and the message lists the kinds the schema accepts."
+        },
+        {
+          "title": "Refine across fields",
+          "prompt": "Check that each booking ends after it starts, and report the problem on the `end` field.",
+          "code": "import * as z from \"zod\";\n\nconst Booking = z\n  .object({\n    room: z.string(),\n    start: z.iso.datetime(),\n    end: z.iso.datetime(),\n  })\n  .refine((b) => Date.parse(b.end) > Date.parse(b.start), {\n    error: \"end must be after start\",\n    path: [\"end\"],\n  });\n\nconst bookings: unknown[] = [\n  { room: \"Ada\", start: \"2026-10-01T09:00:00Z\", end: \"2026-10-01T10:30:00Z\" },\n  { room: \"Babbage\", start: \"2026-10-01T11:00:00Z\", end: \"2026-10-01T10:00:00Z\" },\n  { room: \"Curie\", start: \"2026-10-01T11:00:00Z\", end: \"noon\" },\n  { room: \"Dijkstra\", start: \"2026-10-01T11:00:00Z\" },\n];\n\nfor (const input of bookings) {\n  const result = Booking.safeParse(input);\n  if (result.success) {\n    console.log(`booked ${result.data.room}`);\n  } else {\n    console.log(JSON.stringify(z.flattenError(result.error).fieldErrors));\n  }\n}\n",
+          "output": "booked Ada\n{\"end\":[\"end must be after start\"]}\n{\"end\":[\"Invalid ISO datetime\",\"end must be after start\"]}\n{\"end\":[\"Invalid input: expected string, received undefined\"]}",
+          "explanation": "The function you pass to `.refine` gets the parsed booking, already typed, and returns `true` when the booking is fine. Without `path`, its issue would belong to the whole object. With `path: [\"end\"]`, it is filed under `end`, so a form can show it next to the end time. Curie's `end` fails the datetime format, but it is still a string, so the refinement runs too: `Date.parse(\"noon\")` is `NaN`, and the comparison is `false`. The last booking has no `end` at all, and zod skips the refinement when a field has the wrong type or is missing, since the function couldn't trust its input."
+        },
+        {
+          "title": "Reusing a schema",
+          "prompt": "Derive a summary, a patch, and an extended user from one User schema, and parse with each of them.",
+          "code": "import * as z from \"zod\";\n\nconst User = z.object({\n  id: z.number().int(),\n  name: z.string(),\n  email: z.email(),\n});\n\nconst UserSummary = User.pick({ id: true, name: true });\ntype UserSummary = z.infer<typeof UserSummary>;\n//   ^? type UserSummary = { id: number; name: string; }\n\nconst UserPatch = User.partial();\ntype UserPatch = z.infer<typeof UserPatch>;\n//   ^? type UserPatch = { id?: number | undefined; name?: string | undefined; email?: string | undefined; }\n\nconst UserWithAge = User.extend({ age: z.number().int() });\n\nconst ada = { id: 1, name: \"Ada\", email: \"ada@example.com\" };\nconsole.log(JSON.stringify(UserSummary.parse(ada)));\nconsole.log(JSON.stringify(UserPatch.parse({ name: \"Ada Lovelace\" })));\nconst result = UserWithAge.safeParse(ada);\nconsole.log(result.success ? \"has an age\" : z.prettifyError(result.error));\n",
+          "output": "{\"id\":1,\"name\":\"Ada\"}\n{\"name\":\"Ada Lovelace\"}\n✖ Invalid input: expected number, received undefined\n  → at age",
+          "explanation": "Each method returns a new schema and leaves `User` as it was. `pick` keeps only the fields you name, so parsing `ada` drops her email. `partial` makes every field optional, like `Partial<User>`, which is the shape of a patch. `extend` adds `age` to the other three fields, so the same `ada` now fails, because she has no age. Change a rule in `User`, and all three follow."
+        }
+      ],
+      "practice": {
+        "title": "Webhook events",
+        "prompt": "Your shop's payment service sends webhook events in batches. Validate a batch from stdin, and print a summary line for each event.\n\n1. Make the exported `WebhookEvent` a `z.discriminatedUnion` on `type` with three members: `order.paid` with `orderId`, a string, and `amountCents`, a whole number. `order.refunded` with the same two fields and a `reason` string. `customer.deleted` with a `customerId` string.\n2. Keep `export type WebhookEvent`, inferred from the schema.\n3. Finish `summarize(event)` with one line per type: `<orderId> paid <amount>`, `<orderId> refunded <amount> (<reason>)`, or `customer <customerId> deleted`. The starter's `dollars` formats an amount, like `$12.99`.\n4. Parse the input as an array of events with `safeParse`. Print each event's summary, or `z.prettifyError` of the error when the batch is invalid.\n5. Keep `export`: hidden type tests import `WebhookEvent` from your file.\n\nInput:\n\n```text\n[{\"type\": \"order.paid\", \"orderId\": \"ord_1\", \"amountCents\": 1299}, {\"type\": \"order.refunded\", \"orderId\": \"ord_1\", \"amountCents\": 500, \"reason\": \"damaged\"}, {\"type\": \"customer.deleted\", \"customerId\": \"cus_7\"}]\n```\n\nExpected output:\n\n```text\nord_1 paid $12.99\nord_1 refunded $5.00 (damaged)\ncustomer cus_7 deleted\n```",
+        "starter": "import { readFileSync } from \"node:fs\";\nimport * as z from \"zod\";\n\n// TODO: make this a z.discriminatedUnion on \"type\" with the members\n// order.paid, order.refunded (with a reason), and customer.deleted\nexport const WebhookEvent = z.object({\n  type: z.literal(\"order.paid\"),\n  orderId: z.string(),\n  amountCents: z.number().int(),\n});\nexport type WebhookEvent = z.infer<typeof WebhookEvent>;\n\nfunction dollars(cents: number): string {\n  return `$${(cents / 100).toFixed(2)}`;\n}\n\nexport function summarize(event: WebhookEvent): string {\n  // TODO: switch on event.type and return one line for each type\n  return `${event.orderId} paid ${dollars(event.amountCents)}`;\n}\n\nconst data: unknown = JSON.parse(readFileSync(0, \"utf8\"));\n// TODO: safeParse data as an array of events, then print each event's\n// summary, or the prettified error\n",
+        "solution": "import { readFileSync } from \"node:fs\";\nimport * as z from \"zod\";\n\nexport const WebhookEvent = z.discriminatedUnion(\"type\", [\n  z.object({\n    type: z.literal(\"order.paid\"),\n    orderId: z.string(),\n    amountCents: z.number().int(),\n  }),\n  z.object({\n    type: z.literal(\"order.refunded\"),\n    orderId: z.string(),\n    amountCents: z.number().int(),\n    reason: z.string(),\n  }),\n  z.object({\n    type: z.literal(\"customer.deleted\"),\n    customerId: z.string(),\n  }),\n]);\nexport type WebhookEvent = z.infer<typeof WebhookEvent>;\n\nfunction dollars(cents: number): string {\n  return `$${(cents / 100).toFixed(2)}`;\n}\n\nexport function summarize(event: WebhookEvent): string {\n  switch (event.type) {\n    case \"order.paid\":\n      return `${event.orderId} paid ${dollars(event.amountCents)}`;\n    case \"order.refunded\":\n      return `${event.orderId} refunded ${dollars(event.amountCents)} (${event.reason})`;\n    case \"customer.deleted\":\n      return `customer ${event.customerId} deleted`;\n  }\n}\n\nconst data: unknown = JSON.parse(readFileSync(0, \"utf8\"));\nconst result = z.array(WebhookEvent).safeParse(data);\nif (result.success) {\n  for (const event of result.data) {\n    console.log(summarize(event));\n  }\n} else {\n  console.log(z.prettifyError(result.error));\n}\n",
+        "tests": [
+          {
+            "stdin": "[{\"type\": \"order.paid\", \"orderId\": \"ord_1\", \"amountCents\": 1299}, {\"type\": \"order.refunded\", \"orderId\": \"ord_1\", \"amountCents\": 500, \"reason\": \"damaged\"}, {\"type\": \"customer.deleted\", \"customerId\": \"cus_7\"}]\n",
+            "output": "ord_1 paid $12.99\nord_1 refunded $5.00 (damaged)\ncustomer cus_7 deleted"
+          },
+          {
+            "stdin": "[{\"type\": \"customer.deleted\", \"customerId\": \"cus_2\"}, {\"type\": \"order.paid\", \"orderId\": \"ord_9\", \"amountCents\": 450}, {\"type\": \"order.refunded\", \"orderId\": \"ord_9\", \"amountCents\": 450, \"reason\": \"changed mind\"}]\n",
+            "output": "customer cus_2 deleted\nord_9 paid $4.50\nord_9 refunded $4.50 (changed mind)"
+          },
+          {
+            "stdin": "[{\"type\": \"order.paid\", \"orderId\": \"ord_1\", \"amountCents\": 12.5}, {\"type\": \"order.refunded\", \"orderId\": \"ord_1\", \"amountCents\": 500}]\n",
+            "output": "✖ Invalid input: expected int, received number\n  → at [0].amountCents\n✖ Invalid input: expected string, received undefined\n  → at [1].reason"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { type WebhookEvent } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "a refund needs a reason",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const e: WebhookEvent = { type: \"order.refunded\", orderId: \"ord_1\", amountCents: 500 };"
+            },
+            {
+              "name": "accepts a deleted customer",
+              "expect": "ok",
+              "code": "const e: WebhookEvent = { type: \"customer.deleted\", customerId: \"cus_7\" };"
+            }
+          ]
+        },
+        "hints": [
+          "Each member is a `z.object` whose `type` is a `z.literal`, as in the payments example. Pass the three objects in an array to `z.discriminatedUnion(\"type\", [...])`.",
+          "In `summarize`, `switch (event.type)` narrows each case, so `event.reason` exists only in the `\"order.refunded\"` case.",
+          "`z.array(WebhookEvent).safeParse(data)` checks the whole batch. Loop over `result.data` when it succeeds, and print `z.prettifyError(result.error)` when it doesn't."
+        ]
+      }
+    }
+  ],
+  "recap": "- A zod schema is a value that checks data at run time, and `z.infer<typeof Schema>` derives its type, so the two can't drift apart.\n- Build schemas from `z.object`, `z.string()`, `z.number()`, `z.email()`, `z.enum`, `z.array`, and `z.iso.datetime()`, and add rules like `.min`, `.max`, `.int`, and `.regex`.\n- `.optional()` allows a missing field, `.nullable()` allows `null`, and `.default(value)` fills in a missing field, so the inferred type has it.\n- `parse` returns typed data or throws a `ZodError`. `safeParse` never throws and returns a result tagged by `success`.\n- `z.prettifyError` is for people, `z.flattenError(error).fieldErrors` for forms, and `error.issues` for programs.\n- Any check takes a custom message, as a string or as `{ error: \"...\" }`.\n- `z.discriminatedUnion` infers a tagged union, `.refine` with a `path` adds rules across fields, and `.pick`, `.omit`, `.partial`, and `.extend` reuse a schema the way utility types reuse a type."
+}

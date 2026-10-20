@@ -1,0 +1,266 @@
+{
+  "id": "implements-abstract",
+  "title": "Interfaces, Abstract Classes, and Dependency Injection",
+  "section": "Classes",
+  "summary": "Check classes against interfaces with implements, share code through abstract classes, and pass dependencies in through constructors so fakes can stand in.",
+  "intro": "Real codebases are full of classes that play a role: a notifier, a repository, a clock, a pricing rule. This lesson covers the three tools TypeScript code uses for roles. `implements` checks that a class fits an interface. An abstract class shares code and leaves gaps that each subclass must fill. And dependency injection hands each role to the class that needs it, through its constructor, so a test or an example can pass in a fake. Every workspace codebase later in this course is wired this way.",
+  "steps": [
+    {
+      "title": "Implementing an interface",
+      "body": "An interface describes a role, and `implements` asks the checker to compare a class with it. A missing member, or one with the wrong type, is a type error at the class, right where the mistake is:\n\n```typescript\ninterface Greeter {\n  greet(name: string): string;\n}\n\nclass EnglishGreeter implements Greeter {\n  greet(name: string): string {\n    return `Hello, ${name}`;\n  }\n}\n\nconst greeter: Greeter = new EnglishGreeter();\nconsole.log(greeter.greet(\"Ada\")); // Hello, Ada\n```\n\n`implements` is only a check. It adds no code and no members, and Node erases it. The class still declares every field and method itself, parameter types included, because a class method doesn't take them from the interface. A class may have members the interface doesn't mention, and it may implement several interfaces, separated by commas.\n\nBecause TypeScript compares shapes, any value with a matching `greet` is a `Greeter`, whether a class says `implements` or not.",
+      "examples": [
+        {
+          "title": "Notifiers",
+          "prompt": "Write an email notifier and an SMS notifier that both implement one Notifier interface, then send through each.",
+          "code": "interface Notifier {\n  readonly channel: string;\n  send(to: string, message: string): string;\n}\n\nclass EmailNotifier implements Notifier {\n  readonly channel = \"email\";\n  //       ^? (property) EmailNotifier.channel: \"email\"\n  from: string;\n\n  constructor(from: string) {\n    this.from = from;\n  }\n\n  send(to: string, message: string): string {\n    return `From ${this.from} to ${to}: ${message}`;\n  }\n}\n\nclass SmsNotifier implements Notifier {\n  readonly channel = \"sms\";\n\n  send(to: string, message: string): string {\n    const text = message.length > 20 ? `${message.slice(0, 17)}...` : message;\n    return `To ${to}: ${text}`;\n  }\n}\n\nconst notifiers: Notifier[] = [new EmailNotifier(\"shop@example.com\"), new SmsNotifier()];\nfor (const notifier of notifiers) {\n  console.log(`[${notifier.channel}] ${notifier.send(\"Ada\", \"Your order has shipped\")}`);\n}\n",
+          "output": "[email] From shop@example.com to Ada: Your order has shipped\n[sms] To Ada: Your order has sh...",
+          "explanation": "Both classes say `implements Notifier`, so `tsc` checks each one against the interface: a `channel` string, and a `send` that takes two strings and returns a string. A `readonly` field keeps its literal type, as the bubble shows, and `\"email\"` fits the interface's `string`. `EmailNotifier` also has a `from` field and a constructor, since an interface sets the least a class must have, not the most. The array is typed `Notifier[]`, so the loop may only use `channel` and `send`, and each object runs its own `send`: the email keeps the whole message, and the SMS cuts it to 20 characters."
+        },
+        {
+          "title": "A missing method",
+          "prompt": "Declare that a class implements Notifier, but give its method another name.",
+          "code": "interface Notifier {\n  send(to: string, message: string): string;\n}\n\nclass SmsNotifier implements Notifier {\n  sendText(to: string, message: string): string {\n    return `SMS to ${to}: ${message}`;\n  }\n}\n\nconsole.log(new SmsNotifier().sendText(\"Ada\", \"Your order has shipped\"));\n",
+          "expect": "type-error",
+          "output": "main.ts(5,7): error TS2420: Class 'SmsNotifier' incorrectly implements interface 'Notifier'.\n  Property 'send' is missing in type 'SmsNotifier' but required in type 'Notifier'.",
+          "explanation": "`SmsNotifier` promises to be a `Notifier`, but its method is called `sendText`, so `tsc` stops at the class name with TS2420 and names the missing `send` on the next line. A method with the right name and the wrong type fails too:\n\n```typescript error\ninterface Notifier {\n  send(to: string, message: string): string;\n}\n\nclass SmsNotifier implements Notifier {\n  send(to: string, message: string): boolean {\n    return message.length <= 160;\n  }\n}\n\nconsole.log(new SmsNotifier().send(\"Ada\", \"Hi\"));\n```\n\nThat's TS2416: `Property 'send' in type 'SmsNotifier' is not assignable to the same property in base type 'Notifier'.` Without `implements`, both classes would compile, and the mistake would only show up where one is first used as a `Notifier`, maybe in another file."
+        },
+        {
+          "title": "Shape is what counts",
+          "prompt": "Pass a class instance and a plain object to a function that asks for a Notifier.",
+          "code": "interface Notifier {\n  send(to: string, message: string): string;\n}\n\nclass EmailNotifier implements Notifier {\n  send(to: string, message: string): string {\n    return `Email to ${to}: ${message}`;\n  }\n}\n\nfunction remind(notifier: Notifier, names: string[]): void {\n  for (const name of names) {\n    console.log(notifier.send(name, \"Your trial ends tomorrow\"));\n  }\n}\n\nconst devNotifier: Notifier = {\n  send: (to, message) => `[dev] ${to} <- ${message}`,\n};\n\nremind(new EmailNotifier(), [\"Ada\"]);\nremind(devNotifier, [\"Ben\", \"Caro\"]);\n",
+          "output": "Email to Ada: Your trial ends tomorrow\n[dev] Ben <- Your trial ends tomorrow\n[dev] Caro <- Your trial ends tomorrow",
+          "explanation": "`remind` asks for a `Notifier`, and both arguments fit. `devNotifier` is a plain object with no class at all, but it has the right `send`, and structural typing only compares shapes. Its arrow function needs no parameter types, because the `Notifier` annotation supplies them, which a class method never gets. An interface exists only for the checker, so you can't test for it at runtime:\n\n```typescript error\ninterface Notifier {\n  send(to: string, message: string): string;\n}\n\nconst devNotifier: Notifier = {\n  send: (to, message) => `[dev] ${to} <- ${message}`,\n};\n\nconsole.log(devNotifier instanceof Notifier);\n```\n\nThat's TS2693: `'Notifier' only refers to a type, but is being used as a value here.` To tell implementations apart at runtime, use `instanceof` with a class, or give the interface a tag field, as discriminated unions do."
+        }
+      ],
+      "practice": {
+        "title": "Exporters",
+        "prompt": "Write two exporters that turn the same stock rows into a CSV file and a JSON file.\n\n1. Finish `CsvExporter`: its `export` returns the header line `sku,name,qty`, then one line per row with the same three fields, like `MUG-01,Mug,3`, all joined with `\\n`.\n2. Make `JsonExporter` implement `Exporter`, with the extension `json` and an `export` that returns `JSON.stringify(rows)`.\n3. Add a `JsonExporter` to the `exporters` list.\n4. Keep `export`: hidden type tests import `CsvExporter`, `JsonExporter`, and `Exporter` from your file, and Check also exports other rows.\n\nExpected output:\n\n```text\n--- stock.csv\nsku,name,qty\nMUG-01,Mug,3\nTEA-02,Green tea,12\n--- stock.json\n[{\"sku\":\"MUG-01\",\"name\":\"Mug\",\"qty\":3},{\"sku\":\"TEA-02\",\"name\":\"Green tea\",\"qty\":12}]\n```",
+        "starter": "export type Row = { sku: string; name: string; qty: number };\n\nexport interface Exporter {\n  readonly extension: string;\n  export(rows: readonly Row[]): string;\n}\n\nexport class CsvExporter implements Exporter {\n  readonly extension = \"csv\";\n\n  // TODO: return the header line sku,name,qty, then one line per row,\n  // all joined with \"\\n\"\n  export(rows: readonly Row[]): string {\n    return \"\";\n  }\n}\n\n// TODO: implement Exporter, with the extension \"json\" and an export\n// that returns JSON.stringify(rows)\nexport class JsonExporter {}\n\nconst rows: Row[] = [\n  { sku: \"MUG-01\", name: \"Mug\", qty: 3 },\n  { sku: \"TEA-02\", name: \"Green tea\", qty: 12 },\n];\n\n// TODO: add a JsonExporter to the list\nconst exporters: Exporter[] = [new CsvExporter()];\nfor (const exporter of exporters) {\n  console.log(`--- stock.${exporter.extension}`);\n  console.log(exporter.export(rows));\n}\n",
+        "solution": "export type Row = { sku: string; name: string; qty: number };\n\nexport interface Exporter {\n  readonly extension: string;\n  export(rows: readonly Row[]): string;\n}\n\nexport class CsvExporter implements Exporter {\n  readonly extension = \"csv\";\n\n  export(rows: readonly Row[]): string {\n    const lines = rows.map((row) => `${row.sku},${row.name},${row.qty}`);\n    return [\"sku,name,qty\", ...lines].join(\"\\n\");\n  }\n}\n\nexport class JsonExporter implements Exporter {\n  readonly extension = \"json\";\n\n  export(rows: readonly Row[]): string {\n    return JSON.stringify(rows);\n  }\n}\n\nconst rows: Row[] = [\n  { sku: \"MUG-01\", name: \"Mug\", qty: 3 },\n  { sku: \"TEA-02\", name: \"Green tea\", qty: 12 },\n];\n\nconst exporters: Exporter[] = [new CsvExporter(), new JsonExporter()];\nfor (const exporter of exporters) {\n  console.log(`--- stock.${exporter.extension}`);\n  console.log(exporter.export(rows));\n}\n",
+        "tests": [
+          {
+            "output": "--- stock.csv\nsku,name,qty\nMUG-01,Mug,3\nTEA-02,Green tea,12\n--- stock.json\n[{\"sku\":\"MUG-01\",\"name\":\"Mug\",\"qty\":3},{\"sku\":\"TEA-02\",\"name\":\"Green tea\",\"qty\":12}]"
+          },
+          {
+            "append": "const more: Row[] = [{ sku: \"PEN-07\", name: \"Pen\", qty: 40 }];\nconsole.log(new CsvExporter().export(more));\nconsole.log(new JsonExporter().export(more));\nconsole.log(new CsvExporter().export([]));",
+            "output": "--- stock.csv\nsku,name,qty\nMUG-01,Mug,3\nTEA-02,Green tea,12\n--- stock.json\n[{\"sku\":\"MUG-01\",\"name\":\"Mug\",\"qty\":3},{\"sku\":\"TEA-02\",\"name\":\"Green tea\",\"qty\":12}]\nsku,name,qty\nPEN-07,Pen,40\n[{\"sku\":\"PEN-07\",\"name\":\"Pen\",\"qty\":40}]\nsku,name,qty"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { CsvExporter, JsonExporter, type Exporter } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "an object without export isn't an Exporter",
+              "expect": "error",
+              "errorCode": "TS2741",
+              "code": "const e: Exporter = { extension: \"x\" };"
+            },
+            {
+              "name": "a CsvExporter is an Exporter",
+              "expect": "ok",
+              "code": "const e: Exporter = new CsvExporter();"
+            },
+            {
+              "name": "a JsonExporter is an Exporter",
+              "expect": "ok",
+              "code": "const e: Exporter = new JsonExporter();"
+            },
+            {
+              "name": "export returns a string",
+              "expect": "ok",
+              "code": "const s: string = new JsonExporter().export([]);"
+            },
+            {
+              "name": "the extension is read-only",
+              "expect": "error",
+              "errorCode": "TS2540",
+              "code": "const e: Exporter = new CsvExporter(); e.extension = \"txt\";"
+            },
+            {
+              "name": "any object of the right shape fits",
+              "expect": "ok",
+              "code": "const e: Exporter = { extension: \"txt\", export: (rows) => String(rows.length) };"
+            }
+          ]
+        },
+        "hints": [
+          "Follow the notifiers example: each class says `implements Exporter` and declares every member the interface lists, with the same types.",
+          "For the CSV, map each row to one line, then put the header first: `[\"sku,name,qty\", ...lines].join(\"\\n\")`.",
+          "`JsonExporter` needs `readonly extension = \"json\";` and `export(rows: readonly Row[]): string`, which returns `JSON.stringify(rows)`."
+        ]
+      }
+    },
+    {
+      "title": "Abstract classes",
+      "body": "An abstract class is a base class that is only partly written, on purpose. It holds the code its subclasses share, and it declares with `abstract` the members each subclass must write:\n\n```typescript\nabstract class Greeting {\n  abstract text(): string;\n\n  shout(): string {\n    return `${this.text().toUpperCase()}!`;\n  }\n}\n\nclass Hello extends Greeting {\n  text(): string {\n    return \"hello\";\n  }\n}\n\nconsole.log(new Hello().shout()); // HELLO!\n```\n\nAn abstract member has a type and no body. You can't create the abstract class itself (TS2511), and a subclass that leaves out an abstract member is TS2515, unless it's abstract too. A subclass that fills in an abstract member doesn't need `override`, since there's no base code to replace, though you may write it. Its version may also leave off parameters at the end that it doesn't use.\n\nThe `abstract` keyword is a rule for the checker, and Node erases it. What's left is an ordinary JavaScript class, so subclasses inherit its fields and methods at runtime, while an interface leaves nothing behind. Use an interface to describe a role, and an abstract class when the implementations share code.",
+      "examples": [
+        {
+          "title": "A template method",
+          "prompt": "Write a Report base class that lays out every report the same way, and two reports that only supply their rows.",
+          "code": "abstract class Report {\n  title: string;\n\n  constructor(title: string) {\n    this.title = title;\n  }\n\n  abstract rows(): string[];\n\n  render(): string {\n    const lines = this.rows().map((row) => `- ${row}`);\n    return [`# ${this.title}`, ...lines, `(${lines.length} rows)`].join(\"\\n\");\n  }\n}\n\nclass LowStockReport extends Report {\n  stock: Record<string, number>;\n\n  constructor(stock: Record<string, number>) {\n    super(\"Low stock\");\n    this.stock = stock;\n  }\n\n  rows(): string[] {\n    return Object.entries(this.stock)\n      .filter(([, qty]) => qty < 5)\n      .map(([sku, qty]) => `${sku}: ${qty} left`);\n  }\n}\n\nclass SignupReport extends Report {\n  days: [day: string, count: number][];\n\n  constructor(days: [day: string, count: number][]) {\n    super(\"Signups\");\n    this.days = days;\n  }\n\n  rows(): string[] {\n    return this.days.map(([day, count]) => `${day}: ${count}`);\n  }\n}\n\nconst reports: Report[] = [\n  new LowStockReport({ MUG: 2, TEA: 40, PEN: 0 }),\n  new SignupReport([[\"Mon\", 12], [\"Tue\", 9], [\"Wed\", 15]]),\n];\nfor (const report of reports) {\n  console.log(report.render());\n}\n",
+          "output": "# Low stock\n- MUG: 2 left\n- PEN: 0 left\n(2 rows)\n# Signups\n- Mon: 12\n- Tue: 9\n- Wed: 15\n(3 rows)",
+          "explanation": "`render()` is written once, in the base class, and it fixes the layout: a title line, one bullet per row, and a count. Each subclass writes only what differs, its `rows()`. That's the template method pattern: the base class runs the steps, and subclasses fill in the step that varies. `reports` is typed `Report[]` even though a plain `Report` can never exist, and `render()` on each item runs the shared code with that report's own rows. Neither subclass marks `rows()` with `override`, because each one fills in an abstract member rather than replacing code."
+        },
+        {
+          "title": "Abstract classes can't be created",
+          "prompt": "Extend an abstract class without writing its abstract method, and try to create the abstract class itself.",
+          "code": "abstract class Report {\n  abstract rows(): string[];\n\n  render(): string {\n    return this.rows().join(\"\\n\");\n  }\n}\n\nclass DraftReport extends Report {}\n\nconst report = new Report();\nconsole.log(report.render());\n",
+          "expect": "type-error",
+          "output": "main.ts(9,7): error TS2515: Non-abstract class 'DraftReport' does not implement inherited abstract member rows from class 'Report'.\nmain.ts(11,16): error TS2511: Cannot create an instance of an abstract class.",
+          "explanation": "Two rules hold an abstract class together. `DraftReport` extends `Report` without writing `rows()`, so `tsc` reports TS2515 at the class: it would inherit a `render()` that calls a method it doesn't have. And `new Report()` is TS2511, for the same reason. Both checks belong to the compiler. With checking turned off, Node creates the object, and the crash comes later, when `render()` runs:\n\n```typescript error\n// @ts-nocheck\nabstract class Report {\n  abstract rows(): string[];\n\n  render(): string {\n    return this.rows().join(\"\\n\");\n  }\n}\n\nconst report = new Report();\nconsole.log(report.render());\n```\n\nThat run fails with `TypeError: this.rows is not a function`."
+        },
+        {
+          "title": "Shared state and a protected helper",
+          "prompt": "Give form validators a base class that holds their errors and formats each one, and two subclasses that only write their checks.",
+          "code": "abstract class Validator {\n  readonly field: string;\n  errors: string[] = [];\n\n  constructor(field: string) {\n    this.field = field;\n  }\n\n  abstract check(value: string): void;\n\n  protected fail(message: string): void {\n    this.errors.push(`${this.field} ${message}`);\n  }\n}\n\nclass RequiredValidator extends Validator {\n  check(value: string): void {\n    if (value.trim() === \"\") {\n      this.fail(\"is required\");\n    }\n  }\n}\n\nclass EmailValidator extends Validator {\n  check(value: string): void {\n    if (!value.includes(\"@\")) {\n      this.fail(\"must contain @\");\n    }\n    if (value !== value.toLowerCase()) {\n      this.fail(\"must be lowercase\");\n    }\n  }\n}\n\nconst form: Record<string, string> = { name: \" \", email: \"Ada.Lovelace\" };\nconst validators: Validator[] = [new RequiredValidator(\"name\"), new EmailValidator(\"email\")];\nfor (const validator of validators) {\n  validator.check(form[validator.field] ?? \"\");\n  for (const error of validator.errors) {\n    console.log(error);\n  }\n}\n",
+          "output": "name is required\nemail must contain @\nemail must be lowercase",
+          "explanation": "The base class holds what every validator shares: a `field`, an `errors` list, and a `fail()` helper that formats each message the same way. `fail()` is `protected`, so the subclasses call it, while code outside can't add errors: `validator.fail(\"is wrong\")` in the loop would be TS2445. Neither subclass has a constructor, so `new EmailValidator(\"email\")` runs the base one and sets `field`. Each subclass writes only its `check()`. `form[validator.field]` is `string | undefined` under this course's config, so `??` passes an empty string for a field the form doesn't have."
+        }
+      ],
+      "practice": {
+        "title": "Price rules",
+        "prompt": "Finish an abstract `PriceRule` class, and a rule that charges a minimum.\n\n1. Declare `abstract apply(cents: number): number` in `PriceRule`, next to `applies`.\n2. Make `run(cents)` return `this.apply(cents)` when `this.applies(cents)` is true, and `cents` unchanged otherwise.\n3. Finish `MinimumCharge`: it applies when `cents` is below `minimumCents`, and its `apply` returns `minimumCents`.\n4. Keep `export`: hidden type tests import `PriceRule`, `BulkDiscount`, and `MinimumCharge` from your file, and Check also runs other rules.\n\nExpected output:\n\n```text\nbulk 12000 -> 10800\nbulk 8000 -> 8000\nminimum 300 -> 500\nminimum 900 -> 900\n```",
+        "starter": "export abstract class PriceRule {\n  abstract applies(cents: number): boolean;\n  // TODO: declare abstract apply(cents: number): number\n\n  // TODO: return this.apply(cents) when this.applies(cents) is true,\n  // and cents unchanged otherwise\n  run(cents: number): number {\n    return cents;\n  }\n}\n\nexport class BulkDiscount extends PriceRule {\n  minCents: number;\n  percent: number;\n\n  constructor(minCents: number, percent: number) {\n    super();\n    this.minCents = minCents;\n    this.percent = percent;\n  }\n\n  applies(cents: number): boolean {\n    return cents >= this.minCents;\n  }\n\n  apply(cents: number): number {\n    return Math.round(cents * (1 - this.percent / 100));\n  }\n}\n\n// TODO: apply when cents is below minimumCents, and charge minimumCents\nexport class MinimumCharge extends PriceRule {\n  minimumCents: number;\n\n  constructor(minimumCents: number) {\n    super();\n    this.minimumCents = minimumCents;\n  }\n\n  applies(cents: number): boolean {\n    return false;\n  }\n}\n\nconst bulk = new BulkDiscount(10000, 10);\nconst minimum = new MinimumCharge(500);\nconsole.log(`bulk 12000 -> ${bulk.run(12000)}`);\nconsole.log(`bulk 8000 -> ${bulk.run(8000)}`);\nconsole.log(`minimum 300 -> ${minimum.run(300)}`);\nconsole.log(`minimum 900 -> ${minimum.run(900)}`);\n",
+        "solution": "export abstract class PriceRule {\n  abstract applies(cents: number): boolean;\n  abstract apply(cents: number): number;\n\n  run(cents: number): number {\n    return this.applies(cents) ? this.apply(cents) : cents;\n  }\n}\n\nexport class BulkDiscount extends PriceRule {\n  minCents: number;\n  percent: number;\n\n  constructor(minCents: number, percent: number) {\n    super();\n    this.minCents = minCents;\n    this.percent = percent;\n  }\n\n  applies(cents: number): boolean {\n    return cents >= this.minCents;\n  }\n\n  apply(cents: number): number {\n    return Math.round(cents * (1 - this.percent / 100));\n  }\n}\n\nexport class MinimumCharge extends PriceRule {\n  minimumCents: number;\n\n  constructor(minimumCents: number) {\n    super();\n    this.minimumCents = minimumCents;\n  }\n\n  applies(cents: number): boolean {\n    return cents < this.minimumCents;\n  }\n\n  apply(): number {\n    return this.minimumCents;\n  }\n}\n\nconst bulk = new BulkDiscount(10000, 10);\nconst minimum = new MinimumCharge(500);\nconsole.log(`bulk 12000 -> ${bulk.run(12000)}`);\nconsole.log(`bulk 8000 -> ${bulk.run(8000)}`);\nconsole.log(`minimum 300 -> ${minimum.run(300)}`);\nconsole.log(`minimum 900 -> ${minimum.run(900)}`);\n",
+        "tests": [
+          {
+            "output": "bulk 12000 -> 10800\nbulk 8000 -> 8000\nminimum 300 -> 500\nminimum 900 -> 900"
+          },
+          {
+            "append": "const small = new MinimumCharge(250);\nconsole.log(`${small.run(100)} ${small.run(250)} ${small.run(1000)}`);\nconst half = new BulkDiscount(2000, 50);\nconsole.log(`${half.run(1999)} ${half.run(3000)}`);",
+            "output": "bulk 12000 -> 10800\nbulk 8000 -> 8000\nminimum 300 -> 500\nminimum 900 -> 900\n250 250 1000\n1999 1500"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { BulkDiscount, MinimumCharge, PriceRule } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "a PriceRule can't be created",
+              "expect": "error",
+              "errorCode": "TS2511",
+              "code": "new PriceRule();"
+            },
+            {
+              "name": "a rule must write apply",
+              "expect": "error",
+              "errorCode": "TS2515",
+              "code": "class Free extends PriceRule { applies(): boolean { return true; } }"
+            },
+            {
+              "name": "a rule with both methods compiles",
+              "expect": "ok",
+              "code": "class Free extends PriceRule { applies(): boolean { return true; } apply(): number { return 0; } }"
+            },
+            {
+              "name": "every rule has run",
+              "expect": "ok",
+              "code": "const n: number = new MinimumCharge(500).run(100);"
+            },
+            {
+              "name": "a BulkDiscount is a PriceRule",
+              "expect": "ok",
+              "code": "const r: PriceRule = new BulkDiscount(10000, 10);"
+            },
+            {
+              "name": "apply must return a number",
+              "expect": "error",
+              "errorCode": "TS2416",
+              "code": "class Bad extends PriceRule { applies(): boolean { return true; } apply(): string { return \"0\"; } }"
+            }
+          ]
+        },
+        "hints": [
+          "The template method example declares `abstract rows(): string[];` and calls `this.rows()` from `render()`. `apply` and `run` work the same way.",
+          "`run` returns `this.applies(cents) ? this.apply(cents) : cents`.",
+          "In `MinimumCharge`, `applies` returns `cents < this.minimumCents`. `apply` doesn't need `cents`, so `apply(): number` can simply return `this.minimumCents`."
+        ]
+      }
+    },
+    {
+      "title": "Programming to an interface",
+      "body": "A class that creates its own dependencies is hard to test and hard to change. If an `OrderService` opens its own database and reads the system clock, every run needs that database and prints a different time. Instead, describe each dependency with an interface, and let the constructor receive it:\n\n```typescript\ninterface Clock {\n  now(): Date;\n}\n\nclass Greeter {\n  #clock: Clock;\n\n  constructor(clock: Clock) {\n    this.#clock = clock;\n  }\n\n  greeting(): string {\n    return this.#clock.now().getUTCHours() < 12 ? \"Good morning\" : \"Good afternoon\";\n  }\n}\n\nconst morning: Clock = { now: () => new Date(\"2026-10-01T09:00:00Z\") };\nconsole.log(new Greeter(morning).greeting()); // Good morning\n```\n\nThe class keeps what it receives in a field and only calls the interface's methods. In production you pass the real thing, like a SQLite repository or a clock that reads the time. In a test or an example you pass a `Map`, a clock that never moves, or a fake that records what happened. This is dependency injection. It needs no framework, only a constructor, with the fields written out because parameter properties aren't erasable.",
+      "examples": [
+        {
+          "title": "A repository behind an interface",
+          "prompt": "Give an order service its repository through the constructor, typed as an interface, and pass it an in-memory one.",
+          "code": "type Order = { id: string; customer: string; totalCents: number };\n\ninterface OrderRepository {\n  save(order: Order): void;\n  find(id: string): Order | undefined;\n  all(): Order[];\n}\n\nclass InMemoryOrderRepository implements OrderRepository {\n  #orders = new Map<string, Order>();\n\n  save(order: Order): void {\n    this.#orders.set(order.id, order);\n  }\n\n  find(id: string): Order | undefined {\n    return this.#orders.get(id);\n  }\n\n  all(): Order[] {\n    return [...this.#orders.values()];\n  }\n}\n\nclass OrderService {\n  #orders: OrderRepository;\n  #nextNumber = 1;\n\n  constructor(orders: OrderRepository) {\n    this.#orders = orders;\n  }\n\n  place(customer: string, totalCents: number): Order {\n    const order = { id: `ord_${this.#nextNumber}`, customer, totalCents };\n    this.#nextNumber += 1;\n    this.#orders.save(order);\n    return order;\n  }\n\n  revenueCents(): number {\n    return this.#orders.all().reduce((sum, order) => sum + order.totalCents, 0);\n  }\n}\n\nconst repository = new InMemoryOrderRepository();\nconst service = new OrderService(repository);\nservice.place(\"Ada\", 1299);\nservice.place(\"Ben\", 450);\nconsole.log(`Revenue: ${service.revenueCents()} cents`);\nconsole.log(`ord_2 is for ${repository.find(\"ord_2\")?.customer ?? \"nobody\"}`);\nconsole.log(`ord_9 is for ${repository.find(\"ord_9\")?.customer ?? \"nobody\"}`);\n",
+          "output": "Revenue: 1749 cents\nord_2 is for Ben\nord_9 is for nobody",
+          "explanation": "`OrderService` never mentions `InMemoryOrderRepository`. Its field and its constructor parameter are typed with the interface, so it works with anything that can save, find, and list orders. Here that's a `Map` wrapped in a class, the kind of repository tests use. In production the same service would get a repository that runs SQL, and not one line of the service would change. The lines at the bottom are the only place that picks an implementation, and they pass it in through the constructor."
+        },
+        {
+          "title": "Swapping the clock",
+          "prompt": "Issue invoices that read the time through a Clock, and pass fixed clocks so every run prints the same dates.",
+          "code": "interface Clock {\n  now(): Date;\n}\n\nconst systemClock: Clock = { now: () => new Date() };\n\nfunction fixedClock(iso: string): Clock {\n  const instant = new Date(iso);\n  return { now: () => instant };\n}\n\nclass InvoiceService {\n  #clock: Clock;\n\n  constructor(clock: Clock) {\n    this.#clock = clock;\n  }\n\n  issue(customer: string, totalCents: number): string {\n    const issued = this.#clock.now();\n    const due = new Date(issued.getTime() + 14 * 24 * 60 * 60 * 1000);\n    const day = (date: Date) => date.toISOString().slice(0, 10);\n    return `${customer}: $${(totalCents / 100).toFixed(2)}, issued ${day(issued)}, due ${day(due)}`;\n  }\n}\n\nconst october = new InvoiceService(fixedClock(\"2026-10-01T09:00:00Z\"));\nconst december = new InvoiceService(fixedClock(\"2026-12-24T18:30:00Z\"));\nconsole.log(october.issue(\"Ada\", 12900));\nconsole.log(december.issue(\"Ben\", 4500));\n",
+          "output": "Ada: $129.00, issued 2026-10-01, due 2026-10-15\nBen: $45.00, issued 2026-12-24, due 2027-01-07",
+          "explanation": "`InvoiceService` reads the time only through its `Clock`, so whoever creates it decides what time it is. `fixedClock` returns a clock that always answers with the same instant. That makes this program print the same lines on every run, and it lets you try a date near the end of the year, where the due date moves into 2027, without waiting for December. `systemClock` is what production passes: `new InvoiceService(systemClock)` would stamp invoices with the real date. A service that called `new Date()` itself could only ever be tested on today's date."
+        },
+        {
+          "title": "A fake that records",
+          "prompt": "Check what a checkout service emails by passing it a fake mailer that writes each message down.",
+          "code": "type Order = { id: string; email: string; totalCents: number };\n\ninterface Mailer {\n  send(to: string, subject: string): void;\n}\n\nclass FakeMailer implements Mailer {\n  sent: { to: string; subject: string }[] = [];\n\n  send(to: string, subject: string): void {\n    this.sent.push({ to, subject });\n  }\n}\n\nclass CheckoutService {\n  #mailer: Mailer;\n\n  constructor(mailer: Mailer) {\n    this.#mailer = mailer;\n  }\n\n  complete(order: Order): void {\n    this.#mailer.send(order.email, `Order ${order.id} confirmed`);\n    if (order.totalCents >= 10000) {\n      this.#mailer.send(\"sales@example.com\", `Large order ${order.id}`);\n    }\n  }\n}\n\nconst mailer = new FakeMailer();\nconst checkout = new CheckoutService(mailer);\ncheckout.complete({ id: \"ord_1\", email: \"ada@example.com\", totalCents: 2500 });\ncheckout.complete({ id: \"ord_2\", email: \"ben@example.com\", totalCents: 18000 });\n\nconsole.log(`${mailer.sent.length} emails`);\nfor (const mail of mailer.sent) {\n  console.log(`${mail.to}: ${mail.subject}`);\n}\n",
+          "output": "3 emails\nada@example.com: Order ord_1 confirmed\nben@example.com: Order ord_2 confirmed\nsales@example.com: Large order ord_2",
+          "explanation": "`CheckoutService` only knows the `Mailer` interface, so it can't tell that `FakeMailer` sends nothing and just writes each message down. After the service runs, `mailer.sent` shows exactly what it tried to send, which is what a test checks: the customer always gets a confirmation, and sales hears about orders of $100 or more. The program keeps its own reference to the fake, `mailer`, to read `sent` afterward. Inside the service the field is typed `Mailer`, which has no `sent` at all."
+        }
+      ],
+      "practice": {
+        "title": "Currency service",
+        "prompt": "Write a price service that converts money with whatever rate provider it's given.\n\n1. Make `FixedRateProvider` implement `RateProvider`: keep the rates table in a private field, and look each rate up by a key like `USD->EUR`.\n2. Give `PriceService` a private `RateProvider` field, set from its constructor, and pass `rates` to it.\n3. Make `convert(cents, from, to)` return `<amount> <from> = <converted> <to>`, where the converted cents are `cents * rate` rounded to a whole number, and both amounts are divided by 100 and shown to 2 decimal places.\n4. When the provider has no rate, return `no rate for <from>-><to>` instead.\n5. Keep `export`: hidden type tests import `FixedRateProvider`, `PriceService`, and `RateProvider` from your file, and Check also gives the service other providers.\n\nExpected output:\n\n```text\n25.00 USD = 23.00 EUR\n10.00 EUR = 8.60 GBP\nno rate for GBP->JPY\n```",
+        "starter": "export interface RateProvider {\n  rate(from: string, to: string): number | undefined;\n}\n\n// TODO: implement RateProvider: keep the rates in a private field,\n// and look each one up by a key like USD->EUR\nexport class FixedRateProvider {\n  constructor(rates: Record<string, number>) {}\n}\n\n// TODO: receive a RateProvider in the constructor, and keep it in a private field\nexport class PriceService {\n  // TODO: return \"<amount> <from> = <converted> <to>\",\n  // or \"no rate for <from>-><to>\" when the provider has no rate\n  convert(cents: number, from: string, to: string): string {\n    return \"\";\n  }\n}\n\nconst rates = new FixedRateProvider({ \"USD->EUR\": 0.92, \"EUR->GBP\": 0.86 });\n// TODO: pass rates to the PriceService\nconst prices = new PriceService();\nconsole.log(prices.convert(2500, \"USD\", \"EUR\"));\nconsole.log(prices.convert(1000, \"EUR\", \"GBP\"));\nconsole.log(prices.convert(500, \"GBP\", \"JPY\"));\n",
+        "solution": "export interface RateProvider {\n  rate(from: string, to: string): number | undefined;\n}\n\nexport class FixedRateProvider implements RateProvider {\n  #rates: Record<string, number>;\n\n  constructor(rates: Record<string, number>) {\n    this.#rates = rates;\n  }\n\n  rate(from: string, to: string): number | undefined {\n    return this.#rates[`${from}->${to}`];\n  }\n}\n\nexport class PriceService {\n  #rates: RateProvider;\n\n  constructor(rates: RateProvider) {\n    this.#rates = rates;\n  }\n\n  convert(cents: number, from: string, to: string): string {\n    const rate = this.#rates.rate(from, to);\n    if (rate === undefined) {\n      return `no rate for ${from}->${to}`;\n    }\n    const converted = Math.round(cents * rate);\n    return `${(cents / 100).toFixed(2)} ${from} = ${(converted / 100).toFixed(2)} ${to}`;\n  }\n}\n\nconst rates = new FixedRateProvider({ \"USD->EUR\": 0.92, \"EUR->GBP\": 0.86 });\nconst prices = new PriceService(rates);\nconsole.log(prices.convert(2500, \"USD\", \"EUR\"));\nconsole.log(prices.convert(1000, \"EUR\", \"GBP\"));\nconsole.log(prices.convert(500, \"GBP\", \"JPY\"));\n",
+        "tests": [
+          {
+            "output": "25.00 USD = 23.00 EUR\n10.00 EUR = 8.60 GBP\nno rate for GBP->JPY"
+          },
+          {
+            "append": "const doubler = new PriceService({ rate: (from, to) => (from === to ? 1 : 2) });\nconsole.log(doubler.convert(150, \"USD\", \"USD\"));\nconsole.log(doubler.convert(150, \"USD\", \"CAD\"));\nconsole.log(new PriceService(new FixedRateProvider({})).convert(100, \"EUR\", \"USD\"));",
+            "output": "25.00 USD = 23.00 EUR\n10.00 EUR = 8.60 GBP\nno rate for GBP->JPY\n1.50 USD = 1.50 USD\n1.50 USD = 3.00 CAD\nno rate for EUR->USD"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { FixedRateProvider, PriceService, type RateProvider } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "a provider needs a rate method",
+              "expect": "error",
+              "errorCode": "TS2741",
+              "code": "new PriceService({});"
+            },
+            {
+              "name": "any object with a rate method fits",
+              "expect": "ok",
+              "code": "new PriceService({ rate: () => 1 });"
+            },
+            {
+              "name": "a FixedRateProvider is a RateProvider",
+              "expect": "ok",
+              "code": "const p: RateProvider = new FixedRateProvider({});"
+            },
+            {
+              "name": "rate returns a number or undefined",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "new PriceService({ rate: () => \"1\" });"
+            },
+            {
+              "name": "the service needs a provider",
+              "expect": "error",
+              "errorCode": "TS2554",
+              "code": "new PriceService();"
+            },
+            {
+              "name": "convert returns a string",
+              "expect": "ok",
+              "code": "const s: string = new PriceService(new FixedRateProvider({})).convert(100, \"USD\", \"EUR\");"
+            }
+          ]
+        },
+        "hints": [
+          "Follow the repository example: declare `#rates: RateProvider;` in `PriceService`, take a `RateProvider` in the constructor, and assign it.",
+          "In `FixedRateProvider`, build the key with a template string, then read `this.#rates[key]`. Under this course's config that's already `number | undefined`, exactly what `rate` returns.",
+          "In `convert`, return the `no rate for` line when `rate === undefined`. Otherwise format `(cents / 100).toFixed(2)` and `(Math.round(cents * rate) / 100).toFixed(2)`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `class X implements Y` checks that the class has every member of the interface, with compatible types (TS2420, TS2416). It adds no code, and Node erases it.\n- Any object of the right shape fits an interface, class or not. Interfaces don't exist at runtime, so `instanceof` can't test for one.\n- An abstract class shares fields and methods, and declares `abstract` members that each subclass must write. Creating one is TS2511, and a subclass that skips a member is TS2515.\n- A template method lives in the base class and calls the abstract steps, so each subclass writes only what differs.\n- Dependency injection: type a class's dependencies as interfaces, receive them in the constructor, and keep them in fields.\n- Production passes the real implementations, while tests and examples pass in-memory repositories, fixed clocks, and fakes that record."
+}

@@ -1,0 +1,255 @@
+{
+  "id": "branded-types",
+  "title": "Branded Types and Domain Modeling",
+  "section": "Type Transformations",
+  "summary": "Give look-alike values such as IDs and amounts their own types with brands, create them only through checks, and make invalid data impossible to write.",
+  "intro": "TypeScript compares types by their shape, so any `string` fits wherever a `string` is expected. That's usually what you want, until an order ID ends up where a customer ID belongs, or an unchecked email reaches the code that sends invoices. In this lesson you give such values their own types with brands, make a checking function the only way to create one, and then go further: types where an empty list, an unverified email, or a changed order simply doesn't compile.",
+  "format": "single",
+  "steps": [
+    {
+      "title": "Brands for IDs",
+      "body": "Two aliases of `string` are the same type, so the checker can't tell an order ID from a customer ID:\n\n```typescript types\ntype OrderId = string;\ntype CustomerId = string;\n```\n\nA brand fixes that. Intersect the base type with an object type whose property no real string has:\n\n```typescript types\ntype OrderId = string & { readonly __brand: \"OrderId\" };\ntype CustomerId = string & { readonly __brand: \"CustomerId\" };\n```\n\nThe two `__brand` types differ, so the two IDs are now different types. The brand exists only for the checker: at run time an `OrderId` is a plain string with no extra property.\n\nSince no string literal has a `__brand`, the way in is a type guard. It checks the string, and when it returns `true`, the string is narrowed to the brand:\n\n```typescript\ntype OrderId = string & { readonly __brand: \"OrderId\" };\n\nfunction isOrderId(s: string): s is OrderId {\n  return /^ord_\\d{4}$/.test(s);\n}\n\nconst raw: string = \"ord_1001\";\nconsole.log(isOrderId(raw) ? `order ${raw}` : \"not an order id\"); // order ord_1001\n```\n\nThe regular expression `/^ord_\\d{4}$/` matches `ord_` followed by exactly four digits, and `test` returns whether a string matches it.",
+      "examples": [
+        {
+          "title": "The mix-up",
+          "prompt": "Look up orders with plain `string` IDs, and pass a customer ID by mistake.",
+          "code": "type OrderId = string;\ntype CustomerId = string;\n\nconst ORDERS = new Map<OrderId, string>([\n  [\"ord_1001\", \"2 mugs\"],\n  [\"ord_1002\", \"1 teapot\"],\n]);\n\nfunction getOrder(id: OrderId): string {\n  return ORDERS.get(id) ?? \"no such order\";\n}\n\nconst orderId: OrderId = \"ord_1001\";\nconst customerId: CustomerId = \"cus_01\";\n\nconsole.log(`${orderId}: ${getOrder(orderId)}`);\nconsole.log(`${customerId}: ${getOrder(customerId)}`);\n",
+          "output": "ord_1001: 2 mugs\ncus_01: no such order",
+          "explanation": "The second call passes a customer ID to a function that wants an order ID. Both aliases mean `string`, so the checker accepts it, and the lookup quietly finds nothing. In a real codebase that shows up later as a bug report about a missing order, far from the line that caused it. The names `OrderId` and `CustomerId` say what you meant, but the checker can't hold anyone to them."
+        },
+        {
+          "title": "Branding",
+          "prompt": "Brand order IDs, and parse incoming strings into them.",
+          "code": "type OrderId = string & { readonly __brand: \"OrderId\" };\n\nfunction isOrderId(s: string): s is OrderId {\n  return /^ord_\\d{4}$/.test(s);\n}\n\nfunction parseOrderId(s: string): OrderId | null {\n  const id = s.trim();\n  return isOrderId(id) ? id : null;\n}\n\nfor (const input of [\" ord_1001 \", \"ord_12\", \"ORD_1001\", \"cus_01\"]) {\n  const parsed = parseOrderId(input);\n  //    ^? const parsed: OrderId | null\n  console.log(parsed === null ? `rejected \"${input}\"` : `accepted ${parsed}, ${parsed.length} characters`);\n}\n",
+          "output": "accepted ord_1001, 8 characters\nrejected \"ord_12\"\nrejected \"ORD_1001\"\nrejected \"cus_01\"",
+          "explanation": "`isOrderId` is a type guard, so in `parseOrderId` the true branch of the ternary has an `OrderId`, and the function returns it with no cast. Every `OrderId` in the program came through that check, so any function that takes one can trust its format. `parseOrderId` trims spaces first, which is why `\" ord_1001 \"` is accepted, and the pattern is case sensitive, so `\"ORD_1001\"` isn't. A branded string is still a string, so `length` and every string method work as usual.\n\nYou'll often see `return id as OrderId` in other codebases. The guard does the same job without a cast, and the type comes from the check itself, so the two can't drift apart."
+        },
+        {
+          "title": "The mix-up caught",
+          "prompt": "Brand both kinds of ID, then make the same mistake as before.",
+          "code": "type OrderId = string & { readonly __brand: \"OrderId\" };\ntype CustomerId = string & { readonly __brand: \"CustomerId\" };\n\nfunction isCustomerId(s: string): s is CustomerId {\n  return /^cus_\\d{2}$/.test(s);\n}\n\nfunction getOrder(id: OrderId): string {\n  return `looking up ${id}`;\n}\n\nconst raw: string = \"cus_01\";\nif (isCustomerId(raw)) {\n  console.log(getOrder(raw));\n}\n",
+          "expect": "type-error",
+          "output": "main.ts(14,24): error TS2345: Argument of type 'CustomerId' is not assignable to parameter of type 'OrderId'.\n  Type 'CustomerId' is not assignable to type '{ readonly __brand: \"OrderId\"; }'.\n    Types of property '__brand' are incompatible.\n      Type '\"CustomerId\"' is not assignable to type '\"OrderId\"'.",
+          "explanation": "Now the customer ID can't reach `getOrder`. Read the indented lines from the top: a `CustomerId` isn't an `OrderId` because their `__brand` types, `\"CustomerId\"` and `\"OrderId\"`, differ. A plain string is rejected too, since it has no `__brand` at all, so `getOrder(\"ord_1001\")` is an error until the string goes through a guard. The mistake that slipped through in the first example is now caught at the exact line, before anything runs."
+        }
+      ],
+      "practice": {
+        "title": "Two kinds of ID",
+        "prompt": "Keep order IDs and customer IDs apart with brands, and list the orders of each customer.\n\n1. Export `type OrderId` and `type CustomerId`, brands of `string` named `\"OrderId\"` and `\"CustomerId\"`.\n2. Export `isOrderId(s: string): s is OrderId`, true when `s` matches `/^ord_\\d{4}$/`, and `isCustomerId(s: string): s is CustomerId`, true when `s` matches `/^cus_\\d{2}$/`.\n3. Export `ordersFor(customerId: CustomerId): OrderId[]`. It returns the `id` of every row in `ORDERS` for that customer, keeping only the IDs that pass `isOrderId`.\n4. For each string in `inputs`, print `<input>: <orders>` with the orders joined by `, `, or `<input>: not a customer id`.\n5. Don't cast with `as`: Check rejects it. Keep `export`: hidden type tests import your names, and Check also calls your functions with other IDs.\n\nExpected output:\n\n```text\ncus_01: ord_1001, ord_1003\ncus_02: ord_1002\nord_1001: not a customer id\n```",
+        "starter": "// TODO: brand both: string & { readonly __brand: \"OrderId\" }, and \"CustomerId\"\nexport type OrderId = string;\nexport type CustomerId = string;\n\nexport function isOrderId(s: string): s is OrderId {\n  // TODO: test s against /^ord_\\d{4}$/\n  return false;\n}\n\nexport function isCustomerId(s: string): s is CustomerId {\n  // TODO: test s against /^cus_\\d{2}$/\n  return false;\n}\n\nconst ORDERS = [\n  { id: \"ord_1001\", customerId: \"cus_01\" },\n  { id: \"ord_1002\", customerId: \"cus_02\" },\n  { id: \"ord_1003\", customerId: \"cus_01\" },\n  { id: \"ord_99\", customerId: \"cus_01\" },\n];\n\nexport function ordersFor(customerId: CustomerId): OrderId[] {\n  // TODO: keep the customer's rows, take their ids, and keep the ids that pass isOrderId\n  return [];\n}\n\nconst inputs = [\"cus_01\", \"cus_02\", \"ord_1001\"];\nfor (const input of inputs) {\n  // TODO: print \"<input>: <orders>\" for a customer id, else \"<input>: not a customer id\"\n}\n",
+        "solution": "export type OrderId = string & { readonly __brand: \"OrderId\" };\nexport type CustomerId = string & { readonly __brand: \"CustomerId\" };\n\nexport function isOrderId(s: string): s is OrderId {\n  return /^ord_\\d{4}$/.test(s);\n}\n\nexport function isCustomerId(s: string): s is CustomerId {\n  return /^cus_\\d{2}$/.test(s);\n}\n\nconst ORDERS = [\n  { id: \"ord_1001\", customerId: \"cus_01\" },\n  { id: \"ord_1002\", customerId: \"cus_02\" },\n  { id: \"ord_1003\", customerId: \"cus_01\" },\n  { id: \"ord_99\", customerId: \"cus_01\" },\n];\n\nexport function ordersFor(customerId: CustomerId): OrderId[] {\n  return ORDERS.filter((row) => row.customerId === customerId)\n    .map((row) => row.id)\n    .filter(isOrderId);\n}\n\nconst inputs = [\"cus_01\", \"cus_02\", \"ord_1001\"];\nfor (const input of inputs) {\n  if (isCustomerId(input)) {\n    console.log(`${input}: ${ordersFor(input).join(\", \")}`);\n  } else {\n    console.log(`${input}: not a customer id`);\n  }\n}\n",
+        "tests": [
+          {
+            "output": "cus_01: ord_1001, ord_1003\ncus_02: ord_1002\nord_1001: not a customer id"
+          },
+          {
+            "append": "for (const s of [\"cus_02\", \"cus_03\", \"cus_3\"]) {\n  console.log(isCustomerId(s) ? `${s} has ${ordersFor(s).length}` : `${s} rejected`);\n}\nconsole.log(isOrderId(\"ord_1002\"), isOrderId(\"ord_12345\"));",
+            "output": "cus_01: ord_1001, ord_1003\ncus_02: ord_1002\nord_1001: not a customer id\ncus_02 has 1\ncus_03 has 0\ncus_3 rejected\ntrue false"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { ordersFor, type CustomerId, type OrderId } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects a plain string",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "ordersFor(\"cus_01\");"
+            },
+            {
+              "name": "accepts a CustomerId and returns OrderIds",
+              "expect": "ok",
+              "code": "declare const c: CustomerId;\nconst orders: OrderId[] = ordersFor(c);"
+            },
+            {
+              "name": "rejects an OrderId",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "declare const o: OrderId;\nordersFor(o);"
+            },
+            {
+              "name": "a string literal is not an OrderId",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const id: OrderId = \"ord_1001\";"
+            }
+          ]
+        },
+        "forbid": [
+          "as"
+        ],
+        "hints": [
+          "A brand is `string & { readonly __brand: \"OrderId\" }`. Give each brand its own name in the quotes, so the two types differ.",
+          "Each guard is one line, like `return /^ord_\\d{4}$/.test(s);`.",
+          "In `ordersFor`, `filter` the rows by `customerId`, `map` each row to its `id`, then call `filter(isOrderId)`, which returns an `OrderId[]`."
+        ]
+      }
+    },
+    {
+      "title": "Smart constructors for values",
+      "body": "A brand can stand for any rule a value follows, not only an ID format: an email that was trimmed and lowercased, an amount in whole cents, a percentage from 0 to 100. The function that creates one is called a smart constructor. It checks the input, cleans it up when that makes sense, and returns the brand, or `null` when the input breaks the rule. Every function that takes the branded type can then trust it without checking again.\n\nNumbers can be branded too, with one catch: arithmetic always gives back a plain `number`, even when both sides are branded.\n\n```typescript\ntype Cents = number & { readonly __brand: \"Cents\" };\n\nfunction isCents(n: number): n is Cents {\n  return Number.isInteger(n) && n >= 0;\n}\n\nconst price = 1299;\nconst tax = 104;\nif (isCents(price) && isCents(tax)) {\n  const total = price + tax;\n  //    ^? const total: number\n  console.log(total); // 1403\n}\n```\n\nSo a function that promises `Cents` from arithmetic checks the result again before it returns it. For input from outside, return `null` when a check fails. For values your own code computes, where a failure means a bug, throw instead.",
+      "examples": [
+        {
+          "title": "Email",
+          "prompt": "Normalize email addresses on the way in, and send mail only to a parsed `Email`.",
+          "code": "type Email = string & { readonly __brand: \"Email\" };\n\nfunction isEmail(s: string): s is Email {\n  return /^[^@\\s]+@[^@\\s]+$/.test(s);\n}\n\nfunction parseEmail(s: string): Email | null {\n  const email = s.trim().toLowerCase();\n  return isEmail(email) ? email : null;\n}\n\nfunction sendWelcome(to: Email): string {\n  return `welcome mail sent to ${to}`;\n}\n\nfor (const input of [\"  Ada@Example.com \", \"grace@navy.mil\", \"not an email\", \"a@b@c\"]) {\n  const email = parseEmail(input);\n  console.log(email === null ? `invalid: \"${input}\"` : sendWelcome(email));\n}\n",
+          "output": "welcome mail sent to ada@example.com\nwelcome mail sent to grace@navy.mil\ninvalid: \"not an email\"\ninvalid: \"a@b@c\"",
+          "explanation": "`parseEmail` trims and lowercases first, then the guard checks the cleaned string, so every `Email` has the same form: no spaces, lowercase, and one `@` with text on both sides. In the pattern, `[^@\\s]+` means one or more characters that are neither `@` nor whitespace, which is why `\"a@b@c\"` fails. `sendWelcome` takes an `Email`, so raw input can't reach it, and it has nothing left to clean or check."
+        },
+        {
+          "title": "Cents",
+          "prompt": "Brand amounts in whole cents, convert dollar strings into cents, and add two amounts.",
+          "code": "type Cents = number & { readonly __brand: \"Cents\" };\n\nfunction isCents(n: number): n is Cents {\n  return Number.isInteger(n) && n >= 0;\n}\n\nfunction cents(n: number): Cents {\n  if (!isCents(n)) {\n    throw new Error(`not a whole number of cents: ${n}`);\n  }\n  return n;\n}\n\nfunction toCents(dollars: string): Cents | null {\n  if (!/^\\d+\\.\\d{2}$/.test(dollars)) return null;\n  const amount = Math.round(Number(dollars) * 100);\n  return isCents(amount) ? amount : null;\n}\n\nfunction addCents(a: Cents, b: Cents): Cents {\n  return cents(a + b);\n}\n\nconsole.log(Number(\"1.15\") * 100);\nconsole.log(toCents(\"1.15\"), toCents(\"12.50\"), toCents(\"12.5\"), toCents(\"abc\"));\n\nconst price = toCents(\"12.50\");\nconst shipping = toCents(\"1.15\");\nif (price !== null && shipping !== null) {\n  console.log(`total: ${addCents(price, shipping)} cents`);\n}\n",
+          "output": "114.99999999999999\n115 1250 null null\ntotal: 1365 cents",
+          "explanation": "`toCents` is the constructor for input. It accepts digits, a dot, and exactly two digits, and returns `null` for anything else, like `\"12.5\"`. It rounds because decimal fractions aren't exact in floating point: `1.15` times 100 is `114.99999999999999`, as the first line shows.\n\n`cents` is the constructor for values the program computes. It throws instead of returning `null`, because a sum that isn't whole cents would be a bug, not bad input. After the `if`, the checker knows `n` passed `isCents`, so `return n` needs no cast. `addCents` adds two `Cents`, which gives a plain `number`, and passes the sum through `cents`, so the result is checked before it's called `Cents` again. Branded numbers print like any other number."
+        },
+        {
+          "title": "A reusable Brand",
+          "prompt": "Write one generic `Brand` type, the way libraries do, and use it for a product code and a weight.",
+          "code": "declare const brand: unique symbol;\ntype Brand<T, B extends string> = T & { readonly [brand]: B };\n\ntype Sku = Brand<string, \"Sku\">;\n//   ^? type Sku = string & { readonly [brand]: \"Sku\"; }\ntype Grams = Brand<number, \"Grams\">;\n//   ^? type Grams = number & { readonly [brand]: \"Grams\"; }\n\nfunction isSku(s: string): s is Sku {\n  return /^[A-Z]{3}-\\d{3}$/.test(s);\n}\n\nfunction isGrams(n: number): n is Grams {\n  return Number.isInteger(n) && n > 0;\n}\n\nfunction label(sku: Sku, weight: Grams): string {\n  return `${sku} weighs ${weight} g`;\n}\n\nconst items: [sku: string, weight: number][] = [\n  [\"MUG-001\", 350],\n  [\"mug-2\", 350],\n  [\"TEA-014\", 0],\n];\n\nfor (const [sku, weight] of items) {\n  console.log(isSku(sku) && isGrams(weight) ? label(sku, weight) : `skipped ${sku}`);\n}\n",
+          "output": "MUG-001 weighs 350 g\nskipped mug-2\nskipped TEA-014",
+          "explanation": "`declare const brand: unique symbol` tells the checker that a constant named `brand` exists, without creating one, so Node erases the line like any other type. `unique symbol` gives that constant a type of its own, which makes `[brand]` a property key that no other declaration can produce. `Brand<T, B>` then brands any base type with any name, so each new brand is one readable line, as the bubbles show.\n\nBoth brands work like the ones before: `isSku` and `isGrams` are the only ways in, and `label` can't be called with a plain string or number. `\"mug-2\"` fails the SKU pattern, and a weight of 0 fails `isGrams`. zod, which you meet later in this course, brands its types with a `unique symbol` key too."
+        }
+      ],
+      "practice": {
+        "title": "Money in cents",
+        "prompt": "Read prices, one per line, and add them up in whole cents.\n\n1. Export `type Cents`, a brand of `number`, and `isCents(n: number): n is Cents`, true for a whole number that's 0 or more.\n2. Export `cents(n: number): Cents`, which throws an `Error` when `isCents(n)` is false, and `addCents(a: Cents, b: Cents): Cents`, which passes the sum through `cents`.\n3. Export `toCents(dollars: string): Cents | null`. A price is digits, a dot, and two digits, like `12.50`, and anything else gives `null`.\n4. Export `formatCents(c: Cents): string`, which formats `1649` as `$16.49`.\n5. Print `invalid price: <line>` for each line that isn't a price. Then print `total: <amount>`, the sum of the valid prices, starting from `cents(0)`. Don't cast with `as`: Check rejects it.\n\nInput:\n\n```text\n12.50\n3.99\n```\n\nExpected output:\n\n```text\ntotal: $16.49\n```",
+        "starter": "import { readFileSync } from \"node:fs\";\n\n// TODO: brand Cents: number & { readonly __brand: \"Cents\" }\nexport type Cents = number;\n\nexport function isCents(n: number): n is Cents {\n  // TODO: true for a whole number that's 0 or more\n  return true;\n}\n\nexport function cents(n: number): Cents {\n  // TODO: throw an Error when n isn't Cents\n  return n;\n}\n\nexport function toCents(dollars: string): Cents | null {\n  // TODO: accept digits, a dot, and two digits, then convert to whole cents\n  return null;\n}\n\nexport function addCents(a: Cents, b: Cents): Cents {\n  // TODO: pass the sum through cents\n  return a;\n}\n\nexport function formatCents(c: Cents): string {\n  // TODO: 1649 becomes \"$16.49\"\n  return \"\";\n}\n\nconst lines = readFileSync(0, \"utf8\").trim().split(\"\\n\");\n// TODO: print \"invalid price: <line>\" for each bad line, then \"total: <amount>\"\n",
+        "solution": "import { readFileSync } from \"node:fs\";\n\nexport type Cents = number & { readonly __brand: \"Cents\" };\n\nexport function isCents(n: number): n is Cents {\n  return Number.isInteger(n) && n >= 0;\n}\n\nexport function cents(n: number): Cents {\n  if (!isCents(n)) {\n    throw new Error(`not a whole number of cents: ${n}`);\n  }\n  return n;\n}\n\nexport function toCents(dollars: string): Cents | null {\n  if (!/^\\d+\\.\\d{2}$/.test(dollars)) return null;\n  const amount = Math.round(Number(dollars) * 100);\n  return isCents(amount) ? amount : null;\n}\n\nexport function addCents(a: Cents, b: Cents): Cents {\n  return cents(a + b);\n}\n\nexport function formatCents(c: Cents): string {\n  return `$${(c / 100).toFixed(2)}`;\n}\n\nconst lines = readFileSync(0, \"utf8\").trim().split(\"\\n\");\nlet total = cents(0);\nfor (const line of lines) {\n  const price = toCents(line);\n  if (price === null) {\n    console.log(`invalid price: ${line}`);\n  } else {\n    total = addCents(total, price);\n  }\n}\nconsole.log(`total: ${formatCents(total)}`);\n",
+        "tests": [
+          {
+            "stdin": "12.50\n3.99\n",
+            "output": "total: $16.49"
+          },
+          {
+            "stdin": "4.20\nfree\n10\n0.99\n",
+            "output": "invalid price: free\ninvalid price: 10\ntotal: $5.19"
+          },
+          {
+            "stdin": "12.5\n$3.00\n2.00\n",
+            "output": "invalid price: 12.5\ninvalid price: $3.00\ntotal: $2.00"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { addCents, cents, formatCents, toCents, type Cents } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "addCents rejects plain numbers",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "addCents(5, 10);"
+            },
+            {
+              "name": "formatCents rejects a plain number",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "formatCents(1299);"
+            },
+            {
+              "name": "toCents and addCents return the brand",
+              "expect": "ok",
+              "code": "const price: Cents | null = toCents(\"1.00\");\nconst sum: Cents = addCents(cents(250), cents(100));"
+            },
+            {
+              "name": "a number literal is not Cents",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const c: Cents = 100;"
+            }
+          ]
+        },
+        "forbid": [
+          "as"
+        ],
+        "hints": [
+          "Every function but `formatCents` has a twin in the second example, so start from there.",
+          "Start with `let total = cents(0);`. For each line, `toCents(line)` is `null` for a bad price, and otherwise `total = addCents(total, price)` adds it.",
+          "`formatCents` returns a template string: a dollar sign, then `(c / 100).toFixed(2)`."
+        ]
+      }
+    },
+    {
+      "title": "Making illegal states unrepresentable",
+      "body": "Brands are one case of a bigger idea: put a rule in a type, and code that breaks the rule doesn't compile. If a function needs at least one number, require a tuple with a first element:\n\n```typescript types\ntype NonEmptyArray<T> = [T, ...T[]];\n\nconst one: NonEmptyArray<number> = [7];\nconst three: NonEmptyArray<number> = [7, 8, 9];\n```\n\n`[T, ...T[]]` is a tuple whose first element must exist, followed by any number of others. An empty array doesn't fit, so the function never has to handle one, and `xs[0]` is a `T`, never `undefined`.\n\nThe same thinking covers other rules. If an invoice may only go to a verified email address, make verified a type of its own, and let only the verifying function produce it. If an order must not change once it's placed, make it `Readonly`, and write each update as a function that returns a new order. A check that would otherwise be repeated all over the codebase becomes one type, and the checker applies it everywhere.",
+      "examples": [
+        {
+          "title": "Highest bid",
+          "prompt": "Find the highest bid of each auction with a function that can't be called without bids.",
+          "code": "type NonEmptyArray<T> = [T, ...T[]];\n\nfunction isNonEmpty<T>(xs: readonly T[]): xs is NonEmptyArray<T> {\n  return xs.length > 0;\n}\n\nfunction highest(bids: NonEmptyArray<number>): number {\n  let best = bids[0];\n  //  ^? let best: number\n  for (const bid of bids) {\n    if (bid > best) best = bid;\n  }\n  return best;\n}\n\nconst auctions: Record<string, number[]> = {\n  lamp: [120, 95, 140],\n  chair: [],\n  clock: [60],\n};\n\nfor (const [item, bids] of Object.entries(auctions)) {\n  console.log(isNonEmpty(bids) ? `${item}: highest bid ${highest(bids)}` : `${item}: no bids`);\n}\n",
+          "output": "lamp: highest bid 140\nchair: no bids\nclock: highest bid 60",
+          "explanation": "Inside `highest`, `bids[0]` is a `number`, not `number | undefined`, as the bubble shows, because the tuple type says the first element exists. So the function needs no empty check and no made-up starting value. A plain `number[]` can't be passed in: the loop checks each list with `isNonEmpty` first, and the guard narrows `bids` to `NonEmptyArray<number>`. The empty case is handled once, at the call, where printing `no bids` makes sense. An empty array literal is rejected outright:\n\n```typescript error\ntype NonEmptyArray<T> = [T, ...T[]];\n\nfunction highest(bids: NonEmptyArray<number>): number {\n  return Math.max(...bids);\n}\n\nconsole.log(highest([]));\n```"
+        },
+        {
+          "title": "Verified versus unverified",
+          "prompt": "Send invoices only to verified email addresses, where only `verify` can produce one.",
+          "code": "type Email = string & { readonly __brand: \"Email\" };\ntype VerifiedEmail = Email & { readonly __verified: true };\n\nfunction isEmail(s: string): s is Email {\n  return /^[^@\\s]+@[^@\\s]+$/.test(s);\n}\n\nconst CODES = new Map([[\"ada@example.com\", \"4821\"]]);\n\nfunction isVerified(email: Email, code: string): email is VerifiedEmail {\n  return CODES.get(email) === code;\n}\n\nfunction verify(email: Email, code: string): VerifiedEmail | null {\n  return isVerified(email, code) ? email : null;\n}\n\nfunction sendInvoice(to: VerifiedEmail, totalCents: number): string {\n  return `invoice for ${totalCents} cents sent to ${to}`;\n}\n\nconst attempts: [address: string, code: string][] = [\n  [\"ada@example.com\", \"4821\"],\n  [\"ada@example.com\", \"1234\"],\n  [\"not-an-email\", \"4821\"],\n];\n\nfor (const [address, code] of attempts) {\n  if (!isEmail(address)) {\n    console.log(`${address}: not an email`);\n    continue;\n  }\n  const verified = verify(address, code);\n  console.log(verified === null ? `${address}: not verified` : sendInvoice(verified, 1299));\n}\n",
+          "output": "invoice for 1299 cents sent to ada@example.com\nada@example.com: not verified\nnot-an-email: not an email",
+          "explanation": "`VerifiedEmail` adds a second brand on top of `Email`. Every verified email is still an `Email`, so it fits wherever an `Email` does, but a plain `Email` isn't a `VerifiedEmail`. The only code that produces one is `verify`, through the `isVerified` guard, so `sendInvoice` can't be reached with an address that skipped verification. Try it, and the checker names the missing brand:\n\n```typescript error\ntype Email = string & { readonly __brand: \"Email\" };\ntype VerifiedEmail = Email & { readonly __verified: true };\n\nfunction isEmail(s: string): s is Email {\n  return /^[^@\\s]+@[^@\\s]+$/.test(s);\n}\n\nfunction sendInvoice(to: VerifiedEmail, totalCents: number): string {\n  return `invoice for ${totalCents} cents sent to ${to}`;\n}\n\nconst address: string = \"ada@example.com\";\nif (isEmail(address)) {\n  console.log(sendInvoice(address, 1299));\n}\n```"
+        },
+        {
+          "title": "Readonly domain objects",
+          "prompt": "Make a placed order impossible to change in place, and add a line by returning a new order.",
+          "code": "type OrderLine = Readonly<{ sku: string; qty: number; priceCents: number }>;\ntype Order = Readonly<{ id: string; lines: readonly OrderLine[] }>;\n\nfunction addLine(order: Order, line: OrderLine): Order {\n  return { ...order, lines: [...order.lines, line] };\n}\n\nfunction totalCents(order: Order): number {\n  return order.lines.reduce((sum, line) => sum + line.qty * line.priceCents, 0);\n}\n\nconst placed: Order = { id: \"ord_1001\", lines: [{ sku: \"MUG-001\", qty: 2, priceCents: 1299 }] };\nconst updated = addLine(placed, { sku: \"TEA-014\", qty: 1, priceCents: 850 });\n\nconsole.log(`placed: ${placed.lines.length} line, ${totalCents(placed)} cents`);\nconsole.log(`updated: ${updated.lines.length} lines, ${totalCents(updated)} cents`);\n",
+          "output": "placed: 1 line, 2598 cents\nupdated: 2 lines, 3448 cents",
+          "explanation": "`Readonly` makes every property of the order read-only, and `readonly OrderLine[]` takes away `push` and every other method that changes the array. So no code can change a placed order in place, which matters when other code may still hold it. `addLine` builds a new order instead: the spread copies `id`, and the new `lines` array holds the old lines plus the new one. `placed` is unchanged, as the first line shows. Changing the order directly doesn't compile:\n\n```typescript error\ntype OrderLine = Readonly<{ sku: string; qty: number; priceCents: number }>;\ntype Order = Readonly<{ id: string; lines: readonly OrderLine[] }>;\n\nconst placed: Order = { id: \"ord_1001\", lines: [] };\nplaced.lines.push({ sku: \"MUG-001\", qty: 2, priceCents: 1299 });\nplaced.id = \"ord_2002\";\nconsole.log(placed.id);\n```\n\nLike brands, `readonly` only exists for the checker, so it costs nothing at run time."
+        }
+      ],
+      "practice": {
+        "title": "Non-empty averages",
+        "prompt": "Read numbers and print their average, with an `average` function that can't be called without numbers.\n\n1. Export `type NonEmptyArray<T>`, a tuple with a first element and then any number of others, and `isNonEmpty<T>(xs: readonly T[]): xs is NonEmptyArray<T>`.\n2. Export `average(xs: NonEmptyArray<number>): number`, with no empty check inside.\n3. The starter reads the input into `numbers`. Print `average: <value>` with 2 decimals, or `no numbers` when the input has none.\n4. Don't cast with `as`: Check rejects it. Keep `export`: hidden type tests import your names.\n\nInput:\n\n```text\n2 4 6 6\n```\n\nExpected output:\n\n```text\naverage: 4.50\n```",
+        "starter": "import { readFileSync } from \"node:fs\";\n\n// TODO: a tuple with a first element, then any number of others\nexport type NonEmptyArray<T> = T[];\n\nexport function isNonEmpty<T>(xs: readonly T[]): xs is NonEmptyArray<T> {\n  // TODO: true when xs has at least one element\n  return false;\n}\n\nexport function average(xs: NonEmptyArray<number>): number {\n  // TODO: add up xs and divide by its length\n  return 0;\n}\n\nconst numbers = readFileSync(0, \"utf8\")\n  .split(/\\s+/)\n  .filter((s) => s !== \"\")\n  .map(Number);\n\n// TODO: print \"average: <value>\" with 2 decimals, or \"no numbers\"\n",
+        "solution": "import { readFileSync } from \"node:fs\";\n\nexport type NonEmptyArray<T> = [T, ...T[]];\n\nexport function isNonEmpty<T>(xs: readonly T[]): xs is NonEmptyArray<T> {\n  return xs.length > 0;\n}\n\nexport function average(xs: NonEmptyArray<number>): number {\n  return xs.reduce((sum, x) => sum + x, 0) / xs.length;\n}\n\nconst numbers = readFileSync(0, \"utf8\")\n  .split(/\\s+/)\n  .filter((s) => s !== \"\")\n  .map(Number);\n\nconsole.log(isNonEmpty(numbers) ? `average: ${average(numbers).toFixed(2)}` : \"no numbers\");\n",
+        "tests": [
+          {
+            "stdin": "2 4 6 6\n",
+            "output": "average: 4.50"
+          },
+          {
+            "stdin": "\n",
+            "output": "no numbers"
+          },
+          {
+            "stdin": "1.5 2.25 10\n",
+            "output": "average: 4.58"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { average, isNonEmpty } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects an empty array",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "average([]);"
+            },
+            {
+              "name": "accepts one number",
+              "expect": "ok",
+              "code": "const avg: number = average([1]);"
+            },
+            {
+              "name": "a plain number array needs a check first",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "declare const xs: number[];\naverage(xs);"
+            },
+            {
+              "name": "isNonEmpty narrows a number array",
+              "expect": "ok",
+              "code": "declare const xs: number[];\nif (isNonEmpty(xs)) {\n  average(xs);\n}"
+            }
+          ]
+        },
+        "forbid": [
+          "as"
+        ],
+        "hints": [
+          "`NonEmptyArray` is the same tuple as in the first example: a first element of type `T`, then `...T[]` for the rest.",
+          "`isNonEmpty` returns `xs.length > 0`. Its return type is what narrows `numbers` at the call.",
+          "`average` is `xs.reduce((sum, x) => sum + x, 0) / xs.length`, and the length can't be 0. Print the result with `toFixed(2)`."
+        ]
+      }
+    }
+  ],
+  "recap": "- TypeScript compares types by shape, so two aliases of `string` are the same type and can be swapped by mistake.\n- A brand like `string & { readonly __brand: \"OrderId\" }` makes a type that plain strings and other brands don't fit. It exists only for the checker.\n- A type guard is the way into a brand, so a smart constructor needs no cast: `isOrderId(id) ? id : null`.\n- Arithmetic on branded numbers gives a plain `number`, so check the result again. Return `null` for bad input, and throw when your own code computed a bad value.\n- `declare const brand: unique symbol` and `Brand<T, B>` give you one reusable brand type.\n- `[T, ...T[]]`, a second brand like `VerifiedEmail`, and `Readonly` objects turn rules about your data into types the checker enforces everywhere."
+}

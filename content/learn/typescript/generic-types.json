@@ -1,0 +1,224 @@
+{
+  "id": "generic-types",
+  "title": "Generic Types and Classes",
+  "section": "Generics",
+  "summary": "Give type aliases, interfaces, and classes their own type parameters, and type the generic built-ins Map, Set, and Node's EventEmitter.",
+  "intro": "Functions aren't the only things that take type parameters. A response wrapper, a page of results, a repository, or a cache has the same shape whatever it holds, so you write the shape once with a type parameter and fill it in at each use: `Page<Product>`, `TtlCache<string, number>`. In this lesson you write generic type aliases, interfaces, and classes, give type parameters defaults, and type the generic built-ins you'll meet in every codebase: `Map`, `Set`, and Node's `EventEmitter`.",
+  "steps": [
+    {
+      "title": "Generic type aliases and interfaces",
+      "body": "A type alias can declare type parameters after its name, and each use fills them in, like arguments to a function:\n\n```typescript\ntype ApiResponse<T> = { data: T; fetchedAt: string };\n\nconst greeting: ApiResponse<string> = { data: \"Hello\", fetchedAt: \"2026-10-01T09:00:00Z\" };\nconsole.log(greeting.data.length); // 5\n```\n\nTypeScript doesn't infer a type's arguments from the value you assign, so `ApiResponse` written alone is an error: TS2314, `Generic type 'ApiResponse' requires 1 type argument(s)`. A default fixes that. With `type Envelope<T = unknown>`, writing `Envelope` alone means `Envelope<unknown>`. `unknown` makes a safe default, because code has to check the value before it uses it.\n\nInterfaces take type parameters the same way, and their methods can use them:\n\n```typescript types\ninterface Repository<T> {\n  get(id: string): T | undefined;\n  list(): T[];\n}\n```\n\nTo build values of a generic type, write a generic function that returns it. Each call infers `T` from its arguments, so callers never have to write it.",
+      "examples": [
+        {
+          "title": "An API response",
+          "prompt": "Wrap a user and a list of users in the same response type with one generic `respond`.",
+          "code": "type ApiResponse<T> = { data: T; fetchedAt: string };\ntype User = { id: number; name: string };\n\nfunction respond<T>(data: T): ApiResponse<T> {\n  return { data, fetchedAt: \"2026-10-01T09:00:00Z\" };\n}\n\nconst ada: User = { id: 1, name: \"Ada\" };\nconst users: User[] = [ada, { id: 2, name: \"Grace\" }];\n\nconst one = respond(ada);\n//    ^? const one: ApiResponse<User>\nconst all = respond(users);\n//    ^? const all: ApiResponse<User[]>\n\nconsole.log(`${one.data.name} at ${one.fetchedAt}`);\nconsole.log(`${all.data.length} users: ${all.data.map((u) => u.name).join(\", \")}`);\n",
+          "output": "Ada at 2026-10-01T09:00:00Z\n2 users: Ada, Grace",
+          "explanation": "`ApiResponse<T>` describes every response at once, and each use fills in `T`. `respond` is a generic function whose return type is the generic type, so each call's `T` flows from its argument into its result. `respond(ada)` returns an `ApiResponse<User>`, whose `data` is a `User`, and `respond(users)` returns an `ApiResponse<User[]>`, whose `data` you can `map`. The bubbles show each type with its argument filled in, which reads like a sentence: an API response of users."
+        },
+        {
+          "title": "Pages and a default",
+          "prompt": "Describe pages of results with `Page<T>`, and wrap responses in an `Envelope` whose type argument has a default.",
+          "code": "type Page<T> = { items: T[]; nextCursor: string | null };\ntype Envelope<T = unknown> = { status: number; body: T };\n\nconst first: Page<string> = { items: [\"Mug\", \"Kettle\"], nextCursor: \"c2\" };\nconst last: Page<string> = { items: [\"Teapot\"], nextCursor: null };\nconst ok: Envelope<Page<string>> = { status: 200, body: first };\nconst failed: Envelope = { status: 500, body: \"Server error\" };\n//    ^? const failed: Envelope<unknown>\n\nfor (const page of [first, last]) {\n  console.log(`${page.items.join(\", \")} (next: ${page.nextCursor ?? \"none\"})`);\n}\nconsole.log(`${ok.status}: ${ok.body.items.length} items`);\nif (typeof failed.body === \"string\") {\n  console.log(`${failed.status}: ${failed.body}`);\n}\n",
+          "output": "Mug, Kettle (next: c2)\nTeapot (next: none)\n200: 2 items\n500: Server error",
+          "explanation": "`Page<T>` fits a page of anything: `Page<string>` here, `Page<Order>` elsewhere, with `nextCursor` set to `null` on the last page. Type arguments nest, so `Envelope<Page<string>>` is an envelope whose body is a page of strings, and `ok.body.items` is typed all the way down. `Envelope` has a default, so `failed: Envelope` means `Envelope<unknown>`, as the bubble shows. Its body could be anything, so the code checks `typeof failed.body === \"string\"` before printing it. Without the default, `Envelope` alone would be the TS2314 error."
+        },
+        {
+          "title": "A repository interface",
+          "prompt": "Write one `Repository<T>` interface, build a repository of books and one of members from arrays, and print both with one function.",
+          "code": "interface Repository<T> {\n  get(id: string): T | undefined;\n  list(): T[];\n}\n\ntype Book = { id: string; title: string };\ntype Member = { id: string; name: string };\n\nfunction arrayRepo<T extends { id: string }>(items: readonly T[]): Repository<T> {\n  return {\n    get: (id) => items.find((item) => item.id === id),\n    list: () => [...items],\n  };\n}\n\nfunction report<T>(label: string, repo: Repository<T>, show: (item: T) => string): void {\n  console.log(`${label}: ${repo.list().map(show).join(\", \")}`);\n}\n\nconst bookList: Book[] = [\n  { id: \"b1\", title: \"Dune\" },\n  { id: \"b2\", title: \"Emma\" },\n];\nconst books = arrayRepo(bookList);\n//    ^? const books: Repository<Book>\nconst members = arrayRepo<Member>([{ id: \"m1\", name: \"Ada\" }]);\n\nreport(\"Books\", books, (b) => b.title);\nreport(\"Members\", members, (m) => m.name);\nconsole.log(books.get(\"b2\")?.title ?? \"no such book\");\nconsole.log(books.get(\"b9\")?.title ?? \"no such book\");\n",
+          "output": "Books: Dune, Emma\nMembers: Ada\nEmma\nno such book",
+          "explanation": "An interface takes type parameters just like a type alias, and its methods use them: for a `Repository<Book>`, `get` returns `Book | undefined` and `list` returns `Book[]`. `arrayRepo` builds one from any array of items that have an `id`, and the object it returns gets its method types from the return type, so `(id) => ...` needs no annotation. For `members`, `arrayRepo<Member>` writes the type argument out, so the array literal is checked against `Member` as you type it. `report` takes any `Repository<T>`, and its `show` callback gets the right item type for each repository. Code written against the interface doesn't care where the items live: an array here, a database later."
+        }
+      ],
+      "practice": {
+        "title": "Paginate",
+        "prompt": "Write a generic `paginate` that cuts one page out of any list and says where the next page starts.\n\n1. Make the exported `Page` type generic: `type Page<T> = { items: T[]; nextCursor: string | null }`.\n2. Give `paginate` a type parameter `T`, the parameters `items: readonly T[]`, `pageSize: number`, and `page: number` (counting from 1), and the return type `Page<T>`.\n3. Return that page's items, with `nextCursor` set to the next page's number as a string, or `null` when no items come after this page.\n4. Print page 3 the same way as page 1.\n5. Keep the `export`s: hidden type tests import `paginate` and `Page`, and Check also pages through other lists.\n\nExpected output:\n\n```text\nPage 1: plan sprint, write spec, review PR (next: 2)\nPage 3: update docs (next: none)\n```",
+        "starter": "// TODO: make Page generic, with items typed T[]\nexport type Page = { items: string[]; nextCursor: string | null };\n\n// TODO: make paginate generic: a type parameter T, items typed\n// readonly T[], and the return type Page<T>.\nexport function paginate(items: readonly string[], pageSize: number, page: number): Page {\n  // TODO: return this page's items (pages count from 1), and the next\n  // page's number as a string, or null when nothing comes after this page\n  return { items: [], nextCursor: null };\n}\n\nconst tasks = [\"plan sprint\", \"write spec\", \"review PR\", \"fix login\", \"add tests\", \"deploy\", \"update docs\"];\n\nconst first = paginate(tasks, 3, 1);\nconsole.log(`Page 1: ${first.items.join(\", \")} (next: ${first.nextCursor ?? \"none\"})`);\n// TODO: print page 3 the same way\n",
+        "solution": "export type Page<T> = { items: T[]; nextCursor: string | null };\n\nexport function paginate<T>(items: readonly T[], pageSize: number, page: number): Page<T> {\n  const start = (page - 1) * pageSize;\n  const end = start + pageSize;\n  return {\n    items: items.slice(start, end),\n    nextCursor: end < items.length ? String(page + 1) : null,\n  };\n}\n\nconst tasks = [\"plan sprint\", \"write spec\", \"review PR\", \"fix login\", \"add tests\", \"deploy\", \"update docs\"];\n\nconst first = paginate(tasks, 3, 1);\nconsole.log(`Page 1: ${first.items.join(\", \")} (next: ${first.nextCursor ?? \"none\"})`);\nconst third = paginate(tasks, 3, 3);\nconsole.log(`Page 3: ${third.items.join(\", \")} (next: ${third.nextCursor ?? \"none\"})`);\n",
+        "tests": [
+          {
+            "output": "Page 1: plan sprint, write spec, review PR (next: 2)\nPage 3: update docs (next: none)"
+          },
+          {
+            "harness": "{{code}}\nconst nums = paginate([10, 20, 30, 40], 2, 1);\nconsole.log(`${nums.items.join(\"+\")} ${nums.nextCursor}`);\nconst rest = paginate([10, 20, 30, 40], 2, 2);\nconsole.log(`${rest.items.join(\"+\")} ${rest.nextCursor}`);",
+            "output": "Page 1: plan sprint, write spec, review PR (next: 2)\nPage 3: update docs (next: none)\n10+20 2\n30+40 null"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { paginate, type Page } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "pages keep the item type",
+              "expect": "ok",
+              "code": "const p: Page<string> = paginate([\"a\"], 1, 1);"
+            },
+            {
+              "name": "a page of strings isn't a page of numbers",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const p: Page<number> = paginate([\"a\"], 1, 1);"
+            },
+            {
+              "name": "the cursor is a string or null",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const c: number | null = paginate([\"a\"], 1, 1).nextCursor;"
+            }
+          ]
+        },
+        "hints": [
+          "Write the type first, `export type Page<T> = { items: T[]; nextCursor: string | null }`. Then `paginate` returns `Page<T>`, the way `respond` returns `ApiResponse<T>` in the first example.",
+          "Page `page` starts at index `(page - 1) * pageSize`, and `items.slice(start, start + pageSize)` cuts it out. `slice` stops at the end of the array.",
+          "There's a next page when `start + pageSize < items.length`. Then `nextCursor` is `String(page + 1)`, and otherwise it's `null`."
+        ]
+      }
+    },
+    {
+      "title": "Generic classes",
+      "body": "A class takes type parameters after its name, and its fields and methods use them. Keep the state in JavaScript `#private` fields with a type, so only the class can touch it:\n\n```typescript\nclass Box<T> {\n  #value: T;\n\n  constructor(value: T) {\n    this.#value = value;\n  }\n\n  get(): T {\n    return this.#value;\n  }\n}\n\nconst box = new Box(42);\n//    ^? const box: Box<number>\nconsole.log(box.get() + 1); // 43\n```\n\n`new Box(42)` infers `T` from the constructor's argument, the way a call to a generic function does. When the constructor takes nothing of type `T`, there's nothing to infer from, and `T` becomes `unknown`, so every value you get back would need narrowing before use. Pass the type argument yourself instead, as in `new Stack<string>()`.\n\nA class can have several type parameters, and constraints work on them just as on functions.",
+      "examples": [
+        {
+          "title": "A typed stack",
+          "prompt": "Keep an undo history in a stack of strings, and zoom levels in a stack of numbers, with one generic `Stack` class.",
+          "code": "class Stack<T> {\n  #items: T[] = [];\n\n  push(x: T): void {\n    this.#items.push(x);\n  }\n\n  pop(): T | undefined {\n    return this.#items.pop();\n  }\n\n  peek(): T | undefined {\n    return this.#items.at(-1);\n  }\n}\n\nconst undo = new Stack<string>();\nundo.push(\"bold title\");\nundo.push(\"delete line\");\nconsole.log(`Undo: ${undo.pop()}`);\nconsole.log(`Undo: ${undo.pop()}`);\nconsole.log(`Next undo: ${undo.peek() ?? \"nothing left\"}`);\n\nconst zoom = new Stack<number>();\nzoom.push(100);\nzoom.push(150);\nconst level = zoom.pop();\n//    ^? const level: number | undefined\nconsole.log(`Zoomed out from ${level}% to ${zoom.peek() ?? 100}%`);\n",
+          "output": "Undo: delete line\nUndo: bold title\nNext undo: nothing left\nZoomed out from 150% to 100%",
+          "explanation": "`new Stack<string>()` sets `T` to `string` for that stack, so `push` takes only strings, and `undo.push(42)` is a type error (TS2345). The constructor takes no item, so there's nothing to infer `T` from, and the type argument is how you say what the stack holds. `pop` and `peek` return `T | undefined` because the stack may be empty: after two undos, `peek` finds nothing, and `??` supplies the fallback. `#items` is a JavaScript private field: code outside the class can't read or change it."
+        },
+        {
+          "title": "A cache with a fake clock",
+          "prompt": "Cache exchange rates for 60 seconds in a `TtlCache<K, V>` that reads the time from a clock function you pass in.",
+          "code": "class TtlCache<K, V> {\n  #entries = new Map<K, { value: V; expiresAt: number }>();\n  #ttlMs: number;\n  #now: () => number;\n\n  constructor(ttlMs: number, now: () => number) {\n    this.#ttlMs = ttlMs;\n    this.#now = now;\n  }\n\n  set(key: K, value: V): void {\n    this.#entries.set(key, { value, expiresAt: this.#now() + this.#ttlMs });\n  }\n\n  get(key: K): V | undefined {\n    const entry = this.#entries.get(key);\n    if (entry === undefined) return undefined;\n    if (this.#now() >= entry.expiresAt) {\n      this.#entries.delete(key);\n      return undefined;\n    }\n    return entry.value;\n  }\n}\n\nlet fakeNow = 0;\nconst rates = new TtlCache<string, number>(60_000, () => fakeNow);\n\nrates.set(\"EUR\", 1.08);\nconsole.log(`At 0 ms: ${rates.get(\"EUR\") ?? \"expired\"}`);\nfakeNow = 59_999;\nconsole.log(`At 59999 ms: ${rates.get(\"EUR\") ?? \"expired\"}`);\nfakeNow = 60_000;\nconsole.log(`At 60000 ms: ${rates.get(\"EUR\") ?? \"expired\"}`);\nconsole.log(`GBP: ${rates.get(\"GBP\") ?? \"never cached\"}`);\n",
+          "output": "At 0 ms: 1.08\nAt 59999 ms: 1.08\nAt 60000 ms: expired\nGBP: never cached",
+          "explanation": "`TtlCache<K, V>` has two type parameters, one for its keys and one for its values, and `new TtlCache<string, number>(...)` sets both: `set` takes a string and a number, and `get` returns `number | undefined`. The cache never reads the real time. It calls the `now` function it was given, so the program passes a fake clock and moves it forward by hand, and the rate expires at exactly 60000 ms on every run. In real code you'd pass `() => Date.now()`. Passing in what varies, instead of reaching for it inside the class, is what makes time-based code testable."
+        },
+        {
+          "title": "A repository class",
+          "prompt": "Store customers in a generic in-memory repository whose items must have an `id`.",
+          "code": "class InMemoryRepo<T extends { id: string }> {\n  #items = new Map<string, T>();\n\n  save(item: T): void {\n    this.#items.set(item.id, item);\n  }\n\n  get(id: string): T | undefined {\n    return this.#items.get(id);\n  }\n\n  list(): T[] {\n    return [...this.#items.values()];\n  }\n}\n\ntype Customer = { id: string; name: string; plan: \"free\" | \"pro\" };\n\nconst customers = new InMemoryRepo<Customer>();\ncustomers.save({ id: \"c1\", name: \"Ada\", plan: \"pro\" });\ncustomers.save({ id: \"c2\", name: \"Ben\", plan: \"free\" });\ncustomers.save({ id: \"c1\", name: \"Ada\", plan: \"free\" });\n\nfor (const c of customers.list()) {\n  console.log(`${c.id}: ${c.name} (${c.plan})`);\n}\nconst c3 = customers.get(\"c3\");\n//    ^? const c3: Customer | undefined\nconsole.log(c3 ? c3.name : \"no customer c3\");\n",
+          "output": "c1: Ada (free)\nc2: Ben (free)\nno customer c3",
+          "explanation": "`T extends { id: string }` lets `save` read `item.id`, and `new InMemoryRepo<Customer>()` keeps the whole `Customer` type for `get` and `list`, so `c.plan` is there to print. The items live in a `Map` keyed by id, so saving `c1` again replaces it. A `Map` keeps each key where it was first added, so `c1` still lists first, now on the free plan. A type without an `id` doesn't fit the constraint:\n\n```typescript error\nclass InMemoryRepo<T extends { id: string }> {\n  #items = new Map<string, T>();\n\n  list(): T[] {\n    return [...this.#items.values()];\n  }\n}\n\nconst notes = new InMemoryRepo<{ text: string }>();\nconsole.log(notes.list().length);\n```\n\nThe Interfaces, Abstract Classes, and Dependency Injection lesson has a class like this implement a `Repository` interface."
+        }
+      ],
+      "practice": {
+        "title": "Queue",
+        "prompt": "Make `Queue` generic, so it holds items of any one type and serves them first in, first out.\n\n1. Give `Queue` a type parameter `T`, and keep its items in a `#items: T[]` field that starts empty.\n2. `enqueue(x: T): void` adds `x` at the back, and `size(): number` returns how many items are waiting.\n3. `dequeue(): T | undefined` removes and returns the item at the front, or `undefined` when the queue is empty.\n4. Create `tickets` as a `new Queue<string>()`.\n5. Keep the `export`: hidden type tests import `Queue`, and Check also runs a queue of numbers.\n\nExpected output:\n\n```text\nWaiting: 3\nServing T-1\nServing T-2\nWaiting: 2\nServing T-3\nServing T-4\nNext: nobody\n```",
+        "starter": "// TODO: give Queue a type parameter T, keep its items in a #items: T[]\n// field, and use T wherever the methods say string\nexport class Queue {\n  enqueue(x: string): void {\n    // TODO: add x at the back\n  }\n\n  dequeue(): string | undefined {\n    // TODO: remove and return the item at the front\n    return undefined;\n  }\n\n  size(): number {\n    // TODO: return how many items are waiting\n    return 0;\n  }\n}\n\n// TODO: create tickets as a Queue<string>\nconst tickets = new Queue();\ntickets.enqueue(\"T-1\");\ntickets.enqueue(\"T-2\");\ntickets.enqueue(\"T-3\");\nconsole.log(`Waiting: ${tickets.size()}`);\nconsole.log(`Serving ${tickets.dequeue()}`);\nconsole.log(`Serving ${tickets.dequeue()}`);\ntickets.enqueue(\"T-4\");\nconsole.log(`Waiting: ${tickets.size()}`);\nconsole.log(`Serving ${tickets.dequeue()}`);\nconsole.log(`Serving ${tickets.dequeue()}`);\nconsole.log(`Next: ${tickets.dequeue() ?? \"nobody\"}`);\n",
+        "solution": "export class Queue<T> {\n  #items: T[] = [];\n\n  enqueue(x: T): void {\n    this.#items.push(x);\n  }\n\n  dequeue(): T | undefined {\n    return this.#items.shift();\n  }\n\n  size(): number {\n    return this.#items.length;\n  }\n}\n\nconst tickets = new Queue<string>();\ntickets.enqueue(\"T-1\");\ntickets.enqueue(\"T-2\");\ntickets.enqueue(\"T-3\");\nconsole.log(`Waiting: ${tickets.size()}`);\nconsole.log(`Serving ${tickets.dequeue()}`);\nconsole.log(`Serving ${tickets.dequeue()}`);\ntickets.enqueue(\"T-4\");\nconsole.log(`Waiting: ${tickets.size()}`);\nconsole.log(`Serving ${tickets.dequeue()}`);\nconsole.log(`Serving ${tickets.dequeue()}`);\nconsole.log(`Next: ${tickets.dequeue() ?? \"nobody\"}`);\n",
+        "tests": [
+          {
+            "output": "Waiting: 3\nServing T-1\nServing T-2\nWaiting: 2\nServing T-3\nServing T-4\nNext: nobody"
+          },
+          {
+            "harness": "{{code}}\nconst jobs = new Queue<number>();\njobs.enqueue(7);\njobs.enqueue(9);\nconsole.log(`${jobs.dequeue()} ${jobs.size()} ${jobs.dequeue()} ${jobs.dequeue()}`);",
+            "output": "Waiting: 3\nServing T-1\nServing T-2\nWaiting: 2\nServing T-3\nServing T-4\nNext: nobody\n7 1 9 undefined"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { Queue } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "a queue of numbers rejects strings",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "new Queue<number>().enqueue(\"1\");"
+            },
+            {
+              "name": "dequeue returns the item type",
+              "expect": "ok",
+              "code": "const x: string | undefined = new Queue<string>().dequeue();"
+            },
+            {
+              "name": "dequeue may find the queue empty",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const x: string = new Queue<string>().dequeue();"
+            }
+          ]
+        },
+        "hints": [
+          "Follow `Stack` from the first example: `class Queue<T>` with `#items: T[] = []`, and `T` wherever the starter says `string`.",
+          "`push` adds at the back of an array, and `shift` removes and returns its first item, or `undefined` when the array is empty.",
+          "`size` returns `this.#items.length`. Write `new Queue<string>()`, because the constructor takes no item that `T` could be inferred from."
+        ]
+      }
+    },
+    {
+      "title": "Map, Set, and typed events",
+      "body": "The built-in collections are generic classes. `new Map<string, number[]>()` maps strings to arrays of numbers, and its `get` returns `number[] | undefined`, because a key may be missing. `new Set<string>()` holds unique strings. Given starting entries, TypeScript infers the type arguments from them:\n\n```typescript\nconst stock = new Map([[\"mug\", 4], [\"kettle\", 0]]);\n//    ^? const stock: Map<string, number>\nconsole.log(stock.get(\"mug\") ?? 0); // 4\n```\n\nNode's `EventEmitter`, from `node:events`, is generic too. Its type argument maps each event name to a tuple of the arguments its listeners receive. With that map, `emit` checks the arguments you send, and each listener's parameters are inferred from the tuple:\n\n```typescript\nimport { EventEmitter } from \"node:events\";\n\nconst files = new EventEmitter<{ saved: [file: string, bytes: number] }>();\nfiles.on(\"saved\", (file, bytes) => {\n  console.log(`${file}: ${bytes} bytes`); // notes.txt: 512 bytes\n});\nfiles.emit(\"saved\", \"notes.txt\", 512);\n```\n\nNamed tuple elements, like `file: string`, label the arguments in the editor's hints.",
+      "examples": [
+        {
+          "title": "Scores and tags",
+          "prompt": "Group test scores per student in a `Map`, and collect the distinct tags of some posts in a `Set`.",
+          "code": "const results: [student: string, score: number][] = [\n  [\"Ana\", 91],\n  [\"Ben\", 78],\n  [\"Ana\", 85],\n  [\"Caro\", 88],\n  [\"Ben\", 82],\n];\n\nconst scores = new Map<string, number[]>();\nfor (const [student, score] of results) {\n  const list = scores.get(student);\n  //    ^? const list: number[] | undefined\n  if (list === undefined) {\n    scores.set(student, [score]);\n  } else {\n    list.push(score);\n  }\n}\nfor (const [student, list] of scores) {\n  console.log(`${student}: ${list.join(\", \")}`);\n}\n\nconst posts = [\n  { title: \"Generics\", tags: [\"ts\", \"types\"] },\n  { title: \"Streams\", tags: [\"node\", \"ts\"] },\n  { title: \"Schemas\", tags: [\"zod\", \"types\", \"ts\"] },\n];\nconst tags = new Set<string>();\nfor (const post of posts) {\n  for (const tag of post.tags) tags.add(tag);\n}\nconsole.log(`${tags.size} tags: ${[...tags].join(\", \")}`);\nconsole.log(`Has node: ${tags.has(\"node\")}`);\n",
+          "output": "Ana: 91, 85\nBen: 78, 82\nCaro: 88\n4 tags: ts, types, node, zod\nHas node: true",
+          "explanation": "`new Map<string, number[]>()` starts empty, so the type arguments say what it will hold: student names mapped to lists of scores. `get` returns `number[] | undefined`, as the bubble shows, because a student may not be in the map yet, so the loop checks before it pushes. Looping over a `Map` gives `[key, value]` pairs in the order the keys were first set. `new Set<string>()` keeps one copy of each tag, also in first-seen order, and `has` says whether a value is in it. Both start empty here, which is exactly when the type arguments are needed."
+        },
+        {
+          "title": "Typed events",
+          "prompt": "Announce created and cancelled orders on an `EventEmitter` typed with a map of its events.",
+          "code": "import { EventEmitter } from \"node:events\";\n\ntype Order = { id: string; totalCents: number };\n\ntype OrderEvents = {\n  created: [order: Order];\n  cancelled: [id: string, reason: string];\n};\n\nconst events = new EventEmitter<OrderEvents>();\n\nevents.on(\"created\", (order) => {\n  //                  ^? (parameter) order: Order\n  console.log(`Created ${order.id}: $${(order.totalCents / 100).toFixed(2)}`);\n});\nevents.on(\"cancelled\", (id, reason) => {\n  console.log(`Cancelled ${id}: ${reason}`);\n});\n\nevents.emit(\"created\", { id: \"o1\", totalCents: 1299 });\nevents.emit(\"created\", { id: \"o2\", totalCents: 450 });\nevents.emit(\"cancelled\", \"o1\", \"out of stock\");\n",
+          "output": "Created o1: $12.99\nCreated o2: $4.50\nCancelled o1: out of stock",
+          "explanation": "`OrderEvents` maps each event name to the arguments its listeners get, written as a named tuple. Passing it to `EventEmitter` types `on` and `emit` from it: the `created` listener's `order` is an `Order`, as the bubble shows, and the `cancelled` listener gets two strings, with no annotations. `emit` calls the listeners for that event right away, in the order they were added, so each line prints as its event is emitted."
+        },
+        {
+          "title": "Wrong arguments",
+          "prompt": "Emit a `cancelled` event without its reason, and read the error.",
+          "code": "import { EventEmitter } from \"node:events\";\n\ntype OrderEvents = {\n  created: [id: string];\n  cancelled: [id: string, reason: string];\n};\n\nconst events = new EventEmitter<OrderEvents>();\nevents.on(\"cancelled\", (id, reason) => {\n  console.log(`Cancelled ${id}: ${reason}`);\n});\n\nevents.emit(\"cancelled\", \"o1\");\n",
+          "expect": "type-error",
+          "output": "main.ts(13,8): error TS2554: Expected 3 arguments, but got 2.",
+          "explanation": "The `cancelled` tuple has two elements, so `emit(\"cancelled\", ...)` takes the event name plus two arguments. The message counts the name too, which is why it expects 3. Without the type argument, the same `emit` compiles, and the listener runs without its reason:\n\n```typescript\nimport { EventEmitter } from \"node:events\";\n\nconst events = new EventEmitter();\nevents.on(\"cancelled\", (id, reason) => {\n  console.log(`Cancelled ${id}: ${reason}`); // Cancelled o1: undefined\n});\nevents.emit(\"cancelled\", \"o1\");\n```\n\nOne gap remains with the typed version: Node's types still accept an event name that isn't in the map. A listener for a misspelled `\"canceled\"` compiles, gets arguments typed `any`, and never runs. The map is the one place each name is spelled, so check names against it."
+        }
+      ],
+      "practice": {
+        "title": "Order events",
+        "prompt": "Type an event bus for orders, so every listener and every `emit` gets the right arguments.\n\n1. Make the exported `OrderEvents` map two events: `placed` to `[id: string, totalCents: number]`, and `shipped` to `[id: string, carrier: string]`.\n2. Pass `OrderEvents` as the type argument of the exported `bus`.\n3. Add a listener for `shipped` that prints `Shipped <id> with <carrier>`.\n4. Keep the `export`s: hidden type tests import `bus`, and Check also emits other events.\n\nExpected output:\n\n```text\nPlaced o1: $12.99\nPlaced o2: $45.00\nShipped o1 with UPS\n```",
+        "starter": "import { EventEmitter } from \"node:events\";\n\n// TODO: map placed to [id: string, totalCents: number]\n// and shipped to [id: string, carrier: string]\nexport type OrderEvents = {};\n\n// TODO: pass OrderEvents as the type argument\nexport const bus = new EventEmitter();\n\nbus.on(\"placed\", (id, totalCents) => {\n  console.log(`Placed ${id}: $${(totalCents / 100).toFixed(2)}`);\n});\n// TODO: print Shipped <id> with <carrier> when an order ships\n\nbus.emit(\"placed\", \"o1\", 1299);\nbus.emit(\"placed\", \"o2\", 4500);\nbus.emit(\"shipped\", \"o1\", \"UPS\");\n",
+        "solution": "import { EventEmitter } from \"node:events\";\n\nexport type OrderEvents = {\n  placed: [id: string, totalCents: number];\n  shipped: [id: string, carrier: string];\n};\n\nexport const bus = new EventEmitter<OrderEvents>();\n\nbus.on(\"placed\", (id, totalCents) => {\n  console.log(`Placed ${id}: $${(totalCents / 100).toFixed(2)}`);\n});\nbus.on(\"shipped\", (id, carrier) => {\n  console.log(`Shipped ${id} with ${carrier}`);\n});\n\nbus.emit(\"placed\", \"o1\", 1299);\nbus.emit(\"placed\", \"o2\", 4500);\nbus.emit(\"shipped\", \"o1\", \"UPS\");\n",
+        "tests": [
+          {
+            "output": "Placed o1: $12.99\nPlaced o2: $45.00\nShipped o1 with UPS"
+          },
+          {
+            "harness": "{{code}}\nbus.emit(\"shipped\", \"o2\", \"DHL\");\nbus.emit(\"placed\", \"o3\", 5);",
+            "output": "Placed o1: $12.99\nPlaced o2: $45.00\nShipped o1 with UPS\nShipped o2 with DHL\nPlaced o3: $0.05"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { bus } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "placed needs a total",
+              "expect": "error",
+              "errorCode": "TS2554",
+              "code": "bus.emit(\"placed\", \"o1\");"
+            },
+            {
+              "name": "a carrier is a string",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "bus.emit(\"shipped\", \"o1\", 42);"
+            },
+            {
+              "name": "ships with a carrier",
+              "expect": "ok",
+              "code": "bus.emit(\"shipped\", \"o1\", \"ups\");"
+            },
+            {
+              "name": "a placed listener gets a number total",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "bus.on(\"placed\", (id: string, total: string) => console.log(id, total));"
+            }
+          ]
+        },
+        "hints": [
+          "Each event maps to a named tuple of its arguments, like `cancelled: [id: string, reason: string]` in the examples.",
+          "Write `new EventEmitter<OrderEvents>()`. Then the listeners' parameters get their types from the map, with no annotations.",
+          "The new listener is `bus.on(\"shipped\", (id, carrier) => { ... })`, and it prints a template string with `id` and `carrier`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Type aliases and interfaces take type parameters after their name, and each use fills them in: `Page<Order>`, `Repository<Book>`.\n- A generic type written without its type arguments is an error (TS2314), unless its type parameters have defaults like `<T = unknown>`.\n- A generic function that returns a generic type, like `respond<T>(data: T): ApiResponse<T>`, lets callers skip writing `T`.\n- A generic class takes type parameters after its name. Its constructor's arguments infer them, or you write them, as in `new Stack<string>()`.\n- Keep a class's state in `#private` fields, and pass in what varies, like a clock, so its behavior is deterministic and testable.\n- `Map<K, V>` and `Set<T>` are generic classes, and `Map.get` returns `V | undefined` because a key may be missing.\n- `new EventEmitter<Events>()` types `on` and `emit` from a map of event names to argument tuples, but it still accepts names that aren't in the map."
+}

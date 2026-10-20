@@ -1,0 +1,240 @@
+{
+  "id": "result-types",
+  "title": "Results Instead of Exceptions",
+  "section": "Async and Errors",
+  "summary": "Return expected failures as typed Result values, model them as error unions, turn them into responses, and keep throwing for bugs.",
+  "intro": "A thrown error is invisible in a function's type. Nothing in `parsePort(text: string): number` tells a caller that parsing can fail, and nothing makes them handle it. For failures that are part of normal life, like bad input, a sold-out item, or a missing record, many codebases return a Result instead: a value that is either a success holding data or a failure holding a typed error. You already know the shape from discriminated unions. This lesson turns it into a small toolkit and shows where exceptions still belong.",
+  "steps": [
+    {
+      "title": "A Result type",
+      "body": "A Result is a discriminated union with `ok` as its tag. Make it generic, so each function can say what it returns on success and what it returns on failure:\n\n```typescript types\ntype Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n```\n\nTwo small helpers build each side. `never` is the type with no values, so a `Result<T, never>` can only be a success, and it fits any `Result<T, E>`. The same goes for `err` and `Result<never, E>`:\n\n```typescript\ntype Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nfunction ok<T>(value: T): Result<T, never> {\n  return { ok: true, value };\n}\n\nfunction err<E>(error: E): Result<never, E> {\n  return { ok: false, error };\n}\n\nconst result: Result<number, string> = ok(21);\nif (result.ok) {\n  console.log(result.value * 2); // 42\n}\n```\n\nThe payoff is in the signature. `parseQuantity(text: string): Result<number, string>` tells every caller that parsing can fail, and the checker won't let them read `value` until they've checked `ok`.",
+      "examples": [
+        {
+          "title": "Result, ok, and err",
+          "prompt": "Parse ports from text and return each outcome as a Result, then print a port or the reason it was rejected.",
+          "code": "type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nfunction ok<T>(value: T): Result<T, never> {\n  return { ok: true, value };\n}\n\nfunction err<E>(error: E): Result<never, E> {\n  return { ok: false, error };\n}\n\nfunction parsePort(text: string): Result<number, string> {\n  const port = Number(text);\n  if (!Number.isInteger(port)) {\n    return err(`\"${text}\" is not a whole number`);\n  }\n  if (port < 1 || port > 65535) {\n    return err(`${port} is out of range`);\n  }\n  return ok(port);\n}\n\nfor (const text of [\"8080\", \"http\", \"70000\"]) {\n  const result = parsePort(text);\n  if (result.ok) {\n    console.log(`port ${result.value}`);\n  } else {\n    console.log(`invalid: ${result.error}`);\n    //                      ^? const result: { ok: false; error: string; }\n  }\n}\n",
+          "output": "port 8080\ninvalid: \"http\" is not a whole number\ninvalid: 70000 is out of range",
+          "explanation": "`parsePort` returns `err(...)` for each way the text can be wrong and `ok(port)` when it's fine, and its return type tells callers both outcomes are possible. The caller checks `result.ok`, and in the `else` branch the bubble shows the failure member, where `error` is a `string`. Nothing is thrown, so there's no `try` to forget: an invalid port is just another value."
+        },
+        {
+          "title": "Skipping the check",
+          "prompt": "Read the value of a Result without checking `ok` first.",
+          "code": "type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nfunction parsePort(text: string): Result<number, string> {\n  const port = Number(text);\n  if (Number.isInteger(port) && port >= 1 && port <= 65535) {\n    return { ok: true, value: port };\n  }\n  return { ok: false, error: `bad port: ${text}` };\n}\n\nconst result = parsePort(\"8080\");\nconsole.log(result.value + 1);\n",
+          "expect": "type-error",
+          "output": "main.ts(12,20): error TS2339: Property 'value' does not exist on type 'Result<number, string>'.\n  Property 'value' does not exist on type '{ ok: false; error: string; }'.",
+          "explanation": "Until you check `ok`, `result` could be the failure member, and that member has no `value`. The checker says so: the second line of the error names the member that's missing it. With a function that throws, forgetting the failure case compiles and crashes later. With a Result, it doesn't compile. Wrap the line in `if (result.ok) { ... }` and it type-checks."
+        },
+        {
+          "title": "Collecting results",
+          "prompt": "Parse five ages, then split the results into the ages that parsed and the problems with the rest.",
+          "code": "type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nfunction ok<T>(value: T): Result<T, never> {\n  return { ok: true, value };\n}\n\nfunction err<E>(error: E): Result<never, E> {\n  return { ok: false, error };\n}\n\nfunction parseAge(text: string): Result<number, string> {\n  const age = Number(text);\n  if (!Number.isInteger(age)) {\n    return err(`\"${text}\" is not a whole number`);\n  }\n  if (age < 0 || age > 130) {\n    return err(`${age} is not a believable age`);\n  }\n  return ok(age);\n}\n\nconst results = [\"34\", \"seven\", \"29\", \"-1\", \"61\"].map(parseAge);\n\nconst ages = results.filter((r) => r.ok).map((r) => r.value);\n//    ^? const ages: number[]\nconst problems = results.filter((r) => !r.ok).map((r) => r.error);\n\nconsole.log(`ages: ${ages.join(\", \")}`);\nfor (const problem of problems) {\n  console.log(`problem: ${problem}`);\n}\n",
+          "output": "ages: 34, 29, 61\nproblem: \"seven\" is not a whole number\nproblem: -1 is not a believable age",
+          "explanation": "Every input produces a Result, so `results` is an array of them, and no input can stop the others from being parsed. `(r) => r.ok` is an inferred type predicate, so `filter` keeps only the success member and the following `map` can read `value`, which makes `ages` a `number[]`, as the bubble shows. `(r) => !r.ok` does the same for the failures and their `error`."
+        }
+      ],
+      "practice": {
+        "title": "Parse quantities",
+        "prompt": "Parse order quantities without throwing: each input line either becomes a quantity or says what's wrong with it.\n\n1. The starter exports `Result`, `ok`, and `err`, as in the examples. Export `parseQuantity(text: string): Result<number, string>`.\n2. A quantity is a whole number from 1 to 99, written with digits only. Return `err(\"not a whole number: <text>\")` for text that isn't only digits, `err(\"out of range: <n>\")` for a number outside 1 to 99, and `ok(n)` otherwise.\n3. For each non-blank input line, trimmed, print `ok <n>` or `error: <message>`.\n4. Keep `export`: hidden type tests import these names from your file.\n\nInput:\n\n```text\n3\n12\nabc\n0\n```\n\nExpected output:\n\n```text\nok 3\nok 12\nerror: not a whole number: abc\nerror: out of range: 0\n```",
+        "starter": "import { readFileSync } from \"node:fs\";\n\nexport type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nexport function ok<T>(value: T): Result<T, never> {\n  return { ok: true, value };\n}\n\nexport function err<E>(error: E): Result<never, E> {\n  return { ok: false, error };\n}\n\n// TODO: return ok(n) for a whole number from 1 to 99 written with digits only,\n// and err(\"not a whole number: <text>\") or err(\"out of range: <n>\") otherwise\nexport function parseQuantity(text: string): Result<number, string> {\n  return err(\"not checked yet\");\n}\n\nconst lines = readFileSync(0, \"utf8\").split(\"\\n\");\nfor (const raw of lines) {\n  const line = raw.trim();\n  // TODO: skip blank lines, then print \"ok <n>\" or \"error: <message>\"\n}\n",
+        "solution": "import { readFileSync } from \"node:fs\";\n\nexport type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nexport function ok<T>(value: T): Result<T, never> {\n  return { ok: true, value };\n}\n\nexport function err<E>(error: E): Result<never, E> {\n  return { ok: false, error };\n}\n\nexport function parseQuantity(text: string): Result<number, string> {\n  if (!/^\\d+$/.test(text)) {\n    return err(`not a whole number: ${text}`);\n  }\n  const n = Number(text);\n  if (n < 1 || n > 99) {\n    return err(`out of range: ${n}`);\n  }\n  return ok(n);\n}\n\nconst lines = readFileSync(0, \"utf8\").split(\"\\n\");\nfor (const raw of lines) {\n  const line = raw.trim();\n  if (line === \"\") {\n    continue;\n  }\n  const result = parseQuantity(line);\n  if (result.ok) {\n    console.log(`ok ${result.value}`);\n  } else {\n    console.log(`error: ${result.error}`);\n  }\n}\n",
+        "tests": [
+          {
+            "stdin": "3\n12\nabc\n0\n",
+            "output": "ok 3\nok 12\nerror: not a whole number: abc\nerror: out of range: 0"
+          },
+          {
+            "stdin": "99\n100\n2.5\n-4\n",
+            "output": "ok 99\nerror: out of range: 100\nerror: not a whole number: 2.5\nerror: not a whole number: -4"
+          },
+          {
+            "stdin": "  7\n\n42\n",
+            "output": "ok 7\nok 42"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { err, ok, parseQuantity, type Result } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "value needs an ok check first",
+              "expect": "error",
+              "errorCode": "TS2339",
+              "code": "parseQuantity(\"1\").value;"
+            },
+            {
+              "name": "value is a number after the check",
+              "expect": "ok",
+              "code": "const r = parseQuantity(\"1\");\nif (r.ok) {\n  const n: number = r.value;\n}"
+            },
+            {
+              "name": "error is a string after the check",
+              "expect": "ok",
+              "code": "const r = parseQuantity(\"x\");\nif (!r.ok) {\n  const message: string = r.error;\n}"
+            },
+            {
+              "name": "ok holds a value of the success type",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const r: Result<number, string> = ok(\"3\");"
+            },
+            {
+              "name": "err fits any success type",
+              "expect": "ok",
+              "code": "const r: Result<boolean, string> = err(\"no\");"
+            }
+          ]
+        },
+        "hints": [
+          "Check the text first: `/^\\d+$/.test(text)` is true only for digits. Then convert it with `Number(text)` and check the range.",
+          "Return `err(...)` for each failure and `ok(n)` at the end. The return type makes sure every path returns a Result.",
+          "In the loop, `continue` past blank lines, call `parseQuantity(line)`, and check `result.ok` before you read `result.value` or `result.error`."
+        ]
+      }
+    },
+    {
+      "title": "Typed domain errors",
+      "body": "A string error says what went wrong, but a caller can't do much with it besides print it. Make the error side a discriminated union instead, with a `type` tag and the data each failure needs:\n\n```typescript types\ntype PlaceOrderError =\n  | { type: \"not_found\"; sku: string }\n  | { type: \"out_of_stock\"; sku: string; available: number }\n  | { type: \"invalid_quantity\"; quantity: number };\n```\n\nA caller switches on `error.type` and gets each failure's own fields, and a `never` check in `default` makes forgetting one a type error. TypeScript has no way to declare what a function throws, so a Result is how failures get into a signature.\n\nSteps that each return a Result chain with a small helper, `andThen`. It runs the next step only on success, and passes a failure straight through:\n\n```typescript\ntype Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nfunction andThen<T, U, E>(r: Result<T, E>, fn: (value: T) => Result<U, E>): Result<U, E> {\n  return r.ok ? fn(r.value) : r;\n}\n\nfunction half(n: number): Result<number, string> {\n  return n % 2 === 0 ? { ok: true, value: n / 2 } : { ok: false, error: `${n} is odd` };\n}\n\nconsole.log(JSON.stringify(andThen(half(12), half))); // {\"ok\":true,\"value\":3}\n```",
+      "examples": [
+        {
+          "title": "An error union",
+          "prompt": "Describe three ways placing an order can fail, and suggest what the customer can do next using each failure's data.",
+          "code": "type PlaceOrderError =\n  | { type: \"not_found\"; sku: string }\n  | { type: \"out_of_stock\"; sku: string; available: number }\n  | { type: \"invalid_quantity\"; quantity: number };\n\nfunction suggestion(e: PlaceOrderError): string {\n  switch (e.type) {\n    case \"not_found\":\n      return `We don't sell ${e.sku}. Try searching for it.`;\n    case \"out_of_stock\":\n      return `Only ${e.available} of ${e.sku} left. Order ${e.available} instead?`;\n    case \"invalid_quantity\":\n      return `${e.quantity} isn't a quantity. Enter 1 or more.`;\n    default: {\n      const unhandled: never = e;\n      return unhandled;\n    }\n  }\n}\n\nconst problems: PlaceOrderError[] = [\n  { type: \"not_found\", sku: \"LAMP-09\" },\n  { type: \"out_of_stock\", sku: \"MUG-01\", available: 2 },\n  { type: \"invalid_quantity\", quantity: 0 },\n];\n\nfor (const problem of problems) {\n  console.log(`${problem.type}: ${suggestion(problem)}`);\n}\n",
+          "output": "not_found: We don't sell LAMP-09. Try searching for it.\nout_of_stock: Only 2 of MUG-01 left. Order 2 instead?\ninvalid_quantity: 0 isn't a quantity. Enter 1 or more.",
+          "explanation": "Each member carries what its message needs, and only that: `available` exists only on `out_of_stock`, so the out of stock case can offer the exact quantity that's left, which a string error could only hint at. The `switch` narrows `e` in each case, and in `default` nothing is left, so `e` fits in a `never`. Add a fourth member, like `{ type: \"payment_declined\" }`, and that line stops compiling until `suggestion` handles it."
+        },
+        {
+          "title": "A service returning Result",
+          "prompt": "Place four orders through a service that returns `Result<Order, PlaceOrderError>`, and turn each outcome into a message for the customer.",
+          "code": "type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nfunction ok<T>(value: T): Result<T, never> {\n  return { ok: true, value };\n}\n\nfunction err<E>(error: E): Result<never, E> {\n  return { ok: false, error };\n}\n\ntype PlaceOrderError =\n  | { type: \"not_found\"; sku: string }\n  | { type: \"out_of_stock\"; sku: string; available: number }\n  | { type: \"invalid_quantity\"; quantity: number };\n\ntype Order = { sku: string; quantity: number; totalCents: number };\n\nconst CATALOG = new Map([\n  [\"MUG-01\", { priceCents: 1299, available: 2 }],\n  [\"TEA-02\", { priceCents: 450, available: 10 }],\n]);\n\nfunction placeOrder(sku: string, quantity: number): Result<Order, PlaceOrderError> {\n  if (!Number.isInteger(quantity) || quantity < 1) {\n    return err({ type: \"invalid_quantity\", quantity });\n  }\n  const item = CATALOG.get(sku);\n  if (item === undefined) {\n    return err({ type: \"not_found\", sku });\n  }\n  if (quantity > item.available) {\n    return err({ type: \"out_of_stock\", sku, available: item.available });\n  }\n  return ok({ sku, quantity, totalCents: quantity * item.priceCents });\n}\n\nfunction checkout(sku: string, quantity: number): string {\n  const result = placeOrder(sku, quantity);\n  if (result.ok) {\n    return `ordered ${quantity} x ${sku} for $${(result.value.totalCents / 100).toFixed(2)}`;\n  }\n  const error = result.error;\n  switch (error.type) {\n    case \"not_found\":\n      return `sorry, we don't sell ${error.sku}`;\n    case \"out_of_stock\":\n      return `sorry, only ${error.available} of ${error.sku} left`;\n    case \"invalid_quantity\":\n      return `${error.quantity} isn't a quantity you can order`;\n  }\n}\n\nconsole.log(checkout(\"MUG-01\", 2));\nconsole.log(checkout(\"MUG-01\", 5));\nconsole.log(checkout(\"LAMP-09\", 1));\nconsole.log(checkout(\"TEA-02\", 0));\n",
+          "output": "ordered 2 x MUG-01 for $25.98\nsorry, only 2 of MUG-01 left\nsorry, we don't sell LAMP-09\n0 isn't a quantity you can order",
+          "explanation": "`placeOrder` returns `err(...)` with a full error object for each check that fails, and the return type makes sure every one is a valid `PlaceOrderError`: a typo in a `type` or a missing `available` wouldn't compile. In `checkout`, once `result.ok` has been ruled out, `result.error` is a `PlaceOrderError`, and the `switch` reads each failure's own fields. Every case returns, so TypeScript knows `checkout` always returns a string."
+        },
+        {
+          "title": "Chaining steps with andThen",
+          "prompt": "Parse a quantity and then reserve it, two steps that can each fail, chained with `andThen`.",
+          "code": "type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nfunction ok<T>(value: T): Result<T, never> {\n  return { ok: true, value };\n}\n\nfunction err<E>(error: E): Result<never, E> {\n  return { ok: false, error };\n}\n\nfunction andThen<T, U, E>(r: Result<T, E>, fn: (value: T) => Result<U, E>): Result<U, E> {\n  return r.ok ? fn(r.value) : r;\n}\n\ntype CheckoutError =\n  | { type: \"bad_quantity\"; text: string }\n  | { type: \"out_of_stock\"; available: number };\n\nconst AVAILABLE = 5;\n\nfunction parseQuantity(text: string): Result<number, CheckoutError> {\n  const n = Number(text);\n  return Number.isInteger(n) && n > 0 ? ok(n) : err({ type: \"bad_quantity\", text });\n}\n\nfunction reserve(quantity: number): Result<string, CheckoutError> {\n  if (quantity > AVAILABLE) {\n    return err({ type: \"out_of_stock\", available: AVAILABLE });\n  }\n  return ok(`reserved ${quantity}, ${AVAILABLE - quantity} left`);\n}\n\nfor (const text of [\"2\", \"two\", \"9\"]) {\n  const result = andThen(parseQuantity(text), reserve);\n  //    ^? const result: Result<string, CheckoutError>\n  if (result.ok) {\n    console.log(`${text}: ${result.value}`);\n  } else {\n    console.log(`${text}: failed with ${result.error.type}`);\n  }\n}\n",
+          "output": "2: reserved 2, 3 left\ntwo: failed with bad_quantity\n9: failed with out_of_stock",
+          "explanation": "`andThen` calls `reserve` only when parsing succeeded, with the parsed number. A failure from either step comes out the same way, so the loop handles one Result, typed `Result<string, CheckoutError>` as the bubble shows. `\"two\"` stops at the first step, and `reserve` never runs for it. Both steps share one error union, which is what lets their failures flow through the same `E`."
+        }
+      ],
+      "practice": {
+        "title": "Booking",
+        "prompt": "Book seats for an event, and explain every refusal from a typed error.\n\n1. Add two members to the exported `BookingError` union: `{ type: \"too_many\"; max: number }` and `{ type: \"vip_only\" }`.\n2. Make `book(available, requested, vip)` check three rules in order and return the first one that fails. No seats left is `sold_out`. Asking for more than `max`, the smaller of 4 and `available`, is `too_many` with that `max`. With 10 or fewer seats left, a booking that isn't `vip` is `vip_only`. Otherwise return `ok(available - requested)`.\n3. Make `describeError` switch on `e.type`, with a `never` check in `default`, and return `sold out`, `you can book at most <max> seats`, or `the last 10 seats are for VIP members`.\n4. Keep `export`: hidden type tests import `book`, `describeError`, and the types from your file.\n\nExpected output:\n\n```text\nnot booked: sold out\nnot booked: you can book at most 4 seats\nnot booked: the last 10 seats are for VIP members\nbooked, 6 seats left\n```",
+        "starter": "export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nfunction ok<T>(value: T): Result<T, never> {\n  return { ok: true, value };\n}\n\nfunction err<E>(error: E): Result<never, E> {\n  return { ok: false, error };\n}\n\n// TODO: add { type: \"too_many\"; max: number } and { type: \"vip_only\" }\nexport type BookingError = { type: \"sold_out\" };\n\n// TODO: return err(...) for the first rule that fails, or ok(seats left)\nexport function book(available: number, requested: number, vip: boolean): Result<number, BookingError> {\n  if (available === 0) {\n    return err({ type: \"sold_out\" });\n  }\n  return ok(available - requested);\n}\n\n// TODO: switch on e.type, with a never check in default\nexport function describeError(e: BookingError): string {\n  return e.type;\n}\n\nconst bookings: [available: number, requested: number, vip: boolean][] = [\n  [0, 2, false],\n  [50, 6, false],\n  [8, 2, false],\n  [8, 2, true],\n];\n\nfor (const [available, requested, vip] of bookings) {\n  const result = book(available, requested, vip);\n  if (result.ok) {\n    console.log(`booked, ${result.value} seats left`);\n  } else {\n    console.log(`not booked: ${describeError(result.error)}`);\n  }\n}\n",
+        "solution": "export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nfunction ok<T>(value: T): Result<T, never> {\n  return { ok: true, value };\n}\n\nfunction err<E>(error: E): Result<never, E> {\n  return { ok: false, error };\n}\n\nexport type BookingError =\n  | { type: \"sold_out\" }\n  | { type: \"too_many\"; max: number }\n  | { type: \"vip_only\" };\n\nexport function book(available: number, requested: number, vip: boolean): Result<number, BookingError> {\n  if (available === 0) {\n    return err({ type: \"sold_out\" });\n  }\n  const max = Math.min(4, available);\n  if (requested > max) {\n    return err({ type: \"too_many\", max });\n  }\n  if (available <= 10 && !vip) {\n    return err({ type: \"vip_only\" });\n  }\n  return ok(available - requested);\n}\n\nexport function describeError(e: BookingError): string {\n  switch (e.type) {\n    case \"sold_out\":\n      return \"sold out\";\n    case \"too_many\":\n      return `you can book at most ${e.max} seats`;\n    case \"vip_only\":\n      return \"the last 10 seats are for VIP members\";\n    default: {\n      const unhandled: never = e;\n      return unhandled;\n    }\n  }\n}\n\nconst bookings: [available: number, requested: number, vip: boolean][] = [\n  [0, 2, false],\n  [50, 6, false],\n  [8, 2, false],\n  [8, 2, true],\n];\n\nfor (const [available, requested, vip] of bookings) {\n  const result = book(available, requested, vip);\n  if (result.ok) {\n    console.log(`booked, ${result.value} seats left`);\n  } else {\n    console.log(`not booked: ${describeError(result.error)}`);\n  }\n}\n",
+        "tests": [
+          {
+            "output": "not booked: sold out\nnot booked: you can book at most 4 seats\nnot booked: the last 10 seats are for VIP members\nbooked, 6 seats left"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { book, describeError, type BookingError, type Result } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects an error type that doesn't exist",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "describeError({ type: \"closed\" });"
+            },
+            {
+              "name": "too_many carries its max",
+              "expect": "ok",
+              "code": "describeError({ type: \"too_many\", max: 2 });"
+            },
+            {
+              "name": "too_many needs a max",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "describeError({ type: \"too_many\" });"
+            },
+            {
+              "name": "vip_only is an error",
+              "expect": "ok",
+              "code": "const e: BookingError = { type: \"vip_only\" };"
+            },
+            {
+              "name": "book returns a Result",
+              "expect": "ok",
+              "code": "const r: Result<number, BookingError> = book(10, 1, true);"
+            }
+          ]
+        },
+        "hints": [
+          "Each member of `BookingError` is an object type with its own `type` literal, added with `|`, like the members of `PlaceOrderError`.",
+          "In `book`, return early for each rule in order: `err({ type: \"sold_out\" })`, then `err({ type: \"too_many\", max })` with `const max = Math.min(4, available)`, then `err({ type: \"vip_only\" })`.",
+          "`describeError` has a `case` for each `type`, and `default: { const unhandled: never = e; return unhandled; }` keeps it exhaustive."
+        ]
+      }
+    },
+    {
+      "title": "Responses, and when to throw",
+      "body": "At the edge of an app, in an HTTP handler or a command's main function, each error becomes something a person or a program reads: a status code and a message. A `switch` over the error union does it, and the checker makes sure every failure gets a response:\n\n```typescript\ntype LoginError = { type: \"unknown_user\" } | { type: \"wrong_password\"; attemptsLeft: number };\n\nfunction toStatus(e: LoginError): 401 | 404 {\n  switch (e.type) {\n    case \"unknown_user\":\n      return 404;\n    case \"wrong_password\":\n      return 401;\n  }\n}\n\nconsole.log(toStatus({ type: \"wrong_password\", attemptsLeft: 2 })); // 401\n```\n\nResults are for expected failures: bad input, a missing record, a sold-out item. A bug or a broken invariant, like negative stock read back from your own database, isn't something a caller can handle, so throw an `Error` and let the app's top-level handler log it and answer with a 500. The rule of thumb: return what the caller should handle, throw what a developer must fix.\n\nCode you don't control still throws, like `JSON.parse`. Wrap it once, at the boundary, with a `tryCatch` helper that turns a throw into a Result, so the code around it works with values only.",
+      "examples": [
+        {
+          "title": "Errors to HTTP responses",
+          "prompt": "Turn each kind of order error into an HTTP status and a JSON body.",
+          "code": "type PlaceOrderError =\n  | { type: \"not_found\"; sku: string }\n  | { type: \"out_of_stock\"; sku: string; available: number }\n  | { type: \"invalid_quantity\"; quantity: number };\n\ntype ErrorResponse = { status: 404 | 409 | 422; body: { error: string } };\n\nfunction toHttp(e: PlaceOrderError): ErrorResponse {\n  switch (e.type) {\n    case \"not_found\":\n      return { status: 404, body: { error: `no product ${e.sku}` } };\n    case \"out_of_stock\":\n      return { status: 409, body: { error: `only ${e.available} of ${e.sku} left` } };\n    case \"invalid_quantity\":\n      return { status: 422, body: { error: `quantity must be at least 1, got ${e.quantity}` } };\n    default: {\n      const unhandled: never = e;\n      return unhandled;\n    }\n  }\n}\n\nconst errors: PlaceOrderError[] = [\n  { type: \"not_found\", sku: \"LAMP-09\" },\n  { type: \"out_of_stock\", sku: \"MUG-01\", available: 2 },\n  { type: \"invalid_quantity\", quantity: 0 },\n];\n\nfor (const e of errors) {\n  const response = toHttp(e);\n  console.log(`${response.status} ${JSON.stringify(response.body)}`);\n}\n",
+          "output": "404 {\"error\":\"no product LAMP-09\"}\n409 {\"error\":\"only 2 of MUG-01 left\"}\n422 {\"error\":\"quantity must be at least 1, got 0\"}",
+          "explanation": "Each failure maps to the status that describes it: 404 for something that doesn't exist, 409 for a conflict with the current state, and 422 for input that's well formed but invalid. The status type `404 | 409 | 422` lists the only codes this function may return, so a typo like `4040` wouldn't compile. The body is a plain object, ready for `JSON.stringify`, and the `never` check means a new error type can't ship without a response."
+        },
+        {
+          "title": "Return or throw",
+          "prompt": "Reserve stock where bad requests return a Result, but corrupt stock data throws, and a top-level handler answers with a 500.",
+          "code": "type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nfunction ok<T>(value: T): Result<T, never> {\n  return { ok: true, value };\n}\n\nfunction err<E>(error: E): Result<never, E> {\n  return { ok: false, error };\n}\n\ntype ReserveError =\n  | { type: \"invalid_quantity\"; quantity: number }\n  | { type: \"out_of_stock\"; available: number };\n\nconst stockTable = new Map<string, number>([\n  [\"MUG-01\", 5],\n  [\"TEA-02\", -3],\n]);\n\nfunction reserve(sku: string, quantity: number): Result<number, ReserveError> {\n  if (!Number.isInteger(quantity) || quantity < 1) {\n    return err({ type: \"invalid_quantity\", quantity });\n  }\n  const available = stockTable.get(sku) ?? 0;\n  if (available < 0) {\n    throw new Error(`stock for ${sku} is ${available}, which should be impossible`);\n  }\n  if (quantity > available) {\n    return err({ type: \"out_of_stock\", available });\n  }\n  return ok(available - quantity);\n}\n\nconst requests: [sku: string, quantity: number][] = [\n  [\"MUG-01\", 2],\n  [\"MUG-01\", 0],\n  [\"MUG-01\", 9],\n  [\"TEA-02\", 1],\n];\n\nfor (const [sku, quantity] of requests) {\n  try {\n    const result = reserve(sku, quantity);\n    console.log(`${sku} x ${quantity}: ${result.ok ? `${result.value} left` : result.error.type}`);\n  } catch (e) {\n    console.log(`${sku} x ${quantity}: 500, ${e instanceof Error ? e.message : String(e)}`);\n  }\n}\n",
+          "output": "MUG-01 x 2: 3 left\nMUG-01 x 0: invalid_quantity\nMUG-01 x 9: out_of_stock\nTEA-02 x 1: 500, stock for TEA-02 is -3, which should be impossible",
+          "explanation": "A quantity of 0 is the customer's mistake and 9 is more than there is. Both are expected, so `reserve` returns them as errors the caller can show. Stock of -3 can only come from a bug somewhere else, and no caller can do anything sensible with it, so `reserve` throws. The `catch` stands in for an HTTP framework's top-level handler, which turns any thrown error into a 500 and logs it, so the bug gets noticed instead of being quietly reported as out of stock."
+        },
+        {
+          "title": "A tryCatch helper",
+          "prompt": "Wrap `JSON.parse`, which throws, in a helper that returns a Result, and parse a valid and an invalid settings text.",
+          "code": "type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nfunction tryCatch<T>(fn: () => T): Result<T, Error> {\n  try {\n    return { ok: true, value: fn() };\n  } catch (e) {\n    return { ok: false, error: e instanceof Error ? e : new Error(String(e)) };\n  }\n}\n\nfor (const text of ['{\"theme\": \"dark\"}', \"{theme: dark}\"]) {\n  const parsed = tryCatch((): unknown => JSON.parse(text));\n  //    ^? const parsed: Result<unknown, Error>\n  if (parsed.ok) {\n    console.log(`parsed: ${JSON.stringify(parsed.value)}`);\n  } else {\n    console.log(`${parsed.error.name}: ${parsed.error.message}`);\n  }\n}\n",
+          "output": "parsed: {\"theme\":\"dark\"}\nSyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)",
+          "explanation": "`tryCatch` runs the function inside `try` and returns whatever it produced as a success. If it throws, the thrown value becomes the error side, wrapped in an `Error` when it isn't one already, so `error` always has a `name` and a `message`. The callback is annotated `(): unknown`, so `JSON.parse`'s `any` doesn't leak out: the bubble shows `Result<unknown, Error>`, and the value still needs narrowing before you use its fields."
+        }
+      ],
+      "practice": {
+        "title": "Order responses",
+        "prompt": "Turn the outcome of placing an order into the HTTP response the API sends.\n\n1. Export `respond(result: Result<Order, PlaceOrderError>): { status: number; body: string }`.\n2. A success is status 201 with the body `created <id>`.\n3. A failure switches on the error's `type`: `not_found` is 404 with `no product <sku>`, `out_of_stock` is 409 with `only <available> of <sku> left`, and `invalid_quantity` is 422 with `invalid quantity <quantity>`. Put a `never` check in `default`.\n4. Keep `export`: hidden type tests import `respond` from your file.\n\nExpected output:\n\n```text\n201 created ord-1001\n404 no product LAMP-09\n409 only 1 of MUG-01 left\n422 invalid quantity -1\n```",
+        "starter": "export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nexport type Order = { id: string; sku: string; quantity: number };\n\nexport type PlaceOrderError =\n  | { type: \"not_found\"; sku: string }\n  | { type: \"out_of_stock\"; sku: string; available: number }\n  | { type: \"invalid_quantity\"; quantity: number };\n\n// TODO: 201 with \"created <id>\" for a success, and a status and body\n// for each error type, with a never check in default\nexport function respond(result: Result<Order, PlaceOrderError>): { status: number; body: string } {\n  return { status: 500, body: \"not written yet\" };\n}\n\nconst outcomes: Result<Order, PlaceOrderError>[] = [\n  { ok: true, value: { id: \"ord-1001\", sku: \"MUG-01\", quantity: 2 } },\n  { ok: false, error: { type: \"not_found\", sku: \"LAMP-09\" } },\n  { ok: false, error: { type: \"out_of_stock\", sku: \"MUG-01\", available: 1 } },\n  { ok: false, error: { type: \"invalid_quantity\", quantity: -1 } },\n];\n\nfor (const outcome of outcomes) {\n  const response = respond(outcome);\n  console.log(`${response.status} ${response.body}`);\n}\n",
+        "solution": "export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nexport type Order = { id: string; sku: string; quantity: number };\n\nexport type PlaceOrderError =\n  | { type: \"not_found\"; sku: string }\n  | { type: \"out_of_stock\"; sku: string; available: number }\n  | { type: \"invalid_quantity\"; quantity: number };\n\nexport function respond(result: Result<Order, PlaceOrderError>): { status: number; body: string } {\n  if (result.ok) {\n    return { status: 201, body: `created ${result.value.id}` };\n  }\n  const e = result.error;\n  switch (e.type) {\n    case \"not_found\":\n      return { status: 404, body: `no product ${e.sku}` };\n    case \"out_of_stock\":\n      return { status: 409, body: `only ${e.available} of ${e.sku} left` };\n    case \"invalid_quantity\":\n      return { status: 422, body: `invalid quantity ${e.quantity}` };\n    default: {\n      const unhandled: never = e;\n      return unhandled;\n    }\n  }\n}\n\nconst outcomes: Result<Order, PlaceOrderError>[] = [\n  { ok: true, value: { id: \"ord-1001\", sku: \"MUG-01\", quantity: 2 } },\n  { ok: false, error: { type: \"not_found\", sku: \"LAMP-09\" } },\n  { ok: false, error: { type: \"out_of_stock\", sku: \"MUG-01\", available: 1 } },\n  { ok: false, error: { type: \"invalid_quantity\", quantity: -1 } },\n];\n\nfor (const outcome of outcomes) {\n  const response = respond(outcome);\n  console.log(`${response.status} ${response.body}`);\n}\n",
+        "tests": [
+          {
+            "output": "201 created ord-1001\n404 no product LAMP-09\n409 only 1 of MUG-01 left\n422 invalid quantity -1"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { respond } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects an error type that doesn't exist",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "respond({ ok: false, error: { type: \"timeout\" } });"
+            },
+            {
+              "name": "answers a success",
+              "expect": "ok",
+              "code": "const r: { status: number; body: string } = respond({ ok: true, value: { id: \"o\", sku: \"s\", quantity: 1 } });"
+            },
+            {
+              "name": "out_of_stock needs the available count",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "respond({ ok: false, error: { type: \"out_of_stock\", sku: \"A\" } });"
+            },
+            {
+              "name": "answers an invalid quantity",
+              "expect": "ok",
+              "code": "respond({ ok: false, error: { type: \"invalid_quantity\", quantity: 0 } });"
+            }
+          ]
+        },
+        "hints": [
+          "Handle the success first: `if (result.ok)`, return status 201 with `created ${result.value.id}`.",
+          "After that `if`, `result.error` is a `PlaceOrderError`. Switch on its `type`: `not_found` is 404, `out_of_stock` is 409, and `invalid_quantity` is 422.",
+          "End the `switch` with `default: { const unhandled: never = e; return unhandled; }`, so a new error type can't slip through without a response."
+        ]
+      }
+    }
+  ],
+  "recap": "- `type Result<T, E> = { ok: true; value: T } | { ok: false; error: E }` puts expected failures in the return type, and `ok()` and `err()` build each side.\n- Callers have to check `ok` before they can read `value` or `error`, so a failure can't be forgotten.\n- Make `E` a discriminated union, so each failure carries its own data, and a `never` check catches a forgotten case.\n- `andThen` chains steps that return Results, and passes the first failure through.\n- At the edge, map each error to a status and a message with an exhaustive `switch`.\n- Return what the caller should handle, throw what a developer must fix, and wrap code that throws with `tryCatch` at the boundary."
+}

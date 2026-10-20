@@ -1,0 +1,212 @@
+{
+  "id": "generic-constraints",
+  "title": "Constraints, keyof, and Indexed Access",
+  "section": "Generics",
+  "summary": "Constrain type parameters so generic code can use their members, and type lookups exactly with keyof, indexed access, and const type parameters.",
+  "intro": "A plain type parameter could be any type at all, so a generic function can't do much with its values. A constraint says what every `T` must have, like an `id` or a `length`, and callers still get back their own full type. In this lesson you add constraints, turn an object type's keys into a type with `keyof`, look up a property's type with `T[K]`, and steer inference with `const` type parameters and `NoInfer`. Together they are the patterns behind most typed helpers you'll read in libraries.",
+  "steps": [
+    {
+      "title": "Constraints",
+      "body": "A plain `T` could be any type at all, so inside the function TypeScript only allows what works for every type. Reading `length` on it is an error (TS2339):\n\n```typescript error\nfunction longest<T>(a: T, b: T): T {\n  return b.length > a.length ? b : a;\n}\n\nconsole.log(longest(\"fig\", \"kiwi\"));\n```\n\n`T extends { length: number }` is a constraint: `T` may be any type that has at least a numeric `length`. Now the body can read `length`, and every call must pass values that have one, like strings or arrays:\n\n```typescript\nfunction longest<T extends { length: number }>(a: T, b: T): T {\n  return b.length > a.length ? b : a;\n}\n\nconst tags = longest([\"new\"], [\"sale\", \"gift\"]);\n//    ^? const tags: string[]\nconsole.log(tags.join(\", \")); // sale, gift\n```\n\nThe return type is still `T`, so you get back the type you passed in, here a `string[]` you can `join`, not just something with a `length`. That's the reason to constrain a type parameter instead of typing the parameters as `{ length: number }`.",
+      "examples": [
+        {
+          "title": "The longer of two",
+          "prompt": "Pick the longer of two strings and the longer of two arrays with one generic `longest`, then use each result as its own type.",
+          "code": "function longest<T extends { length: number }>(a: T, b: T): T {\n  return b.length > a.length ? b : a;\n}\n\nconst mug = { name: \"Mug\", description: \"Stoneware, holds 350 ml\" };\nconst label = longest(mug.name, mug.description);\n//    ^? const label: string\nconsole.log(label.toUpperCase());\n\nconst anaQuizzes = [72, 85];\nconst benQuizzes = [64, 91, 78];\nconst moreQuizzes = longest(anaQuizzes, benQuizzes);\n//    ^? const moreQuizzes: number[]\nconsole.log(`${moreQuizzes.length} quizzes, best ${Math.max(...moreQuizzes)}`);\n",
+          "output": "STONEWARE, HOLDS 350 ML\n3 quizzes, best 91",
+          "explanation": "Strings and arrays both have a numeric `length`, so both calls meet the constraint. Each call still infers its own `T`: `string` for the two product fields, and `number[]` for the two lists of scores, as the bubbles show. So `label.toUpperCase()` and `Math.max(...moreQuizzes)` both type-check. Had you typed the parameters as `{ length: number }` instead, each result would be only `{ length: number }`, and neither call would compile. Both arguments share one `T`, so they must be the same kind of value: a string and an array in one call is a type error."
+        },
+        {
+          "title": "Find by id",
+          "prompt": "Find a product and a customer with one generic `byId`, and get back the full type of each.",
+          "code": "type Product = { id: string; name: string; priceCents: number };\ntype Customer = { id: string; email: string };\n\nfunction byId<T extends { id: string }>(items: readonly T[], id: string): T | undefined {\n  return items.find((item) => item.id === id);\n}\n\nconst products: Product[] = [\n  { id: \"p1\", name: \"Mug\", priceCents: 1299 },\n  { id: \"p2\", name: \"Kettle\", priceCents: 3450 },\n];\nconst customers: Customer[] = [{ id: \"c1\", email: \"ada@example.com\" }];\n\nconst kettle = byId(products, \"p2\");\n//    ^? const kettle: Product | undefined\nconst ada = byId(customers, \"c1\");\n//    ^? const ada: Customer | undefined\n\nconsole.log(kettle ? `${kettle.name}: $${(kettle.priceCents / 100).toFixed(2)}` : \"no product\");\nconsole.log(ada?.email ?? \"no customer\");\nconsole.log(byId(products, \"p9\")?.name ?? \"no product\");\n",
+          "output": "Kettle: $34.50\nada@example.com\nno product",
+          "explanation": "The constraint is all the body needs: it lets the callback read `item.id`. A constraint is a minimum, not an exact shape, so `Product` and `Customer` both fit even though they have more than an `id`. Because the result is `T`, searching products returns `Product | undefined` and searching customers returns `Customer | undefined`, so `name`, `priceCents`, and `email` are all there to use. `find` returns `undefined` when nothing matches, as the return type says, so each call handles that with a check, `?.`, or `??`."
+        },
+        {
+          "title": "Breaking the constraint",
+          "prompt": "Pass `byId` a list whose items have no `id`, and read the error.",
+          "code": "function byId<T extends { id: string }>(items: readonly T[], id: string): T | undefined {\n  return items.find((item) => item.id === id);\n}\n\nconst tags = [{ label: \"sale\" }, { label: \"new\" }];\nconsole.log(byId(tags, \"sale\"));\n",
+          "expect": "type-error",
+          "output": "main.ts(6,18): error TS2345: Argument of type '{ label: string; }[]' is not assignable to parameter of type 'readonly { id: string; }[]'.\n  Property 'id' is missing in type '{ label: string; }' but required in type '{ id: string; }'.",
+          "explanation": "The items of `tags` are `{ label: string; }`, with no `id`, so they don't meet the constraint. The call is rejected before anything runs: the first line says the argument doesn't fit `readonly { id: string; }[]`, and the indented line names the missing property. An `id` of the wrong type fails too:\n\n```typescript error\nfunction byId<T extends { id: string }>(items: readonly T[], id: string): T | undefined {\n  return items.find((item) => item.id === id);\n}\n\nconsole.log(byId([{ id: 7, label: \"sale\" }], \"7\"));\n```\n\nHere the check reports TS2322, `Type 'number' is not assignable to type 'string'`, at the `id`. Give every tag an `id` that's a string, and both calls compile."
+        }
+      ],
+      "practice": {
+        "title": "Sort by name",
+        "prompt": "Make `sortByName` generic, so it sorts any list of objects that have a `name` and keeps their type.\n\n1. Give `sortByName` a type parameter `T` that extends `{ name: string }`, the parameter `xs: readonly T[]`, and the return type `T[]`.\n2. Return a sorted copy of `xs` made with `toSorted`, comparing names with `localeCompare`.\n3. Print the sorted products as `<name>: $<price>`, with the price in dollars to 2 decimals.\n4. Keep the `export`: hidden type tests import `sortByName`, and Check also sorts another list.\n\nExpected output:\n\n```text\nAna (design)\nBen (sales)\nCaro (support)\nKettle: $34.50\nMug: $12.99\nTeapot: $21.00\n```",
+        "starter": "type Employee = { name: string; team: string };\ntype Product = { name: string; priceCents: number };\n\n// TODO: make sortByName generic: a type parameter T that extends\n// { name: string }, xs typed readonly T[], and the return type T[].\nexport function sortByName(xs: readonly Employee[]): Employee[] {\n  // TODO: return a copy of xs sorted by name\n  return [...xs];\n}\n\nconst employees: Employee[] = [\n  { name: \"Caro\", team: \"support\" },\n  { name: \"Ana\", team: \"design\" },\n  { name: \"Ben\", team: \"sales\" },\n];\nconst products: Product[] = [\n  { name: \"Teapot\", priceCents: 2100 },\n  { name: \"Kettle\", priceCents: 3450 },\n  { name: \"Mug\", priceCents: 1299 },\n];\n\nfor (const e of sortByName(employees)) {\n  console.log(`${e.name} (${e.team})`);\n}\n// TODO: print the sorted products, each with its price\n",
+        "solution": "type Employee = { name: string; team: string };\ntype Product = { name: string; priceCents: number };\n\nexport function sortByName<T extends { name: string }>(xs: readonly T[]): T[] {\n  return xs.toSorted((a, b) => a.name.localeCompare(b.name));\n}\n\nconst employees: Employee[] = [\n  { name: \"Caro\", team: \"support\" },\n  { name: \"Ana\", team: \"design\" },\n  { name: \"Ben\", team: \"sales\" },\n];\nconst products: Product[] = [\n  { name: \"Teapot\", priceCents: 2100 },\n  { name: \"Kettle\", priceCents: 3450 },\n  { name: \"Mug\", priceCents: 1299 },\n];\n\nfor (const e of sortByName(employees)) {\n  console.log(`${e.name} (${e.team})`);\n}\nfor (const p of sortByName(products)) {\n  console.log(`${p.name}: $${(p.priceCents / 100).toFixed(2)}`);\n}\n",
+        "tests": [
+          {
+            "output": "Ana (design)\nBen (sales)\nCaro (support)\nKettle: $34.50\nMug: $12.99\nTeapot: $21.00"
+          },
+          {
+            "harness": "{{code}}\nconsole.log(sortByName([{ name: \"Zoe\", seat: 2 }, { name: \"Eli\", seat: 7 }]).map((g) => `${g.name} in seat ${g.seat}`).join(\", \"));",
+            "output": "Ana (design)\nBen (sales)\nCaro (support)\nKettle: $34.50\nMug: $12.99\nTeapot: $21.00\nEli in seat 7, Zoe in seat 2"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { sortByName } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects items without a name",
+              "expect": "error",
+              "errorCode": "TS2353",
+              "code": "sortByName([{ title: \"x\" }]);"
+            },
+            {
+              "name": "keeps the items' own type",
+              "expect": "ok",
+              "code": "const s: { name: string; age: number }[] = sortByName([{ name: \"a\", age: 1 }]);"
+            }
+          ]
+        },
+        "hints": [
+          "Follow `byId` from the examples: declare `<T extends { name: string }>`, then write `T` wherever the signature says `Employee`.",
+          "`toSorted` returns a sorted copy and leaves `xs` alone. Its callback compares two items: `(a, b) => a.name.localeCompare(b.name)`.",
+          "Print the products in a second loop, like the employees, with `p.name` and `(p.priceCents / 100).toFixed(2)` in a template string."
+        ]
+      }
+    },
+    {
+      "title": "keyof and indexed access",
+      "body": "`keyof` turns an object type's keys into a union of string literal types. Indexed access, `User[\"email\"]`, is the type of one property:\n\n```typescript types\ntype User = { id: number; name: string; email: string };\n\ntype UserKey = keyof User;\n//   ^? type UserKey = keyof User\ntype Email = User[\"email\"];\n//   ^? type Email = string\n```\n\n`keyof User` means `\"id\" | \"name\" | \"email\"`, and the editor shows it by that short name.\n\nA generic function can use both. `K extends keyof T` says `K` must be one of `T`'s keys, and a return type of `T[K]` is the type stored under that key. Each call infers `K` from the key you pass, so the result has exactly that property's type:\n\n```typescript\nfunction getProp<T, K extends keyof T>(obj: T, key: K): T[K] {\n  return obj[key];\n}\n\nconst mug = { sku: \"MUG-01\", stock: 4 };\nconsole.log(getProp(mug, \"stock\") + 1); // 5\n```\n\nA key the object doesn't have is a type error, so a typo can't slip through to runtime.",
+      "examples": [
+        {
+          "title": "Keys as a type",
+          "prompt": "Derive a type for `User`'s keys and one for its `email` property, then use them to print some fields.",
+          "code": "type User = { id: number; name: string; email: string };\n\ntype UserKey = keyof User;\n//   ^? type UserKey = keyof User\ntype Email = User[\"email\"];\n//   ^? type Email = string\n\nconst ada: User = { id: 1, name: \"Ada\", email: \"ada@example.com\" };\nconst fields: UserKey[] = [\"name\", \"email\"];\nfor (const field of fields) {\n  const value = ada[field];\n  //    ^? const value: string | number\n  console.log(`${field}: ${value}`);\n}\n\nconst contact: Email = ada.email;\nconsole.log(`Contact: ${contact}`);\n",
+          "output": "name: Ada\nemail: ada@example.com\nContact: ada@example.com",
+          "explanation": "`UserKey` is `keyof User`, the union `\"id\" | \"name\" | \"email\"`, so `fields` may only hold those three strings. Reading `ada[field]` with a key that could be any of them gives the union of their property types, `string | number`, as the bubble shows. `User[\"email\"]` is `string`, the type of that one property, and it stays in step with `User`: change `email`'s type there, and `Email` changes with it. A string that isn't a key is rejected:\n\n```typescript error\ntype User = { id: number; name: string; email: string };\ntype UserKey = keyof User;\n\nconst field: UserKey = \"phone\";\nconsole.log(field);\n```\n\nThe check reports TS2322, `Type '\"phone\"' is not assignable to type 'keyof User'`."
+        },
+        {
+          "title": "Look up one property",
+          "prompt": "Read two properties of a user with a generic `getProp`, and get each one back with its own type.",
+          "code": "function getProp<T, K extends keyof T>(obj: T, key: K): T[K] {\n  return obj[key];\n}\n\ntype User = { id: number; name: string; admin: boolean };\nconst grace: User = { id: 2, name: \"Grace\", admin: true };\n\nconst userName = getProp(grace, \"name\");\n//    ^? const userName: string\nconst isAdmin = getProp(grace, \"admin\");\n//    ^? const isAdmin: boolean\n\nconsole.log(userName.toUpperCase());\nconsole.log(isAdmin ? \"Can manage users\" : \"Read only\");\n",
+          "output": "GRACE\nCan manage users",
+          "explanation": "Each call infers `T` from the object and `K` from the key, as its literal type. In the first call `K` is `\"name\"`, so the result is `User[\"name\"]`, a `string`. In the second `K` is `\"admin\"`, and the result is a `boolean`. That's what the separate `K` buys you. Typed as `(obj: T, key: keyof T): T[keyof T]`, every call would return `string | number | boolean`, and you'd have to narrow each result. A key the object doesn't have fails to compile, and the message lists the keys it does have:\n\n```typescript error\nfunction getProp<T, K extends keyof T>(obj: T, key: K): T[K] {\n  return obj[key];\n}\n\nconst grace = { id: 2, name: \"Grace\", admin: true };\nconsole.log(getProp(grace, \"email\"));\n```"
+        },
+        {
+          "title": "Pluck a column",
+          "prompt": "Collect one property from every order with a generic `pluck`, for a string property and a number property.",
+          "code": "function pluck<T, K extends keyof T>(xs: readonly T[], key: K): T[K][] {\n  return xs.map((x) => x[key]);\n}\n\ntype Order = { id: string; customer: string; totalCents: number };\n\nconst orders: Order[] = [\n  { id: \"o1\", customer: \"Ada\", totalCents: 1299 },\n  { id: \"o2\", customer: \"Ben\", totalCents: 4500 },\n  { id: \"o3\", customer: \"Ada\", totalCents: 800 },\n];\n\nconst ids = pluck(orders, \"id\");\n//    ^? const ids: string[]\nconst totals = pluck(orders, \"totalCents\");\n//    ^? const totals: number[]\n\nconsole.log(ids.join(\", \"));\nconsole.log(`Largest: ${Math.max(...totals)} cents`);\nconsole.log(`Customers: ${pluck(orders, \"customer\").join(\", \")}`);\n",
+          "output": "o1, o2, o3\nLargest: 4500 cents\nCustomers: Ada, Ben, Ada",
+          "explanation": "`T[K][]` reads as an array of `T[K]`: one value of the picked property per item. With `\"id\"` that's a `string[]`, and with `\"totalCents\"` it's a `number[]`, which `Math.max(...totals)` accepts. Inside, `x[key]` is typed `T[K]` as well, so `map` returns exactly the declared type with no annotations in the body. The values come back in the order of the items, duplicates included, which is why Ada appears twice."
+        }
+      ],
+      "practice": {
+        "title": "Column",
+        "prompt": "Make `column` generic, so it collects one property from every row with that property's type.\n\n1. Give `column` the type parameters `T` and `K extends keyof T`, the parameters `rows: readonly T[]` and `key: K`, and the return type `T[K][]`.\n2. Return the value under `key` for every row, in order.\n3. Print the product names joined with `, `, then `Total: $` and the sum of the `priceCents` column in dollars to 2 decimals.\n4. Keep the `export`s: hidden type tests import `column` and `products`, and Check also reads other columns.\n\nExpected output:\n\n```text\nMug, Kettle, Teapot\nTotal: $67.49\n```",
+        "starter": "export type Product = { sku: string; name: string; priceCents: number };\n\nexport const products: Product[] = [\n  { sku: \"MUG-01\", name: \"Mug\", priceCents: 1299 },\n  { sku: \"KET-02\", name: \"Kettle\", priceCents: 3450 },\n  { sku: \"TEA-03\", name: \"Teapot\", priceCents: 2000 },\n];\n\n// TODO: make column generic: type parameters T and K extends keyof T,\n// rows typed readonly T[], key typed K, and the return type T[K][].\nexport function column(rows: readonly Product[], key: string): unknown[] {\n  // TODO: return the value under key for every row\n  return [];\n}\n\nconsole.log(column(products, \"name\").join(\", \"));\n// TODO: add up the priceCents column and print the total in dollars\n",
+        "solution": "export type Product = { sku: string; name: string; priceCents: number };\n\nexport const products: Product[] = [\n  { sku: \"MUG-01\", name: \"Mug\", priceCents: 1299 },\n  { sku: \"KET-02\", name: \"Kettle\", priceCents: 3450 },\n  { sku: \"TEA-03\", name: \"Teapot\", priceCents: 2000 },\n];\n\nexport function column<T, K extends keyof T>(rows: readonly T[], key: K): T[K][] {\n  return rows.map((row) => row[key]);\n}\n\nconsole.log(column(products, \"name\").join(\", \"));\nconst totalCents = column(products, \"priceCents\").reduce((sum, cents) => sum + cents, 0);\nconsole.log(`Total: $${(totalCents / 100).toFixed(2)}`);\n",
+        "tests": [
+          {
+            "output": "Mug, Kettle, Teapot\nTotal: $67.49"
+          },
+          {
+            "harness": "{{code}}\nconsole.log(column(products, \"sku\").join(\" \"));\nconsole.log(column([{ city: \"Oslo\", zone: 1 }, { city: \"Lima\", zone: 5 }], \"zone\").join(\" \"));",
+            "output": "Mug, Kettle, Teapot\nTotal: $67.49\nMUG-01 KET-02 TEA-03\n1 5"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { column, products } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects a column products don't have",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "column(products, \"colour\");"
+            },
+            {
+              "name": "returns the column's own type",
+              "expect": "ok",
+              "code": "const prices: number[] = column(products, \"priceCents\");"
+            },
+            {
+              "name": "never mixes up column types",
+              "expect": "error",
+              "errorCode": "TS2322",
+              "code": "const names: number[] = column(products, \"name\");"
+            }
+          ]
+        },
+        "hints": [
+          "The signature is `pluck`'s from the examples, with `rows` in place of `xs`.",
+          "`rows.map((row) => row[key])` returns one value per row, and `row[key]` is already typed `T[K]`.",
+          "Add up the prices with `column(products, \"priceCents\").reduce((sum, cents) => sum + cents, 0)`, then print the sum divided by 100 with `toFixed(2)`."
+        ]
+      }
+    },
+    {
+      "title": "Const, NoInfer, and overloads",
+      "body": "TypeScript widens what it infers from an array literal: `[\"/\", \"/about\"]` passed to `<T extends readonly string[]>` gives `T` the type `string[]`. Write `const` before the type parameter, and the argument is inferred as if it had `as const`, a readonly tuple of literals:\n\n```typescript\nfunction routes<const T extends readonly string[]>(paths: T): T {\n  return paths;\n}\n\nconst site = routes([\"/\", \"/about\"]);\n//    ^? const site: readonly [\"/\", \"/about\"]\nconsole.log(site.length); // 2\n```\n\nWhen a type parameter appears in several parameters, every argument can help infer it. `NoInfer<S>` marks a parameter that must not: it is only checked against the `S` that the other arguments decided.\n\nOverloads give one function several call signatures, written above its single implementation. They suit calls that really differ in shape. When the result is just a lookup by key, one generic signature with `K extends keyof T` does the same job and grows with the type.",
+      "examples": [
+        {
+          "title": "Const type parameter",
+          "prompt": "Declare a site's routes once, keep their exact paths in the type, and only allow links to those paths.",
+          "code": "function routes<const T extends readonly string[]>(paths: T): T {\n  return paths;\n}\n\nconst site = routes([\"/\", \"/about\", \"/shop\"]);\n//    ^? const site: readonly [\"/\", \"/about\", \"/shop\"]\ntype Route = (typeof site)[number];\n//   ^? type Route = \"/\" | \"/about\" | \"/shop\"\n\nfunction link(to: Route, text: string): string {\n  return `<a href=\"${to}\">${text}</a>`;\n}\n\nconsole.log(site.join(\" \"));\nconsole.log(link(\"/shop\", \"Shop\"));\n",
+          "output": "/ /about /shop\n<a href=\"/shop\">Shop</a>",
+          "explanation": "With `const`, the argument keeps its literal types, so `site` is a readonly tuple of the three paths, and `(typeof site)[number]` turns it into their union. `link` accepts only those paths, so `link(\"/shpo\", \"Shop\")` is a type error. Without `const`, the same call infers plain `string[]`, and `Route` would be any string:\n\n```typescript\nfunction routes<T extends readonly string[]>(paths: T): T {\n  return paths;\n}\n\nconst site = routes([\"/\", \"/about\", \"/shop\"]);\n//    ^? const site: string[]\nconsole.log(site.length); // 3\n```\n\n`const` only changes how a literal written in the call is inferred. An array you stored in a variable first is already a `string[]`, so pass the literal straight in."
+        },
+        {
+          "title": "NoInfer",
+          "prompt": "Create a state machine whose starting state must be one of its states, then start it in a state it doesn't have.",
+          "code": "function createMachine<S extends string>(states: readonly S[], initial: NoInfer<S>) {\n  return { states, current: initial };\n}\n\nconst player = createMachine([\"idle\", \"playing\", \"stopped\"], \"paused\");\nconsole.log(player.current);\n",
+          "expect": "type-error",
+          "output": "main.ts(5,62): error TS2345: Argument of type '\"paused\"' is not assignable to parameter of type '\"idle\" | \"playing\" | \"stopped\"'.",
+          "explanation": "A type parameter constrained to `string` keeps the literal strings it's given, and `NoInfer` lets only `states` decide them. So `S` is `\"idle\" | \"playing\" | \"stopped\"`, and `\"paused\"` is rejected. Without `NoInfer`, `\"paused\"` would count as one more state, `S` would grow to include it, and the mistake would compile and run:\n\n```typescript\nfunction createMachine<S extends string>(states: readonly S[], initial: S) {\n  return { states, current: initial };\n}\n\nconst player = createMachine([\"idle\", \"playing\", \"stopped\"], \"paused\");\n//    ^? const player: { states: readonly (\"idle\" | \"paused\" | \"playing\" | \"stopped\")[]; current: \"idle\" | \"paused\" | \"playing\" | \"stopped\"; }\nconsole.log(player.current); // paused\n```"
+        },
+        {
+          "title": "Overloads or keyof",
+          "prompt": "Read typed settings by key twice: with overloads, one per key, and with one generic signature on `keyof`.",
+          "code": "type Settings = { port: number; host: string; debug: boolean };\nconst settings: Settings = { port: 8080, host: \"localhost\", debug: false };\n\nfunction getSetting(key: \"port\"): number;\nfunction getSetting(key: \"host\"): string;\nfunction getSetting(key: \"port\" | \"host\"): number | string {\n  return settings[key];\n}\n\nfunction setting<K extends keyof Settings>(key: K): Settings[K] {\n  return settings[key];\n}\n\nconst port = getSetting(\"port\");\n//    ^? const port: number\nconst host = setting(\"host\");\n//    ^? const host: string\nconst debug = setting(\"debug\");\n//    ^? const debug: boolean\n\nconsole.log(`${host}:${port}, debug ${debug ? \"on\" : \"off\"}`);\n",
+          "output": "localhost:8080, debug off",
+          "explanation": "The first two `getSetting` lines have no body: they are overload signatures, the calls callers may make. The third is the implementation. Callers never see its signature, and it must accept the arguments of every overload. Each overload has its own return type, so `port` is a `number`. But every new key needs another overload, and `debug` has none, so `getSetting(\"debug\")` fails with TS2769, `No overload matches this call`. The generic `setting` covers every key of `Settings` with one signature, and a key added to `Settings` works with no change to the function. Keep overloads for calls that differ in shape, like a different number of parameters."
+        }
+      ],
+      "practice": {
+        "title": "Select menu",
+        "prompt": "Make `select` keep each menu's exact options, and reject a starting choice that isn't one of them.\n\n1. Give `select` a `const` type parameter `T` that extends `readonly string[]`, and type `options` as `T`.\n2. Type `initial` as `NoInfer<T[number]>`, the union of the options that `options` alone decides.\n3. Give `select` the return type `{ options: T; selected: T[number] }`.\n4. Print a color menu with the options red, green, and blue, starting on green, the same way as the size menu.\n5. Keep the `export`: hidden type tests import `select`, and Check also builds other menus.\n\nExpected output:\n\n```text\nSize: m of s, m, l\nColor: green of red, green, blue\n```",
+        "starter": "// TODO: give select a const type parameter T that extends readonly string[],\n// type options as T and initial as NoInfer<T[number]>, and return\n// { options: T; selected: T[number] }.\nexport function select(\n  options: readonly string[],\n  initial: string,\n): { options: readonly string[]; selected: string } {\n  return { options, selected: initial };\n}\n\nconst size = select([\"s\", \"m\", \"l\"], \"m\");\nconsole.log(`Size: ${size.selected} of ${size.options.join(\", \")}`);\n// TODO: print a color menu of red, green, and blue that starts on green\n",
+        "solution": "export function select<const T extends readonly string[]>(\n  options: T,\n  initial: NoInfer<T[number]>,\n): { options: T; selected: T[number] } {\n  return { options, selected: initial };\n}\n\nconst size = select([\"s\", \"m\", \"l\"], \"m\");\nconsole.log(`Size: ${size.selected} of ${size.options.join(\", \")}`);\nconst color = select([\"red\", \"green\", \"blue\"], \"green\");\nconsole.log(`Color: ${color.selected} of ${color.options.join(\", \")}`);\n",
+        "tests": [
+          {
+            "output": "Size: m of s, m, l\nColor: green of red, green, blue"
+          },
+          {
+            "harness": "{{code}}\nconst drink = select([\"tea\", \"coffee\"], \"coffee\");\nconsole.log(`Drink: ${drink.selected} of ${drink.options.join(\", \")}`);",
+            "output": "Size: m of s, m, l\nColor: green of red, green, blue\nDrink: coffee of tea, coffee"
+          }
+        ],
+        "typeTests": {
+          "imports": "import { select } from \"./main.ts\";",
+          "cases": [
+            {
+              "name": "rejects a choice that isn't an option",
+              "expect": "error",
+              "errorCode": "TS2345",
+              "code": "select([\"s\", \"m\"], \"xl\");"
+            },
+            {
+              "name": "keeps the options' literal types",
+              "expect": "ok",
+              "code": "const s: \"s\" | \"m\" = select([\"s\", \"m\"], \"m\").selected;"
+            },
+            {
+              "name": "keeps the options as a tuple",
+              "expect": "ok",
+              "code": "const o: readonly [\"s\", \"m\"] = select([\"s\", \"m\"], \"s\").options;"
+            }
+          ]
+        },
+        "hints": [
+          "Start from `routes` in the first example: `<const T extends readonly string[]>` and `options: T`.",
+          "`T[number]` is the type of one element of `T`, here the union of the options. Wrapped as `NoInfer<T[number]>`, it can't add a new option.",
+          "The whole signature is `export function select<const T extends readonly string[]>(options: T, initial: NoInfer<T[number]>): { options: T; selected: T[number] }`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `T extends { id: string }` constrains a type parameter: the body can use `id`, and callers still get their full type back.\n- A constraint is a minimum. Types with more members fit, and types without the member are rejected at the call.\n- `keyof T` is the union of `T`'s keys, and `T[K]` is the type stored under the key `K`.\n- `<T, K extends keyof T>` with a return type of `T[K]` types a lookup exactly, and rejects keys the type doesn't have.\n- `<const T>` keeps the literal types of an argument written in the call, as if it had `as const`.\n- `NoInfer<S>` stops a parameter from helping infer `S`, so it is only checked against what the other arguments decided.\n- Overloads list several signatures for one function. When the result is a lookup by key, one generic signature on `keyof` scales better."
+}
