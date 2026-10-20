@@ -5,6 +5,7 @@ import { checkIdent, checkName, dockerNames, lessonTemplateName, oldName, runNam
 import { ejsonCell, parseCsv, queryScript, readQueryOutput, relaxed, typeId } from "./panel.ts";
 import { fill, statements } from "./postgres.ts";
 import { mongo8Runs } from "./services.ts";
+import { serviceSpec, upOnly, type TemplateFiles } from "./spec.ts";
 import { RunRequest } from "../schemas.ts";
 
 /**
@@ -160,5 +161,54 @@ describe("database routes and bodies", () => {
     assert.ok(RunRequest.safeParse({ ...base, setup: { mongo: { recipes: [{ title: "x" }] } }, tests: [{ seed: { recipes: [] } }] }).success);
     assert.ok(!RunRequest.safeParse({ ...base, tests: [{ sql: "SELECT 1" }] }).success);
     assert.ok(!RunRequest.safeParse({ recipe: "bash", files: [{ name: "main.sh", content: "" }], setup: "SELECT 1" }).success);
+  });
+});
+
+describe("template.json services", () => {
+  const tree = (entries: Record<string, string>): TemplateFiles => ({
+    read: (rel) => (rel in entries ? Buffer.from(entries[rel]) : null),
+    list: (dir) => Object.keys(entries).filter((p) => p.startsWith(`${dir}/`) && !p.slice(dir.length + 1).includes("/")).map((p) => p.slice(dir.length + 1)),
+  });
+
+  it("follow the outlines' convention: schema, seed, then migrations in name order, and a test twin without the seed", () => {
+    const files = tree({
+      "db/schema.sql": "CREATE TABLE t (a int);",
+      "db/seed.sql": "INSERT INTO t VALUES (1);",
+      "db/migrations/002_b.sql": "ALTER TABLE t ADD c int;",
+      "db/migrations/001_a.sql": "-- +goose Up\nALTER TABLE t ADD b int;\n-- +goose Down\nALTER TABLE t DROP b;\n",
+    });
+    const { spec, build } = serviceSpec({ postgres: { databases: ["dev", "test"] } }, files);
+    assert.equal(build, null);
+    assert.deepEqual(spec.postgres?.sql?.map((s) => s.name), ["db/schema.sql", "db/seed.sql", "db/migrations/001_a.sql", "db/migrations/002_b.sql"]);
+    assert.equal(spec.postgres?.sql?.[2].text.trim(), "ALTER TABLE t ADD b int;", "only the goose Up section runs");
+    assert.deepEqual(spec.postgres?.testSql?.map((s) => s.name), ["db/schema.sql", "db/migrations/001_a.sql", "db/migrations/002_b.sql"]);
+    assert.deepEqual(spec.postgres?.databases, ["dev", "test"]);
+  });
+
+  it("take named files, a build command, an empty start, and top-level schema files", () => {
+    const files = tree({ "schema.sql": "CREATE TABLE t (a int);", "seed.sql": "INSERT INTO t VALUES (1);", "sql/one.sql": "SELECT 1;" });
+    assert.deepEqual(serviceSpec({ postgres: {} }, files).spec.postgres?.sql?.map((s) => s.name), ["schema.sql", "seed.sql"]);
+    assert.deepEqual(serviceSpec({ postgres: { sql: ["sql/one.sql"] } }, files).spec.postgres?.sql?.map((s) => s.name), ["sql/one.sql"]);
+    assert.deepEqual(serviceSpec({ postgres: { build: ["npm", "run", "db:build"], databases: ["dev", "test"] } }, files), {
+      spec: { postgres: { databases: ["dev", "test"] } },
+      build: ["npm", "run", "db:build"],
+    });
+    assert.deepEqual(serviceSpec({ postgres: { empty: true } }, files).spec, { postgres: { databases: ["dev"], empty: true } });
+    assert.throws(() => serviceSpec({ postgres: { sql: ["missing.sql"] } }, files), /names missing.sql/);
+    assert.throws(() => serviceSpec({ postgres: {} }, tree({})), /no db\/schema.sql/);
+    assert.deepEqual(serviceSpec(null, files), { spec: {}, build: null });
+  });
+
+  it("load a Mongo seed as Extended JSON or as an archive", () => {
+    const json = serviceSpec({ mongo: { databases: ["dev", "test"] } }, tree({ "db/seed.json": '{"recipes":[]}' })).spec.mongo;
+    assert.deepEqual(json, { databases: ["dev", "test"], documents: '{"recipes":[]}' });
+    const archive = serviceSpec({ mongo: {} }, tree({ "db/seed.archive.gz": "gz" })).spec.mongo;
+    assert.equal(archive?.archive?.toString(), "gz");
+    assert.deepEqual(serviceSpec({ mongo: {} }, tree({})).spec.mongo, { databases: ["dev"] });
+  });
+
+  it("keep a goose file's Up section only", () => {
+    assert.equal(upOnly({ name: "x.sql", text: "SELECT 1;" }).text, "SELECT 1;");
+    assert.equal(upOnly({ name: "x.sql", text: "-- +goose Up\n-- +goose StatementBegin\nSELECT 2;\n-- +goose StatementEnd\n" }).text, "\n-- +goose StatementBegin\nSELECT 2;\n-- +goose StatementEnd\n");
   });
 });

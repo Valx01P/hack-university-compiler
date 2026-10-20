@@ -61,6 +61,8 @@ export interface ServiceSpec {
     databases?: ("dev" | "test")[];
     /** JSON text: `{ "<collection>": [EJSON documents], "$indexes": { "<collection>": [{ key, unique? }] } }`. */
     documents?: string;
+    /** Or a `mongodump --archive --gzip` of one database (seed.archive.gz): documents, indexes, and options. */
+    archive?: Buffer;
     /** For the test database. Empty when left out. */
     testDocuments?: string;
   };
@@ -310,15 +312,15 @@ export class Databases {
     return build;
   }
 
-  /** The template database for a Mongo template: its documents loaded once per hash. */
-  async mongoTemplate(ref: TemplateRef, documents: string | undefined): Promise<string | null> {
+  /** The template database for a Mongo template: its documents (or archive) loaded once per hash. */
+  async mongoTemplate(ref: TemplateRef, documents: string | Buffer | undefined): Promise<string | null> {
     if (!documents) return null;
-    const template = templateName(ref, hashOf(ref.hash ?? "", documents));
+    const template = templateName(ref, hashOf(ref.hash ?? "", typeof documents === "string" ? documents : hashOf(documents.toString("base64"))));
     await this.buildMongo(template, documents);
     return template;
   }
 
-  private buildMongo(template: string, documents: string): Promise<void> {
+  private buildMongo(template: string, documents: string | Buffer): Promise<void> {
     let build = this.building.get(template);
     if (!build) {
       build = this.services
@@ -327,7 +329,8 @@ export class Databases {
           if (this.store.mongoTemplates[template] && databases.includes(template)) return;
           await this.services.mongo.dropDatabase(template);
           try {
-            await this.services.mongo.load(template, documents);
+            if (typeof documents === "string") await this.services.mongo.load(template, documents);
+            else await this.services.mongo.restoreInto(template, this.services.secrets.mongo.password, documents);
           } catch (err) {
             await this.services.mongo.dropDatabase(template).catch(() => {});
             throw new DbError(500, "template_failed", `The template database ${template} didn't load: ${(err as Error).message}`);
@@ -373,7 +376,7 @@ export class Databases {
         rec.postgres = pg;
       }
       if (spec.mongo) {
-        const template = await this.mongoTemplate(ref, spec.mongo.documents);
+        const template = await this.mongoTemplate(ref, spec.mongo.archive ?? spec.mongo.documents);
         const testTemplate = spec.mongo.testDocuments ? await this.mongoTemplate({ ...ref, checkpoint: `${ref.checkpoint ?? "base"}_test` }, spec.mongo.testDocuments) : null;
         const want = [names.dev, ...(spec.mongo.databases?.includes("test") ? [names.test] : [])];
         const mongo = rec.mongo ?? { user: names.role, password: newPassword(), template, testTemplate, databases: [] };

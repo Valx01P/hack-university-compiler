@@ -5,6 +5,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { Writable } from "node:stream";
 import { after, before, describe, it } from "node:test";
 import type Docker from "dockerode";
 import { Tickets } from "../auth.ts";
@@ -312,6 +313,34 @@ print(JSON.stringify(db.adminCommand({ listDatabases: 1, nameOnly: true }).datab
     assert.equal((await psql("ws:wpostgresbb", a, "SELECT count(*) FROM tasks;")).out, "3");
   });
 
+  it("build a Mongo template from a mongodump archive, whatever its database was called", async () => {
+    const chunks: Buffer[] = [];
+    const sink = new Writable({ write: (chunk, _enc, done) => (chunks.push(chunk), done()) });
+    await db.services.mongo.dump("ws_wmongobbbbb", db.services.secrets.mongo.password, sink);
+    const archive = Buffer.concat(chunks);
+    assert.equal(archive.subarray(0, 2).toString("hex"), "1f8b", "a gzip archive");
+    await db.attach("warchiveaaa", { course: "express", template: "cookbook-archive" }, { mongo: { archive } });
+    const r = await db.query("warchiveaaa", { collection: "recipes", filter: {} });
+    assert.equal(r.engine === "mongo" && r.rows.map((row) => row[1]).join(","), "Pancakes,Soup");
+    const schema = await db.schema("warchiveaaa");
+    assert.ok(schema.engine === "mongo" && schema.collections[0].indexes.some((i) => i.unique), "indexes come with the archive");
+    await db.dropWorkspace("warchiveaaa");
+  });
+
+  it("drop what a crash left behind when a server comes up", async () => {
+    await db.services.pg.createRole("run_deadbeef0000", "0123456789abcdef0123456789abcdef");
+    await db.services.pg.empty("run_deadbeef0000", "run_deadbeef0000");
+    await db.services.mongo.user("ck_wdeadbeefaa_000000", "0123456789abcdef0123456789abcdef", ["ck_wdeadbeefaa_000000"]);
+    await db.services.mongo.load("ck_wdeadbeefaa_000000", '{"x":[{"a":1}]}');
+    await db.services.onUp("postgres");
+    await db.services.onUp("mongo");
+    assert.ok(!(await db.services.pg.databases()).has("run_deadbeef0000"));
+    assert.ok(!(await db.services.pg.roles()).has("run_deadbeef0000"));
+    const { databases, users } = await db.services.mongo.list();
+    assert.ok(!databases.includes("ck_wdeadbeefaa_000000") && !users.includes("ck_wdeadbeefaa_000000"));
+    assert.ok((await db.services.pg.databases()).has("ws_wpostgresaa"), "workspaces' databases stay");
+  });
+
   it("drop a workspace's databases, role, and user on delete", async () => {
     await db.attach("wdropmeaaaa", REF, { ...PG_SPEC, ...MONGO_SPEC });
     await db.dropWorkspace("wdropmeaaaa");
@@ -528,5 +557,23 @@ describe("a runner of its own", { skip: skip || (images.state("node") !== "ready
     assert.deepEqual(left.map((c) => c.Names[0]), []);
     assert.deepEqual((await docker.listNetworks({ filters: { name: [`hv-db-${port}`] } })).map((n) => n.Name), []);
     assert.deepEqual(((await docker.listVolumes({ filters: { name: [`hv-pgdata-${port}`] } })).Volumes ?? []).map((v) => v.Name), []);
+  });
+});
+
+describe("idle servers", { skip }, () => {
+  it("stop when nothing uses them, and start again on the next use with their data", async () => {
+    await mongoClient?.remove({ force: true }).catch(() => {});
+    mongoClient = null;
+    await db.clients.shutdown();
+    const stopped = await db.services.stopIdle(Date.now() + 2 * 3_600_000);
+    assert.deepEqual([...stopped].sort(), ["mongo", "postgres"]);
+    assert.equal(db.state("postgres"), "stopped");
+    assert.equal(db.state("mongo"), "stopped");
+    const pg = await db.query("wpostgresaa", { sql: "SELECT count(*) FROM tasks" });
+    assert.equal(pg.engine === "postgres" && pg.rows[0][0], "3");
+    const m = await db.query("wmongoaaaaa", { collection: "recipes", filter: {} });
+    assert.equal(m.engine === "mongo" && m.error, null);
+    assert.equal(db.state("postgres"), "running");
+    assert.equal(db.state("mongo"), "running");
   });
 });

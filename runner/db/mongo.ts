@@ -255,6 +255,23 @@ export class MongoAdmin {
     if (r.code !== 0) throw new MongoError(`mongodump failed: ${r.stderr.toString().trim().slice(-300) || r.code}`, null);
   }
 
+  /**
+   * Restores a template's archive (a mongodump --archive --gzip of one
+   * database, whatever it was called) into `name`: content, a fixed command.
+   */
+  async restoreInto(name: string, rootPassword: string, archive: Buffer): Promise<void> {
+    const r = await execCollect(
+      this.container,
+      [
+        "mongorestore", "--quiet", `--uri=${rootUri(rootPassword)}`, "--archive", "--gzip", "--drop",
+        "--nsExclude=admin.*", "--nsExclude=config.*", "--nsExclude=local.*",
+        "--nsFrom=$db$.$coll$", `--nsTo=${checkIdent(name)}.$coll$`,
+      ],
+      { env: ["HOME=/tmp"], timeoutMs: 600_000, stdin: archive }
+    );
+    if (r.code !== 0) throw new MongoError(`mongorestore failed: ${r.stderr.toString().trim().slice(-300) || r.code}`, null);
+  }
+
   /** Restores a dump of `name` into `name` (only its own namespace, never users or roles). */
   async restore(name: string, rootPassword: string, archive: NodeJS.ReadableStream): Promise<void> {
     const r = await execCollect(
