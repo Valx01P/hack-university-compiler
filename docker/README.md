@@ -209,7 +209,8 @@ Java), the dependencies on a read-only volume as §4.4 has it, on this Mac on
 | web | `npm ci --offline` of a Vite React app into a fresh volume | 0.8 s (102 packages) | |
 | web | `vite --configLoader native`: first response, then `vitest run`, `tsc -b`, `vite build` | 0.36 s to the first response | 530 MiB |
 | nextjs | `next dev`: first response of a Route Handler | 0.9 s | |
-| nextjs | `next build` (Turbopack, TypeScript 7 check), then `next start` | 4.1 s | 1009 MiB with dev, build, and start in one container (784 MiB for the build alone) |
+| nextjs | `next dev`: memory while serving | | 401 MiB |
+| nextjs | `next build` (Turbopack, TypeScript 7 check), then `next start` | 4 to 10 s | 662 to 784 MiB. With `next dev` still running beside it, one container went past 1 GiB, so the 2 GiB Next.js workspace limit stands |
 | express | `node --watch src/server.ts`: first response, then `tsc --noEmit` and Vitest with supertest | 0.33 s | 248 MiB |
 | express | A single `main.ts` in `/opt/hu/env/express/work` (Express 5, supertest, argon2), 512 MiB job | under 1 s | |
 | nextjs | A single `main.ts`: a Route Handler on Drizzle and PGlite | 1.6 s | 692 MiB |
