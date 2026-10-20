@@ -130,7 +130,16 @@ export interface Attachment {
 /** A check's throwaway databases. */
 export interface CheckDatabase extends Attachment {
   databases: { postgres?: string; mongo?: string };
+  /** The check's own role and user, for its `sql` and `mongo` steps (db/checks.ts). */
+  logins: { postgres?: PgLogin; mongo?: PgLogin };
   drop(): Promise<void>;
+}
+
+/** A role (or Mongo user), its password, and the database it logs in to. */
+export interface PgLogin {
+  role: string;
+  password: string;
+  database: string;
 }
 
 /** A single-file run's databases: one fresh clone per test. */
@@ -457,8 +466,16 @@ export class Databases {
             } else {
               const old = oldName(db);
               this.active.add(old);
-              await this.services.pg.reset(db, template, pg.role, old);
-              later.push(old);
+              try {
+                await this.services.pg.reset(db, template, pg.role, old);
+                later.push(old);
+              } catch (err) {
+                // A connection that outlived its termination: the slow way, which forces them all.
+                this.log.warn("db.reset_fallback", { db, error: (err as Error).message });
+                this.active.delete(old);
+                await this.services.pg.dropDatabase(db);
+                await this.cloneFor(db, pg, db === names.test);
+              }
             }
             done.push(db);
           }
@@ -558,8 +575,10 @@ export class Databases {
     this.active.add(name);
     const env: Record<string, string> = {};
     const databases: CheckDatabase["databases"] = {};
+    const logins: CheckDatabase["logins"] = {};
     const drop = async () => {
       if (databases.postgres) {
+        await this.clients.forget(`login:${name}`);
         await this.services.pg.dropDatabase(name).catch(() => {});
         await this.services.pg.dropRole(name).catch(() => {});
       }
@@ -579,9 +598,11 @@ export class Databases {
           else await this.services.pg.clone(name, pg.template, name);
         });
         Object.assign(env, urls("postgres", { role: name, password, database: name }));
+        logins.postgres = { role: name, password, database: name };
       }
       if (rec.mongo) {
         const m = rec.mongo;
+        logins.mongo = { role: name, password, database: name };
         await this.services.use("mongo", async () => {
           databases.mongo = name;
           await this.services.mongo.user(name, password, [name]);
@@ -593,7 +614,39 @@ export class Databases {
       await drop();
       throw err;
     }
-    return { env: envList(env), network: this.services.network, databases, drop };
+    return { env: envList(env), network: this.services.network, databases, logins, drop };
+  }
+
+  /**
+   * SQL as a given role, read the way the panel reads it: each statement's
+   * rows (at most 500) and tag, and the error that stopped it. For check
+   * steps, which query as the check's own role.
+   */
+  async sqlAs(login: PgLogin, sql: string, timeoutMs = 10_000): Promise<{ results: SqlAnswer["results"]; error: SqlAnswer["error"]; truncated: boolean }> {
+    return this.services.use("postgres", async () => {
+      const nonce = newNonce();
+      const { script, statements } = queryScript(sql, nonce);
+      const r = await this.clients.run(`login:${login.role}`, queryArgs(nonce), {
+        env: pgEnv(login, [`PGOPTIONS=-c statement_timeout=${Math.ceil(timeoutMs / 1000)}s`]),
+        stdin: script,
+        timeoutMs: timeoutMs + 2_000,
+        maxBytes: MAX_OUTPUT,
+      });
+      return readQueryOutput(r.stdout.toString("utf8"), r.stderr.toString("utf8"), statements, nonce, r.truncated || r.timedOut);
+    });
+  }
+
+  /** A Mongo find() as a given user: canonical Extended JSON documents. */
+  async findAs(login: PgLogin, collection: string, filter: unknown, limit = MAX_ROWS): Promise<{ truncated: boolean; documents: Record<string, unknown>[] }> {
+    return this.services.use("mongo", async () => {
+      const r = await this.services.mongo.query(login.role, login.password, login.database, collection, JSON.stringify(filter ?? {}), limit);
+      return { truncated: r.truncated, documents: r.docs.map((d) => JSON.parse(d) as Record<string, unknown>) };
+    });
+  }
+
+  /** Forgets a login's client container (a check's, when it ends). */
+  async forgetLogin(login: PgLogin): Promise<void> {
+    await this.clients.forget(`login:${login.role}`);
   }
 
   // ---------------------------------------------------------------- single-file runs

@@ -18,6 +18,7 @@ import { quietLog } from "../log.ts";
 import { runRecipe } from "../recipes/index.ts";
 import { RunRequest } from "../schemas.ts";
 import { execText, startRunner } from "../verify.ts";
+import { MongoCheckStep, SqlCheckStep, mongoCheck, sqlCheck } from "./checks.ts";
 import { pgEnv } from "./clients.ts";
 import { Databases, type ServiceSpec } from "./index.ts";
 import { MONGO_IMAGES, POSTGRES_BYTES, MONGO_BYTES } from "./services.ts";
@@ -225,6 +226,37 @@ describe("workspace databases", { skip }, () => {
     }
     assert.ok(!(await db.services.pg.databases()).has(pgCheck.databases.postgres!), "the check's database is dropped");
     assert.ok(!(await db.services.pg.roles()).has(pgCheck.databases.postgres!), "the check's role is dropped");
+  });
+
+  it("judge sql and mongo check steps on the check's own database", async () => {
+    const pgCheck = await db.checkDatabase("wpostgresaa");
+    const mongoCheckDb = await db.checkDatabase("wmongoaaaaa");
+    try {
+      const sql = (step: object) => sqlCheck(db, pgCheck, SqlCheckStep.parse({ id: "s", kind: "sql", ...step }));
+      assert.deepEqual(await sql({ query: "SELECT title, done FROM tasks ORDER BY id", rows: [["write", "f"], ["test", "f"], ["ship", "t"]] }), { status: "pass" });
+      assert.deepEqual(await sql({ query: "SELECT count(*) FROM tasks WHERE title = 't6'", rows: [["0"]] }), { status: "pass" });
+      assert.deepEqual(await sql({ query: "SELECT * FROM tasks", count: 3 }), { status: "pass" });
+      const wrong = await sql({ query: "SELECT title FROM tasks ORDER BY id", rows: [["write"]] });
+      assert.equal(wrong.status, "fail");
+      assert.equal(wrong.actual, '[["write"],["test"],["ship"]]');
+      const missing = await sql({ query: "SELECT * FROM labels", count: 0 });
+      assert.equal(missing.status, "fail");
+      assert.match(missing.message ?? "", /relation "labels" does not exist/);
+      assert.deepEqual(await sql({ query: "SELECT * FROM tasks WHERE id = 2", plan: { usesIndex: "tasks_pkey" } }), { status: "pass" });
+      assert.equal((await sql({ query: "SELECT * FROM tasks WHERE title = 'x'", plan: { usesIndex: true } })).status, "fail");
+
+      const mongo = (step: object) => mongoCheck(db, mongoCheckDb, MongoCheckStep.parse({ id: "m", kind: "mongo", ...step }));
+      assert.deepEqual(await mongo({ collection: "recipes", filter: { servings: { $gte: 2 } }, count: 2 }), { status: "pass" });
+      assert.deepEqual(
+        await mongo({ collection: "recipes", filter: { _id: { $oid: "6650c1f0a1b2c3d4e5f60718" } }, documents: [{ title: "Pancakes", servings: 4 }] }),
+        { status: "pass" }
+      );
+      const off = await mongo({ collection: "recipes", filter: { title: "Soup" }, documents: [{ servings: 3 }] });
+      assert.deepEqual([off.status, off.actual], ["fail", '[{"servings":2}]']);
+    } finally {
+      await pgCheck.drop();
+      await mongoCheckDb.drop();
+    }
   });
 
   it("keep two workspaces from reading each other's data", async () => {
