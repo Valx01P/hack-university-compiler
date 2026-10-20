@@ -16,7 +16,7 @@ import { JobPool } from "../jobs.ts";
 import { quietLog } from "../log.ts";
 import { runRecipe } from "../recipes/index.ts";
 import { RunRequest } from "../schemas.ts";
-import { execText } from "../verify.ts";
+import { execText, startRunner } from "../verify.ts";
 import { pgEnv } from "./clients.ts";
 import { Databases, type ServiceSpec } from "./index.ts";
 import { MONGO_IMAGES, POSTGRES_BYTES, MONGO_BYTES } from "./services.ts";
@@ -492,5 +492,41 @@ describe("the database panel's routes", { skip }, () => {
     assert.equal((await request("POST", "/v1/workspaces/wpostgresaa/db/query", { collection: "x" })).status, 409, "no Mongo database");
     assert.equal((await request("GET", "/v1/workspaces/wnodbaaaaaa/db/schema")).json.error, "no_database");
     assert.equal((await request("GET", "/v1/workspaces/wpostgresaa/db/query")).status, 405);
+  });
+});
+
+describe("a runner of its own", { skip: skip || (images.state("node") !== "ready" && "the hu/node image isn't built") }, () => {
+  it("runs a lesson with a database through POST /v1/run, reports its servers, and removes them when it stops", async () => {
+    const port = PORT + 1;
+    const runner = startRunner(port, { HU_POLL_MS: "1000" });
+    try {
+      await runner.ready(30_000);
+      const client = readFileSync(path.join(import.meta.dirname, "fixtures", "pg-client.mjs"), "utf8");
+      const r = await runner.request("POST", "/v1/run", {
+        body: {
+          recipe: "typescript",
+          files: [{ name: "main.ts", content: `// @ts-nocheck\n${client}\nconsole.log((await pgQuery(process.env.DATABASE_URL, "SELECT count(*) FROM t"))[0][0]);\n` }],
+          setup: "CREATE TABLE t (a int);\nINSERT INTO t VALUES (1), (2);",
+        },
+      });
+      assert.equal(r.status, 200, JSON.stringify(r.json));
+      assert.equal(r.json.run.stdout, "2\n", JSON.stringify(r.json.run));
+      let health = await runner.request("GET", "/v1/health");
+      for (let i = 0; i < 20 && health.json.services.postgres !== "running"; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        health = await runner.request("GET", "/v1/health");
+      }
+      assert.equal(health.json.services.postgres, "running");
+      assert.equal(health.json.services.mongo, "absent");
+      const none = await runner.request("GET", "/v1/workspaces/wk3j6q2m7xa/db/schema");
+      assert.equal(none.status, 409);
+      assert.equal(none.json.error, "no_database");
+    } finally {
+      await runner.stop("SIGTERM");
+    }
+    const left = await docker.listContainers({ all: true, filters: { label: [`hu.port=${port}`, "hu.ns=verify"] } });
+    assert.deepEqual(left.map((c) => c.Names[0]), []);
+    assert.deepEqual((await docker.listNetworks({ filters: { name: [`hv-db-${port}`] } })).map((n) => n.Name), []);
+    assert.deepEqual(((await docker.listVolumes({ filters: { name: [`hv-pgdata-${port}`] } })).Volumes ?? []).map((v) => v.Name), []);
   });
 });
