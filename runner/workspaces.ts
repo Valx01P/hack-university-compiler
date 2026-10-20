@@ -32,6 +32,7 @@ import { POLL, ending, launchTask, parsePoll, processOf, signalTask, type PollRe
 import { TerminalSession } from "./terminals.ts";
 import { Bridge, HttpThroughError, framing, requestThrough } from "./tunnel.ts";
 import { Watcher } from "./watch.ts";
+import { zip } from "./zip.ts";
 import { isCourse, workspaceImage, workspaceLimits, type WorkspaceLimits } from "./workspace-images.ts";
 
 /**
@@ -1479,6 +1480,41 @@ export class Workspace {
       if (removed) this.m.log.info("workspace.container_removed", { id: this.id });
       if (this.status === "stopped") this.status = "files";
     }
+  }
+
+  /** "Download": a zip of the files, without .git (unless asked) and the dependency and build folders, and without links. */
+  async archive(withGit: boolean): Promise<Buffer> {
+    const skip = [...HEAVY, ...this.meta.config.build].filter((e) => e !== ".git" || !withGit);
+    return this.lock.run(async () => {
+      let entries: TarEntry[];
+      if (this.running && this.cfs) entries = unpackTar(await this.cfs.archive(skip, 200 * MiB)).filter((e) => e.path !== "" && e.path !== ".");
+      else entries = this.files.pack("", 200 * MiB, (p) => skip.some((x) => p === x || p.startsWith(`${x}/`)));
+      return zip(entries);
+    });
+  }
+
+  /**
+   * "Continue with my code" (decision D8): the files of another workspace
+   * (the previous part's practice) replace these, after an automatic
+   * snapshot so Undo works. Its files are cloned first, links kept as links.
+   */
+  async carry(from: Workspace) {
+    if (from.id === this.id) throw new HttpError(400, "bad_request", "A workspace can't continue from itself.");
+    return this.lock.run(async () => {
+      const before = await this.snapshotLocked(null, true);
+      const tmp = path.join(this.dir, `.carry-${randomBytes(4).toString("hex")}`);
+      try {
+        fs.mkdirSync(tmp, { mode: 0o700 });
+        for (const name of fs.readdirSync(from.files.root)) {
+          if (keptAside(name)) continue;
+          await cloneTree(path.join(from.files.root, name), path.join(tmp, name));
+        }
+        const result = await this.converge(new HostFs(tmp), buildManifest(tmp, keptAside), { kind: "all" }, false);
+        return { ...result, snapshot: before.id };
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
   }
 
   /** A tar of the files for a check: from inside while running, from the Mac (no link followed) while stopped. */

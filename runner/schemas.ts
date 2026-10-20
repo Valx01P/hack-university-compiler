@@ -310,6 +310,8 @@ export const HttpPanelRequest = z.strictObject({
 });
 export type HttpPanelRequest = z.infer<typeof HttpPanelRequest>;
 
+export const CarryRequest = z.strictObject({ from: z.string().min(1).max(256) });
+
 export const CheckRequest = z.strictObject({
   suite: RelPath,
   target: z.record(z.string().max(32), z.union([z.string().max(256), z.number()])).optional(),

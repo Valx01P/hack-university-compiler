@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
@@ -455,6 +456,41 @@ describe("workspaces", { skip }, () => {
     assert.equal((await runner.request("GET", `/v1/workspaces/${b}`)).json.leases.PORT, pb, "a restart keeps its port");
     assert.equal((await runner.request("DELETE", `/v1/workspaces/${b}`)).status, 204);
     opened.delete(`${runner.port}:${b}`);
+  });
+
+  it("downloads a zip without .git, and carries code on from another workspace", async () => {
+    const a = workspaceId("learn/typescript/runner-test/1/practice");
+    // The running workspace has a .git from its first start: the zip leaves it out.
+    const zipped = await new Promise<Buffer>((resolve, reject) => {
+      const req = http.request(
+        { host: "127.0.0.1", port: runner.port, path: `/v1/workspaces/${a}/archive`, headers: { host: `127.0.0.1:${runner.port}`, authorization: `Bearer ${runner.token}` } },
+        (res) => {
+          const chunks: Buffer[] = [];
+          res.on("data", (c) => chunks.push(c));
+          res.on("end", () => resolve(Buffer.concat(chunks)));
+        }
+      );
+      req.on("error", reject);
+      req.end();
+    });
+    assert.equal(zipped.subarray(0, 4).toString("latin1"), "PK\x03\x04");
+    const file = path.join(runner.dataDir, "download.zip");
+    fs.writeFileSync(file, zipped);
+    const listing = execFileSync("unzip", ["-l", file], { encoding: "utf8" });
+    assert.match(listing, /src\/greet\.ts/);
+    assert.doesNotMatch(listing, /\.git\//);
+    assert.ok(fs.existsSync(path.join(runner.dataDir, "workspaces", a, "files", ".git")), "the workspace itself has one");
+    execFileSync("unzip", ["-tq", file]);
+
+    await raw(runner, "PUT", `/v1/workspaces/${a}/file?path=src/greet.ts`, Buffer.from("// carried\nexport const greet = (n: string) => `Yo ${n}`;\n"));
+    const { id: b } = await open(runner, "learn/typescript/runner-test/2/practice");
+    const carried = (await runner.request("POST", `/v1/workspaces/${b}/carry`, { body: { from: "learn/typescript/runner-test/1/practice" } })).json;
+    assert.deepEqual(carried.restored, ["src/greet.ts"]);
+    assert.equal((await runner.request("GET", `/v1/workspaces/${b}/file?path=src/greet.ts`)).json, "// carried\nexport const greet = (n: string) => `Yo ${n}`;\n");
+    await runner.request("POST", `/v1/workspaces/${b}/snapshots/${carried.snapshot}/restore`);
+    assert.deepEqual((await runner.request("GET", `/v1/workspaces/${b}/changes`)).json.modified, [], "Undo puts its own files back");
+    assert.equal((await runner.request("POST", `/v1/workspaces/${b}/carry`, { body: { from: "learn/typescript/nowhere/1/practice" } })).status, 404);
+    await runner.request("POST", `/v1/workspaces/${a}/reset`, { body: { scope: "file", path: "src/greet.ts" } });
   });
 
   it("runs cmd, http, and process checks that pass and fail when they should", async () => {

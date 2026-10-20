@@ -2,7 +2,9 @@ import type http from "node:http";
 import type { Checks } from "./checks/run.ts";
 import { ExecFailed } from "./exec.ts";
 import { HttpError, methodNotAllowed, parse, readJson, readRaw, send, sendBytes } from "./http-util.ts";
+import { isScope, workspaceId } from "../lib/workspace-id.mjs";
 import {
+  CarryRequest,
   CheckRequest,
   FsOp,
   HttpPanelRequest,
@@ -146,7 +148,13 @@ async function dispatch(deps: WorkspaceRouteDeps, req: http.IncomingMessage, res
         });
         return send(res, 200, result);
       }
-      return sendFile(res, ws.readFile(rel), rel, url.searchParams.get("raw") === "1");
+      const file = ws.readFile(rel);
+      const none = req.headers["if-none-match"];
+      if (typeof none === "string" && none.replace(/^W\//, "").replace(/"/g, "").trim() === file.etag) {
+        res.writeHead(304, { ETag: `"${file.etag}"`, "Cache-Control": "no-store" });
+        return res.end();
+      }
+      return sendFile(res, file, rel, url.searchParams.get("raw") === "1");
     }
     case "original": {
       only(req, "GET");
@@ -167,6 +175,20 @@ async function dispatch(deps: WorkspaceRouteDeps, req: http.IncomingMessage, res
     case "changes":
       only(req, "GET");
       return send(res, 200, await ws.changes());
+    case "archive": {
+      only(req, "GET");
+      const data = await ws.archive(url.searchParams.get("git") === "1");
+      const name = `${ws.meta.template.split("/")[1]}-${ws.id}.zip`;
+      return sendBytes(res, data, { "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="${name}"` });
+    }
+    case "carry": {
+      only(req, "POST");
+      const body = parse(CarryRequest, await readJson(req, JSON_LIMIT));
+      if (!isScope(body.from)) throw new HttpError(400, "bad_request", "from: is not a workspace scope");
+      const from = workspaces.get(workspaceId(body.from));
+      if (!from) throw new HttpError(404, "not_found", "That workspace hasn't been opened, so there is nothing to continue from.");
+      return send(res, 200, await ws.carry(from));
+    }
     case "reset": {
       only(req, "POST");
       const body = parse(ResetRequest, await readJson(req, JSON_LIMIT));
