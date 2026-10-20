@@ -363,6 +363,8 @@ function Sky() {
       if (!shown) {
         shown = true;
         canvas.style.opacity = "1";
+        // the sky is up, so full screen can show it (globals.css)
+        root.setAttribute("data-sky", "");
       }
     };
     const loop = (now: number) => {
@@ -413,6 +415,7 @@ function Sky() {
     // and a context thrown away here would come back lost.
     return () => {
       redrawRef.current = () => {};
+      root.removeAttribute("data-sky");
       cancelAnimationFrame(raf);
       themeWatch.disconnect();
       window.removeEventListener("resize", onResize);
@@ -428,6 +431,7 @@ function Sky() {
     <canvas
       key={canvasKey}
       ref={ref}
+      data-starfield
       aria-hidden
       className="pointer-events-none fixed inset-0 -z-10 h-full w-full opacity-0 transition-opacity duration-1000"
     />
