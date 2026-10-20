@@ -211,7 +211,7 @@ describe("the WebSockets", () => {
   it("open with a ticket and say ready", async () => {
     const { ws } = await open("/v1/ws/events");
     const first = await hello(ws, issue());
-    assert.deepEqual(first.message, { t: "ready", workspace: "wk3j6q2m7xa", seq: 0 });
+    assert.deepEqual(first.message, { t: "ready", workspace: "wk3j6q2m7xa", seq: 0, resync: false });
     ws.close();
   });
 
@@ -241,7 +241,7 @@ describe("the WebSockets", () => {
     assert.equal((await hello(events.ws, issue("term", "s1abcdef"))).code, CLOSE.wrongTicket);
   });
 
-  it("close a good terminal ticket with 4404 until terminals exist (P1)", async () => {
+  it("close a good terminal ticket with 4404 when the terminal doesn't exist", async () => {
     const term = await open("/v1/ws/term/s1abcdef");
     assert.equal((await hello(term.ws, issue("term", "s1abcdef"))).code, CLOSE.noSuchSession);
   });

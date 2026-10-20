@@ -180,3 +180,137 @@ export function describeIssues(error: z.ZodError): string {
     .map((i) => (i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message))
     .join("; ");
 }
+
+// Workspaces (architecture §3.2, §3.5, §6.7). Next sends these after resolving
+// content: the browser names a scope, never a command, an image, or a path.
+
+const Course = z.string().regex(/^[a-z][a-z0-9-]{0,31}$/, "is not a course slug");
+const TaskName = z.string().regex(/^[a-z][a-z0-9-]{0,31}$/, "is not a task name");
+const Command = z.string().min(1).max(4 * KiB).refine((s) => !s.includes("\0"), "contains a NUL byte");
+
+export const TaskDef = z.union([
+  Command,
+  z.strictObject({ cmd: Command, label: z.string().max(64).optional(), run: z.boolean().optional() }),
+]);
+
+export const PortDecl = z.strictObject({
+  env: z.string().regex(/^[A-Z][A-Z0-9_]{0,31}$/, "is not a variable name"),
+  label: z.string().max(64).optional(),
+  readyPath: z.string().max(512).optional(),
+  preview: z.boolean().optional(),
+});
+
+/** base, checkpoints/<cp>, examples/<id>, or @<a folder under content/>. */
+export const LayerName = z
+  .string()
+  .min(1)
+  .max(512)
+  .refine(
+    (l) =>
+      l === "base" ||
+      /^(checkpoints|examples)\/[a-z0-9][a-z0-9._-]{0,63}$/.test(l) ||
+      (/^@[A-Za-z0-9._/-]+$/.test(l) && l.slice(1).split("/").every((s) => s !== "" && s !== "." && s !== "..")),
+    "is not a layer (base, checkpoints/<cp>, examples/<id>, or @<path under content>)"
+  );
+
+export const OpenWorkspace = z.strictObject({
+  scope: z.string().min(1).max(256),
+  template: z.string().regex(/^[a-z][a-z0-9-]{0,31}\/[a-z0-9][a-z0-9._-]{0,63}$/, "is not <course>/<template>"),
+  layers: z.array(LayerName).min(1).max(32),
+  course: Course.optional(),
+  image: z.enum(["node", "bash", "web", "check-web", "python", "java", "go"]).optional(),
+  storage: z.enum(["host", "volume"]).optional(),
+  profile: z.enum(["standard", "sysadmin"]).optional(),
+  start: z.enum(["run", "open"]).optional(),
+  examples: z.enum(["own", "shared"]).optional(),
+  ports: z.array(PortDecl).max(8).optional(),
+  tasks: z
+    .record(TaskName, TaskDef)
+    .refine((t) => Object.keys(t).length <= 16, "has more than 16 tasks")
+    .optional(),
+  env: EnvVars.optional(),
+  limits: z
+    .strictObject({
+      memoryMb: z.number().int().min(64).max(16384).optional(),
+      cpus: z.number().min(0.25).max(16).optional(),
+      pids: z.number().int().min(16).max(4096).optional(),
+    })
+    .optional(),
+  build: z.array(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, "is not a folder name")).max(8).optional(),
+  hidden: z.array(RelPath).max(64).optional(),
+  readonly: z.array(RelPath).max(256).optional(),
+  restartOnReset: z.boolean().optional(),
+  // Kept for later phases (dependencies and databases arrive in P2, diagnostics with the IDE).
+  deps: z.record(z.string(), z.unknown()).optional(),
+  services: z.record(z.string(), z.unknown()).optional(),
+  diagnostics: z.array(z.unknown()).max(8).optional(),
+  volumes: z.array(z.string().max(256)).max(8).optional(),
+  seed: z.unknown().optional(),
+  // template.json fields the runner doesn't use, accepted so it can be spread in.
+  id: z.string().max(128).optional(),
+  title: z.string().max(256).optional(),
+  layout: z.string().max(32).optional(),
+  open: z.array(z.unknown()).max(64).optional(),
+  requests: z.string().max(512).optional(),
+  panels: z.array(z.string().max(32)).max(16).optional(),
+  autosave: z.boolean().optional(),
+});
+
+export type OpenWorkspace = z.infer<typeof OpenWorkspace>;
+
+const Mode = z.number().int().min(0).max(0o7777);
+const UndoToken = z.string().regex(/^[a-z0-9]{8,40}$/, "is not an undo token");
+
+export const FsOp = z.discriminatedUnion("op", [
+  z.strictObject({ op: z.literal("mkdir"), path: RelPath }),
+  z.strictObject({ op: z.literal("rename"), path: RelPath, to: RelPath }),
+  z.strictObject({ op: z.literal("copy"), path: RelPath, to: RelPath }),
+  z.strictObject({ op: z.literal("delete"), path: RelPath }),
+  z.strictObject({ op: z.literal("chmod"), path: RelPath, mode: Mode }),
+  z.strictObject({ op: z.literal("restore"), undo: UndoToken }),
+]);
+export type FsOp = z.infer<typeof FsOp>;
+
+export const ResetRequest = z
+  .strictObject({
+    scope: z.enum(["file", "dir", "all", "db", "everything"]),
+    path: RelPath.optional(),
+    dryRun: z.boolean().optional(),
+  })
+  .refine((r) => (r.scope === "file" || r.scope === "dir") === (r.path !== undefined), "file and dir resets need a path, and only they do");
+
+export const SnapshotRequest = z.strictObject({ label: z.string().min(1).max(80).optional() });
+
+export const TerminalRequest = z.strictObject({
+  cols: z.number().int().min(2).max(1000),
+  rows: z.number().int().min(1).max(500),
+  cwd: RelPath.optional(),
+});
+
+export const PortRequest = z.strictObject({ port: z.number().int().min(1).max(65535) });
+
+export const SignalRequest = z.strictObject({ sig: z.enum(["INT", "TERM", "HUP", "KILL", "QUIT", "USR1", "USR2"]) });
+
+export const HttpPanelRequest = z.strictObject({
+  port: z.number().int().min(1).max(65535),
+  method: z.string().regex(/^[A-Z]{1,16}$/, "is not an HTTP method"),
+  path: z
+    .string()
+    .min(1)
+    .max(8 * KiB)
+    .refine((p) => p.startsWith("/") && !/[\r\n\0 ]/.test(p), "must start with / and hold no spaces or line breaks"),
+  headers: z
+    .record(z.string().regex(/^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,128}$/, "is not a header name"), z.string().max(8 * KiB).refine((v) => !/[\r\n\0]/.test(v), "holds a line break"))
+    .refine((h) => Object.keys(h).length <= 64, "has more than 64 headers")
+    .optional(),
+  body: z.string().max(1.5 * MiB).optional(),
+  bodyEncoding: z.enum(["utf8", "base64"]).optional(),
+  jar: z.boolean().optional(),
+  timeoutMs: z.number().int().min(100).max(120_000).optional(),
+});
+export type HttpPanelRequest = z.infer<typeof HttpPanelRequest>;
+
+export const CheckRequest = z.strictObject({
+  suite: RelPath,
+  target: z.record(z.string().max(32), z.union([z.string().max(256), z.number()])).optional(),
+});

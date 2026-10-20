@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "image": "node",
+  "db": "none",
+  "copy": {
+    "exclude": [
+      "node_modules"
+    ],
+    "git": false
+  },
+  "deadlineMs": 60000,
+  "server": {
+    "task": "serve",
+    "port": "PORT",
+    "ready": {
+      "path": "/healthz",
+      "timeoutMs": 15000
+    }
+  },
+  "steps": [
+    {
+      "id": "typecheck",
+      "kind": "cmd",
+      "run": [
+        "tsc",
+        "--noEmit",
+        "-p",
+        "."
+      ],
+      "expect": {
+        "exit": 0
+      },
+      "parse": "tsc"
+    },
+    {
+      "id": "start",
+      "kind": "cmd",
+      "run": [
+        "node",
+        "src/main.ts"
+      ],
+      "expect": {
+        "exit": 0,
+        "stdout": "Hello, TypeScript!\n5 records, 3 active: Ada, Grace, Katherine\ntags: codes, compilers, engines, kernels, math, navy, orbits\n"
+      }
+    },
+    {
+      "id": "hello",
+      "kind": "http",
+      "steps": [
+        {
+          "method": "GET",
+          "path": "/healthz",
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true
+            }
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/hello?name=Ada",
+          "save": {
+            "greeting": "$.greeting"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "greeting": "Hello, Ada!",
+              "seen": "$any"
+            }
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/nowhere",
+          "expect": {
+            "status": 404,
+            "jsonExact": {
+              "error": "$string"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "graceful",
+      "kind": "process",
+      "script": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/healthz",
+            "expect": {
+              "status": 200
+            }
+          }
+        },
+        {
+          "signal": "TERM"
+        },
+        {
+          "exit": {
+            "code": 0,
+            "within": 5000
+          }
+        },
+        {
+          "log": {
+            "contains": "bye"
+          }
+        }
+      ]
+    }
+  ],
+  "acceptance": {
+    "typecheck": "The project type-checks",
+    "start": "npm start prints the greeting and the summary of data/sample.json",
+    "hello": "GET /hello greets by name",
+    "graceful": "The server says bye and exits 0 on SIGTERM"
+  }
+}

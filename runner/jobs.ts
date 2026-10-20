@@ -283,6 +283,23 @@ export class Job {
     }
   }
 
+  /** Extracts a tar archive into `dir` (a check's copy of a workspace). */
+  async loadTar(dir: string, archive: Buffer): Promise<void> {
+    const result = await this.step(["sh", "-c", 'cd -- "$1" || exit 1; exec tar -xpf - --no-same-owner', "sh", dir], {
+      stdin: archive,
+      timeoutMs: 60_000,
+      maxBytes: 64 * 1024,
+    });
+    if (result.code !== 0) {
+      throw new JobError("job_failed", `Couldn't load the files into the sandbox: ${result.stderr.trim() || result.message}`);
+    }
+  }
+
+  /** The container, for execs that must not go through hu-exec (a check's server and the steps beside it). */
+  get handle(): Docker.Container {
+    return this.container;
+  }
+
   /**
    * What is at each path, relative to `dir`, with each regular file's
    * contents up to `cap` bytes. Up to about 9 MB of contents come back in all
