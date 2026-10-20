@@ -224,6 +224,7 @@ export class Checks {
         try {
           await job.loadTar(WORK, archive);
           const ctx = new Context(job.handle, suite, ws, env, port, () => timedOut);
+          ctx.onServer = () => this.emit(ws, { checkId: result.checkId, phase: "server" });
           for (const step of suite.steps) {
             if (result.tests.length >= MAX_TESTS) break;
             const test = await this.step(ctx, step, suite).catch((err: Error): TestResult => ({
@@ -297,6 +298,8 @@ class Context {
   serverLog: string | null = null;
   private serverReady: Promise<string | null> | null = null;
   private launches = 0;
+  /** Tells the browser the suite's server is starting (the check's "server" phase). */
+  onServer: () => void = () => {};
 
   constructor(container: Docker.Container, suite: Suite, ws: Workspace, env: string[], port: number, over: () => boolean) {
     this.container = container;
@@ -321,6 +324,7 @@ class Context {
       const cmd = this.serverCmd();
       if (!cmd) return "The suite needs a server, and the template has no start task.";
       this.serverStarted = true;
+      this.onServer();
       const why = await this.launch("server", cmd);
       if (why) this.serverFailed = why;
       return why;

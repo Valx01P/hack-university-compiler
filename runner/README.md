@@ -391,7 +391,9 @@ files, and later calls return the live state. The id must be
 ### `GET /v1/workspaces` and `GET`, `DELETE /v1/workspaces/:id`
 
 `GET /v1/workspaces` lists every workspace (the `/workspaces` page):
-`{ "workspaces": [{ id, scope, course, template, status, lastActiveAt, memLimitMb }], "budgetMb", "reservedMb" }`.
+`{ "workspaces": [{ id, scope, course, template, status, lastActiveAt, sizeBytes, memLimitMb, memUsedMb }], "budgetMb", "reservedMb" }`
+(`sizeBytes` is what `du` counts for the workspace's folder, snapshots and
+trash included, and `memUsedMb` is null unless it runs).
 
 `GET /v1/workspaces/:id` answers
 `{ id, scope, course, template, templateHash, status, detail, image, storage, createdAt, lastActiveAt, ports: [port], tasks: [task], terminals: [terminal], changes, lastCheck, mem }`,
@@ -724,7 +726,7 @@ ride along. No cookie is ever used for authentication.
 | Runner to client | `{"t":"fs","seq":43,"events":[["add","src/a.ts",entry],["change","package.json",entry],["unlink","tmp/x"],["addDir","src/dto",entry],["unlinkDir","tmp"]]}`, batched every 50 ms. `entry` is the tree row of the path. Heavy folders report only themselves, never what's inside. A folder that arrives whole (a `mv` into the workspace, `git checkout`) reports every path in it |
 | Runner to client | `{"t":"port", …port}`, when a port opens, closes, or changes (see "Ports") |
 | Runner to client | `{"t":"task","name":"dev","state":"starting\|running\|exited","code":1,"signal":null,"sid":"…"}` |
-| Runner to client | `{"t":"check","checkId":"c7m2xqa3k9","phase":"copy\|server\|tests\|done","test":{…}}`: a `tests` message carries one finished test, and `done` carries the whole `result` |
+| Runner to client | `{"t":"check","checkId":"c7m2xqa3k9","phase":"copy\|server\|tests\|done","test":{…}}`: `copy` when it starts, `server` when the suite's server starts, a `tests` message per finished test, and `done` with the whole `result` |
 | Runner to client | `{"t":"diag","source":"tsc","items":[{"file":"src/app.ts","line":12,"col":7,"severity":"error","code":"TS2322","message":"…"}]}`: the template's save-time diagnostics, run a second after the last save (and once at start) while the workspace runs. Each message replaces every earlier item from its `source` (an empty `items` clears them). `tsc` output is parsed as tsc prints it, and any other parser reads the `file:line:col: severity: message` form of go vet, ruff, and `shellcheck -f gcc` |
 | Runner to client | `{"t":"limit","kind":"oom\|pids\|fsize\|idle\|lru","message":"Your workspace used more than its 1 GB and a process was stopped"}` |
 | Runner to client | `{"t":"terminal","sid":"…","state":"exited","code":0}` when a shell ends |

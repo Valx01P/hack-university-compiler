@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -1496,6 +1497,16 @@ export class Workspace {
       await this.m.removeVolumes(this.id);
       this.m.leases.release(this.meta.scope);
       fs.rmSync(this.dir, { recursive: true, force: true });
+    });
+  }
+
+  /** The disk the workspace's folder takes (du, which never follows a link), or null when it can't tell. */
+  diskBytes(): Promise<number | null> {
+    return new Promise((resolve) => {
+      execFile("du", ["-sk", this.dir], { timeout: 10_000 }, (err, stdout) => {
+        const kb = Number(String(stdout).split(/\s/)[0]);
+        resolve(err || !Number.isFinite(kb) ? null : kb * 1024);
+      });
     });
   }
 

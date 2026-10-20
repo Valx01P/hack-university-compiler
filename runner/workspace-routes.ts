@@ -82,15 +82,19 @@ async function dispatch(deps: WorkspaceRouteDeps, req: http.IncomingMessage, res
 
   if (url.pathname === "/v1/workspaces" || url.pathname === "/v1/workspaces/") {
     only(req, "GET");
-    const list = workspaces.all().map((w) => ({
-      id: w.id,
-      scope: w.meta.scope,
-      course: w.meta.course,
-      template: w.meta.template,
-      status: w.status,
-      lastActiveAt: w.lastActive,
-      memLimitMb: Math.round(w.limits.memoryBytes / 2 ** 20),
-    }));
+    const list = await Promise.all(
+      workspaces.all().map(async (w) => ({
+        id: w.id,
+        scope: w.meta.scope,
+        course: w.meta.course,
+        template: w.meta.template,
+        status: w.status,
+        lastActiveAt: w.lastActive,
+        sizeBytes: await w.diskBytes(),
+        memLimitMb: Math.round(w.limits.memoryBytes / 2 ** 20),
+        memUsedMb: (w.statusMessage().mem as { usedMb: number } | null)?.usedMb ?? null,
+      }))
+    );
     return send(res, 200, {
       workspaces: list,
       budgetMb: Math.floor(workspaces.capacity.budget() / 2 ** 20),
