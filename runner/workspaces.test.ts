@@ -203,6 +203,14 @@ describe("workspaces", { skip }, () => {
     assert.deepEqual(changes, { added: ["img/logo.png"], modified: ["src/greet.ts", "src/main.ts"], removed: ["data/sample.json"] });
     assert.notEqual(filesHash(runner, id), json.templateHash);
 
+    // Rename and copy, refusing to land on something that exists.
+    assert.equal((await runner.request("POST", `/v1/workspaces/${id}/fs`, { body: { op: "copy", path: "src", to: "src-copy" } })).status, 200);
+    assert.equal((await runner.request("POST", `/v1/workspaces/${id}/fs`, { body: { op: "rename", path: "src-copy/main.ts", to: "src-copy/greet.ts" } })).status, 409);
+    assert.equal((await runner.request("POST", `/v1/workspaces/${id}/fs`, { body: { op: "rename", path: "src-copy", to: "lib/moved" } })).status, 200);
+    const moved = (await runner.request("GET", `/v1/workspaces/${id}/tree?path=lib/moved`)).json;
+    assert.deepEqual(moved.entries.map((e: { name: string; state: string }) => `${e.name} ${e.state}`), ["greet.ts new", "main.ts new", "server.ts new"]);
+    await runner.request("POST", `/v1/workspaces/${id}/fs`, { body: { op: "delete", path: "lib" } });
+
     // Undo the delete, then delete again.
     assert.equal((await runner.request("POST", `/v1/workspaces/${id}/fs`, { body: { op: "restore", undo: del.json.undo } })).status, 200);
     assert.deepEqual((await runner.request("GET", `/v1/workspaces/${id}/changes`)).json.removed, []);
@@ -221,6 +229,8 @@ describe("workspaces", { skip }, () => {
     assert.deepEqual((await runner.request("GET", `/v1/workspaces/${id}/changes`)).json.modified, ["src/greet.ts", "src/main.ts"]);
     await runner.request("POST", `/v1/workspaces/${id}/reset`, { body: { scope: "file", path: "src/greet.ts" } });
     assert.deepEqual((await runner.request("GET", `/v1/workspaces/${id}/changes`)).json.modified, ["src/main.ts"]);
+    await runner.request("POST", `/v1/workspaces/${id}/reset`, { body: { scope: "dir", path: "data" } });
+    assert.deepEqual((await runner.request("GET", `/v1/workspaces/${id}/changes`)).json.removed, [], "a folder reset brings back what it held");
     await runner.request("POST", `/v1/workspaces/${id}/reset`, { body: { scope: "all" } });
     assert.equal(filesHash(runner, id), json.templateHash);
     const original = await runner.request("GET", `/v1/workspaces/${id}/original?path=src/greet.ts`);
@@ -334,6 +344,11 @@ describe("workspaces", { skip }, () => {
     assert.equal((await get(found.m.port, "/")).body, "extra");
     const ports = (await runner.request("GET", `/v1/workspaces/${id}/ports`)).json;
     assert.ok(ports.some((p: { target: number }) => p.target === extra));
+    const byHand = (await runner.request("POST", `/v1/workspaces/${id}/ports`, { body: { port: extra - 1 } })).json;
+    assert.equal(byHand.target, extra - 1);
+    assert.equal(byHand.state, "closed");
+    assert.equal((await get(byHand.port, "/")).status, 503, "forwarded, with nothing listening yet");
+    assert.equal((await runner.request("DELETE", `/v1/workspaces/${id}/ports/${byHand.port}`)).status, 204);
     const snap = (await runner.request("POST", `/v1/workspaces/${id}/snapshots`, { body: { label: "before kill" } })).json;
     assert.equal(snap.label, "before kill");
     assert.ok((await runner.request("GET", `/v1/workspaces/${id}/snapshots`)).json.snapshots.some((x: { id: string }) => x.id === snap.id));
@@ -353,6 +368,8 @@ describe("workspaces", { skip }, () => {
     const port = listening.m.port;
     assert.ok(port >= first && port <= half, `port ${port} is in the range`);
     assert.equal(listening.m.target, port, "the same number inside and out");
+    assert.equal(listening.m.framable, true, "GET / sends no X-Frame-Options");
+    assert.equal(listening.m.process, "node");
     await ev.wait((m) => m.t === "task" && m.name === "serve" && m.state === "running", 5_000);
 
     const direct = await get(port, "/healthz");
@@ -388,6 +405,28 @@ describe("workspaces", { skip }, () => {
     const a = workspaceId("learn/typescript/runner-test/1/practice");
     const { id: b } = await open(runner, "learn/typescript/runner-test/1/example-2");
     assert.equal((await runner.request("POST", `/v1/workspaces/${b}/start`)).json.status, "running");
+    // The standard profile (architecture §11.2).
+    const info = await docker.getContainer(`hv-ws-${home(runner.dataDir)}-${b}`).inspect();
+    const hc = info.HostConfig as Record<string, any>;
+    assert.equal(info.Config.User, "1000:1000");
+    assert.deepEqual(hc.CapDrop, ["ALL"]);
+    assert.equal(hc.Privileged, false);
+    assert.equal(hc.ReadonlyRootfs, true);
+    assert.deepEqual(hc.SecurityOpt, ["no-new-privileges"]);
+    assert.equal(hc.NetworkMode, "none");
+    assert.equal(hc.Memory, 1024 ** 3);
+    assert.equal(hc.MemorySwap, 1024 ** 3);
+    assert.equal(hc.PidsLimit, 512);
+    assert.deepEqual(hc.Ulimits.find((u: { Name: string }) => u.Name === "nofile"), { Name: "nofile", Soft: 4096, Hard: 8192 });
+    assert.deepEqual(Object.keys(hc.PortBindings ?? {}), [], "no published port");
+    assert.equal(info.Mounts.find((m: { Destination: string }) => m.Destination === "/workspace")?.Type, "bind");
+    assert.ok(info.Config.Env.includes("HOST=0.0.0.0"));
+    // Changes inside the running container: a rename and a copy.
+    assert.equal((await runner.request("POST", `/v1/workspaces/${b}/fs`, { body: { op: "copy", path: "src/greet.ts", to: "src/greet2.ts" } })).status, 200);
+    assert.equal((await runner.request("POST", `/v1/workspaces/${b}/fs`, { body: { op: "rename", path: "src/greet2.ts", to: "src/greet.ts" } })).status, 409);
+    assert.equal((await runner.request("POST", `/v1/workspaces/${b}/fs`, { body: { op: "rename", path: "src/greet2.ts", to: "src/greet3.ts" } })).status, 200);
+    assert.deepEqual((await runner.request("GET", `/v1/workspaces/${b}/changes`)).json.added, ["src/greet3.ts"]);
+
     const pa = (await runner.request("GET", `/v1/workspaces/${a}`)).json.leases.PORT;
     const pb = (await runner.request("GET", `/v1/workspaces/${b}`)).json.leases.PORT;
     assert.ok(pa && pb && pa !== pb, `${pa} and ${pb}`);
