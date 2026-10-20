@@ -968,7 +968,7 @@ export function CompilerApp({
       </div>
       {/* In full screen the header is covered, so back, forward, and the
           theme picker float. */}
-      {full && <FloatingNav />}
+      <FloatingNav />
     </div>
   );
 }

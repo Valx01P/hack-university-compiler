@@ -286,7 +286,8 @@ export function PartView({
         window.scrollTo(0, window.scrollY + target.getBoundingClientRect().top - 80);
       }
       // A frame later, the editor has taken a restored tab's code too.
-      if (document.documentElement.hasAttribute("data-restore")) requestAnimationFrame(revealWorkspace);
+      const html = document.documentElement;
+      if (html.hasAttribute("data-restore") || html.hasAttribute("data-restore-editor")) requestAnimationFrame(revealWorkspace);
     });
     // Once, on load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -544,9 +545,10 @@ export function PartView({
       ref={gridRef}
       data-workspace
       className={`flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[var(--learn-split)_9px_minmax(0,1fr)] ${
-        // Below lg the part and the editor stack and the whole thing
-        // scrolls, each at its own height (never squeezed to fit).
-        full ? "fixed inset-0 z-[100] bg-canvas max-lg:overflow-y-auto max-lg:*:shrink-0" : ""
+        // In full screen (laid out by globals.css) below lg the part and the
+        // editor stack and the whole thing scrolls, each at its own height
+        // (never squeezed to fit).
+        "full:max-lg:overflow-y-auto full:max-lg:*:shrink-0"
       }`}
       style={{ "--learn-split": `${split}%` } as React.CSSProperties}
     >
@@ -556,12 +558,12 @@ export function PartView({
       <div
         ref={columnRef}
         onScroll={trackPlace}
-        className={`slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto ${hasNav ? (full ? "lg:scroll-pb-36" : "lg:scroll-pb-24") : ""}`}
+        className={`slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto ${hasNav ? "lg:scroll-pb-24 full:lg:scroll-pb-36" : ""}`}
       >
         <article
           ref={articleRef}
           className={`mx-auto w-full max-w-[46rem] flex-1 px-5 pb-10 pt-6 sm:px-7 ${
-            hasNav ? (full ? "max-lg:[&_:is(a,button,pre,[tabindex])]:scroll-mb-36" : "max-lg:[&_:is(a,button,pre,[tabindex])]:scroll-mb-24") : ""
+            hasNav ? "max-lg:[&_:is(a,button,pre,[tabindex])]:scroll-mb-24 full:max-lg:[&_:is(a,button,pre,[tabindex])]:scroll-mb-36" : ""
           }`}
         >
           <p className="eyebrow">
@@ -635,9 +637,7 @@ export function PartView({
             full screen it sits above the floating buttons in the corners. */}
         {hasNav && (
           <div
-            className={`pointer-events-none sticky bottom-0 z-10 flex justify-center bg-gradient-to-t from-surface from-40% to-transparent px-4 pt-8 ${
-              full ? "pb-16" : "pb-4"
-            }`}
+            className="pointer-events-none sticky bottom-0 z-10 flex justify-center bg-gradient-to-t from-surface from-40% to-transparent px-4 pt-8 pb-4 full:pb-16"
           >
             <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-card border border-line bg-surface p-1.5 shadow-(--shadow-card)">
               {prev && (
@@ -688,6 +688,7 @@ export function PartView({
           in landscape) scrolls the page instead of squeezing out the code. */}
       <div
         ref={editorRef}
+        data-editor-pane
         className="flex h-[88dvh] min-h-[30rem] min-w-0 scroll-mt-[calc(4rem+1px)] flex-col p-2 lg:h-auto lg:min-h-0"
       >
         {/* The padding (offset by the negative margins) leaves room for focus
@@ -736,7 +737,9 @@ export function PartView({
           </div>
           {/* Full screen covers the top bar and its Compiler button, so the
               way to the compiler moves here. */}
-          {full && <CompilerButton lang={lang.slug} langLabel={lang.label} className="shrink-0" />}
+          <span className="hidden full:contents">
+            <CompilerButton lang={lang.slug} langLabel={lang.label} className="shrink-0" />
+          </span>
         </div>
 
         <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className="flex min-h-0 flex-1 flex-col">

@@ -15,7 +15,9 @@
  * A reload that restores something you'd see change is restored before you
  * see it: the bootstrap in app/layout.tsx marks <html data-restore>, which
  * keeps the page's [data-workspace] hidden (globals.css) until the page calls
- * revealWorkspace() with everything in place (or 3 seconds pass).
+ * revealWorkspace() with everything in place (or 3 seconds pass). When only
+ * Learn's editor tab comes back, it marks <html data-restore-editor>
+ * instead, which hides just the editor ([data-editor-pane]).
  */
 
 // The order params are written in, for a readable address.
@@ -87,7 +89,9 @@ export function writeHash(id: string, { now = false } = {}) {
   schedule(now);
 }
 
-/** Shows the workspace a restoring reload kept hidden. */
+/** Shows the workspace (or just Learn's editor) a restoring reload kept
+    hidden. */
 export function revealWorkspace() {
   document.documentElement.removeAttribute("data-restore");
+  document.documentElement.removeAttribute("data-restore-editor");
 }

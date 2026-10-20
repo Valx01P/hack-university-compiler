@@ -264,7 +264,7 @@ export function LearnShell({
         returnFocusTo={full ? floatingButtonRef : panelButtonRef}
         anyWidth={full}
       />
-      {full && <FloatingNav lessons={{ open: drawer, onToggle: () => setDrawer((open) => !open), buttonRef: floatingButtonRef }} />}
+      <FloatingNav lessons={{ open: drawer, onToggle: () => setDrawer((open) => !open), buttonRef: floatingButtonRef }} />
     </div>
   );
 }
