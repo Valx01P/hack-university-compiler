@@ -59,7 +59,7 @@ export function SqlDatabase({ version }: { version: number }) {
               type="button"
               onClick={() => setOpen(expanded ? null : t.name)}
               aria-expanded={expanded}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-highlight"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-raised"
             >
               <ChevronRight className={`size-3.5 shrink-0 text-ink-faint transition-transform ${expanded ? "rotate-90" : ""}`} aria-hidden />
               {t.kind === "table" ? (

@@ -240,7 +240,7 @@ export function Explorer({
       dir = dir.includes("/") ? dir.slice(0, dir.lastIndexOf("/")) : "";
     }
   }
-  const iconBtn = "inline-flex size-6 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-highlight hover:text-ink";
+  const iconBtn = "inline-flex size-6 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink";
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
@@ -259,7 +259,7 @@ export function Explorer({
       {store.undoDelete && (
         <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1 text-xs text-ink-muted" role="status">
           <span className="min-w-0 flex-1 truncate">Deleted {store.undoDelete.path}</span>
-          <button type="button" onClick={() => void store.undoLastDelete()} className="shrink-0 rounded-btn px-1.5 font-medium text-ink hover:bg-highlight">
+          <button type="button" onClick={() => void store.undoLastDelete()} className="shrink-0 rounded-btn px-1.5 font-medium text-ink hover:bg-raised">
             Undo
           </button>
         </div>
@@ -306,7 +306,7 @@ export function Explorer({
                   <span className="min-w-0 flex-1 truncate line-through decoration-ink-faint/60" title={path}>
                     {path}
                   </span>
-                  <button type="button" onClick={() => void store.restore(path)} className="shrink-0 rounded-btn px-1.5 text-xs text-ink-muted hover:bg-highlight hover:text-ink">
+                  <button type="button" onClick={() => void store.restore(path)} className="shrink-0 rounded-btn px-1.5 text-xs text-ink-muted hover:bg-raised hover:text-ink">
                     Restore
                   </button>
                 </div>
@@ -381,7 +381,7 @@ function Row({
       title={title}
       style={{ paddingLeft: pad }}
       className={`${ROW} ${
-        active ? "bg-highlight text-ink" : "text-ink-muted hover:bg-highlight/70 hover:text-ink"
+        active ? "bg-raised text-ink" : "text-ink-muted hover:bg-raised/70 hover:text-ink"
       } ${item.isFocused() ? "focus-visible:outline-2 focus-visible:-outline-offset-2" : ""} ${
         item.isDragTarget() ? "bg-accent/40" : ""
       } ${node?.lazy ? "opacity-60" : ""}`}
@@ -564,7 +564,7 @@ function RowMenu({
             {folder ? "The folder and everything in it go" : "It goes"} to the workspace&apos;s trash. {inOriginal ? "Reset brings the original back." : ""}
           </p>
           <div className="mt-3 flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:bg-highlight hover:text-ink">
+            <button type="button" onClick={onClose} className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:bg-raised hover:text-ink">
               Cancel
             </button>
             <button
@@ -584,7 +584,7 @@ function RowMenu({
             type="button"
             role="menuitem"
             onClick={it.run}
-            className="flex w-full items-center justify-between gap-3 rounded-btn px-2.5 py-1.5 text-left text-[13px] text-ink-muted outline-none hover:bg-highlight hover:text-ink focus-visible:bg-highlight focus-visible:text-ink"
+            className="flex w-full items-center justify-between gap-3 rounded-btn px-2.5 py-1.5 text-left text-[13px] text-ink-muted outline-none hover:bg-raised hover:text-ink focus-visible:bg-raised focus-visible:text-ink"
           >
             {it.label}
             {it.hint && <span className="font-mono text-[11px] text-ink-faint">{it.hint}</span>}

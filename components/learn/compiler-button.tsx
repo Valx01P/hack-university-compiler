@@ -31,7 +31,7 @@ export function CompilerButton({
       }
       confirmLabel={playground ? "Open playground" : "Open compiler"}
       href={playground ? `/${lang}/playground` : `/${lang}`}
-      className={`inline-flex items-center gap-1.5 rounded-btn border border-content-line px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-btn border border-content-line px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink ${className}`}
     >
       {playground ? <FolderCode className="size-3.5" aria-hidden /> : <SquareTerminal className="size-3.5" aria-hidden />}
       {playground ? "Playground" : "Compiler"}

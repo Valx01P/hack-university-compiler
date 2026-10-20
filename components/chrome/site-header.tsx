@@ -20,7 +20,7 @@ export function SiteHeader() {
             target="_blank"
             rel="noopener noreferrer"
             title="If Hack University helps you, star it on GitHub"
-            className="hidden items-center gap-1.5 rounded-btn px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink sm:inline-flex"
+            className="hidden items-center gap-1.5 rounded-btn px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink sm:inline-flex"
           >
             <Star className="size-3.5" aria-hidden />
             Star on GitHub

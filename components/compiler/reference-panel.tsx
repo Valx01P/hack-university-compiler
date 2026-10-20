@@ -138,7 +138,7 @@ export function ReferencePanel({
           onClick={onClose}
           aria-label={`Close the ${tab}`}
           title={`Close the ${tab}`}
-          className="inline-flex size-7 shrink-0 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-highlight hover:text-ink"
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink"
         >
           <X className="size-4" aria-hidden />
         </button>

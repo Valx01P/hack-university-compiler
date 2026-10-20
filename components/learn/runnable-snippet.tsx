@@ -235,7 +235,7 @@ export function RunnableSnippet({
               onClick={() => setRun(null)}
               aria-label="Close the output"
               title="Close the output"
-              className="inline-flex size-6 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-highlight hover:text-ink"
+              className="inline-flex size-6 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink"
             >
               <X aria-hidden className="size-3.5" />
             </button>

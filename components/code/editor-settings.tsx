@@ -178,7 +178,7 @@ export function EditorSettingsButton({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-btn px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
+                className="rounded-btn px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
               >
                 Done
               </button>
@@ -254,7 +254,7 @@ export function EditorSettingsButton({
                 role="switch"
                 aria-checked={settings.intellisense}
                 onClick={() => update({ intellisense: !settings.intellisense })}
-                className="-mx-1 flex w-[calc(100%+0.5rem)] items-center justify-between gap-4 rounded-btn px-1 py-0.5 text-left transition-colors hover:bg-highlight"
+                className="-mx-1 flex w-[calc(100%+0.5rem)] items-center justify-between gap-4 rounded-btn px-1 py-0.5 text-left transition-colors hover:bg-raised"
               >
                 <span>
                   <span className="block text-ink-muted">Intellisense</span>
@@ -269,7 +269,7 @@ export function EditorSettingsButton({
                   <button
                     type="button"
                     onClick={() => update({ fontSize: settings.fontSize - 1 })}
-                    className="inline-flex size-8 items-center justify-center rounded-btn border border-edge-strong text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
+                    className="inline-flex size-8 items-center justify-center rounded-btn border border-edge-strong text-ink-muted transition-colors hover:bg-raised hover:text-ink"
                     aria-label="Zoom out code editor"
                     title="Zoom out"
                   >
@@ -281,7 +281,7 @@ export function EditorSettingsButton({
                   <button
                     type="button"
                     onClick={() => update({ fontSize: settings.fontSize + 1 })}
-                    className="inline-flex size-8 items-center justify-center rounded-btn border border-edge-strong text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
+                    className="inline-flex size-8 items-center justify-center rounded-btn border border-edge-strong text-ink-muted transition-colors hover:bg-raised hover:text-ink"
                     aria-label="Zoom in code editor"
                     title="Zoom in"
                   >

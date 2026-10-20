@@ -474,9 +474,9 @@ export function CompilerApp({
 
   const horizontal = effectiveOrient === "horizontal";
   const iconBtn =
-    "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-highlight hover:text-ink";
+    "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink";
   const headerBtn =
-    "inline-flex items-center gap-1.5 rounded-btn border border-content-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-highlight";
+    "inline-flex items-center gap-1.5 rounded-btn border border-content-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised";
 
   // The stdin row under the editor. The code box clips anything outside it,
   // so the focus ring sits inside the button (rounded like the box's corners
@@ -519,7 +519,7 @@ export function CompilerApp({
             onClick={() => toggleReference(tab)}
             aria-pressed={active}
             title={active ? `Close the ${label.toLowerCase()}` : `${lang.label} ${label.toLowerCase()}`}
-            className={`${headerBtn} ${active ? "bg-highlight" : ""}`}
+            className={`${headerBtn} ${active ? "bg-raised" : ""}`}
           >
             <Icon className="size-3.5" aria-hidden />
             {label}
@@ -669,7 +669,7 @@ export function CompilerApp({
                   // bar never shifts.
                   aria-busy={running}
                   className={`shrink-0 rounded-btn border border-edge-strong text-sm font-medium disabled:opacity-50 ${
-                    challenge ? "px-3 py-1.5 text-ink transition-colors hover:bg-highlight" : "px-4 py-1.5 btn-grad"
+                    challenge ? "px-3 py-1.5 text-ink transition-colors hover:bg-raised" : "px-4 py-1.5 btn-grad"
                   }`}
                 >
                   ▶ Run
@@ -808,7 +808,7 @@ export function CompilerApp({
                       aria-selected={sqlView === v}
                       onClick={() => setSqlView(v)}
                       className={`shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider transition-colors ${
-                        sqlView === v ? "bg-highlight text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
+                        sqlView === v ? "bg-raised text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
                       }`}
                     >
                       {v === "results" ? "Results" : "Database"}

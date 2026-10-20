@@ -55,7 +55,7 @@ export function PlaygroundView({
       description="Your workspace stays as it is, files and terminals included."
       confirmLabel="Open compiler"
       href={props.compilerHref}
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-btn border border-line px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-btn border border-line px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
     >
       <SquareTerminal className="size-3.5" aria-hidden />
       Compiler
@@ -68,7 +68,7 @@ export function PlaygroundView({
       description="Short lessons that walk through this course's codebases. Your workspace stays as it is."
       confirmLabel="Open Learn"
       href={learnHref}
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-btn border border-line px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-btn border border-line px-2 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
     >
       <GraduationCap className="size-3.5" aria-hidden />
       Learn
@@ -90,7 +90,7 @@ export function PlaygroundView({
               onClick={() => setMenu((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={menu}
-              className="ml-2 inline-flex min-w-0 items-center gap-1 rounded-btn px-1.5 py-0.5 text-xs text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
+              className="ml-2 inline-flex min-w-0 items-center gap-1 rounded-btn px-1.5 py-0.5 text-xs text-ink-muted transition-colors hover:bg-raised hover:text-ink"
             >
               <span className="truncate">{title}</span>
               <ChevronDown className="size-3.5 shrink-0" aria-hidden />
@@ -113,7 +113,7 @@ export function PlaygroundView({
                 href={l.href}
                 onClick={() => setMenu(false)}
                 aria-current={l.href === current ? "page" : undefined}
-                className={`flex flex-col rounded-btn px-2.5 py-1.5 transition-colors hover:bg-highlight ${l.href === current ? "bg-highlight text-ink" : "text-ink-muted hover:text-ink"}`}
+                className={`flex flex-col rounded-btn px-2.5 py-1.5 transition-colors hover:bg-raised ${l.href === current ? "bg-raised text-ink" : "text-ink-muted hover:text-ink"}`}
               >
                 <span className="text-[13px]">{l.label}</span>
                 <span className="text-xs text-ink-faint">{l.hint}</span>

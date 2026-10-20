@@ -8,7 +8,7 @@ type NavigationLike = { canGoBack: boolean; canGoForward: boolean };
 const navigation = () => (window as unknown as { navigation?: NavigationLike }).navigation;
 
 const ARROW =
-  "inline-flex items-center justify-center text-ink-faint transition-colors hover:bg-highlight hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-faint";
+  "inline-flex items-center justify-center text-ink-faint transition-colors hover:bg-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-faint";
 
 /**
  * Browser-style back and forward arrows, each enabled only when there is a

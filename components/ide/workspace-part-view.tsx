@@ -144,7 +144,7 @@ export function WorkspacePartView({
             onClick={() => setTab(t.tab)}
             onKeyDown={(e) => onTabKey(e, i)}
             className={`inline-flex shrink-0 items-center gap-1.5 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider transition-colors ${
-              selected ? "bg-highlight text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
+              selected ? "bg-raised text-ink dark:text-gold" : "text-ink-faint hover:text-ink dark:hover:text-gold"
             }`}
           >
             {t.label}
@@ -249,7 +249,7 @@ export function WorkspacePartView({
                   href={prev.href}
                   aria-label={`${prev.lesson ? "Previous lesson" : "Previous part"}: ${prev.title}`}
                   title={prev.title}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
                 >
                   <ArrowLeft className="size-4" aria-hidden />
                   Previous
@@ -260,7 +260,7 @@ export function WorkspacePartView({
                   href={next.href}
                   aria-label={nextLabel(next)}
                   title={next.title}
-                  className="relative inline-flex min-w-0 items-center gap-1.5 rounded-btn border border-line-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-highlight"
+                  className="relative inline-flex min-w-0 items-center gap-1.5 rounded-btn border border-line-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-raised"
                 >
                   {nextGlow > 0 && <span key={nextGlow} aria-hidden className="next-glow pointer-events-none absolute -inset-px rounded-btn" />}
                   <span className="min-w-0 truncate">{nextLabel(next)}</span>
@@ -466,7 +466,7 @@ function Practice({
               setCarried((await carry.run()) ? "done" : "idle");
             }}
             onBlur={() => carried === "armed" && setCarried("idle")}
-            className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink disabled:opacity-50"
+            className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink disabled:opacity-50"
           >
             {carried === "armed" ? "Click again: your part " + carry.part + " files replace these" : `Continue with my code from part ${carry.part}`}
           </button>
@@ -475,7 +475,7 @@ function Practice({
           <button
             type="button"
             onClick={() => setHintsShown((n) => n + 1)}
-            className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
+            className="rounded-btn px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
           >
             {hintsShown === 0 ? "Show a hint" : `Another hint (${hintsShown}/${practice.hints.length})`}
           </button>

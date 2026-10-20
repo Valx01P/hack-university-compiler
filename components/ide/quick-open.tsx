@@ -95,7 +95,7 @@ export function QuickOpen({ store, onClose }: { store: WorkspaceStore; onClose: 
                 pick(path);
               }}
               onPointerMove={() => setAt(i)}
-              className={`flex cursor-pointer items-center gap-2 rounded-btn px-2.5 py-1.5 text-[13px] ${i === at ? "bg-highlight text-ink" : "text-ink-muted"}`}
+              className={`flex cursor-pointer items-center gap-2 rounded-btn px-2.5 py-1.5 text-[13px] ${i === at ? "bg-raised text-ink" : "text-ink-muted"}`}
             >
               <FileIcon name={path.slice(path.lastIndexOf("/") + 1)} />
               <span className="truncate">{path.slice(path.lastIndexOf("/") + 1)}</span>
