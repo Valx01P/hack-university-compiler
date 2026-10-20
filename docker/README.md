@@ -68,17 +68,17 @@ reruns only the steps from its lockfiles on.
 | `hu/web` | `hu/node` | 1.77 GB (1.15 GB on top of `hu/node`) | about 1.5 min |
 | `hu/python` | `python:3.14.8-slim-trixie` | 0.81 GB | about 1 min |
 | `hu/java` | `eclipse-temurin:25-jdk` (Ubuntu 26.04) | 1.12 GB | about 1.5 min |
-| `hu/go` | `golang:1.27.2-trixie` | 2.24 GB | about 2 min |
+| `hu/go` | `golang:1.27.2-trixie` | 2.24 GB | about 3 min |
 
 Every image runs as `learner` (uid 1000, `HOME=/home/learner`, bash), sets
 `HOST=0.0.0.0`, `LANG=C.UTF-8`, and `TZ=UTC`, has socat (the port bridge),
-`ss` (iproute2), git, curl, jq, less, nano, procps, and tree, has `hu-exec`
-and `hu-init` (and whatever else `shared/bin` holds) in `/opt/hu/bin`, and
-the stack images have `psql`, `pg_dump`, and `pg_isready` from PostgreSQL 18
-(the PGDG repository, key fingerprint
-`B97B 0AFC AA1A 47F0 44F2 44A0 7FCC 7D46 ACCC 4CF8`, whose minor version
-follows the repository: 18.6 today). Each image's `hu.versions` label feeds the sandbox
-badge.
+`ss` (iproute2), git, curl, jq, less, nano, procps, and tree, and has
+`hu-exec` and `hu-init` (and whatever else `shared/bin` holds) in
+`/opt/hu/bin`. The stack images have `psql`, `pg_dump`, and `pg_isready` from
+PostgreSQL 18, from the PGDG repository, whose signing key
+(`B97B 0AFC AA1A 47F0 44F2 44A0 7FCC 7D46 ACCC 4CF8`) is in `pgdg/`. The minor
+version follows the repository, 18.6 today. Each image's `hu.versions` label
+feeds the sandbox badge.
 
 ### hu/web: web, React, Next.js, Express
 
@@ -163,7 +163,7 @@ Go 1.27.2 (gcc for `-race`), plus:
 | What | Where | Holds |
 | --- | --- | --- |
 | Module proxy | `/opt/hu/goproxy`, read-only, 100 MB (`GOPROXY=file:///opt/hu/goproxy,off`) | 55 module versions with their zips and 64 `go.mod` files: everything `go mod tidy`, `go build`, and `go test` need for `go/env/go-api` (pgx 5.11.0, chi 5.5.0, goose 3.29.0, golang-jwt 5.3.1, x/crypto 0.58.0, x/sync 0.24.0, x/time 0.16.0, validator 10.30.5, GORM 1.31.2 with its PostgreSQL driver 1.6.3, x/tools 0.52.0), for each of those packages in a module of its own (minimal version selection picks older versions there), and for every template |
-| Shared caches | `/opt/hu/go-build/mod` (`GOMODCACHE`, 119 MB) and `/opt/hu/go-build/cache` (`GOCACHE`, 197 MB) | The seed of the shared `hu-go-build` volume, which every Go container mounts on `/opt/hu/go-build`: Docker copies this into a new volume, so the first build finds the course's modules unpacked and the standard library and those modules compiled (a server's first `go run` answered in 0.24 s) |
+| Shared caches | `/opt/hu/go-build/mod` (`GOMODCACHE`, 119 MB) and `/opt/hu/go-build/cache` (`GOCACHE`, 197 MB) | The seed of the shared `hu-go-build` volume, which every Go container mounts on `/opt/hu/go-build`: Docker copies this into a new volume, so the first build finds the course's modules unpacked and the standard library and those modules compiled (a server's first `go run` answered in 0.24 to 0.35 s) |
 | Go scripts | `/opt/hu/env/go-api` | The module (`hu.local/scripts`) a single `main.go` builds in. Work folder `/opt/hu/env/go-api/work`, `go build -o app .` then `./app` (0.27 s warm) |
 | Tools (181 MB) | `/usr/local/bin` | sqlc 1.31.1, goose 3.29.0, gotestsum 1.13.0, golangci-lint 2.15.0 (release binaries), air 1.67.4, hey 0.1.5, goimports and stringer (x/tools 0.52.0) |
 
@@ -196,6 +196,34 @@ was built), `CGO_ENABLED=1`, `GOPATH=/home/learner/go` (on `PATH`).
 - **A writable home** for Maven's head (`~/.m2/repository`) and for Vitest 5,
   which writes an API token to `$XDG_DATA_HOME` or `~/.local/share`. A check
   sandbox with a read-only home needs `HOME` or `XDG_DATA_HOME` on a tmpfs.
+
+## Measured offline
+
+Each in the standard workspace profile's hardening (read-only root, every
+capability dropped, uid 1000, no network) with 1 GiB of memory (2 GiB for
+Java), the dependencies on a read-only volume as §4.4 has it, on this Mac on
+2026-10-20.
+
+| Stack | What ran | Time | Peak memory |
+| --- | --- | --- | --- |
+| web | `npm ci --offline` of a Vite React app into a fresh volume | 0.8 s (102 packages) | |
+| web | `vite --configLoader native`: first response, then `vitest run`, `tsc -b`, `vite build` | 0.36 s to the first response | 530 MiB |
+| nextjs | `next dev`: first response of a Route Handler | 0.9 s | |
+| nextjs | `next build` (Turbopack, TypeScript 7 check), then `next start` | 4.1 s | 1009 MiB with dev, build, and start in one container (784 MiB for the build alone) |
+| express | `node --watch src/server.ts`: first response, then `tsc --noEmit` and Vitest with supertest | 0.33 s | 248 MiB |
+| express | A single `main.ts` in `/opt/hu/env/express/work` (Express 5, supertest, argon2), 512 MiB job | under 1 s | |
+| nextjs | A single `main.ts`: a Route Handler on Drizzle and PGlite | 1.6 s | 692 MiB |
+| fastapi | `uv lock` (64 packages, FastAPI 0.148.0) and `uv sync --frozen --offline` into a fresh volume | 7 ms and 0.7 s | |
+| fastapi | `uv run fastapi dev`: first response, then pytest with hu_check | 0.8 to 1.3 s | 274 MiB |
+| spring | `./mvnw -o spring-boot:run`: first response (compile and start), then `./mvnw -o test` | 2.8 s and 3.3 s | 447 MiB |
+| go-api | `go mod tidy`, `go vet`, `go test`, `go test -race`, then `go run ./cmd/api`: first response | 1.4 s for vet and test, 0.35 s to the first response | 520 MiB (with `-race`) |
+| go-api | A single `main.go` built in `/opt/hu/env/go-api/work` | 0.27 s | |
+
+Two of these break the single-file job limits of §11.3 as written, for the
+recipes to settle in P3: a Next.js script that opens PGlite peaks near 700 MiB
+(PGlite's initdb, in WebAssembly), over the 512 MB a Next.js script job gets,
+and a PGlite left open keeps Node alive about 10 s after the program ends
+(`await client.close()` ends it at once).
 
 ## Writing templates that run offline with shared dependencies
 

@@ -368,7 +368,7 @@ each image holds, where, and what a workspace must mount for it.
 | `hu/web` | `hu/node` | An offline npm cache for the web, React, Next.js, and Express templates, the express and nextjs script environments, psql 18, mongosh 2.13.0 | 1.77 GB | about 1.5 min |
 | `hu/python` | `python:3.14.8-slim-trixie` | uv 0.13.1 with an offline cache of the FastAPI stack (FastAPI 0.148.0), the fastapi script venv, the `hu_check` pytest plugin, psql 18 | 0.81 GB | about 1 min |
 | `hu/java` | `eclipse-temurin:25-jdk` | Maven 3.10.0, a read-only repository for Spring Boot 4.1.1, the wrapper offline, the spring recipe's jar profiles, psql 18 | 1.12 GB | about 1.5 min |
-| `hu/go` | `golang:1.27.2-trixie` | A file module proxy, the seed of the shared `hu-go-build` caches, sqlc, goose, gotestsum, golangci-lint, air, psql 18 | 2.24 GB | about 2 min |
+| `hu/go` | `golang:1.27.2-trixie` | A file module proxy, the seed of the shared `hu-go-build` caches, sqlc, goose, gotestsum, golangci-lint, air, psql 18 | 2.24 GB | about 3 min |
 
 Every image runs as `learner` (uid 1000), has `hu-exec` and `hu-init` in
 `/opt/hu/bin`, and fails its own build if a pinned version drifts or, with no
