@@ -499,6 +499,7 @@ function allowedSql() {
     ...sql,
     /^SELECT datname, datistemplate FROM pg_database;$/,
     /^SELECT rolname FROM pg_roles;$/,
+    /^SELECT datname FROM pg_database WHERE datdba = \(SELECT oid FROM pg_roles WHERE rolname = '[a-z0-9_]+'\);$/,
     /^SELECT datname, pg_database_size\(datname\) FROM pg_database WHERE datname IN \('[a-z0-9_]+'(, '[a-z0-9_]+')*\);$/,
   ];
 }

@@ -149,6 +149,12 @@ export class PgAdmin {
     return new Map(rows.map(([name, template]) => [name, { template: template === "t" }]));
   }
 
+  /** The databases a role owns: its own, and any a reset set aside that isn't dropped yet. */
+  async ownedBy(role: string): Promise<string[]> {
+    const [rows] = await this.run(`SELECT datname FROM pg_database WHERE datdba = (SELECT oid FROM pg_roles WHERE rolname = '${checkIdent(role)}');`);
+    return rows.map(([name]) => name);
+  }
+
   async roles(): Promise<Set<string>> {
     const [rows] = await this.run("SELECT rolname FROM pg_roles;");
     return new Set(rows.map(([name]) => name));

@@ -510,7 +510,8 @@ export class Databases {
       if (rec.postgres) {
         const pg = rec.postgres;
         await this.services.use("postgres", async () => {
-          for (const db of pg.databases) await this.services.pg.dropDatabase(db);
+          const owned = await this.services.pg.ownedBy(pg.role);
+          for (const db of new Set([...pg.databases, ...owned])) await this.services.pg.dropDatabase(db);
           await this.services.pg.dropRole(pg.role);
         });
         await this.clients.forget(`ws:${id}`);

@@ -341,8 +341,10 @@ print(JSON.stringify(db.adminCommand({ listDatabases: 1, nameOnly: true }).datab
     assert.ok((await db.services.pg.databases()).has("ws_wpostgresaa"), "workspaces' databases stay");
   });
 
-  it("drop a workspace's databases, role, and user on delete", async () => {
+  it("drop a workspace's databases, role, and user on delete, even right after a reset", async () => {
     await db.attach("wdropmeaaaa", REF, { ...PG_SPEC, ...MONGO_SPEC });
+    // The reset sets the old databases aside for a moment: they go too.
+    await db.resetWorkspace("wdropmeaaaa");
     await db.dropWorkspace("wdropmeaaaa");
     assert.equal(db.info("wdropmeaaaa"), null);
     const dbs = await db.services.pg.databases();
