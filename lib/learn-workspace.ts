@@ -98,10 +98,11 @@ function layerFile(course: string, template: string, layers: string[], file: str
   for (const layer of layers) {
     const { dir, deletes } = layerSource(ROOT, course, template, layer);
     if (deletes.some((d) => file === d || file.startsWith(`${d}/`))) found = null;
-    const full = path.join(dir, file);
+    const full = path.join(/*turbopackIgnore: true*/ dir, file);
     if (existsSync(full)) found = full;
   }
-  return found ? readFileSync(found, "utf8") : null;
+  // Content read at build time: nothing here needs tracing into the output.
+  return found ? readFileSync(/*turbopackIgnore: true*/ found, "utf8") : null;
 }
 
 /** The line an anchor is on (the first whose text holds it), from 1. */
@@ -148,11 +149,11 @@ export async function workspacePartData(course: string, lesson: Lesson, part: nu
       const text = anchor ? layerFile(resolved.course, resolved.templateId, resolved.layers, file) : null;
       return { file, line: text && anchor ? anchorLine(text, anchor) : 0 };
     });
-    const transcriptFile = path.join(await getCourseDir(course), lesson.id, `part-${n}`, `example-${k}`, "transcript.json");
+    const transcriptFile = path.join(/*turbopackIgnore: true*/ await getCourseDir(course), lesson.id, `part-${n}`, `example-${k}`, "transcript.json");
     let transcript: TranscriptStep[] | null = null;
     if (existsSync(transcriptFile)) {
       try {
-        transcript = (JSON.parse(readFileSync(transcriptFile, "utf8")) as { steps?: TranscriptStep[] }).steps ?? null;
+        transcript = (JSON.parse(readFileSync(/*turbopackIgnore: true*/ transcriptFile, "utf8")) as { steps?: TranscriptStep[] }).steps ?? null;
       } catch {
         transcript = null;
       }

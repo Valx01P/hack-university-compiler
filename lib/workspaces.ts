@@ -88,7 +88,9 @@ export interface ResolvedScope {
   suite: string | null;
 }
 
-const exists = (...parts: string[]) => existsSync(path.join(ROOT, ...parts));
+// Content is read where it lies (next start runs in the repository), so none
+// of these paths needs tracing into the build output.
+const exists = (...parts: string[]) => existsSync(path.join(/*turbopackIgnore: true*/ ROOT, ...parts));
 
 /** Resolves a scope to its template and layers, or throws ScopeError. */
 export async function resolveScope(scope: string): Promise<ResolvedScope> {
@@ -118,7 +120,7 @@ export async function resolveScope(scope: string): Promise<ResolvedScope> {
     case "sandbox":
       return done(parsed.template, undefined, [], null);
     case "challenge": {
-      const file = path.join(ROOT, "content", "challenges", course, `${parsed.challenge}.json`);
+      const file = path.join(/*turbopackIgnore: true*/ ROOT, "content", "challenges", course, `${parsed.challenge}.json`);
       if (!existsSync(file)) throw new ScopeError("There's no such challenge.");
       const challenge = JSON.parse(readFileSync(file, "utf8")) as { template?: string; checkpoint?: string };
       if (!challenge.template) throw new ScopeError("That challenge has no codebase.");
@@ -135,7 +137,7 @@ export async function resolveScope(scope: string): Promise<ResolvedScope> {
       if (!templateId) throw new ScopeError("That part has no codebase.");
       const partDir = `${parsed.lesson}/part-${parsed.part}`;
       // The part's own folder: content/learn/<course>/<lesson>/part-<n>, or a draft's.
-      const here = (...more: string[]) => existsSync(path.join(lessons, parsed.lesson, `part-${parsed.part}`, ...more));
+      const here = (...more: string[]) => existsSync(path.join(/*turbopackIgnore: true*/ lessons, parsed.lesson, `part-${parsed.part}`, ...more));
       if (parsed.tab === "practice") {
         const practice = step.practice as unknown as { workspace?: { checkpoint?: string } };
         const starter = here("practice", "starter") ? [`@learn/${course}/${partDir}/practice/starter`] : [];
@@ -234,7 +236,7 @@ export function templateInfo(r: Pick<ResolvedScope, "course" | "templateId" | "t
 export function startingTree(r: Pick<ResolvedScope, "course" | "templateId" | "layers">): StartingTree {
   const plain = r.layers.every((l) => l === "base" || l.startsWith("checkpoints/"));
   const cp = r.layers.length > 1 ? r.layers[r.layers.length - 1].slice("checkpoints/".length) : "base";
-  const built = path.join(ROOT, ".generated", "workspaces", r.course, r.templateId, `${cp}.json`);
+  const built = path.join(/*turbopackIgnore: true*/ ROOT, ".generated", "workspaces", r.course, r.templateId, `${cp}.json`);
   if (plain && existsSync(built)) {
     const data = JSON.parse(readFileSync(built, "utf8")) as StartingTree;
     return { hash: data.hash, entries: data.entries };
