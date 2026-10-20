@@ -1,0 +1,73 @@
+{
+  "id": "server-and-client-components",
+  "title": "Server and Client Components",
+  "section": "Foundations",
+  "summary": "Know where each component runs: on the server by default, and in the browser only where a page needs state, effects, or events.",
+  "format": "read",
+  "intro": "Every component in a Next.js app runs on the server unless its file says otherwise. That default decides what a component can do, how much JavaScript the browser downloads, and whether a secret can leak. Reviewers on a Next.js team check this boundary in almost every pull request.",
+  "steps": [
+    {
+      "title": "Server Components are the default",
+      "body": "A Server Component runs only on the server, when the page is built or requested. Its code never reaches the browser, only the HTML it renders. That makes it the place to:\n\n- read files, environment variables, and databases\n- call other services with secret keys\n- `await` data directly, since a Server Component can be `async`\n\nWhat it can't do is anything interactive. There's no `useState`, no `useEffect`, and no `onClick`, because none of its code runs in the browser. In the lab, every file in `app/` and `components/` is a Server Component except three: `counter.tsx`, `feedback-box.tsx`, and `modal.tsx`.\n\nEnvironment variables follow the same split. Server code can read any variable. Only names that start with `NEXT_PUBLIC_` are copied into browser code, so `MOCK_API_URL` from the lab's `.env` stays on the server.",
+      "examples": [
+        {
+          "title": "The site header",
+          "prompt": "`SiteHeader` renders on every page. Look for anything in it that needs the browser.",
+          "language": "tsx",
+          "file": "components/site-header.tsx",
+          "code": "import Image from \"next/image\";\nimport Link from \"next/link\";\n\nconst navLinks = [\n  { href: \"/products\", label: \"Products\" },\n  { href: \"/about\", label: \"About\" },\n];\n\nexport function SiteHeader() {\n  const storeName = process.env.NEXT_PUBLIC_STORE_NAME ?? \"Trailhead\";\n\n  return (\n    <header className=\"border-b border-stone-200 bg-white\">\n      <div className=\"mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-4\">\n        <Link href=\"/\" className=\"flex items-center gap-2 text-lg font-semibold text-brand-dark\">\n          <Image src=\"/logo.svg\" alt=\"\" width={32} height={32} />\n          {storeName}\n        </Link>\n        <nav aria-label=\"Main\">\n          <ul className=\"flex gap-6 text-sm font-medium\">\n            {navLinks.map((link) => (\n              <li key={link.href}>\n                <Link href={link.href} className=\"hover:text-brand\">\n                  {link.label}\n                </Link>\n              </li>\n            ))}\n          </ul>\n        </nav>\n      </div>\n    </header>\n  );\n}",
+          "explanation": "Nothing here needs the browser, so it stays a Server Component and its code never ships. It reads `process.env.NEXT_PUBLIC_STORE_NAME` while it renders on the server, and the browser gets the finished text. `<Link>` still navigates without a full page load, because `next/link` brings its own small piece of client code. A Server Component can render client pieces like that without turning into client code itself. The menu is a plain array at module level, so adding a page to it is a one-line change."
+        },
+        {
+          "title": "Formatting on the server",
+          "prompt": "`Price` is a one-line Server Component that calls `formatPrice` from this file. Notice the locale and the time zone.",
+          "language": "ts",
+          "file": "lib/format.ts",
+          "code": "const priceFormatter = new Intl.NumberFormat(\"en-US\", {\n  style: \"currency\",\n  currency: \"USD\",\n});\n\nconst dateFormatter = new Intl.DateTimeFormat(\"en-US\", {\n  dateStyle: \"medium\",\n  timeZone: \"UTC\",\n});\n\n// Prices are stored as integer cents so sums never pick up floating-point errors.\nexport function formatPrice(cents: number): string {\n  return priceFormatter.format(cents / 100);\n}\n\n// Dates format in UTC so the server and every browser print the same day.\nexport function formatDate(iso: string): string {\n  return dateFormatter.format(new Date(iso));\n}",
+          "explanation": "Prices are stored as integer cents, so sums never pick up floating-point errors, and they turn into dollars only for display. Each formatter is created once, at module level, and reused on every render. Both pin `en-US`, and the date formatter pins `UTC`. That matters as soon as the same code renders in two places, because a Client Component renders on the server and again in the browser. If the browser's locale or time zone printed different text, React would report a hydration error."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "components/site-header.tsx",
+          "components/price.tsx",
+          "lib/format.ts",
+          ".env"
+        ]
+      }
+    },
+    {
+      "title": "Client Components add interaction",
+      "body": "Put `\"use client\"` on the first line of a file and its components become Client Components. They still render on the server first, so the HTML arrives complete. Then the browser downloads their JavaScript and *hydrates* them: React attaches state, effects, and event handlers to the HTML that's already on the page.\n\nThe directive marks a boundary. Everything the file imports becomes browser code too, so keep the boundary low. Make the small interactive piece a Client Component, like a button, a form, or a dialog, and keep the page around it on the server.\n\nProps cross that boundary over the network, so they must be serializable: strings, numbers, plain objects, and arrays, but not functions. Pass the few fields a child needs, not a whole record. For modules that read secrets, add `import \"server-only\"` at the top. The lab has the `server-only` package installed, and with that line any Client Component that imports the module fails the build.",
+      "examples": [
+        {
+          "title": "A dialog that needs the browser",
+          "prompt": "`Modal` opens a native `<dialog>` and goes back in history when it closes. Find each line that only works in a browser.",
+          "language": "tsx",
+          "file": "components/modal.tsx",
+          "code": "\"use client\";\n\nimport { useRouter } from \"next/navigation\";\nimport { useEffect, useRef, type ReactNode } from \"react\";\n\n// Built for intercepted routes: the modal opens on mount, and closing it in any way\n// (the Close button, Escape, or a click on the backdrop) goes back to the page below.\nexport function Modal({ title, children }: { title: string; children: ReactNode }) {\n  const router = useRouter();\n  const dialogRef = useRef<HTMLDialogElement>(null);\n\n  useEffect(() => {\n    const dialog = dialogRef.current;\n    if (dialog && !dialog.open) {\n      dialog.showModal();\n    }\n  }, []);\n\n  return (\n    <dialog\n      ref={dialogRef}\n      aria-label={title}\n      onClose={() => router.back()}\n      onClick={(event) => {\n        if (event.target === event.currentTarget) {\n          event.currentTarget.close();\n        }\n      }}\n      className=\"m-auto w-full max-w-lg rounded-xl p-0 shadow-xl backdrop:bg-black/50\"\n    >\n      <div className=\"p-6\">{children}</div>\n      <form method=\"dialog\" className=\"border-t border-stone-200 px-6 py-3 text-right\">\n        <button className=\"rounded-md border border-stone-300 px-3 py-1.5 text-sm font-medium\">Close</button>\n      </form>\n    </dialog>\n  );\n}",
+          "explanation": "`dialog.showModal()` is a browser API, so it runs inside `useEffect`, which runs only in the browser after hydration. `useRouter` from `next/navigation` provides `router.back()` for the close handler. `children` is a `ReactNode`, so a Server Component can pass in content it already rendered, like `<Modal title=\"Ridge 2P Tent\"><ProductCard product={tent} /></Modal>`. The card stays a Server Component, and only the dialog's behavior ships. A client shell with server children is the main way to keep the boundary low."
+        },
+        {
+          "title": "Forgetting the directive",
+          "prompt": "Delete the first line of `components/counter.tsx`, render `<Counter />` in `app/about/page.tsx`, and build. The output is the end of the build log.",
+          "language": "bash",
+          "code": "npm run build",
+          "output": "> Build error occurred\nError: Turbopack build failed with 1 error:\n./components/counter.tsx:1:10\nError: You're importing a module that depends on `useState` into a React Server Component module. This API is only available in Client Components. To fix, mark the file (or its parent) with the `\"use client\"` directive.\n    Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client\n> 1 | import { useState } from \"react\";\n    |          ^^^^^^^^\n  2 |\n  3 | // The count lives in this component's state, so it survives exactly as long as the\n  4 | // component stays mounted: a layout keeps it across navigations, a template resets it.\n\nEcmascript file had an error\n\nImport trace:\n  Server Component:\n    ./components/counter.tsx\n    ./app/about/page.tsx",
+          "explanation": "Turbopack checks the boundary while it compiles, before any page renders. The message names the hook and the fix, and the import trace shows how the file got into the server: `app/about/page.tsx` imports `components/counter.tsx`. Put the directive back and the build passes. Fix it in the interactive file itself, not in the page that renders it, because a `\"use client\"` page turns everything it imports into browser code."
+        }
+      ],
+      "codebase": {
+        "template": "nextjs-lab",
+        "files": [
+          "components/modal.tsx",
+          "components/counter.tsx",
+          "components/feedback-box.tsx",
+          "app/about/page.tsx"
+        ]
+      }
+    }
+  ],
+  "recap": "- Components are Server Components by default. They can be `async`, read environment variables and data, and their code never ships.\n- `\"use client\"` makes a file, and everything it imports, browser code. Use it for state, effects, events, and browser APIs.\n- Client Components render on the server first and then hydrate, so both renders must produce the same output.\n- Keep the boundary low, pass small serializable props, and pass server-rendered content as `children`.\n- Only `NEXT_PUBLIC_` variables reach the browser, and `import \"server-only\"` keeps secret modules on the server."
+}

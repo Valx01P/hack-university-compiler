@@ -1,0 +1,106 @@
+{
+  "id": "controllers-and-dtos",
+  "title": "Controllers, DTOs, and Validation",
+  "section": "Building the API",
+  "summary": "Map HTTP requests to controller methods, accept and return records instead of entities, and reject bad input with Bean Validation and problem responses.",
+  "format": "read",
+  "intro": "The controller is the front door of your API, and most tickets you pick up add or change one. Reviewers look for the same things every time: the right status codes, request bodies that are checked before any rule runs, and no database entity leaking into a response. In this lesson you read shopfront's product and order endpoints, their request and response records, and the handler that gives every error the same JSON shape.",
+  "steps": [
+    {
+      "title": "Mapping requests to methods",
+      "body": "A class marked `@RestController` turns HTTP requests into method calls and writes each method's return value as JSON. Annotations describe the mapping:\n\n| Annotation | What it maps |\n| --- | --- |\n| `@RequestMapping(\"/api/products\")` | The base path for every method in the class |\n| `@GetMapping`, `@PostMapping`, `@PutMapping`, `@DeleteMapping` | The HTTP method, plus the rest of the path |\n| `@PathVariable String sku` | The `{sku}` part of the path |\n| `@RequestParam` | A query parameter, optional with `required = false` or a `defaultValue` |\n| `@RequestBody` | The JSON body, read into a record |\n\nReturn a record for a 200. Return a `ResponseEntity` when you need another status or a header, like 201 with a `Location`, and use `@ResponseStatus(HttpStatus.NO_CONTENT)` for a 204 with no body. A good controller method is a few lines long: read the request, call one service method, pick the status. It never touches a repository and never holds a business rule.",
+      "examples": [
+        {
+          "title": "Reading products",
+          "prompt": "The read side of the catalog, and its answer to `GET /api/products?category=kitchen&inStock=true&size=2`.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/catalog/ProductController.java",
+          "code": "@RestController\n@RequestMapping(\"/api/products\")\npublic class ProductController {\n\n    private final CatalogService catalog;\n\n    public ProductController(CatalogService catalog) {\n        this.catalog = catalog;\n    }\n\n    // GET /api/products?q=torch&category=outdoors&inStock=true&page=0&size=20&sort=priceCents,desc\n    @GetMapping\n    public PagedModel<ProductCard> search(\n            @RequestParam(required = false) @Size(max = 100) String q,\n            @RequestParam(required = false) String category,\n            @RequestParam(defaultValue = \"false\") boolean inStock,\n            @PageableDefault(size = 20, sort = \"name\") Pageable pageable) {\n        return new PagedModel<>(catalog.search(q, category, inStock, pageable));\n    }\n\n    @GetMapping(\"/{sku}\")\n    public ProductResponse get(@PathVariable String sku) {\n        return catalog.get(sku);\n    }",
+          "output": "{\n  \"content\": [\n    {\n      \"sku\": \"KT-005\",\n      \"name\": \"Bamboo Cutting Board\",\n      \"priceCents\": 2499,\n      \"category\": \"kitchen\",\n      \"inStock\": true,\n      \"freeShipping\": false\n    },\n    {\n      \"sku\": \"KT-002\",\n      \"name\": \"Cast Iron Skillet\",\n      \"priceCents\": 3999,\n      \"category\": \"kitchen\",\n      \"inStock\": true,\n      \"freeShipping\": false\n    }\n  ],\n  \"page\": {\n    \"size\": 2,\n    \"number\": 0,\n    \"totalElements\": 5,\n    \"totalPages\": 3\n  }\n}",
+          "explanation": "`search` takes three optional filters and a `Pageable`, which Spring Data fills from `page`, `size`, and `sort`, so `?sort=priceCents,desc` works with no parsing code. `@PageableDefault` sets the defaults, and `max-page-size: 50` in `application.yml` caps what a client can ask for. Wrapping the page in `PagedModel` gives the JSON a stable shape, the items in `content` and the numbers in `page`, which clients use to draw pagination. `get` returns a `ProductResponse` record, and Spring writes it with a 200."
+        },
+        {
+          "title": "Writing products",
+          "prompt": "The write side, and what an admin gets back from `POST /api/products` for a new salad spinner.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/catalog/ProductController.java",
+          "code": "@PostMapping\npublic ResponseEntity<ProductResponse> create(@Valid @RequestBody ProductRequest request) {\n    ProductResponse product = catalog.create(request);\n    return ResponseEntity.created(URI.create(\"/api/products/\" + product.sku())).body(product);\n}\n\n@PutMapping(\"/{sku}\")\npublic ProductResponse update(@PathVariable String sku, @Valid @RequestBody ProductRequest request) {\n    return catalog.update(sku, request);\n}\n\n// Deleting keeps the row (orders point at it) and takes the product off sale.\n@DeleteMapping(\"/{sku}\")\n@ResponseStatus(HttpStatus.NO_CONTENT)\npublic void delete(@PathVariable String sku) {\n    catalog.deactivate(sku);\n}\n\n@PostMapping(\"/{sku}/stock\")\npublic ProductResponse adjustStock(@PathVariable String sku, @Valid @RequestBody StockAdjustment adjustment) {\n    return catalog.adjustStock(sku, adjustment.change());\n}",
+          "output": "HTTP/1.1 201\nLocation: /api/products/KT-007\n\n{\n  \"sku\": \"KT-007\",\n  \"name\": \"Salad Spinner\",\n  \"description\": \"Dries greens in seconds.\",\n  \"priceCents\": 2299,\n  \"stock\": 12,\n  \"category\": \"kitchen\",\n  \"active\": true\n}",
+          "explanation": "`create` answers 201 with a `Location` header that points at the new product, which is what clients and HTTP tools expect after a POST. `update` uses PUT, so the body carries the whole product. `delete` answers 204 with no body, and only takes the product off sale, because past orders still point at it. Notice what is missing: no SQL, no stock rules, and no role checks. `SecurityConfig` decides who may call these routes before the method runs, and `CatalogService` holds the rules."
+        }
+      ],
+      "codebase": {
+        "template": "shopfront",
+        "files": [
+          "src/main/java/dev/hackuniversity/shopfront/catalog/ProductController.java",
+          "src/main/java/dev/hackuniversity/shopfront/catalog/CatalogService.java",
+          "requests.http"
+        ]
+      }
+    },
+    {
+      "title": "Records in, records out",
+      "body": "The JSON your API accepts and returns is a contract with every client, so give it its own types, called DTOs (data transfer objects). Write them as Java records: a record declares its fields once and gets a constructor, accessors like `sku()`, `equals`, and `toString` for free, and Jackson reads and writes records directly.\n\nNever accept or return an entity. An entity mirrors a table, so returning one sends every column, `password_hash` included, and ties your API to your schema. Reading one from a request is worse: a client could set fields you never meant to expose, like `role` or `stock`.\n\nShopfront keeps request and response records in each feature's `dto/` package. Each response record has a static `from(entity)` factory, so the mapping lives in one place.",
+      "examples": [
+        {
+          "title": "A request record",
+          "prompt": "The body of `POST /api/products` and `PUT /api/products/{sku}`, with its constraints and defaults.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/catalog/dto/ProductRequest.java",
+          "code": "/**\n * The body of POST /api/products and PUT /api/products/{sku}. Numbers are wrapper types, so a\n * missing field arrives as null and fails @NotNull with a clear message, instead of failing\n * to parse (Jackson 3 refuses to put null into a primitive).\n */\npublic record ProductRequest(\n        @NotNull @Pattern(regexp = \"[A-Z]{2}-\\\\d{3}\", message = \"must look like AB-123\") String sku,\n        @NotBlank @Size(max = 120) String name,\n        @Size(max = 2000) String description,\n        @NotNull @Positive @Max(10_000_000) Long priceCents,\n        @NotNull @PositiveOrZero @Max(100_000) Integer stock,\n        @NotBlank String category,\n        Boolean active) {\n\n    // Optional fields get their defaults here, before validation runs.\n    public ProductRequest {\n        description = description == null ? \"\" : description.strip();\n        active = active == null ? Boolean.TRUE : active;\n    }\n}",
+          "explanation": "The numbers are `Long` and `Integer`, not `long` and `int`. Spring Boot 4 ships Jackson 3, which refuses to put a missing value into a primitive and answers 400 with a parse error before validation runs. With wrapper types, a missing `stock` arrives as `null`, and `@NotNull` reports it with a clear message like any other field. The compact constructor, the block without a parameter list, runs before the fields are set. It fills in defaults for the optional `description` and `active`, so the service never sees a null there."
+        },
+        {
+          "title": "A response record",
+          "prompt": "What `GET /api/customers/me` returns for ana, and the record that decides its shape. The `Customer` entity behind it also has a `passwordHash`.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/customer/dto/CustomerResponse.java",
+          "code": "/** An account as clients see it. The password hash stays behind. */\npublic record CustomerResponse(long id, String email, String name, Role role, Instant createdAt) {\n\n    public static CustomerResponse from(Customer customer) {\n        return new CustomerResponse(customer.getId(), customer.getEmail(), customer.getName(),\n                customer.getRole(), customer.getCreatedAt());\n    }\n}",
+          "output": "{\n  \"id\": 1,\n  \"email\": \"ana@example.com\",\n  \"name\": \"Ana Lima\",\n  \"role\": \"CUSTOMER\",\n  \"createdAt\": \"2026-01-05T10:00:00Z\"\n}",
+          "explanation": "The record lists exactly the five fields clients may see, so the hash cannot slip out, even when someone adds a column to the entity later. `from` is the one place that maps the entity to this shape, and services call it while their transaction is still open, so anything it reads is loaded safely. `Instant` becomes an ISO-8601 string and the `Role` enum becomes its name, which is what JSON clients expect."
+        }
+      ],
+      "codebase": {
+        "template": "shopfront",
+        "files": [
+          "src/main/java/dev/hackuniversity/shopfront/catalog/dto/ProductRequest.java",
+          "src/main/java/dev/hackuniversity/shopfront/customer/dto/CustomerResponse.java",
+          "src/main/java/dev/hackuniversity/shopfront/customer/Customer.java"
+        ]
+      }
+    },
+    {
+      "title": "Validation and error responses",
+      "body": "Check the shape of the input at the edge, before any rule runs. Bean Validation puts the rules on the record itself, with annotations like `@NotNull`, `@NotBlank`, `@Size`, `@Positive`, `@Max`, `@Email`, and `@Pattern`. `@Valid` on a `@RequestBody` parameter makes Spring check them, and a failure answers 400 before your method is called. Constraints on `@RequestParam` and `@PathVariable` parameters are checked too.\n\nClients need every error in one shape. Spring supports RFC 9457 problem details: JSON with `title`, `status`, `detail`, and `instance`, sent as `application/problem+json`. One `@RestControllerAdvice` class turns every exception into a problem, so services only throw `NotFoundException`, `ConflictException`, or `UnprocessableException` and never build a response.\n\nShopfront draws a useful line. A request with the wrong shape is 400, from validation. A well-formed request the shop cannot use, like an unknown SKU, is 422 from a service, and one that clashes with the current state, like no stock left, is 409.",
+      "examples": [
+        {
+          "title": "Checking every line of an order",
+          "prompt": "One line of `POST /api/orders`, which holds its lines in a `List<@Valid @NotNull LineRequest>`. The output answers a body with two bad lines.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/order/dto/LineRequest.java",
+          "code": "/** One line of a new order: which product and how many. */\npublic record LineRequest(\n        @NotNull @Pattern(regexp = \"[A-Z]{2}-\\\\d{3}\", message = \"must look like AB-123\") String sku,\n        @NotNull @Positive @Max(50) Integer quantity) {\n}",
+          "output": "HTTP/1.1 400\n\n{\n  \"detail\": \"Some fields are invalid. See errors.\",\n  \"instance\": \"/api/orders\",\n  \"status\": 400,\n  \"title\": \"Bad Request\",\n  \"errors\": {\n    \"lines[0].quantity\": \"must be greater than 0\",\n    \"lines[0].sku\": \"must look like AB-123\",\n    \"lines[1].quantity\": \"must be less than or equal to 50\"\n  }\n}",
+          "explanation": "`@Valid` on the list's element type tells the validator to check inside every line, so errors come back with paths like `lines[0].quantity`. Every broken field is reported at once, sorted by path, so a client can show all the problems in one go. The `message` on `@Pattern` replaces the default text, which would print the raw regular expression. The `errors` map is not built in: `ApiExceptionHandler` adds it. Validation only checks the shape. Whether `BK-001` is really for sale is the service's job."
+        },
+        {
+          "title": "One place for errors",
+          "prompt": "Parts of shopfront's exception handler, and its answer when bob orders a SKU the shop does not sell.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/common/ApiExceptionHandler.java",
+          "code": "@RestControllerAdvice\npublic class ApiExceptionHandler extends ResponseEntityExceptionHandler {\n\n    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);\n\n    @ExceptionHandler(NotFoundException.class)\n    ProblemDetail notFound(NotFoundException failure) {\n        return problem(HttpStatus.NOT_FOUND, failure);\n    }\n\n    @ExceptionHandler(ConflictException.class)\n    ProblemDetail conflict(ConflictException failure) {\n        return problem(HttpStatus.CONFLICT, failure);\n    }\n\n    @ExceptionHandler(UnprocessableException.class)\n    ProblemDetail unprocessable(UnprocessableException failure) {\n        return problem(HttpStatus.UNPROCESSABLE_CONTENT, failure);\n    }\n\n    // ...\n\n    // Anything else is a bug. Log it once, here, with its stack trace, and tell the client nothing internal.\n    @ExceptionHandler(Exception.class)\n    ProblemDetail unexpected(Exception failure, HttpServletRequest request) {\n        log.error(\"Unexpected error on {} {}\", request.getMethod(), request.getRequestURI(), failure);\n        return problem(HttpStatus.INTERNAL_SERVER_ERROR, \"Internal Server Error\", \"Something went wrong on our side.\");\n    }",
+          "output": "HTTP/1.1 422\n\n{\n  \"detail\": \"No product with SKU ZZ-999 is for sale.\",\n  \"instance\": \"/api/orders\",\n  \"status\": 422,\n  \"title\": \"Unknown product\",\n  \"sku\": \"ZZ-999\"\n}",
+          "explanation": "`@RestControllerAdvice` applies to every controller. Each `@ExceptionHandler` method maps one exception type to a `ProblemDetail`, and Spring writes it with the status and the `application/problem+json` content type. The `sku` field comes from the exception's properties, so a client can highlight the line that failed. Extending `ResponseEntityExceptionHandler` keeps Spring's own answers for bad JSON, wrong types, and unknown URLs. The catch-all for `Exception` logs anything unexpected once, with its stack trace, and answers a plain 500, so no stack trace or SQL ever reaches a client."
+        }
+      ],
+      "codebase": {
+        "template": "shopfront",
+        "files": [
+          "src/main/java/dev/hackuniversity/shopfront/order/dto/LineRequest.java",
+          "src/main/java/dev/hackuniversity/shopfront/order/dto/PlaceOrderRequest.java",
+          "src/main/java/dev/hackuniversity/shopfront/common/ApiExceptionHandler.java"
+        ]
+      }
+    }
+  ],
+  "recap": "- A `@RestController` maps routes to methods. Keep each method short: read the request, call one service method, pick the status.\n- Return a record for 200, `ResponseEntity.created(uri)` for 201 with a `Location`, and `@ResponseStatus(HttpStatus.NO_CONTENT)` for 204.\n- Accept and return records, never entities. Use wrapper types for numbers, since Jackson 3 rejects a missing primitive.\n- Put constraints on request records and `@Valid` on the parameter. A bad shape is 400, and a well-formed request the service refuses is 422 or 409.\n- Turn every exception into an RFC 9457 problem in one `@RestControllerAdvice`, so services only throw."
+}

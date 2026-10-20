@@ -1,0 +1,123 @@
+{
+  "id": "sqlalchemy-and-alembic",
+  "title": "SQLAlchemy and Alembic on PostgreSQL",
+  "section": "Data and Production",
+  "summary": "Map tables with SQLAlchemy 2 models, query them without N+1 problems, and change the schema safely with Alembic migrations.",
+  "format": "read",
+  "intro": "Most of an API's bugs and slow pages come from the database layer: a missing constraint, a query per row, a migration that loses data. Taskboard uses SQLAlchemy 2.1, written in the typed 2.0 style, with the psycopg 3 driver, PostgreSQL 18, and Alembic 1.20 for every schema change. In this lesson you read its models, the queries in its repositories, and its migrations, and pick up the habits that keep a schema and its code in step.",
+  "steps": [
+    {
+      "title": "Models with Mapped columns",
+      "body": "A model is a Python class mapped to a table. In SQLAlchemy 2, each column is a class attribute typed with `Mapped[...]`, and the type decides a lot on its own:\n\n- `Mapped[str]` is `NOT NULL`, and `Mapped[str | None]` allows `NULL`.\n- `Mapped[date | None]` with no `mapped_column()` at all is a nullable `DATE`.\n- `mapped_column()` adds the rest: a length, a foreign key, a default, an index.\n\nDefaults come in two kinds. `default=` is filled in by Python when SQLAlchemy inserts the object. `server_default=` lives in the table itself, so rows that a migration or a script inserts get it too. Taskboard sets both where both matter.\n\nEvery model inherits one `Base`, whose `metadata` collects all the tables. Alembic compares that metadata with the database to write migrations, which is why `Base` also fixes how constraints are named.",
+      "examples": [
+        {
+          "title": "The Task model",
+          "prompt": "The columns of `Task` in `app/models/task.py`.",
+          "language": "python",
+          "file": "app/models/task.py",
+          "code": "class Task(TimestampMixin, Base):\n    __tablename__ = \"tasks\"\n    __table_args__ = (\n        CheckConstraint(\"priority BETWEEN 1 AND 3\", name=\"priority_range\"),\n        Index(\"ix_tasks_project_id_status_position\", \"project_id\", \"status\", \"position\"),\n    )\n\n    id: Mapped[int] = mapped_column(Identity(), primary_key=True)\n    project_id: Mapped[int] = mapped_column(ForeignKey(\"projects.id\", ondelete=\"CASCADE\"))\n    title: Mapped[str] = mapped_column(String(120))\n    description: Mapped[str | None] = mapped_column(String(2000))\n    status: Mapped[TaskStatus] = mapped_column(\n        string_enum(TaskStatus, \"status\"),\n        default=TaskStatus.TODO,\n        server_default=TaskStatus.TODO.value,\n    )\n    priority: Mapped[int] = mapped_column(SmallInteger, default=MEDIUM, server_default=str(MEDIUM))\n    due_on: Mapped[date | None]\n    assignee_id: Mapped[int | None] = mapped_column(\n        ForeignKey(\"users.id\", ondelete=\"SET NULL\"), index=True\n    )\n    position: Mapped[int] = mapped_column(default=0, server_default=\"0\")\n    version: Mapped[int] = mapped_column(server_default=\"1\")\n    completed_at: Mapped[datetime | None]\n\n    # Every UPDATE adds 1 to version and checks the old value in its WHERE clause, so two\n    # requests that both read version 3 cannot both write: the second gets StaleDataError.\n    __mapper_args__ = {\"version_id_col\": version}",
+          "explanation": "`Identity()` makes `id` a PostgreSQL identity column, the modern form of `SERIAL`. The `CheckConstraint` repeats the schema's 1 to 3 rule in the database, because Pydantic only guards the API, and scripts, migrations, and other services write rows too. `ondelete=\"CASCADE\"` and `\"SET NULL\"` let PostgreSQL clean up when a project or a user is deleted. The index matches the board's main query: a project's tasks by status, in position order. `version_id_col` gives optimistic locking: an update that lost a race fails with `StaleDataError` instead of silently overwriting someone else's change."
+        },
+        {
+          "title": "Relationships",
+          "prompt": "Below the columns, `Task` declares how it links to other models.",
+          "language": "python",
+          "file": "app/models/task.py",
+          "code": "project: Mapped[Project] = relationship(back_populates=\"tasks\")\nassignee: Mapped[User | None] = relationship()\ncomments: Mapped[list[Comment]] = relationship(back_populates=\"task\", passive_deletes=True)\ntags: Mapped[list[Tag]] = relationship(\n    secondary=\"task_tags\", order_by=\"Tag.name\", passive_deletes=True\n)\nwatchers: Mapped[list[TaskWatcher]] = relationship(back_populates=\"task\", passive_deletes=True)",
+          "explanation": "A relationship is an attribute that loads related rows, like `task.project` or `task.comments`. `Mapped[list[Comment]]` makes it a list, and `Mapped[User | None]` one object or `None`. `back_populates` keeps both sides in step in memory. `secondary=\"task_tags\"` reads a many-to-many link through its join table. `passive_deletes=True` leaves deleting comments to the database's `ON DELETE CASCADE`, instead of loading every comment just to delete it. Relationships load lazily by default, on first access, which is where N+1 queries come from."
+        },
+        {
+          "title": "One base for every model",
+          "prompt": "`app/db/base.py`, the declarative base and its naming convention.",
+          "language": "python",
+          "file": "app/db/base.py",
+          "code": "# Stable names for every constraint and index, so migrations can refer to them and\n# `alembic check` compares like with like.\nNAMING_CONVENTION = {\n    \"ix\": \"ix_%(table_name)s_%(column_0_N_name)s\",\n    \"uq\": \"uq_%(table_name)s_%(column_0_N_name)s\",\n    \"ck\": \"ck_%(table_name)s_%(constraint_name)s\",\n    \"fk\": \"fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s\",\n    \"pk\": \"pk_%(table_name)s\",\n}\n\n\nclass Base(DeclarativeBase):\n    metadata = MetaData(naming_convention=NAMING_CONVENTION)\n    type_annotation_map = {datetime: DateTime(timezone=True), date: Date()}",
+          "explanation": "Without a naming convention, a constraint you don't name gets a name PostgreSQL makes up, and a migration that has to drop it later must look the name up first. With one, the priority check is always `ck_tasks_priority_range`. `type_annotation_map` says what each Python type becomes. Every `Mapped[datetime]` is a `timestamptz`, so times are stored with their zone, and nobody stores a naive local time by accident."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "app/models/task.py",
+          "app/db/base.py"
+        ]
+      }
+    },
+    {
+      "title": "Queries without surprises",
+      "body": "SQLAlchemy 2 builds queries with `select()`, and the session runs them:\n\n- `session.scalars(select(Task).where(...))` returns model objects.\n- `session.scalar(...)` returns one value, or `None`.\n- `session.get(Task, 7)` loads by primary key, and returns the copy the session already holds if there is one.\n- `session.execute(...)` returns rows with several columns.\n\nThe trap is the N+1 query. Load 20 tasks, then read `task.assignee` on each, and the lazy relationship sends one more SELECT per task: 21 queries for one list. It looks fine with three rows in development and gets slow in production. The fix is to say what you need up front, with a loader option. `joinedload` adds a JOIN to the same query, which suits a single related object. `selectinload` sends one more `SELECT ... WHERE ... IN (...)` for all the rows at once, which suits lists. Then guard it with a test that counts statements.",
+      "examples": [
+        {
+          "title": "Filters and pages",
+          "prompt": "`list_tasks` in `app/repositories/tasks.py` builds one statement from the filters, then counts it and pages it.",
+          "language": "python",
+          "file": "app/repositories/tasks.py",
+          "code": "def _apply_filters(statement: Select[tuple[Task]], filters: TaskFilters) -> Select[tuple[Task]]:\n    if filters.status is not None:\n        statement = statement.where(Task.status == filters.status)\n    if filters.assignee_id == \"none\":\n        statement = statement.where(Task.assignee_id.is_(None))\n    elif filters.assignee_id is not None:\n        statement = statement.where(Task.assignee_id == filters.assignee_id)\n    if filters.q is not None:\n        pattern = f\"%{escape_like(filters.q)}%\"\n        statement = statement.where(\n            Task.title.ilike(pattern, escape=\"\\\\\") | Task.description.ilike(pattern, escape=\"\\\\\")\n        )\n    return statement\n\n\ndef list_tasks(\n    session: Session, project_id: int, filters: TaskFilters, *, limit: int, offset: int\n) -> TaskPage:\n    \"\"\"One page of a project's tasks, and how many tasks match the filters in all.\"\"\"\n    statement = _apply_filters(select(Task).where(Task.project_id == project_id), filters)\n    total = session.scalar(select(func.count()).select_from(statement.subquery())) or 0\n    page = statement.order_by(*_ordering(filters.sort, filters.order)).limit(limit).offset(offset)\n    return TaskPage(list(session.scalars(page)), total)",
+          "explanation": "The statement grows one `.where()` per filter, so filters combine with AND, and every value travels as a bound parameter, never pasted into the SQL. `escape_like` makes `%` and `_` in a search literal, so searching for `80%` finds \"80%\". The count runs on the filtered statement before `limit` and `offset`, so `total` counts every match, not just this page. `_ordering` sorts by the chosen column and then by id, so rows with equal keys keep the same order from one page to the next."
+        },
+        {
+          "title": "The board in three statements",
+          "prompt": "`board` in `app/repositories/tasks.py` loads a project's tasks with their assignees and tags, and the comment counts.",
+          "language": "python",
+          "file": "app/repositories/tasks.py",
+          "code": "def board(session: Session, project_id: int) -> tuple[list[Task], dict[int, int]]:\n    \"\"\"A project's tasks in board order, with assignees and tags loaded, and comment counts.\n\n    Three statements whatever the number of tasks: the tasks joined to their assignees, one\n    SELECT ... IN for all their tags, and one grouped count of comments.\n    \"\"\"\n    statement = (\n        select(Task)\n        .where(Task.project_id == project_id)\n        .options(joinedload(Task.assignee), selectinload(Task.tags))\n        .order_by(Task.status, Task.position, Task.id)\n    )\n    tasks = list(session.scalars(statement))\n    counts = (\n        select(Comment.task_id, func.count())\n        .join(Task, Task.id == Comment.task_id)\n        .where(Task.project_id == project_id)\n        .group_by(Comment.task_id)\n    )\n    return tasks, dict(session.execute(counts).all())",
+          "explanation": "`joinedload(Task.assignee)` fetches each task's assignee in the same query, through a JOIN. `selectinload(Task.tags)` fetches the tags of every task in one more query. The comment counts come from one `GROUP BY`, instead of loading every comment to count it in Python. So the board costs three statements for 5 tasks or for 60."
+        },
+        {
+          "title": "Proving it with tests",
+          "prompt": "Every list endpoint has a test that compares statement counts for a small and a big data set. `-k` runs every test whose name contains a word.",
+          "language": "bash",
+          "code": "uv run pytest -k statements -v",
+          "output": "collecting ... collected 139 items / 135 deselected / 4 selected\n\ntests/test_comments.py::test_the_list_runs_the_same_statements_for_1_or_10_comments PASSED [ 25%]\ntests/test_projects.py::test_list_runs_the_same_statements_for_one_project_or_many PASSED [ 50%]\ntests/test_projects.py::test_the_board_runs_the_same_statements_for_5_or_60_tasks PASSED [ 75%]\ntests/test_tasks.py::test_the_list_runs_the_same_statements_for_2_or_20_tasks PASSED [100%]\n\n====================== 4 passed, 135 deselected in 0.45s =======================",
+          "explanation": "Each test builds two data sets, counts the SQL statements one request runs for each, and asserts the counts are equal. Comparing two sizes is the point: the token and permission checks add a fixed number of queries, and only a query per row makes the counts differ. The day someone reads a lazy relationship in a loop, one of these fails. The output starts where pytest begins collecting, after its header."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "app/repositories/tasks.py",
+          "tests/test_projects.py"
+        ]
+      }
+    },
+    {
+      "title": "Migrations with Alembic",
+      "body": "`Base.metadata.create_all()` can create tables, but it never changes a table that exists. So a real project changes its schema through migrations. Alembic keeps them in `migrations/versions/`, one file per change, each with an `upgrade()` and a `downgrade()`, chained by `down_revision`. The `alembic_version` table records which one the database is at.\n\nThe day-to-day loop:\n\n1. Change a model.\n2. Run `uv run alembic revision --autogenerate -m \"add task position\"`, which compares the models with the database and writes a draft.\n3. Read the draft. Autogenerate can't see a rename, so it writes a drop and an add, which loses data, and it never fills in rows.\n4. Run `uv run alembic upgrade head`, and commit the file with the model change.\n\nTaskboard's `env.py` takes the database URL from the app's settings, never from `alembic.ini`, so the app and its migrations always point at the same database.",
+      "examples": [
+        {
+          "title": "A migration that backfills",
+          "prompt": "`migrations/versions/0002_task_position.py` adds a required column to a table that already has rows.",
+          "language": "python",
+          "file": "migrations/versions/0002_task_position.py",
+          "code": "def upgrade() -> None:\n    op.add_column(\"tasks\", sa.Column(\"position\", sa.Integer(), nullable=True))\n    op.execute(\n        \"\"\"\n        UPDATE tasks\n        SET position = numbered.row_number - 1\n        FROM (\n            SELECT id, row_number() OVER (PARTITION BY project_id, status ORDER BY id)\n            FROM tasks\n        ) AS numbered\n        WHERE tasks.id = numbered.id\n        \"\"\"\n    )\n    op.alter_column(\"tasks\", \"position\", nullable=False, server_default=\"0\")\n    op.create_index(\n        \"ix_tasks_project_id_status_position\", \"tasks\", [\"project_id\", \"status\", \"position\"]\n    )\n    op.drop_index(\"ix_tasks_project_id_status\", table_name=\"tasks\")\n\n\ndef downgrade() -> None:\n    op.create_index(\"ix_tasks_project_id_status\", \"tasks\", [\"project_id\", \"status\"])\n    op.drop_index(\"ix_tasks_project_id_status_position\", table_name=\"tasks\")\n    op.drop_column(\"tasks\", \"position\")",
+          "explanation": "A new `NOT NULL` column can't be added to a table with rows in one step, because the existing rows have no value for it. So it takes three: add it as nullable, fill it, then set `NOT NULL`. The backfill numbers each column's tasks 0, 1, 2 in id order with a window function, in one UPDATE, instead of a loop in Python. It's written in SQL, not with the app's `Task` model, because the model keeps changing and an old migration must still run years later. `downgrade()` undoes each step in reverse order."
+        },
+        {
+          "title": "Where Alembic connects",
+          "prompt": "`migrations/env.py` points Alembic at the app's models and settings.",
+          "language": "python",
+          "file": "migrations/env.py",
+          "code": "import app.models  # noqa: F401  (every model, so the metadata knows every table)\nfrom app.core.config import get_settings\nfrom app.db.base import Base\n\nconfig = context.config\nif config.config_file_name is not None:\n    fileConfig(config.config_file_name)\n\ntarget_metadata = Base.metadata\n\n\ndef run_migrations_online() -> None:\n    if (connection := config.attributes.get(\"connection\")) is not None:\n        context.configure(connection=connection, target_metadata=target_metadata)\n        with context.begin_transaction():\n            context.run_migrations()\n        return\n\n    engine = create_engine(get_settings().database_url, poolclass=pool.NullPool)\n    with engine.connect() as connection:\n        context.configure(connection=connection, target_metadata=target_metadata)\n        with context.begin_transaction():\n            context.run_migrations()",
+          "explanation": "`import app.models` loads every model, so `Base.metadata` knows every table when autogenerate compares. The URL comes from `get_settings()`, the same settings the app reads, so `DATABASE_URL` decides for both. A caller may pass an open connection in `config.attributes`, which is how the tests migrate the test database. `NullPool` fits a short script that needs one connection and no pool. Alembic 1.20 reads its settings from `[tool.alembic]` in `pyproject.toml`, and `alembic.ini` only configures its logging."
+        },
+        {
+          "title": "Upgrading an empty database",
+          "prompt": "Run every migration on an empty database, ask where it stands, then check that the models agree with it.",
+          "language": "bash",
+          "code": "uv run alembic upgrade head\nuv run alembic current\nuv run alembic check",
+          "output": "INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.\nINFO  [alembic.runtime.migration] Will assume transactional DDL.\nINFO  [alembic.runtime.migration] Running upgrade  -> 0001, Initial schema: users, projects, memberships, tasks, comments, and tags.\nINFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, Task positions: each task's place in its board column, backfilled from the existing order.\nINFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, The audit log: one row per change to a task, with the changes as JSON.\nINFO  [alembic.runtime.migration] Running upgrade 0003 -> 0004, Task versions: a counter that every change adds 1 to, sent as the ETag.\nINFO  [alembic.runtime.migration] Running upgrade 0004 -> 0005, Task watchers: who wants to hear about a task. One row per task and user.\nINFO  [alembic.runtime.migration] Running upgrade 0005 -> 0006, The outbox: messages written in the same transaction as the change they announce.\nINFO  [alembic.runtime.migration] Context impl PostgresqlImpl.\nINFO  [alembic.runtime.migration] Will assume transactional DDL.\n0006 (head)\nINFO  [alembic.runtime.migration] Context impl PostgresqlImpl.\nINFO  [alembic.runtime.migration] Will assume transactional DDL.\nINFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.schemas\nINFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.tables\nINFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.types\nINFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.constraints\nINFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.defaults\nINFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.comments\nNo new upgrade operations detected.",
+          "explanation": "Each `Running upgrade` line is one file, applied in chain order from 0001 to 0006, with its docstring as the message. `current` reads the `alembic_version` table, and `0006 (head)` means the database is up to date. `check` compares the models with the migrated database: \"No new upgrade operations detected\" means no model change is missing its migration. Run it in CI, so a model change can't ship without one. In the workspace the database is already at head, so `upgrade head` prints only the first two lines."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "migrations/versions/0002_task_position.py",
+          "migrations/env.py",
+          "pyproject.toml"
+        ]
+      }
+    }
+  ],
+  "recap": "- Type columns with `Mapped[...]`: `X | None` decides `NULL`, and `mapped_column()` adds lengths, keys, defaults, and indexes.\n- Put rules in the database too, with CHECK, UNIQUE, and foreign keys, and give constraints stable names with a naming convention.\n- Build queries with `select()`, load relationships up front with `joinedload` or `selectinload`, and test statement counts to stop N+1 queries.\n- Change the schema only through Alembic: autogenerate a draft, read it, and add a required column in three steps.\n- Run `alembic check` in CI so a model change can't ship without its migration."
+}

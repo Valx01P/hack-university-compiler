@@ -1,0 +1,115 @@
+{
+  "id": "path-operations",
+  "title": "Path Operations and Pydantic Models",
+  "section": "FastAPI Fundamentals",
+  "summary": "Declare endpoints with a decorator and type hints, and let Pydantic models check what comes in and shape what goes out.",
+  "format": "read",
+  "intro": "Most of the FastAPI code you read at work is path operations: a decorator, a function, and its type hints. FastAPI reads those hints to parse each request, validate it, convert it, and document it at `/docs`, so bad input never reaches your logic. This lesson starts with the playground's one-file app, then reads the routes and schemas of Taskboard, the layered PostgreSQL API this course is built around. Both run Python 3.14 with Pydantic v2.",
+  "steps": [
+    {
+      "title": "Your first path operation",
+      "body": "A path operation pairs an HTTP method and a path with a Python function. `@app.get(\"/\")` tells FastAPI: when a GET request for `/` arrives, call this function and send back what it returns. A dict or a Pydantic model becomes a JSON body, with status 200 unless you say otherwise.\n\nThe return type isn't decoration. FastAPI reads `-> dict[str, str]` to check the value on the way out, to serialize it, and to describe the response in the OpenAPI schema behind `/docs` and `/redoc`. Python itself ignores type hints when it runs your code, but FastAPI and Pydantic read them at startup, so every hint you write becomes a rule they apply to every request.\n\nThe playground's `main.py` is about the smallest app there is. Run starts it with `uv run fastapi dev main.py`, which restarts the server each time you save a `.py` file. In production you use `fastapi run`, which doesn't watch files.",
+      "examples": [
+        {
+          "title": "One route in one file",
+          "prompt": "The playground's whole app: a `FastAPI` instance and one function behind a decorator.",
+          "language": "python",
+          "file": "main.py",
+          "code": "from fastapi import FastAPI\n\napp = FastAPI(title=\"Playground\")\n\n\n@app.get(\"/\")\ndef read_root() -> dict[str, str]:\n    return {\"message\": \"Hello, FastAPI!\"}",
+          "explanation": "`app` is the application the server runs, and `title=\"Playground\"` names it in `/docs`. The function's name isn't part of the URL, but FastAPI turns it into the operation's summary in the docs, \"Read Root\", so name routes for what they do. It's a plain `def`, not `async def`. FastAPI runs plain functions in a thread pool, so a blocking call, like a query through a synchronous database driver, doesn't stall other requests. Use `async def` only when everything the function waits on is async, since one blocking call inside it stops every other request."
+        },
+        {
+          "title": "A request and its response",
+          "prompt": "With the server running, ask for `/` from a second terminal. `-i` makes curl print the status line and the headers before the body.",
+          "language": "bash",
+          "code": "curl -si localhost:$PORT/",
+          "output": "HTTP/1.1 200 OK\ndate: Tue, 20 Oct 2026 01:41:02 GMT\nserver: uvicorn\ncontent-length: 29\ncontent-type: application/json\n\n{\"message\":\"Hello, FastAPI!\"}",
+          "explanation": "The dict came back as JSON, with status 200 and `content-type: application/json`, and you wrote none of that. `$PORT` is the workspace's port, which the server listens on, and the same address works in the Preview, in a new browser tab, and for the requests in `requests.http`. Ask for a path no route matches, like `/nope`, and FastAPI answers 404 with `{\"detail\":\"Not Found\"}`."
+        }
+      ],
+      "codebase": {
+        "template": "fastapi-playground",
+        "files": [
+          "main.py",
+          "requests.http"
+        ]
+      }
+    },
+    {
+      "title": "Where parameters come from",
+      "body": "Every parameter of a path operation has a source, and FastAPI picks it from the parameter's name and type:\n\n- A name that appears in the path, like `{project_id}`, is a path parameter.\n- A plain type such as `int`, `str`, or `bool` is a query parameter.\n- A Pydantic model is the JSON body.\n- `Annotated[T, Query()]`, `Header()`, `Cookie()`, or `Depends()` names the source outright.\n\nEach value is converted to its type before your function runs: `?limit=5` arrives as the text `\"5\"`, and your code gets the integer `5`. A value that can't be converted, or that breaks a constraint, never reaches your function. FastAPI answers with a validation error instead, by default a 422 with a `detail` list. Taskboard installs its own handler, which you read in the Errors, Auth, and Tests lesson, so its errors follow the format its API contract defines.\n\nTaskboard declares routes on an `APIRouter`, one per resource, and mounts them all under `/v1`.",
+      "examples": [
+        {
+          "title": "A list route",
+          "prompt": "The route behind `GET /v1/projects/{project_id}/tasks` in `app/api/routes/tasks.py`. Look at the type of each parameter.",
+          "language": "python",
+          "file": "app/api/routes/tasks.py",
+          "code": "router = APIRouter(tags=[\"tasks\"])\n\n\n@router.get(\"/projects/{project_id}/tasks\")\ndef list_tasks(\n    access: ProjectReader,\n    filters: Annotated[TaskFilters, Query()],\n    page: PageDep,\n    session: SessionDep,\n) -> Page[TaskOut]:\n    return tasks.list_tasks(session, access.project, filters, limit=page.limit, offset=page.offset)",
+          "explanation": "`filters` is a Pydantic model read from the query string, so `?status=todo&sort=due` fills `filters.status` and `filters.sort`. The other three are dependencies, which the Dependency Injection lesson covers: `ProjectReader` reads `project_id` from the path and checks that you may see the project, `PageDep` reads `limit` and `offset`, and `SessionDep` opens a database session. `-> Page[TaskOut]` is the response model, a generic page envelope with `items`, `total`, `limit`, and `offset`. The body is one line, because a route's job is to connect HTTP to the service that does the work."
+        },
+        {
+          "title": "A model for the query string",
+          "prompt": "`TaskFilters` in `app/schemas/task.py` lists every filter the task list accepts, each with a type that limits it.",
+          "language": "python",
+          "file": "app/schemas/task.py",
+          "code": "class TaskFilters(BaseModel):\n    \"\"\"The task list's query string. Every filter given must match (AND).\"\"\"\n\n    status: TaskStatus | None = None\n    assignee_id: Annotated[int | Literal[\"none\"], BeforeValidator(assignee_filter)] | None = None\n    q: Annotated[str, StringConstraints(min_length=2, max_length=100)] | None = None\n    sort: Literal[\"due\", \"priority\", \"created\", \"title\"] = \"created\"\n    order: Literal[\"asc\", \"desc\"] = \"asc\"",
+          "explanation": "`TaskStatus` is a `StrEnum` of `todo`, `doing`, and `done`, so any other status is refused. `Literal[...]` lists the only values allowed, which matters for `sort`: the repository maps each name to a column, so a client can never sort by a column you didn't choose. `X | None = None` makes a filter optional. `Annotated[str, StringConstraints(...)]` attaches limits to a type, which is how Pydantic and FastAPI read rules from a hint. `BeforeValidator` runs a function before the type check, here so that `?assignee_id=none` means unassigned."
+        },
+        {
+          "title": "A bad query never reaches the route",
+          "prompt": "Log in as Ada, the seed's admin, then ask for the list sorted by a column that isn't allowed.",
+          "language": "bash",
+          "code": "TOKEN=$(curl -s localhost:$PORT/v1/auth/login \\\n  --json '{\"email\": \"ada@example.com\", \"password\": \"correct horse battery staple\"}' | jq -r .token)\ncurl -s \"localhost:$PORT/v1/projects/1/tasks?sort=password\" -H \"Authorization: Bearer $TOKEN\" | jq",
+          "output": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"sort must be one of 'due', 'priority', 'created' or 'title'\",\n  \"errors\": {\n    \"sort\": \"must be one of 'due', 'priority', 'created' or 'title'\"\n  },\n  \"request_id\": \"01a156f7-fd7e-769c-9bbc-a21fea5b21c1\"\n}",
+          "explanation": "`sort=password` fails the `Literal` check, so `list_tasks` never runs and no task is queried. The message lists the allowed values, taken from the type. Taskboard's contract calls a bad query parameter a malformed request, so its handler answers 400 in the problem format, where FastAPI alone would answer 422. `request_id` matches the response's `X-Request-ID` header and the server's log line, which is how you find one failed request in the logs. `jq` pretty-prints the JSON, and `jq -r .token` pulls one field out of it."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "app/api/routes/tasks.py",
+          "app/schemas/task.py"
+        ]
+      }
+    },
+    {
+      "title": "Models for bodies and responses",
+      "body": "A request body is a Pydantic model. Declare a parameter typed with a `BaseModel` subclass, and FastAPI parses the JSON, validates every field, and hands your function a typed object.\n\nKeep separate models for what clients send and what they get back. Taskboard's names show the direction: `TaskCreate` and `TaskUpdate` come in, and `TaskOut` goes out. Two shared bases in `app/schemas/common.py` set the rules for each direction:\n\n- `InputModel` sets `extra=\"forbid\"`, so an unknown field is an error. A typo like `\"priorty\"` is refused instead of being silently ignored.\n- `OutputModel` sets `from_attributes=True`, so `TaskOut.model_validate(task)` reads the attributes of a SQLAlchemy object.\n\nThe response model is a filter as well as a check. Only the fields it declares reach the client, so a column you add to a table never leaks by accident.",
+      "examples": [
+        {
+          "title": "Input types with rules",
+          "prompt": "`TaskCreate` in `app/schemas/task.py`, and the reusable types it's built from.",
+          "language": "python",
+          "file": "app/schemas/task.py",
+          "code": "TaskTitle = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]\nTaskDescription = Annotated[str, StringConstraints(max_length=2000)]\nPriority = Annotated[int, Strict(), Field(ge=1, le=3)]\n\n\nclass TaskCreate(InputModel):\n    title: TaskTitle\n    description: TaskDescription | None = None\n    priority: Priority = MEDIUM\n    due_on: date | None = None\n    assignee_id: Id | None = None",
+          "explanation": "Each `Annotated` alias is a type with its rules attached, written once and reused by `TaskCreate` and `TaskUpdate`. `strip_whitespace=True` trims the title before `min_length=1` is checked, so a title of spaces counts as empty. `Strict()` turns off Pydantic's usual conversion, so `\"priority\": \"3\"` is a wrong type rather than the number 3. Path and query values always arrive as text, but JSON has real numbers, and a client that sends a string has a bug worth reporting. A field with a default, like `priority`, is optional, and `due_on: date` parses `\"2026-10-12\"` into a `datetime.date`."
+        },
+        {
+          "title": "Every problem at once",
+          "prompt": "Create a task with a body that breaks three rules. `$TOKEN` holds Ada's token.",
+          "language": "bash",
+          "code": "curl -s localhost:$PORT/v1/projects/1/tasks -H \"Authorization: Bearer $TOKEN\" \\\n  --json '{\"title\": \"   \", \"priority\": 4, \"due_on\": \"2026-13-01\"}' | jq",
+          "output": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Unprocessable Content\",\n  \"status\": 422,\n  \"detail\": \"title must not be empty; priority must be at most 3; due_on must be a real date, written YYYY-MM-DD\",\n  \"errors\": {\n    \"title\": \"must not be empty\",\n    \"priority\": \"must be at most 3\",\n    \"due_on\": \"must be a real date, written YYYY-MM-DD\"\n  },\n  \"request_id\": \"01a156f7-fda5-758a-aa91-ecdf0768d077\"\n}",
+          "explanation": "Pydantic checks every field and reports every problem in one response, so a client can fix all three at once. None of it reached the route, so no service ran and nothing was written. `errors` maps each field to a message, which a form can show next to the right input. `--json` sends the body with `Content-Type: application/json`. FastAPI won't read a body as JSON without that header, so the same request with `curl -d` is refused before any field is checked."
+        },
+        {
+          "title": "A response model that hides a secret",
+          "prompt": "The signup route in `app/api/routes/auth.py` returns a SQLAlchemy `User`, which holds the password hash.",
+          "language": "python",
+          "file": "app/api/routes/auth.py",
+          "code": "@router.post(\"/signup\", status_code=status.HTTP_201_CREATED, response_model=UserOut)\ndef signup(data: SignupIn, session: SessionDep) -> User:\n    return auth.signup(session, data)",
+          "explanation": "The function returns the ORM object, so its return type says `User`. `response_model=UserOut` tells FastAPI to send `UserOut`'s fields instead: `id`, `email`, `name`, `role`, and `created_at`. The `hashed_password` column never leaves the server, and the test suite checks that it doesn't. Use `response_model=` whenever a route returns something other than the shape clients get. When the return type is already the response shape, as with `-> TaskOut`, the annotation is enough."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "app/schemas/task.py",
+          "app/schemas/common.py",
+          "app/api/routes/auth.py"
+        ]
+      }
+    }
+  ],
+  "recap": "- A path operation is a decorator with a method and a path on a plain function, and its type hints are rules FastAPI applies to every request.\n- The path, plain types, Pydantic models, and `Query()`, `Header()`, or `Depends()` decide where each parameter comes from, and every value is converted before your code runs.\n- Build input types once with `Annotated` and constraints, forbid unknown fields, and use `Strict()` where a wrong JSON type is a client bug.\n- Keep input and output models apart, and let the response model filter what leaves, so a secret never reaches a client.\n- Write `def` routes when they call blocking code, like a synchronous database session: FastAPI runs them in a thread pool."
+}

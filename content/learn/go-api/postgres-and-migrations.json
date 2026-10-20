@@ -1,0 +1,110 @@
+{
+  "id": "postgres-and-migrations",
+  "title": "PostgreSQL with pgx and Migrations",
+  "section": "Layers and PostgreSQL",
+  "summary": "Change the schema with goose migrations, query PostgreSQL through pgx and sqlc, and handle database errors and transactions in the store.",
+  "format": "read",
+  "intro": "Taskboard keeps its data in PostgreSQL 18 and reaches it the way many Go services do today: pgx, the PostgreSQL driver, plus sqlc, which turns SQL files into typed Go functions. The schema changes through goose migrations, SQL files checked in next to the code. In this lesson you read each piece in the order the app uses it: the schema, the queries, and the store code that handles errors and transactions.",
+  "steps": [
+    {
+      "title": "Migrations with goose",
+      "body": "Never change a shared database by hand. Every schema change is a migration: a numbered SQL file in `db/migrations` with an Up section that applies it and a Down section that undoes it. goose records each applied version in the `goose_db_version` table, so every database, from your laptop to production, reaches the same schema with the same commands:\n\n```bash\ngoose up                     # apply every pending migration\ngoose status                 # list them, and which are applied\ngoose down                   # roll back the newest one\ngoose create add_labels sql  # start a new migration file\n```\n\nTwo habits keep this safe. Never edit a migration that has run anywhere but your own machine: write a new one that changes the schema again. And put the rules that must always hold into the schema itself, as `NOT NULL`, `CHECK`, `UNIQUE`, and foreign keys. The database then enforces them for every client, even a script someone runs in psql.",
+      "examples": [
+        {
+          "title": "A migration file",
+          "prompt": "Read the migration that creates the tasks table. The output is `goose status` on the database after the server had applied every migration.",
+          "language": "sql",
+          "file": "db/migrations/00003_tasks.sql",
+          "code": "-- Tasks. The database guards what must always hold, whatever code writes the row:\n-- the status and priority are known values, a task is done exactly when it has a\n-- completed_at, and the assignee is a member of the task's project.\n\n-- +goose Up\nCREATE TABLE tasks (\n    id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    project_id   bigint      NOT NULL REFERENCES projects (id) ON DELETE CASCADE,\n    title        text        NOT NULL CHECK (char_length(title) BETWEEN 1 AND 120),\n    description  text        CHECK (char_length(description) <= 2000),\n    status       text        NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'doing', 'done')),\n    priority     smallint    NOT NULL DEFAULT 2 CHECK (priority BETWEEN 1 AND 3),\n    due_on       date,\n    assignee_id  bigint,\n    version      bigint      NOT NULL DEFAULT 1 CHECK (version >= 1),\n    completed_at timestamptz,\n    created_at   timestamptz NOT NULL DEFAULT now(),\n    updated_at   timestamptz NOT NULL DEFAULT now(),\n    CONSTRAINT tasks_completed_at_check CHECK ((status = 'done') = (completed_at IS NOT NULL)),\n    -- A composite key to project_members, so only a member can be assigned. When a\n    -- member leaves, their tasks become unassigned (SET NULL of that column only).\n    CONSTRAINT tasks_assignee_id_fkey FOREIGN KEY (project_id, assignee_id)\n        REFERENCES project_members (project_id, user_id) ON DELETE SET NULL (assignee_id)\n);\n\n-- Serves the board (a project's tasks by status) and due-date filters.\nCREATE INDEX tasks_project_status_due_idx ON tasks (project_id, status, due_on);\n\n-- +goose Down\nDROP TABLE tasks;\n",
+          "output": "2026/10/20 01:43:59     Applied At                  Migration\n2026/10/20 01:43:59     =======================================\n2026/10/20 01:43:59     Tue Oct 20 01:43:58 2026 -- 00001_users.sql\n2026/10/20 01:43:59     Tue Oct 20 01:43:58 2026 -- 00002_projects.sql\n2026/10/20 01:43:59     Tue Oct 20 01:43:58 2026 -- 00003_tasks.sql\n2026/10/20 01:43:59     Tue Oct 20 01:43:59 2026 -- 00004_comments.sql\n2026/10/20 01:43:59     Tue Oct 20 01:43:59 2026 -- 00005_updated_at.sql\n2026/10/20 01:43:59     Tue Oct 20 01:43:59 2026 -- 00006_watchers.sql\n2026/10/20 01:43:59     Tue Oct 20 01:43:59 2026 -- 00007_sessions.sql\n2026/10/20 01:43:59     Tue Oct 20 01:43:59 2026 -- 00008_jobs.sql\n2026/10/20 01:43:59     Tue Oct 20 01:43:59 2026 -- 00009_notifications.sql\n2026/10/20 01:43:59     Tue Oct 20 01:43:59 2026 -- 00010_attachments.sql",
+          "explanation": "`-- +goose Up` and `-- +goose Down` split the file, and goose runs each migration in a transaction, so one that fails leaves no half-made table behind. The constraints do real work: `status` holds only three words, a task is done exactly when it has a `completed_at`, and the composite foreign key means only a member of the project can be assigned. The index serves the board's main query, a project's tasks by status and due date. A function whose body contains semicolons needs `-- +goose StatementBegin` and `-- +goose StatementEnd` around it, as in `00005_updated_at.sql`."
+        },
+        {
+          "title": "Migrating at startup",
+          "prompt": "Read `Migrate`, which the server calls before it serves when `MIGRATE_ON_START=true`. The output is the migration lines of its log when it started on an empty database.",
+          "language": "go",
+          "file": "db/migrations.go",
+          "code": "// Migrate applies every pending migration to the database behind pool, logging each\n// one with how long it took, and returns how many it applied. Each migration runs in\n// its own transaction, so one that fails leaves the database as it was before it, and\n// a session lock keeps two servers starting at once from migrating together.\nfunc Migrate(ctx context.Context, pool *pgxpool.Pool, log *slog.Logger) (int, error) {\n\tsqlDB := stdlib.OpenDBFromPool(pool)\n\tdefer sqlDB.Close()\n\tlocker, err := lock.NewPostgresSessionLocker()\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"migration lock: %w\", err)\n\t}\n\tprovider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, Migrations, goose.WithSessionLocker(locker))\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"read migrations: %w\", err)\n\t}\n\tresults, err := provider.Up(ctx)\n\tfor _, r := range results {\n\t\tlog.Info(\"migration applied\", \"version\", r.Source.Version, \"file\", r.Source.Path, \"duration_ms\", r.Duration.Milliseconds())\n\t}\n\tif err != nil {\n\t\treturn len(results), fmt.Errorf(\"migrate: %w\", err)\n\t}\n\treturn len(results), nil\n}\n",
+          "output": "{\"time\":\"2026-10-20T01:43:59.021090468Z\",\"level\":\"INFO\",\"msg\":\"migration applied\",\"version\":1,\"file\":\"00001_users.sql\",\"duration_ms\":3}\n{\"time\":\"2026-10-20T01:43:59.021113218Z\",\"level\":\"INFO\",\"msg\":\"migration applied\",\"version\":2,\"file\":\"00002_projects.sql\",\"duration_ms\":5}\n{\"time\":\"2026-10-20T01:43:59.021115093Z\",\"level\":\"INFO\",\"msg\":\"migration applied\",\"version\":3,\"file\":\"00003_tasks.sql\",\"duration_ms\":3}\n{\"time\":\"2026-10-20T01:43:59.021116218Z\",\"level\":\"INFO\",\"msg\":\"migration applied\",\"version\":4,\"file\":\"00004_comments.sql\",\"duration_ms\":3}\n{\"time\":\"2026-10-20T01:43:59.021117343Z\",\"level\":\"INFO\",\"msg\":\"migration applied\",\"version\":5,\"file\":\"00005_updated_at.sql\",\"duration_ms\":1}\n{\"time\":\"2026-10-20T01:43:59.021118509Z\",\"level\":\"INFO\",\"msg\":\"migration applied\",\"version\":6,\"file\":\"00006_watchers.sql\",\"duration_ms\":2}\n{\"time\":\"2026-10-20T01:43:59.021119551Z\",\"level\":\"INFO\",\"msg\":\"migration applied\",\"version\":7,\"file\":\"00007_sessions.sql\",\"duration_ms\":2}\n{\"time\":\"2026-10-20T01:43:59.021120509Z\",\"level\":\"INFO\",\"msg\":\"migration applied\",\"version\":8,\"file\":\"00008_jobs.sql\",\"duration_ms\":2}\n{\"time\":\"2026-10-20T01:43:59.021121509Z\",\"level\":\"INFO\",\"msg\":\"migration applied\",\"version\":9,\"file\":\"00009_notifications.sql\",\"duration_ms\":2}\n{\"time\":\"2026-10-20T01:43:59.021122551Z\",\"level\":\"INFO\",\"msg\":\"migration applied\",\"version\":10,\"file\":\"00010_attachments.sql\",\"duration_ms\":3}\n{\"time\":\"2026-10-20T01:43:59.021131968Z\",\"level\":\"INFO\",\"msg\":\"migrations applied\",\"count\":10}",
+          "explanation": "The SQL files are compiled into the binary with `//go:embed migrations/*.sql`, so the server needs no files beside it. Migrating before serving means no request ever runs against an old schema. `stdlib.OpenDBFromPool` gives goose the `database/sql` handle it expects, over the same pgx pool. The session locker takes a PostgreSQL advisory lock, so two copies of the server starting together don't both migrate. Many teams run the same migrations as a separate deploy step instead, and either way it's the same files and the same goose."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "db/migrations/00003_tasks.sql",
+          "db/migrations.go"
+        ]
+      }
+    },
+    {
+      "title": "Queries with pgx and sqlc",
+      "body": "A server talks to PostgreSQL through `pgxpool.Pool`, a pool of connections that is safe to share between goroutines. Create one at startup, pass it down, and close it last. `pgx.Connect` gives a single connection, which suits a script, not a server.\n\nTaskboard doesn't hand-write query code. Each query lives in `db/queries` with a name and a kind:\n\n```sql\n-- name: GetTask :one\nSELECT * FROM tasks WHERE id = @id;\n```\n\n`sqlc generate` reads the migrations and the queries, checks the SQL against the schema, and writes typed Go into `internal/store/sqlcdb`, here a method `GetTask(ctx, id int64) (Task, error)`. `:one` returns one row, `:many` a slice, `:exec` nothing, and `:execrows` the number of rows changed. A wrong column name fails `sqlc generate`, not a request in production.\n\nValues always travel as query parameters, `$1` on the wire. Never build SQL with `fmt.Sprintf`: parameters are what make SQL injection impossible.",
+      "examples": [
+        {
+          "title": "A pool that fails fast",
+          "prompt": "Read `NewPool`, which `run` calls once at startup.",
+          "language": "go",
+          "file": "internal/store/postgres.go",
+          "code": "// NewPool connects to the database at url with a pool of connections, traced by\n// tracer (nil for none), and checks it answers within 2 seconds, so a wrong\n// DATABASE_URL stops the server at startup instead of failing the first request.\nfunc NewPool(ctx context.Context, url string, tracer pgx.QueryTracer) (*pgxpool.Pool, error) {\n\tcfg, err := pgxpool.ParseConfig(url)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"parse DATABASE_URL: %w\", err)\n\t}\n\tcfg.ConnConfig.Tracer = tracer\n\tcfg.MaxConnIdleTime = 5 * time.Minute\n\tpool, err := pgxpool.NewWithConfig(ctx, cfg)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"create pool: %w\", err)\n\t}\n\tpingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)\n\tdefer cancel()\n\tif err := pool.Ping(pingCtx); err != nil {\n\t\tpool.Close()\n\t\treturn nil, fmt.Errorf(\"connect to the database: %w\", err)\n\t}\n\treturn pool, nil\n}\n",
+          "explanation": "`pgxpool.ParseConfig` reads the URL into settings you can adjust before connecting, here a tracer for slow query logs and an idle timeout. `NewWithConfig` doesn't wait for a connection, so `Ping` with a 2 second deadline checks the database right away. A wrong `DATABASE_URL` then stops the server at startup with a clear message, instead of failing the first request after a deploy. Each error is wrapped with `%w` and a few words that say which step failed, and `pool.Close()` runs on the failure path so nothing leaks."
+        },
+        {
+          "title": "Queries with a version check",
+          "prompt": "Read the queries that change and delete a task, from `db/queries/tasks.sql`.",
+          "language": "sql",
+          "file": "db/queries/tasks.sql",
+          "code": "-- UpdateTask saves a task's fields only if it is still at the version the change was\n-- made from. No row back means someone else changed it first (or it is gone).\n-- name: UpdateTask :one\nUPDATE tasks\nSET title = @title,\n    description = @description,\n    priority = @priority,\n    due_on = @due_on,\n    assignee_id = @assignee_id,\n    version = version + 1,\n    updated_at = @updated_at\nWHERE id = @id AND version = @version\nRETURNING *;\n\n-- name: TransitionTask :one\nUPDATE tasks\nSET status = @status,\n    completed_at = @completed_at,\n    version = version + 1,\n    updated_at = @updated_at\nWHERE id = @id AND version = @version\nRETURNING *;\n\n-- name: DeleteTask :execrows\nDELETE FROM tasks WHERE id = @id;\n",
+          "explanation": "Each `@name` becomes a field of a generated params struct, such as `UpdateTaskParams`, and travels as a parameter. `WHERE id = @id AND version = @version` is optimistic locking: the update matches only if nobody changed the task since the client read it, and `RETURNING *` hands back the saved row in the same round trip. No row back means someone else got there first, and the store answers with a 412 that carries the current task. `DeleteTask` is `:execrows`, so the store can tell a deleted task from one that never existed."
+        },
+        {
+          "title": "The generated code",
+          "prompt": "Read what sqlc generated for `GetTask`.",
+          "language": "go",
+          "file": "internal/store/sqlcdb/tasks.sql.go",
+          "code": "const getTask = `-- name: GetTask :one\n\nSELECT id, project_id, title, description, status, priority, due_on, assignee_id, version, completed_at, created_at, updated_at FROM tasks WHERE id = $1\n`\n\n// Tasks.\nfunc (q *Queries) GetTask(ctx context.Context, id int64) (Task, error) {\n\trow := q.db.QueryRow(ctx, getTask, id)\n\tvar i Task\n\terr := row.Scan(\n\t\t&i.ID,\n\t\t&i.ProjectID,\n\t\t&i.Title,\n\t\t&i.Description,\n\t\t&i.Status,\n\t\t&i.Priority,\n\t\t&i.DueOn,\n\t\t&i.AssigneeID,\n\t\t&i.Version,\n\t\t&i.CompletedAt,\n\t\t&i.CreatedAt,\n\t\t&i.UpdatedAt,\n\t)\n\treturn i, err\n}\n",
+          "explanation": "`SELECT *` became an explicit column list, and each column scans into a field of the generated `Task` row type, which is why the repository converts it before anything else sees it. `q.db` is a `DBTX`, an interface that both a pool and a transaction satisfy, so the same method runs either way. The file starts with `Code generated by sqlc. DO NOT EDIT.` To change it, edit the SQL in `db/queries`, run `make sqlc`, and commit both."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "internal/store/postgres.go",
+          "db/queries/tasks.sql",
+          "internal/store/sqlcdb/tasks.sql.go"
+        ]
+      }
+    },
+    {
+      "title": "Database errors and transactions",
+      "body": "The store is the only layer that sees pgx, so it translates what pgx reports into domain errors. Three cases come up in almost every service:\n\n- `pgx.ErrNoRows`: the row doesn't exist, a 404.\n- SQLSTATE `23505`, a unique violation: the value is taken, a 409.\n- `23503` or `23514`, a foreign key or check violation: the input breaks a rule, a 422.\n\nPostgreSQL errors arrive as `*pgconn.PgError`, which carries the code and the name of the constraint that failed, so the store can say which field is to blame.\n\nWhen several writes must succeed or fail together, run them in one transaction: `Begin`, the writes, then `Commit`. Defer `Rollback` right after `Begin`. It undoes everything when anything fails, and it does nothing once `Commit` has succeeded. Keep transactions short, and never wait on another service over the network inside one.",
+      "examples": [
+        {
+          "title": "Translating database errors",
+          "prompt": "Read `mapError`. The output is the response to creating a task assigned to Margaret, who isn't a member of project 1, pretty-printed with `jq`.",
+          "language": "go",
+          "file": "internal/store/errors.go",
+          "code": "// mapError translates what pgx and PostgreSQL report into the domain's errors, so no\n// layer above the store ever sees a pgx type:\n//\n//   - pgx.ErrNoRows becomes domain.ErrNotFound, as \"task 999 not found\";\n//   - a unique violation (23505) becomes a *domain.ConflictError for its field;\n//   - a foreign key (23503) or check (23514) violation becomes a\n//     *domain.ValidationError for its field.\n//\n// Anything else is wrapped and stays a 500: an error nobody planned for should be\n// seen in the logs and fixed, not dressed up as the client's fault.\nfunc mapError(err error, entity string, id int64) error {\n\tif err == nil {\n\t\treturn nil\n\t}\n\tif errors.Is(err, pgx.ErrNoRows) {\n\t\tif id == 0 {\n\t\t\treturn fmt.Errorf(\"%s %w\", entity, domain.ErrNotFound)\n\t\t}\n\t\treturn fmt.Errorf(\"%s %d %w\", entity, id, domain.ErrNotFound)\n\t}\n\tif pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {\n\t\trule, known := constraints[pgErr.ConstraintName]\n\t\tswitch {\n\t\tcase known && pgErr.Code == \"23505\":\n\t\t\treturn domain.Conflict(rule.field, rule.message)\n\t\tcase known && (pgErr.Code == \"23503\" || pgErr.Code == \"23514\"):\n\t\t\treturn domain.Invalid(rule.field, rule.message)\n\t\t}\n\t}\n\treturn fmt.Errorf(\"%s: %w\", entity, err)\n}\n",
+          "output": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Unprocessable Entity\",\n  \"status\": 422,\n  \"detail\": \"assignee_id is not a member of this project\",\n  \"instance\": \"/v1/projects/1/tasks\",\n  \"errors\": {\n    \"assignee_id\": \"is not a member of this project\"\n  },\n  \"request_id\": \"01a156fa-cdc8-7074-b291-a9431d74eb65\"\n}",
+          "explanation": "No Go code checked Margaret's membership. The insert reached PostgreSQL, the composite foreign key `tasks_assignee_id_fkey` refused it with code 23503, and `mapError` looked that constraint up in `constraints`, a map from constraint names to a field and a message. The client gets a 422 that blames `assignee_id`, and the rule lives in one place, the schema. `errors.AsType[*pgconn.PgError]` finds the PostgreSQL error even when pgx wrapped it. An error the map doesn't know stays a 500, so it shows up in the logs."
+        },
+        {
+          "title": "One transaction, many calls",
+          "prompt": "Read `inTx`, the core of Taskboard's transaction helper.",
+          "language": "go",
+          "file": "internal/store/tx.go",
+          "code": "func (s *Store) inTx(ctx context.Context, fn func(ctx context.Context) error) error {\n\ttx, err := s.pool.Begin(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"begin: %w\", err)\n\t}\n\t// Rollback is a no-op once Commit has succeeded. It gets a context that cannot be\n\t// canceled, so a client hanging up never leaves a transaction open.\n\tdefer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()\n\tif err := fn(context.WithValue(ctx, txKey{}, tx)); err != nil {\n\t\treturn err\n\t}\n\tif err := tx.Commit(ctx); err != nil {\n\t\treturn fmt.Errorf(\"commit: %w\", err)\n\t}\n\treturn nil\n}\n",
+          "explanation": "The transaction travels in the context. `fn` receives a `ctx` holding `tx`, and every repository method starts with `s.queries(ctx)`, which runs on that transaction when the context carries one and on the pool otherwise. So a service can call several repositories inside one transaction without passing `tx` around. The deferred `Rollback` gets `context.WithoutCancel(ctx)`, so a client hanging up can't leave a transaction open on the server. The exported `InTx` around it tries the whole function up to 3 times when PostgreSQL reports a serialization failure (`40001`) or a deadlock (`40P01`)."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "internal/store/errors.go",
+          "internal/store/tx.go"
+        ]
+      }
+    }
+  ],
+  "recap": "- Change the schema only through numbered goose migrations with Up and Down sections, and never edit one that has run elsewhere.\n- Put invariants in the schema with `NOT NULL`, `CHECK`, `UNIQUE`, and foreign keys.\n- Share one `pgxpool.Pool`, created and pinged at startup.\n- Write SQL in `db/queries`, let sqlc generate typed Go, and always pass values as parameters.\n- In the store, map `pgx.ErrNoRows` and constraint violations to domain errors, and run writes that belong together in one transaction with a deferred `Rollback`."
+}

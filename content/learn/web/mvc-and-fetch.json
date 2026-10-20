@@ -1,0 +1,108 @@
+{
+  "id": "mvc-and-fetch",
+  "title": "MVC and Fetch on the Client",
+  "section": "Structuring an App",
+  "summary": "Split a front end into a Model, Views, and a Controller, connect them in one composition root, and call APIs with fetch at the edge.",
+  "format": "read",
+  "intro": "Once a front end grows past a few hundred lines, the hard question is where each piece of code goes. Model, View, Controller answers it: the Model owns the data, the Views draw it, and the Controller turns what the user does into changes. It is the client-side twin of the layered APIs in the server courses, and the same split sits under React's state and components.",
+  "steps": [
+    {
+      "title": "The Model owns the data",
+      "body": "The Model is the only code allowed to change the app's data, and it knows nothing about the page: no DOM, no storage, no `fetch`. That makes it the easiest part to test and the safest part to change.\n\nThree habits make a Model solid:\n\n- Every change goes through a method, like `add` or `toggle`, so there is one place to validate and one place to look for bugs. The list it hands out is frozen, so no other code can change it behind its back.\n- Each change builds a new array instead of editing the old one. Comparing old and new is then cheap, and a copy someone kept never changes under them.\n- The Model notifies its subscribers after each change. The views and the code that saves subscribe, and the Model never needs to know who they are.\n\nMethods also report what happened. `add` returns the new task or `null`, and the others return whether anything changed, so nothing renders or saves for nothing.",
+      "examples": [
+        {
+          "title": "Changes and subscribers",
+          "prompt": "The end of `TaskStore`: `subscribe`, and the private methods every change goes through.",
+          "language": "js",
+          "file": "src/model/task-store.js",
+          "code": "/**\n * Calls listener(tasks) after every change. It is not called with the\n * current list, so a caller that needs it renders once when it starts.\n * @param {(tasks: readonly Task[]) => void} listener\n * @returns {() => void} a function that stops the calls\n */\nsubscribe(listener) {\n  this.#listeners.add(listener);\n  return () => {\n    this.#listeners.delete(listener);\n  };\n}\n\n#update(id, change) {\n  let changed = false;\n  const next = this.#tasks.map((task) => {\n    if (task.id !== id) return task;\n    const updated = change(task);\n    if (updated !== task) changed = true;\n    return updated;\n  });\n  if (changed) this.#commit(next);\n  return changed;\n}\n\n#commitRemoval(next) {\n  if (next.length === this.#tasks.length) return false;\n  this.#commit(next);\n  return true;\n}\n\n#commit(next) {\n  this.#tasks = freeze(next);\n  for (const listener of this.#listeners) listener(this.#tasks);\n}",
+          "explanation": "`subscribe` adds a listener to a `Set` and returns a function that removes it, so a caller can stop listening without keeping anything else around. Every change ends in `#commit`, which freezes the new list and calls each listener with it. `#update` and `#commitRemoval` commit only when something really changed, so toggling an unknown id or renaming a task to its current title saves and renders nothing. The `#` makes these methods private, so nothing outside the class can call `#commit` and skip the checks."
+        },
+        {
+          "title": "Testing the Model in Node",
+          "prompt": "The `subscribe` tests, and their lines from `npx vitest run tests/unit/task-store.test.js --reporter=verbose`.",
+          "language": "js",
+          "file": "tests/unit/task-store.test.js",
+          "code": "describe(\"subscribe\", () => {\n  it(\"calls listeners with the new list after each change\", () => {\n    const store = createStore([milk]);\n    const listener = vi.fn();\n    store.subscribe(listener);\n    store.toggle(\"a\");\n    store.add(\"Call Ada\");\n    expect(listener).toHaveBeenCalledTimes(2);\n    expect(listener).toHaveBeenLastCalledWith(store.tasks);\n  });\n\n  it(\"stays quiet when nothing changed\", () => {\n    const store = createStore([milk]);\n    const listener = vi.fn();\n    store.subscribe(listener);\n    store.add(\"  \");\n    store.remove(\"nope\");\n    store.rename(\"a\", \"Buy milk\");\n    store.clearCompleted();\n    expect(listener).not.toHaveBeenCalled();\n  });\n\n  it(\"stops calling a listener after it unsubscribes\", () => {\n    const store = createStore([milk]);\n    const listener = vi.fn();\n    const unsubscribe = store.subscribe(listener);\n    unsubscribe();\n    store.toggle(\"a\");\n    expect(listener).not.toHaveBeenCalled();\n  });\n});",
+          "output": " ✓ tests/unit/task-store.test.js > subscribe > calls listeners with the new list after each change 0ms\n ✓ tests/unit/task-store.test.js > subscribe > stays quiet when nothing changed 0ms\n ✓ tests/unit/task-store.test.js > subscribe > stops calling a listener after it unsubscribes 0ms",
+          "explanation": "These tests run in Node with no browser, because the store never touches the DOM. `npm test` runs all 29 unit tests in about a fifth of a second. `vi.fn()` makes a listener that records its calls. The second test is the one people forget: a store that notifies on every call, changed or not, makes every view re-render and every save run for nothing. The tests use only public methods, so they keep passing however the store is written inside, as long as it behaves."
+        }
+      ],
+      "codebase": {
+        "template": "tasks-mvc",
+        "files": [
+          "src/model/task-store.js",
+          "tests/unit/task-store.test.js"
+        ]
+      }
+    },
+    {
+      "title": "Views, a Controller, and main.js",
+      "body": "The other two roles have strict limits too:\n\n- A View renders what it is given. It reads the tasks and the filter and updates the DOM to match. It never listens for events and never changes data.\n- The Controller listens for events and calls the Model. It never edits a task itself and never builds markup.\n\nData then moves in one direction. An event reaches the Controller, the Controller calls the Model, the Model notifies its subscribers, and the Views render. When the screen is wrong, there are only two places to look: the data in the Model, or the View that drew it.\n\nOne file, the composition root, creates the pieces and connects them. Every other module gets what it needs passed in, which keeps each one small and testable on its own. Imports then point one way: `main.js` imports everything, the Controller imports the Views and the Model, and the Model imports neither.",
+      "examples": [
+        {
+          "title": "The composition root",
+          "prompt": "All of `main.js`, the only file that knows how the pieces fit together.",
+          "language": "js",
+          "file": "src/main.js",
+          "code": "// The composition root: the one place that creates the store, finds the page's\n// elements, and connects them. Every other module gets what it needs passed\n// in, which keeps each one small and testable on its own.\n\nimport { filterFromSearch, TaskController } from \"./controller/task-controller.js\";\nimport { qs } from \"./lib/dom.js\";\nimport { loadTasks, saveTasks } from \"./model/persist.js\";\nimport { SEED_TASKS } from \"./model/seed.js\";\nimport { TaskStore } from \"./model/task-store.js\";\n\nconst store = new TaskStore(loadTasks() ?? SEED_TASKS);\nstore.subscribe((tasks) => saveTasks(tasks));\n\nconst controller = new TaskController(store, {\n  form: qs(\"#new-task\"),\n  list: qs(\"#task-list\"),\n  footer: qs(\"#task-footer\"),\n});\ncontroller.start(filterFromSearch(location.search));",
+          "explanation": "Four statements do the wiring. The store starts from the saved tasks, or from the samples when nothing usable is saved. A subscriber saves every change, so persistence is attached from outside and the store never imports storage code. The controller gets the store and the three elements it needs, then starts with the filter read from the URL. To load tasks from a server instead, or to log every change, this is the file you edit."
+        },
+        {
+          "title": "Events become store calls",
+          "prompt": "The controller's handlers for submitting the form and clicking a row's controls.",
+          "language": "js",
+          "file": "src/controller/task-controller.js",
+          "code": "#onSubmit(event) {\n  event.preventDefault();\n  const input = this.#titleInput;\n  if (this.#store.add(input.value)) input.value = \"\";\n  input.focus();\n}\n\n#onAction(control) {\n  const { row, id, index } = rowOf(control);\n  switch (control.dataset.action) {\n    case \"toggle\":\n      this.#store.toggle(id);\n      // Under the Active or Completed filter the row may have just left the list.\n      this.#focus(id, index, \"toggle\");\n      break;\n    case \"edit\":\n      this.#edit(row);\n      break;\n    case \"delete\":\n      this.#store.remove(id);\n      this.#focus(id, index, \"toggle\");\n      break;\n  }\n}",
+          "explanation": "`#onSubmit` cancels the page reload, hands the raw text to `store.add`, and clears the field only when a task was really added, because `add` returns `null` for a blank title. `#onAction` reads the row's id from the DOM and calls `toggle` or `remove` on the store, while Edit only opens the editor. Neither handler renders. The store notifies, the subscriber from `start` calls `render()`, and the handler only puts focus back. That is the whole loop: event, Controller, Model, subscribers, View."
+        },
+        {
+          "title": "A view is a function of state",
+          "prompt": "The footer view. It gets the tasks and the filter, and sets the DOM to match.",
+          "language": "js",
+          "file": "src/view/footer-view.js",
+          "code": "// Intl.PluralRules knows each language's plural forms. English needs two\n// (\"1 item\", \"2 items\"), but other languages need up to six.\nconst pluralRules = new Intl.PluralRules(\"en-US\");\nconst NOUNS = { one: \"item\", other: \"items\" };\n\n/** \"1 item left\", \"0 items left\", \"3 items left\". */\nexport function itemsLeftText(count) {\n  const noun = NOUNS[pluralRules.select(count)] ?? NOUNS.other;\n  return `${count} ${noun} left`;\n}\n\nexport function renderFooter(footer, tasks, filter) {\n  footer.hidden = tasks.length === 0;\n  qs(\".task-count\", footer).textContent = itemsLeftText(countActive(tasks));\n\n  for (const link of qsa(\"a[data-filter]\", footer)) {\n    if (link.dataset.filter === filter) link.setAttribute(\"aria-current\", \"page\");\n    else link.removeAttribute(\"aria-current\");\n  }\n\n  qs(\"#clear-completed\", footer).hidden = !tasks.some((task) => task.done);\n}",
+          "explanation": "Calling `renderFooter` twice with the same arguments leaves the page exactly as calling it once, so running it after every change is always safe. It hides the footer when there are no tasks, marks the current filter link with `aria-current=\"page\"`, and shows Clear completed only when some task is done. `Intl.PluralRules` picks between \"1 item\" and \"2 items\", and it knows the plural rules of other languages too, which a hand-written `count === 1` check doesn't."
+        }
+      ],
+      "codebase": {
+        "template": "tasks-mvc",
+        "files": [
+          "src/main.js",
+          "src/controller/task-controller.js",
+          "src/view/footer-view.js"
+        ]
+      }
+    },
+    {
+      "title": "Fetch at the edge",
+      "body": "`fetch(url, options)` returns a promise of a `Response`. It rejects only when no answer arrives, because the network is down or CORS blocked it, so a 404 or a 500 resolves just like a success. Check `res.ok`, which is true for statuses 200 to 299:\n\n```js\nexport async function getTasks({ signal } = {}) {\n  const res = await fetch(\"/api/tasks\", { signal });\n  if (!res.ok) throw new Error(`GET /api/tasks failed with ${res.status}`);\n  return res.json();\n}\n```\n\nTo send JSON, pass `method: \"POST\"`, a `Content-Type: application/json` header, and `body: JSON.stringify(data)`. Pass a `signal` so a request can be canceled, and `AbortSignal.timeout(5000)` so it can't hang forever.\n\nIn MVC, every `fetch` lives in one API module at the Model's edge, never in a View. The Controller awaits it and then calls the store, so the store and its tests stay synchronous. A response is data from outside, like storage, so check its shape before the store sees it.",
+      "examples": [
+        {
+          "title": "Check what crosses the edge",
+          "prompt": "The shape check and field filter at the bottom of `persist.js`. A JSON response needs exactly the same treatment.",
+          "language": "js",
+          "file": "src/model/persist.js",
+          "code": "function isTask(value) {\n  return (\n    typeof value === \"object\" &&\n    value !== null &&\n    typeof value.id === \"string\" &&\n    typeof value.title === \"string\" &&\n    typeof value.done === \"boolean\"\n  );\n}\n\n/** Keeps only the fields a task has, so stray properties are never saved or loaded. */\nfunction pick({ id, title, done }) {\n  return { id, title, done };\n}",
+          "explanation": "`isTask` checks every field's type, because `JSON.parse` only proves the text was JSON. `pick` copies the three known fields and drops the rest, so a stray property never reaches the store. An API module does the same with the result of `await res.json()`: check the shape, keep the known fields, and turn anything else into an error the Controller can show, instead of a crash three files away. As an API grows, a schema library such as zod replaces checks written by hand."
+        },
+        {
+          "title": "Reading the URL defensively",
+          "prompt": "How the controller turns `location.search` into a filter.",
+          "language": "js",
+          "file": "src/controller/task-controller.js",
+          "code": "/** The filter named in a query string such as \"?filter=active\", or \"all\". */\nexport function filterFromSearch(search) {\n  const filter = new URLSearchParams(search).get(\"filter\");\n  return isFilter(filter) ? filter : \"all\";\n}",
+          "explanation": "`URLSearchParams` parses and decodes a query string, and it builds them too: `new URLSearchParams({ filter: \"active\" }).toString()` gives `filter=active`, ready for a `fetch` URL. `get` returns `null` when the parameter is missing, and anyone can type any value into a URL, so `isFilter` checks the name with `Object.hasOwn`. A plain `filter in FILTERS` would accept `?filter=toString`, which every object inherits. Anything unknown falls back to `\"all\"`, so a bad link still opens a working page."
+        }
+      ],
+      "codebase": {
+        "template": "tasks-mvc",
+        "files": [
+          "src/model/persist.js",
+          "src/controller/task-controller.js"
+        ]
+      }
+    }
+  ],
+  "recap": "- The Model owns the data: changes go through its methods, it builds new frozen lists, and it notifies subscribers without knowing who they are.\n- Views render from what they are given, and the Controller turns events into Model calls. Neither does the other's job.\n- One composition root creates and connects everything, so imports point one way and each module can be tested alone.\n- `fetch` rejects only when no answer arrives: check `res.ok`, pass a `signal`, and keep every request in one API module at the Model's edge.\n- Check data from outside where it enters, whether it comes from a response, storage, or the URL."
+}

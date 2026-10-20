@@ -1,0 +1,124 @@
+{
+  "id": "errors-auth-and-tests",
+  "title": "Errors, Auth, and Tests",
+  "section": "Data and Production",
+  "summary": "Answer every failure in one problem format, log users in with Argon2 and JWTs, and test against a real PostgreSQL database with pytest.",
+  "format": "read",
+  "intro": "Three things separate an API you can run in production from a demo: clients get errors they can act on, only the right people get in, and a test suite tells you when a change broke something. Taskboard handles all three in a few files: `app/core/errors.py`, `app/core/security.py`, and `tests/conftest.py`. In this lesson you read each one, and the habits behind it.",
+  "steps": [
+    {
+      "title": "One format for every error",
+      "body": "Clients handle errors best when every failure has the same shape. Taskboard answers every error with an RFC 9457 problem, sent as `application/problem+json`, with `type`, `title`, `status`, `detail`, `errors` when a field is to blame, and the `request_id`.\n\nThe pieces fit together like this:\n\n- `AppError` is the base of every domain error, and each subclass carries its status: `NotFound` is 404, `Conflict` 409, `Unprocessable` 422.\n- Services raise them in the domain's words, like `NotFound(\"task 999 not found\")`. They never build a response.\n- `register_error_handlers(app)` installs one handler for each kind of error: domain errors, validation errors, Starlette's HTTP errors, and anything unexpected.\n\nThe last handler matters most in production. It logs the full traceback for you and answers a plain 500, so a stack trace, a SQL statement, or a file path never reaches a client.",
+      "examples": [
+        {
+          "title": "Domain errors",
+          "prompt": "The base class and two subclasses from `app/core/errors.py`.",
+          "language": "python",
+          "file": "app/core/errors.py",
+          "code": "class AppError(Exception):\n    \"\"\"A failure the client can act on. `code` names a domain rule and becomes the `type`.\"\"\"\n\n    status: ClassVar[HTTPStatus] = HTTPStatus.INTERNAL_SERVER_ERROR\n    code: ClassVar[str | None] = None\n    title: ClassVar[str | None] = None\n\n    def __init__(\n        self,\n        detail: str,\n        *,\n        errors: Mapping[str, str] | None = None,\n        headers: Mapping[str, str] | None = None,\n        extra: Mapping[str, Any] | None = None,\n    ) -> None:\n        super().__init__(detail)\n        self.detail = detail\n        self.errors = dict(errors) if errors else None\n        self.headers = dict(headers) if headers else {}\n        self.extra = dict(extra) if extra else {}\n\n\nclass NotFound(AppError):\n    status = HTTPStatus.NOT_FOUND\n\n\nclass Conflict(AppError):\n    status = HTTPStatus.CONFLICT",
+          "explanation": "Each subclass only sets a status, so raising the right error is one line in a service. `code` names a rule of your own: `ProjectArchived` in `app/services/projects.py` is a `Conflict` with `code = \"project_archived\"`, which ends up in the problem's `type`, so a client can tell it apart from other 409s without parsing text. `extra` adds members to the problem, which is how a stale edit sends back the task as it is now. `HTTPStatus` from the standard library supplies the numbers and the titles."
+        },
+        {
+          "title": "The handlers",
+          "prompt": "The first and the last of the four handlers in `register_error_handlers`.",
+          "language": "python",
+          "file": "app/core/errors.py",
+          "code": "def register_error_handlers(app: FastAPI) -> None:\n    @app.exception_handler(AppError)\n    async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:\n        return problem(\n            exc.status,\n            exc.detail,\n            code=exc.code,\n            title=exc.title,\n            errors=exc.errors,\n            headers=exc.headers,\n            extra=exc.extra,\n        )\n\n    @app.exception_handler(Exception)\n    async def handle_unexpected(request: Request, exc: Exception) -> JSONResponse:\n        logger.exception(\"unhandled error on %s %s\", request.method, request.url.path)\n        return problem(HTTPStatus.INTERNAL_SERVER_ERROR, \"something went wrong on our side\")",
+          "explanation": "`@app.exception_handler(AppError)` catches every subclass, so a new domain error needs no new handler. `problem()` builds the body and sets the `application/problem+json` type. The catch-all logs with `logger.exception`, which records the traceback, and answers with a fixed message. The request id in the response matches the log line, so a user's bug report leads you straight to the traceback. Between these two, a third handler reshapes Pydantic's validation errors into the same format, with 400 for a malformed request and 422 for a well-formed value that breaks a rule, and a fourth does the same for Starlette's errors, like the 404 for an unknown path."
+        },
+        {
+          "title": "A malformed body",
+          "prompt": "Send the priority as a string, plus a field the endpoint doesn't know. `$TOKEN` holds Ada's token.",
+          "language": "bash",
+          "code": "curl -s localhost:$PORT/v1/projects/1/tasks -H \"Authorization: Bearer $TOKEN\" \\\n  --json '{\"title\": \"Ship it\", \"priority\": \"3\", \"colour\": \"red\"}' | jq",
+          "output": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"priority must be a whole number; colour is not a field this endpoint accepts\",\n  \"errors\": {\n    \"priority\": \"must be a whole number\",\n    \"colour\": \"is not a field this endpoint accepts\"\n  },\n  \"request_id\": \"01a156f7-fdad-7562-8f22-3dd6a80e0c93\"\n}",
+          "explanation": "Taskboard's contract counts both as malformed input, so the answer is 400. `\"3\"` is refused because the priority type is strict, and `colour` because `InputModel` forbids unknown fields. A well-formed value that breaks a rule, like a priority of 4, gets 422 instead. Each message is written for people by `message_for` in `app/core/errors.py`, instead of Pydantic's default text."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "app/core/errors.py",
+          "app/services/projects.py"
+        ]
+      }
+    },
+    {
+      "title": "Passwords and tokens",
+      "body": "Taskboard follows the current FastAPI docs for auth: Argon2 password hashes through pwdlib, and JWT access tokens through PyJWT.\n\n- Never store a password, only its hash. `PasswordHash.recommended()` picks Argon2id, which is slow and memory-hungry on purpose, so a stolen table of hashes is expensive to crack.\n- A JWT is a signed JSON payload. The server signs it with a secret, and any change to it breaks the signature.\n- A JWT is signed, not encrypted. Anyone holding one can read its claims, so never put a secret in them.\n\nA login checks the password and issues a token. Every later request sends it as `Authorization: Bearer <token>`, and the `get_access_token` dependency checks it. For browsers, login also sets it as an `HttpOnly` cookie, which scripts on the page can't read. A token can't be taken back once issued, so Taskboard's logout stores the token's id in a `revoked_tokens` table that every request checks.",
+      "examples": [
+        {
+          "title": "Checking a password",
+          "prompt": "`authenticate` in `app/services/auth.py`, which both login endpoints call.",
+          "language": "python",
+          "file": "app/services/auth.py",
+          "code": "def authenticate(session: Session, email: str, password: str) -> User:\n    \"\"\"The user with this email and password. An unknown email and a wrong password fail\n    the same way and take the same time, so nobody can probe which emails have accounts.\"\"\"\n    user = users.get_by_email(session, email)\n    if user is None:\n        verify_password(password, dummy_hash())\n        raise Unauthorized(WRONG_CREDENTIALS)\n    if not verify_password(password, user.hashed_password) or not user.is_active:\n        raise Unauthorized(WRONG_CREDENTIALS)\n    return user",
+          "explanation": "`verify_password` and `hash_password` in `app/core/security.py` wrap `PasswordHash.recommended()`. Each hash stores its own settings, starting `$argon2id$`, so the cost can be raised later without breaking old hashes. When the email is unknown, `authenticate` still verifies the password against a dummy hash. Without that, an unknown email would answer at once and a wrong password tens of milliseconds later, and the timing alone would tell an attacker which emails have accounts. Both failures also share one message, \"wrong email or password\"."
+        },
+        {
+          "title": "Issuing and checking a JWT",
+          "prompt": "`create_access_token` and the start of `decode_token` in `app/core/security.py`.",
+          "language": "python",
+          "file": "app/core/security.py",
+          "code": "def create_access_token(user_id: int, *, clock: Clock, settings: Settings) -> AccessToken:\n    issued_at = clock.now().replace(microsecond=0)\n    expires_at = issued_at + timedelta(minutes=settings.access_token_minutes)\n    jti = uuid.uuid4().hex\n    claims = {\n        \"sub\": str(user_id),\n        \"type\": \"access\",\n        \"jti\": jti,\n        \"iat\": int(issued_at.timestamp()),\n        \"exp\": int(expires_at.timestamp()),\n    }\n    token = jwt.encode(claims, settings.jwt_secret.get_secret_value(), algorithm=ALGORITHM)\n    return AccessToken(token=token, user_id=user_id, jti=jti, expires_at=expires_at)\n\n\ndef decode_token(token: str, *, clock: Clock, settings: Settings) -> AccessToken:\n    try:\n        claims = jwt.decode(\n            token,\n            settings.jwt_secret.get_secret_value(),\n            algorithms=[ALGORITHM],\n            # PyJWT would compare exp and iat with the real time. The app's clock decides.\n            options={\n                \"require\": [\"sub\", \"type\", \"jti\", \"iat\", \"exp\"],\n                \"verify_exp\": False,\n                \"verify_iat\": False,\n            },\n        )\n    except jwt.InvalidTokenError as error:\n        raise InvalidToken(str(error)) from error",
+          "explanation": "`sub` is the user id as a string, as the JWT standard requires. `jti` is a unique id for each token, which is what logout revokes. `exp` makes every token expire, after `ACCESS_TOKEN_MINUTES`, a day by default. `decode` accepts only HS256 and requires all five claims, so a token can't choose its own algorithm or leave out its expiry. It turns off PyJWT's own time checks only because the code after this compares `exp` with the injected clock, so tokens still expire on time when the clock is fixed."
+        },
+        {
+          "title": "Anyone can read the claims",
+          "prompt": "Log in as Ada, then read the token's header and claims without the secret, using the PyJWT that the project installs.",
+          "language": "bash",
+          "code": "TOKEN=$(curl -s localhost:$PORT/v1/auth/login \\\n  --json '{\"email\": \"ada@example.com\", \"password\": \"correct horse battery staple\"}' | jq -r .token)\nuv run python -c 'import sys, jwt; print(jwt.get_unverified_header(sys.argv[1]))' \"$TOKEN\"\nuv run python -c 'import sys, jwt; print(jwt.decode(sys.argv[1], options={\"verify_signature\": False}))' \"$TOKEN\"",
+          "output": "{'alg': 'HS256', 'typ': 'JWT'}\n{'sub': '1', 'type': 'access', 'jti': '69644e7be1964b36bd90c943bcc7ba83', 'iat': 1790845200, 'exp': 1790931600}",
+          "explanation": "Nothing here needed `JWT_SECRET`. The header names the algorithm, and the claims are plain JSON, only encoded with base64url, so anyone who holds the token can read them. The secret only proves that the server issued them unchanged. `iat` and `exp` are Unix times exactly one day apart, 2026-10-01 09:00 and 2026-10-02 09:00 UTC from the fixed clock. `jti` is random, so yours will differ."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "app/core/security.py",
+          "app/services/auth.py",
+          "app/api/deps.py"
+        ]
+      }
+    },
+    {
+      "title": "Tests against a real database",
+      "body": "Mocking the database hides the bugs that hurt most: a wrong join, a missing constraint, a query per row. Taskboard's tests run against a real PostgreSQL database, named by `TEST_DATABASE_URL`, and stay fast and independent with one trick: every test runs inside a transaction that rolls back when it ends.\n\n- The `engine` fixture migrates the test database to the newest revision once per run, with the same Alembic files production uses, then empties it.\n- The `db` fixture opens a connection, begins a transaction, and binds a session to it with `join_transaction_mode=\"create_savepoint\"`. When app code calls `session.commit()`, it only releases a savepoint, so nothing outlives the test.\n- Factories such as `make_task(db, project, status=TaskStatus.DONE)` fill every required column, so a test names only what it's about.\n\nTests can then run in any order, and the whole suite finishes in seconds.",
+      "examples": [
+        {
+          "title": "One transaction per test",
+          "prompt": "The `engine` and `db` fixtures in `tests/conftest.py`.",
+          "language": "python",
+          "file": "tests/conftest.py",
+          "code": "@pytest.fixture(scope=\"session\")\ndef engine() -> Iterator[Engine]:\n    url = make_url(get_settings().test_database_url)\n    if not (url.database or \"\").endswith(\"test\"):\n        pytest.exit(\n            f\"TEST_DATABASE_URL names {url.database!r}: use a database whose name ends in test\"\n        )\n    engine = create_engine(url, connect_args={\"options\": \"-c timezone=UTC\"})\n    with engine.begin() as connection:\n        config = Config(toml_file=str(ROOT / \"pyproject.toml\"))\n        config.attributes[\"connection\"] = connection\n        command.upgrade(config, \"head\")\n        tables = \", \".join(table.name for table in reversed(Base.metadata.sorted_tables))\n        connection.execute(text(f\"TRUNCATE {tables} RESTART IDENTITY CASCADE\"))\n    yield engine\n    engine.dispose()\n\n\n@pytest.fixture\ndef db(engine: Engine, tmp_path: Path) -> Iterator[Session]:\n    with engine.connect() as connection:\n        transaction = connection.begin()\n        session = Session(\n            bind=connection,\n            join_transaction_mode=\"create_savepoint\",\n            expire_on_commit=False,\n            info={\"clock\": CLOCK, \"mail_log\": tmp_path / \"mail.log\"},\n        )\n        try:\n            yield session\n        finally:\n            session.close()\n            transaction.rollback()",
+          "explanation": "The name check is a guard worth copying. The fixture empties the database it's given, so it refuses one whose name doesn't end in `test`, and a wrong environment variable can't wipe your development data. `scope=\"session\"` runs the migrations once per run, not once per test. In `db`, the outer `transaction` is the one that matters: whatever the test and the app do, `transaction.rollback()` in the `finally` block undoes it all, even when the test fails."
+        },
+        {
+          "title": "A test built from factories",
+          "prompt": "A fixture and a test from `tests/test_tasks.py`.",
+          "language": "python",
+          "file": "tests/test_tasks.py",
+          "code": "@pytest.fixture\ndef team(db: Session) -> tuple[User, User, Project]:\n    \"\"\"An owner, a member, and their project, which starts on 2026-09-01.\"\"\"\n    owner, member = make_user(db), make_user(db)\n    return owner, member, make_project(db, owner, members=(member,))\n\n\ndef test_the_assignee_must_be_a_member(\n    client: TestClient, db: Session, team: tuple[User, User, Project], auth_headers: AuthHeaders\n) -> None:\n    \"\"\"Assigning someone outside the project is a 422 naming assignee_id.\"\"\"\n    owner, _, project = team\n    outsider = make_user(db)\n\n    response = client.post(\n        f\"/v1/projects/{project.id}/tasks\",\n        json={\"title\": \"Ship it\", \"assignee_id\": outsider.id},\n        headers=auth_headers(owner),\n    )\n\n    assert response.status_code == 422\n    assert response.json()[\"errors\"] == {\"assignee_id\": \"must be a member of the project\"}",
+          "explanation": "The test builds exactly the data it needs with factories, instead of leaning on shared rows that other tests also change. It's laid out as arrange, act, and assert, with a blank line between them. It checks the status and the exact `errors` body, because the body is part of the API's contract and clients depend on it. The docstring states the rule in one sentence, which is the first thing you read when the test fails."
+        },
+        {
+          "title": "Running the suite",
+          "prompt": "Run every test, with the short output.",
+          "language": "bash",
+          "code": "uv run pytest -q",
+          "output": "........................................................................ [ 51%]\n...................................................................      [100%]\n139 passed in 6.13s",
+          "explanation": "Each dot is a passing test. A failure prints an `F`, and at the end the failing assertion with the values on both sides. The configuration lives in `[tool.pytest]` in `pyproject.toml`, the TOML table pytest 9 reads, with `strict = true`, so a misspelled marker or config key is an error instead of being ignored. While you work, `-k` picks tests by name, `-x` stops at the first failure, and `--lf` reruns only the tests that failed last time."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "tests/conftest.py",
+          "tests/factories.py",
+          "tests/test_tasks.py"
+        ]
+      }
+    }
+  ],
+  "recap": "- Raise domain errors in services and turn them into one problem format in one place, with a catch-all that logs the traceback and hides it from clients.\n- Store only Argon2 hashes, and make every failed login look the same and take the same time.\n- Sign JWTs with a long secret from the settings, accept one algorithm, require the claims you use, and remember that anyone can read them.\n- Test against real PostgreSQL, with migrations run once and a rolled-back transaction around each test.\n- Build test data with factories, and assert on the exact status and body that clients depend on."
+}

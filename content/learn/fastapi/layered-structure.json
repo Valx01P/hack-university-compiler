@@ -1,0 +1,125 @@
+{
+  "id": "layered-structure",
+  "title": "Routers, Services, and Repositories",
+  "section": "FastAPI Fundamentals",
+  "summary": "See why a team codebase splits into routes, schemas, services, repositories, and models, and follow one request through every layer.",
+  "format": "read",
+  "intro": "A one-file app is fine for a demo. A codebase that five people change every week needs a place for each kind of code, so you know where a rule lives, where a query lives, and what a change can break. Taskboard uses the layered structure most FastAPI teams settle on. In this lesson you learn what each layer owns, follow one request from the route to the database and back, and see why the rules sit in services.",
+  "steps": [
+    {
+      "title": "One layer per job",
+      "body": "Taskboard's `app/` folder has one package per kind of code, and each package owns one job:\n\n- `api/routes/` holds the routers: read the request, call a service, return a schema.\n- `schemas/` holds the Pydantic models, the JSON clients send and get back.\n- `services/` holds the business rules and decides when to commit.\n- `repositories/` holds every query, and nothing else.\n- `models/` holds the SQLAlchemy classes that map tables.\n- `core/` and `db/` hold settings, security, errors, the clock, the engine, and the session.\n\nImports go one way: routes use services, services use repositories, repositories use models, and nothing imports a layer above it. That rule is what makes the layers pay off. A service can be tested without HTTP, a query can change without touching a route, and when a rule changes you know which file to open.\n\nIf you know MVC, the model is `models/` plus `repositories/`, the view is `schemas/`, and the controller is `api/routes/`.",
+      "examples": [
+        {
+          "title": "The map",
+          "prompt": "The layout from Taskboard's README. Open the explorer next to it and you'll find each folder.",
+          "language": "text",
+          "file": "README.md",
+          "code": "app/main.py              create_app(): settings, logging, error handlers, routers, middleware\napp/middleware.py        request ids, timing, and one JSON log line per request\napp/worker.py            the outbox worker (python -m app.worker --once)\napp/core/                config, the clock, security (Argon2, JWTs), errors, request context, JSON logs\napp/db/                  the declarative base, the engine and session dependency, the hooks\napp/models/              User, Project and Membership, Task, Comment, TaskWatcher, Tag, OutboxMessage, AuditLog\napp/schemas/             Pydantic models for bodies, responses, filters, and pages\napp/repositories/        every query, and nothing else\napp/services/            the rules: auth, users, projects, tasks, comments, watchers, notifications\napp/api/deps.py          CurrentUser, the role checks, and paging\napp/api/routes/          one router per resource, mounted under /v1 (health and internal outside it)\nmigrations/              Alembic: env.py and 0001 to 0006\nscripts/seed.py          loads scripts/seed.json (the contract's seed) and this course's extras\ntests/                   conftest.py (the test database and fixtures), factories.py, one file per area",
+          "explanation": "Each layer is split again by resource: `routes/tasks.py`, `services/tasks.py`, and `repositories/tasks.py` all deal with tasks, so a feature touches files with the same name in each layer. `app/api/deps.py` holds the dependencies routes share, and `app/core/errors.py` holds the errors every layer raises. When you join a team, find this map first, and keep it true with every change you make."
+        },
+        {
+          "title": "One app factory",
+          "prompt": "`create_app()` in `app/main.py` builds the app and mounts every router.",
+          "language": "python",
+          "file": "app/main.py",
+          "code": "def create_app(settings: Settings | None = None) -> FastAPI:\n    settings = settings or get_settings()\n    configure_logging()\n\n    app = FastAPI(\n        title=settings.app_name,\n        version=\"1.0.0\",\n        summary=\"Projects, tasks, comments, and watchers. Serves the Taskboard contract 1.0.0.\",\n        lifespan=lifespan,\n        docs_url=\"/docs\" if settings.docs_enabled else None,\n        redoc_url=\"/redoc\" if settings.docs_enabled else None,\n        openapi_url=\"/openapi.json\" if settings.docs_enabled else None,\n    )\n    register_error_handlers(app)\n\n    api = APIRouter(prefix=\"/v1\")\n    for module in (auth, users, projects, tasks, comments, watchers):\n        api.include_router(module.router)\n    app.include_router(health.router)\n    app.include_router(api)\n    app.include_router(internal.router)",
+          "explanation": "An app factory builds a fresh app from settings, so each test can call `create_app()` and get an app of its own. Every resource router joins one `APIRouter(prefix=\"/v1\")`, so the version prefix is written once, and the health routes stay outside it, at `/healthz` and `/readyz`, where load balancers poll them. Production turns off `/docs` through a setting instead of an edit. `register_error_handlers(app)` installs the handlers that turn every error into one format."
+        },
+        {
+          "title": "Thin routes",
+          "prompt": "The first routes in `app/api/routes/projects.py`. Each one reads, delegates, and answers.",
+          "language": "python",
+          "file": "app/api/routes/projects.py",
+          "code": "router = APIRouter(prefix=\"/projects\", tags=[\"projects\"])\n\n\n@router.get(\"\")\ndef list_projects(user: CurrentUser, session: SessionDep) -> list[ProjectListItem]:\n    \"\"\"The projects you are a member of, by id, with their task counts.\"\"\"\n    return projects.list_projects(session, user)\n\n\n@router.post(\"\", status_code=status.HTTP_201_CREATED)\ndef create_project(\n    data: ProjectCreate, user: CurrentUser, session: SessionDep, clock: ClockDep, response: Response\n) -> ProjectOut:\n    project = projects.create_project(session, user, data, clock=clock)\n    response.headers[\"Location\"] = f\"/v1/projects/{project.id}\"\n    return ProjectOut.of(project)\n\n\n@router.get(\"/{project_id}\")\ndef read_project(access: ProjectReader, session: SessionDep) -> ProjectOut:\n    return ProjectOut.of(projects.with_members(session, access.project))",
+          "explanation": "Here `projects` is the service module, `app/services/projects.py`. None of these routes imports SQLAlchemy or holds a rule. They take what the request carries, call one service function, and return a schema, so they're quick to review. If a route grows an `if` about business data, that rule belongs in a service. Docstrings become the operation descriptions in `/docs`, and `tags` groups the routes there."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "README.md",
+          "app/main.py",
+          "app/api/routes/projects.py"
+        ]
+      }
+    },
+    {
+      "title": "Follow one request",
+      "body": "Take `POST /v1/projects/1/tasks` with a title and an assignee, sent with Ada's token. Here is everything that runs, in order:\n\n1. The middleware gives the request an id, sent back as `X-Request-ID`.\n2. FastAPI matches the route and solves its dependencies: it reads the token, loads Ada, loads project 1, and checks her role.\n3. It validates the body as a `TaskCreate`. An unknown field or a bad value stops here.\n4. The route calls `create_task` in `app/services/tasks.py`, which checks the rules and finds the task's place on the board.\n5. The repository adds the `Task` and flushes, so PostgreSQL assigns its id.\n6. The service commits. Only then is the mail to the assignee written.\n7. The route answers 201 with a `TaskOut`, a `Location`, and an `ETag`.\n\nEach layer does its step and hands a typed value to the next: a `TaskCreate`, then a `Task`, then a `TaskOut`.",
+      "examples": [
+        {
+          "title": "The route",
+          "prompt": "`create_task` in `app/api/routes/tasks.py` connects HTTP to the service. It never sees SQL.",
+          "language": "python",
+          "file": "app/api/routes/tasks.py",
+          "code": "@router.post(\"/projects/{project_id}/tasks\", status_code=status.HTTP_201_CREATED)\ndef create_task(\n    access: ProjectMember,\n    data: TaskCreate,\n    session: SessionDep,\n    clock: ClockDep,\n    response: Response,\n) -> TaskOut:\n    task = tasks.create_task(session, access.project, data, clock=clock)\n    response.headers[\"Location\"] = f\"/v1/tasks/{task.id}\"\n    response.headers[\"ETag\"] = task.etag\n    return TaskOut.model_validate(task)",
+          "explanation": "`data: TaskCreate` is the validated body, and `access: ProjectMember` is the result of the role check, holding the project. `status_code=status.HTTP_201_CREATED` sets the success status with a named constant instead of a bare 201. The `response: Response` parameter lets the route add headers: `Location` says where the new task lives, and `ETag` carries its version, which an edit must send back. `TaskOut.model_validate(task)` builds the response from the SQLAlchemy object, which works because `OutputModel` sets `from_attributes=True`."
+        },
+        {
+          "title": "The service",
+          "prompt": "`create_task` in `app/services/tasks.py` checks the rules, builds the row, and commits.",
+          "language": "python",
+          "file": "app/services/tasks.py",
+          "code": "def create_task(session: Session, project: Project, data: TaskCreate, *, clock: Clock) -> Task:\n    if project.archived:\n        raise ProjectArchived(f\"project {project.id} is archived, so it takes no new tasks\")\n    assignee = _check_assignee(session, project, data.assignee_id) if data.assignee_id else None\n    if data.due_on is not None:\n        _check_due_on(project, data.due_on, today=clock.today())\n\n    task = Task(\n        project_id=project.id,\n        title=data.title,\n        description=data.description,\n        priority=data.priority,\n        due_on=data.due_on,\n        assignee_id=data.assignee_id,\n        status=TaskStatus.TODO,\n        position=tasks.next_position(session, project.id, TaskStatus.TODO),\n    )\n    tasks.add(session, task)\n    if assignee is not None:\n        notifications.task_assigned(session, task, assignee)\n    session.commit()\n    return task",
+          "explanation": "The service owns the transaction, so the new row and the queued mail commit together or not at all. It takes plain arguments (a session, a project, a `TaskCreate`, and a clock) and knows nothing about requests or status codes, so a test can call it directly. A rule that fails raises a domain error such as `ProjectArchived`, and one handler turns it into a response. `clock.today()` comes from an injected clock instead of `date.today()`, so a test can choose the date. Here `tasks` is the repository module, so `tasks.next_position` and `tasks.add` are queries."
+        },
+        {
+          "title": "The answer",
+          "prompt": "Create a task as Ada, with spaces around the title. `-i` prints the headers too.",
+          "language": "bash",
+          "code": "curl -si localhost:$PORT/v1/projects/1/tasks -H \"Authorization: Bearer $TOKEN\" \\\n  --json '{\"title\": \"  Write the launch email  \", \"priority\": 3, \"due_on\": \"2026-10-12\", \"assignee_id\": 2}'",
+          "output": "HTTP/1.1 201 Created\ndate: Tue, 20 Oct 2026 01:40:54 GMT\nserver: uvicorn\ncontent-length: 260\ncontent-type: application/json\nlocation: /v1/tasks/19\netag: \"v1\"\nx-request-id: 01a156f7-fd94-7308-b884-2ec9237f5d73\nx-process-time-ms: 12\nvary: Origin\n\n{\"id\":19,\"project_id\":1,\"title\":\"Write the launch email\",\"description\":null,\"status\":\"todo\",\"priority\":3,\"due_on\":\"2026-10-12\",\"assignee_id\":2,\"version\":1,\"completed_at\":null,\"created_at\":\"2026-10-01T09:00:00Z\",\"updated_at\":\"2026-10-01T09:00:00Z\",\"position\":3}",
+          "explanation": "201, with `location` and `etag` set by the route. The title came back trimmed, by `strip_whitespace` in its type. `position` is 3 because the To do column already held three tasks, and `created_at` is the workspace's fixed clock, 2026-10-01 09:00 UTC. The body has exactly the fields `TaskOut` declares, and nothing else."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "app/api/routes/tasks.py",
+          "app/services/tasks.py",
+          "app/repositories/tasks.py"
+        ]
+      }
+    },
+    {
+      "title": "Where rules and queries live",
+      "body": "The line between services and repositories is the one teams argue about most, so here is the rule Taskboard follows. A repository talks to the database: get this task, list these tasks, add this one. It takes the session first, returns models or plain values, and leaves every decision to a service. A service decides: whether a change is allowed, what else it sets off, and when to commit. When a service needs data to decide, it asks a repository.\n\nThe payoff shows in reviews and tests. A query you need twice lives once, and a rule lives in one function with a name, like `_check_assignee`, instead of being copied into three routes.\n\nTwo habits keep the layers honest. The resource routes never import SQLAlchemy, and services never raise `HTTPException`. Services raise domain errors from `app/core/errors.py`, such as `Unprocessable` or `NotFound`, which say what went wrong in the domain's words.",
+      "examples": [
+        {
+          "title": "Rules with names",
+          "prompt": "Two rules from `app/services/tasks.py`, which both `create_task` and `update_task` call.",
+          "language": "python",
+          "file": "app/services/tasks.py",
+          "code": "def _check_assignee(session: Session, project: Project, assignee_id: int) -> User:\n    assignee = users.get(session, assignee_id)\n    if assignee is None or projects.role_of(session, project.id, assignee_id) is None:\n        raise Unprocessable(\n            f\"user {assignee_id} is not a member of this project\",\n            errors={\"assignee_id\": \"must be a member of the project\"},\n        )\n    return assignee\n\n\ndef _check_due_on(project: Project, due_on: date, *, today: date) -> None:\n    if due_on < today:\n        raise Unprocessable(\n            f\"{due_on} is in the past (today is {today})\",\n            errors={\"due_on\": f\"must be {today} or later\"},\n        )\n    if project.start_date is not None and due_on < project.start_date:\n        raise DueBeforeProjectStart(\n            f\"the project starts on {project.start_date}, after {due_on}\",\n            errors={\"due_on\": f\"must be on or after the project's start, {project.start_date}\"},\n        )",
+          "explanation": "`_check_assignee` needs data to decide, so it asks two repositories, `users.get` and `projects.role_of`, then judges the answer. Because creating and editing share these functions, the two endpoints can't drift apart. Each error names the field to blame in `errors`. This is a different kind of check from Pydantic's. A schema can tell that `assignee_id` is a positive whole number, but only the database knows whether that user belongs to the project."
+        },
+        {
+          "title": "The rule at work",
+          "prompt": "Assign a task to user 4, Margaret, who is in no project.",
+          "language": "bash",
+          "code": "curl -s localhost:$PORT/v1/projects/1/tasks -H \"Authorization: Bearer $TOKEN\" \\\n  --json '{\"title\": \"Ship it\", \"assignee_id\": 4}' | jq",
+          "output": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Unprocessable Content\",\n  \"status\": 422,\n  \"detail\": \"user 4 is not a member of this project\",\n  \"errors\": {\n    \"assignee_id\": \"must be a member of the project\"\n  },\n  \"request_id\": \"01a156f7-fdb5-7551-9ab7-351799fdaf35\"\n}",
+          "explanation": "The body was valid, so the request reached the service, where `_check_assignee` raised `Unprocessable`. The handler in `app/core/errors.py` turned it into this 422, in the same shape a validation error has, so a client parses one format for every failure. Nothing was written, because the service raised before it added the task."
+        },
+        {
+          "title": "Repository functions",
+          "prompt": "Two small queries from `app/repositories/projects.py`.",
+          "language": "python",
+          "file": "app/repositories/projects.py",
+          "code": "def get(session: Session, project_id: int) -> Project | None:\n    return session.get(Project, project_id)\n\n\ndef role_of(session: Session, project_id: int, user_id: int) -> ProjectRole | None:\n    statement = select(Membership.role).where(\n        Membership.project_id == project_id, Membership.user_id == user_id\n    )\n    return session.scalar(statement)",
+          "explanation": "Repository functions are small and plain on purpose. Each takes the session first, runs one query, and returns a model, a value, or `None`. They don't raise `NotFound` for a missing row: returning `None` lets the caller decide, and only the service knows what a missing project means for this request. `session.get` looks in the session's identity map before it queries, so asking twice for the same row in one request costs one SELECT."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "app/services/tasks.py",
+          "app/repositories/projects.py",
+          "app/core/errors.py"
+        ]
+      }
+    }
+  ],
+  "recap": "- Routes read the request and answer, schemas define the JSON, services hold the rules and the transaction, repositories hold the queries, and models map the tables.\n- Imports go one way, from routes down to models, and nothing imports a layer above it.\n- Keep routes thin: no SQLAlchemy and no business rules. A rule gets a named function in a service.\n- Repositories return models, values, or `None`, and services decide what a missing row means.\n- Services raise domain errors, never `HTTPException`, and one handler turns them into responses."
+}

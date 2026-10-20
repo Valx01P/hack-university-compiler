@@ -1,0 +1,127 @@
+{
+  "id": "tanstack-query",
+  "title": "Fetching Data with TanStack Query",
+  "section": "Building a Real App",
+  "summary": "Fetch, cache, and update server data with TanStack Query: query keys, one API client, loading and error states, prefetching, and mutations.",
+  "format": "read",
+  "intro": "Almost every React app at work talks to an API. Fetching in an effect by hand means writing loading flags, error handling, race guards, and a cache yourself, so most teams hand that job to TanStack Query. It keeps one cache of server data, keyed by what each request depends on, shares it between components, refreshes it when it goes stale, and updates it after your changes. In this lesson you follow Taskboard's data layer from a component down to the API and back.",
+  "steps": [
+    {
+      "title": "Queries and the API client",
+      "body": "Server state is data the server owns, like projects and tasks. Your app only holds a copy, which can go stale while it's on screen. TanStack Query manages that copy.\n\nA query has a `queryKey`, an array of everything the request depends on, and a `queryFn` that fetches it. A component calls `useQuery`, and every component that asks for the same key shares one cache entry and one request. A new key, like another project's id, is a new entry.\n\nDefine each query once, with `queryOptions()`, in the feature's `api.ts`. Components, prefetches, and route loaders then use the exact same key and function. The `queryFn` receives a `signal`: pass it on, so a request nobody needs anymore is cancelled.\n\nEvery request goes through one function, `apiFetch` in `lib/api-client.ts`. It adds the API's base path, sends and parses JSON, carries the session cookie, and turns an error response into an `ApiError` with its status and field errors.",
+      "examples": [
+        {
+          "title": "Query definitions",
+          "prompt": "Read `projectQueries`, which describes each read of the projects feature once: its key and its request.",
+          "language": "ts",
+          "file": "src/features/projects/api.ts",
+          "code": "export const projectQueries = {\n  list: () =>\n    queryOptions({\n      queryKey: queryKeys.projects(),\n      queryFn: ({ signal }) => apiFetch<ProjectSummary[]>(\"/projects\", { signal }),\n    }),\n  detail: (projectId: number) =>\n    queryOptions({\n      queryKey: queryKeys.project(projectId),\n      queryFn: ({ signal }) => apiFetch<Project>(`/projects/${projectId}`, { signal }),\n    }),\n  stats: (projectId: number) =>\n    queryOptions({\n      queryKey: queryKeys.projectStats(projectId),\n      queryFn: ({ signal }) => apiFetch<TaskCounts>(`/projects/${projectId}/stats`, { signal }),\n    }),\n};",
+          "explanation": "Each entry is a function that returns `queryOptions`, so `projectQueries.detail(1)` builds the key `[\"projects\", 1]` and the request for `/projects/1` together, and the two can't drift apart. `apiFetch<ProjectSummary[]>` types what the request returns, and `useQuery` passes that type on, so `data` is typed with no annotation at the call. The `signal` goes all the way to `fetch`, so leaving the page cancels a request still in flight. A component reads one with `useQuery(projectQueries.list())`. The keys come from `lib/query-keys.ts`, one file for the whole app, so two features can't use one key for different data."
+        },
+        {
+          "title": "The one function that calls fetch",
+          "prompt": "Read `apiFetch`, the only place in the app that calls `fetch`.",
+          "language": "ts",
+          "file": "src/lib/api-client.ts",
+          "code": "export async function apiFetch<T>(path: string, { method = \"GET\", body, headers, signal }: ApiOptions = {}): Promise<T> {\n  const response = await fetch(`${BASE}${path}`, {\n    method,\n    signal,\n    credentials: CREDENTIALS,\n    headers: {\n      Accept: \"application/json\",\n      ...(body !== undefined && { \"Content-Type\": \"application/json\" }),\n      ...headers,\n    },\n    body: body === undefined ? undefined : JSON.stringify(body),\n  });\n  if (!response.ok) {\n    if (response.status === 401) unauthorizedHandler?.();\n    throw new ApiError(await readProblem(response));\n  }\n  if (response.status === 204) return undefined as T;\n  return (await response.json()) as T;\n}",
+          "explanation": "`fetch` resolves even for a 404 or a 500: it only rejects when the network fails. So `apiFetch` checks `response.ok` and throws an `ApiError` built from the API's problem JSON, and TanStack Query sees a failed query instead of an empty list. A 401 also calls the handler the auth feature registered, so a session that expires while the app is open sends the user to log in again, then back to the same page. A 204 has no body to parse. Because every feature calls this one function, the base path, the JSON headers, the cookie mode, and the error shape are decided once, and pointing the client at another backend is one line in `.env.local`."
+        },
+        {
+          "title": "What a query fetches",
+          "prompt": "Send the Stats tab's request from `requests.http`, logged in as Ada, and read what comes back.",
+          "language": "http",
+          "file": "requests.http",
+          "code": "### Counts by status (the Stats tab)\nGET /v1/projects/1/stats\n\n> status 200\n> json $ == {\"todo\": 3, \"doing\": 3, \"done\": 2}",
+          "output": "HTTP/1.1 200 OK\nContent-Type: application/json; charset=utf-8\n\n{\"todo\":3,\"doing\":3,\"done\":2}",
+          "explanation": "`projectQueries.stats(1)` asks `apiFetch` for `/projects/1/stats`, and `apiFetch` adds the `/v1`, so this is exactly the request the Stats tab sends. The lines that start with `>` are the file's checks on the answer. The parsed body is what the cache stores under `[\"projects\", 1, \"stats\"]`, and what `useQuery` returns as `data`, typed `TaskCounts`. The mock API also prints every request it serves, like `GET /v1/projects/1/stats 200 1ms`, which is the quickest way to see when your queries really hit the network."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-web",
+        "files": [
+          "src/features/projects/api.ts",
+          "src/lib/api-client.ts",
+          "requests.http"
+        ]
+      }
+    },
+    {
+      "title": "Loading, errors, and prefetching",
+      "body": "`useQuery` returns the state of the request. `isPending` is true until there is data, `isError` and `error` describe a failure, and `data` holds the result once it's there. Render each case on purpose: placeholders the size of the real content while pending, an error with a Retry button that calls `refetch`, an empty state, then the data. `isFetching` is true during any request, including a background refresh while the old data stays on screen.\n\nThe `QueryClient`'s defaults decide how fresh data must be. `staleTime` is how long a result counts as fresh, so other components reuse it without a request. After that, the next use, or coming back to the tab, refetches it in the background.\n\nTwo habits make an app feel instant. Prefetch on hover and focus with `queryClient.prefetchQuery`, so the data is cached before the click. And pass `placeholderData: keepPreviousData` to keep the old results on screen while a new filter or page loads.",
+      "examples": [
+        {
+          "title": "Every state on screen",
+          "prompt": "Read how the projects page renders the four cases: loading, an error, no projects, and the list.",
+          "language": "tsx",
+          "file": "src/features/projects/ProjectsPage.tsx",
+          "code": "export function ProjectsPage() {\n  const projects = useQuery(projectQueries.list());\n  // ...\n      {projects.isPending ? (\n        <ul role=\"list\" className={styles.grid} aria-busy=\"true\" aria-label=\"Loading projects\">\n          {[1, 2, 3].map((n) => (\n            <li key={n} className={styles.placeholder}>\n              <Skeleton width=\"60%\" height=\"1.25rem\" />\n              <Skeleton height=\"2.5rem\" />\n              <Skeleton width=\"40%\" />\n            </li>\n          ))}\n        </ul>\n      ) : projects.isError ? (\n        <ErrorState title=\"Couldn't load your projects\" error={projects.error} onRetry={() => projects.refetch()} />\n      ) : projects.data.length === 0 ? (\n        <EmptyState title=\"You're not in any projects yet\" action={<Button onClick={() => setCreating(true)}>Create a project</Button>}>\n          Create one, or ask a teammate to add you to theirs.\n        </EmptyState>\n      ) : (\n        <ul role=\"list\" className={styles.grid}>\n          {projects.data.map((project) => (\n            <li key={project.id}>\n              <ProjectCard project={project} />\n            </li>\n          ))}\n        </ul>\n      )}",
+          "explanation": "The chain of ternaries handles each state once, in order. While pending, three skeleton cards hold the space the real cards will take, so nothing jumps when they arrive, and `aria-busy` tells screen readers to wait. An error says what the server answered, with a Retry button that calls `projects.refetch()`. An empty list gets its own message and a next step: Margaret, a seed user in no project, sees it. Only then does `projects.data` render, and TypeScript knows it's defined there, because `isPending` and `isError` were checked first."
+        },
+        {
+          "title": "The cache's defaults",
+          "prompt": "Read how the app's one `QueryClient` decides freshness and retries.",
+          "language": "ts",
+          "file": "src/app/query-client.ts",
+          "code": "// The TanStack Query client: the cache of server data for the whole app. Data counts as fresh for\n// 30 seconds (no refetch when another component asks), refetches when you come back to the tab,\n// and a failed request is retried once, unless the server said 4xx, which a retry won't fix.\nimport { QueryClient } from \"@tanstack/react-query\";\nimport { ApiError } from \"@/lib/api-client\";\n\nconst isClientError = (error: unknown) => error instanceof ApiError && error.status >= 400 && error.status < 500;\n\n/** Tests pass retry: false, so a failing request fails at once instead of after a retry delay. */\nexport function createQueryClient({ retry = true }: { retry?: boolean } = {}): QueryClient {\n  return new QueryClient({\n    defaultOptions: {\n      queries: {\n        staleTime: 30_000,\n        refetchOnWindowFocus: true,\n        retry: retry ? (failureCount, error) => failureCount < 1 && !isClientError(error) : false,\n      },\n    },\n  });\n}\n\nexport const queryClient = createQueryClient();",
+          "explanation": "`staleTime: 30_000` keeps a result fresh for 30 seconds, so a component that mounts later, like a page you come back to, reuses it without a request. The default is 0, which refetches in the background every time a component that reads it mounts. `refetchOnWindowFocus` refreshes what's on screen when you come back to the tab, so a teammate's changes show up. Retries help with flaky networks, so the client retries once, but never after a 4xx: a 404 or a 403 will fail again. `createQueryClient` is a function so that tests can make a fresh client for every test, with retries off, so a failing request fails at once."
+        },
+        {
+          "title": "Prefetch on hover",
+          "prompt": "Read how a project card fills the cache with the board's tasks before you click it.",
+          "language": "tsx",
+          "file": "src/features/projects/ProjectCard.tsx",
+          "code": "export function ProjectCard({ project }: { project: ProjectSummary }) {\n  const queryClient = useQueryClient();\n  const headingId = `project-${project.id}-name`;\n\n  function prefetchBoard() {\n    void queryClient.prefetchQuery(taskQueries.list(project.id, boardParams(DEFAULT_FILTERS)));\n  }\n\n  return (\n    <article className={styles.card} aria-labelledby={headingId} style={{ \"--project-color\": project.color } as CSSProperties} onMouseEnter={prefetchBoard}>\n      <h2 id={headingId} className={styles.name}>\n        <Link to={`/projects/${project.id}`} onFocus={prefetchBoard}>\n          {project.name}\n        </Link>\n      </h2>\n      {/* ... */}\n    </article>\n  );\n}",
+          "explanation": "`onMouseEnter` on the card and `onFocus` on its link both call `prefetchQuery` with the options the board's own `useQuery` uses: `taskQueries.list` with the default filters. So by the time the click lands, the board's tasks are usually cached, and the page renders complete. Focus matters as much as hover, so keyboard users get the same speed. Repeating it is cheap: within the 30 seconds of `staleTime`, a second hover sends nothing. `prefetchQuery` never throws, and `void` marks a promise the code doesn't wait for on purpose."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-web",
+        "files": [
+          "src/features/projects/ProjectsPage.tsx",
+          "src/app/query-client.ts",
+          "src/features/projects/ProjectCard.tsx"
+        ]
+      }
+    },
+    {
+      "title": "Mutations and the cache",
+      "body": "A mutation changes data on the server. `useMutation({ mutationFn, onSuccess, onError, onSettled })` returns `mutate` to start it, `mutateAsync` when you need to `await` it, as a form action does, and `isPending`.\n\nAfter a change, the cache is out of date, so tell it. `setQueryData(key, data)` writes the server's response straight into one entry, and `invalidateQueries({ queryKey })` marks every entry under that key stale and refetches the ones on screen. Keys nest, so invalidating `[\"projects\", 1, \"tasks\"]` refreshes every task list of project 1, whatever its filters.\n\nFor changes that should feel instant, update optimistically. In `onMutate`, cancel the refetches in flight, take a snapshot, and write the expected result. In `onError`, restore the snapshot and tell the user. In `onSettled`, invalidate, so the cache ends up exactly as the server has it, whatever happened.",
+      "examples": [
+        {
+          "title": "Keys that nest",
+          "prompt": "Read every cache key in the app, defined in one file.",
+          "language": "ts",
+          "file": "src/lib/query-keys.ts",
+          "code": "// Every TanStack Query cache key in one place. A key holds everything its request depends on, and\n// keys nest, so invalidating [\"projects\", 1, \"tasks\"] refreshes every task list of project 1,\n// whatever its filters. Features build their queries from these, and a feature that changes\n// another feature's data (a label on a task) finds the keys to update here.\nimport type { TaskListParams } from \"@/features/tasks/types\";\n\nexport const queryKeys = {\n  me: () => [\"me\"] as const,\n  users: (q: string) => [\"users\", { q }] as const,\n  projects: () => [\"projects\"] as const,\n  project: (projectId: number) => [\"projects\", projectId] as const,\n  projectStats: (projectId: number) => [\"projects\", projectId, \"stats\"] as const,\n  projectLabels: (projectId: number) => [\"projects\", projectId, \"labels\"] as const,\n  projectTasks: (projectId: number) => [\"projects\", projectId, \"tasks\"] as const,\n  taskList: (projectId: number, params: TaskListParams) => [\"projects\", projectId, \"tasks\", params] as const,\n  task: (taskId: number) => [\"tasks\", taskId] as const,\n  comments: (taskId: number) => [\"tasks\", taskId, \"comments\"] as const,\n  watchers: (taskId: number) => [\"tasks\", taskId, \"watchers\"] as const,\n};",
+          "explanation": "Each key starts with the resource and adds what the request depends on. A task list's key ends with its params object, so each filter, sort, and page is its own cache entry, and a filter you visited before shows at once. Because keys are prefixes of each other, one call can refresh a whole family: `[\"projects\", 1, \"tasks\"]` matches every list of project 1, and `[\"projects\"]` with `exact: true` matches only the projects list. `as const` makes each key a readonly tuple, so TypeScript checks what goes into it."
+        },
+        {
+          "title": "Write, then refresh",
+          "prompt": "Read the mutation behind a project's Rename form.",
+          "language": "ts",
+          "file": "src/features/projects/api.ts",
+          "code": "export function useRenameProject(projectId: number) {\n  const queryClient = useQueryClient();\n  return useMutation({\n    mutationFn: (name: string) => renameProject(projectId, name),\n    onSuccess: (project) => {\n      queryClient.setQueryData(queryKeys.project(projectId), project);\n      return queryClient.invalidateQueries({ queryKey: queryKeys.projects(), exact: true });\n    },\n  });\n}",
+          "explanation": "The server answers a rename with the updated project, so `onSuccess` writes it into the project's entry with `setQueryData`. The project page shows the new name at once, without asking again for data it was just given. The projects list shows the name too, so it's invalidated, with `exact: true`: without it, every key that starts with `[\"projects\"]`, each project's tasks and stats included, would refetch as well. Returning the promise from `onSuccess` keeps the mutation pending until the list has refreshed, so the form's Save button stays disabled, and the form open, until everything on screen matches."
+        },
+        {
+          "title": "Optimistic status changes",
+          "prompt": "Read `useTransitionTask`, which moves a card to another column before the server answers.",
+          "language": "ts",
+          "file": "src/features/tasks/hooks/use-update-task.ts",
+          "code": "export function useTransitionTask() {\n  const queryClient = useQueryClient();\n  const toast = useToast();\n\n  return useMutation({\n    mutationFn: ({ task, to }: { task: Task; to: TaskStatus }) => transitionTask(task.id, to),\n    onMutate: async ({ task, to }) => {\n      const snapshot = await snapshotTask(queryClient, task);\n      writeTask(queryClient, task, (current) => ({ ...current, status: to }));\n      return snapshot;\n    },\n    onError: (_error, _variables, snapshot) => {\n      if (snapshot) restoreTask(queryClient, snapshot);\n      toast(\"Couldn't move the task. It's back where it was.\", \"danger\");\n    },\n    onSuccess: (saved) => writeTask(queryClient, saved, () => saved),\n    onSettled: (_data, _error, { task }) => refreshProject(queryClient, task.project_id),\n  });\n}",
+          "explanation": "`onMutate` runs before the request. `snapshotTask`, in `cache.ts`, cancels the refetches in flight, which would overwrite the optimistic change, and remembers every cached copy of the task. `writeTask` then sets the new status in all of them, so the card jumps column at once. What `onMutate` returns arrives in `onError` as its third argument, so on a failure the snapshot goes back and a toast says what happened. `onSuccess` writes the server's copy, with its new `version`. `onSettled` runs either way and invalidates the project's lists and counts, so the board ends up exactly as the server has it."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-web",
+        "files": [
+          "src/lib/query-keys.ts",
+          "src/features/projects/api.ts",
+          "src/features/tasks/hooks/use-update-task.ts",
+          "src/features/tasks/cache.ts"
+        ]
+      }
+    }
+  ],
+  "recap": "- Server data belongs in TanStack Query, not in `useState`: one cache, shared by every component that uses the same key.\n- Put everything a request depends on in its key, and define each query once with `queryOptions` in the feature's `api.ts`.\n- Send every request through one client that checks `response.ok` and throws a typed error.\n- Render pending, error, empty, and data on purpose, set a `staleTime`, and prefetch on hover and focus.\n- After a mutation, write what the server returned with `setQueryData`, invalidate what it affected, and roll optimistic updates back from a snapshot."
+}

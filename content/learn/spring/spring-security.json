@@ -1,0 +1,114 @@
+{
+  "id": "spring-security",
+  "title": "Securing the API with Spring Security",
+  "section": "Security and Testing",
+  "summary": "Decide who may call each route, hash passwords, issue and check JWTs, and keep every customer's data their own.",
+  "format": "read",
+  "intro": "Security mistakes are the bugs that make the news: an admin route anyone can call, a password stored as plain text, one customer reading another's orders. Spring Security handles the hard parts, as long as you configure it on purpose. In this lesson you read how shopfront logs customers in, checks a token on every request, and decides what each caller may see.",
+  "steps": [
+    {
+      "title": "The security filter chain",
+      "body": "Spring Security runs as a chain of filters in front of every controller. As soon as the starter is on the classpath, every endpoint answers 401, until you say otherwise with a `SecurityFilterChain` bean.\n\n`authorizeHttpRequests` lists rules from top to bottom, and the first rule that matches a request wins. So put narrow rules first and end with `anyRequest()`:\n\n- `permitAll()` lets anyone in.\n- `authenticated()` needs any valid caller.\n- `hasRole(\"ADMIN\")` needs the `ROLE_ADMIN` authority.\n\nTwo status codes come out of it. 401 Unauthorized means the request did not prove who it is: no token, or a bad one. 403 Forbidden means it did, and that caller is not allowed.\n\nShopfront's API is stateless: every request carries a bearer token, so there are no sessions and no login form. That is why CSRF protection is off. CSRF attacks ride on cookies the browser sends by itself, and a bearer token is never sent that way.",
+      "examples": [
+        {
+          "title": "Who may call what",
+          "prompt": "Shopfront's rules for every route, read from top to bottom.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/config/SecurityConfig.java",
+          "code": "http\n        .authorizeHttpRequests(requests -> requests\n                .requestMatchers(HttpMethod.POST, \"/api/auth/token\", \"/api/customers\").permitAll()\n                .requestMatchers(HttpMethod.GET, \"/api/products/**\", \"/api/categories\").permitAll()\n                .requestMatchers(\"/api/products/**\", \"/api/admin/**\").hasRole(\"ADMIN\")\n                .requestMatchers(HttpMethod.POST, \"/api/orders\").hasRole(\"CUSTOMER\")\n                .requestMatchers(\"/api/orders/**\").hasAnyRole(\"CUSTOMER\", \"ADMIN\")\n                .requestMatchers(\"/actuator/health/**\", \"/actuator/info\").permitAll()\n                .requestMatchers(\"/actuator/**\").hasRole(\"ADMIN\")\n                .requestMatchers(\"/v3/api-docs/**\", \"/swagger-ui/**\", \"/swagger-ui.html\").permitAll()\n                .requestMatchers(\"/error\").permitAll()\n                .anyRequest().authenticated())\n        .oauth2ResourceServer(resourceServer -> resourceServer\n                .jwt(Customizer.withDefaults())\n                .authenticationEntryPoint(unauthorized)\n                .accessDeniedHandler(forbidden))\n        .exceptionHandling(failures -> failures\n                .authenticationEntryPoint(unauthorized)\n                .accessDeniedHandler(forbidden))\n        .sessionManagement(sessions -> sessions.sessionCreationPolicy(SessionCreationPolicy.STATELESS))\n        // CSRF attacks ride on cookies the browser sends by itself. Bearer tokens are never sent that way.\n        .csrf(AbstractHttpConfigurer::disable)\n        .cors(Customizer.withDefaults());\nreturn http.build();",
+          "explanation": "Reading the catalog is public, and the next rule makes every other request to `/api/products/**` admin-only, so a customer's token cannot add or change products. Only customers place orders, while customers and admins can read them. Health is public for load balancers, and metrics need an admin. `oauth2ResourceServer` with `jwt(...)` makes each request prove itself with a JWT in the `Authorization` header. The custom entry point and access denied handler send 401 and 403 through `ApiExceptionHandler`, so they come back as problems like every other error."
+        },
+        {
+          "title": "A request with no token",
+          "prompt": "A request from `requests.http` that sends no `Authorization` header, and the status line, headers, and body that came back.",
+          "language": "http",
+          "file": "requests.http",
+          "code": "### No token is 401, with the WWW-Authenticate header bearer clients look for\nGET /api/orders\n\n> status 401\n> header WWW-Authenticate ~ ^Bearer",
+          "output": "HTTP/1.1 401\nWWW-Authenticate: Bearer resource_metadata=\"http://localhost:8080/.well-known/oauth-protected-resource\"\nContent-Type: application/problem+json\n\n{\n  \"detail\": \"Send a valid token as Authorization: Bearer <token>. POST /api/auth/token gives you one.\",\n  \"instance\": \"/api/orders\",\n  \"status\": 401,\n  \"title\": \"Unauthorized\"\n}",
+          "explanation": "The controller never ran, because the filter chain answered first. The `WWW-Authenticate: Bearer` header tells the client which scheme to use, and Spring Security 7.1 adds the address of a metadata document for OAuth clients, defined by RFC 9728. The body is a problem like every other error, with a detail that tells a developer how to get a token. The `>` lines under the request state what it should get back, and the API panel checks them."
+        },
+        {
+          "title": "A customer on an admin route",
+          "prompt": "Ana logs in as a customer, then tries to add a product with her token.",
+          "language": "http",
+          "file": "requests.http",
+          "code": "### A customer cannot change the catalog\nPOST /api/products\nAuthorization: Bearer {{ana.response.body.$.token}}\nContent-Type: application/json\n\n{\"sku\": \"KT-008\", \"name\": \"Tea Towel\", \"priceCents\": 599, \"stock\": 30, \"category\": \"kitchen\"}\n\n> status 403",
+          "output": "HTTP/1.1 403\nContent-Type: application/problem+json\n\n{\n  \"detail\": \"Your account is not allowed to do this.\",\n  \"instance\": \"/api/products\",\n  \"status\": 403,\n  \"title\": \"Forbidden\"\n}",
+          "explanation": "Her token is valid, so this is not a 401. Her role is `CUSTOMER`, and writes to `/api/products/**` need `ADMIN`, so the answer is 403. `ProductControllerTest` checks exactly this case, so a change to the rules that lets customers in fails the build. `{{ana.response.body.$.token}}` is filled in from the earlier login request named `ana`."
+        }
+      ],
+      "codebase": {
+        "template": "shopfront",
+        "files": [
+          "src/main/java/dev/hackuniversity/shopfront/config/SecurityConfig.java",
+          "requests.http",
+          "src/main/java/dev/hackuniversity/shopfront/common/ApiExceptionHandler.java"
+        ]
+      }
+    },
+    {
+      "title": "Passwords and tokens",
+      "body": "Never store a password, only a hash of it. `PasswordEncoderFactories.createDelegatingPasswordEncoder()` hashes with BCrypt and writes the algorithm in front, like `{bcrypt}$2a$10$...`, so you can move to a stronger algorithm later without breaking old hashes. BCrypt is slow on purpose and salts every hash, so two equal passwords get different hashes.\n\nLogging in trades an email and a password for a token. Shopfront's `TokenService` hands both to Spring Security's `AuthenticationManager`, which loads the account through `CustomerUserDetailsService` and compares the password with the hash. Then the service signs a JWT, a token in three parts: a header, the claims, and a signature.\n\nOn every later request, the resource server checks the signature, the issuer, and the expiry, then turns the `roles` claim into authorities. Nothing is looked up in the database, which is what makes the API stateless. The price is that a token stays valid until it expires, so keep lifetimes short.",
+      "examples": [
+        {
+          "title": "Loading an account at login",
+          "prompt": "How Spring Security finds an account by email, and the answer to a login with the wrong password.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/customer/CustomerUserDetailsService.java",
+          "code": "@Service\npublic class CustomerUserDetailsService implements UserDetailsService {\n\n    private final CustomerRepository customers;\n\n    public CustomerUserDetailsService(CustomerRepository customers) {\n        this.customers = customers;\n    }\n\n    @Override\n    public UserDetails loadUserByUsername(String email) {\n        return customers.findByEmail(email)\n                .map(customer -> User.withUsername(customer.getEmail())\n                        .password(customer.getPasswordHash())\n                        .roles(customer.getRole().name())\n                        .build())\n                .orElseThrow(() -> new UsernameNotFoundException(\"No account for \" + email));\n    }\n}",
+          "output": "HTTP/1.1 401\nContent-Type: application/problem+json\n\n{\n  \"detail\": \"Wrong email or password.\",\n  \"instance\": \"/api/auth/token\",\n  \"status\": 401,\n  \"title\": \"Unauthorized\"\n}",
+          "explanation": "Spring Security calls `loadUserByUsername` and then compares the submitted password with the stored hash itself, so your code never compares passwords. `.roles(\"CUSTOMER\")` grants the `ROLE_CUSTOMER` authority. An unknown email throws `UsernameNotFoundException`, and the login answers with the same `Wrong email or password.` as a wrong password, so the endpoint never reveals who has an account."
+        },
+        {
+          "title": "Signing the token",
+          "prompt": "Issuing a token after a successful login. The output is ana's token decoded from base64: its header, then its claims.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/auth/TokenService.java",
+          "code": "/** Throws BadCredentialsException (answered as 401) for an unknown email or a wrong password. */\npublic TokenResponse login(LoginRequest login) {\n    Authentication account = authenticationManager.authenticate(\n            UsernamePasswordAuthenticationToken.unauthenticated(login.email(), login.password()));\n    return issueFor(account);\n}\n\nTokenResponse issueFor(Authentication account) {\n    Instant now = Instant.now(clock);\n    Duration ttl = shop.jwt().ttl();\n    // Spring Security 7 also grants FACTOR_PASSWORD after a password login. Only roles go in the token.\n    List<String> roles = account.getAuthorities().stream()\n            .map(GrantedAuthority::getAuthority)\n            .filter(authority -> authority.startsWith(\"ROLE_\"))\n            .sorted()\n            .toList();\n    JwtClaimsSet claims = JwtClaimsSet.builder()\n            .issuer(JwtConfig.ISSUER)\n            .subject(account.getName())\n            .issuedAt(now)\n            .expiresAt(now.plus(ttl))\n            .claim(\"roles\", roles)\n            .build();\n    JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();\n    String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();\n    return new TokenResponse(token, \"Bearer\", ttl.toSeconds());\n}",
+          "output": "{\"kid\":\"f6Mu560EWEcT4TAJi1mAewhezl7y7tacXwp3DR68YFo\",\"alg\":\"HS256\"}\n{\n  \"iss\": \"shopfront\",\n  \"sub\": \"ana@example.com\",\n  \"exp\": 1774962000,\n  \"iat\": 1774958400,\n  \"roles\": [\n    \"ROLE_CUSTOMER\"\n  ]\n}",
+          "explanation": "The header names the signing algorithm, HS256, and an id for the key that signed it. The subject is the email, and `roles` holds only the `ROLE_` authorities. Spring Security 7 also grants a `FACTOR_PASSWORD` authority after a password login, and the filter keeps it out of the token. `iat` and `exp` come from the shop's `Clock`, exactly an hour apart. The claims are only encoded, not encrypted, so anyone holding a token can read them. Never put a secret in one. The signature is what stops a client from editing `roles`: a token with one character changed fails the check and gets a 401."
+        }
+      ],
+      "codebase": {
+        "template": "shopfront",
+        "files": [
+          "src/main/java/dev/hackuniversity/shopfront/auth/TokenService.java",
+          "src/main/java/dev/hackuniversity/shopfront/customer/CustomerUserDetailsService.java",
+          "src/main/java/dev/hackuniversity/shopfront/config/JwtConfig.java"
+        ]
+      }
+    },
+    {
+      "title": "Ownership checks in the service",
+      "body": "Roles answer questions like \"may customers read orders?\", and the filter chain checks them before the controller runs. They cannot answer \"is this order yours?\", because that needs the data. That check belongs in the service, next to the query.\n\nShopfront's controllers take the caller as an `Authentication` parameter, which Spring fills in from the token, and pass the service a small `CurrentUser` record: the email from the token's subject, and whether the caller is an admin. Services never read tokens or HTTP headers, so they stay easy to test and to call from anywhere.\n\nAlways take the caller's identity from the token, never from the request body or a query parameter. A body that says `\"customerId\": 2` says whatever the client chose to send.\n\nWhen a customer asks for someone else's order, answer 404, not 403. A 403 would confirm that the order exists, and ids that count up would let anyone learn how many orders the shop has.",
+      "examples": [
+        {
+          "title": "Who is calling",
+          "prompt": "The caller in the terms a service cares about. Controllers build it from the `Authentication` that Spring passes in.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/auth/CurrentUser.java",
+          "code": "/**\n * Who is calling, in the terms services care about: their email (the token's subject) and\n * whether they are an admin. Controllers build it from Spring Security's Authentication, so\n * services never read tokens or HTTP requests themselves.\n */\npublic record CurrentUser(String email, boolean admin) {\n\n    public static CurrentUser of(Authentication authentication) {\n        boolean admin = authentication.getAuthorities().stream()\n                .anyMatch(authority -> \"ROLE_ADMIN\".equals(authority.getAuthority()));\n        return new CurrentUser(authentication.getName(), admin);\n    }\n}",
+          "explanation": "`authentication.getName()` is the token's subject, the email it was issued for, and the authorities came from its `roles` claim. `OrderController.get` takes `Authentication user` as a parameter and calls `orders.get(id, CurrentUser.of(user))`, so the service receives plain data and imports nothing from Spring Security. A unit test just writes `new CurrentUser(\"bob@example.com\", false)`."
+        },
+        {
+          "title": "Not yours, not found",
+          "prompt": "Reading one order, and what bob gets when he asks for ana's order 4.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/order/OrderService.java",
+          "code": "public OrderResponse get(long id, CurrentUser user) {\n    return OrderResponse.from(requireVisible(id, user));\n}\n\n// ...\n\n// Someone else's order answers 404, not 403, so order ids do not reveal which orders exist.\nprivate Order requireVisible(long id, CurrentUser user) {\n    return orders.findWithLinesById(id)\n            .filter(order -> user.admin() || order.isPlacedBy(user.email()))\n            .orElseThrow(() -> new NotFoundException(\"Order not found\", \"No order with id %d.\".formatted(id)));\n}",
+          "output": "HTTP/1.1 404\nContent-Type: application/problem+json\n\n{\n  \"detail\": \"No order with id 4.\",\n  \"instance\": \"/api/orders/4\",\n  \"status\": 404,\n  \"title\": \"Order not found\"\n}",
+          "explanation": "The filter keeps the query and the rule together: an admin sees any order, and anyone else sees only their own. Every other case answers the same `Order not found`, whether the order belongs to someone else or does not exist at all, so ids reveal nothing. The same request with the admin's token gets a 200. A unit test, `anotherCustomersOrderIsNotFoundButAnAdminSeesIt`, pins the rule down, so nobody can drop the filter without breaking the build."
+        }
+      ],
+      "codebase": {
+        "template": "shopfront",
+        "files": [
+          "src/main/java/dev/hackuniversity/shopfront/auth/CurrentUser.java",
+          "src/main/java/dev/hackuniversity/shopfront/order/OrderController.java",
+          "src/main/java/dev/hackuniversity/shopfront/order/OrderService.java"
+        ]
+      }
+    }
+  ],
+  "recap": "- A `SecurityFilterChain` bean decides access before any controller runs. Rules match top to bottom: narrow ones first, `anyRequest()` last.\n- 401 means the caller did not prove who it is, and 403 means it did and is not allowed.\n- Store `{bcrypt}` hashes through the delegating `PasswordEncoder`, and let `AuthenticationManager` check passwords.\n- A stateless API signs a short-lived JWT at login and checks its signature, issuer, and expiry on every request. Anyone can read the claims, so keep secrets out.\n- Check ownership in the service with the identity from the token, and answer 404 for someone else's data."
+}

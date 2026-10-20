@@ -1,0 +1,130 @@
+{
+  "id": "validation-errors",
+  "title": "Validation, Errors, and Auth Middleware",
+  "section": "Middleware and Data",
+  "summary": "Validate requests with zod middleware, throw named errors from any layer and answer them in one handler, and guard routes with auth and ownership.",
+  "format": "read",
+  "intro": "Three kinds of middleware decide whether a request reaches your code at all. Validation turns away bad input, auth turns away the wrong caller, and the error handler turns every failure into a clear response. Write them once, as shared middleware, and every route gets safer for free. StagePass answers every failure with an RFC 9457 problem: a JSON body sent as `application/problem+json`.",
+  "steps": [
+    {
+      "title": "Validate input at the edge",
+      "body": "Types disappear at runtime, so nothing stops a client from sending `{\"limit\": \"lots\"}`. Check every part of a request against a schema before the handler runs. StagePass declares its zod schemas in each feature's `*.schemas.ts` file, and one middleware, `validate({ body, params, query })`, applies them in the route.\n\nThe middleware parses each part it was given and collects every problem into one 400 response, so a client can fix all its mistakes at once. When parsing succeeds, the handler gets the parsed values, which are cleaner than the raw ones: strings trimmed, defaults filled in, and times turned into `Date` objects.\n\nOne Express 5 change shapes this code. `req.query` is now a read-only getter, and assigning to it throws. So the parsed params and query go in `res.locals`, and only `req.body` is replaced.",
+      "examples": [
+        {
+          "title": "The validate middleware",
+          "prompt": "One function checks params, query, and body, and reports every bad field.",
+          "language": "ts",
+          "file": "src/http/validate.ts",
+          "code": "export function validate(schemas: RequestSchemas): RequestHandler {\n  return (req, res, next) => {\n    const errors: FieldError[] = [];\n    if (schemas.params) {\n      const result = schemas.params.safeParse(req.params);\n      if (result.success) res.locals.params = result.data;\n      else errors.push(...toFieldErrors(result.error, \"params\"));\n    }\n    if (schemas.query) {\n      const result = schemas.query.safeParse(req.query);\n      if (result.success) res.locals.query = result.data;\n      else errors.push(...toFieldErrors(result.error, \"query\"));\n    }\n    if (schemas.body) {\n      const result = schemas.body.safeParse(req.body);\n      if (result.success) req.body = result.data;\n      else errors.push(...toFieldErrors(result.error, \"body\"));\n    }\n    if (errors.length > 0) {\n      throw new ValidationError(errors.sort((a, b) => a.field.localeCompare(b.field)));\n    }\n    next();\n  };\n}",
+          "explanation": "`safeParse` never throws. It returns `{ success: true, data }` or `{ success: false, error }`. Each failure becomes a list of `{ field, message }` entries, sorted by field so the response is the same every time. Throwing a `ValidationError` hands the response to the error handler, so this middleware never formats JSON itself. Because the parsed body replaces `req.body`, a title sent as `\"  Open Mic Night \"` reaches the controller as `\"Open Mic Night\"`."
+        },
+        {
+          "title": "A request schema",
+          "prompt": "`CreateEvent` is everything `POST /v1/events` accepts.",
+          "language": "ts",
+          "file": "src/modules/events/events.schemas.ts",
+          "code": "export const EventIdParams = z.object({ eventId: idParam });\nexport type EventIdParams = z.infer<typeof EventIdParams>;\n\nexport const Category = z.enum(eventCategories);\n\nconst Instant = z.iso.datetime({ offset: true, error: \"Expected an ISO time such as 2026-11-14T02:00:00Z\" });\n\n/** A date (2026-11-01, midnight UTC) or a full ISO time. */\nconst DateOrInstant = z.union([z.iso.date(), Instant]).transform((value) => new Date(value));\n\nexport const CreateEvent = z\n  .strictObject({\n    venueId: z.int().positive(),\n    title: z.string().trim().min(3).max(120),\n    description: z.string().trim().max(5000).default(\"\"),\n    category: Category,\n    startsAt: Instant.transform((value) => new Date(value)),\n    endsAt: Instant.transform((value) => new Date(value)),\n  })\n  .refine((event) => event.endsAt > event.startsAt, { message: \"Must be after startsAt\", path: [\"endsAt\"] });\nexport type CreateEvent = z.infer<typeof CreateEvent>;",
+          "explanation": "`z.strictObject` refuses unknown keys, so a client cannot slip in `status` or `organizerId` and set fields it should not (mass assignment). `trim()`, `default(\"\")`, and `transform` clean the data, and `refine` adds a rule that involves two fields: `endsAt` must come after `startsAt`, reported on `endsAt`. `z.infer` derives the TypeScript type from the schema, so the type and the runtime check never drift apart."
+        },
+        {
+          "title": "A bad query string",
+          "prompt": "Pages hold at most 50 events. This request from `requests.http` asks for 51.",
+          "language": "http",
+          "file": "requests.http",
+          "code": "### At most 50 per page\nGET /v1/events?limit=51\n\n> status 400\n> json $.errors[0].field == \"limit\"",
+          "output": "HTTP/1.1 400 Bad Request\ncontent-type: application/problem+json; charset=utf-8\n\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"errors\": [\n    {\n      \"field\": \"limit\",\n      \"message\": \"Too big: expected number to be <=50\"\n    }\n  ],\n  \"detail\": \"The request has invalid fields\",\n  \"instance\": \"/v1/events?limit=51\"\n}",
+          "explanation": "The query schema refused it before the controller ran. The answer is a 400 problem with an `errors` list that names the field and says what is wrong, so a client can show the message next to the right input. `instance` is the URL that failed."
+        }
+      ],
+      "codebase": {
+        "template": "stagepass-api",
+        "files": [
+          "src/http/validate.ts",
+          "src/modules/events/events.schemas.ts",
+          "requests.http"
+        ]
+      }
+    },
+    {
+      "title": "Throw errors, answer them once",
+      "body": "Any layer can fail, and only one place should decide what the client sees. StagePass gives its failures names. `AppError` carries a status and a title, and subclasses such as `NotFoundError`, `ConflictError`, and `ValidationError` are thrown wherever the problem is found: in a service, a repository, or a middleware.\n\nAn error-handling middleware takes four parameters, `(err, req, res, next)`, and goes after every route. Express sends it whatever a handler throws or passes to `next(err)`, and in Express 5 also any rejected promise from an `async` handler. Express 4 missed those, which is why older codebases wrap every handler in an `asyncHandler` helper.\n\nThe handler maps known errors to their status codes and turns anything unexpected into a plain 500. The real message goes to the log, never to the client, because it can hold secrets such as a connection string.",
+      "examples": [
+        {
+          "title": "Named errors",
+          "prompt": "`AppError` is the base class, and each subclass fixes its status code.",
+          "language": "ts",
+          "file": "src/http/errors.ts",
+          "code": "export class AppError extends Error {\n  readonly status: number;\n  readonly title: string;\n  readonly type: string;\n  readonly extra: Record<string, unknown>;\n\n  constructor(status: number, title: string, detail: string, options: AppErrorOptions = {}) {\n    super(detail, { cause: options.cause });\n    this.name = new.target.name;\n    this.status = status;\n    this.title = title;\n    this.type = options.type === undefined ? \"about:blank\" : `${PROBLEM_BASE}${options.type}`;\n    this.extra = options.extra ?? {};\n  }\n}\n\n/** 400: the request itself is malformed. `errors` names each field and what is wrong with it. */\nexport class ValidationError extends AppError {\n  readonly errors: FieldError[];\n\n  constructor(errors: FieldError[], detail = \"The request has invalid fields\") {\n    super(400, \"Bad Request\", detail, { extra: { errors } });\n    this.errors = errors;\n  }\n}\n// ...\n/** 404: also used for things the caller may not know exist, so a 403 does not reveal them. */\nexport class NotFoundError extends AppError {\n  constructor(detail: string) {\n    super(404, \"Not Found\", detail);\n  }\n}",
+          "explanation": "A service writes `throw new NotFoundError(\"No event with id 99\")` and moves on. It never picks a status code or touches `res`. `extra` holds members for the response body, such as the `errors` list of a `ValidationError`. `type` stays `about:blank` for plain HTTP failures, or becomes a URI such as `https://stagepass.test/problems/sold-out` that clients can switch on."
+        },
+        {
+          "title": "One error handler",
+          "prompt": "`toProblem` maps any thrown value to a problem, and `errorHandler` sends it.",
+          "language": "ts",
+          "file": "src/http/error-handler.ts",
+          "code": "/** Maps any thrown value to a problem. Pure, so it is easy to test. */\nexport function toProblem(err: unknown): Problem {\n  if (err instanceof AppError) {\n    const problem: Problem = { type: err.type, title: err.title, status: err.status, ...err.extra };\n    return err.message === \"\" ? problem : { ...problem, detail: err.message };\n  }\n  if (err instanceof ZodError) {\n    return { ...plain(400, \"Bad Request\", \"The request has invalid fields\"), errors: toFieldErrors(err, \"body\") };\n  }\n  // ...\n  return plain(500, \"Internal Server Error\");\n}\n// ...\nexport const errorHandler: ErrorRequestHandler = (err, req, res, next) => {\n  if (res.headersSent) {\n    // Too late for a problem response: let Express close the connection.\n    req.log.warn({ err }, \"error after the response started\");\n    next(err);\n    return;\n  }\n  const problem = toProblem(err);\n  // 503s are expected while a dependency is down or during shutdown: a warning, not an error.\n  if (problem.status === 503) req.log.warn({ err }, \"service unavailable\");\n  else if (problem.status >= 500) req.log.error({ err }, \"request failed\");\n\n  if (err instanceof UnauthorizedError) res.set(\"WWW-Authenticate\", err.challenge);\n  // The request id travels in the X-Request-Id header, so two answers to the same mistake are\n  // byte-identical (a login must not differ between \"no such user\" and \"wrong password\").\n  res.status(problem.status).type(\"application/problem+json\").json({ ...problem, instance: req.originalUrl });\n};",
+          "explanation": "Known errors keep their status and detail, and anything unrecognized falls through to a 500 with no detail at all. Only server errors are logged, once, through the request's logger, so the log line carries the request id. If the response has already started (`res.headersSent`), it is too late for a problem body, so the handler calls `next(err)` and lets Express close the connection."
+        },
+        {
+          "title": "A route that does not exist",
+          "prompt": "`notFound` comes after every router, so it only sees requests that no route answered. This is the last request in `requests.http`.",
+          "language": "http",
+          "file": "requests.http",
+          "code": "### A route that does not exist\nGET /v1/nope\n\n> status 404\n> json $.detail == \"No route GET /v1/nope\"",
+          "output": "HTTP/1.1 404 Not Found\ncontent-type: application/problem+json; charset=utf-8\n\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Not Found\",\n  \"status\": 404,\n  \"detail\": \"No route GET /v1/nope\",\n  \"instance\": \"/v1/nope\"\n}",
+          "explanation": "`notFound` throws a `NotFoundError`, and the error handler answers it like any other failure: the same shape and `Content-Type: application/problem+json`. A client handles a missing route and a missing event with the same code. A browser that asks for HTML gets the 404 page instead."
+        }
+      ],
+      "codebase": {
+        "template": "stagepass-api",
+        "files": [
+          "src/http/errors.ts",
+          "src/http/error-handler.ts",
+          "requests.http"
+        ]
+      }
+    },
+    {
+      "title": "Authentication and ownership",
+      "body": "Authentication asks who is calling. Authorization asks whether they may do this. StagePass splits the work across three places:\n\n- `requireAuth` reads `Authorization: Bearer <token>`, verifies the JWT, and sets `req.user`, or answers 401.\n- `requireRole(...)` is the coarse rule by role, written in the route. It answers 403.\n- Policy functions such as `canEditEvent` decide ownership, like this organizer's event or this customer's order. Services call them, so every route applies the same rule.\n\nNever stop at the role. A customer who asks for `/v1/orders/31` must own order 31, or anyone can read every order by counting up the ids. That bug, broken object level authorization (often called IDOR), is first on the OWASP API Security Top 10. When the caller may not even know a thing exists, answer 404, not 403, so the response does not confirm it.",
+      "examples": [
+        {
+          "title": "The auth guards",
+          "prompt": "Both guards throw instead of answering, so the error handler formats every 401 and 403.",
+          "language": "ts",
+          "file": "src/http/auth.ts",
+          "code": "/** 401 unless the request carries a valid access token. */\nexport function requireAuth(tokens: AccessTokenVerifier): RequestHandler {\n  return async (req, _res, next) => {\n    const token = bearerToken(req.get(\"authorization\"));\n    if (token === undefined) throw new UnauthorizedError(\"Send an access token: Authorization: Bearer <token>\");\n    if (token === null) throw new UnauthorizedError(\"Malformed Authorization header\", { invalidToken: true });\n    req.user = await tokens.verifyAccessToken(token);\n    next();\n  };\n}\n// ...\n/** 403 unless the logged-in user has one of the roles. Goes after requireAuth. */\nexport function requireRole(...allowed: Role[]): RequestHandler {\n  return (req, _res, next) => {\n    if (req.user === undefined) throw new UnauthorizedError();\n    if (!allowed.includes(req.user.role)) {\n      throw new ForbiddenError(`Only ${allowed.join(\" or \")} accounts can do this`);\n    }\n    next();\n  };\n}",
+          "explanation": "A missing header and a malformed one get different 401 messages. `verifyAccessToken` throws an `UnauthorizedError` of its own for a bad signature or an expired token, so a bad token never gets through. That is failing closed. The guard is `async`, and Express 5 forwards its rejected promise to the error handler. `requireRole` goes after `requireAuth` and checks the role that the token carried."
+        },
+        {
+          "title": "Ownership rules",
+          "prompt": "Being logged in is not permission. These two functions are.",
+          "language": "ts",
+          "file": "src/modules/events/events.policy.ts",
+          "code": "/** Published and cancelled events are public. A draft is visible only to its organizer and admins. */\nexport function canViewEvent(user: AuthUser | null | undefined, event: EventOwnership): boolean {\n  if (event.status !== \"draft\") return true;\n  return user != null && (user.role === \"admin\" || user.id === event.organizerId);\n}\n\n/** Only the organizer who owns the event, or an admin, may change it or its ticket types. */\nexport function canEditEvent(user: AuthUser, event: EventOwnership): boolean {\n  return user.role === \"admin\" || (user.role === \"organizer\" && user.id === event.organizerId);\n}",
+          "explanation": "A draft is visible only to its organizer and to admins. `EventsService.get` calls `canViewEvent` and throws `NotFoundError` when it fails, so a stranger cannot tell a hidden draft from an event that does not exist. Editing needs more: the organizer who owns the event, or an admin. Small pure functions like these are easy to test with a table of users and events."
+        },
+        {
+          "title": "Another customer's order",
+          "prompt": "Earlier in `requests.http`, Cam bought tickets in order 31. Here Dee asks for that order.",
+          "language": "http",
+          "file": "requests.http",
+          "code": "### Another customer's order is not found, exactly like one that does not exist\nGET /v1/orders/{{order.response.body.$.id}}\nAuthorization: Bearer {{dee.response.body.$.accessToken}}\n\n> status 404",
+          "output": "HTTP/1.1 404 Not Found\ncontent-type: application/problem+json; charset=utf-8\n\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Not Found\",\n  \"status\": 404,\n  \"detail\": \"No order with id 31\",\n  \"instance\": \"/v1/orders/31\"\n}",
+          "explanation": "The answer is exactly what a missing order gets: a 404 that says `No order with id 31`. For a customer, the service looks the order up by its id and the customer's id together in SQL, so another customer's order is never even loaded. An admin who sends the same request gets the order, because support staff may see every order."
+        }
+      ],
+      "codebase": {
+        "template": "stagepass-api",
+        "files": [
+          "src/http/auth.ts",
+          "src/modules/events/events.policy.ts",
+          "src/modules/orders/orders.service.ts",
+          "src/modules/orders/orders.repository.ts",
+          "requests.http"
+        ]
+      }
+    }
+  ],
+  "recap": "- Validate params, query, and body with zod middleware before the handler runs, and report every bad field in one 400.\n- In Express 5, `req.query` is read-only: keep parsed values in `res.locals`.\n- Throw named `AppError` classes from any layer, and turn them into responses in one error handler, registered last.\n- Never send an unexpected error's message to the client. Log it and answer a plain 500.\n- Check the role in the route and ownership in a policy, and answer 404 for what the caller may not see."
+}

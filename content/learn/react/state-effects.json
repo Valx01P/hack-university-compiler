@@ -1,0 +1,99 @@
+{
+  "id": "state-effects",
+  "title": "State and Effects",
+  "section": "React Fundamentals",
+  "summary": "Give components memory with useState, compute everything else during render, and use effects only to sync with systems outside React.",
+  "format": "read",
+  "intro": "State is what makes a screen interactive: an open dialog, the text in a search box, a card being renamed. Effects let a component reach outside React, to timers, the DOM, and browser APIs. Most React bugs you'll fix at work live here: state that copies other state and goes stale, and effects that shouldn't exist or never clean up. This lesson shows the small set of habits that avoids them.",
+  "steps": [
+    {
+      "title": "useState basics",
+      "body": "A plain variable inside a component starts over on every render, and changing it doesn't update the screen. `useState(initial)` returns the current value and a setter. Calling the setter tells React to render the component again with the new value.\n\nState is a snapshot. After `setCount(count + 1)`, `count` keeps its old value until the next render, so three such calls in one click add 1, not 3. When the next value depends on the previous one, pass an updater function: `setCount((c) => c + 1)` always starts from the latest value.\n\nEach instance of a component has its own state. Call hooks at the top level of a component or of another hook, never inside a condition or a loop, because React matches each `useState` call to its value by call order.\n\nTreat state as read-only. To change an object or an array, make a new one with a spread, `map`, or `filter`. React compares by reference, so a mutated object looks unchanged.",
+      "examples": [
+        {
+          "title": "A counter",
+          "prompt": "Read the playground's starter component, a counter. Open the playground to run it and change it.",
+          "language": "tsx",
+          "file": "src/App.tsx",
+          "code": "// Your component. Open as playground on the /react page copies that page's App.tsx over this\n// file; otherwise it starts here. Edit it, add files next to it, or try ideas in src/scratch/.\n// Saving keeps the count below: Fast Refresh swaps the component without losing its state.\nimport { useState } from \"react\";\n\nexport default function App() {\n  const [count, setCount] = useState(0);\n\n  return (\n    <main className=\"app\">\n      <h1>Edit src/App.tsx</h1>\n      <p>Save the file and the page updates at once, keeping the count.</p>\n      <button type=\"button\" onClick={() => setCount((c) => c + 1)}>\n        Clicked {count} {count === 1 ? \"time\" : \"times\"}\n      </button>\n      <h2>Things to try</h2>\n      <ul>\n        <li>\n          Fetch the API&apos;s items from <code>/v1/items</code> (see requests.http for every route).\n        </li>\n        <li>\n          Add a component in <code>src/scratch/</code> and import it here.\n        </li>\n        <li>\n          Run <code>npm test</code> in the terminal and change <code>App.test.tsx</code>.\n        </li>\n      </ul>\n    </main>\n  );\n}",
+          "explanation": "`useState(0)` sets the starting value on the first render only. The click handler passes an updater, `(c) => c + 1`, so it counts from the latest value even if several updates are queued. The label is computed during render from `count`, singular or plural, so it can never disagree with the number. In the playground, saving this file keeps the count on screen: Vite's Fast Refresh swaps in the new code and keeps the component's state."
+        }
+      ],
+      "codebase": {
+        "template": "playground",
+        "files": [
+          "src/App.tsx"
+        ]
+      }
+    },
+    {
+      "title": "Where state lives",
+      "body": "Put state in the component that needs it. When two components must agree, move the state up to their closest common parent and pass it down as props, with a callback to change it. That keeps one source of truth.\n\nThen store as little as you can. Anything you can calculate from props or other state should be calculated during render, not copied into state: a count of overdue tasks, a filtered list, a full name. A copy has to be updated by hand, and the day someone forgets, the screen shows two different answers. Copying a value into state with an effect is worse: the screen renders once with the old value, then again with the new one.\n\nThe React Compiler, which this codebase turns on, memoizes components and calculations for you. So computing during render costs almost nothing, and you rarely need `useMemo` or `memo`.",
+      "examples": [
+        {
+          "title": "Lifting state up",
+          "prompt": "Read how the projects page owns the `creating` flag that opens the New project dialog.",
+          "language": "tsx",
+          "file": "src/features/projects/ProjectsPage.tsx",
+          "code": "export function ProjectsPage() {\n  const projects = useQuery(projectQueries.list());\n  const [creating, setCreating] = useState(false);\n\n  return (\n    <section className={styles.page} aria-labelledby=\"projects-heading\">\n      <title>Projects · Taskboard</title>\n      <header className={styles.header}>\n        <h1 id=\"projects-heading\">Projects</h1>\n        <Button variant=\"primary\" onClick={() => setCreating(true)}>\n          New project\n        </Button>\n      </header>\n      {/* ... */}\n      <NewProjectDialog open={creating} onClose={() => setCreating(false)} />\n    </section>\n  );\n}",
+          "explanation": "The dialog can't decide on its own when to open: the page's button opens it, and the dialog's Cancel button and the Escape key close it. So `creating` lives in `ProjectsPage`, the parent of both, and goes down as `open`, with `onClose` as the way back up. The dialog is a controlled component: its parent's state drives it. The `useQuery` line loads the projects themselves, which are server data and never go in `useState`."
+        },
+        {
+          "title": "Derive, don't store",
+          "prompt": "Read `useDueSummary`, which counts the tasks that are overdue, due today, and due this week. The board's heading and the Due dates widget both call it.",
+          "language": "ts",
+          "file": "src/features/tasks/hooks/use-due-summary.ts",
+          "code": "// How many open tasks are overdue, due today, or due in the next 7 days. It is computed during\n// render from the tasks it is given, never copied into state by an effect, so it can't be one\n// render behind. \"Today\" comes from the app's clock, so tests and checks control it.\nimport { daysUntil } from \"@/lib/format\";\nimport { todayISO } from \"@/lib/clock\";\nimport type { Task } from \"../types\";\n\nexport interface DueSummary {\n  overdue: number;\n  today: number;\n  upcoming: number;\n}\n\nexport function useDueSummary(tasks: readonly Task[]): DueSummary {\n  const today = todayISO();\n  const summary: DueSummary = { overdue: 0, today: 0, upcoming: 0 };\n  for (const task of tasks) {\n    if (task.status === \"done\" || task.due_on === null) continue;\n    const days = daysUntil(task.due_on, today);\n    if (days < 0) summary.overdue += 1;\n    else if (days === 0) summary.today += 1;\n    else if (days <= 7) summary.upcoming += 1;\n  }\n  return summary;\n}",
+          "explanation": "It holds no state and runs no effect. It loops over the tasks it's given and returns the counts, during render. When a task moves to Done, the next render counts again, so the heading and the widget can never disagree or lag a render behind. The tempting version keeps the counts in `useState` and updates them in an effect that watches `tasks`. That renders twice per change and shows stale numbers in between, and this codebase's lint rules, `react/no-deriving-state-in-effects` and `react/set-state-in-effect`, report it as an error. The name starts with `use`, so it's a custom hook that may call other hooks later. \"Today\" comes from `todayISO()` in `lib/clock.ts`, not `new Date()`, so tests can fix the date."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-web",
+        "files": [
+          "src/features/projects/ProjectsPage.tsx",
+          "src/features/tasks/hooks/use-due-summary.ts"
+        ]
+      }
+    },
+    {
+      "title": "Effects and cleanup",
+      "body": "An effect synchronizes a component with something outside React, after the component renders: a timer, a subscription, the DOM, a browser API. `useEffect(setup, deps)` runs `setup` after the first render and again whenever a value in `deps` changes. The dependency list isn't a choice. It's every prop, state, or other value from the component that the effect reads, and the `react/exhaustive-deps` lint rule checks it.\n\nIf the setup starts something, return a cleanup that stops it. React runs the cleanup before the next setup and when the component unmounts. In development, Strict Mode runs setup, cleanup, and setup again on mount, so a missing cleanup shows up at once.\n\nBefore you write an effect, check that you need one. Values you can compute belong in render. Things that happen because the user did something, like saving, belong in the event handler. Fetching data belongs in TanStack Query, and reading a browser store fits `useSyncExternalStore`.",
+      "examples": [
+        {
+          "title": "A debounced value",
+          "prompt": "Read `useDebouncedValue`, which the Team page uses so that typing a name sends one search instead of one per letter.",
+          "language": "ts",
+          "file": "src/hooks/use-debounced-value.ts",
+          "code": "// A copy of a value that changes only once the value has stopped changing for delayMs. Typing\n// \"grace\" quickly then sends one search instead of five. Each change restarts the timer, and the\n// effect's cleanup cancels the timer the next change replaces.\nimport { useEffect, useState } from \"react\";\n\nexport function useDebouncedValue<T>(value: T, delayMs: number): T {\n  const [debounced, setDebounced] = useState(value);\n\n  useEffect(() => {\n    const timer = setTimeout(() => setDebounced(value), delayMs);\n    return () => clearTimeout(timer);\n  }, [value, delayMs]);\n\n  return debounced;\n}",
+          "explanation": "Every time `value` changes, the effect starts a timer that will copy it into `debounced`. The cleanup clears the previous timer before the next setup runs, so as long as you keep typing, each letter cancels the update the last one scheduled. Only when typing pauses for `delayMs` does a timer fire. The effect reads both `value` and `delayMs`, so both are dependencies. Without the cleanup, every keystroke would fire its own update 300 ms later, and timers would keep firing after the component unmounted."
+        },
+        {
+          "title": "Syncing the DOM with a prop",
+          "prompt": "Read how `Dialog` keeps the browser's native `<dialog>` element in step with its `open` prop.",
+          "language": "tsx",
+          "file": "src/components/ui/Dialog.tsx",
+          "code": "// A modal dialog on the native <dialog> element. showModal() gives focus trapping, Escape to\n// close, an inert page behind, and focus returned to the opener, all from the browser. React\n// controls it with the open prop: an effect calls showModal() or close() to match, and the\n// dialog's close event (Escape, or close() itself) reports back through onClose.\n// ...\nexport function Dialog({ open, onClose, title, className, children }: DialogProps) {\n  const ref = useRef<HTMLDialogElement>(null);\n  const titleId = useId();\n\n  useEffect(() => {\n    const dialog = ref.current;\n    if (!dialog) return;\n    if (open && !dialog.open) dialog.showModal();\n    if (!open && dialog.open) dialog.close();\n  }, [open]);\n\n  return (\n    <dialog ref={ref} data-ui=\"dialog\" aria-labelledby={titleId} className={clsx(styles.dialog, className)} onClose={onClose}>\n      {/* The content mounts only while open, so a form inside starts fresh every time. */}\n      {open && (\n        <>\n          <h2 id={titleId} className={styles.title}>\n            {title}\n          </h2>\n          {children}\n        </>\n      )}\n    </dialog>\n  );\n}",
+          "explanation": "A `<dialog>` opened with `showModal()` gets focus trapping, Escape to close, and an inert page behind it from the browser, but no attribute can ask for that. So the effect calls `showModal()` or `close()` whenever `open` changes. `useRef` hands the effect the real element, which exists only once the render is committed, so the code reads `ref.current` in the effect and never during render. The checks against `dialog.open` make the effect safe to run twice, as Strict Mode does. The way back is an event, not an effect: the browser fires `close` on Escape, and `onClose` tells the parent."
+        },
+        {
+          "title": "Subscribing to the browser",
+          "prompt": "Read `useMediaQuery`, which the layout uses to switch between a sidebar and a drawer at 48rem.",
+          "language": "ts",
+          "file": "src/hooks/use-media-query.ts",
+          "code": "// Whether a CSS media query matches, kept current as the window resizes or the system theme\n// changes. useSyncExternalStore subscribes to the MediaQueryList's change event.\nimport { useSyncExternalStore } from \"react\";\n\nexport function useMediaQuery(query: string): boolean {\n  return useSyncExternalStore(\n    (onChange) => {\n      const list = window.matchMedia(query);\n      list.addEventListener(\"change\", onChange);\n      return () => list.removeEventListener(\"change\", onChange);\n    },\n    () => window.matchMedia(query).matches,\n    () => false,\n  );\n}",
+          "explanation": "Whether a media query matches is state that lives in the browser, not in React. `useSyncExternalStore` is the hook for that kind of value. Its first argument subscribes to changes and returns the unsubscribe function, its second reads the current value, and its third gives the value to use where there's no window, like on a server. React renders again whenever the value changes, with no state to copy and no effect to write. `use-local-storage.ts` uses the same hook for saved settings, so two open tabs stay in step."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-web",
+        "files": [
+          "src/hooks/use-debounced-value.ts",
+          "src/components/ui/Dialog.tsx",
+          "src/hooks/use-media-query.ts",
+          "src/hooks/use-local-storage.ts"
+        ]
+      }
+    }
+  ],
+  "recap": "- `useState` gives a component memory. Setting state renders again, and an updater, `setCount((c) => c + 1)`, starts from the latest value.\n- Call hooks at the top level, and replace objects and arrays in state instead of changing them.\n- Lift state to the closest common parent when two components must agree, and compute everything else during render.\n- Use an effect only to sync with something outside React, list every value it reads as a dependency, and clean up whatever it starts.\n- Reach for an event handler, TanStack Query, or `useSyncExternalStore` before you write an effect."
+}

@@ -1,0 +1,118 @@
+{
+  "id": "project-structure",
+  "title": "Project Structure and Dependency Injection",
+  "section": "Foundations",
+  "summary": "Find your way around a Spring Boot 4 project, follow a request through its layers, and see how Spring builds each class and hands it what it needs.",
+  "format": "read",
+  "intro": "Most Spring jobs start with a codebase someone else wrote, not an empty folder. Spring Boot projects share one shape, so once you know where the build, the entry point, the settings, and each layer live, you can find your way around any of them. In this lesson you read the spring-blank playground and the shopfront store API, and see how Spring wires their classes together.",
+  "steps": [
+    {
+      "title": "The files every Boot project has",
+      "body": "A Spring Boot project is a Maven project with a known shape, and these are the files you open first:\n\n| File | What it holds |\n| --- | --- |\n| `pom.xml` | The build: the Boot parent, the Java version, and the starters |\n| `*Application.java` | The entry point, with `main` |\n| `src/main/resources/application.yml` | Settings, read from the environment where they change |\n| `src/main/resources/db/migration/` | Flyway migrations: the schema, in SQL |\n| `src/test/java/` | Tests, in the same packages as the code they test |\n\nYou build and run it with the Maven Wrapper, `./mvnw spring-boot:run`, which uses the exact Maven version the project pins, so every machine builds the same way. Spring Boot 4 renamed a few starters, and most tutorials online still show Boot 3. The web starter is now `spring-boot-starter-webmvc`, and Flyway needs `spring-boot-starter-flyway`.",
+      "examples": [
+        {
+          "title": "The build file",
+          "prompt": "The top of the playground's `pom.xml`: the parent, the Java version, and the first starters. No starter names a version.",
+          "language": "xml",
+          "file": "pom.xml",
+          "code": "<parent>\n    <groupId>org.springframework.boot</groupId>\n    <artifactId>spring-boot-starter-parent</artifactId>\n    <version>4.1.1</version>\n    <relativePath/>\n</parent>\n<!-- ... -->\n<properties>\n    <java.version>25</java.version>\n    <!-- ./mvnw spring-boot:run starts the dev profile. Override it with -Dspring-boot.run.profiles=other -->\n    <spring-boot.run.profiles>dev</spring-boot.run.profiles>\n</properties>\n\n<dependencies>\n    <dependency>\n        <groupId>org.springframework.boot</groupId>\n        <artifactId>spring-boot-starter-webmvc</artifactId>\n    </dependency>\n    <dependency>\n        <groupId>org.springframework.boot</groupId>\n        <artifactId>spring-boot-starter-validation</artifactId>\n    </dependency>\n    <dependency>\n        <groupId>org.springframework.boot</groupId>\n        <artifactId>spring-boot-starter-data-jpa</artifactId>\n    </dependency>\n    <dependency>\n        <groupId>org.springframework.boot</groupId>\n        <artifactId>spring-boot-starter-flyway</artifactId>\n    </dependency>\n    <dependency>\n        <groupId>org.flywaydb</groupId>\n        <artifactId>flyway-database-postgresql</artifactId>\n    </dependency>\n    <!-- ... -->",
+          "explanation": "`spring-boot-starter-parent` 4.1.1 manages the version of every library Boot knows about: Spring Framework 7.0.9, Hibernate 7.4, Jackson 3.1, Flyway 12, and JUnit 6. So the starters carry no `<version>`, and upgrading Boot is one line that moves them all together, to versions tested with each other. A starter is a bundle of dependencies: `spring-boot-starter-webmvc` brings Spring MVC, Jackson, and an embedded Tomcat. You only write a version for a library Boot does not manage, like springdoc in shopfront's build."
+        },
+        {
+          "title": "The entry point",
+          "prompt": "The class that starts the app, and six messages from its startup log under `./mvnw spring-boot:run`, with the timestamps and logger names cut off.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/playground/PlaygroundApplication.java",
+          "code": "package dev.hackuniversity.playground;\n\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n\n/**\n * The entry point. Spring Boot scans this package and every package below it,\n * so new classes go under dev.hackuniversity.playground.\n */\n@SpringBootApplication\npublic class PlaygroundApplication {\n\n    public static void main(String[] args) {\n        SpringApplication.run(PlaygroundApplication.class, args);\n    }\n}",
+          "output": "The following 1 profile is active: \"dev\"\nDatabase: jdbc:postgresql://pg:5432/playground (PostgreSQL 18.6)\nMigrating schema \"public\" to version \"1 - create notes\"\nSuccessfully applied 1 migration to schema \"public\", now at version v1 (execution time 00:00.003s)\nTomcat started on port 8081 (http) with context path '/'\nStarted PlaygroundApplication in 2.18 seconds (process running for 2.353)",
+          "explanation": "`@SpringBootApplication` turns on component scanning and auto-configuration. Component scanning starts in this class's package, `dev.hackuniversity.playground`, and takes in every package below it, which is why new code goes in a package like `hello/` or `notes/`. A controller in `com.example.other` is never found, and its routes answer 404. Auto-configuration sets up what the starters put on the classpath: a connection pool from the `spring.datasource` settings, Flyway, which brings the database up to date before Hibernate starts, and Tomcat on `server.port`. Read a startup log the same way every time: the active profile, the migrations that ran, and the port."
+        },
+        {
+          "title": "Settings from the environment",
+          "prompt": "The playground's `application.yml`. `${DB_URL:...}` reads an environment variable and falls back to the text after the colon when it is not set.",
+          "language": "yaml",
+          "file": "src/main/resources/application.yml",
+          "code": "# Settings for every run. A profile file (application-dev.yml, application-test.yml) adds to these\n# and wins where both set the same key. ${NAME:default} reads an environment variable.\nspring:\n  application:\n    name: playground\n  datasource:\n    # The workspace passes its own database in DB_URL, DB_USER, and DB_PASSWORD.\n    url: ${DB_URL:jdbc:postgresql://localhost:5432/playground}\n    username: ${DB_USER:playground}\n    password: ${DB_PASSWORD:playground}\n    hikari:\n      # The workspace's database role allows 20 connections, shared by the app, its tests, and psql.\n      maximum-pool-size: 5\n  jpa:\n    # Database work happens inside services, never while JSON is being written.\n    open-in-view: false\n    hibernate:\n      # Flyway owns the schema. Hibernate only checks that the entities match it.\n      ddl-auto: validate\n  mvc:\n    problemdetails:\n      # Spring MVC's own errors (bad JSON, failed validation, unknown paths) answer as RFC 9457 problems.\n      enabled: true\n  data:\n    web:\n      pageable:\n        max-page-size: 50\n\nserver:\n  # The workspace leases a free port and passes it in PORT.\n  port: ${PORT:8080}\n\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: health,info",
+          "explanation": "Anything that changes between your laptop, CI, and production comes from the environment: the database, its password, the port. The file never holds a real secret, so it can live in Git. Three settings here are habits worth copying. `open-in-view: false` keeps database work inside services, where it belongs. `ddl-auto: validate` makes Hibernate check the tables against the entities without ever changing them, because Flyway owns the schema. `problemdetails.enabled: true` makes Spring's own errors answer in the standard RFC 9457 JSON shape. A profile file such as `application-dev.yml` adds to these settings and wins where both set the same key."
+        }
+      ],
+      "codebase": {
+        "template": "spring-blank",
+        "files": [
+          "pom.xml",
+          "src/main/java/dev/hackuniversity/playground/PlaygroundApplication.java",
+          "src/main/resources/application.yml"
+        ]
+      }
+    },
+    {
+      "title": "Packages by feature, layers inside",
+      "body": "Tutorials often put every controller in one package and every repository in another. Real codebases stay easier to change when they group code by feature: everything about orders lives in `order/`, so a change to orders stays in one folder. Inside each feature, the classes split into layers, and each layer has one job:\n\n- The **controller** speaks HTTP: it reads the path, the parameters, and the body, and picks the status code.\n- The **service** holds the business rules and runs each operation in one transaction.\n- The **repository** is the only class that talks to the database.\n- The **entity** maps one table and keeps its own data valid.\n- The **DTOs**, request and response records, are the JSON the API accepts and returns.\n\nCalls only go one way, from controller to service to repository. A request to place an order passes Spring Security's filters and reaches `OrderController.place`. The controller calls `OrderService.placeOrder`, which reads and writes through the repositories, and the answer travels back up as an `OrderResponse` record.",
+      "examples": [
+        {
+          "title": "The package map",
+          "prompt": "Shopfront's source tree, from its README. Each feature package holds every layer of that feature.",
+          "language": "text",
+          "file": "README.md",
+          "code": "src/main/java/dev/hackuniversity/shopfront\n  ShopfrontApplication.java     the entry point\n  config/                       SecurityConfig (who may call what), JwtConfig (signing and checking\n                                tokens), ShopProperties (shop.* settings), ClockConfig, OpenApiConfig\n  auth/                         AuthController, TokenService (log in, issue the JWT), CurrentUser\n  customer/                     Customer (entity), Role, CustomerRepository, CustomerService,\n                                CustomerController, CustomerUserDetailsService (loads logins), dto/\n  catalog/                      Category and Product (entities), their repositories, CatalogService,\n                                ProductController, CategoryController, dto/\n  order/                        Order and OrderLine (entities), OrderStatus, PlacedAtListener (a JPA\n                                hook), OrderRepository, OrderService, OrderController, dto/\n  common/                       ApiExceptionHandler (errors as problems), ShopException and its\n                                NotFound, Conflict, and Unprocessable subclasses\nsrc/main/resources\n  application.yml               settings for every run, application-dev.yml for the dev profile\n  db/migration/                 V1__customers.sql to V4__indexes.sql, run by Flyway at startup\n  db/seed/afterMigrate.sql      the sample shop, dev profile only\nsrc/test/java/dev/hackuniversity/shopfront\n  catalog/ProductControllerTest.java   @WebMvcTest: the web layer and security, service mocked\n  catalog/ProductRepositoryTest.java   @DataJpaTest: queries and @Version on real PostgreSQL\n  order/OrderServiceTest.java          plain JUnit and Mockito: the checkout rules\n  order/OrderFlowTest.java             @SpringBootTest on a random port with RestTestClient\n  ArchitectureTest.java                ArchUnit: the layer rules in docs/architecture.md\ndocs/architecture.md            the layer rules, and why each one exists",
+          "explanation": "`config/` holds the wiring that belongs to no single feature: security, JWT signing, settings, and the clock. `common/` holds what every feature shares, here the exceptions and the one class that turns them into HTTP errors. Tests sit in the same packages as the code they test, so they can reach package-private methods. When you join a team, learning this map is your first task, and a README that keeps one up to date is a gift to the next person who joins."
+        },
+        {
+          "title": "Layer rules the build enforces",
+          "prompt": "ArchUnit checks the compiled classes on every `./mvnw test`, so code that breaks a layer rule fails the build.",
+          "language": "java",
+          "file": "src/test/java/dev/hackuniversity/shopfront/ArchitectureTest.java",
+          "code": "@AnalyzeClasses(packages = \"dev.hackuniversity.shopfront\", importOptions = ImportOption.DoNotIncludeTests.class)\nclass ArchitectureTest {\n\n    @ArchTest\n    static final ArchRule controllersNeverUseRepositories = noClasses()\n            .that().areAnnotatedWith(RestController.class)\n            .should().dependOnClassesThat().areAssignableTo(Repository.class)\n            .because(\"controllers call services, and only services reach the database\");\n\n    @ArchTest\n    static final ArchRule controllersNeverReturnEntities = methods()\n            .that().areDeclaredInClassesThat().areAnnotatedWith(RestController.class)\n            .and().arePublic()\n            .should(returnNoEntity())\n            .because(\"an entity in a response leaks columns like password_hash and loads lazy data while JSON is written\");\n\n    @ArchTest\n    static final ArchRule noFieldInjection = GeneralCodingRules.NO_CLASSES_SHOULD_USE_FIELD_INJECTION\n            .because(\"constructor injection makes dependencies visible and lets plain unit tests build the class\");",
+          "explanation": "A rule written in a wiki gets forgotten. A rule written as a test fails the build and names the class that broke it. Each rule here has a reason. A controller that uses a repository skips the service, and with it the rules and the transaction. An entity returned as JSON sends every column, `passwordHash` included. Field injection hides what a class depends on and stops a unit test from creating it with `new`. `docs/architecture.md` explains the same rules in words, for the next person who wonders why."
+        }
+      ],
+      "codebase": {
+        "template": "shopfront",
+        "files": [
+          "README.md",
+          "docs/architecture.md",
+          "src/test/java/dev/hackuniversity/shopfront/ArchitectureTest.java"
+        ]
+      }
+    },
+    {
+      "title": "Dependency injection with constructors",
+      "body": "Your classes never create each other with `new`. When the app starts, Spring finds every class marked `@Component`, `@Service`, `@Repository`, `@RestController`, or `@Configuration`, creates one instance of each, and passes each constructor the other instances it asks for. These managed objects are called beans. There is one of each by default, shared by every request, so a bean must never keep per-request data in its fields.\n\nWrite your classes the way shopfront does:\n\n- Take every dependency as a constructor parameter and keep it in a `private final` field.\n- Leave out `@Autowired`. With a single constructor, Spring uses it on its own.\n- Ask for a type, often an interface, and let Spring find the bean that fits.\n\nFor classes you cannot annotate, like the JDK's `Clock`, write a `@Bean` method in a `@Configuration` class. Spring calls it once and injects what it returns.",
+      "examples": [
+        {
+          "title": "Five dependencies, one constructor",
+          "prompt": "The checkout service lists what it needs, and Spring passes in three repositories, the shop's settings, and the clock.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/order/OrderService.java",
+          "code": "@Service\n@Transactional(readOnly = true)\npublic class OrderService {\n\n    private static final Sort NEWEST_FIRST = Sort.by(Sort.Direction.DESC, \"placedAt\", \"id\");\n\n    private final OrderRepository orders;\n    private final ProductRepository products;\n    private final CustomerRepository customers;\n    private final ShopProperties shop;\n    private final Clock clock;\n\n    public OrderService(OrderRepository orders, ProductRepository products, CustomerRepository customers,\n            ShopProperties shop, Clock clock) {\n        this.orders = orders;\n        this.products = products;\n        this.customers = customers;\n        this.shop = shop;\n        this.clock = clock;\n    }",
+          "explanation": "Every field is `final`, so it is set once and is never null. The constructor is the complete list of what the class depends on, so a reviewer sees at a glance that checkout touches orders, products, and customers. It also makes testing easy: `OrderServiceTest` creates the service with `new OrderService(...)`, passing Mockito mocks and a fixed clock, without starting Spring. With `@Autowired` on fields instead, a test that creates the class with `new` gets null fields and a `NullPointerException`."
+        },
+        {
+          "title": "A bean for a library class",
+          "prompt": "`Clock` comes from the JDK, so it cannot carry `@Component`. A `@Bean` method builds it instead.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/config/ClockConfig.java",
+          "code": "@Configuration(proxyBeanMethods = false)\npublic class ClockConfig {\n\n    @Bean\n    Clock clock(@Value(\"${app.clock.fixed:}\") String fixedInstant) {\n        if (fixedInstant.isBlank()) {\n            return Clock.systemUTC();\n        }\n        return Clock.fixed(Instant.parse(fixedInstant), ZoneOffset.UTC);\n    }\n}",
+          "explanation": "Spring calls `clock(...)` once at startup, passing in the `app.clock.fixed` setting, and every class that asks for a `Clock` gets the one it returns. Getting the time with `Instant.now(clock)` instead of `Instant.now()` is a habit that pays off in tests: the test profile and the workspace fix the clock, so orders, tokens, and the 24-hour cancel window come out the same on every run. `proxyBeanMethods = false` tells Spring that these methods never call each other, so it can skip some startup work."
+        },
+        {
+          "title": "Typed, validated settings",
+          "prompt": "Every `shop.*` setting from `application.yml` lands in one record, checked when the app starts.",
+          "language": "java",
+          "file": "src/main/java/dev/hackuniversity/shopfront/config/ShopProperties.java",
+          "code": "@Validated\n@ConfigurationProperties(\"shop\")\npublic record ShopProperties(\n        @NotBlank @Pattern(regexp = \"[A-Z]{3}\") String currency,\n        @NotNull @DecimalMin(\"0.0\") @DecimalMax(\"0.5\") @Digits(integer = 1, fraction = 4) BigDecimal taxRate,\n        @PositiveOrZero long freeShippingOverCents,\n        @Valid @NotNull Jwt jwt) {\n\n    public record Jwt(@NotBlank @Size(min = 32) String secret, @NotNull Duration ttl) {}\n\n    /** The tax rate in basis points (hundredths of a percent): 0.0825 is 825. */\n    public int taxRateBasisPoints() {\n        return taxRate.movePointRight(4).intValueExact();\n    }\n}",
+          "explanation": "`@ConfigurationProperties(\"shop\")` binds `shop.tax-rate` to `taxRate` and `shop.jwt.ttl: 1h` to a `Duration`, and the record becomes a bean you inject like any other: `OrderService` takes it in its constructor. `@Validated` checks the constraints at startup, so a tax rate of 5 or a short JWT secret stops the app with a message that names the setting, instead of failing on the first order. That beats scattering `@Value` strings through the code. `@ConfigurationPropertiesScan` on `ShopfrontApplication` is what finds the record."
+        }
+      ],
+      "codebase": {
+        "template": "shopfront",
+        "files": [
+          "src/main/java/dev/hackuniversity/shopfront/order/OrderService.java",
+          "src/main/java/dev/hackuniversity/shopfront/config/ClockConfig.java",
+          "src/main/java/dev/hackuniversity/shopfront/config/ShopProperties.java"
+        ]
+      }
+    }
+  ],
+  "recap": "- A Boot project has a fixed shape: `pom.xml`, one `@SpringBootApplication` class, `application.yml`, Flyway migrations, and tests.\n- The Boot parent manages library versions, so starters carry none. In Boot 4 the web starter is `spring-boot-starter-webmvc`.\n- Component scanning starts at the main class's package, so new code goes in a package below it.\n- Package by feature, and split each feature into controller, service, repository, entity, and DTOs, with calls going one way.\n- Take dependencies through the constructor into `final` fields, build library classes with `@Bean` methods, and bind settings into a validated `@ConfigurationProperties` record."
+}

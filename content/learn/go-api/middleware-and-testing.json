@@ -1,0 +1,114 @@
+{
+  "id": "middleware-and-testing",
+  "title": "Middleware, Context, and Tests",
+  "section": "Production Habits",
+  "summary": "Wrap every request in middleware, carry request-scoped values and deadlines in the context, and test the whole API in memory with httptest.",
+  "format": "read",
+  "intro": "Some work belongs to every request: an id to trace it, a log line, panic recovery, security headers, and the login check. In Go that's middleware, which passes what it learns to the handlers through the request's context. And because a whole API is one `http.Handler`, you can test it in memory with `httptest`, with no server and no network.",
+  "steps": [
+    {
+      "title": "Middleware",
+      "body": "A middleware is a function that takes a handler and returns a new one. This is Taskboard's simplest:\n\n```go\nfunc secureHeaders(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\th := w.Header()\n\t\th.Set(\"X-Content-Type-Options\", \"nosniff\")\n\t\th.Set(\"Referrer-Policy\", \"no-referrer\")\n\t\tif strings.HasPrefix(r.URL.Path, \"/v1/\") {\n\t\t\th.Set(\"Cache-Control\", \"no-store\")\n\t\t}\n\t\tnext.ServeHTTP(w, r)\n\t})\n}\n```\n\nCode before `next.ServeHTTP` runs on the way in, and code after it runs on the way out, once the handler has written its response. Wrapping is just function calls, so the handler you wrap last is the outermost, and it runs first.\n\nTo log a status, a middleware has to see it, and a `ResponseWriter` doesn't tell you what was written. So wrap it in a small type that records the status in `WriteHeader`, and give that type an `Unwrap` method, so `http.ResponseController` can still reach the real writer.",
+      "examples": [
+        {
+          "title": "The middleware chain",
+          "prompt": "Read `NewServer`, which wraps the routes in Taskboard's middleware. The output is the response to `GET /healthz` sent with `X-Request-ID: docs-1`.",
+          "language": "go",
+          "file": "internal/api/server.go",
+          "code": "// NewServer returns the whole API as one http.Handler: the routes of routes.go inside\n// the middleware chain, listed here from the outside in.\nfunc NewServer(deps Deps) http.Handler {\n\ts := &server{Deps: deps, logins: newLimiter(12*time.Second, 5)}\n\tmux := http.NewServeMux()\n\ts.routes(mux)\n\n\th := s.unmatched(mux)\n\th = s.crossOrigin(h)\n\th = s.cors(h)\n\th = secureHeaders(h)\n\th = s.recoverPanics(h)\n\th = measure(h)\n\th = s.logRequests(h)\n\th = countQueries(deps.Development)(h)\n\th = requestID(h)\n\treturn h\n}\n",
+          "output": "HTTP/1.1 200 OK\nContent-Type: application/json\nReferrer-Policy: no-referrer\nX-Content-Type-Options: nosniff\nX-Query-Count: 0\nX-Request-Id: docs-1\nDate: Tue, 20 Oct 2026 01:43:59 GMT\nContent-Length: 16\n\n{\"status\":\"ok\"}",
+          "explanation": "Each line wraps everything built so far, so `requestID`, wrapped last, runs first, and `unmatched`, wrapped first, runs last, right before the mux. The order is deliberate: the request id exists before anything logs, and `recoverPanics` sits inside `logRequests`, so a panic still produces a logged 500. The health handler set only `Content-Type` and wrote `{\"status\":\"ok\"}`. The other headers came from middleware: the echoed `X-Request-Id`, the two security headers, and `X-Query-Count`, which counts database queries in development."
+        },
+        {
+          "title": "A log line per request",
+          "prompt": "Read `logRequests`. The output is the line it logged for `GET /v1/tasks/3`.",
+          "language": "go",
+          "file": "internal/api/middleware.go",
+          "code": "// logRequests writes one log line per request: method, path, the route pattern that\n// matched (r.Pattern, set by the ServeMux), status, size, queries, and duration. It\n// never logs bodies, which can hold passwords.\nfunc (s *server) logRequests(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\tstart := time.Now()\n\t\trec := &statusRecorder{ResponseWriter: w}\n\t\tnext.ServeHTTP(rec, r)\n\t\tlevel := slog.LevelInfo\n\t\tif rec.status() >= http.StatusInternalServerError {\n\t\t\tlevel = slog.LevelError\n\t\t}\n\t\ts.Log.LogAttrs(r.Context(), level, \"request\",\n\t\t\tslog.String(\"request_id\", requestIDFrom(r.Context())),\n\t\t\tslog.String(\"method\", r.Method),\n\t\t\tslog.String(\"path\", r.URL.Path),\n\t\t\tslog.String(\"pattern\", r.Pattern),\n\t\t\tslog.Int(\"status\", rec.status()),\n\t\t\tslog.Int64(\"bytes\", rec.bytes),\n\t\t\tslog.Int64(\"queries\", metrics.QueryCount(r.Context())),\n\t\t\tslog.Float64(\"duration_ms\", math.Round(float64(time.Since(start).Microseconds()))/1000),\n\t\t)\n\t})\n}\n",
+          "output": "{\"time\":\"2026-10-20T01:43:59.596848968Z\",\"level\":\"INFO\",\"msg\":\"request\",\"request_id\":\"01a156fa-cd6a-7f48-99fb-68c4dbb132af\",\"method\":\"GET\",\"path\":\"/v1/tasks/3\",\"pattern\":\"GET /v1/tasks/{taskID}\",\"status\":200,\"bytes\":292,\"queries\":3,\"duration_ms\":1.884}",
+          "explanation": "`statusRecorder` wraps `w` to note the status and byte count as the handler writes them. Everything after `next.ServeHTTP` runs once the handler is done, so the line has the final status and the real duration. `r.Pattern` (Go 1.23) is the route that matched, `GET /v1/tasks/{taskID}`, while `path` is the URL that was asked for. Group dashboards and alerts by pattern: grouped by path, every task id would be its own row. Bodies are never logged, because they can hold passwords."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "internal/api/server.go",
+          "internal/api/middleware.go"
+        ]
+      }
+    },
+    {
+      "title": "The request context",
+      "body": "Every request carries a `context.Context`, `r.Context()`. It's canceled when the client disconnects or the server shuts down, so pass it as the first argument to every call that does I/O. pgx stops a query when its context ends, so a request nobody is waiting for stops using the database.\n\nMiddleware also uses the context to hand request-scoped values to handlers. `context.WithValue` returns a new context holding one value, and `r.WithContext` makes a request that carries it. Key each value with an unexported type, so no other package can read or overwrite it by accident:\n\n```go\ntype requestIDKey struct{}\n```\n\nKeep context values to facts about this one request: its id, the logged-in user, the open transaction. Dependencies such as a logger or a store go through constructors. And when one call must not hang, give it a deadline of its own with `context.WithTimeout`, then `defer cancel()` right away.",
+      "examples": [
+        {
+          "title": "The user in the context",
+          "prompt": "Read `requireAuth`, the middleware in front of every private route. The output is the response to `GET /v1/tasks/3` sent with no token.",
+          "language": "go",
+          "file": "internal/api/middleware.go",
+          "code": "// requireAuth lets a request through only with a valid token, and puts its user in\n// the context for the handlers (auth.UserFrom). The token comes from\n// \"Authorization: Bearer <token>\", or, when there is no Authorization header, the\n// tb_session cookie. A header that is present decides alone, so a bad bearer token is\n// refused even next to a good cookie.\nfunc (s *server) requireAuth(next http.Handler) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\ttoken, err := credentials(r)\n\t\tif err != nil {\n\t\t\ts.writeProblem(w, r, err)\n\t\t\treturn\n\t\t}\n\t\tuser, err := s.Auth.Authenticate(r.Context(), token)\n\t\tif err != nil {\n\t\t\ts.writeProblem(w, r, err)\n\t\t\treturn\n\t\t}\n\t\tnext.ServeHTTP(w, r.WithContext(auth.WithUser(r.Context(), user)))\n\t})\n}\n",
+          "output": "HTTP/1.1 401 Unauthorized\nCache-Control: no-store\nContent-Type: application/problem+json\nReferrer-Policy: no-referrer\nWww-Authenticate: Bearer realm=\"taskboard\"\nX-Content-Type-Options: nosniff\nX-Query-Count: 0\nX-Request-Id: 01a156fa-cd89-7b9d-ba97-8bb5909b3636\nDate: Tue, 20 Oct 2026 01:43:59 GMT\nContent-Length: 183\n\n{\"type\":\"about:blank\",\"title\":\"Unauthorized\",\"status\":401,\"detail\":\"unauthenticated: log in to continue\",\"instance\":\"/v1/tasks/3\",\"request_id\":\"01a156fa-cd89-7b9d-ba97-8bb5909b3636\"}",
+          "explanation": "`requireAuth` finds the token, asks `AuthService.Authenticate` whose it is, and calls the next handler with a request whose context holds that user. `auth.WithUser` stores the user under an unexported key type, and `auth.UserFrom` reads it back, which is all the handlers' `user(r)` helper does. On failure it writes a 401 problem and returns without calling `next`, so the handler never runs. `WWW-Authenticate` tells the client which scheme to use."
+        },
+        {
+          "title": "A deadline for one call",
+          "prompt": "Read `readyz`. The output shows two responses: one while the database was up, and one after it was stopped.",
+          "language": "go",
+          "file": "internal/api/health.go",
+          "code": "// readyz answers whether the server can do its job right now: the database must\n// answer a ping within a second. A load balancer sends traffic only while it says 200.\nfunc (s *server) readyz(w http.ResponseWriter, r *http.Request) error {\n\tctx, cancel := context.WithTimeout(r.Context(), time.Second)\n\tdefer cancel()\n\tif err := s.Ready(ctx); err != nil {\n\t\tstate := \"error\"\n\t\tif errors.Is(err, context.DeadlineExceeded) {\n\t\t\tstate = \"timeout\"\n\t\t}\n\t\ts.Log.WarnContext(ctx, \"not ready\", \"db\", state, \"err\", err)\n\t\treturn writeJSON(w, http.StatusServiceUnavailable, readyResponse{Status: \"not_ready\", Checks: map[string]string{\"db\": state}})\n\t}\n\treturn writeJSON(w, http.StatusOK, readyResponse{Status: \"ready\", Checks: map[string]string{\"db\": \"ok\"}})\n}\n",
+          "output": "HTTP/1.1 200 OK\nContent-Type: application/json\nReferrer-Policy: no-referrer\nX-Content-Type-Options: nosniff\nX-Query-Count: 0\nX-Request-Id: 01a156fa-cdee-7fca-90c0-89b53195a4ca\nDate: Tue, 20 Oct 2026 01:43:59 GMT\nContent-Length: 40\n\n{\"status\":\"ready\",\"checks\":{\"db\":\"ok\"}}\n\nHTTP/1.1 503 Service Unavailable\nContent-Type: application/json\nReferrer-Policy: no-referrer\nX-Content-Type-Options: nosniff\nX-Query-Count: 0\nX-Request-Id: 01a156fa-d98b-7d58-94e6-f5d6c612eead\nDate: Tue, 20 Oct 2026 01:44:02 GMT\nContent-Length: 47\n\n{\"status\":\"not_ready\",\"checks\":{\"db\":\"error\"}}",
+          "explanation": "A load balancer calls `/readyz` every few seconds and sends traffic only while it answers 200, so the check must answer fast even when the database doesn't. `context.WithTimeout` derives a context that ends after one second, or sooner if the request's own context ends, and `defer cancel()` releases its timer as soon as the handler returns. `errors.Is(err, context.DeadlineExceeded)` tells a timeout from other failures. Here the database had been stopped, so the ping failed at once with an error, not a timeout. `/healthz` never touches the database, so a slow database can't get a healthy process restarted."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "internal/api/middleware.go",
+          "internal/api/health.go",
+          "internal/auth/tokens.go"
+        ]
+      }
+    },
+    {
+      "title": "Testing handlers with httptest",
+      "body": "A whole API is one `http.Handler`, so a test can call it directly, with no server and no port:\n\n```go\nrec := httptest.NewRecorder()\nroutes().ServeHTTP(rec, httptest.NewRequest(\"GET\", tc.path, nil))\n```\n\n`httptest.NewRequest` builds a request, and `httptest.NewRecorder` is a `ResponseWriter` that keeps what the handler wrote, in `rec.Code`, `rec.Header()`, and `rec.Body`. Your routes and middleware run for real, in microseconds.\n\nTaskboard tests at three levels:\n\n- Handler tests run the real HTTP layer and services over in-memory fakes of the stores, with no database.\n- Repository tests run the real SQL on PostgreSQL, each test in a fresh schema of its own.\n- One end-to-end test drives the whole stack through `httptest.NewServer`, a real server on a loopback port.\n\n`go test -short ./...` skips the database tests for a fast loop, and CI runs everything with `-race`.",
+      "examples": [
+        {
+          "title": "A request helper",
+          "prompt": "Read `do`, the helper every Taskboard handler test sends its requests through.",
+          "language": "go",
+          "file": "internal/api/helpers_test.go",
+          "code": "// do sends one request through the handler in memory and returns the recorded\n// response. headers are name, value pairs.\nfunc (a testAPI) do(t *testing.T, method, path, token, body string, headers ...string) *httptest.ResponseRecorder {\n\tt.Helper()\n\treq := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))\n\tif token != \"\" {\n\t\treq.Header.Set(\"Authorization\", \"Bearer \"+token)\n\t}\n\tif body != \"\" {\n\t\treq.Header.Set(\"Content-Type\", \"application/json\")\n\t}\n\tfor i := 0; i+1 < len(headers); i += 2 {\n\t\treq.Header.Set(headers[i], headers[i+1])\n\t}\n\trec := httptest.NewRecorder()\n\ta.handler.ServeHTTP(rec, req)\n\treturn rec\n}\n",
+          "explanation": "This helper is why each handler test is a line or two. `t.Helper()` makes a failure point at the test's line instead of the helper's. `httptest.NewRequestWithContext(t.Context(), ...)` gives the request a context that ends with the test (`t.Context` is new in Go 1.24). `a.handler` is the whole API from `NewServer`, middleware included, so these tests cover auth, problems, and headers along with each route."
+        },
+        {
+          "title": "A table of bad requests",
+          "prompt": "Read `TestCreateTaskRejects`, a table-driven test. The output is `go test -short -count=1 -v -run TestCreateTaskRejects ./internal/api`.",
+          "language": "go",
+          "file": "internal/api/tasks_test.go",
+          "code": "func TestCreateTaskRejects(t *testing.T) {\n\ttests := []struct {\n\t\tname   string\n\t\tbody   string\n\t\tstatus int\n\t\tfield  string\n\t}{\n\t\t{\"an empty title\", `{\"title\": \"   \"}`, 422, \"title\"},\n\t\t{\"priority 4\", `{\"title\": \"Ship it\", \"priority\": 4}`, 422, \"priority\"},\n\t\t{\"priority as a word\", `{\"title\": \"Ship it\", \"priority\": \"high\"}`, 400, \"priority\"},\n\t\t{\"a date that does not exist\", `{\"title\": \"Ship it\", \"due_on\": \"2026-13-01\"}`, 422, \"due_on\"},\n\t\t{\"an assignee outside the project\", `{\"title\": \"Ship it\", \"assignee_id\": 4}`, 422, \"assignee_id\"},\n\t\t{\"status, which is not a field here\", `{\"title\": \"Ship it\", \"status\": \"done\"}`, 400, \"status\"},\n\t\t{\"a body that is not JSON\", `{\"title\": `, 400, \"\"},\n\t\t{\"two JSON objects\", `{\"title\": \"a\"}{\"title\": \"b\"}`, 400, \"\"},\n\t}\n\ta := newTestAPI(t)\n\ttoken := a.as(graceID)\n\tfor _, tc := range tests {\n\t\tt.Run(tc.name, func(t *testing.T) {\n\t\t\trec := a.do(t, \"POST\", \"/v1/projects/1/tasks\", token, tc.body)\n\t\t\twantStatus(t, rec, tc.status)\n\t\t\tif p := decode[problem](t, rec); tc.field != \"\" && p.Errors[tc.field] == \"\" {\n\t\t\t\tt.Errorf(\"errors = %v, want one for %s\", p.Errors, tc.field)\n\t\t\t}\n\t\t})\n\t}\n}\n",
+          "output": "=== RUN   TestCreateTaskRejects\n=== RUN   TestCreateTaskRejects/an_empty_title\n=== RUN   TestCreateTaskRejects/priority_4\n=== RUN   TestCreateTaskRejects/priority_as_a_word\n=== RUN   TestCreateTaskRejects/a_date_that_does_not_exist\n=== RUN   TestCreateTaskRejects/an_assignee_outside_the_project\n=== RUN   TestCreateTaskRejects/status,_which_is_not_a_field_here\n=== RUN   TestCreateTaskRejects/a_body_that_is_not_JSON\n=== RUN   TestCreateTaskRejects/two_JSON_objects\n--- PASS: TestCreateTaskRejects (0.00s)\n    --- PASS: TestCreateTaskRejects/an_empty_title (0.00s)\n    --- PASS: TestCreateTaskRejects/priority_4 (0.00s)\n    --- PASS: TestCreateTaskRejects/priority_as_a_word (0.00s)\n    --- PASS: TestCreateTaskRejects/a_date_that_does_not_exist (0.00s)\n    --- PASS: TestCreateTaskRejects/an_assignee_outside_the_project (0.00s)\n    --- PASS: TestCreateTaskRejects/status,_which_is_not_a_field_here (0.00s)\n    --- PASS: TestCreateTaskRejects/a_body_that_is_not_JSON (0.00s)\n    --- PASS: TestCreateTaskRejects/two_JSON_objects (0.00s)\nPASS\nok  \texample.com/taskboard/internal/api\t0.005s",
+          "explanation": "Each row is one case: a name, a body, the expected status, and the field the problem must blame. `t.Run` makes each row a named subtest, so a failure says exactly which case broke, and `-run 'TestCreateTaskRejects/priority_4'` reruns just that one. Adding a case is one line. The test checks what a client relies on, the status and the field name, not the wording of messages, so improving a message never breaks it. All eight cases ran with no database at all."
+        },
+        {
+          "title": "A test on a real database",
+          "prompt": "Read `TestDeleteCascades`, a repository test. The output is `go test -count=1 -v -run TestDeleteCascades ./internal/store`, run with `DATABASE_URL` pointing at PostgreSQL.",
+          "language": "go",
+          "file": "internal/store/tasks_test.go",
+          "code": "func TestDeleteCascades(t *testing.T) {\n\tt.Parallel()\n\tpool := testdb.New(t)\n\ttestdb.Seed(t, pool)\n\trepo := store.NewTaskRepo(store.New(pool))\n\tif err := repo.Delete(t.Context(), 1); err != nil {\n\t\tt.Fatalf(\"Delete: %v\", err)\n\t}\n\tvar comments, watchers int\n\terr := pool.QueryRow(t.Context(), `SELECT\n\t\t(SELECT count(*) FROM comments WHERE task_id = 1), (SELECT count(*) FROM task_watchers WHERE task_id = 1)`).\n\t\tScan(&comments, &watchers)\n\tif err != nil {\n\t\tt.Fatal(err)\n\t}\n\tif comments != 0 || watchers != 0 {\n\t\tt.Errorf(\"after deleting task 1: %d comments and %d watchers left, want 0\", comments, watchers)\n\t}\n}\n",
+          "output": "=== RUN   TestDeleteCascades\n=== PAUSE TestDeleteCascades\n=== CONT  TestDeleteCascades\n--- PASS: TestDeleteCascades (0.07s)\nPASS\nok  \texample.com/taskboard/internal/store\t0.075s",
+          "explanation": "A fake can't tell you whether your SQL is right. `ON DELETE CASCADE` is a promise the schema makes, so this test asks PostgreSQL itself. `testdb.New(t)` creates a fresh schema, applies every migration, and drops it in `t.Cleanup`, so tests can run in parallel with `t.Parallel()`, which is what the `PAUSE` and `CONT` lines show, without seeing each other's rows. After the repository call, the test checks the tables with a plain query, not with more repository code. Under `-short`, `testdb.New` skips the test."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "internal/api/helpers_test.go",
+          "internal/api/tasks_test.go",
+          "internal/store/tasks_test.go"
+        ]
+      }
+    }
+  ],
+  "recap": "- A middleware is a `func(http.Handler) http.Handler`, and the one wrapped last runs first.\n- Wrap the `ResponseWriter` to see the status, and give the wrapper an `Unwrap` method.\n- Pass `r.Context()` to every I/O call, keep request-scoped values under unexported key types, and give risky calls their own `context.WithTimeout`.\n- Test handlers in memory with `httptest.NewRequest` and `httptest.NewRecorder`, in tables of named subtests.\n- Test SQL against real PostgreSQL in a fresh schema per test, and skip those tests under `-short`."
+}

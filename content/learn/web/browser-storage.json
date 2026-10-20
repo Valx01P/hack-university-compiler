@@ -1,0 +1,108 @@
+{
+  "id": "browser-storage",
+  "title": "Storage in the Browser",
+  "section": "JavaScript in the Browser",
+  "summary": "Save state in localStorage without trusting what comes back, know when sessionStorage fits, and set cookies with the flags that keep sessions safe.",
+  "format": "read",
+  "intro": "Every app decides where its state lives: in memory, in the URL, in localStorage or sessionStorage, in a cookie, or on the server. A wrong choice shows up as real bugs, like a cart that forgets things, a setting that leaks between tabs, or a session token stolen by a script. This lesson reads the tasks app's persistence module, which handles every way storage can fail, then covers the two stores it doesn't use.",
+  "steps": [
+    {
+      "title": "localStorage without surprises",
+      "body": "`localStorage` keeps strings under keys for one origin (scheme, host, and port), with no expiry date. The user can clear it, though, and Safari clears it for a site after seven days of browsing without the user interacting with that site, so keep anything you can't lose on a server. It is synchronous and small, about 5 MB per origin, so it suits settings and small app state.\n\nThree facts drive how you use it:\n\n- It stores only strings. `setItem(\"task\", task)` saves `\"[object Object]\"`, so write with `JSON.stringify` and read with `JSON.parse`.\n- Reading and writing can throw. A browser that blocks storage throws as soon as you touch it, and a full one throws `QuotaExceededError` from `setItem`.\n- What you read may not be what you wrote. An older version of your app, a user in DevTools, or an extension can leave anything there.\n\nSo put a version in the key, catch errors on reads and writes, and check the shape of what you load.",
+      "examples": [
+        {
+          "title": "A safe save",
+          "prompt": "`saveTasks`, which writes the whole list after every change.",
+          "language": "js",
+          "file": "src/model/persist.js",
+          "code": "/**\n * Saves the tasks, replacing what was saved before.\n * @param {readonly import(\"./task-store.js\").Task[]} tasks\n * @param {Storage} [storage] localStorage, unless a test passes another\n * @returns {boolean} false when the browser refused, because storage is full or blocked\n */\nexport function saveTasks(tasks, storage) {\n  try {\n    const target = storage ?? localStorage;\n    target.setItem(STORAGE_KEY, JSON.stringify(tasks.map(pick)));\n    return true;\n  } catch {\n    return false;\n  }\n}",
+          "explanation": "The key is `\"tasks:v1\"`, defined once at the top of the file as `STORAGE_KEY`, whose comment states the plan: when a task gains a field, the app moves to `tasks:v2` and converts the old data once, instead of guessing what old data means. `pick` keeps only `id`, `title`, and `done`, so screen state never leaks into storage. The whole write sits in `try`, because it runs inside a store subscriber. If it threw when the browser refused, the error would escape the store's loop over its subscribers, and the render subscribed after it would never run."
+        },
+        {
+          "title": "Loading data you can't trust",
+          "prompt": "`loadTasks` reads the saved list, or tells the caller there is nothing usable.",
+          "language": "js",
+          "file": "src/model/persist.js",
+          "code": "/**\n * Reads the saved tasks.\n * @param {Storage} [storage] localStorage, unless a test passes another\n * @returns {import(\"./task-store.js\").Task[] | null} the tasks, or null when nothing usable is saved\n */\nexport function loadTasks(storage) {\n  let raw;\n  try {\n    // Even reading can throw, when the browser blocks storage for this page.\n    raw = (storage ?? localStorage).getItem(STORAGE_KEY);\n  } catch {\n    return null;\n  }\n  if (raw === null) return null;\n\n  try {\n    const data = JSON.parse(raw);\n    if (Array.isArray(data) && data.every(isTask)) return data.map(pick);\n  } catch {\n    // Not JSON at all: treated below like any other data of the wrong shape.\n  }\n  console.warn(`Ignoring saved tasks that are not in the ${STORAGE_KEY} shape.`);\n  return null;\n}",
+          "explanation": "Reading is guarded twice. The first `try` covers storage that throws as soon as you touch it, and the second covers text that isn't JSON. A successful `JSON.parse` proves nothing about the shape, so `isTask` checks every item's fields and types. Any problem gives `null` and one console warning, and `main.js` then starts from the sample tasks with `loadTasks() ?? SEED_TASKS`. A bad value in storage never crashes the app on load, which is a bug that would otherwise last until the user clears their site data."
+        },
+        {
+          "title": "Tests for bad data",
+          "prompt": "The unit tests that feed `loadTasks` broken data, and their lines from `npx vitest run tests/unit/persist.test.js --reporter=verbose`.",
+          "language": "js",
+          "file": "tests/unit/persist.test.js",
+          "code": "describe(\"loadTasks with bad data\", () => {\n  it.each([\n    [\"text that is not JSON\", \"{not json\"],\n    [\"JSON that is not a list\", '{\"tasks\":[]}'],\n    [\"a task without a title\", '[{\"id\":\"a\",\"done\":false}]'],\n    [\"a task whose done is a string\", '[{\"id\":\"a\",\"title\":\"Buy milk\",\"done\":\"no\"}]'],\n  ])(\"returns null for %s, with a warning\", (_, saved) => {\n    const warn = vi.spyOn(console, \"warn\").mockImplementation(() => {});\n    const storage = new MemoryStorage();\n    storage.setItem(STORAGE_KEY, saved);\n    expect(loadTasks(storage)).toBeNull();\n    expect(warn).toHaveBeenCalledOnce();\n    warn.mockRestore();\n  });\n\n  it(\"returns null when the browser blocks storage\", () => {\n    expect(loadTasks(refusingStorage)).toBeNull();\n  });\n});",
+          "output": " ✓ tests/unit/persist.test.js > loadTasks with bad data > returns null for text that is not JSON, with a warning 1ms\n ✓ tests/unit/persist.test.js > loadTasks with bad data > returns null for JSON that is not a list, with a warning 0ms\n ✓ tests/unit/persist.test.js > loadTasks with bad data > returns null for a task without a title, with a warning 0ms\n ✓ tests/unit/persist.test.js > loadTasks with bad data > returns null for a task whose done is a string, with a warning 0ms\n ✓ tests/unit/persist.test.js > loadTasks with bad data > returns null when the browser blocks storage 0ms",
+          "explanation": "`it.each` runs one test per row of the table, with the row's first value in the test's name. Each case saves bad text into an in-memory storage and checks that `loadTasks` returns `null` and warns exactly once. Mocking `console.warn` also keeps the warnings out of the test output. The last test passes a storage whose methods throw, the way a browser's storage does when it is blocked."
+        }
+      ],
+      "codebase": {
+        "template": "tasks-mvc",
+        "files": [
+          "src/model/persist.js",
+          "tests/unit/persist.test.js",
+          "src/main.js"
+        ]
+      }
+    },
+    {
+      "title": "sessionStorage and swappable stores",
+      "body": "`sessionStorage` has exactly the same methods as `localStorage`, with a shorter life. Each tab gets its own: it survives reloads, other tabs can't see it, and closing the tab deletes it. That makes it the right store for state that belongs to one tab, like a half-filled form, a step in a checkout, or a scroll position, where two tabs must not overwrite each other.\n\nBoth stores implement the same `Storage` interface. So when a module takes the storage as a parameter, switching stores is one argument:\n\n```js\nconst tasks = loadTasks(sessionStorage);\nsaveTasks(tasks, sessionStorage);\n```\n\nThe same parameter lets tests pass a fake, so they run in Node with no browser at all.\n\nNeither store is a place for secrets. Any script running on the page can read both, including one an attacker injected, so an access token kept there is one cross-site scripting bug away from being stolen.",
+      "examples": [
+        {
+          "title": "Two fake storages",
+          "prompt": "The fakes at the top of the persistence tests. Each one has only the methods `persist.js` calls.",
+          "language": "js",
+          "file": "tests/unit/persist.test.js",
+          "code": "/** The part of the Storage interface persist.js uses, kept in a Map. */\nclass MemoryStorage {\n  #items = new Map();\n\n  getItem(key) {\n    return this.#items.get(key) ?? null;\n  }\n\n  setItem(key, value) {\n    this.#items.set(key, String(value));\n  }\n}\n\n/** A storage that refuses every call, as a browser does when storage is full or blocked. */\nconst refusingStorage = {\n  getItem() {\n    throw new DOMException(\"The operation is insecure.\", \"SecurityError\");\n  },\n  setItem() {\n    throw new DOMException(\"The quota has been exceeded.\", \"QuotaExceededError\");\n  },\n};",
+          "explanation": "`MemoryStorage` keeps items in a `Map` and turns every value into a string, as real storage does, so a bug that skips `JSON.stringify` still shows up in a test. `refusingStorage` throws the same `DOMException`s a browser throws when storage is blocked or full. Because the storage is passed in, each test starts with a fresh, empty store and never depends on what another test saved. `localStorage`, `sessionStorage`, and these fakes all fit the same parameter."
+        },
+        {
+          "title": "Passing the storage in",
+          "prompt": "The round-trip tests, which call `saveTasks` and `loadTasks` with their own storage.",
+          "language": "js",
+          "file": "tests/unit/persist.test.js",
+          "code": "describe(\"saveTasks and loadTasks\", () => {\n  it(\"save under tasks:v1 and load the same tasks back\", () => {\n    const storage = new MemoryStorage();\n    expect(saveTasks(tasks, storage)).toBe(true);\n    expect(JSON.parse(storage.getItem(STORAGE_KEY))).toEqual(tasks);\n    expect(loadTasks(storage)).toEqual(tasks);\n  });\n\n  it(\"save only the fields a task has\", () => {\n    const storage = new MemoryStorage();\n    saveTasks([{ ...tasks[0], editing: true }], storage);\n    expect(loadTasks(storage)).toEqual([tasks[0]]);\n  });\n\n  it(\"load null when nothing is saved\", () => {\n    expect(loadTasks(new MemoryStorage())).toBeNull();\n  });\n});",
+          "explanation": "Each test passes its storage as the last argument, exactly as you would pass `sessionStorage` to keep the tasks per tab. The first test also reads the raw text back and parses it, so it checks the saved format and not just that loading undoes saving. The second shows `pick` at work: a stray `editing` field goes in and never comes back out."
+        }
+      ],
+      "codebase": {
+        "template": "tasks-mvc",
+        "files": [
+          "tests/unit/persist.test.js",
+          "src/model/persist.js"
+        ]
+      }
+    },
+    {
+      "title": "Cookies and their flags",
+      "body": "A cookie is a small name and value that the browser keeps for a site and sends back in the `Cookie` header of every request to it. That makes cookies the one store the server reads on its own, which is why sessions live in them. A server sets one with a response header:\n\n```http\nSet-Cookie: session=7f3a9c; Max-Age=3600; Path=/; Secure; HttpOnly; SameSite=Lax\n```\n\n- `Max-Age` (in seconds) or `Expires` (a date) keeps it after the browser closes. Without either, it lasts until the browser session ends.\n- `Path` and `Domain` choose which URLs receive it. Leave `Domain` out to keep it on this exact host.\n- `Secure` sends it only over HTTPS.\n- `HttpOnly` hides it from `document.cookie`, so an injected script can't read it.\n- `SameSite=Lax` sends it on a cross-site request only for a top-level navigation, like following a link to your site, which blocks most cross-site request forgery (CSRF). `Strict` never sends it cross-site, and `None` always does but requires `Secure`. Always set it, because browsers don't agree on the default.\n\nEach cookie holds about 4 KB, and every request to the site carries them all, so keep them few and small.",
+      "examples": [
+        {
+          "title": "Why the tasks aren't a cookie",
+          "prompt": "The two lines of `main.js` that load the tasks and save every change.",
+          "language": "js",
+          "file": "src/main.js",
+          "code": "const store = new TaskStore(loadTasks() ?? SEED_TASKS);\nstore.subscribe((tasks) => saveTasks(tasks));",
+          "explanation": "Only this browser ever reads the tasks, so `localStorage` keeps them on the device, where they cost nothing. In a cookie they would ride along on every request the page makes, and in development Vite serves each of the app's nine modules as its own request. They would also hit the 4 KB limit after a few dozen tasks. The rule: use a cookie only for what the server must read on the first request, like a session id or the theme a server-rendered page needs, and make it `HttpOnly` unless a script truly has to read it."
+        },
+        {
+          "title": "Ports, origins, and sites",
+          "prompt": "The dev server's settings. The port it listens on is part of the origin that owns `localStorage`.",
+          "language": "js",
+          "file": "vite.config.js",
+          "code": "const port = Number(process.env.PORT) || 5173;\n\nexport default defineConfig({\n  // Vite's own cache lives here instead of node_modules/.vite, because the\n  // workspace shares node_modules between projects and mounts it read-only.\n  cacheDir: \".vite-cache\",\n  server: {\n    // 0.0.0.0 listens on every network interface, not only on loopback, so the\n    // server can be reached from outside its container.\n    host: \"0.0.0.0\",\n    port,\n    // Stop with an error instead of quietly moving to a port nobody is watching.\n    strictPort: true,\n  },\n  preview: {\n    host: \"0.0.0.0\",\n    port,\n    strictPort: true,\n  },\n});",
+          "explanation": "`localStorage` belongs to an origin, and an origin includes the port. Start the app on another port and it opens with the sample tasks, because `http://localhost:5174` can't read what `http://localhost:5173` saved. Cookies are scoped by host and path but not by port, so every server on `localhost` sees the same cookies, which surprises people who run two apps side by side. `SameSite` uses a wider idea still, the site: `app.example.com` and `api.example.com` are the same site, so requests between them count as same-site."
+        }
+      ],
+      "codebase": {
+        "template": "tasks-mvc",
+        "files": [
+          "src/main.js",
+          "vite.config.js"
+        ]
+      }
+    }
+  ],
+  "recap": "- `localStorage` is per origin, string-only, synchronous, and about 5 MB. Version the key, catch errors on reads and writes, and check the shape of what you load.\n- `sessionStorage` has the same API but lives in one tab, so use it for per-tab state like drafts and checkout steps.\n- Take the storage as a parameter, so you can switch stores and test with a fake.\n- Never keep secrets in either store. A session belongs in an `HttpOnly`, `Secure` cookie with an explicit `SameSite`.\n- Use cookies only for what the server must read, and keep them few and small."
+}

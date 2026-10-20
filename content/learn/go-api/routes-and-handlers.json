@@ -1,0 +1,118 @@
+{
+  "id": "routes-and-handlers",
+  "title": "Routes and Handlers",
+  "section": "HTTP with net/http",
+  "summary": "Read how a Go API answers HTTP: the Handler interface, ServeMux routes with methods and wildcards, thin handlers, and a server that stops cleanly.",
+  "format": "read",
+  "intro": "Most backend work in Go is adding or changing endpoints in a service that already exists. The standard library covers it: `net/http` has the handler interface, a router that matches methods and path wildcards (since Go 1.22), and a production-ready server. This lesson starts with a tiny server, then reads Taskboard, the course's main codebase, from its route table down to the code that starts and stops it.",
+  "steps": [
+    {
+      "title": "Handlers and the ServeMux",
+      "body": "Everything that answers HTTP in Go is an `http.Handler`, a type with one method:\n\n```go\ntype Handler interface {\n\tServeHTTP(ResponseWriter, *Request)\n}\n```\n\nThe `*http.Request` holds the method, URL, headers, body, and context. The `http.ResponseWriter` takes your response in a fixed order: headers, then the status with `WriteHeader`, then the body with `Write`. `http.HandlerFunc` turns a plain function with that signature into a handler.\n\nA `*http.ServeMux` is a handler that routes to other handlers. Since Go 1.22 a pattern names the method and can hold wildcards, like `\"GET /v1/tasks/{taskID}\"`, and `r.PathValue(\"taskID\")` reads that segment. When no pattern matches the path, the mux answers 404. When the path matches but the method doesn't, it answers 405 with an `Allow` header. A `GET` route also serves `HEAD`, and when two patterns match, the more specific one wins. Most Go services no longer need a router library.",
+      "examples": [
+        {
+          "title": "The smallest API",
+          "prompt": "Read the playground's `main` and the start of `routes`. The output is what `curl -i` printed for `GET /hello?name=Gopher`, then for `POST /hello`.",
+          "language": "go",
+          "file": "main.go",
+          "code": "func main() {\n\taddr := \":\" + cmp.Or(os.Getenv(\"PORT\"), \"8080\")\n\tlog.Printf(\"listening on http://localhost%s\", addr)\n\tlog.Fatal(http.ListenAndServe(addr, routes()))\n}\n\nfunc routes() *http.ServeMux {\n\tmux := http.NewServeMux()\n\tmux.HandleFunc(\"GET /hello\", func(w http.ResponseWriter, r *http.Request) {\n\t\tname := cmp.Or(r.URL.Query().Get(\"name\"), \"world\")\n\t\twriteJSON(w, http.StatusOK, map[string]string{\"message\": \"hello, \" + name})\n\t})\n",
+          "output": "HTTP/1.1 200 OK\nContent-Type: application/json\nDate: Tue, 20 Oct 2026 01:43:57 GMT\nContent-Length: 28\n\n{\"message\":\"hello, Gopher\"}\n\nHTTP/1.1 405 Method Not Allowed\nAllow: GET, HEAD\nContent-Type: text/plain; charset=utf-8\nX-Content-Type-Options: nosniff\nDate: Tue, 20 Oct 2026 01:43:57 GMT\nContent-Length: 19\n\nMethod Not Allowed",
+          "explanation": "`routes` builds the mux and returns it, and `main` only picks the port and serves. Keeping them apart lets `main_test.go` call `routes()` in memory, with no port at all. The pattern `GET /hello` names its method, so the mux refused `POST /hello` by itself, with 405 and `Allow: GET, HEAD`. `cmp.Or` returns the first of its arguments that isn't the zero value, a one-line default for a missing query parameter or environment variable. `http.ListenAndServe` is fine for a playground, but it sets no timeouts, so production code builds an `http.Server` instead."
+        },
+        {
+          "title": "Headers, then status, then body",
+          "prompt": "Read the playground's `writeJSON`, the helper every route answers with.",
+          "language": "go",
+          "file": "main.go",
+          "code": "func writeJSON(w http.ResponseWriter, status int, v any) {\n\tw.Header().Set(\"Content-Type\", \"application/json\")\n\tw.WriteHeader(status)\n\tif err := json.NewEncoder(w).Encode(v); err != nil {\n\t\tlog.Printf(\"write response: %v\", err)\n\t}\n}\n",
+          "explanation": "A `ResponseWriter` takes the response in one order. Headers go on `w.Header()` first, because `WriteHeader` sends them together with the status line, and changes made after that are ignored. If you call `Write` before `WriteHeader`, Go sends `200 OK` for you, and a later `WriteHeader(404)` only logs `superfluous response.WriteHeader call`. This helper has one weak spot: if `Encode` fails halfway, the 200 has already gone out. Taskboard's version marshals to bytes first, so it can still answer with a clean error."
+        }
+      ],
+      "codebase": {
+        "template": "playground",
+        "files": [
+          "main.go"
+        ]
+      }
+    },
+    {
+      "title": "Routes and thin handlers",
+      "body": "In Taskboard, `internal/api/routes.go` registers every endpoint in one place, so one file is the map of the whole API. Each route points at a handler, and each handler does three small things:\n\n1. Read the request: path values, query parameters, and the JSON body.\n2. Call one service method, passing `r.Context()` and the logged-in user.\n3. Write the response, or return the error.\n\nA handler never runs SQL and never decides a business rule, like who may delete a task. Those live in the layers below, so handlers stay short and look alike.\n\nTaskboard's handlers also return an `error` instead of writing error responses themselves. One adapter turns them into `http.Handler` values and writes every error the same way. A handler can `return err` at any step, like the rest of your Go code, and an error response is never forgotten or written twice.",
+      "examples": [
+        {
+          "title": "Every route in one file",
+          "prompt": "Read Taskboard's route table. The output is the response to `DELETE /v1/me`, a path that exists only for `GET`.",
+          "language": "go",
+          "file": "internal/api/routes.go",
+          "code": "// routes registers every endpoint, in one place, so this file is the map of the API.\n// Patterns name the method and the path, and {name} segments are read with\n// r.PathValue. Routes under /v1 need a login, except signup and login themselves.\nfunc (s *server) routes(mux *http.ServeMux) {\n\tpublic := func(pattern string, h apiFunc) { mux.Handle(pattern, s.handle(h)) }\n\tprivate := func(pattern string, h apiFunc) { mux.Handle(pattern, s.requireAuth(s.handle(h))) }\n\n\tpublic(\"GET /healthz\", s.healthz)\n\tpublic(\"GET /readyz\", s.readyz)\n\n\tpublic(\"POST /v1/auth/signup\", s.signup)\n\tmux.Handle(\"POST /v1/auth/login\", s.limitLogins(s.handle(s.login)))\n\tprivate(\"POST /v1/auth/logout\", s.logout)\n\tprivate(\"GET /v1/me\", s.me)\n\tprivate(\"GET /v1/users\", s.searchUsers)\n\n\tprivate(\"GET /v1/projects\", s.listProjects)\n\tprivate(\"POST /v1/projects\", s.createProject)\n\tprivate(\"GET /v1/projects/{projectID}\", s.getProject)\n\tprivate(\"PATCH /v1/projects/{projectID}\", s.updateProject)\n\tprivate(\"POST /v1/projects/{projectID}/members\", s.addMember)\n\tprivate(\"GET /v1/projects/{projectID}/stats\", s.projectStats)\n\n\tprivate(\"GET /v1/projects/{projectID}/tasks\", s.listTasks)\n\tprivate(\"POST /v1/projects/{projectID}/tasks\", s.createTask)\n\tprivate(\"GET /v1/tasks/{taskID}\", s.getTask)\n\tprivate(\"PATCH /v1/tasks/{taskID}\", s.updateTask)\n\tprivate(\"DELETE /v1/tasks/{taskID}\", s.deleteTask)\n\tprivate(\"POST /v1/tasks/{taskID}/transition\", s.transitionTask)\n",
+          "output": "HTTP/1.1 405 Method Not Allowed\nAllow: GET, HEAD\nCache-Control: no-store\nContent-Type: application/problem+json\nReferrer-Policy: no-referrer\nX-Content-Type-Options: nosniff\nX-Query-Count: 0\nX-Request-Id: 01a156fa-cd7c-7f9e-a86e-b3b731eb7bbb\nDate: Tue, 20 Oct 2026 01:43:59 GMT\nContent-Length: 194\n\n{\"type\":\"about:blank\",\"title\":\"Method Not Allowed\",\"status\":405,\"detail\":\"/v1/me does not accept DELETE, only GET, HEAD\",\"instance\":\"/v1/me\",\"request_id\":\"01a156fa-cd7c-7f9e-a86e-b3b731eb7bbb\"}",
+          "explanation": "Each endpoint is one line: the method and path, then the `server` method that handles it. When you join a team, start here. This file tells you what the API does and which handler to open next. `public` and `private` are small closures, and `private` puts `requireAuth` in front of the handler, so no route can forget its login check. `/v1/me` exists only for `GET`, so the mux chose 405 and listed what is allowed. Taskboard turns the mux's plain-text 404 and 405 into JSON problems like every other error, which is why this body is JSON."
+        },
+        {
+          "title": "Handlers that return errors",
+          "prompt": "Read `apiFunc` and `handle`, the adapter between Taskboard's handlers and `net/http`.",
+          "language": "go",
+          "file": "internal/api/server.go",
+          "code": "// apiFunc is a handler that returns its error instead of writing it, so every error\n// is turned into a problem response in one place.\ntype apiFunc func(w http.ResponseWriter, r *http.Request) error\n\nfunc (s *server) handle(h apiFunc) http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\tif err := h(w, r); err != nil {\n\t\t\ts.writeProblem(w, r, err)\n\t\t}\n\t})\n}\n",
+          "explanation": "`handle` returns an `http.HandlerFunc`, a closure around `h`. Every error a handler returns ends up in `writeProblem`, so all errors leave the API in one shape. Compare the plain style, where each `if err != nil` writes a status and a body and must then `return`. Forget that `return` and the handler keeps going and writes a second response, a classic bug this pattern rules out."
+        },
+        {
+          "title": "A thin handler",
+          "prompt": "Read `getTask`, the handler for `GET /v1/tasks/{taskID}`. The output is the full response for task 3, requested with Grace's token.",
+          "language": "go",
+          "file": "internal/api/tasks.go",
+          "code": "// getTask returns a task, with its version as the ETag.\nfunc (s *server) getTask(w http.ResponseWriter, r *http.Request) error {\n\tid, err := pathID(r, \"taskID\", \"task_id\")\n\tif err != nil {\n\t\treturn err\n\t}\n\tt, err := s.Tasks.Get(r.Context(), user(r), id)\n\tif err != nil {\n\t\treturn err\n\t}\n\tw.Header().Set(\"ETag\", etag(t.Version))\n\treturn writeJSON(w, http.StatusOK, toTaskResponse(t))\n}\n",
+          "output": "HTTP/1.1 200 OK\nCache-Control: no-store\nContent-Type: application/json\nEtag: \"v1\"\nReferrer-Policy: no-referrer\nX-Content-Type-Options: nosniff\nX-Query-Count: 3\nX-Request-Id: 01a156fa-cd6a-7f48-99fb-68c4dbb132af\nDate: Tue, 20 Oct 2026 01:43:59 GMT\nContent-Length: 292\n\n{\"id\":3,\"project_id\":1,\"title\":\"Design the pricing page\",\"description\":\"Three plans, a comparison table, and the FAQ.\",\"status\":\"doing\",\"priority\":3,\"due_on\":\"2026-10-01\",\"assignee_id\":2,\"version\":1,\"completed_at\":null,\"created_at\":\"2026-09-10T11:00:00Z\",\"updated_at\":\"2026-09-10T11:00:00Z\"}",
+          "explanation": "Three steps, each one line plus an error check: read the id, ask the service, write the view. `pathID` parses `r.PathValue(\"taskID\")`, and `/v1/tasks/abc` gets a 400 that names `task_id`. `user(r)` is the logged-in user, which the auth middleware put in the request's context. The `ETag` holds the task's version, which a client sends back in `If-Match` to update it safely. Go writes header names in canonical form, like `Etag` and `X-Request-Id`, and clients must match them without regard to case. Most of these headers weren't set by this handler: middleware adds them to every response."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "internal/api/routes.go",
+          "internal/api/server.go",
+          "internal/api/tasks.go"
+        ]
+      }
+    },
+    {
+      "title": "A server you can stop",
+      "body": "`http.ListenAndServe` sets no timeouts, so a client that sends its headers one byte a minute can hold a connection forever. Production code builds an `http.Server` and sets four:\n\n- `ReadHeaderTimeout`: how long a client may take to send the headers.\n- `ReadTimeout`: how long for the whole request, body included.\n- `WriteTimeout`: how long the handler has to write the response.\n- `IdleTimeout`: how long a kept-alive connection may wait for the next request.\n\nStopping matters as much as starting. A deploy sends SIGTERM, and the server should finish the requests it has started before it exits. `signal.NotifyContext` returns a context that ends on that signal, and `srv.Shutdown(ctx)` stops accepting connections and waits for the requests in flight. `Serve` then returns `http.ErrServerClosed`, which means a clean stop, not a failure.",
+      "examples": [
+        {
+          "title": "main only calls run",
+          "prompt": "Read Taskboard's whole `main`.",
+          "language": "go",
+          "file": "cmd/api/main.go",
+          "code": "// version is set when a release is built:\n//\n//\tgo build -ldflags \"-X main.version=1.4.2\" -o bin/api ./cmd/api\nvar version = \"dev\"\n\nfunc main() {\n\tif err := run(context.Background(), os.Args[1:], os.Getenv, os.Stdout); err != nil {\n\t\tfmt.Fprintln(os.Stderr, \"taskboard:\", err)\n\t\tos.Exit(1)\n\t}\n}\n",
+          "explanation": "`main` hands `run` the real process: a context, the arguments, the environment, and stdout. Everything else happens in `run`, which returns an error instead of calling `os.Exit` or `log.Fatal` itself. That makes startup testable: a test can call `run` with a fake `getenv` and a buffer for the logs, then cancel the context. It also means the deferred cleanups inside `run` always run, which `os.Exit` would skip. `version` is a variable so a release build can stamp it with `-ldflags`."
+        },
+        {
+          "title": "A server with timeouts",
+          "prompt": "Read how `run` builds the API server.",
+          "language": "go",
+          "file": "cmd/api/run.go",
+          "code": "\tservers := []*http.Server{{\n\t\tAddr:              \":\" + strconv.Itoa(cfg.Port),\n\t\tHandler:           handler,\n\t\tReadHeaderTimeout: 5 * time.Second,\n\t\tReadTimeout:       30 * time.Second,\n\t\tWriteTimeout:      60 * time.Second,\n\t\tIdleTimeout:       2 * time.Minute,\n\t\tErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),\n\t}}\n",
+          "explanation": "These are Taskboard's values. Choose yours per API: `WriteTimeout` must be longer than your slowest endpoint, or the server cuts that response off. `ReadHeaderTimeout` is the one that stops slow-header attacks, and linters such as gosec flag a server without it. `ErrorLog` sends the server's own messages, like a failed TLS handshake, through the app's JSON logger instead of the standard `log` package."
+        },
+        {
+          "title": "Shutting down cleanly",
+          "prompt": "Read how `run` serves until a signal arrives, then shuts down. The output is the server's log after it received SIGTERM.",
+          "language": "go",
+          "file": "cmd/api/run.go",
+          "code": "\tg, gctx := errgroup.WithContext(ctx)\n\tfor _, srv := range servers {\n\t\tg.Go(func() error { return serve(log, srv) })\n\t}\n\tg.Go(func() error { return worker.Run(gctx) })\n\tg.Go(func() error {\n\t\t<-gctx.Done()\n\t\tlog.Info(\"shutting down\", \"timeout\", cfg.ShutdownTimeout.String())\n\t\tsctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.ShutdownTimeout)\n\t\tdefer cancel()\n\t\tvar errs []error\n\t\tfor _, srv := range servers {\n\t\t\terrs = append(errs, srv.Shutdown(sctx))\n\t\t}\n\t\treturn errors.Join(errs...)\n\t})\n\terr = g.Wait()\n\tlog.Info(\"stopped\", \"err\", err)\n\treturn err\n",
+          "output": "{\"time\":\"2026-10-20T01:44:03.265766261Z\",\"level\":\"INFO\",\"msg\":\"job worker stopped\"}\n{\"time\":\"2026-10-20T01:44:03.265764428Z\",\"level\":\"INFO\",\"msg\":\"shutting down\",\"timeout\":\"10s\"}\n{\"time\":\"2026-10-20T01:44:03.265818928Z\",\"level\":\"INFO\",\"msg\":\"stopped\",\"err\":null}",
+          "explanation": "`errgroup` runs each server, the job worker, and a shutdown goroutine together, and `g.Wait` returns once all of them have. Since Go 1.22 each loop iteration has its own `srv`, so each goroutine serves a different server. `gctx` ends on SIGTERM or Ctrl+C, because `ctx` came from `signal.NotifyContext`, or as soon as any goroutine returns an error. The worker and the shutdown goroutine wake at the same moment, so their log lines can come in either order, as they did here. `Shutdown` gets 10 seconds to drain. Its context starts from `context.WithoutCancel(ctx)`, because `ctx` is already canceled and a deadline built on it would expire at once. A clean stop logs `\"err\":null`, `run` returns nil, and the process exits 0."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "cmd/api/main.go",
+          "cmd/api/run.go"
+        ]
+      }
+    }
+  ],
+  "recap": "- An `http.Handler` has one method, `ServeHTTP(w, r)`, and `http.HandlerFunc` turns a function into one.\n- Go 1.22 `ServeMux` patterns hold the method and wildcards, like `\"GET /v1/tasks/{taskID}\"`, `r.PathValue` reads them, and the mux answers 404 and 405 for you.\n- Keep every route in one file, and keep handlers thin: read the request, call one service method, write the response.\n- Let handlers return errors, and write every error response in one place.\n- Build an `http.Server` with timeouts, and stop it on SIGTERM with `Shutdown`, treating `http.ErrServerClosed` as success."
+}

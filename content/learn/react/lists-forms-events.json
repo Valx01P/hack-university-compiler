@@ -1,0 +1,101 @@
+{
+  "id": "lists-forms-events",
+  "title": "Lists, Forms, and Events",
+  "section": "React Fundamentals",
+  "summary": "Render lists with stable keys, handle clicks, keys, and drags with typed events, and build forms with React 19 actions that show the server's errors.",
+  "format": "read",
+  "intro": "Most screens are lists, and most features end in a form. In this lesson you read how Taskboard renders its board with stable keys, how it handles clicks, keys, and drag and drop, and how its forms post with React 19 actions, keep what the user typed after an error, and show each error next to the right field.",
+  "steps": [
+    {
+      "title": "Lists and keys",
+      "body": "To render a list, `map` an array to elements. Each element needs a `key` that is unique among its siblings and stable from one render to the next, which is almost always the record's id from the database.\n\nKeys are how React matches the old list with the new one, and state belongs to the key. With the array index as the key, deleting or sorting rows hands typed text, focus, and open menus to the wrong item. A key made during render, like `Math.random()`, is worse: every render remounts every row.\n\nFilter and sort before you map, on copies. `filter` and `toSorted` return new arrays, but `sort` changes the array in place, which corrupts props and cached server data that other components share.\n\nA missing key logs a warning in the console. In this codebase the `react/jsx-key` lint rule makes it an error, and the test setup fails any test that logs one.",
+      "examples": [
+        {
+          "title": "A column of cards",
+          "prompt": "Read the JSX of one board column: a heading with a count, the cards, and a message when the column is empty.",
+          "language": "tsx",
+          "file": "src/features/tasks/components/BoardColumn.tsx",
+          "code": "  return (\n    <section\n      aria-labelledby={headingId}\n      data-status={status}\n      className={clsx(styles.column, dropping && styles.dropping)}\n      onDragOver={handleDragOver}\n      onDragLeave={() => setDropping(false)}\n      onDrop={handleDrop}\n    >\n      <h2 id={headingId} className={styles.columnHeading}>\n        {STATUS_LABELS[status]} <span className={styles.count}>{tasks.length}</span>\n      </h2>\n      <ul role=\"list\" className={styles.cards}>\n        {tasks.map((task) => (\n          <li key={task.id}>\n            <TaskCard task={task} assignee={members.find((m) => m.user_id === task.assignee_id)} canDelete={canDelete} />\n          </li>\n        ))}\n      </ul>\n      {tasks.length === 0 && <p className={styles.emptyColumn}>No tasks</p>}\n    </section>\n  );\n}",
+          "explanation": "`tasks.map` turns each task into an `<li>`, and the key goes on the outermost element the callback returns, the `<li>`, not on `TaskCard`. The key is `task.id`, so when a task moves to another column, or a filter hides half the board, each remaining card keeps its own state, like an open status menu. `tasks.length === 0 && ...` compares to a number, so the empty message never renders a stray `0`. `role=\"list\"` keeps the list's meaning for screen readers after the CSS removes its bullets. The drag handlers on the `<section>` are the subject of the next part."
+        },
+        {
+          "title": "Filtering during render",
+          "prompt": "Read how the board builds its three columns from one list of tasks.",
+          "language": "tsx",
+          "file": "src/features/tasks/components/TaskBoard.tsx",
+          "code": "{board.isError ? (\n  <ErrorState title=\"Couldn't load the tasks\" error={board.error} onRetry={() => board.refetch()} />\n) : (\n  <div className={styles.columns} aria-busy={board.isFetching}>\n    {STATUSES.map((status) => (\n      <BoardColumn key={status} status={status} tasks={tasks.filter((t) => t.status === status)} allTasks={tasks} members={members} canDelete={isOwner} />\n    ))}\n  </div>\n)}",
+          "explanation": "`STATUSES` is the constant `[\"todo\", \"doing\", \"done\"]` from `types.ts`, so the columns come from data, and a new status would add a column. The key is the status itself, stable and unique among the three columns. Each column gets its tasks with `filter`, during render, from `tasks`, which is `board.data?.items ?? []`: the server's list, never copied into state. When the request fails, the ternary renders an error with a Retry button instead of the columns, and `aria-busy` tells assistive technology that the board is refreshing."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-web",
+        "files": [
+          "src/features/tasks/components/BoardColumn.tsx",
+          "src/features/tasks/components/TaskBoard.tsx"
+        ]
+      }
+    },
+    {
+      "title": "Handling events",
+      "body": "Pass a function to an event prop: `onClick={handleClick}`, or an arrow when you need arguments, `onClick={() => setCreating(true)}`. Writing `onClick={handleClick()}` calls the function during render, which is a bug.\n\nReact passes the handler an event object with a type per event: `ChangeEvent<HTMLInputElement>` for an input, `KeyboardEvent`, `DragEvent`, and `FormEvent<HTMLFormElement>`. An inline handler gets its type inferred. Read `event.target.value` from an input and `event.key` from a key press, and call `event.preventDefault()` to stop what the browser would do by default, like submitting a form by reloading the page.\n\nEvent handlers are where side effects belong. A click that saves, a drop that moves a task, and a key that closes an editor all run in their handler, not in an effect that watches state. A controlled input is the simplest case: `value` comes from state and `onChange` sets it, so React owns what the field shows.",
+      "examples": [
+        {
+          "title": "Drag and drop",
+          "prompt": "Read the two handlers that make a column accept a dragged card.",
+          "language": "tsx",
+          "file": "src/features/tasks/components/BoardColumn.tsx",
+          "code": "export function BoardColumn({ status, tasks, allTasks, members, canDelete }: BoardColumnProps) {\n  const transition = useTransitionTask();\n  const [dropping, setDropping] = useState(false);\n  const headingId = `column-${status}`;\n\n  function handleDragOver(event: DragEvent) {\n    if (!event.dataTransfer.types.includes(TASK_DRAG_TYPE)) return;\n    event.preventDefault(); // allows the drop\n    setDropping(true);\n  }\n\n  function handleDrop(event: DragEvent) {\n    event.preventDefault();\n    setDropping(false);\n    const task = allTasks.find((t) => t.id === Number(event.dataTransfer.getData(TASK_DRAG_TYPE)));\n    if (task && canTransition(task.status, status)) transition.mutate({ task, to: status });\n  }\n  // ...",
+          "explanation": "A drop target must call `preventDefault()` during `dragover`, or the browser refuses the drop: stopping that default is what allows it. `handleDragOver` first checks that the drag carries a Taskboard task, so dragging a file over the board does nothing. `handleDrop` reads the task id that `TaskCard` stored when the drag started, finds the task, checks the move is allowed with `canTransition`, and calls the mutation. The side effect, saving the new status, happens in the event, right where the user acted. `DragEvent` is imported from React: handlers receive React's wrapper around the native event, with the same fields."
+        },
+        {
+          "title": "A controlled title editor",
+          "prompt": "Read the inline editor behind each card's Rename button. Enter saves, and Escape or Cancel closes it.",
+          "language": "tsx",
+          "file": "src/features/tasks/components/TaskCard.tsx",
+          "code": "/** The inline title editor. Enter saves, Escape or Cancel puts the title back. */\nfunction TitleEditor({ task, onDone }: { task: Task; onDone: () => void }) {\n  const [title, setTitle] = useState(task.title);\n  const update = useUpdateTask();\n\n  return (\n    <form\n      className={styles.titleEditor}\n      onSubmit={(event) => {\n        event.preventDefault();\n        if (title.trim() === task.title) return onDone();\n        update.mutate({ task, changes: { title } }, { onSuccess: onDone });\n      }}\n    >\n      <TextInput aria-label=\"Task title\" value={title} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => event.key === \"Escape\" && onDone()} autoFocus />\n      <Button type=\"submit\" size=\"sm\" variant=\"primary\" disabled={update.isPending}>\n        Save\n      </Button>\n      <Button size=\"sm\" onClick={onDone}>\n        Cancel\n      </Button>\n      {update.isError && <p role=\"alert\">Couldn't rename the task.</p>}\n    </form>\n  );\n}",
+          "explanation": "`title` state holds the text, starting from the task's current title. The input's `value` comes from it and `onChange` writes it back, so React owns the field. `onSubmit` calls `event.preventDefault()`, or the browser would submit the form by reloading the page. Pressing Enter in the field submits the form for free, so `onKeyDown` only handles Escape. An unchanged title closes the editor without a request. `update.mutate` saves, and its `onSuccess` closes the editor only once the server has agreed, while `update.isPending` disables Save and `update.isError` shows a message."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-web",
+        "files": [
+          "src/features/tasks/components/BoardColumn.tsx",
+          "src/features/tasks/components/TaskCard.tsx"
+        ]
+      }
+    },
+    {
+      "title": "Forms with actions",
+      "body": "A form can be controlled, with `value` and `onChange` on every field, or uncontrolled: each field keeps its own value, named with `name` and started with `defaultValue`, and you read them all on submit from a `FormData`. Choose controlled when the UI reacts to each keystroke, and uncontrolled for forms that submit and save, which is most of them.\n\nReact 19 adds actions. `<form action={fn}>` calls `fn(formData)` in a transition when the form is submitted, with no `preventDefault`. `useActionState(action, initialState)` returns `[state, formAction, isPending]`. Your action receives the previous state and the form data and returns the next state, so an error message is just data you render. When the action finishes, React resets the uncontrolled fields, so return what the user typed and render it as `defaultValue`.\n\nLet the browser catch the obvious with `required`, `type=\"email\"`, and `maxLength`, but treat the server as the final word, and show its errors next to the fields they belong to.",
+      "examples": [
+        {
+          "title": "Logging in with an action",
+          "prompt": "Read the login form's action. It posts the email and the password, and on a failure returns the error and the email to show.",
+          "language": "tsx",
+          "file": "src/features/auth/LoginPage.tsx",
+          "code": "  const [state, formAction, isPending] = useActionState(\n    async (_previous: LoginState, formData: FormData): Promise<LoginState> => {\n      const email = String(formData.get(\"email\") ?? \"\");\n      const password = String(formData.get(\"password\") ?? \"\");\n      try {\n        const { user } = await login({ email, password });\n        queryClient.setQueryData(meQuery().queryKey, user);\n        await navigate(next, { replace: true });\n        return { email, error: null };\n      } catch (error) {\n        if (error instanceof ApiError && error.status === 401) return { email, error: \"Wrong email or password.\" };\n        if (error instanceof ApiError && error.status === 422) return { email, error: \"Enter your email and your password.\" };\n        return { email, error: \"Couldn't reach the server. Try again in a moment.\" };\n      }\n    },\n    { email: \"\", error: null },\n  );\n\n  return (\n    <main className={styles.page}>\n      <title>Log in · Taskboard</title>\n      <form action={formAction} className={styles.card} aria-labelledby=\"login-heading\">\n        {/* ... */}\n        {state.error && (\n          <p role=\"alert\" className={styles.error}>\n            {state.error}\n          </p>\n        )}\n        <Field label=\"Email\">\n          <TextInput name=\"email\" type=\"email\" autoComplete=\"username\" defaultValue={state.email} required autoFocus />\n        </Field>\n        <Field label=\"Password\">\n          <TextInput name=\"password\" type=\"password\" autoComplete=\"current-password\" required />\n        </Field>\n        <Button type=\"submit\" variant=\"primary\" disabled={isPending}>\n          {isPending ? \"Logging in...\" : \"Log in\"}\n        </Button>",
+          "explanation": "The action is an async function that takes the previous state and the form's `FormData` and returns the next `LoginState`. Each failure becomes a message for the user: a 401 means wrong credentials, a 422 means a missing field, and anything else means the server couldn't be reached. Nothing is thrown at the screen. `isPending` is true while the action runs, so the button is disabled and shows Logging in... instead of Log in. React resets the form when the action finishes, which would empty the email field, so the action returns the email, and `defaultValue={state.email}` puts it back. The password is never returned, on purpose. In React 19 a `<title>` can render anywhere, and React moves it into the document's head."
+        },
+        {
+          "title": "Accessible field errors",
+          "prompt": "Read `Field`, which every form in the app uses for its label, hint, and error.",
+          "language": "tsx",
+          "file": "src/components/ui/Field.tsx",
+          "code": "export function Field({ label, hint, error, className, children }: FieldProps) {\n  const id = useId();\n  const hintId = `${id}-hint`;\n  const errorId = `${id}-error`;\n  const describedBy = [hint && hintId, error && errorId].filter(Boolean).join(\" \") || undefined;\n\n  return (\n    <div data-ui=\"field\" className={clsx(styles.field, className)}>\n      <label htmlFor={id} className={styles.label}>\n        {label}\n      </label>\n      <FieldContext value={{ id, \"aria-describedby\": describedBy, \"aria-invalid\": error ? true : undefined }}>{children}</FieldContext>\n      {hint && (\n        <p id={hintId} className={styles.hint}>\n          {hint}\n        </p>\n      )}\n      {error && (\n        <p id={errorId} className={styles.error}>\n          {error}\n        </p>\n      )}\n    </div>\n  );\n}",
+          "explanation": "`useId()` makes an id that is unique on the page, even when the same form renders twice, and `htmlFor` ties the label to the control with it. When there's an error, `aria-describedby` points the control at the message and `aria-invalid` marks it, so a screen reader announces the error together with the field. `Field` hands those attributes to its child through context: `<FieldContext value={...}>` is how React 19 provides one, and `TextInput` reads it with `use(FieldContext)` and spreads it on its `<input>`. So a form writes `<Field label=\"Title\" error={error}><TextInput name=\"title\" /></Field>` and passes no ids by hand. `NewTaskDialog.tsx` maps a 422's field errors onto its fields this way."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-web",
+        "files": [
+          "src/features/auth/LoginPage.tsx",
+          "src/components/ui/Field.tsx",
+          "src/components/ui/field-context.ts",
+          "src/components/ui/TextInput.tsx",
+          "src/features/tasks/components/NewTaskDialog.tsx"
+        ]
+      }
+    }
+  ],
+  "recap": "- `map` a list to elements with a stable, unique `key`, usually the record's id, and never the index of a list that changes.\n- Filter and sort copies during render with `filter` and `toSorted`, never `sort` in place.\n- Pass functions to event props, use React's event types, and put side effects in handlers.\n- Use controlled inputs when the UI reacts to each keystroke, and uncontrolled fields read from `FormData` for forms that submit.\n- `useActionState` turns a form's result into state: return the errors and the typed values, render them, and link each error to its field."
+}

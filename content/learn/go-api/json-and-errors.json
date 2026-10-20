@@ -1,0 +1,121 @@
+{
+  "id": "json-and-errors",
+  "title": "JSON, Validation, and Errors",
+  "section": "HTTP with net/http",
+  "summary": "Decode request bodies strictly, check input in the right layer, and turn every error into a problem response with the right status.",
+  "format": "read",
+  "intro": "An API's real contract is its JSON and its errors. Clients are written against both, so both must be strict and consistent. In this lesson you read how Taskboard decodes request bodies, where it checks input, and how an error from any layer becomes a response with the right status and a message a client can act on.",
+  "steps": [
+    {
+      "title": "Strict JSON in and out",
+      "body": "Request bodies come from anyone, so read them strictly. Taskboard's decoder refuses:\n\n- a body that isn't sent as `application/json` (415)\n- a body over 1 MB, cut off by `http.MaxBytesReader` (413)\n- a field the request type doesn't have, through `DisallowUnknownFields` (400)\n- a second JSON value after the first (400)\n\nWithout `DisallowUnknownFields`, a typo like `\"titel\"` is silently ignored, and the client never learns why its title is missing.\n\nA request type is a plain struct with `json` tags. Fields a client may leave out are pointers, so `nil` means \"not sent\", which a zero value can't say:\n\n```go\ntype createTaskRequest struct {\n\tTitle       string  `json:\"title\"`\n\tDescription *string `json:\"description\"`\n\tPriority    *int    `json:\"priority\"`\n\tDueOn       *string `json:\"due_on\"`\n\tAssigneeID  *int64  `json:\"assignee_id\"`\n}\n```\n\nWriting is simpler, with one trap: marshal the value to bytes before you write anything, so an encoding error can still become a proper 500.",
+      "examples": [
+        {
+          "title": "A strict, generic decoder",
+          "prompt": "Read `decodeJSON` and `requireJSON`. The output is the response to a create request that also sends `\"status\": \"done\"`, which isn't a field of `createTaskRequest`.",
+          "language": "go",
+          "file": "internal/api/json.go",
+          "code": "// decodeJSON reads a request body into a T, strictly: the body must be one JSON\n// object of at most 1 MB, sent as application/json, with no field T does not have\n// and no field of the wrong type. Every way it can fail is a problem that names the\n// field to blame, so a client knows what to fix.\nfunc decodeJSON[T any](w http.ResponseWriter, r *http.Request) (T, error) {\n\tvar v T\n\tif err := requireJSON(r); err != nil {\n\t\treturn v, err\n\t}\n\tdec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))\n\tdec.DisallowUnknownFields()\n\tif err := dec.Decode(&v); err != nil {\n\t\treturn v, decodeError(err)\n\t}\n\tif dec.More() {\n\t\treturn v, &requestError{status: http.StatusBadRequest, detail: \"the body must hold exactly one JSON object\"}\n\t}\n\treturn v, nil\n}\n\n// requireJSON refuses a body that is not sent as application/json, such as a form.\nfunc requireJSON(r *http.Request) error {\n\tmediaType, _, err := mime.ParseMediaType(r.Header.Get(\"Content-Type\"))\n\tif err != nil || mediaType != \"application/json\" {\n\t\treturn &requestError{status: http.StatusUnsupportedMediaType, detail: \"send the body as JSON with Content-Type: application/json\"}\n\t}\n\treturn nil\n}\n",
+          "output": "{\"type\":\"about:blank\",\"title\":\"Bad Request\",\"status\":400,\"detail\":\"status is not a field of this request\",\"instance\":\"/v1/projects/1/tasks\",\"errors\":{\"status\":\"is not a field of this request\"},\"request_id\":\"01a156fa-cdb0-737c-9394-6a0554de463c\"}",
+          "explanation": "`decodeJSON[T]` is generic, so a handler writes `req, err := decodeJSON[createTaskRequest](w, r)` and gets a typed value back. `mime.ParseMediaType` also accepts `application/json; charset=utf-8`. `MaxBytesReader` stops reading at the limit, and once a client goes over it, the server closes the connection. A task's status changes only through its own endpoint, so a create that sends `status` is refused instead of quietly ignored. `decodeError`, not shown here, turns each `encoding/json` error into words for people, so `\"priority\": \"high\"` gets `priority must be a whole number`."
+        },
+        {
+          "title": "Marshal first, then write",
+          "prompt": "Read Taskboard's `writeJSON`, which writes every successful response.",
+          "language": "go",
+          "file": "internal/api/json.go",
+          "code": "// maxBody is the largest JSON request body the API reads.\nconst maxBody = 1 << 20\n\n// writeJSON writes v as a JSON response. It encodes before writing anything, so a\n// value that cannot be encoded still becomes a clean 500 problem. A failed write means\n// the client has gone, and there is no one left to tell.\nfunc writeJSON(w http.ResponseWriter, status int, v any) error {\n\tbody, err := json.Marshal(v)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"encode response: %w\", err)\n\t}\n\tw.Header().Set(\"Content-Type\", \"application/json\")\n\tw.WriteHeader(status)\n\t_, _ = w.Write(append(body, '\\n'))\n\treturn nil\n}\n",
+          "explanation": "`json.Marshal` runs before anything is written. A value that can't be encoded makes `writeJSON` return an error, and the client gets a clean 500 problem instead of a 200 with half a body. The appended newline keeps responses tidy in a terminal. The error from `w.Write` is dropped on purpose: when writing fails, the client has hung up, and nobody is left to tell. `maxBody` sits here too, so the 1 MB limit is one named constant."
+        },
+        {
+          "title": "A create handler",
+          "prompt": "Read `createTask`. The output is the response to a POST with a title, a priority, a due date, and an assignee.",
+          "language": "go",
+          "file": "internal/api/tasks.go",
+          "code": "// createTask adds a task to a project.\nfunc (s *server) createTask(w http.ResponseWriter, r *http.Request) error {\n\tprojectID, err := pathID(r, \"projectID\", \"project_id\")\n\tif err != nil {\n\t\treturn err\n\t}\n\treq, err := decodeJSON[createTaskRequest](w, r)\n\tif err != nil {\n\t\treturn err\n\t}\n\tdue, err := parseDate(\"due_on\", req.DueOn)\n\tif err != nil {\n\t\treturn err\n\t}\n\tt := domain.Task{Title: req.Title, Description: req.Description, DueOn: due, AssigneeID: req.AssigneeID}\n\tif req.Priority != nil {\n\t\tt.Priority = domain.Priority(*req.Priority)\n\t}\n\tcreated, err := s.Tasks.Create(r.Context(), user(r), projectID, t)\n\tif err != nil {\n\t\treturn err\n\t}\n\tw.Header().Set(\"Location\", \"/v1/tasks/\"+strconv.FormatInt(created.ID, 10))\n\tw.Header().Set(\"ETag\", etag(created.Version))\n\treturn writeJSON(w, http.StatusCreated, toTaskResponse(created))\n}\n",
+          "output": "HTTP/1.1 201 Created\nCache-Control: no-store\nContent-Type: application/json\nEtag: \"v1\"\nLocation: /v1/tasks/19\nReferrer-Policy: no-referrer\nX-Content-Type-Options: nosniff\nX-Query-Count: 6\nX-Request-Id: 01a156fa-cd99-712a-b39c-88d6e71b20f8\nDate: Tue, 20 Oct 2026 01:43:59 GMT\nContent-Length: 248\n\n{\"id\":19,\"project_id\":1,\"title\":\"Write the launch email\",\"description\":null,\"status\":\"todo\",\"priority\":3,\"due_on\":\"2026-10-12\",\"assignee_id\":2,\"version\":1,\"completed_at\":null,\"created_at\":\"2026-10-01T09:00:00Z\",\"updated_at\":\"2026-10-01T09:00:00Z\"}",
+          "explanation": "A create answers `201 Created`, not 200, with a `Location` header holding the new task's URL, so a client never has to build it. Both headers are set before `writeJSON`, because headers set after the status is written are ignored. The title arrived as `\"  Write the launch email  \"` and was saved trimmed: a rule in a lower layer did that, and the handler doesn't need to know. `parseDate` turns the due date into a `time.Time`, and the response writes it back in the same `YYYY-MM-DD` form."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "internal/api/json.go",
+          "internal/api/dto.go",
+          "internal/api/tasks.go"
+        ]
+      }
+    },
+    {
+      "title": "400 or 422: where checks belong",
+      "body": "Taskboard sorts bad input into two kinds, as many APIs do:\n\n- **400 Bad Request**: the request is malformed. The JSON doesn't parse, a field has the wrong type, an id isn't a number, or a query parameter isn't an allowed value.\n- **422 Unprocessable Entity**: the request is well-formed but breaks a rule. The title is empty, the priority is 4, or the due date doesn't exist.\n\nEach kind is checked in its own layer. The handler checks the shape of what it parses. The rules live on the model in `internal/domain`, so every path that saves a task checks them, not just one handler. The database's `CHECK`, `UNIQUE`, and foreign key constraints are the last guard, for anything that slips past both.\n\nReport every problem at once, as a map from field name to message. A client can show each message next to its field, and the user fixes everything in one round trip.",
+      "examples": [
+        {
+          "title": "Rules on the model",
+          "prompt": "Read `Task.Validate`. The output is the response to a create request with a blank title and priority 4, pretty-printed with `jq`.",
+          "language": "go",
+          "file": "internal/domain/task.go",
+          "code": "// Validate checks every rule a stored task follows.\nfunc (t Task) Validate() error {\n\terrs := FieldErrors{}\n\tswitch n := utf8.RuneCountInString(t.Title); {\n\tcase n == 0:\n\t\terrs.Add(\"title\", \"is required\")\n\tcase n > MaxTaskTitle:\n\t\terrs.Add(\"title\", fmt.Sprintf(\"must be at most %d characters\", MaxTaskTitle))\n\t}\n\tif t.Description != nil && utf8.RuneCountInString(*t.Description) > MaxTaskDescription {\n\t\terrs.Add(\"description\", fmt.Sprintf(\"must be at most %d characters\", MaxTaskDescription))\n\t}\n\tif _, err := ParseStatus(string(t.Status)); err != nil {\n\t\terrs.Add(\"status\", \"must be todo, doing, or done\")\n\t}\n\tif !t.Priority.Valid() {\n\t\terrs.Add(\"priority\", \"must be 1, 2, or 3\")\n\t}\n\treturn errs.Err()\n}\n",
+          "output": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Unprocessable Entity\",\n  \"status\": 422,\n  \"detail\": \"priority must be 1, 2, or 3; title is required\",\n  \"instance\": \"/v1/projects/1/tasks\",\n  \"errors\": {\n    \"priority\": \"must be 1, 2, or 3\",\n    \"title\": \"is required\"\n  },\n  \"request_id\": \"01a156fa-cda2-736a-bae7-73322ea13c40\"\n}",
+          "explanation": "`FieldErrors` is a map that keeps the first message for each field, and `Err()` returns a `*domain.ValidationError`, or nil when nothing failed. Every check runs, so both problems come back together. Titles are counted with `utf8.RuneCountInString`, because `len` counts bytes: `\"café\"` is 5 bytes but 4 characters. The blank title fails as empty because the model trims text before it validates. No handler calls `Validate`: the model's `BeforeCreate` hook runs it whenever a task is saved, so no code path can store an invalid task."
+        },
+        {
+          "title": "Query parameters, all at once",
+          "prompt": "Read the start of `parseTaskQuery`, which reads the task list's query string. The output is the response to `?status=blocked&assignee_id=grace&limit=500`.",
+          "language": "go",
+          "file": "internal/api/tasks.go",
+          "code": "// parseTaskQuery reads the task list's query string. Every bad parameter is reported\n// at once, each in errors under its own name, as a 400.\nfunc parseTaskQuery(q url.Values, projectID int64) (domain.TaskFilter, service.Include, error) {\n\tf := domain.TaskFilter{ProjectID: projectID, Sort: domain.SortCreated, Limit: 20}\n\tvar inc service.Include\n\terrs := map[string]string{}\n\n\tif q.Has(\"status\") {\n\t\tst, err := domain.ParseStatus(q.Get(\"status\"))\n\t\tif err != nil {\n\t\t\terrs[\"status\"] = \"must be todo, doing, or done\"\n\t\t}\n\t\tf.Status = &st\n\t}\n\tif q.Has(\"assignee_id\") {\n\t\tv := q.Get(\"assignee_id\")\n\t\tid, err := strconv.ParseInt(v, 10, 64)\n\t\tswitch {\n\t\tcase v == \"none\":\n\t\t\tf.Unassigned = true\n\t\tcase err != nil || id < 1:\n\t\t\terrs[\"assignee_id\"] = \"must be a user id or none\"\n\t\tdefault:\n\t\t\tf.AssigneeID = &id\n\t\t}\n\t}\n",
+          "output": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"assignee_id must be a user id or none; limit must be a whole number from 1 to 100; status must be todo, doing, or done\",\n  \"instance\": \"/v1/projects/1/tasks\",\n  \"errors\": {\n    \"assignee_id\": \"must be a user id or none\",\n    \"limit\": \"must be a whole number from 1 to 100\",\n    \"status\": \"must be todo, doing, or done\"\n  },\n  \"request_id\": \"01a156fa-cddb-799b-8c45-fb7790220384\"\n}",
+          "explanation": "Each check adds to `errs` instead of returning at the first problem, and the function ends with one 400 that lists all three. Every value is parsed into a type: `status` into a `domain.Status`, and `assignee_id` into an `int64` or the word `none`. `q.Has` tells a missing parameter from an empty one, so `?status=` is an error, while no `status` at all means no filter. Further down in the same function, `sort` is checked against an allow-list, and only those four words ever reach the query, so a client can't sort by a column nobody meant to expose."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "internal/domain/task.go",
+          "internal/api/tasks.go"
+        ]
+      }
+    },
+    {
+      "title": "Errors become problem responses",
+      "body": "Inside the app, errors are plain Go errors, and nothing below the handlers knows about HTTP. The domain declares sentinel errors like `ErrNotFound`, and lower layers wrap them with `%w` to add context:\n\n```go\nreturn fmt.Errorf(\"%s %d %w\", entity, id, domain.ErrNotFound)\n```\n\nThat reads `task 999 not found`, and it still *is* `ErrNotFound`. At the top, one function maps an error to a status. `errors.Is` finds a sentinel anywhere in the chain of wrapped errors. `errors.AsType` (Go 1.26) finds an error of a given type, such as `*domain.ValidationError`, and returns it typed. Anything the mapping doesn't recognize is a 500.\n\nEvery error goes out as an RFC 9457 problem, with `Content-Type: application/problem+json` and the members `type`, `title`, `status`, `detail`, and `errors` for fields. One shape for every error means a client needs one error handler.",
+      "examples": [
+        {
+          "title": "Sentinels and typed errors",
+          "prompt": "Read the errors every Taskboard layer shares, from `internal/domain`.",
+          "language": "go",
+          "file": "internal/domain/errors.go",
+          "code": "// The sentinel errors. Stores and services wrap them with %w and a sentence for\n// people (\"task 999 not found\"), and the API turns each into its HTTP status.\nvar (\n\tErrNotFound        = errors.New(\"not found\")\n\tErrConflict        = errors.New(\"conflict\")\n\tErrForbidden       = errors.New(\"forbidden\")\n\tErrUnauthenticated = errors.New(\"unauthenticated\")\n\tErrPrecondition    = errors.New(\"precondition failed\")\n)\n\n// ValidationError is input that breaks a rule, with a message per field to blame,\n// such as {\"title\": \"is required\"}. The API answers it with 422.\ntype ValidationError struct {\n\tFields map[string]string\n}\n\nfunc (e *ValidationError) Error() string { return joinFields(e.Fields) }\n",
+          "explanation": "A sentinel is a value you compare against with `errors.Is`. `ValidationError` is a type instead, because it carries data: one message per field. These live in `domain`, which imports nothing else from the app, so every layer can return them and the HTTP layer can recognize them. A store never picks an HTTP status, and a handler never inspects a database error. They meet at these types."
+        },
+        {
+          "title": "Picking the status",
+          "prompt": "Read `statusFor`. The output is the response to `GET /v1/tasks/999`, sent with `X-Request-ID: docs-404` and pretty-printed with `jq`.",
+          "language": "go",
+          "file": "internal/api/problems.go",
+          "code": "// statusFor maps an error from any layer to its HTTP status. errors.Is and\n// errors.AsType look through every %w, so the store's \"task 999 not found\" is still a\n// 404 however many layers wrapped it. Anything not listed is a 500.\nfunc statusFor(err error) int {\n\tif re, ok := errors.AsType[*requestError](err); ok {\n\t\treturn re.status\n\t}\n\tswitch {\n\tcase errors.Is(err, domain.ErrNotFound):\n\t\treturn http.StatusNotFound\n\tcase errors.Is(err, domain.ErrConflict):\n\t\treturn http.StatusConflict\n\tcase errors.Is(err, domain.ErrForbidden):\n\t\treturn http.StatusForbidden\n\tcase errors.Is(err, domain.ErrUnauthenticated):\n\t\treturn http.StatusUnauthorized\n\tcase errors.Is(err, domain.ErrPrecondition):\n\t\treturn http.StatusPreconditionFailed\n\t}\n\tif _, ok := errors.AsType[*domain.ValidationError](err); ok {\n\t\treturn http.StatusUnprocessableEntity\n\t}\n\treturn http.StatusInternalServerError\n}\n",
+          "output": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Not Found\",\n  \"status\": 404,\n  \"detail\": \"task 999 not found\",\n  \"instance\": \"/v1/tasks/999\",\n  \"request_id\": \"docs-404\"\n}",
+          "explanation": "The store wrapped `domain.ErrNotFound` as `task 999 not found`, and `errors.Is` still finds it through the wrapping, so the client gets a 404 with that sentence as its `detail`. `requestError` is checked first: it's the API layer's own error for a bad request, and it carries its exact status. Keep this function the one place where statuses are chosen. A new domain error then means one new line here and no handler changes. `request_id` echoes the id the client sent, so a bug report can quote it."
+        },
+        {
+          "title": "Never leak a 500",
+          "prompt": "Read the start of `writeProblem`. The output shows what happened with the database stopped: the response to `GET /v1/tasks/3`, then the line the server logged for it.",
+          "language": "go",
+          "file": "internal/api/problems.go",
+          "code": "// writeProblem answers a request with the problem for err. A 500's detail says\n// nothing about the cause, which goes to the log with the request id instead.\nfunc (s *server) writeProblem(w http.ResponseWriter, r *http.Request, err error) {\n\tstatus := statusFor(err)\n\tp := problem{\n\t\tType:      \"about:blank\",\n\t\tTitle:     http.StatusText(status),\n\t\tStatus:    status,\n\t\tDetail:    err.Error(),\n\t\tInstance:  r.URL.Path,\n\t\tErrors:    maps.Clone(fieldsOf(err)),\n\t\tRequestID: requestIDFrom(r.Context()),\n\t}\n\tif status >= http.StatusInternalServerError {\n\t\ts.Log.ErrorContext(r.Context(), \"request failed\", \"request_id\", p.RequestID, \"err\", err)\n\t\tp.Detail = \"something went wrong on our side; the logs have the details under request_id\"\n\t}\n",
+          "output": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Internal Server Error\",\n  \"status\": 500,\n  \"detail\": \"something went wrong on our side; the logs have the details under request_id\",\n  \"instance\": \"/v1/tasks/3\",\n  \"request_id\": \"docs-500\"\n}\n\n{\"time\":\"2026-10-20T01:44:02.716606261Z\",\"level\":\"ERROR\",\"msg\":\"request failed\",\"request_id\":\"docs-500\",\"err\":\"session: failed to connect to `user=app database=taskboard`: hostname resolving error: lookup db on 127.0.0.11:53: no such host\"}",
+          "explanation": "The client gets a fixed sentence and the request id. The real cause goes to the log under the same id, where you can search for it. Driver and library errors can hold hostnames, table names, or SQL, as this one does, and none of that belongs in a response. An error nobody planned for becomes a 500 on purpose: it's a bug to fix, not the client's fault. `maps.Clone` copies the field messages, so the response never shares a map with the error value."
+        }
+      ],
+      "codebase": {
+        "template": "taskboard-api",
+        "files": [
+          "internal/domain/errors.go",
+          "internal/api/problems.go"
+        ]
+      }
+    }
+  ],
+  "recap": "- Decode strictly: `application/json` only, a size limit with `http.MaxBytesReader`, `DisallowUnknownFields`, and exactly one value.\n- Use pointer fields for values a client may leave out, and marshal responses before you write them.\n- A 400 means malformed and a 422 means well-formed but against a rule. Check shape in the handler, rules on the model, and invariants in the database.\n- Return domain errors wrapped with `%w`, and map them to statuses in one function with `errors.Is` and `errors.AsType`.\n- Send every error as a problem response, and log a 500's cause instead of sending it."
+}
