@@ -1,21 +1,36 @@
 # Hack University Compiler
 
-> The Hack University online compiler, running entirely on your own machine.
+> The Hack University app: compilers, lessons, and real projects, running
+> entirely on your own computer. Free.
 
 Write, compile, and run **Python, JavaScript, TypeScript, C++, Java, Go, and
 Bash** right in the browser, and query a real **PostgreSQL** database with
-**SQL**. Code runs in a local [Piston](https://github.com/engineer-man/piston)
-sandbox in Docker, TypeScript and Bash run in fresh containers that the local
-runner (`hu-runner`) starts for each run, and SQL runs on PostgreSQL 18 compiled
-to WebAssembly inside the page, so nothing leaves localhost and there is no
-server to pay for. Same editor, same themes, same look as the original
-hackuniversity.dev compiler.
+**SQL**. Learn each one with short lessons, cheatsheets, and challenges that
+check your answers.
+
+The project courses, **HTML, CSS, and JavaScript, React, Next.js, Express,
+FastAPI, Spring Boot, and Go APIs**, open real codebases in an IDE: a file
+explorer with Material icons, editor tabs, real terminals, servers on free
+ports with a preview, an API panel, and PostgreSQL and MongoDB. Change any file,
+reset it to the original, or keep your work. The codebases are the kind teams
+ship: MVC and layered APIs, React and Next.js apps, and a legacy app with bugs
+to find.
+
+Code runs in Docker on your own machine: the five original languages in a local
+[Piston](https://github.com/engineer-man/piston) sandbox, and everything else in
+containers that the local runner (`hu-runner`) starts on demand. SQL runs on
+PostgreSQL 18 compiled to WebAssembly inside the page. Nothing leaves localhost
+and there is no server to pay for. Same editor, same themes, same look as
+[hackuniversity.dev](https://hackuniversity.dev).
 
 ## Requirements
 
 - **Node.js 24.12+** (the workspace runner is TypeScript that Node runs directly)
-- **Docker Desktop** (or any Docker engine that can run privileged containers)
-- About **5 GB** of disk for the five runtimes (the C++ toolchain is 2.8 GB of it)
+- **Docker Desktop** (or any Docker engine that can run privileged containers),
+  with at least 8 GB of memory, and 16 GB for the project courses (Settings →
+  Resources)
+- About **6 GB** of disk for the five Piston runtimes and the TypeScript and Bash
+  sandboxes, plus 1 to 2 GB for each project course's sandbox you build
 
 SQL needs none of that: it runs in the browser, so `/sql` works even with the
 sandbox off.
@@ -44,6 +59,16 @@ Ctrl+C stops the app and the runner, and `npm run piston:down` stops the
 sandbox. `npm run up -- --dev` serves the dev servers instead, for working on
 the app. With [Task](https://taskfile.dev),
 `task` does the same (`task --list` shows the rest).
+
+**The project courses** (the second row of the language rail) each need their
+own sandbox, built once. Build them all, or just the ones you want:
+
+```bash
+npm run images -- --stacks=web,fastapi,spring,go-api
+```
+
+`web` covers HTML, CSS, and JavaScript, React, Next.js, and Express. If you skip
+this, Run in a project course tells you the command for that course.
 
 The homepage opens the compiler you used last (Python the first time), and
 every language is its own route: `/python`, `/javascript`, `/typescript`,
@@ -79,7 +104,7 @@ npm run piston:install -- python javascript
 | `npm run snippets:verify` | Run every code example in the lessons and cheatsheets the way the app does (`-- <languages>`, `--source=learn` or `reference`, `--pages=<ids>`) |
 | `npm run sql:try -- <file.sql>` | Run SQL on a fresh PostgreSQL and print what psql would (`--setup <file.sql>`, `--sample` for the playground's tables) |
 | `npm run runner` | The workspace runner alone, on `127.0.0.1:3100` ([runner/README.md](runner/README.md)) |
-| `npm run images` | Build the TypeScript and Bash sandboxes when they're missing or changed (`-- bash` for one, `--force` to rebuild) |
+| `npm run images` | Build the TypeScript and Bash sandboxes when they're missing or changed (`-- bash` for one, `-- --stacks=web,fastapi,spring,go-api` for the project courses, `--force` to rebuild) |
 | `npm run images:status` | Show the sandbox images and whether they're built |
 | `npm run security:verify` | Prove the sandbox's isolation and limits against real containers (`-- S1 S9` for some) |
 | `npm run runner:test` | The runner's tests (the ones that run real jobs skip when Docker is off) |
