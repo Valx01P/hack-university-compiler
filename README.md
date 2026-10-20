@@ -14,6 +14,10 @@ codebases in an IDE with terminals, a live preview, and real databases.
 
 Everything runs on your computer, in Docker. Nothing leaves it.
 
+![The Python compiler in the Dracula theme, with the stars on](docs/images/compiler-dracula.png)
+
+![A Python lesson in Learn mode in the Solarized theme, with the stars on](docs/images/learn-solarized.png)
+
 ## What you need
 
 - [Node.js](https://nodejs.org) 24.12 or newer
