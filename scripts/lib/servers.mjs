@@ -9,7 +9,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 
-export const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+export const ROOT = path.resolve(import.meta.dirname, "../..");
 const windows = process.platform === "win32";
 
 /** ~/.hack-university (HU_DATA_DIR), created 0700. */

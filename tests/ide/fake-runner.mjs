@@ -18,7 +18,7 @@ import path from "node:path";
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { layerSource } from "../../lib/workspace-layers.mjs";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+const ROOT = path.resolve(import.meta.dirname, "../..");
 const require = createRequire(path.join(ROOT, "runner", "package.json"));
 const { WebSocketServer } = require("ws");
 

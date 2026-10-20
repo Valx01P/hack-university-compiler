@@ -87,8 +87,11 @@ function fail(message) {
   console.error(`\n✗ ${message}`);
   process.exit(1);
 }
+// Only npm needs a shell on Windows (it's npm.cmd, which Node won't start
+// without one). Node and Docker run directly, so a path with spaces, like
+// C:\Program Files\nodejs\node.exe, or an argument like {{json .}} stays whole.
 function run(cmd, cmdArgs, { quiet = false } = {}) {
-  return spawnSync(cmd, cmdArgs, { cwd: ROOT, stdio: quiet ? "pipe" : "inherit", shell: windows, encoding: "utf8" });
+  return spawnSync(cmd, cmdArgs, { cwd: ROOT, stdio: quiet ? "pipe" : "inherit", shell: windows && cmd === npm, encoding: "utf8" });
 }
 function npmRun(...npmArgs) {
   const r = run(npm, npmArgs);
@@ -125,6 +128,9 @@ let docker = null;
 const info = run("docker", ["info", "--format", "{{json .}}"], { quiet: true });
 if (info.error) {
   warn("Docker isn't installed, so code can't run yet. Get Docker Desktop from https://docs.docker.com/get-docker/.");
+} else if (info.status !== 0 && /permission denied/i.test(String(info.stderr))) {
+  // Linux: the daemon runs, and only members of the docker group may use it.
+  warn("Docker is running, but your user can't reach it. Add yourself to the docker group (sudo usermod -aG docker $USER), sign out and back in, then run npm run up again.");
 } else if (info.status !== 0) {
   warn("Docker isn't running, so code can't run yet. Start Docker Desktop, then run npm run up again.");
 } else {
@@ -138,6 +144,13 @@ if (info.error) {
 if (!docker) {
   console.log("     Until then, lessons, cheatsheets, search, your progress, and the SQL course all work.");
   console.log("     Running Python, JavaScript, C++, Java, Go, TypeScript, or Bash says to start Docker.");
+}
+// Linux shares the project courses' folders with their sandboxes as they
+// are, and the sandboxes run as user 1000 (Docker Desktop on a Mac or
+// Windows maps the owner for them).
+if (process.platform === "linux" && typeof process.getuid === "function" && process.getuid() !== 1000) {
+  warn(`Your user id is ${process.getuid()}, and the project courses' sandboxes run as user 1000, so they can't change your files.`);
+  console.log("     They work from an account with id 1000, the first one on most Linux systems. The compilers, lessons, and SQL work either way.");
 }
 
 // 2. What to install -------------------------------------------------------------

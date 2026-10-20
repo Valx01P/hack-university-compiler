@@ -14,6 +14,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
+import path from "node:path";
 
 const PISTON_URL = (process.env.PISTON_URL ?? "http://127.0.0.1:2000/api/v2").replace(/\/+$/, "");
 
@@ -184,10 +185,10 @@ for (const pkg of packages) {
 // sandbox's own runtimes inside the container, so runs stay offline. Java's
 // and Go's run scripts get small fixes too (see piston-extras/*/run).
 const CONTAINER = "hu-piston";
-const EXTRAS_DIR = new URL("./piston-extras/", import.meta.url).pathname;
+const EXTRAS_DIR = path.join(import.meta.dirname, "piston-extras");
 // Replaces a runtime's run script with ours from piston-extras/<pkg>/run.
 const runScript = (pkg, dir) => [
-  ["cp", `${EXTRAS_DIR}${pkg}/run`, `${CONTAINER}:${dir}/run`],
+  ["cp", path.join(EXTRAS_DIR, pkg, "run"), `${CONTAINER}:${dir}/run`],
   ["exec", CONTAINER, "sh", "-c", `chown root:root ${dir}/run && chmod 755 ${dir}/run`],
 ];
 const EXTRAS = {
@@ -203,9 +204,9 @@ const EXTRAS = {
     // require() looks in <prefix>/lib/node for global packages.
     ["exec", CONTAINER, "ln", "-sfn", "node_modules", `${dir}/lib/node`],
     // import gets a resolve hook (for .mjs programs only, via the run script).
-    ["cp", `${EXTRAS_DIR}node/hu-global-imports.mjs`, `${CONTAINER}:${dir}/lib/hu-global-imports.mjs`],
-    ["cp", `${EXTRAS_DIR}node/hu-global-imports-hooks.mjs`, `${CONTAINER}:${dir}/lib/hu-global-imports-hooks.mjs`],
-    ["cp", `${EXTRAS_DIR}node/run`, `${CONTAINER}:${dir}/run`],
+    ["cp", path.join(EXTRAS_DIR, "node", "hu-global-imports.mjs"), `${CONTAINER}:${dir}/lib/hu-global-imports.mjs`],
+    ["cp", path.join(EXTRAS_DIR, "node", "hu-global-imports-hooks.mjs"), `${CONTAINER}:${dir}/lib/hu-global-imports-hooks.mjs`],
+    ["cp", path.join(EXTRAS_DIR, "node", "run"), `${CONTAINER}:${dir}/run`],
     ["exec", CONTAINER, "sh", "-c", `chown root:root ${dir}/run ${dir}/lib/hu-global-imports*.mjs && chmod 755 ${dir}/run && chmod 644 ${dir}/lib/hu-global-imports*.mjs`],
   ],
 };

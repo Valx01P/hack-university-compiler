@@ -34,6 +34,16 @@ describe("finding Docker", () => {
     assert.equal(tcp.protocol, "http");
   });
 
+  it("reads a Windows named pipe, from DOCKER_HOST or a context", () => {
+    assert.deepEqual(resolveEndpoint({ DOCKER_HOST: "npipe:////./pipe/docker_engine" }, home()), {
+      socketPath: "//./pipe/docker_engine",
+      source: "DOCKER_HOST",
+      dockerHost: "npipe:////./pipe/docker_engine",
+    });
+    const e = resolveEndpoint({}, home("desktop-linux", "npipe:////./pipe/dockerDesktopLinuxEngine"));
+    assert.equal(e.socketPath, "//./pipe/dockerDesktopLinuxEngine");
+  });
+
   it("then the active context, like the docker CLI", () => {
     const e = resolveEndpoint({}, home("desktop-linux"));
     assert.equal(e.socketPath, "/Users/me/.docker/run/docker.sock");

@@ -48,11 +48,15 @@ export function resolveEndpoint(env: NodeJS.ProcessEnv = process.env, home = hom
       /* fall through to the default socket */
     }
   }
+  // Docker Desktop on Windows listens on a named pipe, everything else on a socket.
+  if (process.platform === "win32") return { socketPath: "//./pipe/docker_engine", source: "default pipe", dockerHost: "npipe:////./pipe/docker_engine" };
   return { socketPath: "/var/run/docker.sock", source: "default socket", dockerHost: "unix:///var/run/docker.sock" };
 }
 
 function parseHost(value: string, source: string, env: NodeJS.ProcessEnv): Endpoint {
   if (value.startsWith("unix://")) return { socketPath: value.slice("unix://".length), source, dockerHost: value };
+  // A Windows named pipe, npipe:////./pipe/docker_engine: Node opens //./pipe/docker_engine.
+  if (value.startsWith("npipe://")) return { socketPath: value.slice("npipe://".length), source, dockerHost: value };
   const url = new URL(value.replace(/^tcp:\/\//, "http://"));
   const tls = env.DOCKER_TLS_VERIFY === "1";
   const certs = env.DOCKER_CERT_PATH;

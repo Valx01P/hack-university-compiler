@@ -13,8 +13,9 @@ const RUNNER_PORT = Number(process.env.HU_RUNNER_PORT) || 3100;
 
 if (!existsSync(path.join(ROOT, "runner", "node_modules"))) {
   console.log("Installing the workspace runner's dependencies (once)...");
-  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-  const r = spawnSync(npm, ["ci", "--prefix", "runner", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: ROOT, stdio: "inherit" });
+  const windows = process.platform === "win32";
+  // On Windows npm is npm.cmd, which Node only starts through a shell.
+  const r = spawnSync(windows ? "npm.cmd" : "npm", ["ci", "--prefix", "runner", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: ROOT, stdio: "inherit", shell: windows });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 // The file icons and the workspaces' starting trees the app builds from

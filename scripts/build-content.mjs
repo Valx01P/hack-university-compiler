@@ -27,7 +27,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import path from "node:path";
 import { checkpointLayers, layerTree, listTemplates, sortedEntries, treeHash, workspacesRoot } from "../lib/workspace-layers.mjs";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(import.meta.dirname, "..");
 const OUT = path.join(ROOT, ".generated");
 const check = process.argv.includes("--check");
 const THEME = path.join(ROOT, "node_modules", "material-icon-theme");

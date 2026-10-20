@@ -447,9 +447,14 @@ export function fsError(err: unknown, rel: string): Error {
 /**
  * Copies a folder's contents (or a file) with copy-on-write clones on APFS:
  * /bin/cp -c -R -P, spawned with an argv array. Links stay links and FIFOs
- * are recreated, never read. Elsewhere it falls back to a plain copy.
+ * are recreated, never read. Elsewhere it falls back to a plain copy, and on
+ * Windows, which has no /bin/cp, to Node's own copy.
  */
 export async function cloneTree(src: string, dst: string): Promise<void> {
+  if (process.platform === "win32") {
+    fs.cpSync(src, dst, { recursive: true, verbatimSymlinks: true, errorOnExist: false, force: true });
+    return;
+  }
   const isDir = fs.lstatSync(src).isDirectory();
   // "src/." copies a folder's contents into dst, with both BSD and GNU cp.
   const from = isDir ? `${src}/.` : src;
