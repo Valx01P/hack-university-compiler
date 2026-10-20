@@ -1,14 +1,18 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { Tickets, createToken } from "./auth.ts";
+import { Tickets, appOrigins, createToken } from "./auth.ts";
+import { Capacity } from "./capacity.ts";
+import { Checks } from "./checks/run.ts";
 import { loadConfig } from "./config.ts";
 import { DockerWatch, resolveEndpoint, type Owner } from "./docker.ts";
 import { createApiServer, type Services } from "./http.ts";
 import { Images } from "./images.ts";
 import { JobPool } from "./jobs.ts";
 import { Log } from "./log.ts";
+import { PortLeases } from "./ports.ts";
 import { reap, reconcile, removeOwnJobs } from "./reaper.ts";
+import { Workspaces } from "./workspaces.ts";
 import { attachWebSockets } from "./ws.ts";
 
 /**
@@ -44,6 +48,19 @@ const images = new Images(config.root, watch.docker, endpoint.dockerHost);
 const pool = new JobPool(config.jobSlots);
 const tickets = new Tickets(config.ticketTtlMs);
 const services: Services = { piston: false, postgres: "absent", mongo: "absent" };
+const leases = new PortLeases(config.wsPorts, { dataDir: config.dataDir });
+const capacity: Capacity = new Capacity(
+  () => ({
+    memTotal: watch.facts?.memTotal ?? null,
+    piston: services.piston,
+    postgres: services.postgres === "running",
+    mongo: services.mongo === "running",
+    checkSlot: workspaces.checkSlot(),
+  }),
+  config.memBudgetMb
+);
+const workspaces: Workspaces = new Workspaces({ config, watch, images, owner, log, leases, capacity, appOrigins: appOrigins(config.appPort) });
+const checks = new Checks({ docker: watch.docker, owner, images, pool, log, capacity, contentDir: config.contentDir });
 
 /** Whenever Docker is (back) up: clear leftovers, and look the images and shared services up. */
 async function onDockerReady() {
@@ -51,6 +68,7 @@ async function onDockerReady() {
     await reconcile(watch.docker, owner, log);
     await images.refresh();
     await refreshServices();
+    await workspaces.reconcile();
   } catch (err) {
     log.warn("docker.ready_failed", { error: (err as Error).message });
   }
@@ -73,8 +91,17 @@ async function refreshServices() {
 let started!: () => void;
 const ready = new Promise<void>((resolve) => (started = resolve));
 const startedAt = Date.now();
-const server = createApiServer({ config, token, tickets, watch, images, pool, owner, log, services, startedAt, version, ready });
-attachWebSockets(server, { port: config.port, appPort: config.appPort, helloTimeoutMs: config.helloTimeoutMs, tickets, watch, log });
+const server = createApiServer({ config, token, tickets, watch, images, pool, owner, log, services, startedAt, version, ready, workspaces, checks });
+attachWebSockets(server, {
+  port: config.port,
+  appPort: config.appPort,
+  helloTimeoutMs: config.helloTimeoutMs,
+  tickets,
+  watch,
+  log,
+  workspaces,
+  termGraceMs: config.termGraceMs,
+});
 
 server.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EADDRINUSE") {
@@ -96,6 +123,7 @@ if (watch.state === "ready") await onDockerReady();
 watch.onChange((state) => {
   log.info("docker.state", { state });
   if (state === "ready") void onDockerReady();
+  else if (state === "down") workspaces.dockerDown();
 });
 watch.start(config.pollMs);
 
@@ -105,6 +133,7 @@ const reaper = setInterval(async () => {
   try {
     await reap(watch.docker, owner, log);
     await refreshServices();
+    await workspaces.sweep();
   } catch (err) {
     log.warn("reaper.failed", { error: (err as Error).message });
   }
@@ -125,7 +154,11 @@ async function shutdown(signal: string) {
   server.closeAllConnections();
   watch.stop();
   clearInterval(reaper);
-  if (watch.state === "ready") await removeOwnJobs(watch.docker, owner, log).catch(() => {});
+  if (watch.state === "ready") {
+    // Running workspaces stop (tasks get TERM, then KILL): at most a few seconds.
+    await Promise.race([workspaces.shutdown(), new Promise((r) => setTimeout(r, 8_000))]).catch(() => {});
+    await removeOwnJobs(watch.docker, owner, log).catch(() => {});
+  }
   process.exit(0);
 }
 process.on("SIGINT", () => void shutdown("SIGINT"));

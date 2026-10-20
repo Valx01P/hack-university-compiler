@@ -1,15 +1,19 @@
 import http from "node:http";
-import type { ZodType } from "zod";
+import { workspaceId } from "../lib/workspace-id.mjs";
 import { bearerMatches, hostAllowed, type Tickets } from "./auth.ts";
+import type { Checks } from "./checks/run.ts";
 import type { Config } from "./config.ts";
 import type { DockerWatch, Owner } from "./docker.ts";
+import { HttpError, parse, readJson, send, sendError } from "./http-util.ts";
 import { IMAGES, isImageName, type ImageName, type Images } from "./images.ts";
 import { JobError, type JobPool } from "./jobs.ts";
 import type { Log } from "./log.ts";
 import { HEADROOM_BYTES, PISTON_BYTES, belowFloor } from "./profiles.ts";
 import { reap, reconcile } from "./reaper.ts";
 import { recipeImage, runRecipe } from "./recipes/index.ts";
-import { PrewarmRequest, RunRequest, TicketRequest, describeIssues } from "./schemas.ts";
+import { PrewarmRequest, RunRequest, TicketRequest } from "./schemas.ts";
+import { workspaceRoute } from "./workspace-routes.ts";
+import type { Workspaces } from "./workspaces.ts";
 
 /**
  * The runner's REST API, for the Next.js server only (architecture §3.2).
@@ -32,6 +36,9 @@ export interface ApiDeps {
   version: string;
   /** Resolves once the runner has first looked at Docker. Requests wait for it. */
   ready?: Promise<void>;
+  /** Workspaces and their checks (P1). Without them, their routes answer 501. */
+  workspaces?: Workspaces;
+  checks?: Checks;
 }
 
 /** What the runner knows about the shared containers it doesn't run in P0. */
@@ -45,57 +52,6 @@ const JSON_LIMIT = 64 * 1024;
 const RUN_LIMIT = 8 * 1024 * 1024;
 /** Runs waiting beyond the job slots. A verifier raises HU_JOB_SLOTS instead. */
 const MAX_QUEUED = 64;
-
-class HttpError extends Error {
-  readonly status: number;
-  readonly code: string;
-  constructor(status: number, code: string, message: string) {
-    super(message);
-    this.status = status;
-    this.code = code;
-  }
-}
-
-function send(res: http.ServerResponse, status: number, body?: unknown, headers: Record<string, string> = {}) {
-  const payload = body === undefined ? "" : JSON.stringify(body);
-  res.writeHead(status, {
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff",
-    ...(payload ? { "Content-Type": "application/json; charset=utf-8", "Content-Length": String(Buffer.byteLength(payload)) } : {}),
-    ...headers,
-  });
-  res.end(payload);
-}
-
-function sendError(res: http.ServerResponse, err: HttpError) {
-  send(res, err.status, { error: err.code, message: err.message }, err.status === 401 ? { "WWW-Authenticate": "Bearer" } : {});
-}
-
-/** Reads and parses a JSON body of at most `limit` bytes. */
-async function readJson(req: http.IncomingMessage, limit: number): Promise<unknown> {
-  const type = req.headers["content-type"] ?? "";
-  if (!/^application\/json\s*(;|$)/i.test(type)) throw new HttpError(415, "unsupported_media_type", "Send a JSON body (Content-Type: application/json).");
-  const declared = Number(req.headers["content-length"] ?? 0);
-  if (declared > limit) throw new HttpError(413, "too_large", `The body is over ${limit} bytes.`);
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req as AsyncIterable<Buffer>) {
-    size += chunk.length;
-    if (size > limit) throw new HttpError(413, "too_large", `The body is over ${limit} bytes.`);
-    chunks.push(chunk);
-  }
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-  } catch {
-    throw new HttpError(400, "bad_request", "The body isn't valid JSON.");
-  }
-}
-
-function parse<T>(schema: ZodType<T>, body: unknown): T {
-  const result = schema.safeParse(body);
-  if (!result.success) throw new HttpError(400, "bad_request", describeIssues(result.error));
-  return result.data;
-}
 
 /** GET /v1/health: Docker, the images, the jobs, and the memory budget. */
 export function health(deps: ApiDeps) {
@@ -111,7 +67,13 @@ export function health(deps: ApiDeps) {
   // The memory left for workspaces (architecture §4.7): MemTotal, minus the
   // VM's headroom, minus each shared service that is up. P0 runs none yet.
   const memTotal = facts?.memTotal ?? 0;
-  const budget = memTotal ? memTotal - HEADROOM_BYTES - (deps.services.piston ? PISTON_BYTES : 0) : 0;
+  const budget = deps.workspaces
+    ? deps.workspaces.capacity.budget()
+    : memTotal
+      ? memTotal - HEADROOM_BYTES - (deps.services.piston ? PISTON_BYTES : 0)
+      : 0;
+  const running = deps.workspaces?.running().length ?? 0;
+  const reserved = deps.workspaces?.capacity.reserved() ?? 0;
   return {
     docker: {
       state: deps.watch.state,
@@ -125,7 +87,7 @@ export function health(deps: ApiDeps) {
     images,
     recipes,
     services: { postgres: deps.services.postgres, mongo: deps.services.mongo, piston: deps.services.piston ? "running" : "absent" },
-    workspaces: { running: 0, budgetMb: Math.max(0, Math.floor(budget / 2 ** 20)), reservedMb: 0 },
+    workspaces: { running, budgetMb: Math.max(0, Math.floor(budget / 2 ** 20)), reservedMb: Math.floor(reserved / 2 ** 20) },
     jobs: { ...deps.pool.stats, slots: deps.pool.slots },
     runner: { version: deps.version, ns: deps.owner.ns, boot: deps.owner.boot, port: deps.owner.port, uptimeMs: Date.now() - deps.startedAt },
   };
@@ -184,14 +146,29 @@ async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerR
   if (path === "/v1/tickets") {
     if (method !== "POST") throw new HttpError(405, "method_not_allowed", "Use POST.");
     const body = parse(TicketRequest, await readJson(req, JSON_LIMIT));
+    if (deps.workspaces) {
+      const ws = deps.workspaces.get(body.workspace);
+      if (!ws) throw new HttpError(404, "not_found", "No such workspace. Open it first.");
+      if (body.kind === "term" && !ws.session(body.sid!)) throw new HttpError(404, "not_found", "No such terminal.");
+    }
     return send(res, 200, deps.tickets.issue(body));
   }
 
   if (path === "/v1/prewarm") {
     if (method !== "POST") throw new HttpError(405, "method_not_allowed", "Use POST.");
-    parse(PrewarmRequest, await readJson(req, JSON_LIMIT));
-    // Warming only reads caches (P1 reads template layers and trees). It never
-    // creates a workspace, a lease, a listener, or a container, and never builds.
+    const body = parse(PrewarmRequest, await readJson(req, JSON_LIMIT));
+    // Warming only reads caches: an open workspace's tree (its file hashes). It
+    // never creates a workspace, a lease, a listener, or a container, and never builds.
+    if ("scope" in body && deps.workspaces) {
+      let id: string | null = null;
+      try {
+        id = workspaceId(body.scope);
+      } catch {
+        id = null;
+      }
+      const ws = id ? deps.workspaces.get(id) : null;
+      if (ws) void ws.snapshotTree().catch(() => {});
+    }
     return send(res, 204);
   }
 
@@ -238,6 +215,7 @@ async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerR
     throw new HttpError(404, "not_found", "No such admin route.");
   }
 
+  if (deps.workspaces && deps.checks && (await workspaceRoute({ workspaces: deps.workspaces, checks: deps.checks }, req, res, url))) return;
   if (LATER.test(path)) throw new HttpError(501, "not_implemented", "Workspaces, checks, and page lessons arrive in a later phase.");
   throw new HttpError(404, "not_found", "No such route.");
 }

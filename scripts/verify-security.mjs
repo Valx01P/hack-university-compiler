@@ -11,16 +11,20 @@
 // Needs Docker and the hu images (npm run images). Everything runs in the
 // verify namespace (hv- names, hu.ns=verify), and is removed at the end. The
 // runners it starts listen on 127.0.0.1:3311 (HU_VERIFY_PORT), or on any
-// free port when something else has it.
+// free port when something else has it, and lease workspace ports from
+// HU_VERIFY_WS_PORTS (29900-29999).
 import dns from "node:dns/promises";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { capabilityMask, jobProfile, SCRIPT_JOB, standardProfile, sysadminProfile, SYSADMIN_CAPS, WORKSPACE_LIMITS } from "../runner/profiles.ts";
 import { WebSocket, execText, freePort, startRunner, verifyKit } from "../runner/verify.ts";
+import { workspaceId } from "../lib/workspace-id.mjs";
 
 const PREFERRED_PORT = Number(process.env.HU_VERIFY_PORT ?? 3311);
 const PORT = await freePort(PREFERRED_PORT);
+// The workspace ports its runners lease (HU_VERIFY_WS_PORTS), clear of a learner's.
+const WS_PORTS = process.env.HU_VERIFY_WS_PORTS ?? "29900-29999";
 const PISTON = (process.env.PISTON_URL ?? "http://127.0.0.1:2000/api/v2").replace(/\/+$/, "");
 const wanted = process.argv.slice(2).map((a) => a.toUpperCase());
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -318,7 +322,14 @@ function hello(ws, ticket) {
 }
 
 async function S9() {
-  const runner = startRunner(PORT, { HU_TICKET_TTL_MS: "400", HU_WS_HELLO_MS: "500" });
+  // Tickets name a workspace (and a terminal) that exists, so this runner
+  // opens one from the runner's test content, and starts it for a terminal.
+  const runner = startRunner(PORT, {
+    HU_TICKET_TTL_MS: "400",
+    HU_WS_HELLO_MS: "500",
+    HU_CONTENT_DIR: path.join(import.meta.dirname, "..", "runner", "test-fixtures", "content"),
+    HU_WS_PORTS: WS_PORTS,
+  });
   try {
     await runner.ready();
     check("no token gives 401", (await runner.request("GET", "/v1/health", { token: null })).status === 401);
@@ -333,8 +344,13 @@ async function S9() {
     check("a WebSocket from a preview's Origin is refused", (await socket(PORT, { origin: "http://localhost:23017" })).refused === 403);
     check("a WebSocket with a foreign Host is refused", (await socket(PORT, { host: `evil.example:${PORT}` })).refused === 403);
 
+    const scope = "playground/typescript";
+    const id = workspaceId(scope);
+    const opened = await runner.request("PUT", `/v1/workspaces/${id}`, { body: { scope, template: "typescript/playground", layers: ["base"] } });
+    check("a workspace opens", opened.status === 200, `${opened.status} ${JSON.stringify(opened.json).slice(0, 200)}`);
     const issue = async (body) => (await runner.request("POST", "/v1/tickets", { body })).json.ticket;
-    const events = { workspace: "wk3j6q2m7xa", kind: "events" };
+    check("no ticket for a workspace that isn't open", (await runner.request("POST", "/v1/tickets", { body: { workspace: "wk3j6q2m7xa", kind: "events" } })).status === 404);
+    const events = { workspace: id, kind: "events" };
     const good = await issue(events);
     const first = await socket(PORT);
     check("a fresh ticket opens the events socket", (await hello(first.ws, good)).message?.t === "ready");
@@ -349,8 +365,11 @@ async function S9() {
     check("a socket that sends no ticket is closed (4401)", (await hello(silent.ws)).code === 4401);
     const term = await socket(PORT, { path: "/v1/ws/term/s1abcdef" });
     check("an events ticket on a terminal socket is refused (4403)", (await hello(term.ws, await issue(events))).code === 4403);
+    const { sid } = (await runner.request("POST", `/v1/workspaces/${id}/terminals`, { body: { cols: 80, rows: 24 } })).json;
+    check("no ticket for a terminal that doesn't exist", (await runner.request("POST", "/v1/tickets", { body: { workspace: id, kind: "term", sid: "s1abcdef" } })).status === 404);
     const other = await socket(PORT, { path: "/v1/ws/term/s2abcdef" });
-    check("a ticket for another terminal is refused (4403)", (await hello(other.ws, await issue({ workspace: "wk3j6q2m7xa", kind: "term", sid: "s1abcdef" }))).code === 4403);
+    check("a ticket for another terminal is refused (4403)", (await hello(other.ws, await issue({ workspace: id, kind: "term", sid }))).code === 4403);
+    await runner.request("DELETE", `/v1/workspaces/${id}`);
   } finally {
     await runner.stop();
     rmSync(runner.dataDir, { recursive: true, force: true });

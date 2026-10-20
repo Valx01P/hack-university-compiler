@@ -87,6 +87,8 @@ export const LABEL = {
   workspace: "hu.workspace",
   image: "hu.image",
   hash: "hu.hash",
+  /** The data folder a workspace belongs to (8 hex characters of its hash). */
+  home: "hu.home",
 } as const;
 
 export type Kind = "workspace" | "job" | "checker" | "db";

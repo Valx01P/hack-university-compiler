@@ -131,7 +131,7 @@ export interface WorkspaceContainer {
   filesDir: string;
   /** The volume for /home/learner. */
   homeVolume: string;
-  limits: (typeof WORKSPACE_LIMITS)["typescript"];
+  limits: { memoryBytes: number; cpus: number; pids: number; fsizeBytes: number; tmpBytes: number };
   network?: "none" | "hu-db";
 }
 
