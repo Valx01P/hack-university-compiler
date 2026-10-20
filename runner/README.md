@@ -432,8 +432,8 @@ when no tab has sent a visible heartbeat in the last minute).
 reserves its memory limit. A start that doesn't fit stops running workspaces
 that no tab shows (no visible heartbeat for 60 s), least recently active
 first, each with a `limit` event of kind `lru`. When none qualifies, the start
-waits in a FIFO queue and proceeds when memory frees. A check never stops the
-workspace it checks.
+waits in a FIFO queue and proceeds when memory frees, and a Stop or Delete
+while it waits calls it off. A check never stops the workspace it checks.
 
 ### Files
 
@@ -964,8 +964,9 @@ bench.ts         times the job path end to end against the budgets
     writer per terminal, a task's server answers on its leased port from the
     Mac (and `Host: evil.example` gets 421) and through the API panel with its
     cookie jar, a detected port is forwarded, two workspaces never share a
-    port, cmd, http, and process checks pass and fail when they should, and an
-    idle workspace stops. Set `HU_TEST_DATA_DIR`, `HU_TEST_RUNNER_PORT`, and
+    port, cmd, http, and process checks pass and fail when they should, a
+    start that doesn't fit the memory budget queues (and a hidden workspace
+    stops for one you can see), and an idle workspace stops. Set `HU_TEST_DATA_DIR`, `HU_TEST_RUNNER_PORT`, and
     `HU_TEST_WS_PORTS` to keep its runners' data, port, and leases where you
     want them. It removes every container and volume it made.
 - `npm run security:verify` runs S1 (hardening), S2 (egress), S4 (limits), S9

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { Capacity, type CapacityFacts } from "./capacity.ts";
+import { Cancelled, Capacity, type CapacityFacts } from "./capacity.ts";
 
 /** The memory budget (architecture §4.7): admission, LRU stops of hidden workspaces, and the queue. */
 
@@ -48,6 +48,17 @@ describe("capacity", () => {
     cap.release("a");
     await sixth;
     assert.equal(admitted, true);
+  });
+
+  it("calls off a queued start", async () => {
+    const cap = new Capacity(facts(7.75 * GiB), null);
+    const none = { candidates: () => [], stop: async () => {}, waiting: () => {} };
+    await cap.admit("a", 4 * GiB, none);
+    const queued = cap.admit("b", 1 * GiB, none);
+    cap.cancel("b");
+    await assert.rejects(queued, Cancelled);
+    assert.equal(cap.queued, 0);
+    assert.equal(cap.holds("b"), false);
   });
 
   it("runs one check in the reserved slot, and a second only with room", async () => {

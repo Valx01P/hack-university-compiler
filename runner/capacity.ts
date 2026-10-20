@@ -37,7 +37,11 @@ interface Waiter {
   kind: "workspace" | "check";
   /** A check learns whether it got the slot (0) or room in the budget (its bytes). */
   resolve: (extra: number) => void;
+  reject: (err: Error) => void;
 }
+
+/** A queued start that was called off (a Stop or Delete while it waited). */
+export class Cancelled extends Error {}
 
 export class Capacity {
   private readonly facts: () => CapacityFacts;
@@ -101,7 +105,7 @@ export class Capacity {
       }
     }
     waiting(this.waitingDetail());
-    await new Promise<number>((resolve) => this.queue.push({ id, bytes, kind: "workspace", resolve }));
+    await new Promise<number>((resolve, reject) => this.queue.push({ id, bytes, kind: "workspace", resolve, reject }));
   }
 
   /** Whether `bytes` would have to wait right now (for answering 202 at once). */
@@ -120,7 +124,7 @@ export class Capacity {
       this.extraCheckBytes += bytes;
       return this.releaser(bytes);
     }
-    const extra = await new Promise<number>((resolve) => this.queue.push({ id: "", bytes, kind: "check", resolve }));
+    const extra = await new Promise<number>((resolve, reject) => this.queue.push({ id: "", bytes, kind: "check", resolve, reject }));
     return this.releaser(extra);
   }
 
@@ -133,6 +137,15 @@ export class Capacity {
       this.extraCheckBytes -= extra;
       this.drain();
     };
+  }
+
+  /** Calls off a workspace's queued start. */
+  cancel(id: string) {
+    const at = this.queue.findIndex((w) => w.kind === "workspace" && w.id === id);
+    if (at < 0) return;
+    const [waiter] = this.queue.splice(at, 1);
+    waiter.reject(new Cancelled("The start was called off."));
+    this.drain();
   }
 
   /** Reserves without asking: a workspace found running at startup. */

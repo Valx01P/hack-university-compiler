@@ -547,6 +547,49 @@ describe("workspaces", { skip }, () => {
     ev.ws.close();
   });
 
+  it("queues a start that doesn't fit the memory budget, and stops a hidden workspace for one you can see", async () => {
+    const dir = path.join(base, "runner-c");
+    fs.mkdirSync(dir, { recursive: true });
+    const small = startRunner(await freePort(runner.port + 2), { HU_CONTENT_DIR: FIXTURES, HU_WS_PORTS: `${half + 1}-${last}`, HU_MEM_BUDGET_MB: "1500" }, dir);
+    try {
+      await small.ready();
+      const { id: a } = await open(small, "learn/typescript/runner-test/3/practice");
+      const { id: b } = await open(small, "learn/typescript/runner-test/4/practice");
+      const evA = await events(small, a);
+      const evB = await events(small, b);
+      evA.ws.send(JSON.stringify({ t: "hb", visible: true }));
+      await new Promise((r) => setTimeout(r, 100));
+      assert.equal((await small.request("POST", `/v1/workspaces/${a}/start`)).json.status, "running");
+      // A is on screen, so B waits for memory instead of stopping it.
+      const queued = await small.request("POST", `/v1/workspaces/${b}/start`);
+      assert.equal(queued.status, 202);
+      assert.equal(queued.json.queued, true);
+      assert.match(queued.json.detail, /^Waiting for memory: 1 workspace you have open use 1 of 1\.46 GiB$/);
+      await evB.wait((m) => m.t === "status" && m.status === "starting" && /Waiting for memory/.test(m.detail ?? ""), 5_000);
+      assert.equal((await small.request("POST", `/v1/workspaces/${a}/stop`)).json.status, "stopped");
+      await evB.wait((m) => m.t === "status" && m.status === "running", 15_000);
+      // Now B runs and no tab shows it, so starting A stops B to make room.
+      assert.equal((await small.request("POST", `/v1/workspaces/${a}/start`)).json.status, "running");
+      const lru = await evB.wait((m) => m.t === "limit" && m.kind === "lru", 10_000);
+      assert.match(lru.m.message, /make room/);
+      assert.equal((await small.request("GET", `/v1/workspaces/${b}`)).json.status, "stopped");
+      // A start that waits can be called off.
+      evA.ws.send(JSON.stringify({ t: "hb", visible: true }));
+      await new Promise((r) => setTimeout(r, 100));
+      const again = await small.request("POST", `/v1/workspaces/${b}/start`);
+      assert.equal(again.status, 202);
+      assert.equal((await small.request("POST", `/v1/workspaces/${b}/stop`)).json.status, "stopped");
+      evA.ws.close();
+      evB.ws.close();
+      for (const id of [a, b]) assert.equal((await small.request("DELETE", `/v1/workspaces/${id}`)).status, 204);
+    } finally {
+      await small.stop();
+      const left = await docker.listContainers({ all: true, filters: { label: [`${LABEL.home}=${home(dir)}`] } });
+      for (const c of left) await docker.getContainer(c.Id).remove({ force: true }).catch(() => {});
+      assert.equal(left.length, 0, "the small runner left no container");
+    }
+  });
+
   it("stops a workspace that's idle", async () => {
     const dir = path.join(base, "runner-b");
     fs.mkdirSync(dir, { recursive: true });

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type Docker from "dockerode";
 import { parseScope, workspaceId } from "../lib/workspace-id.mjs";
-import type { Capacity, Candidate } from "./capacity.ts";
+import { Cancelled, type Capacity, type Candidate } from "./capacity.ts";
 import type { Config } from "./config.ts";
 import { diagSpecs, runDiagnostics } from "./diagnostics.ts";
 import { LABEL, isDockerDown, labelsFor, type DockerWatch, type Owner } from "./docker.ts";
@@ -773,11 +773,17 @@ export class Workspace {
     const limits = this.limits;
     this.setStatus("starting", null);
     // Memory first, outside the lock: a start may wait here for a while.
-    await this.m.capacity.admit(this.id, limits.memoryBytes, {
-      candidates: () => this.m.lruCandidates(this.id),
-      stop: (id) => this.m.stopForMemory(id),
-      waiting: (detail) => this.setStatus("starting", detail),
-    });
+    try {
+      await this.m.capacity.admit(this.id, limits.memoryBytes, {
+        candidates: () => this.m.lruCandidates(this.id),
+        stop: (id) => this.m.stopForMemory(id),
+        waiting: (detail) => this.setStatus("starting", detail),
+      });
+    } catch (err) {
+      if (!(err instanceof Cancelled)) throw err;
+      this.setStatus(this.meta.startedAt ? "stopped" : "files", null);
+      throw new HttpError(409, "cancelled", "The start was called off while it waited for memory.");
+    }
     if (this.detail) this.setStatus("starting", null);
     await this.lock.run(async () => {
       const undo: (() => Promise<void> | void)[] = [() => this.m.capacity.release(this.id)];
@@ -897,6 +903,8 @@ export class Workspace {
 
   /** Stops the container: tasks get TERM then KILL, terminals and bridges close, leases stay. */
   async stop(reason: "user" | "idle" | "lru" | "docker" | "delete" = "user"): Promise<{ status: Status }> {
+    // A start still waiting for memory is called off rather than waited for.
+    if (this.status === "starting" && this.detail?.startsWith("Waiting for memory")) this.m.capacity.cancel(this.id);
     if (this.startPromise) await this.startPromise.catch(() => {});
     return this.lock.run(() => this.stopLocked(reason));
   }
