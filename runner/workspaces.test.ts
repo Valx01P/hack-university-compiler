@@ -105,8 +105,11 @@ async function terminal(r: RunnerProcess, id: string, sid: string) {
   const ws = new WebSocket(`ws://127.0.0.1:${r.port}/v1/ws/term/${sid}`, { headers: { origin: APP } });
   const state = { out: "", texts: [] as any[] };
   ws.on("message", (d, binary) => {
-    if (binary) state.out += d.toString();
-    else state.texts.push(JSON.parse(String(d)));
+    if (binary) return void (state.out += d.toString());
+    const message = JSON.parse(String(d));
+    state.texts.push(message);
+    // What the shell printed before this socket attached (its first prompt, say) comes as the replay.
+    if (message.t === "replay") state.out += message.data;
   });
   await new Promise((resolve, reject) => {
     ws.once("open", resolve);
