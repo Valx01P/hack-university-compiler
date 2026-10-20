@@ -26,16 +26,13 @@ Everything runs on your computer, in Docker. Nothing leaves it.
 - Disk space for what you pick: 1.2 GB for just the app, about 16 GB for
   everything
 
-It runs on a Mac, on Windows 10 or 11, and on Linux:
+It's made for a Mac, and Windows support is experimental:
 
 - **Mac**: on Apple Silicon, turn on **"Use Rosetta for x86_64/amd64
   emulation"** in Docker Desktop's settings, so code runs at full speed.
-- **Windows**: Docker Desktop with its WSL 2 backend (the default). Run the
-  commands below in PowerShell, or clone and run inside WSL (Ubuntu), where
-  the project courses run fastest.
-- **Linux**: Docker Engine with the compose plugin, and your user in the
-  `docker` group. The project courses need your user id to be 1000, the
-  first account on most systems.
+- **Windows (experimental)**: Docker Desktop with its WSL 2 backend (the
+  default). Run the commands below in PowerShell, or clone and run inside
+  WSL (Ubuntu), where the project courses run fastest.
 
 ## Start
 
@@ -98,10 +95,6 @@ rest do the same.
   running, so stop it first. Or use other ports:
   `PORT=3001 HU_RUNNER_PORT=3101 npm run up` (in PowerShell,
   `$env:PORT=3001; $env:HU_RUNNER_PORT=3101; npm run up`).
-- **"your user can't reach" Docker** on Linux: run
-  `sudo usermod -aG docker $USER`, then sign out and back in.
-- **Linux**: the compiler sandbox needs cgroup v2, the default on current
-  distributions.
 
 ## Learn more
 
