@@ -1,0 +1,17 @@
+#!/bin/sh
+# hu-npm-cache: makes /tmp/npm-cache, the npm cache hu/web's npmrc names, once
+# per container. npm rewrites a cache's index on every metadata lookup, so it
+# can't read metadata from the image's read-only cache in /opt/hu/npm-cache:
+# npm ci works there, npm install <name> doesn't. The view copies the index
+# (about 17 MB, into /tmp) and links the read-only tarballs, so nothing is
+# shared between containers and the image's cache never changes.
+set -eu
+view=/tmp/npm-cache
+[ -d "$view/_cacache/index-v5" ] && exit 0
+src=/opt/hu/npm-cache/_cacache
+tmp=$(mktemp -d /tmp/.npm-cache.XXXXXX)
+mkdir "$tmp/_cacache" "$tmp/_cacache/tmp"
+cp -R "$src/index-v5" "$tmp/_cacache/index-v5"
+ln -s "$src/content-v2" "$tmp/_cacache/content-v2"
+# Another npm may have made it first: then this copy goes.
+mv -T "$tmp" "$view" 2>/dev/null || rm -rf "$tmp"
