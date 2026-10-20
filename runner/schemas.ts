@@ -261,7 +261,7 @@ export const OpenWorkspace = z.strictObject({
       pids: z.number().int().min(16).max(4096).optional(),
     })
     .optional(),
-  build: z.array(z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, "is not a folder name")).max(8).optional(),
+  build: z.array(z.string().regex(/^\.?[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, "is not a folder name")).max(8).optional(),
   hidden: z.array(RelPath).max(64).optional(),
   readonly: z.array(RelPath).max(256).optional(),
   restartOnReset: z.boolean().optional(),
