@@ -398,6 +398,45 @@ export function useCodeCommentsHidden(): boolean {
 }
 
 /**
+ * The shade along the bottom of a Learn part, behind its floating Previous and
+ * Next: on (the default) or off. Off is <html data-learn-shade="off">, applied
+ * before first paint by the bootstrap in app/layout.tsx, and CSS drops the
+ * shade there (globals.css .learn-shade).
+ */
+export const LEARN_SHADE_KEY = "hu-learn-shade";
+const LEARN_SHADE_EVENT = "hu:learn-shade-changed";
+
+const learnShadeOn = () => document.documentElement.getAttribute("data-learn-shade") !== "off";
+
+function applyLearnShade(on: boolean) {
+  if (on) document.documentElement.removeAttribute("data-learn-shade");
+  else document.documentElement.setAttribute("data-learn-shade", "off");
+}
+
+/** Show or hide the shade, persist it, and broadcast. */
+export function setLearnShade(on: boolean) {
+  applyLearnShade(on);
+  try {
+    if (on) localStorage.removeItem(LEARN_SHADE_KEY);
+    else localStorage.setItem(LEARN_SHADE_KEY, "off");
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.dispatchEvent(new Event(LEARN_SHADE_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+const subscribeLearnShade = subscribeTo(LEARN_SHADE_EVENT, LEARN_SHADE_KEY, (stored) => applyLearnShade(stored !== "off"));
+
+/** Whether the bottom shade shows, any tab. */
+export function useLearnShade(): boolean {
+  return useSyncExternalStore(subscribeLearnShade, learnShadeOn, () => true);
+}
+
+/**
  * Stars: a starry background behind the app (components/chrome/starfield.tsx),
  * off by default. On is <html data-stars>, applied before first paint by the
  * bootstrap in app/layout.tsx, and while it's on the app's large backgrounds,

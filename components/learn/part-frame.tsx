@@ -122,6 +122,23 @@ export function PartNumbers({
 }
 
 /**
+ * The shade along the bottom of a part, under its floating Previous and Next:
+ * the whole width of the workspace on wide screens (the lesson, the editor,
+ * and the output), so the nav reads over whatever scrolls under it. Phones
+ * scroll the page instead, so there the nav's own bar carries it. The theme
+ * menu's Bottom shade switch turns both off (globals.css). Place it inside a
+ * part's [data-workspace].
+ */
+export function LearnShade() {
+  return (
+    <div
+      aria-hidden
+      className="learn-shade pointer-events-none absolute inset-x-0 bottom-0 z-[5] hidden h-28 bg-gradient-to-t from-surface from-25% to-transparent lg:block"
+    />
+  );
+}
+
+/**
  * Floating nav through the parts, then on to the next lesson: only Next at
  * the very start of the course, only Previous at its end. In full screen it
  * sits above the floating buttons in the corners. Next glows for a while
@@ -130,7 +147,7 @@ export function PartNumbers({
 export function PartNav({ prev, next, glow = 0 }: { prev: PartLink | null; next: PartLink | null; glow?: number }) {
   if (!prev && !next) return null;
   return (
-    <div className="pointer-events-none sticky bottom-0 z-10 flex justify-center bg-gradient-to-t from-surface from-40% to-transparent px-4 pt-8 pb-4 full:pb-16">
+    <div className="learn-shade-nav pointer-events-none sticky bottom-0 z-10 flex justify-center px-4 pt-8 pb-4 max-lg:bg-gradient-to-t max-lg:from-surface max-lg:from-40% max-lg:to-transparent full:pb-16">
       <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-card border border-line bg-surface p-1.5 shadow-(--shadow-card)">
         {prev && (
           <Link

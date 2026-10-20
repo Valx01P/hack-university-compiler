@@ -10,6 +10,7 @@ import {
   CODE_BLOCK,
   LessonEyebrow,
   PLACE_MARGIN,
+  LearnShade,
   PartNav,
   PartNumbers,
   Prose,
@@ -97,7 +98,8 @@ export function ReadPartView({
   }, []);
 
   return (
-    <div data-workspace className="flex min-h-0 flex-1 flex-col full:max-lg:overflow-y-auto full:max-lg:*:shrink-0">
+    <div data-workspace className="flex min-h-0 flex-1 flex-col lg:relative full:max-lg:overflow-y-auto full:max-lg:*:shrink-0">
+      {hasNav && <LearnShade />}
       {/* The column fills the panel and scrolls on wide screens, and the page
           scrolls below that, as on other parts. */}
       <div

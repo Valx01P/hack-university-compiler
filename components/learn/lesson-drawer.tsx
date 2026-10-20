@@ -112,7 +112,7 @@ export function LessonDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={`${listProps.course.title} lessons`}
-        className="absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-3rem))] flex-col border-r border-edge bg-surface shadow-(--shadow-card)"
+        className="absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-3rem))] flex-col border-r border-line bg-surface shadow-(--shadow-card)"
       >
         <button
           type="button"

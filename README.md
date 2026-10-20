@@ -397,22 +397,27 @@ the custom swatch keeps the last color you picked, even after you switch to a
 preset or reload: click it to bring that color back, and click it again to
 change it.
 
-**Layout lines**, at the top of the theme menu's right column, is a slider for the lines
-that divide the page: the panel's outline, the language rail, the lesson list
-and its dividers, the editor and output boxes, the cheatsheet and challenges
-panel, and the outlined buttons (Cheatsheet, Challenges, Learn, Compiler, and
-Previous/Next). Slide it to 0 for a borderless page. **Content lines**, under
-it, does the same for the lines inside the content, separately: tables, code
-blocks and `inline code`, search boxes and dropdowns, and the dividers in
-lessons, cheatsheets, challenges, and results. A focused field always shows its
-border.
+**Layout lines**, at the top of the theme menu's right column, is a slider
+for the lines that divide the page: the panel's outline, the language rail,
+the lesson list and its dividers (and, in full screen, the lesson list's
+edge), the compiler's editor and output boxes, the cheatsheet and challenges
+panel, and Previous/Next. Slide it to 0 for a borderless page. **Content
+lines**, under it, does the same for the lines inside the content,
+separately: tables, code blocks and `inline code`, search boxes and
+dropdowns, the dividers in lessons, cheatsheets, challenges, and results, the
+Cheatsheet, Challenges, Learn, and Compiler buttons, and the Example and Your
+code editor in Learn. A focused field always shows its border.
 
-**Code comments**, the switch at the bottom of the theme menu's left column, shows or hides
+**Code comments**, a switch in the theme menu's left column, shows or hides
 the comments in the code examples of lessons and cheatsheets, for reading the
 code on its own (an example still prints its results when you run it). A
 comment on its own line goes with its line, and copying or editing an example
 leaves them out too. Directives and `TODO` lines (a starter's instructions)
 always stay. Code you changed yourself always shows as you wrote it.
+
+**Bottom shade**, the switch under it, shows or hides the shade along the
+bottom of a Learn part, behind the floating Previous and Next. It spans the
+whole part, the lesson, the editor, and the output, in full screen too.
 
 **Stars**, the switch under the line sliders, puts a starry sky behind the
 whole app: twinkling stars that drift slowly, and soft clouds, in the theme's
@@ -466,9 +471,9 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
 - Saved in the browser's local storage: your code (per language), your edits
   to examples, editor zoom, tab size, intellisense, theme, editor theme,
   contrast level, code background, selection color (and the last custom
-  color of each), layout lines, content lines, code comments, and the
-  stars (their brightness and amount, and the clouds' version, cover, and
-  place). Everything
+  color of each), layout lines, content lines, code comments, the bottom
+  shade, and the stars (their brightness and amount, and the clouds'
+  version, cover, and place). Everything
   visual is applied before the page paints, so nothing shifts on reload, and
   the menus read what's applied, so opening one never flashes the default
   first. The editor/output split isn't saved, so

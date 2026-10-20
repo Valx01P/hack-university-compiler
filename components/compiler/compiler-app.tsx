@@ -476,7 +476,7 @@ export function CompilerApp({
   const iconBtn =
     "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-highlight hover:text-ink";
   const headerBtn =
-    "inline-flex items-center gap-1.5 rounded-btn border border-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-highlight";
+    "inline-flex items-center gap-1.5 rounded-btn border border-content-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-highlight";
 
   // The stdin row under the editor. The code box clips anything outside it,
   // so the focus ring sits inside the button (rounded like the box's corners

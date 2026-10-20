@@ -21,6 +21,7 @@ import {
   CODE_BLOCK,
   LessonEyebrow,
   PLACE_MARGIN,
+  LearnShade,
   PartNav,
   PartNumbers,
   Prose,
@@ -487,7 +488,7 @@ export function PartView({
     <div
       ref={gridRef}
       data-workspace
-      className={`flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[var(--learn-split)_9px_minmax(0,1fr)] ${
+      className={`flex min-h-0 flex-1 flex-col lg:relative lg:grid lg:grid-cols-[var(--learn-split)_9px_minmax(0,1fr)] ${
         // In full screen (laid out by globals.css) below lg the part and the
         // editor stack and the whole thing scrolls, each at its own height
         // (never squeezed to fit).
@@ -495,6 +496,7 @@ export function PartView({
       }`}
       style={{ "--learn-split": `${split}%` } as React.CSSProperties}
     >
+      {hasNav && <LearnShade />}
       {/* Left: the part. Its scroll padding (and, on narrow screens, the
           focusables' scroll margin) keeps keyboard focus clear of the floating
           nav, which sits higher in full screen. */}
@@ -691,7 +693,7 @@ export function PartView({
             </div>
           </div>
 
-          <div className="code-dark flex min-h-[12rem] flex-[3] flex-col overflow-hidden rounded-card border border-code-line bg-code-bg lg:min-h-0">
+          <div className="code-dark flex min-h-[12rem] flex-[3] flex-col overflow-hidden rounded-card border border-code-content-line bg-code-bg lg:min-h-0">
             <div className="min-h-0 flex-1">
               <CmEditor
                 key={`${lesson.id}:${tabKey(active)}:${showingAnswer ? "answer" : "code"}`}

@@ -13,6 +13,7 @@ import {
   setCloudStyle,
   setCloudsAmount,
   setCodeCommentsHidden,
+  setLearnShade,
   setStarsAmount,
   setStarsBrightness,
   setStarsOn,
@@ -24,6 +25,7 @@ import {
   useCloudStyle,
   useCloudsAmount,
   useCodeCommentsHidden,
+  useLearnShade,
   useStarsAmount,
   useStarsBrightness,
   useStarsOn,
@@ -39,10 +41,10 @@ import { POP, usePresence } from "@/lib/motion";
  * of every theme, each with its own glyph, plus a Normal / High / Super
  * contrast picker that deepens whichever theme is active, and a code
  * background for every editor, code block, and terminal, how visible lines
- * are, whether code examples show their comments, and the stars behind the
- * app with their brightness and amount and the clouds' version, cover, and
- * place. Goes through
- * setTheme() so the `data-dark` flag and the editor's code theme stay in sync.
+ * are, whether code examples show their comments, the shade along the bottom
+ * of Learn, and the stars behind the app with their brightness and amount and
+ * the clouds' version, cover, and place. Goes through setTheme() so the
+ * `data-dark` flag and the editor's code theme stay in sync.
  * The icon starts as the Light sun on first paint (SSR) and corrects after
  * hydration — same pattern as the rest of the theme bootstrap, so there's no
  * markup mismatch. `floating` is the button in full screen, where the header
@@ -56,6 +58,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
   const lines = useLayoutLines();
   const contentLines = useContentLines();
   const commentsShown = !useCodeCommentsHidden();
+  const shadeOn = useLearnShade();
   const starsOn = useStarsOn();
   const starsBrightness = useStarsBrightness();
   const starsAmount = useStarsAmount();
@@ -91,7 +94,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
         aria-expanded={open}
         className={
           floating
-            ? `inline-flex size-10 items-center justify-center rounded-full border border-line bg-surface shadow-(--shadow-card) transition-colors ${
+            ? `float-btn inline-flex size-10 items-center justify-center rounded-full border border-line bg-surface shadow-(--shadow-card) transition-colors ${
                 open ? "text-ink" : "text-ink-muted hover:text-ink"
               }`
             : `inline-flex size-9 items-center justify-center rounded-btn transition-colors ${
@@ -270,6 +273,35 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                   <span className="mt-0.5 block text-xs text-ink-faint">In lesson and cheatsheet examples</span>
                 </span>
                 <SwitchTrack on={commentsShown} className="mt-0.5" />
+              </button>
+
+              {/* The shade along the bottom of a Learn part, behind its
+                  Previous and Next. */}
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={shadeOn}
+                onClick={() => setLearnShade(!shadeOn)}
+                className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-highlight hover:text-ink"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="mt-0.5 size-4 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                  aria-hidden
+                >
+                  <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+                  <path d="M3.5 15.5h17" />
+                  <rect x="3.5" y="15.5" width="17" height="4" rx="1" fill="currentColor" fillOpacity={0.35} stroke="none" />
+                </svg>
+                <span className="flex-1">
+                  <span className="block">Bottom shade</span>
+                  <span className="mt-0.5 block text-xs text-ink-faint">Behind Previous and Next in Learn</span>
+                </span>
+                <SwitchTrack on={shadeOn} className="mt-0.5" />
               </button>
             </div>
             <div>

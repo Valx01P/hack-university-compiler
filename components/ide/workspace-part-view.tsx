@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { CompilerButton } from "@/components/learn/compiler-button";
 import { LessonMarkdown } from "@/components/learn/lesson-md";
-import type { PartLink } from "@/components/learn/part-frame";
+import { LearnShade, type PartLink } from "@/components/learn/part-frame";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { storeFor, WorkspaceView } from "@/components/ide/workspace-view";
@@ -167,9 +167,10 @@ export function WorkspacePartView({
     <div
       ref={gridRef}
       data-workspace
-      className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[var(--learn-split)_9px_minmax(0,1fr)] full:max-lg:overflow-y-auto full:max-lg:*:shrink-0"
+      className="flex min-h-0 flex-1 flex-col lg:relative lg:grid lg:grid-cols-[var(--learn-split)_9px_minmax(0,1fr)] full:max-lg:overflow-y-auto full:max-lg:*:shrink-0"
       style={{ "--learn-split": `${split}%` } as React.CSSProperties}
     >
+      {hasNav && <LearnShade />}
       <div className={`slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto ${hasNav ? "lg:scroll-pb-24 full:lg:scroll-pb-36" : ""}`}>
         <article ref={articleRef} className="mx-auto w-full max-w-[46rem] flex-1 px-5 pb-10 pt-6 sm:px-7">
           <p className="eyebrow">
@@ -241,7 +242,7 @@ export function WorkspacePartView({
           )}
         </article>
         {hasNav && (
-          <div className="pointer-events-none sticky bottom-0 z-10 flex justify-center bg-gradient-to-t from-surface from-40% to-transparent px-4 pt-8 pb-4 full:pb-16">
+          <div className="learn-shade-nav pointer-events-none sticky bottom-0 z-10 flex justify-center px-4 pt-8 pb-4 max-lg:bg-gradient-to-t max-lg:from-surface max-lg:from-40% max-lg:to-transparent full:pb-16">
             <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-card border border-line bg-surface p-1.5 shadow-(--shadow-card)">
               {prev && (
                 <Link
