@@ -70,6 +70,8 @@ export interface JobContainer {
   hostname: string;
   env: string[];
   limits: JobLimits;
+  /** The internal database network (hu-db) for a run with a database. Network none otherwise. */
+  network?: string;
 }
 
 /**
@@ -85,7 +87,7 @@ export function jobProfile(job: JobContainer): Docker.ContainerCreateOptions {
     Privileged: false,
     CapDrop: ["ALL"],
     SecurityOpt: ["no-new-privileges"],
-    NetworkMode: "none",
+    NetworkMode: job.network ?? "none",
     IpcMode: "private",
     CgroupnsMode: "private",
     Memory: limits.memoryBytes,

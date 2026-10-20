@@ -789,6 +789,438 @@ accepts only `signal`.
   the runner's own execs (whose parent is outside the container), never a
   process by its name: a learner's process called `hu-exec` goes too.
 
+## Databases
+
+PostgreSQL and MongoDB for workspaces, checks, and single-file runs
+(`architecture.md` §2.4, §2.5, §4.5, §11.2, PLAN.md 3.7 and B.1), in
+`runner/db/`. Learner text never runs inside the shared servers (invariant
+I3): the runner sends them only its own fixed SQL and admin helpers, filled
+with names it checked, and everything a learner or a template wrote runs as
+that learner's own role, from a client container or a connection logged in as
+them.
+
+### The servers
+
+| | PostgreSQL | MongoDB |
+| --- | --- | --- |
+| Container | `hu-postgres` | `hu-mongo` |
+| Image | `postgres:18.6-alpine`, pinned by digest | `mongo:8.0.34`, pinned by digest, or `mongo:7.0.45` where 8.x can't start (below) |
+| Network | `hu-db` (internal: no gateway, no internet, no `host.docker.internal`), alias `db`, no published port | `hu-db`, alias `mongo`, no published port |
+| Data | volume `hu-pgdata` at `/var/lib/postgresql` | volume `hu-mongodata` at `/data/db` |
+| Settings | `shared_buffers=128MB`, `max_connections=200`, `work_mem=4MB`, `synchronous_commit=off` with `fsync=on`, `shared_preload_libraries=pg_stat_statements`, initdb's builtin `C.UTF-8` locale (text sorts by bytes, as the SQL course shows) | the one-node replica set `rs0` (its member host is `mongo:27017`), `--auth`, a key file, `--noscripting` (no `$where`, no server-side JavaScript), `--wiredTigerCacheSizeGB 0.25` |
+| Limits | 768 MiB with no swap, 1 CPU, OOM score -500 (learner processes die first) | 1 GiB with no swap, 1 CPU, OOM score -500 |
+| Hardening | read-only root (tmpfs `/var/run/postgresql` and `/tmp`), every capability dropped but `CHOWN`, `SETUID`, `SETGID`, `FOWNER`, and `DAC_OVERRIDE` (the entrypoint's), `no-new-privileges`, private IPC and cgroup namespaces, restart `unless-stopped` | the same, with tmpfs `/tmp` and `/data/configdb` |
+
+- **Started on demand**: the first time a workspace, check, run, or panel
+  needs one, pulling its image by digest the first time (the internet is
+  needed once). A cold PostgreSQL starts in about 1 s, MongoDB (with its
+  replica set) in 4 to 5 s. A hover never pulls: `databases.services.prewarm(kind)`
+  starts a server only when its image is already here.
+- **Stopped** 30 minutes after their last use (`HU_DB_IDLE_MS`), unless a
+  workspace or job is still on the network. Their data stays in the volumes.
+  Ctrl+C stops them.
+- **Root secrets** (the PostgreSQL superuser's and MongoDB root's passwords,
+  the replica set key) are in `HU_DATA_DIR/secrets.json` (0600). Volumes and
+  containers carry the secrets' `hu.instance` label, so a server whose data
+  folder is gone (and with it every workspace that used it) is replaced
+  rather than left unreachable.
+- **MongoDB 8 and Linux 6.19 to 7.0.13**: MongoDB 8.x refuses to start on
+  these kernels (SERVER-121912, its TCMalloc and the kernel's rseq change),
+  and Docker Desktop shipped kernel 7.0.12 until 4.93.0 (which moved to
+  7.0.14). On such a kernel the runner runs `mongo:7.0.45` (the older
+  allocator, the same replica set, supported by Mongoose 9) and logs
+  `db.mongo_fallback`. Update Docker Desktop and the next start runs 8.0.34
+  on the same data.
+- **A verify runner** (`HU_NS=verify`) gets servers, a network, and volumes of
+  its own per port (`hv-postgres-<port>`, `hv-mongo-<port>`, `hv-db-<port>`,
+  `hv-pgdata-<port>`, `hv-mongodata-<port>`), removed when it stops, so tests
+  never touch another runner's databases.
+
+`/v1/health`'s `services.postgres` and `services.mongo` say `running`,
+`stopped`, or `absent` for this namespace's servers. While up they hold
+768 MiB and 1 GiB of the memory budget (`POSTGRES_BYTES`, `MONGO_BYTES` in
+`db/services.ts`).
+
+### Names
+
+| What | PostgreSQL | MongoDB |
+| --- | --- | --- |
+| A workspace | role `ws_<id>`, databases `ws_<id>` (dev) and `ws_<id>_test` (test, when the template asks) | user `ws_<id>` (in `admin`) with `readWrite` on `ws_<id>` and `ws_<id>_test` |
+| A check | role and database `ck_<id>_<6 hex>`, dropped when it ends | user and database `ck_<id>_<6 hex>` |
+| A single-file test | role and database `run_<12 hex>`, dropped after the run | user and database `run_<12 hex>` |
+| A template | `tpl_<course>_<template>_<checkpoint>_<hash8>`, a lesson setup's `tpl_lesson_<hash12>` | the same names |
+
+Every name matches `^(ws|ck|run|tpl|vf)_[a-z0-9_]{1,48}$` and every password
+is 32 hex characters, both checked before they reach a statement. Learner
+roles are never superusers: no `COPY … TO PROGRAM`, no untrusted language, no
+`pg_read_file`, no `ALTER SYSTEM`, and `temp_file_limit` (256 MB) is set on
+the role where only a superuser can raise it. They also get
+`statement_timeout` 30 s, `idle_in_transaction_session_timeout` 60 s, and 20
+connections, and reach only the databases they own: `CONNECT` is revoked from
+`PUBLIC` on theirs and on `postgres` and `template1`, and templates take no
+connections. Each Mongo user also has `hu_rs_status` (`replSetGetStatus` and
+`replSetGetConfig`), so `rs.status()` works from a workspace.
+
+### What a workspace gets
+
+The workspace lane calls these from its start, reset, check, and delete
+paths (`main.ts` makes one `Databases` and passes it in `ApiDeps.databases`):
+
+```ts
+import type { Databases, ServiceSpec, TemplateRef } from "./db/index.ts";
+
+// Start, when template.json has `services`: the first call makes the role and
+// databases (building the template database once per hash); later calls
+// answer at once. Put `env` in the container's Env and `network` in its
+// NetworkMode (standardProfile's `network`, whose type widens to string: a
+// verify runner's network is hv-db-<port>), so `db` and `mongo` resolve.
+const { env, network } = await databases.attach(id, ref, services);
+
+// POST …/reset with scope "db" or "everything" (and restart tasks that
+// hold connections when template.json says restartOnReset).
+const { databases: reset, ms } = await databases.resetWorkspace(id, "all"); // or "dev", "test"
+
+// A check: a fresh clone of the template (never of the learner's database),
+// or an empty database for suites with "db": "empty". Drop it when done.
+const ck = await databases.checkDatabase(id, suite.db);
+try { /* the check's job gets ck.env on ck.network (JobSpec.network) */ } finally { await ck.drop(); }
+
+await databases.dropWorkspace(id);           // DELETE /v1/workspaces/:id
+databases.touch(id);                         // activity, for the parking clock
+databases.workspaceEnv(id);                  // the same { env, network } without making anything
+databases.onEvent((id, event) => { /* forward on the events socket */ });
+```
+
+The events are the architecture's (§3.3): `{ "t": "limit", "kind": "quota", "message": "…" }`
+from the size watch, and `{ "t": "db", "state": "reset" }` after a reset.
+
+`ref` names the template database: `{ course, template, checkpoint?, hash? }`
+(`hash` is the template's own hash, for builds that depend on more than their
+SQL). `services` is template.json's `services` with the content read from the
+template's original files, which `db/spec.ts` does:
+
+```ts
+import { serviceSpec } from "./db/spec.ts";
+
+// files.read(rel) answers a template file's original bytes (or null), and
+// files.list(dir) the names in one of its folders.
+const { spec, build } = serviceSpec(meta.config.services, files);
+const builder = build ? (target) => runInTemplateImage(build, target) : undefined; // a job on target.network with target.env
+const { env, network } = await databases.attach(id, ref, spec, builder);
+```
+
+| template.json `services` | What the database starts from |
+| --- | --- |
+| `"postgres": {}` (or with `"databases": ["dev", "test"]`) | The convention: `schema.sql`, `seed.sql`, then `migrations/*.sql` in name order, in `db/` or at the template's top (a goose file's Up section only). The test database gets the schema and migrations without the seed |
+| `"postgres": { "sql": ["db/a.sql", "db/b.sql"], "testSql": [ … ] }` | Those files, in that order |
+| `"postgres": { "build": ["npm", "run", "db:build"] }` | The command, run by the caller in a job from the template's image, against the empty template database |
+| `"postgres": { "empty": true }` | An empty database (startup-migration parts) |
+| `"mongo": {}` | `db/seed.json` (Extended JSON, below) or `db/seed.archive.gz` (`mongodump --archive --gzip` of one database, whatever its name) |
+| `"mongo": { "seed": "…", "testSeed": "…" }` | Those files. The test database starts empty without a `testSeed` |
+
+What `attach` takes, spelled out:
+
+```json
+{
+  "postgres": {
+    "databases": ["dev", "test"],
+    "sql": [{ "name": "db/schema.sql", "text": "CREATE TABLE …" }, { "name": "db/seed.sql", "text": "INSERT …" }],
+    "testSql": [{ "name": "db/schema.sql", "text": "CREATE TABLE …" }],
+    "empty": false
+  },
+  "mongo": {
+    "databases": ["dev", "test"],
+    "documents": "{\"recipes\": [{\"_id\": {\"$oid\": \"6650c1f0a1b2c3d4e5f60718\"}, \"title\": \"Pancakes\"}], \"$indexes\": {\"recipes\": [{\"key\": {\"title\": 1}, \"unique\": true}]}}",
+    "testDocuments": "{}"
+  }
+}
+```
+
+- `sql` runs in order (schema, seed, then migrations) as the template's
+  builder role. `testSql` builds the test twin (schema only, no seed), and
+  without it the test database clones the dev template. `empty` starts from
+  an empty database. A template built by a command (template.json's
+  `services.postgres.build`, like `npm run db:build`) passes a `Builder` as
+  `attach`'s fourth argument: it runs the command in a job from the
+  template's image with the `env` (`DATABASE_URL` and the rest) and `network`
+  it is given.
+- `documents` is Extended JSON text, one array of documents per collection
+  plus `$indexes`, or `archive` a `mongodump --archive --gzip` (its database
+  restored under the template's name, documents, indexes, and options). The
+  test database starts empty unless `testDocuments` is given.
+
+The variables a workspace's container gets (a check's and a run's are the same,
+pointing at their own databases):
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | `postgres://ws_<id>:<password>@db:5432/ws_<id>` |
+| `TEST_DATABASE_URL` | the same for `ws_<id>_test`, when the template has a test database |
+| `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` | so `psql` in the terminal needs no arguments |
+| `DB_URL`, `DB_USER`, `DB_PASSWORD` | `jdbc:postgresql://db:5432/ws_<id>` and the role, for Spring Boot |
+| `MONGODB_URI` | `mongodb://ws_<id>:<password>@mongo:27017/ws_<id>?replicaSet=rs0&authSource=admin` |
+| `TEST_MONGODB_URI` | the same for `ws_<id>_test` |
+
+**Template databases** are built once per hash: an empty database owned by a
+builder role of its own (not a superuser) runs the template's SQL (or
+build), then the database goes to the superuser, everything in it to
+`pg_database_owner`, `IS_TEMPLATE true ALLOW_CONNECTIONS false`, and the
+builder role is dropped. In each clone the clone's owner owns every object
+through `pg_database_owner`, so a clone is one `CREATE DATABASE … TEMPLATE`
+with no per-clone `REASSIGN` (and no reconnect): about 12 ms. A content change
+makes a new hash, so old workspaces keep their data while their next reset
+uses the new template.
+
+**Resets** close new connections, end open ones, set the database aside under
+another name, clone a fresh one, and drop the old one two seconds later, off
+the clock: 17 to 40 ms for PostgreSQL on a busy laptop (the tests assert a
+median under 50 ms), 0.1 to 0.3 s for MongoDB, which has no clone and copies
+collections, indexes, and views. A reset opens a database the size watch
+closed.
+
+**The size watch** reads `pg_database_size` of running workspaces' databases
+every 30 s (`HU_DB_SIZE_POLL_MS`): a `limit` event (kind `quota`) at 512 MB
+(`HU_DB_SIZE_WARN_MB`), and at 1 GB (`HU_DB_SIZE_LIMIT_MB`) `CONNECT` is
+revoked, connections are ended, and a second `limit` event asks the
+workspace lane to stop the server task. Running workspaces are the
+containers labeled `hu.kind=workspace` in this namespace.
+
+**Parking**: a workspace's databases unused for 30 days (`HU_DB_PARK_DAYS`)
+are dumped (`pg_dump -Fc` as the workspace's own role, `mongodump`) into
+`HU_DATA_DIR/db/parked/<id>/` and dropped. The next `attach`, query, or
+reset restores them (`pg_restore` as the role). Checked hourly.
+
+**Leftovers**: when a server comes up, the `ck_`, `run_`, and set-aside
+databases, half-built templates, and their roles and users that a crash left
+behind are dropped.
+
+### Routes
+
+The Database panel's routes, plus a database reset and a summary. They need
+the token like every route, answer **409** `no_database` for a workspace that
+has none yet ("Run it once to create it"), and work whether the workspace
+runs or not.
+
+#### `GET /v1/workspaces/:id/db`
+
+`{ "postgres": { "databases": ["ws_<id>", "ws_<id>_test"], "template": "tpl_…" }, "mongo": { … }, "parked": false, "blocked": [], "services": { "postgres": "running", "mongo": "absent" } }`.
+
+#### `GET /v1/workspaces/:id/db/schema?engine=postgres|mongo&database=dev|test`
+
+PostgreSQL (the default when the workspace has both), read as the
+workspace's role: every table, view, and materialized view outside the
+system schemas, in the shape `components/compiler/sql-database.tsx` lists
+(`TableInfo`), plus its schema. Row counts are exact up to 100,000 rows and
+estimates past that.
+
+```json
+{
+  "engine": "postgres", "database": "ws_wk3j6q2m7xa", "sizeBytes": 8058559,
+  "tables": [
+    { "schema": "public", "name": "tasks", "kind": "table", "rows": 3,
+      "columns": [{ "name": "id", "type": "integer", "nullable": false, "key": true }, { "name": "title", "type": "text", "nullable": false, "key": false }] }
+  ]
+}
+```
+
+MongoDB: `{ "engine": "mongo", "database", "sizeBytes", "collections": [{ "name", "type": "collection" | "view", "count", "indexes": [{ "name", "key", "unique" }] }] }`.
+
+#### `POST /v1/workspaces/:id/db/query`
+
+`{ "sql": "…", "database"?: "dev" | "test" }` runs the SQL through `psql` as
+the workspace's role in its client container (below), statement by statement
+up to the first error, 10 s at most, and answers each statement's result the
+way the SQL page shows them (`components/compiler/sql-results.tsx`), with the
+last one up front:
+
+```json
+{
+  "engine": "postgres", "database": "ws_wk3j6q2m7xa",
+  "columns": [{ "name": "id", "type": 23, "typeName": "integer" }, { "name": "title", "type": 25, "typeName": "text" }],
+  "rows": [["1", "write"], ["2", null]],
+  "tag": "SELECT 2",
+  "error": null,
+  "truncated": false,
+  "results": [
+    { "kind": "command", "statement": "UPDATE tasks SET done = true WHERE id = 1", "tag": "UPDATE 1" },
+    { "kind": "rows", "statement": "SELECT id, title FROM tasks", "columns": […], "rows": […], "tag": "SELECT 2", "truncated": false }
+  ],
+  "ms": 28
+}
+```
+
+- Values are psql's text, `null` for NULL (apart from the empty string).
+  `type` is the PostgreSQL type id (numbers right-align), `typeName` as
+  `format_type` writes it. At most 500 rows per result (`truncated: true`
+  past that).
+- `error` is `{ message, statement }` for the statement that failed (the
+  results before it are kept), or a timeout. psql meta-commands (`\dt`,
+  `\d tasks`) run as written, so the panel has psql's power and no more: it
+  runs as the learner, in a container that holds nothing else.
+
+`{ "collection": "recipes", "filter"?: { … }, "limit"?: 50, "database"?: "dev" | "test" }`
+runs `find(filter).limit(limit)` (at most 500, 10 s) on a connection logged in
+as the workspace's user. The filter is Extended JSON (`{"_id": {"$oid": "…"}}`):
+
+```json
+{
+  "engine": "mongo", "database": "ws_wk3j6q2m7xa", "collection": "recipes",
+  "columns": [{ "name": "_id" }, { "name": "title" }, { "name": "servings" }],
+  "rows": [["ObjectId(\"6650c1f0a1b2c3d4e5f60718\")", "Pancakes", "4"]],
+  "documents": [{ "_id": { "$oid": "6650c1f0a1b2c3d4e5f60718" }, "title": "Pancakes", "servings": { "$numberInt": "4" } }],
+  "relaxed": [{ "_id": "ObjectId(\"6650c1f0a1b2c3d4e5f60718\")", "title": "Pancakes", "servings": 4 }],
+  "tag": "1 document", "error": null, "truncated": false, "ms": 20
+}
+```
+
+`columns` are the top-level fields in the order they first appear (at most
+50), `rows` one per document as text, `documents` canonical Extended JSON for
+a document view, `relaxed` the same documents with plain numbers. A query
+error is an answer with `error` set, not a failed request.
+
+#### `POST /v1/workspaces/:id/db/reset`
+
+`{ "database"?: "dev" | "test" | "all" }` → `{ "databases": ["ws_<id>", "mongo:ws_<id>"], "ms": 18.2 }`.
+The same as `databases.resetWorkspace`, for the IDE's "Reset database" until
+`POST …/reset` with scope `db` calls it.
+
+| Status | `error` | When |
+| --- | --- | --- |
+| 409 | `no_database` | The workspace has no database (of that engine, or no test database) |
+| 409 | `db_blocked` | The size watch closed this database. A reset opens it |
+| 502 | `db_error` | The server answered with an error the runner didn't expect |
+| 503 | `image_missing`, `db_failed`, `docker_unavailable` | The image couldn't be downloaded, the server didn't start, or Docker is off |
+
+### `sql` and `mongo` check steps
+
+`db/checks.ts` judges a suite's `sql` and `mongo` steps (architecture §6.8)
+against the check's own database (`checkDatabase`), as the check's own role,
+after the learner's code has had its turn:
+
+```json
+{ "id": "no-row", "kind": "sql", "query": "SELECT count(*) FROM tasks WHERE title = 't6'", "rows": [["0"]] }
+{ "id": "five", "kind": "sql", "query": "SELECT * FROM tasks WHERE owner = 1", "count": 5 }
+{ "id": "indexed", "kind": "sql", "query": "SELECT * FROM tasks WHERE owner = 1", "plan": { "usesIndex": "tasks_owner_idx" } }
+{ "id": "kept", "kind": "mongo", "collection": "recipes", "filter": { "title": "Pancakes" }, "documents": [{ "servings": 4 }] }
+```
+
+- `rows` are exact, as psql prints them (text, `null` for NULL), `count` the
+  number of rows, and `plan.usesIndex` an index name (or `true` for any) in
+  `EXPLAIN`'s plan with sequential scans discouraged.
+- `documents` are the documents found, in order, each holding the named
+  fields with those values (Extended JSON read as plain values), and `count`
+  how many match.
+- A query that fails (a table the learner never made) fails the step with
+  PostgreSQL's message. The check runner calls
+  `sqlCheck(databases, ck, SqlCheckStep.parse(raw))` and `mongoCheck(…)`,
+  whose answers are a result row's `status`, `message`, `expected`, and
+  `actual`.
+
+### Single-file runs with a database
+
+`POST /v1/run` takes the lesson's `setup` (architecture §6.3 and §6.4, the
+"single with a database" format) on recipes in `DB_RECIPES`
+(`schemas.ts`: `typescript` today, and the `express`, `fastapi`, `go`, and
+`spring` recipes join as they land):
+
+```json
+{
+  "recipe": "typescript",
+  "files": [{ "name": "main.ts", "content": "…" }],
+  "setup": { "postgres": "CREATE TABLE recipes (id serial PRIMARY KEY, title text);\nINSERT INTO recipes (title) VALUES ('Pancakes');" },
+  "tests": [{ "output": "…" }, { "sql": "INSERT INTO recipes (title) VALUES ('extra');", "output": "…" }]
+}
+```
+
+- `setup` is SQL (or `{ "postgres": … }`), built once into `tpl_lesson_<hash12>`
+  by its own builder role, or `{ "mongo": { "<collection>": [EJSON documents], "$indexes": { … } } }`.
+- Every test (and a Run) gets its own fresh database: `run_<nonce>` cloned
+  from the template, with the test's `sql` applied (as the run's role) or
+  its `seed` documents loaded, before the program starts. The job joins the
+  database network, gets `DATABASE_URL` (and the rest above) or
+  `MONGODB_URI`, and the databases and roles are dropped when the run ends.
+- A test's `sql` or `seed` needs `setup` (**400** otherwise).
+
+### Client containers
+
+Whatever a learner or a template wrote runs as their own role in a client
+container from the PostgreSQL image (`hu-dbtool-<hex>`, labeled as a job):
+the panel's SQL and schema, a template's SQL, a test's SQL, and the dumps
+that park a database. It runs as uid 70 with every capability dropped,
+`no-new-privileges`, a read-only root, 256 MiB, 64 processes, on the database
+network only, holding one role's password and nothing else. One per role,
+kept a minute after its last use (a warm query takes about 25 ms) and
+removed after, at most four at once. MongoDB needs none: documents are data
+the fixed helpers insert, and panel queries run on a connection logged in as
+the workspace's user.
+
+### Configuration
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HU_DB_IDLE_MS` | `1800000` | Stop a server this long after its last use (30 minutes) |
+| `HU_DB_SIZE_WARN_MB`, `HU_DB_SIZE_LIMIT_MB` | `512`, `1024` | The size watch's warning, and the size that closes a database |
+| `HU_DB_SIZE_POLL_MS` | `30000` | How often the size watch reads sizes |
+| `HU_DB_PARK_DAYS` | `30` | Park a workspace's databases after this many days unused |
+| `HU_DB_TEST_PORT` | `3423` | The port in the names `db.integration.test.ts` uses |
+
+On disk: `HU_DATA_DIR/secrets.json` (the root secrets, 0600),
+`HU_DATA_DIR/db/state.json` (each workspace's roles, passwords, and
+templates, 0600), and `HU_DATA_DIR/db/parked/<id>/` (parked dumps).
+
+### Where it differs from the architecture
+
+- **Template ownership.** §4.5 builds templates as one `hu_template` role and
+  runs `REASSIGN OWNED BY hu_template TO ws_<id>` in each clone. `REASSIGN
+  OWNED` also moves the databases a role owns, so the first workspace cloned
+  would own every template database (verified on 18.6), could open it to
+  connections, and change what every later clone, reset, and check starts
+  from. Each template has a builder role of its own instead, and finished
+  templates belong to the superuser with their objects owned by
+  `pg_database_owner`.
+- **The Database panel** runs in a client container from the PostgreSQL
+  image (or, for MongoDB, on a connection logged in as the workspace's user)
+  rather than inside the workspace's container, so it works whether the
+  workspace runs or not and whatever its image, with the same role and the
+  same power.
+- **Mongo setup documents** load through the fixed helpers as data rather
+  than with `mongosh --file` in the run's container, so a recipe's image needs
+  no mongosh.
+- **MongoDB 7.0.45** stands in for 8.0.34 on the kernels 8.x refuses (above).
+- **State** lives in `HU_DATA_DIR/db/` (the roles and passwords in
+  `state.json`, parked dumps in `parked/<id>/`) rather than in each
+  workspace's `meta.json` and `db.dump`, so dropping a workspace's folder
+  never loses track of its databases.
+
+### Source files
+
+```
+db/index.ts       Databases: workspaces, templates, checks, runs, the panel, the size watch, parking
+db/services.ts    the two servers: images, network, volumes, hardening, start, idle stop, secrets
+db/postgres.ts    the admin psql session and the fixed SQL in db/sql/*.sql
+db/mongo.ts       the admin mongosh session and its fixed helpers
+db/clients.ts     client containers, where learner and template SQL runs as its own role
+db/panel.ts       the panel's psql script, how its output is read, and the schema query
+db/routes.ts      GET and POST /v1/workspaces/:id/db/*
+db/spec.ts        template.json's services, read against a template's files
+db/checks.ts      the sql and mongo check steps
+db/names.ts       every role, database, container, network, and volume name, and the checks on them
+db/exec.ts        docker exec: one command, or a long-lived shell
+db/sql/*.sql      the fixed SQL
+```
+
+`runner/db/db.test.ts` tests names, the fixed SQL, the panel's script and
+output reading, and the schemas without Docker. `runner/db/db.integration.test.ts`
+runs real servers in the verify namespace: hardening, resets under 50 ms, a
+check that never sees learner rows, a Mongo transaction (`rs.status().members.length`
+is 1), two workspaces that can't read each other's data, S8's escalations,
+template ownership, parking, the size watch, Mongo templates from archives,
+leftovers after a crash, idle stops and restarts, a single-file TypeScript
+run with a fresh database per test, Mongo setups, the routes' shapes, and a
+runner process of its own that removes its servers when it stops.
+`npm run security:verify -- S8` holds learner roles to their own databases
+and traces that only template SQL ever reaches the server.
+
 ## Jobs and containers
 
 A job is one container (`architecture.md` §4.1): created from the recipe's

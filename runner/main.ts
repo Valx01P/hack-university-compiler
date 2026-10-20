@@ -5,6 +5,7 @@ import { Tickets, appOrigins, createToken } from "./auth.ts";
 import { Capacity } from "./capacity.ts";
 import { Checks } from "./checks/run.ts";
 import { loadConfig } from "./config.ts";
+import { Databases } from "./db/index.ts";
 import { DockerWatch, resolveEndpoint, type Owner } from "./docker.ts";
 import { createApiServer, type Services } from "./http.ts";
 import { Images } from "./images.ts";
@@ -47,6 +48,8 @@ const watch = new DockerWatch(endpoint);
 const images = new Images(config.root, watch.docker, endpoint.dockerHost);
 const pool = new JobPool(config.jobSlots);
 const tickets = new Tickets(config.ticketTtlMs);
+const databases = new Databases({ docker: watch.docker, owner, dataDir: config.dataDir, log });
+
 const services: Services = { piston: false, postgres: "absent", mongo: "absent" };
 const leases = new PortLeases(config.wsPorts, { dataDir: config.dataDir });
 const capacity: Capacity = new Capacity(
@@ -75,14 +78,18 @@ async function onDockerReady() {
 }
 
 async function refreshServices() {
-  const all = await watch.docker.listContainers({ all: true, filters: { name: ["hu-piston", "hu-postgres", "hu-mongo"] } });
+  const all = await watch.docker.listContainers({ all: true, filters: { name: ["hu-piston"] } });
   const state = (name: string) => {
     const c = all.find((x) => x.Names.includes(`/${name}`));
     return c ? (c.State === "running" ? "running" : "stopped") : "absent";
   };
   services.piston = state("hu-piston") === "running";
-  services.postgres = state("hu-postgres");
-  services.mongo = state("hu-mongo");
+  // The database servers under this namespace's names (a verify runner has its
+  // own), and their upkeep: idle stops, the size watch, parking.
+  await databases.refresh();
+  services.postgres = databases.state("postgres");
+  services.mongo = databases.state("mongo");
+  await databases.tick();
 }
 
 // Requests wait for the first look at Docker, so the first /v1/health already
@@ -91,7 +98,7 @@ async function refreshServices() {
 let started!: () => void;
 const ready = new Promise<void>((resolve) => (started = resolve));
 const startedAt = Date.now();
-const server = createApiServer({ config, token, tickets, watch, images, pool, owner, log, services, startedAt, version, ready, workspaces, checks });
+const server = createApiServer({ config, token, tickets, watch, images, pool, owner, log, services, databases, startedAt, version, ready, workspaces, checks });
 attachWebSockets(server, {
   port: config.port,
   appPort: config.appPort,
@@ -158,6 +165,7 @@ async function shutdown(signal: string) {
     // Running workspaces stop (tasks get TERM, then KILL): at most a few seconds.
     await Promise.race([workspaces.shutdown(), new Promise((r) => setTimeout(r, 8_000))]).catch(() => {});
     await removeOwnJobs(watch.docker, owner, log).catch(() => {});
+    await databases.shutdown().catch(() => {});
   }
   process.exit(0);
 }

@@ -205,6 +205,8 @@ export interface JobSpec {
   limits: JobLimits;
   /** How long the whole job may take before its container is killed. */
   deadlineMs: number;
+  /** The database network, when the run has a database (db/). None otherwise. */
+  network?: string;
 }
 
 /** One running job container. Make it with Job.start, and always dispose it. */
@@ -242,7 +244,7 @@ export class Job {
     let container: Docker.Container;
     try {
       container = await docker.createContainer(
-        jobProfile({ name, image: spec.image, labels, workDir: spec.workDir, hostname: spec.hostname, env: spec.env, limits: spec.limits })
+        jobProfile({ name, image: spec.image, labels, workDir: spec.workDir, hostname: spec.hostname, env: spec.env, limits: spec.limits, network: spec.network })
       );
     } catch (err) {
       if ((err as { statusCode?: number }).statusCode === 404) {
