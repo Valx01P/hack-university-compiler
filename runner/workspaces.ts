@@ -384,7 +384,12 @@ export class Workspace {
     const within = (p: string) => (rel ? p.startsWith(prefix) : true) && levels(p) <= depth;
     if (rel) {
       const self = all.entries.find((e) => e.path === rel);
-      if (!self) throw new PathError("not_found", `${rel} doesn't exist.`);
+      if (!self) {
+        // Not listed: missing, or below a link (which the Mac's lstat refuses as outside).
+        this.files.lstat(rel);
+        throw new PathError("not_found", `${rel} doesn't exist.`);
+      }
+      if (self.type === "symlink") throw new PathError("outside", "This path is a symbolic link, so the runner won't follow it.");
       if (self.type !== "dir" && self.type !== "mount") throw new PathError("not_a_file", `${rel} isn't a folder.`);
     }
     return {
@@ -888,9 +893,10 @@ export class Workspace {
     this.m.capacity.release(this.id);
     this.meta.stoppedAt = Date.now();
     this.saveMeta();
+    const idle = this.m.config.idleMs;
     const detail =
       reason === "idle"
-        ? "Stopped after 20 minutes without activity. Your files are kept."
+        ? `Stopped after ${idle >= 60_000 ? `${Math.round(idle / 60_000)} minutes` : `${Math.round(idle / 1000)} seconds`} without activity. Your files are kept.`
         : reason === "lru"
           ? "Stopped to make room for a workspace you have open. Your files are kept."
           : reason === "docker"
