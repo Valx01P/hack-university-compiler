@@ -9,7 +9,6 @@ import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { CodeThemePicker } from "@/components/code/code-theme";
 import { ResetCodeButton } from "@/components/code/reset-code-button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
-import { ConfirmLink } from "@/components/ui/confirm-link";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { ReferencePanel, useReferenceData, type ReferenceTab } from "@/components/compiler/reference-panel";
@@ -528,17 +527,18 @@ export function CompilerApp({
         );
       })}
       {learnHref && (
-        // Asks with a second click, so a stray one doesn't leave the
-        // compiler: the first makes it glow.
-        <ConfirmLink
+        // Asks first, so a stray click doesn't leave the compiler.
+        <ConfirmButton
+          tooltip={`Learn ${lang.label} step by step`}
+          title="Open Learn mode?"
+          description={`Short lessons and practice problems for ${lang.label}. Your code here stays saved.`}
+          confirmLabel="Open Learn"
           href={learnHref}
-          tooltip={`Learn ${lang.label} step by step, with short lessons and practice problems. Your code here stays saved.`}
-          armedLabel="Click again to open Learn"
           className={headerBtn}
         >
           <GraduationCap className="size-3.5" aria-hidden />
           Learn
-        </ConfirmLink>
+        </ConfirmButton>
       )}
       {playgroundHref && (
         // A whole project to work in, with files and a terminal. Your code
