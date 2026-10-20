@@ -5,6 +5,7 @@
 //
 //   npm run piston:install                  # every language
 //   npm run piston:install -- python java   # just these (language ids or package names)
+//   npm run piston:install -- --remove cpp  # uninstall these (npm run remove does this)
 //   npm run piston:status                   # what's installed
 //
 // After the runtimes it adds the libraries data structures and algorithms
@@ -24,19 +25,20 @@ const RUNTIMES = JSON.parse(
 
 const args = process.argv.slice(2);
 const listOnly = args.includes("--list");
+const removing = args.includes("--remove");
 const wanted = args.filter((a) => !a.startsWith("--"));
 
 // node:http instead of fetch on purpose: a package install holds the request
 // open until the whole toolchain is downloaded, which can outlast fetch's
 // built-in 5 minute header timeout on big packages (gcc is about 2.8 GB).
-function api(path, body) {
+function api(path, body, method = body ? "POST" : "GET") {
   const url = new URL(`${PISTON_URL}${path}`);
   const payload = body ? JSON.stringify(body) : undefined;
   return new Promise((resolve, reject) => {
     const req = (url.protocol === "https:" ? https : http).request(
       url,
       {
-        method: body ? "POST" : "GET",
+        method,
         headers: payload
           ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) }
           : {},
@@ -116,6 +118,37 @@ if (wanted.length) {
     }
     if (!packages.includes(pkg)) packages.push(pkg);
   }
+}
+
+// Uninstall: each named language's installed versions, extras and all
+// (they live in the runtime's folder).
+if (removing) {
+  if (!wanted.length) {
+    console.error("Name the languages to remove, like: npm run piston:install -- --remove cpp");
+    process.exit(2);
+  }
+  let failedRemove = 0;
+  for (const pkg of packages) {
+    const versions = (await api("/packages")).filter((p) => p.language === pkg && p.installed);
+    if (!versions.length) {
+      console.log(`✓ ${pkg} wasn't installed`);
+      continue;
+    }
+    for (const v of versions) {
+      process.stdout.write(`→ removing ${pkg} ${v.language_version} … `);
+      try {
+        await api("/packages", { language: pkg, version: v.language_version }, "DELETE");
+        console.log("done");
+      } catch (err) {
+        console.log("failed");
+        console.error(`  ${err.message}`);
+        failedRemove++;
+      }
+    }
+  }
+  console.log("\nInstalled runtimes:");
+  printStatus(await api("/runtimes"));
+  process.exit(failedRemove ? 1 : 0);
 }
 
 const index = await api("/packages");

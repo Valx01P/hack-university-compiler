@@ -4,6 +4,7 @@ import path from "node:path";
 import type Docker from "dockerode";
 import { base32 } from "../../lib/workspace-id.mjs";
 import type { Capacity } from "../capacity.ts";
+import { addCourse } from "../components.ts";
 import type { CheckDatabase, Databases } from "../db/index.ts";
 import type { Owner } from "../docker.ts";
 import { execCollect } from "../exec.ts";
@@ -178,7 +179,7 @@ export class Checks {
     if (!isImageName(imageName) || this.deps.images.state(imageName) !== "ready") {
       if (isImageName(imageName)) await this.deps.images.refresh();
       if (!isImageName(imageName) || this.deps.images.state(imageName) !== "ready") {
-        result.infra = { kind: "image", message: `The ${imageName || ws.meta.course} sandbox isn't built yet. Prepare this course first.` };
+        result.infra = { kind: "image", message: `The ${ws.meta.course} sandbox isn't installed yet. In a terminal, run ${addCourse(ws.meta.course)}, then check again.` };
         return this.finish(ws, result, started);
       }
     }

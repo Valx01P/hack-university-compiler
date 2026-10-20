@@ -5,6 +5,7 @@ import path from "node:path";
 import type Docker from "dockerode";
 import { parseScope, workspaceId } from "../lib/workspace-id.mjs";
 import { Cancelled, type Capacity, type Candidate } from "./capacity.ts";
+import { addCourse } from "./components.ts";
 import type { Config } from "./config.ts";
 import { DbError, type Attachment, type Builder, type Databases, type DbEvent, type TemplateRef } from "./db/index.ts";
 import { MongoError } from "./db/mongo.ts";
@@ -814,7 +815,7 @@ export class Workspace {
     }
     if (this.m.images.state(imageName) !== "ready") await this.m.images.refresh();
     if (this.m.images.state(imageName) !== "ready") {
-      throw new HttpError(503, "image_missing", `The ${this.meta.course} sandbox isn't built yet. In a terminal, run npm run images -- --stacks=${this.meta.course}, then press Run again.`);
+      throw new HttpError(503, "image_missing", `The ${this.meta.course} sandbox isn't installed yet. In a terminal, run ${addCourse(this.meta.course)}, then press Run again.`);
     }
     const limits = this.limits;
     this.setStatus("starting", null);

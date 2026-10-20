@@ -2,6 +2,7 @@ import http from "node:http";
 import { workspaceId } from "../lib/workspace-id.mjs";
 import { bearerMatches, hostAllowed, type Tickets } from "./auth.ts";
 import type { Checks } from "./checks/run.ts";
+import { addCourse } from "./components.ts";
 import type { Config } from "./config.ts";
 import type { Databases } from "./db/index.ts";
 import { DB_ROUTE, dbRoute } from "./db/routes.ts";
@@ -134,7 +135,7 @@ async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerR
     if (deps.pool.stats.queued >= MAX_QUEUED) throw new HttpError(503, "busy", "The sandbox is busy. Try again in a moment.");
     const image = recipeImage(body.recipe);
     if (deps.images.state(image) !== "ready") await deps.images.refresh();
-    if (deps.images.state(image) !== "ready") throw imageMissing(image, deps.images.state(image));
+    if (deps.images.state(image) !== "ready") throw imageMissing(body.recipe, deps.images.state(image));
     const aborted = new AbortController();
     res.on("close", () => {
       if (!res.writableFinished) aborted.abort();
@@ -144,7 +145,7 @@ async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerR
       return send(res, 200, await runRecipe(recipeDeps, body, aborted.signal));
     } catch (err) {
       if (err instanceof JobError) {
-        if (err.code === "image_missing") throw imageMissing(image, "missing");
+        if (err.code === "image_missing") throw imageMissing(body.recipe, "missing");
         if (err.code === "docker_unavailable") throw new HttpError(503, err.code, "Docker stopped. Start Docker to run this.");
         if (err.code === "cancelled") throw new HttpError(499, err.code, err.message);
         throw new HttpError(500, err.code, err.message);
@@ -231,14 +232,14 @@ async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerR
   throw new HttpError(404, "not_found", "No such route.");
 }
 
-function imageMissing(name: ImageName, state: string): HttpError {
-  const course = Object.keys(STACKS).filter((s) => STACKS[s as keyof typeof STACKS].image === name).join(", ");
+/** The run's course (its recipe) isn't installed, or its image is building. */
+function imageMissing(course: string, state: string): HttpError {
   return new HttpError(
     503,
     "image_missing",
     state === "building"
       ? `The ${course} sandbox is being built. Try again in a minute.`
-      : `The ${course} sandbox isn't built yet. Run npm run up (or npm run images), then try again.`
+      : `The ${course} sandbox isn't installed yet. In a terminal, run ${addCourse(course)}, then try again.`
   );
 }
 

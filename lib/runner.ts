@@ -1,6 +1,7 @@
 import { promises as fs, readFileSync } from "fs";
 import os from "os";
 import path from "path";
+import { addHint } from "@/lib/components";
 import type { RunResult } from "@/lib/piston";
 
 /**
@@ -123,7 +124,7 @@ const strOrNull = (v: unknown) => (typeof v === "string" ? v : null);
 
 /** What a refusal from the runner means for the learner. It answers
     `{error, message}`, where error is a code like docker_unavailable. */
-function failure(status: number, data: Json, label: string): RunnerError {
+function failure(status: number, data: Json, label: string, recipe: string): RunnerError {
   const code = str(data?.error);
   const message = str(data?.message);
   // The runner phrases Docker being off ("Start Docker to run this.") or
@@ -133,7 +134,7 @@ function failure(status: number, data: Json, label: string): RunnerError {
     return new RunnerError(
       /being built/i.test(message)
         ? `The ${label} sandbox is being built. Try again in a minute.`
-        : `The ${label} sandbox isn't built yet. Run npm run up, then run again.`,
+        : `${label} isn't installed yet. ${addHint(recipe)}, then run again.`,
       503
     );
   }
@@ -166,7 +167,7 @@ async function post(body: RunnerRequest, label: string): Promise<Json> {
     throw new RunnerError(START_DOCKER, 503);
   }
   const data = (await res.json().catch(() => null)) as Json;
-  if (!res.ok) throw failure(res.status, data, label);
+  if (!res.ok) throw failure(res.status, data, label, body.recipe);
   return data;
 }
 

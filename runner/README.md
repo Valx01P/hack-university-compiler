@@ -97,7 +97,7 @@ Every error has one shape:
 | 501 | `not_implemented` | A route or option the architecture defines for a later phase (`/v1/pages/*`, `volume` storage) |
 | 502 | `not_listening` | An API panel request to a port nothing listens on |
 | 503 | `docker_unavailable` | Docker is off ("Start Docker to run this."), or still waking up |
-| 503 | `image_missing` | The recipe's image isn't built: run `npm run up` or `npm run images` |
+| 503 | `image_missing` | The recipe's image isn't built: the message names the `npm run add` command for its course |
 | 503 | `busy` | 64 runs are already waiting for a job slot |
 | 503 | `ports_exhausted` | Every workspace port is in use by a running workspace ("Stop one on /workspaces, or widen HU_WS_PORTS.") |
 | 503 | `waiting_for_memory` | A terminal or task needs the workspace started, and its start is queued for memory (the `status` events say when it runs) |

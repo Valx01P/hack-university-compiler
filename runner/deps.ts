@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type Docker from "dockerode";
 import type { Capacity } from "./capacity.ts";
+import { addCourse } from "./components.ts";
 import { LABEL, type Owner } from "./docker.ts";
 import { HttpError } from "./http-util.ts";
 import type { ImageName, Images } from "./images.ts";
@@ -88,6 +89,8 @@ export interface DepsConfig {
 
 /** A workspace's dependency volume: which one, where it mounts, and how it fills. */
 export interface DepsPlan {
+  /** The course whose workspace this is (the stack). */
+  course: string;
   kind: "npm" | "uv";
   lockfile: string;
   /** Where the volume mounts. */
@@ -196,6 +199,7 @@ export class Deps {
     const hash = entry.sha256.slice(0, 12);
     const isOwn = config.mode === "own";
     return {
+      course,
       kind,
       lockfile,
       target: s.deps.target,
@@ -300,7 +304,7 @@ export class Deps {
     const { images, docker, owner, log } = this.d;
     if (images.state(plan.image) !== "ready") await images.refresh();
     if (images.state(plan.image) !== "ready") {
-      throw new DepsError(503, "image_missing", `The dependencies install from hu/${plan.image}, which isn't built yet. Prepare this course first (npm run images -- ${plan.image}).`);
+      throw new DepsError(503, "image_missing", `The packages install from hu/${plan.image}, which isn't installed yet. In a terminal, run ${addCourse(plan.course)}, then try again.`);
     }
     const entries = this.inputs(plan, files);
     if (!entries.some((e) => e.path === plan.lockfile)) throw new DepsError(500, "deps_failed", `${plan.lockfile} is missing, so the dependencies can't install.`);

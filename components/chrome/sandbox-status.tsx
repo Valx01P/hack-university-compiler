@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { RUNNER_LABELS, SANDBOX_REFRESH_EVENT, isSql, onRunner } from "@/lib/compiler";
+import { addHint } from "@/lib/components";
 import { getCourseEntry, parseRuntime } from "@/lib/courses";
 
 type Status = {
   online: boolean;
   runtimes: Record<string, { name: string; version: string }>;
   runner?: { online: boolean; docker: "ready" | "down" | "waking" | null; recipes: Record<string, string> };
+  /** What was chosen at npm run up, or null before a first choice. */
+  chosen?: string[] | null;
 };
 
 /**
@@ -87,24 +90,23 @@ function PistonStatus({ lang }: { lang: string }) {
 
   const runtime = status.runtimes[lang];
   const ready = status.online && !!runtime;
-  const label = !status.online
-    ? "sandbox offline"
-    : runtime
-      ? `${runtime.name} ${runtime.version}`
-      : "not installed";
-  const hint = !status.online
-    ? "The local sandbox isn't running. Start it with: npm run piston:up"
+  // Offline, a language left out at npm run up reads as not installed.
+  const missing = status.online ? !runtime : !!status.chosen && !status.chosen.includes(lang);
+  const label = missing ? "not installed" : runtime ? `${runtime.name} ${runtime.version}` : "sandbox offline";
+  const hint = missing
+    ? `Not installed yet. ${addHint(lang, { sandbox: status.online })}`
     : runtime
       ? `Runs on ${runtime.name} ${runtime.version} in your local sandbox`
-      : `Install this language with: npm run piston:install -- ${lang}`;
+      : "The local sandbox isn't running. Start it with: npm run piston:up";
 
   return <Badge ready={ready} label={label} hint={hint} />;
 }
 
 /**
  * TypeScript and Bash run on the local runner, which needs Docker. The badge
- * names what runs them, says the course's image isn't built yet, or that
- * Docker (or the runner, which npm run up starts with it) is off. Its slot is
+ * names what runs them, says the course isn't installed yet (with its size
+ * and the npm run add command), or that Docker (or the runner, which npm run
+ * up starts with it) is off. Its slot is
  * as wide as its longest label from the first paint, so nothing moves when
  * the answer comes in.
  */
@@ -113,7 +115,7 @@ function RunnerStatus({ lang }: { lang: string }) {
   const name = RUNNER_LABELS[lang] ?? lang;
   const runner = status?.runner;
   const docker = runner?.online ? runner.docker : null;
-  // The recipe's image, when the runner says (a missing one builds with npm run up).
+  // The recipe's image, when the runner says (npm run add builds a missing one).
   const image = runner?.recipes?.[parseRuntime(getCourseEntry(lang)?.runtime ?? "")?.id ?? ""];
   const built = !image || image === "ready";
   const ready = docker === "ready" && built;
@@ -125,7 +127,7 @@ function RunnerStatus({ lang }: { lang: string }) {
         ? `Runs on ${name} in a fresh container on your machine`
         : image === "building"
           ? "This course's sandbox is being built. It runs once that's done."
-          : "This course's sandbox isn't built yet. Build it with: npm run up"
+          : `Not installed yet. ${addHint(lang)}`
       : docker === "waking"
         ? "Docker is waking up. Run again in a moment."
         : runner?.online

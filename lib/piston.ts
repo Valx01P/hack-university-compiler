@@ -1,6 +1,8 @@
 import RUNTIMES from "@/lib/runtimes.json";
 import { sourceFileName } from "@/lib/source-file.mjs";
 import { getCompilerLang } from "@/lib/compiler";
+import { addHint } from "@/lib/components";
+import { chosenComponents } from "@/lib/installed";
 
 /**
  * Server-side client for the local Piston sandbox (docker-compose.yml). Only
@@ -92,8 +94,13 @@ export async function runCode({
     if (err instanceof Error && err.name === "TimeoutError") {
       throw new SandboxError("The sandbox took too long to answer. Try again.", 504);
     }
+    // Nothing answers: a stopped sandbox, unless this language was left out
+    // at npm run up.
+    const chosen = chosenComponents();
     throw new SandboxError(
-      "The local sandbox isn't running. Start it with npm run piston:up, then run again.",
+      chosen && !chosen.includes(language)
+        ? `${label} isn't installed yet. ${addHint(language)}, then run again.`
+        : "The local sandbox isn't running. Start it with npm run piston:up, then run again.",
       503
     );
   }
@@ -105,7 +112,7 @@ export async function runCode({
     const message = typeof data?.message === "string" ? data.message : "";
     if (/runtime is unknown/i.test(message)) {
       throw new SandboxError(
-        `${label} isn't installed in the local sandbox yet. Install it with npm run piston:install -- ${language}, then run again.`,
+        `${label} isn't installed yet. ${addHint(language, { sandbox: true })}, then run again.`,
         409
       );
     }

@@ -29,6 +29,8 @@ import { LABEL } from "./docker.ts";
  *   node runner/images.ts build bash             # just one
  *   node runner/images.ts build --stacks=express # a course's image (and its parent)
  *   node runner/images.ts build --stacks=all     # every image
+ *   node runner/images.ts remove web python      # delete these (npm run remove does this)
+ *   node runner/images.ts prune                  # delete every older build, keep the current ones (npm run clean)
  *   node runner/images.ts build --force          # rebuild even when the tag exists
  *   node runner/images.ts status                 # tags, states, and sizes
  */
@@ -338,7 +340,7 @@ if (import.meta.main) {
   const { ROOT } = await import("./config.ts");
   const { STACKS, isStack } = await import("./stacks.ts");
   const argv = process.argv.slice(2);
-  const command = argv[0] === "status" || argv[0] === "build" ? argv.shift() : "build";
+  const command = ["status", "build", "remove", "prune"].includes(argv[0] ?? "") ? argv.shift() : "build";
   const force = argv.includes("--force");
   const verbose = argv.includes("--verbose");
   const names = argv.filter((a) => !a.startsWith("--"));
@@ -372,6 +374,53 @@ if (import.meta.main) {
   const images = new Images(ROOT, docker, endpoint.dockerHost);
   await images.refresh();
   const gb = (bytes: number) => `${(bytes / 1e9).toFixed(2)} GB`;
+  if (command === "remove") {
+    if (!named.size) {
+      console.error("Name the images to remove, like: node runner/images.ts remove web");
+      process.exit(2);
+    }
+    // Every tag of hu/<name> (the current one and any kept older ones),
+    // children before the image they're built FROM. One a running workspace
+    // is using stays, and says so.
+    let failed = 0;
+    for (const name of [...wanted].reverse()) {
+      const found = await docker.listImages({ filters: { reference: [`hu/${name}`] } });
+      const tags = found.flatMap((img) => (img.RepoTags ?? []).filter((t) => t.startsWith(`hu/${name}:`)));
+      if (!tags.length) {
+        console.log(`   ✓ hu/${name} wasn't built`);
+        continue;
+      }
+      for (const tag of tags) {
+        try {
+          await docker.getImage(tag).remove();
+          console.log(`   ✓ removed ${tag}`);
+        } catch (err) {
+          failed++;
+          const msg = (err as Error).message;
+          console.log(
+            /container/i.test(msg)
+              ? `   ! couldn't remove ${tag}: a workspace is still using it. Stop it in the app (or stop the app), then run this again.`
+              : `   ! couldn't remove ${tag}: ${msg.split("\n")[0]}`
+          );
+        }
+      }
+    }
+    process.exit(failed ? 1 : 0);
+  }
+  if (command === "prune") {
+    // The older builds a rebuild keeps (one per image) go too, children first.
+    for (const name of [...(named.size ? wanted : all)].reverse()) {
+      for (const tag of (await images.describe(name)).previous) {
+        try {
+          await docker.getImage(tag).remove();
+          console.log(`   ✓ removed ${tag}`);
+        } catch {
+          console.log(`   ! ${tag} stays: a workspace is still using it`);
+        }
+      }
+    }
+    process.exit(0);
+  }
   if (command === "status") {
     for (const name of wanted) {
       const { size, previous } = await images.describe(name);
