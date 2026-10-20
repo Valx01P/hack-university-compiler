@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Tickets, createToken } from "./auth.ts";
 import { loadConfig } from "./config.ts";
+import { Databases } from "./db/index.ts";
 import { DockerWatch, resolveEndpoint, type Owner } from "./docker.ts";
 import { createApiServer, type Services } from "./http.ts";
 import { Images } from "./images.ts";
@@ -44,6 +45,7 @@ const images = new Images(config.root, watch.docker, endpoint.dockerHost);
 const pool = new JobPool(config.jobSlots);
 const tickets = new Tickets(config.ticketTtlMs);
 const services: Services = { piston: false, postgres: "absent", mongo: "absent" };
+const databases = new Databases({ docker: watch.docker, owner, dataDir: config.dataDir, log });
 
 /** Whenever Docker is (back) up: clear leftovers, and look the images and shared services up. */
 async function onDockerReady() {
@@ -57,14 +59,16 @@ async function onDockerReady() {
 }
 
 async function refreshServices() {
-  const all = await watch.docker.listContainers({ all: true, filters: { name: ["hu-piston", "hu-postgres", "hu-mongo"] } });
+  const all = await watch.docker.listContainers({ all: true, filters: { name: ["hu-piston"] } });
   const state = (name: string) => {
     const c = all.find((x) => x.Names.includes(`/${name}`));
     return c ? (c.State === "running" ? "running" : "stopped") : "absent";
   };
   services.piston = state("hu-piston") === "running";
-  services.postgres = state("hu-postgres");
-  services.mongo = state("hu-mongo");
+  // The database servers under this namespace's names (a verify runner has its own).
+  await databases.refresh();
+  services.postgres = databases.state("postgres");
+  services.mongo = databases.state("mongo");
 }
 
 // Requests wait for the first look at Docker, so the first /v1/health already
@@ -73,7 +77,7 @@ async function refreshServices() {
 let started!: () => void;
 const ready = new Promise<void>((resolve) => (started = resolve));
 const startedAt = Date.now();
-const server = createApiServer({ config, token, tickets, watch, images, pool, owner, log, services, startedAt, version, ready });
+const server = createApiServer({ config, token, tickets, watch, images, pool, owner, log, services, databases, startedAt, version, ready });
 attachWebSockets(server, { port: config.port, appPort: config.appPort, helloTimeoutMs: config.helloTimeoutMs, tickets, watch, log });
 
 server.on("error", (err: NodeJS.ErrnoException) => {
@@ -105,6 +109,7 @@ const reaper = setInterval(async () => {
   try {
     await reap(watch.docker, owner, log);
     await refreshServices();
+    await databases.tick();
   } catch (err) {
     log.warn("reaper.failed", { error: (err as Error).message });
   }
@@ -126,6 +131,7 @@ async function shutdown(signal: string) {
   watch.stop();
   clearInterval(reaper);
   if (watch.state === "ready") await removeOwnJobs(watch.docker, owner, log).catch(() => {});
+  if (watch.state === "ready") await databases.shutdown().catch(() => {});
   process.exit(0);
 }
 process.on("SIGINT", () => void shutdown("SIGINT"));

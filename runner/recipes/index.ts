@@ -1,4 +1,5 @@
 import type Docker from "dockerode";
+import { DbError, type Databases, type RunDatabases } from "../db/index.ts";
 import { isDockerDown, type Owner } from "../docker.ts";
 import type { ImageName, Images } from "../images.ts";
 import { Job, JobError, type JobPool } from "../jobs.ts";
@@ -21,6 +22,8 @@ export interface RecipeDeps {
   images: Images;
   pool: JobPool;
   log: Log;
+  /** The shared databases, for runs whose lesson has a `setup` (db/). */
+  databases?: Databases;
 }
 
 const RECIPES = {
@@ -39,7 +42,31 @@ export function jobDeadlineMs(req: RunRequest): number {
   return (req.recipe === "typescript" ? limits.compileMs : 0) + runs * (limits.runMs + 5_000) + 15_000;
 }
 
-export async function runRecipe(deps: RecipeDeps, req: RunRequest, signal?: AbortSignal): Promise<RunResponse> {
+export async function runRecipe(deps: RecipeDeps, request: RunRequest, signal?: AbortSignal): Promise<RunResponse> {
+  // A lesson with a database: each test gets a fresh one, cloned from a
+  // template built once from the setup, and the job joins the database network.
+  if (request.setup === undefined) return runJob(deps, request, signal);
+  if (!deps.databases) throw new JobError("job_failed", "This runner has no databases.");
+  let dbs: RunDatabases;
+  try {
+    dbs = await deps.databases.prepareRun(request.setup, request.tests ?? []);
+  } catch (err) {
+    if (isDockerDown(err)) throw new JobError("docker_unavailable", "Docker stopped during the run.");
+    throw new JobError("job_failed", err instanceof DbError ? err.message : `The lesson's database couldn't be made: ${(err as Error).message}`);
+  }
+  try {
+    const req: RunRequest = {
+      ...request,
+      env: { ...request.env, ...dbs.env(0) },
+      tests: request.tests?.map((t, i) => ({ ...t, env: { ...t.env, ...dbs.env(i) } })),
+    };
+    return await runJob(deps, req, signal, dbs.network);
+  } finally {
+    await dbs.release();
+  }
+}
+
+async function runJob(deps: RecipeDeps, req: RunRequest, signal?: AbortSignal, network?: string): Promise<RunResponse> {
   const received = Date.now();
   const recipe = RECIPES[req.recipe];
   const timing: Timing = { queueMs: 0, startMs: 0, loadMs: 0, compileMs: 0, runMs: 0, totalMs: 0 };
@@ -74,6 +101,7 @@ export async function runRecipe(deps: RecipeDeps, req: RunRequest, signal?: Abor
           env: recipe.env(),
           limits: SCRIPT_JOB,
           deadlineMs: jobDeadlineMs(req),
+          network,
         },
         deps.log
       );

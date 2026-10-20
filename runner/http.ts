@@ -2,6 +2,8 @@ import http from "node:http";
 import type { ZodType } from "zod";
 import { bearerMatches, hostAllowed, type Tickets } from "./auth.ts";
 import type { Config } from "./config.ts";
+import type { Databases } from "./db/index.ts";
+import { DB_ROUTE, dbRoute } from "./db/routes.ts";
 import type { DockerWatch, Owner } from "./docker.ts";
 import { IMAGES, isImageName, type ImageName, type Images } from "./images.ts";
 import { JobError, type JobPool } from "./jobs.ts";
@@ -28,6 +30,8 @@ export interface ApiDeps {
   owner: Owner;
   log: Log;
   services: Services;
+  /** PostgreSQL and MongoDB for workspaces, checks, and runs (db/). */
+  databases?: Databases;
   startedAt: number;
   version: string;
   /** Resolves once the runner has first looked at Docker. Requests wait for it. */
@@ -149,6 +153,11 @@ const LATER = /^\/v1\/(workspaces|checks|pages)(\/|$)/;
 async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerResponse, url: URL) {
   const method = req.method ?? "GET";
   const path = url.pathname;
+  if (deps.databases && DB_ROUTE.test(path)) {
+    await needDocker(deps);
+    await dbRoute(deps.databases, req, res, url, deps.log);
+    return;
+  }
 
   if (path === "/v1/health") {
     if (method !== "GET") throw new HttpError(405, "method_not_allowed", "Use GET.");
@@ -168,7 +177,7 @@ async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerR
       if (!res.writableFinished) aborted.abort();
     });
     try {
-      const recipeDeps = { docker: deps.watch.docker, owner: deps.owner, images: deps.images, pool: deps.pool, log: deps.log };
+      const recipeDeps = { docker: deps.watch.docker, owner: deps.owner, images: deps.images, pool: deps.pool, log: deps.log, databases: deps.databases };
       return send(res, 200, await runRecipe(recipeDeps, body, aborted.signal));
     } catch (err) {
       if (err instanceof JobError) {

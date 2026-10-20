@@ -70,6 +70,8 @@ export interface JobContainer {
   hostname: string;
   env: string[];
   limits: JobLimits;
+  /** The internal database network (hu-db) for a run with a database. Network none otherwise. */
+  network?: string;
 }
 
 /**
@@ -85,7 +87,7 @@ export function jobProfile(job: JobContainer): Docker.ContainerCreateOptions {
     Privileged: false,
     CapDrop: ["ALL"],
     SecurityOpt: ["no-new-privileges"],
-    NetworkMode: "none",
+    NetworkMode: job.network ?? "none",
     IpcMode: "private",
     CgroupnsMode: "private",
     Memory: limits.memoryBytes,
@@ -132,7 +134,8 @@ export interface WorkspaceContainer {
   /** The volume for /home/learner. */
   homeVolume: string;
   limits: (typeof WORKSPACE_LIMITS)["typescript"];
-  network?: "none" | "hu-db";
+  /** none, or the database network (hu-db, or a verify runner's own). */
+  network?: string;
 }
 
 /** The `standard` profile (§11.2), for every code-course workspace. */

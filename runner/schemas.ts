@@ -76,6 +76,10 @@ export const TestSpec = z.strictObject({
   collect: z.array(RelPath).max(64).optional(),
   /** Hidden calls that replace everything after the program's `// --- try it ---` line (TypeScript). */
   tryIt: z.string().max(100 * KiB).optional(),
+  /** More SQL after the lesson's setup, run on this test's fresh database (database lessons). */
+  sql: z.string().max(MiB).optional(),
+  /** Mongo documents added after the setup ({ "<collection>": [EJSON documents] }), or SQL. */
+  seed: z.union([z.string().max(MiB), z.record(z.string(), z.unknown())]).optional(),
   // Judged by lib/single-checks.mjs, not here. Accepted so a test can be sent as written.
   output: z.string().max(MiB).optional(),
   exitCode: z.number().int().min(0).max(255).optional(),
@@ -101,6 +105,21 @@ export const TypeTests = z.strictObject({
 
 export const FORBID_RULES = ["any", "as", "non-null", "ts-comments"] as const;
 
+/**
+ * A lesson's database (architecture §6.3): SQL (or `{ postgres }`) that builds
+ * the template each test's fresh PostgreSQL database is cloned from, or
+ * `{ mongo }` documents (Extended JSON, with `$indexes`) loaded into each
+ * test's fresh MongoDB database.
+ */
+export const Setup = z.union([
+  z.string().min(1).max(4 * MiB),
+  z.strictObject({ postgres: z.string().min(1).max(4 * MiB) }),
+  z.strictObject({ mongo: z.record(z.string(), z.unknown()) }),
+]);
+
+/** Recipes whose programs may have a database. The express, fastapi, go, and spring recipes join as they land. */
+export const DB_RECIPES: readonly string[] = ["typescript"];
+
 export const RunRequest = z
   .strictObject({
     recipe: z.enum(["typescript", "bash"]),
@@ -120,6 +139,8 @@ export const RunRequest = z
     // The honesty rules, judged by lib/single-checks.mjs from the source, not
     // here. Accepted so a Check can be sent as written.
     forbid: z.array(z.enum(FORBID_RULES)).max(4).optional(),
+    /** The lesson's database: every test gets a fresh one, and DATABASE_URL or MONGODB_URI points at it. */
+    setup: Setup.optional(),
   })
   .superRefine((req, ctx) => {
     const issue = (message: string, path: (string | number)[] = []) => ctx.addIssue({ code: "custom", message, path });
@@ -147,6 +168,10 @@ export const RunRequest = z
         if (t.fixtures && !sets[t.fixtures]) issue(`no fixture set named ${t.fixtures}`, ["tests", i, "fixtures"]);
       });
     }
+    if (req.setup !== undefined && !DB_RECIPES.includes(req.recipe)) issue(`the ${req.recipe} recipe has no database`, ["setup"]);
+    tests.forEach((t, i) => {
+      if ((t.sql !== undefined || t.seed !== undefined) && req.setup === undefined) issue("sql and seed need the lesson's setup", ["tests", i]);
+    });
     const names = req.files.map((f) => f.name);
     if (new Set(names).size !== names.length) issue("two files have the same name", ["files"]);
   });
