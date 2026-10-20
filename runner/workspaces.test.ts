@@ -238,6 +238,23 @@ describe("workspaces", { skip }, () => {
     assert.equal(filesHash(runner, id), json.templateHash);
     const original = await runner.request("GET", `/v1/workspaces/${id}/original?path=src/greet.ts`);
     assert.equal(original.status, 200);
+    assert.equal((await runner.request("GET", `/v1/workspaces/${id}/original?path=img/none.png`)).status, 404);
+
+    // Caps: 1 MB per save, 5 MB per upload.
+    assert.equal((await raw(runner, "PUT", `/v1/workspaces/${id}/file?path=big.txt`, Buffer.alloc(1024 * 1024 + 1, 97))).status, 413);
+    assert.equal((await raw(runner, "POST", `/v1/workspaces/${id}/upload?path=big.bin`, Buffer.alloc(5 * 1024 * 1024 + 1))).status, 413);
+
+    // A template that changed: the original is rebuilt, the files are left alone, and updated says what moved.
+    await raw(runner, "PUT", `/v1/workspaces/${id}/file?path=src/greet.ts`, Buffer.from("mine\n"));
+    const changed = await runner.request("PUT", `/v1/workspaces/${id}`, { body: { ...openBody("learn/typescript/runner-test/1/practice"), layers: ["base"] } });
+    assert.equal(changed.status, 200);
+    assert.notEqual(changed.json.templateHash, json.templateHash);
+    assert.deepEqual(changed.json.updated, ["README.md", "src/server.ts"]);
+    assert.equal((await runner.request("GET", `/v1/workspaces/${id}/file?path=src/greet.ts`)).json, "mine\n", "the learner's file is untouched");
+    const back = await runner.request("PUT", `/v1/workspaces/${id}`, { body: openBody("learn/typescript/runner-test/1/practice") });
+    assert.equal(back.json.templateHash, json.templateHash);
+    await runner.request("POST", `/v1/workspaces/${id}/reset`, { body: { scope: "all" } });
+    assert.equal(filesHash(runner, id), json.templateHash);
   });
 
   it("refuses paths that escape the workspace, stopped and running", async () => {
