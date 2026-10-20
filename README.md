@@ -3,6 +3,9 @@
 > The Hack University app: compilers, lessons, and real projects, running
 > entirely on your own computer. Free.
 
+If it helps you, please give it a star on GitHub. Stars help other students find
+it, and they tell us what to build next.
+
 Write, compile, and run **Python, JavaScript, TypeScript, C++, Java, Go, and
 Bash** right in the browser, and query a real **PostgreSQL** database with
 **SQL**. Learn each one with short lessons, cheatsheets, and challenges that
