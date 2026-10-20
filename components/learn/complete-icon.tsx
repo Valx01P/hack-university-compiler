@@ -1,7 +1,6 @@
 import { Check } from "lucide-react";
 
-/** The "complete" mark: a check in a filled circle, in the theme's done
-    color (--complete: green, or blue in Nord and Solarized). */
+/** The green "complete" mark: a check in a filled circle. */
 export function CompleteIcon({ className = "size-4" }: { className?: string }) {
   return (
     <span
