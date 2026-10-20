@@ -180,10 +180,9 @@ function buildIcons() {
   const { files, folders } = workspaceNames();
   const blank = [];
   for (const [name, where] of files) if (!fileIconName(manifest, name, false)) blank.push(where);
+  // Like VS Code, a file no icon matches gets the plain file icon.
   if (blank.length) {
-    throw new Error(
-      `These workspace files would get the blank file icon. Rename them, or teach scripts/build-content.mjs an icon for them:\n  ${blank.join("\n  ")}`
-    );
+    console.warn(`  ${blank.length} workspace files get the plain file icon (no Material icon matches them), like ${blank.slice(0, 3).join(", ")}`);
   }
 
   // The tables, limited to the names we use.
