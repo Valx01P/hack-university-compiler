@@ -64,7 +64,7 @@ export function PreviewPane({ store }: { store: WorkspaceStore }) {
   const refused = info?.framable === false;
 
   return (
-    <section aria-label="Preview" className="flex h-full min-h-0 flex-col border-l border-line bg-surface">
+    <section aria-label="Preview" className="stars-through flex h-full min-h-0 flex-col border-l border-line bg-surface">
       <div className="flex h-8 shrink-0 items-center gap-1 border-b border-line px-1.5">
         <h2 className="px-1.5 text-xs font-medium uppercase tracking-wider text-ink-faint dark:text-gold">Preview</h2>
         <button type="button" className={btn} aria-label="Back" disabled={history.at === 0} onClick={() => setHistory((h) => ({ ...h, at: h.at - 1 }))}>

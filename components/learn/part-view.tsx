@@ -797,7 +797,7 @@ export function PartView({
               role="region"
               aria-labelledby={outputId}
               tabIndex={0}
-              className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface"
+              className="stars-through code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface"
             >
               {panel.mode === "check" ? (
                 <CheckResults check={panel.check} next={next ? { href: next.href, label: nextLabel(next) } : null} onGoTo={goTo} />

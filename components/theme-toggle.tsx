@@ -8,11 +8,17 @@ import {
   setLayoutLines,
   setContentLines,
   setCodeCommentsHidden,
+  setStarsAmount,
+  setStarsBrightness,
+  setStarsOn,
   setTheme,
   useContrast,
   useLayoutLines,
   useContentLines,
   useCodeCommentsHidden,
+  useStarsAmount,
+  useStarsBrightness,
+  useStarsOn,
   useTheme,
 } from "@/lib/theme";
 import { SwitchTrack } from "@/components/ui/switch-track";
@@ -25,7 +31,8 @@ import { POP, usePresence } from "@/lib/motion";
  * of every theme, each with its own glyph, plus a Normal / High / Super
  * contrast picker that deepens whichever theme is active, and a code
  * background for every editor, code block, and terminal, how visible lines
- * are, and whether code examples show their comments. Goes through
+ * are, whether code examples show their comments, and the stars behind the
+ * app with their brightness and amount. Goes through
  * setTheme() so the `data-dark` flag and the editor's code theme stay in sync.
  * The icon starts as the Light sun on first paint (SSR) and corrects after
  * hydration — same pattern as the rest of the theme bootstrap, so there's no
@@ -40,6 +47,9 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
   const lines = useLayoutLines();
   const contentLines = useContentLines();
   const commentsShown = !useCodeCommentsHidden();
+  const starsOn = useStarsOn();
+  const starsBrightness = useStarsBrightness();
+  const starsAmount = useStarsAmount();
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuShown = usePresence(open, menuRef, POP);
@@ -217,7 +227,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
           {/* How visible the layout's big lines are, and, separately, the
               lines inside the content, each down to none. */}
           <div role="separator" className="my-1 h-px bg-edge" />
-          <LineSlider
+          <PercentSlider
             id="layout-lines"
             label="Layout lines"
             hint="Panels, sidebars, outlined buttons"
@@ -230,7 +240,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
               </>
             }
           />
-          <LineSlider
+          <PercentSlider
             id="content-lines"
             label="Content lines"
             hint="Tables, code, search boxes, dividers"
@@ -271,14 +281,76 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
             </span>
             <SwitchTrack on={commentsShown} className="mt-0.5" />
           </button>
+
+          {/* A starry sky behind the app, then how bright it is and how
+              many stars it has. */}
+          <div role="separator" className="my-1 h-px bg-edge" />
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={starsOn}
+            onClick={() => setStarsOn(!starsOn)}
+            className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="mt-0.5 size-4 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M11 3.5l1.8 4.9 4.9 1.8-4.9 1.8L11 16.9l-1.8-4.9-4.9-1.8 4.9-1.8z" />
+              <path d="M18.5 15.5v4M16.5 17.5h4" />
+            </svg>
+            <span className="flex-1">
+              <span className="block">Stars</span>
+              <span className="mt-0.5 block text-xs text-ink-faint">A starry sky behind the app</span>
+            </span>
+            <SwitchTrack on={starsOn} className="mt-0.5" />
+          </button>
+          {starsOn && (
+            <>
+              <PercentSlider
+                id="stars-brightness"
+                label="Brightness"
+                value={starsBrightness}
+                onChange={setStarsBrightness}
+                icon={
+                  <>
+                    <circle cx="12" cy="12" r="3.5" />
+                    <path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" />
+                  </>
+                }
+              />
+              <PercentSlider
+                id="stars-amount"
+                label="Amount"
+                value={starsAmount}
+                onChange={setStarsAmount}
+                icon={
+                  <>
+                    <circle cx="6" cy="7" r="1.25" fill="currentColor" stroke="none" />
+                    <circle cx="16.5" cy="5.5" r="1.25" fill="currentColor" stroke="none" />
+                    <circle cx="11" cy="12" r="1.25" fill="currentColor" stroke="none" />
+                    <circle cx="18.5" cy="14.5" r="1.25" fill="currentColor" stroke="none" />
+                    <circle cx="7" cy="18" r="1.25" fill="currentColor" stroke="none" />
+                  </>
+                }
+              />
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-/** A 0 to 100 slider for how visible a kind of line is ("off" at 0). */
-function LineSlider({
+/** A 0 to 100 slider ("off" at 0): how visible a kind of line is, and the
+    stars' brightness and amount. */
+function PercentSlider({
   id,
   label,
   hint,

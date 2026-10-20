@@ -243,7 +243,7 @@ export function Explorer({
   const iconBtn = "inline-flex size-6 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink";
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface">
+    <div className="stars-through flex h-full min-h-0 flex-col bg-surface">
       <div className="flex h-8 shrink-0 items-center gap-1 border-b border-line pl-3 pr-1.5">
         <h2 className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-ink-faint dark:text-gold">Explorer</h2>
         <button type="button" onClick={() => startCreating("file")} className={iconBtn} title="New file (Alt+N)" aria-label="New file">

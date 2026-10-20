@@ -306,24 +306,25 @@ export const useCodeSelection = codeSelection.use;
 export const LAYOUT_LINES_KEY = "hu-layout-lines";
 export const CONTENT_LINES_KEY = "hu-content-lines";
 
-const toLines = (value: unknown): number => {
-  const n = Math.round(Number(value));
-  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 100;
-};
-
-function lineSetting(key: string, cssVar: string) {
+/** A 0 to 100 setting kept as a percentage variable on <html>, stored only
+    when it differs from its default. */
+function percentSetting(key: string, cssVar: string, fallback = 100) {
   const event = `hu:${key}-changed`;
+  const toPct = (value: unknown): number => {
+    const n = Math.round(Number(value));
+    return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : fallback;
+  };
   const current = () => {
     const v = document.documentElement.style.getPropertyValue(cssVar).trim();
-    return v ? toLines(v.replace("%", "")) : 100;
+    return v ? toPct(v.replace("%", "")) : fallback;
   };
 
-  /** Set the visibility (0 to 100), persist it, and broadcast. */
+  /** Set the value (0 to 100), persist it, and broadcast. */
   function set(value: number) {
-    const pct = toLines(value);
+    const pct = toPct(value);
     document.documentElement.style.setProperty(cssVar, `${pct}%`);
     try {
-      if (pct === 100) localStorage.removeItem(key);
+      if (pct === fallback) localStorage.removeItem(key);
       else localStorage.setItem(key, String(pct));
     } catch {
       /* ignore */
@@ -335,22 +336,22 @@ function lineSetting(key: string, cssVar: string) {
     }
   }
 
-  /** Subscribe to the visibility (0 to 100), any tab. */
+  /** Subscribe to the value (0 to 100), any tab. */
   const subscribe = subscribeTo(event, key, (stored) =>
-    document.documentElement.style.setProperty(cssVar, `${toLines(stored ?? 100)}%`)
+    document.documentElement.style.setProperty(cssVar, `${toPct(stored ?? fallback)}%`)
   );
   function use(): number {
-    return useSyncExternalStore(subscribe, current, () => 100);
+    return useSyncExternalStore(subscribe, current, () => fallback);
   }
 
   return { set, use };
 }
 
-const layoutLines = lineSetting(LAYOUT_LINES_KEY, "--layout-lines");
+const layoutLines = percentSetting(LAYOUT_LINES_KEY, "--layout-lines");
 export const setLayoutLines = layoutLines.set;
 export const useLayoutLines = layoutLines.use;
 
-const contentLines = lineSetting(CONTENT_LINES_KEY, "--content-lines");
+const contentLines = percentSetting(CONTENT_LINES_KEY, "--content-lines");
 export const setContentLines = contentLines.set;
 export const useContentLines = contentLines.use;
 
@@ -395,3 +396,54 @@ const subscribeCodeComments = subscribeTo(CODE_COMMENTS_EVENT, CODE_COMMENTS_KEY
 export function useCodeCommentsHidden(): boolean {
   return useSyncExternalStore(subscribeCodeComments, commentsHidden, () => false);
 }
+
+/**
+ * Stars: a starry background behind the app (components/chrome/starfield.tsx),
+ * off by default. On is <html data-stars>, applied before first paint by the
+ * bootstrap in app/layout.tsx, and while it's on the page's frame and its
+ * panels let the stars through (globals.css `.stars-through`). Their
+ * brightness and amount are 0 to 100 settings, like the line sliders.
+ */
+export const STARS_KEY = "hu-stars";
+const STARS_EVENT = "hu:stars-changed";
+
+const starsShown = () => document.documentElement.hasAttribute("data-stars");
+
+function applyStars(on: boolean) {
+  if (on) document.documentElement.setAttribute("data-stars", "");
+  else document.documentElement.removeAttribute("data-stars");
+}
+
+/** Turn the stars on or off, persist it, and broadcast. */
+export function setStarsOn(on: boolean) {
+  applyStars(on);
+  try {
+    if (on) localStorage.setItem(STARS_KEY, "on");
+    else localStorage.removeItem(STARS_KEY);
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.dispatchEvent(new Event(STARS_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+const subscribeStars = subscribeTo(STARS_EVENT, STARS_KEY, (stored) => applyStars(stored === "on"));
+
+/** Whether the stars are on, any tab. */
+export function useStarsOn(): boolean {
+  return useSyncExternalStore(subscribeStars, starsShown, () => false);
+}
+
+export const STARS_BRIGHTNESS_KEY = "hu-stars-brightness";
+export const STARS_AMOUNT_KEY = "hu-stars-amount";
+
+const starsBrightness = percentSetting(STARS_BRIGHTNESS_KEY, "--stars-brightness", 70);
+export const setStarsBrightness = starsBrightness.set;
+export const useStarsBrightness = starsBrightness.use;
+
+const starsAmount = percentSetting(STARS_AMOUNT_KEY, "--stars-amount", 60);
+export const setStarsAmount = starsAmount.set;
+export const useStarsAmount = starsAmount.use;

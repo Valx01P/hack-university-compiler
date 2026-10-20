@@ -87,7 +87,7 @@ export function Dock({
   const taskRunning = [...store.tasks.values()].some((t) => t.state === "running" || t.state === "starting");
 
   return (
-    <section aria-label="Terminal and panels" className="flex h-full min-h-0 flex-col border-t border-line bg-surface">
+    <section aria-label="Terminal and panels" className="stars-through flex h-full min-h-0 flex-col border-t border-line bg-surface">
       <div className="flex h-8 shrink-0 items-center gap-1 border-b border-line pl-1 pr-1.5">
         <div role="tablist" aria-label="Panels" className="slim-scroll flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           {tabs.map((tab, i) => {
