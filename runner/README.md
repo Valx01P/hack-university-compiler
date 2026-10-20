@@ -42,7 +42,7 @@ codes against.
 | `HU_NS` | `live` | `verify` for the verifiers: `hv-` names and `hu.ns=verify` labels, so they never touch a learner's objects |
 | `HU_JOB_SLOTS` | `4` | Jobs at once. The rest wait in a FIFO queue |
 | `DOCKER_HOST`, `DOCKER_CONTEXT` | the active context | Which Docker, found the way the docker CLI finds it (Docker Desktop, Colima, OrbStack) |
-| `HU_TICKET_TTL_MS`, `HU_WS_HELLO_MS`, `HU_POLL_MS` | 30000, 5000, 5000 | Ticket lifetime, the time a socket has to send its ticket, and how often Docker is checked and leftovers reaped. Tests shorten them |
+| `HU_TICKET_TTL_MS`, `HU_WS_HELLO_MS`, `HU_POLL_MS` | 30000, 5000, 5000 | Ticket lifetime, the time a socket has to send its ticket, and how often Docker is checked, leftovers reaped, and idle workspaces stopped. Tests shorten them |
 | `HU_CONTENT_DIR` | `<repo>/content` | Where template layers (`workspaces/<course>/<template>/`), `@` layers, and check suites are read from |
 | `HU_WS_PORTS` (or `HU_PORT_RANGE`) | `23000-29999` | The workspace port range, as `first-last` |
 | `HU_IDLE_MS` | `1200000` | A running workspace with no heartbeat, terminal input, or API call for this long stops (20 minutes) |
