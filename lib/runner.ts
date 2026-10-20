@@ -42,11 +42,10 @@ function runnerToken(): string | null {
 
 /** A failure the UI shows as-is, plus the HTTP status to answer with. */
 export class RunnerError extends Error {
-  constructor(
-    message: string,
-    readonly status: number
-  ) {
+  readonly status: number;
+  constructor(message: string, status: number) {
     super(message);
+    this.status = status;
   }
 }
 
@@ -245,6 +244,44 @@ export async function readFixtureSet(course: string, name: string): Promise<Runn
     return null;
   }
   return files;
+}
+
+/** What the IDE says when nothing answers on the runner's port. */
+export const RUNNER_DOWN = "The workspace runner isn't running. Start it with npm run up.";
+
+/** The runner's WebSocket address for the browser: always 127.0.0.1, so
+    the localhost cookies previews set never ride along. */
+export function runnerSocketUrl(): string {
+  return runnerUrl().replace(/^http:/, "ws:");
+}
+
+/**
+ * One request to the runner's REST API for the workspace routes, with the
+ * token, answered as the runner's own Response so its body can stream back
+ * (a file, a zip). Throws a RunnerError when the runner can't be reached.
+ */
+export async function runnerFetch(
+  pathname: string,
+  init: { method: string; headers?: Record<string, string>; body?: BodyInit | null; timeoutMs?: number; signal?: AbortSignal }
+): Promise<Response> {
+  const token = runnerToken();
+  if (!token) throw new RunnerError(RUNNER_DOWN, 503);
+  const timeout = AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(`${runnerUrl()}${pathname}`, {
+      method: init.method,
+      headers: { Authorization: `Bearer ${token}`, ...init.headers },
+      body: init.body ?? undefined,
+      signal: init.signal ? AbortSignal.any([init.signal, timeout]) : timeout,
+      cache: "no-store",
+      // Streamed request bodies (uploads) need this in Node's fetch.
+      ...(init.body instanceof ReadableStream ? { duplex: "half" } : {}),
+    } as RequestInit);
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") throw new RunnerError("The workspace runner took too long to answer. Try again.", 504);
+    if (err instanceof Error && err.name === "AbortError") throw new RunnerError("The request was cancelled.", 499);
+    throw new RunnerError(RUNNER_DOWN, 503);
+  }
 }
 
 export interface RunnerStatus {
