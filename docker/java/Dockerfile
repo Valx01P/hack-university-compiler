@@ -82,7 +82,8 @@ RUN set -eu; \
       cd "/tmp/bake/profiles/$p"; \
       $m dependency:build-classpath -Dmdep.outputFile="/tmp/$p.classpath" > /dev/null; \
       mkdir -p "/opt/hu/spring/profiles/$p"; \
-      tr ':' '\n' < "/tmp/$p.classpath" | while read -r jar; do ln -s "$jar" "/opt/hu/spring/profiles/$p/"; done; \
+      tr ':' '\n' < "/tmp/$p.classpath" | xargs -I{} ln -s {} "/opt/hu/spring/profiles/$p/"; \
+      test "$(ls "/opt/hu/spring/profiles/$p" | wc -l)" -eq "$(tr ':' '\n' < "/tmp/$p.classpath" | grep -c .)"; \
     done; \
     mkdir -p /opt/hu/spring/profiles/java; \
     find /tmp/templates -name pom.xml | sort | while read -r pom; do \
@@ -99,9 +100,11 @@ COPY --from=hu-exec /hu-exec /opt/hu/bin/hu-exec
 COPY shared/bin/ /opt/hu/bin/
 
 # Mount points exist in the image and belong to learner, since a volume or
-# tmpfs mounted on a missing path comes up owned by root.
-RUN mkdir -p /work /workspace \
- && chown learner:learner /work /workspace
+# tmpfs mounted on a missing path comes up owned by root. /workspace/target is
+# where a workspace's build volume mounts (template.json build): hidden by the
+# bind mount at run time, it still gives a new volume learner as its owner.
+RUN mkdir -p /work /workspace/target \
+ && chown -R learner:learner /work /workspace
 
 ENV HOME=/home/learner \
     HOST=0.0.0.0 \
@@ -111,13 +114,19 @@ ENV HOME=/home/learner \
     MAVEN_USER_HOME=/opt/hu/maven-user
 
 # Fail the build if a pin drifted, or if offline builds stopped working: with
-# no network, the learner builds, tests, and runs the smallest app through the
+# no network, a single Main.java compiles and runs against the boot profile,
+# and the learner builds, tests, and runs the smallest app through the
 # wrapper, from the tail alone.
 RUN --network=none --mount=type=bind,source=java/bake/run,target=/tmp/run-src \
+    --mount=type=bind,source=java/check,target=/tmp/profile-src \
     set -eu; \
     java -version 2>&1 | grep -q '"25\.'; \
     mvn -v | grep -q '^Apache Maven 3\.10\.0 '; \
-    test -n "$(ls /opt/hu/spring/profiles/secure)"; \
+    cd /tmp; \
+    javac -parameters -proc:none --release 25 -d /tmp/out -cp '/opt/hu/spring/profiles/boot/*' /tmp/profile-src/app/Main.java; \
+    java -cp '/tmp/out:/opt/hu/spring/profiles/boot/*' app.Main --spring.main.banner-mode=off --logging.level.root=WARN \
+      | grep -qx hu-profile-ready; \
+    rm -rf /tmp/out; \
     mkdir -p /tmp/check && cp -R /tmp/run-src /tmp/check/run && chown -R learner:learner /tmp/check; \
     runuser -u learner -- sh -c 'cd /tmp/check/run \
       && cp -R /opt/hu/maven-user/mvnw /opt/hu/maven-user/.mvn . \

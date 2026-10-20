@@ -87,10 +87,10 @@ COPY python/bin/uv python/bin/uvx /usr/local/bin/
 COPY python/hu_check.py /opt/hu/python/
 
 # Mount points exist in the image and belong to learner, since a volume or
-# tmpfs mounted on a missing path comes up owned by root. /deps holds a
-# workspace's shared venv (UV_PROJECT_ENVIRONMENT=/deps/venv).
-RUN mkdir -p /work /workspace /deps \
- && chown learner:learner /work /workspace /deps
+# tmpfs mounted on a missing path comes up owned by root. /deps/venv holds a
+# workspace's dependency volume (UV_PROJECT_ENVIRONMENT=/deps/venv).
+RUN mkdir -p /work /workspace /deps/venv \
+ && chown learner:learner /work /workspace /deps /deps/venv
 
 ENV HOME=/home/learner \
     HOST=0.0.0.0 \

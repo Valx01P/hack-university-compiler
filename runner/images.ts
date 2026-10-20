@@ -310,7 +310,9 @@ export class Images {
   async prune(name: ImageName): Promise<string[]> {
     const current = this.tag(name);
     const images = await this.docker.listImages({ filters: { label: [`${LABEL.managed}=1`, `${LABEL.image}=${name}`] } });
+    // An image built FROM this one inherits its labels, so only hu/<name> tags count.
     const older = images
+      .filter((img) => (img.RepoTags ?? []).some((t) => t.startsWith(`hu/${name}:`)))
       .filter((img) => !(img.RepoTags ?? []).includes(current))
       .sort((a, b) => b.Created - a.Created)
       .slice(1);

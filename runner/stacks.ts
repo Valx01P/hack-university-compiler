@@ -55,7 +55,8 @@ export const STACKS = {
     image: "web",
     workdir: "/workspace",
     ...npm,
-    script: { workdir: "/opt/hu/env/nextjs/work", run: ["node", "main.ts"] },
+    // next/server resolves in plain Node only through the hook (no exports map).
+    script: { workdir: "/opt/hu/env/nextjs/work", run: ["node", "--import", "/opt/hu/env/nextjs/next-resolve.mjs", "main.ts"] },
   },
   express: {
     image: "web",

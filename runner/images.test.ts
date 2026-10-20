@@ -71,6 +71,28 @@ describe("stack images", () => {
   });
 });
 
+describe("pruning", () => {
+  it("keeps the current tag and the one before it, whatever else carries the labels", async () => {
+    const images = new Images(ROOT, {} as Docker, "unix:///nowhere.sock");
+    const current = images.tag("web");
+    const removed: string[] = [];
+    const docker = {
+      listImages: async () => [
+        { RepoTags: [current], Created: 50 },
+        // Built FROM hu/web, so it inherits hu/web's labels.
+        { RepoTags: ["someone/else:latest"], Created: 40 },
+        { RepoTags: ["hu/web:aaaaaaaaaaaa"], Created: 30 },
+        { RepoTags: ["hu/web:bbbbbbbbbbbb"], Created: 20 },
+        { RepoTags: ["hu/web:cccccccccccc"], Created: 10 },
+      ],
+      getImage: (tag: string) => ({ remove: async () => void removed.push(tag) }),
+    } as unknown as Docker;
+    Object.assign(images, { docker });
+    assert.deepEqual(await images.prune("web"), ["hu/web:bbbbbbbbbbbb", "hu/web:cccccccccccc"]);
+    assert.deepEqual(removed, ["hu/web:bbbbbbbbbbbb", "hu/web:cccccccccccc"]);
+  });
+});
+
 describe("a build started through the runner", () => {
   it("reads the new image's state and versions as soon as it's built", async () => {
     // Docker knows the image once the build has made it. The docker CLI is a

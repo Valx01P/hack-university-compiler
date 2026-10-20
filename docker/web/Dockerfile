@@ -99,6 +99,14 @@ RUN --mount=type=bind,source=web/bin,target=/tmp/web-bin \
 # it would let a template import a package its package.json forgot.
 RUN rm /node_modules
 
+# The folders a workspace mounts volumes on inside its /workspace: the
+# dependency volume and the build volumes (template.json build). A bind mount
+# hides them at run time, but Docker gives a new, empty volume the owner of
+# the image's folder at its mount point, so these make the volumes learner's
+# instead of root's.
+RUN mkdir -p /workspace/node_modules /workspace/.next /workspace/dist /workspace/.vite-cache \
+ && chown -R learner:learner /workspace
+
 ENV NEXT_TELEMETRY_DISABLED=1 \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
