@@ -21,9 +21,9 @@ import assert from "node:assert/strict";
 
 const base = process.argv[2] ?? "http://localhost:3410";
 const serverMode = process.argv.includes("--server") ? process.argv[process.argv.indexOf("--server") + 1] : "fake";
-const require = createRequire(process.env.PW_CORE ?? "/private/tmp/claude-501/-Users-pvaldes-Projects-memory-training/d8b475e3-ae29-4c64-998e-8fad12d7949a/scratchpad/pw/");
+const require = createRequire(process.env.PW_CORE ? `${process.env.PW_CORE.replace(/\/$/, "")}/` : import.meta.url);
 const { chromium } = require("playwright-core");
-const CHROME = process.env.CHROME ?? "/Users/pvaldes/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
+const CHROME = process.env.CHROME;
 const SHOTS = process.env.SHOTS ?? null;
 
 const results = [];
