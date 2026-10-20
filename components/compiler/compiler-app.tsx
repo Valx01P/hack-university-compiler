@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { BookOpenText, FolderCode, GraduationCap, ListChecks, RotateCcw } from "lucide-react";
 import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
@@ -10,9 +10,9 @@ import { CodeThemePicker } from "@/components/code/code-theme";
 import { ResetCodeButton } from "@/components/code/reset-code-button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { ResizeHandle } from "@/components/ui/resize-handle";
-import { LangIcon } from "@/components/compiler/lang-icon";
 import { OutputPanel } from "@/components/compiler/output-panel";
 import { ReferencePanel, useReferenceData, type ReferenceTab } from "@/components/compiler/reference-panel";
+import { CourseRail } from "@/components/chrome/course-rail";
 import { FloatingNav } from "@/components/chrome/floating-nav";
 import { useFullScreen } from "@/lib/full-screen";
 import { cheatsheetPlace, readCompilerUrl, revealWorkspace, urlParam, writeUrl } from "@/lib/compiler-url";
@@ -21,7 +21,6 @@ import { SqlDatabase } from "@/components/compiler/sql-database";
 import { SqlResults } from "@/components/compiler/sql-results";
 import { CheckResults, checkSummary, type CheckState } from "@/components/learn/check-results";
 import { isSql, onRunner, type CompilerLang } from "@/lib/compiler";
-import { COMPILER_COURSES, courseRows } from "@/lib/courses";
 import { judgeTest } from "@/lib/single-checks.mjs";
 import type { SqlRun } from "@/lib/sql/core.mjs";
 import {
@@ -63,10 +62,6 @@ const sessionLayout: {
 
 const codeKey = (slug: string) => `hu-compiler-code:${slug}`;
 const noop = () => {};
-
-// The rail: every course with a compiler page, in the Learn icon rows'
-// order, with a divider between the rows.
-const RAIL = courseRows(COMPILER_COURSES);
 
 /** Your code per language is the one thing saved across reloads. */
 function savedCode(lang: CompilerLang): string {
@@ -566,37 +561,8 @@ export function CompilerApp({
         full ? "fixed inset-0 z-[100]" : "h-[calc(100dvh-4rem-1px)] lg:h-full lg:shrink-0"
       }`}
     >
-      {/* Language rail: the Learn icon rows' courses in order, with a
-          divider between the two rows */}
-      <nav
-        aria-label="Languages"
-        className="slim-scroll flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-line py-2 sm:w-14"
-      >
-        {RAIL.map((row, r) => (
-          <Fragment key={r}>
-            {r > 0 && <span aria-hidden className="my-1 h-px w-6 shrink-0 bg-line" />}
-            {row.map((l) => {
-              const active = l.slug === lang.slug;
-              return (
-                <Link
-                  key={l.slug}
-                  href={`/${l.slug}`}
-                  title={`${l.label} compiler`}
-                  aria-label={`${l.label} compiler`}
-                  aria-current={active ? "page" : undefined}
-                  className={`flex size-10 shrink-0 items-center justify-center rounded-btn transition-colors ${
-                    active
-                      ? "text-ink dark:text-gold"
-                      : "text-ink-muted hover:text-ink"
-                  }`}
-                >
-                  <LangIcon slug={l.slug} className="size-5" />
-                </Link>
-              );
-            })}
-          </Fragment>
-        ))}
-      </nav>
+      {/* Language rail: every course, in the Learn icon rows' order */}
+      <CourseRail current={lang.slug} />
 
       {/* Main: the editor and output, plus the cheatsheet or challenges panel when it's open */}
       <div
