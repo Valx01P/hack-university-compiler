@@ -190,7 +190,9 @@ for any rows, not just the ones you can see.
 
 Press **Learn** above the output panel to learn the current language step by
 step, from print statements through OOP, error handling, and recursion, BFS,
-linked lists, trees, and graphs. Each language has its own course at
+linked lists, trees, and graphs. It takes two clicks, and so does the
+**Compiler** button back: the first makes it glow, like the answer eye, so a
+stray click never leaves your work. Each language has its own course at
 `/<language>/learn`, written for that language's idioms (memory for C++ and
 Go, kwargs and decorators for Python, and so on). SQL's course goes from your
 first SELECT through filtering, functions, joins, window functions, table
