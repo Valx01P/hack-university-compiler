@@ -2,6 +2,7 @@ import { promises as fs, readFileSync } from "fs";
 import os from "os";
 import path from "path";
 import { addHint } from "@/lib/components";
+import { repoPath, windowsGitModes } from "@/lib/learn-fixtures";
 import type { RunResult } from "@/lib/piston";
 
 /**
@@ -204,7 +205,8 @@ const SET_MAX_BYTES = 4 * 1024 * 1024;
  * A course's fixture set, the files a program starts among
  * (content/fixtures/<course>/<name>/, or FIXTURES_CONTENT_DIR for drafts),
  * as the runner takes files: text as text, anything else base64, with
- * executable bits and symlinks kept. Null when there's no such set.
+ * executable bits and symlinks kept (from git's record on Windows, whose
+ * checkout keeps neither). Null when there's no such set.
  */
 export async function readFixtureSet(course: string, name: string): Promise<RunnerFile[] | null> {
   if (!SET_NAME.test(course) || !SET_NAME.test(name)) return null;
@@ -213,14 +215,17 @@ export async function readFixtureSet(course: string, name: string): Promise<Runn
     : path.join(process.cwd(), "content", "fixtures");
   const root = path.join(base, course, name);
   const files: RunnerFile[] = [];
+  const modes = windowsGitModes();
   let bytes = 0;
   async function walk(rel: string) {
     const entries = await fs.readdir(path.join(root, rel), { withFileTypes: true });
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
       const relPath = rel ? `${rel}/${entry.name}` : entry.name;
       const full = path.join(root, relPath);
-      if (entry.isSymbolicLink()) {
-        files.push({ name: relPath, content: "", type: "symlink", target: await fs.readlink(full) });
+      const git = modes?.get(repoPath(full));
+      if (entry.isSymbolicLink() || (git && "link" in git)) {
+        const target = git && "link" in git ? git.link : await fs.readlink(full);
+        files.push({ name: relPath, content: "", type: "symlink", target });
       } else if (entry.isDirectory()) {
         files.push({ name: relPath, content: "", type: "dir" });
         await walk(relPath);
@@ -233,7 +238,7 @@ export async function readFixtureSet(course: string, name: string): Promise<Runn
           name: relPath,
           content: data.toString(text ? "utf8" : "base64"),
           ...(text ? {} : { encoding: "base64" as const }),
-          mode: stat.mode & 0o777,
+          mode: modes ? (git && "exec" in git ? 0o755 : 0o644) : stat.mode & 0o777,
         });
       }
     }

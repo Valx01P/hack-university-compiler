@@ -38,9 +38,10 @@ let gitModes: Map<string, GitMode> | null | undefined;
  * links, checks a symbolic link out as a small text file holding its target,
  * so there the fixtures' modes come from git's own record: path from the
  * repository root ("/"-separated) to executable, or to a link's target.
- * Elsewhere (or without git) null, and the files say it themselves.
+ * Elsewhere (or without git) null, and the files say it themselves. The
+ * Files strip and what the runner gets (lib/runner.ts) both read it.
  */
-function windowsGitModes(): Map<string, GitMode> | null {
+export function windowsGitModes(): Map<string, GitMode> | null {
   if (process.platform !== "win32" || process.env.FIXTURES_CONTENT_DIR) return null;
   if (gitModes !== undefined) return gitModes;
   gitModes = null;
@@ -62,7 +63,7 @@ function windowsGitModes(): Map<string, GitMode> | null {
 }
 
 /** A fixture's path from the repository root, as git lists it. */
-const repoPath = (full: string) => path.relative(process.cwd(), full).split(path.sep).join("/");
+export const repoPath = (full: string) => path.relative(process.cwd(), full).split(path.sep).join("/");
 
 async function walk(root: string, rel = ""): Promise<FixtureFile[]> {
   const modes = windowsGitModes();
