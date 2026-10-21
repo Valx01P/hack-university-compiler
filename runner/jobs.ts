@@ -125,6 +125,21 @@ export interface StepResult {
   wallMs: number;
 }
 
+/**
+ * Windows named pipes can't half-close: once the runner ends an exec's stdin
+ * there, libuv waits only about 50 ms for output before it treats the whole
+ * connection as closed, which cut steps off mid-run. So on Windows stdin is
+ * never ended: a command given some reads exactly that many bytes (head -c)
+ * instead of waiting for the end, and one given none gets no stdin at all.
+ * HU_STDIN_BY_COUNT=1 does the same elsewhere, so the tests cover it.
+ */
+export const STDIN_BY_COUNT = process.platform === "win32" || process.env.HU_STDIN_BY_COUNT === "1";
+
+/** `cmd`, fed exactly `bytes` of the exec's stdin. */
+export function countedStdin(cmd: string[], bytes: number): string[] {
+  return ["sh", "-c", 'head -c "$0" | "$@"', String(bytes), ...cmd];
+}
+
 export interface StepOptions {
   env?: string[];
   workDir?: string;
@@ -351,18 +366,21 @@ export class Job {
   async step(cmd: string[], options: StepOptions & { raw?: boolean }): Promise<StepResult & { raw?: Buffer }> {
     const started = Date.now();
     let stream: Duplex | null = null;
+    const input = Buffer.from(options.stdin ?? "");
+    const attach = !STDIN_BY_COUNT || input.length > 0;
+    const argv = STDIN_BY_COUNT && input.length > 0 ? countedStdin(cmd, input.length) : cmd;
     try {
       const exec = await this.container.exec({
-        Cmd: ["/opt/hu/bin/hu-exec", "-t", String(options.timeoutMs), "--", ...cmd],
+        Cmd: ["/opt/hu/bin/hu-exec", "-t", String(options.timeoutMs), "--", ...argv],
         Env: options.env,
         WorkingDir: options.workDir,
         User: "1000:1000",
-        AttachStdin: true,
+        AttachStdin: attach,
         AttachStdout: true,
         AttachStderr: true,
         Tty: false,
       });
-      stream = (await exec.start({ hijack: true, stdin: true })) as Duplex;
+      stream = (await exec.start({ hijack: true, stdin: attach })) as Duplex;
     } catch (err) {
       // A container that is gone (404) or stopped (409) has nothing to run
       // in, and the verdict below says the sandbox stopped. Anything else is
@@ -413,7 +431,8 @@ export class Job {
         io.on("end", resolve);
         io.on("close", resolve);
         io.on("error", resolve);
-        io.end(options.stdin ?? "");
+        if (!STDIN_BY_COUNT) io.end(input);
+        else if (input.length) io.write(input);
       });
       clearTimeout(watchdog);
     }

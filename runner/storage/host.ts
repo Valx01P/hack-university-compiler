@@ -25,6 +25,9 @@ import type { TarEntry } from "../tar.ts";
 
 /** macOS's O_NOFOLLOW_ANY: no symlink anywhere in the path. Node's constants don't list it. */
 export const O_NOFOLLOW_ANY = process.platform === "darwin" ? 0x20000000 : 0;
+
+/** The runner is on Windows, where files keep no Unix modes and paths take "\". */
+export const WINDOWS = process.platform === "win32";
 const { O_RDONLY, O_WRONLY, O_CREAT, O_EXCL, O_NONBLOCK, O_DIRECTORY, O_NOFOLLOW } = fs.constants;
 
 export type PathErrorCode = "bad_path" | "outside" | "not_found" | "not_a_file" | "exists" | "too_large" | "is_dir";
@@ -48,10 +51,12 @@ const utf8Bytes = (s: string) => Buffer.byteLength(s, "utf8");
 /**
  * Checks a workspace path: relative, "/"-separated, no NUL, no "." or ".."
  * segment, at most 4,096 bytes overall and 255 per segment. "" is the root.
+ * On Windows it also has no "\" or ":", which the host would read as a
+ * separator or a drive, so "..\meta.json" can't leave the workspace.
  */
 export function checkRel(rel: string, { root = false } = {}): string {
   if (rel === "" && root) return "";
-  if (typeof rel !== "string" || rel === "" || rel.includes("\0") || rel.startsWith("/") || utf8Bytes(rel) > 4096) {
+  if (typeof rel !== "string" || rel === "" || rel.includes("\0") || rel.startsWith("/") || utf8Bytes(rel) > 4096 || (WINDOWS && /[\\:]/.test(rel))) {
     throw new PathError("bad_path", `Not a workspace path: ${JSON.stringify(String(rel).slice(0, 100))}`);
   }
   for (const segment of rel.split("/")) {

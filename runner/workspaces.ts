@@ -29,6 +29,7 @@ import {
   HEAVY,
   HostFs,
   PathError,
+  WINDOWS,
   buildManifest,
   checkRel,
   cloneTree,
@@ -306,14 +307,18 @@ export class Workspace {
 
   // Files and their states
 
-  /** A file's state against the manifest, hashing only when size or time moved. */
+  /**
+   * A file's state against the manifest, hashing only when size or time
+   * moved. On Windows modes never count: the host keeps none, and a running
+   * container sees its bind-mounted files with made-up ones.
+   */
   private fileState(entry: Entry): FileState {
     const orig = this.meta.manifest[entry.path];
     if (!orig) return "new";
     if (orig.type !== (entry.type === "mount" ? "dir" : entry.type)) return "modified";
     if (entry.type === "symlink") return orig.target === entry.target ? "same" : "modified";
-    if (entry.type !== "file") return (orig.mode & 0o777) === (entry.mode & 0o777) ? "same" : "modified";
-    if ((orig.mode & 0o111) !== (entry.mode & 0o111)) return "modified";
+    if (entry.type !== "file") return WINDOWS || (orig.mode & 0o777) === (entry.mode & 0o777) ? "same" : "modified";
+    if (!WINDOWS && (orig.mode & 0o111) !== (entry.mode & 0o111)) return "modified";
     if (orig.size !== entry.size) return "modified";
     return this.hashOf(entry) === orig.sha256 ? "same" : "modified";
   }
@@ -616,13 +621,13 @@ export class Workspace {
         remove.push(e.path);
         restore.push(e.path);
       } else if (type === "file") {
-        if (want.size !== e.size || (want.mode & 0o777) !== (e.mode & 0o777) || this.hashOf(e) !== want.sha256) restore.push(e.path);
+        if (want.size !== e.size || (!WINDOWS && (want.mode & 0o777) !== (e.mode & 0o777)) || this.hashOf(e) !== want.sha256) restore.push(e.path);
       } else if (type === "symlink") {
         if (want.target !== e.target) {
           remove.push(e.path);
           restore.push(e.path);
         }
-      } else if (type === "dir" && (want.mode & 0o777) !== (e.mode & 0o777)) {
+      } else if (type === "dir" && !WINDOWS && (want.mode & 0o777) !== (e.mode & 0o777)) {
         restore.push(e.path);
       }
     }
@@ -2267,7 +2272,7 @@ export class Workspaces {
       } catch {
         throw new HttpError(400, "bad_request", `The layer ${name} doesn't exist in the content.`);
       }
-      if (!real.startsWith(`${content}/`) || !fs.statSync(real).isDirectory()) throw new HttpError(400, "bad_request", `The layer ${name} isn't a folder of the content.`);
+      if (!real.startsWith(`${content}${path.sep}`) || !fs.statSync(real).isDirectory()) throw new HttpError(400, "bad_request", `The layer ${name} isn't a folder of the content.`);
       if (name === "base") return { dir: real, deleteFile: null, skip: [] };
       const overlay = path.join(real, "overlay");
       const deleteFile = isFile(path.join(real, "delete.txt")) ? path.join(real, "delete.txt") : null;

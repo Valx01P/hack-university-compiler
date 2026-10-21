@@ -1,6 +1,6 @@
 import type { Duplex } from "node:stream";
 import type Docker from "dockerode";
-import { Demux } from "./jobs.ts";
+import { Demux, STDIN_BY_COUNT, countedStdin } from "./jobs.ts";
 
 /**
  * docker exec, three ways: collect a command's output (with a cap and a
@@ -32,17 +32,20 @@ export async function execCollect(
   cmd: string[],
   { stdin, timeoutMs = 30_000, maxBytes = 4 * 1024 * 1024, ...options }: ExecOptions & { stdin?: Buffer | string; timeoutMs?: number; maxBytes?: number } = {}
 ): Promise<Collected> {
+  // Stdin goes by count on Windows (STDIN_BY_COUNT in jobs.ts).
+  const input = stdin === undefined ? undefined : Buffer.from(stdin);
+  const attach = input !== undefined && (!STDIN_BY_COUNT || input.length > 0);
   const exec = await container.exec({
-    Cmd: cmd,
+    Cmd: STDIN_BY_COUNT && input?.length ? countedStdin(cmd, input.length) : cmd,
     User: options.user ?? "learner",
     Env: options.env,
     WorkingDir: options.workDir,
-    AttachStdin: stdin !== undefined,
+    AttachStdin: attach,
     AttachStdout: true,
     AttachStderr: true,
     Tty: false,
   });
-  const stream = (await exec.start({ hijack: true, stdin: stdin !== undefined })) as Duplex;
+  const stream = (await exec.start({ hijack: true, stdin: attach })) as Duplex;
   const out: Buffer[] = [];
   const err: Buffer[] = [];
   let outBytes = 0;
@@ -73,7 +76,8 @@ export async function execCollect(
     stream.on("end", done);
     stream.on("close", done);
     stream.on("error", done);
-    if (stdin !== undefined) stream.end(stdin);
+    if (attach && !STDIN_BY_COUNT) stream.end(input);
+    else if (attach) stream.write(input);
   });
   const info = timedOut ? null : await exec.inspect().catch(() => null);
   return { stdout: Buffer.concat(out), stderr: Buffer.concat(err), code: info?.ExitCode ?? null, timedOut, truncated };

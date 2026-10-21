@@ -140,7 +140,7 @@ export class Checks {
     } catch {
       throw new HttpError(404, "not_found", `There is no suite at ${suitePath}.`);
     }
-    if (!real.startsWith(`${this.deps.contentDir}/`)) throw new HttpError(400, "bad_request", "The suite must be a folder of the content.");
+    if (!real.startsWith(`${this.deps.contentDir}${path.sep}`)) throw new HttpError(400, "bad_request", "The suite must be a folder of the content.");
     return real;
   }
 

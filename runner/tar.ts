@@ -23,6 +23,21 @@ export interface TarEntry {
 const BLOCK = 512;
 const TYPE_FLAG: Record<EntryType, string> = { file: "0", dir: "5", symlink: "2" };
 
+/**
+ * Windows keeps no exec bits, so Node reports every file and folder there as
+ * 0o666: in a Linux container, a folder no one can enter and a script no one
+ * can run. So on Windows a folder with no exec bit gets 0o755, and a file
+ * with none gets 0o755 when it starts with "#!" (every executable in the
+ * templates is a script) and 0o644 otherwise. Modes that came from a
+ * container keep their bits, and elsewhere every mode passes through as is.
+ */
+function linuxMode(entry: TarEntry, data: Buffer): number | undefined {
+  if (process.platform !== "win32" || entry.mode === undefined || entry.mode & 0o111) return entry.mode;
+  if (entry.type === "dir") return 0o755;
+  if (entry.type === "file") return data[0] === 0x23 && data[1] === 0x21 ? 0o755 : 0o644;
+  return entry.mode;
+}
+
 /** A tar archive of the entries, owned by learner (1000:1000) unless they say otherwise. */
 export function packTar(entries: TarEntry[]): Buffer {
   const parts: Buffer[] = [];
@@ -44,7 +59,7 @@ export function packTar(entries: TarEntry[]): Buffer {
         prefix: split?.prefix ?? "",
         type: TYPE_FLAG[entry.type],
         size: data.length,
-        mode: entry.mode ?? (entry.type === "dir" ? 0o755 : entry.type === "symlink" ? 0o777 : 0o644),
+        mode: linuxMode(entry, data) ?? (entry.type === "dir" ? 0o755 : entry.type === "symlink" ? 0o777 : 0o644),
         mtime: entry.mtime ?? Math.floor(Date.now() / 1000),
         linkname: entry.target && !pax.linkpath ? entry.target : "",
         uid: entry.uid ?? 1000,

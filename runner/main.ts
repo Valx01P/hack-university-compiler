@@ -174,3 +174,8 @@ async function shutdown(signal: string) {
 }
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
+// On Windows a signal can't ask for this (it's TerminateProcess), so npm run
+// up's supervisor asks over the IPC channel instead (scripts/lib/servers.mjs).
+process.on("message", (message) => {
+  if (message === "shutdown") void shutdown("shutdown");
+});
