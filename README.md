@@ -18,36 +18,102 @@ Everything runs on your computer, in Docker. Nothing leaves it.
 
 ![A Python lesson in Learn mode in the Solarized theme, with the stars on](docs/images/learn-solarized.png)
 
-## What you need
+## Install
 
-- [Node.js](https://nodejs.org) 24.12 or newer
-- [Docker Desktop](https://docs.docker.com/get-docker/) with at least 8 GB of
-  memory (Settings → Resources)
-- Disk space for what you pick: 1.2 GB for just the app, about 16 GB for
-  everything
+It works on a Mac and on a Windows PC, and you don't need to know how to code
+to set it up. Follow the steps for your computer, and copy and paste each
+command exactly as it is (the button at the top right of each box copies it).
 
-It's made for a Mac, and Windows support is experimental:
+**Before you start:** a computer with 16 GB of memory works best, since Docker,
+which runs your code, needs 8 GB of it. You also need free disk space for what
+you pick: about 1.2 GB for the basics, up to about 16 GB for everything.
 
-- **Mac**: on Apple Silicon, turn on **"Use Rosetta for x86_64/amd64
-  emulation"** in Docker Desktop's settings, so code runs at full speed.
-- **Windows (experimental)**: Docker Desktop with its WSL 2 backend (the
-  default). Run the commands below in PowerShell, or clone and run inside
-  WSL (Ubuntu), where the project courses run fastest.
+### On a Mac
 
-## Start
+1. **Install Node.js.** Go to [nodejs.org](https://nodejs.org/en/download),
+   download the **LTS** version's macOS Installer, open it, and click Continue
+   until it's done.
+2. **Install Docker Desktop.** Go to
+   [docker.com](https://www.docker.com/products/docker-desktop/) and download
+   Docker Desktop for Mac: **Apple Silicon** if your Mac has an Apple chip (M1
+   or newer), **Intel** if it doesn't. Not sure? Open the Apple menu, choose
+   About This Mac, and look at Chip. Open the download, drag Docker into
+   Applications, then open Docker, accept the terms, and skip signing in. Wait
+   until it says **Engine running**.
+
+   With an Apple chip, also open Docker's **Settings**, then **General**, and
+   turn on **Use Rosetta for x86_64/amd64 emulation on Apple Silicon**, so your
+   code runs at full speed.
+3. **Open Terminal.** Press **⌘ Command** and **Space** together, type
+   **Terminal**, and press **Return**.
+4. **Download Hack University and start it.** Paste these three lines into
+   Terminal with **⌘ Command + V**, and press **Return**:
+
+   ```bash
+   git clone https://github.com/Valx01P/hack-university-compiler.git
+   cd hack-university-compiler
+   npm run up
+   ```
+
+   If your Mac asks to install the **command line developer tools**, click
+   **Install**, wait for it to finish, then paste the three lines again.
+5. **Pick what to install.** A list of the languages and courses shows up, with
+   each one's size. The arrow keys move, **Space** ticks or unticks, and
+   **Return** installs. The first download can take a while.
+6. **Open it.** When Terminal says **Hack University is starting on
+   http://localhost:3000**, open <http://localhost:3000> in your browser.
+
+### On Windows
+
+1. **Open Command Prompt.** Press the **Windows** key, type **cmd**, and press
+   **Enter**. Use Command Prompt, not PowerShell, for every step here.
+2. **Install Git, Node.js, and Docker Desktop.** Paste these three lines into
+   Command Prompt with **Ctrl + V**, and press **Enter**. Click **Yes** each
+   time Windows asks for permission:
+
+   ```bat
+   winget install -e --id Git.Git --accept-source-agreements --accept-package-agreements
+   winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
+   winget install -e --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements
+   ```
+
+   If it says winget isn't recognized, download them instead:
+   [Git](https://git-scm.com/downloads/win), the **LTS** version of
+   [Node.js](https://nodejs.org/en/download), and
+   [Docker Desktop](https://www.docker.com/products/docker-desktop/). Run each
+   installer and keep the options it starts with.
+
+   When all three are installed, **restart your computer**.
+3. **Start Docker Desktop.** Open **Docker Desktop** from the Start menu,
+   accept the terms, and skip signing in. If it asks to install or update WSL,
+   let it. Wait until it says **Engine running**.
+4. **Download Hack University and start it.** Open Command Prompt again, paste
+   these three lines, and press **Enter**:
+
+   ```bat
+   git clone https://github.com/Valx01P/hack-university-compiler.git
+   cd hack-university-compiler
+   npm run up
+   ```
+5. **Pick what to install.** A list of the languages and courses shows up, with
+   each one's size. The arrow keys move, **Space** ticks or unticks, and
+   **Enter** installs. The first download can take a while.
+6. **Open it.** When Command Prompt says **Hack University is starting on
+   http://localhost:3000**, open <http://localhost:3000> in your browser.
+
+### Every time after that
+
+Open Docker Desktop first. Then open Terminal (Mac) or Command Prompt (Windows)
+and paste:
 
 ```bash
-git clone https://github.com/Valx01P/hack-university-compiler.git
 cd hack-university-compiler
 npm run up
 ```
 
-The first time, it shows a checklist of the compilers and courses with each
-one's size, the total, and your free disk space. Pick what you want and press
-Enter. It installs that and opens the app at
-[http://localhost:3000](http://localhost:3000).
-
-After that, `npm run up` starts the app in seconds. Ctrl+C stops it.
+It starts in seconds. To stop it, press **Ctrl + C** in that window. On
+Windows, if it asks **Terminate batch job (Y/N)?**, type **Y** and press
+**Enter**.
 
 ## Pick what to install
 
@@ -87,14 +153,24 @@ rest do the same.
 
 ## Troubleshooting
 
+- **"command not found: npm"** (Mac) or **"'npm' is not recognized"**
+  (Windows): Node.js isn't installed yet, or the window was open before you
+  installed it. Install it, then open a new window (on Windows, restart your
+  computer first).
+- **"'git' is not recognized"** (Windows): restart your computer after
+  installing Git, then open Command Prompt again.
+- **Docker says virtualization isn't turned on** (Windows): it's a setting in
+  your PC's startup menu (the BIOS). Search for your PC's brand and "enable
+  virtualization" for the steps.
 - **"sandbox offline"**: start Docker Desktop, then run `npm run up` again.
 - **"isn't installed yet"**: run the `npm run add` command it shows, then
   reload the page.
-- **Slow runs on a Mac**: turn on Rosetta in Docker Desktop (see above).
+- **Slow runs on a Mac**: turn on Rosetta in Docker Desktop (Mac step 2).
 - **Port 3000 or 3100 is taken**: an earlier `npm run up` is probably still
   running, so stop it first. Or use other ports:
-  `PORT=3001 HU_RUNNER_PORT=3101 npm run up` (in PowerShell,
-  `$env:PORT=3001; $env:HU_RUNNER_PORT=3101; npm run up`).
+  `PORT=3001 HU_RUNNER_PORT=3101 npm run up` on a Mac, or
+  `set "PORT=3001" && set "HU_RUNNER_PORT=3101" && npm run up` in Command
+  Prompt.
 
 ## Learn more
 
