@@ -6,16 +6,15 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { ROOT, dataDir, freshToken, portBusy, serveApp, stopTogether, superviseRunner } from "./lib/servers.mjs";
+import { ROOT, dataDir, freshToken, npmCommand, portBusy, serveApp, stopTogether, superviseRunner } from "./lib/servers.mjs";
 
 const PORT = Number(process.env.PORT) || 3000;
 const RUNNER_PORT = Number(process.env.HU_RUNNER_PORT) || 3100;
 
 if (!existsSync(path.join(ROOT, "runner", "node_modules"))) {
   console.log("Installing the workspace runner's dependencies (once)...");
-  const windows = process.platform === "win32";
-  // On Windows npm is npm.cmd, which Node only starts through a shell.
-  const r = spawnSync(windows ? "npm.cmd" : "npm", ["ci", "--prefix", "runner", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: ROOT, stdio: "inherit", shell: windows });
+  const [file, args, shell] = npmCommand(["ci", "--prefix", "runner", "--ignore-scripts", "--no-audit", "--no-fund"]);
+  const r = spawnSync(file, args, { cwd: ROOT, stdio: "inherit", shell });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 // The file icons and the workspaces' starting trees the app builds from

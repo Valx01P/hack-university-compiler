@@ -58,7 +58,7 @@ import {
   sizeMB,
 } from "./lib/components.mjs";
 import { chooseComponents } from "./lib/picker.mjs";
-import { ROOT, dataDir, freshToken, portBusy, serveApp, stopTogether, superviseRunner } from "./lib/servers.mjs";
+import { ROOT, dataDir, freshToken, npmCommand, portBusy, serveApp, stopTogether, superviseRunner } from "./lib/servers.mjs";
 
 const args = process.argv.slice(2);
 const dev = args.includes("--dev");
@@ -87,11 +87,12 @@ function fail(message) {
   console.error(`\n✗ ${message}`);
   process.exit(1);
 }
-// Only npm needs a shell on Windows (it's npm.cmd, which Node won't start
-// without one). Node and Docker run directly, so a path with spaces, like
-// C:\Program Files\nodejs\node.exe, or an argument like {{json .}} stays whole.
+// Nothing runs through a shell (npm goes by npmCommand), so a path with
+// spaces, like C:\Program Files\nodejs\node.exe, or an argument like
+// {{json .}} stays whole.
 function run(cmd, cmdArgs, { quiet = false } = {}) {
-  return spawnSync(cmd, cmdArgs, { cwd: ROOT, stdio: quiet ? "pipe" : "inherit", shell: windows && cmd === npm, encoding: "utf8" });
+  const [file, argv, shell] = cmd === npm ? npmCommand(cmdArgs) : [cmd, cmdArgs, false];
+  return spawnSync(file, argv, { cwd: ROOT, stdio: quiet ? "pipe" : "inherit", shell, encoding: "utf8" });
 }
 function npmRun(...npmArgs) {
   const r = run(npm, npmArgs);
@@ -128,6 +129,10 @@ let docker = null;
 const info = run("docker", ["info", "--format", "{{json .}}"], { quiet: true });
 if (info.error) {
   warn("Docker isn't installed, so code can't run yet. Get Docker Desktop from https://docs.docker.com/get-docker/.");
+} else if (info.status !== 0 && windows && /access is denied|permission denied/i.test(String(info.stderr))) {
+  // Windows: only members of docker-users may use Docker Desktop. Its
+  // installer adds whoever installed it, from the next sign-in.
+  warn("Docker is running, but your Windows user can't use it yet. Restart your computer (Docker Desktop's installer adds you to the docker-users group, and that takes a new sign-in), then run npm run up again.");
 } else if (info.status !== 0 && /permission denied/i.test(String(info.stderr))) {
   // Linux: the daemon runs, and only members of the docker group may use it.
   warn("Docker is running, but your user can't reach it. Add yourself to the docker group (sudo usermod -aG docker $USER), sign out and back in, then run npm run up again.");
@@ -137,6 +142,12 @@ if (info.error) {
   try {
     docker = JSON.parse(info.stdout);
     done(`Docker ${docker.ServerVersion}, with ${formatGiB(docker.MemTotal)} of memory`);
+    // The compilers' sandbox (Piston's isolate) needs cgroup v2. Docker
+    // Desktop has it, but an old WSL on Windows can still be on v1.
+    if (docker.CgroupVersion && docker.CgroupVersion !== "2") {
+      warn(`Docker uses cgroup v${docker.CgroupVersion}, and the compilers need v2, so Python, JavaScript, C++, Java, and Go may not run.`);
+      warn(windows ? "Update WSL (run wsl --update in Command Prompt) and Docker Desktop, restart your computer, then run npm run up again." : "Update Docker, then run npm run up again.");
+    }
   } catch {
     warn("Docker answered, but not in a way this script understands. Carrying on without it.");
   }
@@ -267,13 +278,21 @@ if (!plan.images.length && !plan.databases.length) {
 }
 if (docker) {
   const host = os.totalmem();
+  // Where Docker's memory is set: Docker Desktop's settings on a Mac, and
+  // WSL's on Windows, which gives it about half the PC's memory by default.
+  const setting = windows
+    ? "memory=16GB under [wsl2] in %UserProfile%\\.wslconfig, then restart your computer"
+    : "Docker Desktop: Settings > Resources > Memory";
+  const docs = windows
+    ? "https://learn.microsoft.com/windows/wsl/wsl-config#wslconfig"
+    : "https://docs.docker.com/desktop/settings-and-maintenance/settings/#resources";
   if (belowFloor(docker.MemTotal)) {
     warn(`Docker has ${formatGiB(docker.MemTotal)} of memory, under the ${formatGiB(MEMORY_FLOOR_BYTES)} every course is tested with.`);
-    warn("Spring Boot and Next.js workspaces may not start. Give Docker more in Docker Desktop: Settings > Resources > Memory.");
+    warn(`Spring Boot and Next.js workspaces may not start. Give Docker more (${setting}): ${docs}`);
   } else if (recommendMore(docker.MemTotal, host)) {
-    console.log(`   · This Mac has ${formatGiB(host)} and Docker has ${formatGiB(docker.MemTotal)}. Every course works as it is.`);
-    console.log("     With 16 GiB (Docker Desktop: Settings > Resources > Memory), five Next.js workspaces run at once.");
-    console.log("     https://docs.docker.com/desktop/settings-and-maintenance/settings/#resources");
+    console.log(`   · This computer has ${formatGiB(host)} and Docker has ${formatGiB(docker.MemTotal)}. Every course works as it is.`);
+    console.log(`     With 16 GiB (${setting}), five Next.js workspaces run at once.`);
+    console.log(`     ${docs}`);
   }
 }
 

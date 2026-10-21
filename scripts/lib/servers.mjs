@@ -12,6 +12,20 @@ import path from "node:path";
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 const windows = process.platform === "win32";
 
+/**
+ * How to run npm with `args`: [file, args, shell]. On Windows npm is
+ * npm.cmd, a batch file Node only starts through cmd.exe, which warns about
+ * the arguments (DEP0190) and asks "Terminate batch job (Y/N)?" once more on
+ * Ctrl+C. So when npm started this script (npm_execpath names its
+ * npm-cli.js), Node runs that file itself, and only without it does Windows
+ * go through npm.cmd and a shell.
+ */
+export function npmCommand(args) {
+  const cli = process.env.npm_execpath;
+  if (windows && cli && /npm-cli\.c?js$/.test(cli)) return [process.execPath, [cli, ...args], false];
+  return [windows ? "npm.cmd" : "npm", args, windows];
+}
+
 /** ~/.hack-university (HU_DATA_DIR), created 0700. */
 export function dataDir() {
   const dir = process.env.HU_DATA_DIR || path.join(os.homedir(), ".hack-university");
@@ -75,7 +89,9 @@ export function superviseRunner({ port, token, appPort, watch = false, onLine = 
     child = spawn(process.execPath, args, {
       cwd: ROOT,
       env: { ...process.env, HU_RUNNER_PORT: String(port), HU_RUNNER_TOKEN: token, PORT: String(appPort) },
-      stdio: ["ignore", "pipe", "pipe"],
+      // On Windows npm run up's runner gets an IPC channel too, for stop() to
+      // ask it to shut down. Not under --watch, whose child would inherit it.
+      stdio: ["ignore", "pipe", "pipe", ...(windows && !watch ? ["ipc"] : [])],
     });
     const prefix = (chunk) => {
       for (const line of String(chunk).split("\n")) if (line.trim()) onLine(`   [runner] ${line.replace(/^hu-runner: /, "")}\n`);
@@ -112,30 +128,38 @@ export function superviseRunner({ port, token, appPort, watch = false, onLine = 
 
   return {
     ready: waitReady,
-    /** Stops it for good: SIGTERM, so it removes its containers first. */
-    stop(signal = "SIGTERM") {
+    /**
+     * Stops it for good, so it removes its containers first: SIGTERM. On
+     * Windows a signal is TerminateProcess, which skips that cleanup, so
+     * there it's asked over the IPC channel instead, or with `ctrlC` left to
+     * the console's Ctrl+C, which reached it too. SIGKILL after 10 s.
+     */
+    stop(signal = "SIGTERM", { ctrlC = false } = {}) {
       stopping = true;
       if (!child || exited.has(child)) return Promise.resolve();
       const me = child;
       return new Promise((resolve) => {
         me.once("exit", () => resolve());
-        me.kill(signal);
+        if (!windows || signal === "SIGKILL") me.kill(signal);
+        else if (!ctrlC && me.connected) me.send("shutdown");
         setTimeout(() => me.kill("SIGKILL"), 10_000).unref();
       });
     },
   };
 }
 
-/** Runs Next.js (next start, or next dev) with the runner's address and token. */
+/**
+ * Runs Next.js (next start, or next dev) with the runner's address and token.
+ * Node starts Next's own CLI, with no npm or shell in between, so a signal
+ * reaches Next itself and Windows asks no extra "Terminate batch job (Y/N)?".
+ */
 export function serveApp({ dev, port, runnerPort, token }) {
-  const npm = windows ? "npm.cmd" : "npm";
+  const next = path.join(ROOT, "node_modules", "next", "dist", "bin", "next");
   // A pile of preview cookies on localhost must never make the app answer 431.
   const nodeOptions = [process.env.NODE_OPTIONS, "--max-http-header-size=65536"].filter(Boolean).join(" ");
-  const args = dev ? ["exec", "--no", "--", "next", "dev", "--hostname", "127.0.0.1"] : ["run", "start"];
-  return spawn(npm, args, {
+  return spawn(process.execPath, [next, dev ? "dev" : "start", "--hostname", "127.0.0.1"], {
     cwd: ROOT,
     stdio: "inherit",
-    shell: windows,
     env: {
       ...process.env,
       PORT: String(port),
@@ -158,7 +182,7 @@ export function stopTogether(app, runner) {
     if (stopping) return;
     stopping = true;
     // Tell the supervisor first, so the runner's exit isn't taken for a crash.
-    const runnerStopped = runner.stop();
+    const runnerStopped = runner.stop("SIGTERM", { ctrlC: signal === "SIGINT" });
     if (app.exitCode === null && app.signalCode === null) {
       if (signal !== "SIGINT") app.kill(signal);
       await new Promise((resolve) => app.once("exit", resolve));

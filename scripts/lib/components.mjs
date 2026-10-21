@@ -7,7 +7,7 @@ import { existsSync, readFileSync, statfsSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { ROOT, dataDir } from "./servers.mjs";
+import { ROOT, dataDir, npmCommand } from "./servers.mjs";
 
 export const CATALOG = JSON.parse(readFileSync(path.join(ROOT, "lib", "components.json"), "utf8"));
 export const COMPONENTS = CATALOG.components;
@@ -93,7 +93,8 @@ export function freeMB() {
 // --- What's here ----------------------------------------------------------------
 
 function quiet(cmd, args, timeout = 60_000) {
-  return spawnSync(cmd, args, { cwd: ROOT, stdio: "pipe", shell: windows && cmd === npm, encoding: "utf8", timeout });
+  const [file, argv, shell] = cmd === npm ? npmCommand(args) : [cmd, args, false];
+  return spawnSync(file, argv, { cwd: ROOT, stdio: "pipe", shell, encoding: "utf8", timeout });
 }
 
 export function dockerUp() {
@@ -203,7 +204,8 @@ export function saveChoice(ids) {
 // --- Installing and removing ---------------------------------------------------------
 
 function loud(cmd, args) {
-  const r = spawnSync(cmd, args, { cwd: ROOT, stdio: "inherit", shell: windows && cmd === npm });
+  const [file, argv, shell] = cmd === npm ? npmCommand(args) : [cmd, args, false];
+  const r = spawnSync(file, argv, { cwd: ROOT, stdio: "inherit", shell });
   return !r.error && r.status === 0;
 }
 
