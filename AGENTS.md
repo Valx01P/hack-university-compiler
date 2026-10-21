@@ -27,12 +27,23 @@ before committing it.
   container (`docker compose up` can recreate it when its config drifted, so
   test `npm run up` with `--minimal`, or with Docker unreachable, and test
   removals with `--dry-run`).
-- **Platforms:** made for a Mac, Windows is experimental (Docker Desktop with
-  WSL 2). Keep `.gitattributes` (LF everywhere, files run in Linux containers),
-  spawn `npm.cmd` with a shell but `node` and `docker` without one, and find
-  folders with `import.meta.dirname`, never a URL's pathname.
-- **Docs stay short where learners read them.** The README is the few steps
-  to start and the everyday commands, and details go in `docs/guide.md`.
+- **Platforms: Mac and Windows** (Docker Desktop, with WSL 2 on Windows).
+  Never tested on a real Windows PC yet, so keep these from the Windows
+  audit: `.gitattributes` (LF everywhere, files run in Linux containers);
+  npm through `npmCommand` (Node runs npm-cli.js, no `npm.cmd` shell) and
+  Next.js started by Node directly (`serveApp`); `node` and `docker` spawned
+  without a shell; `import.meta.dirname`, never a URL's pathname; path checks
+  with `path.sep`, never a literal `/`; tar modes fixed for Linux on Windows
+  (`linuxMode` in `runner/tar.ts`) and modes ignored as changes there
+  (`WINDOWS` in `runner/storage/host.ts`); exec stdin by byte count on
+  Windows, since its named pipes can't half-close (`STDIN_BY_COUNT` in
+  `runner/jobs.ts`, `HU_STDIN_BY_COUNT=1` runs it in the tests); fixtures'
+  links and exec bits from git's record (`windowsGitModes`); and the runner
+  asked to shut down over IPC, never killed, on Windows.
+- **Docs stay short where learners read them.** The README is the install
+  steps, written for someone who has never opened a terminal (numbered, per
+  computer, every command copyable), and the everyday commands. Details go in
+  `docs/guide.md`.
 
 ## What the app is
 
