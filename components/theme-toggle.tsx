@@ -14,11 +14,13 @@ import {
   setCloudsAmount,
   setCodeCommentsHidden,
   setLearnShade,
+  setResizeHighlightHidden,
   setScrollbarsHidden,
   setStarsAmount,
   setStarsBrightness,
   setStarsOn,
   setTheme,
+  setTooltipsHidden,
   useContrast,
   useLayoutLines,
   useContentLines,
@@ -27,11 +29,13 @@ import {
   useCloudsAmount,
   useCodeCommentsHidden,
   useLearnShade,
+  useResizeHighlightHidden,
   useScrollbarsHidden,
   useStarsAmount,
   useStarsBrightness,
   useStarsOn,
   useTheme,
+  useTooltipsHidden,
 } from "@/lib/theme";
 import { SwitchTrack } from "@/components/ui/switch-track";
 import { CodeBackgroundPicker, SelectionColorPicker } from "@/components/code/code-background";
@@ -44,9 +48,9 @@ import { POP, usePresence } from "@/lib/motion";
  * contrast picker that deepens whichever theme is active, and a code
  * background for every editor, code block, and terminal, how visible lines
  * are, whether code examples show their comments, the shade along the bottom
- * of Learn, whether the app shows its scrollbars, and the stars behind the
- * app with their brightness and amount and the clouds' version, cover, and
- * place. Goes through setTheme() so the
+ * of Learn, whether the app shows its tooltips, the highlight on draggable
+ * borders, and its scrollbars, and the stars behind the app with their
+ * brightness and amount and the clouds' version, cover, and place. Goes through setTheme() so the
  * `data-dark` flag and the editor's code theme stay in sync.
  * The icon starts as the Light sun on first paint (SSR) and corrects after
  * hydration — same pattern as the rest of the theme bootstrap, so there's no
@@ -63,6 +67,8 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
   const commentsShown = !useCodeCommentsHidden();
   const shadeOn = useLearnShade();
   const scrollbarsHidden = useScrollbarsHidden();
+  const tooltipsHidden = useTooltipsHidden();
+  const resizeHighlightHidden = useResizeHighlightHidden();
   const starsOn = useStarsOn();
   const starsBrightness = useStarsBrightness();
   const starsAmount = useStarsAmount();
@@ -306,6 +312,61 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                   <span className="mt-0.5 block text-xs text-ink-faint">Behind Previous and Next in Learn</span>
                 </span>
                 <SwitchTrack on={shadeOn} className="mt-0.5" />
+              </button>
+
+              {/* Every tooltip in the app, kept from showing. */}
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={tooltipsHidden}
+                onClick={() => setTooltipsHidden(!tooltipsHidden)}
+                className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="mt-0.5 size-4 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <rect x="3.5" y="4.5" width="17" height="11" rx="2" />
+                  <path d="M10 15.5l2 3 2-3M7.5 10h9" />
+                </svg>
+                <span className="flex-1">
+                  <span className="block">Hide tooltips</span>
+                  <span className="mt-0.5 block text-xs text-ink-faint">The hints that pop up on hover</span>
+                </span>
+                <SwitchTrack on={tooltipsHidden} className="mt-0.5" />
+              </button>
+
+              {/* Draggable borders, with only the cursor changing over them. */}
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={resizeHighlightHidden}
+                onClick={() => setResizeHighlightHidden(!resizeHighlightHidden)}
+                className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="mt-0.5 size-4 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M12 4v16M8 9l-3 3 3 3M16 9l3 3-3 3" />
+                </svg>
+                <span className="flex-1">
+                  <span className="block">Hide border highlight</span>
+                  <span className="mt-0.5 block text-xs text-ink-faint">Just the cursor over drag borders</span>
+                </span>
+                <SwitchTrack on={resizeHighlightHidden} className="mt-0.5" />
               </button>
             </div>
             <div>

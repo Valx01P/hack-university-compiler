@@ -95,8 +95,8 @@ export function ResizeHandle({
       } ${className}`}
     >
       <div
-        className={`pointer-events-none transition-colors group-hover:bg-accent-strong group-focus-visible:bg-accent-strong group-active:bg-accent-strong ${
-          across ? "h-px group-hover:h-[2px]" : "w-px group-hover:w-[2px]"
+        className={`pointer-events-none transition-colors handle-hover:bg-accent-strong group-focus-visible:bg-accent-strong handle-active:bg-accent-strong ${
+          across ? "h-px handle-hover:h-[2px]" : "w-px handle-hover:w-[2px]"
         } ${quiet ? "bg-transparent" : "bg-line"}`}
       />
     </div>

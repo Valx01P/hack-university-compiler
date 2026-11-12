@@ -436,6 +436,42 @@ export function useLearnShade(): boolean {
   return useSyncExternalStore(subscribeLearnShade, learnShadeOn, () => true);
 }
 
+/** A switch that hides something everywhere in the app, kept as
+    <html attr="hidden"> and stored only while it's on (showing it, off, is
+    the default). */
+function hiddenSetting(key: string, attr: string) {
+  const event = `hu:${key}-changed`;
+  const current = () => document.documentElement.getAttribute(attr) === "hidden";
+  const apply = (hidden: boolean) => {
+    if (hidden) document.documentElement.setAttribute(attr, "hidden");
+    else document.documentElement.removeAttribute(attr);
+  };
+
+  /** Hide or show it, persist it, and broadcast. */
+  function set(hidden: boolean) {
+    apply(hidden);
+    try {
+      if (hidden) localStorage.setItem(key, "hidden");
+      else localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+    try {
+      window.dispatchEvent(new Event(event));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const subscribe = subscribeTo(event, key, (stored) => apply(stored === "hidden"));
+  /** Whether it's hidden, any tab. */
+  function use(): boolean {
+    return useSyncExternalStore(subscribe, current, () => false);
+  }
+
+  return { set, use };
+}
+
 /**
  * Scrollbars: shown (the default) or hidden everywhere in the app, the page
  * and every pane, list, editor, code block, output, and terminal, which all
@@ -445,37 +481,36 @@ export function useLearnShade(): boolean {
  * (globals.css).
  */
 export const SCROLLBARS_KEY = "hu-scrollbars";
-const SCROLLBARS_EVENT = "hu:scrollbars-changed";
+const scrollbars = hiddenSetting(SCROLLBARS_KEY, "data-scrollbars");
+export const setScrollbarsHidden = scrollbars.set;
+export const useScrollbarsHidden = scrollbars.use;
 
-const scrollbarsHidden = () => document.documentElement.getAttribute("data-scrollbars") === "hidden";
+/**
+ * Tooltips: the hints that pop up when you hover something, and every one in
+ * the app is a title attribute (buttons and links, draggable borders, the
+ * editors' type error underlines). Shown by default, or hidden:
+ * <html data-tooltips="hidden">, applied before first paint by the bootstrap
+ * in app/layout.tsx, and while it's on components/chrome/tooltip-guard.tsx
+ * keeps every title off the page, and puts them back when it's turned off.
+ */
+export const TOOLTIPS_KEY = "hu-tooltips";
+const tooltips = hiddenSetting(TOOLTIPS_KEY, "data-tooltips");
+export const setTooltipsHidden = tooltips.set;
+export const useTooltipsHidden = tooltips.use;
 
-function applyScrollbars(hidden: boolean) {
-  if (hidden) document.documentElement.setAttribute("data-scrollbars", "hidden");
-  else document.documentElement.removeAttribute("data-scrollbars");
-}
-
-/** Hide or show every scrollbar, persist it, and broadcast. */
-export function setScrollbarsHidden(hidden: boolean) {
-  applyScrollbars(hidden);
-  try {
-    if (hidden) localStorage.setItem(SCROLLBARS_KEY, "hidden");
-    else localStorage.removeItem(SCROLLBARS_KEY);
-  } catch {
-    /* ignore */
-  }
-  try {
-    window.dispatchEvent(new Event(SCROLLBARS_EVENT));
-  } catch {
-    /* ignore */
-  }
-}
-
-const subscribeScrollbars = subscribeTo(SCROLLBARS_EVENT, SCROLLBARS_KEY, (stored) => applyScrollbars(stored === "hidden"));
-
-/** Whether the scrollbars are hidden, any tab. */
-export function useScrollbarsHidden(): boolean {
-  return useSyncExternalStore(subscribeScrollbars, scrollbarsHidden, () => false);
-}
+/**
+ * The highlight a draggable border shows under the pointer and while it's
+ * dragged (components/ui/resize-handle.tsx and the compiler's split): shown
+ * by default, or hidden so only the cursor changes. Hidden is
+ * <html data-resize-highlight="hidden">, applied before first paint by the
+ * bootstrap in app/layout.tsx, and the handle-hover and handle-active
+ * variants in globals.css stop matching there. A border focused from the
+ * keyboard keeps its highlight.
+ */
+export const RESIZE_HIGHLIGHT_KEY = "hu-resize-highlight";
+const resizeHighlight = hiddenSetting(RESIZE_HIGHLIGHT_KEY, "data-resize-highlight");
+export const setResizeHighlightHidden = resizeHighlight.set;
+export const useResizeHighlightHidden = resizeHighlight.use;
 
 /**
  * Stars: a starry background behind the app (components/chrome/starfield.tsx),

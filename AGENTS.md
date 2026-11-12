@@ -101,6 +101,11 @@ before committing it.
   at each contrast), and dropdown lists are dark under dark themes. A
   theme-menu switch, off by default, hides every scrollbar (xterm's included)
   while everything still scrolls.
+- **Tooltips are title attributes,** and Hide tooltips (off by default) keeps
+  them all off the page (`components/chrome/tooltip-guard.tsx`). Draggable
+  borders highlight through the `handle-hover` and `handle-active` variants,
+  which Hide border highlight (off by default) turns off, keyboard focus
+  still highlighted. Use those, not `group-hover`, on a new border.
 - **Hover and active highlights are the neutral gray `--raised`,** done checks
   are green (`--complete`) in every theme, and Run and Check keep their labels
   while busy (only greyed out), so bars never shift.

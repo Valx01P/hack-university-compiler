@@ -365,6 +365,16 @@ always stay. Code you changed yourself always shows as you wrote it.
 bottom of a Learn part, behind the floating Previous and Next. It spans the
 whole part, the lesson, the editor, and the output, in full screen too.
 
+**Hide tooltips**, under it, stops every hint that pops up when you rest the
+pointer on something: on buttons and links, on the draggable borders, and on
+the type error underlines in the editor (the Type check strip still lists
+them). A preview of your own site keeps its tooltips. **Hide border
+highlight**, under that, keeps the draggable borders (the lesson list's edge,
+the compiler's and Learn's splits, and the IDE's sidebar and dock) from
+lighting up under the pointer and while you drag them, so only the cursor
+changes. A border you reach with the keyboard still lights up. Both are off
+until you turn them on.
+
 **Stars**, the switch under Hide scrollbars, puts a starry sky behind the
 whole app: twinkling stars that drift slowly, and soft clouds, in the theme's
 colors (yellow on Light). While it's on, the page's large backgrounds go

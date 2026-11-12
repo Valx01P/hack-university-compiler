@@ -789,8 +789,8 @@ export function CompilerApp({
             }`}
           >
             <div
-              className={`pointer-events-none bg-line transition-colors group-hover:bg-accent-strong group-focus-visible:bg-accent-strong group-active:bg-accent-strong ${
-                horizontal ? "w-px group-hover:w-[2px]" : "h-px w-full group-hover:h-[2px]"
+              className={`pointer-events-none bg-line transition-colors handle-hover:bg-accent-strong group-focus-visible:bg-accent-strong handle-active:bg-accent-strong ${
+                horizontal ? "w-px handle-hover:w-[2px]" : "h-px w-full handle-hover:h-[2px]"
               }`}
             />
           </div>
