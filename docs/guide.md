@@ -347,6 +347,13 @@ dropdowns, the dividers in lessons, cheatsheets, challenges, and results, the
 Cheatsheet, Challenges, Learn, and Compiler buttons, and the Example and Your
 code editor in Learn. A focused field always shows its border.
 
+**Hide scrollbars**, the switch under the line sliders, hides every scrollbar
+in the app: the page's, the compiler's and Learn's panes, the lesson list,
+the editors, code blocks, and output, the cheatsheet and challenges panel,
+the IDE and its terminal, and the menus. Everything still scrolls with the
+mouse wheel, the trackpad, touch, and the keyboard. It's off until you turn
+it on.
+
 **Code comments**, a switch in the theme menu's left column, shows or hides
 the comments in the code examples of lessons and cheatsheets, for reading the
 code on its own (an example still prints its results when you run it). A
@@ -358,7 +365,7 @@ always stay. Code you changed yourself always shows as you wrote it.
 bottom of a Learn part, behind the floating Previous and Next. It spans the
 whole part, the lesson, the editor, and the output, in full screen too.
 
-**Stars**, the switch under the line sliders, puts a starry sky behind the
+**Stars**, the switch under Hide scrollbars, puts a starry sky behind the
 whole app: twinkling stars that drift slowly, and soft clouds, in the theme's
 colors (yellow on Light). While it's on, the page's large backgrounds go
 see-through so the sky shows behind the panels, the editors and code blocks,

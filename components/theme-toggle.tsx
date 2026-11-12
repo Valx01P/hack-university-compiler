@@ -14,6 +14,7 @@ import {
   setCloudsAmount,
   setCodeCommentsHidden,
   setLearnShade,
+  setScrollbarsHidden,
   setStarsAmount,
   setStarsBrightness,
   setStarsOn,
@@ -26,6 +27,7 @@ import {
   useCloudsAmount,
   useCodeCommentsHidden,
   useLearnShade,
+  useScrollbarsHidden,
   useStarsAmount,
   useStarsBrightness,
   useStarsOn,
@@ -42,8 +44,9 @@ import { POP, usePresence } from "@/lib/motion";
  * contrast picker that deepens whichever theme is active, and a code
  * background for every editor, code block, and terminal, how visible lines
  * are, whether code examples show their comments, the shade along the bottom
- * of Learn, and the stars behind the app with their brightness and amount and
- * the clouds' version, cover, and place. Goes through setTheme() so the
+ * of Learn, whether the app shows its scrollbars, and the stars behind the
+ * app with their brightness and amount and the clouds' version, cover, and
+ * place. Goes through setTheme() so the
  * `data-dark` flag and the editor's code theme stay in sync.
  * The icon starts as the Light sun on first paint (SSR) and corrects after
  * hydration — same pattern as the rest of the theme bootstrap, so there's no
@@ -59,6 +62,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
   const contentLines = useContentLines();
   const commentsShown = !useCodeCommentsHidden();
   const shadeOn = useLearnShade();
+  const scrollbarsHidden = useScrollbarsHidden();
   const starsOn = useStarsOn();
   const starsBrightness = useStarsBrightness();
   const starsAmount = useStarsAmount();
@@ -334,6 +338,34 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                   </>
                 }
               />
+
+              {/* Every scrollbar in the app, gone, and everything still
+                  scrolls. */}
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={scrollbarsHidden}
+                onClick={() => setScrollbarsHidden(!scrollbarsHidden)}
+                className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2 text-left text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="mt-0.5 size-4 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                  aria-hidden
+                >
+                  <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+                  <path d="M16.5 8.5v3.5" strokeWidth={2.25} />
+                </svg>
+                <span className="flex-1">
+                  <span className="block">Hide scrollbars</span>
+                  <span className="mt-0.5 block text-xs text-ink-faint">Everywhere, and it all still scrolls</span>
+                </span>
+                <SwitchTrack on={scrollbarsHidden} className="mt-0.5" />
+              </button>
 
               {/* A starry sky behind the app, then how bright it is and how
                   many stars it has. */}

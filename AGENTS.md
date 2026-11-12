@@ -98,7 +98,9 @@ before committing it.
   and small controls keep their fills. Full screen keeps the sky.
 - **Scrollbars follow their surface:** page areas use the theme's
   `--scrollbar`, code areas their code theme's (the paired page theme's thumb
-  at each contrast), and dropdown lists are dark under dark themes.
+  at each contrast), and dropdown lists are dark under dark themes. A
+  theme-menu switch, off by default, hides every scrollbar (xterm's included)
+  while everything still scrolls.
 - **Hover and active highlights are the neutral gray `--raised`,** done checks
   are green (`--complete`) in every theme, and Run and Check keep their labels
   while busy (only greyed out), so bars never shift.

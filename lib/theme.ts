@@ -437,6 +437,47 @@ export function useLearnShade(): boolean {
 }
 
 /**
+ * Scrollbars: shown (the default) or hidden everywhere in the app, the page
+ * and every pane, list, editor, code block, output, and terminal, which all
+ * still scroll by wheel, trackpad, touch, and keys. Hidden is
+ * <html data-scrollbars="hidden">, applied before first paint by the
+ * bootstrap in app/layout.tsx, and CSS drops every scrollbar there
+ * (globals.css).
+ */
+export const SCROLLBARS_KEY = "hu-scrollbars";
+const SCROLLBARS_EVENT = "hu:scrollbars-changed";
+
+const scrollbarsHidden = () => document.documentElement.getAttribute("data-scrollbars") === "hidden";
+
+function applyScrollbars(hidden: boolean) {
+  if (hidden) document.documentElement.setAttribute("data-scrollbars", "hidden");
+  else document.documentElement.removeAttribute("data-scrollbars");
+}
+
+/** Hide or show every scrollbar, persist it, and broadcast. */
+export function setScrollbarsHidden(hidden: boolean) {
+  applyScrollbars(hidden);
+  try {
+    if (hidden) localStorage.setItem(SCROLLBARS_KEY, "hidden");
+    else localStorage.removeItem(SCROLLBARS_KEY);
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.dispatchEvent(new Event(SCROLLBARS_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+const subscribeScrollbars = subscribeTo(SCROLLBARS_EVENT, SCROLLBARS_KEY, (stored) => applyScrollbars(stored === "hidden"));
+
+/** Whether the scrollbars are hidden, any tab. */
+export function useScrollbarsHidden(): boolean {
+  return useSyncExternalStore(subscribeScrollbars, scrollbarsHidden, () => false);
+}
+
+/**
  * Stars: a starry background behind the app (components/chrome/starfield.tsx),
  * off by default. On is <html data-stars>, applied before first paint by the
  * bootstrap in app/layout.tsx, and while it's on the app's large backgrounds,
