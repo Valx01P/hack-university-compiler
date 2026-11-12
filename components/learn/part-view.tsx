@@ -65,9 +65,13 @@ const TIMED_OUT = "Timed out. Your code ran too long (usually an infinite loop).
 // compiler's split it lasts for the session but isn't saved, so a reload
 // never shifts.
 const SPLIT = { min: 30, max: 70, initial: 50 };
+// How much of the height under the editor's tabs the code box gets, the
+// output the rest: 60 is the 3 to 2 it starts at. It lasts for the session
+// the same way.
+const EDITOR_SPLIT = { min: 30, max: 80, initial: 60 };
 // How long Next glows once your practice passes (the .next-glow animation).
 const NEXT_GLOW_MS = 3600;
-const session = { split: SPLIT.initial };
+const session = { split: SPLIT.initial, editor: EDITOR_SPLIT.initial };
 
 /**
  * One part of a lesson in Learn mode: a single idea with its worked examples
@@ -204,6 +208,14 @@ export function PartView({
     session.split = clamped;
     setSplitPct(clamped);
   };
+  const [editorShare, setEditorSharePct] = useState(session.editor);
+  const setEditorShare = (pct: number) => {
+    const clamped = Math.min(EDITOR_SPLIT.max, Math.max(EDITOR_SPLIT.min, Math.round(pct)));
+    session.editor = clamped;
+    setEditorSharePct(clamped);
+  };
+  const codeBoxRef = useRef<HTMLDivElement>(null);
+  const stdinRef = useRef<HTMLTextAreaElement>(null);
 
   const uid = useId();
   const tabId = (kind: TabKind) => `${uid}-tab-${kind}`;
@@ -700,16 +712,21 @@ export function PartView({
             </div>
           </div>
 
-          {/* The code box and the output share the height 3 to 2. Open stdin
-              comes out of the output, not the editor: the box starts from
-              2.5 times the field's height, plus its own border, which a zero
-              start already counts, and that leaves the editor exactly its
-              size and moves the output down by the field. The output's floor
-              drops by the field too, so a short window doesn't take it from
-              the editor either. */}
+          {/* The code box and the output share the height by the border
+              between them (editorShare, 3 to 2 at first). Open stdin comes
+              out of the output, not the editor: the box starts from the
+              field's height over the output's share, plus its own border,
+              which a zero start already counts, and that leaves the editor
+              exactly its size and moves the output down by the field. The
+              output's floor drops by the field too, so a short window
+              doesn't take it from the editor either. */}
           <div
-            style={showStdin ? { flexBasis: "calc(var(--stdin-h) * 2.5 + 2px)" } : undefined}
-            className="code-dark flex min-h-[12rem] flex-[3] flex-col overflow-hidden rounded-card border border-code-content-line bg-code-bg lg:min-h-0"
+            ref={codeBoxRef}
+            style={{
+              flexGrow: editorShare,
+              flexBasis: showStdin ? `calc(var(--stdin-h) * ${100 / (100 - editorShare)} + 2px)` : undefined,
+            }}
+            className="code-dark flex min-h-[12rem] flex-1 flex-col overflow-hidden rounded-card border border-code-content-line bg-code-bg lg:min-h-0"
           >
             <div className="min-h-0 flex-1">
               <CmEditor
@@ -754,6 +771,7 @@ export function PartView({
               )}
               {showStdin && (
                 <textarea
+                  ref={stdinRef}
                   id={stdinId}
                   aria-label="Program input (stdin)"
                   value={stdin}
@@ -788,10 +806,37 @@ export function PartView({
             </div>
           </div>
 
+          {/* Drag it down for a bigger editor, up for more output. Quiet: the
+              gap shows nothing until it's hovered, dragged, or focused. */}
+          <ResizeHandle
+            orientation="horizontal"
+            label="Resize the editor and the output"
+            value={editorShare}
+            min={EDITOR_SPLIT.min}
+            max={EDITOR_SPLIT.max}
+            step={5}
+            bigStep={10}
+            onChange={setEditorShare}
+            onDrag={(y) => {
+              const box = codeBoxRef.current?.getBoundingClientRect();
+              const out = outputRef.current?.getBoundingClientRect();
+              if (!box || !out) return;
+              // The height the two share, less the box's border, with the
+              // box's bottom half the border's 9px above the pointer. Open
+              // stdin is the output's, so it doesn't count.
+              const shared = box.height + out.height - 2;
+              const field = showStdin ? (stdinRef.current?.offsetHeight ?? 0) : 0;
+              if (shared > 0) setEditorShare(((y - 4.5 - box.top - 2 - field) / shared) * 100);
+            }}
+            onReset={() => setEditorShare(EDITOR_SPLIT.initial)}
+            quiet
+            className="hidden lg:flex"
+          />
+
           <div
             ref={outputRef}
-            style={showStdin ? { minHeight: "calc(9rem - var(--stdin-h))" } : undefined}
-            className="mt-2 flex min-h-[9rem] flex-[2] scroll-mb-2 scroll-mt-[calc(4rem+1px)] flex-col"
+            style={{ flexGrow: 100 - editorShare, minHeight: showStdin ? "calc(9rem - var(--stdin-h))" : undefined }}
+            className="mt-2 flex min-h-[9rem] flex-1 scroll-mb-2 scroll-mt-[calc(4rem+1px)] flex-col lg:mt-0"
           >
             <div className="flex shrink-0 items-center gap-1 pb-2">
               <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">

@@ -168,7 +168,10 @@ practice problems for each programming language, and 114 for SQL.
   move between them, and Home and End jump to the ends of a row.
 - Drag the borders to resize the lesson list, the lesson, and the editor.
   Drag the lesson list's border all the way left to fold it away, and bring it
-  back with the panel button or the border.
+  back with the panel button or the border. The gap between the editor and
+  the output is a border too: drag it down for a bigger editor, or up for
+  more output. Opening stdin never shrinks the editor, it moves the output
+  down instead.
 - Every code block in a part runs too (see [Runnable examples](#runnable-examples)).
 - Progress, your code in every tab, and the part you were on are saved in the
   browser's local storage. The address keeps the rest of your place: the tab
