@@ -612,7 +612,14 @@ export function PartView({
           </span>
         </div>
 
-        <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className="flex min-h-0 flex-1 flex-col">
+        {/* --stdin-h: the open stdin field's height (two lines, its padding,
+            and its top border), which comes out of the output (below). */}
+        <div
+          id={panelId}
+          role="tabpanel"
+          aria-labelledby={tabId(active)}
+          className="flex min-h-0 flex-1 flex-col [--stdin-h:calc(4rem+1px)] sm:[--stdin-h:calc(3.5rem+1px)]"
+        >
           <div className="slim-scroll -mx-1.5 -mt-0.5 flex shrink-0 items-center gap-2 overflow-x-auto px-1.5 pb-2 pt-1.5">
             <span className="shrink-0 font-mono text-sm font-medium">{lang.fileName}</span>
             <span className="hidden truncate text-xs text-ink-faint sm:inline">
@@ -693,7 +700,17 @@ export function PartView({
             </div>
           </div>
 
-          <div className="code-dark flex min-h-[12rem] flex-[3] flex-col overflow-hidden rounded-card border border-code-content-line bg-code-bg lg:min-h-0">
+          {/* The code box and the output share the height 3 to 2. Open stdin
+              comes out of the output, not the editor: the box starts from
+              2.5 times the field's height, plus its own border, which a zero
+              start already counts, and that leaves the editor exactly its
+              size and moves the output down by the field. The output's floor
+              drops by the field too, so a short window doesn't take it from
+              the editor either. */}
+          <div
+            style={showStdin ? { flexBasis: "calc(var(--stdin-h) * 2.5 + 2px)" } : undefined}
+            className="code-dark flex min-h-[12rem] flex-[3] flex-col overflow-hidden rounded-card border border-code-content-line bg-code-bg lg:min-h-0"
+          >
             <div className="min-h-0 flex-1">
               <CmEditor
                 key={`${lesson.id}:${tabKey(active)}:${showingAnswer ? "answer" : "code"}`}
@@ -743,7 +760,7 @@ export function PartView({
                   onChange={(e) => setStdins((s) => ({ ...s, [active]: e.target.value }))}
                   rows={2}
                   placeholder="Input passed to your program on stdin..."
-                  className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-content-line bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
+                  className="code-stdin-input slim-scroll block h-(--stdin-h) w-full resize-none border-0 border-t border-code-content-line bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
                 />
               )}
               {filesRow && (
@@ -771,7 +788,11 @@ export function PartView({
             </div>
           </div>
 
-          <div ref={outputRef} className="mt-2 flex min-h-[9rem] flex-[2] scroll-mb-2 scroll-mt-[calc(4rem+1px)] flex-col">
+          <div
+            ref={outputRef}
+            style={showStdin ? { minHeight: "calc(9rem - var(--stdin-h))" } : undefined}
+            className="mt-2 flex min-h-[9rem] flex-[2] scroll-mb-2 scroll-mt-[calc(4rem+1px)] flex-col"
+          >
             <div className="flex shrink-0 items-center gap-1 pb-2">
               <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
                 {panel.mode === "check" ? "Results" : "Output"}
