@@ -48,6 +48,8 @@ import { forbiddenUses, judgeTest, judgeTypeTests } from "@/lib/single-checks.mj
 import { useEnter } from "@/lib/motion";
 import { FULL_SCREEN_TITLE, useFullScreen } from "@/lib/full-screen";
 import { revealWorkspace, urlCount, urlParam, writeUrl } from "@/lib/url-state";
+import { PANES, paneValue } from "@/lib/panes";
+import { setPaneSize, usePaneSize } from "@/lib/pane-size";
 
 // Each worked example has a tab of its own, then Your code (the practice).
 type TabKind = "example" | "example2" | "example3" | "practice";
@@ -61,17 +63,14 @@ const EXAMPLE_TABS: TabKind[] = ["example", "example2", "example3"];
 const TAB_PARAM: Record<TabKind, string | null> = { example: null, example2: "ex2", example3: "ex3", practice: "code" };
 const TIMED_OUT = "Timed out. Your code ran too long (usually an infinite loop). It was stopped.";
 
-// How much of the width the lesson gets next to the editor. Like the
-// compiler's split it lasts for the session but isn't saved, so a reload
-// never shifts.
-const SPLIT = { min: 30, max: 70, initial: 50 };
-// How much of the height under the editor's tabs the code box gets, the
-// output the rest: 60 is the 3 to 2 it starts at. It lasts for the session
-// the same way.
-const EDITOR_SPLIT = { min: 30, max: 80, initial: 60 };
+// How much of the width the lesson gets next to the editor, and how much of
+// the height under the editor's tabs the code box gets, the output the rest
+// (60 is the 3 to 2 it starts at). Both are saved (lib/panes.ts).
+const SPLIT = PANES["learn-split"];
+const EDITOR_SPLIT = PANES["learn-editor"];
+const EDITOR_SHARE = paneValue("learn-editor");
 // How long Next glows once your practice passes (the .next-glow animation).
 const NEXT_GLOW_MS = 3600;
-const session = { split: SPLIT.initial, editor: EDITOR_SPLIT.initial };
 
 /**
  * One part of a lesson in Learn mode: a single idea with its worked examples
@@ -202,18 +201,10 @@ export function PartView({
   // (?full=semi, ?full=1), and Escape leaves it.
   const [full, stepFull, screenMode] = useFullScreen();
 
-  const [split, setSplitPct] = useState(session.split);
-  const setSplit = (pct: number) => {
-    const clamped = Math.min(SPLIT.max, Math.max(SPLIT.min, Math.round(pct)));
-    session.split = clamped;
-    setSplitPct(clamped);
-  };
-  const [editorShare, setEditorSharePct] = useState(session.editor);
-  const setEditorShare = (pct: number) => {
-    const clamped = Math.min(EDITOR_SPLIT.max, Math.max(EDITOR_SPLIT.min, Math.round(pct)));
-    session.editor = clamped;
-    setEditorSharePct(clamped);
-  };
+  const split = usePaneSize("learn-split");
+  const setSplit = (pct: number) => setPaneSize("learn-split", pct);
+  const editorShare = usePaneSize("learn-editor");
+  const setEditorShare = (pct: number) => setPaneSize("learn-editor", pct);
   const codeBoxRef = useRef<HTMLDivElement>(null);
   const stdinRef = useRef<HTMLTextAreaElement>(null);
 
@@ -506,7 +497,7 @@ export function PartView({
         // (never squeezed to fit).
         "full:max-lg:overflow-y-auto full:max-lg:*:shrink-0"
       }`}
-      style={{ "--learn-split": `${split}%` } as React.CSSProperties}
+      style={{ "--learn-split": paneValue("learn-split") } as React.CSSProperties}
     >
       {hasNav && <LearnShade />}
       {/* Left: the part. Its scroll padding (and, on narrow screens, the
@@ -713,18 +704,18 @@ export function PartView({
           </div>
 
           {/* The code box and the output share the height by the border
-              between them (editorShare, 3 to 2 at first). Open stdin comes
-              out of the output, not the editor: the box starts from the
-              field's height over the output's share, plus its own border,
-              which a zero start already counts, and that leaves the editor
-              exactly its size and moves the output down by the field. The
-              output's floor drops by the field too, so a short window
+              between them (EDITOR_SHARE out of 100, 3 to 2 at first). Open
+              stdin comes out of the output, not the editor: the box starts
+              from the field's height over the output's share, plus its own
+              border, which a zero start already counts, and that leaves the
+              editor exactly its size and moves the output down by the field.
+              The output's floor drops by the field too, so a short window
               doesn't take it from the editor either. */}
           <div
             ref={codeBoxRef}
             style={{
-              flexGrow: editorShare,
-              flexBasis: showStdin ? `calc(var(--stdin-h) * ${100 / (100 - editorShare)} + 2px)` : undefined,
+              flexGrow: EDITOR_SHARE,
+              flexBasis: showStdin ? `calc(var(--stdin-h) * 100 / (100 - ${EDITOR_SHARE}) + 2px)` : undefined,
             }}
             className="code-dark flex min-h-[12rem] flex-1 flex-col overflow-hidden rounded-card border border-code-content-line bg-code-bg lg:min-h-0"
           >
@@ -835,7 +826,7 @@ export function PartView({
 
           <div
             ref={outputRef}
-            style={{ flexGrow: 100 - editorShare, minHeight: showStdin ? "calc(9rem - var(--stdin-h))" : undefined }}
+            style={{ flexGrow: `calc(100 - ${EDITOR_SHARE})`, minHeight: showStdin ? "calc(9rem - var(--stdin-h))" : undefined }}
             className="mt-2 flex min-h-[9rem] flex-1 scroll-mb-2 scroll-mt-[calc(4rem+1px)] flex-col lg:mt-0"
           >
             <div className="flex shrink-0 items-center gap-1 pb-2">

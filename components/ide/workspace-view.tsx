@@ -17,14 +17,16 @@ import { SwitchTrack } from "@/components/ui/switch-track";
 import { FULL_SCREEN_TITLE, useFullScreen } from "@/lib/full-screen";
 import { setIdeSetting, useIdeSettings } from "@/lib/ide-settings";
 import { revealWorkspace, urlParam, writeUrl } from "@/lib/url-state";
+import { PANES, paneValue } from "@/lib/panes";
+import { setPaneSize, usePaneSize } from "@/lib/pane-size";
 import { useStore, WorkspaceStore, type DockPanel } from "@/lib/workspace-store";
 import type { WorkspaceProps } from "@/lib/workspace-types";
 
 /**
  * The IDE (architecture §8.1, §8.2): the explorer, the editor with its tabs,
  * the dock with terminals and panels, and the preview, around one workspace.
- * Pane sizes are CSS variables, set in the server markup and kept for the
- * session (never saved, so a reload never shifts). The explorer tree, the
+ * Pane sizes are CSS variables, saved where you leave them and applied
+ * before first paint (lib/panes.ts), so a reload never shifts. The explorer tree, the
  * tabs, and the toolbar paint first from the template's starting tree (built
  * at build time), and a restoring load keeps the region hidden until the
  * live tree, the open file, and your tabs are in, then shows it whole, with
@@ -39,12 +41,7 @@ import type { WorkspaceProps } from "@/lib/workspace-types";
  * Mod+R) are never taken.
  */
 
-const SPLIT = {
-  explorer: { min: 160, max: 360, initial: 208 },
-  dock: { min: 15, max: 85, initial: 32 },
-  preview: { min: 20, max: 75, initial: 40 },
-};
-const session = { explorer: SPLIT.explorer.initial, dock: SPLIT.dock.initial, preview: SPLIT.preview.initial };
+const SPLIT = { explorer: PANES["ide-explorer"], dock: PANES["ide-dock"], preview: PANES["ide-preview"] };
 const DOCKS: DockPanel[] = ["terminal", "server", "ports", "api", "database", "problems", "results"];
 const REVEAL_MS = 1500;
 
@@ -88,9 +85,12 @@ export function WorkspaceView({
   const [full, stepFull, screenMode] = useFullScreen();
   const [quickOpen, setQuickOpen] = useState(false);
   const [mobile, setMobile] = useState<"files" | "code" | "dock" | "preview">("code");
-  const [explorerWidth, setExplorerWidth] = useState(session.explorer);
-  const [dockPct, setDockPct] = useState(session.dock);
-  const [previewPct, setPreviewPct] = useState(session.preview);
+  const explorerWidth = usePaneSize("ide-explorer");
+  const dockPct = usePaneSize("ide-dock");
+  const previewPct = usePaneSize("ide-preview");
+  const setExplorerWidth = (px: number) => setPaneSize("ide-explorer", px);
+  const setDockPct = (pct: number) => setPaneSize("ide-dock", pct);
+  const setPreviewPct = (pct: number) => setPaneSize("ide-preview", pct);
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const editorRowRef = useRef<HTMLDivElement>(null);
@@ -257,9 +257,9 @@ export function WorkspaceView({
   const previewOpen = store.preview.open && store.preview.port !== null;
   const checkBusy = store.check.status === "running";
   const ideStyle = {
-    "--ide-explorer": `${explorerWidth}px`,
-    "--ide-dock": `${dockPct}%`,
-    "--ide-preview": `${previewPct}%`,
+    "--ide-explorer": paneValue("ide-explorer"),
+    "--ide-dock": paneValue("ide-dock"),
+    "--ide-preview": paneValue("ide-preview"),
   } as React.CSSProperties;
 
   return (
@@ -391,12 +391,12 @@ export function WorkspaceView({
                 max={SPLIT.explorer.max}
                 step={16}
                 bigStep={48}
-                onChange={(v) => setExplorerWidth((session.explorer = Math.min(SPLIT.explorer.max, Math.max(SPLIT.explorer.min, v))))}
+                onChange={setExplorerWidth}
                 onDrag={(x) => {
                   const left = editorRowRef.current?.getBoundingClientRect().left ?? 0;
-                  setExplorerWidth((session.explorer = Math.min(SPLIT.explorer.max, Math.max(SPLIT.explorer.min, Math.round(x - left)))));
+                  setExplorerWidth(x - left);
                 }}
-                onReset={() => setExplorerWidth((session.explorer = SPLIT.explorer.initial))}
+                onReset={() => setExplorerWidth(SPLIT.explorer.initial)}
                 className="hidden lg:flex"
               />
             </>
@@ -409,17 +409,17 @@ export function WorkspaceView({
             <>
               <ResizeHandle
                 label="Resize the preview"
-                value={previewPct}
-                min={SPLIT.preview.min}
-                max={SPLIT.preview.max}
+                value={100 - previewPct}
+                min={100 - SPLIT.preview.max}
+                max={100 - SPLIT.preview.min}
                 step={5}
                 bigStep={10}
-                onChange={(v) => setPreviewPct((session.preview = Math.min(SPLIT.preview.max, Math.max(SPLIT.preview.min, 100 - v))))}
+                onChange={(v) => setPreviewPct(100 - v)}
                 onDrag={(x) => {
                   const r = editorRowRef.current?.getBoundingClientRect();
-                  if (r && r.width) setPreviewPct((session.preview = Math.min(SPLIT.preview.max, Math.max(SPLIT.preview.min, Math.round(((r.right - x) / r.width) * 100)))));
+                  if (r && r.width) setPreviewPct(((r.right - x) / r.width) * 100);
                 }}
-                onReset={() => setPreviewPct((session.preview = SPLIT.preview.initial))}
+                onReset={() => setPreviewPct(SPLIT.preview.initial)}
                 className="hidden lg:flex"
               />
               <div className={`min-h-0 shrink-0 lg:w-[var(--ide-preview)] max-lg:flex-1 ${mobile === "preview" ? "" : "max-lg:hidden"}`}>
@@ -437,12 +437,12 @@ export function WorkspaceView({
             max={100 - SPLIT.dock.min}
             step={5}
             bigStep={10}
-            onChange={(v) => setDockPct((session.dock = Math.min(SPLIT.dock.max, Math.max(SPLIT.dock.min, 100 - v))))}
+            onChange={(v) => setDockPct(100 - v)}
             onDrag={(y) => {
               const r = bodyRef.current?.getBoundingClientRect();
-              if (r && r.height) setDockPct((session.dock = Math.min(SPLIT.dock.max, Math.max(SPLIT.dock.min, Math.round(((r.bottom - y) / r.height) * 100)))));
+              if (r && r.height) setDockPct(((r.bottom - y) / r.height) * 100);
             }}
-            onReset={() => setDockPct((session.dock = SPLIT.dock.initial))}
+            onReset={() => setDockPct(SPLIT.dock.initial)}
             className="hidden lg:flex"
           />
         )}

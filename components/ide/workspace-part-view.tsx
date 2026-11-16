@@ -18,6 +18,8 @@ import { markSolved, setLastLesson, useSolvedState } from "@/lib/learn-progress"
 import { useEnter } from "@/lib/motion";
 import { useFullScreen } from "@/lib/full-screen";
 import { urlCount, urlParam, writeUrl } from "@/lib/url-state";
+import { PANES, paneValue } from "@/lib/panes";
+import { setPaneSize, usePaneSize } from "@/lib/pane-size";
 
 /**
  * A Learn part in the workspace format (architecture §8.1): the lesson
@@ -30,8 +32,8 @@ import { urlCount, urlParam, writeUrl } from "@/lib/url-state";
  * and the lesson column says how many pass. A pass marks the part solved.
  */
 
-const SPLIT = { min: 25, max: 70, initial: 38 };
-const session = { split: SPLIT.initial };
+// How much of the width the lesson gets beside the IDE, saved (lib/panes.ts).
+const SPLIT = PANES["learn-ide-split"];
 const CODE_BLOCK =
   "code-dark slim-scroll overflow-x-auto rounded-card border border-code-content-line bg-code-bg p-4 pr-16 font-mono text-[13px] leading-6 text-code-ink";
 const PLACE_MARGIN = "scroll-mt-[calc(4rem+1rem)] lg:scroll-mt-4";
@@ -79,7 +81,7 @@ export function WorkspacePartView({
   const firstTab = data.tabs[0]?.tab ?? "code";
   const [tab, setTab] = useState(firstTab === "" ? "" : "code");
   const active = data.tabs.find((t) => t.tab === tab) ?? data.tabs[data.tabs.length - 1];
-  const [split, setSplitPct] = useState(session.split);
+  const split = usePaneSize("learn-ide-split");
   const gridRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -110,11 +112,7 @@ export function WorkspacePartView({
     return () => window.clearTimeout(timer);
   }, [nextGlow]);
 
-  const setSplit = (pct: number) => {
-    const clamped = Math.min(SPLIT.max, Math.max(SPLIT.min, Math.round(pct)));
-    session.split = clamped;
-    setSplitPct(clamped);
-  };
+  const setSplit = (pct: number) => setPaneSize("learn-ide-split", pct);
 
   const onTabKey = (e: React.KeyboardEvent, i: number) => {
     const last = data.tabs.length - 1;
@@ -168,7 +166,7 @@ export function WorkspacePartView({
       ref={gridRef}
       data-workspace
       className="flex min-h-0 flex-1 flex-col lg:relative lg:grid lg:grid-cols-[var(--learn-split)_9px_minmax(0,1fr)] full:max-lg:overflow-y-auto full:max-lg:*:shrink-0"
-      style={{ "--learn-split": `${split}%` } as React.CSSProperties}
+      style={{ "--learn-split": paneValue("learn-ide-split") } as React.CSSProperties}
     >
       {hasNav && <LearnShade />}
       <div className={`slim-scroll relative flex min-h-0 flex-col lg:overflow-y-auto ${hasNav ? "lg:scroll-pb-24 full:lg:scroll-pb-36" : ""}`}>

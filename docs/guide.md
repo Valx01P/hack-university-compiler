@@ -171,7 +171,8 @@ practice problems for each programming language, and 114 for SQL.
   back with the panel button or the border. The gap between the editor and
   the output is a border too: drag it down for a bigger editor, or up for
   more output. Opening stdin never shrinks the editor, it moves the output
-  down instead.
+  down instead. Every border stays where you leave it, folded list included,
+  even after a reload.
 - Every code block in a part runs too (see [Runnable examples](#runnable-examples)).
 - Progress, your code in every tab, and the part you were on are saved in the
   browser's local storage. The address keeps the rest of your place: the tab
@@ -437,10 +438,12 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
   version, cover, and place). Everything
   visual is applied before the page paints, so nothing shifts on reload, and
   the menus read what's applied, so opening one never flashes the default
-  first. The editor/output split isn't saved, so
-  a reload always opens on the default layout (it does carry over while you
-  switch languages). The panel and the challenge you're on live in the
-  address instead.
+  first. Every border you drag (the editor/output split, the panel beside
+  them, Learn's lesson list, splits, and editor/output border, and the IDE's
+  explorer, dock, and preview) stays where you leave it, reloads included,
+  and it's applied before the page paints too. Double-click a border to put
+  it back. The panel and the challenge you're on live in the address
+  instead.
 
 ## Project layout
 

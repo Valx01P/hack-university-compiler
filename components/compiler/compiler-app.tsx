@@ -35,28 +35,27 @@ import type { LessonRef } from "@/lib/learn-types";
 import { normalizeOutput, runInSandbox, runTests, type RunState } from "@/lib/run-code";
 import { joinArgs, splitArgs } from "@/lib/shell-words";
 import { EASE, dur, gsap } from "@/lib/motion";
+import { PANES, paneValue } from "@/lib/panes";
+import { setPaneSize, usePaneSize } from "@/lib/pane-size";
 
 type Orient = "horizontal" | "vertical";
 
-// The split is never saved, so every reload renders the default one with
-// nothing to shift. It lives for this page load, which keeps it in place
-// while you switch languages, along with the cheatsheet or challenges panel
-// and the challenge you're on (every challenge exists in every language).
-// Those are also kept in the address (lib/compiler-url.ts), so a reload
-// opens them again.
+// The splits (the editor and output, and both beside the panel) are saved
+// where you leave them and applied before first paint (lib/panes.ts). The
+// rest lives for this page load, which keeps it in place while you switch
+// languages: the layout, the cheatsheet or challenges panel, and the
+// challenge you're on (every challenge exists in every language). Those are
+// also kept in the address (lib/compiler-url.ts), so a reload opens them
+// again.
 const sessionLayout: {
   orient: Orient;
-  splitPct: number;
   refOpen: boolean;
   refTab: ReferenceTab;
-  refPct: number;
   challengeId: string | null;
 } = {
   orient: "horizontal",
-  splitPct: 55,
   refOpen: false,
   refTab: "cheatsheet",
-  refPct: 55,
   challengeId: null,
 };
 
@@ -99,7 +98,7 @@ export function CompilerApp({
   const [announcement, setAnnouncement] = useState("");
   const outputId = useId();
   const [orient, setOrient] = useState<Orient>(() => sessionLayout.orient);
-  const [splitPct, setSplitPct] = useState(() => sessionLayout.splitPct);
+  const splitPct = usePaneSize("compiler-split");
   // Full screen, the same one Learn uses, lasts while you switch languages
   // and go to Learn and back. Its button hides the header first, then covers
   // the window. It's in the address (?full=semi, ?full=1), and Escape leaves
@@ -111,7 +110,7 @@ export function CompilerApp({
   const [refOpen, setRefOpenState] = useState(() => sessionLayout.refOpen);
   const [refMounted, setRefMounted] = useState(() => sessionLayout.refOpen);
   const [refTab, setRefTabState] = useState<ReferenceTab>(() => sessionLayout.refTab);
-  const [refPct, setRefPctState] = useState(() => sessionLayout.refPct);
+  const refPct = usePaneSize("compiler-ref");
   const { data: refData, error: refError } = useReferenceData(lang.slug, refOpen);
   const progress = useChallengeProgress(lang.slug);
 
@@ -211,15 +210,11 @@ export function CompilerApp({
   }
 
   function setSplit(next: number) {
-    const clamped = Math.min(80, Math.max(20, Math.round(next)));
-    setSplitPct(clamped);
-    sessionLayout.splitPct = clamped;
+    setPaneSize("compiler-split", next);
   }
 
   function setRefPct(next: number) {
-    const clamped = Math.min(75, Math.max(30, Math.round(next)));
-    setRefPctState(clamped);
-    sessionLayout.refPct = clamped;
+    setPaneSize("compiler-ref", next);
   }
 
   function setRefTab(tab: ReferenceTab) {
@@ -571,7 +566,7 @@ export function CompilerApp({
         className={`flex min-w-0 flex-1 flex-col ${
           refOpen ? "overflow-y-auto lg:grid lg:grid-cols-[var(--ref-left)_9px_minmax(0,1fr)] lg:overflow-hidden" : ""
         }`}
-        style={refOpen ? ({ "--ref-left": `${refPct}%` } as React.CSSProperties) : undefined}
+        style={refOpen ? ({ "--ref-left": paneValue("compiler-ref") } as React.CSSProperties) : undefined}
       >
         {/* Editor | output split */}
         <div
@@ -583,8 +578,8 @@ export function CompilerApp({
           }`}
           style={
             {
-              "--compiler-left": `${splitPct}%`,
-              "--split-pct": `${splitPct}%`,
+              "--compiler-left": paneValue("compiler-split"),
+              "--split-pct": paneValue("compiler-split"),
             } as React.CSSProperties
           }
         >
@@ -758,7 +753,7 @@ export function CompilerApp({
             aria-valuenow={splitPct}
             tabIndex={0}
             onPointerDown={startDrag}
-            onDoubleClick={() => nudgeSplit(55 - splitPct)}
+            onDoubleClick={() => setSplit(PANES["compiler-split"].initial)}
             onKeyDown={(e) => {
               const step = e.shiftKey ? 10 : 5;
               if (horizontal && e.key === "ArrowLeft") {
@@ -908,7 +903,7 @@ export function CompilerApp({
               const r = refGridRef.current?.getBoundingClientRect();
               if (r && r.width > 0) setRefPct(((x - r.left) / r.width) * 100);
             }}
-            onReset={() => setRefPct(55)}
+            onReset={() => setRefPct(PANES["compiler-ref"].initial)}
             className="hidden lg:flex"
           />
         )}

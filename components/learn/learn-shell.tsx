@@ -13,14 +13,17 @@ import { ResizeHandle } from "@/components/ui/resize-handle";
 import { playgroundHref } from "@/lib/courses";
 import { useIsFullScreen } from "@/lib/full-screen";
 import { EASE, dur, gsap } from "@/lib/motion";
+import { PANES, paneValue } from "@/lib/panes";
+import { setPaneSize, usePaneSize } from "@/lib/pane-size";
 import type { Course, LessonRef } from "@/lib/learn-types";
 
-// The lesson list's width (0 when folded away), and the width it reopens at.
-// Like the compiler's split they last for the session (moving between
-// lessons keeps them) but aren't saved, so a reload never shifts. Dragging it
-// narrower than `collapseBelow` folds it away completely.
-const SIDEBAR = { min: 208, max: 440, initial: 256, collapseBelow: 150 };
-const session = { sidebar: SIDEBAR.initial, open: SIDEBAR.initial };
+// The lesson list's width (0 when folded away), and the width it reopens at,
+// both saved and applied before first paint (lib/panes.ts), folded included.
+// Dragging it narrower than `collapseBelow` folds it away completely.
+const SIDEBAR = { min: 208, max: PANES["learn-list"].max, initial: PANES["learn-list"].initial, collapseBelow: 150 };
+// The list's width as CSS: the saved width, which the list and its frame
+// follow whenever they aren't sliding.
+const LIST_WIDTH = paneValue("learn-list");
 
 // The sidebar docks from this width up. Narrower screens open the lesson list
 // as a drawer instead.
@@ -85,13 +88,21 @@ export function LearnShell({
   const asideRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const panelButtonRef = useRef<HTMLButtonElement>(null);
-  const [sidebar, setSidebarWidth] = useState(session.sidebar);
+  const sidebar = usePaneSize("learn-list");
+  const reopenAt = usePaneSize("learn-list-open");
   const collapsed = sidebar === 0;
 
   const commit = (width: number) => {
-    session.sidebar = width;
-    if (width) session.open = width;
-    setSidebarWidth(width);
+    setPaneSize("learn-list", width);
+    if (width) setPaneSize("learn-list-open", width);
+  };
+  // Back to following the saved width, once a slide or a drag is done.
+  const settle = () => {
+    if (asideRef.current) asideRef.current.style.width = LIST_WIDTH;
+    if (listRef.current) {
+      listRef.current.style.width = LIST_WIDTH;
+      listRef.current.style.transform = "";
+    }
   };
 
   // Lays the sidebar out `w` wide on its way from one width to another.
@@ -124,7 +135,7 @@ export function LearnShell({
       onUpdate: () => layOut(state.w, from, to, open),
       onComplete: () => {
         tween.current = null;
-        if (listRef.current) listRef.current.style.transform = "";
+        settle();
         done?.();
       },
     });
@@ -169,8 +180,8 @@ export function LearnShell({
       tween.current = null;
       folding.current = false;
     }
-    layOut(next, next, next, next);
     commit(next);
+    settle();
   };
 
   // Below the docking width (or in full screen) the list is a drawer,
@@ -184,7 +195,7 @@ export function LearnShell({
 
   const shown = wide ? !collapsed : drawer;
   const togglePanel = () => {
-    if (window.matchMedia(WIDE).matches) animateTo(collapsed ? session.open : 0);
+    if (window.matchMedia(WIDE).matches) animateTo(collapsed ? reopenAt : 0);
     else setDrawer((open) => !open);
   };
 
@@ -204,11 +215,13 @@ export function LearnShell({
               title={shown ? "Hide the lesson list" : "Show the lesson list"}
               className="-ml-1 inline-flex size-7 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink"
             >
-              {/* Which icon depends on the screen: the docked sidebar starts
-                  open, the drawer starts closed. CSS picks, so the first
-                  paint is right on both. */}
+              {/* Which icon depends on the screen: the docked sidebar opens
+                  as you left it (folded or not, <html data-learn-list-folded>),
+                  the drawer starts closed. CSS picks, so the first paint is
+                  right on both. */}
               <span className="hidden xl:contents">
-                {collapsed ? <PanelLeftOpen className="size-4" aria-hidden /> : <PanelLeftClose className="size-4" aria-hidden />}
+                <PanelLeftOpen className="learn-list-folded-only size-4" aria-hidden />
+                <PanelLeftClose className="learn-list-open-only size-4" aria-hidden />
               </span>
               <span className="contents xl:hidden">
                 {drawer ? <PanelLeftClose className="size-4" aria-hidden /> : <PanelLeftOpen className="size-4" aria-hidden />}
@@ -242,8 +255,8 @@ export function LearnShell({
           {!collapsed && (
             // Clipped, not scrollable: nothing (like scrolling the current
             // lesson into view) can shift the list sideways while it slides.
-            <aside ref={asideRef} style={{ width: sidebar }} className="hidden shrink-0 overflow-clip xl:flex">
-              <div ref={listRef} style={{ width: sidebar }} className="flex min-h-0 shrink-0 flex-col">
+            <aside ref={asideRef} style={{ width: LIST_WIDTH }} className="hidden shrink-0 overflow-clip xl:flex">
+              <div ref={listRef} style={{ width: LIST_WIDTH }} className="flex min-h-0 shrink-0 flex-col">
                 <LessonList {...listProps} />
               </div>
             </aside>
@@ -260,7 +273,7 @@ export function LearnShell({
             onDrag={(x) => dragTo(x - (rowRef.current?.getBoundingClientRect().left ?? 0) - 4)}
             onReset={() => animateTo(SIDEBAR.initial)}
             quiet={collapsed}
-            className={`hidden xl:flex ${collapsed ? "-mr-[9px] relative z-10" : ""}`}
+            className={`learn-list-handle hidden xl:flex ${collapsed ? "-mr-[9px] relative z-10" : ""}`}
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
         </div>

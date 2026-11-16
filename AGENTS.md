@@ -122,8 +122,11 @@ before committing it.
   read the applied state, so they never show a default for a frame.
 - **A reload keeps your place:** the open panel, the challenge and its hints,
   list filters, the cheatsheet search and section, the SQL view, Learn's tab
-  and hints and position, and full screen are in the address. Layout (splits,
-  pane sizes) is not saved, and answer reveals ask again after a reload.
+  and hints and position, and full screen are in the address. Every
+  draggable border's position (splits, pane sizes, the lesson list folded or
+  not) is saved where you leave it and applied before first paint
+  (`lib/panes.ts`, read through `lib/pane-size.ts`), so a new border goes in
+  that table. Answer reveals ask again after a reload.
 - **Hover is intent:** links prefetch, and code examples warm their editor on
   hover.
 - **Learn never scrolls the page on desktop.** The lesson list and the lesson
