@@ -106,6 +106,9 @@ export function langExt(language: string): Extension {
   }
 }
 
+// The languages whose blocks are their indentation, with no closing line.
+const OFFSIDE = new Set(["python", "yaml"]);
+
 // Go and Makefiles are indented with tabs (gofmt, make), everything else
 // with spaces.
 export function indentUnitFor(tabSize: 2 | 4, language: string): string {
@@ -306,7 +309,11 @@ export function editorExtensions({
         bracketColors(language),
         search({ top: true }),
         indentationMarkers({
-          markerType: "codeOnly",
+          // A blank line inside a block keeps the block's guide, up to the
+          // line that closes it ("fullScope"). Python and YAML have no
+          // closing line, so their blocks end at the last line of code
+          // ("codeOnly"), the way VS Code draws them.
+          markerType: OFFSIDE.has(languageId(language)) ? "codeOnly" : "fullScope",
           thickness: 1,
           activeThickness: 1.5,
           colors: {
