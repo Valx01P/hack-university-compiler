@@ -67,7 +67,7 @@ export function ChallengeList({
           aria-label="Difficulty"
           value={difficulty}
           onChange={(e) => setDifficulty(e.target.value as ChallengeDifficulty | "all")}
-          className="field rounded-btn px-2 py-1 text-xs font-medium text-ink"
+          className="field field-steady rounded-btn px-2 py-1 text-xs font-medium text-ink"
         >
           <option value="all">All levels</option>
           {(Object.keys(DIFFICULTY_LABEL) as ChallengeDifficulty[]).map((d) => (
@@ -80,7 +80,7 @@ export function ChallengeList({
           aria-label="Status"
           value={status}
           onChange={(e) => setStatus(e.target.value as StatusFilter)}
-          className="field rounded-btn px-2 py-1 text-xs font-medium text-ink"
+          className="field field-steady rounded-btn px-2 py-1 text-xs font-medium text-ink"
         >
           <option value="all">All</option>
           <option value="todo">To do</option>

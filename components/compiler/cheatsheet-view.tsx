@@ -159,7 +159,7 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
             onFocus={warm}
             onPointerEnter={warm}
             placeholder={`Search ${langLabel}: ${SEARCH_HINTS[lang] ?? "loops, strings, functions"}…`}
-            className="field w-full rounded-btn py-1.5 pl-8 pr-7 text-sm text-ink"
+            className="field field-steady w-full rounded-btn py-1.5 pl-8 pr-7 text-sm text-ink"
           />
           {query && (
             <button
@@ -176,7 +176,7 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
           aria-label="Jump to a section"
           value=""
           onChange={(e) => e.target.value && jump(e.target.value)}
-          className="field w-36 shrink-0 rounded-btn px-2 py-1.5 text-xs font-medium text-ink"
+          className="field field-steady w-36 shrink-0 rounded-btn px-2 py-1.5 text-xs font-medium text-ink"
         >
           <option value="">Jump to…</option>
           {shown.map((s) => (
