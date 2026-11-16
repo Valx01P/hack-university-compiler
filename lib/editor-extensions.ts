@@ -154,9 +154,12 @@ export const cmTheme = EditorView.theme(
     // !important so the gray wins whether or not the editor is focused.
     "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
       { background: "var(--code-selection) !important" },
-    // The bracket pair the cursor is at, outlined.
+    // The bracket pair the cursor is at, outlined, and nothing filled in, so
+    // the brackets keep their own colors (the Matching brackets switch in the
+    // settings gear turns it off). A bracket with no partner gets --danger's
+    // outline instead (the code's own text color in code areas).
     ".cm-matchingBracket, &.cm-focused .cm-matchingBracket": {
-      backgroundColor: "color-mix(in oklab, var(--code-gutter) 25%, transparent)",
+      backgroundColor: "transparent",
       outline: "1px solid color-mix(in oklab, var(--code-gutter) 70%, transparent)",
       borderRadius: "2px",
     },
@@ -241,6 +244,8 @@ export const snippetTheme = Prec.highest(
 export interface EditorSettingsLike {
   tabSize: 2 | 4;
   intellisense: boolean;
+  /** Outline the bracket pair at the cursor. */
+  bracketHighlight: boolean;
 }
 
 /** The parts of an editor's setup that change while it's open, each in a
@@ -249,11 +254,14 @@ export interface EditorCompartments {
   tab: Compartment;
   indent: Compartment;
   completion: Compartment;
+  brackets: Compartment;
 }
 
 export function editorCompartments(): EditorCompartments {
-  return { tab: new Compartment(), indent: new Compartment(), completion: new Compartment() };
+  return { tab: new Compartment(), indent: new Compartment(), completion: new Compartment(), brackets: new Compartment() };
 }
+
+const brackets = (on: boolean) => (on ? bracketMatching() : []);
 
 /** The effects that bring an editor's compartments in line with new settings. */
 export function reconfigureSettings(c: EditorCompartments, settings: EditorSettingsLike, language: string) {
@@ -261,6 +269,7 @@ export function reconfigureSettings(c: EditorCompartments, settings: EditorSetti
     c.tab.reconfigure(EditorState.tabSize.of(settings.tabSize)),
     c.indent.reconfigure(indentUnit.of(indentUnitFor(settings.tabSize, language))),
     c.completion.reconfigure(completion(settings.intellisense, language)),
+    c.brackets.reconfigure(brackets(settings.bracketHighlight)),
   ];
 }
 
@@ -321,7 +330,7 @@ export function editorExtensions({
     rectangularSelection(),
     crosshairCursor(),
     indentOnInput(),
-    bracketMatching(),
+    compartments.brackets.of(brackets(settings.bracketHighlight)),
     // Typing ( [ { or a quote adds its partner, and Enter between a
     // pair opens an indented line with the closer on its own line.
     closeBrackets(),

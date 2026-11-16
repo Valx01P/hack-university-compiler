@@ -12,6 +12,8 @@ export type CodeEditorSettings = {
   tabSize: 2 | 4;
   fontSize: number;
   intellisense: boolean;
+  /** The outline on the bracket pair at the cursor. */
+  bracketHighlight: boolean;
 };
 
 // Keep the key and the 11-22px zoom range in sync with the pre-paint
@@ -22,6 +24,7 @@ const DEFAULT_SETTINGS: CodeEditorSettings = {
   tabSize: 4,
   fontSize: 13,
   intellisense: true,
+  bracketHighlight: true,
 };
 
 function normalize(raw: Partial<CodeEditorSettings> | null | undefined): CodeEditorSettings {
@@ -31,6 +34,7 @@ function normalize(raw: Partial<CodeEditorSettings> | null | undefined): CodeEdi
     tabSize,
     fontSize,
     intellisense: raw?.intellisense !== false,
+    bracketHighlight: raw?.bracketHighlight !== false,
   };
 }
 
@@ -261,6 +265,20 @@ export function EditorSettingsButton({
                   <span className="block text-xs text-ink-faint">Suggestions as you type</span>
                 </span>
                 <SwitchTrack on={settings.intellisense} />
+              </button>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={settings.bracketHighlight}
+                onClick={() => update({ bracketHighlight: !settings.bracketHighlight })}
+                className="-mx-1 flex w-[calc(100%+0.5rem)] items-center justify-between gap-4 rounded-btn px-1 py-0.5 text-left transition-colors hover:bg-raised"
+              >
+                <span>
+                  <span className="block text-ink-muted">Matching brackets</span>
+                  <span className="block text-xs text-ink-faint">Outlines the pair at the cursor</span>
+                </span>
+                <SwitchTrack on={settings.bracketHighlight} />
               </button>
 
               <div className="flex items-center justify-between gap-4">

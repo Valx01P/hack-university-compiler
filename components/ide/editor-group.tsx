@@ -317,7 +317,7 @@ function CompareView({ mine, disk, path }: { mine: string; disk: string; path: s
         state: EditorState.create({
           doc: mine,
           extensions: [
-            ...editorExtensions({ language: fileLanguage(path), settings: { tabSize: 4, intellisense: false }, compartments: editorCompartments(), readOnly: true }),
+            ...editorExtensions({ language: fileLanguage(path), settings: { tabSize: 4, intellisense: false, bracketHighlight: false }, compartments: editorCompartments(), readOnly: true }),
             unifiedMergeView({ original: disk, mergeControls: false, highlightChanges: true }),
           ],
         }),
