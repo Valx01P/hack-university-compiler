@@ -34,6 +34,7 @@ import { completionSources, SQL_SCHEMA } from "@/lib/code-editor-completions";
 import { bracketColors } from "@/lib/bracket-colors";
 import { typeErrorUnderlines } from "@/lib/editor-diagnostics";
 import { tokenHighlight } from "@/lib/token-highlight";
+import { indentRules } from "@/lib/indent-rules";
 import { languageId } from "@/lib/tokenize.mjs";
 
 /**
@@ -341,6 +342,8 @@ export function editorExtensions({
     tokenHighlight(language),
     typeErrorUnderlines(),
     langExt(language),
+    // Enter keeps a finished line's level (lib/indent-rules.ts).
+    indentRules(language),
     compartments.completion.of(completion(settings.intellisense, language)),
     ...keys.map((k) => Prec.highest(k)),
     keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),

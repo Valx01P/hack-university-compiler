@@ -9,6 +9,7 @@ Next.js does (`@/` paths, imports without extensions, JSON modules).
 | --- | --- |
 | `routes.test.mjs` | `POST /api/workspaces`, the allowlisted proxy under `/api/workspaces/:id/`, and `POST /api/tickets`, against `fake-runner.mjs`: loopback Host, same origin, `Sec-Fetch-Site`, `X-HU` on writes, zod bodies, paths inside the workspace, the 1 MB file cap, only the listed routes and the template's tasks, and what the runner is sent |
 | `comments.test.mjs` | The Code comments switch in editors (`lib/comment-decorations.ts`): which comments hide, and a property test of random edits with comments hidden (hidden text never goes without a selection that holds visible code, and Undo restores every byte) |
+| `indent.test.mjs` | Enter's indentation in every editor language (`lib/indent-rules.ts` on each grammar): a finished line keeps its level with or without its `;`, an opener goes one level in, unfinished lines stay the grammar's, and a YAML key ending its line nests the next one |
 | `lib.test.mjs` | `.http` files, quick open's match, names and modes, Material icon lookups, file languages, starting trees, and scopes |
 
 `fake-runner.mjs` is an in-memory stand-in for the runner's workspace routes

@@ -269,13 +269,14 @@ data. Python's decorators and Java's annotations are colored like calls, and
 directives, the comments a tool reads (a shebang, `//go:embed`,
 `// @ts-expect-error`, sqlc's `-- name:`), take the keyword color. It also
 helps with nesting: brackets and quotes close themselves, Enter between a pair
-opens an indented line with the closer on its own line, each bracket pair gets
-a color by depth (with a stray closer marked), indent guides and fold arrows
-show the blocks, and the pair at the cursor is outlined (only outlined, so
-the brackets keep their colors). Go indents with tabs, everything else with
-spaces (2 or 4, in the settings gear). Suggestions as you type
-(intellisense) and the outline on the pair at the cursor (Matching brackets)
-have switches there too.
+opens an indented line with the closer on its own line, Enter after a finished
+line keeps its level (with its `;` or without it yet) and after a YAML key
+ending its line nests the next one, each bracket pair gets a color by depth
+(with a stray closer marked), indent guides and fold arrows show the blocks,
+and the pair at the cursor is outlined (only outlined, so the brackets keep
+their colors). Go indents with tabs, everything else with spaces (2 or 4, in
+the settings gear). Suggestions as you type (intellisense) and the outline on
+the pair at the cursor (Matching brackets) have switches there too.
 
 **Full screen**, the corner button in the editor's toolbar (in the compiler and
 in Learn), fills the window with the workspace. It's one setting for both, so
