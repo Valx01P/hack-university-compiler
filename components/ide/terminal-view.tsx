@@ -102,7 +102,7 @@ function themeFrom(host: HTMLElement) {
 
 const fontSize = () => {
   const px = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--code-user-fs"));
-  return Number.isFinite(px) ? Math.min(22, Math.max(11, px)) : 13;
+  return Number.isFinite(px) ? Math.min(22, Math.max(11, px)) : 15;
 };
 
 const cacheKey = (sid: string) => `hu-term-screen:${sid}`;

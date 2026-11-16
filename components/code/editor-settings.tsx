@@ -22,7 +22,7 @@ const STORAGE_KEY = "hu-code-editor-settings-v1";
 const EVENT_NAME = "hu:code-editor-settings";
 const DEFAULT_SETTINGS: CodeEditorSettings = {
   tabSize: 4,
-  fontSize: 13,
+  fontSize: 15,
   intellisense: true,
   bracketHighlight: true,
 };

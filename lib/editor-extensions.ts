@@ -136,7 +136,7 @@ export const cmTheme = EditorView.theme(
       // 16px on phones so tapping into the editor doesn't trigger iOS
       // focus-zoom; the user's size on >=640px viewports. The host sets
       // `--code-fs` responsively via Tailwind (see the wrapper below).
-      fontSize: "var(--code-fs, 13px)",
+      fontSize: "var(--code-fs, 15px)",
     },
     "&.cm-focused": { outline: "none" },
     ".cm-scroller": {
