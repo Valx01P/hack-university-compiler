@@ -90,9 +90,10 @@ before committing it.
 - **Code background and selection color** apply to every editor, code block,
   and output. Selection defaults to Blue (`#388bfd`) at 40% over the
   background, and it's every selection in the app, page text included (one
-  `--code-selection`, the text keeping its colors), never the accent. Each
-  picker warns about unreadable choices, and its custom swatch remembers the
-  last custom color.
+  `--code-selection`, the text keeping its colors), never the accent. There's
+  one selection on the page at a time: an editor's shows only while it has
+  focus. Each picker warns about unreadable choices, and its custom swatch
+  remembers the last custom color.
 - **Stars** are opt-in: a WebGL sky (brightness, amount, and clouds in five
   versions, with cover and a 3x3 place picker), at up to 30 fps, paused in a
   hidden tab, still under reduced motion. While it's on, large backgrounds go

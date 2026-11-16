@@ -158,6 +158,12 @@ export const cmTheme = EditorView.theme(
     // !important so the gray wins whether or not the editor is focused.
     "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
       { background: "var(--code-selection) !important" },
+    // One selection on the page at a time: an editor's shows only while it
+    // has focus, so clicking or selecting anywhere else clears it from
+    // sight, the way a text field's does (it's still there if you Tab
+    // back in). The places the selected word appears again go with it.
+    "&:not(.cm-focused) .cm-selectionLayer": { display: "none" },
+    "&:not(.cm-focused) .cm-selectionMatch": { backgroundColor: "transparent" },
     // The bracket pair the cursor is at, outlined, and nothing filled in, so
     // the brackets keep their own colors (the Matching brackets switch in the
     // settings gear turns it off). A bracket with no partner gets --danger's
