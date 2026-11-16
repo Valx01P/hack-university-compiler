@@ -332,9 +332,10 @@ editor theme's, and the picker warns you if they'd be hard to read on your
 color.
 
 **Selection color**, under it (and in the editor's settings gear), sets the
-color selected code is highlighted with in every editor, code block, and the
-output: Blue until you pick another, the theme's own, Purple, Green, Amber,
-Pink, Gray, or any custom color.
+color selected text is highlighted with everywhere in the app, the same in
+the editors, code blocks, and output as in lessons, menus, and fields: Blue
+until you pick another, the theme's own, Purple, Green, Amber, Pink, Gray, or
+any custom color.
 It's drawn at 40% over the background, so selected code keeps its syntax
 colors and stays readable on dark and light editor themes, and the picker
 warns you when a color would make selections hard to see. In both pickers

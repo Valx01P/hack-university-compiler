@@ -89,8 +89,10 @@ before committing it.
   Learn's editor box). A focused field always shows its border.
 - **Code background and selection color** apply to every editor, code block,
   and output. Selection defaults to Blue (`#388bfd`) at 40% over the
-  background. Each picker warns about unreadable choices, and its custom
-  swatch remembers the last custom color.
+  background, and it's every selection in the app, page text included (one
+  `--code-selection`, the text keeping its colors), never the accent. Each
+  picker warns about unreadable choices, and its custom swatch remembers the
+  last custom color.
 - **Stars** are opt-in: a WebGL sky (brightness, amount, and clouds in five
   versions, with cover and a 3x3 place picker), at up to 30 fps, paused in a
   hidden tab, still under reduced motion. While it's on, large backgrounds go

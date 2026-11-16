@@ -248,7 +248,7 @@ export function CodeBackgroundPicker({ compact = false }: { compact?: boolean })
 }
 
 /**
- * Swatches for the selection color in every editor and code block: the
+ * Swatches for the selection color (every selection in the app): the
  * theme's own, a few presets, and a custom color, each shown as it looks
  * over the code background. Shared by the header theme menu and the editor
  * gear. It warns when selections would be hard to see, or selected text
