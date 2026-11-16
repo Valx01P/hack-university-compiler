@@ -278,7 +278,8 @@ function Sky() {
   const cloudCover = useCloudsAmount();
   // The settings, read by the draw loop (this effect runs before the one that
   // starts it). 70% brightness, 60% amount, and wisps at the top at 50% cover
-  // are the defaults, the same sky as the homepage of hackuniversity.dev.
+  // are the sky of the homepage of hackuniversity.dev, so the levels count
+  // from there (the defaults are the same, with a sparser 50% amount).
   const levels = useRef({ bright: 1, amount: 1, cloudStyle: 0, cloudAt: CLOUD_AT.top, cloudAmount: 0.5 });
   const redrawRef = useRef<() => void>(() => {});
 

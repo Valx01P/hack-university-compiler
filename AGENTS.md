@@ -94,20 +94,28 @@ before committing it.
   one selection on the page at a time: an editor's shows only while it has
   focus. Each picker warns about unreadable choices, and its custom swatch
   remembers the last custom color.
-- **Stars** are opt-in: a WebGL sky (brightness, amount, and clouds in five
-  versions, with cover and a 3x3 place picker), at up to 30 fps, paused in a
-  hidden tab, still under reduced motion. While it's on, large backgrounds go
-  see-through, editors and code blocks included. Menus, dialogs, popovers,
-  and small controls keep their fills. Full screen keeps the sky.
+- **The defaults,** for a first visit with nothing saved: Dark, Super
+  contrast, the theme's own code background, Blue selection, comments and the
+  bottom shade shown, tooltips, border highlights, and scrollbars hidden, both
+  line sliders off, and the stars on (70% brightness, 50% amount, wisps at the
+  top at 50% cover). A setting is stored only when it differs from its
+  default, so changing a default means storing the old one by name (like
+  `hu-stars=off`), and the bootstrap and `lib/theme.ts` change together.
+- **Stars** are on by default: a WebGL sky (brightness, amount, and clouds in
+  five versions, with cover and a 3x3 place picker), at up to 30 fps, paused
+  in a hidden tab, still under reduced motion. While it's on, large
+  backgrounds go see-through, editors and code blocks included. Menus,
+  dialogs, popovers, and small controls keep their fills. Full screen keeps
+  the sky.
 - **Scrollbars follow their surface:** page areas use the theme's
   `--scrollbar`, code areas their code theme's (the paired page theme's thumb
   at each contrast), and dropdown lists are dark under dark themes. A
-  theme-menu switch, off by default, hides every scrollbar (xterm's included)
+  theme-menu switch, on by default, hides every scrollbar (xterm's included)
   while everything still scrolls.
-- **Tooltips are title attributes,** and Hide tooltips (off by default) keeps
+- **Tooltips are title attributes,** and Hide tooltips (on by default) keeps
   them all off the page (`components/chrome/tooltip-guard.tsx`). Draggable
   borders highlight through the `handle-hover` and `handle-active` variants,
-  which Hide border highlight (off by default) turns off, keyboard focus
+  which Hide border highlight (on by default) turns off, keyboard focus
   still highlighted. Use those, not `group-hover`, on a new border.
 - **Hover and active highlights are the neutral gray `--raised`,** done checks
   are green (`--complete`) in every theme, and Run and Check keep their labels
@@ -166,5 +174,5 @@ before committing it.
   glowing Learn button with no popup (keep the popup), blue done checks in
   Nord and Solarized (keep green), and fills or zebra bands that change with
   the line sliders.
-- Kept on purpose: the gray highlight, the green checks, the confirm popup,
-  and stars as an opt-in.
+- Kept on purpose: the gray highlight, the green checks, and the confirm
+  popup.

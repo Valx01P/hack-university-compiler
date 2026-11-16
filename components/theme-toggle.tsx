@@ -50,13 +50,13 @@ import { POP, usePresence } from "@/lib/motion";
  * are, whether code examples show their comments, the shade along the bottom
  * of Learn, whether the app shows its tooltips, the highlight on draggable
  * borders, and its scrollbars, and the stars behind the app with their
- * brightness and amount and the clouds' version, cover, and place. Goes through setTheme() so the
- * `data-dark` flag and the editor's code theme stay in sync.
- * The icon starts as the Light sun on first paint (SSR) and corrects after
- * hydration — same pattern as the rest of the theme bootstrap, so there's no
- * markup mismatch. `floating` is the button in full screen, where the header
- * is covered: round, its menu opening upward (components/chrome/floating-nav.tsx
- * places it at the bottom right).
+ * brightness and amount and the clouds' version, cover, and place. Goes
+ * through setTheme() so the `data-dark` flag and the editor's code theme stay
+ * in sync. The icon starts as the Dark moon (the default) on first paint (SSR)
+ * and corrects after hydration — same pattern as the rest of the theme
+ * bootstrap, so there's no markup mismatch. `floating` is the button in full
+ * screen, where the header is covered: round, its menu opening upward
+ * (components/chrome/floating-nav.tsx places it at the bottom right).
  */
 export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
   const [open, setOpen] = useState(false);

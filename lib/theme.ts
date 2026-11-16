@@ -47,6 +47,9 @@ export const APP_THEMES: { id: string; label: string }[] = [
 
 export const THEME_KEY = "hu-theme";
 export const THEME_EVENT = "hu:theme-changed";
+/** The theme until you pick one. Keep in sync with the bootstrap in
+    app/layout.tsx and the server markup's <html data-theme>. */
+export const DEFAULT_THEME = "dark";
 
 /** Dark-background themes — they carry the `data-dark` flag. Keep in sync with
  *  the bootstrap script in app/layout.tsx (inlined, can't import this). */
@@ -68,11 +71,11 @@ const CODE_THEME_KEY = "hu-code-theme";
 const CODE_THEME_EVENT = "hu:code-theme-changed";
 
 export function getTheme(): string {
-  if (typeof window === "undefined") return "light";
+  if (typeof window === "undefined") return DEFAULT_THEME;
   try {
-    return localStorage.getItem(THEME_KEY) || "light";
+    return localStorage.getItem(THEME_KEY) || DEFAULT_THEME;
   } catch {
-    return "light";
+    return DEFAULT_THEME;
   }
 }
 
@@ -113,15 +116,16 @@ export function setTheme(id: string) {
 const subscribeTheme = subscribeTo(THEME_EVENT, THEME_KEY);
 const currentTheme = () => document.documentElement.getAttribute("data-theme") || getTheme();
 export function useTheme(): string {
-  return useSyncExternalStore(subscribeTheme, currentTheme, () => "light");
+  return useSyncExternalStore(subscribeTheme, currentTheme, () => DEFAULT_THEME);
 }
 
 /**
  * Contrast is a modifier on top of whichever theme is active: every page theme
  * and editor theme has a deeper High variant and an even stronger Super
  * variant in globals.css, keyed off <html data-contrast="high" | "super">
- * (no attribute = Normal). Until the user picks, the pre-paint bootstrap in
- * app/layout.tsx follows the OS "increase contrast" setting (High).
+ * (no attribute = Normal). Until you pick, it's Super (DEFAULT_CONTRAST, set
+ * before first paint by the bootstrap in app/layout.tsx). Every pick is
+ * saved, Normal included.
  */
 export type ContrastLevel = "normal" | "high" | "super";
 
@@ -134,8 +138,15 @@ export const CONTRAST_LEVELS: { id: ContrastLevel; label: string }[] = [
 export const CONTRAST_KEY = "hu-contrast";
 export const CONTRAST_EVENT = "hu:contrast-changed";
 
-function toLevel(value: string | null): ContrastLevel {
+export const DEFAULT_CONTRAST: ContrastLevel = "super";
+
+/** The level <html> shows (no attribute is Normal). */
+function shownLevel(value: string | null): ContrastLevel {
   return value === "high" || value === "super" ? value : "normal";
+}
+/** The level you saved, else the default. */
+function savedLevel(value: string | null): ContrastLevel {
+  return value === "normal" || value === "high" || value === "super" ? value : DEFAULT_CONTRAST;
 }
 
 function applyContrast(level: ContrastLevel) {
@@ -160,10 +171,10 @@ export function setContrast(level: ContrastLevel) {
 }
 
 /** Subscribe to the contrast level (re-renders on change, any tab). */
-const subscribeContrast = subscribeTo(CONTRAST_EVENT, CONTRAST_KEY, (stored) => applyContrast(toLevel(stored)));
-const currentContrast = () => toLevel(document.documentElement.getAttribute("data-contrast"));
+const subscribeContrast = subscribeTo(CONTRAST_EVENT, CONTRAST_KEY, (stored) => applyContrast(savedLevel(stored)));
+const currentContrast = () => shownLevel(document.documentElement.getAttribute("data-contrast"));
 export function useContrast(): ContrastLevel {
-  return useSyncExternalStore(subscribeContrast, currentContrast, () => "normal");
+  return useSyncExternalStore(subscribeContrast, currentContrast, () => DEFAULT_CONTRAST);
 }
 
 /**
@@ -293,7 +304,8 @@ export const useCodeSelection = codeSelection.use;
 /**
  * Line visibility settings, from 0 (hidden) to 100 (the theme's own), each
  * stored as a number and applied before first paint by the bootstrap in
- * app/layout.tsx as a percentage variable on <html>:
+ * app/layout.tsx as a percentage variable on <html>. Both start at 0, a
+ * borderless page (globals.css falls back to 0% too):
  *
  * - Layout lines (--layout-lines): the big structural lines, like the
  *   panel's outline and bars, the language rail, sidebars and dividers, the
@@ -347,11 +359,11 @@ function percentSetting(key: string, cssVar: string, fallback = 100) {
   return { set, use };
 }
 
-const layoutLines = percentSetting(LAYOUT_LINES_KEY, "--layout-lines");
+const layoutLines = percentSetting(LAYOUT_LINES_KEY, "--layout-lines", 0);
 export const setLayoutLines = layoutLines.set;
 export const useLayoutLines = layoutLines.use;
 
-const contentLines = percentSetting(CONTENT_LINES_KEY, "--content-lines");
+const contentLines = percentSetting(CONTENT_LINES_KEY, "--content-lines", 0);
 export const setContentLines = contentLines.set;
 export const useContentLines = contentLines.use;
 
@@ -437,10 +449,11 @@ export function useLearnShade(): boolean {
 }
 
 /** A switch that hides something everywhere in the app, kept as
-    <html attr="hidden"> and stored only while it's on (showing it, off, is
-    the default). */
-function hiddenSetting(key: string, attr: string) {
+    <html attr="hidden"> and stored ("hidden" or "shown") only when it differs
+    from its default. */
+function hiddenSetting(key: string, attr: string, hiddenByDefault: boolean) {
   const event = `hu:${key}-changed`;
+  const saved = (stored: string | null) => (stored === "hidden" ? true : stored === "shown" ? false : hiddenByDefault);
   const current = () => document.documentElement.getAttribute(attr) === "hidden";
   const apply = (hidden: boolean) => {
     if (hidden) document.documentElement.setAttribute(attr, "hidden");
@@ -451,8 +464,8 @@ function hiddenSetting(key: string, attr: string) {
   function set(hidden: boolean) {
     apply(hidden);
     try {
-      if (hidden) localStorage.setItem(key, "hidden");
-      else localStorage.removeItem(key);
+      if (hidden === hiddenByDefault) localStorage.removeItem(key);
+      else localStorage.setItem(key, hidden ? "hidden" : "shown");
     } catch {
       /* ignore */
     }
@@ -463,17 +476,17 @@ function hiddenSetting(key: string, attr: string) {
     }
   }
 
-  const subscribe = subscribeTo(event, key, (stored) => apply(stored === "hidden"));
+  const subscribe = subscribeTo(event, key, (stored) => apply(saved(stored)));
   /** Whether it's hidden, any tab. */
   function use(): boolean {
-    return useSyncExternalStore(subscribe, current, () => false);
+    return useSyncExternalStore(subscribe, current, () => hiddenByDefault);
   }
 
   return { set, use };
 }
 
 /**
- * Scrollbars: shown (the default) or hidden everywhere in the app, the page
+ * Scrollbars: hidden (the default) or shown everywhere in the app, the page
  * and every pane, list, editor, code block, output, and terminal, which all
  * still scroll by wheel, trackpad, touch, and keys. Hidden is
  * <html data-scrollbars="hidden">, applied before first paint by the
@@ -481,44 +494,44 @@ function hiddenSetting(key: string, attr: string) {
  * (globals.css).
  */
 export const SCROLLBARS_KEY = "hu-scrollbars";
-const scrollbars = hiddenSetting(SCROLLBARS_KEY, "data-scrollbars");
+const scrollbars = hiddenSetting(SCROLLBARS_KEY, "data-scrollbars", true);
 export const setScrollbarsHidden = scrollbars.set;
 export const useScrollbarsHidden = scrollbars.use;
 
 /**
  * Tooltips: the hints that pop up when you hover something, and every one in
  * the app is a title attribute (buttons and links, draggable borders, the
- * editors' type error underlines). Shown by default, or hidden:
+ * editors' type error underlines). Hidden by default, or shown:
  * <html data-tooltips="hidden">, applied before first paint by the bootstrap
  * in app/layout.tsx, and while it's on components/chrome/tooltip-guard.tsx
  * keeps every title off the page, and puts them back when it's turned off.
  */
 export const TOOLTIPS_KEY = "hu-tooltips";
-const tooltips = hiddenSetting(TOOLTIPS_KEY, "data-tooltips");
+const tooltips = hiddenSetting(TOOLTIPS_KEY, "data-tooltips", true);
 export const setTooltipsHidden = tooltips.set;
 export const useTooltipsHidden = tooltips.use;
 
 /**
  * The highlight a draggable border shows under the pointer and while it's
- * dragged (components/ui/resize-handle.tsx and the compiler's split): shown
- * by default, or hidden so only the cursor changes. Hidden is
+ * dragged (components/ui/resize-handle.tsx and the compiler's split):
+ * hidden by default, so only the cursor changes, or shown. Hidden is
  * <html data-resize-highlight="hidden">, applied before first paint by the
  * bootstrap in app/layout.tsx, and the handle-hover and handle-active
  * variants in globals.css stop matching there. A border focused from the
  * keyboard keeps its highlight.
  */
 export const RESIZE_HIGHLIGHT_KEY = "hu-resize-highlight";
-const resizeHighlight = hiddenSetting(RESIZE_HIGHLIGHT_KEY, "data-resize-highlight");
+const resizeHighlight = hiddenSetting(RESIZE_HIGHLIGHT_KEY, "data-resize-highlight", true);
 export const setResizeHighlightHidden = resizeHighlight.set;
 export const useResizeHighlightHidden = resizeHighlight.use;
 
 /**
  * Stars: a starry background behind the app (components/chrome/starfield.tsx),
- * off by default. On is <html data-stars>, applied before first paint by the
- * bootstrap in app/layout.tsx, and while it's on the app's large backgrounds,
- * code editors and code blocks included, let the stars through (globals.css).
- * Their
- * brightness and amount are 0 to 100 settings, like the line sliders.
+ * on by default (turning them off is saved as "off"). On is <html data-stars>,
+ * applied before first paint by the bootstrap in app/layout.tsx, and while
+ * it's on the app's large backgrounds, code editors and code blocks included,
+ * let the stars through (globals.css). Their brightness and amount are 0 to
+ * 100 settings, like the line sliders, at 70% and 50% to begin with.
  */
 export const STARS_KEY = "hu-stars";
 const STARS_EVENT = "hu:stars-changed";
@@ -534,8 +547,8 @@ function applyStars(on: boolean) {
 export function setStarsOn(on: boolean) {
   applyStars(on);
   try {
-    if (on) localStorage.setItem(STARS_KEY, "on");
-    else localStorage.removeItem(STARS_KEY);
+    if (on) localStorage.removeItem(STARS_KEY);
+    else localStorage.setItem(STARS_KEY, "off");
   } catch {
     /* ignore */
   }
@@ -546,11 +559,11 @@ export function setStarsOn(on: boolean) {
   }
 }
 
-const subscribeStars = subscribeTo(STARS_EVENT, STARS_KEY, (stored) => applyStars(stored === "on"));
+const subscribeStars = subscribeTo(STARS_EVENT, STARS_KEY, (stored) => applyStars(stored !== "off"));
 
 /** Whether the stars are on, any tab. */
 export function useStarsOn(): boolean {
-  return useSyncExternalStore(subscribeStars, starsShown, () => false);
+  return useSyncExternalStore(subscribeStars, starsShown, () => true);
 }
 
 export const STARS_BRIGHTNESS_KEY = "hu-stars-brightness";
@@ -560,7 +573,7 @@ const starsBrightness = percentSetting(STARS_BRIGHTNESS_KEY, "--stars-brightness
 export const setStarsBrightness = starsBrightness.set;
 export const useStarsBrightness = starsBrightness.use;
 
-const starsAmount = percentSetting(STARS_AMOUNT_KEY, "--stars-amount", 60);
+const starsAmount = percentSetting(STARS_AMOUNT_KEY, "--stars-amount", 50);
 export const setStarsAmount = starsAmount.set;
 export const useStarsAmount = starsAmount.use;
 

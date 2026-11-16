@@ -308,7 +308,8 @@ the packages, and SQL knows the sample database's tables and columns.
 
 ## Themes
 
-Pick Light, Dark, Dracula, Monokai, Nord, or Solarized from the header. The
+Pick Light, Dark (until you pick, it's Dark), Dracula, Monokai, Nord, or
+Solarized from the header. The
 **Contrast** picker at the bottom of that menu (also in the editor's settings
 gear, the two stay in sync) deepens whichever theme is active, both the page
 and the editor:
@@ -323,7 +324,7 @@ and the editor:
 
 Every code color stays at 4.5:1 contrast or better at every level.
 
-Until you pick, it follows your OS "increase contrast" setting (as High).
+Until you pick, it's Super.
 
 **Code background**, below Contrast in the same menu (and in the editor's
 settings gear), gives every code surface one background: the editor, the code
@@ -350,7 +351,8 @@ change it.
 for the lines that divide the page: the panel's outline, the language rail,
 the lesson list and its dividers (and, in full screen, the lesson list's
 edge), the compiler's editor and output boxes, the cheatsheet and challenges
-panel, and Previous/Next. Slide it to 0 for a borderless page. **Content
+panel, and Previous/Next. It starts at 0, a borderless page, and sliding it
+up brings the lines back. **Content
 lines**, under it, does the same for the lines inside the content,
 separately: tables, code blocks and `inline code`, search boxes and
 dropdowns, the dividers in lessons, cheatsheets, challenges, and results, the
@@ -361,8 +363,8 @@ code editor in Learn. A focused field always shows its border.
 in the app: the page's, the compiler's and Learn's panes, the lesson list,
 the editors, code blocks, and output, the cheatsheet and challenges panel,
 the IDE and its terminal, and the menus. Everything still scrolls with the
-mouse wheel, the trackpad, touch, and the keyboard. It's off until you turn
-it on.
+mouse wheel, the trackpad, touch, and the keyboard. It's on until you turn
+it off.
 
 **Code comments**, a switch in the theme menu's left column, shows or hides
 the comments in the code examples of lessons and cheatsheets, for reading the
@@ -382,16 +384,16 @@ them). A preview of your own site keeps its tooltips. **Hide border
 highlight**, under that, keeps the draggable borders (the lesson list's edge,
 the compiler's and Learn's splits, and the IDE's sidebar and dock) from
 lighting up under the pointer and while you drag them, so only the cursor
-changes. A border you reach with the keyboard still lights up. Both are off
-until you turn them on.
+changes. A border you reach with the keyboard still lights up. Both are on
+until you turn them off.
 
-**Stars**, the switch under Hide scrollbars, puts a starry sky behind the
-whole app: twinkling stars that drift slowly, and soft clouds, in the theme's
+**Stars**, the switch under Hide scrollbars (on until you turn it off), puts
+a starry sky behind the whole app: twinkling stars that drift slowly, and soft clouds, in the theme's
 colors (yellow on Light). While it's on, the page's large backgrounds go
 see-through so the sky shows behind the panels, the editors and code blocks,
 the output, and the terminal. Menus, dialogs, and small controls keep their
-fills. **Brightness** and **Amount** set how bright the stars are and how many
-there are. **Clouds** picks one of five versions: Wisps, Swirl, Band (a river
+fills. **Brightness** and **Amount** (70% and 50% to begin with) set how
+bright the stars are and how many there are. **Clouds** picks one of five versions: Wisps, Swirl, Band (a river
 of light across the screen), Bloom (a cluster of soft glows), or Aurora
 (curtains). **Cover** sets how much cloud there is, and **Where** picks the
 spot it gathers around, from the top left to the bottom right. The sky runs
