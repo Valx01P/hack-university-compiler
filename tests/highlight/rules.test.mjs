@@ -1,6 +1,7 @@
 // The tokenizer's rules, one case at a time (the snapshots show whole
 // samples): what Bash calls a comment, directives and TODO lines that never
-// hide, escapes and raw strings, decorators, and TypeScript through Lezer.
+// hide, escapes and raw strings, decorators, TypeScript through Lezer, and
+// the predefined names that take the keyword color.
 // The Bash comment cases were checked against bash 5.3 itself, whose
 // `declare -f` prints a function without its comments.
 import { test } from "node:test";
@@ -152,7 +153,7 @@ test("typescript: escapes, raw strings, and template literals", () => {
 test("typescript: names, types, and calls", () => {
   const code = "const m = new Map<string, number>(); const v = useState<boolean>(false); let u: unknown = undefined; type T = Record<string, never>;";
   assert.deepEqual(of("fn", code, "typescript"), ["Map", "useState"]);
-  assert.deepEqual(of("keyword", code, "typescript"), ["const", "new", "string", "number", "const", "boolean", "false", "let", "unknown", "undefined", "type", "string", "never"]);
+  assert.deepEqual(of("keyword", code, "typescript"), ["const", "new", "string", "number", "const", "boolean", "false", "let", "unknown", "undefined", "type", "Record", "string", "never"]);
   // A method's name is fn, like a call, in classes, interfaces, and objects.
   assert.deepEqual(of("fn", "class A { greet<T>(x: T) {} } interface B { run(): void } const o = { show() {} };", "typescript"), ["greet", "run", "show"]);
 });
@@ -182,6 +183,42 @@ test("tsx: tags, attributes, and {/* comments */} that hide with their braces", 
   assert.deepEqual(of("string", code, "tsx"), ['"box"']);
   assert.deepEqual(of("comment", code, "tsx"), ["{/* the label */}"]);
   assert.equal(stripComments(code, "tsx"), 'const el = (\n  <div className="box">\n    <p>it\'s {n}</p>\n  </div>\n);');
+});
+
+test("predefined types and standard objects are keywords, except where they're called", () => {
+  const cases = [
+    // Java's JDK types; the call to a constructor is fn, and an import's path stays plain.
+    ["java", "import java.util.List;\nList<Integer> nums = new ArrayList<>();\nScanner sc = new Scanner(System.in);\nint n = Integer.parseInt(s);",
+      ["import", "List", "Integer", "new", "ArrayList", "Scanner", "new", "System", "int", "Integer"], ["Scanner", "parseInt"]],
+    // JavaScript's built-in objects, but not a member with the same name.
+    ["javascript", 'console.log(Math.max(1, NaN), job.process, Number("5"), new Map());',
+      ["console", "Math", "NaN", "new"], ["log", "max", "Number", "Map"]],
+    ["typescript", "const r: Record<string, number> = {}; const p: Promise<User> = load(); console.log(JSON.stringify(r));",
+      ["const", "Record", "string", "number", "const", "Promise", "console", "JSON"], ["load", "log", "stringify"]],
+    // Python's built-in types and exceptions, and the standard library's classes.
+    ["python", "def f(x: int) -> list[str]:\n    try:\n        return int(x)\n    except ValueError:\n        return Counter(x)",
+      ["def", "int", "list", "str", "try", "return", "except", "ValueError", "return"], ["f", "int", "Counter"]],
+    // Go's predeclared names, but not a max of your own.
+    ["go", "var b uint8 = 3\ncopy(dst, src)\nfunc max(a, b int) int { return a }",
+      ["var", "uint8", "copy", "func", "int", "int", "return"], ["max"]],
+    // C++'s keywords, the standard library, and the preprocessor's lines.
+    ["cpp", "#include <iostream>\n#define N 5\nauto x = static_cast<int>(y);\nstd::cout << x << std::endl; obj.map = 1;",
+      ["#include", "#define", "auto", "static_cast", "int", "std", "cout", "std", "endl"], []],
+    // SQL's capitals, but not columns named type or month.
+    ["sql", "CREATE TABLE t (id INT GENERATED ALWAYS AS IDENTITY, type TEXT, month INT);",
+      ["CREATE", "TABLE", "INT", "GENERATED", "ALWAYS", "AS", "IDENTITY", "TEXT", "INT"], ["t"]],
+  ];
+  for (const [language, code, keywords, calls] of cases) {
+    assert.deepEqual(of("keyword", code, language), keywords, `${language}: ${code}`);
+    assert.deepEqual(of("fn", code, language), calls, `${language}: ${code}`);
+  }
+  assert.deepEqual(of("string", "#include <iostream>", "cpp"), ["<iostream>"]);
+  // String.raw stays raw with String colored on its own.
+  assert.deepEqual(of("escape", "const s = String.raw`C:\\temp`;", "javascript"), []);
+});
+
+test("bash: tests, with the ]] and ] that end them, and the null and dot commands", () => {
+  assert.deepEqual(of("keyword", 'if [[ -f x ]]; then :; fi\n[ -n "$a" ] && . ./lib.sh', "bash"), ["if", "[[", "]]", "then", ":", "fi", "[", "]", "."]);
 });
 
 test("languages have their usual names", () => {

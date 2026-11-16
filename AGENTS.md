@@ -122,7 +122,11 @@ before committing it.
   while busy (only greyed out), so bars never shift.
 - **Syntax colors match everywhere:** editors and static code blocks use the
   same tokenizer (`lib/tokenize.mjs`, Lezer for TypeScript), with escape
-  sequences in their own color and directives in the keyword color.
+  sequences in their own color and directives in the keyword color. Each
+  language's predefined types and standard objects take the keyword color
+  where they aren't called (`PREDEFINED` in `lib/tokenize.mjs`, `JS_GLOBALS`
+  shared with Lezer's TypeScript), and your own names stay plain. Audit a
+  language by tokenizing its course code and reading the plain names left.
 - Output blocks share the terminal look, and clean runs drop the "exit code 0"
   line (non-zero codes and kill signals stay).
 

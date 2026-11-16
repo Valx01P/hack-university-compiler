@@ -267,7 +267,12 @@ TSX are read by Lezer's parser, and Bash by a scanner that reads it the way
 Bash does: `a#b`, `$#`, and `${#name}` aren't comments, and a heredoc's body is
 data. Python's decorators and Java's annotations are colored like calls, and
 directives, the comments a tool reads (a shebang, `//go:embed`,
-`// @ts-expect-error`, sqlc's `-- name:`), take the keyword color. It also
+`// @ts-expect-error`, sqlc's `-- name:`), take the keyword color. So does
+each language's standard vocabulary wherever it isn't called: Java's
+`Integer`, `List`, and `Scanner`, C++'s `cout`, `map`, and `#include`,
+Python's `int` and `ValueError`, JavaScript's and TypeScript's `console`,
+`Math`, and `Record`, Go's `uint8` and `copy`, SQL's `GENERATED ALWAYS`, and
+Bash's `[[ ]]` (a call, `new Scanner(...)` included, is a call). It also
 helps with nesting: brackets and quotes close themselves, Enter between a pair
 opens an indented line with the closer on its own line, Enter after a finished
 line keeps its level (with its `;` or without it yet) and after a YAML key
