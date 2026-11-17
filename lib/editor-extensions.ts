@@ -1,7 +1,10 @@
-import { Compartment, EditorState, Prec, type Extension } from "@codemirror/state";
+import { Compartment, EditorState, Prec, RangeSetBuilder, countColumn, type Extension } from "@codemirror/state";
 import {
+  Decoration,
   EditorView,
   ViewPlugin,
+  type DecorationSet,
+  type ViewUpdate,
   crosshairCursor,
   drawSelection,
   dropCursor,
@@ -184,6 +187,14 @@ export const cmTheme = EditorView.theme(
     // (clipUnderGutters), and nowhere else (the other sides reach far out).
     ".cm-content": { caretColor: "var(--code-ink)", clipPath: "inset(-100px -100000px -100px var(--cm-clip-x, 0px))" },
     ".cm-layer": { clipPath: "inset(-100000px -100000px -100000px calc(var(--cm-clip-x, 0px) + var(--cm-gutters-w, 0px)))" },
+    // A wrapped line's hanging indent (hangingIndent): its indentation, at
+    // most half the width, so a deep line still has room. Inline widgets in
+    // it (a fold's placeholder) don't take the pull-back themselves.
+    ".cm-hu-hang": {
+      paddingLeft: "calc(min(var(--hu-hang), 50%) + var(--hu-line-pad, 6px))",
+      textIndent: "calc(-1 * min(var(--hu-hang), 50%))",
+    },
+    ".cm-hu-hang *": { textIndent: "0" },
     ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--code-ink)" },
     ".cm-gutters": {
       backgroundColor: "var(--code-bg)",
@@ -286,7 +297,9 @@ export const snippetTheme = Prec.highest(
     "&": { height: "auto", fontSize: "13px" },
     ".cm-scroller": { lineHeight: "24px" },
     ".cm-content": { padding: "16px 0" },
-    ".cm-line": { padding: "0 112px 0 16px" },
+    // --hu-line-pad: the line's own left padding, for wrapped lines'
+    // hanging indent (hangingIndent), 6px in the full editor.
+    ".cm-line": { padding: "0 112px 0 16px", "--hu-line-pad": "16px" },
   })
 );
 
@@ -296,6 +309,8 @@ export interface EditorSettingsLike {
   intellisense: boolean;
   /** Outline the bracket pair at the cursor. */
   bracketHighlight: boolean;
+  /** Long lines wrap at the editor's edge instead of scrolling sideways. */
+  lineWrap: boolean;
 }
 
 /** The parts of an editor's setup that change while it's open, each in a
@@ -305,13 +320,59 @@ export interface EditorCompartments {
   indent: Compartment;
   completion: Compartment;
   brackets: Compartment;
+  wrap: Compartment;
 }
 
 export function editorCompartments(): EditorCompartments {
-  return { tab: new Compartment(), indent: new Compartment(), completion: new Compartment(), brackets: new Compartment() };
+  return { tab: new Compartment(), indent: new Compartment(), completion: new Compartment(), brackets: new Compartment(), wrap: new Compartment() };
 }
 
 const brackets = (on: boolean) => (on ? bracketMatching() : []);
+
+// A line's hanging indent, one decoration per width (in columns).
+const hangs = new Map<number, Decoration>();
+const hangOf = (columns: number) => {
+  let d = hangs.get(columns);
+  if (!d) hangs.set(columns, (d = Decoration.line({ class: "cm-hu-hang", attributes: { style: `--hu-hang: ${columns}ch` } })));
+  return d;
+};
+
+function hangingLines(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  let last = -1;
+  for (const { from, to } of view.visibleRanges) {
+    for (let pos = from; pos <= to; ) {
+      const line = view.state.doc.lineAt(pos);
+      pos = line.to + 1;
+      if (line.number === last) continue;
+      last = line.number;
+      const indent = /^[ \t]*/.exec(line.text)![0];
+      if (indent && indent.length < line.length) builder.add(line.from, line.from, hangOf(countColumn(indent, view.state.tabSize)));
+    }
+  }
+  return builder.finish();
+}
+
+/** With line wrapping on, a wrapped line's later rows line up under its code,
+    past its indentation, the way VS Code wraps: each indented line is padded
+    by its indentation, and its first row pulled back by as much (cmTheme's
+    .cm-hu-hang), so that row stays where it was, and so do the indent
+    guides, which are drawn from the line's edge (and run on down through the
+    rows' indentation). */
+const hangingIndent = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = hangingLines(view);
+    }
+    update(u: ViewUpdate) {
+      if (u.docChanged || u.viewportChanged || u.startState.tabSize !== u.state.tabSize) this.decorations = hangingLines(u.view);
+    }
+  },
+  { decorations: (v) => v.decorations }
+);
+
+const wrap = (on: boolean) => (on ? [EditorView.lineWrapping, hangingIndent] : []);
 
 /** The effects that bring an editor's compartments in line with new settings. */
 export function reconfigureSettings(c: EditorCompartments, settings: EditorSettingsLike, language: string) {
@@ -320,6 +381,7 @@ export function reconfigureSettings(c: EditorCompartments, settings: EditorSetti
     c.indent.reconfigure(indentUnit.of(indentUnitFor(settings.tabSize, language))),
     c.completion.reconfigure(completion(settings.intellisense, language)),
     c.brackets.reconfigure(brackets(settings.bracketHighlight)),
+    c.wrap.reconfigure(wrap(settings.lineWrap)),
   ];
 }
 
@@ -386,6 +448,7 @@ export function editorExtensions({
     crosshairCursor(),
     indentOnInput(),
     compartments.brackets.of(brackets(settings.bracketHighlight)),
+    compartments.wrap.of(wrap(settings.lineWrap)),
     // Typing ( [ { or a quote adds its partner, and Enter between a
     // pair opens an indented line with the closer on its own line.
     closeBrackets(),

@@ -305,8 +305,10 @@ level), each bracket pair gets a color by depth
 block too) and fold arrows show the blocks, and the pair at the cursor is
 outlined (only outlined, so the brackets keep their colors). Go indents with
 tabs, everything else with spaces (2 or 4, in the settings gear). Suggestions
-as you type (intellisense) and the outline on the pair at the cursor (Matching
-brackets) have switches there too.
+as you type (intellisense), the outline on the pair at the cursor (Matching
+brackets), and **Line wrapping** (off at first: long lines scroll sideways
+until you turn it on, and then a wrapped line's rows line up under its code,
+past its indentation) have switches there too.
 
 **Full screen**, the corner button in the editor's toolbar (in the compiler and
 in Learn), fills the window with the workspace. It's one setting for both, so
@@ -466,10 +468,11 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
   background, so it opens at once when you click. (In `npm run dev` it warms
   the page's compile instead, since Next.js only prefetches in production.)
 - Saved in the browser's local storage: your code (per language), your edits
-  to examples, editor zoom, tab size, intellisense, theme, editor theme,
-  contrast level, code background, selection color (and the last custom
-  color of each), layout lines, content lines, code comments, the bottom
-  shade, stdin open or folded (in Learn and in the compiler), and the stars
+  to examples, editor zoom, tab size, intellisense, line wrapping, theme,
+  editor theme, contrast level, code background, selection color (and the
+  last custom color of each), layout lines, content lines, code comments,
+  the bottom shade, stdin open or folded (in Learn and in the compiler), and
+  the stars
   (their brightness and amount, and the clouds'
   version, cover, and place). Everything
   visual is applied before the page paints, so nothing shifts on reload, and

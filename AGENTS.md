@@ -104,10 +104,10 @@ before committing it.
   bottom shade shown, tooltips, border highlights, and scrollbars hidden, both
   line sliders off, and the stars on (70% brightness, 50% amount, wisps at the
   top at 50% cover), and the editors on Midnight at 15px, tab size 4, with
-  intellisense and matching brackets on. A setting is stored only when it
-  differs from its default, so changing a default means storing the old one by
-  name (like `hu-stars=off`), and the bootstrap and `lib/theme.ts` change
-  together.
+  intellisense and matching brackets on and line wrapping off. A setting is
+  stored only when it differs from its default, so changing a default means
+  storing the old one by name (like `hu-stars=off`), and the bootstrap and
+  `lib/theme.ts` change together.
 - **Stars** are on by default: a WebGL sky (brightness, amount, and clouds in
   five versions, with cover and a 3x3 place picker), at up to 30 fps, paused
   in a hidden tab, still under reduced motion. While it's on, large

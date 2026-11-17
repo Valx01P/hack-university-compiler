@@ -14,6 +14,8 @@ export type CodeEditorSettings = {
   intellisense: boolean;
   /** The outline on the bracket pair at the cursor. */
   bracketHighlight: boolean;
+  /** Long lines wrap at the editor's edge instead of scrolling sideways. */
+  lineWrap: boolean;
 };
 
 // Keep the key and the 11-22px zoom range in sync with the pre-paint
@@ -25,6 +27,7 @@ const DEFAULT_SETTINGS: CodeEditorSettings = {
   fontSize: 15,
   intellisense: true,
   bracketHighlight: true,
+  lineWrap: false,
 };
 
 function normalize(raw: Partial<CodeEditorSettings> | null | undefined): CodeEditorSettings {
@@ -35,6 +38,7 @@ function normalize(raw: Partial<CodeEditorSettings> | null | undefined): CodeEdi
     fontSize,
     intellisense: raw?.intellisense !== false,
     bracketHighlight: raw?.bracketHighlight !== false,
+    lineWrap: raw?.lineWrap === true,
   };
 }
 
@@ -291,6 +295,20 @@ export function EditorSettingsButton({
                   <span className="block text-xs text-ink-faint">Outlines the pair at the cursor</span>
                 </span>
                 <SwitchTrack on={settings.bracketHighlight} />
+              </button>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={settings.lineWrap}
+                onClick={() => update({ lineWrap: !settings.lineWrap })}
+                className="-mx-1 flex w-[calc(100%+0.5rem)] items-center justify-between gap-4 rounded-btn px-1 py-0.5 text-left transition-colors hover:bg-raised"
+              >
+                <span>
+                  <span className="block text-ink-muted">Line wrapping</span>
+                  <span className="block text-xs text-ink-faint">Long lines wrap instead of scrolling</span>
+                </span>
+                <SwitchTrack on={settings.lineWrap} />
               </button>
 
               <div className="flex items-center justify-between gap-4">
