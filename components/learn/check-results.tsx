@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useId, useRef } from "react";
 import { TypeCheckStrip } from "@/components/compiler/type-check";
+import { OUTPUT_PAD } from "@/components/compiler/output-panel";
 import { CompleteIcon } from "@/components/learn/complete-icon";
 import { useOneOpen } from "@/components/ui/one-open";
 import { ScrollPre } from "@/components/ui/scroll-pre";
@@ -149,25 +150,25 @@ export function CheckResults({
 
   if (check.status === "checking") {
     return (
-      <p className="p-4 text-sm text-ink-faint">
+      <p className={`${OUTPUT_PAD} text-sm text-ink-faint`}>
         Checking your code against {check.total} test{check.total === 1 ? "" : "s"}…
       </p>
     );
   }
   if (check.status === "error") {
-    return <p className="p-4 font-mono text-sm text-danger">⚠ {check.error}</p>;
+    return <p className={`${OUTPUT_PAD} font-mono text-sm text-danger`}>⚠ {check.error}</p>;
   }
   if (check.status === "compile-error") {
     if (check.typeCheck) {
       return (
-        <div className="space-y-3 p-4">
+        <div className={`space-y-3 ${OUTPUT_PAD}`}>
           <p className="text-sm font-medium text-ink">Your code has type errors, so no test ran.</p>
           <TypeCheckStrip output={check.output} failed fileName={check.typeCheck.fileName} onGoTo={onGoTo} />
         </div>
       );
     }
     return (
-      <div className="space-y-2 p-4">
+      <div className={`space-y-2 ${OUTPUT_PAD}`}>
         <p className="text-sm font-medium text-ink">Your code didn&apos;t compile.</p>
         <pre className="whitespace-pre-wrap font-mono text-sm text-danger">{check.output}</pre>
       </div>
@@ -180,7 +181,7 @@ export function CheckResults({
     <div ref={rootRef}>
       {t.solved && (lessonComplete || next) && (
         // No "Solved!" line (the marks say it), only the way on.
-        <p data-anim="row" className="px-4 pt-3 text-sm text-ink-muted">
+        <p data-anim="row" className="px-4 pt-2 text-sm text-ink-muted">
           {lessonComplete && "Lesson complete. "}
           {next?.href ? (
             <Link href={next.href} className={NEXT_LINK}>
@@ -200,7 +201,7 @@ export function CheckResults({
         // A row of tabs, short on height (the output is always under the
         // editor), the open test's detail under it.
         <div data-anim="row">
-          <div role="group" aria-label="Tests" className="slim-scroll flex gap-1 overflow-x-auto px-3 py-2">
+          <div role="group" aria-label="Tests" className="slim-scroll flex gap-1 overflow-x-auto px-3 py-1">
             {results.map((r, i) => {
               const key = `test-${i}`;
               const open = openId === key;
@@ -224,7 +225,7 @@ export function CheckResults({
             })}
           </div>
           {openId?.startsWith("test-") && (
-            <div id={`${uid}-tab`} className="px-4 pb-3.5">
+            <div id={`${uid}-tab`} className="px-4 pb-2">
               <TestDetail test={Number(openId.slice(5)) + 1} result={results[Number(openId.slice(5))]} />
             </div>
           )}
@@ -232,7 +233,7 @@ export function CheckResults({
       )}
 
       {typeTests.length > 0 && (
-        <div data-anim="row" className="border-t border-content-line pt-3 pb-1.5">
+        <div data-anim="row" className="border-t border-content-line pt-2 pb-1">
           <p className="px-4 text-xs font-medium uppercase tracking-wider text-ink-muted">
             Type tests
           </p>
@@ -267,7 +268,7 @@ export function CheckResults({
       )}
 
       {forbidden.length > 0 && (
-        <div data-anim="row" className="border-t border-content-line px-4 py-3">
+        <div data-anim="row" className="border-t border-content-line px-4 py-2">
           <p className="text-xs font-medium uppercase tracking-wider text-ink-muted">Honesty rules</p>
           <ul className="mt-2 space-y-2.5">
             {forbidden.map((h, i) => (

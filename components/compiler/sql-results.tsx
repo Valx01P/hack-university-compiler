@@ -1,5 +1,6 @@
 "use client";
 
+import { OUTPUT_PAD } from "@/components/compiler/output-panel";
 import type { SqlColumn, SqlRun } from "@/lib/sql/core.mjs";
 
 /** Postgres type ids shown right-aligned, like psql does. */
@@ -51,7 +52,7 @@ export function ResultTable({ columns, rows }: { columns: SqlColumn[]; rows: (st
  */
 export function SqlResults({ run }: { run: SqlRun }) {
   if (!run.results.length && !run.error) {
-    return <p className="p-4 font-mono text-sm text-ink-faint">The script had no statements to run.</p>;
+    return <p className={`${OUTPUT_PAD} font-mono text-sm text-ink-faint`}>The script had no statements to run.</p>;
   }
   return (
     <div className="space-y-3 p-3">

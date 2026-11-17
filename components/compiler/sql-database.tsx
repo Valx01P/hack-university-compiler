@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChevronRight, KeyRound, Table2, Eye } from "lucide-react";
+import { OUTPUT_PAD } from "@/components/compiler/output-panel";
 import { ResultTable } from "@/components/compiler/sql-results";
 import { Collapse } from "@/components/ui/collapse";
 import type { SqlRun } from "@/lib/sql/core.mjs";
@@ -43,9 +44,9 @@ export function SqlDatabase({ version }: { version: number }) {
     };
   }, [open, version]);
 
-  if (error) return <p className="p-4 text-sm text-danger">{error}</p>;
-  if (!tables) return <p className="p-4 text-sm text-ink-faint">Starting PostgreSQL…</p>;
-  if (!tables.length) return <p className="p-4 text-sm text-ink-muted">The database has no tables. Create one with CREATE TABLE.</p>;
+  if (error) return <p className={`${OUTPUT_PAD} text-sm text-danger`}>{error}</p>;
+  if (!tables) return <p className={`${OUTPUT_PAD} text-sm text-ink-faint`}>Starting PostgreSQL…</p>;
+  if (!tables.length) return <p className={`${OUTPUT_PAD} text-sm text-ink-muted`}>The database has no tables. Create one with CREATE TABLE.</p>;
 
   return (
     <ul className="divide-y divide-content-line">

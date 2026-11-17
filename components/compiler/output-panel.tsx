@@ -1,5 +1,11 @@
 import type { RunState } from "@/lib/run-code";
 
+/** The padding of what an output box says (its output, a message, a
+    placeholder): the top and bottom from the box's `--output-py`, which the
+    compiler and Learn make smaller under the editor, where height is short,
+    and 1rem anywhere that doesn't set it (code examples, the IDE). */
+export const OUTPUT_PAD = "px-4 py-[var(--output-py,1rem)]";
+
 // A runaway loop can print a megabyte: show the start of it, not all of it.
 const SHOWN_LINES = 1000;
 
@@ -62,16 +68,16 @@ export function OutputPanel({
 }) {
   if (run.status === "idle") {
     return (
-      <p className="p-4 text-sm text-ink-faint">
+      <p className={`${OUTPUT_PAD} text-sm text-ink-faint`}>
         Press ▶ Run to execute your code. Output appears here.
       </p>
     );
   }
   if (run.status === "running") {
-    return <p className="p-4 text-sm text-ink-faint">Running…</p>;
+    return <p className={`${OUTPUT_PAD} text-sm text-ink-faint`}>Running…</p>;
   }
   if (run.status === "error") {
-    return <p className="p-4 font-mono text-sm text-danger">⚠ {run.error}</p>;
+    return <p className={`${OUTPUT_PAD} font-mono text-sm text-danger`}>⚠ {run.error}</p>;
   }
   const compileFailed = run.compileCode != null && run.compileCode !== 0;
   const timedOut = run.verdict === "TO";
@@ -91,7 +97,7 @@ export function OutputPanel({
     </pre>
   ) : null;
   return (
-    <div className="space-y-2 p-4 font-mono text-sm">
+    <div className={`space-y-2 ${OUTPUT_PAD} font-mono text-sm`}>
       {compileFailed && typeChecked ? (
         <p className="text-ink-faint">(it didn&apos;t run: fix the type errors first)</p>
       ) : compileFailed ? (

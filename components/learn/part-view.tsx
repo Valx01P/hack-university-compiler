@@ -7,7 +7,7 @@ import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { CodeThemePicker } from "@/components/code/code-theme";
 import { ResetCodeButton } from "@/components/code/reset-code-button";
-import { ExitBadge, OutputPanel } from "@/components/compiler/output-panel";
+import { ExitBadge, OUTPUT_PAD, OutputPanel } from "@/components/compiler/output-panel";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { programTypeErrors, TypeCheckStrip } from "@/components/compiler/type-check";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
@@ -851,12 +851,14 @@ export function PartView({
                 </button>
               )}
             </div>
-            {/* Focusable, so long results can be scrolled from the keyboard. */}
+            {/* Focusable, so long results can be scrolled from the keyboard.
+                Under the editor, so what it says sits close to its top and
+                bottom (OUTPUT_PAD). */}
             <div
               role="region"
               aria-labelledby={outputId}
               tabIndex={0}
-              className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface"
+              className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface [--output-py:0.5rem]"
             >
               {panel.mode === "check" ? (
                 <CheckResults check={panel.check} next={next ? { href: next.href, label: nextLabel(next) } : null} onGoTo={goTo} />
@@ -868,7 +870,7 @@ export function PartView({
                       failed={panel.run.compileCode !== 0}
                       fileName={lang.fileName}
                       onGoTo={goTo}
-                      className="border-b border-content-line px-4 py-3"
+                      className={`border-b border-content-line ${OUTPUT_PAD}`}
                     />
                   )}
                   <OutputPanel run={panel.run} exitBadge={features.exitBadge} typeChecked={features.typeCheck} />

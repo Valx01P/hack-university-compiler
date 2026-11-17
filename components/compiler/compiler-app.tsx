@@ -10,7 +10,7 @@ import { CodeThemePicker } from "@/components/code/code-theme";
 import { ResetCodeButton } from "@/components/code/reset-code-button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { ResizeHandle } from "@/components/ui/resize-handle";
-import { OutputPanel } from "@/components/compiler/output-panel";
+import { OUTPUT_PAD, OutputPanel } from "@/components/compiler/output-panel";
 import { ReferencePanel, useReferenceData, type ReferenceTab } from "@/components/compiler/reference-panel";
 import { CourseRail } from "@/components/chrome/course-rail";
 import { FloatingNav } from "@/components/chrome/floating-nav";
@@ -861,24 +861,28 @@ export function CompilerApp({
               </div>
             </div>
 
-            {/* Focusable, so long output can be scrolled from the keyboard. */}
+            {/* Focusable, so long output can be scrolled from the keyboard.
+                What it says sits closer to its top and bottom under the
+                editor (on phones too), where height is short (OUTPUT_PAD). */}
             <div
               role="region"
               aria-labelledby={outputId}
               tabIndex={0}
-              className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface"
+              className={`code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface [--output-py:0.5rem] ${
+                horizontal ? "lg:[--output-py:1rem]" : ""
+              }`}
             >
               {playground ? (
                 sqlView === "database" ? (
                   <SqlDatabase version={dbVersion} />
                 ) : running ? (
-                  <p className="p-4 text-sm text-ink-faint">Running…</p>
+                  <p className={`${OUTPUT_PAD} text-sm text-ink-faint`}>Running…</p>
                 ) : sqlError ? (
-                  <p className="p-4 font-mono text-sm text-danger">⚠ {sqlError}</p>
+                  <p className={`${OUTPUT_PAD} font-mono text-sm text-danger`}>⚠ {sqlError}</p>
                 ) : sqlRun ? (
                   <SqlResults run={sqlRun} />
                 ) : (
-                  <p className="p-4 text-sm text-ink-faint">
+                  <p className={`${OUTPUT_PAD} text-sm text-ink-faint`}>
                     Press ▶ Run to query the sample database. The Database tab shows its tables.
                   </p>
                 )
