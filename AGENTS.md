@@ -165,6 +165,17 @@ before committing it.
 - **Answers are hidden behind the eye:** the first time on a page it glows and
   needs a second click within 3 seconds. Your code is kept. The floating Next
   glows the same way after a passing Check, then fades.
+- **Test cases open on a click:** in every check's results (Learn, the
+  challenges, the IDE's Results) each test opens at once, on a click, to what
+  it ran and what came back, with no chevron and no hover fill (the pointer
+  says it's clickable). They start closed, and one opens at a time
+  (`useOneOpen`, `components/ui/one-open.ts`). Learn's and the challenges'
+  tests are a row of tabs, each its mark and number only (no "passed" or
+  "failed"), the open one only gaining the gray (its text stays the same
+  color), since their output is always under the editor and short on
+  height. There's no summary line, pass or fail ("Solved!" included), only
+  a pass's way on (the next part or challenge), and screen readers still
+  hear the verdict. The IDE's Results stay a list, its checks having names.
 - **Code examples:** Reset (only once changed), Copy, then Run, as plain icons
   that are always visible. Clicking the code edits it in place, `Mod-Enter`
   runs it, and clicking off it or Escape returns it to plain code with the

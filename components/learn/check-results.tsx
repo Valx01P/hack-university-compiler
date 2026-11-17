@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
+import { useId, useRef } from "react";
 import { TypeCheckStrip } from "@/components/compiler/type-check";
 import { CompleteIcon } from "@/components/learn/complete-icon";
+import { useOneOpen } from "@/components/ui/one-open";
 import { ScrollPre } from "@/components/ui/scroll-pre";
 import type { LessonTest } from "@/lib/learn-types";
 import { EASE, dur, gsap, hasPainted, useGSAP } from "@/lib/motion";
@@ -110,8 +111,11 @@ export function checkSummary(check: CheckState): string {
 
 /** The verdict of a practice check: every test, and what differed. Once it
     passes it points the way on: the next part, or the next lesson after the
-    last part. Each new verdict slides in line by line, and a pass pops its
-    check mark. */
+    last part. Each new verdict slides in line by line. The tests are a row
+    of tabs, each its mark and number, and a click opens one to what it ran
+    and what came back (type tests open the same way in their list), one at
+    a time, all closed in a new verdict. There's no summary line, pass or
+    fail: each mark says it. */
 export function CheckResults({
   check,
   next,
@@ -137,11 +141,11 @@ export function CheckResults({
         stagger: dur(0.045),
         clearProps: "opacity,transform",
       });
-      const mark = root.querySelector("[data-anim=pop]");
-      if (mark) gsap.from(mark, { scale: 0.4, rotate: -25, opacity: 0, duration: dur(0.45), ease: EASE.pop, clearProps: "opacity,transform" });
     },
     { scope: rootRef, dependencies: [check] }
   );
+  const uid = useId();
+  const { openId, toggle } = useOneOpen(check);
 
   if (check.status === "checking") {
     return (
@@ -174,88 +178,90 @@ export function CheckResults({
   const t = tally(check);
   return (
     <div ref={rootRef}>
-      {t.solved ? (
-        <div data-anim="row" className="flex items-start gap-3 p-4">
-          <span data-anim="pop" className="mt-0.5 inline-flex shrink-0">
-            <CompleteIcon className="size-5" />
-          </span>
-          <div className="min-w-0">
-            <p className="font-medium text-ink">Solved! {passedLine(t.tests, t.types)}</p>
-            {(lessonComplete || next) && (
-              <p className="mt-1 text-sm text-ink-muted">
-                {lessonComplete && "Lesson complete. "}
-                {next?.href ? (
-                  <Link href={next.href} className={NEXT_LINK}>
-                    {next.label} →
-                  </Link>
-                ) : next?.onClick ? (
-                  <button type="button" onClick={next.onClick} className={NEXT_LINK}>
-                    {next.label} →
-                  </button>
-                ) : (
-                  "That was the last lesson in the course."
-                )}
-              </p>
-            )}
-          </div>
-        </div>
-      ) : results.some((r) => r.detail) || t.types > 0 || t.broken > 0 ? (
-        // A check on the runner can fail on more than output.
-        <p data-anim="row" className="p-4 text-sm font-medium text-ink">
-          {failedLine(check)}
-        </p>
-      ) : (
-        <p data-anim="row" className="p-4 text-sm font-medium text-ink">
-          {t.testsPassed} of {t.tests} test{t.tests === 1 ? "" : "s"} passed. Compare your
-          output with the expected output below.
+      {t.solved && (lessonComplete || next) && (
+        // No "Solved!" line (the marks say it), only the way on.
+        <p data-anim="row" className="px-4 pt-3 text-sm text-ink-muted">
+          {lessonComplete && "Lesson complete. "}
+          {next?.href ? (
+            <Link href={next.href} className={NEXT_LINK}>
+              {next.label} →
+            </Link>
+          ) : next?.onClick ? (
+            <button type="button" onClick={next.onClick} className={NEXT_LINK}>
+              {next.label} →
+            </button>
+          ) : (
+            "That was the last lesson in the course."
+          )}
         </p>
       )}
 
-      {results.map((r, i) => (
-        <div key={i} data-anim="row" className="border-t border-content-line px-4 py-3">
-          <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-ink-muted">
-            {r.passed ? <CompleteIcon className="size-3.5" /> : <span aria-hidden className="text-danger">✗</span>}
-            Test {i + 1} {r.passed ? "passed" : "failed"}
-          </p>
-          {!r.passed &&
-            (r.detail ? (
-              <RunnerTestDetail test={i + 1} result={r} detail={r.detail} />
-            ) : (
-              <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
-                {r.stdin && <OutputBlock test={i + 1} label="Input" text={r.stdin} className="sm:col-span-2" />}
-                <OutputBlock test={i + 1} label="Expected" text={r.expected} />
-                <OutputBlock test={i + 1} label="Your output" text={r.actual || "(no output)"} />
-                {r.stderr && <OutputBlock test={i + 1} label="Errors" text={r.stderr} className="sm:col-span-2" danger />}
-              </div>
-            ))}
+      {results.length > 0 && (
+        // A row of tabs, short on height (the output is always under the
+        // editor), the open test's detail under it.
+        <div data-anim="row">
+          <div role="group" aria-label="Tests" className="slim-scroll flex gap-1 overflow-x-auto px-3 py-2">
+            {results.map((r, i) => {
+              const key = `test-${i}`;
+              const open = openId === key;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  aria-pressed={open}
+                  aria-controls={open ? `${uid}-tab` : undefined}
+                  onClick={() => toggle(key)}
+                  // The open one gets the gray, its text the same as the rest.
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink-muted focus-visible:outline-offset-[-3px]! ${
+                    open ? "bg-raised" : ""
+                  }`}
+                >
+                  <TestMark passed={r.passed} />
+                  Test {i + 1}
+                  <span className="sr-only">{r.passed ? " passed" : " failed"}</span>
+                </button>
+              );
+            })}
+          </div>
+          {openId?.startsWith("test-") && (
+            <div id={`${uid}-tab`} className="px-4 pb-3.5">
+              <TestDetail test={Number(openId.slice(5)) + 1} result={results[Number(openId.slice(5))]} />
+            </div>
+          )}
         </div>
-      ))}
+      )}
 
       {typeTests.length > 0 && (
-        <div data-anim="row" className="border-t border-content-line px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-wider text-ink-muted">
-            Type tests · {t.typesPassed} of {t.types} passed
+        <div data-anim="row" className="border-t border-content-line pt-3 pb-1.5">
+          <p className="px-4 text-xs font-medium uppercase tracking-wider text-ink-muted">
+            Type tests
           </p>
-          <ul className="mt-2 space-y-2.5">
-            {typeTests.map((c, i) => (
-              <li key={i} className="min-w-0">
-                <p className="flex items-start gap-2 text-sm text-ink">
-                  <Mark passed={c.passed} />
-                  <span className="min-w-0">
-                    {c.name}
-                    <span className="sr-only">{c.passed ? " (passed)" : " (failed)"}</span>
-                  </span>
-                </p>
-                {!c.passed && (
-                  <div className="mt-1.5 space-y-1.5 pl-5.5">
-                    {c.problem && <p className="text-sm text-ink-muted">{sentence(c.problem)}</p>}
-                    <ScrollPre label={`Type test: ${c.name}`} className={BLOCK}>
-                      {c.code}
-                    </ScrollPre>
-                  </div>
-                )}
-              </li>
-            ))}
+          <ul className="mt-1.5">
+            {typeTests.map((c, i) => {
+              const key = `type-${i}`;
+              const id = `${uid}-type-${i}`;
+              const open = openId === key;
+              return (
+                <li key={i} className="min-w-0">
+                  <button type="button" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => toggle(key)} className={`${ROW} items-start py-1.5 text-sm text-ink`}>
+                    <Mark passed={c.passed} />
+                    <span className="min-w-0">
+                      {c.name}
+                      <span className="sr-only">{c.passed ? " (passed)" : " (failed)"}</span>
+                    </span>
+                  </button>
+                  {/* Under the name: the row's padding, the mark, and its gap. */}
+                  {open && (
+                    <div id={id} className="space-y-1.5 pb-2 pl-9.5 pr-4">
+                      {!c.passed && c.problem && <p className="text-sm text-ink-muted">{sentence(c.problem)}</p>}
+                      <ScrollPre label={`Type test: ${c.name}`} className={BLOCK}>
+                        {c.code}
+                      </ScrollPre>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -293,6 +299,43 @@ export function CheckResults({
 
 const BLOCK =
   "code-dark slim-scroll max-h-48 overflow-auto rounded-btn border border-code-content-line bg-code-bg px-3 py-2 font-mono text-xs leading-5 text-code-ink";
+
+// A test's row: the whole width is its button (the pointer shows it), with
+// the focus ring inside it (the results scroll, and would clip one outside).
+const ROW = "flex w-full gap-2 px-4 text-left focus-visible:outline-offset-[-3px]!";
+
+/** A test's pass or fail mark. */
+function TestMark({ passed }: { passed: boolean }) {
+  return passed ? <CompleteIcon className="size-3.5" /> : <span aria-hidden className="text-danger">✗</span>;
+}
+
+/** What a test ran with and what came back: for a pass, what it printed, for
+    a failure, what it should have and what differed. */
+function TestDetail({ test: n, result: r }: { test: number; result: TestResult }) {
+  if (r.passed) return <PassedTestDetail test={n} result={r} />;
+  if (r.detail) return <RunnerTestDetail test={n} result={r} detail={r.detail} />;
+  return (
+    <div className="grid gap-2.5 sm:grid-cols-2">
+      {r.stdin && <OutputBlock test={n} label="Input" text={r.stdin} className="sm:col-span-2" />}
+      <OutputBlock test={n} label="Expected" text={r.expected} />
+      <OutputBlock test={n} label="Your output" text={r.actual || "(no output)"} />
+      {r.stderr && <OutputBlock test={n} label="Errors" text={r.stderr} className="sm:col-span-2" danger />}
+    </div>
+  );
+}
+
+/** What a passing test ran with and printed (the output is what it should
+    be). */
+function PassedTestDetail({ test: n, result }: { test: number; result: TestResult }) {
+  const args = result.detail?.test.args;
+  return (
+    <div className="grid gap-2.5">
+      {args && args.length > 0 && <OutputBlock test={n} label="Arguments" text={joinArgs(args)} />}
+      {result.stdin && <OutputBlock test={n} label="Input" text={result.stdin} />}
+      <OutputBlock test={n} label="Output" text={result.actual || "(no output)"} />
+    </div>
+  );
+}
 
 /** A row's pass or fail mark, the same size either way, centered on the
     row's first line. */
@@ -345,7 +388,7 @@ function RunnerTestDetail({ test: n, result, detail }: { test: number; result: T
     test.clock && `at ${test.clock}`,
   ].filter(Boolean);
   return (
-    <div className="mt-2.5 space-y-2.5">
+    <div className="space-y-2.5">
       {problems.length > 0 && (
         <ul className="list-disc space-y-0.5 pl-5 text-sm text-ink marker:text-ink-faint">
           {problems.map((p, i) => (

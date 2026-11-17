@@ -143,7 +143,12 @@ practice problems for each programming language, and 114 for SQL.
 - The part is on the left and the editor on the right, with a tab for each
   example (Example 1 to 3 when a part has several) and **Your code**. Every
   example runs and can be edited and reset. **Check** runs your practice code
-  against its tests in the sandbox.
+  against its tests in the sandbox. The tests are a row of tabs under the
+  editor (✓ Test 1, ✗ Test 2), each mark saying how it did (no summary
+  line, and a pass only adds the link on), and a click opens one to what it
+  ran and what came back, one at a time, all closed again with every Check.
+  The challenges show theirs the same way, and the IDE's Results list its
+  checks, opening the same way.
 - TypeScript and Bash parts add a little to the editor. A TypeScript run shows
   a **Type check** strip above its output: "No type errors", or each error with
   a link that puts the cursor on its line, which the editor underlines. Bash
