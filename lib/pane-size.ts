@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { PANES, paneKey, paneVar, type PaneName } from "@/lib/panes";
+import { PANES, foldOf, paneKey, paneVar, type PaneName } from "@/lib/panes";
 
 /**
  * Saving and reading the sizes in lib/panes.ts. Setting one writes its
@@ -13,10 +13,12 @@ import { PANES, paneKey, paneVar, type PaneName } from "@/lib/panes";
 
 const changed = (name: PaneName) => `hu:pane-${name}-changed`;
 
+// In its range, or exactly its fold.
 function clamp(name: PaneName, value: unknown): number {
   const p = PANES[name];
   const n = Math.round(Number(value));
-  return Number.isFinite(n) ? Math.min(p.max, Math.max(p.min, n)) : p.initial;
+  if (!Number.isFinite(n)) return p.initial;
+  return n === foldOf(name)?.at ? n : Math.min(p.max, Math.max(p.min, n));
 }
 
 function apply(name: PaneName, value: number) {
@@ -24,9 +26,10 @@ function apply(name: PaneName, value: number) {
   const d = document.documentElement;
   if (value === p.initial) d.style.removeProperty(paneVar(name));
   else d.style.setProperty(paneVar(name), `${value}${p.unit}`);
-  if ("zeroAttr" in p) {
-    if (value === 0) d.setAttribute(p.zeroAttr, "");
-    else d.removeAttribute(p.zeroAttr);
+  const fold = foldOf(name);
+  if (fold) {
+    if (value === fold.at) d.setAttribute(fold.attr, "");
+    else d.removeAttribute(fold.attr);
   }
 }
 

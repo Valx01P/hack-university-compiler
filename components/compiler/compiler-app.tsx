@@ -6,6 +6,7 @@ import { BookOpenText, FolderCode, GraduationCap, ListChecks, RotateCcw } from "
 import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
+import { inputCorners, type InputPlace } from "@/components/code/program-input";
 import { CodeThemePicker } from "@/components/code/code-theme";
 import { ResetCodeButton } from "@/components/code/reset-code-button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
@@ -71,6 +72,12 @@ function savedCode(lang: CompilerLang): string {
     return lang.starter;
   }
 }
+
+// The stacked split's border (the editor's share), and how far down a drag
+// goes (past the output's smallest, at STACK.max) before the output folds
+// away (at STACK.fold.at).
+const STACK = PANES["compiler-stack"];
+const STACK_FOLD_PAST = 90;
 
 export function CompilerApp({
   lang,
@@ -216,6 +223,12 @@ export function CompilerApp({
   // The border of the layout showing now (read at the time, for a drag).
   function setSplit(next: number) {
     setPaneSize(orientRef.current === "horizontal" ? "compiler-split" : "compiler-stack", next);
+  }
+
+  // Running with the output folded away opens it at its smallest, to show
+  // what came back.
+  function unfoldOutput() {
+    if (orientRef.current === "vertical" && stackedPct === STACK.fold.at) setPaneSize("compiler-stack", STACK.max);
   }
 
   function setRefPct(next: number) {
@@ -369,6 +382,7 @@ export function CompilerApp({
   }, [refOpen]);
 
   async function execute() {
+    unfoldOutput();
     setRun({ status: "running" });
     setCheckFor(null);
     setAnnouncement("");
@@ -395,6 +409,7 @@ export function CompilerApp({
 
   async function checkChallenge() {
     if (!challenge || busy) return;
+    unfoldOutput();
     const { id, tests } = challenge;
     const code = challengeCode;
     setRun({ status: "idle" });
@@ -450,11 +465,9 @@ export function CompilerApp({
 
     function move(ev: PointerEvent) {
       const r = container!.getBoundingClientRect();
-      setSplit(
-        isH
-          ? ((ev.clientX - r.left) / r.width) * 100
-          : ((ev.clientY - r.top) / r.height) * 100
-      );
+      const pct = isH ? ((ev.clientX - r.left) / r.width) * 100 : ((ev.clientY - r.top) / r.height) * 100;
+      // Stacked, dragged well past the output's smallest, it folds away.
+      setSplit(!isH && pct >= STACK_FOLD_PAST ? STACK.fold.at : pct);
     }
     function up() {
       document.body.style.userSelect = prevSelect;
@@ -469,37 +482,87 @@ export function CompilerApp({
     window.addEventListener("pointercancel", up);
   }
 
+  // Stacked, a step down from the output's smallest folds it away, and a step
+  // up from folded opens it at its smallest.
   function nudgeSplit(delta: number) {
+    if (stackFolded) return delta < 0 ? setSplit(STACK.max) : undefined;
+    if (!horizontal && delta > 0 && splitPct >= STACK.max) return setSplit(STACK.fold.at);
     setSplit(splitPct + delta);
   }
 
   const horizontal = effectiveOrient === "horizontal";
+  const stackFolded = !horizontal && stackedPct === STACK.fold.at;
   const iconBtn =
     "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink";
   const headerBtn =
     "inline-flex items-center gap-1.5 rounded-btn border border-content-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised";
 
-  // The stdin row under the editor. The code box clips anything outside it,
-  // so the focus ring sits inside the button (rounded like the box's corners
-  // when it's the last row), in the code text color. Beside an Arguments
-  // field it takes half the row.
-  const stdinToggle = (
-    <button
-      type="button"
-      onClick={() => setShowStdin((v) => !v)}
-      aria-expanded={showStdin}
-      aria-controls={showStdin ? stdinId : undefined}
-      className={`code-stdin-toggle flex ${lang.args ? "min-w-0 flex-1" : "w-full"} items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${
-        showStdin ? "" : lang.args ? "rounded-bl-[calc(var(--radius-card)-1px)]" : "rounded-b-[calc(var(--radius-card)-1px)]"
-      }`}
-    >
-      <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
-      <span>{sqlMode ? "setup (runs first)" : "stdin"}</span>
-      {!showStdin && currentStdin ? (
-        <span className="truncate text-code-gutter">· {currentStdin.split("\n")[0]}</span>
-      ) : null}
-    </button>
-  );
+  // The program's input: the stdin row (with the Arguments field beside it,
+  // each half the row) and the open field. Side by side it's the code box's
+  // last rows, and stacked it's a box of its own at the top of the output,
+  // over what comes back. A phone stacks a side-by-side layout too, so it
+  // renders in both places then and CSS shows the one that fits. The box
+  // clips anything outside it, so focus rings sit inside, in the code text
+  // color, rounded at the box's corners (inputCorners).
+  const programInput = (place: InputPlace) => {
+    const id = `${stdinId}-${place}`;
+    const toggle = (
+      <button
+        type="button"
+        onClick={() => setShowStdin((v) => !v)}
+        aria-expanded={showStdin}
+        aria-controls={showStdin ? id : undefined}
+        className={`code-stdin-toggle flex ${lang.args ? "min-w-0 flex-1" : "w-full"} items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${inputCorners(
+          place,
+          !showStdin,
+          lang.args ? "left" : "whole"
+        )}`}
+      >
+        <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
+        <span>{sqlMode ? "setup (runs first)" : "stdin"}</span>
+        {!showStdin && currentStdin ? <span className="truncate text-code-gutter">· {currentStdin.split("\n")[0]}</span> : null}
+      </button>
+    );
+    return (
+      <>
+        {lang.args ? (
+          // With no border of its own, the Arguments field shows focus the
+          // way the stdin toggle does (.code-args-field in globals.css).
+          <div className="flex items-stretch">
+            {toggle}
+            <label
+              className={`code-args-field flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${inputCorners(place, !showStdin, "right")}`}
+            >
+              <span className="shrink-0">args</span>
+              <input
+                type="text"
+                value={currentArgs}
+                onChange={(e) => setCurrentArgs(e.target.value)}
+                spellCheck={false}
+                autoComplete="off"
+                autoCapitalize="off"
+                placeholder="arguments for $1, $2..."
+                aria-label="Arguments passed to your program"
+                className="code-stdin-input min-w-0 flex-1 self-stretch border-0 bg-transparent pe-3 font-mono text-base font-normal text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-xs"
+              />
+            </label>
+          </div>
+        ) : (
+          toggle
+        )}
+        {showStdin && (
+          <textarea
+            id={id}
+            value={currentStdin}
+            onChange={(e) => setCurrentStdin(e.target.value)}
+            rows={2}
+            placeholder="Input passed to your program on stdin..."
+            className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-content-line bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
+          />
+        )}
+      </>
+    );
+  };
 
   // Cheatsheet, Challenges, and Learn: above the output, or in the panel's
   // header while it's open, so they stay put and switching is one click.
@@ -578,6 +641,7 @@ export function CompilerApp({
             own height would leave at almost nothing). */}
         <div
           ref={splitRef}
+          data-split={horizontal ? undefined : "stack"}
           className={`min-h-0 flex-1 ${refOpen ? "max-lg:h-[calc(100dvh_-_var(--header-h))] max-lg:flex-none lg:h-full" : ""} ${
             horizontal
               ? "flex flex-col lg:grid lg:grid-cols-[var(--compiler-left)_10px_minmax(0,1fr)] lg:gap-0 lg:overflow-hidden"
@@ -706,47 +770,12 @@ export function CompilerApp({
                   readOnly={showingAnswer}
                 />
               </div>
-              {/* SQL's playground has no input: the database is the input. */}
-              <div className={`shrink-0 border-t border-code-content-line bg-code-bg ${playground ? "hidden" : ""}`}>
-                {lang.args ? (
-                  // The command line goes beside stdin, on the same row. With
-                  // no border of its own, the field shows focus the way the
-                  // stdin toggle does (.code-args-field in globals.css).
-                  <div className="flex items-stretch">
-                    {stdinToggle}
-                    <label
-                      className={`code-args-field flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${
-                        showStdin ? "" : "rounded-br-[calc(var(--radius-card)-1px)]"
-                      }`}
-                    >
-                      <span className="shrink-0">args</span>
-                      <input
-                        type="text"
-                        value={currentArgs}
-                        onChange={(e) => setCurrentArgs(e.target.value)}
-                        spellCheck={false}
-                        autoComplete="off"
-                        autoCapitalize="off"
-                        placeholder="arguments for $1, $2..."
-                        aria-label="Arguments passed to your program"
-                        className="code-stdin-input min-w-0 flex-1 self-stretch border-0 bg-transparent pe-3 font-mono text-base font-normal text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-xs"
-                      />
-                    </label>
-                  </div>
-                ) : (
-                  stdinToggle
-                )}
-                {showStdin && (
-                  <textarea
-                    id={stdinId}
-                    value={currentStdin}
-                    onChange={(e) => setCurrentStdin(e.target.value)}
-                    rows={2}
-                    placeholder="Input passed to your program on stdin..."
-                    className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-content-line bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
-                  />
-                )}
-              </div>
+              {/* Side by side, the program's input is the box's last rows (only
+                  on wide screens, a phone stacking them). SQL's playground has
+                  none: the database is the input. */}
+              {!playground && horizontal && (
+                <div className="hidden shrink-0 border-t border-code-content-line bg-code-bg lg:block">{programInput("editor")}</div>
+              )}
             </div>
           </div>
 
@@ -756,8 +785,9 @@ export function CompilerApp({
             aria-orientation={horizontal ? "vertical" : "horizontal"}
             aria-label="Resize"
             aria-valuemin={20}
-            aria-valuemax={80}
+            aria-valuemax={horizontal ? 80 : STACK.fold.at}
             aria-valuenow={splitPct}
+            aria-valuetext={stackFolded ? "Output folded away" : undefined}
             tabIndex={0}
             onPointerDown={startDrag}
             onDoubleClick={() => setSplit(PANES[splitPane].initial)}
@@ -779,11 +809,12 @@ export function CompilerApp({
                 e.preventDefault();
                 nudgeSplit(20 - splitPct);
               } else if (e.key === "End") {
+                // Stacked, the end is the output folded away.
                 e.preventDefault();
-                nudgeSplit(80 - splitPct);
+                setSplit(horizontal ? 80 : STACK.fold.at);
               }
             }}
-            title="Drag to resize. Double-click to reset."
+            title={horizontal ? "Drag to resize. Double-click to reset." : "Drag to resize, all the way down to fold the output away. Double-click to reset."}
             className={`group hidden shrink-0 touch-none select-none outline-none lg:flex ${
               horizontal
                 ? "cursor-col-resize items-stretch justify-center"
@@ -797,8 +828,8 @@ export function CompilerApp({
             />
           </div>
 
-          {/* Output (beside the editor, or under it) */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
+          {/* Output (beside the editor, or under it, where it can fold away) */}
+          <div data-split-output className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
             {/* Padded for whole focus rings, like the toolbar. */}
             <div className="slim-scroll -mx-1.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pt-1.5 pb-3">
               {playground ? (
@@ -860,6 +891,16 @@ export function CompilerApp({
                 {!refOpen && panelButtons}
               </div>
             </div>
+
+            {/* Stacked, the program's input sits over what comes back (on a
+                phone too, side by side or not). */}
+            {!playground && (
+              <div
+                className={`code-dark mb-2 shrink-0 overflow-hidden rounded-card border border-code-line bg-code-bg ${horizontal ? "lg:hidden" : ""}`}
+              >
+                {programInput("output")}
+              </div>
+            )}
 
             {/* Focusable, so long output can be scrolled from the keyboard.
                 What it says sits closer to its top and bottom under the

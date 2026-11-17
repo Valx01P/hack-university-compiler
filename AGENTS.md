@@ -140,10 +140,19 @@ before committing it.
 - **A reload keeps your place:** the open panel, the challenge and its hints,
   list filters, the cheatsheet search and section, the SQL view, Learn's tab
   and hints and position, and full screen are in the address. Every
-  draggable border's position (splits, pane sizes, the lesson list folded or
-  not) is saved where you leave it and applied before first paint
-  (`lib/panes.ts`, read through `lib/pane-size.ts`), so a new border goes in
-  that table. Answer reveals ask again after a reload.
+  draggable border's position (splits, pane sizes, the lesson list or the
+  output folded or not) is saved where you leave it and applied before first
+  paint (`lib/panes.ts`, read through `lib/pane-size.ts`, a fold marking
+  `<html>` for CSS), so a new border goes in that table. Answer reveals ask
+  again after a reload.
+- **Stdin goes with the output when it's under the editor:** side by side
+  it's the code box's last row, and stacked (Learn, the compiler with a
+  panel open, stacked, or on a phone) it's a box of its own at the top of the
+  output, over what comes back, with Bash's args and files
+  (`components/code/program-input.ts` rounds its rows' focus rings). There,
+  dragging the border well past the output's smallest (or End, or a step
+  down from it) folds the output away, and Run or Check opens it again at
+  its smallest. Phones have no border, so no fold.
 - **Hover is intent:** links prefetch, and code examples warm their editor on
   hover.
 - **Learn never scrolls the page on desktop.** The lesson list and the lesson

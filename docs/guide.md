@@ -64,7 +64,12 @@ package index. Piston has packages for many more languages, see
 runner, which needs Docker: with Docker off, their Run says "Start Docker to
 run this". A type error stops a TypeScript run the way a compile error stops
 C++. `/bash` has an **args** field beside stdin, split the way a shell would
-(quotes keep spaces), that arrives as `$1`, `$2`, and so on.
+(quotes keep spaces), that arrives as `$1`, `$2`, and so on. Stdin sits under
+the editor while the output is beside it, and at the top of the output, over
+what comes back, once it's under the editor (with the cheatsheet or
+challenges open, stacked, or on a phone). Stacked, the border between them
+drags all the way down to fold the output away, and Run or Check opens it
+again at its smallest.
 
 Every course is listed once, in `content/courses.json`, the course registry:
 its route, label, icon, the row of the Learn icons it sits in, and what runs it
@@ -175,9 +180,11 @@ practice problems for each programming language, and 114 for SQL.
   Drag the lesson list's border all the way left to fold it away, and bring it
   back with the panel button or the border. The gap between the editor and
   the output is a border too: drag it down for a bigger editor, or up for
-  more output. Opening stdin never shrinks the editor, it moves the output
-  down instead. Every border stays where you leave it, folded list included,
-  even after a reload.
+  more output, and all the way down to fold the output away (Run or Check
+  opens it again at its smallest). Stdin, with Bash's args and files, sits
+  at the top of the output, over what comes back, so opening it never
+  shrinks the editor. Every border stays where you leave it, folded list
+  and output included, even after a reload.
 - Every code block in a part runs too (see [Runnable examples](#runnable-examples)).
 - Progress, your code in every tab, and the part you were on are saved in the
   browser's local storage. The address keeps the rest of your place: the tab

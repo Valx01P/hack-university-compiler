@@ -8,6 +8,7 @@ import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { CodeThemePicker } from "@/components/code/code-theme";
 import { ResetCodeButton } from "@/components/code/reset-code-button";
 import { ExitBadge, OUTPUT_PAD, OutputPanel } from "@/components/compiler/output-panel";
+import { inputCorners } from "@/components/code/program-input";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { programTypeErrors, TypeCheckStrip } from "@/components/compiler/type-check";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
@@ -68,6 +69,9 @@ const TIMED_OUT = "Timed out. Your code ran too long (usually an infinite loop).
 // (60 is the 3 to 2 it starts at). Both are saved (lib/panes.ts).
 const SPLIT = PANES["learn-split"];
 const EDITOR_SPLIT = PANES["learn-editor"];
+// How far down a drag goes (past the output's smallest, at EDITOR_SPLIT.max)
+// before the output folds away.
+const EDITOR_FOLD_PAST = 90;
 const EDITOR_SHARE = paneValue("learn-editor");
 // How long Next glows once your practice passes (the .next-glow animation).
 const NEXT_GLOW_MS = 3600;
@@ -205,8 +209,8 @@ export function PartView({
   const setSplit = (pct: number) => setPaneSize("learn-split", pct);
   const editorShare = usePaneSize("learn-editor");
   const setEditorShare = (pct: number) => setPaneSize("learn-editor", pct);
+  const outputFolded = editorShare === EDITOR_SPLIT.fold.at;
   const codeBoxRef = useRef<HTMLDivElement>(null);
-  const stdinRef = useRef<HTMLTextAreaElement>(null);
 
   const uid = useId();
   const tabId = (kind: TabKind) => `${uid}-tab-${kind}`;
@@ -338,6 +342,9 @@ export function PartView({
     rememberRunButton(e);
     setBusyTab(kind);
     setAnnouncement("");
+    // With the output folded away, it opens at its smallest to show what
+    // comes back.
+    if (outputFolded) setEditorShare(EDITOR_SPLIT.max);
     // Below lg the output can sit under the fold (a phone in landscape, where
     // the editor keeps its minimum height): bring it into view so the run
     // shows up.
@@ -461,19 +468,21 @@ export function PartView({
     finish({ status: "done", results, lessonComplete, typeTests, forbidden });
   }
 
-  // The stdin row under the editor. The code box clips anything outside it,
-  // so the focus ring sits inside the button (rounded like the box's corners
-  // when it's the last row), in the code text color. Beside an Arguments
-  // field it takes half the row.
+  // The stdin row, at the top of the output's input box. The box clips
+  // anything outside it, so the focus ring sits inside the button (rounded
+  // like the box's corners, inputCorners), in the code text color. Beside an
+  // Arguments field it takes half the row.
   const stdinToggle = (
     <button
       type="button"
       onClick={() => setShowStdin((v) => !v)}
       aria-expanded={showStdin}
       aria-controls={showStdin ? stdinId : undefined}
-      className={`code-stdin-toggle flex ${takesArgs ? "min-w-0 flex-1" : "w-full"} items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${
-        showStdin || filesRow ? "" : takesArgs ? "rounded-bl-[calc(var(--radius-card)-1px)]" : "rounded-b-[calc(var(--radius-card)-1px)]"
-      }`}
+      className={`code-stdin-toggle flex ${takesArgs ? "min-w-0 flex-1" : "w-full"} items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${inputCorners(
+        "output",
+        !showStdin && !filesRow,
+        takesArgs ? "left" : "whole"
+      )}`}
     >
       <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
       <span>{sql ? "setup (runs first)" : "stdin"}</span>
@@ -616,7 +625,7 @@ export function PartView({
         </div>
 
         {/* --stdin-h: the open stdin field's height (two lines, its padding,
-            and its top border), which comes out of the output (below). */}
+            and its top border). */}
         <div
           id={panelId}
           role="tabpanel"
@@ -704,19 +713,11 @@ export function PartView({
           </div>
 
           {/* The code box and the output share the height by the border
-              between them (EDITOR_SHARE out of 100, 3 to 2 at first). Open
-              stdin comes out of the output, not the editor: the box starts
-              from the field's height over the output's share, plus its own
-              border, which a zero start already counts, and that leaves the
-              editor exactly its size and moves the output down by the field.
-              The output's floor drops by the field too, so a short window
-              doesn't take it from the editor either. */}
+              between them (EDITOR_SHARE out of 100, 3 to 2 at first, and all
+              of it with the output folded away). */}
           <div
             ref={codeBoxRef}
-            style={{
-              flexGrow: EDITOR_SHARE,
-              flexBasis: showStdin ? `calc(var(--stdin-h) * 100 / (100 - ${EDITOR_SHARE}) + 2px)` : undefined,
-            }}
+            style={{ flexGrow: EDITOR_SHARE }}
             className="code-dark flex min-h-[12rem] flex-1 flex-col overflow-hidden rounded-card border border-code-content-line bg-code-bg lg:min-h-0"
           >
             <div className="min-h-0 flex-1">
@@ -731,7 +732,73 @@ export function PartView({
                 cursorAt={cursorAt}
               />
             </div>
-            <div className="shrink-0 border-t border-code-content-line bg-code-bg">
+          </div>
+
+          {/* Drag it down for a bigger editor, up for more output, and well
+              past the output's smallest to fold it away (a step down from
+              there, or End, does too, and a step up opens it at its
+              smallest). Quiet: the gap shows nothing until it's hovered,
+              dragged, or focused. */}
+          <ResizeHandle
+            orientation="horizontal"
+            label="Resize the editor and the output"
+            value={editorShare}
+            min={EDITOR_SPLIT.min}
+            max={EDITOR_SPLIT.fold.at}
+            step={5}
+            bigStep={10}
+            onChange={(next) =>
+              setEditorShare(outputFolded ? (next < EDITOR_SPLIT.fold.at ? EDITOR_SPLIT.max : next) : next > EDITOR_SPLIT.max ? EDITOR_SPLIT.fold.at : next)
+            }
+            onDrag={(y) => {
+              const box = codeBoxRef.current?.getBoundingClientRect();
+              const out = outputRef.current?.getBoundingClientRect();
+              if (!box || !out) return;
+              // The height the two share, less the box's border, with the
+              // box's bottom half the border's 9px above the pointer.
+              const shared = box.height + out.height - 2;
+              if (shared <= 0) return;
+              const share = ((y - 4.5 - box.top - 2) / shared) * 100;
+              setEditorShare(share >= EDITOR_FOLD_PAST ? EDITOR_SPLIT.fold.at : share);
+            }}
+            onReset={() => setEditorShare(EDITOR_SPLIT.initial)}
+            quiet
+            className="hidden lg:flex"
+          />
+
+          <div
+            ref={outputRef}
+            data-learn-output
+            style={{ flexGrow: `calc(100 - ${EDITOR_SHARE})` }}
+            className="mt-2 flex min-h-[9rem] flex-1 scroll-mb-2 scroll-mt-[calc(4rem+1px)] flex-col lg:mt-0"
+          >
+            <div className="flex shrink-0 items-center gap-1 pb-2">
+              <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
+                {panel.mode === "check" ? "Results" : "Output"}
+              </h2>
+              {features.exitBadge && panel.mode === "run" && <ExitBadge run={panel.run} />}
+              {active === "practice" && panel.mode === "run" && panel.run.status === "idle" && (
+                <span className="truncate text-xs text-ink-faint">
+                  Run tries your code. Check runs it against {practice.tests.length} test
+                  {practice.tests.length === 1 ? "" : "s"}
+                  {typeTestCount > 0 && ` and ${typeTestCount} type test${typeTestCount === 1 ? "" : "s"}`}.
+                </span>
+              )}
+              {((panel.mode === "run" && panel.run.status === "done") || (panel.mode === "check" && panel.check.status === "done")) && (
+                <button
+                  type="button"
+                  onClick={() => setPanel(active, { mode: "run", run: { status: "idle" } })}
+                  className="ms-auto rounded-btn px-2.5 py-1 text-xs font-medium text-ink-faint transition-colors hover:text-ink"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            {/* The program's input, over what comes back: stdin (with the
+                Arguments field beside it), and the files it starts in (Bash),
+                in a box of their own (the output's, so opening stdin takes
+                its room and leaves the editor be). */}
+            <div className="code-dark mb-2 shrink-0 overflow-hidden rounded-card border border-code-content-line bg-code-bg">
               {takesArgs ? (
                 // The Arguments field sits next to stdin, as on the compiler
                 // page. With no border of its own, the field shows focus the
@@ -739,9 +806,11 @@ export function PartView({
                 <div className="flex items-stretch">
                   {stdinToggle}
                   <label
-                    className={`code-args-field flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${
-                      showStdin || filesRow ? "" : "rounded-br-[calc(var(--radius-card)-1px)]"
-                    }`}
+                    className={`code-args-field flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${inputCorners(
+                      "output",
+                      !showStdin && !filesRow,
+                      "right"
+                    )}`}
                   >
                     <span className="shrink-0">args</span>
                     <input
@@ -762,7 +831,6 @@ export function PartView({
               )}
               {showStdin && (
                 <textarea
-                  ref={stdinRef}
                   id={stdinId}
                   aria-label="Program input (stdin)"
                   value={stdin}
@@ -794,62 +862,6 @@ export function PartView({
                 </button>
               )}
               {filesRow && showFiles && <FixtureFiles key={fixtureSet} id={filesId} set={fixtureSet} files={fixtureFiles} />}
-            </div>
-          </div>
-
-          {/* Drag it down for a bigger editor, up for more output. Quiet: the
-              gap shows nothing until it's hovered, dragged, or focused. */}
-          <ResizeHandle
-            orientation="horizontal"
-            label="Resize the editor and the output"
-            value={editorShare}
-            min={EDITOR_SPLIT.min}
-            max={EDITOR_SPLIT.max}
-            step={5}
-            bigStep={10}
-            onChange={setEditorShare}
-            onDrag={(y) => {
-              const box = codeBoxRef.current?.getBoundingClientRect();
-              const out = outputRef.current?.getBoundingClientRect();
-              if (!box || !out) return;
-              // The height the two share, less the box's border, with the
-              // box's bottom half the border's 9px above the pointer. Open
-              // stdin is the output's, so it doesn't count.
-              const shared = box.height + out.height - 2;
-              const field = showStdin ? (stdinRef.current?.offsetHeight ?? 0) : 0;
-              if (shared > 0) setEditorShare(((y - 4.5 - box.top - 2 - field) / shared) * 100);
-            }}
-            onReset={() => setEditorShare(EDITOR_SPLIT.initial)}
-            quiet
-            className="hidden lg:flex"
-          />
-
-          <div
-            ref={outputRef}
-            style={{ flexGrow: `calc(100 - ${EDITOR_SHARE})`, minHeight: showStdin ? "calc(9rem - var(--stdin-h))" : undefined }}
-            className="mt-2 flex min-h-[9rem] flex-1 scroll-mb-2 scroll-mt-[calc(4rem+1px)] flex-col lg:mt-0"
-          >
-            <div className="flex shrink-0 items-center gap-1 pb-2">
-              <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
-                {panel.mode === "check" ? "Results" : "Output"}
-              </h2>
-              {features.exitBadge && panel.mode === "run" && <ExitBadge run={panel.run} />}
-              {active === "practice" && panel.mode === "run" && panel.run.status === "idle" && (
-                <span className="truncate text-xs text-ink-faint">
-                  Run tries your code. Check runs it against {practice.tests.length} test
-                  {practice.tests.length === 1 ? "" : "s"}
-                  {typeTestCount > 0 && ` and ${typeTestCount} type test${typeTestCount === 1 ? "" : "s"}`}.
-                </span>
-              )}
-              {((panel.mode === "run" && panel.run.status === "done") || (panel.mode === "check" && panel.check.status === "done")) && (
-                <button
-                  type="button"
-                  onClick={() => setPanel(active, { mode: "run", run: { status: "idle" } })}
-                  className="ms-auto rounded-btn px-2.5 py-1 text-xs font-medium text-ink-faint transition-colors hover:text-ink"
-                >
-                  Clear
-                </button>
-              )}
             </div>
             {/* Focusable, so long results can be scrolled from the keyboard.
                 Under the editor, so what it says sits close to its top and
