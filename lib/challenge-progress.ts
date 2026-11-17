@@ -95,6 +95,50 @@ export function useChallengeProgress(lang: string): ChallengeProgress {
   return useSyncExternalStore(subscribe, () => snapshot(lang), () => UNLOADED);
 }
 
+// The challenge you were on last, per language, which the Challenges button
+// takes you back to from the list (components/compiler/compiler-app.tsx).
+const LAST_KEY = (lang: string) => `hu-challenge-last-v1:${lang}`;
+const LAST_EVENT = "hu:challenge-last";
+
+/** Remembers the challenge you're on as a language's last one. */
+export function rememberLastChallenge(lang: string, id: string) {
+  try {
+    if (localStorage.getItem(LAST_KEY(lang)) === id) return;
+    localStorage.setItem(LAST_KEY(lang), id);
+  } catch {
+    return;
+  }
+  window.dispatchEvent(new Event(LAST_EVENT));
+}
+
+function subscribeLast(onChange: () => void) {
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === null || e.key.startsWith("hu-challenge-last-v1:")) onChange();
+  };
+  window.addEventListener(LAST_EVENT, onChange);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(LAST_EVENT, onChange);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+/** The challenge you were on last in a language, live (none on the server,
+    so the markup is the same either way). */
+export function useLastChallenge(lang: string): string | null {
+  return useSyncExternalStore(
+    subscribeLast,
+    () => {
+      try {
+        return localStorage.getItem(LAST_KEY(lang));
+      } catch {
+        return null;
+      }
+    },
+    () => null
+  );
+}
+
 /** Your saved code for a challenge, or the starter. */
 export function loadChallengeCode(lang: string, id: string, starter: string): string {
   if (typeof window === "undefined") return starter;

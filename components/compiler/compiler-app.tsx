@@ -28,8 +28,10 @@ import {
   loadChallengeCode,
   markChallengeSolved,
   markChallengeViewed,
+  rememberLastChallenge,
   saveChallengeCode,
   useChallengeProgress,
+  useLastChallenge,
 } from "@/lib/challenge-progress";
 import { useResumeHref } from "@/lib/learn-progress";
 import type { LessonRef } from "@/lib/learn-types";
@@ -122,6 +124,10 @@ export function CompilerApp({
   const refPct = usePaneSize("compiler-ref");
   const { data: refData, error: refError } = useReferenceData(lang.slug, refOpen);
   const progress = useChallengeProgress(lang.slug);
+  // The challenge you were on last in this language, saved, for the
+  // Challenges button to take you back to from the list.
+  const lastChallengeId = useLastChallenge(lang.slug);
+  const lastChallenge = refData?.challenges.find((c) => c.id === lastChallengeId) ?? null;
 
   // The open challenge takes over the editor with its own saved code, until
   // you leave it. The answer eye and the check results belong to it.
@@ -168,9 +174,11 @@ export function CompilerApp({
   const learnHref = useResumeHref(lang.slug, lessons);
 
   // Opening a challenge counts as viewing it (also when you arrive on it from
-  // another language).
+  // another language), and makes it the language's last one.
   useEffect(() => {
-    if (challenge) markChallengeViewed(lang.slug, challenge.id);
+    if (!challenge) return;
+    markChallengeViewed(lang.slug, challenge.id);
+    rememberLastChallenge(lang.slug, challenge.id);
   }, [challenge, lang.slug]);
 
   const showingAnswer = Boolean(challenge && answerFor === challenge.id);
@@ -337,10 +345,11 @@ export function CompilerApp({
   // Cheatsheet and Challenges each open the panel on themselves and switch it
   // over when it shows the other. Already showing, they leave the panel open
   // (only its X closes it), Challenges going from a challenge back to the
-  // list, like All challenges. The buttons move between the output and the
-  // panel as it opens and closes. When one of them (or the panel's close
-  // button) had keyboard focus, focus follows to the same button in its new
-  // place.
+  // list, like All challenges, and from the list back to the challenge you
+  // were on last in this language (saved). The buttons move between the
+  // output and the panel as it opens and closes. When one of them (or the
+  // panel's close button) had keyboard focus, focus follows to the same
+  // button in its new place.
   const refocusButton = useRef<ReferenceTab | null>(null);
   useLayoutEffect(() => {
     const tab = refocusButton.current;
@@ -352,6 +361,7 @@ export function CompilerApp({
     const keepFocus = document.activeElement instanceof HTMLElement && Boolean(document.activeElement.dataset.panelButton);
     if (refOpen && refTab === tab) {
       if (tab === "challenges" && challenge) leaveChallenge();
+      else if (tab === "challenges" && lastChallenge) openChallenge(lastChallenge.id);
       return;
     }
     if (keepFocus && !refOpen) refocusButton.current = tab;
@@ -588,7 +598,13 @@ export function CompilerApp({
             data-panel-button={tab}
             onClick={() => toggleReference(tab)}
             aria-pressed={active}
-            title={active && tab === "challenges" && challenge ? "Back to all challenges" : `${lang.label} ${label.toLowerCase()}`}
+            title={
+              active && tab === "challenges" && challenge
+                ? "Back to all challenges"
+                : active && tab === "challenges" && lastChallenge
+                  ? `Back to ${lastChallenge.title}`
+                  : `${lang.label} ${label.toLowerCase()}`
+            }
             className={`${headerBtn} ${active ? "bg-raised" : ""}`}
           >
             <Icon className="size-3.5" aria-hidden />
