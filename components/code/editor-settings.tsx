@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Minus, Plus, Settings } from "lucide-react";
 import { CONTRAST_LEVELS, setContrast, useContrast } from "@/lib/theme";
@@ -120,6 +120,9 @@ export function EditorSettingsButton({
     saveCodeEditorSettings(normalize({ ...settings, ...patch }));
   };
 
+  // Under the button, or as far up as it takes to fit in the window (over
+  // the button, if need be), so its last rows are never out of reach. A
+  // window shorter than the panel scrolls it instead (its max height).
   function place() {
     const rect = buttonRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -129,12 +132,21 @@ export function EditorSettingsButton({
       margin,
       Math.min(rect.right - width, window.innerWidth - width - margin)
     );
-    setPos({ top: rect.bottom + 8, left });
+    const height = panelRef.current?.offsetHeight ?? 0;
+    const top = Math.max(margin, Math.min(rect.bottom + 8, window.innerHeight - margin - height));
+    setPos((p) => (p && p.top === top && p.left === left ? p : { top, left }));
   }
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Once the panel is there, place it again by its own height.
+  const placed = pos !== null;
+  useLayoutEffect(() => {
+    if (shown && placed) place();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown, placed]);
 
   useEffect(() => {
     if (!open) return;
@@ -175,7 +187,7 @@ export function EditorSettingsButton({
             // Escape closes this before it leaves full screen (lib/full-screen.ts).
             data-popup
             style={{ position: "fixed", top: pos.top, left: pos.left, transformOrigin: "top right" }}
-            className="z-[120] w-64 rounded-card border border-edge bg-surface p-3 text-sm shadow-[var(--shadow-card)]"
+            className="slim-scroll z-[120] max-h-[calc(100dvh-1rem)] w-64 overflow-y-auto rounded-card border border-edge bg-surface p-3 text-sm shadow-[var(--shadow-card)]"
           >
             <div className="flex items-center justify-between gap-3">
               <p className="font-medium text-ink">Editor settings</p>
