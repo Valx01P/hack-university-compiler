@@ -294,7 +294,9 @@ Bash's `[[ ]]` (a call, `new Scanner(...)` included, is a call). It also
 helps with nesting: brackets and quotes close themselves, Enter between a pair
 opens an indented line with the closer on its own line, Enter after a finished
 line keeps its level (with its `;` or without it yet) and after a YAML key
-ending its line nests the next one, each bracket pair gets a color by depth
+ending its line nests the next one, the line Enter leaves keeps its
+indentation (so going back up to an empty line in a block finds you at its
+level), each bracket pair gets a color by depth
 (with a stray closer marked), indent guides (through the blank lines inside a
 block too) and fold arrows show the blocks, and the pair at the cursor is
 outlined (only outlined, so the brackets keep their colors). Go indents with

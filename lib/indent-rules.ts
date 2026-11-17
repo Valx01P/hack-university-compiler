@@ -1,5 +1,6 @@
-import { countColumn, type Extension } from "@codemirror/state";
+import { ChangeSet, countColumn, type Extension, type StateCommand, type Transaction } from "@codemirror/state";
 import { indentService, type IndentContext } from "@codemirror/language";
+import { insertNewlineAndIndent } from "@codemirror/commands";
 import { languageId } from "@/lib/tokenize.mjs";
 
 /**
@@ -78,3 +79,44 @@ export function indentRules(language: string): Extension {
   if (id === "yaml") return indentService.of(indentAfterYamlKey);
   return [];
 }
+
+/** Enter, keeping the indentation on the line you leave. CodeMirror's own
+    Enter takes it off a line that's only indentation up to the cursor (an
+    empty line in a block, say), so going back up lands at the line's start,
+    as if its tabs were gone. This runs CodeMirror's Enter (with the rules
+    above, and a bracket pair opening up), then puts back whatever
+    indentation it took off the start of a line, in the same step (one
+    undo). */
+export const insertNewlineKeepIndent: StateCommand = ({ state, dispatch }) => {
+  let made: Transaction | null = null;
+  if (!insertNewlineAndIndent({ state, dispatch: (tr) => (made = tr) }) || !made) return false;
+  const tr: Transaction = made;
+  const changes: { from: number; to: number }[] = [];
+  tr.changes.iterChanges((from, to) => changes.push({ from, to }));
+  const back: { from: number; insert: string }[] = [];
+  const lines = new Set<number>();
+  for (const range of state.selection.ranges) {
+    const line = state.doc.lineAt(range.from);
+    const taken = state.sliceDoc(line.from, range.from);
+    if (!taken || /\S/.test(taken) || lines.has(line.from)) continue;
+    // Only what Enter really took: a change from the line's start through
+    // the cursor.
+    if (!changes.some((c) => c.from === line.from && c.to >= range.from)) continue;
+    lines.add(line.from);
+    back.push({ from: tr.changes.mapPos(line.from, -1), insert: taken });
+  }
+  if (!back.length) {
+    dispatch(tr);
+    return true;
+  }
+  const restore = ChangeSet.of(back, tr.newDoc.length);
+  dispatch(
+    state.update({
+      changes: tr.changes.compose(restore),
+      selection: tr.newSelection.map(restore),
+      scrollIntoView: true,
+      userEvent: "input",
+    })
+  );
+  return true;
+};
