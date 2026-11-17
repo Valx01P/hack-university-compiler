@@ -213,7 +213,8 @@ fixtures: a course there takes the place of the one in `content/learn/`.
 **Cheatsheet** and **Challenges**, next to **Learn** above the output panel,
 open a panel beside your code (the output moves under the editor). While it's
 open the three buttons sit at the top of the panel: press the other one to
-switch, or the same one again to close it. Each keeps your place, even after
+switch, and **Challenges** again to go from a challenge back to the list. The
+× closes the panel. Each keeps your place, even after
 you close the panel: the cheatsheet's search and scroll, the challenge list's
 filters and scroll, and the challenge you're on with its hints. The address
 keeps your place too (`/python?panel=cheatsheet&at=arrays`,

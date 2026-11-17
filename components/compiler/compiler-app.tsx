@@ -334,11 +334,13 @@ export function CompilerApp({
     refSlideIn.current = true;
     setRefOpen(true);
   }
-  // Cheatsheet and Challenges each open the panel on themselves, switch it
-  // over when it shows the other, and close it when they're already showing.
-  // The buttons move between the output and the panel as it opens and
-  // closes. When one of them (or the panel's close button) had keyboard
-  // focus, focus follows to the same button in its new place.
+  // Cheatsheet and Challenges each open the panel on themselves and switch it
+  // over when it shows the other. Already showing, they leave the panel open
+  // (only its X closes it), Challenges going from a challenge back to the
+  // list, like All challenges. The buttons move between the output and the
+  // panel as it opens and closes. When one of them (or the panel's close
+  // button) had keyboard focus, focus follows to the same button in its new
+  // place.
   const refocusButton = useRef<ReferenceTab | null>(null);
   useLayoutEffect(() => {
     const tab = refocusButton.current;
@@ -348,7 +350,10 @@ export function CompilerApp({
   });
   function toggleReference(tab: ReferenceTab) {
     const keepFocus = document.activeElement instanceof HTMLElement && Boolean(document.activeElement.dataset.panelButton);
-    if (refOpen && refTab === tab) return closeReference(keepFocus ? tab : null);
+    if (refOpen && refTab === tab) {
+      if (tab === "challenges" && challenge) leaveChallenge();
+      return;
+    }
     if (keepFocus && !refOpen) refocusButton.current = tab;
     setRefTab(tab);
     if (!refOpen) openReference();
@@ -583,7 +588,7 @@ export function CompilerApp({
             data-panel-button={tab}
             onClick={() => toggleReference(tab)}
             aria-pressed={active}
-            title={active ? `Close the ${label.toLowerCase()}` : `${lang.label} ${label.toLowerCase()}`}
+            title={active && tab === "challenges" && challenge ? "Back to all challenges" : `${lang.label} ${label.toLowerCase()}`}
             className={`${headerBtn} ${active ? "bg-raised" : ""}`}
           >
             <Icon className="size-3.5" aria-hidden />

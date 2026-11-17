@@ -169,6 +169,9 @@ before committing it.
   its border drags (all the way left folds it).
 - **The compiler page's header scrolls away** with the page instead of
   covering it.
+- **The panel's buttons never close it** (only its X does): pressed while
+  showing, Challenges goes from a challenge back to the list, and Cheatsheet
+  stays.
 - **Full screen has three steps:** off, then semi (only the header hides, the
   theme button floats bottom right, back and forward stay in the page's bar,
   Learn's list stays docked), then full (the workspace covers the window, its
