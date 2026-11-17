@@ -568,10 +568,12 @@ export function CompilerApp({
         }`}
         style={refOpen ? ({ "--ref-left": paneValue("compiler-ref") } as React.CSSProperties) : undefined}
       >
-        {/* Editor | output split */}
+        {/* Editor | output split. On a phone with a panel open it's a screen
+            tall, the panel under it (not flex-1's share, which the panel's
+            own height would leave at almost nothing). */}
         <div
           ref={splitRef}
-          className={`min-h-0 flex-1 ${refOpen ? "max-lg:h-[calc(100dvh_-_var(--header-h))] max-lg:shrink-0 lg:h-full" : ""} ${
+          className={`min-h-0 flex-1 ${refOpen ? "max-lg:h-[calc(100dvh_-_var(--header-h))] max-lg:flex-none lg:h-full" : ""} ${
             horizontal
               ? "flex flex-col lg:grid lg:grid-cols-[var(--compiler-left)_10px_minmax(0,1fr)] lg:gap-0 lg:overflow-hidden"
               : "flex flex-col lg:grid lg:grid-rows-[var(--split-pct)_10px_minmax(0,1fr)] lg:gap-0 lg:overflow-hidden"
