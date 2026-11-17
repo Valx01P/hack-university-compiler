@@ -40,13 +40,13 @@ import { setPaneSize, usePaneSize } from "@/lib/pane-size";
 
 type Orient = "horizontal" | "vertical";
 
-// The splits (the editor and output, and both beside the panel) are saved
-// where you leave them and applied before first paint (lib/panes.ts). The
-// rest lives for this page load, which keeps it in place while you switch
-// languages: the layout, the cheatsheet or challenges panel, and the
-// challenge you're on (every challenge exists in every language). Those are
-// also kept in the address (lib/compiler-url.ts), so a reload opens them
-// again.
+// The splits (the editor and output side by side, and stacked, each on its
+// own, and both beside the panel) are saved where you leave them and applied
+// before first paint (lib/panes.ts). The rest lives for this page load, which
+// keeps it in place while you switch languages: the layout, the cheatsheet or
+// challenges panel, and the challenge you're on (every challenge exists in
+// every language). Those are also kept in the address (lib/compiler-url.ts),
+// so a reload opens them again.
 const sessionLayout: {
   orient: Orient;
   refOpen: boolean;
@@ -98,7 +98,8 @@ export function CompilerApp({
   const [announcement, setAnnouncement] = useState("");
   const outputId = useId();
   const [orient, setOrient] = useState<Orient>(() => sessionLayout.orient);
-  const splitPct = usePaneSize("compiler-split");
+  const sideBySidePct = usePaneSize("compiler-split");
+  const stackedPct = usePaneSize("compiler-stack");
   // Full screen, the same one Learn uses, lasts while you switch languages
   // and go to Learn and back. Its button hides the header first, then covers
   // the window. It's in the address (?full=semi, ?full=1), and Escape leaves
@@ -149,6 +150,9 @@ export function CompilerApp({
   const effectiveOrient: Orient = refOpen ? "vertical" : orient;
   const orientRef = useRef(effectiveOrient);
   orientRef.current = effectiveOrient;
+  // Side by side and stacked are two borders, each kept where you left it.
+  const splitPane = effectiveOrient === "horizontal" ? "compiler-split" : "compiler-stack";
+  const splitPct = effectiveOrient === "horizontal" ? sideBySidePct : stackedPct;
 
   // Learn picks up where you left off: the last part you opened while it's
   // still in the course, else the first lesson. The button keeps its size
@@ -209,8 +213,9 @@ export function CompilerApp({
     sessionLayout.orient = next;
   }
 
+  // The border of the layout showing now (read at the time, for a drag).
   function setSplit(next: number) {
-    setPaneSize("compiler-split", next);
+    setPaneSize(orientRef.current === "horizontal" ? "compiler-split" : "compiler-stack", next);
   }
 
   function setRefPct(next: number) {
@@ -581,7 +586,7 @@ export function CompilerApp({
           style={
             {
               "--compiler-left": paneValue("compiler-split"),
-              "--split-pct": paneValue("compiler-split"),
+              "--split-pct": paneValue("compiler-stack"),
             } as React.CSSProperties
           }
         >
@@ -755,7 +760,7 @@ export function CompilerApp({
             aria-valuenow={splitPct}
             tabIndex={0}
             onPointerDown={startDrag}
-            onDoubleClick={() => setSplit(PANES["compiler-split"].initial)}
+            onDoubleClick={() => setSplit(PANES[splitPane].initial)}
             onKeyDown={(e) => {
               const step = e.shiftKey ? 10 : 5;
               if (horizontal && e.key === "ArrowLeft") {

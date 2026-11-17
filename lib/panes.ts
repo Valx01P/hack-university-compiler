@@ -28,9 +28,11 @@ export const PANES = {
   "learn-editor": { unit: "", min: 30, max: 80, initial: 60 },
   // Learn: the lesson beside a project part's IDE.
   "learn-ide-split": { unit: "%", min: 25, max: 70, initial: 38 },
-  // The compiler: the editor beside (or over) the output, and both of them
-  // beside the cheatsheet or challenges panel.
+  // The compiler: the editor beside the output, the editor over it (stacked,
+  // as it is while the cheatsheet or challenges panel is open), each kept on
+  // its own, and both of them beside the panel.
   "compiler-split": { unit: "%", min: 20, max: 80, initial: 55 },
+  "compiler-stack": { unit: "%", min: 20, max: 80, initial: 55 },
   "compiler-ref": { unit: "%", min: 30, max: 75, initial: 55 },
   // The IDE: the explorer's width, the dock's height, and the preview's width.
   "ide-explorer": { unit: "px", min: 160, max: 360, initial: 208 },

@@ -449,9 +449,11 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
   version, cover, and place). Everything
   visual is applied before the page paints, so nothing shifts on reload, and
   the menus read what's applied, so opening one never flashes the default
-  first. Every border you drag (the editor/output split, the panel beside
-  them, Learn's lesson list, splits, and editor/output border, and the IDE's
-  explorer, dock, and preview) stays where you leave it, reloads included,
+  first. Every border you drag (the editor/output split, side by side and
+  stacked each kept on its own, so opening the cheatsheet or challenges finds
+  the stacked one where you left it, the panel beside them, Learn's lesson
+  list, splits, and editor/output border, and the IDE's explorer, dock, and
+  preview) stays where you leave it, reloads included,
   and it's applied before the page paints too. Double-click a border to put
   it back. The panel and the challenge you're on live in the address
   instead.
