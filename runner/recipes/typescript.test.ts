@@ -4,6 +4,7 @@ import { RunRequest } from "../schemas.ts";
 import {
   COMPILE_CMD,
   PACKAGE_JSON,
+  REQUIRE_SHIM,
   TSCONFIG,
   isTypeTestFile,
   judgeTypeTests,
@@ -27,8 +28,9 @@ const typeTests = {
 describe("typescript recipe commands", () => {
   it("checks once with tsc, then runs main.ts with node", () => {
     assert.deepEqual(COMPILE_CMD, ["tsc", "-p", ".", "--pretty", "false"]);
-    assert.deepEqual(runCmd(), ["node", "--import", "/opt/hu/node/stdio.mjs", "main.ts"]);
-    assert.deepEqual(runCmd(["a", "b c"]), ["node", "--import", "/opt/hu/node/stdio.mjs", "main.ts", "a", "b c"]);
+    assert.deepEqual(runCmd(), ["node", "--import", "/opt/hu/node/stdio.mjs", "--import", REQUIRE_SHIM, "main.ts"]);
+    assert.deepEqual(runCmd(["a", "b c"]), ["node", "--import", "/opt/hu/node/stdio.mjs", "--import", REQUIRE_SHIM, "main.ts", "a", "b c"]);
+    assert.match(decodeURIComponent(REQUIRE_SHIM), /^data:text\/javascript,import \{ createRequire \} from "node:module"; globalThis\.require \?\?= createRequire\(process\.argv\[1\]\);$/);
   });
 
   it("writes package.json as a module, so tsc and node agree that main.ts is ESM", () => {

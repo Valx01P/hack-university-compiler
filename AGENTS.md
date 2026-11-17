@@ -57,7 +57,12 @@ before committing it.
   Never test what wasn't taught, and write each course in its language's
   idioms.
 - Python, JavaScript, C++, Java, and Go run on Piston. SQL runs on PGlite in
-  the page. TypeScript and Bash run on the local runner. The project courses
+  the page. TypeScript and Bash run on the local runner. Code that runs in
+  other online compilers runs here too: Java starts from the class with
+  `main` wherever it sits (`javaEntry` in `lib/source-file.mjs`, compiled by
+  `scripts/piston-extras/java/run` when it isn't first), JavaScript with a
+  top-level await runs as a module, and ES modules (those, and TypeScript)
+  get `require()`. The project courses
   (web, React, Next.js, Express, FastAPI, Spring Boot, Go APIs) open real
   codebases in the IDE.
 - **Every example runs.** Every code block in lessons and cheatsheets has to

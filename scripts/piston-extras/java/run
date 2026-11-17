@@ -4,10 +4,37 @@
 # (records, sealed classes, pattern matching for instanceof). A program that
 # uses one makes javac print two notes saying so, which aren't errors, so
 # they're dropped from stderr. Everything else, and the exit code, pass through.
+#
+# Java's single-file launcher runs the file's first top-level type. When main
+# sits further down (after a helper class, an interface, an enum, or a record,
+# as other online compilers allow), the app sends hu-java-entry
+# (lib/source-file.mjs javaEntry): the class to run, and the name to compile
+# the file as (the public type's, as javac wants). Then javac compiles it and
+# java runs that class. Everything else keeps the launcher, which is faster.
 mv $1 $1.java
 filename=$1.java
 shift
+
+quiet() {
+    grep --line-buffered -v -e '^Note: .* uses preview language features\.$' -e '^Note: Recompile with -Xlint:preview for details\.$' >&2
+}
+
+if [[ -f hu-java-entry ]]; then
+    { read -r main; read -r file; } < hu-java-entry
+    rm -f hu-java-entry
+    if [[ "$file.java" != "$filename" ]]; then
+        mv "$filename" "$file.java"
+        filename=$file.java
+    fi
+    classes=.hu-classes
+    exec 3>&1
+    javac --enable-preview --release 15 -d "$classes" "$filename" 2>&1 1>&3 3>&- | quiet
+    status=${PIPESTATUS[0]}
+    exec 3>&-
+    [[ $status == 0 ]] || exit "$status"
+    exec java --enable-preview -cp "$classes" "$main" "$@"
+fi
+
 exec 3>&1
-java --enable-preview --source 15 "$filename" "$@" 2>&1 1>&3 3>&- \
-    | grep --line-buffered -v -e '^Note: .* uses preview language features\.$' -e '^Note: Recompile with -Xlint:preview for details\.$' >&2
+java --enable-preview --source 15 "$filename" "$@" 2>&1 1>&3 3>&- | quiet
 exit "${PIPESTATUS[0]}"

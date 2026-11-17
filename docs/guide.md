@@ -59,7 +59,11 @@ Everything about Hack University Compiler past getting it running, which the
 | `/bash` | Bash | Bash 5.3 (the local runner) |
 
 Python, JavaScript, C++, Java, and Go are the newest versions in Piston's
-package index. Piston has packages for many more languages, see
+package index (Go's is 1.16, from before generics). Java runs the class with
+`main` wherever it is in the file, so a helper class, an interface, an enum,
+or a record can come first, and JavaScript that awaits at its top level runs
+as a module, with `require()` still there (TypeScript has `require()` too).
+Piston has packages for many more languages, see
 [Adding a language](#adding-a-language). TypeScript and Bash run on the local
 runner, which needs Docker: with Docker off, their Run says "Start Docker to
 run this". A type error stops a TypeScript run the way a compile error stops

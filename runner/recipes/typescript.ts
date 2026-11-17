@@ -58,9 +58,18 @@ export const PACKAGE_JSON = { type: "module" };
 
 export const COMPILE_CMD = ["tsc", "-p", ".", "--pretty", "false"];
 
-/** node runs main.ts with its stdio made blocking first (docker/node/stdio.mjs). */
+/** main.ts runs as an ES module, which has no require(), though @types/node
+    declares it, so `require("fs")` type-checks and then fails. This gives it
+    one, for main.ts's own folder, the way other online compilers' CommonJS
+    has it (a data: module, so the node image stays as it is). */
+export const REQUIRE_SHIM = `data:text/javascript,${encodeURIComponent(
+  'import { createRequire } from "node:module"; globalThis.require ??= createRequire(process.argv[1]);'
+)}`;
+
+/** node runs main.ts with its stdio made blocking first (docker/node/stdio.mjs),
+    and require() there (REQUIRE_SHIM). */
 export function runCmd(args: readonly string[] = []): string[] {
-  return ["node", "--import", "/opt/hu/node/stdio.mjs", "main.ts", ...args];
+  return ["node", "--import", "/opt/hu/node/stdio.mjs", "--import", REQUIRE_SHIM, "main.ts", ...args];
 }
 
 /** The environment of every step: the container's, plus the test's own and the clock. */

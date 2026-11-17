@@ -1,5 +1,5 @@
 import RUNTIMES from "@/lib/runtimes.json";
-import { sourceFileName } from "@/lib/source-file.mjs";
+import { sourceFiles } from "@/lib/source-file.mjs";
 import { getCompilerLang } from "@/lib/compiler";
 import { addHint } from "@/lib/components";
 import { chosenComponents } from "@/lib/installed";
@@ -85,7 +85,7 @@ export async function runCode({
       body: JSON.stringify({
         language: RUNTIMES[language].runtime,
         version: "*",
-        files: [{ name: sourceFileName(language, code), content: code }],
+        files: sourceFiles(language, code),
         stdin,
       }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),

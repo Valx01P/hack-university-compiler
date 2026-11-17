@@ -4,7 +4,7 @@
 // the app renders.
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { normalizeOutput } from "../../lib/single-checks.mjs";
-import { sourceFileName } from "../../lib/source-file.mjs";
+import { sourceFiles } from "../../lib/source-file.mjs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -129,7 +129,7 @@ async function piston(language, code, stdin) {
     const res = await fetch(`${PISTON_URL}/execute`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ language: RUNTIMES[language].runtime, version: "*", files: [{ name: sourceFileName(language, code), content: code }], stdin: stdin ?? "" }),
+      body: JSON.stringify({ language: RUNTIMES[language].runtime, version: "*", files: sourceFiles(language, code), stdin: stdin ?? "" }),
       signal: AbortSignal.timeout(120_000),
     });
     const data = await res.json();
