@@ -106,9 +106,11 @@ before committing it.
 - **Stars** are on by default: a WebGL sky (brightness, amount, and clouds in
   five versions, with cover and a 3x3 place picker), at up to 30 fps, paused
   in a hidden tab, still under reduced motion. While it's on, large
-  backgrounds go see-through, editors and code blocks included. Menus,
-  dialogs, popovers, and small controls keep their fills. Full screen keeps
-  the sky.
+  backgrounds go see-through, editors and code blocks included (an
+  editor's line numbers too, the code clipped at their edge as it scrolls
+  sideways, `clipUnderGutters` in `lib/editor-extensions.ts`, never a filled
+  gutter). Menus, dialogs, popovers, and small controls keep their fills.
+  Full screen keeps the sky.
 - **Scrollbars follow their surface:** page areas use the theme's
   `--scrollbar`, code areas their code theme's (the paired page theme's thumb
   at each contrast), and dropdown lists are dark under dark themes. A

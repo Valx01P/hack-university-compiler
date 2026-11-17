@@ -1,6 +1,7 @@
 import { Compartment, EditorState, Prec, type Extension } from "@codemirror/state";
 import {
   EditorView,
+  ViewPlugin,
   crosshairCursor,
   drawSelection,
   dropCursor,
@@ -109,6 +110,42 @@ export function langExt(language: string): Extension {
 // The languages whose blocks are their indentation, with no closing line.
 const OFFSIDE = new Set(["python", "yaml"]);
 
+/** The line numbers stay put while the code scrolls sideways (they're
+    sticky), and with no fill of their own (see-through under the stars) the
+    code would show through them. So the code, and the selection and cursor
+    drawn over it, are clipped at the gutter's right edge (cmTheme's
+    clip-paths): the code by how far it's scrolled, its layers, which start
+    at the scroller's left edge, by that and the gutter's width. Kept on
+    every scroll, and on every layout change (a gutter widening at line
+    100, an editor shown again). */
+const clipUnderGutters = ViewPlugin.fromClass(
+  class {
+    constructor(readonly view: EditorView) {
+      view.scrollDOM.addEventListener("scroll", this.onScroll, { passive: true });
+      view.requestMeasure(this.measure);
+    }
+    measure = {
+      read: (view: EditorView) => ({
+        x: view.scrollDOM.scrollLeft,
+        gutters: (view.scrollDOM.querySelector(".cm-gutters") as HTMLElement | null)?.offsetWidth ?? 0,
+      }),
+      write: ({ x, gutters }: { x: number; gutters: number }, view: EditorView) => {
+        view.dom.style.setProperty("--cm-clip-x", `${x}px`);
+        view.dom.style.setProperty("--cm-gutters-w", `${gutters}px`);
+      },
+    };
+    // Right away, in the same frame as the scroll, so nothing shows through
+    // for a frame.
+    onScroll = () => this.measure.write(this.measure.read(this.view), this.view);
+    update(u: { geometryChanged: boolean; view: EditorView }) {
+      if (u.geometryChanged) u.view.requestMeasure(this.measure);
+    }
+    destroy() {
+      this.view.scrollDOM.removeEventListener("scroll", this.onScroll);
+    }
+  }
+);
+
 // Go and Makefiles are indented with tabs (gofmt, make), everything else
 // with spaces.
 export function indentUnitFor(tabSize: 2 | 4, language: string): string {
@@ -143,7 +180,10 @@ export const cmTheme = EditorView.theme(
       fontFamily: "var(--font-code), ui-monospace, monospace",
       lineHeight: "1.6",
     },
-    ".cm-content": { caretColor: "var(--code-ink)" },
+    // Clipped at the line numbers' right edge as the code scrolls under them
+    // (clipUnderGutters), and nowhere else (the other sides reach far out).
+    ".cm-content": { caretColor: "var(--code-ink)", clipPath: "inset(-100px -100000px -100px var(--cm-clip-x, 0px))" },
+    ".cm-layer": { clipPath: "inset(-100000px -100000px -100000px calc(var(--cm-clip-x, 0px) + var(--cm-gutters-w, 0px)))" },
     ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--code-ink)" },
     ".cm-gutters": {
       backgroundColor: "var(--code-bg)",
@@ -312,6 +352,7 @@ export function editorExtensions({
     ? [snippetTheme]
     : [
         lineNumbers(),
+        clipUnderGutters,
         bracketColors(language),
         search({ top: true }),
         indentationMarkers({
