@@ -6,7 +6,7 @@ import { BookOpenText, FolderCode, GraduationCap, ListChecks, RotateCcw } from "
 import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
-import { inputCorners, type InputPlace } from "@/components/code/program-input";
+import { inputCorners, setStdinOpen, stdinRows, useStdinOpen, type InputPlace } from "@/components/code/program-input";
 import { CodeThemePicker } from "@/components/code/code-theme";
 import { ResetCodeButton } from "@/components/code/reset-code-button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
@@ -96,7 +96,8 @@ export function CompilerApp({
   // hydration is unaffected.
   const [code, setCode] = useState(() => savedCode(lang));
   const [stdin, setStdin] = useState("");
-  const [showStdin, setShowStdin] = useState(false);
+  // Folded at first, then as you leave it, saved (lib/stdin-shown.ts).
+  const showStdin = useStdinOpen("compiler");
   const stdinId = useId();
   // The command line, for courses whose programs take arguments (Bash). Like
   // stdin, it lasts for the visit.
@@ -503,24 +504,26 @@ export function CompilerApp({
   // over what comes back. A phone stacks a side-by-side layout too, so it
   // renders in both places then and CSS shows the one that fits. The box
   // clips anything outside it, so focus rings sit inside, in the code text
-  // color, rounded at the box's corners (inputCorners).
+  // color, rounded at the box's corners (inputCorners). Open or folded is by
+  // CSS from <html> (the stdin-open: and stdin-closed: variants, inside
+  // data-stdin-of), so a reload paints it as you left it.
   const programInput = (place: InputPlace) => {
     const id = `${stdinId}-${place}`;
     const toggle = (
       <button
         type="button"
-        onClick={() => setShowStdin((v) => !v)}
+        onClick={() => setStdinOpen("compiler", !showStdin)}
         aria-expanded={showStdin}
-        aria-controls={showStdin ? id : undefined}
+        aria-controls={id}
         className={`code-stdin-toggle flex ${lang.args ? "min-w-0 flex-1" : "w-full"} items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${inputCorners(
           place,
-          !showStdin,
           lang.args ? "left" : "whole"
         )}`}
       >
-        <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
+        <span aria-hidden className="stdin-open:hidden">▸</span>
+        <span aria-hidden className="stdin-closed:hidden">▾</span>
         <span>{sqlMode ? "setup (runs first)" : "stdin"}</span>
-        {!showStdin && currentStdin ? <span className="truncate text-code-gutter">· {currentStdin.split("\n")[0]}</span> : null}
+        {currentStdin ? <span className="truncate text-code-gutter stdin-open:hidden">· {currentStdin.split("\n")[0]}</span> : null}
       </button>
     );
     return (
@@ -531,7 +534,7 @@ export function CompilerApp({
           <div className="flex items-stretch">
             {toggle}
             <label
-              className={`code-args-field flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${inputCorners(place, !showStdin, "right")}`}
+              className={`code-args-field flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${inputCorners(place, "right")}`}
             >
               <span className="shrink-0">args</span>
               <input
@@ -550,16 +553,14 @@ export function CompilerApp({
         ) : (
           toggle
         )}
-        {showStdin && (
-          <textarea
-            id={id}
-            value={currentStdin}
-            onChange={(e) => setCurrentStdin(e.target.value)}
-            rows={2}
-            placeholder="Input passed to your program on stdin..."
-            className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-content-line bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
-          />
-        )}
+        <textarea
+          id={id}
+          value={currentStdin}
+          onChange={(e) => setCurrentStdin(e.target.value)}
+          rows={stdinRows(currentStdin)}
+          placeholder="Input passed to your program on stdin..."
+          className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-content-line bg-transparent px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none stdin-closed:hidden sm:text-sm"
+        />
       </>
     );
   };
@@ -774,7 +775,9 @@ export function CompilerApp({
                   on wide screens, a phone stacking them). SQL's playground has
                   none: the database is the input. */}
               {!playground && horizontal && (
-                <div className="hidden shrink-0 border-t border-code-content-line bg-code-bg lg:block">{programInput("editor")}</div>
+                <div data-stdin-of="compiler" className="hidden shrink-0 border-t border-code-content-line bg-code-bg lg:block">
+                  {programInput("editor")}
+                </div>
               )}
             </div>
           </div>
@@ -908,6 +911,7 @@ export function CompilerApp({
                 phone too, side by side or not). */}
             {!playground && (
               <div
+                data-stdin-of="compiler"
                 className={`code-dark mb-2 shrink-0 overflow-hidden rounded-card border border-code-line bg-code-bg ${horizontal ? "lg:hidden" : ""}`}
               >
                 {programInput("output")}

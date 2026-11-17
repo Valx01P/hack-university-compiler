@@ -8,7 +8,7 @@ import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { CodeThemePicker } from "@/components/code/code-theme";
 import { ResetCodeButton } from "@/components/code/reset-code-button";
 import { OUTPUT_PAD, OutputPanel } from "@/components/compiler/output-panel";
-import { inputCorners } from "@/components/code/program-input";
+import { inputCorners, setStdinOpen, stdinRows, useStdinOpen } from "@/components/code/program-input";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { programTypeErrors, TypeCheckStrip } from "@/components/compiler/type-check";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
@@ -158,7 +158,9 @@ export function PartView({
   // so the server markup never depends on it).
   const [codes, setCodes] = useState(() => perTab((kind) => loadCode(lang.slug, lesson.id, tabKey(kind), defaultCode(kind))));
   const [stdins, setStdins] = useState(() => perTab(defaultStdin));
-  const [showStdin, setShowStdin] = useState(() => defaultStdin(tabs[0]) !== "");
+  // Stdin is open at first, then as you leave it, from tab to tab and part
+  // to part, saved (lib/stdin-shown.ts).
+  const showStdin = useStdinOpen("learn");
   // The Arguments field (Bash), as a line: split like a shell splits it.
   const [argLines, setArgLines] = useState(() => perTab(defaultArgs));
   const [showFiles, setShowFiles] = useState(false);
@@ -289,7 +291,6 @@ export function PartView({
 
   function openTab(kind: TabKind, { scroll = true }: { scroll?: boolean } = {}) {
     setActive(kind);
-    setShowStdin(stdins[kind] !== "");
     // The tab's editor opens with its cursor where it starts.
     setCursorAt(null);
     // On narrow screens the editor sits below the lesson: bring it into view,
@@ -469,22 +470,25 @@ export function PartView({
   // The stdin row, at the top of the output's input box. The box clips
   // anything outside it, so the focus ring sits inside the button (rounded
   // like the box's corners, inputCorners), in the code text color. Beside an
-  // Arguments field it takes half the row.
+  // Arguments field it takes half the row. Open or folded is by CSS from
+  // <html> (the stdin-open: and stdin-closed: variants, inside
+  // data-stdin-of), so a reload paints it as you left it.
   const stdinToggle = (
     <button
       type="button"
-      onClick={() => setShowStdin((v) => !v)}
+      onClick={() => setStdinOpen("learn", !showStdin)}
       aria-expanded={showStdin}
-      aria-controls={showStdin ? stdinId : undefined}
+      aria-controls={stdinId}
       className={`code-stdin-toggle flex ${takesArgs ? "min-w-0 flex-1" : "w-full"} items-center gap-1 px-3 py-1.5 text-left font-mono text-xs font-medium text-code-gutter transition-colors [--ink:var(--code-ink)] focus-visible:outline-offset-[-3px]! ${inputCorners(
         "output",
-        !showStdin && !filesRow,
-        takesArgs ? "left" : "whole"
+        takesArgs ? "left" : "whole",
+        { rowBelow: filesRow }
       )}`}
     >
-      <span aria-hidden>{showStdin ? "▾" : "▸"}</span>
+      <span aria-hidden className="stdin-open:hidden">▸</span>
+      <span aria-hidden className="stdin-closed:hidden">▾</span>
       <span>{sql ? "setup (runs first)" : "stdin"}</span>
-      {!showStdin && stdin ? <span className="truncate text-code-gutter">· {stdin.split("\n")[0]}</span> : null}
+      {stdin ? <span className="truncate text-code-gutter stdin-open:hidden">· {stdin.split("\n")[0]}</span> : null}
     </button>
   );
 
@@ -622,14 +626,7 @@ export function PartView({
           </span>
         </div>
 
-        {/* --stdin-h: the open stdin field's height (two lines, its padding,
-            and its top border). */}
-        <div
-          id={panelId}
-          role="tabpanel"
-          aria-labelledby={tabId(active)}
-          className="flex min-h-0 flex-1 flex-col [--stdin-h:calc(4rem+1px)] sm:[--stdin-h:calc(3.5rem+1px)]"
-        >
+        <div id={panelId} role="tabpanel" aria-labelledby={tabId(active)} className="flex min-h-0 flex-1 flex-col">
           <div className="slim-scroll -mx-1.5 -mt-0.5 flex shrink-0 items-center gap-2 overflow-x-auto px-1.5 pb-2 pt-1.5">
             <span className="shrink-0 font-mono text-sm font-medium">{lang.fileName}</span>
             <span className="hidden truncate text-xs text-ink-faint sm:inline">
@@ -774,7 +771,7 @@ export function PartView({
                 Arguments field beside it), and the files it starts in (Bash),
                 in a box of their own (the output's, so opening stdin takes
                 its room and leaves the editor be). */}
-            <div className="code-dark mb-2 shrink-0 overflow-hidden rounded-card border border-code-content-line bg-code-bg">
+            <div data-stdin-of="learn" className="code-dark mb-2 shrink-0 overflow-hidden rounded-card border border-code-content-line bg-code-bg">
               {takesArgs ? (
                 // The Arguments field sits next to stdin, as on the compiler
                 // page. With no border of its own, the field shows focus the
@@ -784,8 +781,8 @@ export function PartView({
                   <label
                     className={`code-args-field flex min-w-0 flex-1 items-center gap-2 border-l border-code-content-line ps-3 font-mono text-xs font-medium text-code-gutter ${inputCorners(
                       "output",
-                      !showStdin && !filesRow,
-                      "right"
+                      "right",
+                      { rowBelow: filesRow }
                     )}`}
                   >
                     <span className="shrink-0">args</span>
@@ -805,17 +802,15 @@ export function PartView({
               ) : (
                 stdinToggle
               )}
-              {showStdin && (
-                <textarea
-                  id={stdinId}
-                  aria-label="Program input (stdin)"
-                  value={stdin}
-                  onChange={(e) => setStdins((s) => ({ ...s, [active]: e.target.value }))}
-                  rows={2}
-                  placeholder="Input passed to your program on stdin..."
-                  className="code-stdin-input slim-scroll block h-(--stdin-h) w-full resize-none border-0 border-t border-code-content-line bg-code-bg px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none sm:text-sm"
-                />
-              )}
+              <textarea
+                id={stdinId}
+                aria-label="Program input (stdin)"
+                value={stdin}
+                onChange={(e) => setStdins((s) => ({ ...s, [active]: e.target.value }))}
+                rows={stdinRows(stdin)}
+                placeholder="Input passed to your program on stdin..."
+                className="code-stdin-input slim-scroll block w-full resize-none border-0 border-t border-code-content-line bg-transparent px-3 py-2 font-mono text-base text-code-ink outline-none placeholder:text-code-gutter focus:outline-none stdin-closed:hidden sm:text-sm"
+              />
               {filesRow && (
                 // The files the program starts in (Bash), folded until you
                 // open them.

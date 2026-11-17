@@ -183,7 +183,10 @@ practice problems for each programming language, and 114 for SQL.
   more output, and all the way down to fold the output away (Run or Check
   opens it again at its smallest). Stdin, with Bash's args and files, sits
   at the top of the output, over what comes back, so opening it never
-  shrinks the editor. The output has no header here, for the room. Every
+  shrinks the editor. It's open at first and stays as you leave it, here and
+  on the compiler page (folded there at first, its first line showing
+  beside it), each page on its own. The output has no header here, for the
+  room. Every
   border stays where you leave it, folded list and output included, even
   after a reload.
 - Every code block in a part runs too (see [Runnable examples](#runnable-examples)).
@@ -458,7 +461,8 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
   to examples, editor zoom, tab size, intellisense, theme, editor theme,
   contrast level, code background, selection color (and the last custom
   color of each), layout lines, content lines, code comments, the bottom
-  shade, and the stars (their brightness and amount, and the clouds'
+  shade, stdin open or folded (in Learn and in the compiler), and the stars
+  (their brightness and amount, and the clouds'
   version, cover, and place). Everything
   visual is applied before the page paints, so nothing shifts on reload, and
   the menus read what's applied, so opening one never flashes the default

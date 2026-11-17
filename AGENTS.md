@@ -149,7 +149,13 @@ before committing it.
   it's the code box's last row, and stacked (Learn, the compiler with a
   panel open, stacked, or on a phone) it's a box of its own at the top of the
   output, over what comes back, with Bash's args and files
-  (`components/code/program-input.ts` rounds its rows' focus rings). There,
+  (`components/code/program-input.ts`). Stdin is open by default in Learn and
+  folded in the compiler (its toggle then showing its first line), and each
+  page keeps it as you leave it, saved and painted that way from the first
+  frame (`lib/stdin-shown.ts` marks `<html>`, read by the `stdin-open:` and
+  `stdin-closed:` variants). Open, it's as tall as its text (two lines at
+  most, then it scrolls), with no fill and no line lighting up over it as
+  you type. There,
   dragging the border well past the output's smallest (or End, or a step
   down from it) folds the output away, and Run or Check opens it again at
   its smallest. Phones have no border, so no fold.
