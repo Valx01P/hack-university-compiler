@@ -237,8 +237,6 @@ export interface SingleFileFeatures {
   runner: boolean;
   /** An Arguments field next to stdin (Bash). */
   args: boolean;
-  /** The exit status as a badge beside the output's heading (Bash). */
-  exitBadge: boolean;
   /** A Type check strip above the output, and type errors underlined in
       the editor (TypeScript). */
   typeCheck: boolean;
@@ -248,7 +246,6 @@ export function singleFileFeatures(course: string, fileName: string): SingleFile
   return {
     runner: runtimeKindOf(course) === "runner",
     args: course === "bash",
-    exitBadge: course === "bash",
     typeCheck: /\.tsx?$/.test(fileName),
   };
 }

@@ -185,6 +185,14 @@ before committing it.
   height. There's no summary line, pass or fail ("Solved!" included), only
   a pass's way on (the next part or challenge), and screen readers still
   hear the verdict. The IDE's Results stay a list, its checks having names.
+- **No output header under the editor:** the gold Output or Results label
+  and its row (with Clear) show only while the output is beside the editor.
+  Under it (Learn, the compiler with a panel open, stacked, or on a phone)
+  they're gone for the height, the box still named for screen readers, and
+  where that row holds the Cheatsheet, Challenges, and Learn buttons (the
+  compiler with no panel open) only the label goes. SQL's Results and
+  Database tabs always stay. A run's exit code shows as the line under its
+  output, Bash's included. Rejected: a switch for it in the editor settings.
 - **Code examples:** Reset (only once changed), Copy, then Run, as plain icons
   that are always visible. Clicking the code edits it in place, `Mod-Enter`
   runs it, and clicking off it or Escape returns it to plain code with the

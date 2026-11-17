@@ -157,8 +157,8 @@ practice problems for each programming language, and 114 for SQL.
 - TypeScript and Bash parts add a little to the editor. A TypeScript run shows
   a **Type check** strip above its output: "No type errors", or each error with
   a link that puts the cursor on its line, which the editor underlines. Bash
-  has an **args** field beside stdin, shows a script's exit status as a badge
-  beside the output when it isn't 0, and lists the data files every run starts
+  has an **args** field beside stdin, shows a script's exit status under its
+  output when it isn't 0, and lists the data files every run starts
   in under **files**, read only. Their checks also hold a program to its exit
   status, what it writes to stderr, and the files it leaves behind, and a
   TypeScript practice can add type tests and honesty rules (no `any`, `as`,
@@ -183,8 +183,9 @@ practice problems for each programming language, and 114 for SQL.
   more output, and all the way down to fold the output away (Run or Check
   opens it again at its smallest). Stdin, with Bash's args and files, sits
   at the top of the output, over what comes back, so opening it never
-  shrinks the editor. Every border stays where you leave it, folded list
-  and output included, even after a reload.
+  shrinks the editor. The output has no header here, for the room. Every
+  border stays where you leave it, folded list and output included, even
+  after a reload.
 - Every code block in a part runs too (see [Runnable examples](#runnable-examples)).
 - Progress, your code in every tab, and the part you were on are saved in the
   browser's local storage. The address keeps the rest of your place: the tab

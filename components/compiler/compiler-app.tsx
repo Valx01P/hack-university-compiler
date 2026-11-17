@@ -830,8 +830,15 @@ export function CompilerApp({
 
           {/* Output (beside the editor, or under it, where it can fold away) */}
           <div data-split-output className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
-            {/* Padded for whole focus rings, like the toolbar. */}
-            <div className="slim-scroll -mx-1.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pt-1.5 pb-3">
+            {/* Padded for whole focus rings, like the toolbar. Under the
+                editor it goes, for the height (its label still naming the
+                output), or only its label while it holds the panel buttons.
+                SQL's tabs stay, being buttons. */}
+            <div
+              className={`slim-scroll -mx-1.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pt-1.5 pb-3 ${
+                refOpen && !playground ? "hidden" : ""
+              }`}
+            >
               {playground ? (
                 <div role="tablist" aria-label="Output" className="flex shrink-0 items-center gap-1">
                   {(["results", "database"] as const).map((v) => (
@@ -851,7 +858,12 @@ export function CompilerApp({
                   ))}
                 </div>
               ) : (
-                <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
+                <h2
+                  id={outputId}
+                  className={`shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold ${
+                    horizontal ? "max-lg:hidden" : "hidden"
+                  }`}
+                >
                   {checkState ? "Results" : "Output"}
                 </h2>
               )}

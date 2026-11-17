@@ -30,40 +30,15 @@ function Clipped({ text, className }: { text: string; className: string }) {
   );
 }
 
-/** How a finished run ended, when it's worth saying: an error code or the
-    signal that killed it. A clean exit, and a run stopped for time or
-    output (which says so itself), have none. */
-function exitNoteOf(run: RunState): string | null {
-  if (run.status !== "done") return null;
-  if (run.compileCode != null && run.compileCode !== 0) return null;
-  if (run.verdict === "TO" || run.verdict === "OL" || run.verdict === "EL") return null;
-  return run.signal ? `killed by ${run.signal}` : run.code != null && run.code !== 0 ? `exit ${run.code}` : null;
-}
-
-/** A run's exit status as a badge next to the output's heading, for
-    programs whose exit status is part of what they do (Bash). */
-export function ExitBadge({ run }: { run: RunState }) {
-  const note = exitNoteOf(run);
-  if (!note) return null;
-  return (
-    <span className="shrink-0 rounded-btn border border-line-strong px-1.5 py-px font-mono text-[11px] leading-4 text-ink">
-      {note}
-    </span>
-  );
-}
-
-/** The result of one run: output, errors, and why it stopped. Shared by the
-    compiler and Learn mode. With `exitBadge`, an ExitBadge beside the
-    heading says how it exited instead of a line under the output. A
-    `typeChecked` program's type errors show in the Type check strip, so a
-    run they stopped just says it didn't run. */
+/** The result of one run: output, errors, and why it stopped, and a line
+    under the output for an error code or a kill signal. Shared by the
+    compiler and Learn mode. A `typeChecked` program's type errors show in
+    the Type check strip, so a run they stopped just says it didn't run. */
 export function OutputPanel({
   run,
-  exitBadge = false,
   typeChecked = false,
 }: {
   run: RunState;
-  exitBadge?: boolean;
   typeChecked?: boolean;
 }) {
   if (run.status === "idle") {
@@ -114,7 +89,7 @@ export function OutputPanel({
           )}
         </>
       )}
-      {!compileFailed && !stopped && exitNote && !exitBadge && <p className="text-xs text-ink-faint">{exitNote}</p>}
+      {!compileFailed && !stopped && exitNote && <p className="text-xs text-ink-faint">{exitNote}</p>}
     </div>
   );
 }

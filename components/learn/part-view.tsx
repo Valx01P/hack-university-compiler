@@ -7,7 +7,7 @@ import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { CodeThemePicker } from "@/components/code/code-theme";
 import { ResetCodeButton } from "@/components/code/reset-code-button";
-import { ExitBadge, OUTPUT_PAD, OutputPanel } from "@/components/compiler/output-panel";
+import { OUTPUT_PAD, OutputPanel } from "@/components/compiler/output-panel";
 import { inputCorners } from "@/components/code/program-input";
 import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { programTypeErrors, TypeCheckStrip } from "@/components/compiler/type-check";
@@ -217,7 +217,6 @@ export function PartView({
   const panelId = `${uid}-panel`;
   const stdinId = `${uid}-stdin`;
   const filesId = `${uid}-files`;
-  const outputId = `${uid}-output`;
 
   // The eye on Your code shows the solution in place of your code, read only,
   // without touching what you wrote. It asks first once per visit.
@@ -236,7 +235,6 @@ export function PartView({
   // An Arguments field next to stdin: always for Bash, and for any part
   // whose programs take arguments.
   const takesArgs = features.args || tabs.some((kind) => (runOf(kind).args?.length ?? 0) > 0);
-  const typeTestCount = practice.typeTests?.cases.length ?? 0;
 
   // Type errors from this tab's last run or check, underlined in the editor
   // while it still holds the code that ran. A type error's link puts the
@@ -772,28 +770,6 @@ export function PartView({
             style={{ flexGrow: `calc(100 - ${EDITOR_SHARE})` }}
             className="mt-2 flex min-h-[9rem] flex-1 scroll-mb-2 scroll-mt-[calc(4rem+1px)] flex-col lg:mt-0"
           >
-            <div className="flex shrink-0 items-center gap-1 pb-2">
-              <h2 id={outputId} className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium uppercase tracking-wider text-ink dark:text-gold">
-                {panel.mode === "check" ? "Results" : "Output"}
-              </h2>
-              {features.exitBadge && panel.mode === "run" && <ExitBadge run={panel.run} />}
-              {active === "practice" && panel.mode === "run" && panel.run.status === "idle" && (
-                <span className="truncate text-xs text-ink-faint">
-                  Run tries your code. Check runs it against {practice.tests.length} test
-                  {practice.tests.length === 1 ? "" : "s"}
-                  {typeTestCount > 0 && ` and ${typeTestCount} type test${typeTestCount === 1 ? "" : "s"}`}.
-                </span>
-              )}
-              {((panel.mode === "run" && panel.run.status === "done") || (panel.mode === "check" && panel.check.status === "done")) && (
-                <button
-                  type="button"
-                  onClick={() => setPanel(active, { mode: "run", run: { status: "idle" } })}
-                  className="ms-auto rounded-btn px-2.5 py-1 text-xs font-medium text-ink-faint transition-colors hover:text-ink"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
             {/* The program's input, over what comes back: stdin (with the
                 Arguments field beside it), and the files it starts in (Bash),
                 in a box of their own (the output's, so opening stdin takes
@@ -864,11 +840,12 @@ export function PartView({
               {filesRow && showFiles && <FixtureFiles key={fixtureSet} id={filesId} set={fixtureSet} files={fixtureFiles} />}
             </div>
             {/* Focusable, so long results can be scrolled from the keyboard.
-                Under the editor, so what it says sits close to its top and
-                bottom (OUTPUT_PAD). */}
+                Under the editor, so it has no header (for the height, its
+                name saying what it shows), and what it says sits close to
+                its top and bottom (OUTPUT_PAD). */}
             <div
               role="region"
-              aria-labelledby={outputId}
+              aria-label={panel.mode === "check" ? "Results" : "Output"}
               tabIndex={0}
               className="code-terminal slim-scroll min-h-0 flex-1 overflow-auto rounded-card border border-line bg-surface [--output-py:0.5rem]"
             >
@@ -885,7 +862,7 @@ export function PartView({
                       className={`border-b border-content-line ${OUTPUT_PAD}`}
                     />
                   )}
-                  <OutputPanel run={panel.run} exitBadge={features.exitBadge} typeChecked={features.typeCheck} />
+                  <OutputPanel run={panel.run} typeChecked={features.typeCheck} />
                 </>
               )}
             </div>
