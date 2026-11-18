@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { InlineScript } from "@/components/inline-script";
-import { WorkspacePartView } from "@/components/ide/workspace-part-view";
 import type { PartLink } from "@/components/learn/part-frame";
 import { PartView } from "@/components/learn/part-view";
 import { ReadPartView } from "@/components/learn/read-part-view";
+import { WorkspacePartView } from "@/components/learn/workspace-part";
 import { workspacePartData } from "@/lib/learn-workspace";
 import { IDE_GATE } from "@/lib/playgrounds";
 import { getCompilerLang } from "@/lib/compiler";
