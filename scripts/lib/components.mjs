@@ -2,7 +2,7 @@
 // pieces are here, how much disk a choice takes, and installing and removing
 // them. npm run up, npm run add, npm run remove, and npm run status all use
 // this. Only Node's own modules here: npm run up loads it before npm install.
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statfsSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -97,6 +97,14 @@ function quiet(cmd, args, timeout = 60_000) {
   return spawnSync(file, argv, { cwd: ROOT, stdio: "pipe", shell, encoding: "utf8", timeout });
 }
 
+/** A Node script's output, like quiet's, without waiting on it, so the
+    checks that each start one can run at once. */
+function nodeOutput(args, timeout = 60_000) {
+  return new Promise((resolve) => {
+    execFile(process.execPath, args, { cwd: ROOT, encoding: "utf8", timeout }, (_err, stdout) => resolve(String(stdout ?? "")));
+  });
+}
+
 export function dockerUp() {
   const r = quiet("docker", ["info", "--format", "{{.ServerVersion}}"], 15_000);
   return !r.error && r.status === 0;
@@ -128,11 +136,11 @@ function pistonLanguages() {
 }
 
 /** The runner's images that are built and current ("ready"). */
-function readyImages() {
+async function readyImages() {
   if (!existsSync(path.join(ROOT, "runner", "node_modules"))) return new Set();
-  const r = quiet(process.execPath, [path.join("runner", "images.ts"), "status"]);
+  const out = await nodeOutput([path.join("runner", "images.ts"), "status"]);
   const ready = new Set();
-  for (const line of String(r.stdout ?? "").split("\n")) {
+  for (const line of out.split("\n")) {
     const m = /^hu\/([a-z-]+):\S+\s+ready\b/.exec(line.trim());
     if (m) ready.add(m[1]);
   }
@@ -140,11 +148,11 @@ function readyImages() {
 }
 
 /** The course databases that are downloaded. */
-function downloadedDatabases() {
+async function downloadedDatabases() {
   if (!existsSync(path.join(ROOT, "runner", "node_modules"))) return new Set();
-  const r = quiet(process.execPath, [path.join("runner", "db", "pull.ts"), "--status"]);
+  const out = await nodeOutput([path.join("runner", "db", "pull.ts"), "--status"]);
   const have = new Set();
-  for (const line of String(r.stdout ?? "").split("\n")) {
+  for (const line of out.split("\n")) {
     const m = /^(postgres|mongo):\S+\s+downloaded\b/.exec(line.trim());
     if (m) have.add(m[1]);
   }
@@ -169,9 +177,8 @@ function sandboxVolume() {
 export async function detect() {
   const docker = dockerUp();
   if (!docker) return { docker, sandbox: false, stopped: false, installed: new Set() };
-  const languages = await pistonLanguages();
-  const images = readyImages();
-  const databases = downloadedDatabases();
+  // Each asks Docker or the sandbox on its own, so they ask at once.
+  const [languages, images, databases] = await Promise.all([pistonLanguages(), readyImages(), downloadedDatabases()]);
   const installed = new Set();
   for (const c of COMPONENTS) {
     const ok = c.piston

@@ -284,10 +284,24 @@ function buildTrees() {
   return out;
 }
 
+/** Deletes everything under `dir` but the files in `keep` (and the folders
+    holding them), so a tree no template makes any more goes. */
+function prune(dir, keep) {
+  for (const entry of existsSync(dir) ? readdirSync(dir, { withFileTypes: true }) : []) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      prune(full, keep);
+      if (!readdirSync(full).length) rmSync(full, { recursive: true, force: true });
+    } else if (!keep.has(full)) rmSync(full, { force: true });
+  }
+}
+
 const icons = buildIcons();
 const trees = buildTrees();
 if (!check) {
-  rmSync(path.join(OUT, "workspaces"), { recursive: true, force: true });
+  // Only what's gone is deleted, so the trees that didn't change keep their
+  // files and times too, like the icons below.
+  prune(path.join(OUT, "workspaces"), new Set(trees.map((tree) => path.join(OUT, tree.file))));
   mkdirSync(OUT, { recursive: true });
   const write = (file, text) => {
     const full = path.join(OUT, file);
