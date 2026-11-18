@@ -40,6 +40,16 @@ before committing it.
   `runner/jobs.ts`, `HU_STDIN_BY_COUNT=1` runs it in the tests); fixtures'
   links and exec bits from git's record (`windowsGitModes`); and the runner
   asked to shut down over IPC, never killed, on Windows.
+- **A runaway program never takes the app down.** Piston and the runner
+  stop a run at 10 seconds, 1 MB of output, 512 MB, and 128 processes, and
+  the output panel says why (exit codes 137 and 139 explained). SQL runs in a
+  Web Worker (`lib/sql/worker.ts`) that `lib/sql/browser.ts` stops at 15
+  seconds, since a PGlite query never yields, and results reach the page
+  capped at 1,000 rows. The IDE's preview, which shares the app's thread on
+  purpose (first-party cookies), beats a heartbeat while it shows, and after a
+  page that froze with it running, it waits for a click
+  (`components/ide/preview-pane.tsx`). Keep all three when changing those
+  paths.
 - **Docs stay short where learners read them.** The README is the install
   steps, written for someone who has never opened a terminal (numbered, per
   computer, every command copyable), and the everyday commands. Details go in

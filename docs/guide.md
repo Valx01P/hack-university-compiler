@@ -451,10 +451,22 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
   compile, 512 MB of memory to run (1 GB to compile), 128 processes, and 1 MB of
   output. When a run is stopped, the reason shows above its output, and very
   long output shows its first 1,000 lines.
-- SQL never reaches the server. PostgreSQL runs as WebAssembly in the page,
-  loaded the first time you run SQL (about 16 MB, 5 MB gzipped). The playground
-  keeps one in-memory database, and lessons and challenges get a fresh one for
-  every run.
+- SQL never reaches the server. PostgreSQL runs as WebAssembly in a Web
+  Worker beside the page, loaded the first time you run SQL (about 16 MB, 5 MB
+  gzipped). The playground keeps one in-memory database, and lessons and
+  challenges get a fresh one for every run. A query that never ends (a
+  recursive query with no stop, a runaway join) can't freeze the page: after
+  15 seconds the worker is stopped, the run says it timed out, and the next one
+  starts fresh (the playground back to the sample data). A huge result shows
+  its first 1,000 rows and the full count.
+- Exit codes the sandbox picks are explained under the output: 137 means the
+  program went past its 512 MB of memory, 139 a segmentation fault (usually
+  recursion too deep, or an index past the end).
+- The IDE's preview shares the app's thread, so a loop in the page's own
+  JavaScript that never ends freezes the tab, as it would in any browser tab.
+  When that happens and the tab is closed, the next time the project opens its
+  preview waits for a click (or loads without JavaScript) instead of freezing
+  again.
 - Next.js reports each build and dev session to telemetry.nextjs.org unless
   told not to, and `npm run up` tells it not to. When you run `npm run dev`,
   `npm run build`, or `npm start` yourself, `npx next telemetry disable` turns

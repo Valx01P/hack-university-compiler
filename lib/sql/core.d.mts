@@ -8,7 +8,15 @@ export interface SqlColumn {
 }
 
 export type SqlResult =
-  | { kind: "rows"; statement: string; columns: SqlColumn[]; rows: (string | null)[][] }
+  | {
+      kind: "rows";
+      statement: string;
+      columns: SqlColumn[];
+      rows: (string | null)[][];
+      /** The full row count, when only the first rows came back (the browser
+          caps a huge result, lib/sql/worker.ts). */
+      total?: number;
+    }
   | { kind: "command"; statement: string; tag: string };
 
 export interface SqlRun {
@@ -17,7 +25,7 @@ export interface SqlRun {
 }
 
 export function splitSql(sql: string): string[];
-export function formatTable(columns: SqlColumn[], rows: (string | null)[][]): string;
+export function formatTable(columns: SqlColumn[], rows: (string | null)[][], total?: number): string;
 export function commandTag(statement: string, affected?: number): string;
 export function prepareDatabase<T extends PGliteInterface>(db: T): Promise<T>;
 export function runSql(db: PGliteInterface, script: string): Promise<SqlRun>;

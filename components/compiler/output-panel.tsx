@@ -30,6 +30,15 @@ function Clipped({ text, className }: { text: string; className: string }) {
   );
 }
 
+/** What an exit code means when the sandbox, not the program, chose it: the
+    memory limit (the same 512 MB in Piston and on the runner), and a crash
+    reading memory it shouldn't, which in these programs is almost always
+    recursion too deep for the stack or an index past an array's end. */
+const EXIT_MEANING: Record<number, string> = {
+  137: ": stopped for using more than its 512 MB of memory",
+  139: ": a segmentation fault, usually recursion too deep or an index past the end",
+};
+
 /** The result of one run: output, errors, and why it stopped, and a line
     under the output for an error code or a kill signal. Shared by the
     compiler and Learn mode. A `typeChecked` program's type errors show in
@@ -58,8 +67,13 @@ export function OutputPanel({
   const timedOut = run.verdict === "TO";
   const outputCapped = run.verdict === "OL" || run.verdict === "EL";
   const stopped = timedOut || outputCapped;
-  // A clean exit says nothing. A crash or an error code still shows.
-  const exitNote = run.signal ? `killed by ${run.signal}` : run.code != null && run.code !== 0 ? `exit code ${run.code}` : null;
+  // A clean exit says nothing. A crash or an error code still shows, with
+  // what the two a sandbox ends a program with mean.
+  const exitNote = run.signal
+    ? `killed by ${run.signal}`
+    : run.code != null && run.code !== 0
+      ? `exit code ${run.code}${EXIT_MEANING[run.code] ?? ""}`
+      : null;
   // Why it stopped comes first, so a flood of output can't bury it.
   const stopNotice = timedOut ? (
     <pre className="whitespace-pre-wrap text-danger">

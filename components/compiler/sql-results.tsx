@@ -61,7 +61,9 @@ export function SqlResults({ run }: { run: SqlRun }) {
           <section key={i} className="rounded-btn border border-content-line">
             <ResultTable columns={r.columns} rows={r.rows} />
             <p className="border-t border-content-line px-3 py-1 font-mono text-xs text-ink-faint">
-              ({r.rows.length} row{r.rows.length === 1 ? "" : "s"})
+              {/* A huge result keeps its first rows (lib/sql/worker.ts). */}
+              ({r.total ?? r.rows.length} row{(r.total ?? r.rows.length) === 1 ? "" : "s"})
+              {r.total !== undefined && r.total > r.rows.length && `, the first ${r.rows.length} shown`}
             </p>
           </section>
         ) : (

@@ -28,6 +28,36 @@ const SANDBOX = "allow-scripts allow-same-origin allow-forms allow-modals allow-
 // Ports whose old site data this page load already cleared.
 const clearedPorts = new Set<number>();
 
+// The frame is another origin on the app's site, so it shares the app's
+// thread: a loop in its JavaScript that never ends freezes the whole tab, and
+// since the preview loads by itself, it would freeze every time the project
+// opens. So while a frame shows, the pane beats a timestamp into this key
+// every second, and leaving cleanly (closing the pane, another page, closing
+// the tab) takes it away. A beat older than a few seconds when the pane
+// mounts means the last page died with the preview running (Chrome's "Page
+// Unresponsive" or a force quit), and the preview waits for a click instead.
+const LIVE_KEY = "hu-preview-live";
+const BEAT_MS = 1000;
+const STALE_MS = 5000;
+
+function previewFroze(): boolean {
+  try {
+    const beat = Number(localStorage.getItem(LIVE_KEY));
+    return beat > 0 && Date.now() - beat > STALE_MS;
+  } catch {
+    return false;
+  }
+}
+
+function setLive(live: boolean) {
+  try {
+    if (live) localStorage.setItem(LIVE_KEY, String(Date.now()));
+    else localStorage.removeItem(LIVE_KEY);
+  } catch {
+    /* storage off: nothing to remember */
+  }
+}
+
 export function PreviewPane({ store }: { store: WorkspaceStore }) {
   useStore(store, "preview", "ports");
   const { port, path, nonce } = store.preview;
@@ -36,6 +66,8 @@ export function PreviewPane({ store }: { store: WorkspaceStore }) {
   const [width, setWidth] = useState("fit");
   const [noJs, setNoJs] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // Paused after the last page froze with the preview running (LIVE_KEY).
+  const [paused, setPaused] = useState(() => typeof window !== "undefined" && previewFroze());
   const lastNonce = useRef(nonce);
   const info = port !== null ? store.ports.get(port) : undefined;
   const current = history.list[history.at] ?? "/";
@@ -62,6 +94,27 @@ export function PreviewPane({ store }: { store: WorkspaceStore }) {
   const btn = "inline-flex size-6 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink disabled:opacity-40";
   const listening = info?.state === "listening";
   const refused = info?.framable === false;
+  const framing = listening && !refused && !paused;
+
+  // The heartbeat while a frame shows (LIVE_KEY), stopped cleanly on leaving.
+  useEffect(() => {
+    if (!framing) return;
+    setLive(true);
+    const beat = setInterval(() => setLive(true), BEAT_MS);
+    const leave = () => setLive(false);
+    window.addEventListener("pagehide", leave);
+    return () => {
+      clearInterval(beat);
+      window.removeEventListener("pagehide", leave);
+      setLive(false);
+    };
+  }, [framing]);
+  const resume = (withJs: boolean) => {
+    setLive(false);
+    setNoJs(!withJs);
+    setLoaded(false);
+    setPaused(false);
+  };
 
   return (
     <section aria-label="Preview" className="flex h-full min-h-0 flex-col border-l border-line bg-surface">
@@ -126,6 +179,21 @@ export function PreviewPane({ store }: { store: WorkspaceStore }) {
       <div className="code-dark relative min-h-0 flex-1 overflow-auto bg-code-bg">
         {!listening ? (
           <p className="p-4 text-sm text-code-gutter">Nothing is listening on port {port} in this workspace yet. Press Run, or start the server in the terminal.</p>
+        ) : paused ? (
+          <div className="p-4 text-sm text-code-ink">
+            <p>The page stopped responding the last time this preview ran.</p>
+            <p className="mt-1 text-code-gutter">
+              That&apos;s usually a loop in the page&apos;s JavaScript that never ends. Fix it, then load the preview again. Without JavaScript it always loads.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={() => resume(true)} className="rounded-btn border border-code-content-line px-3 py-1.5 text-xs hover:bg-code-edge">
+                Load the preview
+              </button>
+              <button type="button" onClick={() => resume(false)} className="rounded-btn border border-code-content-line px-3 py-1.5 text-xs hover:bg-code-edge">
+                Load without JavaScript
+              </button>
+            </div>
+          </div>
         ) : refused ? (
           <div className="p-4 text-sm text-code-ink">
             <p>This page refuses to show inside another page{info?.reason ? `: it sends ${info.reason}` : ""}.</p>
