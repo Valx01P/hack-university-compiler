@@ -72,6 +72,96 @@ long good = (long) big * 2;      // 4294967294
 Math.addExact(big, 1);           // throws ArithmeticException instead of wrapping
 ```
 
+Catch it when you'd rather know than wrap:
+
+```java
+try {
+    Math.addExact(Integer.MAX_VALUE, 1);
+} catch (ArithmeticException e) {
+    System.out.println(e.getMessage());                      // integer overflow
+}
+System.out.println(Math.multiplyExact(100_000L, 100_000L)); // 10000000000, fits a long
+```
+
+### GCD and LCM (Euclid)
+
+```java
+static int gcd(int a, int b) {
+    while (b != 0) {
+        int t = a % b;
+        a = b;
+        b = t;
+    }
+    return a;
+}
+
+System.out.println(gcd(48, 18));            // 6
+System.out.println(48 / gcd(48, 18) * 18);  // 144, the lcm, dividing first keeps it small
+```
+
+### Fast power with a modulus
+
+Square the base and halve the exponent, so an exponent of 10^18 takes about 60 steps. Keep the products in `long` and take `% mod` after every multiply.
+
+```java
+static long powMod(long base, long exp, long mod) {
+    long result = 1;
+    base %= mod;
+    while (exp > 0) {
+        if ((exp & 1) == 1) {
+            result = result * base % mod;
+        }
+        base = base * base % mod;
+        exp >>= 1;
+    }
+    return result;
+}
+
+System.out.println(powMod(2, 10, 1_000_000_007));   // 1024
+System.out.println(powMod(2, 100, 1_000_000_007));  // 976371285
+```
+
+### Primes: a sieve
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+
+int n = 30;
+boolean[] composite = new boolean[n + 1];
+List<Integer> primes = new ArrayList<>();
+for (int i = 2; i <= n; i++) {
+    if (!composite[i]) {
+        primes.add(i);
+        for (long j = (long) i * i; j <= n; j += i) {
+            composite[(int) j] = true;   // smaller multiples are marked already
+        }
+    }
+}
+System.out.println(primes); // [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+```
+
+### Digits with % and /
+
+`x % 10` is the last digit and `x / 10` drops it. Build the reverse in a `long`, then check it against the `int` range.
+
+```java
+static int reverse(int x) {
+    long r = 0;
+    while (x != 0) {
+        r = r * 10 + x % 10;             // the digit keeps x's sign
+        x /= 10;
+    }
+    if (r > Integer.MAX_VALUE || r < Integer.MIN_VALUE) {
+        return 0;
+    }
+    return (int) r;
+}
+
+System.out.println(reverse(-123));       // -321
+System.out.println(reverse(1534236469)); // 0, since 9646324351 doesn't fit an int
+```
+
 ### Use it in a loop: / and % together
 
 ```java

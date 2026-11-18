@@ -74,6 +74,37 @@ for n in nums:
 
 words = "the cat and the hat".split()
 print(len(set(words)))                # 4
+print(len(set(nums)) != len(nums))    # True  the list has a duplicate
+```
+
+### Tuples in a set, frozenset as a key
+
+```python
+visited = set()
+visited.add((0, 1))                   # a grid cell as (row, col)
+print((0, 1) in visited, (1, 0) in visited)   # True False
+
+pair_count = {frozenset({"a", "b"}): 3}       # an unordered pair as a dict key
+print(pair_count[frozenset({"b", "a"})])      # 3  order doesn't matter
+seen_groups = {frozenset("tea")}
+print(frozenset("eat") in seen_groups)        # True
+```
+
+### Runs of consecutive numbers
+
+Start counting only at a number whose predecessor is missing, so each run is walked once and the whole pass is O(n).
+
+```python
+nums = [100, 4, 200, 1, 3, 2]
+have = set(nums)
+best = 0
+for x in have:
+    if x - 1 not in have:             # x starts a run
+        length = 1
+        while x + length in have:
+            length += 1
+        best = max(best, length)
+print(best)                           # 4  the run 1, 2, 3, 4
 ```
 
 ### Gotchas

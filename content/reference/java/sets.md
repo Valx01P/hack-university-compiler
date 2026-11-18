@@ -66,6 +66,29 @@ for (int n : nums) {
 }
 ```
 
+### Runs with a set: longest consecutive
+
+Count only from a number whose `x - 1` is missing, the start of a run, so each run is walked once.
+
+```java
+int[] values = {100, 4, 200, 1, 3, 2};
+Set<Integer> all = new HashSet<>();
+for (int x : values) {
+    all.add(x);
+}
+int longest = 0;
+for (int x : all) {
+    if (!all.contains(x - 1)) {
+        int len = 1;
+        while (all.contains(x + len)) {
+            len++;
+        }
+        longest = Math.max(longest, len);
+    }
+}
+System.out.println(longest); // 4, from 1 2 3 4
+```
+
 ### Remove duplicates from a list
 
 ```java

@@ -30,18 +30,8 @@ System.out.println(Arrays.toString(m));     // row addresses, like [[I@..., [I@.
 
 ### Loop with indexes
 
-```java harness
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) throws Exception {
-        int[][] m = {{9, 2, 3}, {4, 5, 6}};
-        {{code}}
-    }
-}
-```
-
 ```java
+int[][] m = {{9, 2, 3}, {4, 5, 6}};
 for (int r = 0; r < m.length; r++) {
     for (int c = 0; c < m[r].length; c++) {
         System.out.print(m[r][c] + " ");
@@ -54,18 +44,8 @@ for (int r = 0; r < m.length; r++) {
 
 ### Loop with for-each
 
-```java harness
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) throws Exception {
-        int[][] m = {{9, 2, 3}, {4, 5, 6}};
-        {{code}}
-    }
-}
-```
-
 ```java
+int[][] m = {{9, 2, 3}, {4, 5, 6}};
 int total = 0;
 for (int[] row : m) {
     for (int v : row) {
@@ -77,18 +57,8 @@ System.out.println(total); // 29
 
 ### Column by column
 
-```java harness
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) throws Exception {
-        int[][] m = {{9, 2, 3}, {4, 5, 6}};
-        {{code}}
-    }
-}
-```
-
 ```java
+int[][] m = {{9, 2, 3}, {4, 5, 6}};
 for (int c = 0; c < m[0].length; c++) {
     int colSum = 0;
     for (int r = 0; r < m.length; r++) {
@@ -123,18 +93,8 @@ System.out.println(Arrays.deepToString(tri)); // [[0], [0, 0], [0, 0, 0], [0, 0,
 
 ### Neighbors with bounds checks
 
-```java harness
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) throws Exception {
-        int[][] m = {{9, 2, 3}, {4, 5, 6}};
-        {{code}}
-    }
-}
-```
-
 ```java
+int[][] m = {{9, 2, 3}, {4, 5, 6}};
 int[][] dirs = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}}; // up, down, left, right
 int row = 0;
 int col = 1;
@@ -145,22 +105,25 @@ for (int[] d : dirs) {
         System.out.print(m[nr][nc] + " "); // 5 9 3
     }
 }
+System.out.println();
+
+int around = 0;                                    // all 8 neighbors, for Game of Life
+for (int dr = -1; dr <= 1; dr++) {
+    for (int dc = -1; dc <= 1; dc++) {
+        int nr = row + dr;
+        int nc = col + dc;
+        if ((dr != 0 || dc != 0) && nr >= 0 && nr < m.length && nc >= 0 && nc < m[0].length) {
+            around += m[nr][nc];
+        }
+    }
+}
+System.out.println(around); // 27, from 9 + 3 + 4 + 5 + 6
 ```
 
 ### Diagonal and transpose
 
-```java harness
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) throws Exception {
-        int[][] m = {{9, 2, 3}, {4, 5, 6}};
-        {{code}}
-    }
-}
-```
-
 ```java
+int[][] m = {{9, 2, 3}, {4, 5, 6}};
 int[][] sq = {{1, 2}, {3, 4}};
 int diag = 0;
 for (int i = 0; i < sq.length; i++) {
@@ -177,25 +140,71 @@ for (int r = 0; r < m.length; r++) {
 System.out.println(Arrays.deepToString(t)); // [[9, 4], [2, 5], [3, 6]]
 ```
 
-### Copy
+### Rotate 90 degrees clockwise in place
 
-```java harness
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) throws Exception {
-        int[][] m = {{9, 2, 3}, {4, 5, 6}};
-        {{code}}
-        System.out.println(Arrays.deepToString(copy));
-    }
-}
-```
+Transpose (swap across the main diagonal), then reverse each row.
 
 ```java
+int[][] sq = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
+int n = sq.length;
+for (int r = 0; r < n; r++) {
+    for (int c = r + 1; c < n; c++) {
+        int t = sq[r][c];
+        sq[r][c] = sq[c][r];
+        sq[c][r] = t;
+    }
+}
+for (int[] row : sq) {
+    for (int i = 0, j = n - 1; i < j; i++, j--) {
+        int t = row[i];
+        row[i] = row[j];
+        row[j] = t;
+    }
+}
+System.out.println(Arrays.deepToString(sq)); // [[7, 4, 1], [8, 5, 2], [9, 6, 3]]
+```
+
+### Spiral order with four bounds
+
+```java
+int[][] g = {{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}};
+List<Integer> out = new ArrayList<>();
+int top = 0, bottom = g.length - 1, left = 0, right = g[0].length - 1;
+while (top <= bottom && left <= right) {
+    for (int c = left; c <= right; c++) {
+        out.add(g[top][c]);                // across the top
+    }
+    top++;
+    for (int r = top; r <= bottom; r++) {
+        out.add(g[r][right]);              // down the right side
+    }
+    right--;
+    if (top <= bottom) {
+        for (int c = right; c >= left; c--) {
+            out.add(g[bottom][c]);         // back along the bottom
+        }
+        bottom--;
+    }
+    if (left <= right) {
+        for (int r = bottom; r >= top; r--) {
+            out.add(g[r][left]);           // up the left side
+        }
+        left++;
+    }
+}
+System.out.println(out); // [1, 2, 3, 4, 8, 12, 11, 10, 9, 5, 6, 7]
+```
+
+### Copy
+
+```java
+int[][] m = {{9, 2, 3}, {4, 5, 6}};
 int[][] copy = new int[m.length][];
 for (int r = 0; r < m.length; r++) {
     copy[r] = m[r].clone();           // copy each row
 }
+copy[0][0] = 1;
+System.out.println(m[0][0] + " " + copy[0][0]); // 9 1, the rows are separate
 ```
 
 ### List of lists

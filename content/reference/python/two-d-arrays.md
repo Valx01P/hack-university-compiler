@@ -109,6 +109,60 @@ print([x for row in m for x in row])   # [1, 2, 3, 4, 5, 6]
 
 rows_copy = [row[:] for row in m]   # copies each row
 deep = copy.deepcopy(m)             # copies any depth
+rows_copy[0][0] = 99
+print(m[0][0], rows_copy[0][0])     # 1 99  the original is untouched
+```
+
+### Rotate 90 degrees clockwise
+
+```python
+m = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+print([list(row) for row in zip(*m[::-1])])   # [[7, 4, 1], [8, 5, 2], [9, 6, 3]]  a new grid
+
+n = len(m)                          # in place: transpose, then reverse each row
+for r in range(n):
+    for c in range(r + 1, n):
+        m[r][c], m[c][r] = m[c][r], m[r][c]
+for row in m:
+    row.reverse()
+print(m)                            # [[7, 4, 1], [8, 5, 2], [9, 6, 3]]
+```
+
+### Spiral order: four shrinking bounds
+
+```python
+m = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]
+top, bottom, left, right = 0, len(m) - 1, 0, len(m[0]) - 1
+out = []
+while top <= bottom and left <= right:
+    out += [m[top][c] for c in range(left, right + 1)]          # along the top
+    top += 1
+    out += [m[r][right] for r in range(top, bottom + 1)]        # down the right
+    right -= 1
+    if top <= bottom:
+        out += [m[bottom][c] for c in range(right, left - 1, -1)]   # back along the bottom
+        bottom -= 1
+    if left <= right:
+        out += [m[r][left] for r in range(bottom, top - 1, -1)]     # up the left
+        left += 1
+print(out)          # [1, 2, 3, 4, 8, 12, 11, 10, 9, 5, 6, 7]
+```
+
+### All 8 neighbors, reading from a copy
+
+A step that updates every cell from its neighbors (Game of Life) reads the old grid and writes the new one.
+
+```python
+board = [[0, 1, 0], [0, 1, 0], [0, 1, 0]]
+rows, cols = len(board), len(board[0])
+DIRS8 = [(dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc]
+old = [row[:] for row in board]
+for r in range(rows):
+    for c in range(cols):
+        live = sum(old[r + dr][c + dc] for dr, dc in DIRS8
+                   if 0 <= r + dr < rows and 0 <= c + dc < cols)
+        board[r][c] = 1 if live == 3 or (old[r][c] and live == 2) else 0
+print(board)        # [[0, 0, 0], [1, 1, 1], [0, 0, 0]]
 ```
 
 ### Neighbors in a grid

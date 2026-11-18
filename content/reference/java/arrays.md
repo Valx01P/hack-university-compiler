@@ -45,6 +45,7 @@ System.out.println(Arrays.stream(a).max().getAsInt());  // 9
 
 ```java
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 List<Integer> list = new ArrayList<>();
@@ -52,6 +53,8 @@ System.out.println(list);                                 // []
 List<String> words = new ArrayList<>(List.of("b", "a"));
 System.out.println(words);                                // [b, a], editable
 List<Integer> fixed = List.of(1, 2, 3);                   // immutable
+List<Integer> zeros = new ArrayList<>(Collections.nCopies(3, 0));
+System.out.println(zeros);                                // [0, 0, 0], a starting size
 ```
 
 ### Add, change, remove
@@ -113,6 +116,7 @@ System.out.println(nums);                   // [3, 2, 1]
 Collections.reverse(nums);
 System.out.println(nums);                   // [1, 2, 3]
 System.out.println(Collections.max(nums));  // 3
+System.out.println(Collections.frequency(names, "Bo")); // 2, how many times it appears
 Collections.swap(nums, 0, 2);
 System.out.println(nums);                   // [3, 2, 1]
 names.sort(Comparator.comparing(String::length)); // shortest first

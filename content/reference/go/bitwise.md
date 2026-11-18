@@ -83,6 +83,33 @@ for _, v := range nums {
 fmt.Println(single) // 4
 ```
 
+### Lowest bit, counting bits, and the missing number
+
+```go
+x := 0b1011000
+fmt.Printf("%b\n", x&(x-1)) // 1010000, the lowest set bit cleared
+fmt.Printf("%b\n", x&-x)    // 1000, only the lowest set bit kept
+
+count := 0
+for n := 13; n > 0; n &= n - 1 { // one step per set bit
+	count++
+}
+fmt.Println(count) // 3, since 13 is 1101
+
+ones := make([]int, 6) // the set bits of every number 0 to 5
+for i := 1; i < len(ones); i++ {
+	ones[i] = ones[i>>1] + i&1 // i without its last bit, plus that bit
+}
+fmt.Println(ones) // [0 1 1 2 1 2]
+
+nums := []int{3, 0, 1} // 0 to 3 with one missing
+missing := len(nums)
+for i, v := range nums {
+	missing ^= i ^ v // every number that is there cancels its index
+}
+fmt.Println(missing) // 2
+```
+
 ### Flags with iota
 
 ```go

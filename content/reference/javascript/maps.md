@@ -82,6 +82,28 @@ for (const w of words) {
   counts.set(w, (counts.get(w) ?? 0) + 1);
 }
 console.log(counts.get("the"));  // 2
+
+let top = null;  // the most common, the first one on a tie
+for (const [w, c] of counts) {
+  if (top === null || c > counts.get(top)) top = w;
+}
+console.log(top);                // the
+```
+
+### One pass: value to index (two sum)
+
+```javascript
+const nums = [2, 7, 11, 15];
+const target = 9;
+const indexOf = new Map();  // value to where it was seen
+for (let i = 0; i < nums.length; i++) {
+  const need = target - nums[i];
+  if (indexOf.has(need)) {
+    console.log(indexOf.get(need), i);  // 0 1
+    break;
+  }
+  indexOf.set(nums[i], i);
+}
 ```
 
 ### Group
@@ -96,6 +118,14 @@ for (const w of ["apple", "avocado", "banana"]) {
   groups.get(first).push(w);
 }
 console.log(groups); // Map(2) { 'a' => [ 'apple', 'avocado' ], 'b' => [ 'banana' ] }
+
+const anagrams = new Map();  // the sorted letters are the key
+for (const w of ["eat", "tea", "tan", "ate", "nat"]) {
+  const key = [...w].sort().join("");
+  if (!anagrams.has(key)) anagrams.set(key, []);
+  anagrams.get(key).push(w);
+}
+console.log([...anagrams.values()].map((g) => g.join(" ")).join(" | "));  // eat tea ate | tan nat
 ```
 
 ### Sort and convert
@@ -115,8 +145,8 @@ console.log([...m.keys()]);    // [ 'ann', 'cy' ]
 console.log([...m.values()]);  // [ 32, 40 ]
 console.log([...m]);           // [ [ 'ann', 32 ], [ 'cy', 40 ] ]
 
-const top = [...counts].sort((a, b) => b[1] - a[1]);  // by count, highest first
-console.log(top[0]);           // [ 'the', 2 ]
+const top = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));  // by count, then key
+console.log(top[0], top[1]);   // [ 'the', 2 ] [ 'and', 1 ]
 const byKey = new Map([...m].sort((a, b) => a[0].localeCompare(b[0])));
 
 console.log(Object.fromEntries(m));                  // { ann: 32, cy: 40 }
@@ -135,6 +165,24 @@ console.log(JSON.stringify(Object.fromEntries(m)));  // {"ann":32,"cy":40}
 | `m.keys()`, `m.values()`, `m.entries()` | iterators, spread into `[...]` for an array |
 | `Object.keys(o)`, `Object.values(o)`, `Object.entries(o)` | arrays from a plain object |
 | `Object.fromEntries(pairs)` | pairs or a Map to a plain object |
+
+### Map or object
+
+| Feature | `Map` | plain object |
+| --- | --- | --- |
+| keys | any value, `1` and `"1"` stay apart | strings only, `obj[1]` is `obj["1"]` |
+| size | `m.size` | `Object.keys(o).length` |
+| order | insertion order | integer-like keys first, ascending, then insertion order |
+| missing key | `m.get(k)` is `undefined` | `o[k]` is `undefined`, but `o["toString"]` is a function |
+| to JSON | `JSON.stringify(Object.fromEntries(m))` | `JSON.stringify(o)` |
+
+```javascript
+const o = { b: 1, 10: 2, a: 3, 2: 4 };
+console.log(Object.keys(o));   // [ '2', '10', 'b', 'a' ], number-like keys move first
+console.log("toString" in o);  // true, inherited from Object
+const m = new Map([["b", 1], [10, 2], ["a", 3], [2, 4]]);
+console.log([...m.keys()]);    // [ 'b', 10, 'a', 2 ], exactly as added
+```
 
 ### Gotchas
 

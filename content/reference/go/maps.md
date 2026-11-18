@@ -172,6 +172,51 @@ other["bob"] = 0
 fmt.Println(ages["bob"]) // 0
 ```
 
+### Two sum: a value-to-index map in one pass
+
+```go
+nums := []int{2, 7, 11, 15}
+target := 9
+seen := map[int]int{} // value -> its index
+for i, x := range nums {
+	if j, ok := seen[target-x]; ok { // was the partner already seen?
+		fmt.Println(j, i) // 0 1
+		break
+	}
+	seen[x] = i
+}
+```
+
+### Group by a key (anagrams)
+
+Words with the same sorted letters are anagrams, so the sorted word is the key. A `[26]int` of letter counts works as a key too, since arrays are comparable.
+
+```go
+import "sort"
+
+words := []string{"eat", "tea", "tan", "ate", "nat", "bat"}
+groups := map[string][]string{}
+for _, w := range words {
+	b := []byte(w)
+	sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
+	key := string(b) // "aet" for eat, tea, and ate
+	groups[key] = append(groups[key], w)
+}
+keys := make([]string, 0, len(groups))
+for k := range groups {
+	keys = append(keys, k)
+}
+sort.Strings(keys) // a fixed order for printing
+for _, k := range keys {
+	fmt.Println(k, groups[k])
+}
+// abt [bat]
+// aet [eat tea ate]
+// ant [tan nat]
+```
+
+### Calls
+
 | Call | Does |
 | --- | --- |
 | `m[k] = v` | add or overwrite |

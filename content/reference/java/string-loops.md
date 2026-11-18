@@ -14,18 +14,8 @@ for (int i = 0; i < s.length(); i++) {
 
 ### For-each over the chars
 
-```java harness
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) throws Exception {
-        String s = "hello";
-        {{code}}
-    }
-}
-```
-
 ```java
+String s = "hello";
 for (char c : s.toCharArray()) {
     System.out.print(c + "-"); // h-e-l-l-o-
 }
@@ -33,18 +23,8 @@ for (char c : s.toCharArray()) {
 
 ### Reverse
 
-```java harness
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) throws Exception {
-        String s = "hello";
-        {{code}}
-    }
-}
-```
-
 ```java
+String s = "hello";
 String rev = "";
 for (int i = s.length() - 1; i >= 0; i--) {
     rev += s.charAt(i);           // fine for short strings
@@ -130,6 +110,92 @@ while (lo < hi) {
     hi--;
 }
 System.out.println(isPal); // true
+```
+
+### Longest palindrome: expand around each center
+
+Every palindrome grows out from a center: one char for an odd length, a gap between two chars for an even one.
+
+```java
+static String longestPalindrome(String s) {
+    int start = 0;
+    int len = 0;
+    for (int center = 0; center < s.length(); center++) {
+        for (int right = center; right <= center + 1; right++) {   // odd, then even
+            int lo = center;
+            int hi = right;
+            while (lo >= 0 && hi < s.length() && s.charAt(lo) == s.charAt(hi)) {
+                lo--;
+                hi++;
+            }
+            if (hi - lo - 1 > len) {      // only a longer one replaces it, so the first wins a tie
+                start = lo + 1;
+                len = hi - lo - 1;
+            }
+        }
+    }
+    return s.substring(start, start + len);
+}
+
+System.out.println(longestPalindrome("babad")); // bab
+System.out.println(longestPalindrome("cbbd"));  // bb
+```
+
+### Find a word by hand
+
+Try every start, and compare char by char until one differs. `text.startsWith(word, i)` does the inner check for you.
+
+```java
+static int find(String text, String word) {
+    for (int i = 0; i + word.length() <= text.length(); i++) {
+        int j = 0;
+        while (j < word.length() && text.charAt(i + j) == word.charAt(j)) {
+            j++;
+        }
+        if (j == word.length()) {
+            return i;                     // every char matched
+        }
+    }
+    return -1;
+}
+
+System.out.println(find("sadbutsad", "but"));        // 3
+System.out.println(find("hello", "xyz"));            // -1
+System.out.println("sadbutsad".startsWith("sad", 6)); // true, a match at index 6
+```
+
+### Two strings, two indexes: is it a subsequence
+
+```java
+String small = "ace";
+String big = "abcde";
+int i = 0;
+for (int j = 0; j < big.length() && i < small.length(); j++) {
+    if (big.charAt(j) == small.charAt(i)) {
+        i++;                              // matched the next char of small
+    }
+}
+System.out.println(i == small.length()); // true
+```
+
+### Runs of one char: compress
+
+```java
+String s = "aaabcc";
+StringBuilder sb = new StringBuilder();
+int i = 0;
+while (i < s.length()) {
+    int j = i;
+    while (j < s.length() && s.charAt(j) == s.charAt(i)) {
+        j++;                              // j stops at the first different char
+    }
+    sb.append(s.charAt(i));
+    if (j - i > 1) {
+        sb.append(j - i);
+    }
+    i = j;
+}
+System.out.println(sb); // a3bc2
 ```
 
 ### Character helpers

@@ -82,7 +82,29 @@ if (it != v.end()) {
 std::cout << std::count(v.begin(), v.end(), 2) << '\n';  // 2
 ```
 
-Sum, min, and max of a vector are in Built-in Functions. More algorithms (`unique`, `remove_if`, `transform`) are in Standard Library.
+More algorithms (`unique`, `remove_if`, `transform`) are in Standard Library, and comparators are in Sorting and Comparators.
+
+### Sum, min, max, fill, assign
+
+```cpp
+#include <numeric>      // accumulate, iota
+
+std::vector<int> v = {4, 9, 2, 7};
+std::cout << std::accumulate(v.begin(), v.end(), 0) << '\n';     // 22, the sum
+std::cout << std::accumulate(v.begin(), v.end(), 0LL) << '\n';   // 22, summed in long long
+std::cout << *std::max_element(v.begin(), v.end()) << '\n';      // 9
+std::cout << (std::min_element(v.begin(), v.end()) - v.begin()) << '\n';   // 2, the index of the min
+std::fill(v.begin(), v.end(), -1);
+for (int x : v) std::cout << x << ' ';                           // -1 -1 -1 -1
+std::cout << '\n';
+v.assign(3, 0);                                                  // replace it all with three 0s
+v.resize(5, 7);                                                  // grow, the new slots are 7
+for (int x : v) std::cout << x << ' ';                           // 0 0 0 7 7
+std::cout << '\n';
+std::vector<int> idx(4);
+std::iota(idx.begin(), idx.end(), 0);
+for (int x : idx) std::cout << x << ' ';                         // 0 1 2 3
+```
 
 ### Use it in a loop
 

@@ -76,6 +76,87 @@ std::cout << (2 + 3) * 4 << '\n';   // 20
 
 `*`, `/`, `%` bind tighter than `+` and `-`, and same-level operators run left to right. Use parentheses when in doubt.
 
+### gcd, lcm, and integer limits
+
+```cpp
+#include <climits>   // INT_MAX, INT_MIN, LLONG_MAX
+#include <limits>    // std::numeric_limits
+#include <numeric>   // std::gcd, std::lcm
+
+std::cout << std::gcd(12, 18) << ' ' << std::lcm(4, 6) << '\n';   // 6 12
+std::cout << INT_MAX << ' ' << INT_MIN << '\n';                    // 2147483647 -2147483648
+std::cout << LLONG_MAX << '\n';                                    // 9223372036854775807
+std::cout << std::numeric_limits<int>::max() << '\n';              // 2147483647, the same as INT_MAX
+std::cout << std::numeric_limits<long long>::min() << '\n';        // -9223372036854775808
+```
+
+### A % that is never negative
+
+```cpp
+int n = 5;
+std::cout << -7 % n << ' ' << ((-7 % n) + n) % n << '\n';   // -2 3
+```
+
+### Fast power under a modulus
+
+Square the base and halve the exponent each step: O(log exp) multiplications. Two values under 10^9 + 7 multiply to under 10^18, which fits a `long long`.
+
+```cpp
+long long powMod(long long base, long long exp, long long mod) {
+    long long result = 1;
+    base %= mod;
+    while (exp > 0) {
+        if (exp & 1) result = result * base % mod;   // this bit of exp is set
+        base = base * base % mod;                    // the base for the next bit
+        exp >>= 1;
+    }
+    return result;
+}
+
+std::cout << powMod(2, 10, 1000) << '\n';            // 24, 1024 % 1000
+std::cout << powMod(2, 62, 1000000007) << '\n';      // 145586002
+```
+
+### Sieve of Eratosthenes
+
+```cpp
+#include <vector>
+
+int limit = 30;
+std::vector<bool> isPrime(limit + 1, true);
+isPrime[0] = isPrime[1] = false;
+for (long long i = 2; i * i <= limit; i++) {
+    if (!isPrime[i]) continue;
+    for (long long j = i * i; j <= limit; j += i) isPrime[j] = false;   // cross out the multiples
+}
+for (int i = 2; i <= limit; i++) {
+    if (isPrime[i]) std::cout << i << ' ';   // 2 3 5 7 11 13 17 19 23 29
+}
+```
+
+### Digits with % and /
+
+```cpp
+#include <unordered_set>
+
+int x = -123;
+long long rev = 0;                     // room to see an overflow
+while (x != 0) {
+    rev = rev * 10 + x % 10;           // x % 10 keeps the sign: -3, then -2, then -1
+    x /= 10;
+}
+std::cout << ((rev < INT_MIN || rev > INT_MAX) ? 0 : rev) << '\n';   // -321, 0 if it left the int range
+
+int h = 19;                            // happy number: digit squares until 1, or a repeat
+std::unordered_set<int> seen;
+while (h != 1 && seen.insert(h).second) {
+    int next = 0;
+    for (int d = h; d > 0; d /= 10) next += (d % 10) * (d % 10);
+    h = next;
+}
+std::cout << std::boolalpha << (h == 1) << '\n';   // true, 19 -> 82 -> 68 -> 100 -> 1
+```
+
 ### Use it in a loop
 
 ```cpp

@@ -24,6 +24,20 @@ fmt.Println(s[len(s)-1:])  // o (last character)
 fmt.Println(s[:2] + s[3:]) // helo
 ```
 
+### Bytes and runes
+
+`s[i]` and `len(s)` work in bytes. `range` and `[]rune(s)` work in runes, the characters.
+
+```go
+s := "héllo"
+fmt.Println(len(s), len([]rune(s))) // 6 5, bytes then characters
+fmt.Println(s[1], s[2])             // 195 169, the two bytes of é
+for i, r := range s {
+	fmt.Print(i, ":", string(r), " ") // each rune and its byte offset
+}
+fmt.Println() // 0:h 1:é 3:l 4:l 5:o
+```
+
 ### Join pieces
 
 ```go
@@ -101,7 +115,20 @@ fmt.Println("apple" < "banana")            // true, byte by byte
 fmt.Println(strings.EqualFold("Go", "GO")) // true, ignores case
 ```
 
-Strings to numbers and back (`strconv.Atoi`, `strconv.Itoa`) are in Variables and Types.
+### Numbers and strings: strconv
+
+```go
+import "strconv"
+
+s := strconv.Itoa(-42)
+fmt.Println(s + "!") // -42!
+n, err := strconv.Atoi("123")
+fmt.Println(n+1, err) // 124 <nil>
+_, err = strconv.Atoi("12a")
+fmt.Println(err) // strconv.Atoi: parsing "12a": invalid syntax
+```
+
+More conversions (`ParseFloat`, `FormatInt`) are in Variables and Types.
 
 ### Change one character
 
@@ -142,6 +169,48 @@ fmt.Println(unicode.ToUpper('q'))  // 81, the rune 'Q'
 
 Digit character to number: `int(ch - '0')`.
 
+### Letter arithmetic and counts
+
+A byte or rune is a number, so `c - 'a'` is a letter's place in the alphabet, and a `[26]int` counts lowercase letters.
+
+```go
+word := "banana"
+var counts [26]int
+for i := 0; i < len(word); i++ {
+	counts[word[i]-'a']++ // 'a' is 0, 'z' is 25
+}
+fmt.Println(counts[0], counts['n'-'a']) // 3 2
+fmt.Println(string(rune('a' + 2)))      // c, back from a position
+fmt.Println(int('7' - '0'))             // 7, a digit character to its value
+```
+
+### Palindrome and anagram checks
+
+```go
+func isPalindrome(s string) bool {
+	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		if s[i] != s[j] {
+			return false
+		}
+	}
+	return true
+}
+
+func isAnagram(a, b string) bool {
+	var count [26]int
+	for i := 0; i < len(a); i++ {
+		count[a[i]-'a']++
+	}
+	for i := 0; i < len(b); i++ {
+		count[b[i]-'a']--
+	}
+	return count == [26]int{} // arrays compare with ==: every count is back to 0
+}
+
+fmt.Println(isPalindrome("racecar"), isPalindrome("go"))            // true false
+fmt.Println(isAnagram("listen", "silent"), isAnagram("rat", "car")) // true false
+```
+
 ### Calls you will use
 
 | Call | Does |
@@ -157,6 +226,8 @@ Digit character to number: `int(ch - '0')`.
 | `strings.ReplaceAll(s, old, new)` | replace every match |
 | `strings.ToUpper(s)` | uppercase copy (also `ToLower`) |
 | `fmt.Sprintf(format, ...)` | format anything into a string |
+| `strconv.Itoa(n)`, `strconv.Atoi(s)` | int to string, and string to int plus an error |
+| `strings.Builder` | build a long string piece by piece |
 
 ### Gotchas
 

@@ -113,6 +113,44 @@ for (const auto& [c, n] : freq) std::cout << c << '=' << n << ' ';
 // a=3 b=1 n=2
 ```
 
+### Value to index in one pass: two sum
+
+```cpp
+std::vector<int> nums = {2, 7, 11, 15};
+int target = 9;
+std::unordered_map<int, int> indexOf;            // value -> index
+for (int i = 0; i < static_cast<int>(nums.size()); i++) {
+    auto it = indexOf.find(target - nums[i]);    // seen the partner already?
+    if (it != indexOf.end()) {
+        std::cout << it->second << ' ' << i << '\n';   // 0 1
+        break;
+    }
+    indexOf[nums[i]] = i;
+}
+```
+
+### Group by a key: anagrams
+
+```cpp
+#include <algorithm>
+
+std::vector<std::string> words = {"eat", "tea", "tan", "ate", "nat", "bat"};
+std::map<std::string, std::vector<std::string>> groups;   // sorted letters -> words
+for (const auto& w : words) {
+    std::string key = w;
+    std::sort(key.begin(), key.end());
+    groups[key].push_back(w);    // [] starts an empty vector the first time
+}
+for (const auto& [key, list] : groups) {
+    std::cout << key << ':';
+    for (const auto& w : list) std::cout << ' ' << w;
+    std::cout << '\n';
+}
+// abt: bat
+// aet: eat tea ate
+// ant: tan nat
+```
+
 ### Erase while looping
 
 ```cpp harness

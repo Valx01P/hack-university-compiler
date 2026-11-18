@@ -79,6 +79,29 @@ b[0] = 99
 fmt.Println(a, b, c) // [1 2 3] [99 2 3] [1 2 3]
 ```
 
+### Reverse and rotate in place
+
+A function that swaps elements changes the caller's slice, since both share one backing array.
+
+```go
+func reverse(s []int) {
+	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		s[i], s[j] = s[j], s[i]
+	}
+}
+
+s := []int{1, 2, 3, 4, 5}
+reverse(s)
+fmt.Println(s) // [5 4 3 2 1]
+
+nums := []int{1, 2, 3, 4, 5, 6, 7}
+k := 10 % len(nums) // rotate right by 10 is the same as by 3
+reverse(nums)       // reverse everything,
+reverse(nums[:k])   // then the first k,
+reverse(nums[k:])   // then the rest
+fmt.Println(nums)   // [5 6 7 1 2 3 4]
+```
+
 ### Search
 
 There is no `contains` for slices in Go 1.16, so loop.

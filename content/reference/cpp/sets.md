@@ -81,6 +81,25 @@ for (int n : nums) {
 // dup 2
 ```
 
+### Longest consecutive run with an unordered_set
+
+Start counting only at a run's first number, the one whose `x - 1` is missing, so the whole loop is O(n).
+
+```cpp
+#include <algorithm>
+
+std::vector<int> nums = {100, 4, 200, 1, 3, 2};
+std::unordered_set<int> all(nums.begin(), nums.end());
+int best = 0;
+for (int x : all) {
+    if (all.count(x - 1)) continue;   // not the start of a run
+    int len = 1;
+    while (all.count(x + len)) len++;
+    best = std::max(best, len);
+}
+std::cout << best << '\n';            // 4, from 1 2 3 4
+```
+
 ### Union, intersection, difference
 
 These need sorted ranges, so use `std::set` (not `unordered_set`).

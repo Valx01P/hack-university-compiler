@@ -81,6 +81,75 @@ console.log("Hi".toLowerCase() === "hi");   // true (case-insensitive check)
 
 String to number and back (`Number`, `parseInt`, `String`) is in Variables and Types.
 
+### Letters as numbers
+
+`"a"` is 97 and `"A"` is 65, so `charCodeAt(0) - 97` turns a lowercase letter into 0 to 25.
+
+```javascript
+console.log("d".charCodeAt(0) - 97);         // 3, the letter's index
+console.log(String.fromCharCode(97 + 25));   // z
+console.log("7".charCodeAt(0) - 48, +"7");   // 7 7, a digit's value two ways
+const shift = (ch, k) => String.fromCharCode(((ch.charCodeAt(0) - 97 + k) % 26 + 26) % 26 + 97);
+console.log(shift("y", 3), shift("b", -3));  // b y, wrapping around
+
+const counts = new Array(26).fill(0);        // a letter counter without a Map
+for (const ch of "banana") counts[ch.charCodeAt(0) - 97]++;
+console.log(counts[0], counts[1], counts[13]);  // 3 1 2
+```
+
+### Test a character
+
+```javascript
+const isLetter = (ch) => /^[a-z]$/i.test(ch);
+const isDigit = (ch) => ch >= "0" && ch <= "9";
+const isAlnum = (ch) => /^[a-z0-9]$/i.test(ch);
+console.log(isLetter("Q"), isDigit("7"), isAlnum("!"));      // true true false
+console.log("Q" === "Q".toUpperCase(), "q" !== "q".toUpperCase());  // true true, uppercase or not
+console.log(" \t".trim() === "");                            // true, only whitespace
+```
+
+### Build a string
+
+`+=` in a loop is fast in Node. Collect pieces in an array when you build by index, in reverse, or with a separator, then `join` once.
+
+```javascript
+let out = "";
+for (const [ch, n] of [["a", 3], ["b", 1], ["c", 2]]) out += n > 1 ? ch + n : ch;
+console.log(out);                // a3bc2
+
+const parts = [];
+for (let i = 5; i >= 1; i--) parts.push(i);
+console.log(parts.join(" > "));  // 5 > 4 > 3 > 2 > 1
+const chars = [..."hello"];
+chars[0] = "j";                  // change a copy, then join it back
+console.log(chars.join(""));     // jello
+```
+
+### Palindrome and anagram checks
+
+```javascript
+const clean = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+const isPalindrome = (s) => {
+  const t = clean(s);
+  return t === [...t].reverse().join("");
+};
+console.log(isPalindrome("Race car!"), isPalindrome("Rocket"));  // true false
+
+const sortKey = (w) => [...w].sort().join("");
+console.log(sortKey("listen") === sortKey("silent"));             // true, O(n log n)
+function isAnagram(a, b) {                                        // O(n) with counts
+  if (a.length !== b.length) return false;
+  const counts = new Array(26).fill(0);
+  for (let i = 0; i < a.length; i++) {
+    counts[a.charCodeAt(i) - 97]++;
+    counts[b.charCodeAt(i) - 97]--;
+  }
+  return counts.every((c) => c === 0);
+}
+console.log(isAnagram("rat", "tar"), isAnagram("rat", "car"));    // true false
+```
+
+
 | Call | Does |
 | --- | --- |
 | `s.length` | number of characters (UTF-16 units) |

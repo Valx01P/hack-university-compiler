@@ -137,6 +137,82 @@ copy[0][0] = 99;
 console.log(grid[0][0]); // 1, the original is safe
 ```
 
+### Rotate 90 degrees clockwise in place
+
+Transpose (swap across the main diagonal), then reverse each row.
+
+```javascript
+const m = [
+  [1, 2, 3],
+  [4, 5, 6],
+  [7, 8, 9],
+];
+for (let r = 0; r < m.length; r++) {
+  for (let c = r + 1; c < m.length; c++) {
+    [m[r][c], m[c][r]] = [m[c][r], m[r][c]];
+  }
+}
+for (const row of m) row.reverse();
+console.log(JSON.stringify(m)); // [[7,4,1],[8,5,2],[9,6,3]]
+```
+
+### Spiral order with four bounds
+
+```javascript
+const m = [
+  [1, 2, 3, 4],
+  [5, 6, 7, 8],
+  [9, 10, 11, 12],
+];
+const out = [];
+let top = 0;
+let bottom = m.length - 1;
+let left = 0;
+let right = m[0].length - 1;
+while (top <= bottom && left <= right) {
+  for (let c = left; c <= right; c++) out.push(m[top][c]);
+  top++;
+  for (let r = top; r <= bottom; r++) out.push(m[r][right]);
+  right--;
+  if (top <= bottom) {
+    for (let c = right; c >= left; c--) out.push(m[bottom][c]);
+    bottom--;
+  }
+  if (left <= right) {
+    for (let r = bottom; r >= top; r--) out.push(m[r][left]);
+    left++;
+  }
+}
+console.log(out.join(" ")); // 1 2 3 4 8 12 11 10 9 5 6 7
+```
+
+### Eight neighbors, from a copy
+
+Count from a copy so the cells you already changed don't affect the rest (Game of Life).
+
+```javascript
+const grid = [
+  [0, 1, 0],
+  [0, 1, 0],
+  [0, 1, 0],
+];
+const before = grid.map((row) => [...row]);
+for (let r = 0; r < grid.length; r++) {
+  for (let c = 0; c < grid[0].length; c++) {
+    let alive = 0;
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if ((dr !== 0 || dc !== 0) && before[r + dr]?.[c + dc] === 1) alive++;
+      }
+    }
+    grid[r][c] = alive === 3 || (alive === 2 && before[r][c] === 1) ? 1 : 0;
+  }
+}
+console.log(grid.map((row) => row.join("")).join(" ")); // 000 111 000
+```
+
+`before[r + dr]?.[c + dc]` is `undefined` outside the grid, so it skips the bounds check.
+
 | Call | Does |
 | --- | --- |
 | `Array.from({ length: r }, () => new Array(c).fill(0))` | r by c grid of zeros |

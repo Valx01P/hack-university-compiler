@@ -20,13 +20,8 @@ std::vector<std::vector<int>> m = {
 ### Access and size
 
 ```cpp harness
-#include <bits/stdc++.h>
-using namespace std;
-
-int main() {
-    std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
-    {{code}}
-}
+std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
+{{code}}
 ```
 
 ```cpp
@@ -56,20 +51,8 @@ for (std::size_t r = 0; r < m.size(); r++) {
 ### Loop with range-based for
 
 ```cpp harness
-#include <bits/stdc++.h>
-using namespace std;
-
-void showGrid(const std::vector<std::vector<int>>& g) {
-    for (const auto& row : g) {
-        for (int x : row) std::cout << x << ' ';
-        std::cout << '\n';
-    }
-}
-
-int main() {
-    std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
-    {{code}}
-}
+std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
+{{code}}
 ```
 
 ```cpp
@@ -100,13 +83,8 @@ for (std::size_t c = 0; c < m[0].size(); c++) {
 ### Row sums and total
 
 ```cpp harness
-#include <bits/stdc++.h>
-using namespace std;
-
-int main() {
-    std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
-    {{code}}
-}
+std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
+{{code}}
 ```
 
 ```cpp
@@ -134,14 +112,9 @@ for (int i = 0; i < n; i++) std::cout << sq[i][n - 1 - i] << ' '; // 3 5 7
 ### Neighbors with a bounds check
 
 ```cpp harness
-#include <bits/stdc++.h>
-using namespace std;
-
-int main() {
-    std::vector<std::vector<int>> sq = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
-    {{code}}
-    std::cout << '\n';
-}
+std::vector<std::vector<int>> sq = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
+{{code}}
+std::cout << '\n';
 ```
 
 ```cpp
@@ -157,12 +130,11 @@ for (int d = 0; d < 4; d++) {
 }
 ```
 
+For 8 neighbors, as in Game of Life, loop `dr` and `dc` both from -1 to 1 and skip the cell itself (`dr == 0 && dc == 0`). Read from a copy of the grid while you write the next step.
+
 ### Transpose
 
 ```cpp harness
-#include <bits/stdc++.h>
-using namespace std;
-
 void showGrid(const std::vector<std::vector<int>>& g) {
     for (const auto& row : g) {
         for (int x : row) std::cout << x << ' ';
@@ -170,11 +142,9 @@ void showGrid(const std::vector<std::vector<int>>& g) {
     }
 }
 
-int main() {
-    std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
-    {{code}}
-    showGrid(t);
-}
+std::vector<std::vector<int>> m = {{1, 2, 3}, {4, 5, 6}};
+{{code}}
+showGrid(t);
 ```
 
 ```cpp
@@ -184,6 +154,44 @@ for (std::size_t i = 0; i < m.size(); i++) {
         t[j][i] = m[i][j];          // 2x3 becomes 3x2
     }
 }
+```
+
+### Copy, rotate, and spiral
+
+```cpp
+#include <algorithm>
+
+std::vector<std::vector<int>> sq = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
+std::vector<std::vector<int>> copy = sq;           // a deep copy: every row is copied
+copy[0][0] = 0;
+std::cout << sq[0][0] << ' ' << copy[0][0] << '\n';   // 1 0
+
+int n = static_cast<int>(sq.size());               // rotate 90 degrees clockwise in place
+for (int i = 0; i < n; i++) {
+    for (int j = i + 1; j < n; j++) std::swap(sq[i][j], sq[j][i]);   // transpose
+}
+for (auto& row : sq) std::reverse(row.begin(), row.end());           // then reverse each row
+for (const auto& row : sq) for (int x : row) std::cout << x << ' ';  // 7 4 1 8 5 2 9 6 3
+std::cout << '\n';
+
+std::vector<std::vector<int>> m = {{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}};
+int top = 0, bottom = static_cast<int>(m.size()) - 1;
+int left = 0, right = static_cast<int>(m[0].size()) - 1;
+while (top <= bottom && left <= right) {           // spiral: four shrinking bounds
+    for (int c = left; c <= right; c++) std::cout << m[top][c] << ' ';
+    top++;
+    for (int r = top; r <= bottom; r++) std::cout << m[r][right] << ' ';
+    right--;
+    if (top <= bottom) {
+        for (int c = right; c >= left; c--) std::cout << m[bottom][c] << ' ';
+        bottom--;
+    }
+    if (left <= right) {
+        for (int r = bottom; r >= top; r--) std::cout << m[r][left] << ' ';
+        left++;
+    }
+}
+// 1 2 3 4 8 12 11 10 9 5 6 7
 ```
 
 ### Jagged rows and character grids

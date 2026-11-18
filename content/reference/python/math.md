@@ -91,6 +91,76 @@ while n > 0:
 print(digit_sum)            # 10
 ```
 
+Reverse a number's digits: work on `abs(x)`, since `%` and `//` on a negative number floor toward negative infinity.
+
+```python
+x = -123
+n, rev = abs(x), 0
+while n:
+    rev = rev * 10 + n % 10
+    n //= 10
+rev = -rev if x < 0 else rev
+print(rev if -2**31 <= rev <= 2**31 - 1 else 0)   # -321  0 when it leaves 32 bits
+```
+
+### Ceiling division, infinity
+
+```python
+import math
+
+a, b = 7, 2
+print(-(-a // b), (a + b - 1) // b)   # 4 4  round up, no floats
+print(divmod(17, 5))                  # (3, 2)  quotient and remainder
+best = math.inf                       # a float bigger than any number
+print(min(best, 42), -math.inf < -10**100)   # 42 True
+```
+
+### Powers under a modulus
+
+`pow(base, exp, mod)` never builds the huge power. Exponentiation by squaring is how it works: square the base for each bit of the exponent.
+
+```python
+MOD = 10**9 + 7
+print(pow(2, 10, 1000))           # 24  (2 ** 10) % 1000
+
+def power_mod(base, exp, mod):
+    result = 1
+    base %= mod
+    while exp > 0:
+        if exp & 1:               # this bit of exp is set
+            result = result * base % mod
+        base = base * base % mod
+        exp >>= 1
+    return result
+
+print(power_mod(3, 200, MOD) == pow(3, 200, MOD))   # True
+print(pow(3, -1, 7))              # 5  the inverse: 3 * 5 % 7 == 1
+print((MOD - 1 + 5) % MOD)        # 4  take % after each + and *
+```
+
+### Primes: a sieve
+
+```python
+import math
+
+def primes_below(n):
+    is_prime = [True] * max(n, 2)
+    is_prime[0] = is_prime[1] = False
+    for i in range(2, math.isqrt(n) + 1):
+        if is_prime[i]:
+            for j in range(i * i, n, i):   # smaller multiples were crossed out already
+                is_prime[j] = False
+    return [i for i in range(n) if is_prime[i]]
+
+print(primes_below(30))       # [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+print(len(primes_below(10)))  # 4
+
+def is_prime(n):              # one number: try divisors up to its square root
+    return n > 1 and all(n % d for d in range(2, math.isqrt(n) + 1))
+
+print(is_prime(97), is_prime(91))   # True False
+```
+
 ### Floats are approximate
 
 ```python

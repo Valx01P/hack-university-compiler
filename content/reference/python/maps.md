@@ -70,6 +70,50 @@ by_len = defaultdict(list)            # missing keys start as []
 for w in ["hi", "yo", "hey"]:
     by_len[len(w)].append(w)
 print(dict(by_len))                   # {2: ['hi', 'yo'], 3: ['hey']}
+
+groups = {}
+for w in ["hi", "yo", "hey"]:
+    groups.setdefault(w[0], []).append(w)   # insert [] the first time
+print(groups)                         # {'h': ['hi', 'hey'], 'y': ['yo']}
+```
+
+### Counter
+
+```python
+from collections import Counter
+
+c = Counter("banana")
+print(c["a"], c["z"])                 # 3 0  a missing key counts 0
+print(c.most_common(2))               # [('a', 3), ('n', 2)]
+c.update("an")                        # add more counts
+print(c["a"], c["n"])                 # 4 3
+c["b"] -= 1
+print(+c)                             # Counter({'a': 4, 'n': 3})  + drops counts of 0 or less
+print(Counter("listen") == Counter("silent"))   # True  same letters, same counts
+print(sorted(Counter("cabbac").items()))        # [('a', 2), ('b', 2), ('c', 2)]
+```
+
+### Interview patterns
+
+```python
+from collections import defaultdict
+
+nums, target = [2, 7, 11, 15], 9
+index_of = {}                         # value -> index, filled in one pass
+for i, x in enumerate(nums):
+    if target - x in index_of:
+        print(index_of[target - x], i)   # 0 1
+        break
+    index_of[x] = i
+
+groups = defaultdict(list)            # sorted letters -> the words with them
+for w in ["eat", "tea", "tan", "ate", "nat", "bat"]:
+    groups["".join(sorted(w))].append(w)
+print(sorted(sorted(g) for g in groups.values()))   # [['ate', 'eat', 'tea'], ['bat'], ['nat', 'tan']]
+
+seen = {}
+seen[(2, 3)] = "visited"              # a tuple key: a grid cell, a pair
+print(seen.get((2, 3)), seen.get((0, 0), "new"))   # visited new
 ```
 
 ### Sort

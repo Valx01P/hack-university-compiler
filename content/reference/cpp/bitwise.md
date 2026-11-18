@@ -80,6 +80,31 @@ std::cout << __builtin_popcount(13) << '\n';  // 3, count 1 bits (g++ builtin, .
 std::cout << __builtin_ctz(12) << '\n';       // 2, trailing zeros (undefined for 0)
 ```
 
+### XOR tricks and counting bits
+
+```cpp
+#include <vector>
+
+std::vector<int> nums = {4, 1, 2, 1, 2};
+int single = 0;
+for (int x : nums) single ^= x;           // pairs cancel: a ^ a is 0, a ^ 0 is a
+std::cout << single << '\n';              // 4, the one without a pair
+
+std::vector<int> v = {3, 0, 1};           // 0 to 3 with one number missing
+int missing = static_cast<int>(v.size());
+for (int i = 0; i < static_cast<int>(v.size()); i++) missing ^= i ^ v[i];
+std::cout << missing << '\n';             // 2
+
+unsigned x = 12;                          // 1100
+x &= x - 1;                               // clears the lowest set bit
+std::cout << x << '\n';                   // 8, 1000
+
+int n = 5;
+std::vector<int> bits(n + 1, 0);          // the 1 bits of every number 0 to n
+for (int i = 1; i <= n; i++) bits[i] = bits[i >> 1] + (i & 1);
+for (int b : bits) std::cout << b << ' '; // 0 1 1 2 1 2
+```
+
 ### Use it in a loop: count bits by hand
 
 ```cpp
@@ -90,6 +115,11 @@ while (n) {
     n >>= 1;         // drop it
 }
 std::cout << ones << '\n';   // 3
+
+unsigned m = 13;
+int count = 0;
+for (; m != 0; m &= m - 1) count++;   // one pass per 1 bit
+std::cout << count << '\n';  // 3
 ```
 
 ### Loop over every subset
@@ -104,7 +134,7 @@ int n = static_cast<int>(items.size());
 for (int mask = 0; mask < (1 << n); mask++) {
     std::cout << '{';
     for (int i = 0; i < n; i++) {
-        if (mask & (1 << i)) std::cout << items[i];
+        if ((mask >> i) & 1) std::cout << items[i];   // is item i in this subset?
     }
     std::cout << "} ";
 }

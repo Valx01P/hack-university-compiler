@@ -45,6 +45,23 @@ console.log(a);                  // [ 1, 9, 3 ]
 a.length = 0;                    // clears the array
 ```
 
+### Copy, fill, and slice versus splice
+
+`slice(start, end)` copies a part and leaves the array alone. `splice(start, count)` cuts items out of the array itself.
+
+```javascript
+const a = [1, 2, 3, 4, 5];
+console.log(a.slice(1, 3), a);   // [ 2, 3 ] [ 1, 2, 3, 4, 5 ]
+console.log(a.splice(1, 3), a);  // [ 2, 3, 4 ] [ 1, 5 ]
+const z = new Array(5).fill(0);
+z.fill(7, 1, 3);                 // fill(value, start, end)
+console.log(z);                  // [ 0, 7, 7, 0, 0 ]
+const copy = [...z];             // also z.slice() or Array.from(z), all shallow
+copy[0] = 9;
+console.log(z[0], copy[0]);      // 0 9
+console.log(structuredClone([[1], [2]]));  // [ [ 1 ], [ 2 ] ], a deep copy
+```
+
 ### Search
 
 ```javascript

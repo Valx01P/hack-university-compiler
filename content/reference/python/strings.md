@@ -103,6 +103,100 @@ print(ord("A"))        # 65  code point
 print(chr(97))         # a
 ```
 
+### Letter arithmetic with ord and chr
+
+```python
+print(ord("c") - ord("a"))          # 2  a letter's index, 0 to 25
+print(chr(ord("a") + 2))            # c  and back
+print(ord("7") - ord("0"))          # 7  a digit's value
+counts = [0] * 26
+for ch in "banana":
+    counts[ord(ch) - ord("a")] += 1
+print(counts[:3])                   # [3, 1, 0]  a, b, c
+print(chr((ord("y") - ord("a") + 3) % 26 + ord("a")))   # b  shift by 3, wrapping
+```
+
+### Palindromes and anagrams
+
+```python
+from collections import Counter
+
+w = "Racecar".lower()
+print(w == w[::-1])                              # True  a palindrome
+print(sorted("listen") == sorted("silent"))      # True  an anagram, O(n log n)
+print(Counter("listen") == Counter("silent"))    # True  the same check, O(n)
+print("".join(sorted("tea")))                    # aet  the key that groups anagrams
+```
+
+Two pointers that skip punctuation are in Two Pointers and Windows.
+
+### Match a pattern by hand
+
+```python
+def find(text, pattern):
+    for i in range(len(text) - len(pattern) + 1):
+        j = 0
+        while j < len(pattern) and text[i + j] == pattern[j]:
+            j += 1
+        if j == len(pattern):
+            return i
+    return -1
+
+print(find("sadbutsad", "sad"), find("leetcode", "leeto"))   # 0 -1
+print("sadbutsad".find("sad"))       # 0  the built-in, to check your answer
+```
+
+### Longest common prefix
+
+```python
+words = ["flower", "flow", "flight"]
+prefix = []
+for chars in zip(*words):           # the i-th letter of every word, up to the shortest
+    if len(set(chars)) != 1:
+        break
+    prefix.append(chars[0])
+print("".join(prefix))              # fl
+```
+
+### Expand around each center
+
+The longest palindrome inside a string: grow outward from each letter (odd length) and each gap (even length).
+
+```python
+def longest_palindrome(s):
+    best = ""
+    for center in range(len(s)):
+        for lo, hi in ((center, center), (center, center + 1)):
+            while lo >= 0 and hi < len(s) and s[lo] == s[hi]:
+                lo -= 1
+                hi += 1
+            if hi - lo - 1 > len(best):      # > keeps the first on a tie
+                best = s[lo + 1:hi]
+    return best
+
+print(longest_palindrome("babad"), longest_palindrome("cbbd"))   # bab bb
+```
+
+### Parse an integer by hand
+
+```python
+def parse_int(s):
+    i, n = 0, len(s)
+    while i < n and s[i] == " ":
+        i += 1
+    sign = 1
+    if i < n and s[i] in "+-":
+        sign = -1 if s[i] == "-" else 1
+        i += 1
+    value = 0
+    while i < n and s[i].isdigit():
+        value = value * 10 + ord(s[i]) - ord("0")
+        i += 1
+    return max(-2**31, min(2**31 - 1, sign * value))   # clamp to 32 bits
+
+print(parse_int("   -42abc"), parse_int("+7"), parse_int("99999999999"))   # -42 7 2147483647
+```
+
 ### Compare
 
 ```python

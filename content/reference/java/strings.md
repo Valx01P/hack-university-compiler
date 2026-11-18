@@ -15,18 +15,8 @@ System.out.println("ab" + "cd" + 1 + 2); // abcd12, + with any value builds a st
 
 ### Search
 
-```java harness
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) throws Exception {
-        String s = "Hello, World";
-        {{code}}
-    }
-}
-```
-
 ```java
+String s = "Hello, World";
 System.out.println(s.indexOf('o'));          // 4, first match
 System.out.println(s.indexOf("o", 5));       // 8, search from index 5
 System.out.println(s.lastIndexOf('o'));      // 8
@@ -38,18 +28,8 @@ System.out.println(s.endsWith("!"));         // false
 
 ### Substrings
 
-```java harness
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) throws Exception {
-        String s = "Hello, World";
-        {{code}}
-    }
-}
-```
-
 ```java
+String s = "Hello, World";
 System.out.println(s.substring(7));          // World, from 7 to the end
 System.out.println(s.substring(0, 5));       // Hello, end index is exclusive
 System.out.println(s.substring(s.length() - 3)); // rld, last 3 characters
@@ -99,6 +79,7 @@ System.out.println(Integer.toString(7));       // 7, a String
 char[] cs = "abc".toCharArray();
 System.out.println(Arrays.toString(cs));       // [a, b, c]
 System.out.println(new String(cs));            // abc, back to a String
+System.out.println(String.valueOf(cs));        // abc, the same
 System.out.println(String.valueOf('z'));       // z, char to String
 System.out.println("xyz".charAt(0));           // x, String to char
 ```
@@ -114,6 +95,85 @@ sb.setLength(sb.length() - 1);     // drop the last comma
 sb.insert(0, "[").append("]");
 System.out.println(sb.toString()); // [0,1,2,3]
 System.out.println(new StringBuilder("abc").reverse().toString()); // cba
+
+StringBuilder w = new StringBuilder("cat");
+w.setCharAt(0, 'b');               // replace the char at index 0
+w.deleteCharAt(w.length() - 1);    // drop the last char
+w.append('g');
+System.out.println(w + " " + w.charAt(1)); // bag a
+```
+
+### Anagram check
+
+Count letters up for one word and down for the other, and every count must end at 0. Sorting both `toCharArray()` copies and comparing them with `Arrays.equals` works too.
+
+```java
+static boolean isAnagram(String a, String b) {
+    if (a.length() != b.length()) {
+        return false;
+    }
+    int[] counts = new int[26];
+    for (int i = 0; i < a.length(); i++) {
+        counts[a.charAt(i) - 'a']++;
+        counts[b.charAt(i) - 'a']--;
+    }
+    for (int c : counts) {
+        if (c != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+System.out.println(isAnagram("listen", "silent")); // true
+System.out.println(isAnagram("rat", "car"));       // false
+```
+
+### Longest common prefix
+
+```java
+String[] words = {"flower", "flow", "flight"};
+String prefix = words[0];
+for (String word : words) {
+    while (!word.startsWith(prefix)) {
+        prefix = prefix.substring(0, prefix.length() - 1);  // drop a char until it fits
+    }
+}
+System.out.println(prefix); // fl
+```
+
+### Parse an int by hand
+
+Skip spaces, read a sign, then add digits with `c - '0'`. Building the value in a `long` lets you clamp it to the `int` range.
+
+```java
+static int parse(String s) {
+    int i = 0;
+    while (i < s.length() && s.charAt(i) == ' ') {
+        i++;
+    }
+    int sign = 1;
+    if (i < s.length() && (s.charAt(i) == '-' || s.charAt(i) == '+')) {
+        sign = s.charAt(i) == '-' ? -1 : 1;
+        i++;
+    }
+    long value = 0;
+    while (i < s.length() && Character.isDigit(s.charAt(i))) {
+        value = value * 10 + (s.charAt(i) - '0');
+        if (sign * value > Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        if (sign * value < Integer.MIN_VALUE) {
+            return Integer.MIN_VALUE;
+        }
+        i++;
+    }
+    return (int) (sign * value);
+}
+
+System.out.println(parse("   -42abc"));    // -42, stops at the first non-digit
+System.out.println(parse("99999999999"));  // 2147483647, clamped
+System.out.println(Integer.parseInt("-42")); // -42, the built-in, which throws on "42abc"
 ```
 
 ### Text blocks

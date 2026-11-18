@@ -70,9 +70,30 @@ String[] words = {"a", "b", "a", "c", "a"};
 Map<String, Integer> counts = new TreeMap<>();
 for (String w : words) {
     counts.put(w, counts.getOrDefault(w, 0) + 1);
-    // same thing: counts.merge(w, 1, Integer::sum);
 }
 System.out.println(counts);    // {a=3, b=1, c=1}
+
+Map<Character, Integer> letters = new TreeMap<>();
+for (char c : "hello".toCharArray()) {
+    letters.merge(c, 1, Integer::sum);   // the same count in one call
+}
+System.out.println(letters);   // {e=1, h=1, l=2, o=1}
+```
+
+### Look up what you've seen: two sum
+
+```java
+int[] nums = {2, 7, 11, 15};
+int target = 9;
+Map<Integer, Integer> indexOf = new HashMap<>();
+for (int i = 0; i < nums.length; i++) {
+    Integer j = indexOf.get(target - nums[i]);  // an Integer, so null can mean missing
+    if (j != null) {
+        System.out.println(j + " " + i);         // 0 1
+        break;
+    }
+    indexOf.put(nums[i], i);
+}
 ```
 
 ### Group into lists
@@ -86,6 +107,14 @@ for (String s : List.of("hi", "yo", "hey")) {
     byLength.computeIfAbsent(s.length(), k -> new ArrayList<>()).add(s);
 }
 System.out.println(byLength);  // {2=[hi, yo], 3=[hey]}
+
+Map<String, List<String>> anagrams = new TreeMap<>();
+for (String w : List.of("eat", "tea", "tan", "ate", "nat", "bat")) {
+    char[] cs = w.toCharArray();
+    Arrays.sort(cs);               // eat and tea both become aet
+    anagrams.computeIfAbsent(new String(cs), k -> new ArrayList<>()).add(w);
+}
+System.out.println(anagrams);  // {abt=[bat], aet=[eat, tea, ate], ant=[tan, nat]}
 ```
 
 ### Loop

@@ -59,6 +59,10 @@ System.out.println(maxHeap.poll()); // 5
 while (!minHeap.isEmpty()) {
     System.out.print(minHeap.poll() + " "); // 4 5
 }
+System.out.println();
+Queue<Integer> fromList = new PriorityQueue<>(List.of(7, 3, 9)); // a whole list at once
+maxHeap.addAll(List.of(8, 2));                                   // offers each one
+System.out.println(fromList.peek() + " " + maxHeap.peek());      // 3 8
 
 // int[] entries, smallest second value first
 Queue<int[]> byDist = new PriorityQueue<>((a, b) -> Integer.compare(a[1], b[1]));

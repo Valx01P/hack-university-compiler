@@ -88,6 +88,34 @@ System.out.println(Integer.numberOfLeadingZeros(1));   // 31
 System.out.println(Long.bitCount(-1L));                // 64
 ```
 
+### Bit counting by hand
+
+`x & (x - 1)` clears the lowest 1 bit, so a loop counts the ones. For every number 0 to n, reuse the count for `i >> 1`, which is `i` without its last bit.
+
+```java
+int x = 0b10110;
+int ones = 0;
+while (x != 0) {
+    x &= x - 1;
+    ones++;
+}
+System.out.println(ones);                  // 3
+
+int n = 5;
+int[] bits = new int[n + 1];
+for (int i = 1; i <= n; i++) {
+    bits[i] = bits[i >> 1] + (i & 1);
+}
+System.out.println(Arrays.toString(bits)); // [0, 1, 1, 2, 1, 2]
+
+int[] nums = {3, 0, 1};                    // 0 to 3 with one missing
+int missing = nums.length;
+for (int i = 0; i < nums.length; i++) {
+    missing ^= i ^ nums[i];                // each present number cancels its index
+}
+System.out.println(missing);               // 2
+```
+
 ### Loop over all subsets
 
 Each number from `0` to `2^m - 1` is a mask that picks a subset.

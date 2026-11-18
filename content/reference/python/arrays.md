@@ -105,6 +105,21 @@ for p in prices:
 print(cheap)            # [4.5, 2.0]
 ```
 
+### Loop helpers: enumerate, zip, reversed, any, all
+
+```python
+xs = [3, 8, 1]
+for i, x in enumerate(xs):
+    print(i, x)                    # 0 3, 1 8, 2 1
+for a, b in zip(xs, xs[1:]):
+    print(a, b)                    # 3 8, then 8 1  each item and the next
+print(list(reversed(xs)))          # [1, 8, 3]
+print(any(x > 5 for x in xs))      # True  at least one
+print(all(x > 0 for x in xs))      # True  every one
+print(max(range(len(xs)), key=lambda i: xs[i]))   # 1  the index of the largest
+print(sum(1 for x in xs if x % 2)) # 2  how many are odd
+```
+
 ### Fixed-size options
 
 ```python

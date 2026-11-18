@@ -44,6 +44,36 @@ people really use, not every method that exists.
 Keep it scannable: under 260 lines, usually 60 to 160. No filler, no history,
 no "in this section we will".
 
+## Data structures and algorithms sections
+
+The categories marked `"dsa": true` (sorting through greedy) are
+the lookup someone needs mid-LeetCode: "how do I make a max heap again", "how
+do I sort intervals by their start", "what's the call for a lower bound". So
+they lead with the calls and the shapes that come up in interview problems:
+
+- **Every call the problems need**, each with a line of code: for a heap,
+  building one from a list (`heapify`, `addAll`, a constructor from a range),
+  push, pop, peek, size, a max heap, and a heap of pairs or objects by a key;
+  for sorting, ascending, descending, by a key, by two keys, a 2D array or a
+  list of intervals by a column, a map's entries by value, and stability.
+- **The structure itself** when the language has none built in: the node
+  class LeetCode uses (`ListNode`, `TreeNode`), a trie node, a union find, a
+  small heap in TypeScript.
+- **The patterns, as short templates**: BFS with a queue and a visited set,
+  DFS by recursion and by a stack, a monotonic stack, a sliding window, binary
+  search's lower bound, a heap for top k, a topological sort, Dijkstra,
+  backtracking, a DP table. Name each one in its `###` heading.
+- **Costs** where they decide the choice, in a short table (`push` O(log n),
+  `peek` O(1), `shift` O(n)).
+- **Gotchas** people hit in these problems: Java's `a - b` comparator
+  overflowing, C++'s `priority_queue` being a max heap, Python's `heapq`
+  having no max heap, JavaScript's default sort comparing as strings,
+  recursion depth limits.
+
+TypeScript's cheatsheet has its own topics (`content/reference/typescript/categories.json`),
+so it adds its own DSA sections there, with typed versions of the same
+structures.
+
 ## Correct and idiomatic
 
 - Write for the exact runtime versions in `content/learn/AUTHORING.md`

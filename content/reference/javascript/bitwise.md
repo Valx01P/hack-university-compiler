@@ -80,6 +80,42 @@ console.log(popcount(0b1011));          // 3
 console.log([4, 1, 2, 1, 2].reduce((acc, v) => acc ^ v, 0));  // 4, the value without a pair
 ```
 
+### More XOR and counting tricks
+
+`x ^ x` is `0` and `x ^ 0` is `x`, so pairs cancel in any order.
+
+```javascript
+const nums = [3, 0, 1];                // 0 to n with one missing
+let missing = nums.length;
+nums.forEach((v, i) => (missing ^= i ^ v));
+console.log(missing);                  // 2
+
+let a = 5;
+let b = 9;
+a ^= b;
+b ^= a;
+a ^= b;                                // swap without a temporary
+console.log(a, b);                     // 9 5
+
+const bits = [0];                      // bits[i] is the number of 1 bits in i
+for (let i = 1; i <= 8; i++) bits.push(bits[i >> 1] + (i & 1));
+console.log(bits.join(" "));           // 0 1 1 2 1 2 2 3 1
+console.log((2 ** 31 + 5).toString(2).split("1").length - 1);  // 3, popcount of a big number by string
+```
+
+### Unsigned, and wider than 32 bits
+
+`>>> 0` reads the same 32 bits as unsigned. For 64-bit masks, use `BigInt`, whose operators take `n` literals on both sides.
+
+```javascript
+console.log(~0, ~0 >>> 0);                   // -1 4294967295
+console.log((1 << 31) >>> 0);                // 2147483648
+console.log(2 ** 32 - 1 === (-1 >>> 0));     // true
+console.log((1n << 40n) | 1n);               // 1099511627777n
+console.log(BigInt.asUintN(64, -1n));        // 18446744073709551615n, 64 bits of 1s
+console.log(Number((1n << 40n) >> 38n));     // 4, back to a Number
+```
+
 ### Flags
 
 ```javascript

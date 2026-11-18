@@ -5,15 +5,9 @@ Anything beyond "each element once, front to back" is an index loop: you pick th
 ### Reverse
 
 ```go harness
-package main
-
-import "fmt"
-
-func main() {
-	s := []int{10, 20, 30, 40, 50}
-	{{code}}
-	fmt.Println()
-}
+s := []int{10, 20, 30, 40, 50}
+{{code}}
+fmt.Println()
 ```
 
 ```go
@@ -26,15 +20,9 @@ for i := len(s) - 1; i >= 0; i-- {
 ### Every other element
 
 ```go harness
-package main
-
-import "fmt"
-
-func main() {
-	s := []int{10, 20, 30, 40, 50}
-	{{code}}
-	fmt.Println()
-}
+s := []int{10, 20, 30, 40, 50}
+{{code}}
+fmt.Println()
 ```
 
 ```go
@@ -66,15 +54,9 @@ for _, v := range nums {
 ### Every nth, backwards
 
 ```go harness
-package main
-
-import "fmt"
-
-func main() {
-	s := []int{10, 20, 30, 40, 50}
-	{{code}}
-	fmt.Println()
-}
+s := []int{10, 20, 30, 40, 50}
+{{code}}
+fmt.Println()
 ```
 
 ```go
@@ -87,15 +69,9 @@ for i := len(s) - 1; i >= 0; i -= 2 {
 ### A range of indexes
 
 ```go harness
-package main
-
-import "fmt"
-
-func main() {
-	s := []int{10, 20, 30, 40, 50}
-	{{code}}
-	fmt.Println()
-}
+s := []int{10, 20, 30, 40, 50}
+{{code}}
+fmt.Println()
 ```
 
 ```go
@@ -116,15 +92,9 @@ for _, v := range s[1:4] { // same thing with a subslice
 Stop one early so `i+1` stays in bounds.
 
 ```go harness
-package main
-
-import "fmt"
-
-func main() {
-	s := []int{10, 20, 30, 40, 50}
-	{{code}}
-	fmt.Println()
-}
+s := []int{10, 20, 30, 40, 50}
+{{code}}
+fmt.Println()
 ```
 
 ```go
@@ -159,15 +129,9 @@ for i := 0; i < len(t); i++ {
 ### Wrap around with modulo
 
 ```go harness
-package main
-
-import "fmt"
-
-func main() {
-	s := []int{10, 20, 30, 40, 50}
-	{{code}}
-	fmt.Println()
-}
+s := []int{10, 20, 30, 40, 50}
+{{code}}
+fmt.Println()
 ```
 
 ```go
@@ -181,14 +145,8 @@ for k := 0; k < len(s); k++ {
 ### Running total (prefix sums)
 
 ```go harness
-package main
-
-import "fmt"
-
-func main() {
-	s := []int{10, 20, 30, 40, 50}
-	{{code}}
-}
+s := []int{10, 20, 30, 40, 50}
+{{code}}
 ```
 
 ```go
@@ -203,15 +161,9 @@ fmt.Println(prefix[4] - prefix[1]) // 90, the sum of s[1:4]
 ### Sliding window of size k
 
 ```go harness
-package main
-
-import "fmt"
-
-func main() {
-	s := []int{10, 20, 30, 40, 50}
-	{{code}}
-	fmt.Println()
-}
+s := []int{10, 20, 30, 40, 50}
+{{code}}
+fmt.Println()
 ```
 
 ```go

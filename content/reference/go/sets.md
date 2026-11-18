@@ -102,6 +102,69 @@ seen2 := map[[2]int]bool{{0, 1}: true} // array key
 fmt.Println(seen2[[2]int{0, 1}])       // true
 ```
 
+### Contains duplicate: check as you go
+
+```go
+nums := []int{1, 2, 3, 1}
+seen := map[int]bool{}
+dup := false
+for _, x := range nums {
+	if seen[x] {
+		dup = true // the second copy
+		break
+	}
+	seen[x] = true
+}
+fmt.Println(dup) // true
+```
+
+### Longest consecutive run
+
+Start counting only at a number whose predecessor is missing, so each run is walked once and the whole thing is O(n).
+
+```go
+nums := []int{100, 4, 200, 1, 3, 2}
+set := map[int]bool{}
+for _, x := range nums {
+	set[x] = true
+}
+best := 0
+for x := range set {
+	if set[x-1] {
+		continue // not the first number of its run
+	}
+	length := 1
+	for set[x+length] {
+		length++
+	}
+	if length > best {
+		best = length
+	}
+}
+fmt.Println(best) // 4, from 1 2 3 4
+```
+
+### Catch a cycle: remember the states you've seen
+
+A happy number reaches 1 by repeatedly summing the squares of its digits. If a sum repeats first, it loops forever.
+
+```go
+n := 19
+seen := map[int]bool{}
+for n != 1 && !seen[n] {
+	seen[n] = true
+	next := 0
+	for ; n > 0; n /= 10 {
+		d := n % 10
+		next += d * d
+	}
+	n = next
+}
+fmt.Println(n == 1) // true: 19, 82, 68, 100, 1
+```
+
+### Calls
+
 | Set idea | Go spelling |
 | --- | --- |
 | new set | `s := map[T]bool{}` |

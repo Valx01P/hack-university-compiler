@@ -56,15 +56,9 @@ for r := 0; r < len(grid); r++ {
 ### Loop with range
 
 ```go harness
-package main
-
-import "fmt"
-
-func main() {
-	grid := [][]int{{1, 2, 3}, {4, 5, 6}}
-	{{code}}
-	fmt.Println()
-}
+grid := [][]int{{1, 2, 3}, {4, 5, 6}}
+{{code}}
+fmt.Println()
 ```
 
 ```go
@@ -79,15 +73,9 @@ for r, row := range grid {
 ### Column by column
 
 ```go harness
-package main
-
-import "fmt"
-
-func main() {
-	grid := [][]int{{1, 2, 3}, {4, 5, 6}}
-	{{code}}
-	fmt.Println()
-}
+grid := [][]int{{1, 2, 3}, {4, 5, 6}}
+{{code}}
+fmt.Println()
 ```
 
 ```go
@@ -104,14 +92,8 @@ for c := 0; c < len(grid[0]); c++ {
 ### Row sums and the total
 
 ```go harness
-package main
-
-import "fmt"
-
-func main() {
-	grid := [][]int{{1, 2, 3}, {4, 5, 6}}
-	{{code}}
-}
+grid := [][]int{{1, 2, 3}, {4, 5, 6}}
+{{code}}
 ```
 
 ```go
@@ -167,6 +149,57 @@ for c := range t {
 	}
 }
 fmt.Println(t) // [[1 4] [2 5] [3 6]]
+```
+
+### Rotate 90 degrees clockwise in place
+
+Transpose (swap across the main diagonal), then reverse each row.
+
+```go
+m := [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}
+n := len(m)
+for i := 0; i < n; i++ {
+	for j := i + 1; j < n; j++ {
+		m[i][j], m[j][i] = m[j][i], m[i][j]
+	}
+}
+for _, row := range m {
+	for i, j := 0, n-1; i < j; i, j = i+1, j-1 {
+		row[i], row[j] = row[j], row[i] // row shares m's memory, so m changes
+	}
+}
+fmt.Println(m) // [[7 4 1] [8 5 2] [9 6 3]]
+```
+
+### Spiral order: four shrinking bounds
+
+```go
+grid := [][]int{{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}}
+top, bottom, left, right := 0, len(grid)-1, 0, len(grid[0])-1
+out := []int{}
+for top <= bottom && left <= right {
+	for c := left; c <= right; c++ {
+		out = append(out, grid[top][c]) // along the top row
+	}
+	top++
+	for r := top; r <= bottom; r++ {
+		out = append(out, grid[r][right]) // down the right column
+	}
+	right--
+	if top <= bottom {
+		for c := right; c >= left; c-- {
+			out = append(out, grid[bottom][c]) // back along the bottom
+		}
+		bottom--
+	}
+	if left <= right {
+		for r := bottom; r >= top; r-- {
+			out = append(out, grid[r][left]) // up the left column
+		}
+		left++
+	}
+}
+fmt.Println(out) // [1 2 3 4 8 12 11 10 9 5 6 7]
 ```
 
 ### Jagged rows and adding rows

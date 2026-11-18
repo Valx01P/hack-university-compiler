@@ -75,6 +75,23 @@ for v in nums:
 print(single)                         # 4
 ```
 
+### Counting bits, the missing number
+
+```python
+n = 5
+bits = [0] * (n + 1)
+for i in range(1, n + 1):
+    bits[i] = bits[i >> 1] + (i & 1)  # i without its last bit, plus that bit
+print(bits)                           # [0, 1, 1, 2, 1, 2]
+print([i.bit_count() for i in range(n + 1)])   # [0, 1, 1, 2, 1, 2]  the built-in
+
+nums = [3, 0, 1]                      # 0 to 3 with one missing
+missing = len(nums)
+for i, x in enumerate(nums):
+    missing ^= i ^ x                  # every number seen twice cancels
+print(missing)                        # 2
+```
+
 ### Flags
 
 ```python

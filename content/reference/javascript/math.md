@@ -67,6 +67,59 @@ console.log(7n / 2n);   // 3n (BigInt division drops the decimals)
 console.log(Number(10n) + 1); // 11
 ```
 
+### Safe integers and big products
+
+Whole numbers are exact only up to `Number.MAX_SAFE_INTEGER`, 2^53 - 1. Two numbers near 1e9 multiply past it, so do the product in `BigInt`.
+
+```javascript
+console.log(Number.MAX_SAFE_INTEGER);        // 9007199254740991
+console.log(2 ** 53 + 1 === 2 ** 53);        // true, past the limit numbers skip
+console.log(Number.isSafeInteger(2 ** 53));  // false
+console.log(123456789 * 987654321);          // 121932631112635260, the last digit is wrong
+console.log(BigInt(123456789) * 987654321n); // 121932631112635269n
+const MOD = 1_000_000_007;
+console.log(Number((BigInt(123456789) * 987654321n) % BigInt(MOD)));  // 259106859
+
+const INT_MAX = 2 ** 31 - 1;                 // the 32-bit range many problems clamp to
+const INT_MIN = -(2 ** 31);
+console.log(INT_MAX, INT_MIN, 2 ** 31 > INT_MAX);  // 2147483647 -2147483648 true
+```
+
+### Fast power under a modulus
+
+```javascript
+function powMod(base, exp, mod) {
+  let result = 1n;
+  let b = BigInt(base) % BigInt(mod);
+  let e = BigInt(exp);
+  const m = BigInt(mod);
+  while (e > 0n) {
+    if (e & 1n) result = (result * b) % m;  // this bit of the exponent is set
+    b = (b * b) % m;
+    e >>= 1n;
+  }
+  return Number(result);
+}
+console.log(powMod(2, 10, 1000), powMod(3, 200, 1_000_000_007));  // 24 136318165
+```
+
+### GCD, LCM, and Infinity as a start
+
+```javascript
+const gcd = (a, b) => (b === 0 ? Math.abs(a) : gcd(b, a % b));
+const lcm = (a, b) => (a / gcd(a, b)) * b;
+console.log(gcd(48, 18), lcm(4, 6));  // 6 12
+
+let smallest = Infinity;              // any number beats it
+let largest = -Infinity;
+for (const x of [4, -2, 9]) {
+  smallest = Math.min(smallest, x);
+  largest = Math.max(largest, x);
+}
+console.log(smallest, largest);       // -2 9
+console.log(Math.min(), Math.max());  // Infinity -Infinity, with nothing to compare
+```
+
 ### Use it in a loop
 
 ```javascript

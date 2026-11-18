@@ -21,13 +21,8 @@ std::string raw = R"(C:\path\n)";      // raw string, backslashes kept
 ### Length and characters
 
 ```cpp harness
-#include <bits/stdc++.h>
-using namespace std;
-
-int main() {
-    std::string s = "hello";
-    {{code}}
-}
+std::string s = "hello";
+{{code}}
 ```
 
 ```cpp
@@ -44,13 +39,8 @@ std::cout << s << '\n';                // Hello
 ### Join and build
 
 ```cpp harness
-#include <bits/stdc++.h>
-using namespace std;
-
-int main() {
-    std::string s = "Hello";
-    {{code}}
-}
+std::string s = "Hello";
+{{code}}
 ```
 
 ```cpp
@@ -137,16 +127,37 @@ char c = 'a' + 2;
 std::cout << c << '\n';                          // c
 ```
 
-### Case, trim, reverse, sort
+### Characters, palindromes, and anagrams
 
-```cpp harness
-#include <bits/stdc++.h>
-using namespace std;
+The `<cctype>` tests take an `unsigned char`, since a plain `char` above 127 is negative and passing it is undefined behavior. They return an `int`, nonzero for true, and `std::tolower` returns an `int` too.
 
-int main() {
-    {{code}}
-}
+```cpp
+#include <algorithm>
+#include <array>
+#include <cctype>
+
+std::string s = "Ab3!";
+for (unsigned char c : s) std::cout << (std::isalnum(c) ? 'y' : 'n');   // yyyn, a letter or digit
+std::cout << '\n' << (std::isdigit(static_cast<unsigned char>(s[2])) != 0) << '\n';   // 1
+std::cout << static_cast<char>(std::tolower(static_cast<unsigned char>('Q'))) << '\n';   // q
+std::cout << ('d' - 'a') << ' ' << static_cast<char>('a' + 25) << '\n';   // 3 z, a letter's position
+
+std::string w = "racecar";
+std::string rev(w.rbegin(), w.rend());                  // a reversed copy
+std::cout << std::boolalpha << (rev == w) << '\n';      // true, a palindrome
+
+std::string a = "listen", b = "silent";
+std::array<int, 26> count{};                            // {} zeroes all 26
+for (char c : a) count[c - 'a']++;
+for (char c : b) count[c - 'a']--;
+bool same = a.size() == b.size() && std::all_of(count.begin(), count.end(), [](int n) { return n == 0; });
+std::cout << same << '\n';                              // true, an anagram
+std::sort(a.begin(), a.end());
+std::sort(b.begin(), b.end());
+std::cout << (a == b) << '\n';                          // true, sorting both is the other check
 ```
+
+### Case, trim, reverse, sort
 
 ```cpp
 #include <algorithm>
