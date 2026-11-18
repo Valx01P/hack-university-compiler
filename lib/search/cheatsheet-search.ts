@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getCheatsheet } from "@/lib/reference";
 import { cheatsheetBlocks, type CheatsheetHit } from "@/lib/reference-blocks";
+import type { ReferenceSection } from "@/lib/reference-types";
 
 /**
  * Search for the cheatsheets, run on this machine. Each "###" block of a
@@ -24,6 +25,9 @@ import { cheatsheetBlocks, type CheatsheetHit } from "@/lib/reference-blocks";
 
 // --- The embedding model ---------------------------------------------------
 
+// Read where it lies (next start runs in the repository), so the build never
+// traces the model (29 MB) or the content below into its output
+// (turbopackIgnore).
 const MODEL_DIR = path.join(process.cwd(), ".models", "potion-base-8M");
 
 interface Model {
@@ -38,7 +42,7 @@ let model: Model | null | undefined;
 function loadModel(): Model | null {
   if (model !== undefined) return model;
   try {
-    const buf = fs.readFileSync(path.join(MODEL_DIR, "model.safetensors"));
+    const buf = fs.readFileSync(path.join(/*turbopackIgnore: true*/ MODEL_DIR, "model.safetensors"));
     const headerLength = Number(buf.readBigUInt64LE(0));
     const header = JSON.parse(buf.subarray(8, 8 + headerLength).toString("utf8")) as Record<
       string,
@@ -49,7 +53,7 @@ function loadModel(): Model | null {
     const [rows, dim] = tensor.shape;
     const start = 8 + headerLength + tensor.data_offsets[0];
     const vectors = new Float32Array(buf.buffer.slice(buf.byteOffset + start, buf.byteOffset + start + rows * dim * 4));
-    const tokenizer = JSON.parse(fs.readFileSync(path.join(MODEL_DIR, "tokenizer.json"), "utf8")) as {
+    const tokenizer = JSON.parse(fs.readFileSync(path.join(/*turbopackIgnore: true*/ MODEL_DIR, "tokenizer.json"), "utf8")) as {
       model: { vocab: Record<string, number> };
     };
     model = { vocab: new Map(Object.entries(tokenizer.model.vocab)), vectors, dim };
@@ -208,6 +212,8 @@ interface IndexedBlock {
 }
 
 interface LanguageIndex {
+  /** What it was built from, and its hash. */
+  sections: ReferenceSection[];
   signature: string;
   blocks: IndexedBlock[];
   documentFrequency: Map<string, number>;
@@ -220,8 +226,8 @@ const indexes = new Map<string, LanguageIndex>();
 function topicWords(lang: string): Map<string, { title: string; words: string }> {
   const root = path.join(process.cwd(), "content", "reference");
   const own = path.join(root, lang, "categories.json");
-  const file = fs.existsSync(own) ? own : path.join(root, "categories.json");
-  const { categories } = JSON.parse(fs.readFileSync(file, "utf8")) as {
+  const file = fs.existsSync(/*turbopackIgnore: true*/ own) ? own : path.join(root, "categories.json");
+  const { categories } = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ file, "utf8")) as {
     categories: { id: string; title: string; roadmap?: string }[];
   };
   return new Map(
@@ -241,9 +247,12 @@ function hash(text: string): string {
 async function indexFor(lang: string): Promise<LanguageIndex> {
   const sections = await getCheatsheet(lang);
   const m = loadModel();
-  // Rebuilt when the content changes (while editing it in dev).
-  const signature = `${m ? "m" : "w"}:${hash(sections.map((s) => s.id + s.md).join("\u0000"))}`;
   const cached = indexes.get(lang);
+  // In production the cheatsheet is read once (lib/load-once.ts), so the
+  // same sections come back and need no hash. In dev each request reads it
+  // again, and the index is rebuilt when the content changes.
+  if (cached?.sections === sections) return cached;
+  const signature = `${m ? "m" : "w"}:${hash(sections.map((s) => s.id + s.md).join("\u0000"))}`;
   if (cached?.signature === signature) return cached;
 
   const topics = topicWords(lang);
@@ -273,29 +282,41 @@ async function indexFor(lang: string): Promise<LanguageIndex> {
   }
   const documentFrequency = new Map<string, number>();
   for (const b of blocks) for (const w of b.all) documentFrequency.set(w, (documentFrequency.get(w) ?? 0) + 1);
-  const index = { signature, blocks, documentFrequency };
+  const index = { sections, signature, blocks, documentFrequency };
   indexes.set(lang, index);
   return index;
 }
 
 // --- Ranking ---------------------------------------------------------------
 
+/** A query word with what it matches besides itself, worked out once per
+    query rather than once per block. */
+interface Term {
+  t: string;
+  /** Its synonyms anywhere, and as the name of a section's topic. */
+  also: string[];
+  topics: string[];
+  soft: number;
+  idf: number;
+  /** The last word, which may still be being typed. */
+  prefix: boolean;
+}
+
 /** How well the query's words match a block, from 0 to 1. The last word
     also matches as a prefix, since it may still be being typed. */
-function wordScore(terms: string[], b: IndexedBlock, idf: (w: string) => number): number {
+function wordScore(terms: Term[], b: IndexedBlock): number {
   let got = 0;
   let max = 0;
-  terms.forEach((t, i) => {
+  for (const { t, also, topics, soft, idf, prefix } of terms) {
     // Every way to match t, each scored by how rare t itself is.
     let best = 0;
     for (const f of FIELDS) if (b.fields[f].has(t)) best = Math.max(best, FIELD_WEIGHT[f]);
-    for (const w of synonyms(WORD_SYNONYMS, t)) for (const f of FIELDS) if (b.fields[f].has(w)) best = Math.max(best, FIELD_WEIGHT[f] * 0.6);
-    for (const w of synonyms(TOPIC_SYNONYMS, t)) if (b.fields.topic.has(w)) best = Math.max(best, FIELD_WEIGHT.topic * 0.8);
-    if (!best && i === terms.length - 1 && t.length >= 3 && b.all.some((w) => w.startsWith(t))) best = 1.2;
-    const soft = SOFT.has(t) ? 0.3 : 1;
-    got += soft * best * idf(t);
-    max += soft * 3 * idf(t);
-  });
+    for (const w of also) for (const f of FIELDS) if (b.fields[f].has(w)) best = Math.max(best, FIELD_WEIGHT[f] * 0.6);
+    for (const w of topics) if (b.fields.topic.has(w)) best = Math.max(best, FIELD_WEIGHT.topic * 0.8);
+    if (!best && prefix && b.all.some((w) => w.startsWith(t))) best = 1.2;
+    got += soft * best * idf;
+    max += soft * 3 * idf;
+  }
   return max ? got / max : 0;
 }
 
@@ -318,12 +339,21 @@ export async function searchCheatsheet(lang: string, query: string): Promise<{ h
   const about = q.split(/\s+/).filter((w) => !SOFT.has(stem(w)) && !STOP.has(w)).join(" ") || q;
   const qv = m ? embed(about, m) : null;
 
+  const prepared: Term[] = terms.map((t, i) => ({
+    t,
+    also: synonyms(WORD_SYNONYMS, t),
+    topics: synonyms(TOPIC_SYNONYMS, t),
+    soft: SOFT.has(t) ? 0.3 : 1,
+    idf: idf(t),
+    prefix: i === terms.length - 1 && t.length >= 3,
+  }));
+
   const scored = index.blocks.map((b) => {
-    const onTopic = terms.some((t) => !SOFT.has(t) && [t, ...synonyms(TOPIC_SYNONYMS, t)].some((w) => b.fields.topic.has(w)));
+    const onTopic = prepared.some(({ t, topics }) => !SOFT.has(t) && (b.fields.topic.has(t) || topics.some((w) => b.fields.topic.has(w))));
     const meaning = qv && b.head && b.body ? 0.5 * cosine(qv, b.head) + 0.5 * cosine(qv, b.body) : 0;
     const score =
       meaning +
-      (qv ? 0.6 : 1) * wordScore(terms, b, idf) +
+      (qv ? 0.6 : 1) * wordScore(prepared, b) +
       (wantsMethods && onTopic ? 0.15 * Math.min(1, b.methods / 6) : 0) +
       (q.length >= 3 && b.text.includes(q) ? 0.3 : 0);
     return { section: b.section, block: b.block, score };
