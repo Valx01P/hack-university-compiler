@@ -1,0 +1,158 @@
+{
+  "id": "intervals",
+  "title": "Intervals",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Merge overlapping intervals after sorting by start, insert into a sorted list in one pass, find the busiest moment with a sweep line, and remove the fewest.",
+  "intro": "An interval is a stretch with a start and an end: a meeting, a booking, a range of pages. Most interval problems begin with a sort, which puts the intervals that can overlap next to each other. This lesson merges overlaps, inserts into a sorted list in one pass, finds the busiest moment with a sweep line, and removes the fewest intervals so the rest fit. The programs store an interval as `type Interval struct{ Start, End int }`. A `[2]int` works the same way, with `iv[0]` and `iv[1]` in place of the fields.",
+  "steps": [
+    {
+      "title": "Merging overlapping intervals",
+      "body": "An interval has a start and an end, here `type Interval struct{ Start, End int }`. Checking every pair for overlaps is O(n * n). Sort by start instead, and any overlap is with the block you're building: once an interval starts after that block ends, every later one starts later still, so the block is finished.\n\nSo sort with `sort.Slice` and walk once. Each interval either grows the last merged block or starts a new one:\n\n```go harness\npackage main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype Interval struct{ Start, End int }\n\nfunc main() {\n\t{{code}}\n}\n```\n\n```go\nivs := []Interval{{8, 10}, {1, 3}, {2, 6}, {6, 7}, {3, 4}}\nsort.Slice(ivs, func(i, j int) bool { return ivs[i].Start < ivs[j].Start })\nvar merged []Interval\nfor _, iv := range ivs {\n\tlast := len(merged) - 1\n\tif last >= 0 && iv.Start <= merged[last].End { // overlaps or touches\n\t\tif iv.End > merged[last].End {\n\t\t\tmerged[last].End = iv.End // grow the block\n\t\t}\n\t} else {\n\t\tmerged = append(merged, iv) // a gap: start a new block\n\t}\n}\nfmt.Println(merged) // [{1 7} {8 10}]\n```\n\n`iv.Start <= merged[last].End` merges intervals that only touch, like `{2, 6}` and `{6, 7}`. Write `<` when touching intervals should stay apart. Keep the bigger end, because an interval inside the block, like `{3, 4}`, must not shrink it. Change the block through `merged[last]`: a copy such as `b := merged[last]` would grow only `b`.\n\nThe sort is O(n log n) and the walk is O(n), plus O(n) space for `merged`.",
+      "example": {
+        "title": "Closed stretches of road",
+        "prompt": "Read roadwork zones as kilometer ranges, merge the ones that overlap or touch, and print each closed stretch and how many there are.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype Interval struct{ Start, End int }\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tzones := make([]Interval, n)\n\tfor i := range zones {\n\t\tfmt.Scan(&zones[i].Start, &zones[i].End)\n\t}\n\n\tsort.Slice(zones, func(i, j int) bool { return zones[i].Start < zones[j].Start })\n\tvar closed []Interval\n\tfor _, z := range zones {\n\t\tlast := len(closed) - 1\n\t\tif last >= 0 && z.Start <= closed[last].End {\n\t\t\tif z.End > closed[last].End {\n\t\t\t\tclosed[last].End = z.End\n\t\t\t}\n\t\t} else {\n\t\t\tclosed = append(closed, z)\n\t\t}\n\t}\n\n\tfor _, c := range closed {\n\t\tfmt.Printf(\"km %d to %d\\n\", c.Start, c.End)\n\t}\n\tfmt.Println(\"closed stretches:\", len(closed))\n}\n",
+        "stdin": "7\n12 15\n3 5\n14 20\n5 8\n25 27\n16 18\n1 2\n",
+        "output": "km 1 to 2\nkm 3 to 8\nkm 12 to 20\nkm 25 to 27\nclosed stretches: 4",
+        "explanation": "After the sort the zones run 1 to 2, 3 to 5, 5 to 8, 12 to 15, 14 to 20, 16 to 18, and 25 to 27. 3 to 5 starts after 2, so it opens a new stretch. 5 to 8 starts exactly where 3 to 5 ends, and `<=` joins them into 3 to 8. 14 to 20 starts inside 12 to 15 and pushes the end to 20, while 16 to 18 lies inside and leaves it at 20. Once the zones are sorted, the walk looks at each one once."
+      },
+      "practice": {
+        "title": "Watched parts of a video",
+        "prompt": "A video player logs the parts of a video someone played, in seconds, in any order and with repeats. Merge them and add up the time watched.\n\n1. The starter reads `n` parts into `parts`.\n2. Add `\"sort\"` to the imports and sort `parts` by start.\n3. Merge the parts that overlap or touch into `merged`, keeping the bigger end.\n4. The starter prints each merged part as `start-end`, then `watched: T seconds`, where T adds up `End - Start` over the merged parts.\n\nInput:\n\n```text\n5\n40 55\n0 10\n50 70\n10 15\n58 60\n```\n\nExpected output:\n\n```text\n0-15\n40-70\nwatched: 45 seconds\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Interval struct{ Start, End int }\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tparts := make([]Interval, n)\n\tfor i := range parts {\n\t\tfmt.Scan(&parts[i].Start, &parts[i].End)\n\t}\n\n\tvar merged []Interval\n\t// TODO: sort parts by start, then merge the ones that overlap or touch into merged\n\n\ttotal := 0\n\tfor _, m := range merged {\n\t\tfmt.Printf(\"%d-%d\\n\", m.Start, m.End)\n\t\ttotal += m.End - m.Start\n\t}\n\tfmt.Println(\"watched:\", total, \"seconds\")\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype Interval struct{ Start, End int }\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tparts := make([]Interval, n)\n\tfor i := range parts {\n\t\tfmt.Scan(&parts[i].Start, &parts[i].End)\n\t}\n\n\tvar merged []Interval\n\tsort.Slice(parts, func(i, j int) bool { return parts[i].Start < parts[j].Start })\n\tfor _, p := range parts {\n\t\tlast := len(merged) - 1\n\t\tif last >= 0 && p.Start <= merged[last].End {\n\t\t\tif p.End > merged[last].End {\n\t\t\t\tmerged[last].End = p.End\n\t\t\t}\n\t\t} else {\n\t\t\tmerged = append(merged, p)\n\t\t}\n\t}\n\n\ttotal := 0\n\tfor _, m := range merged {\n\t\tfmt.Printf(\"%d-%d\\n\", m.Start, m.End)\n\t\ttotal += m.End - m.Start\n\t}\n\tfmt.Println(\"watched:\", total, \"seconds\")\n}\n",
+        "tests": [
+          {
+            "stdin": "5\n40 55\n0 10\n50 70\n10 15\n58 60\n",
+            "output": "0-15\n40-70\nwatched: 45 seconds"
+          },
+          {
+            "stdin": "1\n30 90\n",
+            "output": "30-90\nwatched: 60 seconds"
+          },
+          {
+            "stdin": "4\n20 30\n0 100\n100 110\n50 60\n",
+            "output": "0-110\nwatched: 110 seconds"
+          }
+        ],
+        "hints": [
+          "Sort with `sort.Slice(parts, func(i, j int) bool { return parts[i].Start < parts[j].Start })`.",
+          "Set `last := len(merged) - 1` for each part, and check `last >= 0` before you read `merged[last]`, so the first part starts a block.",
+          "Grow the block only when the part ends later. A part inside it, like 58 to 60 inside 50 to 70, must not shrink it."
+        ]
+      }
+    },
+    {
+      "title": "Inserting into a sorted list",
+      "body": "When the intervals are already sorted by start and don't overlap, adding one more needs no sort. Their ends are then sorted too, so the list splits into three runs, in order: the intervals that end before the new one starts, the ones that overlap it, and the ones that start after it ends. Walk them with one index, here with `type Interval struct{ Start, End int }` and the new interval in `add`:\n\n```go harness\npackage main\n\nimport \"fmt\"\n\ntype Interval struct{ Start, End int }\n\nfunc main() {\n\t{{code}}\n}\n```\n\n```go\nivs := []Interval{{1, 2}, {4, 6}, {8, 10}, {12, 15}}\nadd := Interval{5, 9}\nvar out []Interval\ni := 0\nfor i < len(ivs) && ivs[i].End < add.Start { // ends before add: keep it\n\tout = append(out, ivs[i])\n\ti++\n}\nfor i < len(ivs) && ivs[i].Start <= add.End { // overlaps add: swallow it\n\tif ivs[i].Start < add.Start {\n\t\tadd.Start = ivs[i].Start\n\t}\n\tif ivs[i].End > add.End {\n\t\tadd.End = ivs[i].End\n\t}\n\ti++\n}\nout = append(out, add)\nout = append(out, ivs[i:]...) // the rest start after add ends\nfmt.Println(out)              // [{1 2} {4 10} {12 15}]\n```\n\nThe second loop grows `add` over every interval it overlaps, taking the smaller start and the bigger end. Both conditions count touching as overlapping, so an interval that ends exactly where `add` starts is joined. To keep touching intervals apart, use `<=` in the first loop and `<` in the second.\n\n`i` only moves forward, so the insert is O(n) time, plus O(n) for the new slice. Sorting and merging again would cost O(n log n).",
+      "example": {
+        "title": "Joining highlights",
+        "prompt": "Read a document's highlighted character ranges, sorted and not overlapping, and one new highlight. Join the new one with every highlight it overlaps or touches, and print the highlights after.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype Interval struct{ Start, End int }\n\nfunc insert(ivs []Interval, add Interval) []Interval {\n\tvar out []Interval\n\ti := 0\n\tfor i < len(ivs) && ivs[i].End < add.Start {\n\t\tout = append(out, ivs[i])\n\t\ti++\n\t}\n\tfor i < len(ivs) && ivs[i].Start <= add.End {\n\t\tif ivs[i].Start < add.Start {\n\t\t\tadd.Start = ivs[i].Start\n\t\t}\n\t\tif ivs[i].End > add.End {\n\t\t\tadd.End = ivs[i].End\n\t\t}\n\t\ti++\n\t}\n\tout = append(out, add)\n\treturn append(out, ivs[i:]...)\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tmarks := make([]Interval, n)\n\tfor i := range marks {\n\t\tfmt.Scan(&marks[i].Start, &marks[i].End)\n\t}\n\tvar h Interval\n\tfmt.Scan(&h.Start, &h.End)\n\n\tmarks = insert(marks, h)\n\tfor _, m := range marks {\n\t\tfmt.Printf(\"%d to %d\\n\", m.Start, m.End)\n\t}\n\tfmt.Println(\"highlights:\", len(marks))\n}\n",
+        "stdin": "4\n2 5\n9 12\n15 18\n25 30\n12 15\n",
+        "output": "2 to 5\n9 to 18\n25 to 30\nhighlights: 3",
+        "explanation": "2 to 5 ends before 12, so the first loop copies it. 9 to 12 ends exactly where the new highlight starts, so `End < add.Start` is false and the second loop takes it: the highlight now starts at 9. 15 to 18 starts exactly where it ends, and `Start <= add.End` joins that one too, so the highlight grows to 9 to 18. 25 starts after 18, so the loop stops and the last append copies 25 to 30. `add` is a copy of `h`, so growing it inside `insert` leaves `h` as it was."
+      },
+      "practice": {
+        "title": "Downloaded chunks",
+        "prompt": "A download keeps the byte ranges it already has, sorted and not overlapping. Chunks arrive one at a time, and each one joins the ranges it overlaps or touches.\n\n1. The starter reads `n` ranges, which can be 0, then `q` chunks. It inserts each chunk and prints the ranges after it, one line per chunk.\n2. Finish `insert` in one pass: copy the ranges that end before `add` starts, grow `add` over the ranges it overlaps, then append `add` and the rest.\n\nInput:\n\n```text\n2\n0 20\n50 70\n3\n30 40\n40 50\n10 35\n```\n\nExpected output:\n\n```text\n0-20 30-40 50-70\n0-20 30-70\n0-70\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Interval struct{ Start, End int }\n\nfunc insert(ranges []Interval, add Interval) []Interval {\n\t// TODO: copy the ranges before add, grow add over the ones it overlaps, then append add and the rest\n\treturn ranges\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tranges := make([]Interval, n)\n\tfor i := range ranges {\n\t\tfmt.Scan(&ranges[i].Start, &ranges[i].End)\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar chunk Interval\n\t\tfmt.Scan(&chunk.Start, &chunk.End)\n\t\tranges = insert(ranges, chunk)\n\t\tfor i, r := range ranges {\n\t\t\tif i > 0 {\n\t\t\t\tfmt.Print(\" \")\n\t\t\t}\n\t\t\tfmt.Printf(\"%d-%d\", r.Start, r.End)\n\t\t}\n\t\tfmt.Println()\n\t}\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype Interval struct{ Start, End int }\n\nfunc insert(ranges []Interval, add Interval) []Interval {\n\tvar out []Interval\n\ti := 0\n\tfor i < len(ranges) && ranges[i].End < add.Start {\n\t\tout = append(out, ranges[i])\n\t\ti++\n\t}\n\tfor i < len(ranges) && ranges[i].Start <= add.End {\n\t\tif ranges[i].Start < add.Start {\n\t\t\tadd.Start = ranges[i].Start\n\t\t}\n\t\tif ranges[i].End > add.End {\n\t\t\tadd.End = ranges[i].End\n\t\t}\n\t\ti++\n\t}\n\tout = append(out, add)\n\treturn append(out, ranges[i:]...)\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tranges := make([]Interval, n)\n\tfor i := range ranges {\n\t\tfmt.Scan(&ranges[i].Start, &ranges[i].End)\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar chunk Interval\n\t\tfmt.Scan(&chunk.Start, &chunk.End)\n\t\tranges = insert(ranges, chunk)\n\t\tfor i, r := range ranges {\n\t\t\tif i > 0 {\n\t\t\t\tfmt.Print(\" \")\n\t\t\t}\n\t\t\tfmt.Printf(\"%d-%d\", r.Start, r.End)\n\t\t}\n\t\tfmt.Println()\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "2\n0 20\n50 70\n3\n30 40\n40 50\n10 35\n",
+            "output": "0-20 30-40 50-70\n0-20 30-70\n0-70"
+          },
+          {
+            "stdin": "0\n2\n5 9\n1 2\n",
+            "output": "5-9\n1-2 5-9"
+          },
+          {
+            "stdin": "1\n10 20\n2\n12 15\n30 40\n",
+            "output": "10-20\n10-20 30-40"
+          }
+        ],
+        "hints": [
+          "Use the example's two loops with one index `i`: the first runs while `ranges[i].End < add.Start`, the second while `ranges[i].Start <= add.End`.",
+          "In the second loop take the smaller start and the bigger end, so a chunk inside a range, like 12 to 15 inside 10 to 20, grows to cover it.",
+          "Finish with `out = append(out, add)` and `return append(out, ranges[i:]...)`. With no ranges at all, both loops skip and the result is just `add`."
+        ]
+      }
+    },
+    {
+      "title": "A sweep line for the busiest moment",
+      "body": "To find the most intervals that overlap at any moment, turn each interval into two **events**: +1 at its start and -1 at its end. Sort the events by time and walk them with a running count. The count only changes at an event, so its biggest value is the answer. With `type Interval struct{ Start, End int }` and `type Event struct{ Time, Delta int }`:\n\n```go harness\npackage main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype Interval struct{ Start, End int }\n\ntype Event struct{ Time, Delta int }\n\nfunc main() {\n\t{{code}}\n}\n```\n\n```go\nivs := []Interval{{1, 4}, {2, 5}, {4, 6}}\nvar events []Event\nfor _, iv := range ivs {\n\tevents = append(events, Event{iv.Start, 1}, Event{iv.End, -1})\n}\nsort.Slice(events, func(i, j int) bool {\n\tif events[i].Time != events[j].Time {\n\t\treturn events[i].Time < events[j].Time\n\t}\n\treturn events[i].Delta < events[j].Delta // same time: ends (-1) first\n})\ncount, best := 0, 0\nfor _, e := range events {\n\tcount += e.Delta\n\tif count > best {\n\t\tbest = count\n\t}\n}\nfmt.Println(best) // 2\n```\n\nThe tie-break matters. An interval holds from its start up to its end, so `{1, 4}` is gone at time 4, when `{4, 6}` arrives. With ends first, the count dips from 2 to 1 and back to 2 at time 4. With starts first it would reach 3, for a moment that never happened. When touching intervals should count as overlapping, put the starts first instead.\n\nThere are 2n events, so the sort is O(n log n), the walk O(n), and the events take O(n) space.",
+      "example": {
+        "title": "Busiest hour in a garage",
+        "prompt": "Read when each car arrived and left, and print the most cars in the garage at once and the first hour that happened. A car that leaves at an hour frees its space before a car that arrives at that hour takes it.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype Event struct{ Time, Delta int }\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tvar events []Event\n\tfor i := 0; i < n; i++ {\n\t\tvar arrive, leave int\n\t\tfmt.Scan(&arrive, &leave)\n\t\tevents = append(events, Event{arrive, 1}, Event{leave, -1})\n\t}\n\n\tsort.Slice(events, func(i, j int) bool {\n\t\tif events[i].Time != events[j].Time {\n\t\t\treturn events[i].Time < events[j].Time\n\t\t}\n\t\treturn events[i].Delta < events[j].Delta // a car leaves before one arrives\n\t})\n\n\tcount, best, bestHour := 0, 0, 0\n\tfor _, e := range events {\n\t\tcount += e.Delta\n\t\tif count > best {\n\t\t\tbest, bestHour = count, e.Time\n\t\t}\n\t}\n\tfmt.Printf(\"most cars at once: %d, first at hour %d\\n\", best, bestHour)\n}\n",
+        "stdin": "5\n8 12\n9 11\n11 14\n12 15\n17 18\n",
+        "output": "most cars at once: 2, first at hour 9",
+        "explanation": "The count reaches 2 at hour 9. At hour 11 one car leaves and another arrives, and since the leaving event sorts first, the count drops to 1 before it climbs back to 2. Hour 12 works the same way. With the arrivals first, the count would touch 3 at hour 11, though only two cars were ever there together. `count > best` keeps the first hour the count reached 2, not a later one that only ties it."
+      },
+      "practice": {
+        "title": "Peak load on a bus",
+        "prompt": "Groups of people ride a bus. Each group gets on at one stop and off at a later one. Find the most people on board at once.\n\n1. The starter reads `n` groups as `on off people`, with at least 1 person in each group.\n2. Add two events per group: `+people` at stop `on` and `-people` at stop `off`.\n3. Add `\"sort\"` to the imports. Sort the events by stop, with the people getting off before the people getting on at the same stop.\n4. Walk the events with a running count, keeping the peak and the first stop that reached it. The starter prints `peak: P people at stop S`.\n\nInput:\n\n```text\n4\n1 5 10\n2 4 6\n4 8 7\n6 9 3\n```\n\nExpected output:\n\n```text\npeak: 17 people at stop 4\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Event struct{ Stop, Delta int }\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tvar events []Event\n\tfor i := 0; i < n; i++ {\n\t\tvar on, off, people int\n\t\tfmt.Scan(&on, &off, &people)\n\t\t// TODO: add an event for the group getting on and one for it getting off\n\t}\n\t_ = events\n\n\tpeak, peakStop := 0, 0\n\t// TODO: sort the events by stop, getting off first, then walk them with a running count\n\n\tfmt.Printf(\"peak: %d people at stop %d\\n\", peak, peakStop)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype Event struct{ Stop, Delta int }\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tvar events []Event\n\tfor i := 0; i < n; i++ {\n\t\tvar on, off, people int\n\t\tfmt.Scan(&on, &off, &people)\n\t\tevents = append(events, Event{on, people}, Event{off, -people})\n\t}\n\n\tpeak, peakStop := 0, 0\n\tsort.Slice(events, func(i, j int) bool {\n\t\tif events[i].Stop != events[j].Stop {\n\t\t\treturn events[i].Stop < events[j].Stop\n\t\t}\n\t\treturn events[i].Delta < events[j].Delta\n\t})\n\tcount := 0\n\tfor _, e := range events {\n\t\tcount += e.Delta\n\t\tif count > peak {\n\t\t\tpeak, peakStop = count, e.Stop\n\t\t}\n\t}\n\n\tfmt.Printf(\"peak: %d people at stop %d\\n\", peak, peakStop)\n}\n",
+        "tests": [
+          {
+            "stdin": "4\n1 5 10\n2 4 6\n4 8 7\n6 9 3\n",
+            "output": "peak: 17 people at stop 4"
+          },
+          {
+            "stdin": "3\n1 2 4\n2 3 4\n3 4 4\n",
+            "output": "peak: 4 people at stop 1"
+          },
+          {
+            "stdin": "3\n1 10 2\n2 3 5\n4 5 5\n",
+            "output": "peak: 7 people at stop 2"
+          }
+        ],
+        "hints": [
+          "Add both events at once: `events = append(events, Event{on, people}, Event{off, -people})`.",
+          "Sort like the example: compare `Stop` first, and on a tie put the smaller `Delta` first. Getting off is negative, so it comes before getting on.",
+          "Use `count > peak`, so a later stop that only ties the peak doesn't replace the first one."
+        ]
+      }
+    },
+    {
+      "title": "Removing the fewest to end overlaps",
+      "body": "To remove the fewest intervals so the rest don't overlap, keep as many as you can. The greedy rule: sort by **end**, then keep each interval that starts at or after the end of the last one kept. Everything else is removed.\n\nWhy the earliest end? Put it in place of the first interval of any best answer: it ends no later, so it can't clash with the rest, and keeping it never costs you. Sorting by start fails: `{1, 10}` starts first, but keeping it blocks both `{2, 3}` and `{4, 5}`. With `type Interval struct{ Start, End int }`, the walk needs only a count and the last kept end:\n\n```go harness\npackage main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype Interval struct{ Start, End int }\n\nfunc main() {\n\t{{code}}\n}\n```\n\n```go\nivs := []Interval{{1, 10}, {2, 3}, {4, 5}, {3, 4}}\nsort.Slice(ivs, func(i, j int) bool { return ivs[i].End < ivs[j].End })\nkept, lastEnd := 0, 0\nfor _, iv := range ivs {\n\tif kept == 0 || iv.Start >= lastEnd { // fits after the last one kept\n\t\tkept++\n\t\tlastEnd = iv.End\n\t}\n}\nfmt.Println(\"keep\", kept, \"remove\", len(ivs)-kept) // keep 3 remove 1\n```\n\n`kept == 0` lets the first interval in. `>=` keeps intervals that only touch, like `{2, 3}` and `{3, 4}`. Write `>` when touching counts as a clash. Intervals with the same end can sort in either order, and the count comes out the same. The sort is O(n log n), and the walk is O(n) with O(1) extra space.",
+      "example": {
+        "title": "One tennis court",
+        "prompt": "Read court bookings that may clash, keep the most that fit on one court, and print the ones kept and how many to cancel. A booking can start right when another ends.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype Interval struct{ Start, End int }\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tbookings := make([]Interval, n)\n\tfor i := range bookings {\n\t\tfmt.Scan(&bookings[i].Start, &bookings[i].End)\n\t}\n\n\tsort.Slice(bookings, func(i, j int) bool { return bookings[i].End < bookings[j].End })\n\tvar kept []Interval\n\tfor _, b := range bookings {\n\t\tif len(kept) == 0 || b.Start >= kept[len(kept)-1].End {\n\t\t\tkept = append(kept, b)\n\t\t}\n\t}\n\n\tfor _, k := range kept {\n\t\tfmt.Printf(\"keep %d to %d\\n\", k.Start, k.End)\n\t}\n\tfmt.Println(\"cancel\", n-len(kept))\n}\n",
+        "stdin": "6\n9 11\n10 12\n11 13\n8 15\n13 14\n12 16\n",
+        "output": "keep 9 to 11\nkeep 11 to 13\nkeep 13 to 14\ncancel 3",
+        "explanation": "Sorted by end, the bookings are 9 to 11, 10 to 12, 11 to 13, 13 to 14, 8 to 15, and 12 to 16. 9 to 11 ends first, so it's kept. 10 to 12 starts before 11 and is skipped. 11 to 13 starts exactly at 11, and `>=` keeps it, then 13 to 14 fits the same way. 8 to 15 and 12 to 16 start before 14, so they're cancelled. Sorted by start, 8 to 15 would come first and block every other booking. This example keeps the bookings themselves in `kept`, so the last end is `kept[len(kept)-1].End`."
+      },
+      "practice": {
+        "title": "Festival screenings",
+        "prompt": "A film festival lists screenings as `start end` in minutes, in any order, and the same screening can be listed more than once. You can't watch two at once, but you can walk out of one and into another that starts that minute. Watch as many as you can.\n\n1. The starter reads `n` screenings into `shows`.\n2. Add `\"sort\"` to the imports and sort `shows` by end.\n3. Count in `watch` each screening that starts at or after the end of the last one you kept.\n4. The starter prints `watch W, skip S`, where S is the number you skip.\n\nInput:\n\n```text\n5\n0 240\n15 105\n135 225\n105 135\n230 260\n```\n\nExpected output:\n\n```text\nwatch 4, skip 1\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype Interval struct{ Start, End int }\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tshows := make([]Interval, n)\n\tfor i := range shows {\n\t\tfmt.Scan(&shows[i].Start, &shows[i].End)\n\t}\n\n\twatch := 0\n\t// TODO: sort shows by end, then count each one that starts at or after the last kept end\n\n\tfmt.Printf(\"watch %d, skip %d\\n\", watch, n-watch)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\ntype Interval struct{ Start, End int }\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tshows := make([]Interval, n)\n\tfor i := range shows {\n\t\tfmt.Scan(&shows[i].Start, &shows[i].End)\n\t}\n\n\twatch := 0\n\tsort.Slice(shows, func(i, j int) bool { return shows[i].End < shows[j].End })\n\tlastEnd := 0\n\tfor _, s := range shows {\n\t\tif watch == 0 || s.Start >= lastEnd {\n\t\t\twatch++\n\t\t\tlastEnd = s.End\n\t\t}\n\t}\n\n\tfmt.Printf(\"watch %d, skip %d\\n\", watch, n-watch)\n}\n",
+        "tests": [
+          {
+            "stdin": "5\n0 240\n15 105\n135 225\n105 135\n230 260\n",
+            "output": "watch 4, skip 1"
+          },
+          {
+            "stdin": "3\n10 50\n10 50\n10 50\n",
+            "output": "watch 1, skip 2"
+          },
+          {
+            "stdin": "4\n0 30\n20 30\n30 60\n10 60\n",
+            "output": "watch 2, skip 2"
+          }
+        ],
+        "hints": [
+          "Sort with `sort.Slice(shows, func(i, j int) bool { return shows[i].End < shows[j].End })`.",
+          "Keep `lastEnd`, the end of the last screening you kept. A screening fits when `watch == 0 || s.Start >= lastEnd`.",
+          "Sorting by start fails here: 0 to 240 starts first, and keeping it blocks every other screening."
+        ]
+      }
+    }
+  ],
+  "recap": "- Sort by start with `sort.Slice`, and any overlap is with the block you're building. Grow `merged[last].End` or append a new block.\n- `<=` merges intervals that only touch, and `<` keeps them apart. Keep the bigger end, so an interval inside a block can't shrink it.\n- Change a slice element through its index. A copy of the struct changes only the copy.\n- To insert into a sorted list with no overlaps, copy the ones that end before it starts, grow the new one over the ones it overlaps, then append it and the rest. That's O(n) with no sort.\n- A sweep line turns each interval into a +1 and a -1 event, sorts them by time, and keeps a running count. On a tie, ends go first when touching intervals don't overlap.\n- To remove the fewest, sort by end and keep each interval that starts at or after the last kept end. The rest are the removals.\n- Sorting costs O(n log n), and every walk after it is O(n)."
+}

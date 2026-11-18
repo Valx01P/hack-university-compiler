@@ -1,0 +1,158 @@
+{
+  "id": "dynamic-programming",
+  "title": "Dynamic Programming",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Fill DP tables from the smallest case up: two earlier states, each item once under a capacity, the fewest coins, and paths through a grid.",
+  "intro": "The recursion lesson ended by turning a memo into a table: say what `dp[i]` means, fill the first entries by hand, and build each later entry from earlier ones. Dynamic programming is that idea used on purpose. Here you fill tables for the four shapes that come up most: a choice between the two entries before, a take-or-skip choice for each item under a capacity, the fewest pieces that make a total, and a path through a grid.",
+  "steps": [
+    {
+      "title": "Two earlier states",
+      "body": "Some table rules read the two entries before the current one. Say each item in a row is worth some points, and you may take any items except two neighbors. At each item you choose: skip it and keep the best so far, or take it and add it to the best from two items back, since its neighbor must be skipped. Let `dp[i]` be the best total from the first `i` items:\n\n```javascript\nconst vals = [3, 8, 4, 2, 9];\nconst dp = new Array(vals.length + 1).fill(0); // dp[0]: no items, 0\ndp[1] = vals[0];\nfor (let i = 2; i <= vals.length; i++) {\n  dp[i] = Math.max(dp[i - 1], dp[i - 2] + vals[i - 1]); // skip it, or take it\n}\nconsole.log(dp.join(\" \")); // 0 3 8 8 10 17\n```\n\nThe table is one longer than the array, so `dp[i]` is about item `vals[i - 1]`, and `dp[0] = 0` gives the empty row its own entry. That shift is where off-by-one bugs hide, so write down what an entry means before you write the loop.\n\nEach entry reads only the two before it, so two variables can replace the table. `prev` holds the entry two back and `curr` the one just before:\n\n```javascript\nconst vals = [3, 8, 4, 2, 9];\nlet prev = 0; // dp[i - 2]\nlet curr = 0; // dp[i - 1]\nfor (const v of vals) {\n  [prev, curr] = [curr, Math.max(curr, prev + v)];\n}\nconsole.log(curr); // 17\n```\n\nThe destructuring assignment builds the right side from the old values before it assigns either one, so you need no temporary variable. Both versions take O(n) time. The table takes O(n) memory, and the two variables O(1).",
+      "example": {
+        "title": "Night shift bonuses",
+        "prompt": "A nurse can work any nights but never two in a row. Read the bonus for each night, then print the table of best totals, the best total, and the same best from two variables.",
+        "stdin": "40 90 50 30 80 20 70\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst bonus = input.trim().split(/\\s+/).map(Number);\nconst n = bonus.length;\n\n// dp[i]: the best total from the first i nights\nconst dp = new Array(n + 1).fill(0);\ndp[1] = bonus[0];\nfor (let i = 2; i <= n; i++) {\n  dp[i] = Math.max(dp[i - 1], dp[i - 2] + bonus[i - 1]);\n}\nconsole.log(`table: ${dp.join(\" \")}`);\nconsole.log(`best: ${dp[n]}`);\n\nlet prev = 0;\nlet curr = 0;\nfor (const b of bonus) {\n  [prev, curr] = [curr, Math.max(curr, prev + b)];\n}\nconsole.log(`two variables: ${curr}`);\n",
+        "output": "table: 0 40 90 90 120 170 170 240\nbest: 240\ntwo variables: 240",
+        "explanation": "`dp[1]` is the first night alone. At night 3 (50), taking it gives `dp[1] + 50 = 90`, which only ties skipping it. At night 5 (80), taking it adds 80 to `dp[3]`, the best through night 3, for 170. The last night adds 70 to `dp[5]` for 240: nights 2, 5, and 7. The two-variable loop walks the same entries while holding only the last two, and it ends on the same 240."
+      },
+      "practice": {
+        "title": "Courier weeks",
+        "prompt": "A courier can take a job on any day but never on two days in a row. Find the best pay for each week, keeping only two variables.\n\n1. The starter reads `n`, then calls `bestPay` on each of the next `n` lines of daily pay.\n2. In `bestPay`, `prev` and `curr` start at 0. For each day's pay `p`, the new best is the larger of skipping the day, `curr`, and taking it, `prev + p`.\n3. Move both variables one day on in a single destructuring assignment, then return `curr`. The starter prints `Week N: BEST` for each line.\n\nInput:\n\n```text\n3\n2 1 1 2\n5 5 5 5 5\n7\n```\n\nExpected output:\n\n```text\nWeek 1: 4\nWeek 2: 15\nWeek 3: 7\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst n = Number(lines[0]);\n\nfunction bestPay(pay) {\n  let prev = 0; // the best up to two days back\n  let curr = 0; // the best so far\n  // TODO: for each day's pay, keep the better of skipping the day and taking it\n  return curr;\n}\n\nfor (const [i, line] of lines.slice(1, n + 1).entries()) {\n  const pay = line.trim().split(/\\s+/).map(Number);\n  console.log(`Week ${i + 1}: ${bestPay(pay)}`);\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst n = Number(lines[0]);\n\nfunction bestPay(pay) {\n  let prev = 0; // the best up to two days back\n  let curr = 0; // the best so far\n  for (const p of pay) {\n    [prev, curr] = [curr, Math.max(curr, prev + p)];\n  }\n  return curr;\n}\n\nfor (const [i, line] of lines.slice(1, n + 1).entries()) {\n  const pay = line.trim().split(/\\s+/).map(Number);\n  console.log(`Week ${i + 1}: ${bestPay(pay)}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "3\n2 1 1 2\n5 5 5 5 5\n7\n",
+            "output": "Week 1: 4\nWeek 2: 15\nWeek 3: 7"
+          },
+          {
+            "stdin": "3\n10 1 1 10 1\n3 9 4 1 8\n5 6 5\n",
+            "output": "Week 1: 20\nWeek 2: 17\nWeek 3: 10"
+          },
+          {
+            "stdin": "1\n0 0 6 0 0 6\n",
+            "output": "Week 1: 12"
+          }
+        ],
+        "hints": [
+          "The loop is the example's two-variable loop: `[prev, curr] = [curr, Math.max(curr, prev + p)]`.",
+          "Taking every other day is not enough: in `2 1 1 2` the best week skips both middle days.",
+          "A week of one day returns that day's pay, and the loop needs no special case for it."
+        ]
+      }
+    },
+    {
+      "title": "Take it or skip it",
+      "body": "Now every item has a weight and a value, the bag holds at most `cap`, and each item goes in once or not at all. Let `dp[c]` be the best value that fits in capacity `c`. For each item, every capacity chooses: skip the item and keep `dp[c]`, or take it and add its value to the best for the room that's left, `dp[c - w]`:\n\n```javascript\nconst items = [[3, 4], [4, 5], [2, 3]]; // [weight, value]\nconst cap = 6;\nconst dp = new Array(cap + 1).fill(0); // dp[c]: the best value within capacity c\nfor (const [w, v] of items) {\n  for (let c = cap; c >= w; c--) {\n    dp[c] = Math.max(dp[c], dp[c - w] + v); // skip it, or take it\n  }\n}\nconsole.log(dp.join(\" \")); // 0 0 3 4 5 7 8\n```\n\nLoop the capacity **down**, from `cap` to `w`. Then `dp[c - w]`, a smaller capacity, hasn't been updated for this item yet, so it still means \"the best without this item\". Going up, `dp[c - w]` may already include the item, and it gets packed again and again:\n\n```javascript\nconst dp = new Array(7).fill(0);\nconst [w, v] = [2, 3]; // one item\nfor (let c = w; c <= 6; c++) { // wrong: upward\n  dp[c] = Math.max(dp[c], dp[c - w] + v);\n}\nconsole.log(dp.join(\" \")); // 0 0 3 3 6 6 9\n```\n\nOne 2 kg item worth 3 shows up as 9 at capacity 6: three copies. The table costs O(n * cap) time for n items and O(cap) memory. Taking the best value per kilogram first doesn't work either, since a small valuable item can leave room that nothing else fills.",
+      "example": {
+        "title": "Packing a day pack",
+        "prompt": "Read a bag's capacity and some items, each with a weight in kilograms and a value. Pack the most value with each item at most once, printing the table after each item.",
+        "stdin": "5 7\nwater 3 10\ncamera 4 13\njacket 2 6\nsnacks 1 4\nbook 2 3\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst [n, cap] = lines[0].trim().split(/\\s+/).map(Number);\n\n// dp[c]: the best value that fits in c kilograms\nconst dp = new Array(cap + 1).fill(0);\nfor (const line of lines.slice(1, n + 1)) {\n  const [name, kgText, valueText] = line.trim().split(/\\s+/);\n  const kg = Number(kgText);\n  const value = Number(valueText);\n  for (let c = cap; c >= kg; c--) {\n    dp[c] = Math.max(dp[c], dp[c - kg] + value);\n  }\n  console.log(`after ${name}: ${dp.join(\" \")}`);\n}\nconsole.log(`best: ${dp[cap]}`);\n",
+        "output": "after water: 0 0 0 10 10 10 10 10\nafter camera: 0 0 0 10 13 13 13 23\nafter jacket: 0 0 6 10 13 16 19 23\nafter snacks: 0 4 6 10 14 17 20 23\nafter book: 0 4 6 10 14 17 20 23\nbest: 23",
+        "explanation": "After `water`, every capacity of 3 or more holds 10. `camera` makes `dp[7]` 23, its own 13 plus `dp[3]`, which is the water. `jacket` and `snacks` raise the smaller capacities, but nothing beats 23 at 7 kg, and `camera`, `jacket`, and `snacks` only tie it. `book` changes nothing: at every capacity, taking it gives less than skipping it. Grabbing the best value per kilogram first would take `snacks`, `water`, and `jacket`, for only 20."
+      },
+      "practice": {
+        "title": "Filling a drive",
+        "prompt": "Copy files onto a drive, each file at most once, and fill it as full as you can.\n\n1. The starter reads the drive's capacity `cap` from the first line and the file sizes from the second.\n2. `dp[c]` is the most megabytes that fit in `c`. A file's value is its own size, so copying a file of size `s` gives `dp[c - s] + s`.\n3. For each file, loop `c` **down** from `cap` to `s`, so no file is copied twice.\n4. The starter prints `Used: X of CAP MB`.\n\nInput:\n\n```text\n10\n6 5 3\n```\n\nExpected output:\n\n```text\nUsed: 9 of 10 MB\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [capLine, sizesLine] = input.trim().split(\"\\n\");\nconst cap = Number(capLine);\nconst sizes = sizesLine.trim().split(/\\s+/).map(Number);\n\nconst dp = new Array(cap + 1).fill(0); // dp[c]: the most MB that fit in c\n// TODO: for each file size s, loop c down from cap to s and keep the better of skipping and copying\n\nconsole.log(`Used: ${dp[cap]} of ${cap} MB`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [capLine, sizesLine] = input.trim().split(\"\\n\");\nconst cap = Number(capLine);\nconst sizes = sizesLine.trim().split(/\\s+/).map(Number);\n\nconst dp = new Array(cap + 1).fill(0); // dp[c]: the most MB that fit in c\nfor (const s of sizes) {\n  for (let c = cap; c >= s; c--) {\n    dp[c] = Math.max(dp[c], dp[c - s] + s);\n  }\n}\n\nconsole.log(`Used: ${dp[cap]} of ${cap} MB`);\n",
+        "tests": [
+          {
+            "stdin": "10\n6 5 3\n",
+            "output": "Used: 9 of 10 MB"
+          },
+          {
+            "stdin": "9\n7 5 4\n",
+            "output": "Used: 9 of 9 MB"
+          },
+          {
+            "stdin": "4\n6 3 8\n",
+            "output": "Used: 3 of 4 MB"
+          }
+        ],
+        "hints": [
+          "This is the example's loop with the size as both the weight and the value: `Math.max(dp[c], dp[c - s] + s)`.",
+          "Counting `c` up would let the 5 MB file fill the 10 MB drive twice.",
+          "The biggest file first fails too: with 7, 5, and 4 on a 9 MB drive, 5 + 4 beats 7."
+        ]
+      }
+    },
+    {
+      "title": "The fewest coins",
+      "body": "With **unbounded** choice, every item can be used as often as you like. The classic is the fewest coins that make an amount. Let `dp[a]` be the fewest coins for amount `a`. The last coin is one of the coins `c`, so `dp[a]` is 1 more than the best `dp[a - c]` over every coin that fits:\n\n```javascript\nconst coins = [1, 3, 4];\nconst amount = 6;\nconst dp = new Array(amount + 1).fill(Infinity); // dp[a]: the fewest coins for a\ndp[0] = 0;\nfor (let a = 1; a <= amount; a++) {\n  for (const c of coins) {\n    if (c <= a) {\n      dp[a] = Math.min(dp[a], dp[a - c] + 1);\n    }\n  }\n}\nconsole.log(dp.join(\" \")); // 0 1 2 1 1 2 2\n```\n\n`Infinity` means \"not reachable yet\". It's bigger than any count, so `Math.min` replaces it as soon as a real way shows up. And `Infinity + 1` is still `Infinity`, so an unreachable amount never turns into a fake count. If `dp[amount]` is still `Infinity` at the end, no mix of coins works, so print -1, the usual answer for impossible:\n\n```javascript harness\nconst amount = 3;\nconst dp = [0, Infinity, 1, Infinity]; // coins of 2 only\n{{code}}\n```\n\n```javascript\nconsole.log(dp[amount] === Infinity ? -1 : dp[amount]); // -1\n```\n\nThe amounts go up and every coin is tried at each one, so a coin can be used again and again. Taking the biggest coin first fails here: it makes 6 as 4 + 1 + 1, but 3 + 3 needs only two. The table costs O(amount * coins) time and O(amount) memory.",
+      "example": {
+        "title": "Egg cartons",
+        "prompt": "Eggs come in cartons of a few fixed sizes. Read the sizes and several orders, and print the fewest cartons that hold exactly each order, or -1 when no mix of cartons does.",
+        "stdin": "6 9 20\n24 43 40 15 0\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [sizesLine, ordersLine] = input.trim().split(\"\\n\");\nconst sizes = sizesLine.trim().split(/\\s+/).map(Number);\nconst orders = ordersLine.trim().split(/\\s+/).map(Number);\nconst most = Math.max(...orders);\n\n// dp[a]: the fewest cartons that hold exactly a eggs\nconst dp = new Array(most + 1).fill(Infinity);\ndp[0] = 0;\nfor (let a = 1; a <= most; a++) {\n  for (const s of sizes) {\n    if (s <= a) {\n      dp[a] = Math.min(dp[a], dp[a - s] + 1);\n    }\n  }\n}\n\nfor (const order of orders) {\n  const fewest = dp[order] === Infinity ? -1 : dp[order];\n  console.log(`${order} eggs: ${fewest}`);\n}\n",
+        "output": "24 eggs: 3\n43 eggs: -1\n40 eggs: 2\n15 eggs: 2\n0 eggs: 0",
+        "explanation": "One table up to the biggest order, `Math.max(...orders)`, answers every order, because `dp[a]` doesn't depend on which order asked for it. 24 eggs need 3 cartons, 6 + 9 + 9. Taking the biggest carton first would grab a 20 and then fail on the last 4. 43 can't be made from 6, 9, and 20 at all, so `dp[43]` stays `Infinity` and prints -1. An order of 0 needs no cartons, which `dp[0] = 0` already says."
+      },
+      "practice": {
+        "title": "Fewest stamps",
+        "prompt": "Find the fewest stamps that make a postage amount, and show which smaller amounts can't be made at all.\n\n1. The starter reads the stamp values from the first line and the postage `p` from the second, and starts `dp` with `dp[0] = 0` and `Infinity` everywhere else.\n2. Fill `dp[a]` for every amount from 1 to `p` by trying every stamp as the last one.\n3. Print `table:` and every entry from 0 to `p`, separated by spaces, with `-` in place of `Infinity`.\n4. Print `fewest:` and `dp[p]`, or -1 when it is still `Infinity`.\n\nInput:\n\n```text\n3 5\n11\n```\n\nExpected output:\n\n```text\ntable: 0 - - 1 - 1 2 - 2 3 2 3\nfewest: 3\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [stampsLine, postageLine] = input.trim().split(\"\\n\");\nconst stamps = stampsLine.trim().split(/\\s+/).map(Number);\nconst p = Number(postageLine);\n\nconst dp = new Array(p + 1).fill(Infinity); // dp[a]: the fewest stamps for a\ndp[0] = 0;\n// TODO: fill dp[a] for every amount a from 1 to p\n// TODO: print \"table:\" with - in place of Infinity, then \"fewest:\" and dp[p], or -1\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [stampsLine, postageLine] = input.trim().split(\"\\n\");\nconst stamps = stampsLine.trim().split(/\\s+/).map(Number);\nconst p = Number(postageLine);\n\nconst dp = new Array(p + 1).fill(Infinity); // dp[a]: the fewest stamps for a\ndp[0] = 0;\nfor (let a = 1; a <= p; a++) {\n  for (const s of stamps) {\n    if (s <= a) {\n      dp[a] = Math.min(dp[a], dp[a - s] + 1);\n    }\n  }\n}\n\nconst shown = dp.map((x) => (x === Infinity ? \"-\" : x));\nconsole.log(`table: ${shown.join(\" \")}`);\nconsole.log(`fewest: ${dp[p] === Infinity ? -1 : dp[p]}`);\n",
+        "tests": [
+          {
+            "stdin": "3 5\n11\n",
+            "output": "table: 0 - - 1 - 1 2 - 2 3 2 3\nfewest: 3"
+          },
+          {
+            "stdin": "4\n6\n",
+            "output": "table: 0 - - - 1 - -\nfewest: -1"
+          },
+          {
+            "stdin": "1 5 6 9\n11\n",
+            "output": "table: 0 1 2 3 4 1 1 2 3 1 2 2\nfewest: 2"
+          }
+        ],
+        "hints": [
+          "The loops are the example's, with `stamps` in place of the carton sizes.",
+          "`dp.map((x) => (x === Infinity ? \"-\" : x))` makes a copy for printing and leaves `dp` alone.",
+          "For the last line, check `dp[p] === Infinity` on `dp` itself, not on the printed copy."
+        ]
+      }
+    },
+    {
+      "title": "Tables over a grid",
+      "body": "When a smaller problem needs two numbers to describe it, like a row and a column, the table is 2D. To find the cheapest path from the top-left cell to the bottom-right one, moving only right or down, let `dp[r][c]` be the cheapest total to reach cell `(r, c)`, counting both ends. You arrive from above or from the left, so add the cell's cost to the cheaper of those two:\n\n```javascript\nconst cost = [\n  [3, 1, 4],\n  [2, 8, 1],\n  [6, 2, 3],\n];\nconst rows = cost.length;\nconst cols = cost[0].length;\nconst dp = Array.from({ length: rows }, () => new Array(cols).fill(0));\nfor (let r = 0; r < rows; r++) {\n  for (let c = 0; c < cols; c++) {\n    if (r === 0 && c === 0) {\n      dp[r][c] = cost[r][c];\n    } else {\n      const up = r > 0 ? dp[r - 1][c] : Infinity;\n      const left = c > 0 ? dp[r][c - 1] : Infinity;\n      dp[r][c] = cost[r][c] + Math.min(up, left);\n    }\n  }\n}\nconsole.log(dp[rows - 1][cols - 1]); // 12\n```\n\nFilling row by row, left to right, means the cells above and to the left are done before you need them. A side off the grid counts as `Infinity`, so `Math.min` never picks it. To count paths instead, add `up + left` and count a side off the grid as 0. Either way it's O(rows * cols) time and memory.\n\nBuild the table with `Array.from({ length: rows }, () => new Array(cols).fill(0))`. The callback runs once per row, so every row is its own array. `new Array(rows).fill([])` looks shorter, but `fill` puts the **same** array in every slot, so a change to one row shows up in all of them:\n\n```javascript\nconst bad = new Array(3).fill([]);\nbad[0].push(7);\nconsole.log(JSON.stringify(bad)); // [[7],[7],[7]]\nconsole.log(bad[0] === bad[2]); // true\n```",
+      "example": {
+        "title": "Cheapest toll route",
+        "prompt": "Read a grid of tolls and find the cheapest total from the top-left cell to the bottom-right one, moving only right or down. Print the table and the answer.",
+        "stdin": "3 4\n2 7 1 3\n4 1 6 2\n5 3 1 4\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst [rows, cols] = lines[0].trim().split(/\\s+/).map(Number);\nconst toll = lines.slice(1, rows + 1).map((line) => line.trim().split(/\\s+/).map(Number));\n\n// dp[r][c]: the cheapest total from the top left to (r, c)\nconst dp = Array.from({ length: rows }, () => new Array(cols).fill(0));\nfor (let r = 0; r < rows; r++) {\n  for (let c = 0; c < cols; c++) {\n    if (r === 0 && c === 0) {\n      dp[r][c] = toll[r][c];\n    } else {\n      const up = r > 0 ? dp[r - 1][c] : Infinity;\n      const left = c > 0 ? dp[r][c - 1] : Infinity;\n      dp[r][c] = toll[r][c] + Math.min(up, left);\n    }\n  }\n}\n\nfor (const row of dp) {\n  console.log(row.join(\" \"));\n}\nconsole.log(`cheapest: ${dp[rows - 1][cols - 1]}`);\n",
+        "output": "2 9 10 13\n6 7 13 15\n11 10 11 15\ncheapest: 15",
+        "explanation": "The top row can only be reached from the left, so it's a running total: 2, 9, 10, 13. Cell (1, 1) takes the cheaper of the 9 above and the 6 to its left, plus its own 1, for 7. In the last row, (2, 1) comes from the 7 above rather than the 11 to its left. The corner takes the 11 to its left over the 15 above, plus its own 4, for 15. Every row of `dp` came from its own call of the `Array.from` callback, so writing one cell never touches another row."
+      },
+      "practice": {
+        "title": "Most points on the way",
+        "prompt": "Walk from the top-left cell of a grid to the bottom-right one, moving only right or down, and collect the points of every cell you step on. Some cells are traps with negative points. Find the most points you can end with.\n\n1. The starter reads the size and the grid into `points`, and makes `dp` with `Array.from`.\n2. `dp[r][c]` is the most points on a path from the top left to `(r, c)`, counting both ends. The top left is just `points[0][0]`.\n3. Every other cell is `points[r][c]` plus the larger of the cell above and the cell to the left. A side off the grid counts as `-Infinity`, never 0, since a real total can be negative.\n4. The starter prints the table row by row, then `most:` and the bottom-right entry.\n\nInput:\n\n```text\n3 3\n1 5 1\n-2 1 -1\n9 9 1\n```\n\nExpected output:\n\n```text\n1 6 7\n-1 7 6\n8 17 18\nmost: 18\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst [rows, cols] = lines[0].trim().split(/\\s+/).map(Number);\nconst points = lines.slice(1, rows + 1).map((line) => line.trim().split(/\\s+/).map(Number));\n\nconst dp = Array.from({ length: rows }, () => new Array(cols).fill(0));\n// TODO: dp[r][c] is the most points on a path from the top left to (r, c)\n// TODO: add points[r][c] to the better of the cell above and the cell to the left\n\nfor (const row of dp) {\n  console.log(row.join(\" \"));\n}\nconsole.log(`most: ${dp[rows - 1][cols - 1]}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst [rows, cols] = lines[0].trim().split(/\\s+/).map(Number);\nconst points = lines.slice(1, rows + 1).map((line) => line.trim().split(/\\s+/).map(Number));\n\nconst dp = Array.from({ length: rows }, () => new Array(cols).fill(0));\nfor (let r = 0; r < rows; r++) {\n  for (let c = 0; c < cols; c++) {\n    if (r === 0 && c === 0) {\n      dp[r][c] = points[r][c];\n    } else {\n      const up = r > 0 ? dp[r - 1][c] : -Infinity;\n      const left = c > 0 ? dp[r][c - 1] : -Infinity;\n      dp[r][c] = points[r][c] + Math.max(up, left);\n    }\n  }\n}\n\nfor (const row of dp) {\n  console.log(row.join(\" \"));\n}\nconsole.log(`most: ${dp[rows - 1][cols - 1]}`);\n",
+        "tests": [
+          {
+            "stdin": "3 3\n1 5 1\n-2 1 -1\n9 9 1\n",
+            "output": "1 6 7\n-1 7 6\n8 17 18\nmost: 18"
+          },
+          {
+            "stdin": "1 4\n2 -1 3 0\n",
+            "output": "2 1 4 4\nmost: 4"
+          },
+          {
+            "stdin": "3 1\n-3\n-4\n2\n",
+            "output": "-3\n-7\n-5\nmost: -5"
+          }
+        ],
+        "hints": [
+          "The loops are the example's, with `Math.max` for `Math.min` and `-Infinity` for `Infinity`.",
+          "With 0 for a missing side, a column of negative cells would pick the side that isn't there.",
+          "Give the top left its own case first, since it has no neighbors at all."
+        ]
+      }
+    }
+  ],
+  "recap": "- Say what one entry means, fill the first entries by hand, and build each later entry from earlier ones.\n- Two earlier states: `dp[i] = Math.max(dp[i - 1], dp[i - 2] + vals[i - 1])`, skip it or take it. Two variables, `[prev, curr] = [curr, Math.max(curr, prev + v)]`, can replace the table.\n- Each item once under a capacity: `dp[c] = Math.max(dp[c], dp[c - w] + v)`, with `c` going down from `cap` to `w`. Going up uses an item again.\n- Unbounded choice, like the fewest coins: fill with `Infinity`, set `dp[0] = 0`, and take `Math.min(dp[a], dp[a - c] + 1)` over every coin. Still `Infinity` at the end means -1.\n- A grid table is `Array.from({ length: rows }, () => new Array(cols).fill(0))`, filled row by row from the cell above and the cell to the left. `new Array(rows).fill([])` shares one row.\n- Off the grid counts as `Infinity` for a minimum, `-Infinity` for a maximum, and 0 for a count."
+}

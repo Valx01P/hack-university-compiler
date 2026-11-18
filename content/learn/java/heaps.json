@@ -1,0 +1,121 @@
+{
+  "id": "heaps",
+  "title": "Heap Patterns",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Track a running median with two heaps, merge sorted lists with a heap of entries, and count the rooms a schedule needs with a heap of end times.",
+  "intro": "The Stacks, Queues, Deques, and Heaps lesson made `PriorityQueue` a min-heap, a max-heap with `Collections.reverseOrder()`, and a heap of `int[]` entries with a comparator, and kept one at size k. Three more heap patterns come up again and again: two heaps that split the numbers in half to track a median, one entry per list to merge sorted lists, and a heap of end times to count the rooms a schedule needs.",
+  "steps": [
+    {
+      "title": "Two heaps for a running median",
+      "body": "The median is the middle value once the numbers are sorted. When numbers keep arriving, sorting again after each one costs O(n log n) every time. Two heaps keep the middle ready instead:\n\n- `low` is a max-heap of the smaller half, built with `Collections.reverseOrder()`, so `low.peek()` is the biggest small number.\n- `high` is a min-heap of the larger half, so `high.peek()` is the smallest big number.\n\nTo add `x`, offer it to `low`, move `low`'s top over to `high`, and if `high` is now bigger, move its top back:\n\n```java harness\nPriorityQueue<Integer> low = new PriorityQueue<>(Collections.reverseOrder());\nPriorityQueue<Integer> high = new PriorityQueue<>();\nfor (int x : new int[]{5, 15, 1}) {\n    {{code}}\n}\nSystem.out.println(low.peek() + \" \" + high.peek());\n```\n\n```java\nlow.offer(x);\nhigh.offer(low.poll());      // the biggest small number moves up\nif (high.size() > low.size()) {\n    low.offer(high.poll());  // low keeps the extra one\n}\n```\n\nPassing every number through `low` keeps all of `low` at or below all of `high`. The sizes never differ by more than one, and `low` holds the extra. So with an odd count the median is `low.peek()`, and with an even count it's the average of the two tops, `(low.peek() + high.peek()) / 2.0`. Divide by `2.0`, not `2`: two `int` values divide as integers and drop the half.\n\nEach new number costs a few heap operations on heaps of about n / 2 items, so O(log n), and reading the median is O(1). The two heaps hold every number, O(n) space.",
+      "example": {
+        "title": "Median bid",
+        "prompt": "Read n bids as `bidder amount`, and after each one print the median bid so far with one decimal. With an even count the median is the average of the two middle bids.",
+        "code": "import java.util.Collections;\nimport java.util.PriorityQueue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        PriorityQueue<Integer> low = new PriorityQueue<>(Collections.reverseOrder());\n        PriorityQueue<Integer> high = new PriorityQueue<>();\n        for (int i = 0; i < n; i++) {\n            String bidder = sc.next();\n            int amount = sc.nextInt();\n            low.offer(amount);\n            high.offer(low.poll());\n            if (high.size() > low.size()) {\n                low.offer(high.poll());\n            }\n            double median;\n            if (low.size() > high.size()) {\n                median = low.peek();\n            } else {\n                median = (low.peek() + high.peek()) / 2.0;\n            }\n            System.out.printf(\"%s: median %.1f%n\", bidder, median);\n        }\n    }\n}\n",
+        "stdin": "5\nana 40\nben 25\ncai 60\ndev 30\neve 55\n",
+        "output": "ana: median 40.0\nben: median 32.5\ncai: median 40.0\ndev: median 35.0\neve: median 40.0",
+        "explanation": "After `ana` and `ben`, `low` holds 25 and `high` holds 40, so the median is their average, 32.5. Then 60 goes into `low` and straight up to `high`, which is now bigger, so 40 comes back down: `low` holds 25 and 40, and its top is the median. After 30 the tops are 30 and 40, for 35.0. `median` is a `double`, so `%.1f` prints a whole median like 40 as `40.0`."
+      },
+      "practice": {
+        "title": "Median price on request",
+        "prompt": "Record the prices of sold items and report the median price whenever someone asks.\n\n1. The starter reads `q` commands: `add P` records a price, and `median` asks for the median of every price so far.\n2. For `add`, offer `P` to the two heaps and rebalance them as in the example.\n3. For `median`, print the median with one decimal. With an even count, print the average of the two middle prices, so the median of 4, 8, 9, and 12 is `8.5`.\n4. Before any price is recorded, print `no prices`.\n\nInput:\n\n```text\n7\nadd 18\nadd 6\nmedian\nadd 11\nmedian\nadd 2\nmedian\n```\n\nExpected output:\n\n```text\n12.0\n11.0\n8.5\n```",
+        "starter": "import java.util.Collections;\nimport java.util.PriorityQueue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int q = sc.nextInt();\n        PriorityQueue<Integer> low = new PriorityQueue<>(Collections.reverseOrder());\n        PriorityQueue<Integer> high = new PriorityQueue<>();\n        for (int i = 0; i < q; i++) {\n            String command = sc.next();\n            if (command.equals(\"add\")) {\n                int price = sc.nextInt();\n                // TODO: add price to the two heaps and rebalance them\n            } else {\n                // TODO: print the median with one decimal, or no prices\n            }\n        }\n    }\n}\n",
+        "solution": "import java.util.Collections;\nimport java.util.PriorityQueue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int q = sc.nextInt();\n        PriorityQueue<Integer> low = new PriorityQueue<>(Collections.reverseOrder());\n        PriorityQueue<Integer> high = new PriorityQueue<>();\n        for (int i = 0; i < q; i++) {\n            String command = sc.next();\n            if (command.equals(\"add\")) {\n                int price = sc.nextInt();\n                low.offer(price);\n                high.offer(low.poll());\n                if (high.size() > low.size()) {\n                    low.offer(high.poll());\n                }\n            } else if (low.isEmpty()) {\n                System.out.println(\"no prices\");\n            } else {\n                double median;\n                if (low.size() > high.size()) {\n                    median = low.peek();\n                } else {\n                    median = (low.peek() + high.peek()) / 2.0;\n                }\n                System.out.printf(\"%.1f%n\", median);\n            }\n        }\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "7\nadd 18\nadd 6\nmedian\nadd 11\nmedian\nadd 2\nmedian\n",
+            "output": "12.0\n11.0\n8.5"
+          },
+          {
+            "stdin": "5\nmedian\nadd 5\nmedian\nadd 8\nmedian\n",
+            "output": "no prices\n5.0\n6.5"
+          },
+          {
+            "stdin": "5\nadd 4\nadd 4\nadd 4\nadd 4\nmedian\n",
+            "output": "4.0"
+          }
+        ],
+        "hints": [
+          "The `add` branch is the example's three heap steps with `price` in place of `amount`.",
+          "Check `low.isEmpty()` first: `low` is empty only before the first `add`.",
+          "Store the median in a `double`, as the example does: `%.1f` can't format an `Integer`, and dividing by `2.0` keeps the half."
+        ]
+      }
+    },
+    {
+      "title": "Merging sorted lists",
+      "body": "To merge `k` sorted lists into one, you keep taking the smallest value still at the front of any list. Checking every front costs O(k) per value. A heap holds one front per list instead and hands over the smallest in O(log k).\n\nEach entry is an `int[]` of three slots, `{value, list, index}`: the value, which list it came from, and where it sits in that list. The comparator orders by value and breaks ties by list number, so the order is fixed. After you poll an entry, offer the next value from the same list, if it has one:\n\n```java\nint[][] lists = {{1, 4, 7}, {2, 5}, {}, {0, 6, 9}};\nPriorityQueue<int[]> heap = new PriorityQueue<>((a, b) -> {\n    if (a[0] != b[0]) {\n        return Integer.compare(a[0], b[0]);\n    }\n    return Integer.compare(a[1], b[1]);\n});\nfor (int i = 0; i < lists.length; i++) {\n    if (lists[i].length > 0) {\n        heap.offer(new int[]{lists[i][0], i, 0});\n    }\n}\nList<Integer> merged = new ArrayList<>();\nwhile (!heap.isEmpty()) {\n    int[] e = heap.poll();\n    merged.add(e[0]);\n    int next = e[2] + 1;\n    if (next < lists[e[1]].length) {\n        heap.offer(new int[]{lists[e[1]][next], e[1], next});\n    }\n}\nSystem.out.println(merged); // [0, 1, 2, 4, 5, 6, 7, 9]\n```\n\nAn empty list has no front, so it never gets an entry. The heap never holds more than `k` entries, one per list, so merging `N` values in all costs O(N log k) time and O(k) extra space, where copying everything into one array and sorting costs O(N log N). The heap also lets you stop early, after the first few values.",
+      "example": {
+        "title": "Merged sensor readings",
+        "prompt": "Read k sensors, each a name, a count, and that many reading times in increasing order, and print every reading on one timeline as `time sensor`. Equal times keep the order the sensors were listed in.",
+        "code": "import java.util.PriorityQueue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        String[] names = new String[k];\n        int[][] times = new int[k][];\n        for (int i = 0; i < k; i++) {\n            names[i] = sc.next();\n            times[i] = new int[sc.nextInt()];\n            for (int j = 0; j < times[i].length; j++) {\n                times[i][j] = sc.nextInt();\n            }\n        }\n\n        PriorityQueue<int[]> heap = new PriorityQueue<>((a, b) -> {\n            if (a[0] != b[0]) {\n                return Integer.compare(a[0], b[0]);\n            }\n            return Integer.compare(a[1], b[1]);\n        });\n        for (int i = 0; i < k; i++) {\n            if (times[i].length > 0) {\n                heap.offer(new int[]{times[i][0], i, 0});\n            }\n        }\n        while (!heap.isEmpty()) {\n            int[] e = heap.poll();\n            System.out.println(e[0] + \" \" + names[e[1]]);\n            int next = e[2] + 1;\n            if (next < times[e[1]].length) {\n                heap.offer(new int[]{times[e[1]][next], e[1], next});\n            }\n        }\n    }\n}\n",
+        "stdin": "3\nnorth 3 2 8 13\nsouth 0\neast 4 1 8 9 20\n",
+        "output": "1 east\n2 north\n8 north\n8 east\n9 east\n13 north\n20 east",
+        "explanation": "Each sensor's count sizes its own row, so `times` is a jagged array, and `south` gets an empty one. It never gets an entry, so only two start in the heap: 2 and 1. 1 comes out first, and `east` sends its next time, 8. When `north` and `east` both wait with 8, the comparator falls through to the list number, so `north`, listed first, prints first."
+      },
+      "practice": {
+        "title": "First deliveries",
+        "prompt": "Several delivery vans each have their stop times in order. Print the first `m` deliveries of the day across all vans.\n\n1. The first line holds `k` and `m`. The starter reads the `k` vans, each a name, a count, and that many times in increasing order, into `names` and `stops`. A van can have no stops.\n2. Start a heap of `{time, van, index}` entries with the first time of every van that has one, ordered by time and then by van number.\n3. Poll the earliest entry, print it as `place. time van`, and offer the next time from the same van.\n4. Stop after `m` places, or sooner when every van runs out. Equal times go to the van listed first.\n\nInput:\n\n```text\n3 4\nred 3 9 14 30\nblue 2 9 11\ngray 0\n```\n\nExpected output:\n\n```text\n1. 9 red\n2. 9 blue\n3. 11 blue\n4. 14 red\n```",
+        "starter": "import java.util.PriorityQueue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        int m = sc.nextInt();\n        String[] names = new String[k];\n        int[][] stops = new int[k][];\n        for (int i = 0; i < k; i++) {\n            names[i] = sc.next();\n            stops[i] = new int[sc.nextInt()];\n            for (int j = 0; j < stops[i].length; j++) {\n                stops[i][j] = sc.nextInt();\n            }\n        }\n        // TODO: start a heap of {time, van, index} entries with each van's first time\n        // TODO: poll the earliest, print \"place. time van\", and offer that van's next time\n        // TODO: stop after m places, or when the heap is empty\n    }\n}\n",
+        "solution": "import java.util.PriorityQueue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        int m = sc.nextInt();\n        String[] names = new String[k];\n        int[][] stops = new int[k][];\n        for (int i = 0; i < k; i++) {\n            names[i] = sc.next();\n            stops[i] = new int[sc.nextInt()];\n            for (int j = 0; j < stops[i].length; j++) {\n                stops[i][j] = sc.nextInt();\n            }\n        }\n\n        PriorityQueue<int[]> heap = new PriorityQueue<>((a, b) -> {\n            if (a[0] != b[0]) {\n                return Integer.compare(a[0], b[0]);\n            }\n            return Integer.compare(a[1], b[1]);\n        });\n        for (int i = 0; i < k; i++) {\n            if (stops[i].length > 0) {\n                heap.offer(new int[]{stops[i][0], i, 0});\n            }\n        }\n        for (int place = 1; place <= m && !heap.isEmpty(); place++) {\n            int[] e = heap.poll();\n            System.out.println(place + \". \" + e[0] + \" \" + names[e[1]]);\n            int next = e[2] + 1;\n            if (next < stops[e[1]].length) {\n                heap.offer(new int[]{stops[e[1]][next], e[1], next});\n            }\n        }\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "3 4\nred 3 9 14 30\nblue 2 9 11\ngray 0\n",
+            "output": "1. 9 red\n2. 9 blue\n3. 11 blue\n4. 14 red"
+          },
+          {
+            "stdin": "2 6\na 2 5 7\nb 1 6\n",
+            "output": "1. 5 a\n2. 6 b\n3. 7 a"
+          },
+          {
+            "stdin": "2 1\nx 1 40\ny 2 12 50\n",
+            "output": "1. 12 y"
+          }
+        ],
+        "hints": [
+          "The comparator and the first entries are the example's, with `stops` in place of `times`.",
+          "A `for` loop that counts `place` from 1 can stop on two conditions: `place <= m && !heap.isEmpty()`.",
+          "After polling `e`, the next time from the same van sits at `stops[e[1]][e[2] + 1]`, if that index is still inside the row."
+        ]
+      }
+    },
+    {
+      "title": "Counting rooms with end times",
+      "body": "To count the rooms a day of meetings needs, sort the meetings by start. Then keep a min-heap of end times, one per room, so `ends.peek()` is the room that frees up first.\n\nFor each meeting, if the earliest end is at or before its start, that room is free: poll it. Then offer the meeting's own end:\n\n```java\nint[][] meetings = {{10, 12}, {9, 11}, {11, 13}, {14, 15}};\nArrays.sort(meetings, (a, b) -> Integer.compare(a[0], b[0]));\nPriorityQueue<Integer> ends = new PriorityQueue<>();\nfor (int[] m : meetings) {\n    if (!ends.isEmpty() && ends.peek() <= m[0]) {\n        ends.poll();  // that meeting is over: reuse its room\n    }\n    ends.offer(m[1]);\n}\nSystem.out.println(ends.size()); // 2\n```\n\nThe `<=` is the rule for meetings that touch: a meeting that ends at 11 frees its room for one that starts at 11. Write `<` instead when a room stays booked through the minute its meeting ends. Check `isEmpty()` first: `peek()` on an empty heap returns `null`, and comparing `null` with `<=` throws a `NullPointerException`.\n\nEach meeting offers one end and polls at most one, so the heap never shrinks, and its size at the end is the answer. It only grows when even the earliest end is after the start, and then every meeting inside is still running. Sorting costs O(n log n) and each heap step O(log n), so the whole count is O(n log n), with O(n) extra space.",
+      "example": {
+        "title": "Exam rooms",
+        "prompt": "Read n exams as `start end`, in any order. Go through them by start time, print whether each one reuses a room or needs a new one, and print how many rooms the day needs. An exam can take over a room the minute the one before it ends.",
+        "code": "import java.util.Arrays;\nimport java.util.PriorityQueue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[][] exams = new int[n][2];\n        for (int i = 0; i < n; i++) {\n            exams[i][0] = sc.nextInt();\n            exams[i][1] = sc.nextInt();\n        }\n        Arrays.sort(exams, (a, b) -> {\n            if (a[0] != b[0]) {\n                return Integer.compare(a[0], b[0]);\n            }\n            return Integer.compare(a[1], b[1]);\n        });\n\n        PriorityQueue<Integer> ends = new PriorityQueue<>();\n        for (int[] exam : exams) {\n            String label = exam[0] + \"-\" + exam[1];\n            if (!ends.isEmpty() && ends.peek() <= exam[0]) {\n                ends.poll();\n                System.out.println(label + \": reuses a room\");\n            } else {\n                System.out.println(label + \": new room\");\n            }\n            ends.offer(exam[1]);\n        }\n        System.out.println(\"Rooms: \" + ends.size());\n    }\n}\n",
+        "stdin": "6\n10 11\n8 10\n9 10\n10 12\n9 11\n11 12\n",
+        "output": "8-10: new room\n9-10: new room\n9-11: new room\n10-11: reuses a room\n10-12: reuses a room\n11-12: reuses a room\nRooms: 3",
+        "explanation": "The comparator sorts the exams by start, and by end on a tie. The three exams that start at 8 and 9 all begin before 10, the earliest end, so each opens a room. `10-11` starts exactly when `8-10` ends, and `<=` lets it take that room. `10-12` takes the other room freed at 10, and `11-12` one of the rooms freed at 11, so the day never needs a fourth."
+      },
+      "practice": {
+        "title": "Courts with a changeover",
+        "prompt": "A tennis club needs `c` minutes to get a court ready after each booking. Find how many courts a day of bookings needs.\n\n1. The first line holds `n` and `c`. The starter reads the `n` bookings into `bookings` as `{start, end}` rows, in any order.\n2. Sort the bookings by start, and keep a min-heap of the times the busy courts are ready again.\n3. A court is ready `c` minutes after its booking ends, and a booking can start on a court the minute it's ready: one that ends at 120 with a 10 minute changeover is ready for a booking that starts at 130.\n4. Print `Courts: ` and the count.\n\nInput:\n\n```text\n4 10\n60 120\n130 150\n125 140\n150 200\n```\n\nExpected output:\n\n```text\nCourts: 2\n```",
+        "starter": "import java.util.Arrays;\nimport java.util.PriorityQueue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int c = sc.nextInt();\n        int[][] bookings = new int[n][2];\n        for (int i = 0; i < n; i++) {\n            bookings[i][0] = sc.nextInt();\n            bookings[i][1] = sc.nextInt();\n        }\n        // TODO: sort the bookings by start\n        // TODO: keep a min-heap of the times the busy courts are ready again\n        System.out.println(\"Courts: 0\");\n    }\n}\n",
+        "solution": "import java.util.Arrays;\nimport java.util.PriorityQueue;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int c = sc.nextInt();\n        int[][] bookings = new int[n][2];\n        for (int i = 0; i < n; i++) {\n            bookings[i][0] = sc.nextInt();\n            bookings[i][1] = sc.nextInt();\n        }\n        Arrays.sort(bookings, (a, b) -> Integer.compare(a[0], b[0]));\n\n        PriorityQueue<Integer> ready = new PriorityQueue<>();\n        for (int[] b : bookings) {\n            if (!ready.isEmpty() && ready.peek() <= b[0]) {\n                ready.poll();\n            }\n            ready.offer(b[1] + c);\n        }\n        System.out.println(\"Courts: \" + ready.size());\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "4 10\n60 120\n130 150\n125 140\n150 200\n",
+            "output": "Courts: 2"
+          },
+          {
+            "stdin": "2 5\n0 10\n12 20\n",
+            "output": "Courts: 2"
+          },
+          {
+            "stdin": "3 0\n30 40\n10 20\n20 30\n",
+            "output": "Courts: 1"
+          }
+        ],
+        "hints": [
+          "It's the example's loop, offering `b[1] + c` instead of the end itself.",
+          "Use `ready.peek() <= b[0]`, so a court that's ready exactly at the start counts as free.",
+          "Sort first: `Arrays.sort(bookings, (a, b) -> Integer.compare(a[0], b[0]))`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Two heaps track a running median: `new PriorityQueue<>(Collections.reverseOrder())` holds the smaller half and a plain `PriorityQueue` the larger half.\n- Add through `low`, move its top to `high`, and move one back when `high` grows bigger. Each number costs O(log n).\n- With `low` keeping the extra number, the median is `low.peek()` for an odd count and `(low.peek() + high.peek()) / 2.0` for an even one. Divide by `2.0`, not `2`.\n- Merge sorted lists with `int[]{value, list, index}` entries ordered by value, then list: poll the smallest and offer the next value from its list, for O(N log k).\n- To count rooms, sort by start and keep a min-heap of end times. Poll when `peek() <= start`, offer every end, and `size()` is the answer.\n- `peek()` on an empty heap returns `null`, so check `isEmpty()` before you compare it."
+}

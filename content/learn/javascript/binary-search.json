@@ -2,8 +2,8 @@
   "id": "binary-search",
   "title": "Binary Search",
   "section": "Advanced: Searching and Sorting",
-  "summary": "Search sorted data in O(log n) steps by halving the range, find lower and upper bounds, and binary search over the possible answers.",
-  "intro": "Looking through a sorted list one item at a time ignores the one thing you know about it. Binary search checks the middle and throws away the half that can't hold the answer, so a million items take about 20 steps. JavaScript has no built-in binary search, so you write the loop, and the same loop finds bounds and even the answer to a problem.",
+  "summary": "Search sorted data in O(log n) steps by halving the range, find lower and upper bounds, binary search over the possible answers, and search rotated arrays.",
+  "intro": "Looking through a sorted list one item at a time ignores the one thing you know about it. Binary search checks the middle and throws away the half that can't hold the answer, so a million items take about 20 steps. JavaScript has no built-in binary search, so you write the loop, and the same loop finds bounds, the answer to a problem, and items in a sorted array that was rotated.",
   "steps": [
     {
       "title": "Halving a sorted range",
@@ -115,7 +115,44 @@
           "Dividing by the largest number gives 1 for each number, so the answer is never bigger than `Math.max(...nums)`."
         ]
       }
+    },
+    {
+      "title": "Searching a rotated array",
+      "body": "A sorted array rotated at some point, like `[40, 50, 60, 10, 20, 30]`, is no longer sorted, so the plain halving can throw away the half that holds the target. But cut any range in the middle and at least one half is still in order. Find that half by comparing its two ends, check whether the target lies between them, and keep the half that can hold it:\n\n```javascript\nfunction searchRotated(arr, target) {\n  let lo = 0;\n  let hi = arr.length - 1;\n  while (lo <= hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] === target) {\n      return mid;\n    }\n    if (arr[lo] <= arr[mid]) {\n      // the left half is in order\n      if (arr[lo] <= target && target < arr[mid]) {\n        hi = mid - 1;\n      } else {\n        lo = mid + 1;\n      }\n    } else {\n      // the right half is in order\n      if (arr[mid] < target && target <= arr[hi]) {\n        lo = mid + 1;\n      } else {\n        hi = mid - 1;\n      }\n    }\n  }\n  return -1;\n}\nconsole.log(searchRotated([40, 50, 60, 10, 20, 30], 20)); // 4\nconsole.log(searchRotated([40, 50, 60, 10, 20, 30], 35)); // -1\n```\n\n`arr[lo] <= arr[mid]` means the left half climbs with no break in it. When the target isn't inside the half that is in order, it can only be in the other half, break and all. Each step still throws away half of what is left, so the search stays O(log n). It needs distinct values: in `[1, 3, 1, 1, 1]` both ends of a half can be equal around the break, and the search misses the 3.\n\n**The gotcha:** keep the `<=` in `arr[lo] <= arr[mid]`. When `lo` and `mid` are the same index, that one-item half is in order. With `<`, a search for 1 in `[3, 1]` takes the wrong branch and returns `-1`.",
+      "example": {
+        "title": "Shelves around a round room",
+        "prompt": "Shelf numbers run in order around a round room, and the list starts at the door, partway through. Read the list, then find each query shelf with the rotated search and print its index.",
+        "stdin": "57 63 71 88 4 12 30 41\n12\n63\n50\n57\n41\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\nconst shelves = first.trim().split(/\\s+/).map(Number);\n\nfunction searchRotated(arr, target) {\n  let lo = 0;\n  let hi = arr.length - 1;\n  while (lo <= hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] === target) {\n      return mid;\n    }\n    if (arr[lo] <= arr[mid]) {\n      if (arr[lo] <= target && target < arr[mid]) {\n        hi = mid - 1;\n      } else {\n        lo = mid + 1;\n      }\n    } else {\n      if (arr[mid] < target && target <= arr[hi]) {\n        lo = mid + 1;\n      } else {\n        hi = mid - 1;\n      }\n    }\n  }\n  return -1;\n}\n\nfor (const q of queries) {\n  const target = Number(q);\n  const index = searchRotated(shelves, target);\n  if (index === -1) {\n    console.log(`${target} not found`);\n  } else {\n    console.log(`${target} at index ${index}`);\n  }\n}\n",
+        "output": "12 at index 5\n63 at index 1\n50 not found\n57 at index 0\n41 at index 7",
+        "explanation": "For 12, the first middle is 88 at index 3. The left half, 57 to 88, is in order but can't hold 12, so `lo` jumps past it, and the next middle is 12 itself. For 63 the left half is in order and does hold it, so the search stays left. For 50, every half that is in order rules it out, the range shrinks to nothing, and the function returns `-1`. No search takes more than four steps, the same as on a sorted array of 8 items."
+      },
+      "practice": {
+        "title": "Rolodex lookup",
+        "prompt": "A rolodex keeps names in alphabetical order, but it was left open partway, so the list starts in the middle of the alphabet and wraps around. Read the list of names, then look up each query name.\n\n1. Finish `searchRotated` so it returns the name's index, or `-1` when it is missing.\n2. Find the half of the range that is in order, check whether the name lies between its ends, and keep the half that can hold it.\n3. For each query, print `name: card n`, with cards counted from 1, or `name: missing`.\n\nInput:\n\n```text\nnora omar pia ravi sam tess ana ben carl dina\nravi\nben\nzed\nnora\ndina\n```\n\nExpected output:\n\n```text\nravi: card 4\nben: card 8\nzed: missing\nnora: card 1\ndina: card 10\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\nconst names = first.trim().split(/\\s+/);\n\nfunction searchRotated(arr, target) {\n  // TODO: find the half that is in order, and keep the half that can hold target\n  return -1;\n}\n\nfor (const q of queries) {\n  const name = q.trim();\n  const index = searchRotated(names, name);\n  // TODO: print \"name: card n\" with n counted from 1, or \"name: missing\"\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\nconst names = first.trim().split(/\\s+/);\n\nfunction searchRotated(arr, target) {\n  let lo = 0;\n  let hi = arr.length - 1;\n  while (lo <= hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] === target) {\n      return mid;\n    }\n    if (arr[lo] <= arr[mid]) {\n      if (arr[lo] <= target && target < arr[mid]) {\n        hi = mid - 1;\n      } else {\n        lo = mid + 1;\n      }\n    } else {\n      if (arr[mid] < target && target <= arr[hi]) {\n        lo = mid + 1;\n      } else {\n        hi = mid - 1;\n      }\n    }\n  }\n  return -1;\n}\n\nfor (const q of queries) {\n  const name = q.trim();\n  const index = searchRotated(names, name);\n  if (index === -1) {\n    console.log(`${name}: missing`);\n  } else {\n    console.log(`${name}: card ${index + 1}`);\n  }\n}\n",
+        "tests": [
+          {
+            "stdin": "nora omar pia ravi sam tess ana ben carl dina\nravi\nben\nzed\nnora\ndina\n",
+            "output": "ravi: card 4\nben: card 8\nzed: missing\nnora: card 1\ndina: card 10"
+          },
+          {
+            "stdin": "ana ben carl\ncarl\nabe\n",
+            "output": "carl: card 3\nabe: missing"
+          },
+          {
+            "stdin": "zoe adam\nadam\nzoe\nmia\n",
+            "output": "adam: card 2\nzoe: card 1\nmia: missing"
+          }
+        ],
+        "hints": [
+          "`<` and `<=` compare strings alphabetically, so the rotated search works on names unchanged.",
+          "If `arr[lo] <= arr[mid]`, the left half is in order, and the target is in it when `arr[lo] <= target && target < arr[mid]`.",
+          "Otherwise the right half is in order, and the target is in it when `arr[mid] < target && target <= arr[hi]`."
+        ]
+      }
     }
   ],
-  "recap": "- Binary search needs sorted data, sorted the same way you compare.\n- For an exact match: `lo = 0`, `hi = arr.length - 1`, loop `while (lo <= hi)`, and move `lo = mid + 1` or `hi = mid - 1`.\n- `const mid = Math.floor((lo + hi) / 2)` keeps the middle a whole index.\n- The lower bound is the first index with a value `>= x`: `hi = arr.length`, loop `while (lo < hi)`, and `hi = mid` when the middle could be the answer.\n- The upper bound is the first index with a value `> x`. Their difference counts the copies of `x`.\n- Don't mix `hi = mid` with `lo <= hi`, or the loop never ends.\n- To find the smallest answer that works, binary search the answers with a check that is false and then true.\n- `Math.ceil(a / b)` rounds a division up."
+  "recap": "- Binary search needs sorted data, sorted the same way you compare.\n- For an exact match: `lo = 0`, `hi = arr.length - 1`, loop `while (lo <= hi)`, and move `lo = mid + 1` or `hi = mid - 1`.\n- `const mid = Math.floor((lo + hi) / 2)` keeps the middle a whole index.\n- The lower bound is the first index with a value `>= x`: `hi = arr.length`, loop `while (lo < hi)`, and `hi = mid` when the middle could be the answer.\n- The upper bound is the first index with a value `> x`. Their difference counts the copies of `x`.\n- Don't mix `hi = mid` with `lo <= hi`, or the loop never ends.\n- To find the smallest answer that works, binary search the answers with a check that is false and then true.\n- `Math.ceil(a / b)` rounds a division up.\n- In a rotated sorted array one half of every range is in order. `arr[lo] <= arr[mid]`, with `<=`, finds that half, and you keep it only when the target lies between its ends."
 }

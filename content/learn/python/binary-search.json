@@ -1,0 +1,158 @@
+{
+  "id": "binary-search",
+  "title": "Binary Search",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Write lower and upper bounds by hand, search a rotated sorted list, binary search on the answer with a yes or no check, and find where a rotated list starts.",
+  "intro": "The Heaps and Binary Search lesson found one value in a sorted list, by hand and with `bisect`. Binary search does much more than that. Here you write the bounds that `bisect` gives you, search a sorted list that was rotated, and binary search over the possible answers when there is no list at all. Each one halves what's left at every step, so it costs O(log n).",
+  "steps": [
+    {
+      "title": "Lower and upper bounds by hand",
+      "body": "An exact-match search stops on whichever copy of a value it hits first. To find where a run of equal values starts and ends, search for a boundary instead:\n\n- The **lower bound** is the first index whose value is at least the target.\n- The **upper bound** is the first index whose value is greater than the target.\n\nEither one can be `len(nums)`, just past the end, so `hi` starts there. A `mid` that might be the answer stays in range with `hi = mid`, and the loop runs `while lo < hi`, stopping when the two meet:\n\n```python\ndef lower_bound(nums, target):\n    lo, hi = 0, len(nums)\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if nums[mid] < target:\n            lo = mid + 1  # mid is too small, the answer is after it\n        else:\n            hi = mid      # mid might be the answer, keep it\n    return lo\n\n\nnums = [2, 4, 4, 4, 9]\nprint(lower_bound(nums, 4), lower_bound(nums, 5), lower_bound(nums, 10))  # 1 4 5\n```\n\nThe upper bound is the same function with `nums[mid] <= target`. Each pass halves the range, so both cost O(log n). Together they give a value's first index, `lower`, and its last, `upper - 1`. When `lower == upper` the value is missing, and `lower` is where it would go.\n\nThese two are exactly `bisect_left` and `bisect_right`. Writing the loop yourself pays off when the test isn't a plain comparison.\n\nNever write `lo = mid` in this loop. `mid` rounds down, so a range of two items would never shrink.",
+      "example": {
+        "title": "Race places",
+        "prompt": "Read sorted finish times in seconds and some query times. Print the places the runners with each time took, or the place a new runner with that time would get.",
+        "stdin": "58 61 61 64 64 64 70 75\n64 61 70 62 80\n",
+        "code": "def lower_bound(nums, target):\n    lo, hi = 0, len(nums)\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if nums[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid\n    return lo\n\n\ndef upper_bound(nums, target):\n    lo, hi = 0, len(nums)\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if nums[mid] <= target:\n            lo = mid + 1\n        else:\n            hi = mid\n    return lo\n\n\ntimes = list(map(int, input().split()))\nqueries = list(map(int, input().split()))\nfor t in queries:\n    first = lower_bound(times, t)\n    last = upper_bound(times, t) - 1\n    if first > last:\n        print(f\"{t}s: nobody, a new runner would place {first + 1}\")\n    elif first == last:\n        print(f\"{t}s: place {first + 1}\")\n    else:\n        print(f\"{t}s: places {first + 1} to {last + 1}\")\n",
+        "output": "64s: places 4 to 6\n61s: places 2 to 3\n70s: place 7\n62s: nobody, a new runner would place 4\n80s: nobody, a new runner would place 9",
+        "explanation": "For 64, the lower bound is 3, the index of the first 64, and the upper bound is 6, the index of the 70 just after the last 64. So the last 64 sits at index 5, and with places counted from 1 the 64s took places 4 to 6. 62 isn't in the list, so both bounds are 3 and `first > last`: a runner with 62 would slot in at index 3, place 4. 80 is slower than everyone, so both bounds return `len(times)`, 8."
+      },
+      "practice": {
+        "title": "Price check",
+        "prompt": "Read a sorted list of prices and some query prices. For each query, count the prices below it, equal to it, and above it.\n\n1. Finish `lower_bound` and `upper_bound` like the example's.\n2. The prices below `p` are the first `lower_bound(prices, p)` of them.\n3. The prices equal to `p` run from the lower bound up to the upper bound, and the rest are above.\n4. Print `p: a cheaper, b same, c pricier`.\n\nInput:\n\n```text\n3 5 5 5 8 12 12 20\n5 12 1 25 9\n```\n\nExpected output:\n\n```text\n5: 1 cheaper, 3 same, 4 pricier\n12: 5 cheaper, 2 same, 1 pricier\n1: 0 cheaper, 0 same, 8 pricier\n25: 8 cheaper, 0 same, 0 pricier\n9: 5 cheaper, 0 same, 3 pricier\n```",
+        "starter": "def lower_bound(nums, target):\n    # TODO: the first index whose value is at least target\n    return 0\n\n\ndef upper_bound(nums, target):\n    # TODO: the first index whose value is greater than target\n    return 0\n\n\nprices = list(map(int, input().split()))\nqueries = list(map(int, input().split()))\nfor p in queries:\n    # TODO: print \"p: a cheaper, b same, c pricier\" using the two bounds\n    pass\n",
+        "solution": "def lower_bound(nums, target):\n    lo, hi = 0, len(nums)\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if nums[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid\n    return lo\n\n\ndef upper_bound(nums, target):\n    lo, hi = 0, len(nums)\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if nums[mid] <= target:\n            lo = mid + 1\n        else:\n            hi = mid\n    return lo\n\n\nprices = list(map(int, input().split()))\nqueries = list(map(int, input().split()))\nfor p in queries:\n    lower = lower_bound(prices, p)\n    upper = upper_bound(prices, p)\n    print(f\"{p}: {lower} cheaper, {upper - lower} same, {len(prices) - upper} pricier\")\n",
+        "tests": [
+          {
+            "stdin": "3 5 5 5 8 12 12 20\n5 12 1 25 9\n",
+            "output": "5: 1 cheaper, 3 same, 4 pricier\n12: 5 cheaper, 2 same, 1 pricier\n1: 0 cheaper, 0 same, 8 pricier\n25: 8 cheaper, 0 same, 0 pricier\n9: 5 cheaper, 0 same, 3 pricier"
+          },
+          {
+            "stdin": "7 7 7\n7 6 8\n",
+            "output": "7: 0 cheaper, 3 same, 0 pricier\n6: 0 cheaper, 0 same, 3 pricier\n8: 3 cheaper, 0 same, 0 pricier"
+          },
+          {
+            "stdin": "10\n10 3\n",
+            "output": "10: 0 cheaper, 1 same, 0 pricier\n3: 0 cheaper, 0 same, 1 pricier"
+          }
+        ],
+        "hints": [
+          "Both functions start with `lo, hi = 0, len(nums)` and loop `while lo < hi`. Move with `lo = mid + 1` or `hi = mid`.",
+          "`lower_bound` moves `lo` up while `nums[mid] < target`, and `upper_bound` while `nums[mid] <= target`.",
+          "The same count is the upper bound minus the lower bound, and the pricier count is `len(prices)` minus the upper bound."
+        ]
+      }
+    },
+    {
+      "title": "Searching a rotated sorted list",
+      "body": "A sorted list rotated at some point, like `[40, 50, 60, 10, 20, 30]`, is no longer sorted, so a plain binary search can throw away the half that holds the target. But cut any range in the middle and at least one half is still in order. Find that half by comparing its two ends, check whether the target lies between them, and keep whichever half can hold the target:\n\n```python\ndef search_rotated(nums, target):\n    lo, hi = 0, len(nums) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if nums[mid] == target:\n            return mid\n        if nums[lo] <= nums[mid]:  # the left half is in order\n            if nums[lo] <= target < nums[mid]:\n                hi = mid - 1\n            else:\n                lo = mid + 1\n        else:  # the right half is in order\n            if nums[mid] < target <= nums[hi]:\n                lo = mid + 1\n            else:\n                hi = mid - 1\n    return -1\n\n\nprint(search_rotated([40, 50, 60, 10, 20, 30], 20))  # 4\n```\n\nThe chained comparison `nums[lo] <= target < nums[mid]` reads like the range it tests. When the target isn't in the half that is in order, it can only be in the other half, break and all. Each pass still drops half the range: O(log n) time and O(1) extra space.\n\nKeep the `<=` in `nums[lo] <= nums[mid]`. When `lo` and `mid` are the same index, that one-item half is in order, and `<` sends the search the wrong way. This also assumes no value repeats. In `[1, 3, 1, 1, 1]` the ends of a half can be equal around a break, and the search misses the 3.",
+      "example": {
+        "title": "Rooms on a cleaning route",
+        "prompt": "A cleaning route lists room numbers in order but starts partway through the hotel. Read the route and some rooms, and print each room's stop on the route, or say it isn't on it.",
+        "stdin": "305 310 412 420 101 104 210 216\n104 412 300 305 216\n",
+        "code": "def search_rotated(nums, target):\n    lo, hi = 0, len(nums) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if nums[mid] == target:\n            return mid\n        if nums[lo] <= nums[mid]:\n            if nums[lo] <= target < nums[mid]:\n                hi = mid - 1\n            else:\n                lo = mid + 1\n        else:\n            if nums[mid] < target <= nums[hi]:\n                lo = mid + 1\n            else:\n                hi = mid - 1\n    return -1\n\n\nroute = list(map(int, input().split()))\nrooms = list(map(int, input().split()))\nfor room in rooms:\n    i = search_rotated(route, room)\n    if i == -1:\n        print(f\"Room {room}: not on the route\")\n    else:\n        print(f\"Room {room}: stop {i + 1}\")\n",
+        "output": "Room 104: stop 6\nRoom 412: stop 3\nRoom 300: not on the route\nRoom 305: stop 1\nRoom 216: stop 8",
+        "explanation": "For 104, the first middle is 420 at index 3. The left half, 305 to 420, is in order but can't hold 104, so the search moves right and finds 104 at index 5, stop 6. For 412 the left half is in order and does hold it, so the search stays left. For 300, every half that is in order rules it out, and the range runs empty. Stops count from 1, so the program prints the index plus 1."
+      },
+      "practice": {
+        "title": "Night rounds",
+        "prompt": "A guard's rounds are listed in the order they happen, from the start of the shift, and a shift can run past midnight. The times are `HH:MM` strings with two digits each, so they compare alphabetically in time order, and a shift that crosses midnight is a rotated sorted list. Find each query time's round.\n\n1. Finish `find_time(times, target)`: find the half of the range that is in order, check whether the target lies inside it, and keep the half that can hold it.\n2. Return the index, or -1 when the time isn't there.\n3. The starter prints `time: round n` with the index plus 1, or `time: no round`.\n\nInput:\n\n```text\n22:00 22:30 23:45 00:15 01:00 03:30 05:00\n01:00 23:45 02:00 22:00 05:00\n```\n\nExpected output:\n\n```text\n01:00: round 5\n23:45: round 3\n02:00: no round\n22:00: round 1\n05:00: round 7\n```",
+        "starter": "def find_time(times, target):\n    # TODO: search the rotated list, returning the index of target or -1\n    return -1\n\n\nrounds = input().split()\nfor query in input().split():\n    i = find_time(rounds, query)\n    if i == -1:\n        print(f\"{query}: no round\")\n    else:\n        print(f\"{query}: round {i + 1}\")\n",
+        "solution": "def find_time(times, target):\n    lo, hi = 0, len(times) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if times[mid] == target:\n            return mid\n        if times[lo] <= times[mid]:\n            if times[lo] <= target < times[mid]:\n                hi = mid - 1\n            else:\n                lo = mid + 1\n        else:\n            if times[mid] < target <= times[hi]:\n                lo = mid + 1\n            else:\n                hi = mid - 1\n    return -1\n\n\nrounds = input().split()\nfor query in input().split():\n    i = find_time(rounds, query)\n    if i == -1:\n        print(f\"{query}: no round\")\n    else:\n        print(f\"{query}: round {i + 1}\")\n",
+        "tests": [
+          {
+            "stdin": "22:00 22:30 23:45 00:15 01:00 03:30 05:00\n01:00 23:45 02:00 22:00 05:00\n",
+            "output": "01:00: round 5\n23:45: round 3\n02:00: no round\n22:00: round 1\n05:00: round 7"
+          },
+          {
+            "stdin": "00:30 02:00 04:30\n04:30 00:30 03:00\n",
+            "output": "04:30: round 3\n00:30: round 1\n03:00: no round"
+          },
+          {
+            "stdin": "23:00 01:00\n01:00 23:00 12:00\n",
+            "output": "01:00: round 2\n23:00: round 1\n12:00: no round"
+          }
+        ],
+        "hints": [
+          "The search is the example's `search_rotated`. Strings compare with `<` and `<=` just like numbers.",
+          "If `times[lo] <= times[mid]`, the left half is in order, and the target is in it when `times[lo] <= target < times[mid]`.",
+          "Otherwise the right half is in order, and the target is in it when `times[mid] < target <= times[hi]`."
+        ]
+      }
+    },
+    {
+      "title": "Binary search on the answer",
+      "body": "Some problems ask for the smallest value that is good enough: the smallest truck, the fewest minutes, the slowest speed. There is no list to search, but there is a range of guesses. If a check `ok(x)` is false for small guesses and true from some point on, the guesses act like a sorted list of `False` values followed by `True` values, and the lower bound loop finds the first `True`.\n\nYou need three things:\n\n1. A check for one guess, usually a short simulation of the problem.\n2. A range: `lo` is the smallest answer that could work, and `hi` is one that surely does.\n3. The lower bound loop, with `ok(mid)` in place of the comparison.\n\n```python\ndef smallest_that_works(lo, hi, ok):\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if ok(mid):\n            hi = mid      # mid works, so the answer is mid or smaller\n        else:\n            lo = mid + 1  # mid fails, so the answer is bigger\n    return lo\n\n\n# the fewest boxes of 12 that hold 250 items\nprint(smallest_that_works(1, 1000, lambda boxes: boxes * 12 >= 250))  # 21\n```\n\nThe loop makes about log2(hi - lo) checks, so even a range of a billion takes about 30. When one check costs O(n), the search costs O(n log(hi - lo)). Trying every guess in turn would cost O(n) for each of the `hi - lo` guesses.\n\n**The check must flip only once.** If `ok(5)` is true but `ok(6)` is false, the loop throws away the wrong half and returns a wrong answer with no error.",
+      "example": {
+        "title": "Daily shipping capacity",
+        "prompt": "Packages ship in order, and each day takes whole packages until the next one would go over the capacity. Read the weights and some day limits, and print the smallest capacity that ships everything within each limit.",
+        "stdin": "4 8 3 6 5 2 7\n3 5 2\n",
+        "code": "def days_needed(weights, capacity):\n    days, load = 1, 0\n    for w in weights:\n        if load + w > capacity:\n            days += 1\n            load = 0\n        load += w\n    return days\n\n\ndef smallest_that_works(lo, hi, ok):\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if ok(mid):\n            hi = mid\n        else:\n            lo = mid + 1\n    return lo\n\n\nweights = list(map(int, input().split()))\nlimits = list(map(int, input().split()))\nfor d in limits:\n    cap = smallest_that_works(\n        max(weights), sum(weights), lambda c: days_needed(weights, c) <= d\n    )\n    print(f\"{d} days: capacity {cap}\")\n",
+        "output": "3 days: capacity 14\n5 days: capacity 9\n2 days: capacity 20",
+        "explanation": "A capacity below the heaviest package, 8, can never work, and the total, 35, ships everything in one day, so the search runs from 8 to 35. `days_needed` simulates one capacity in a single pass. A bigger capacity never needs more days, so `days_needed(weights, c) <= d` is false and then true, flipping once. For 3 days, capacity 14 ships 4 and 8, then 3, 6, and 5, then 2 and 7, while 13 needs a fourth day. Each limit takes about 5 checks instead of up to 28."
+      },
+      "practice": {
+        "title": "Printing pages",
+        "prompt": "A print shop's printers all work at the same time, and each one takes a whole number of minutes per page. Find the fewest whole minutes the shop needs to print each page count.\n\n1. Finish `pages_by(printers, minutes)`. In `minutes` minutes, a printer that takes `t` minutes per page finishes `minutes // t` pages. Return the total over all printers.\n2. Finish `smallest_that_works` with the lower bound loop.\n3. The answer is at least 1, and at most the fastest printer's time multiplied by the pages, since that printer could print them all alone. Search that range for the first time when `pages_by` reaches the page count.\n4. Print `Pages n: m minutes` for each page count on the second line. A count can be as large as a billion.\n\nInput:\n\n```text\n3 2 5\n10 1 7\n```\n\nExpected output:\n\n```text\nPages 10: 10 minutes\nPages 1: 2 minutes\nPages 7: 8 minutes\n```",
+        "starter": "def pages_by(printers, minutes):\n    # TODO: how many pages all the printers finish in this many minutes\n    return 0\n\n\ndef smallest_that_works(lo, hi, ok):\n    # TODO: the lower bound loop, with ok(mid) as the check\n    return lo\n\n\nprinters = list(map(int, input().split()))\nqueries = list(map(int, input().split()))\nfor pages in queries:\n    # TODO: search from 1 to the fastest printer's time multiplied by pages\n    minutes = 0\n    print(f\"Pages {pages}: {minutes} minutes\")\n",
+        "solution": "def pages_by(printers, minutes):\n    return sum(minutes // t for t in printers)\n\n\ndef smallest_that_works(lo, hi, ok):\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if ok(mid):\n            hi = mid\n        else:\n            lo = mid + 1\n    return lo\n\n\nprinters = list(map(int, input().split()))\nqueries = list(map(int, input().split()))\nfor pages in queries:\n    minutes = smallest_that_works(\n        1, min(printers) * pages, lambda m: pages_by(printers, m) >= pages\n    )\n    print(f\"Pages {pages}: {minutes} minutes\")\n",
+        "tests": [
+          {
+            "stdin": "3 2 5\n10 1 7\n",
+            "output": "Pages 10: 10 minutes\nPages 1: 2 minutes\nPages 7: 8 minutes"
+          },
+          {
+            "stdin": "4\n3 1\n",
+            "output": "Pages 3: 12 minutes\nPages 1: 4 minutes"
+          },
+          {
+            "stdin": "1 2 3\n1000000000 6\n",
+            "output": "Pages 1000000000: 545454546 minutes\nPages 6: 4 minutes"
+          }
+        ],
+        "hints": [
+          "`sum(minutes // t for t in printers)` adds up every printer's finished pages.",
+          "The check for a guess `m` is `pages_by(printers, m) >= pages`. Pass it to `smallest_that_works` as a lambda, like the example's.",
+          "Trying every minute in turn is far too slow for a billion pages, but the search needs only about 30 checks."
+        ]
+      }
+    },
+    {
+      "title": "Finding where a rotated list starts",
+      "body": "In a rotated sorted list the smallest value sits just after the break, and its index is where the sorted order starts. Every value before the break is bigger than the last item, and every value from the smallest on is at most the last item. So `nums[mid] <= nums[-1]` is a check that flips once, and the lower bound loop finds where it turns true:\n\n- If `nums[mid] > nums[-1]`, `mid` is before the break, so the start is after it: `lo = mid + 1`.\n- Otherwise `mid` is the start or after it: `hi = mid`.\n\n```python\ndef rotation_point(nums):\n    lo, hi = 0, len(nums) - 1\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if nums[mid] > nums[-1]:\n            lo = mid + 1\n        else:\n            hi = mid\n    return lo\n\n\nprint(rotation_point([40, 50, 60, 10, 20, 30]))  # 3\nprint(rotation_point([10, 20, 30]))              # 0\n```\n\nCompare with the last item, not the first. In a list that was never rotated, no value is smaller than `nums[0]`, so a check against it never turns true and the search ends on the wrong index. The search costs O(log n), and like any search on a rotated list it assumes no value repeats.\n\nOnce you know the start `k`, the list in order is `nums[k:] + nums[:k]`, and its `i`-th smallest item, counting from 0, is `nums[(k + i) % len(nums)]`, with no copy at all.",
+      "example": {
+        "title": "Smallest and largest",
+        "prompt": "Each line is a sorted list of numbers that may have been rotated. For each line, print where the sorted order starts and the smallest and largest values.",
+        "stdin": "40 50 60 10 20 30\n5 9 12 1 3\n7 8 9\n4\n",
+        "code": "import sys\n\n\ndef rotation_point(nums):\n    lo, hi = 0, len(nums) - 1\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if nums[mid] > nums[-1]:\n            lo = mid + 1\n        else:\n            hi = mid\n    return lo\n\n\nfor line in sys.stdin:\n    nums = list(map(int, line.split()))\n    k = rotation_point(nums)\n    print(f\"Starts at {k}: smallest {nums[k]}, largest {nums[k - 1]}\")\n",
+        "output": "Starts at 3: smallest 10, largest 60\nStarts at 3: smallest 1, largest 12\nStarts at 0: smallest 7, largest 9\nStarts at 0: smallest 4, largest 4",
+        "explanation": "In the first list the middle, 60, is bigger than the last item, 30, so the start lies to its right, and the search narrows down to index 3, the 10. The largest value sits just before the start, at `nums[k - 1]`. When a list wasn't rotated, `k` is 0 and `nums[-1]` is its last item, which is the largest, so the same line works. A one-item list skips the loop, since `lo` already equals `hi`. `for line in sys.stdin` reads lines until the input runs out."
+      },
+      "practice": {
+        "title": "Ranks in a rotated list",
+        "prompt": "Read a rotated sorted list of scores and some ranks, where rank 1 is the smallest score. Print where the sorted order starts, then each rank's score, without sorting or copying the list.\n\n1. Finish `rotation_point(nums)` like the example's.\n2. Print `Starts at k`.\n3. Rank `r` is the item `r - 1` places after the start, wrapping around past the end. Print `Rank r: score` for each rank on the second line.\n\nInput:\n\n```text\n62 75 81 90 14 23 38 50\n1 3 8 5\n```\n\nExpected output:\n\n```text\nStarts at 4\nRank 1: 14\nRank 3: 38\nRank 8: 90\nRank 5: 62\n```",
+        "starter": "def rotation_point(nums):\n    # TODO: binary search for the index of the smallest value\n    return 0\n\n\nscores = list(map(int, input().split()))\nranks = list(map(int, input().split()))\nk = rotation_point(scores)\n# TODO: print \"Starts at k\", then \"Rank r: score\" for each rank\n",
+        "solution": "def rotation_point(nums):\n    lo, hi = 0, len(nums) - 1\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if nums[mid] > nums[-1]:\n            lo = mid + 1\n        else:\n            hi = mid\n    return lo\n\n\nscores = list(map(int, input().split()))\nranks = list(map(int, input().split()))\nk = rotation_point(scores)\nprint(f\"Starts at {k}\")\nfor r in ranks:\n    print(f\"Rank {r}: {scores[(k + r - 1) % len(scores)]}\")\n",
+        "tests": [
+          {
+            "stdin": "62 75 81 90 14 23 38 50\n1 3 8 5\n",
+            "output": "Starts at 4\nRank 1: 14\nRank 3: 38\nRank 8: 90\nRank 5: 62"
+          },
+          {
+            "stdin": "2 4 6\n3 1\n",
+            "output": "Starts at 0\nRank 3: 6\nRank 1: 2"
+          },
+          {
+            "stdin": "8 3\n1 2\n",
+            "output": "Starts at 1\nRank 1: 3\nRank 2: 8"
+          }
+        ],
+        "hints": [
+          "Loop `while lo < hi` with `hi = len(nums) - 1`, and compare `nums[mid]` with `nums[-1]`.",
+          "A list that wasn't rotated starts at 0, so check that your search returns 0 for `2 4 6`.",
+          "The score with rank `r` is `scores[(k + r - 1) % len(scores)]`."
+        ]
+      }
+    }
+  ],
+  "recap": "- The lower bound is the first index with a value of at least the target, and the upper bound the first with a greater value. Both start with `hi = len(nums)`, loop `while lo < hi`, and keep a possible answer with `hi = mid`.\n- A value's first index is the lower bound and its last is the upper bound minus 1. When the two bounds are equal, the value is missing.\n- The two bounds are `bisect_left` and `bisect_right`. Writing `lo = mid` in their loop can make it run forever.\n- In a rotated sorted list one half of every range is in order. Check the target against that half's ends with a chained comparison, and keep the half that can hold it.\n- To search on the answer, write a check that is false and then true, set `lo` to the smallest possible answer and `hi` to one that surely works, and use `hi = mid` when the check passes.\n- A search over a range of a billion answers makes only about 30 checks.\n- A rotated list starts at its smallest value: move `lo = mid + 1` while `nums[mid] > nums[-1]`, otherwise `hi = mid`.\n- With the start `k`, the `i`-th smallest item is `nums[(k + i) % len(nums)]`."
+}

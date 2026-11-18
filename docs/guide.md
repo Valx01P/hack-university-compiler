@@ -143,8 +143,9 @@ linked lists, trees, and graphs. Each language has its own course at
 Go, kwargs and decorators for Python, and so on). SQL's course goes from your
 first SELECT through filtering, functions, joins, window functions, table
 design, transactions, and recursive queries over linked rows, trees, and
-graphs. Every course has 44 lessons: about 150 worked examples and as many
-practice problems for each programming language, and 114 for SQL.
+graphs. Each programming language's course has 52 to 54 lessons, with about
+190 worked examples and as many practice problems, and SQL's has 44 lessons
+with 114.
 
 - Every lesson is split into parts, small sub-lessons that each explain one
   idea, walk through one to three worked examples, and give you a practice

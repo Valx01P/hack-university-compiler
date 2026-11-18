@@ -1,0 +1,118 @@
+{
+  "id": "string-dp",
+  "title": "Dynamic Programming on Two Strings",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Fill a table over two strings to find their longest common subsequence, rebuild that subsequence, and count the edits between them.",
+  "intro": "Some questions compare two strings: how much two DNA strands share, what changed between two drafts, how far a typo is from the word it should be. Dynamic programming answers them with a 2D table like the one over a grid, but each row is one more character of the first string and each column one more of the second.",
+  "steps": [
+    {
+      "title": "A table over two strings",
+      "body": "A **subsequence** keeps some characters of a string, in order, and drops the rest: `one` is a subsequence of `stone`. The longest common subsequence (LCS) of two strings is the longest string that's a subsequence of both.\n\nTwo strings need a 2D table: `dp[i][j]` is the LCS length of the first `i` characters of `a` and the first `j` of `b`. Compare the last characters of those prefixes. If they match, that character can end the answer, so add 1 to `dp[i - 1][j - 1]`. If not, one of them is left out, so keep the better of dropping either.\n\n```javascript\nconst a = \"stone\";\nconst b = \"longest\";\nconst n = a.length;\nconst m = b.length;\nconst dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));\nfor (let i = 1; i <= n; i++) {\n  for (let j = 1; j <= m; j++) {\n    if (a[i - 1] === b[j - 1]) {\n      dp[i][j] = dp[i - 1][j - 1] + 1;\n    } else {\n      dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);\n    }\n  }\n}\nconsole.log(dp[n][m]); // 3, for \"one\"\n```\n\n`Array.from` calls its callback once per row, so every row is a new array. `new Array(n + 1).fill([])` puts one shared array in every slot instead, so writing one cell would change every row.\n\nRow 0 and column 0 stand for the empty prefixes, which share nothing, so they stay 0 and the loops start at 1. Filling row by row means the cells above, to the left, and up-left are ready before you need them. There are (n + 1)(m + 1) cells and each takes constant work, so this is O(n * m) time and space.",
+      "example": {
+        "title": "Shared DNA",
+        "prompt": "Print the LCS table for two DNA strands with each strand's letters along its side, then the LCS length for two more pairs.",
+        "code": "function lcsTable(a, b) {\n  const n = a.length;\n  const m = b.length;\n  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));\n  for (let i = 1; i <= n; i++) {\n    for (let j = 1; j <= m; j++) {\n      if (a[i - 1] === b[j - 1]) {\n        dp[i][j] = dp[i - 1][j - 1] + 1;\n      } else {\n        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);\n      }\n    }\n  }\n  return dp;\n}\n\nconst a = \"AGCAT\";\nconst b = \"GAC\";\nconst dp = lcsTable(a, b);\nconsole.log(`    ${[...b].join(\" \")}`);\nfor (let i = 0; i <= a.length; i++) {\n  const label = i > 0 ? a[i - 1] : \" \";\n  console.log(`${label} ${dp[i].join(\" \")}`);\n}\nconsole.log(`Longest shared: ${dp[a.length][b.length]}`);\n\nfor (const [x, y] of [[\"GATTACA\", \"GCATGCT\"], [\"AAAA\", \"TTTT\"]]) {\n  console.log(`${x} and ${y}: ${lcsTable(x, y)[x.length][y.length]}`);\n}\n",
+        "output": "    G A C\n  0 0 0 0\nA 0 0 1 1\nG 0 1 1 1\nC 0 1 1 2\nA 0 1 2 2\nT 0 1 2 2\nLongest shared: 2\nGATTACA and GCATGCT: 4\nAAAA and TTTT: 0",
+        "explanation": "Each row adds one letter of `AGCAT` and each column one letter of `GAC`. Where the letters match, as at row `C` and column `C`, the cell is its up-left neighbor plus 1: `AG` and `GA` share 1 letter, so `AGC` and `GAC` share 2. Everywhere else the cell copies the bigger of the cell above and the cell to the left, so the numbers never go down along a row or a column, and the corner is the answer. `AAAA` and `TTTT` never match, so their whole table stays 0."
+      },
+      "practice": {
+        "title": "Two drafts of a line",
+        "prompt": "Compare two drafts of a line of text. The characters of their longest common subsequence were kept, and every other character was cut from the old line or added in the new one.\n\n1. The starter reads the old line, then the new line, and makes `dp`. Either line may be empty, so it splits the input without `trim()`.\n2. Fill `dp` so that `dp[i][j]` is the LCS length of the first `i` characters of `oldLine` and the first `j` of `newLine`.\n3. The starter prints `Kept:` with the LCS length. Then print `Cut:` with the number of other characters in the old line, and `Added:` with the number of other characters in the new line.\n\nInput:\n\n```text\ncall me later\ncall you later\n```\n\nExpected output:\n\n```text\nKept: 11\nCut: 2\nAdded: 3\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\n// No trim() here: an empty first line must stay a line of its own\nconst [oldLine, newLine] = input.split(\"\\n\");\nconst n = oldLine.length;\nconst m = newLine.length;\nconst dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));\n// TODO: fill dp[i][j] row by row from the last characters of each prefix\n\nconst kept = dp[n][m];\nconsole.log(`Kept: ${kept}`);\n// TODO: print Cut and Added\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\n// No trim() here: an empty first line must stay a line of its own\nconst [oldLine, newLine] = input.split(\"\\n\");\nconst n = oldLine.length;\nconst m = newLine.length;\nconst dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));\nfor (let i = 1; i <= n; i++) {\n  for (let j = 1; j <= m; j++) {\n    if (oldLine[i - 1] === newLine[j - 1]) {\n      dp[i][j] = dp[i - 1][j - 1] + 1;\n    } else {\n      dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);\n    }\n  }\n}\n\nconst kept = dp[n][m];\nconsole.log(`Kept: ${kept}`);\nconsole.log(`Cut: ${n - kept}`);\nconsole.log(`Added: ${m - kept}`);\n",
+        "tests": [
+          {
+            "stdin": "call me later\ncall you later\n",
+            "output": "Kept: 11\nCut: 2\nAdded: 3"
+          },
+          {
+            "stdin": "\nfresh start\n",
+            "output": "Kept: 0\nCut: 0\nAdded: 11"
+          },
+          {
+            "stdin": "yes\nno\n",
+            "output": "Kept: 0\nCut: 3\nAdded: 2"
+          }
+        ],
+        "hints": [
+          "The loops are the example's, comparing `oldLine[i - 1]` with `newLine[j - 1]`.",
+          "A match adds 1 to the up-left cell. Otherwise take the `Math.max` of the cell above and the cell to the left.",
+          "Every character of `oldLine` that wasn't kept was cut, so `Cut` is `n - kept`."
+        ]
+      }
+    },
+    {
+      "title": "Rebuilding the subsequence",
+      "body": "The filled table holds lengths, but it also shows how each length was made, so you can read one longest subsequence back out of it. Start at the bottom right corner, `dp[n][m]`, and walk toward row 0 or column 0:\n\n1. If `a[i - 1] === b[j - 1]`, that character is in the answer. Keep it and step diagonally, up and left.\n2. Otherwise step toward the bigger neighbor: up drops the last character of `a`, left drops the last of `b`.\n3. Stop when `i` or `j` reaches 0, then reverse what you kept, since it comes out last first.\n\nWith `dp` filled for `a = \"stone\"` and `b = \"longest\"`:\n\n```javascript harness\nconst a = \"stone\";\nconst b = \"longest\";\nconst n = a.length;\nconst m = b.length;\nconst dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));\nfor (let i = 1; i <= n; i++) {\n  for (let j = 1; j <= m; j++) {\n    if (a[i - 1] === b[j - 1]) {\n      dp[i][j] = dp[i - 1][j - 1] + 1;\n    } else {\n      dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);\n    }\n  }\n}\n{{code}}\n```\n\n```javascript\nlet i = n;\nlet j = m;\nconst out = [];\nwhile (i > 0 && j > 0) {\n  if (a[i - 1] === b[j - 1]) {\n    out.push(a[i - 1]);\n    i--;\n    j--;\n  } else if (dp[i - 1][j] >= dp[i][j - 1]) {\n    i--; // a tie steps up\n  } else {\n    j--;\n  }\n}\nconsole.log(out.reverse().join(\"\")); // one\n```\n\nWhen the cell above equals the cell to the left, both ways lead to a longest answer, but often to different ones. `ab` and `ba` share `a`, and also `b`. So fix a tie rule and keep it: here `>=` steps up on a tie, which gives `a`, while stepping left would give `b`.\n\nEach step lowers `i`, `j`, or both, so the walk takes at most n + m steps after the O(n * m) fill.",
+      "example": {
+        "title": "Spelling out shared DNA",
+        "prompt": "Rebuild one longest common subsequence for three pairs of DNA strands, stepping up on ties.",
+        "code": "function lcsTable(a, b) {\n  const n = a.length;\n  const m = b.length;\n  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));\n  for (let i = 1; i <= n; i++) {\n    for (let j = 1; j <= m; j++) {\n      if (a[i - 1] === b[j - 1]) {\n        dp[i][j] = dp[i - 1][j - 1] + 1;\n      } else {\n        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);\n      }\n    }\n  }\n  return dp;\n}\n\nfunction rebuild(a, b, dp) {\n  let i = a.length;\n  let j = b.length;\n  const out = [];\n  while (i > 0 && j > 0) {\n    if (a[i - 1] === b[j - 1]) {\n      out.push(a[i - 1]);\n      i--;\n      j--;\n    } else if (dp[i - 1][j] >= dp[i][j - 1]) {\n      i--;\n    } else {\n      j--;\n    }\n  }\n  return out.reverse().join(\"\");\n}\n\nconst pairs = [[\"AGCAT\", \"GAC\"], [\"GATTACA\", \"GCATGCT\"], [\"AAAA\", \"TTTT\"]];\nfor (const [a, b] of pairs) {\n  const shared = rebuild(a, b, lcsTable(a, b));\n  console.log(`${a} and ${b}: ${shared === \"\" ? \"none\" : shared}`);\n}\n",
+        "output": "AGCAT and GAC: AC\nGATTACA and GCATGCT: GATT\nAAAA and TTTT: none",
+        "explanation": "For `AGCAT` and `GAC`, the walk starts at the corner, 2. It meets two ties before the `C` match and one after it, steps up each time, and keeps `C` and then `A`, which reverse to `AC`. Stepping left on ties would print `GA`, which is just as long. Both are right, so the tie rule is what makes the output one exact string. With no shared letter, the walk only steps and keeps nothing, so the empty result prints as `none`."
+      },
+      "practice": {
+        "title": "Shared melody",
+        "prompt": "Two tunes are written as strings of note letters. Print the longest melody they share, with its notes in order.\n\n1. The starter reads both tunes and fills the LCS table with `lcsTable`.\n2. Write `rebuild(a, b, dp)`: walk back from the bottom right corner, and when the two notes match, keep the note and step diagonally.\n3. When they don't match, step up if the cell above is at least the cell to the left, else step left.\n4. Return the kept notes in order. The starter prints the length, then the melody, or `none` when it's empty.\n\nInput:\n\n```text\nCEGEC\nGECEG\n```\n\nExpected output:\n\n```text\nLength: 3\nMelody: CEG\n```",
+        "starter": "function lcsTable(a, b) {\n  const n = a.length;\n  const m = b.length;\n  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));\n  for (let i = 1; i <= n; i++) {\n    for (let j = 1; j <= m; j++) {\n      if (a[i - 1] === b[j - 1]) {\n        dp[i][j] = dp[i - 1][j - 1] + 1;\n      } else {\n        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);\n      }\n    }\n  }\n  return dp;\n}\n\nfunction rebuild(a, b, dp) {\n  // TODO: walk back from dp[a.length][b.length], stepping up on a tie\n  return \"\";\n}\n\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [a, b] = input.trim().split(\"\\n\");\nconst dp = lcsTable(a, b);\nconst melody = rebuild(a, b, dp);\nconsole.log(`Length: ${dp[a.length][b.length]}`);\nconsole.log(`Melody: ${melody === \"\" ? \"none\" : melody}`);\n",
+        "solution": "function lcsTable(a, b) {\n  const n = a.length;\n  const m = b.length;\n  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));\n  for (let i = 1; i <= n; i++) {\n    for (let j = 1; j <= m; j++) {\n      if (a[i - 1] === b[j - 1]) {\n        dp[i][j] = dp[i - 1][j - 1] + 1;\n      } else {\n        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);\n      }\n    }\n  }\n  return dp;\n}\n\nfunction rebuild(a, b, dp) {\n  let i = a.length;\n  let j = b.length;\n  const out = [];\n  while (i > 0 && j > 0) {\n    if (a[i - 1] === b[j - 1]) {\n      out.push(a[i - 1]);\n      i--;\n      j--;\n    } else if (dp[i - 1][j] >= dp[i][j - 1]) {\n      i--;\n    } else {\n      j--;\n    }\n  }\n  return out.reverse().join(\"\");\n}\n\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [a, b] = input.trim().split(\"\\n\");\nconst dp = lcsTable(a, b);\nconst melody = rebuild(a, b, dp);\nconsole.log(`Length: ${dp[a.length][b.length]}`);\nconsole.log(`Melody: ${melody === \"\" ? \"none\" : melody}`);\n",
+        "tests": [
+          {
+            "stdin": "CEGEC\nGECEG\n",
+            "output": "Length: 3\nMelody: CEG"
+          },
+          {
+            "stdin": "EDCDEEE\nEDDCE\n",
+            "output": "Length: 4\nMelody: EDCE"
+          },
+          {
+            "stdin": "CCCC\nDEGA\n",
+            "output": "Length: 0\nMelody: none"
+          }
+        ],
+        "hints": [
+          "Start with `let i = a.length` and `let j = b.length`, and loop while both are above 0.",
+          "On a match, push the note and lower both `i` and `j`. Otherwise `dp[i - 1][j] >= dp[i][j - 1]` means step up.",
+          "The notes come out last first, so return `out.reverse().join(\"\")`."
+        ]
+      }
+    },
+    {
+      "title": "Edit distance",
+      "body": "Edit distance is the fewest edits that turn `a` into `b`, where one edit inserts, deletes, or replaces a single character. `dp[i][j]` is the distance from the first `i` characters of `a` to the first `j` of `b`.\n\nThis time the empty prefixes aren't 0. Turning `i` characters into nothing takes `i` deletes, and turning nothing into `j` characters takes `j` inserts. So column 0 counts from 0 to n, and row 0 from 0 to m.\n\nFor every other cell, compare the last characters. Equal ones need no edit, so the cell copies `dp[i - 1][j - 1]`. Otherwise the last edit was one of three, so take 1 plus the smallest:\n\n- `dp[i - 1][j]`: delete the last character of `a`.\n- `dp[i][j - 1]`: insert the last character of `b`.\n- `dp[i - 1][j - 1]`: replace one with the other.\n\n```javascript\nconst a = \"kitten\";\nconst b = \"sitting\";\nconst n = a.length;\nconst m = b.length;\nconst dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));\nfor (let i = 0; i <= n; i++) {\n  dp[i][0] = i;\n}\nfor (let j = 0; j <= m; j++) {\n  dp[0][j] = j;\n}\nfor (let i = 1; i <= n; i++) {\n  for (let j = 1; j <= m; j++) {\n    if (a[i - 1] === b[j - 1]) {\n      dp[i][j] = dp[i - 1][j - 1];\n    } else {\n      dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);\n    }\n  }\n}\nconsole.log(dp[n][m]); // 3\n```\n\nThe 3 edits are: replace `k` with `s`, replace `e` with `i`, and insert `g`. It's the same table as the LCS, so it's O(n * m) time and space too.",
+      "example": {
+        "title": "From one word to another",
+        "prompt": "Print the edit distance table from flaw to lawn, then the distance for two more pairs.",
+        "code": "function editTable(a, b) {\n  const n = a.length;\n  const m = b.length;\n  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));\n  for (let i = 0; i <= n; i++) {\n    dp[i][0] = i;\n  }\n  for (let j = 0; j <= m; j++) {\n    dp[0][j] = j;\n  }\n  for (let i = 1; i <= n; i++) {\n    for (let j = 1; j <= m; j++) {\n      if (a[i - 1] === b[j - 1]) {\n        dp[i][j] = dp[i - 1][j - 1];\n      } else {\n        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);\n      }\n    }\n  }\n  return dp;\n}\n\nconst a = \"flaw\";\nconst b = \"lawn\";\nconst dp = editTable(a, b);\nconsole.log(`    ${[...b].join(\" \")}`);\nfor (let i = 0; i <= a.length; i++) {\n  const label = i > 0 ? a[i - 1] : \" \";\n  console.log(`${label} ${dp[i].join(\" \")}`);\n}\nconsole.log(`${a} to ${b}: ${dp[a.length][b.length]}`);\n\nfor (const [x, y] of [[\"sunday\", \"saturday\"], [\"same\", \"same\"]]) {\n  console.log(`${x} to ${y}: ${editTable(x, y)[x.length][y.length]}`);\n}\n",
+        "output": "    l a w n\n  0 1 2 3 4\nf 1 1 2 3 4\nl 2 1 2 3 4\na 3 2 1 2 3\nw 4 3 2 1 2\nflaw to lawn: 2\nsunday to saturday: 3\nsame to same: 0",
+        "explanation": "Row 0 counts the inserts that build each prefix of `lawn` from nothing, and column 0 the deletes that empty each prefix of `flaw`. `flaw` becomes `lawn` in 2 edits: delete `f`, then insert `n`. You can see it in the table: deleting `f` costs 1, the 1 runs down the diagonal while `l`, `a`, and `w` match for free, and the last column adds 1 for the `n`. Equal strings match at every step, so their distance is 0."
+      },
+      "practice": {
+        "title": "Fixing a typo",
+        "prompt": "Count the fewest edits that fix a typo, and print the table that finds them.\n\n1. The starter reads the typo and the word it should be, and makes `dp`.\n2. Fill column 0 with 0 to n and row 0 with 0 to m.\n3. Fill every other cell: the up-left cell when the characters match, else 1 plus the smallest of the cell above, the cell to the left, and the up-left cell.\n4. The starter prints the table, with each letter of the word on top and each letter of the typo on the left, and then the number of edits.\n\nInput:\n\n```text\nteh\nthe\n```\n\nExpected output:\n\n```text\n    t h e\n  0 1 2 3\nt 1 0 1 2\ne 2 1 1 1\nh 3 2 1 2\nEdits: 2\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [typo, word] = input.trim().split(\"\\n\");\nconst n = typo.length;\nconst m = word.length;\nconst dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));\n// TODO: fill column 0 with 0 to n and row 0 with 0 to m\n// TODO: fill the other cells from the cell above, the cell to the left, and the up-left cell\n\nconsole.log(`    ${[...word].join(\" \")}`);\nfor (let i = 0; i <= n; i++) {\n  const label = i > 0 ? typo[i - 1] : \" \";\n  console.log(`${label} ${dp[i].join(\" \")}`);\n}\nconsole.log(`Edits: ${dp[n][m]}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [typo, word] = input.trim().split(\"\\n\");\nconst n = typo.length;\nconst m = word.length;\nconst dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));\nfor (let i = 0; i <= n; i++) {\n  dp[i][0] = i;\n}\nfor (let j = 0; j <= m; j++) {\n  dp[0][j] = j;\n}\nfor (let i = 1; i <= n; i++) {\n  for (let j = 1; j <= m; j++) {\n    if (typo[i - 1] === word[j - 1]) {\n      dp[i][j] = dp[i - 1][j - 1];\n    } else {\n      dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);\n    }\n  }\n}\n\nconsole.log(`    ${[...word].join(\" \")}`);\nfor (let i = 0; i <= n; i++) {\n  const label = i > 0 ? typo[i - 1] : \" \";\n  console.log(`${label} ${dp[i].join(\" \")}`);\n}\nconsole.log(`Edits: ${dp[n][m]}`);\n",
+        "tests": [
+          {
+            "stdin": "teh\nthe\n",
+            "output": "    t h e\n  0 1 2 3\nt 1 0 1 2\ne 2 1 1 1\nh 3 2 1 2\nEdits: 2"
+          },
+          {
+            "stdin": "helo\nhello\n",
+            "output": "    h e l l o\n  0 1 2 3 4 5\nh 1 0 1 2 3 4\ne 2 1 0 1 2 3\nl 3 2 1 0 1 2\no 4 3 2 1 1 1\nEdits: 1"
+          },
+          {
+            "stdin": "cat\ndog\n",
+            "output": "    d o g\n  0 1 2 3\nc 1 1 2 3\na 2 2 2 3\nt 3 3 3 3\nEdits: 3"
+          }
+        ],
+        "hints": [
+          "Two short loops fill the edges first: `dp[i][0] = i` and `dp[0][j] = j`.",
+          "When the characters differ, the cell is `1 + Math.min(...)` of its three neighbors above, left, and up-left.",
+          "`teh` needs 2 edits, because swapping two letters isn't one of the three edits."
+        ]
+      }
+    }
+  ],
+  "recap": "- `dp[i][j]` is the answer for the first `i` characters of one string and the first `j` of the other, with row 0 and column 0 for the empty prefixes.\n- Build the table with `Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0))`, never `new Array(n + 1).fill([])`, which shares one row.\n- LCS: a match is the up-left cell plus 1, otherwise the `Math.max` of the cell above and the cell to the left.\n- To rebuild the subsequence, walk back from `dp[n][m]` with a fixed tie rule (`>=` steps up), then reverse what you kept.\n- Edit distance: row 0 and column 0 count up from 0, a match copies the up-left cell, otherwise 1 plus the `Math.min` of the three neighbors.\n- Both cost O(n * m) time and space. For the length or the distance alone, each row reads only the row above, so two rows of m + 1 are enough."
+}

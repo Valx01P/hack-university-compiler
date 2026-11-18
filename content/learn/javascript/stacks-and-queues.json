@@ -1,0 +1,158 @@
+{
+  "id": "stacks-and-queues",
+  "title": "Stacks, Queues, and Deques",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Use an array as a stack and as a queue with a head index, answer next-greater questions with a monotonic stack, and keep window maximums in a deque.",
+  "intro": "A stack hands back the newest item first, and a queue the oldest. JavaScript has neither type, and it doesn't need them: an array is both, as long as you use the right end. The interview patterns come from keeping them in a useful order. A monotonic stack answers \"what comes next that's bigger?\" for every item in one pass, and a deque keeps the maximum of a sliding window.",
+  "steps": [
+    {
+      "title": "An array as a stack",
+      "body": "A **stack** is last in, first out, like a pile of plates. An array is a fast stack at its end: `push` adds an item on top, `pop` removes the top item and returns it, and `stack[stack.length - 1]`, or the shorter `stack.at(-1)`, peeks at it without removing it. All three are O(1), because no other item moves.\n\n```javascript\nconst stack = [];\nstack.push(\"a\");\nstack.push(\"b\");\nconsole.log(stack.at(-1)); // b\nconsole.log(stack.pop()); // b\nconsole.log(stack.length); // 1\n```\n\nOn an empty array, `pop()` and `at(-1)` return `undefined` instead of throwing, so a mistake fails quietly. Check `stack.length > 0` whenever the stack might be empty.\n\nA stack matches things that nest, like brackets. Push every opening bracket. A closing bracket must match the newest bracket still open, which is the top of the stack, so pop it and compare. At the end the stack must be empty, or some bracket was never closed:\n\n```javascript\nconst openerFor = new Map([[\")\", \"(\"], [\"]\", \"[\"], [\"}\", \"{\"]]);\nconst stack = [];\nlet ok = true;\nfor (const ch of \"{[()]}(\") {\n  if (!openerFor.has(ch)) {\n    stack.push(ch);\n  } else if (stack.pop() !== openerFor.get(ch)) {\n    ok = false;\n    break;\n  }\n}\nconsole.log(ok && stack.length === 0); // false, the last ( is never closed\n```\n\nPopping an empty stack gives `undefined`, which never equals an opener, so a closer with nothing open fails the check too.",
+      "example": {
+        "title": "Where the brackets break",
+        "prompt": "Read lines of code and report the first bracket problem in each one: a closer that closes nothing, a closer of the wrong kind, or an opener that is never closed.",
+        "stdin": "4\nf(a[i])\nif (x) { y = [1, 2) }\nsum((a + b) * c\nx = y]\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst n = Number(lines[0]);\nconst openerFor = new Map([[\")\", \"(\"], [\"]\", \"[\"], [\"}\", \"{\"]]);\n\nfunction firstProblem(code) {\n  const open = []; // positions of the brackets still open\n  for (let i = 0; i < code.length; i++) {\n    const ch = code[i];\n    if (\"([{\".includes(ch)) {\n      open.push(i);\n    } else if (openerFor.has(ch)) {\n      if (open.length === 0) {\n        return `${ch} at ${i + 1} closes nothing`;\n      }\n      const top = open.pop();\n      if (code[top] !== openerFor.get(ch)) {\n        return `${ch} at ${i + 1} does not match ${code[top]} at ${top + 1}`;\n      }\n    }\n  }\n  if (open.length > 0) {\n    return `${code[open[0]]} at ${open[0] + 1} is never closed`;\n  }\n  return \"ok\";\n}\n\nfor (const line of lines.slice(1, n + 1)) {\n  console.log(`${line} -> ${firstProblem(line)}`);\n}\n",
+        "output": "f(a[i]) -> ok\nif (x) { y = [1, 2) } -> ) at 19 does not match [ at 14\nsum((a + b) * c -> ( at 4 is never closed\nx = y] -> ] at 6 closes nothing",
+        "explanation": "The stack holds **positions**, not characters, so every message can say where the problem is, and `code[top]` still gives the bracket itself. In `f(a[i])` each closer pops its own opener and the stack ends empty. In the second line, `)` pops the `[` at 14, the wrong kind, so the function returns at once. In `sum((a + b) * c` the inner pair matches but the `(` at 4 is left over, and `open[0]` is the oldest bracket still open. In `x = y]` the stack is empty when `]` arrives."
+      },
+      "practice": {
+        "title": "Matching tags",
+        "prompt": "Check lines of HTML-style tags and report the first problem in each one.\n\n1. The starter reads `n` lines and splits each one into tags such as `<b>` and `</b>`.\n2. In `firstProblem`, push every opening tag onto `open`. A closing tag starts with `</`, and its opener is `\"<\" + tag.slice(2)`, so `</b>` closes `<b>`.\n3. For a closing tag, return `TAG closes nothing` when `open` is empty, or `TAG does not match TOP` when the top isn't its opener, where TAG is the closing tag and TOP is `open.at(-1)`. Otherwise pop.\n4. After the loop, return `FIRST is never closed` when tags are still open, where FIRST is the oldest one, `open[0]`. Otherwise return `ok`.\n\nInput:\n\n```text\n4\n<b> <i> </i> </b>\n<p> <b> </p> </b>\n<ul> <li> </li>\n</div> <div>\n```\n\nExpected output:\n\n```text\n<b> <i> </i> </b> -> ok\n<p> <b> </p> </b> -> </p> does not match <b>\n<ul> <li> </li> -> <ul> is never closed\n</div> <div> -> </div> closes nothing\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst n = Number(lines[0]);\n\nfunction firstProblem(tags) {\n  const open = []; // the opening tags still open\n  for (const tag of tags) {\n    // TODO: push an opening tag, or check a closing tag (it starts with \"</\") against the top\n  }\n  // TODO: report the first tag still open, open[0], if any\n  return \"ok\";\n}\n\nfor (const line of lines.slice(1, n + 1)) {\n  const tags = line.trim().split(/\\s+/);\n  console.log(`${line} -> ${firstProblem(tags)}`);\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst n = Number(lines[0]);\n\nfunction firstProblem(tags) {\n  const open = []; // the opening tags still open\n  for (const tag of tags) {\n    if (!tag.startsWith(\"</\")) {\n      open.push(tag);\n    } else if (open.length === 0) {\n      return `${tag} closes nothing`;\n    } else if (open.at(-1) !== \"<\" + tag.slice(2)) {\n      return `${tag} does not match ${open.at(-1)}`;\n    } else {\n      open.pop();\n    }\n  }\n  if (open.length > 0) {\n    return `${open[0]} is never closed`;\n  }\n  return \"ok\";\n}\n\nfor (const line of lines.slice(1, n + 1)) {\n  const tags = line.trim().split(/\\s+/);\n  console.log(`${line} -> ${firstProblem(tags)}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "4\n<b> <i> </i> </b>\n<p> <b> </p> </b>\n<ul> <li> </li>\n</div> <div>\n",
+            "output": "<b> <i> </i> </b> -> ok\n<p> <b> </p> </b> -> </p> does not match <b>\n<ul> <li> </li> -> <ul> is never closed\n</div> <div> -> </div> closes nothing"
+          },
+          {
+            "stdin": "3\n<a> <b> <c> </c>\n<main> <h1> </h1> <p> </p> </main>\n<a> <b> </a>\n",
+            "output": "<a> <b> <c> </c> -> <a> is never closed\n<main> <h1> </h1> <p> </p> </main> -> ok\n<a> <b> </a> -> </a> does not match <b>"
+          },
+          {
+            "stdin": "2\n</a> <a>\n<x> </x> <y> </y>\n",
+            "output": "</a> <a> -> </a> closes nothing\n<x> </x> <y> </y> -> ok"
+          }
+        ],
+        "hints": [
+          "`tag.startsWith(\"</\")` tells a closing tag from an opening one.",
+          "Check `open.length === 0` first, so a closing tag with nothing open gets its own message before you compare `open.at(-1)` with `\"<\" + tag.slice(2)`.",
+          "When several tags are left open, report `open[0]`, the bottom of the stack, not the top."
+        ]
+      }
+    },
+    {
+      "title": "Queues with a head index",
+      "body": "A **queue** is first in, first out, like a line at a counter. `push` joins the back and `shift()` leaves from the front, but `shift()` moves every remaining item down one slot. Each call is O(n), so working through a queue of n items costs O(n^2). Node hides this on small arrays, but a queue of 100,000 jobs gets slow.\n\nThe fast version never removes from the front. A `head` index points at the next item to serve:\n\n```javascript\nconst queue = [\"ann\", \"bo\"];\nlet head = 0;\nqueue.push(\"cy\"); // joins the back\nconsole.log(queue[head++]); // ann\nconsole.log(queue.length - head); // 2, still waiting\n```\n\n`queue[head++]` reads the front item, then moves `head` on. The queue is empty when `head === queue.length`, and every step is O(1).\n\nServed items stay in the array behind `head`. In a queue that runs for a long time they waste memory, so compact it once they make up more than half the array:\n\n```javascript harness\nconst queue = [\"ann\", \"bo\", \"cy\", \"dee\"];\nlet head = 3;\n{{code}}\nconsole.log(`${queue.join(\" \")}, head ${head}`);\n```\n\n```javascript\nif (head * 2 > queue.length) {\n  queue.splice(0, head); // drop the served items\n  head = 0;\n}\n```\n\nEach compaction moves fewer items than were served since the last one, so on average every step stays O(1).",
+      "example": {
+        "title": "Round-robin printer",
+        "prompt": "A printer prints up to 2 pages of the front job each turn, and a job with pages left goes to the back of the line. Read the jobs and print the turn on which each one finishes.",
+        "stdin": "4\nreport 5\nmemo 1\nflyer 3\nmenu 2\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst n = Number(lines[0]);\nconst perTurn = 2; // pages the printer prints per turn\n\nconst queue = lines.slice(1, n + 1).map((line) => {\n  const [name, pages] = line.trim().split(/\\s+/);\n  return { name, left: Number(pages) };\n});\nlet head = 0; // the next job to serve\nlet turn = 0;\n\nwhile (head < queue.length) {\n  const job = queue[head++];\n  turn++;\n  job.left -= perTurn;\n  if (job.left > 0) {\n    queue.push(job); // not done: back of the line\n  } else {\n    console.log(`${job.name} done on turn ${turn}`);\n  }\n  if (head * 2 > queue.length) {\n    queue.splice(0, head); // drop the served part\n    head = 0;\n  }\n}\n",
+        "output": "memo done on turn 2\nmenu done on turn 4\nflyer done on turn 6\nreport done on turn 7",
+        "explanation": "The jobs start in input order. `queue[head++]` takes the front job, and a job with pages left is pushed again, so it waits behind everyone already in line. `memo` needs one turn and finishes on turn 2, while `report` needs three turns and finishes last. Whenever the served part passes half the array, `splice(0, head)` drops it and `head` goes back to 0, so the served items never outnumber the waiting ones. Each job is an object, so `job.left -= perTurn` changes the same object that goes back in line."
+      },
+      "practice": {
+        "title": "Time slices",
+        "prompt": "A processor runs tasks in turns. The front task runs for up to `q` milliseconds, then goes to the back of the line if it isn't done. Print the time at which each task finishes.\n\n1. The starter reads `n` and `q`, then puts the `n` tasks in `queue` in input order, each as `{ name, left }`. The clock starts at 0.\n2. While tasks are waiting, take the front one with `queue[head++]` and run it for `Math.min(q, task.left)` ms. Add that to `clock` and take it from `task.left`.\n3. If the task has time left, push it to the back. Otherwise print `NAME finished at CLOCK`.\n4. Compact the queue whenever `head * 2 > queue.length`.\n\nInput:\n\n```text\n3 4\nbuild 10\nlint 3\ntest 6\n```\n\nExpected output:\n\n```text\nlint finished at 7\ntest finished at 17\nbuild finished at 19\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst [n, q] = lines[0].trim().split(/\\s+/).map(Number);\n\nconst queue = lines.slice(1, n + 1).map((line) => {\n  const [name, ms] = line.trim().split(/\\s+/);\n  return { name, left: Number(ms) };\n});\nlet head = 0; // the next task to run\nlet clock = 0;\n\n// TODO: while tasks are waiting, run the front one for up to q ms and add that time to clock\n// TODO: push it to the back if it has time left, or print \"<name> finished at <clock>\"\n// TODO: compact the queue once head * 2 > queue.length\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\nconst [n, q] = lines[0].trim().split(/\\s+/).map(Number);\n\nconst queue = lines.slice(1, n + 1).map((line) => {\n  const [name, ms] = line.trim().split(/\\s+/);\n  return { name, left: Number(ms) };\n});\nlet head = 0; // the next task to run\nlet clock = 0;\n\nwhile (head < queue.length) {\n  const task = queue[head++];\n  const ran = Math.min(q, task.left);\n  clock += ran;\n  task.left -= ran;\n  if (task.left > 0) {\n    queue.push(task);\n  } else {\n    console.log(`${task.name} finished at ${clock}`);\n  }\n  if (head * 2 > queue.length) {\n    queue.splice(0, head);\n    head = 0;\n  }\n}\n",
+        "tests": [
+          {
+            "stdin": "3 4\nbuild 10\nlint 3\ntest 6\n",
+            "output": "lint finished at 7\ntest finished at 17\nbuild finished at 19"
+          },
+          {
+            "stdin": "2 100\nemail 30\nbackup 50\n",
+            "output": "email finished at 30\nbackup finished at 80"
+          },
+          {
+            "stdin": "3 1\nping 2\nls 1\ncat 2\n",
+            "output": "ls finished at 2\nping finished at 4\ncat finished at 5"
+          }
+        ],
+        "hints": [
+          "The loop is the example's: `while (head < queue.length)`, with `queue[head++]` for the front task.",
+          "A task with less than `q` ms left runs only for what it needs, so add `Math.min(q, task.left)` to the clock, not `q`.",
+          "Compact with `queue.splice(0, head)`, then set `head = 0`."
+        ]
+      }
+    },
+    {
+      "title": "Monotonic stacks",
+      "body": "Some questions ask, for every item, about the next item that's bigger: the next warmer day, the next higher price. Checking every later item is O(n^2). A **monotonic stack** answers them all in one pass.\n\nThe stack holds the indexes still waiting for an answer, and their values only go down from bottom to top. When a new value arrives, it's the answer for every waiting index with a smaller value, so pop those and answer them. Then push the new index:\n\n```javascript\nconst nums = [2, 7, 3, 5, 4, 6, 8];\nconst next = new Array(nums.length).fill(-1);\nconst stack = []; // indexes still waiting for a bigger value\nfor (let i = 0; i < nums.length; i++) {\n  while (stack.length > 0 && nums[stack.at(-1)] < nums[i]) {\n    next[stack.pop()] = nums[i];\n  }\n  stack.push(i);\n}\nconsole.log(next.join(\" \")); // 7 8 5 6 6 8 -1\n```\n\nKeep **indexes**, not values. An index says where the answer goes, and it gives both the value `nums[j]` and the distance `i - j`. Indexes still on the stack at the end never met a bigger value, so they keep their -1. The strict `<` leaves an equal value waiting, since it isn't bigger.\n\nIt's O(n) even with a `while` inside the `for`. Each index is pushed once and popped at most once, so the `while` runs at most n times over the whole scan. The stack needs O(n) memory when the values only go down.",
+      "example": {
+        "title": "Next taller building",
+        "prompt": "Read the heights of buildings along a street, from west to east, and print the next taller building to the east of each one.",
+        "stdin": "40 25 30 55 35 45 60 20\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst heights = input.trim().split(/\\s+/).map(Number);\nconst nextTaller = new Array(heights.length).fill(-1); // an index, or -1 for none\nconst stack = []; // indexes still waiting, heights falling from bottom to top\n\nfor (let i = 0; i < heights.length; i++) {\n  while (stack.length > 0 && heights[stack.at(-1)] < heights[i]) {\n    nextTaller[stack.pop()] = i;\n  }\n  stack.push(i);\n}\n\nfor (let i = 0; i < heights.length; i++) {\n  const j = nextTaller[i];\n  if (j === -1) {\n    console.log(`Building ${i + 1} (${heights[i]} m): none taller to the east`);\n  } else {\n    console.log(`Building ${i + 1} (${heights[i]} m): next taller is building ${j + 1} (${heights[j]} m)`);\n  }\n}\n",
+        "output": "Building 1 (40 m): next taller is building 4 (55 m)\nBuilding 2 (25 m): next taller is building 3 (30 m)\nBuilding 3 (30 m): next taller is building 4 (55 m)\nBuilding 4 (55 m): next taller is building 7 (60 m)\nBuilding 5 (35 m): next taller is building 6 (45 m)\nBuilding 6 (45 m): next taller is building 7 (60 m)\nBuilding 7 (60 m): none taller to the east\nBuilding 8 (20 m): none taller to the east",
+        "explanation": "Building 2 (25) waits only until building 3 (30) pops it. Then 55 pops 30 and 40, answering both with building 4, and 60 pops 45 and 55. Buildings 7 and 8 are still on the stack at the end, so they keep -1. This version stores the index `i` as the answer instead of a height, so the output can give both the building's number, `j + 1`, and its height, `heights[j]`."
+      },
+      "practice": {
+        "title": "Next price drop",
+        "prompt": "For each day's price, find the next later price that is strictly lower, or -1 when no drop comes.\n\n1. The starter reads one line of prices and fills `drop` with -1.\n2. Keep a stack of indexes still waiting, their prices going **up** from bottom to top.\n3. For each price, pop every waiting index whose price is higher, and set its answer to the current price. An equal price is not a drop, so it keeps waiting.\n4. Push the current index. The starter prints the answers on one line.\n\nInput:\n\n```text\n8 4 6 6 2 3 5 1\n```\n\nExpected output:\n\n```text\n4 2 2 2 1 1 1 -1\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst prices = input.trim().split(/\\s+/).map(Number);\nconst drop = new Array(prices.length).fill(-1);\nconst stack = []; // indexes still waiting, prices rising from bottom to top\n// TODO: for each price, pop every waiting index with a higher price and answer it\n// TODO: push the current index\n\nconsole.log(drop.join(\" \"));\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst prices = input.trim().split(/\\s+/).map(Number);\nconst drop = new Array(prices.length).fill(-1);\nconst stack = []; // indexes still waiting, prices rising from bottom to top\nfor (let i = 0; i < prices.length; i++) {\n  while (stack.length > 0 && prices[stack.at(-1)] > prices[i]) {\n    drop[stack.pop()] = prices[i];\n  }\n  stack.push(i);\n}\n\nconsole.log(drop.join(\" \"));\n",
+        "tests": [
+          {
+            "stdin": "8 4 6 6 2 3 5 1\n",
+            "output": "4 2 2 2 1 1 1 -1"
+          },
+          {
+            "stdin": "5 5 5 2\n",
+            "output": "2 2 2 -1"
+          },
+          {
+            "stdin": "1 2 3 7\n",
+            "output": "-1 -1 -1 -1"
+          }
+        ],
+        "hints": [
+          "The loop is the example's with the comparison flipped: pop while `prices[stack.at(-1)] > prices[i]`.",
+          "Use `>`, not `>=`, so an equal price keeps waiting.",
+          "Store the price itself, `drop[stack.pop()] = prices[i]`, not its index."
+        ]
+      }
+    },
+    {
+      "title": "A deque for window extremes",
+      "body": "A **deque**, a double-ended queue, adds and removes at both ends. JavaScript has none, but an array covers what a window needs: `push` and `pop` work the back, and a `head` index is the front, as in a queue.\n\nTo find the **maximum of every window** of `k` items, keep the indexes of the current window in the deque, their values going down from front to back. Then the front is the window's maximum:\n\n1. Before adding index `i`, pop from the back every index whose value is not bigger than `nums[i]`. It can never be a maximum again, since `nums[i]` is at least as big and stays in the window longer.\n2. Push `i`.\n3. If the front index has slid out of the window, `dq[head] <= i - k`, move `head` on.\n4. Once the first window is full, `i >= k - 1`, `nums[dq[head]]` is its maximum.\n\n```javascript\nconst nums = [4, 2, 12, 3, 8, 1, 9];\nconst k = 3;\nconst dq = []; // indexes, values falling from front to back\nlet head = 0; // the front of dq\nconst maxes = [];\nfor (let i = 0; i < nums.length; i++) {\n  while (dq.length > head && nums[dq.at(-1)] <= nums[i]) {\n    dq.pop();\n  }\n  dq.push(i);\n  if (dq[head] <= i - k) {\n    head++;\n  }\n  if (i >= k - 1) {\n    maxes.push(nums[dq[head]]);\n  }\n}\nconsole.log(maxes.join(\" \")); // 12 12 12 8 9\n```\n\nThe deque is the part of `dq` from `head` on, so it is empty when `dq.length === head`. Each index is pushed once and leaves at most once, from the back or the front, so the scan is O(n). Calling `Math.max` on every window would be O(n * k).",
+      "example": {
+        "title": "Peak load per window",
+        "prompt": "Read a window size and a server's load for each minute, then print the peak load in every window of k minutes.",
+        "stdin": "3\n5 9 4 7 7 2 6 3\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [kLine, loadLine] = input.trim().split(\"\\n\");\nconst k = Number(kLine);\nconst load = loadLine.trim().split(/\\s+/).map(Number);\n\nconst dq = []; // indexes, loads falling from front to back\nlet head = 0; // the front of dq\nfor (let i = 0; i < load.length; i++) {\n  while (dq.length > head && load[dq.at(-1)] <= load[i]) {\n    dq.pop(); // can never be a peak again\n  }\n  dq.push(i);\n  if (dq[head] <= i - k) {\n    head++; // the front slid out of the window\n  }\n  if (i >= k - 1) {\n    console.log(`Minutes ${i - k + 2}-${i + 1}: peak ${load[dq[head]]}`);\n  }\n}\n",
+        "output": "Minutes 1-3: peak 9\nMinutes 2-4: peak 9\nMinutes 3-5: peak 7\nMinutes 4-6: peak 7\nMinutes 5-7: peak 7\nMinutes 6-8: peak 6",
+        "explanation": "When 9 arrives it pops 5 from the back, since 5 can never beat 9 in a later window. The second 7 pops the first one: they tie, and the later one stays in the window longer. At minute 5 the window is minutes 3 to 5, so the 9 from minute 2 has slid out. `head` moves past it, and the 7 from minute 5 becomes the front. The indexes in front of `head` stay in the array but are never read again."
+      },
+      "practice": {
+        "title": "Cheapest fare per window",
+        "prompt": "Find the cheapest fare in every window of k days.\n\n1. The starter reads `k` from the first line and the fares from the second.\n2. Keep indexes in `dq` with their fares going **up** from front to back: before adding `i`, pop from the back every index whose fare is not smaller than `fares[i]`.\n3. Move `head` on when the front index slides out of the window.\n4. Once a window is full, add the fare at the front to `lows`. The starter prints them on one line.\n\nInput:\n\n```text\n3\n5 1 6 7 8 2 4\n```\n\nExpected output:\n\n```text\n1 1 6 2 2\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [kLine, faresLine] = input.trim().split(\"\\n\");\nconst k = Number(kLine);\nconst fares = faresLine.trim().split(/\\s+/).map(Number);\n\nconst dq = []; // indexes, fares rising from front to back\nlet head = 0; // the front of dq\nconst lows = [];\n// TODO: for each index, pop the back while its fare is not smaller, then push the index\n// TODO: move head on when dq[head] slides out, and add fares[dq[head]] to lows once a window is full\n\nconsole.log(lows.join(\" \"));\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [kLine, faresLine] = input.trim().split(\"\\n\");\nconst k = Number(kLine);\nconst fares = faresLine.trim().split(/\\s+/).map(Number);\n\nconst dq = []; // indexes, fares rising from front to back\nlet head = 0; // the front of dq\nconst lows = [];\nfor (let i = 0; i < fares.length; i++) {\n  while (dq.length > head && fares[dq.at(-1)] >= fares[i]) {\n    dq.pop();\n  }\n  dq.push(i);\n  if (dq[head] <= i - k) {\n    head++;\n  }\n  if (i >= k - 1) {\n    lows.push(fares[dq[head]]);\n  }\n}\n\nconsole.log(lows.join(\" \"));\n",
+        "tests": [
+          {
+            "stdin": "3\n5 1 6 7 8 2 4\n",
+            "output": "1 1 6 2 2"
+          },
+          {
+            "stdin": "1\n3 -2 7 0\n",
+            "output": "3 -2 7 0"
+          },
+          {
+            "stdin": "5\n9 4 4 4 9\n",
+            "output": "4"
+          }
+        ],
+        "hints": [
+          "This is the example's loop with the comparison flipped: pop while `fares[dq.at(-1)] >= fares[i]`.",
+          "The front slides out when `dq[head] <= i - k`.",
+          "A window is full from `i = k - 1` on."
+        ]
+      }
+    }
+  ],
+  "recap": "- An array is a stack: `push` adds, `pop` takes the newest, and `at(-1)` peeks, all in O(1). An empty array gives `undefined`, so check `length > 0` first.\n- To match brackets or tags, push openers and pop on closers. The stack must end empty.\n- `shift()` is O(n). A queue is an array plus a `head` index, and `queue[head++]` takes the front in O(1).\n- Compact a long-running queue with `queue.splice(0, head)` once `head * 2 > queue.length`.\n- A monotonic stack of indexes answers \"the next bigger item\" for every index in O(n), because each index is pushed and popped at most once.\n- A deque of indexes with values going down keeps every window's maximum at the front. In JavaScript, `push` and `pop` work the back and a `head` index is the front. Flip the comparison for the minimum."
+}

@@ -2,8 +2,8 @@
   "id": "tries",
   "title": "Tries",
   "section": "Advanced: Data Structures and Algorithms",
-  "summary": "Store words letter by letter in a trie to check words and prefixes, count words by prefix, and list completions in alphabetical order.",
-  "intro": "A trie, or prefix tree, keeps words in a tree of letters. Words that start the same share their first nodes, so checking a word or a prefix walks one node per letter, however many words are stored. You build one from a small node class with a Map of children, then count words by prefix and list the words under a prefix for autocomplete.",
+  "summary": "Store words letter by letter in a trie to check words and prefixes, count words by prefix, list completions alphabetically, and match patterns with dots.",
+  "intro": "A trie, or prefix tree, keeps words in a tree of letters. Words that start the same share their first nodes, so checking a word or a prefix walks one node per letter, however many words are stored. You build one from a small node class with a Map of children, then count words by prefix, list the words under a prefix for autocomplete, and match patterns where a dot stands for any letter.",
   "steps": [
     {
       "title": "Nodes, insert, and search",
@@ -115,7 +115,44 @@
           "In the loop, `trie.find(prefix)` gives the node to start from, or `null` when nothing matches."
         ]
       }
+    },
+    {
+      "title": "Wildcard search with dots",
+      "body": "Some searches let `.` stand for any one letter, so `c.t` matches `cat` and `cut`. A plain walk can't follow a dot, because it doesn't know which child to take. Search recursively instead, passing the node and the index of the next letter in the pattern, and at a dot try every child:\n\n```javascript harness\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\nconst root = new TrieNode();\nfor (const word of [\"cat\", \"cut\", \"cart\"]) {\n  let node = root;\n  for (const ch of word) {\n    if (!node.children.has(ch)) {\n      node.children.set(ch, new TrieNode());\n    }\n    node = node.children.get(ch);\n  }\n  node.isEnd = true;\n}\n{{code}}\nconsole.log(matches(root, \"c.t\", 0), matches(root, \"c.r\", 0), matches(root, \"c..t\", 0));\n```\n\n```javascript\nfunction matches(node, pattern, i) {\n  if (i === pattern.length) {\n    return node.isEnd;\n  }\n  const ch = pattern[i];\n  if (ch === \".\") {\n    for (const child of node.children.values()) {\n      if (matches(child, pattern, i + 1)) {\n        return true;\n      }\n    }\n    return false;\n  }\n  const child = node.children.get(ch);\n  return child !== undefined && matches(child, pattern, i + 1);\n}\n```\n\nWith `cat`, `cut`, and `cart` stored, `c.t` and `c..t` match, but `c.r` doesn't. The path through `c`, `a`, and `r` exists, but at the end of the pattern a word must end at that node, and `cart` goes on. A letter follows one child, like a plain search. A dot can branch into every child, up to 26 for lowercase words, so a pattern with `d` dots can try up to `26 ** d` paths, never more than the trie holds. An all-dot pattern can visit every node down to its length, while each real letter cuts the search back to one branch.\n\n**The gotcha:** `forEach` can't stop early. A `return true` inside its callback only leaves the callback, and the function keeps going. Loop with `for...of` and return from there, or use `[...node.children.values()].some(...)`.",
+      "example": {
+        "title": "Crossword helper",
+        "prompt": "Read a list of words into a trie, then print every word that fits each crossword pattern in alphabetical order, where a dot stands for any one letter, or `no words`.",
+        "stdin": "cut cat cot cart coat cast dot\nc.t\nca.t\n.ot\nc..t\nd.g\n..\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...patterns] = input.trim().split(\"\\n\");\n\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\n\nfunction insert(root, word) {\n  let node = root;\n  for (const ch of word) {\n    if (!node.children.has(ch)) {\n      node.children.set(ch, new TrieNode());\n    }\n    node = node.children.get(ch);\n  }\n  node.isEnd = true;\n}\n\nfunction collectMatches(node, pattern, i, word, out) {\n  if (i === pattern.length) {\n    if (node.isEnd) {\n      out.push(word);\n    }\n    return;\n  }\n  const ch = pattern[i];\n  if (ch === \".\") {\n    for (const next of [...node.children.keys()].sort()) {\n      collectMatches(node.children.get(next), pattern, i + 1, word + next, out);\n    }\n  } else if (node.children.has(ch)) {\n    collectMatches(node.children.get(ch), pattern, i + 1, word + ch, out);\n  }\n}\n\nconst root = new TrieNode();\nfor (const word of first.trim().split(/\\s+/)) {\n  insert(root, word);\n}\nfor (const p of patterns) {\n  const pattern = p.trim();\n  const out = [];\n  collectMatches(root, pattern, 0, \"\", out);\n  console.log(`${pattern}: ${out.length > 0 ? out.join(\" \") : \"no words\"}`);\n}\n",
+        "output": "c.t: cat cot cut\nca.t: cart cast\n.ot: cot dot\nc..t: cart cast coat\nd.g: no words\n..: no words",
+        "explanation": "`collectMatches` is the search with one more argument, `word`, the letters walked so far, so it can push a match when the pattern ends on a word. At a dot it visits the children in sorted order, so the words come out alphabetical with no sort at the end. `c.t` branches at the dot into `a`, `o`, and `u`, and each branch ends on a word. `ca.t` follows `c` and `a`, then the dot tries `t`, `r`, and `s`, and only `r` and `s` have a `t` after them. `d.g` dies at the `g`, since `do` has only a `t` below it, and `..` finds no two-letter word."
+      },
+      "practice": {
+        "title": "Count the matches",
+        "prompt": "Read a list of words into a trie, then count how many words fit each pattern, where a `.` stands for any one letter.\n\n1. Finish `countMatches(node, pattern, i)`, shaped like the example's search.\n2. At the end of the pattern, return 1 when a word ends at this node, otherwise 0.\n3. At a `.`, return the sum of the counts from every child. At a letter, follow that child, or return 0 when it's missing.\n4. The starter prints `pattern: count` for each pattern.\n\nInput:\n\n```text\nlake like lime line mile mine nine\nli.e\n.ine\nl...\nm.le\nl..\nline.\n```\n\nExpected output:\n\n```text\nli.e: 3\n.ine: 3\nl...: 4\nm.le: 1\nl..: 0\nline.: 0\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...patterns] = input.trim().split(\"\\n\");\n\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\n\nfunction insert(root, word) {\n  let node = root;\n  for (const ch of word) {\n    if (!node.children.has(ch)) {\n      node.children.set(ch, new TrieNode());\n    }\n    node = node.children.get(ch);\n  }\n  node.isEnd = true;\n}\n\nfunction countMatches(node, pattern, i) {\n  // TODO: at the end of the pattern, count 1 if a word ends here\n  // TODO: at a dot, add up the counts from every child, at a letter follow its child\n  return 0;\n}\n\nconst root = new TrieNode();\nfor (const word of first.trim().split(/\\s+/)) {\n  insert(root, word);\n}\nfor (const p of patterns) {\n  const pattern = p.trim();\n  console.log(`${pattern}: ${countMatches(root, pattern, 0)}`);\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...patterns] = input.trim().split(\"\\n\");\n\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\n\nfunction insert(root, word) {\n  let node = root;\n  for (const ch of word) {\n    if (!node.children.has(ch)) {\n      node.children.set(ch, new TrieNode());\n    }\n    node = node.children.get(ch);\n  }\n  node.isEnd = true;\n}\n\nfunction countMatches(node, pattern, i) {\n  if (i === pattern.length) {\n    return node.isEnd ? 1 : 0;\n  }\n  const ch = pattern[i];\n  if (ch === \".\") {\n    let total = 0;\n    for (const child of node.children.values()) {\n      total += countMatches(child, pattern, i + 1);\n    }\n    return total;\n  }\n  const child = node.children.get(ch);\n  return child === undefined ? 0 : countMatches(child, pattern, i + 1);\n}\n\nconst root = new TrieNode();\nfor (const word of first.trim().split(/\\s+/)) {\n  insert(root, word);\n}\nfor (const p of patterns) {\n  const pattern = p.trim();\n  console.log(`${pattern}: ${countMatches(root, pattern, 0)}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "lake like lime line mile mine nine\nli.e\n.ine\nl...\nm.le\nl..\nline.\n",
+            "output": "li.e: 3\n.ine: 3\nl...: 4\nm.le: 1\nl..: 0\nline.: 0"
+          },
+          {
+            "stdin": "a an ant at be\n.\n..\n...\n....\n",
+            "output": ".: 1\n..: 3\n...: 1\n....: 0"
+          },
+          {
+            "stdin": "go\n..\ng.\nx.\n",
+            "output": "..: 1\ng.: 1\nx.: 0"
+          }
+        ],
+        "hints": [
+          "Where the example pushes a word, return a number: `node.isEnd ? 1 : 0` at the end of the pattern.",
+          "At a dot, start a total at 0 and add `countMatches(child, pattern, i + 1)` for every child in `node.children.values()`.",
+          "At a letter, `node.children.get(ch)` is `undefined` when no word has that letter there, so return 0."
+        ]
+      }
     }
   ],
-  "recap": "- A trie node holds `children`, a Map from a letter to a child node, and `isEnd`, true where a word ends.\n- Insert walks the word from the root, creating missing children, then sets `isEnd` on the last node.\n- A walk that reaches the end means the text is a prefix. It is a word only if that node has `isEnd`.\n- `children.get(ch)` is `undefined` for a missing letter, so check `has(ch)` first.\n- A `count` on each node, raised on every insert, answers how many words start with a prefix.\n- The first node with `count` 1 along a word ends its shortest unique prefix.\n- A DFS from a prefix's node, carrying `word + ch`, lists every word below it.\n- Maps iterate in insertion order, so visit `[...node.children.keys()].sort()` for alphabetical results."
+  "recap": "- A trie node holds `children`, a Map from a letter to a child node, and `isEnd`, true where a word ends.\n- Insert walks the word from the root, creating missing children, then sets `isEnd` on the last node.\n- A walk that reaches the end means the text is a prefix. It is a word only if that node has `isEnd`.\n- `children.get(ch)` is `undefined` for a missing letter, so check `has(ch)` first.\n- A `count` on each node, raised on every insert, answers how many words start with a prefix.\n- The first node with `count` 1 along a word ends its shortest unique prefix.\n- A DFS from a prefix's node, carrying `word + ch`, lists every word below it.\n- Maps iterate in insertion order, so visit `[...node.children.keys()].sort()` for alphabetical results.\n- For a `.` that matches any one letter, recurse with the next index and try every child, returning as soon as one branch matches.\n- A dot can branch into every child, so a pattern with many dots can visit much of the trie. Loop with `for...of`, since `forEach` can't return early."
 }

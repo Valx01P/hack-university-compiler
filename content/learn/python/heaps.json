@@ -1,0 +1,121 @@
+{
+  "id": "heaps",
+  "title": "Heap Patterns",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Track a running median with two heaps, merge sorted lists with a heap of entries, and count the rooms a schedule needs with a heap of end times.",
+  "intro": "The Heaps and Binary Search lesson pushed numbers and tuples into a `heapq` min-heap, and the Stacks, Queues, and Monotonic Stacks lesson kept one at size k. Three more heap patterns come up again and again: two heaps that split the numbers in half to track a median, one entry per list to merge sorted lists, and a heap of end times to count the rooms a schedule needs.",
+  "steps": [
+    {
+      "title": "Two heaps for a running median",
+      "body": "The median is the middle value once the numbers are sorted. When numbers keep arriving, sorting again after each one costs O(n log n) every time. Two heaps keep the middle ready instead:\n\n- `low` is a max-heap of the smaller half. `heapq` only makes min-heaps, so it stores each number negated, and `-low[0]` is the biggest small number.\n- `high` is a min-heap of the larger half, so `high[0]` is the smallest big number.\n\nTo add `x`, push it into `low`, move `low`'s top over to `high`, and if `high` is now bigger, move its top back:\n\n```python harness\nimport heapq\n\nlow, high = [], []\nfor x in [5, 15, 1]:\n    {{code}}\nprint(-low[0], high[0])\n```\n\n```python\nheapq.heappush(low, -x)\nheapq.heappush(high, -heapq.heappop(low))      # the biggest small number moves up\nif len(high) > len(low):\n    heapq.heappush(low, -heapq.heappop(high))  # low keeps the extra one\n```\n\nPassing every number through `low` keeps all of `low` at or below all of `high`. The sizes never differ by more than one, and `low` holds the extra. So with an odd count the median is `-low[0]`, and with an even count it's the average of the two tops, `(-low[0] + high[0]) / 2`.\n\nEach new number costs a few pushes and pops on heaps of about n / 2 items, so O(log n), and reading the median is O(1). The two heaps hold every number, O(n) space.",
+      "example": {
+        "title": "Median sale price",
+        "prompt": "Read sale prices, one per line, and after each sale print the median price so far with one decimal. With an even count the median is the average of the two middle prices.",
+        "code": "import heapq\nimport sys\n\nlow, high = [], []  # the smaller half negated, and the larger half\nfor count, line in enumerate(sys.stdin, start=1):\n    price = int(line)\n    heapq.heappush(low, -price)\n    heapq.heappush(high, -heapq.heappop(low))\n    if len(high) > len(low):\n        heapq.heappush(low, -heapq.heappop(high))\n    if len(low) > len(high):\n        median = -low[0]\n    else:\n        median = (-low[0] + high[0]) / 2\n    print(f\"sale {count}: median {median:.1f}\")\n",
+        "stdin": "250\n310\n180\n275\n410\n120\n",
+        "output": "sale 1: median 250.0\nsale 2: median 280.0\nsale 3: median 250.0\nsale 4: median 262.5\nsale 5: median 275.0\nsale 6: median 262.5",
+        "explanation": "After 250 and 310, `low` holds 250 and `high` holds 310, so the median is their average, 280.0. Then 180 goes into `low`, 250 moves up, and `high` is bigger, so 250 comes back: `low` holds 180 and 250, and its top is the median. After 275 the tops are 250 and 275, for 262.5. `:.1f` prints a whole median like 250 as `250.0` too, and nothing is ever sorted."
+      },
+      "practice": {
+        "title": "Median wait time",
+        "prompt": "Track the waits at a help desk and report the median wait whenever someone asks.\n\n1. The starter reads one command per line: `add T` records a wait of `T` minutes, and `median` asks for the median of every wait so far.\n2. For `add`, push `T` into the two heaps and rebalance them as in the example.\n3. For `median`, print the median as a whole number. With an even count, print the lower of the two middle waits, so the median of 4, 8, 9, and 12 is 8.\n4. Before any wait is recorded, print `no waits`.\n\nInput:\n\n```text\nmedian\nadd 12\nadd 4\nmedian\nadd 9\nmedian\nadd 8\nmedian\n```\n\nExpected output:\n\n```text\nno waits\n4\n9\n8\n```",
+        "starter": "import heapq\nimport sys\n\nlow, high = [], []  # the smaller half negated, and the larger half\nfor line in sys.stdin:\n    parts = line.split()\n    if parts[0] == \"add\":\n        t = int(parts[1])\n        # TODO: push t into the two heaps and rebalance them\n        pass\n    else:\n        # TODO: print the median (the lower middle for an even count), or no waits\n        pass\n",
+        "solution": "import heapq\nimport sys\n\nlow, high = [], []  # the smaller half negated, and the larger half\nfor line in sys.stdin:\n    parts = line.split()\n    if parts[0] == \"add\":\n        t = int(parts[1])\n        heapq.heappush(low, -t)\n        heapq.heappush(high, -heapq.heappop(low))\n        if len(high) > len(low):\n            heapq.heappush(low, -heapq.heappop(high))\n    elif low:\n        print(-low[0])\n    else:\n        print(\"no waits\")\n",
+        "tests": [
+          {
+            "stdin": "median\nadd 12\nadd 4\nmedian\nadd 9\nmedian\nadd 8\nmedian\n",
+            "output": "no waits\n4\n9\n8"
+          },
+          {
+            "stdin": "add 7\nmedian\nadd 3\nmedian\nadd 3\nmedian\n",
+            "output": "7\n3\n3"
+          },
+          {
+            "stdin": "add 30\nadd 10\nadd 20\nadd 50\nadd 40\nadd 60\nmedian\nmedian\n",
+            "output": "30\n30"
+          }
+        ],
+        "hints": [
+          "The `add` branch is the example's three heap steps with `t` in place of `price`.",
+          "`low` keeps the extra number, so with an even count its top is already the lower middle. Print `-low[0]` for every count.",
+          "`low` is empty only before the first `add`, so `if low:` decides between the median and `no waits`."
+        ]
+      }
+    },
+    {
+      "title": "Merging sorted lists",
+      "body": "To merge `k` sorted lists into one, you keep taking the smallest value still at the front of any list. Checking every front costs O(k) per value. A heap holds one front per list instead and hands over the smallest in O(log k).\n\nEach entry is a tuple `(value, which list, index in that list)`. Tuples compare item by item, so the heap orders by value, and a tie falls through to the list number. A list has at most one entry in the heap at a time, so the comparison never needs more. After you pop an entry, push the next value from the same list, if it has one:\n\n```python\nimport heapq\n\nlists = [[1, 4, 7], [2, 5], [], [0, 6, 9]]\nheap = [(lst[0], i, 0) for i, lst in enumerate(lists) if lst]\nheapq.heapify(heap)\nmerged = []\nwhile heap:\n    value, i, j = heapq.heappop(heap)\n    merged.append(value)\n    if j + 1 < len(lists[i]):\n        heapq.heappush(heap, (lists[i][j + 1], i, j + 1))\nprint(merged)  # [0, 1, 2, 4, 5, 6, 7, 9]\n```\n\n`if lst` skips empty lists, which have no front. The heap never holds more than `k` entries, so merging `N` values in all costs O(N log k) time and O(k) extra space, where sorting everything together costs O(N log N).\n\n`heapq.merge(*lists)` does the same merge when you only need the values. Write the heap yourself when you need to know where each value came from, or to stop early.",
+      "example": {
+        "title": "Merged server logs",
+        "prompt": "Read k servers, each a name followed by its event times in increasing order, and print one timeline of every event as `time server`. Equal times keep the order the servers were listed in.",
+        "code": "import heapq\n\nk = int(input())\nnames, logs = [], []\nfor _ in range(k):\n    parts = input().split()\n    names.append(parts[0])\n    logs.append([int(t) for t in parts[1:]])\n\nheap = [(log[0], i, 0) for i, log in enumerate(logs) if log]\nheapq.heapify(heap)\nwhile heap:\n    t, i, j = heapq.heappop(heap)\n    print(t, names[i])\n    if j + 1 < len(logs[i]):\n        heapq.heappush(heap, (logs[i][j + 1], i, j + 1))\n",
+        "stdin": "4\nweb 3 9 12\ndb 1 9\nqueue\ncache 4 5 15\n",
+        "output": "1 db\n3 web\n4 cache\n5 cache\n9 web\n9 db\n12 web\n15 cache",
+        "explanation": "The `queue` server logged nothing, so `if log` leaves it out, and only three entries start in the heap: 3, 1, and 4. 1 comes out first, and `db` sends its next time, 9. When `web` and `db` both wait with 9, the tuples tie on time and compare the list number next, so `web`, listed first, prints first. The heap never holds more than three entries."
+      },
+      "practice": {
+        "title": "Fastest across heats",
+        "prompt": "Each heat of a race lists its finishing times, fastest first. Print the overall top `m`.\n\n1. The first line holds `k` and `m`. The starter reads the `k` heats, each a name followed by its times in increasing order, into `names` and `heats`. A heat can have no times.\n2. Start a heap with the first time of every heat that has one, as `(time, heat number, index)` tuples.\n3. Pop the fastest entry, print it as `place. time heat`, and push the next time from the same heat.\n4. Stop after `m` places, or sooner when every heat runs out. Equal times go to the heat listed first.\n\nInput:\n\n```text\n3 4\nA 50 55 61\nB 48 55 70\nC 52\n```\n\nExpected output:\n\n```text\n1. 48 B\n2. 50 A\n3. 52 C\n4. 55 A\n```",
+        "starter": "import heapq\n\nk, m = map(int, input().split())\nnames, heats = [], []\nfor _ in range(k):\n    parts = input().split()\n    names.append(parts[0])\n    heats.append([int(t) for t in parts[1:]])\n\n# TODO: start a heap of (time, heat number, index) with the first time of every heat\n# TODO: pop the fastest, print \"place. time heat\", and push that heat's next time\n# TODO: stop after m places, or when the heap is empty\n",
+        "solution": "import heapq\n\nk, m = map(int, input().split())\nnames, heats = [], []\nfor _ in range(k):\n    parts = input().split()\n    names.append(parts[0])\n    heats.append([int(t) for t in parts[1:]])\n\nheap = [(heat[0], i, 0) for i, heat in enumerate(heats) if heat]\nheapq.heapify(heap)\nplace = 1\nwhile heap and place <= m:\n    t, i, j = heapq.heappop(heap)\n    print(f\"{place}. {t} {names[i]}\")\n    place += 1\n    if j + 1 < len(heats[i]):\n        heapq.heappush(heap, (heats[i][j + 1], i, j + 1))\n",
+        "tests": [
+          {
+            "stdin": "3 4\nA 50 55 61\nB 48 55 70\nC 52\n",
+            "output": "1. 48 B\n2. 50 A\n3. 52 C\n4. 55 A"
+          },
+          {
+            "stdin": "2 5\nX 10 20\nY 15\n",
+            "output": "1. 10 X\n2. 15 Y\n3. 20 X"
+          },
+          {
+            "stdin": "3 2\nP 7 9\nQ\nR 3 8\n",
+            "output": "1. 3 R\n2. 7 P"
+          }
+        ],
+        "hints": [
+          "Build the starting heap like the example: `[(heat[0], i, 0) for i, heat in enumerate(heats) if heat]`, then `heapify` it.",
+          "Loop `while heap and place <= m:`, so the loop stops at `m` places or when nothing is left.",
+          "The tuples already break ties by heat number, so the heat listed first wins without extra code."
+        ]
+      }
+    },
+    {
+      "title": "Counting rooms with end times",
+      "body": "To count the rooms a day of meetings needs, sort the meetings by start. Then keep a min-heap of end times, one per room, so `ends[0]` is the room that frees up first.\n\nFor each meeting, if the earliest end is at or before its start, that room is free: pop it. Then push the meeting's own end:\n\n```python\nimport heapq\n\nmeetings = [(10, 12), (9, 11), (11, 13), (14, 15)]\nmeetings.sort()\nends = []\nfor start, end in meetings:\n    if ends and ends[0] <= start:\n        heapq.heappop(ends)  # that meeting is over: reuse its room\n    heapq.heappush(ends, end)\nprint(len(ends))  # 2\n```\n\nThe `<=` is the rule for meetings that touch: a meeting that ends at 11 frees its room for one that starts at 11. Write `<` instead when a room stays booked through the minute its meeting ends.\n\nEach meeting pushes one end and pops at most one, so the heap never shrinks, and its size at the end is the answer. It only grows when even the earliest end is after the start, and then every meeting inside is still running, so the size is the rooms in use right then. Sorting costs O(n log n) and each heap step O(log n), so the whole count is O(n log n), with O(n) extra space.",
+      "example": {
+        "title": "Lecture halls",
+        "prompt": "Read n lectures as `name start end`, in any order. Go through them by start time, print whether each one reuses a hall or needs a new one, and print how many halls the day needs. A lecture can take over a hall the minute the one before it ends.",
+        "code": "import heapq\n\nn = int(input())\nlectures = []\nfor _ in range(n):\n    name, start, end = input().split()\n    lectures.append((int(start), int(end), name))\nlectures.sort()\n\nends = []\nfor start, end, name in lectures:\n    if ends and ends[0] <= start:\n        heapq.heappop(ends)\n        print(f\"{name}: reuses a hall\")\n    else:\n        print(f\"{name}: new hall\")\n    heapq.heappush(ends, end)\nprint(\"Halls:\", len(ends))\n",
+        "stdin": "5\nmath 9 11\nart 13 14\nchem 10 12\nbio 11 13\ngym 12 15\n",
+        "output": "math: new hall\nchem: new hall\nbio: reuses a hall\ngym: reuses a hall\nart: reuses a hall\nHalls: 2",
+        "explanation": "Each lecture becomes a `(start, end, name)` tuple, so `sort()` orders them by start. `math` and `chem` overlap, so `chem` finds the earliest end, 11, after its start and opens a second hall. `bio` starts at 11, exactly when `math` ends, and `<=` lets it take that hall. `gym` and `art` each start the minute a hall frees up, so the day never needs a third."
+      },
+      "practice": {
+        "title": "Studios with cleanup",
+        "prompt": "A recording studio needs `c` minutes of cleanup after each booking. Find how many studios a day of bookings needs.\n\n1. The first line holds `n` and `c`. The starter reads the `n` bookings as `(start, end)` tuples, in any order.\n2. Sort the bookings by start, and keep a min-heap of the times the busy studios are ready again.\n3. A studio is ready `c` minutes after its booking ends, and a booking can start in a studio the minute it's ready: one that ends at 120 with 15 minutes of cleanup is ready for a booking that starts at 135.\n4. Print `Studios:` and the count.\n\nInput:\n\n```text\n4 15\n60 120\n135 200\n130 180\n200 230\n```\n\nExpected output:\n\n```text\nStudios: 2\n```",
+        "starter": "import heapq\n\nn, c = map(int, input().split())\nbookings = []\nfor _ in range(n):\n    start, end = map(int, input().split())\n    bookings.append((start, end))\n\n# TODO: sort the bookings by start\n# TODO: keep a min-heap of the times the busy studios are ready again\nprint(\"Studios:\", 0)\n",
+        "solution": "import heapq\n\nn, c = map(int, input().split())\nbookings = []\nfor _ in range(n):\n    start, end = map(int, input().split())\n    bookings.append((start, end))\n\nbookings.sort()\nready = []\nfor start, end in bookings:\n    if ready and ready[0] <= start:\n        heapq.heappop(ready)\n    heapq.heappush(ready, end + c)\nprint(\"Studios:\", len(ready))\n",
+        "tests": [
+          {
+            "stdin": "4 15\n60 120\n135 200\n130 180\n200 230\n",
+            "output": "Studios: 2"
+          },
+          {
+            "stdin": "2 10\n0 30\n35 50\n",
+            "output": "Studios: 2"
+          },
+          {
+            "stdin": "3 0\n9 12\n1 5\n5 9\n",
+            "output": "Studios: 1"
+          }
+        ],
+        "hints": [
+          "It's the example's loop, pushing `end + c` instead of `end`.",
+          "Use `ready[0] <= start`, so a studio that's ready exactly at the start counts as free.",
+          "Sort first: `bookings.sort()` orders the tuples by start."
+        ]
+      }
+    }
+  ],
+  "recap": "- Two heaps track a running median: `low` holds the smaller half as negated numbers, a max-heap, and `high` the larger half as a min-heap.\n- Add through `low`, move its top to `high`, and move one back when `high` grows bigger. Each number costs O(log n).\n- With `low` keeping the extra number, the median is `-low[0]` for an odd count and `(-low[0] + high[0]) / 2` for an even one.\n- Merge sorted lists with `(value, list, index)` tuples: pop the smallest and push the next value from its list, for O(N log k).\n- `heapq.merge(*lists)` merges when you only need the values.\n- To count rooms, sort by start and keep a min-heap of end times. Pop when `ends[0] <= start`, push every end, and `len(ends)` is the answer."
+}

@@ -1,0 +1,121 @@
+{
+  "id": "heap-patterns",
+  "title": "Heap Patterns",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Track a running median with two heaps, merge sorted lists with a heap of entries, and count the rooms a schedule needs with a heap of end times.",
+  "intro": "The Heaps and Priority Queues lesson loaded `MinPriorityQueue`, `MaxPriorityQueue`, and `PriorityQueue` from the `@datastructures-js/priority-queue` package. Here those same classes solve three classic problems: two heaps that split the numbers in half to track a median, one entry per list to merge sorted lists, and a heap of end times to count the rooms a schedule needs.",
+  "steps": [
+    {
+      "title": "Two heaps for a running median",
+      "body": "The median is the middle value once the numbers are sorted. When numbers keep arriving, sorting again after each one costs O(n log n) every time. Two heaps keep the middle ready instead:\n\n- `low`, a `MaxPriorityQueue`, holds the smaller half, so `low.front()` is the biggest small number.\n- `high`, a `MinPriorityQueue`, holds the larger half, so `high.front()` is the smallest big number.\n\nTo add `x`, enqueue it into `low`, move `low`'s top over to `high`, and if `high` is now bigger, move its top back:\n\n```javascript harness\nconst { MinPriorityQueue, MaxPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst low = new MaxPriorityQueue();\nconst high = new MinPriorityQueue();\nfor (const x of [5, 15, 1]) {\n  {{code}}\n}\nconsole.log(low.front(), high.front());\n```\n\n```javascript\nlow.enqueue(x);\nhigh.enqueue(low.dequeue()); // the biggest small number moves up\nif (high.size() > low.size()) {\n  low.enqueue(high.dequeue()); // low keeps the extra one\n}\n```\n\nPassing every number through `low` keeps all of `low` at or below all of `high`. The sizes never differ by more than one, and `low` holds the extra. So with an odd count the median is `low.front()`, and with an even count it's the average of the two tops, `(low.front() + high.front()) / 2`.\n\nEach new number costs a few heap operations on heaps of about n / 2 items, so O(log n), and reading the median is O(1). The two heaps hold every number, O(n) space.\n\n**The gotcha:** `front()` on an empty heap returns `null`, and `null + 5` is 5. Check `isEmpty()` before you ask for a median.",
+      "example": {
+        "title": "Median finishing time",
+        "prompt": "Read runners as `name minutes`, one per line, in the order they finish. After each one, print the median time so far with one decimal. With an even count the median is the average of the two middle times.",
+        "code": "const { MinPriorityQueue, MaxPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\n\nconst low = new MaxPriorityQueue(); // the smaller half\nconst high = new MinPriorityQueue(); // the larger half\nfor (const line of input.trim().split(\"\\n\")) {\n  const [name, minutes] = line.trim().split(/\\s+/);\n  low.enqueue(Number(minutes));\n  high.enqueue(low.dequeue());\n  if (high.size() > low.size()) {\n    low.enqueue(high.dequeue());\n  }\n  const median = low.size() > high.size() ? low.front() : (low.front() + high.front()) / 2;\n  console.log(`${name}: median ${median.toFixed(1)}`);\n}\n",
+        "stdin": "ana 42\nben 35\ncal 51\ndia 38\neli 47\n",
+        "output": "ana: median 42.0\nben: median 38.5\ncal: median 42.0\ndia: median 40.0\neli: median 42.0",
+        "explanation": "After `ana` and `ben`, `low` holds 35 and `high` holds 42, so the median is their average, 38.5. Then 51 goes into `low` and straight up to `high`, which is now bigger, so 42 comes back down: `low` holds 35 and 42, and its top is the median. After 38 the tops are 38 and 42, for 40.0. `toFixed(1)` prints a whole median like 42 as `42.0` too."
+      },
+      "practice": {
+        "title": "Median temperature",
+        "prompt": "Record temperature readings and report the median whenever someone asks.\n\n1. The starter reads one command per line: `add T` records a reading, which can be negative, and `median` asks for the median of every reading so far.\n2. For `add`, enqueue the number into the two heaps and rebalance them as in the example.\n3. For `median`, print the median with one decimal. With an even count, print the average of the two middle readings, so the median of 4, 8, 9, and 12 is `8.5`.\n4. Before any reading is recorded, print `no readings`.\n\nInput:\n\n```text\nmedian\nadd 12\nadd 8\nmedian\nadd 30\nmedian\nadd 9\nmedian\n```\n\nExpected output:\n\n```text\nno readings\n10.0\n12.0\n10.5\n```",
+        "starter": "const { MinPriorityQueue, MaxPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\n\nconst low = new MaxPriorityQueue(); // the smaller half\nconst high = new MinPriorityQueue(); // the larger half\nfor (const line of input.trim().split(\"\\n\")) {\n  const [command, value] = line.trim().split(/\\s+/);\n  if (command === \"add\") {\n    // TODO: add Number(value) to the two heaps and rebalance them\n  } else {\n    // TODO: print the median with one decimal, or no readings\n  }\n}\n",
+        "solution": "const { MinPriorityQueue, MaxPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\n\nconst low = new MaxPriorityQueue(); // the smaller half\nconst high = new MinPriorityQueue(); // the larger half\nfor (const line of input.trim().split(\"\\n\")) {\n  const [command, value] = line.trim().split(/\\s+/);\n  if (command === \"add\") {\n    low.enqueue(Number(value));\n    high.enqueue(low.dequeue());\n    if (high.size() > low.size()) {\n      low.enqueue(high.dequeue());\n    }\n  } else if (low.isEmpty()) {\n    console.log(\"no readings\");\n  } else if (low.size() > high.size()) {\n    console.log(low.front().toFixed(1));\n  } else {\n    console.log(((low.front() + high.front()) / 2).toFixed(1));\n  }\n}\n",
+        "tests": [
+          {
+            "stdin": "median\nadd 12\nadd 8\nmedian\nadd 30\nmedian\nadd 9\nmedian\n",
+            "output": "no readings\n10.0\n12.0\n10.5"
+          },
+          {
+            "stdin": "add -4\nmedian\nadd 3\nmedian\n",
+            "output": "-4.0\n-0.5"
+          },
+          {
+            "stdin": "add 7\nadd 7\nadd 2\nadd 9\nmedian\nmedian\n",
+            "output": "7.0\n7.0"
+          }
+        ],
+        "hints": [
+          "The `add` branch is the example's three heap steps with `Number(value)` in place of `Number(minutes)`.",
+          "Check `low.isEmpty()` first: `low` is empty only before the first `add`.",
+          "With equal sizes, average the two fronts and format the result: `((low.front() + high.front()) / 2).toFixed(1)`."
+        ]
+      }
+    },
+    {
+      "title": "Merging sorted lists",
+      "body": "To merge `k` sorted lists into one, you keep taking the smallest value still at the front of any list. Checking every front costs O(k) per value. A heap holds one front per list instead and hands over the smallest in O(log k).\n\nEach entry is a `[value, list, index]` array: the value, which list it came from, and where it sits in that list. Order the heap by value, and since a heap isn't stable, break ties by list number. After you dequeue an entry, enqueue the next value from the same list, if it has one:\n\n```javascript\nconst { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst lists = [[1, 4, 7], [2, 5], [], [0, 6, 9]];\nconst heap = new PriorityQueue((a, b) => a[0] - b[0] || a[1] - b[1]);\nlists.forEach((list, i) => {\n  if (list.length > 0) {\n    heap.enqueue([list[0], i, 0]);\n  }\n});\nconst merged = [];\nwhile (!heap.isEmpty()) {\n  const [value, i, j] = heap.dequeue();\n  merged.push(value);\n  if (j + 1 < lists[i].length) {\n    heap.enqueue([lists[i][j + 1], i, j + 1]);\n  }\n}\nconsole.log(merged.join(\" \")); // 0 1 2 4 5 6 7 9\n```\n\nAn empty list has no front, so it never gets an entry. The heap never holds more than `k` entries, one per list, so merging `N` values in all costs O(N log k) time and O(k) extra space, where joining everything and sorting costs O(N log N). The heap also lets you stop early, after the first few values.",
+      "example": {
+        "title": "Departure board",
+        "prompt": "Read one train line per row, a name followed by its departure times in increasing order, and print every departure on one board as `time line`. Equal times keep the order the lines were listed in.",
+        "code": "const { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\n\nconst names = [];\nconst lists = [];\nfor (const line of input.trim().split(\"\\n\")) {\n  const [name, ...times] = line.trim().split(/\\s+/);\n  names.push(name);\n  lists.push(times.map(Number));\n}\n\nconst heap = new PriorityQueue((a, b) => a[0] - b[0] || a[1] - b[1]);\nlists.forEach((list, i) => {\n  if (list.length > 0) {\n    heap.enqueue([list[0], i, 0]);\n  }\n});\nwhile (!heap.isEmpty()) {\n  const [time, i, j] = heap.dequeue();\n  console.log(`${time} ${names[i]}`);\n  if (j + 1 < lists[i].length) {\n    heap.enqueue([lists[i][j + 1], i, j + 1]);\n  }\n}\n",
+        "stdin": "red 5 20 35\nblue 10 20\ngreen\nyellow 1 50\n",
+        "output": "1 yellow\n5 red\n10 blue\n20 red\n20 blue\n35 red\n50 yellow",
+        "explanation": "`[name, ...times]` takes the first word as the name and gathers the rest. `green` has no departures, so it never gets an entry, and three start in the heap: 5, 10, and 1. 1 comes out first, and `yellow` sends its next time, 50. When `red` and `blue` both wait with 20, the compare function falls through to the list number, so `red`, listed first, comes out first."
+      },
+      "practice": {
+        "title": "Cheapest offers",
+        "prompt": "Several shops each list their prices for the same item, cheapest first. Print the `m` cheapest offers overall.\n\n1. The first line is `m`. The starter reads every other line, a shop name followed by its prices in increasing order, into `names` and `lists`. A shop can list no prices.\n2. Start a `PriorityQueue` of `[price, shop, index]` entries with the first price of every shop that has one, ordered by price and then by shop number.\n3. Dequeue the cheapest entry, print it as `place. price shop`, and enqueue the next price from the same shop.\n4. Stop after `m` places, or sooner when every shop runs out. Equal prices go to the shop listed first.\n\nInput:\n\n```text\n4\nnorth 12 15 30\nsouth 9 15\neast\nwest 14\n```\n\nExpected output:\n\n```text\n1. 9 south\n2. 12 north\n3. 14 west\n4. 15 north\n```",
+        "starter": "const { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\n\nconst [mLine, ...shopLines] = input.trim().split(\"\\n\");\nconst m = Number(mLine);\nconst names = [];\nconst lists = [];\nfor (const line of shopLines) {\n  const [name, ...prices] = line.trim().split(/\\s+/);\n  names.push(name);\n  lists.push(prices.map(Number));\n}\n\n// TODO: start a heap of [price, shop, index] entries with each shop's first price\n// TODO: dequeue the cheapest, print \"place. price shop\", and enqueue that shop's next price\n// TODO: stop after m places, or when the heap is empty\n",
+        "solution": "const { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\n\nconst [mLine, ...shopLines] = input.trim().split(\"\\n\");\nconst m = Number(mLine);\nconst names = [];\nconst lists = [];\nfor (const line of shopLines) {\n  const [name, ...prices] = line.trim().split(/\\s+/);\n  names.push(name);\n  lists.push(prices.map(Number));\n}\n\nconst heap = new PriorityQueue((a, b) => a[0] - b[0] || a[1] - b[1]);\nlists.forEach((list, i) => {\n  if (list.length > 0) {\n    heap.enqueue([list[0], i, 0]);\n  }\n});\nfor (let place = 1; place <= m && !heap.isEmpty(); place++) {\n  const [price, i, j] = heap.dequeue();\n  console.log(`${place}. ${price} ${names[i]}`);\n  if (j + 1 < lists[i].length) {\n    heap.enqueue([lists[i][j + 1], i, j + 1]);\n  }\n}\n",
+        "tests": [
+          {
+            "stdin": "4\nnorth 12 15 30\nsouth 9 15\neast\nwest 14\n",
+            "output": "1. 9 south\n2. 12 north\n3. 14 west\n4. 15 north"
+          },
+          {
+            "stdin": "5\na 3 8\nb 5\n",
+            "output": "1. 3 a\n2. 5 b\n3. 8 a"
+          },
+          {
+            "stdin": "1\nx 20 21\ny 4 30\n",
+            "output": "1. 4 y"
+          }
+        ],
+        "hints": [
+          "The heap and its first entries are the example's, with prices in place of times.",
+          "A `for` loop that counts `place` from 1 can stop on two conditions: `place <= m && !heap.isEmpty()`.",
+          "Keep the tie-break `|| a[1] - b[1]`, so an equal price from an earlier shop comes out first."
+        ]
+      }
+    },
+    {
+      "title": "Counting rooms with end times",
+      "body": "To count the rooms a day of meetings needs, sort the meetings by start. Then keep a `MinPriorityQueue` of end times, one per room, so `ends.front()` is the room that frees up first.\n\nFor each meeting, if the earliest end is at or before its start, that room is free: dequeue it. Then enqueue the meeting's own end:\n\n```javascript\nconst { MinPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst meetings = [[10, 12], [9, 11], [11, 13], [14, 15]];\nmeetings.sort((a, b) => a[0] - b[0]);\nconst ends = new MinPriorityQueue();\nfor (const [start, end] of meetings) {\n  if (!ends.isEmpty() && ends.front() <= start) {\n    ends.dequeue(); // that meeting is over: reuse its room\n  }\n  ends.enqueue(end);\n}\nconsole.log(ends.size()); // 2\n```\n\nThe `<=` is the rule for meetings that touch: a meeting that ends at 11 frees its room for one that starts at 11. Write `<` instead when a room stays booked through the minute its meeting ends. Check `isEmpty()` first, because `front()` on an empty heap is `null`, and `null <= 9` is `true`.\n\nEach meeting enqueues one end and dequeues at most one, so the heap never shrinks, and its size at the end is the answer. It only grows when even the earliest end is after the start, and then every meeting inside is still running. Sorting costs O(n log n) and each heap step O(log n), so the whole count is O(n log n), with O(n) extra space.",
+      "example": {
+        "title": "Interview rooms",
+        "prompt": "Read interviews as `name start end`, in any order. Go through them by start time, print whether each one reuses a room or needs a new one, and print how many rooms the day needs. An interview can take over a room the minute the one before it ends.",
+        "code": "const { MinPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\n\nconst interviews = input.trim().split(\"\\n\").map((line) => {\n  const [name, start, end] = line.trim().split(/\\s+/);\n  return [name, Number(start), Number(end)];\n});\ninterviews.sort((a, b) => a[1] - b[1] || a[2] - b[2]);\n\nconst ends = new MinPriorityQueue();\nfor (const [name, start, end] of interviews) {\n  if (!ends.isEmpty() && ends.front() <= start) {\n    ends.dequeue();\n    console.log(`${name}: reuses a room`);\n  } else {\n    console.log(`${name}: new room`);\n  }\n  ends.enqueue(end);\n}\nconsole.log(`Rooms: ${ends.size()}`);\n",
+        "stdin": "kim 9 10\nal 8 10\nbo 9 11\ncy 10 12\ndee 11 12\neve 10 11\n",
+        "output": "al: new room\nkim: new room\nbo: new room\neve: reuses a room\ncy: reuses a room\ndee: reuses a room\nRooms: 3",
+        "explanation": "The sort orders the interviews by start, and by end on a tie. `al`, `kim`, and `bo` all start before 10, the earliest end, so each opens a room. `eve` starts at 10, exactly when `al` ends, and `<=` lets it take that room. `cy` takes the other room freed at 10, and `dee` one of the rooms freed at 11, so the day never needs a fourth."
+      },
+      "practice": {
+        "title": "Charging stations",
+        "prompt": "Electric cars arrive at a charging lot, and each one charges for a number of minutes. Find how many chargers the lot needs.\n\n1. The starter reads one car per line as `[arrive, minutes]`, in any order. A car finishes at `arrive + minutes`.\n2. Sort the cars by arrival, and keep a `MinPriorityQueue` of the times the busy chargers finish.\n3. A car can plug into a charger the minute the car before it finishes: a car that arrives at 0 and charges for 30 frees its charger for a car that arrives at 30.\n4. Print `Chargers:` and the count.\n\nInput:\n\n```text\n0 30\n10 20\n30 15\n25 5\n45 10\n```\n\nExpected output:\n\n```text\nChargers: 3\n```",
+        "starter": "const { MinPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst cars = input.trim().split(\"\\n\").map((line) => line.trim().split(/\\s+/).map(Number));\n\n// TODO: sort the cars by arrival\n// TODO: keep a min-heap of finish times, reusing a charger that is free at or before the arrival\nconsole.log(\"Chargers: 0\");\n",
+        "solution": "const { MinPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst cars = input.trim().split(\"\\n\").map((line) => line.trim().split(/\\s+/).map(Number));\n\ncars.sort((a, b) => a[0] - b[0]);\nconst done = new MinPriorityQueue();\nfor (const [arrive, minutes] of cars) {\n  if (!done.isEmpty() && done.front() <= arrive) {\n    done.dequeue();\n  }\n  done.enqueue(arrive + minutes);\n}\nconsole.log(`Chargers: ${done.size()}`);\n",
+        "tests": [
+          {
+            "stdin": "0 30\n10 20\n30 15\n25 5\n45 10\n",
+            "output": "Chargers: 3"
+          },
+          {
+            "stdin": "5 10\n15 10\n",
+            "output": "Chargers: 1"
+          },
+          {
+            "stdin": "20 5\n0 10\n5 10\n",
+            "output": "Chargers: 2"
+          }
+        ],
+        "hints": [
+          "It's the example's loop, enqueuing `arrive + minutes` as each car's end.",
+          "Use `done.front() <= arrive`, so a charger that frees up exactly at the arrival counts as free.",
+          "Sort first with `cars.sort((a, b) => a[0] - b[0])`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Two heaps track a running median: a `MaxPriorityQueue` holds the smaller half and a `MinPriorityQueue` the larger half.\n- Add through `low`, move its top to `high`, and move one back when `high` grows bigger. Each number costs O(log n).\n- With `low` keeping the extra number, the median is `low.front()` for an odd count and `(low.front() + high.front()) / 2` for an even one.\n- Merge sorted lists with `[value, list, index]` entries ordered by value, then list: dequeue the smallest and enqueue the next value from its list, for O(N log k).\n- To count rooms, sort by start and keep a `MinPriorityQueue` of end times. Dequeue when `front() <= start`, enqueue every end, and `size()` is the answer.\n- `front()` on an empty heap returns `null`, so check `isEmpty()` first."
+}
