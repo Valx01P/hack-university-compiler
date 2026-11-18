@@ -217,20 +217,22 @@ export async function readFixtureSet(course: string, name: string): Promise<Runn
   const files: RunnerFile[] = [];
   const modes = windowsGitModes();
   let bytes = 0;
+  // Read where it lies (next start runs in the repository), so the build
+  // never traces content/fixtures into its output (turbopackIgnore).
   async function walk(rel: string) {
-    const entries = await fs.readdir(path.join(root, rel), { withFileTypes: true });
+    const entries = await fs.readdir(path.join(/*turbopackIgnore: true*/ root, rel), { withFileTypes: true });
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
       const relPath = rel ? `${rel}/${entry.name}` : entry.name;
-      const full = path.join(root, relPath);
+      const full = path.join(/*turbopackIgnore: true*/ root, relPath);
       const git = modes?.get(repoPath(full));
       if (entry.isSymbolicLink() || (git && "link" in git)) {
-        const target = git && "link" in git ? git.link : await fs.readlink(full);
+        const target = git && "link" in git ? git.link : await fs.readlink(/*turbopackIgnore: true*/ full);
         files.push({ name: relPath, content: "", type: "symlink", target });
       } else if (entry.isDirectory()) {
         files.push({ name: relPath, content: "", type: "dir" });
         await walk(relPath);
       } else if (entry.isFile()) {
-        const [stat, data] = await Promise.all([fs.stat(full), fs.readFile(full)]);
+        const [stat, data] = await Promise.all([fs.stat(/*turbopackIgnore: true*/ full), fs.readFile(/*turbopackIgnore: true*/ full)]);
         bytes += data.length;
         if (bytes > SET_MAX_BYTES) throw new RunnerError(`The fixture set ${name} is over 4 MB.`, 413);
         const text = !data.subarray(0, 8000).includes(0);

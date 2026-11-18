@@ -7,7 +7,9 @@ import { cache } from "react";
  * Fixture sets: the data files (logs, CSV, configs, a small tree) a lesson's
  * programs start in, from content/fixtures/<course>/<name>/. The runner
  * copies a set into a fresh folder before every run, and Learn lists it in
- * the editor's Files strip, read only. Read at build time with the lesson.
+ * the editor's Files strip, read only. Read at build time with the lesson,
+ * where it lies, so the build never traces it into its output
+ * (turbopackIgnore).
  */
 const DIR = process.env.FIXTURES_CONTENT_DIR
   ? path.resolve(process.env.FIXTURES_CONTENT_DIR)
@@ -67,20 +69,20 @@ export const repoPath = (full: string) => path.relative(process.cwd(), full).spl
 
 async function walk(root: string, rel = ""): Promise<FixtureFile[]> {
   const modes = windowsGitModes();
-  const entries = await fs.readdir(path.join(root, rel), { withFileTypes: true });
+  const entries = await fs.readdir(path.join(/*turbopackIgnore: true*/ root, rel), { withFileTypes: true });
   const files: FixtureFile[] = [];
   // In code point order, like ls in the C locale, the same on every machine.
   for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
     const relPath = rel ? `${rel}/${entry.name}` : entry.name;
-    const full = path.join(root, relPath);
+    const full = path.join(/*turbopackIgnore: true*/ root, relPath);
     const git = modes?.get(repoPath(full));
     if (entry.isDirectory()) {
       files.push(...(await walk(root, relPath)));
     } else if (entry.isSymbolicLink() || (git && "link" in git)) {
-      const link = git && "link" in git ? git.link : await fs.readlink(full);
+      const link = git && "link" in git ? git.link : await fs.readlink(/*turbopackIgnore: true*/ full);
       files.push({ path: relPath, size: 0, content: null, clipped: false, executable: false, link });
     } else if (entry.isFile()) {
-      const [stat, bytes] = await Promise.all([fs.stat(full), fs.readFile(full)]);
+      const [stat, bytes] = await Promise.all([fs.stat(/*turbopackIgnore: true*/ full), fs.readFile(/*turbopackIgnore: true*/ full)]);
       const binary = bytes.subarray(0, 8000).includes(0);
       const clipped = !binary && stat.size > SHOWN_BYTES;
       // A clipped file shows whole lines.

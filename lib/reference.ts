@@ -1,13 +1,16 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { cache } from "react";
+import { loadOnce } from "@/lib/load-once";
 import type { Challenge, ReferenceCategory, ReferenceData, ReferenceSection } from "@/lib/reference-types";
 
 /**
  * Reads the compiler's cheatsheet and challenges at build time: the cheatsheet
  * sections in content/reference/<lang>/<category>.md and the challenges in
  * content/challenges/<id>.json (each with code for every language).
- * Authoring guides live next to the content.
+ * Authoring guides live next to the content. Content is read where it lies
+ * (next start runs in the repository), so no fs call here needs tracing into
+ * the build output (turbopackIgnore).
  */
 const ROOT = path.join(process.cwd(), "content");
 const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -27,23 +30,23 @@ interface ChallengeFile {
 
 /** The topics, in order: a language's own list when it has one (SQL does),
     else the shared one. */
-export const getCategories = cache(async (lang: string): Promise<ReferenceCategory[]> => {
+export const getCategories = cache(loadOnce(async (lang: string): Promise<ReferenceCategory[]> => {
   const own = path.join(ROOT, "reference", ID_RE.test(lang) ? lang : "_", "categories.json");
   const file = await fs
-    .access(own)
+    .access(/*turbopackIgnore: true*/ own)
     .then(() => own)
     .catch(() => path.join(ROOT, "reference", "categories.json"));
-  const raw = JSON.parse(await fs.readFile(file, "utf8"));
+  const raw = JSON.parse(await fs.readFile(/*turbopackIgnore: true*/ file, "utf8"));
   return (raw.categories as ReferenceCategory[]).map(({ id, title }) => ({ id, title }));
-});
+}));
 
-export const getCheatsheet = cache(async (lang: string): Promise<ReferenceSection[]> => {
+export const getCheatsheet = cache(loadOnce(async (lang: string): Promise<ReferenceSection[]> => {
   if (!ID_RE.test(lang)) return [];
   const categories = await getCategories(lang);
   const sections = await Promise.all(
     categories.map(async (c): Promise<ReferenceSection | null> => {
       try {
-        const text = (await fs.readFile(path.join(ROOT, "reference", lang, `${c.id}.md`), "utf8")).replace(/\r\n/g, "\n");
+        const text = (await fs.readFile(path.join(/*turbopackIgnore: true*/ ROOT, "reference", lang, `${c.id}.md`), "utf8")).replace(/\r\n/g, "\n");
         const [first, ...rest] = text.split("\n");
         return { id: c.id, title: first.replace(/^#\s+/, "").trim() || c.title, md: rest.join("\n").trim() };
       } catch {
@@ -52,27 +55,27 @@ export const getCheatsheet = cache(async (lang: string): Promise<ReferenceSectio
     })
   );
   return sections.filter((s): s is ReferenceSection => s !== null);
-});
+}));
 
-const readChallengeFiles = cache(async (): Promise<ChallengeFile[]> => {
+const readChallengeFiles = cache(loadOnce(async (): Promise<ChallengeFile[]> => {
   const dir = path.join(ROOT, "challenges");
   let names: string[] = [];
   try {
-    names = (await fs.readdir(dir)).filter((f) => f.endsWith(".json"));
+    names = (await fs.readdir(/*turbopackIgnore: true*/ dir)).filter((f) => f.endsWith(".json"));
   } catch {
     return [];
   }
   const files = await Promise.all(
     names.map(async (f) => {
       try {
-        return JSON.parse(await fs.readFile(path.join(dir, f), "utf8")) as ChallengeFile;
+        return JSON.parse(await fs.readFile(path.join(/*turbopackIgnore: true*/ dir, f), "utf8")) as ChallengeFile;
       } catch {
         return null;
       }
     })
   );
   return files.filter((c): c is ChallengeFile => c !== null && ID_RE.test(c.id));
-});
+}));
 
 /** The topics a language's challenges are grouped by: its own list when
     every challenge it has fits it (SQL's are its own), else the shared one
@@ -83,7 +86,7 @@ export const getChallengeCategories = cache(async (lang: string): Promise<Refere
   const ids = new Set(own.map((c) => c.id));
   const mine = (await readChallengeFiles()).filter((c) => c.code?.[lang]);
   if (mine.every((c) => ids.has(c.category))) return own;
-  const raw = JSON.parse(await fs.readFile(path.join(ROOT, "reference", "categories.json"), "utf8"));
+  const raw = JSON.parse(await fs.readFile(path.join(/*turbopackIgnore: true*/ ROOT, "reference", "categories.json"), "utf8"));
   return (raw.categories as ReferenceCategory[]).map(({ id, title }) => ({ id, title }));
 });
 

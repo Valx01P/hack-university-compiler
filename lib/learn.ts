@@ -3,11 +3,14 @@ import path from "path";
 import { cache } from "react";
 import { normalizeLesson, type AnyLesson, type Course, type LessonFile, type LessonMeta, type LessonRef, type StepCodebase } from "@/lib/learn-types";
 import { COURSES, getCourseEntry } from "@/lib/courses";
+import { loadOnce } from "@/lib/load-once";
 
 /**
  * Reads Learn mode content from content/learn at build time. Every lesson page
  * is prerendered, so these only run during `next build` (and per request in
- * dev).
+ * dev). Content is read where it lies (next start runs in the repository), so
+ * no path here needs tracing into the build output: each fs call says so with
+ * turbopackIgnore, or the build traces every file its pattern could match.
  */
 const DIR = path.join(process.cwd(), "content", "learn");
 // Drafts outside the repo: a course in LEARN_CONTENT_DIR (the folder
@@ -25,7 +28,7 @@ interface CourseIndex {
 
 async function readJson<T>(file: string): Promise<T | null> {
   try {
-    return JSON.parse(await fs.readFile(file, "utf8")) as T;
+    return JSON.parse(await fs.readFile(/*turbopackIgnore: true*/ file, "utf8")) as T;
   } catch {
     return null;
   }
@@ -35,7 +38,7 @@ async function readJson<T>(file: string): Promise<T | null> {
 const courseDir = cache(async (lang: string): Promise<string> => {
   if (DRAFTS) {
     const draft = path.join(DRAFTS, lang);
-    const found = await fs.access(path.join(draft, "index.json")).then(
+    const found = await fs.access(path.join(/*turbopackIgnore: true*/ draft, "index.json")).then(
       () => true,
       () => false
     );
@@ -51,14 +54,14 @@ export async function getCourseDir(lang: string): Promise<string> {
 
 /** A lesson, with every step's examples in `examples` (a lesson file may
     still give a step a single `example`). */
-export const getLesson = cache(async (lang: string, id: string): Promise<AnyLesson | null> => {
+export const getLesson = cache(loadOnce(async (lang: string, id: string): Promise<AnyLesson | null> => {
   if (!ID_RE.test(lang) || !ID_RE.test(id)) return null;
   const file = await readJson<LessonFile>(path.join(await courseDir(lang), `${id}.json`));
   return file && normalizeLesson(file);
-});
+}));
 
 /** The course for a language, or null when it has none yet. */
-export const getCourse = cache(async (lang: string): Promise<Course | null> => {
+export const getCourse = cache(loadOnce(async (lang: string): Promise<Course | null> => {
   if (!ID_RE.test(lang)) return null;
   const index = await readJson<CourseIndex>(path.join(await courseDir(lang), "index.json"));
   if (!index) return null;
@@ -89,7 +92,7 @@ export const getCourse = cache(async (lang: string): Promise<Course | null> => {
     description: index.description,
     sections: sections.filter((s) => s.lessons.length > 0),
   };
-});
+}));
 
 /** Every lesson in course order. */
 export async function getLessonOrder(lang: string): Promise<LessonMeta[]> {
@@ -142,7 +145,7 @@ const WORKSPACES = path.join(process.cwd(), "content", "workspaces");
     A course's own playground template opens at /<course>/playground. */
 export async function codebaseHref(course: string, codebase: StepCodebase | undefined): Promise<string | null> {
   if (!codebase || !ID_RE.test(course) || !ID_RE.test(codebase.template)) return null;
-  const found = await fs.stat(path.join(WORKSPACES, course, codebase.template)).then(
+  const found = await fs.stat(path.join(/*turbopackIgnore: true*/ WORKSPACES, course, codebase.template)).then(
     (stat) => stat.isDirectory(),
     () => false
   );

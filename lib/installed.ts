@@ -11,7 +11,8 @@ import path from "node:path";
 export function chosenComponents(): string[] | null {
   const dir = process.env.HU_DATA_DIR || path.join(os.homedir(), ".hack-university");
   try {
-    const saved = JSON.parse(readFileSync(path.join(dir, "components.json"), "utf8")) as { chosen?: unknown };
+    // Never a file in the app, so the build mustn't trace every components.json it could match.
+    const saved = JSON.parse(readFileSync(path.join(/*turbopackIgnore: true*/ dir, "components.json"), "utf8")) as { chosen?: unknown };
     return Array.isArray(saved.chosen) ? saved.chosen.filter((id): id is string => typeof id === "string") : null;
   } catch {
     return null;
