@@ -1,0 +1,154 @@
+{
+  "id": "union-find",
+  "title": "Union Find",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Keep items in groups with a parent list: find roots, compress paths, union by size, and count components and redundant edges.",
+  "intro": "Some graph questions only ask who is connected to whom: are these two computers on one network, how many friend groups are there, which cable is redundant? Union find answers them as the connections arrive, one at a time, in nearly O(1) each, with nothing more than a list of parents.",
+  "steps": [
+    {
+      "title": "Parents, roots, find, and union",
+      "body": "**Union find**, also called a disjoint set, keeps items in groups and answers one question fast: are these two in the same group? Number the items 0 to n - 1 and give each one a parent in a list. An item whose parent is itself is the **root** of its group, and at the start every item is a group of its own:\n\n```python\nparent = list(range(5))\nprint(parent)  # [0, 1, 2, 3, 4]\n```\n\n`find(x)` follows parents up to the root, and two items are in the same group exactly when they have the same root. `union(a, b)` joins two groups by pointing one root at the other:\n\n```python harness\nparent = list(range(5))\n{{code}}\nunion(parent, 0, 1)\nunion(parent, 3, 4)\nunion(parent, 1, 4)\nprint(parent, find(parent, 0) == find(parent, 3), find(parent, 2) == find(parent, 3))\n```\n\n```python\ndef find(parent, x):\n    while parent[x] != x:\n        x = parent[x]\n    return x\n\n\ndef union(parent, a, b):\n    parent[find(parent, a)] = find(parent, b)\n```\n\nAlways link the two roots. `parent[a] = b` would move only `a` and the items below it, and leave the rest of its old group behind.\n\nThe groups are the roots, so `len({find(parent, x) for x in range(n)})` counts them. Changing `parent[...]` inside a function changes the caller's list, since both names point at the same list.",
+      "example": {
+        "title": "Friend groups",
+        "prompt": "Join seven people into groups by their friendships, check two pairs, and list every group.",
+        "code": "def find(parent, x):\n    while parent[x] != x:\n        x = parent[x]\n    return x\n\n\ndef union(parent, a, b):\n    parent[find(parent, a)] = find(parent, b)\n\n\nn = 7\nparent = list(range(n))\nfor a, b in [(0, 1), (1, 2), (3, 4), (5, 6), (6, 4)]:\n    union(parent, a, b)\n\nprint(\"0 and 2:\", find(parent, 0) == find(parent, 2))\nprint(\"2 and 3:\", find(parent, 2) == find(parent, 3))\n\ngroups = {}\nfor x in range(n):\n    groups.setdefault(find(parent, x), []).append(x)\nprint(\"Groups:\", len(groups))\nfor members in groups.values():\n    print(\" \".join(map(str, members)))\n",
+        "output": "0 and 2: True\n2 and 3: False\nGroups: 2\n0 1 2\n3 4 5 6",
+        "explanation": "Each `union` points the root of `a`'s group at the root of `b`'s. After `(0, 1)` and `(1, 2)`, 0 points to 1 and 1 points to 2, so `find(parent, 0)` walks up to 2, the same root as 2 itself. `(6, 4)` joins the group of 5 and 6 with the group of 3 and 4. The `groups` dict collects the items by their root with `setdefault`, so it ends with one list per group."
+      },
+      "practice": {
+        "title": "Counting groups",
+        "prompt": "Join items into groups, count the groups, and answer whether pairs share one.\n\n1. Finish `find(parent, x)` so it follows parents up to the root.\n2. Finish `union(parent, a, b)` so it points one group's root at the other's.\n3. The starter reads `n` from the first line and joins every pair `a-b` on the second line.\n4. Print `Groups:` and the number of groups.\n5. The starter then prints `same` or `different` for each pair on the third line.\n\nInput:\n\n```text\n6\n0-1 2-3 1-2\n0-3 4-5 3-1\n```\n\nExpected output:\n\n```text\nGroups: 3\n0-3: same\n4-5: different\n3-1: same\n```",
+        "starter": "def find(parent, x):\n    # TODO: follow parents up to the root and return it\n    return x\n\n\ndef union(parent, a, b):\n    # TODO: point the root of a's group at the root of b's group\n    pass\n\n\nn = int(input())\nparent = list(range(n))\nfor pair in input().split():\n    a, b = map(int, pair.split(\"-\"))\n    union(parent, a, b)\n\n# TODO: print \"Groups:\" and the number of groups\nfor pair in input().split():\n    a, b = map(int, pair.split(\"-\"))\n    same = find(parent, a) == find(parent, b)\n    print(f\"{pair}: {'same' if same else 'different'}\")\n",
+        "solution": "def find(parent, x):\n    while parent[x] != x:\n        x = parent[x]\n    return x\n\n\ndef union(parent, a, b):\n    parent[find(parent, a)] = find(parent, b)\n\n\nn = int(input())\nparent = list(range(n))\nfor pair in input().split():\n    a, b = map(int, pair.split(\"-\"))\n    union(parent, a, b)\n\nprint(\"Groups:\", len({find(parent, x) for x in range(n)}))\nfor pair in input().split():\n    a, b = map(int, pair.split(\"-\"))\n    same = find(parent, a) == find(parent, b)\n    print(f\"{pair}: {'same' if same else 'different'}\")\n",
+        "tests": [
+          {
+            "stdin": "6\n0-1 2-3 1-2\n0-3 4-5 3-1\n",
+            "output": "Groups: 3\n0-3: same\n4-5: different\n3-1: same"
+          },
+          {
+            "stdin": "3\n0-1\n1-2 0-1\n",
+            "output": "Groups: 2\n1-2: different\n0-1: same"
+          },
+          {
+            "stdin": "4\n0-1 1-0 2-3 3-2\n0-2\n",
+            "output": "Groups: 2\n0-2: different"
+          }
+        ],
+        "hints": [
+          "Both functions are the example's.",
+          "Joining a pair that is already in one group changes nothing, because both roots are the same.",
+          "Count the different roots with a set: `len({find(parent, x) for x in range(n)})`."
+        ]
+      }
+    },
+    {
+      "title": "Path compression",
+      "body": "Each union points one root at another, so a group can grow into a long chain, and `find` walks the whole chain every time. **Path compression** fixes that: once `find` knows the root, it points every item it passed straight at the root. Recursion does it in three lines:\n\n```python harness\nparent = [0, 0, 1, 2, 3]      # a chain: 4 -> 3 -> 2 -> 1 -> 0\n{{code}}\nprint(find(parent, 4), parent)\n```\n\n```python\ndef find(parent, x):\n    if parent[x] != x:\n        parent[x] = find(parent, parent[x])   # point x straight at the root\n    return parent[x]\n```\n\nThe innermost call reaches the root and returns it. On the way back out, each item on the path stores that root as its new parent, so the next `find` from any of them takes a single step.\n\nOnly the parents change, never the groups: every item keeps the same root, it just reaches it faster. The recursion goes as deep as the chain is long, and union by size, in the next part, keeps chains short.",
+      "example": {
+        "title": "Flattening a chain",
+        "prompt": "Measure how far item 5 is from its root, compress the path with one find, and measure again.",
+        "code": "def depth(parent, x):\n    steps = 0\n    while parent[x] != x:\n        x = parent[x]\n        steps += 1\n    return steps\n\n\ndef find(parent, x):\n    if parent[x] != x:\n        parent[x] = find(parent, parent[x])\n    return parent[x]\n\n\nparent = [0, 0, 1, 2, 3, 4]       # a chain: 5 -> 4 -> 3 -> 2 -> 1 -> 0\nprint(\"Before:\", parent)\nprint(\"Steps from 5:\", depth(parent, 5))\nprint(\"Root of 5:\", find(parent, 5))\nprint(\"After:\", parent)\nprint(\"Steps from 5:\", depth(parent, 5), \"and from 3:\", depth(parent, 3))\n",
+        "output": "Before: [0, 0, 1, 2, 3, 4]\nSteps from 5: 5\nRoot of 5: 0\nAfter: [0, 0, 0, 0, 0, 0]\nSteps from 5: 1 and from 3: 1",
+        "explanation": "`depth` walks without changing anything, so it shows the cost: 5 steps from item 5. One call to `find(parent, 5)` recurses down the chain to 0, then on the way back sets the parent of 5, 4, 3, 2, and 1 to 0. Every item on that path now reaches the root in one step, which is why the list ends as all zeros."
+      },
+      "practice": {
+        "title": "Compress the paths",
+        "prompt": "Run finds with path compression on a parent list and show how it changes.\n\n1. The first line is the parent list: the number at index `x` is the parent of item `x`.\n2. Finish `find(parent, x)` with path compression, so it returns the root and points every item on the path straight at it.\n3. The starter runs `find` on each item from the second line, prints each result, then prints the list after all of them.\n4. Print `Groups:` and the number of roots, the items that are their own parent.\n\nInput:\n\n```text\n0 0 1 2 6 4 6\n3 5\n```\n\nExpected output:\n\n```text\nfind(3) = 0\nfind(5) = 6\nAfter: [0, 0, 0, 0, 6, 6, 6]\nGroups: 2\n```",
+        "starter": "def find(parent, x):\n    # TODO: find the root, pointing every item on the path straight at it\n    return x\n\n\nparent = list(map(int, input().split()))\nfor x in map(int, input().split()):\n    print(f\"find({x}) = {find(parent, x)}\")\nprint(\"After:\", parent)\n# TODO: print \"Groups:\" and the number of roots (items that are their own parent)\n",
+        "solution": "def find(parent, x):\n    if parent[x] != x:\n        parent[x] = find(parent, parent[x])\n    return parent[x]\n\n\nparent = list(map(int, input().split()))\nfor x in map(int, input().split()):\n    print(f\"find({x}) = {find(parent, x)}\")\nprint(\"After:\", parent)\nprint(\"Groups:\", sum(1 for x in range(len(parent)) if parent[x] == x))\n",
+        "tests": [
+          {
+            "stdin": "0 0 1 2 6 4 6\n3 5\n",
+            "output": "find(3) = 0\nfind(5) = 6\nAfter: [0, 0, 0, 0, 6, 6, 6]\nGroups: 2"
+          },
+          {
+            "stdin": "0 1 2\n0 2\n",
+            "output": "find(0) = 0\nfind(2) = 2\nAfter: [0, 1, 2]\nGroups: 3"
+          },
+          {
+            "stdin": "1 2 3 3\n0\n",
+            "output": "find(0) = 3\nAfter: [3, 3, 3, 3]\nGroups: 1"
+          }
+        ],
+        "hints": [
+          "`find` is the three lines from the example.",
+          "Items that no `find` passed through keep their old parent, so the list can still hold some chains.",
+          "Roots don't change, so count the items with `parent[x] == x`."
+        ]
+      }
+    },
+    {
+      "title": "Union by size",
+      "body": "Path compression fixes chains after they form. **Union by size** stops them from forming: keep a `size` list with the number of items in each root's group, and always hang the smaller group under the bigger one. An item gets one step further from its root only when its group goes under one at least as big, which at least doubles its group's size. A size can double only about log n times, so no item is ever more than about log n steps from its root.\n\nA class keeps the two lists together:\n\n```python harness\n{{code}}\nuf = UnionFind(4)\nuf.union(0, 1)\nuf.union(2, 0)\nprint(uf.parent, uf.size[uf.find(2)])\n```\n\n```python\nclass UnionFind:\n    def __init__(self, n):\n        self.parent = list(range(n))\n        self.size = [1] * n\n\n    def find(self, x):\n        if self.parent[x] != x:\n            self.parent[x] = self.find(self.parent[x])\n        return self.parent[x]\n\n    def union(self, a, b):\n        ra, rb = self.find(a), self.find(b)\n        if ra == rb:\n            return\n        if self.size[ra] < self.size[rb]:\n            ra, rb = rb, ra          # make ra the bigger root\n        self.parent[rb] = ra\n        self.size[ra] += self.size[rb]\n```\n\nOnly a root's `size` is kept up to date, so always read it through the root: `uf.size[uf.find(x)]` is the size of `x`'s group. The swap `ra, rb = rb, ra` makes `ra` the bigger root, so the same two lines link the groups either way. With both tricks, each `find` and `union` costs nearly O(1).",
+      "example": {
+        "title": "Growing networks",
+        "prompt": "Join eight computers one link at a time and track the size of each new group and of the largest one.",
+        "code": "class UnionFind:\n    def __init__(self, n):\n        self.parent = list(range(n))\n        self.size = [1] * n\n\n    def find(self, x):\n        if self.parent[x] != x:\n            self.parent[x] = self.find(self.parent[x])\n        return self.parent[x]\n\n    def union(self, a, b):\n        ra, rb = self.find(a), self.find(b)\n        if ra == rb:\n            return\n        if self.size[ra] < self.size[rb]:\n            ra, rb = rb, ra          # make ra the bigger root\n        self.parent[rb] = ra\n        self.size[ra] += self.size[rb]\n\n\nuf = UnionFind(8)\nlargest = 1\nfor a, b in [(0, 1), (2, 3), (1, 3), (4, 5), (5, 0), (6, 7)]:\n    uf.union(a, b)\n    size = uf.size[uf.find(a)]\n    largest = max(largest, size)\n    print(f\"join {a}-{b}: group of {size}, largest {largest}\")\nprint(\"Parents:\", uf.parent)\n",
+        "output": "join 0-1: group of 2, largest 2\njoin 2-3: group of 2, largest 2\njoin 1-3: group of 4, largest 4\njoin 4-5: group of 2, largest 4\njoin 5-0: group of 6, largest 6\njoin 6-7: group of 2, largest 6\nParents: [0, 0, 0, 2, 0, 0, 6, 6]",
+        "explanation": "`(1, 3)` joins two groups of 2 into a group of 4. `(5, 0)` then joins the group of 4 and 5 to that group of 4, and since `size[ra] < size[rb]`, the smaller group's root goes under the bigger one, never the other way. The final parents show every item at most two steps from its root, because no tree ever grew taller than it needed to."
+      },
+      "practice": {
+        "title": "Club sizes",
+        "prompt": "Join people into clubs and report club sizes as they grow.\n\n1. The starter has the `UnionFind` class with union by size, and reads `n` and a line of pairs `a-b`.\n2. After each union, print the pair and the size of the club `a` is in now, as `a-b: size`.\n3. Print `Largest:` and the size of the biggest club.\n4. Print `Groups:` and the number of clubs.\n\nInput:\n\n```text\n6\n0-1 2-3 0-2 4-5 1-3\n```\n\nExpected output:\n\n```text\n0-1: 2\n2-3: 2\n0-2: 4\n4-5: 2\n1-3: 4\nLargest: 4\nGroups: 2\n```",
+        "starter": "class UnionFind:\n    def __init__(self, n):\n        self.parent = list(range(n))\n        self.size = [1] * n\n\n    def find(self, x):\n        if self.parent[x] != x:\n            self.parent[x] = self.find(self.parent[x])\n        return self.parent[x]\n\n    def union(self, a, b):\n        ra, rb = self.find(a), self.find(b)\n        if ra == rb:\n            return\n        if self.size[ra] < self.size[rb]:\n            ra, rb = rb, ra          # make ra the bigger root\n        self.parent[rb] = ra\n        self.size[ra] += self.size[rb]\n\n\nn = int(input())\nuf = UnionFind(n)\nfor pair in input().split():\n    a, b = map(int, pair.split(\"-\"))\n    uf.union(a, b)\n    # TODO: print \"a-b: size\" with the size of the group a is in now\n\n# TODO: print \"Largest:\" and the size of the biggest group\n# TODO: print \"Groups:\" and the number of groups\n",
+        "solution": "class UnionFind:\n    def __init__(self, n):\n        self.parent = list(range(n))\n        self.size = [1] * n\n\n    def find(self, x):\n        if self.parent[x] != x:\n            self.parent[x] = self.find(self.parent[x])\n        return self.parent[x]\n\n    def union(self, a, b):\n        ra, rb = self.find(a), self.find(b)\n        if ra == rb:\n            return\n        if self.size[ra] < self.size[rb]:\n            ra, rb = rb, ra          # make ra the bigger root\n        self.parent[rb] = ra\n        self.size[ra] += self.size[rb]\n\n\nn = int(input())\nuf = UnionFind(n)\nfor pair in input().split():\n    a, b = map(int, pair.split(\"-\"))\n    uf.union(a, b)\n    print(f\"{pair}: {uf.size[uf.find(a)]}\")\n\nroots = [x for x in range(n) if uf.find(x) == x]\nprint(\"Largest:\", max(uf.size[r] for r in roots))\nprint(\"Groups:\", len(roots))\n",
+        "tests": [
+          {
+            "stdin": "6\n0-1 2-3 0-2 4-5 1-3\n",
+            "output": "0-1: 2\n2-3: 2\n0-2: 4\n4-5: 2\n1-3: 4\nLargest: 4\nGroups: 2"
+          },
+          {
+            "stdin": "3\n0-0 1-2\n",
+            "output": "0-0: 1\n1-2: 2\nLargest: 2\nGroups: 2"
+          },
+          {
+            "stdin": "5\n4-3 3-2 2-1 1-0\n",
+            "output": "4-3: 2\n3-2: 3\n2-1: 4\n1-0: 5\nLargest: 5\nGroups: 1"
+          }
+        ],
+        "hints": [
+          "Read a group's size through its root: `uf.size[uf.find(a)]`.",
+          "The roots are the items with `uf.find(x) == x`. Collect them once and use them for both answers.",
+          "The size of a root that was hung under another is out of date, so only look at sizes of real roots."
+        ]
+      }
+    },
+    {
+      "title": "Components and redundant edges",
+      "body": "Make `union` report what it did: `False` when the two items already share a root, and `True` after a real join. That one answer solves two classic problems.\n\n**Components.** Start a counter at `n`, one group per item. Every successful union turns two groups into one, so subtract 1 each time. The counter is then always the number of groups, with no final pass.\n\n**Cycles.** In an undirected graph, an edge whose two ends are already connected closes a cycle. As you add edges one at a time, `union` returns `False` for exactly those edges. Each of them is redundant: drop it and every group stays the same.\n\n```python harness\n{{code}}\nuf = UnionFind(4)\nprint([uf.union(a, b) for a, b in [(0, 1), (1, 2), (2, 0), (3, 3)]], uf.count)\n```\n\n```python\nclass UnionFind:\n    def __init__(self, n):\n        self.parent = list(range(n))\n        self.size = [1] * n\n        self.count = n               # the number of groups\n\n    def find(self, x):\n        if self.parent[x] != x:\n            self.parent[x] = self.find(self.parent[x])\n        return self.parent[x]\n\n    def union(self, a, b):\n        ra, rb = self.find(a), self.find(b)\n        if ra == rb:\n            return False             # already joined: this edge closes a cycle\n        if self.size[ra] < self.size[rb]:\n            ra, rb = rb, ra\n        self.parent[rb] = ra\n        self.size[ra] += self.size[rb]\n        self.count -= 1\n        return True\n```\n\nUnion find handles connections that go both ways. For one-way edges, such as course prerequisites, a cycle needs a directed method like Kahn's topological sort from the graphs lesson.",
+      "example": {
+        "title": "Network cables",
+        "prompt": "Connect six computers cable by cable, count the networks, and flag each cable that adds nothing.",
+        "code": "class UnionFind:\n    def __init__(self, n):\n        self.parent = list(range(n))\n        self.size = [1] * n\n        self.count = n               # the number of groups\n\n    def find(self, x):\n        if self.parent[x] != x:\n            self.parent[x] = self.find(self.parent[x])\n        return self.parent[x]\n\n    def union(self, a, b):\n        ra, rb = self.find(a), self.find(b)\n        if ra == rb:\n            return False             # already joined: this edge closes a cycle\n        if self.size[ra] < self.size[rb]:\n            ra, rb = rb, ra\n        self.parent[rb] = ra\n        self.size[ra] += self.size[rb]\n        self.count -= 1\n        return True\n\n\nn = 6\nuf = UnionFind(n)\nfor a, b in [(0, 1), (1, 2), (3, 4), (2, 0), (4, 5), (5, 3)]:\n    if uf.union(a, b):\n        print(f\"{a}-{b}: joins, {uf.count} networks\")\n    else:\n        print(f\"{a}-{b}: redundant\")\nprint(\"Networks:\", uf.count)\n",
+        "output": "0-1: joins, 5 networks\n1-2: joins, 4 networks\n3-4: joins, 3 networks\n2-0: redundant\n4-5: joins, 2 networks\n5-3: redundant\nNetworks: 2",
+        "explanation": "Each joining cable lowers `uf.count` by one, from 6 down to 2. Cable `2-0` arrives after 0, 1, and 2 are already one network, so `find` gives both ends the same root and `union` returns `False`: that cable closes the cycle 0, 1, 2. `5-3` does the same for 3, 4, 5. The count needs no extra loop over the items at the end."
+      },
+      "practice": {
+        "title": "First redundant edge",
+        "prompt": "Add the edges of a graph one at a time, then report its components and its first redundant edge.\n\n1. The starter has the `UnionFind` class whose `union` returns `True` or `False`, and reads `n` and a line of edges `a-b`.\n2. Union each edge. Remember the first edge whose `union` returns `False`.\n3. Print `Components:` and the number of groups.\n4. Print `Redundant:` and that first edge, or `Redundant: none` when every edge joined two groups.\n\nInput:\n\n```text\n5\n0-1 1-2 2-0 3-4 1-3 4-0\n```\n\nExpected output:\n\n```text\nComponents: 1\nRedundant: 2-0\n```",
+        "starter": "class UnionFind:\n    def __init__(self, n):\n        self.parent = list(range(n))\n        self.size = [1] * n\n        self.count = n               # the number of groups\n\n    def find(self, x):\n        if self.parent[x] != x:\n            self.parent[x] = self.find(self.parent[x])\n        return self.parent[x]\n\n    def union(self, a, b):\n        ra, rb = self.find(a), self.find(b)\n        if ra == rb:\n            return False             # already joined: this edge closes a cycle\n        if self.size[ra] < self.size[rb]:\n            ra, rb = rb, ra\n        self.parent[rb] = ra\n        self.size[ra] += self.size[rb]\n        self.count -= 1\n        return True\n\n\nn = int(input())\nuf = UnionFind(n)\nredundant = None\nfor pair in input().split():\n    a, b = map(int, pair.split(\"-\"))\n    # TODO: union a and b, and remember the first pair whose union returns False\n\n# TODO: print \"Components:\" and the count, then \"Redundant:\" and the first redundant pair or none\n",
+        "solution": "class UnionFind:\n    def __init__(self, n):\n        self.parent = list(range(n))\n        self.size = [1] * n\n        self.count = n               # the number of groups\n\n    def find(self, x):\n        if self.parent[x] != x:\n            self.parent[x] = self.find(self.parent[x])\n        return self.parent[x]\n\n    def union(self, a, b):\n        ra, rb = self.find(a), self.find(b)\n        if ra == rb:\n            return False             # already joined: this edge closes a cycle\n        if self.size[ra] < self.size[rb]:\n            ra, rb = rb, ra\n        self.parent[rb] = ra\n        self.size[ra] += self.size[rb]\n        self.count -= 1\n        return True\n\n\nn = int(input())\nuf = UnionFind(n)\nredundant = None\nfor pair in input().split():\n    a, b = map(int, pair.split(\"-\"))\n    if not uf.union(a, b) and redundant is None:\n        redundant = pair\n\nprint(\"Components:\", uf.count)\nprint(\"Redundant:\", redundant if redundant else \"none\")\n",
+        "tests": [
+          {
+            "stdin": "5\n0-1 1-2 2-0 3-4 1-3 4-0\n",
+            "output": "Components: 1\nRedundant: 2-0"
+          },
+          {
+            "stdin": "4\n0-1 2-3\n",
+            "output": "Components: 2\nRedundant: none"
+          },
+          {
+            "stdin": "3\n0-1 0-1 1-2\n",
+            "output": "Components: 1\nRedundant: 0-1"
+          }
+        ],
+        "hints": [
+          "`uf.union(a, b)` still joins the groups when it returns `True`, so call it for every edge.",
+          "Save the edge only while `redundant is None`, so later redundant edges don't replace the first.",
+          "`uf.count` is already the number of components."
+        ]
+      }
+    }
+  ],
+  "recap": "- `parent = list(range(n))` starts every item as its own group. A root is an item whose parent is itself.\n- `find(x)` follows parents to the root. Two items share a group when their roots match.\n- `union(a, b)` links the two roots, never the items themselves.\n- Path compression points every item on a find's path straight at the root: `parent[x] = find(parent, parent[x])`.\n- Union by size hangs the smaller group under the bigger one and adds the sizes. Read a size through the root.\n- `union` returning `False` means the edge closes a cycle. Start a count at `n` and subtract 1 per real join to count components."
+}

@@ -1,0 +1,158 @@
+{
+  "id": "union-find",
+  "title": "Union Find",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Keep nodes in groups as connections arrive: parents and roots, find with path compression, union by size, components, and the edge that closes a cycle.",
+  "intro": "Some questions about a graph arrive one edge at a time: are these two people connected yet, how many separate networks are there, does this new cable close a loop? Union find answers each in almost constant time by keeping every node in a group with one root. You build it from a parent slice, make it fast with path compression and union by size, then use it to count components and spot the edge that closes a cycle.",
+  "steps": [
+    {
+      "title": "Parents and roots",
+      "body": "A union find keeps nodes 0 to n-1 in groups. Every node stores a **parent**, and a node that is its own parent is a **root**. The root names its group. At the start every node is alone, its own root:\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\tn := 5\n\t{{code}}\n\tfmt.Println(parent)\n}\n```\n\n```go\nparent := make([]int, n)\nfor i := range parent {\n\tparent[i] = i // every node starts as its own root\n}\n```\n\nTo find a node's group, climb parents until you reach the root:\n\n```go harness\npackage main\n\nimport \"fmt\"\n\n{{code}}\n\nfunc main() {\n\tparent := []int{0, 0, 1, 3}\n\tfmt.Println(root(parent, 2), root(parent, 3))\n}\n```\n\n```go\nfunc root(parent []int, x int) int {\n\tfor parent[x] != x {\n\t\tx = parent[x] // climb one level\n\t}\n\treturn x\n}\n```\n\nTo join the groups of `a` and `b`, find both roots and point one at the other. Point the **root**, never `b` itself: `parent[b] = a` would cut `b` away from the rest of its group.\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc root(parent []int, x int) int {\n\tfor parent[x] != x {\n\t\tx = parent[x] // climb one level\n\t}\n\treturn x\n}\n\nfunc main() {\n\tparent := []int{0, 1, 2, 3}\n\ta, b := 1, 3\n\t{{code}}\n\tfmt.Println(root(parent, 1) == root(parent, 3), parent)\n}\n```\n\n```go\nra, rb := root(parent, a), root(parent, b)\nif ra != rb {\n\tparent[rb] = ra // b's whole group joins a's\n}\n```\n\nTwo nodes are in the same group exactly when they have the same root. The groups never split, so union find suits questions where connections only get added.",
+      "example": {
+        "title": "Friend circles",
+        "prompt": "Read n people and m friendships, then answer whether each query pair is in the same circle of friends.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc root(parent []int, x int) int {\n\tfor parent[x] != x {\n\t\tx = parent[x] // climb one level\n\t}\n\treturn x\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tparent := make([]int, n)\n\tfor i := range parent {\n\t\tparent[i] = i\n\t}\n\tfor i := 0; i < m; i++ {\n\t\tvar a, b int\n\t\tfmt.Scan(&a, &b)\n\t\tra, rb := root(parent, a), root(parent, b)\n\t\tif ra != rb {\n\t\t\tparent[rb] = ra\n\t\t}\n\t}\n\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar a, b int\n\t\tfmt.Scan(&a, &b)\n\t\tif root(parent, a) == root(parent, b) {\n\t\t\tfmt.Printf(\"%d %d: same circle\\n\", a, b)\n\t\t} else {\n\t\t\tfmt.Printf(\"%d %d: different circles\\n\", a, b)\n\t\t}\n\t}\n}\n",
+        "stdin": "6 4\n0 1\n1 2\n3 4\n2 0\n3\n0 2\n2 4\n5 5\n",
+        "output": "0 2: same circle\n2 4: different circles\n5 5: same circle",
+        "explanation": "`0 1` makes 0 the root of 1, and `1 2` points 2's root (2) at 1's root (0). `3 4` starts a second group under 3. `2 0` finds root 0 on both sides, so nothing changes. 0 and 2 share root 0, while 2 and 4 have roots 0 and 3. Person 5 never joined anyone, so 5 is its own root, and a node is always in its own circle."
+      },
+      "practice": {
+        "title": "Live connections",
+        "prompt": "Answer connection questions while links keep arriving.\n\n1. The starter reads `n` and `q`, then `q` commands. `link a b` connects two computers, and `check a b` asks whether they are connected.\n2. Finish `root` so it climbs parent pointers to the root.\n3. For `link`, join the two groups by pointing one root at the other. For `check`, print `yes` when the roots match, otherwise `no`.\n\nInput:\n\n```text\n5 6\ncheck 0 1\nlink 0 1\ncheck 1 0\nlink 3 4\nlink 4 1\ncheck 0 3\n```\n\nExpected output:\n\n```text\nno\nyes\nyes\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc root(parent []int, x int) int {\n\t// TODO: climb parent pointers until x is its own parent\n\treturn x\n}\n\nfunc main() {\n\tvar n, q int\n\tfmt.Scan(&n, &q)\n\tparent := make([]int, n)\n\tfor i := range parent {\n\t\tparent[i] = i\n\t}\n\tfor ; q > 0; q-- {\n\t\tvar cmd string\n\t\tvar a, b int\n\t\tfmt.Scan(&cmd, &a, &b)\n\t\tif cmd == \"link\" {\n\t\t\t// TODO: join the groups of a and b\n\t\t} else {\n\t\t\t// TODO: print yes when a and b have the same root, otherwise no\n\t\t}\n\t}\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc root(parent []int, x int) int {\n\tfor parent[x] != x {\n\t\tx = parent[x]\n\t}\n\treturn x\n}\n\nfunc main() {\n\tvar n, q int\n\tfmt.Scan(&n, &q)\n\tparent := make([]int, n)\n\tfor i := range parent {\n\t\tparent[i] = i\n\t}\n\tfor ; q > 0; q-- {\n\t\tvar cmd string\n\t\tvar a, b int\n\t\tfmt.Scan(&cmd, &a, &b)\n\t\tra, rb := root(parent, a), root(parent, b)\n\t\tif cmd == \"link\" {\n\t\t\tif ra != rb {\n\t\t\t\tparent[rb] = ra\n\t\t\t}\n\t\t} else if ra == rb {\n\t\t\tfmt.Println(\"yes\")\n\t\t} else {\n\t\t\tfmt.Println(\"no\")\n\t\t}\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "5 6\ncheck 0 1\nlink 0 1\ncheck 1 0\nlink 3 4\nlink 4 1\ncheck 0 3\n",
+            "output": "no\nyes\nyes"
+          },
+          {
+            "stdin": "3 2\nlink 1 2\ncheck 0 2\n",
+            "output": "no"
+          },
+          {
+            "stdin": "4 4\nlink 0 1\nlink 2 3\nlink 1 3\ncheck 0 2\n",
+            "output": "yes"
+          }
+        ],
+        "hints": [
+          "`root` is a loop: `for parent[x] != x { x = parent[x] }`, then return `x`.",
+          "Find both roots first. For `link`, set `parent[rb] = ra` only when they differ.",
+          "`link 4 1` joins 4's whole group, including 3, so `check 0 3` is yes."
+        ]
+      }
+    },
+    {
+      "title": "Find with path compression",
+      "body": "With plain unions a group can grow into a long chain, and then every root search climbs the whole chain. **Path compression** fixes that while it searches: once the root is known, every node on the way gets pointed straight at it.\n\n```go harness\npackage main\n\nimport \"fmt\"\n\n{{code}}\n\nfunc main() {\n\tparent := []int{0, 0, 1, 2, 3} // a chain: 4 to 3 to 2 to 1 to 0\n\tfmt.Println(find(parent, 4), parent)\n}\n```\n\n```go\nfunc find(parent []int, x int) int {\n\tif parent[x] != x {\n\t\tparent[x] = find(parent, parent[x]) // point x straight at its root\n\t}\n\treturn parent[x]\n}\n```\n\nThe recursion climbs to the root, and on the way back down each call stores that root in its node's parent. After `find(parent, 4)` on the chain `4 3 2 1 0`, nodes 4, 3, 2, and 1 all point at 0, so the next search from any of them takes one step.\n\nThe function changes `parent` in place, and the caller sees it: passing a slice copies only its header, which still points at the same backing array. A chain thousands of nodes long is still fine to recurse through, since Go's stack grows as it needs to.\n\nCompression never changes which root a node has, only how quickly you reach it, so every answer stays the same.",
+      "example": {
+        "title": "Flattening a tree",
+        "prompt": "Read n parent pointers and some query nodes, print each query's root, then print the parents after the searches.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc find(parent []int, x int) int {\n\tif parent[x] != x {\n\t\tparent[x] = find(parent, parent[x]) // point x straight at its root\n\t}\n\treturn parent[x]\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tparent := make([]int, n)\n\tfor i := range parent {\n\t\tfmt.Scan(&parent[i])\n\t}\n\tfmt.Println(\"before:\", parent)\n\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar x int\n\t\tfmt.Scan(&x)\n\t\tfmt.Printf(\"%d: root %d\\n\", x, find(parent, x))\n\t}\n\tfmt.Println(\"after:\", parent)\n}\n",
+        "stdin": "6\n0 0 1 1 3 5\n3\n4\n2\n5\n",
+        "output": "before: [0 0 1 1 3 5]\n4: root 0\n2: root 0\n5: root 5\nafter: [0 0 0 0 0 5]",
+        "explanation": "Node 4's path is 4, 3, 1, 0. The search returns 0 and points 4, 3, and 1 straight at it. Node 2's path is 2, 1, 0, and 1 already points at 0, so only 2 moves. Node 5 is its own root and changes nothing. Every node in 0's group now sits one step from the root."
+      },
+      "practice": {
+        "title": "Same top boss",
+        "prompt": "Each employee points at their manager, and the top boss of a group points at themself. Check pairs of employees.\n\n1. The starter reads `n` manager pointers into `parent`, then `q` pairs.\n2. Finish `find` with path compression.\n3. Print `a b: same boss` when the two have the same top boss, otherwise `a b: different bosses`. Then print `after:` and the parents.\n\nInput:\n\n```text\n7\n0 0 1 2 4 4 5\n2\n3 1\n6 0\n```\n\nExpected output:\n\n```text\n3 1: same boss\n6 0: different bosses\nafter: [0 0 0 0 4 4 4]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc find(parent []int, x int) int {\n\t// TODO: find the root of x, pointing every node on the way straight at it\n\treturn x\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tparent := make([]int, n)\n\tfor i := range parent {\n\t\tfmt.Scan(&parent[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar a, b int\n\t\tfmt.Scan(&a, &b)\n\t\tif find(parent, a) == find(parent, b) {\n\t\t\tfmt.Printf(\"%d %d: same boss\\n\", a, b)\n\t\t} else {\n\t\t\tfmt.Printf(\"%d %d: different bosses\\n\", a, b)\n\t\t}\n\t}\n\tfmt.Println(\"after:\", parent)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc find(parent []int, x int) int {\n\tif parent[x] != x {\n\t\tparent[x] = find(parent, parent[x]) // point x straight at its root\n\t}\n\treturn parent[x]\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tparent := make([]int, n)\n\tfor i := range parent {\n\t\tfmt.Scan(&parent[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar a, b int\n\t\tfmt.Scan(&a, &b)\n\t\tif find(parent, a) == find(parent, b) {\n\t\t\tfmt.Printf(\"%d %d: same boss\\n\", a, b)\n\t\t} else {\n\t\t\tfmt.Printf(\"%d %d: different bosses\\n\", a, b)\n\t\t}\n\t}\n\tfmt.Println(\"after:\", parent)\n}\n",
+        "tests": [
+          {
+            "stdin": "7\n0 0 1 2 4 4 5\n2\n3 1\n6 0\n",
+            "output": "3 1: same boss\n6 0: different bosses\nafter: [0 0 0 0 4 4 4]"
+          },
+          {
+            "stdin": "3\n0 1 2\n1\n0 2\n",
+            "output": "0 2: different bosses\nafter: [0 1 2]"
+          },
+          {
+            "stdin": "5\n1 2 3 4 4\n1\n0 4\n",
+            "output": "0 4: same boss\nafter: [4 4 4 4 4]"
+          }
+        ],
+        "hints": [
+          "When `parent[x] != x`, set `parent[x] = find(parent, parent[x])`, then return `parent[x]`.",
+          "A root returns itself, since its `if` is false.",
+          "In the last test the chain 0, 1, 2, 3, 4 collapses so every node points at 4."
+        ]
+      }
+    },
+    {
+      "title": "Union by size",
+      "body": "Which root goes on top matters too. Hang a big group under a small one and its nodes get one level deeper. **Union by size** always attaches the smaller group's root under the bigger group's root, which keeps trees shallow. Track a size for every root, and the size of `x`'s group is `size[Find(x)]`.\n\nThe parent and size slices travel together, so put them in a struct with a constructor and methods. `Union` returns whether it joined two groups, which the next part uses:\n\n```go harness\n{{code}}\n\nuf := NewUnionFind(4)\nfmt.Println(uf.Union(0, 1), uf.Union(2, 1), uf.Union(0, 2))\nfmt.Println(uf.Find(2), uf.size[uf.Find(2)])\n```\n\n```go\ntype UnionFind struct {\n\tparent []int\n\tsize   []int // size[r]: how many nodes are in the group whose root is r\n}\n\nfunc NewUnionFind(n int) *UnionFind {\n\tuf := &UnionFind{parent: make([]int, n), size: make([]int, n)}\n\tfor i := range uf.parent {\n\t\tuf.parent[i] = i\n\t\tuf.size[i] = 1\n\t}\n\treturn uf\n}\n\nfunc (uf *UnionFind) Find(x int) int {\n\tif uf.parent[x] != x {\n\t\tuf.parent[x] = uf.Find(uf.parent[x])\n\t}\n\treturn uf.parent[x]\n}\n\n// Union joins the groups of a and b, and reports false when they were already one.\nfunc (uf *UnionFind) Union(a, b int) bool {\n\tra, rb := uf.Find(a), uf.Find(b)\n\tif ra == rb {\n\t\treturn false\n\t}\n\tif uf.size[ra] < uf.size[rb] {\n\t\tra, rb = rb, ra // keep the bigger group's root on top\n\t}\n\tuf.parent[rb] = ra\n\tuf.size[ra] += uf.size[rb]\n\treturn true\n}\n```\n\n- The methods have pointer receivers, like any type whose methods change it, and `NewUnionFind` returns a pointer.\n- Only a root's `size` entry stays up to date. A node that stops being a root keeps an old value, so always look it up through `Find`.\n- With path compression and union by size together, each `Find` and `Union` takes almost constant time, however many nodes there are.",
+      "example": {
+        "title": "Friend groups",
+        "prompt": "Read n people and m friendships, print the size of the new group after each friendship, then the largest group.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype UnionFind struct {\n\tparent []int\n\tsize   []int // size[r]: how many nodes are in the group whose root is r\n}\n\nfunc NewUnionFind(n int) *UnionFind {\n\tuf := &UnionFind{parent: make([]int, n), size: make([]int, n)}\n\tfor i := range uf.parent {\n\t\tuf.parent[i] = i\n\t\tuf.size[i] = 1\n\t}\n\treturn uf\n}\n\nfunc (uf *UnionFind) Find(x int) int {\n\tif uf.parent[x] != x {\n\t\tuf.parent[x] = uf.Find(uf.parent[x])\n\t}\n\treturn uf.parent[x]\n}\n\n// Union joins the groups of a and b, and reports false when they were already one.\nfunc (uf *UnionFind) Union(a, b int) bool {\n\tra, rb := uf.Find(a), uf.Find(b)\n\tif ra == rb {\n\t\treturn false\n\t}\n\tif uf.size[ra] < uf.size[rb] {\n\t\tra, rb = rb, ra // keep the bigger group's root on top\n\t}\n\tuf.parent[rb] = ra\n\tuf.size[ra] += uf.size[rb]\n\treturn true\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tuf := NewUnionFind(n)\n\tlargest := 1\n\tfor i := 0; i < m; i++ {\n\t\tvar a, b int\n\t\tfmt.Scan(&a, &b)\n\t\tuf.Union(a, b)\n\t\tsize := uf.size[uf.Find(a)]\n\t\tfmt.Printf(\"%d %d: group of %d\\n\", a, b, size)\n\t\tif size > largest {\n\t\t\tlargest = size\n\t\t}\n\t}\n\tfmt.Println(\"largest:\", largest)\n}\n",
+        "stdin": "7 5\n0 1\n2 3\n1 3\n4 5\n3 0\n",
+        "output": "0 1: group of 2\n2 3: group of 2\n1 3: group of 4\n4 5: group of 2\n3 0: group of 4\nlargest: 4",
+        "explanation": "The first two friendships make two groups of 2. `1 3` joins them: the sizes tie, so 2's group goes under 0, and the group has 4. `4 5` starts another pair. `3 0` finds the same root on both sides, so `Union` returns false and the group stays at 4. Person 6 has no friends and stays a group of 1."
+      },
+      "practice": {
+        "title": "Network cables",
+        "prompt": "Plug in cables between computers and report the network each cable creates.\n\n1. The starter reads `n` computers and `m` cables. `NewUnionFind` and `Find` are finished.\n2. Finish `Union` with union by size: return false when both ends already share a root, and otherwise hang the smaller group's root under the bigger one's and add up the sizes.\n3. For each cable print `a b: network of S` when it joined two networks, or `a b: already connected`. Finish with `largest: S`.\n\nInput:\n\n```text\n6 5\n0 1\n1 2\n3 4\n2 0\n4 1\n```\n\nExpected output:\n\n```text\n0 1: network of 2\n1 2: network of 3\n3 4: network of 2\n2 0: already connected\n4 1: network of 5\nlargest: 5\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype UnionFind struct {\n\tparent []int\n\tsize   []int // size[r]: how many nodes are in the group whose root is r\n}\n\nfunc NewUnionFind(n int) *UnionFind {\n\tuf := &UnionFind{parent: make([]int, n), size: make([]int, n)}\n\tfor i := range uf.parent {\n\t\tuf.parent[i] = i\n\t\tuf.size[i] = 1\n\t}\n\treturn uf\n}\n\nfunc (uf *UnionFind) Find(x int) int {\n\tif uf.parent[x] != x {\n\t\tuf.parent[x] = uf.Find(uf.parent[x])\n\t}\n\treturn uf.parent[x]\n}\n\nfunc (uf *UnionFind) Union(a, b int) bool {\n\t// TODO: join by size, and return false when a and b already share a root\n\treturn false\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tuf := NewUnionFind(n)\n\tlargest := 1\n\tfor i := 0; i < m; i++ {\n\t\tvar a, b int\n\t\tfmt.Scan(&a, &b)\n\t\tif uf.Union(a, b) {\n\t\t\t// TODO: print the new network's size and update largest\n\t\t} else {\n\t\t\tfmt.Printf(\"%d %d: already connected\\n\", a, b)\n\t\t}\n\t}\n\tfmt.Println(\"largest:\", largest)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype UnionFind struct {\n\tparent []int\n\tsize   []int // size[r]: how many nodes are in the group whose root is r\n}\n\nfunc NewUnionFind(n int) *UnionFind {\n\tuf := &UnionFind{parent: make([]int, n), size: make([]int, n)}\n\tfor i := range uf.parent {\n\t\tuf.parent[i] = i\n\t\tuf.size[i] = 1\n\t}\n\treturn uf\n}\n\nfunc (uf *UnionFind) Find(x int) int {\n\tif uf.parent[x] != x {\n\t\tuf.parent[x] = uf.Find(uf.parent[x])\n\t}\n\treturn uf.parent[x]\n}\n\nfunc (uf *UnionFind) Union(a, b int) bool {\n\tra, rb := uf.Find(a), uf.Find(b)\n\tif ra == rb {\n\t\treturn false\n\t}\n\tif uf.size[ra] < uf.size[rb] {\n\t\tra, rb = rb, ra\n\t}\n\tuf.parent[rb] = ra\n\tuf.size[ra] += uf.size[rb]\n\treturn true\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tuf := NewUnionFind(n)\n\tlargest := 1\n\tfor i := 0; i < m; i++ {\n\t\tvar a, b int\n\t\tfmt.Scan(&a, &b)\n\t\tif uf.Union(a, b) {\n\t\t\tsize := uf.size[uf.Find(a)]\n\t\t\tfmt.Printf(\"%d %d: network of %d\\n\", a, b, size)\n\t\t\tif size > largest {\n\t\t\t\tlargest = size\n\t\t\t}\n\t\t} else {\n\t\t\tfmt.Printf(\"%d %d: already connected\\n\", a, b)\n\t\t}\n\t}\n\tfmt.Println(\"largest:\", largest)\n}\n",
+        "tests": [
+          {
+            "stdin": "6 5\n0 1\n1 2\n3 4\n2 0\n4 1\n",
+            "output": "0 1: network of 2\n1 2: network of 3\n3 4: network of 2\n2 0: already connected\n4 1: network of 5\nlargest: 5"
+          },
+          {
+            "stdin": "3 1\n2 2\n",
+            "output": "2 2: already connected\nlargest: 1"
+          },
+          {
+            "stdin": "4 3\n0 1\n2 3\n3 1\n",
+            "output": "0 1: network of 2\n2 3: network of 2\n3 1: network of 4\nlargest: 4"
+          }
+        ],
+        "hints": [
+          "`Union` is the example's: find both roots, return false when they match, swap so `ra` has the bigger size, then link and add.",
+          "After a join, read the size through the root: `uf.size[uf.Find(a)]`.",
+          "A cable from a computer to itself, like `2 2`, finds one root on both ends, so it's already connected."
+        ]
+      }
+    },
+    {
+      "title": "Counting components and extra edges",
+      "body": "Two more questions come almost for free. Add a `count` of groups to the struct: it starts at n, and every `Union` that joins two groups lowers it by one. After all the edges, `count` is the number of connected components.\n\nAnd when `Union` returns false, both ends of the edge were already connected. In an undirected graph, that edge **closes a cycle**: there was a path between its ends before it arrived. It's the extra edge you could remove and keep everything connected.\n\n```go harness\n{{code}}\n\nuf := NewUnionFind(5)\nfor _, e := range [][2]int{{0, 1}, {1, 2}, {2, 0}, {3, 4}} {\n\tif !uf.Union(e[0], e[1]) {\n\t\tfmt.Println(\"extra edge:\", e)\n\t}\n}\nfmt.Println(\"components:\", uf.count)\n```\n\n```go\ntype UnionFind struct {\n\tparent []int\n\tsize   []int\n\tcount  int // how many groups there are\n}\n\nfunc NewUnionFind(n int) *UnionFind {\n\tuf := &UnionFind{parent: make([]int, n), size: make([]int, n), count: n}\n\tfor i := range uf.parent {\n\t\tuf.parent[i] = i\n\t\tuf.size[i] = 1\n\t}\n\treturn uf\n}\n\nfunc (uf *UnionFind) Find(x int) int {\n\tif uf.parent[x] != x {\n\t\tuf.parent[x] = uf.Find(uf.parent[x])\n\t}\n\treturn uf.parent[x]\n}\n\nfunc (uf *UnionFind) Union(a, b int) bool {\n\tra, rb := uf.Find(a), uf.Find(b)\n\tif ra == rb {\n\t\treturn false // already one group: this edge closes a cycle\n\t}\n\tif uf.size[ra] < uf.size[rb] {\n\t\tra, rb = rb, ra\n\t}\n\tuf.parent[rb] = ra\n\tuf.size[ra] += uf.size[rb]\n\tuf.count-- // two groups became one\n\treturn true\n}\n```\n\nHere `2 0` is the extra edge, since 0 and 2 were connected through 1. Five nodes and three joins leave 2 components: `0 1 2` and `3 4`.\n\nA few facts follow from the count:\n\n- n nodes need exactly n - 1 joining edges to become one component, so connecting C components takes C - 1 more edges.\n- A graph with no extra edges is a forest: every component is a tree.\n- The edges must be undirected. A cycle in a directed graph is a different question, which a topological sort answers.",
+      "example": {
+        "title": "Components and extra edges",
+        "prompt": "Read an undirected graph with n nodes and m edges, print every edge that closes a cycle, in input order, then the number of components.",
+        "code": "package main\n\nimport \"fmt\"\n\ntype UnionFind struct {\n\tparent []int\n\tsize   []int\n\tcount  int // how many groups there are\n}\n\nfunc NewUnionFind(n int) *UnionFind {\n\tuf := &UnionFind{parent: make([]int, n), size: make([]int, n), count: n}\n\tfor i := range uf.parent {\n\t\tuf.parent[i] = i\n\t\tuf.size[i] = 1\n\t}\n\treturn uf\n}\n\nfunc (uf *UnionFind) Find(x int) int {\n\tif uf.parent[x] != x {\n\t\tuf.parent[x] = uf.Find(uf.parent[x])\n\t}\n\treturn uf.parent[x]\n}\n\nfunc (uf *UnionFind) Union(a, b int) bool {\n\tra, rb := uf.Find(a), uf.Find(b)\n\tif ra == rb {\n\t\treturn false // already one group: this edge closes a cycle\n\t}\n\tif uf.size[ra] < uf.size[rb] {\n\t\tra, rb = rb, ra\n\t}\n\tuf.parent[rb] = ra\n\tuf.size[ra] += uf.size[rb]\n\tuf.count-- // two groups became one\n\treturn true\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tuf := NewUnionFind(n)\n\textra := 0\n\tfor i := 0; i < m; i++ {\n\t\tvar a, b int\n\t\tfmt.Scan(&a, &b)\n\t\tif !uf.Union(a, b) {\n\t\t\tfmt.Printf(\"extra edge: %d %d\\n\", a, b)\n\t\t\textra++\n\t\t}\n\t}\n\tfmt.Println(\"extra edges:\", extra)\n\tfmt.Println(\"components:\", uf.count)\n}\n",
+        "stdin": "7 7\n0 1\n1 2\n3 4\n2 0\n4 5\n5 3\n1 2\n",
+        "output": "extra edge: 2 0\nextra edge: 5 3\nextra edge: 1 2\nextra edges: 3\ncomponents: 3",
+        "explanation": "`2 0` closes the loop 0, 1, 2, and `5 3` closes 3, 4, 5. The second `1 2` repeats an edge, and its ends are already connected, so it counts as extra too. 7 nodes and 4 joining edges leave 3 components: `0 1 2`, `3 4 5`, and node 6 on its own."
+      },
+      "practice": {
+        "title": "Road network",
+        "prompt": "Check a road network between towns: find the first road that closes a loop, and how many roads would connect everything.\n\n1. The starter reads `n` towns and `m` roads. Finish the struct: start `count` at n in `NewUnionFind`, and lower it in `Union` whenever two groups join.\n2. Print `first extra road: a b` for the first road whose towns were already connected, or `no extra road`.\n3. Print `components: C`, then `roads to build: R`, the fewest new roads that would connect every town.\n\nInput:\n\n```text\n6 5\n0 1\n1 2\n2 0\n3 4\n4 3\n```\n\nExpected output:\n\n```text\nfirst extra road: 2 0\ncomponents: 3\nroads to build: 2\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\ntype UnionFind struct {\n\tparent []int\n\tsize   []int\n\tcount  int // how many groups there are\n}\n\nfunc NewUnionFind(n int) *UnionFind {\n\tuf := &UnionFind{parent: make([]int, n), size: make([]int, n)}\n\t// TODO: start count at n\n\tfor i := range uf.parent {\n\t\tuf.parent[i] = i\n\t\tuf.size[i] = 1\n\t}\n\treturn uf\n}\n\nfunc (uf *UnionFind) Find(x int) int {\n\tif uf.parent[x] != x {\n\t\tuf.parent[x] = uf.Find(uf.parent[x])\n\t}\n\treturn uf.parent[x]\n}\n\nfunc (uf *UnionFind) Union(a, b int) bool {\n\tra, rb := uf.Find(a), uf.Find(b)\n\tif ra == rb {\n\t\treturn false\n\t}\n\tif uf.size[ra] < uf.size[rb] {\n\t\tra, rb = rb, ra\n\t}\n\tuf.parent[rb] = ra\n\tuf.size[ra] += uf.size[rb]\n\t// TODO: two groups became one\n\treturn true\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tuf := NewUnionFind(n)\n\tfor i := 0; i < m; i++ {\n\t\tvar a, b int\n\t\tfmt.Scan(&a, &b)\n\t\tuf.Union(a, b)\n\t\t// TODO: remember the first road whose Union returns false\n\t}\n\t// TODO: print the first extra road, the components, and the roads to build\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\ntype UnionFind struct {\n\tparent []int\n\tsize   []int\n\tcount  int // how many groups there are\n}\n\nfunc NewUnionFind(n int) *UnionFind {\n\tuf := &UnionFind{parent: make([]int, n), size: make([]int, n), count: n}\n\tfor i := range uf.parent {\n\t\tuf.parent[i] = i\n\t\tuf.size[i] = 1\n\t}\n\treturn uf\n}\n\nfunc (uf *UnionFind) Find(x int) int {\n\tif uf.parent[x] != x {\n\t\tuf.parent[x] = uf.Find(uf.parent[x])\n\t}\n\treturn uf.parent[x]\n}\n\nfunc (uf *UnionFind) Union(a, b int) bool {\n\tra, rb := uf.Find(a), uf.Find(b)\n\tif ra == rb {\n\t\treturn false // already one group: this edge closes a cycle\n\t}\n\tif uf.size[ra] < uf.size[rb] {\n\t\tra, rb = rb, ra\n\t}\n\tuf.parent[rb] = ra\n\tuf.size[ra] += uf.size[rb]\n\tuf.count-- // two groups became one\n\treturn true\n}\n\nfunc main() {\n\tvar n, m int\n\tfmt.Scan(&n, &m)\n\tuf := NewUnionFind(n)\n\tfound := false\n\tvar firstA, firstB int\n\tfor i := 0; i < m; i++ {\n\t\tvar a, b int\n\t\tfmt.Scan(&a, &b)\n\t\tif !uf.Union(a, b) && !found {\n\t\t\tfound = true\n\t\t\tfirstA, firstB = a, b\n\t\t}\n\t}\n\tif found {\n\t\tfmt.Printf(\"first extra road: %d %d\\n\", firstA, firstB)\n\t} else {\n\t\tfmt.Println(\"no extra road\")\n\t}\n\tfmt.Println(\"components:\", uf.count)\n\tfmt.Println(\"roads to build:\", uf.count-1)\n}\n",
+        "tests": [
+          {
+            "stdin": "6 5\n0 1\n1 2\n2 0\n3 4\n4 3\n",
+            "output": "first extra road: 2 0\ncomponents: 3\nroads to build: 2"
+          },
+          {
+            "stdin": "4 3\n0 1\n1 2\n2 3\n",
+            "output": "no extra road\ncomponents: 1\nroads to build: 0"
+          },
+          {
+            "stdin": "3 0\n",
+            "output": "no extra road\ncomponents: 3\nroads to build: 2"
+          }
+        ],
+        "hints": [
+          "Set `count: n` in the struct literal, and add `uf.count--` just before `return true` in `Union`.",
+          "Keep a `found` flag so only the first extra road is saved: check `!uf.Union(a, b) && !found`. `Union` runs first, so every road still gets joined.",
+          "C components need C - 1 new roads to become one."
+        ]
+      }
+    }
+  ],
+  "recap": "- Every node stores a parent, and a node that is its own parent is a root. Start with `parent[i] = i`.\n- Two nodes are in the same group when they have the same root. Join groups by pointing one root at the other, never a node in the middle.\n- Path compression points every node on the search path straight at the root: `parent[x] = find(parent, parent[x])`.\n- Union by size hangs the smaller group's root under the bigger one's and adds the sizes. Read a group's size through its root.\n- Keep `parent`, `size`, and `count` in a struct with pointer-receiver methods and a `NewUnionFind` constructor.\n- `count` starts at n and drops on every successful `Union`, so it ends as the number of components. C components need C - 1 more edges to connect.\n- In an undirected graph, an edge whose `Union` returns false closes a cycle."
+}

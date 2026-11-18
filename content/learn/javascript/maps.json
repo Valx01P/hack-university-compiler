@@ -2,7 +2,7 @@
   "id": "maps",
   "title": "Map, and Objects vs Map",
   "section": "Collections",
-  "summary": "Use Map for dynamic key-value data with keys of any type, count with it, and know when to pick it over a plain object.",
+  "summary": "Use Map for dynamic key-value data with keys of any type, count and group with it, and know when to pick it over a plain object.",
   "intro": "Objects work as dictionaries, but they turn every key into a string and come with inherited names like `toString`. `Map` is the built-in made for dynamic keys: any key type, a real `size`, and keys kept in the exact order you added them.",
   "steps": [
     {
@@ -84,7 +84,34 @@
           "`JSON.stringify` on a Map prints `{}`. Turn the Map into a plain object with `Object.fromEntries` first."
         ]
       }
+    },
+    {
+      "title": "Grouping values into lists",
+      "body": "To group items, map each key to an array and push into it. The one trick is creating the array the first time a key shows up:\n\n```javascript harness\nconst groups = new Map();\nfor (const word of [\"apple\", \"bean\", \"avocado\", \"beet\", \"corn\"]) {\n  const key = word[0];\n  {{code}}\n}\nconsole.log(groups);\n```\n\n```javascript\nif (!groups.has(key)) {\n  groups.set(key, []);\n}\ngroups.get(key).push(word);\n```\n\n`groups.get(key)` returns the array stored in the Map, not a copy, so `push` changes the stored list in place and no `set` is needed afterwards.\n\nThe key can be anything you compute from an item: its first letter, its length, or its letters in sorted order. `[...\"listen\"].sort().join(\"\")` and `[...\"silent\"].sort().join(\"\")` both give `\"eilnst\"`, so grouping by that key puts anagrams together.\n\nThe groups come out in the order their keys were first seen. When the output needs another order, sort the keys first: `[...groups.keys()].sort()`.\n\n**The gotcha:** `groups.get(key).push(word)` on a new key throws a TypeError, because `get` returns `undefined` and `undefined` has no `push`. Create the array first, every time.",
+      "example": {
+        "title": "Anagram groups",
+        "prompt": "Group words that are anagrams of each other, using each word's sorted letters as the key, and print every group.",
+        "code": "const words = [\"listen\", \"enlist\", \"google\", \"silent\", \"elgoog\", \"cat\", \"act\", \"tac\", \"dog\"];\n\nconst groups = new Map();\nfor (const word of words) {\n  const key = [...word].sort().join(\"\");\n  if (!groups.has(key)) {\n    groups.set(key, []);\n  }\n  groups.get(key).push(word);\n}\n\nfor (const [key, members] of groups) {\n  console.log(`${key}: ${members.join(\", \")}`);\n}\n",
+        "output": "eilnst: listen, enlist, silent\neggloo: google, elgoog\nact: cat, act, tac\ndgo: dog",
+        "explanation": "Spreading a word gives its letters, `sort()` puts them in order, and `join(\"\")` glues them back into a key, so all three spellings of `listen` share the key `eilnst`. The first word with a new key creates its array, and the rest push into it. The loop prints the groups in the order their keys first appeared, and each list keeps the words in input order."
+      },
+      "practice": {
+        "title": "Words by length",
+        "prompt": "Group a list of words by their length and print the groups from the shortest length to the longest.\n\n1. Group the words in a Map from a length to an array of words.\n2. Sort the lengths as numbers, smallest first.\n3. Print each length as `length: words`, with the words in their original order, separated by commas.\n\nExpected output:\n\n```text\n3: map, set\n4: list, heap, trie\n5: array, queue, deque\n6: string, object\n10: dictionary\n```",
+        "starter": "const words = [\"map\", \"set\", \"array\", \"string\", \"dictionary\", \"object\", \"list\", \"queue\", \"deque\", \"heap\", \"trie\"];\n\nconst groups = new Map();\n// TODO: group the words by word.length\n\n// TODO: print the groups from the shortest length to the longest\n",
+        "solution": "const words = [\"map\", \"set\", \"array\", \"string\", \"dictionary\", \"object\", \"list\", \"queue\", \"deque\", \"heap\", \"trie\"];\n\nconst groups = new Map();\nfor (const word of words) {\n  const key = word.length;\n  if (!groups.has(key)) {\n    groups.set(key, []);\n  }\n  groups.get(key).push(word);\n}\n\nfor (const length of [...groups.keys()].sort((a, b) => a - b)) {\n  console.log(`${length}: ${groups.get(length).join(\", \")}`);\n}\n",
+        "tests": [
+          {
+            "output": "3: map, set\n4: list, heap, trie\n5: array, queue, deque\n6: string, object\n10: dictionary"
+          }
+        ],
+        "hints": [
+          "Use `word.length` as the key, with the same `has`, `set`, and `push` steps as the example.",
+          "The keys are numbers, so sort them with `(a, b) => a - b`. A plain `sort()` compares them as text and puts 10 before 3.",
+          "Loop over the sorted keys and read each group with `groups.get(length)`."
+        ]
+      }
     }
   ],
-  "recap": "- `new Map()` or `new Map([[key, value], ...])` creates a map.\n- `set` returns the map so calls chain. `get` gives `undefined` for a missing key. Use `has`, `delete`, `size`, and `clear()`.\n- Never use brackets on a Map: `m[\"a\"] = 1` is not an entry.\n- Maps iterate in insertion order, and a deleted key that is set again moves to the end. Use `for (const [key, value] of map)` or `map.forEach((value, key) => ...)`.\n- `keys()`, `values()`, and `entries()` are iterators in Node 20: spread them before `join` or `map`.\n- Count with `map.set(k, (map.get(k) ?? 0) + 1)` and sort `[...map]` by value, then by key.\n- Map keys keep their type and objects are compared by reference. Object keys become strings and inherit names like `toString`.\n- `JSON.stringify(map)` gives `{}`: use `Object.fromEntries(map)`. Go back with `new Map(Object.entries(obj))`.\n- Objects for fixed records and JSON, Map for dynamic keys and counting."
+  "recap": "- `new Map()` or `new Map([[key, value], ...])` creates a map.\n- `set` returns the map so calls chain. `get` gives `undefined` for a missing key. Use `has`, `delete`, `size`, and `clear()`.\n- Never use brackets on a Map: `m[\"a\"] = 1` is not an entry.\n- Maps iterate in insertion order, and a deleted key that is set again moves to the end. Use `for (const [key, value] of map)` or `map.forEach((value, key) => ...)`.\n- `keys()`, `values()`, and `entries()` are iterators in Node 20: spread them before `join` or `map`.\n- Count with `map.set(k, (map.get(k) ?? 0) + 1)` and sort `[...map]` by value, then by key.\n- Map keys keep their type and objects are compared by reference. Object keys become strings and inherit names like `toString`.\n- `JSON.stringify(map)` gives `{}`: use `Object.fromEntries(map)`. Go back with `new Map(Object.entries(obj))`.\n- Objects for fixed records and JSON, Map for dynamic keys and counting.\n- Group with `if (!m.has(k)) m.set(k, []);` then `m.get(k).push(item)`. The key can be computed, like a word's sorted letters for anagrams."
 }

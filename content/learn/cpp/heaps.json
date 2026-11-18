@@ -1,0 +1,156 @@
+{
+  "id": "heaps",
+  "title": "Heaps and Monotonic Stacks",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Order a priority_queue by a key with a comparator, keep the top k, balance two heaps for a running median, and find next greater values with a stack.",
+  "intro": "The Stacks, Queues, Deques, and Priority Queues lesson pushed numbers and pairs into a `std::priority_queue`. Interview problems ask more of it: order by a computed key with a tie-break, keep only the best k items, or split the data between two heaps. This lesson does all three, then keeps a plain `std::stack` in order to find each element's next greater value in one pass.",
+  "steps": [
+    {
+      "title": "A heap ordered by a key",
+      "body": "As the Stacks, Queues, Deques, and Priority Queues lesson showed, a `std::priority_queue` built from two iterators takes a whole vector at once and arranges it into a heap in O(n), faster than pushing the items one at a time:\n\n```cpp\nstd::vector<int> stones = {2, 7, 4, 1, 8, 1};\nstd::priority_queue<int> heap(stones.begin(), stones.end());\nstd::cout << heap.top() << ' ' << heap.size() << '\\n';   // 8 6\n```\n\nTo order by a computed key, give the heap a comparator type, like a struct with `operator()` from the Operator Overloading lesson. A heap's comparator answers \"does `a` come out *after* `b`?\", the reverse of a sort comparator. So `return da > db;` makes farther points come out later and puts the closest one on top:\n\n```cpp harness\nusing Point = std::pair<int, int>;\n{{code}}\nstd::vector<Point> pts = {{3, 3}, {1, -1}, {-2, 2}};\nstd::priority_queue<Point, std::vector<Point>, Farther> pq(pts.begin(), pts.end());\nstd::cout << pq.top().first << ' ' << pq.top().second << '\\n';\n```\n\n```cpp\nstruct Farther {\n    bool operator()(const Point& a, const Point& b) const {\n        long long da = 1LL * a.first * a.first + 1LL * a.second * a.second;\n        long long db = 1LL * b.first * b.first + 1LL * b.second * b.second;\n        if (da != db) {\n            return da > db;            // farther comes out later\n        }\n        return a.first > b.first;      // a tie: the smaller x comes out first\n    }\n};\n```\n\nThe full type names the item, the container, and the comparator: `std::priority_queue<Point, std::vector<Point>, Farther>`. Squared distances skip the square root and stay exact, and `1LL *` computes them in `long long`.",
+      "example": {
+        "title": "Closest points",
+        "prompt": "Read n points and k, and print the k points closest to the origin, ties going to the smaller x, then the smaller y.",
+        "code": "#include <iostream>\n#include <queue>\n#include <utility>\n#include <vector>\n\nusing Point = std::pair<int, int>;\n\nstruct Farther {\n    bool operator()(const Point& a, const Point& b) const {\n        long long da = 1LL * a.first * a.first + 1LL * a.second * a.second;\n        long long db = 1LL * b.first * b.first + 1LL * b.second * b.second;\n        if (da != db) {\n            return da > db;\n        }\n        if (a.first != b.first) {\n            return a.first > b.first;\n        }\n        return a.second > b.second;\n    }\n};\n\nint main() {\n    int n = 0;\n    int k = 0;\n    std::cin >> n >> k;\n    std::vector<Point> points(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> points[i].first >> points[i].second;\n    }\n\n    std::priority_queue<Point, std::vector<Point>, Farther> pq(points.begin(), points.end());\n    for (int i = 0; i < k && !pq.empty(); ++i) {\n        Point p = pq.top();\n        pq.pop();\n        std::cout << p.first << ' ' << p.second << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "5 3\n3 3\n-2 2\n1 -3\n2 -2\n5 -1\n",
+        "output": "-2 2\n2 -2\n1 -3",
+        "explanation": "The constructor builds the heap from all five points at once. Their squared distances are 18, 8, 10, 8, and 26. Two points tie at 8, and `Farther` says the one with the bigger x comes out later, so `-2 2` comes before `2 -2`. The third pop is `1 -3` at 10. Each `Point p = pq.top();` copies the top before `pop()` removes it."
+      },
+      "practice": {
+        "title": "Nearest stores",
+        "prompt": "List the k stores nearest to home, walking along the streets of a grid.\n\n1. The starter reads home's `x` and `y`, then `n` and `k`, then `n` stores, each a name and its `x` and `y`. It stores each one's walking distance, `|x - hx| + |y - hy|`, in `dist`.\n2. Finish `Farther`: return true when `a` comes out after `b`, that is when `a` is farther, or for equal distances when `a`'s name comes later from A to Z.\n3. Build a heap from all the stores with `Farther`, then pop the k nearest and print each one's name and distance, separated by a space.\n\nInput:\n\n```text\n2 3 5 3\nbakery 4 4\ncafe 0 3\ndeli 2 0\ngym 5 7\nmarket 1 2\n```\n\nExpected output:\n\n```text\ncafe 2\nmarket 2\nbakery 3\n```",
+        "starter": "#include <cstdlib>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <vector>\n\nstruct Store {\n    std::string name;\n    int dist = 0;\n};\n\nstruct Farther {\n    bool operator()(const Store& a, const Store& b) const {\n        // TODO: true when a comes out after b: a larger distance, or on a tie the later name\n        return false;\n    }\n};\n\nint main() {\n    int hx = 0;\n    int hy = 0;\n    int n = 0;\n    int k = 0;\n    std::cin >> hx >> hy >> n >> k;\n    std::vector<Store> stores(n);\n    for (int i = 0; i < n; ++i) {\n        int x = 0;\n        int y = 0;\n        std::cin >> stores[i].name >> x >> y;\n        stores[i].dist = std::abs(x - hx) + std::abs(y - hy);\n    }\n    // TODO: build a heap of the stores with Farther, then print the k nearest\n    return 0;\n}\n",
+        "solution": "#include <cstdlib>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <vector>\n\nstruct Store {\n    std::string name;\n    int dist = 0;\n};\n\nstruct Farther {\n    bool operator()(const Store& a, const Store& b) const {\n        if (a.dist != b.dist) {\n            return a.dist > b.dist;\n        }\n        return a.name > b.name;\n    }\n};\n\nint main() {\n    int hx = 0;\n    int hy = 0;\n    int n = 0;\n    int k = 0;\n    std::cin >> hx >> hy >> n >> k;\n    std::vector<Store> stores(n);\n    for (int i = 0; i < n; ++i) {\n        int x = 0;\n        int y = 0;\n        std::cin >> stores[i].name >> x >> y;\n        stores[i].dist = std::abs(x - hx) + std::abs(y - hy);\n    }\n    std::priority_queue<Store, std::vector<Store>, Farther> pq(stores.begin(), stores.end());\n    for (int i = 0; i < k && !pq.empty(); ++i) {\n        Store s = pq.top();\n        pq.pop();\n        std::cout << s.name << ' ' << s.dist << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "2 3 5 3\nbakery 4 4\ncafe 0 3\ndeli 2 0\ngym 5 7\nmarket 1 2\n",
+            "output": "cafe 2\nmarket 2\nbakery 3"
+          },
+          {
+            "stdin": "0 0 2 1\nzoo 1 1\nart 2 0\n",
+            "output": "art 2"
+          },
+          {
+            "stdin": "0 0 3 3\nc -1 0\nb 0 -5\na 3 3\n",
+            "output": "c 1\nb 5\na 6"
+          }
+        ],
+        "hints": [
+          "Compare `a.dist` and `b.dist` first with `>`, then the names with `>`.",
+          "The heap type is `std::priority_queue<Store, std::vector<Store>, Farther>`, built from `stores.begin()` and `stores.end()`.",
+          "Copy `pq.top()` into a `Store` before you pop it."
+        ]
+      }
+    },
+    {
+      "title": "Keeping the top k",
+      "body": "To keep the k largest numbers from a stream, use a *min* heap and never let it hold more than k. Push each number, and when the size passes k, pop the top: the smallest of the k + 1, which can't be one of the k largest. At the end the heap holds the k largest, and its top is the kth largest. Each push and pop costs O(log k), so n numbers take O(n log k):\n\n```cpp\nstd::priority_queue<int, std::vector<int>, std::greater<int>> top;\nfor (int x : {3, 2, 1, 5, 6, 4}) {\n    top.push(x);\n    if (top.size() > 2) {\n        top.pop();\n    }\n}\nstd::cout << top.top() << '\\n';   // 5, the 2nd largest\n```\n\nThe same works for any order. For the k most frequent words, count them in a map, then keep `(count, word)` pairs in a heap whose top is the *weakest* pair kept: the lowest count, and on a tie the later word. A lambda can be the comparator too: name its type with `decltype` and pass the lambda to the constructor:\n\n```cpp harness\nusing Entry = std::pair<int, std::string>;\n{{code}}\npq.push({2, \"love\"});\npq.push({3, \"i\"});\npq.push({2, \"code\"});\nstd::cout << pq.top().second << '\\n';\n```\n\n```cpp\nauto strongerLater = [](const Entry& a, const Entry& b) {\n    if (a.first != b.first) {\n        return a.first > b.first;   // a higher count comes out later\n    }\n    return a.second < b.second;     // a tie: the earlier word comes out later\n};\nstd::priority_queue<Entry, std::vector<Entry>, decltype(strongerLater)> pq(strongerLater);\n```\n\nWhen the stream ends, pop everything into a vector. It comes out weakest first, so `std::reverse` it to list the strongest first.",
+      "example": {
+        "title": "Top k frequent words",
+        "prompt": "Read n words and k, and print the k most frequent words with their counts, the most frequent first and ties from A to Z.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <unordered_map>\n#include <utility>\n#include <vector>\n\nusing Entry = std::pair<int, std::string>;\n\nint main() {\n    int n = 0;\n    int k = 0;\n    std::cin >> n >> k;\n    std::unordered_map<std::string, int> counts;\n    for (int i = 0; i < n; ++i) {\n        std::string word;\n        std::cin >> word;\n        ++counts[word];\n    }\n\n    auto strongerLater = [](const Entry& a, const Entry& b) {\n        if (a.first != b.first) {\n            return a.first > b.first;\n        }\n        return a.second < b.second;\n    };\n    std::priority_queue<Entry, std::vector<Entry>, decltype(strongerLater)> heap(strongerLater);\n    for (const auto& [word, count] : counts) {\n        heap.push({count, word});\n        if (static_cast<int>(heap.size()) > k) {\n            heap.pop();\n        }\n    }\n\n    std::vector<Entry> best;\n    while (!heap.empty()) {\n        best.push_back(heap.top());\n        heap.pop();\n    }\n    std::reverse(best.begin(), best.end());\n    for (const auto& [count, word] : best) {\n        std::cout << word << ' ' << count << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "10 3\ni love code i love cpp i code heaps i\n",
+        "output": "i 4\ncode 2\nlove 2",
+        "explanation": "The counts are i 4, love 2, code 2, cpp 1, heaps 1. Whenever the heap grows to 4 pairs, `pop()` throws out its top, the weakest pair, so the pairs with count 1 never survive next to three stronger ones. Between `love` and `code`, both at 2, `strongerLater` makes the earlier word, `code`, the stronger one. The heap hands its 3 pairs back weakest first, and `std::reverse` puts `i` on top of the list. The output never depends on the map's order, since the comparator breaks every tie."
+      },
+      "practice": {
+        "title": "Quietest servers",
+        "prompt": "Find the k servers that got the fewest requests.\n\n1. The starter reads `n` and `k`, then `n` server names, one per request, and counts them in `counts`.\n2. Keep the k quietest servers in a heap of `(count, server)` pairs. Its top must be the weakest one kept, here the busiest: the highest count, and on a tie the later name.\n3. Pop the heap into a vector and reverse it, so the quietest comes first.\n4. Print each server and its count, separated by a space. Servers with equal counts go from A to Z.\n\nInput:\n\n```text\n9 2\nweb db web api cache web db api web\n```\n\nExpected output:\n\n```text\ncache 1\napi 2\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <unordered_map>\n#include <utility>\n#include <vector>\n\nusing Entry = std::pair<int, std::string>;\n\nint main() {\n    int n = 0;\n    int k = 0;\n    std::cin >> n >> k;\n    std::unordered_map<std::string, int> counts;\n    for (int i = 0; i < n; ++i) {\n        std::string server;\n        std::cin >> server;\n        ++counts[server];\n    }\n    // TODO: keep the k quietest servers in a heap whose top is the busiest one kept\n    // TODO: pop them into a vector, reverse it, and print each server and its count\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <unordered_map>\n#include <utility>\n#include <vector>\n\nusing Entry = std::pair<int, std::string>;\n\nint main() {\n    int n = 0;\n    int k = 0;\n    std::cin >> n >> k;\n    std::unordered_map<std::string, int> counts;\n    for (int i = 0; i < n; ++i) {\n        std::string server;\n        std::cin >> server;\n        ++counts[server];\n    }\n    auto quieterLater = [](const Entry& a, const Entry& b) {\n        if (a.first != b.first) {\n            return a.first < b.first;\n        }\n        return a.second < b.second;\n    };\n    std::priority_queue<Entry, std::vector<Entry>, decltype(quieterLater)> heap(quieterLater);\n    for (const auto& [server, count] : counts) {\n        heap.push({count, server});\n        if (static_cast<int>(heap.size()) > k) {\n            heap.pop();\n        }\n    }\n\n    std::vector<Entry> quietest;\n    while (!heap.empty()) {\n        quietest.push_back(heap.top());\n        heap.pop();\n    }\n    std::reverse(quietest.begin(), quietest.end());\n    for (const auto& [count, server] : quietest) {\n        std::cout << server << ' ' << count << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "9 2\nweb db web api cache web db api web\n",
+            "output": "cache 1\napi 2"
+          },
+          {
+            "stdin": "3 3\nb a c\n",
+            "output": "a 1\nb 1\nc 1"
+          },
+          {
+            "stdin": "4 1\nx x y y\n",
+            "output": "x 2"
+          }
+        ],
+        "hints": [
+          "The comparator answers whether `a` comes out after `b`. A quieter server should stay longer, so return `a.first < b.first` when the counts differ.",
+          "On a tie the earlier name should stay longer too: `return a.second < b.second;`.",
+          "Pass the lambda's type with `decltype` and the lambda itself to the heap's constructor."
+        ]
+      }
+    },
+    {
+      "title": "Two heaps for a running median",
+      "body": "To report the median while numbers keep arriving, split them into two halves. `low` is a max heap holding the smaller half, so its top is the biggest of them. `high` is a min heap holding the larger half, so its top is the smallest of them. Keep `low` the same size as `high` or one bigger, and the median sits on the tops:\n\n```cpp harness\nstd::priority_queue<int> low;\nstd::priority_queue<int, std::vector<int>, std::greater<int>> high;\nfor (int x : {5, 15, 1}) {\n    {{code}}\n}\nstd::cout << low.top() << ' ' << high.top() << '\\n';\n```\n\n```cpp\nlow.push(x);\nhigh.push(low.top());       // the biggest of the low half moves up\nlow.pop();\nif (high.size() > low.size()) {\n    low.push(high.top());   // low keeps the extra one\n    high.pop();\n}\n```\n\nPassing every number through `low` first keeps the halves in order: everything in `low` stays at most everything in `high`. With an odd count the median is `low.top()`. With an even count it is the average of the two tops, `(static_cast<double>(low.top()) + high.top()) / 2`, converted to `double` before the sum so it can't overflow and the division keeps its half. Each number costs a few heap operations, O(log n), instead of sorting everything again.",
+      "example": {
+        "title": "Running median",
+        "prompt": "Read n numbers and print the median of the numbers so far after each one, with one decimal.",
+        "code": "#include <functional>\n#include <iomanip>\n#include <iostream>\n#include <queue>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::priority_queue<int> low;\n    std::priority_queue<int, std::vector<int>, std::greater<int>> high;\n    std::cout << std::fixed << std::setprecision(1);\n    for (int i = 0; i < n; ++i) {\n        int x = 0;\n        std::cin >> x;\n        low.push(x);\n        high.push(low.top());\n        low.pop();\n        if (high.size() > low.size()) {\n            low.push(high.top());\n            high.pop();\n        }\n        double median = 0;\n        if (low.size() > high.size()) {\n            median = low.top();\n        } else {\n            median = (static_cast<double>(low.top()) + high.top()) / 2;\n        }\n        std::cout << median << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "5\n5 15 1 3 8\n",
+        "output": "5.0\n10.0\n5.0\n4.0\n5.0",
+        "explanation": "After 5, `low` holds 5 and the median is 5.0. 15 goes through `low` and up to `high`, so the tops are 5 and 15 and the median is 10.0. 1 goes into `low`, 5 moves up, and then `high` has more, so 5 comes back down: `low` holds 1 and 5, and the median is 5.0. After 3 the tops are 3 and 5, so 4.0, and after 8 `low` holds the extra number, 5."
+      },
+      "practice": {
+        "title": "Median on request",
+        "prompt": "Keep a running median and print it whenever someone asks.\n\n1. The starter reads `q` commands. `add x` adds the number `x`, and `median` asks for the median of every number added so far. At least one number comes before the first `median`.\n2. For `add`, push `x` into the two heaps and rebalance them like the example.\n3. For `median`, print the median with one decimal: `low`'s top when `low` is bigger, otherwise the average of both tops.\n\nInput:\n\n```text\n7\nadd 4\nadd 10\nmedian\nadd 2\nmedian\nadd 7\nmedian\n```\n\nExpected output:\n\n```text\n7.0\n4.0\n5.5\n```",
+        "starter": "#include <functional>\n#include <iomanip>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <vector>\n\nint main() {\n    int q = 0;\n    std::cin >> q;\n    std::priority_queue<int> low;\n    std::priority_queue<int, std::vector<int>, std::greater<int>> high;\n    std::cout << std::fixed << std::setprecision(1);\n    for (int i = 0; i < q; ++i) {\n        std::string command;\n        std::cin >> command;\n        if (command == \"add\") {\n            int x = 0;\n            std::cin >> x;\n            // TODO: add x to the two heaps and rebalance them\n        } else {\n            // TODO: print the median with one decimal\n        }\n    }\n    return 0;\n}\n",
+        "solution": "#include <functional>\n#include <iomanip>\n#include <iostream>\n#include <queue>\n#include <string>\n#include <vector>\n\nint main() {\n    int q = 0;\n    std::cin >> q;\n    std::priority_queue<int> low;\n    std::priority_queue<int, std::vector<int>, std::greater<int>> high;\n    std::cout << std::fixed << std::setprecision(1);\n    for (int i = 0; i < q; ++i) {\n        std::string command;\n        std::cin >> command;\n        if (command == \"add\") {\n            int x = 0;\n            std::cin >> x;\n            low.push(x);\n            high.push(low.top());\n            low.pop();\n            if (high.size() > low.size()) {\n                low.push(high.top());\n                high.pop();\n            }\n        } else {\n            if (low.size() > high.size()) {\n                std::cout << static_cast<double>(low.top()) << '\\n';\n            } else {\n                std::cout << (static_cast<double>(low.top()) + high.top()) / 2 << '\\n';\n            }\n        }\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "7\nadd 4\nadd 10\nmedian\nadd 2\nmedian\nadd 7\nmedian\n",
+            "output": "7.0\n4.0\n5.5"
+          },
+          {
+            "stdin": "3\nadd -5\nmedian\nmedian\n",
+            "output": "-5.0\n-5.0"
+          },
+          {
+            "stdin": "5\nadd 1\nadd 2\nadd 3\nadd 4\nmedian\n",
+            "output": "2.5"
+          }
+        ],
+        "hints": [
+          "The starter already sets `std::fixed << std::setprecision(1)`, so print a `double` and it shows one decimal.",
+          "Convert before you add: `(static_cast<double>(low.top()) + high.top()) / 2`."
+        ]
+      }
+    },
+    {
+      "title": "Monotonic stacks",
+      "body": "For each day, how many days until a warmer one? Checking every later day is O(n^2). Instead, keep a stack of the days still waiting for a warmer one. Their temperatures only go down from the bottom of the stack to the top, which is why it's called a *monotonic stack*. When a new day is warmer than the day on top, that day's wait is over: record it and pop, and keep popping while the new day beats the top. Then push the new day:\n\n```cpp\nstd::vector<int> temps = {73, 74, 75, 71, 69, 72, 76, 73};\nstd::vector<int> wait(temps.size(), 0);\nstd::stack<int> waiting;   // indexes, not temperatures\nfor (int i = 0; i < static_cast<int>(temps.size()); ++i) {\n    while (!waiting.empty() && temps[i] > temps[waiting.top()]) {\n        wait[waiting.top()] = i - waiting.top();\n        waiting.pop();\n    }\n    waiting.push(i);\n}\nfor (int w : wait) {\n    std::cout << w << ' ';   // 1 1 4 2 1 1 0 0\n}\n```\n\nEvery index is pushed once and popped at most once, so the loop is O(n) even with the inner `while`. Days still on the stack at the end never found a warmer day and keep their 0. Store indexes rather than values: an index gives you the distance, and `temps[i]` gives you the value.\n\nThe same idea at both ends of a `std::deque` finds the maximum of every window of k items: pop smaller values off the back before pushing, and pop the front once its index falls out of the window, so the front is always the window's maximum:\n\n```cpp\nstd::vector<int> nums = {1, 3, -1, -3, 5, 3, 6, 7};\nint k = 3;\nstd::deque<int> window;   // indexes, values going down from front to back\nfor (int i = 0; i < static_cast<int>(nums.size()); ++i) {\n    while (!window.empty() && nums[window.back()] <= nums[i]) {\n        window.pop_back();\n    }\n    window.push_back(i);\n    if (window.front() <= i - k) {\n        window.pop_front();\n    }\n    if (i >= k - 1) {\n        std::cout << nums[window.front()] << ' ';   // 3 3 5 5 6 7\n    }\n}\n```",
+      "example": {
+        "title": "Days until warmer",
+        "prompt": "Read n daily temperatures and print, for each day, how many days you wait for a warmer one, or 0 if none comes.",
+        "code": "#include <iostream>\n#include <stack>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> temps(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> temps[i];\n    }\n\n    std::vector<int> wait(n, 0);\n    std::stack<int> waiting;\n    for (int i = 0; i < n; ++i) {\n        while (!waiting.empty() && temps[i] > temps[waiting.top()]) {\n            wait[waiting.top()] = i - waiting.top();\n            waiting.pop();\n        }\n        waiting.push(i);\n    }\n\n    for (int i = 0; i < n; ++i) {\n        if (i > 0) {\n            std::cout << ' ';\n        }\n        std::cout << wait[i];\n    }\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "stdin": "8\n73 74 75 71 69 72 76 73\n",
+        "output": "1 1 4 2 1 1 0 0",
+        "explanation": "Day 1 (74) is warmer than day 0, so day 0 pops with a wait of 1. 71 and 69 are colder, so they stack up on top of 75. Day 5 (72) pops 69 and 71, waits of 1 and 2, but stops at 75. Day 6 (76) pops 72 and 75, giving 75 a wait of 4. Days 6 and 7 are still on the stack at the end, so they keep 0."
+      },
+      "practice": {
+        "title": "Next higher price",
+        "prompt": "For each price, find the next higher price to its right.\n\n1. The starter reads `n` prices and fills `next` with -1.\n2. Keep a stack of indexes still waiting for a higher price. For each new price, pop every waiting index whose price is lower, and set its `next` to the new price. Then push the new index.\n3. Prices with no higher price to their right keep -1. The starter prints `next` on one line, separated by spaces.\n\nInput:\n\n```text\n6\n4 5 2 25 7 8\n```\n\nExpected output:\n\n```text\n5 25 25 -1 8 -1\n```",
+        "starter": "#include <iostream>\n#include <stack>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> prices(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> prices[i];\n    }\n\n    std::vector<int> next(n, -1);\n    // TODO: fill next with the next higher price to the right, using a stack of indexes\n\n    for (int i = 0; i < n; ++i) {\n        if (i > 0) {\n            std::cout << ' ';\n        }\n        std::cout << next[i];\n    }\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <stack>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> prices(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> prices[i];\n    }\n\n    std::vector<int> next(n, -1);\n    std::stack<int> waiting;\n    for (int i = 0; i < n; ++i) {\n        while (!waiting.empty() && prices[i] > prices[waiting.top()]) {\n            next[waiting.top()] = prices[i];\n            waiting.pop();\n        }\n        waiting.push(i);\n    }\n\n    for (int i = 0; i < n; ++i) {\n        if (i > 0) {\n            std::cout << ' ';\n        }\n        std::cout << next[i];\n    }\n    std::cout << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n4 5 2 25 7 8\n",
+            "output": "5 25 25 -1 8 -1"
+          },
+          {
+            "stdin": "4\n9 7 5 3\n",
+            "output": "-1 -1 -1 -1"
+          },
+          {
+            "stdin": "5\n1 1 2 1 3\n",
+            "output": "2 2 3 3 -1"
+          }
+        ],
+        "hints": [
+          "It is the example's loop with `next[waiting.top()] = prices[i];` instead of a distance.",
+          "Use `>`, not `>=`, so an equal price doesn't count as higher."
+        ]
+      }
+    }
+  ],
+  "recap": "- `std::priority_queue<int> pq(v.begin(), v.end());` builds a heap from a whole range in O(n).\n- A heap's comparator returns true when `a` comes out after `b`, the reverse of a sort comparator. `return a > b;` puts the smallest on top.\n- Name the comparator in the type: a struct with `operator()`, or `decltype(lambda)` with the lambda passed to the constructor.\n- For the top k, keep a heap of at most k items whose top is the weakest one kept, and pop when the size passes k. It costs O(n log k).\n- Pop the kept items into a vector and `std::reverse` it to list the strongest first.\n- A running median keeps the smaller half in a max heap and the larger half in a min heap, with the max heap the same size or one bigger.\n- A monotonic stack of indexes finds the next greater element for every item in O(n): pop while the new value beats the top, then push.\n- A `std::deque` of indexes with values going down keeps every window's maximum at the front: pop the back while it's not bigger, and pop the front once it leaves the window."
+}

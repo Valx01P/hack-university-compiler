@@ -1,0 +1,156 @@
+{
+  "id": "stacks-queues",
+  "title": "Stacks, Queues, and Deques",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Use a slice as a stack to match brackets, answer next-greater questions with a monotonic stack, and work both ends with container/list and a deque.",
+  "intro": "Go has no stack or queue type, and it doesn't need them. A slice pushes and pops at its end in constant time, and `container/list` adds and removes at both ends. This lesson matches brackets with a stack, finds the next warmer day with a monotonic stack, runs a line where some people cut to the front, and keeps a sliding window's maximum in a deque.",
+  "steps": [
+    {
+      "title": "A slice as a stack",
+      "body": "A stack hands back the last item you put in: last in, first out. A slice does it at its end, where adding and removing are constant time:\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\tstack := []rune{}\n\t{{code}}\n}\n```\n\n```go\nstack = append(stack, '(') // push\nstack = append(stack, '[')\ntop := stack[len(stack)-1]   // peek: the last one pushed\nstack = stack[:len(stack)-1] // pop: cut it off\n\nfmt.Println(string(top), len(stack)) // [ 1\n```\n\n`stack[len(stack)-1]` on an empty slice panics with index out of range, so check `len(stack) > 0` first. In memory, a pop copies and frees nothing: the slice just gets shorter over the same backing array, and the next push writes into the slot the popped item left.\n\nBrackets are the classic use. Push every opener. A closer must match the opener on top, so pop it when it does and fail when it doesn't. When the text ends, the stack must be empty, or some opener was never closed. A map from each closer to its opener keeps the check short:\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\tpairs := map[rune]rune{')': '(', ']': '[', '}': '{'}\n\tch := ']'\n\t{{code}}\n}\n```\n\n```go\nopen, isCloser := pairs[ch]\nfmt.Println(string(open), isCloser) // [ true\n```",
+      "example": {
+        "title": "Balanced brackets",
+        "prompt": "Read lines of brackets and print whether each one is balanced.",
+        "code": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc balanced(s string) bool {\n\tpairs := map[rune]rune{')': '(', ']': '[', '}': '{'}\n\tstack := []rune{}\n\tfor _, ch := range s {\n\t\tif open, isCloser := pairs[ch]; isCloser {\n\t\t\tif len(stack) == 0 || stack[len(stack)-1] != open {\n\t\t\t\treturn false // nothing to close, or the wrong kind\n\t\t\t}\n\t\t\tstack = stack[:len(stack)-1]\n\t\t} else {\n\t\t\tstack = append(stack, ch)\n\t\t}\n\t}\n\treturn len(stack) == 0 // every opener was closed\n}\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tline := scanner.Text()\n\t\tif balanced(line) {\n\t\t\tfmt.Println(line, \"balanced\")\n\t\t} else {\n\t\t\tfmt.Println(line, \"not balanced\")\n\t\t}\n\t}\n}\n",
+        "stdin": "([]{})\n(]\n((\n{[()()]}\n())\n",
+        "output": "([]{}) balanced\n(] not balanced\n(( not balanced\n{[()()]} balanced\n()) not balanced",
+        "explanation": "In `([]{})` each closer finds its opener on top, and the stack ends empty. In `(]` the closer `]` finds `(` on top, the wrong kind. `((` never closes, so the stack ends with two openers. In `())` the last `)` arrives when the stack is already empty, and the `len(stack) == 0` check catches it before the peek could panic."
+      },
+      "practice": {
+        "title": "Find the first mismatch",
+        "prompt": "Report where each line of brackets first goes wrong.\n\n1. The starter reads lines and calls `check` on each.\n2. Finish `check` with a stack of openers. When a closer has no matching opener on top, return `error at N`, where N is its 1-based position.\n3. If the line ends with openers still on the stack, return `unclosed`. Otherwise return `ok`.\n\nInput:\n\n```text\n([)]\n(()\n{[]}()\n]\n```\n\nExpected output:\n\n```text\n([)] error at 3\n(() unclosed\n{[]}() ok\n] error at 1\n```",
+        "starter": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc check(s string) string {\n\t// TODO: push openers, match each closer against the top, and report the first problem\n\treturn \"\"\n}\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tline := scanner.Text()\n\t\tfmt.Println(line, check(line))\n\t}\n}\n",
+        "solution": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc check(s string) string {\n\tpairs := map[rune]rune{')': '(', ']': '[', '}': '{'}\n\tstack := []rune{}\n\tfor i, ch := range s {\n\t\tif open, isCloser := pairs[ch]; isCloser {\n\t\t\tif len(stack) == 0 || stack[len(stack)-1] != open {\n\t\t\t\treturn fmt.Sprintf(\"error at %d\", i+1)\n\t\t\t}\n\t\t\tstack = stack[:len(stack)-1]\n\t\t} else {\n\t\t\tstack = append(stack, ch)\n\t\t}\n\t}\n\tif len(stack) > 0 {\n\t\treturn \"unclosed\"\n\t}\n\treturn \"ok\"\n}\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tline := scanner.Text()\n\t\tfmt.Println(line, check(line))\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "([)]\n(()\n{[]}()\n]\n",
+            "output": "([)] error at 3\n(() unclosed\n{[]}() ok\n] error at 1"
+          },
+          {
+            "stdin": "[[[]]]\n[[[]]\n",
+            "output": "[[[]]] ok\n[[[]] unclosed"
+          },
+          {
+            "stdin": "(){}[]}\n",
+            "output": "(){}[]} error at 7"
+          }
+        ],
+        "hints": [
+          "Start from the example's `balanced`, and range with `for i, ch := range s` to get each position.",
+          "Brackets are one byte each, so `i+1` is the 1-based position. Build the message with `fmt.Sprintf`.",
+          "After the loop, a non-empty stack means `unclosed`."
+        ]
+      }
+    },
+    {
+      "title": "Monotonic stacks",
+      "body": "\"How many days until a warmer one?\" asked for every day looks like a loop inside a loop. A **monotonic stack** answers it in one pass. Keep the indexes of days still waiting for an answer on a stack, their temperatures falling from bottom to top. A warmer day pops every cooler day on top and answers it:\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\ttemps := []int{73, 74, 75, 71, 69, 72, 76, 73}\n\twait := make([]int, len(temps))\n\tstack := []int{}\n\t{{code}}\n\tfmt.Println(wait)\n}\n```\n\n```go\nfor i, t := range temps {\n\tfor len(stack) > 0 && temps[stack[len(stack)-1]] < t {\n\t\tj := stack[len(stack)-1] // day j finally gets a warmer day\n\t\tstack = stack[:len(stack)-1]\n\t\twait[j] = i - j\n\t}\n\tstack = append(stack, i)\n}\n```\n\nStore **indexes**, not temperatures: the index gives you both the distance `i - j` and the temperature `temps[j]`. Each index is pushed once and popped at most once, so the loop inside the loop adds up to O(n).\n\nDays still on the stack at the end never see a warmer day, and `make` already set their answer to 0. Popping while `<` leaves equal temperatures waiting, which is right, since an equal day isn't warmer.",
+      "example": {
+        "title": "Days until warmer",
+        "prompt": "Read n daily temperatures and print, for each day, how many days you wait for a warmer one, or 0.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\ttemps := make([]int, n)\n\tfor i := range temps {\n\t\tfmt.Scan(&temps[i])\n\t}\n\n\twait := make([]int, n) // 0 until a warmer day shows up\n\tstack := []int{}       // indexes, temperatures falling from bottom to top\n\tfor i, t := range temps {\n\t\tfor len(stack) > 0 && temps[stack[len(stack)-1]] < t {\n\t\t\tj := stack[len(stack)-1]\n\t\t\tstack = stack[:len(stack)-1]\n\t\t\twait[j] = i - j\n\t\t}\n\t\tstack = append(stack, i)\n\t}\n\tfmt.Println(wait)\n}\n",
+        "stdin": "8\n73 74 75 71 69 72 76 73\n",
+        "output": "[1 1 4 2 1 1 0 0]",
+        "explanation": "Day 2 (75) waits on the stack while 71 and 69 pile on top. Day 5 (72) pops 69 and 71, answering them with 1 and 2, and stops at 75, which is warmer. Day 6 (76) pops 72 and then 75, which waited 4 days. 76 and 73 are never beaten, so they keep 0."
+      },
+      "practice": {
+        "title": "Next higher price",
+        "prompt": "For each day's price, print the next price that is higher, or -1 when none comes.\n\n1. The starter reads `n` prices and fills `next` with -1.\n2. Keep a stack of indexes still waiting. For each price, pop every waiting index whose price is lower, and set its answer to the current **price**.\n3. Push the current index, then print `next` once at the end.\n\nInput:\n\n```text\n6\n4 2 7 3 3 9\n```\n\nExpected output:\n\n```text\n[7 7 9 9 9 -1]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tprices := make([]int, n)\n\tfor i := range prices {\n\t\tfmt.Scan(&prices[i])\n\t}\n\n\tnext := make([]int, n)\n\tfor i := range next {\n\t\tnext[i] = -1\n\t}\n\t// TODO: use a stack of waiting indexes to fill next with the next higher price\n\tfmt.Println(next)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tprices := make([]int, n)\n\tfor i := range prices {\n\t\tfmt.Scan(&prices[i])\n\t}\n\n\tnext := make([]int, n)\n\tfor i := range next {\n\t\tnext[i] = -1\n\t}\n\tstack := []int{}\n\tfor i, p := range prices {\n\t\tfor len(stack) > 0 && prices[stack[len(stack)-1]] < p {\n\t\t\tj := stack[len(stack)-1]\n\t\t\tstack = stack[:len(stack)-1]\n\t\t\tnext[j] = p\n\t\t}\n\t\tstack = append(stack, i)\n\t}\n\tfmt.Println(next)\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n4 2 7 3 3 9\n",
+            "output": "[7 7 9 9 9 -1]"
+          },
+          {
+            "stdin": "4\n9 7 5 1\n",
+            "output": "[-1 -1 -1 -1]"
+          },
+          {
+            "stdin": "5\n1 2 3 4 5\n",
+            "output": "[2 3 4 5 -1]"
+          }
+        ],
+        "hints": [
+          "The loops are the example's. Only the answer changes: store `p`, not `i - j`.",
+          "Prices that only fall never get popped, so they keep the -1 from the starter."
+        ]
+      }
+    },
+    {
+      "title": "Both ends with container/list",
+      "body": "A slice is a fine queue when items join at the back and leave from the front. When items can also join at the **front**, a slice has to copy everything over by one. `container/list` is a doubly linked list that adds and removes at both ends in constant time:\n\n```go harness\npackage main\n\nimport (\n\t\"container/list\"\n\t\"fmt\"\n)\n\nfunc main() {\n\t{{code}}\n}\n```\n\n```go\nline := list.New()\nline.PushBack(\"ann\")\nline.PushBack(\"bo\")\nline.PushFront(\"cy\") // cuts in front of ann\nfirst := line.Remove(line.Front()).(string)\nlast := line.Remove(line.Back()).(string)\nfmt.Println(first, last, line.Len()) // cy bo 1\n```\n\n- `Front()` and `Back()` return the end elements, or `nil` when the list is empty, so check before you use them.\n- `Remove(e)` takes an element out and returns its value.\n- Go 1.16 has no generics, so values are stored as `interface{}`. Assert them back with `.(string)` or `.(int)`.\n\nTo visit every value, follow the elements from the front:\n\n```go harness\npackage main\n\nimport (\n\t\"container/list\"\n\t\"fmt\"\n)\n\nfunc main() {\n\tline := list.New()\n\tline.PushBack(\"ann\")\n\tline.PushBack(\"bo\")\n\t{{code}}\n}\n```\n\n```go\nfor e := line.Front(); e != nil; e = e.Next() {\n\tfmt.Println(e.Value)\n}\n```",
+      "example": {
+        "title": "A line with VIPs",
+        "prompt": "Run a line of people from commands: join at the back, vip at the front, serve from the front, and leave from the back. Then print who is still waiting.",
+        "code": "package main\n\nimport (\n\t\"container/list\"\n\t\"fmt\"\n)\n\nfunc main() {\n\tline := list.New()\n\tvar n int\n\tfmt.Scan(&n)\n\tfor ; n > 0; n-- {\n\t\tvar cmd string\n\t\tfmt.Scan(&cmd)\n\t\tswitch cmd {\n\t\tcase \"join\", \"vip\":\n\t\t\tvar name string\n\t\t\tfmt.Scan(&name)\n\t\t\tif cmd == \"join\" {\n\t\t\t\tline.PushBack(name)\n\t\t\t} else {\n\t\t\t\tline.PushFront(name) // cuts to the front\n\t\t\t}\n\t\tcase \"serve\":\n\t\t\tif line.Len() > 0 {\n\t\t\t\tfmt.Println(\"served\", line.Remove(line.Front()).(string))\n\t\t\t}\n\t\tcase \"leave\":\n\t\t\tif line.Len() > 0 {\n\t\t\t\tfmt.Println(\"left\", line.Remove(line.Back()).(string))\n\t\t\t}\n\t\t}\n\t}\n\tfmt.Print(\"waiting:\")\n\tfor e := line.Front(); e != nil; e = e.Next() {\n\t\tfmt.Print(\" \", e.Value)\n\t}\n\tfmt.Println()\n}\n",
+        "stdin": "7\njoin ann\njoin bo\nvip cy\nserve\njoin dee\nleave\njoin eli\n",
+        "output": "served cy\nleft dee\nwaiting: ann bo eli",
+        "explanation": "After two joins and a vip the line is cy, ann, bo. `serve` removes cy from the front. dee joins at the back, and `leave` removes her again from the same end. eli joins last, so ann, bo, eli are waiting. `Remove` returns an `interface{}`, and `.(string)` turns it back into a name."
+      },
+      "practice": {
+        "title": "Card dealer",
+        "prompt": "Deal cards from a deck that takes cards on top and on the bottom.\n\n1. The starter reads `n` commands. `top C` puts card C on top and `bottom C` puts it on the bottom.\n2. `deal` takes the top card and prints `dealt C`. `burn` takes the bottom card and prints `burned C`. On an empty deck, both print `empty`.\n3. Finish by printing `left: N cards`.\n\nInput:\n\n```text\n6\ntop 7H\ntop KS\nbottom 2D\ndeal\nburn\ndeal\n```\n\nExpected output:\n\n```text\ndealt KS\nburned 2D\ndealt 7H\nleft: 0 cards\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tleft := 0\n\tfor ; n > 0; n-- {\n\t\tvar cmd string\n\t\tfmt.Scan(&cmd)\n\t\tif cmd == \"top\" || cmd == \"bottom\" {\n\t\t\tvar card string\n\t\t\tfmt.Scan(&card)\n\t\t\t// TODO: put card on the top or the bottom of a container/list deck\n\t\t}\n\t\t// TODO: handle deal and burn, printing empty when the deck has no cards\n\t}\n\tfmt.Printf(\"left: %d cards\\n\", left)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"container/list\"\n\t\"fmt\"\n)\n\nfunc main() {\n\tdeck := list.New()\n\tvar n int\n\tfmt.Scan(&n)\n\tfor ; n > 0; n-- {\n\t\tvar cmd string\n\t\tfmt.Scan(&cmd)\n\t\tif cmd == \"top\" || cmd == \"bottom\" {\n\t\t\tvar card string\n\t\t\tfmt.Scan(&card)\n\t\t\tif cmd == \"top\" {\n\t\t\t\tdeck.PushFront(card)\n\t\t\t} else {\n\t\t\t\tdeck.PushBack(card)\n\t\t\t}\n\t\t\tcontinue\n\t\t}\n\t\tif deck.Len() == 0 {\n\t\t\tfmt.Println(\"empty\")\n\t\t} else if cmd == \"deal\" {\n\t\t\tfmt.Println(\"dealt\", deck.Remove(deck.Front()).(string))\n\t\t} else {\n\t\t\tfmt.Println(\"burned\", deck.Remove(deck.Back()).(string))\n\t\t}\n\t}\n\tfmt.Printf(\"left: %d cards\\n\", deck.Len())\n}\n",
+        "tests": [
+          {
+            "stdin": "6\ntop 7H\ntop KS\nbottom 2D\ndeal\nburn\ndeal\n",
+            "output": "dealt KS\nburned 2D\ndealt 7H\nleft: 0 cards"
+          },
+          {
+            "stdin": "3\ndeal\nbottom AC\nburn\n",
+            "output": "empty\nburned AC\nleft: 0 cards"
+          },
+          {
+            "stdin": "4\nbottom 3C\nbottom 4C\ntop 5C\ndeal\n",
+            "output": "dealt 5C\nleft: 2 cards"
+          }
+        ],
+        "hints": [
+          "Add `\"container/list\"` to the imports and make the deck with `list.New()`. Its `Len()` replaces `left`.",
+          "The top of the deck is the list's front: `PushFront` and `Remove(deck.Front())`.",
+          "Check `deck.Len() == 0` before you remove anything."
+        ]
+      }
+    },
+    {
+      "title": "Sliding window maximum",
+      "body": "The biggest value in every window of k neighbors could take k steps per window. A **monotonic deque** keeps it at the front instead. Store indexes whose values fall from front to back:\n\n- Before adding index `i`, pop from the back every index whose value is at most `nums[i]`. They can never be a window's maximum again, because `nums[i]` is at least as big and stays in the window longer.\n- Push `i` on the back.\n- If the front index has slid out of the window, pop it from the front.\n- Once the first window is full, the front holds the maximum.\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\tnums := []int{1, 3, -1, -3, 5, 3, 6, 7}\n\tk := 3\n\twindow := []int{}\n\tmaxes := []int{}\n\t{{code}}\n\tfmt.Println(maxes)\n}\n```\n\n```go\nfor i, x := range nums {\n\tfor len(window) > 0 && nums[window[len(window)-1]] <= x {\n\t\twindow = window[:len(window)-1] // pop the back\n\t}\n\twindow = append(window, i)\n\tif window[0] <= i-k {\n\t\twindow = window[1:] // the front slid out\n\t}\n\tif i >= k-1 {\n\t\tmaxes = append(maxes, nums[window[0]])\n\t}\n}\n```\n\nItems only ever join at the back, so a slice works as the deque: cut the end to pop the back, and reslice from 1 to pop the front. Every index enters and leaves once, so the whole scan is O(n).",
+      "example": {
+        "title": "Window maximums",
+        "prompt": "Read n, k, and n numbers, and print the maximum of every window of k neighbors.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n, k int\n\tfmt.Scan(&n, &k)\n\tnums := make([]int, n)\n\tfor i := range nums {\n\t\tfmt.Scan(&nums[i])\n\t}\n\n\twindow := []int{} // indexes, values falling from front to back\n\tmaxes := []int{}\n\tfor i, x := range nums {\n\t\tfor len(window) > 0 && nums[window[len(window)-1]] <= x {\n\t\t\twindow = window[:len(window)-1]\n\t\t}\n\t\twindow = append(window, i)\n\t\tif window[0] <= i-k {\n\t\t\twindow = window[1:]\n\t\t}\n\t\tif i >= k-1 {\n\t\t\tmaxes = append(maxes, nums[window[0]])\n\t\t}\n\t}\n\tfmt.Println(maxes)\n}\n",
+        "stdin": "8 3\n1 3 -1 -3 5 3 6 7\n",
+        "output": "[3 3 5 5 6 7]",
+        "explanation": "When 3 arrives it pops 1, which can never win again. -1 and -3 are smaller, so they wait behind 3, and the first two windows report 3. 5 pops all three. Later 3 waits behind 5 until 6 pops both, and 7 pops 6. The front is never more than k-1 places behind `i`, since the check drops it as soon as it slides out."
+      },
+      "practice": {
+        "title": "Window minimums",
+        "prompt": "Print the lowest temperature of every stretch of k days.\n\n1. The starter reads `n`, `k`, and `n` temperatures.\n2. Keep a deque of indexes whose values **rise** from front to back: pop from the back every index whose value is at least the new one.\n3. Drop the front when it slides out of the window, and record the front's value once the first window is full.\n4. Print the minimums as one slice.\n\nInput:\n\n```text\n7 3\n5 2 8 6 1 9 4\n```\n\nExpected output:\n\n```text\n[2 2 1 1 1]\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n, k int\n\tfmt.Scan(&n, &k)\n\ttemps := make([]int, n)\n\tfor i := range temps {\n\t\tfmt.Scan(&temps[i])\n\t}\n\n\tmins := []int{}\n\t// TODO: keep a deque of indexes with rising values and record each window's minimum\n\tfmt.Println(mins)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n, k int\n\tfmt.Scan(&n, &k)\n\ttemps := make([]int, n)\n\tfor i := range temps {\n\t\tfmt.Scan(&temps[i])\n\t}\n\n\tmins := []int{}\n\twindow := []int{}\n\tfor i, t := range temps {\n\t\tfor len(window) > 0 && temps[window[len(window)-1]] >= t {\n\t\t\twindow = window[:len(window)-1]\n\t\t}\n\t\twindow = append(window, i)\n\t\tif window[0] <= i-k {\n\t\t\twindow = window[1:]\n\t\t}\n\t\tif i >= k-1 {\n\t\t\tmins = append(mins, temps[window[0]])\n\t\t}\n\t}\n\tfmt.Println(mins)\n}\n",
+        "tests": [
+          {
+            "stdin": "7 3\n5 2 8 6 1 9 4\n",
+            "output": "[2 2 1 1 1]"
+          },
+          {
+            "stdin": "4 1\n3 -2 7 0\n",
+            "output": "[3 -2 7 0]"
+          },
+          {
+            "stdin": "5 5\n4 4 2 4 4\n",
+            "output": "[2]"
+          }
+        ],
+        "hints": [
+          "The loop is the example's with one comparison flipped: pop the back while its value is `>=` the new one.",
+          "Then the front holds the smallest value in the window."
+        ]
+      }
+    }
+  ],
+  "recap": "- A slice is a stack: push with `s = append(s, x)`, peek with `s[len(s)-1]`, pop with `s = s[:len(s)-1]`. Check `len(s) > 0` before you peek.\n- Match brackets by pushing openers, popping when a closer matches the top, and requiring an empty stack at the end.\n- A monotonic stack of indexes answers \"next greater\" in one pass: pop and answer every waiting index the new value beats.\n- `container/list` adds and removes at both ends: `PushFront`, `PushBack`, `Front`, `Back`, `Remove`, and `Len`. Values come back as `interface{}`, so assert them.\n- A monotonic deque keeps a window's maximum at its front: pop smaller values from the back, and drop the front once it slides out."
+}

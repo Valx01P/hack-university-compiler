@@ -1,0 +1,158 @@
+{
+  "id": "two-pointers",
+  "title": "Two Pointers and Sliding Windows",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Replace nested loops with two indexes: pairs from both ends, fixed and growing windows, and prefix sums with a dict of counts.",
+  "intro": "Many list and string problems look like they need a loop inside a loop, checking every pair or every stretch. Two indexes that only move forward, or toward each other, do the same job in one pass. This lesson covers the four shapes that come up most.",
+  "steps": [
+    {
+      "title": "Pointers from both ends",
+      "body": "On a **sorted** list, two pointers find a pair with a given sum without checking every pair. Start `left` at the first index and `right` at the last. If their sum is too small, the only way to grow it is to move `left` right. If it's too big, move `right` left:\n\n```python\ndef pair_with_sum(nums, target):\n    left, right = 0, len(nums) - 1\n    while left < right:\n        total = nums[left] + nums[right]\n        if total == target:\n            return left, right\n        if total < target:\n            left += 1\n        else:\n            right -= 1\n    return None\n\n\nprint(pair_with_sum([1, 3, 4, 6, 9], 13))  # (2, 4)\n```\n\nEach pass moves one pointer inward, so the loop runs at most `len(nums)` times: O(n), where checking every pair is O(n²). It only works because the list is sorted, so moving `left` right can only make the sum bigger, and moving `right` left can only make it smaller.\n\n`while left < right` stops when the pointers meet, so an item is never paired with itself. Return `None`, -1, or whatever the problem asks for when no pair exists.",
+      "example": {
+        "title": "Spending a gift card",
+        "prompt": "Find two prices in a sorted list that add up to exactly each gift card's value.",
+        "code": "def pair_with_sum(prices, target):\n    left, right = 0, len(prices) - 1\n    while left < right:\n        total = prices[left] + prices[right]\n        if total == target:\n            return left, right\n        if total < target:\n            left += 1\n        else:\n            right -= 1\n    return None\n\n\nprices = [2, 5, 8, 12, 15, 21, 30]\nfor card in [20, 27, 4]:\n    pair = pair_with_sum(prices, card)\n    if pair is None:\n        print(f\"{card}: no pair\")\n    else:\n        i, j = pair\n        print(f\"{card}: {prices[i]} + {prices[j]} at {i} and {j}\")\n",
+        "output": "20: 5 + 15 at 1 and 4\n27: 12 + 15 at 3 and 4\n4: no pair",
+        "explanation": "For 20, the first sum is 2 + 30, too big, so `right` moves in until 2 + 15 is too small, then `left` moves to 5, and 5 + 15 is exactly 20. For 4, every sum is too big, so `right` keeps moving left until it meets `left`, the loop ends, and the function returns `None`. The pair comes back as a tuple of two indexes, unpacked into `i, j`."
+      },
+      "practice": {
+        "title": "Every pair with a sum",
+        "prompt": "Print every pair in a sorted list of different numbers that adds up to a target.\n\n1. Read the sorted numbers from the first line and the target from the second.\n2. Start `left` at the first index and `right` at the last, and loop `while left < right:`.\n3. When the pair adds up to the target, print it as `a + b`, then move both pointers inward and keep going.\n4. When the sum is too small move `left`, and when it's too big move `right`.\n5. Print `none` if no pair adds up to the target.\n\nInput:\n\n```text\n1 2 3 4 5 6 7 8\n9\n```\n\nExpected output:\n\n```text\n1 + 8\n2 + 7\n3 + 6\n4 + 5\n```",
+        "starter": "nums = list(map(int, input().split()))\ntarget = int(input())\n\nleft, right = 0, len(nums) - 1\nfound = False\n# TODO: move left and right inward, print every pair that adds up to target as \"a + b\"\n# TODO: print \"none\" when no pair adds up to target\n",
+        "solution": "nums = list(map(int, input().split()))\ntarget = int(input())\n\nleft, right = 0, len(nums) - 1\nfound = False\nwhile left < right:\n    total = nums[left] + nums[right]\n    if total == target:\n        print(f\"{nums[left]} + {nums[right]}\")\n        found = True\n        left += 1\n        right -= 1\n    elif total < target:\n        left += 1\n    else:\n        right -= 1\nif not found:\n    print(\"none\")\n",
+        "tests": [
+          {
+            "stdin": "1 2 3 4 5 6 7 8\n9\n",
+            "output": "1 + 8\n2 + 7\n3 + 6\n4 + 5"
+          },
+          {
+            "stdin": "-3 0 2 5 9\n2\n",
+            "output": "-3 + 5\n0 + 2"
+          },
+          {
+            "stdin": "1 2 4\n10\n",
+            "output": "none"
+          }
+        ],
+        "hints": [
+          "This is the example's loop, except a match does not return.",
+          "After a match, `left += 1` and `right -= 1` together: the numbers are all different, so neither one can pair again.",
+          "Set `found = True` on a match, and print `none` after the loop when it is still `False`."
+        ]
+      }
+    },
+    {
+      "title": "Fixed-size windows",
+      "body": "A **window** is a stretch of `k` items in a row. To check every window you could sum each one from scratch with `sum(nums[i:i + k])`, but that redoes almost the same work every time. Slide it instead: when the window moves one step right, one item comes in and one item leaves.\n\n```python\nnums = [2, 1, 5, 1, 3, 2]\nk = 3\nwindow = sum(nums[:k])              # the first window: 2 + 1 + 5\nbest = window\nfor i in range(k, len(nums)):\n    window += nums[i] - nums[i - k]   # add the new item, drop the oldest\n    best = max(best, window)\nprint(best)  # 9\n```\n\n`nums[i]` is the item coming in, and `nums[i - k]` is the one that just fell out. The window that ends at index `i` starts at `i - k + 1`. Each step is O(1), so the whole scan is O(n), however big `k` is.\n\nThe same slide works for anything you can add and take away: a sum, a count of vowels, or the letter counts in a `Counter`.",
+      "example": {
+        "title": "Best three days of sales",
+        "prompt": "Slide a three-day window over daily sales, print each window's total, and find the best one.",
+        "code": "sales = [120, 80, 150, 200, 90, 60, 170]\nk = 3\n\nwindow = sum(sales[:k])\nbest, best_start = window, 0\nprint(f\"Days 1-{k}: {window}\")\nfor i in range(k, len(sales)):\n    window += sales[i] - sales[i - k]\n    start = i - k + 1\n    print(f\"Days {start + 1}-{i + 1}: {window}\")\n    if window > best:\n        best, best_start = window, start\n\nprint(f\"Best: days {best_start + 1}-{best_start + k} with {best}\")\n",
+        "output": "Days 1-3: 350\nDays 2-4: 430\nDays 3-5: 440\nDays 4-6: 350\nDays 5-7: 320\nBest: days 3-5 with 440",
+        "explanation": "The first window is summed once. After that, each step adds the new day and drops the day `k` places back, so the total for days 2-4 is 350 + 200 - 120 = 430. Days count from 1 in the output while indexes count from 0, which is why the prints add 1. `window > best` only replaces the best on a strictly bigger total, so a tie keeps the earlier window."
+      },
+      "practice": {
+        "title": "Warmest stretch",
+        "prompt": "Slide a window of k days over daily temperatures and find the warmest stretch.\n\n1. Read the temperatures from the first line and `k` from the second.\n2. Print every window of `k` days as `Days a-b: avg`, with days counted from 1 and the average to 1 decimal place.\n3. Keep the window's sum up to date by adding the new day and dropping the oldest.\n4. Print `Warmest: days a-b` for the window with the highest average. On a tie, keep the first.\n\nInput:\n\n```text\n20 23 19 25 27 22\n3\n```\n\nExpected output:\n\n```text\nDays 1-3: 20.7\nDays 2-4: 22.3\nDays 3-5: 23.7\nDays 4-6: 24.7\nWarmest: days 4-6\n```",
+        "starter": "temps = list(map(int, input().split()))\nk = int(input())\n\nwindow = sum(temps[:k])\n# TODO: print \"Days 1-k: avg\" for the first window, with the average to 1 decimal\n# TODO: slide the window, print every other window the same way\n# TODO: print \"Warmest: days a-b\" for the window with the highest average\n",
+        "solution": "temps = list(map(int, input().split()))\nk = int(input())\n\nwindow = sum(temps[:k])\nbest, best_start = window, 0\nprint(f\"Days 1-{k}: {window / k:.1f}\")\nfor i in range(k, len(temps)):\n    window += temps[i] - temps[i - k]\n    start = i - k + 1\n    print(f\"Days {start + 1}-{i + 1}: {window / k:.1f}\")\n    if window > best:\n        best, best_start = window, start\n\nprint(f\"Warmest: days {best_start + 1}-{best_start + k}\")\n",
+        "tests": [
+          {
+            "stdin": "20 23 19 25 27 22\n3\n",
+            "output": "Days 1-3: 20.7\nDays 2-4: 22.3\nDays 3-5: 23.7\nDays 4-6: 24.7\nWarmest: days 4-6"
+          },
+          {
+            "stdin": "10 12 12 10\n2\n",
+            "output": "Days 1-2: 11.0\nDays 2-3: 12.0\nDays 3-4: 11.0\nWarmest: days 2-3"
+          },
+          {
+            "stdin": "5 5 5\n3\n",
+            "output": "Days 1-3: 5.0\nWarmest: days 1-3"
+          },
+          {
+            "stdin": "18 21 20 19 22 18\n2\n",
+            "output": "Days 1-2: 19.5\nDays 2-3: 20.5\nDays 3-4: 19.5\nDays 4-5: 20.5\nDays 5-6: 20.0\nWarmest: days 2-3"
+          }
+        ],
+        "hints": [
+          "Keep the sum in `window`, and divide by `k` only when you print: `f\"{window / k:.1f}\"`.",
+          "Inside the loop, `window += temps[i] - temps[i - k]`, and the window starts at `i - k + 1`.",
+          "The highest average is the highest sum, so compare sums with `>` to keep the first on a tie."
+        ]
+      }
+    },
+    {
+      "title": "Windows that grow and shrink",
+      "body": "Some problems ask for the longest stretch that follows a rule, such as \"no item repeats\". Now the window's size isn't fixed. Move `right` forward one item at a time, and when the new item breaks the rule, move `left` forward until the rule holds again. A dict of counts tracks what's inside:\n\n```python\nfrom collections import defaultdict\n\ns = \"abcabcbb\"\ncounts = defaultdict(int)\nleft = best = 0\nfor right, ch in enumerate(s):\n    counts[ch] += 1\n    while counts[ch] > 1:          # ch repeats: shrink from the left\n        counts[s[left]] -= 1\n        left += 1\n    best = max(best, right - left + 1)\nprint(best)  # 3\n```\n\nThe window is `s[left:right + 1]`, so its length is `right - left + 1`. The `while` looks like a loop inside a loop, but `left` only ever moves forward, so each item enters the window once and leaves it once: O(n) in total.\n\nChange the rule and the shrinking changes with it. For \"at most 2 different items\", shrink `while len(counts) > 2`, and `del` a key when its count drops to 0, so `len(counts)` only counts what's really inside.",
+      "example": {
+        "title": "No song twice",
+        "prompt": "Find the longest stretch of a playlist where no song plays twice.",
+        "code": "from collections import defaultdict\n\nplaylist = [\"intro\", \"rise\", \"fall\", \"rise\", \"echo\", \"dawn\", \"intro\", \"echo\"]\ncounts = defaultdict(int)\nleft = 0\nbest_len, best_start = 0, 0\nfor right, song in enumerate(playlist):\n    counts[song] += 1\n    while counts[song] > 1:\n        counts[playlist[left]] -= 1\n        left += 1\n    if right - left + 1 > best_len:\n        best_len, best_start = right - left + 1, left\n\nprint(\"Longest run:\", best_len)\nprint(\" -> \".join(playlist[best_start:best_start + best_len]))\n",
+        "output": "Longest run: 5\nfall -> rise -> echo -> dawn -> intro",
+        "explanation": "The window grows to intro, rise, fall. The second rise makes `counts[\"rise\"]` 2, so `left` moves past intro and the first rise. The window then grows to five songs, fall through intro, and the second echo shrinks it again. The best length and its start are saved whenever a window beats the record, and the slice `playlist[best_start:best_start + best_len]` gives those songs back."
+      },
+      "practice": {
+        "title": "Two kinds of fruit",
+        "prompt": "Find the longest stretch of a row of fruit trees that holds at most 2 kinds of fruit.\n\n1. Read one line of fruit names.\n2. Grow the window one fruit at a time, counting each kind in `counts`.\n3. While the window holds more than 2 kinds, take the leftmost fruit out. Delete its kind from `counts` when the count reaches 0.\n4. Keep the longest window, the first one on a tie.\n5. The starter prints `Longest:` with its length, then its fruits joined with spaces.\n\nInput:\n\n```text\napple pear apple kiwi kiwi pear kiwi\n```\n\nExpected output:\n\n```text\nLongest: 4\nkiwi kiwi pear kiwi\n```",
+        "starter": "from collections import defaultdict\n\nfruits = input().split()\ncounts = defaultdict(int)\nleft = 0\nbest_len, best_start = 0, 0\n# TODO: grow the window one fruit at a time\n# TODO: shrink from the left while it holds more than 2 kinds, deleting kinds that drop to 0\n# TODO: keep the longest window, the first one on a tie\n\nprint(\"Longest:\", best_len)\nprint(\" \".join(fruits[best_start:best_start + best_len]))\n",
+        "solution": "from collections import defaultdict\n\nfruits = input().split()\ncounts = defaultdict(int)\nleft = 0\nbest_len, best_start = 0, 0\nfor right, fruit in enumerate(fruits):\n    counts[fruit] += 1\n    while len(counts) > 2:\n        counts[fruits[left]] -= 1\n        if counts[fruits[left]] == 0:\n            del counts[fruits[left]]\n        left += 1\n    if right - left + 1 > best_len:\n        best_len, best_start = right - left + 1, left\n\nprint(\"Longest:\", best_len)\nprint(\" \".join(fruits[best_start:best_start + best_len]))\n",
+        "tests": [
+          {
+            "stdin": "apple pear apple kiwi kiwi pear kiwi\n",
+            "output": "Longest: 4\nkiwi kiwi pear kiwi"
+          },
+          {
+            "stdin": "fig fig fig\n",
+            "output": "Longest: 3\nfig fig fig"
+          },
+          {
+            "stdin": "a b c d\n",
+            "output": "Longest: 2\na b"
+          }
+        ],
+        "hints": [
+          "The shape is the example's, with `while len(counts) > 2:` as the shrink condition.",
+          "Without `del counts[...]`, a kind with a count of 0 still counts in `len(counts)`.",
+          "Save `best_len` and `best_start` only when `right - left + 1 > best_len`, so a tie keeps the first window."
+        ]
+      }
+    },
+    {
+      "title": "Prefix sums and a dict of counts",
+      "body": "A **prefix sum** is a running total: `prefix[i]` is the sum of the first `i` items. `itertools.accumulate` builds it, and starting with 0 makes the math clean:\n\n```python\nfrom itertools import accumulate\n\nnums = [3, 1, 4, 1, 5]\nprefix = [0] + list(accumulate(nums))\nprint(prefix)                  # [0, 3, 4, 8, 9, 14]\nprint(prefix[4] - prefix[1])   # 6, the sum of nums[1:4]\n```\n\nAny range sum is then one subtraction: the sum of `nums[i:j]` is `prefix[j] - prefix[i]`.\n\nCounting the subarrays that add up to `k` uses the same idea in one pass. A subarray ending here sums to `k` exactly when some earlier running total equals `total - k`. So keep a dict of how many times each running total has appeared, starting with `seen[0] = 1` for the empty start:\n\n```python\nfrom collections import defaultdict\n\nnums, k = [1, 2, 1, 2], 3\nseen = defaultdict(int)\nseen[0] = 1\ntotal = count = 0\nfor x in nums:\n    total += x\n    count += seen[total - k]\n    seen[total] += 1\nprint(count)  # 3\n```\n\nUnlike a sliding window, this also works when some numbers are negative.",
+      "example": {
+        "title": "Range sums and target runs",
+        "prompt": "Build prefix sums to answer range sums, then count the subarrays that add up to 3.",
+        "code": "from collections import defaultdict\nfrom itertools import accumulate\n\nnums = [2, -1, 3, 1, -2, 2]\nprefix = [0] + list(accumulate(nums))\nprint(\"Prefix:\", prefix)\nfor i, j in [(0, 3), (2, 6), (1, 2)]:\n    print(f\"Sum of nums[{i}:{j}] = {prefix[j] - prefix[i]}\")\n\nk = 3\nseen = defaultdict(int)\nseen[0] = 1\ntotal = count = 0\nfor x in nums:\n    total += x\n    count += seen[total - k]\n    seen[total] += 1\nprint(f\"Subarrays that sum to {k}: {count}\")\n",
+        "output": "Prefix: [0, 2, 1, 4, 5, 3, 5]\nSum of nums[0:3] = 4\nSum of nums[2:6] = 4\nSum of nums[1:2] = -1\nSubarrays that sum to 3: 4",
+        "explanation": "`prefix[3] - prefix[0]` is 4, the sum of 2, -1, and 3. In the counting loop, `seen` holds every running total so far. When `total` is 4, `seen[4 - 3]` asks how many earlier totals were 1, and each one marks the start of a subarray that sums to 3. Adding `seen[total] += 1` after the check keeps a subarray from being empty. The negative numbers don't break anything, which a sliding window couldn't promise."
+      },
+      "practice": {
+        "title": "Sums divisible by k",
+        "prompt": "Count the subarrays whose sum divides evenly by k.\n\n1. Read the numbers from the first line and `k` from the second.\n2. Print `Prefix:` and the prefix sums, starting with 0, built with `accumulate`.\n3. Two running totals with the same remainder `% k` mark the ends of a subarray whose sum divides by `k`. So key the dict by `total % k`: start with `seen[0] = 1`, and for each number add it to `total`, add `seen[total % k]` to the count, then add 1 to `seen[total % k]`.\n4. Print `Divisible by k: count` with the real value of `k`.\n\nInput:\n\n```text\n4 5 0 -2 -3 1\n5\n```\n\nExpected output:\n\n```text\nPrefix: [0, 4, 9, 9, 7, 4, 5]\nDivisible by 5: 7\n```",
+        "starter": "from collections import defaultdict\nfrom itertools import accumulate\n\nnums = list(map(int, input().split()))\nk = int(input())\n\n# TODO: print \"Prefix:\" and the prefix sums, starting with 0\n# TODO: count the subarrays whose sum divides evenly by k, keyed by total % k\n# TODO: print \"Divisible by k: count\" with the real k\n",
+        "solution": "from collections import defaultdict\nfrom itertools import accumulate\n\nnums = list(map(int, input().split()))\nk = int(input())\n\nprefix = [0] + list(accumulate(nums))\nprint(\"Prefix:\", prefix)\n\nseen = defaultdict(int)\nseen[0] = 1\ntotal = count = 0\nfor x in nums:\n    total += x\n    count += seen[total % k]\n    seen[total % k] += 1\nprint(f\"Divisible by {k}: {count}\")\n",
+        "tests": [
+          {
+            "stdin": "4 5 0 -2 -3 1\n5\n",
+            "output": "Prefix: [0, 4, 9, 9, 7, 4, 5]\nDivisible by 5: 7"
+          },
+          {
+            "stdin": "1 2 3\n3\n",
+            "output": "Prefix: [0, 1, 3, 6]\nDivisible by 3: 3"
+          },
+          {
+            "stdin": "5\n9\n",
+            "output": "Prefix: [0, 5]\nDivisible by 9: 0"
+          }
+        ],
+        "hints": [
+          "The prefix list is the example's line: `[0] + list(accumulate(nums))`.",
+          "The counting loop is the example's, with `total % k` where it had `total - k` and `total`.",
+          "Python's `%` with a positive `k` is never negative, so `-2 % 5` is 3 and negative totals need no special case."
+        ]
+      }
+    }
+  ],
+  "recap": "- On a sorted list, `left` and `right` move inward `while left < right`: a small sum moves `left`, a big one moves `right`.\n- A fixed window adds the new item and drops `nums[i - k]`, so each step is O(1).\n- A growing window moves `right` every step and moves `left` in a `while` until the rule holds again. Each item enters and leaves once.\n- A dict of counts tracks what's inside a window. Delete a key at 0 when you need `len()`.\n- `[0] + list(accumulate(nums))` builds prefix sums, and `prefix[j] - prefix[i]` is the sum of `nums[i:j]`.\n- To count subarrays that sum to `k`, keep a dict of running totals starting with `seen[0] = 1`, and add `seen[total - k]` at each step."
+}

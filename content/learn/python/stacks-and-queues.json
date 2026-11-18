@@ -1,0 +1,154 @@
+{
+  "id": "stacks-and-queues",
+  "title": "Stacks, Queues, and Monotonic Stacks",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Use a list as a stack, keep monotonic stacks and deques for next-greater and window problems, and keep a heap of the k best.",
+  "intro": "A stack hands back the newest item first, and a queue the oldest. Python needs no new types for either: a list is a stack, a `deque` is a queue, and `heapq` is a priority queue. The interview patterns come from keeping them in a useful order.",
+  "steps": [
+    {
+      "title": "A list as a stack",
+      "body": "A **stack** is last in, first out, like a pile of plates. A Python list is a fast stack at its end: `append()` pushes, `pop()` removes and returns the newest item, and `stack[-1]` peeks at it without removing it. All three are O(1).\n\n```python\nstack = []\nstack.append(\"a\")\nstack.append(\"b\")\nprint(stack[-1])     # b\nprint(stack.pop())   # b\nprint(stack)         # ['a']\n```\n\nAn empty list is falsy, so check `if stack:` before you peek or pop. Popping an empty list raises `IndexError`.\n\nA stack matches things that nest. To check brackets, push every opening bracket. Each closing bracket must match the newest bracket still open, which is the top of the stack:\n\n```python\npairs = {\")\": \"(\", \"]\": \"[\", \"}\": \"{\"}\nstack = []\nok = True\nfor ch in \"([{}])\":\n    if ch in pairs:\n        if not stack or stack.pop() != pairs[ch]:\n            ok = False\n            break\n    else:\n        stack.append(ch)\nprint(ok and not stack)  # True\n```\n\nAt the end the stack must be empty too, or some bracket was opened and never closed.",
+      "example": {
+        "title": "Checking brackets",
+        "prompt": "Check whether the brackets in each piece of code are balanced, skipping every other character.",
+        "code": "def is_balanced(text):\n    pairs = {\")\": \"(\", \"]\": \"[\", \"}\": \"{\"}\n    stack = []\n    for ch in text:\n        if ch in \"([{\":\n            stack.append(ch)\n        elif ch in pairs:\n            if not stack or stack.pop() != pairs[ch]:\n                return False\n    return not stack\n\n\nfor text in [\"(a[1] + b)\", \"{[}]\", \"((x)\", \"f(g[h{}])\"]:\n    result = \"balanced\" if is_balanced(text) else \"not balanced\"\n    print(f\"{text}: {result}\")\n",
+        "output": "(a[1] + b): balanced\n{[}]: not balanced\n((x): not balanced\nf(g[h{}]): balanced",
+        "explanation": "Opening brackets go on the stack, and other characters such as letters are skipped. In `{[}]`, the `}` pops `[`, which doesn't match, so the function returns `False` at once. In `((x)` every closer matches, but one `(` is still on the stack at the end, so `not stack` is `False`. `not stack or stack.pop() != ...` checks for an empty stack first, so a closer with nothing open never pops an empty list."
+      },
+      "practice": {
+        "title": "Typing with backspaces",
+        "prompt": "Work out what is left of some typed text when `#` is a backspace.\n\n1. Read `n`, then `n` lines of typed text.\n2. For each line, push every character onto a stack. For a `#`, pop the newest character instead, if there is one.\n3. Print what is left, joined into a string, or `(empty)` when nothing is left.\n\nInput:\n\n```text\n3\nab#c\nhello##p\n#a##\n```\n\nExpected output:\n\n```text\nac\nhelp\n(empty)\n```",
+        "starter": "n = int(input())\nfor _ in range(n):\n    line = input()\n    stack = []\n    # TODO: push each character, and pop for each # when the stack isn't empty\n    # TODO: print the text that is left, or (empty) when nothing is left\n",
+        "solution": "n = int(input())\nfor _ in range(n):\n    line = input()\n    stack = []\n    for ch in line:\n        if ch == \"#\":\n            if stack:\n                stack.pop()\n        else:\n            stack.append(ch)\n    print(\"\".join(stack) if stack else \"(empty)\")\n",
+        "tests": [
+          {
+            "stdin": "3\nab#c\nhello##p\n#a##\n",
+            "output": "ac\nhelp\n(empty)"
+          },
+          {
+            "stdin": "2\nabc\nx#y#z\n",
+            "output": "abc\nz"
+          },
+          {
+            "stdin": "1\n###\n",
+            "output": "(empty)"
+          }
+        ],
+        "hints": [
+          "A `#` with an empty stack deletes nothing, so check `if stack:` before `stack.pop()`.",
+          "Every other character goes on the stack with `append()`.",
+          "`\"\".join(stack)` turns the characters back into a string, and an empty stack is falsy."
+        ]
+      }
+    },
+    {
+      "title": "Monotonic stacks",
+      "body": "Some questions ask, for every item, about the next item that's bigger: the next warmer day, the next higher price. Checking every later item is O(n²). A **monotonic stack** answers them all in one pass.\n\nThe stack holds the indexes still waiting for an answer, and their values only go down from bottom to top. When a new value arrives, it's the answer for every waiting index with a smaller value, so pop those and answer them:\n\n```python\ntemps = [73, 74, 75, 71, 69, 72, 76, 73]\nwait = [0] * len(temps)\nstack = []\nfor i, t in enumerate(temps):\n    while stack and temps[stack[-1]] < t:\n        j = stack.pop()\n        wait[j] = i - j          # day j waited until day i\n    stack.append(i)\nprint(wait)  # [1, 1, 4, 2, 1, 1, 0, 0]\n```\n\nStore **indexes**, not values: an index gives you both the distance `i - j` and the value `temps[j]`. Anything still on the stack at the end never found a bigger value, so it keeps its default, 0 here.\n\nEach index is pushed once and popped at most once, so the whole loop is O(n), even with the `while` inside.",
+      "example": {
+        "title": "Days until warmer",
+        "prompt": "For each day, count the days until a warmer one, or say that none comes.",
+        "code": "temps = [30, 32, 31, 29, 35, 33, 34, 28]\nwait = [0] * len(temps)\nstack = []\nfor i, t in enumerate(temps):\n    while stack and temps[stack[-1]] < t:\n        j = stack.pop()\n        wait[j] = i - j\n    stack.append(i)\n\nfor i in range(len(temps)):\n    if wait[i]:\n        print(f\"Day {i + 1} ({temps[i]}): warmer in {wait[i]}\")\n    else:\n        print(f\"Day {i + 1} ({temps[i]}): none warmer\")\n",
+        "output": "Day 1 (30): warmer in 1\nDay 2 (32): warmer in 3\nDay 3 (31): warmer in 2\nDay 4 (29): warmer in 1\nDay 5 (35): none warmer\nDay 6 (33): warmer in 1\nDay 7 (34): none warmer\nDay 8 (28): none warmer",
+        "explanation": "Day 1 (30) waits on the stack until day 2 (32) pops it. Days 3 and 4 (31, 29) stack up, their values going down, until day 5 (35) pops both, then pops day 2 as well. Days 5, 7, and 8 are still on the stack at the end, so their `wait` stays 0. The output loop uses `range(len(temps))`, since it needs `temps[i]` and `wait[i]` together."
+      },
+      "practice": {
+        "title": "Next higher price",
+        "prompt": "For each price, find the next price after it that is strictly higher.\n\n1. Read one line of prices. `answer` starts as -1 for every price.\n2. Keep a stack of indexes still waiting for a higher price.\n3. For each price, pop every waiting index whose price is lower, and set its answer to the current price.\n4. Push the current index. The starter prints the answers on one line.\n\nInput:\n\n```text\n4 5 2 25\n```\n\nExpected output:\n\n```text\n5 25 25 -1\n```",
+        "starter": "prices = list(map(int, input().split()))\nanswer = [-1] * len(prices)\nstack = []\n# TODO: for each price, pop every waiting index with a lower price and answer it\n# TODO: push the current index\n\nprint(\" \".join(map(str, answer)))\n",
+        "solution": "prices = list(map(int, input().split()))\nanswer = [-1] * len(prices)\nstack = []\nfor i, p in enumerate(prices):\n    while stack and prices[stack[-1]] < p:\n        j = stack.pop()\n        answer[j] = p\n    stack.append(i)\n\nprint(\" \".join(map(str, answer)))\n",
+        "tests": [
+          {
+            "stdin": "4 5 2 25\n",
+            "output": "5 25 25 -1"
+          },
+          {
+            "stdin": "13 7 6 12\n",
+            "output": "-1 12 12 -1"
+          },
+          {
+            "stdin": "3 3 1 4\n",
+            "output": "4 4 4 -1"
+          }
+        ],
+        "hints": [
+          "The loop is the example's, with `answer[j] = p` where it saved a distance.",
+          "Use `<`, not `<=`: an equal price is not higher, so it keeps waiting.",
+          "Indexes left on the stack keep the -1 they started with."
+        ]
+      }
+    },
+    {
+      "title": "Deques for window extremes",
+      "body": "A `deque` adds and removes at both ends in O(1): `append()` and `pop()` on the right, `appendleft()` and `popleft()` on the left, with `dq[0]` and `dq[-1]` to peek. That makes it the tool for the **maximum of every window** of `k` items.\n\nKeep the indexes of the current window in the deque, their values going down from front to back. Then the front is always the window's maximum:\n\n1. Before adding index `i`, pop from the back every index whose value is not bigger than `nums[i]`. They can never be a maximum again, since `nums[i]` is at least as big and stays in the window longer.\n2. Append `i`.\n3. If the front index has slid out of the window, `dq[0] <= i - k`, take it off with `popleft()`.\n4. Once the first window is full, `i >= k - 1`, `nums[dq[0]]` is the window's maximum.\n\n```python\nfrom collections import deque\n\nnums, k = [1, 3, -1, -3, 5, 3, 6, 7], 3\ndq = deque()\nout = []\nfor i, x in enumerate(nums):\n    while dq and nums[dq[-1]] <= x:\n        dq.pop()\n    dq.append(i)\n    if dq[0] <= i - k:\n        dq.popleft()\n    if i >= k - 1:\n        out.append(nums[dq[0]])\nprint(out)  # [3, 3, 5, 5, 6, 7]\n```\n\nEach index enters and leaves the deque at most once, so this is O(n). Calling `max()` on every window would be O(n * k).",
+      "example": {
+        "title": "Peak visitors per window",
+        "prompt": "Print the busiest hour in every window of 3 hours of website visits.",
+        "code": "from collections import deque\n\nvisits = [12, 30, 25, 8, 40, 15, 9, 22]\nk = 3\ndq = deque()\nfor i, x in enumerate(visits):\n    while dq and visits[dq[-1]] <= x:\n        dq.pop()\n    dq.append(i)\n    if dq[0] <= i - k:\n        dq.popleft()\n    if i >= k - 1:\n        window = visits[i - k + 1:i + 1]\n        print(f\"{window}: peak {visits[dq[0]]}\")\n",
+        "output": "[12, 30, 25]: peak 30\n[30, 25, 8]: peak 30\n[25, 8, 40]: peak 40\n[8, 40, 15]: peak 40\n[40, 15, 9]: peak 40\n[15, 9, 22]: peak 22",
+        "explanation": "When 30 arrives, it pops 12 from the back, because 12 can never beat 30 in any later window. 25 and 8 queue up behind 30. When 40 arrives it pops all three, and 30 would have slid out anyway. At `i = 5`, 15 stays behind 40, and at `i = 7` the front index 4, which holds 40, is now `i - k`, so `popleft()` drops it and 22 becomes the peak. The `window` slice is only for the printout."
+      },
+      "practice": {
+        "title": "Coldest of every window",
+        "prompt": "Find the lowest temperature in every window of k days.\n\n1. Read the temperatures from the first line and `k` from the second.\n2. Keep indexes in a deque with their temperatures going up from front to back: before adding `i`, pop from the back every index whose temperature is not smaller than `temps[i]`.\n3. Drop the front index when it slides out of the window.\n4. Once a window is full, add the temperature at the front to `lows`. The starter prints them on one line.\n\nInput:\n\n```text\n4 2 12 3 8 1 9\n3\n```\n\nExpected output:\n\n```text\n2 2 3 1 1\n```",
+        "starter": "from collections import deque\n\ntemps = list(map(int, input().split()))\nk = int(input())\ndq = deque()\nlows = []\n# TODO: keep indexes in dq with their temperatures going UP from front to back\n# TODO: drop the front when it slides out, and add temps[dq[0]] to lows once a window is full\n\nprint(\" \".join(map(str, lows)))\n",
+        "solution": "from collections import deque\n\ntemps = list(map(int, input().split()))\nk = int(input())\ndq = deque()\nlows = []\nfor i, x in enumerate(temps):\n    while dq and temps[dq[-1]] >= x:\n        dq.pop()\n    dq.append(i)\n    if dq[0] <= i - k:\n        dq.popleft()\n    if i >= k - 1:\n        lows.append(temps[dq[0]])\n\nprint(\" \".join(map(str, lows)))\n",
+        "tests": [
+          {
+            "stdin": "4 2 12 3 8 1 9\n3\n",
+            "output": "2 2 3 1 1"
+          },
+          {
+            "stdin": "5 5 5\n1\n",
+            "output": "5 5 5"
+          },
+          {
+            "stdin": "9 7 8 6\n4\n",
+            "output": "6"
+          }
+        ],
+        "hints": [
+          "This is the example's loop with the comparison flipped: `temps[dq[-1]] >= x`.",
+          "The front leaves when `dq[0] <= i - k`.",
+          "A window is full from `i = k - 1` on."
+        ]
+      }
+    },
+    {
+      "title": "A heap kept at size k",
+      "body": "`heapq` is Python's **priority queue**: `heap[0]` is always the smallest item. To track the `k` largest items of a stream, keep a min heap of at most `k` items. Push each new item, and when the heap grows past `k`, pop the smallest. What stays are the `k` largest so far, and `heap[0]` is the kth largest:\n\n```python\nimport heapq\n\nk = 3\nheap = []\nfor x in [5, 1, 9, 3, 7]:\n    heapq.heappush(heap, x)\n    if len(heap) > k:\n        heapq.heappop(heap)\nprint(heap[0])          # 5, the 3rd largest\nprint(sorted(heap))     # [5, 7, 9]\n```\n\n`heapq.heappushpop(heap, x)` pushes `x` and then pops the smallest, in one faster call. Use it once the heap is full. If `x` is smaller than everything inside, it comes straight back out and the heap doesn't change.\n\nEach push or pop is O(log k), so a stream of n items costs O(n log k), and memory stays at `k` items. For the `k` *smallest*, push negated numbers: the heap's top is then the largest of them, the one to drop, and `-heap[0]` gives it back as a positive number.",
+      "example": {
+        "title": "Third best score so far",
+        "prompt": "Read scores one at a time and report the third best score after each one.",
+        "code": "import heapq\n\nk = 3\ntop = []\nfor score in [40, 85, 60, 72, 91, 55, 88]:\n    if len(top) < k:\n        heapq.heappush(top, score)\n    else:\n        heapq.heappushpop(top, score)\n    if len(top) == k:\n        print(f\"{score}: 3rd best is {top[0]}\")\n    else:\n        print(f\"{score}: fewer than 3 scores\")\n\nprint(\"Top 3:\", sorted(top, reverse=True))\n",
+        "output": "40: fewer than 3 scores\n85: fewer than 3 scores\n60: 3rd best is 40\n72: 3rd best is 60\n91: 3rd best is 72\n55: 3rd best is 72\n88: 3rd best is 85\nTop 3: [91, 88, 85]",
+        "explanation": "The first three scores go straight in. From then on, `heappushpop` pushes the new score and pops the smallest, so the heap always holds the three best. When 72 arrives, the heap is 40, 60, 85, and 40 is popped. When 55 arrives it is smaller than everything inside, so it comes straight back out. `top[0]` is the smallest of the three best, which is the third best overall."
+      },
+      "practice": {
+        "title": "The k fastest laps",
+        "prompt": "Keep the k fastest lap times of a race as the laps come in.\n\n1. Read the lap times from the first line and `k` from the second.\n2. Keep the `k` smallest times in a heap of negated times: push `-t`, and pop when the heap holds more than `k`.\n3. After each lap, print `t: cutoff x`, where `x` is the slowest time still among the `k` fastest. Until `k` laps have come in, print `t: waiting`.\n4. At the end, print `Fastest:` and the kept times, smallest first, separated by spaces.\n\nInput:\n\n```text\n61 58 64 55 60 70\n3\n```\n\nExpected output:\n\n```text\n61: waiting\n58: waiting\n64: cutoff 64\n55: cutoff 61\n60: cutoff 60\n70: cutoff 60\nFastest: 55 58 60\n```",
+        "starter": "import heapq\n\ntimes = list(map(int, input().split()))\nk = int(input())\nheap = []\nfor t in times:\n    # TODO: keep the k fastest (smallest) times as negated numbers in heap\n    # TODO: print \"t: cutoff x\" once the heap holds k times, or \"t: waiting\" before that\n    pass\n\n# TODO: print \"Fastest:\" and the kept times, smallest first, separated by spaces\n",
+        "solution": "import heapq\n\ntimes = list(map(int, input().split()))\nk = int(input())\nheap = []\nfor t in times:\n    heapq.heappush(heap, -t)\n    if len(heap) > k:\n        heapq.heappop(heap)\n    if len(heap) == k:\n        print(f\"{t}: cutoff {-heap[0]}\")\n    else:\n        print(f\"{t}: waiting\")\n\nfastest = sorted(-x for x in heap)\nprint(\"Fastest:\", \" \".join(map(str, fastest)))\n",
+        "tests": [
+          {
+            "stdin": "61 58 64 55 60 70\n3\n",
+            "output": "61: waiting\n58: waiting\n64: cutoff 64\n55: cutoff 61\n60: cutoff 60\n70: cutoff 60\nFastest: 55 58 60"
+          },
+          {
+            "stdin": "30 20 10\n1\n",
+            "output": "30: cutoff 30\n20: cutoff 20\n10: cutoff 10\nFastest: 10"
+          },
+          {
+            "stdin": "5 9\n3\n",
+            "output": "5: waiting\n9: waiting\nFastest: 5 9"
+          }
+        ],
+        "hints": [
+          "With negated times, the heap's smallest item is the slowest of the kept laps, so popping it drops the slowest.",
+          "`-heap[0]` is the cutoff as a normal positive time.",
+          "`sorted(-x for x in heap)` turns the kept times back to positive and sorts them."
+        ]
+      }
+    }
+  ],
+  "recap": "- A list is a stack: `append()` pushes, `pop()` takes the newest, and `stack[-1]` peeks. Check `if stack:` first.\n- To match brackets, push openers and pop on closers, and the stack must end empty.\n- A monotonic stack of indexes answers \"the next bigger item\" for every index in O(n).\n- A deque of indexes with values going down keeps every window's maximum at `dq[0]`. Flip the comparison for the minimum.\n- A min heap kept at size `k` holds the `k` largest, with the kth largest at `heap[0]`. Negate for the `k` smallest.\n- `heapq.heappushpop()` pushes and pops in one call."
+}

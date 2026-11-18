@@ -1,0 +1,155 @@
+{
+  "id": "sorting",
+  "title": "Sorting with Comparators",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Rank records by several keys, sort intervals by start and merge them, write custom orders, and sweep sorted start and end times.",
+  "intro": "Sorting first turns many hard problems into one easy pass: equal items line up, overlapping intervals end up side by side, and the best item comes first. This lesson puts the comparators from the Lambdas and STL Algorithms lesson to work on counts, intervals, and orders that no single key can describe.",
+  "steps": [
+    {
+      "title": "Ranking by several keys",
+      "body": "A comparator can look at as many keys as the order needs: compare the first key, and only when it ties, the second. To rank words by how often they appear, count them in a map, then copy the entries into a vector, because a map always stays ordered by key. A vector built from two iterators copies everything between them:\n\n```cpp harness\nusing Entry = std::pair<std::string, int>;\nstd::unordered_map<std::string, int> counts = {{\"cat\", 2}, {\"the\", 3}, {\"dog\", 2}};\n{{code}}\nfor (const auto& [word, count] : entries) {\n    std::cout << word << ' ' << count << '\\n';\n}\n```\n\n```cpp\nstd::vector<Entry> entries(counts.begin(), counts.end());\nstd::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {\n    if (a.second != b.second) {\n        return a.second > b.second;   // higher count first\n    }\n    return a.first < b.first;         // a tie: A to Z\n});\n```\n\nHere `Entry` is `std::pair<std::string, int>`. An `unordered_map` hands its entries over in no particular order, but since the comparator breaks every tie, the sorted result is the same whatever order they arrived in. Leave a tie unbroken and `std::sort` may put the tied entries either way.\n\n`std::tie` from `<tuple>` writes the same comparison in one line. Swapping `a` and `b` on one side flips that key, so this sorts by count from high to low, then by word from A to Z:\n\n```cpp harness\nusing Entry = std::pair<std::string, int>;\nstd::vector<Entry> entries = {{\"cat\", 2}, {\"the\", 3}, {\"dog\", 2}};\nstd::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {\n    {{code}}\n});\nfor (const auto& [word, count] : entries) {\n    std::cout << word << ' ' << count << '\\n';\n}\n```\n\n```cpp\nreturn std::tie(b.second, a.first) < std::tie(a.second, b.first);\n```",
+      "example": {
+        "title": "Word ranking",
+        "prompt": "Read n words, count them in an `unordered_map`, and print each word with its count, the most frequent first and ties from A to Z.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <string>\n#include <unordered_map>\n#include <utility>\n#include <vector>\n\nusing Entry = std::pair<std::string, int>;\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::unordered_map<std::string, int> counts;\n    for (int i = 0; i < n; ++i) {\n        std::string word;\n        std::cin >> word;\n        ++counts[word];\n    }\n\n    std::vector<Entry> entries(counts.begin(), counts.end());\n    std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {\n        if (a.second != b.second) {\n            return a.second > b.second;\n        }\n        return a.first < b.first;\n    });\n\n    for (const auto& [word, count] : entries) {\n        std::cout << word << ' ' << count << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "9\nthe cat the dog cat the a dog bird\n",
+        "output": "the 3\ncat 2\ndog 2\na 1\nbird 1",
+        "explanation": "The map counts each word. `entries(counts.begin(), counts.end())` copies every word and count into a vector, in whatever order the hash table keeps them. The comparator puts the higher count first and compares the words only when the counts tie, so `cat` comes before `dog` though both appear twice, and `a` before `bird`. Because every tie is broken, the output never depends on the hash table's order."
+      },
+      "practice": {
+        "title": "Points table",
+        "prompt": "Rank players by their total points across several games.\n\n1. The starter reads `n`, then `n` lines, each a name and the points that player scored in one game.\n2. Add each game's points to the player's total in `totals`.\n3. Copy the totals into a vector of `Entry` pairs and sort it: the highest total first, and for equal totals, names from A to Z.\n4. Print one line per player: the rank (starting at 1), a period, a space, the name, a space, and the total.\n\nInput:\n\n```text\n6\nana 10\nbo 7\ncy 10\nbo 5\nana 2\ndee 12\n```\n\nExpected output:\n\n```text\n1. ana 12\n2. bo 12\n3. dee 12\n4. cy 10\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <string>\n#include <unordered_map>\n#include <utility>\n#include <vector>\n\nusing Entry = std::pair<std::string, int>;\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::unordered_map<std::string, int> totals;\n    for (int i = 0; i < n; ++i) {\n        std::string name;\n        int points = 0;\n        std::cin >> name >> points;\n        // TODO: add points to this player's total\n    }\n    // TODO: copy the totals into a vector of Entry, sort it, and print the ranking\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <cstddef>\n#include <iostream>\n#include <string>\n#include <unordered_map>\n#include <utility>\n#include <vector>\n\nusing Entry = std::pair<std::string, int>;\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::unordered_map<std::string, int> totals;\n    for (int i = 0; i < n; ++i) {\n        std::string name;\n        int points = 0;\n        std::cin >> name >> points;\n        totals[name] += points;\n    }\n\n    std::vector<Entry> ranking(totals.begin(), totals.end());\n    std::sort(ranking.begin(), ranking.end(), [](const Entry& a, const Entry& b) {\n        if (a.second != b.second) {\n            return a.second > b.second;\n        }\n        return a.first < b.first;\n    });\n\n    for (std::size_t i = 0; i < ranking.size(); ++i) {\n        std::cout << i + 1 << \". \" << ranking[i].first << ' ' << ranking[i].second << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "6\nana 10\nbo 7\ncy 10\nbo 5\nana 2\ndee 12\n",
+            "output": "1. ana 12\n2. bo 12\n3. dee 12\n4. cy 10"
+          },
+          {
+            "stdin": "3\nzed 5\namy 5\nmo 9\n",
+            "output": "1. mo 9\n2. amy 5\n3. zed 5"
+          },
+          {
+            "stdin": "1\nsolo 0\n",
+            "output": "1. solo 0"
+          }
+        ],
+        "hints": [
+          "`totals[name] += points;` starts a new player at 0 before adding.",
+          "Copy the example's comparator: compare `a.second` with `>` first, and the names with `<` only when the totals tie.",
+          "Loop with an index `i` over the sorted vector and print `i + 1` as the rank."
+        ]
+      }
+    },
+    {
+      "title": "Intervals sorted by start",
+      "body": "An interval is a start and an end, stored here as a two-element `std::vector<int>`. Sort a list of them by start with a comparator on the first column:\n\n```cpp\nstd::vector<std::vector<int>> meetings = {{9, 10}, {1, 3}, {4, 8}, {2, 6}};\nstd::sort(meetings.begin(), meetings.end(), [](const std::vector<int>& a, const std::vector<int>& b) {\n    return a[0] < b[0];\n});\nstd::cout << meetings[0][0] << '-' << meetings[0][1] << '\\n';   // 1-3\n```\n\nTake the intervals by `const&`. A comparator that takes `std::vector<int>` by value copies both vectors, heap memory included, on every one of the O(n log n) comparisons.\n\nOnce they're sorted, intervals that overlap sit next to each other, so one pass merges them. Keep a vector of merged intervals. When the next interval starts after the last merged one ends, it begins a new block. Otherwise it overlaps, so stretch the last block's end with `std::max`, since a short interval can sit entirely inside a long one:\n\n```cpp harness\nstd::vector<std::vector<int>> meetings = {{1, 3}, {2, 6}, {4, 8}, {9, 10}};\nstd::vector<std::vector<int>> merged;\nfor (const auto& cur : meetings) {\n    {{code}}\n}\nfor (const auto& m : merged) {\n    std::cout << m[0] << '-' << m[1] << ' ';\n}\nstd::cout << '\\n';\n```\n\n```cpp\nif (merged.empty() || merged.back()[1] < cur[0]) {\n    merged.push_back(cur);\n} else {\n    merged.back()[1] = std::max(merged.back()[1], cur[1]);\n}\n```\n\n`merged.back()` is a reference to the last block, so assigning to `merged.back()[1]` changes it in place. Problems that pick intervals greedily sort by the second column instead, `a[1] < b[1]`, so the interval that ends first comes first.",
+      "example": {
+        "title": "Merge overlapping intervals",
+        "prompt": "Read n intervals, sort them by start, merge the ones that overlap or touch, and print each merged interval.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<std::vector<int>> intervals;\n    for (int i = 0; i < n; ++i) {\n        int start = 0;\n        int end = 0;\n        std::cin >> start >> end;\n        intervals.push_back({start, end});\n    }\n\n    std::sort(intervals.begin(), intervals.end(), [](const std::vector<int>& a, const std::vector<int>& b) {\n        return a[0] < b[0];\n    });\n\n    std::vector<std::vector<int>> merged;\n    for (const auto& cur : intervals) {\n        if (merged.empty() || merged.back()[1] < cur[0]) {\n            merged.push_back(cur);\n        } else {\n            merged.back()[1] = std::max(merged.back()[1], cur[1]);\n        }\n    }\n\n    for (const auto& m : merged) {\n        std::cout << m[0] << ' ' << m[1] << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "4\n8 10\n1 3\n2 6\n15 18\n",
+        "output": "1 6\n8 10\n15 18",
+        "explanation": "After the sort the intervals run 1 3, 2 6, 8 10, 15 18. The first one starts `merged`. `2 6` starts at 2, which is not after the last end, 3, so it overlaps and the end stretches to 6. `8 10` starts after 6, so it opens a new block, and so does `15 18`. The test is `merged.back()[1] < cur[0]`, so an interval that starts exactly where the last one ends, like `3 5` after `1 3`, joins it."
+      },
+      "practice": {
+        "title": "Busy hours",
+        "prompt": "Merge a day's meetings into busy blocks and add up the busy time.\n\n1. The starter reads `n` meetings, each a start hour and an end hour.\n2. Sort the meetings by start and merge the ones that overlap or touch, like the example.\n3. Print each busy block as the start, a dash, and the end, with no spaces.\n4. Last, print `busy`, the total length of the blocks in hours, and `hours`, separated by spaces.\n\nInput:\n\n```text\n5\n13 15\n9 10\n14 16\n10 11\n18 19\n```\n\nExpected output:\n\n```text\n9-11\n13-16\n18-19\nbusy 6 hours\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<std::vector<int>> meetings;\n    for (int i = 0; i < n; ++i) {\n        int start = 0;\n        int end = 0;\n        std::cin >> start >> end;\n        meetings.push_back({start, end});\n    }\n    // TODO: sort the meetings by start and merge the overlapping ones\n    // TODO: print each busy block as start-end, then busy N hours\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<std::vector<int>> meetings;\n    for (int i = 0; i < n; ++i) {\n        int start = 0;\n        int end = 0;\n        std::cin >> start >> end;\n        meetings.push_back({start, end});\n    }\n\n    std::sort(meetings.begin(), meetings.end(), [](const std::vector<int>& a, const std::vector<int>& b) {\n        return a[0] < b[0];\n    });\n\n    std::vector<std::vector<int>> busy;\n    for (const auto& cur : meetings) {\n        if (busy.empty() || busy.back()[1] < cur[0]) {\n            busy.push_back(cur);\n        } else {\n            busy.back()[1] = std::max(busy.back()[1], cur[1]);\n        }\n    }\n\n    int total = 0;\n    for (const auto& block : busy) {\n        std::cout << block[0] << '-' << block[1] << '\\n';\n        total += block[1] - block[0];\n    }\n    std::cout << \"busy \" << total << \" hours\" << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "5\n13 15\n9 10\n14 16\n10 11\n18 19\n",
+            "output": "9-11\n13-16\n18-19\nbusy 6 hours"
+          },
+          {
+            "stdin": "1\n8 17\n",
+            "output": "8-17\nbusy 9 hours"
+          },
+          {
+            "stdin": "3\n1 10\n2 3\n4 5\n",
+            "output": "1-10\nbusy 9 hours"
+          }
+        ],
+        "hints": [
+          "The comparator is `[](const std::vector<int>& a, const std::vector<int>& b) { return a[0] < b[0]; }`.",
+          "A block's length is `block[1] - block[0]`. Add it to a total while you print the blocks."
+        ]
+      }
+    },
+    {
+      "title": "Custom orders",
+      "body": "Some orders come from no single key. To arrange numbers into the largest number you can glue together, compare two pieces by the two ways of joining them: `9` goes before `5` because `\"95\"` beats `\"59\"`, and `3` before `30` because `\"330\"` beats `\"303\"`. Keep the numbers as strings, since glued digits are text. Both joined strings have the same length, so `>` compares them digit by digit:\n\n```cpp\nstd::vector<std::string> parts = {\"3\", \"30\", \"34\", \"5\", \"9\"};\nstd::sort(parts.begin(), parts.end(), [](const std::string& a, const std::string& b) {\n    return a + b > b + a;\n});\nfor (const std::string& p : parts) {\n    std::cout << p;\n}\nstd::cout << '\\n';   // 9534330\n```\n\nThis comparator is safe to sort with. It never says both that `a` goes before `b` and that `b` goes before `a`, and for two equal pieces it says `false`. That is the rule `std::sort` needs, the same one that makes you write `>` and never `>=`.\n\nWatch one edge case: when every number is 0, the glued result is `000`. After sorting, the first piece is the one that leads the number, so if `parts[0]` is `\"0\"`, every piece is, and the answer is just `0`.",
+      "example": {
+        "title": "Largest number",
+        "prompt": "Read q lists of numbers and print the largest number each list can make when its numbers are glued together in some order.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <string>\n#include <vector>\n\nstd::string largestNumber(std::vector<std::string> parts) {\n    std::sort(parts.begin(), parts.end(), [](const std::string& a, const std::string& b) {\n        return a + b > b + a;\n    });\n    if (parts[0] == \"0\") {\n        return \"0\";\n    }\n    std::string joined;\n    for (const std::string& p : parts) {\n        joined += p;\n    }\n    return joined;\n}\n\nint main() {\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int n = 0;\n        std::cin >> n;\n        std::vector<std::string> parts(n);\n        for (int i = 0; i < n; ++i) {\n            std::cin >> parts[i];\n        }\n        std::cout << largestNumber(parts) << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "3\n5 3 30 34 5 9\n2 10 2\n3 0 0 0\n",
+        "output": "9534330\n210\n0",
+        "explanation": "`largestNumber` takes its vector by value, so it sorts its own copy. In the first list the comparator puts `9` first, then `5`, then `34`, then `3` before `30`, since `\"330\"` beats `\"303\"`. In the second list `\"210\"` beats `\"102\"`, so `2` goes first. The third list sorts to three `\"0\"` pieces, and the check on `parts[0]` returns `0` instead of `000`."
+      },
+      "practice": {
+        "title": "Smallest number",
+        "prompt": "Glue each list of numbers together into the smallest number it can make.\n\n1. The starter reads `q` lists. Each list is a count `n`, then `n` numbers, every one at least 1, read as strings.\n2. Finish `smallestNumber`: sort the pieces with a comparator that puts `a` first when `a + b` is smaller than `b + a`.\n3. Glue the sorted pieces together and return the result. The starter prints it.\n\nInput:\n\n```text\n3\n5 3 30 34 5 9\n2 10 2\n3 1 11 111\n```\n\nExpected output:\n\n```text\n3033459\n102\n111111\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <string>\n#include <vector>\n\nstd::string smallestNumber(std::vector<std::string> parts) {\n    // TODO: sort with a comparator on the two ways of joining, then glue the pieces\n    return \"\";\n}\n\nint main() {\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int n = 0;\n        std::cin >> n;\n        std::vector<std::string> parts(n);\n        for (int i = 0; i < n; ++i) {\n            std::cin >> parts[i];\n        }\n        std::cout << smallestNumber(parts) << '\\n';\n    }\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <string>\n#include <vector>\n\nstd::string smallestNumber(std::vector<std::string> parts) {\n    std::sort(parts.begin(), parts.end(), [](const std::string& a, const std::string& b) {\n        return a + b < b + a;\n    });\n    std::string joined;\n    for (const std::string& p : parts) {\n        joined += p;\n    }\n    return joined;\n}\n\nint main() {\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int n = 0;\n        std::cin >> n;\n        std::vector<std::string> parts(n);\n        for (int i = 0; i < n; ++i) {\n            std::cin >> parts[i];\n        }\n        std::cout << smallestNumber(parts) << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "3\n5 3 30 34 5 9\n2 10 2\n3 1 11 111\n",
+            "output": "3033459\n102\n111111"
+          },
+          {
+            "stdin": "1\n4 21 2 212 9\n",
+            "output": "2121229"
+          },
+          {
+            "stdin": "2\n1 7\n3 99 9 98\n",
+            "output": "7\n98999"
+          }
+        ],
+        "hints": [
+          "It is the example's comparator with the comparison flipped: `return a + b < b + a;`.",
+          "No number is 0, so the result never needs the all-zeros check."
+        ]
+      }
+    },
+    {
+      "title": "Sweeping sorted start and end times",
+      "body": "How many rooms does a schedule need? Sort the start times and the end times on their own, then walk the starts in order with an index `e` into the ends. A meeting that starts before the earliest end still to come needs a new room. Otherwise some meeting has already ended, so the new one takes that room and `e` moves on to the next end:\n\n```cpp\nstd::vector<int> starts = {0, 5, 10, 15};\nstd::vector<int> ends = {10, 15, 20, 30};   // both already sorted\nint rooms = 0;\nstd::size_t e = 0;\nfor (int s : starts) {\n    if (s < ends[e]) {\n        ++rooms;\n    } else {\n        ++e;\n    }\n}\nstd::cout << rooms << '\\n';   // 2\n```\n\nSplitting the meetings apart is fine because the question only asks how many overlap, never which ones. `s < ends[e]` lets a meeting that ends at 10 free its room for one that starts at 10. If the rules say a room is still busy at its end time, write `s <= ends[e]`.\n\nThis walk is a *sweep line*: it moves through time once, in order, and only the events change the count. The two sorts cost O(n log n), and the walk is O(n).",
+      "example": {
+        "title": "Rooms for a schedule",
+        "prompt": "Read n meetings as a start and an end time and print how many rooms they need, when a room frees up at its meeting's end time.",
+        "code": "#include <algorithm>\n#include <cstddef>\n#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> starts(n);\n    std::vector<int> ends(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> starts[i] >> ends[i];\n    }\n    std::sort(starts.begin(), starts.end());\n    std::sort(ends.begin(), ends.end());\n\n    int rooms = 0;\n    std::size_t e = 0;\n    for (int s : starts) {\n        if (s < ends[e]) {\n            ++rooms;\n        } else {\n            ++e;\n        }\n    }\n    std::cout << \"rooms \" << rooms << '\\n';\n    return 0;\n}\n",
+        "stdin": "4\n0 30\n5 10\n15 20\n10 15\n",
+        "output": "rooms 2",
+        "explanation": "The starts sort to 0 5 10 15 and the ends to 10 15 20 30. At 0 and at 5 nothing has ended yet, so two rooms open. At 10 the earliest end, 10, has come, so the meeting at 10 reuses that room and `e` moves to the end at 15. At 15 that end has come too, so the room is reused again. Two rooms were enough. `rooms` only counts rooms ever opened, which is the answer."
+      },
+      "practice": {
+        "title": "Parking spots",
+        "prompt": "Find how many parking spots a day of cars needs.\n\n1. The starter reads `n` cars, each an arrival time and how long the car stays.\n2. Store each car's departure time, its arrival plus its stay.\n3. Sort the arrivals and the departures on their own, and sweep the arrivals like the example. A car that leaves at time t frees its spot for one that arrives at time t.\n4. Print `spots` and the number of spots needed, separated by a space.\n\nInput:\n\n```text\n5\n8 2\n9 3\n10 1\n11 2\n13 1\n```\n\nExpected output:\n\n```text\nspots 2\n```",
+        "starter": "#include <algorithm>\n#include <cstddef>\n#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> arrivals(n);\n    std::vector<int> departures(n);\n    for (int i = 0; i < n; ++i) {\n        int stay = 0;\n        std::cin >> arrivals[i] >> stay;\n        // TODO: store when this car leaves\n    }\n    // TODO: sort both vectors, sweep the arrivals, and print spots N\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <cstddef>\n#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> arrivals(n);\n    std::vector<int> departures(n);\n    for (int i = 0; i < n; ++i) {\n        int stay = 0;\n        std::cin >> arrivals[i] >> stay;\n        departures[i] = arrivals[i] + stay;\n    }\n    std::sort(arrivals.begin(), arrivals.end());\n    std::sort(departures.begin(), departures.end());\n\n    int spots = 0;\n    std::size_t d = 0;\n    for (int a : arrivals) {\n        if (a < departures[d]) {\n            ++spots;\n        } else {\n            ++d;\n        }\n    }\n    std::cout << \"spots \" << spots << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "5\n8 2\n9 3\n10 1\n11 2\n13 1\n",
+            "output": "spots 2"
+          },
+          {
+            "stdin": "3\n1 10\n2 10\n3 10\n",
+            "output": "spots 3"
+          },
+          {
+            "stdin": "1\n5 5\n",
+            "output": "spots 1"
+          }
+        ],
+        "hints": [
+          "`departures[i] = arrivals[i] + stay;` inside the reading loop.",
+          "A new spot is needed when `a < departures[d]`. Otherwise reuse a spot and move `d` on."
+        ]
+      }
+    }
+  ],
+  "recap": "- A comparator can compare as many keys as you need: the first key, and only on a tie the next one.\n- `std::tie(b.second, a.first) < std::tie(a.second, b.first)` sorts by the second item from high to low, then by the first from A to Z.\n- A map stays ordered by key. To sort its entries by value, copy them with `std::vector<Entry> entries(m.begin(), m.end());` and sort the vector.\n- Break every tie when the output depends on the order, especially for entries from an `unordered_map`.\n- Sort intervals by start with `a[0] < b[0]`, then merge in one pass, stretching `merged.back()[1]` with `std::max`.\n- A comparator can compare computed values, like `a + b > b + a` for the largest number. Check for the all-zeros case.\n- A sweep line sorts the starts and the ends on their own and walks the starts with one index into the ends, in O(n log n)."
+}

@@ -1,0 +1,158 @@
+{
+  "id": "dynamic-programming",
+  "title": "Dynamic Programming",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Fill 1D and 2D tables from the smallest case up: counting ways, take or skip choices, the fewest coins, and paths through a grid.",
+  "intro": "Dynamic programming solves a problem by solving every smaller version of it once and storing the answers in a table. Each entry is built from entries already filled, so work that a plain recursion repeats millions of times happens only once. You fill 1D tables for stairs, houses, and coins, then a 2D table for a grid.",
+  "steps": [
+    {
+      "title": "From a memo to a table",
+      "body": "The Recursion lesson made Fibonacci fast with a memo: save each answer and reuse it. Dynamic programming is that idea, usually written the other way round. Instead of recursing down from `n`, fill a table up from the smallest case, so every entry you need is ready when you reach it:\n\n```java\nint n = 10;\nlong[] ways = new long[n + 1];   // ways[i]: the ways to climb i stairs\nways[0] = 1;                     // one way to climb nothing\nways[1] = 1;\nfor (int i = 2; i <= n; i++) {\n    ways[i] = ways[i - 1] + ways[i - 2];   // the last move was 1 step or 2\n}\nSystem.out.println(ways[n]); // 89\n```\n\nEvery table needs three decisions: what an entry means, the base cases you know outright, and the rule that builds an entry from smaller ones. Size it `n + 1` so `ways[n]` exists, and use `long`, because counts like these grow fast. With this table `n` must be at least 1, or `ways[1]` is out of bounds.\n\nWhen each entry only reads the last two, two variables do the same job:\n\n```java\nlong prev = 1;\nlong cur = 1;\nfor (int i = 2; i <= 10; i++) {\n    long next = prev + cur;\n    prev = cur;\n    cur = next;\n}\nSystem.out.println(cur); // 89\n```",
+      "example": {
+        "title": "Ways up the stairs",
+        "prompt": "Read stair counts until the input ends and print how many ways you can climb each, taking 1 or 2 steps at a time.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        while (sc.hasNextInt()) {\n            int n = sc.nextInt();\n            System.out.println(\"Stairs \" + n + \": \" + climb(n));\n        }\n    }\n\n    static long climb(int n) {\n        long[] ways = new long[n + 1];\n        ways[0] = 1;\n        ways[1] = 1;\n        for (int i = 2; i <= n; i++) {\n            ways[i] = ways[i - 1] + ways[i - 2];\n        }\n        return ways[n];\n    }\n}\n",
+        "stdin": "1\n5\n10\n50\n",
+        "output": "Stairs 1: 1\nStairs 5: 8\nStairs 10: 89\nStairs 50: 20365011074",
+        "explanation": "`climb` builds a fresh table for each count, from `ways[0]` and `ways[1]` up to `ways[n]`. Each entry adds the two before it, because the last move onto stair `i` came from stair `i - 1` or stair `i - 2`. For 50 stairs the answer is over 20 billion, far past what an `int` holds, which is why the table is `long[]`. The loop does 49 additions where the plain recursion would make billions of calls."
+      },
+      "practice": {
+        "title": "Broken stairs",
+        "prompt": "Count the ways to climb a staircase taking 1 or 2 steps at a time, when some stairs are broken and can't be stepped on.\n\n1. The starter reads `n`, then `k`, then the `k` broken stair numbers, from 1 to `n - 1`, into `broken`.\n2. Fill `ways` from the bottom: `ways[0]` is 1, a broken stair has 0 ways, and any other stair adds the two below it.\n3. Set `ways[1]` before the loop, as 0 if stair 1 is broken, otherwise 1.\n4. Print `Table:` and then every entry of `ways`, each after a space.\n5. Print `Ways: ` and `ways[n]`.\n\nInput:\n\n```text\n6\n1\n3\n```\n\nExpected output:\n\n```text\nTable: 1 1 2 0 2 2 4\nWays: 4\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int k = sc.nextInt();\n        boolean[] broken = new boolean[n + 1];\n        for (int i = 0; i < k; i++) {\n            broken[sc.nextInt()] = true;\n        }\n        long[] ways = new long[n + 1];\n        // TODO: fill ways from the bottom, with 0 ways onto a broken stair\n        // TODO: print the table, then the ways to reach stair n\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int k = sc.nextInt();\n        boolean[] broken = new boolean[n + 1];\n        for (int i = 0; i < k; i++) {\n            broken[sc.nextInt()] = true;\n        }\n        long[] ways = new long[n + 1];\n        ways[0] = 1;\n        ways[1] = broken[1] ? 0 : 1;\n        for (int i = 2; i <= n; i++) {\n            ways[i] = broken[i] ? 0 : ways[i - 1] + ways[i - 2];\n        }\n        StringBuilder table = new StringBuilder(\"Table:\");\n        for (long w : ways) {\n            table.append(' ').append(w);\n        }\n        System.out.println(table);\n        System.out.println(\"Ways: \" + ways[n]);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n1\n3\n",
+            "output": "Table: 1 1 2 0 2 2 4\nWays: 4"
+          },
+          {
+            "stdin": "4\n0\n",
+            "output": "Table: 1 1 2 3 5\nWays: 5"
+          },
+          {
+            "stdin": "5\n2\n2 3\n",
+            "output": "Table: 1 1 0 0 0 0\nWays: 0"
+          },
+          {
+            "stdin": "4\n1\n1\n",
+            "output": "Table: 1 0 1 1 2\nWays: 2"
+          }
+        ],
+        "hints": [
+          "Inside the loop, `ways[i] = broken[i] ? 0 : ways[i - 1] + ways[i - 2];`.",
+          "A broken stair's 0 flows into the next two entries, which is how the paths through it disappear."
+        ]
+      }
+    },
+    {
+      "title": "Take it or skip it",
+      "body": "Many rules are a choice between two options. A thief walks down a street and can't rob two houses next to each other. Let `best[i]` be the most money from the first `i` houses. For house `i`, either skip it and keep `best[i - 1]`, or take it, which rules out its neighbor, for `best[i - 2]` plus its money. The entry is the larger of the two:\n\n```java\nint[] money = {2, 7, 9, 3, 1};\nint[] best = new int[money.length + 1];   // best[0] is 0: no houses, no money\nbest[1] = money[0];\nfor (int i = 2; i <= money.length; i++) {\n    best[i] = Math.max(best[i - 1], best[i - 2] + money[i - 1]);   // skip, or take\n}\nSystem.out.println(best[money.length]); // 12, from 2 + 9 + 1\n```\n\nThe table is one longer than the array, so `best[i]` covers houses 0 to `i - 1`, and house `i` in the rule is `money[i - 1]`. That shift is the usual source of off-by-one bugs, so write down what an entry means before you write the loop. Guard the empty street too: with no houses, `best[1]` doesn't exist.\n\nTo run the same rule on part of the array, give the method a range, `from` and `to`, and read `money[from + i - 1]` instead.",
+      "example": {
+        "title": "Robbing a street",
+        "prompt": "Read the money in each house on a street and print the best total that never takes two neighbors.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] money = new int[n];\n        for (int i = 0; i < n; i++) {\n            money[i] = sc.nextInt();\n        }\n        int[] best = new int[n + 1];\n        best[1] = money[0];\n        for (int i = 2; i <= n; i++) {\n            best[i] = Math.max(best[i - 1], best[i - 2] + money[i - 1]);\n        }\n        StringBuilder table = new StringBuilder(\"Table:\");\n        for (int b : best) {\n            table.append(' ').append(b);\n        }\n        System.out.println(table);\n        System.out.println(\"Best: \" + best[n]);\n    }\n}\n",
+        "stdin": "6\n5 1 1 5 10 2\n",
+        "output": "Table: 0 5 5 6 10 16 16\nBest: 16",
+        "explanation": "`best[1]` is just the first house. At house 4 (money 5), taking it gives `best[2] + 5 = 10`, which beats skipping it for `best[3]`, 6. At house 5 (money 10), taking it gives `best[3] + 10 = 16`, since `best[3]` already chose the best of the first three houses. The last house only adds 2 to `best[4]`, which loses to keeping 16."
+      },
+      "practice": {
+        "title": "Houses in a circle",
+        "prompt": "Find the best total on a street, then on a ring of houses where the first and last house are neighbors.\n\n1. The starter reads `n` and the money in each house, and prints `Street: ` and `rob(money, 0, n - 1)`.\n2. Finish `rob` so it runs the take or skip table on the houses from index `from` to index `to`.\n3. In a circle you can't take both the first and the last house, so the answer is the larger of `rob` without the last house and `rob` without the first.\n4. Print `Circle: ` and that answer. With a single house, it's that house's money.\n\nInput:\n\n```text\n4\n5 1 1 5\n```\n\nExpected output:\n\n```text\nStreet: 10\nCircle: 6\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] money = new int[n];\n        for (int i = 0; i < n; i++) {\n            money[i] = sc.nextInt();\n        }\n        System.out.println(\"Street: \" + rob(money, 0, n - 1));\n        // TODO: print the best total when the houses stand in a circle\n    }\n\n    static int rob(int[] money, int from, int to) {\n        // TODO: take or skip each house from index from to index to\n        return 0;\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] money = new int[n];\n        for (int i = 0; i < n; i++) {\n            money[i] = sc.nextInt();\n        }\n        System.out.println(\"Street: \" + rob(money, 0, n - 1));\n        int circle = n == 1 ? money[0] : Math.max(rob(money, 0, n - 2), rob(money, 1, n - 1));\n        System.out.println(\"Circle: \" + circle);\n    }\n\n    static int rob(int[] money, int from, int to) {\n        int n = to - from + 1;\n        int[] best = new int[n + 1];\n        best[1] = money[from];\n        for (int i = 2; i <= n; i++) {\n            best[i] = Math.max(best[i - 1], best[i - 2] + money[from + i - 1]);\n        }\n        return best[n];\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "4\n5 1 1 5\n",
+            "output": "Street: 10\nCircle: 6"
+          },
+          {
+            "stdin": "3\n2 3 2\n",
+            "output": "Street: 4\nCircle: 3"
+          },
+          {
+            "stdin": "1\n7\n",
+            "output": "Street: 7\nCircle: 7"
+          }
+        ],
+        "hints": [
+          "In `rob`, let `n = to - from + 1`, set `best[1] = money[from]`, and read house `i` as `money[from + i - 1]`.",
+          "For the circle, compare `rob(money, 0, n - 2)` with `rob(money, 1, n - 1)`, but only when `n` is more than 1."
+        ]
+      }
+    },
+    {
+      "title": "The fewest coins",
+      "body": "For the fewest coins that make an amount, let `dp[a]` be the fewest coins for amount `a`. The last coin was one of the coins, so try each one, `dp[a - coin] + 1`, and keep the smallest. Fill from 1 up, since every entry reads smaller amounts:\n\n```java\nimport java.util.Arrays;\n\nint[] coins = {1, 2, 5};\nint amount = 11;\nint[] dp = new int[amount + 1];\nArrays.fill(dp, amount + 1);             // more coins than any real answer\ndp[0] = 0;\nfor (int a = 1; a <= amount; a++) {\n    for (int coin : coins) {\n        if (coin <= a) {\n            dp[a] = Math.min(dp[a], dp[a - coin] + 1);\n        }\n    }\n}\nSystem.out.println(dp[amount] > amount ? -1 : dp[amount]); // 3, from 5 + 5 + 1\n```\n\n`amount + 1` stands for impossible, since no answer needs more coins than the amount. Don't use `Integer.MAX_VALUE` for it: `dp[a - coin] + 1` would overflow to a negative number and win every `Math.min`.\n\nTaking the biggest coin first, the greedy way, can fail. With coins 1, 3, and 4 and an amount of 6, it takes 4 + 1 + 1, while 3 + 3 needs only two. The table tries every last coin, so it can't miss the better choice.",
+      "example": {
+        "title": "Making change",
+        "prompt": "Read some coin values and some amounts, and print the fewest coins that make each amount, or -1 when none can.",
+        "code": "import java.util.Arrays;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        int[] coins = new int[k];\n        for (int i = 0; i < k; i++) {\n            coins[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int amount = sc.nextInt();\n            System.out.println(amount + \": \" + fewest(coins, amount));\n        }\n    }\n\n    static int fewest(int[] coins, int amount) {\n        int[] dp = new int[amount + 1];\n        Arrays.fill(dp, amount + 1);\n        dp[0] = 0;\n        for (int a = 1; a <= amount; a++) {\n            for (int coin : coins) {\n                if (coin <= a) {\n                    dp[a] = Math.min(dp[a], dp[a - coin] + 1);\n                }\n            }\n        }\n        return dp[amount] > amount ? -1 : dp[amount];\n    }\n}\n",
+        "stdin": "3\n2 5 10\n4\n11\n3\n20\n0\n",
+        "output": "11: 4\n3: -1\n20: 2\n0: 0",
+        "explanation": "For 11, the table finds 5 + 2 + 2 + 2, four coins, because no mix with a 10 can finish without a 1. For 3, every coin either is too big or leaves 1, which can't be made, so `dp[3]` keeps its impossible value and prints -1. For 20 it's two 10s. For 0, `dp[0]` is 0: no coins at all."
+      },
+      "practice": {
+        "title": "Postage stamps",
+        "prompt": "Find the fewest stamps that make every postage amount from 1 up to a maximum.\n\n1. The starter reads `k` stamp values, then `max`, and makes `dp` with room for every amount up to `max`.\n2. Fill `dp` with `max + 1` for impossible, set `dp[0]` to 0, and fill each amount from 1 up by trying every stamp as the last one.\n3. Print each amount from 1 to `max` on its own line as the amount, `: `, and the fewest stamps, or -1 when it can't be made.\n\nInput:\n\n```text\n2\n3 5\n8\n```\n\nExpected output:\n\n```text\n1: -1\n2: -1\n3: 1\n4: -1\n5: 1\n6: 2\n7: -1\n8: 2\n```",
+        "starter": "import java.util.Arrays;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        int[] stamps = new int[k];\n        for (int i = 0; i < k; i++) {\n            stamps[i] = sc.nextInt();\n        }\n        int max = sc.nextInt();\n        int[] dp = new int[max + 1];\n        // TODO: fill dp with the fewest stamps for every amount up to max\n        // TODO: print each amount from 1 to max with its count, or -1 when it can't be made\n    }\n}\n",
+        "solution": "import java.util.Arrays;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int k = sc.nextInt();\n        int[] stamps = new int[k];\n        for (int i = 0; i < k; i++) {\n            stamps[i] = sc.nextInt();\n        }\n        int max = sc.nextInt();\n        int[] dp = new int[max + 1];\n        Arrays.fill(dp, max + 1);\n        dp[0] = 0;\n        for (int a = 1; a <= max; a++) {\n            for (int s : stamps) {\n                if (s <= a) {\n                    dp[a] = Math.min(dp[a], dp[a - s] + 1);\n                }\n            }\n        }\n        for (int a = 1; a <= max; a++) {\n            System.out.println(a + \": \" + (dp[a] > max ? -1 : dp[a]));\n        }\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "2\n3 5\n8\n",
+            "output": "1: -1\n2: -1\n3: 1\n4: -1\n5: 1\n6: 2\n7: -1\n8: 2"
+          },
+          {
+            "stdin": "3\n1 3 4\n6\n",
+            "output": "1: 1\n2: 2\n3: 1\n4: 1\n5: 2\n6: 2"
+          },
+          {
+            "stdin": "1\n2\n3\n",
+            "output": "1: -1\n2: 1\n3: -1"
+          }
+        ],
+        "hints": [
+          "This is the example's `fewest` loop run once up to `max`, with `stamps` for `coins`.",
+          "An entry still above `max` after the loop means that amount can't be made."
+        ]
+      }
+    },
+    {
+      "title": "Tables over a grid",
+      "body": "Some problems need two numbers to describe a smaller version, like a row and a column, so the table is 2D. To count the paths through a grid that move only right or down, let `paths[r][c]` be the ways to reach cell `(r, c)`. You arrive from above or from the left, so add those two. A wall has 0 paths:\n\n```java\nchar[][] grid = {\"...\".toCharArray(), \".#.\".toCharArray(), \"...\".toCharArray()};\nint rows = grid.length;\nint cols = grid[0].length;\nlong[][] paths = new long[rows][cols];\nfor (int r = 0; r < rows; r++) {\n    for (int c = 0; c < cols; c++) {\n        if (grid[r][c] == '#') {\n            paths[r][c] = 0;\n        } else if (r == 0 && c == 0) {\n            paths[r][c] = 1;\n        } else {\n            long up = r > 0 ? paths[r - 1][c] : 0;\n            long left = c > 0 ? paths[r][c - 1] : 0;\n            paths[r][c] = up + left;\n        }\n    }\n}\nSystem.out.println(paths[rows - 1][cols - 1]); // 2\n```\n\nFilling row by row, left to right, means the cells above and to the left are always done before you need them. The `r > 0` and `c > 0` checks stand in for cells off the grid, which have no paths. The same table answers questions other than counting: change `up + left` to `Math.min(up, left)` plus the cell's cost and it finds the cheapest path instead. Off the grid then has to mean \"no way in\", not 0, so take only the side that exists.",
+      "example": {
+        "title": "Paths around walls",
+        "prompt": "Read a grid with walls and print how many paths go from the top-left to the bottom-right cell moving only right or down, with the table.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int rows = sc.nextInt();\n        int cols = sc.nextInt();\n        char[][] grid = new char[rows][];\n        for (int r = 0; r < rows; r++) {\n            grid[r] = sc.next().toCharArray();\n        }\n\n        long[][] paths = new long[rows][cols];\n        for (int r = 0; r < rows; r++) {\n            for (int c = 0; c < cols; c++) {\n                if (grid[r][c] == '#') {\n                    paths[r][c] = 0;\n                } else if (r == 0 && c == 0) {\n                    paths[r][c] = 1;\n                } else {\n                    long up = r > 0 ? paths[r - 1][c] : 0;\n                    long left = c > 0 ? paths[r][c - 1] : 0;\n                    paths[r][c] = up + left;\n                }\n            }\n        }\n        for (long[] row : paths) {\n            StringBuilder sb = new StringBuilder();\n            for (long p : row) {\n                sb.append(String.format(\"%3d\", p));\n            }\n            System.out.println(sb);\n        }\n        System.out.println(\"Paths: \" + paths[rows - 1][cols - 1]);\n    }\n}\n",
+        "stdin": "3 4\n....\n.#..\n....\n",
+        "output": "  1  1  1  1\n  1  0  1  2\n  1  1  2  4\nPaths: 4",
+        "explanation": "The top row and the left column have 1 path each, since you can only arrive from one side, until a wall cuts them off. The wall at row 1, column 1 holds 0, so the cell below it only gets paths from its left and the cell to its right only from above. Every other cell adds the cell above and the cell to its left, and the last one sums up all 4 paths. `%3d` pads each number to three characters so the columns line up."
+      },
+      "practice": {
+        "title": "Cheapest path",
+        "prompt": "Find the cheapest total cost from the top-left to the bottom-right cell of a grid, moving only right or down.\n\n1. The starter reads `rows` and `cols`, then each cell's cost into `cost`.\n2. Fill `best` row by row: the start is its own cost, the top row can only come from the left, and the left column only from above.\n3. Every other cell is its cost plus the cheaper of the cell above and the cell to its left.\n4. Print each row of `best` with every number padded by `String.format(\"%3d\", ...)`, then `Cheapest: ` and the bottom-right entry.\n\nInput:\n\n```text\n3 3\n1 3 1\n1 5 1\n4 2 1\n```\n\nExpected output:\n\n```text\n  1  4  5\n  2  7  6\n  6  8  7\nCheapest: 7\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int rows = sc.nextInt();\n        int cols = sc.nextInt();\n        int[][] cost = new int[rows][cols];\n        for (int r = 0; r < rows; r++) {\n            for (int c = 0; c < cols; c++) {\n                cost[r][c] = sc.nextInt();\n            }\n        }\n        int[][] best = new int[rows][cols];\n        // TODO: fill best with the cheapest total to reach each cell\n        // TODO: print the table rows, then the cheapest total to the bottom-right cell\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int rows = sc.nextInt();\n        int cols = sc.nextInt();\n        int[][] cost = new int[rows][cols];\n        for (int r = 0; r < rows; r++) {\n            for (int c = 0; c < cols; c++) {\n                cost[r][c] = sc.nextInt();\n            }\n        }\n        int[][] best = new int[rows][cols];\n        for (int r = 0; r < rows; r++) {\n            for (int c = 0; c < cols; c++) {\n                if (r == 0 && c == 0) {\n                    best[r][c] = cost[r][c];\n                } else if (r == 0) {\n                    best[r][c] = best[r][c - 1] + cost[r][c];\n                } else if (c == 0) {\n                    best[r][c] = best[r - 1][c] + cost[r][c];\n                } else {\n                    best[r][c] = Math.min(best[r - 1][c], best[r][c - 1]) + cost[r][c];\n                }\n            }\n        }\n        for (int[] row : best) {\n            StringBuilder sb = new StringBuilder();\n            for (int b : row) {\n                sb.append(String.format(\"%3d\", b));\n            }\n            System.out.println(sb);\n        }\n        System.out.println(\"Cheapest: \" + best[rows - 1][cols - 1]);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "3 3\n1 3 1\n1 5 1\n4 2 1\n",
+            "output": "  1  4  5\n  2  7  6\n  6  8  7\nCheapest: 7"
+          },
+          {
+            "stdin": "1 4\n2 2 2 2\n",
+            "output": "  2  4  6  8\nCheapest: 8"
+          },
+          {
+            "stdin": "2 2\n5 1\n1 5\n",
+            "output": "  5  6\n  6 11\nCheapest: 11"
+          }
+        ],
+        "hints": [
+          "Use four cases: `r == 0 && c == 0`, then `r == 0`, then `c == 0`, then the rest.",
+          "The general case is `Math.min(best[r - 1][c], best[r][c - 1]) + cost[r][c]`."
+        ]
+      }
+    }
+  ],
+  "recap": "- A table entry means one smaller problem, like `ways[i]` for stair `i`. Decide the meaning, the base cases, and the rule first.\n- Fill from the smallest case up so every entry you read is already done, and size the table `n + 1`.\n- Use `long` for counts that grow, and two variables when an entry only needs the last two.\n- Take or skip: `best[i] = Math.max(best[i - 1], best[i - 2] + money[i - 1])`.\n- Fewest coins: fill with `amount + 1` for impossible, set `dp[0] = 0`, and try every coin as the last one. Never fill with `Integer.MAX_VALUE` before adding 1.\n- A grid table adds or compares the cell above and the cell to the left, filled row by row."
+}

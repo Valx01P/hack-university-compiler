@@ -2,8 +2,8 @@
   "id": "linked-lists",
   "title": "Linked Lists",
   "section": "Advanced: Data Structures and Algorithms",
-  "summary": "Build singly linked lists from node objects and practice traversal, insertion, deletion, reversal, and fast and slow pointers.",
-  "intro": "A linked list stores values in separate nodes, each pointing to the next one. Adding at the front is instant and nothing ever shifts like it does in an array. Here you build lists, walk them, insert and delete, reverse them, and use two pointers at different speeds to find the middle and spot cycles.",
+  "summary": "Build singly linked lists from node objects and practice traversal, insertion, deletion, reversal, fast and slow pointers, and merging.",
+  "intro": "A linked list stores values in separate nodes, each pointing to the next one. Adding at the front is instant and nothing ever shifts like it does in an array. Here you build lists, walk them, insert and delete, reverse them, use two pointers at different speeds to find the middle and spot cycles, and merge two sorted lists.",
   "steps": [
     {
       "title": "Nodes and traversal",
@@ -115,7 +115,44 @@
           "Call `middle(head)` before `reverse(head)`. After reversing, the old head is the last node."
         ]
       }
+    },
+    {
+      "title": "Merging sorted lists",
+      "body": "Two sorted lists merge into one sorted list by relinking their nodes, with no new nodes. Keep one pointer in each list and keep taking the smaller head. A **dummy** node in front of the result removes the special case for the first node: `tail` starts at the dummy, each taken node is linked after `tail`, and the merged list is `dummy.next`.\n\n```javascript harness\nclass ListNode {\n  constructor(value, next = null) {\n    this.value = value;\n    this.next = next;\n  }\n}\n\nfunction fromArray(arr) {\n  let head = null;\n  for (let i = arr.length - 1; i >= 0; i--) {\n    head = new ListNode(arr[i], head);\n  }\n  return head;\n}\n\nfunction listToString(head) {\n  const parts = [];\n  for (let node = head; node !== null; node = node.next) {\n    parts.push(node.value);\n  }\n  return parts.join(\" -> \");\n}\n\nfunction merge(a, b) {\n  {{code}}\n}\nconsole.log(listToString(merge(fromArray([1, 4, 6]), fromArray([2, 3, 7]))));\n```\n\n```javascript\nconst dummy = new ListNode(0);\nlet tail = dummy;\nwhile (a !== null && b !== null) {\n  if (a.value <= b.value) {\n    tail.next = a;\n    a = a.next;\n  } else {\n    tail.next = b;\n    b = b.next;\n  }\n  tail = tail.next;\n}\ntail.next = a !== null ? a : b; // the rest of whichever list is left\nreturn dummy.next;\n```\n\nThat merges `1 -> 4 -> 6` and `2 -> 3 -> 7` into `1 -> 2 -> 3 -> 4 -> 6 -> 7`. Using `<=` takes from `a` on a tie, so equal values keep the order of their lists. When one list runs out, the rest of the other is already sorted, so one assignment links all of it. Each node is visited once: O(n + m).\n\n**The gotcha:** move `tail` forward after linking a node. If you forget, the next node overwrites `tail.next` and the node you just linked drops out of the list.",
+      "example": {
+        "title": "Merging two sorted lists",
+        "prompt": "Read two sorted lists of numbers, one per line, build a linked list from each, merge them by relinking nodes, and print the result.",
+        "stdin": "1 4 6 9\n2 3 7\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [lineA = \"\", lineB = \"\"] = input.split(\"\\n\");\nconst toNums = (line) => (line.trim() === \"\" ? [] : line.trim().split(/\\s+/).map(Number));\n\nclass ListNode {\n  constructor(value, next = null) {\n    this.value = value;\n    this.next = next;\n  }\n}\n\nfunction fromArray(arr) {\n  let head = null;\n  for (let i = arr.length - 1; i >= 0; i--) {\n    head = new ListNode(arr[i], head);\n  }\n  return head;\n}\n\nfunction listToString(head) {\n  const parts = [];\n  for (let node = head; node !== null; node = node.next) {\n    parts.push(node.value);\n  }\n  return parts.join(\" -> \");\n}\n\nfunction merge(a, b) {\n  const dummy = new ListNode(0);\n  let tail = dummy;\n  while (a !== null && b !== null) {\n    if (a.value <= b.value) {\n      tail.next = a;\n      a = a.next;\n    } else {\n      tail.next = b;\n      b = b.next;\n    }\n    tail = tail.next;\n  }\n  tail.next = a !== null ? a : b;\n  return dummy.next;\n}\n\nconsole.log(listToString(merge(fromArray(toNums(lineA)), fromArray(toNums(lineB)))));\n",
+        "output": "1 -> 2 -> 3 -> 4 -> 6 -> 7 -> 9",
+        "explanation": "Each round compares the two heads and links the smaller after `tail`, then moves that list on. After 7 is taken, `b` is empty, so the loop stops and `tail.next = a` links the 9 that is left. `toNums` turns an empty line into an empty array, so an empty list arrives as `null` and the merge just returns the other list."
+      },
+      "practice": {
+        "title": "Merging without repeats",
+        "prompt": "Read two sorted lists, one per line, and merge them into one sorted list that holds each value once.\n\n1. Keep a dummy node and a `tail` as in the example.\n2. Loop while either list still has nodes. Take from `a` when `b` is empty or `a.value <= b.value`, otherwise take from `b`, and move that list on.\n3. Link the taken node only when `tail` is the dummy or `tail.value` differs from it.\n4. After the loop, set `tail.next = null` so no skipped node stays linked, and return `dummy.next`.\n\nInput:\n\n```text\n1 3 3 5\n3 4 5 8\n```\n\nExpected output:\n\n```text\n1 -> 3 -> 4 -> 5 -> 8\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [lineA = \"\", lineB = \"\"] = input.split(\"\\n\");\nconst toNums = (line) => (line.trim() === \"\" ? [] : line.trim().split(/\\s+/).map(Number));\n\nclass ListNode {\n  constructor(value, next = null) {\n    this.value = value;\n    this.next = next;\n  }\n}\n\nfunction fromArray(arr) {\n  let head = null;\n  for (let i = arr.length - 1; i >= 0; i--) {\n    head = new ListNode(arr[i], head);\n  }\n  return head;\n}\n\nfunction listToString(head) {\n  const parts = [];\n  for (let node = head; node !== null; node = node.next) {\n    parts.push(node.value);\n  }\n  return parts.join(\" -> \");\n}\n\nfunction mergeUnique(a, b) {\n  // TODO: merge with a dummy node, skipping values equal to tail.value\n  return null;\n}\n\nconsole.log(listToString(mergeUnique(fromArray(toNums(lineA)), fromArray(toNums(lineB)))));\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [lineA = \"\", lineB = \"\"] = input.split(\"\\n\");\nconst toNums = (line) => (line.trim() === \"\" ? [] : line.trim().split(/\\s+/).map(Number));\n\nclass ListNode {\n  constructor(value, next = null) {\n    this.value = value;\n    this.next = next;\n  }\n}\n\nfunction fromArray(arr) {\n  let head = null;\n  for (let i = arr.length - 1; i >= 0; i--) {\n    head = new ListNode(arr[i], head);\n  }\n  return head;\n}\n\nfunction listToString(head) {\n  const parts = [];\n  for (let node = head; node !== null; node = node.next) {\n    parts.push(node.value);\n  }\n  return parts.join(\" -> \");\n}\n\nfunction mergeUnique(a, b) {\n  const dummy = new ListNode(0);\n  let tail = dummy;\n  while (a !== null || b !== null) {\n    let node;\n    if (b === null || (a !== null && a.value <= b.value)) {\n      node = a;\n      a = a.next;\n    } else {\n      node = b;\n      b = b.next;\n    }\n    if (tail === dummy || tail.value !== node.value) {\n      tail.next = node;\n      tail = node;\n    }\n  }\n  tail.next = null;\n  return dummy.next;\n}\n\nconsole.log(listToString(mergeUnique(fromArray(toNums(lineA)), fromArray(toNums(lineB)))));\n",
+        "tests": [
+          {
+            "stdin": "1 3 3 5\n3 4 5 8\n",
+            "output": "1 -> 3 -> 4 -> 5 -> 8"
+          },
+          {
+            "stdin": "2 2\n2\n",
+            "output": "2"
+          },
+          {
+            "stdin": "\n5 9\n",
+            "output": "5 -> 9"
+          }
+        ],
+        "hints": [
+          "The loop runs on `a !== null || b !== null`, so check for an empty list before reading `.value`.",
+          "Compare with `tail.value`, the last value you kept. Since both lists are sorted, a repeat always equals it.",
+          "A skipped node may still point at others, which is why `tail.next = null` comes after the loop."
+        ]
+      }
     }
   ],
-  "recap": "- A `ListNode` holds a `value` and a `next` reference, and `null` marks the end. Nodes link by reference, never by copy.\n- Walk with `while (node !== null) { ...; node = node.next; }`, and build from an array back to front.\n- `addFirst` is O(1). `add` walks to the tail, so it is O(n).\n- Delete with `prev.next = prev.next.next`. A dummy node before the head removes the head special case.\n- Unlinked nodes are garbage collected once nothing references them.\n- A `*[Symbol.iterator]()` generator makes `for...of` and `[...list]` work.\n- Reverse in place with `prev`, `curr`, and `next`, saving `next` first.\n- Slow moves 1 and fast moves 2: slow stops at the middle, and if they meet there is a cycle.\n- Find the middle before reversing, because reversing relinks the nodes."
+  "recap": "- A `ListNode` holds a `value` and a `next` reference, and `null` marks the end. Nodes link by reference, never by copy.\n- Walk with `while (node !== null) { ...; node = node.next; }`, and build from an array back to front.\n- `addFirst` is O(1). `add` walks to the tail, so it is O(n).\n- Delete with `prev.next = prev.next.next`. A dummy node before the head removes the head special case.\n- Unlinked nodes are garbage collected once nothing references them.\n- A `*[Symbol.iterator]()` generator makes `for...of` and `[...list]` work.\n- Reverse in place with `prev`, `curr`, and `next`, saving `next` first.\n- Slow moves 1 and fast moves 2: slow stops at the middle, and if they meet there is a cycle.\n- Find the middle before reversing, because reversing relinks the nodes.\n- Merge two sorted lists by linking the smaller head after `tail`, starting from a dummy node, then link whatever is left. The result is `dummy.next`."
 }

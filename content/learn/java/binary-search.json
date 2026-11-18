@@ -1,0 +1,154 @@
+{
+  "id": "binary-search",
+  "title": "Binary Search",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Search sorted data with a loop and Arrays.binarySearch, find lower and upper bounds, search for an answer, and handle rotated arrays.",
+  "intro": "Binary search throws away half of what is left at every step, so a million sorted values take about 20 looks. This lesson writes it as a loop, uses Java's built-in search and its negative result, finds where duplicates start and end, and applies the same halving to answers and to arrays that were rotated.",
+  "steps": [
+    {
+      "title": "Binary search with a loop",
+      "body": "The Recursion lesson halved a sorted range with recursive calls. A `while` loop does the same with no call stack: keep the range `lo` to `hi`, look at the middle, and throw away the half that can't hold the target.\n\n```java\nstatic int search(int[] a, int target) {\n    int lo = 0;\n    int hi = a.length - 1;\n    while (lo <= hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] == target) {\n            return mid;\n        } else if (a[mid] < target) {\n            lo = mid + 1;\n        } else {\n            hi = mid - 1;\n        }\n    }\n    return -1;\n}\nSystem.out.println(search(new int[]{2, 4, 7, 9}, 7)); // 2\n```\n\n`while (lo <= hi)` runs while the range holds at least one index, and every pass shrinks it, so the loop always ends. Write the middle as `lo + (hi - lo) / 2`: on a huge array `lo + hi` can pass `Integer.MAX_VALUE` and wrap to a negative index. For an array sorted from high to low, flip the two comparisons: go right when `a[mid]` is bigger than the target.\n\n`Arrays.binarySearch(a, x)` runs this search for you on an ascending array. When `x` is missing, it returns a negative number, `-(insertion point) - 1`, where the insertion point is the index `x` would take to keep the array sorted. Turn it back with `-r - 1`:\n\n```java\nint[] a = {2, 4, 7, 9};\nint r = Arrays.binarySearch(a, 5);\nSystem.out.println(r + \" \" + (-r - 1)); // -3 2\n```",
+      "example": {
+        "title": "Found or missing",
+        "prompt": "Read a sorted list and some targets, and for each target print where it is, or what Arrays.binarySearch returns and where the target would go.",
+        "code": "import java.util.Arrays;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] a = new int[n];\n        for (int i = 0; i < n; i++) {\n            a[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int target = sc.nextInt();\n            int found = search(a, target);\n            int r = Arrays.binarySearch(a, target);\n            if (found >= 0) {\n                System.out.println(target + \": found at \" + found);\n            } else {\n                System.out.println(target + \": missing, binarySearch gave \" + r + \", insert at \" + (-r - 1));\n            }\n        }\n    }\n\n    static int search(int[] a, int target) {\n        int lo = 0;\n        int hi = a.length - 1;\n        while (lo <= hi) {\n            int mid = lo + (hi - lo) / 2;\n            if (a[mid] == target) {\n                return mid;\n            } else if (a[mid] < target) {\n                lo = mid + 1;\n            } else {\n                hi = mid - 1;\n            }\n        }\n        return -1;\n    }\n}\n",
+        "stdin": "6\n3 8 12 15 21 30\n3\n15\n10\n40\n",
+        "output": "15: found at 3\n10: missing, binarySearch gave -3, insert at 2\n40: missing, binarySearch gave -7, insert at 6",
+        "explanation": "For 15, the range halves until `a[mid]` is 15 at index 3. For 10, the loop ends with `lo > hi` and returns -1. `Arrays.binarySearch` gives -3 for it, so `-r - 1` is 2: 10 belongs between 8 and 12. For 40, larger than everything, the insertion point is 6, the array's length."
+      },
+      "practice": {
+        "title": "Leaderboard ranks",
+        "prompt": "Look up scores on a leaderboard sorted from the highest score to the lowest.\n\n1. The starter reads `n`, then `n` distinct scores from high to low into `board`, then `q` scores to look up.\n2. Finish `find` with a binary search loop. Since the board runs from high to low, go right when `board[mid]` is bigger than the score.\n3. Return the index of the score, or -1 when it isn't there.\n4. The starter prints `rank` and the index plus 1, or `not on the board`.\n\nInput:\n\n```text\n6\n980 875 760 640 500 410\n3\n760\n900\n410\n```\n\nExpected output:\n\n```text\n760: rank 3\n900: not on the board\n410: rank 6\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] board = new int[n];\n        for (int i = 0; i < n; i++) {\n            board[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int score = sc.nextInt();\n            int i = find(board, score);\n            if (i >= 0) {\n                System.out.println(score + \": rank \" + (i + 1));\n            } else {\n                System.out.println(score + \": not on the board\");\n            }\n        }\n    }\n\n    static int find(int[] board, int score) {\n        // TODO: binary search a board sorted from high to low, returning the index or -1\n        return -1;\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] board = new int[n];\n        for (int i = 0; i < n; i++) {\n            board[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int score = sc.nextInt();\n            int i = find(board, score);\n            if (i >= 0) {\n                System.out.println(score + \": rank \" + (i + 1));\n            } else {\n                System.out.println(score + \": not on the board\");\n            }\n        }\n    }\n\n    static int find(int[] board, int score) {\n        int lo = 0;\n        int hi = board.length - 1;\n        while (lo <= hi) {\n            int mid = lo + (hi - lo) / 2;\n            if (board[mid] == score) {\n                return mid;\n            } else if (board[mid] > score) {\n                lo = mid + 1;\n            } else {\n                hi = mid - 1;\n            }\n        }\n        return -1;\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n980 875 760 640 500 410\n3\n760\n900\n410\n",
+            "output": "760: rank 3\n900: not on the board\n410: rank 6"
+          },
+          {
+            "stdin": "1\n50\n2\n50\n49\n",
+            "output": "50: rank 1\n49: not on the board"
+          },
+          {
+            "stdin": "4\n40 30 20 10\n2\n10\n40\n",
+            "output": "10: rank 4\n40: rank 1"
+          }
+        ],
+        "hints": [
+          "Copy the example's `search` and swap the two comparisons: `board[mid] > score` means the score is further right.",
+          "Keep `while (lo <= hi)` and `mid = lo + (hi - lo) / 2`."
+        ]
+      }
+    },
+    {
+      "title": "Lower and upper bounds",
+      "body": "With duplicates, an exact match can land on any copy. A **lower bound** finds the first index whose value is at least the target, and an **upper bound** the first index whose value is greater than it. Both use a half-open range: `hi` starts at `a.length`, one past the end, and the loop runs `while (lo < hi)`:\n\n```java\nstatic int lowerBound(int[] a, int target) {\n    int lo = 0;\n    int hi = a.length;\n    while (lo < hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] < target) {\n            lo = mid + 1;        // mid is too small: the answer is after it\n        } else {\n            hi = mid;            // mid might be the answer: keep it\n        }\n    }\n    return lo;\n}\nSystem.out.println(lowerBound(new int[]{1, 2, 2, 2, 5}, 2)); // 1\n```\n\nThe upper bound is the same method with `a[mid] <= target` in the `if`. Both return `a.length` when no value qualifies, so check that before you read `a[lo]`.\n\nTogether they answer the duplicate questions. The target appears `upper - lower` times. Its first index is `lower` when `a[lower]` equals it, and its last index is `upper - 1`. Never write `lo = mid` in this loop: `mid` rounds down, so a range of two would never shrink.",
+      "example": {
+        "title": "First and last position",
+        "prompt": "Read a sorted list with duplicates and some targets, and for each target print its first and last index and how many times it appears.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] a = new int[n];\n        for (int i = 0; i < n; i++) {\n            a[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int target = sc.nextInt();\n            int first = lowerBound(a, target);\n            int count = upperBound(a, target) - first;\n            if (count == 0) {\n                System.out.println(target + \": -1 -1, count 0\");\n            } else {\n                System.out.println(target + \": first \" + first + \", last \" + (first + count - 1) + \", count \" + count);\n            }\n        }\n    }\n\n    static int lowerBound(int[] a, int target) {\n        int lo = 0;\n        int hi = a.length;\n        while (lo < hi) {\n            int mid = lo + (hi - lo) / 2;\n            if (a[mid] < target) {\n                lo = mid + 1;\n            } else {\n                hi = mid;\n            }\n        }\n        return lo;\n    }\n\n    static int upperBound(int[] a, int target) {\n        int lo = 0;\n        int hi = a.length;\n        while (lo < hi) {\n            int mid = lo + (hi - lo) / 2;\n            if (a[mid] <= target) {\n                lo = mid + 1;\n            } else {\n                hi = mid;\n            }\n        }\n        return lo;\n    }\n}\n",
+        "stdin": "8\n1 3 3 3 5 8 8 9\n3\n3\n8\n4\n",
+        "output": "3: first 1, last 3, count 3\n8: first 5, last 6, count 2\n4: -1 -1, count 0",
+        "explanation": "For 3, the lower bound stops on index 1, the first 3, and the upper bound on index 4, the 5 just after the last 3. Their difference, 3, is the count, and the last index is `first + count - 1`. For 4, both bounds land on index 4, because 5 is the first value that is at least 4 and also the first greater than it, so the count is 0 and the program prints -1 -1."
+      },
+      "practice": {
+        "title": "Scores in a range",
+        "prompt": "Count how many sorted scores fall inside each range.\n\n1. The starter reads `n`, then `n` scores from low to high, then `q` ranges of a low and a high score.\n2. Finish `lowerBound` and `upperBound` like the example's.\n3. The scores from `low` to `high`, both included, start at `lowerBound(scores, low)` and end just before `upperBound(scores, high)`.\n4. Print the low score, ` to `, the high score, a colon and a space, and the count.\n\nInput:\n\n```text\n8\n55 60 62 70 75 80 85 91\n3\n60 80\n86 90\n0 100\n```\n\nExpected output:\n\n```text\n60 to 80: 5\n86 to 90: 0\n0 to 100: 8\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] scores = new int[n];\n        for (int i = 0; i < n; i++) {\n            scores[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int low = sc.nextInt();\n            int high = sc.nextInt();\n            // TODO: count the scores from low to high, inclusive, with the two bounds\n        }\n    }\n\n    static int lowerBound(int[] a, int target) {\n        // TODO: the first index whose value is at least target\n        return 0;\n    }\n\n    static int upperBound(int[] a, int target) {\n        // TODO: the first index whose value is greater than target\n        return 0;\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] scores = new int[n];\n        for (int i = 0; i < n; i++) {\n            scores[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int low = sc.nextInt();\n            int high = sc.nextInt();\n            int count = upperBound(scores, high) - lowerBound(scores, low);\n            System.out.println(low + \" to \" + high + \": \" + count);\n        }\n    }\n\n    static int lowerBound(int[] a, int target) {\n        int lo = 0;\n        int hi = a.length;\n        while (lo < hi) {\n            int mid = lo + (hi - lo) / 2;\n            if (a[mid] < target) {\n                lo = mid + 1;\n            } else {\n                hi = mid;\n            }\n        }\n        return lo;\n    }\n\n    static int upperBound(int[] a, int target) {\n        int lo = 0;\n        int hi = a.length;\n        while (lo < hi) {\n            int mid = lo + (hi - lo) / 2;\n            if (a[mid] <= target) {\n                lo = mid + 1;\n            } else {\n                hi = mid;\n            }\n        }\n        return lo;\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "8\n55 60 62 70 75 80 85 91\n3\n60 80\n86 90\n0 100\n",
+            "output": "60 to 80: 5\n86 to 90: 0\n0 to 100: 8"
+          },
+          {
+            "stdin": "5\n5 5 5 5 5\n2\n5 5\n6 9\n",
+            "output": "5 to 5: 5\n6 to 9: 0"
+          },
+          {
+            "stdin": "3\n10 20 30\n1\n15 25\n",
+            "output": "15 to 25: 1"
+          }
+        ],
+        "hints": [
+          "The two methods differ only in `<` versus `<=` inside the `if`.",
+          "The count is `upperBound(scores, high) - lowerBound(scores, low)`."
+        ]
+      }
+    },
+    {
+      "title": "Searching for the answer",
+      "body": "Sometimes you don't search an array at all. You search for the smallest value that works, when every bigger value works too. Write a check for one guess, then binary search the range of possible answers with the lower-bound loop: when `mid` works, keep it as a candidate with `hi = mid`, otherwise go higher with `lo = mid + 1`.\n\nKoko eats bananas at `speed` per hour, from one pile at a time, and must finish every pile within `h` hours:\n\n```java\nstatic boolean canFinish(int[] piles, int speed, int h) {\n    long hours = 0;\n    for (int p : piles) {\n        hours += (p + speed - 1) / speed;   // p / speed, rounded up\n    }\n    return hours <= h;\n}\nSystem.out.println(canFinish(new int[]{3, 6, 7, 11}, 4, 8)); // true\n```\n\n`(p + speed - 1) / speed` rounds up with no `double`: a pile of 7 at speed 4 takes 2 hours. The total is a `long`, since many large piles can pass the `int` limit. Then search the speeds from 1 up to the biggest pile, which always works:\n\n```java harness\nstatic boolean canFinish(int[] piles, int speed, int h) { long hours = 0; for (int p : piles) hours += (p + speed - 1) / speed; return hours <= h; }\nint[] piles = {3, 6, 7, 11};\nint h = 8;\nint biggest = 11;\n{{code}}\nSystem.out.println(lo);\n```\n\n```java\nint lo = 1;\nint hi = biggest;\nwhile (lo < hi) {\n    int mid = lo + (hi - lo) / 2;\n    if (canFinish(piles, mid, h)) {\n        hi = mid;              // works: try slower\n    } else {\n        lo = mid + 1;          // too slow\n    }\n}\n```",
+      "example": {
+        "title": "Koko's slowest speed",
+        "prompt": "Read banana piles and some hour limits, and for each limit print the slowest eating speed that finishes in time.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] piles = new int[n];\n        int biggest = 0;\n        for (int i = 0; i < n; i++) {\n            piles[i] = sc.nextInt();\n            biggest = Math.max(biggest, piles[i]);\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int h = sc.nextInt();\n            int lo = 1;\n            int hi = biggest;\n            while (lo < hi) {\n                int mid = lo + (hi - lo) / 2;\n                if (canFinish(piles, mid, h)) {\n                    hi = mid;\n                } else {\n                    lo = mid + 1;\n                }\n            }\n            System.out.println(h + \" hours: speed \" + lo);\n        }\n    }\n\n    static boolean canFinish(int[] piles, int speed, int h) {\n        long hours = 0;\n        for (int p : piles) {\n            hours += (p + speed - 1) / speed;\n        }\n        return hours <= h;\n    }\n}\n",
+        "stdin": "4\n3 6 7 11\n2\n8\n5\n",
+        "output": "8 hours: speed 4\n5 hours: speed 7",
+        "explanation": "The answer lies between 1 and the biggest pile, 11, since at that speed every pile takes one hour. For 8 hours, speed 4 takes 1 + 2 + 2 + 3 = 8 hours and speed 3 takes 10, so 4 is the smallest that works. For 5 hours, speed 7 needs exactly 5 hours and speed 6 needs 6. The search checks only about 4 speeds each time instead of all 11."
+      },
+      "practice": {
+        "title": "Ship within the days",
+        "prompt": "Find the smallest ship capacity that delivers every package, in order, within a number of days.\n\n1. The starter reads `n`, then `n` package weights, then `q` day limits. `canShip` is finished: it says whether a capacity is enough.\n2. While reading the weights, track the heaviest package and the total weight. The answer lies between those two.\n3. For each day limit, binary search that range for the smallest capacity that `canShip` accepts.\n4. Print `Days `, the limit, `: capacity `, and the capacity, like `Days 5: capacity 15`.\n\nInput:\n\n```text\n10\n1 2 3 4 5 6 7 8 9 10\n2\n5\n1\n```\n\nExpected output:\n\n```text\nDays 5: capacity 15\nDays 1: capacity 55\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] weights = new int[n];\n        for (int i = 0; i < n; i++) {\n            weights[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int days = sc.nextInt();\n            // TODO: binary search the smallest capacity that canShip accepts, then print it\n        }\n    }\n\n    // Finished helper: whether loading the packages in order, never over cap, takes at most days.\n    static boolean canShip(int[] weights, int cap, int days) {\n        int used = 1;\n        int load = 0;\n        for (int w : weights) {\n            if (load + w > cap) {\n                used++;\n                load = 0;\n            }\n            load += w;\n        }\n        return used <= days;\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] weights = new int[n];\n        int heaviest = 0;\n        int total = 0;\n        for (int i = 0; i < n; i++) {\n            weights[i] = sc.nextInt();\n            heaviest = Math.max(heaviest, weights[i]);\n            total += weights[i];\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int days = sc.nextInt();\n            int lo = heaviest;\n            int hi = total;\n            while (lo < hi) {\n                int mid = lo + (hi - lo) / 2;\n                if (canShip(weights, mid, days)) {\n                    hi = mid;\n                } else {\n                    lo = mid + 1;\n                }\n            }\n            System.out.println(\"Days \" + days + \": capacity \" + lo);\n        }\n    }\n\n    // Finished helper: whether loading the packages in order, never over cap, takes at most days.\n    static boolean canShip(int[] weights, int cap, int days) {\n        int used = 1;\n        int load = 0;\n        for (int w : weights) {\n            if (load + w > cap) {\n                used++;\n                load = 0;\n            }\n            load += w;\n        }\n        return used <= days;\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "10\n1 2 3 4 5 6 7 8 9 10\n2\n5\n1\n",
+            "output": "Days 5: capacity 15\nDays 1: capacity 55"
+          },
+          {
+            "stdin": "5\n3 2 2 4 1\n2\n2\n5\n",
+            "output": "Days 2: capacity 7\nDays 5: capacity 4"
+          },
+          {
+            "stdin": "3\n1 2 3\n1\n3\n",
+            "output": "Days 3: capacity 3"
+          }
+        ],
+        "hints": [
+          "Start `lo` at the heaviest package, since a smaller ship can't carry it, and `hi` at the total, which ships everything in one day.",
+          "Use the example's loop: `hi = mid` when `canShip(weights, mid, days)` is true, otherwise `lo = mid + 1`."
+        ]
+      }
+    },
+    {
+      "title": "Searching a rotated array",
+      "body": "A sorted array turned at some point, like `{4, 5, 6, 7, 0, 1, 2}`, is no longer sorted, but binary search still works on it. Cut any range in the middle and at least one half is still in order. Find that half by comparing its two ends, check whether the target lies inside it, and keep whichever half can hold the target:\n\n```java\nstatic int searchRotated(int[] a, int target) {\n    int lo = 0;\n    int hi = a.length - 1;\n    while (lo <= hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] == target) {\n            return mid;\n        }\n        if (a[lo] <= a[mid]) {                          // the left half is in order\n            if (a[lo] <= target && target < a[mid]) {\n                hi = mid - 1;\n            } else {\n                lo = mid + 1;\n            }\n        } else {                                        // the right half is in order\n            if (a[mid] < target && target <= a[hi]) {\n                lo = mid + 1;\n            } else {\n                hi = mid - 1;\n            }\n        }\n    }\n    return -1;\n}\nSystem.out.println(searchRotated(new int[]{4, 5, 6, 7, 0, 1, 2}, 0)); // 4\n```\n\n`a[lo] <= a[mid]` means the left half climbs with no break, so the target is in it exactly when `a[lo] <= target && target < a[mid]`. Otherwise the break is on the left, the right half is in order, and the same test uses `a[mid]` and `a[hi]`. The `<=` in `a[lo] <= a[mid]` matters when `lo` and `mid` are the same index. This assumes no value repeats.",
+      "example": {
+        "title": "Rotated lookups",
+        "prompt": "Read a rotated sorted list and some targets, and print each target's index, or -1.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] a = new int[n];\n        for (int i = 0; i < n; i++) {\n            a[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int target = sc.nextInt();\n            System.out.println(target + \": \" + searchRotated(a, target));\n        }\n    }\n\n    static int searchRotated(int[] a, int target) {\n        int lo = 0;\n        int hi = a.length - 1;\n        while (lo <= hi) {\n            int mid = lo + (hi - lo) / 2;\n            if (a[mid] == target) {\n                return mid;\n            }\n            if (a[lo] <= a[mid]) {\n                if (a[lo] <= target && target < a[mid]) {\n                    hi = mid - 1;\n                } else {\n                    lo = mid + 1;\n                }\n            } else {\n                if (a[mid] < target && target <= a[hi]) {\n                    lo = mid + 1;\n                } else {\n                    hi = mid - 1;\n                }\n            }\n        }\n        return -1;\n    }\n}\n",
+        "stdin": "7\n4 5 6 7 0 1 2\n4\n0\n6\n3\n2\n",
+        "output": "0: 4\n6: 2\n3: -1\n2: 6",
+        "explanation": "For 0, the first middle is 7. The left half, 4 to 7, is in order but can't hold 0, so the search moves right, where it finds 0 at index 4. For 6, the left half is in order and holds it, so the search stays left. For 3, every half that is in order rules it out, and the range runs empty."
+      },
+      "practice": {
+        "title": "Departure board",
+        "prompt": "Find departure times on a board that lists a day's times in order but starts partway through the day.\n\n1. The starter reads `n`, then `n` distinct times in minutes, then `q` times to look up.\n2. Finish `searchRotated`: find the half of the range that is in order, check whether the target lies inside it, and keep the half that can hold it.\n3. Return the index, or -1.\n4. The starter prints `departure` and the index plus 1, or `no departure`.\n\nInput:\n\n```text\n6\n900 1080 1260 120 360 600\n3\n360\n1260\n700\n```\n\nExpected output:\n\n```text\n360: departure 5\n1260: departure 3\n700: no departure\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] times = new int[n];\n        for (int i = 0; i < n; i++) {\n            times[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int time = sc.nextInt();\n            int i = searchRotated(times, time);\n            if (i >= 0) {\n                System.out.println(time + \": departure \" + (i + 1));\n            } else {\n                System.out.println(time + \": no departure\");\n            }\n        }\n    }\n\n    static int searchRotated(int[] a, int target) {\n        // TODO: find the half that is in order, and keep the half that can hold target\n        return -1;\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] times = new int[n];\n        for (int i = 0; i < n; i++) {\n            times[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int time = sc.nextInt();\n            int i = searchRotated(times, time);\n            if (i >= 0) {\n                System.out.println(time + \": departure \" + (i + 1));\n            } else {\n                System.out.println(time + \": no departure\");\n            }\n        }\n    }\n\n    static int searchRotated(int[] a, int target) {\n        int lo = 0;\n        int hi = a.length - 1;\n        while (lo <= hi) {\n            int mid = lo + (hi - lo) / 2;\n            if (a[mid] == target) {\n                return mid;\n            }\n            if (a[lo] <= a[mid]) {\n                if (a[lo] <= target && target < a[mid]) {\n                    hi = mid - 1;\n                } else {\n                    lo = mid + 1;\n                }\n            } else {\n                if (a[mid] < target && target <= a[hi]) {\n                    lo = mid + 1;\n                } else {\n                    hi = mid - 1;\n                }\n            }\n        }\n        return -1;\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n900 1080 1260 120 360 600\n3\n360\n1260\n700\n",
+            "output": "360: departure 5\n1260: departure 3\n700: no departure"
+          },
+          {
+            "stdin": "4\n10 20 30 40\n2\n30\n5\n",
+            "output": "30: departure 3\n5: no departure"
+          },
+          {
+            "stdin": "2\n50 10\n2\n10\n50\n",
+            "output": "10: departure 2\n50: departure 1"
+          }
+        ],
+        "hints": [
+          "If `a[lo] <= a[mid]`, the left half is in order, and the target is there when `a[lo] <= target && target < a[mid]`.",
+          "Otherwise the right half is in order, and the target is there when `a[mid] < target && target <= a[hi]`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Loop `while (lo <= hi)` with `mid = lo + (hi - lo) / 2`, and move `lo` or `hi` past `mid` until the range is empty.\n- `Arrays.binarySearch(a, x)` returns the index, or `-(insertion point) - 1`, so `-r - 1` is where `x` would go.\n- Flip the comparisons for an array sorted from high to low.\n- A lower bound is the first index with a value of at least the target, an upper bound the first with a greater value. Both use `hi = a.length` and `while (lo < hi)`.\n- A value appears `upper - lower` times, and `lo = mid` would loop forever.\n- To search for an answer, write a check for one guess and keep `hi = mid` when it works, `lo = mid + 1` when it doesn't.\n- Round up with `(p + k - 1) / k`, and keep big totals in a `long`.\n- In a rotated array one half of every range is in order. Test the target against that half's ends."
+}

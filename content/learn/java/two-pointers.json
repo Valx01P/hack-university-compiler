@@ -1,0 +1,158 @@
+{
+  "id": "two-pointers",
+  "title": "Two Pointers and Sliding Windows",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Replace nested loops with one pass: pointers that move inward, fixed and growing windows, and running totals with a map.",
+  "intro": "Many array and string problems look like they need a loop inside a loop. Two indexes that move with a plan do the same work in one pass: they close in from both ends, or they mark the edges of a window that slides along. A running total and a map handle the cases a window can't.",
+  "steps": [
+    {
+      "title": "Moving inward on sorted data",
+      "body": "In a sorted array, two pointers find a pair with a given sum in one pass. Start `left` at the first index and `right` at the last. If the pair's sum is too small, the only way up is a bigger left value, so move `left` right. If it's too big, move `right` left. Every step rules one value out for good, so the loop runs at most n times instead of trying every pair:\n\n```java\nint[] nums = {1, 3, 4, 6, 9};\nint target = 13;\nint left = 0;\nint right = nums.length - 1;\nwhile (left < right) {\n    int sum = nums[left] + nums[right];\n    if (sum == target) {\n        break;\n    } else if (sum < target) {\n        left++;                  // need a bigger sum\n    } else {\n        right--;                 // need a smaller sum\n    }\n}\nSystem.out.println(nums[left] + \" + \" + nums[right]); // 4 + 9\n```\n\n`while (left < right)` stops before the pointers meet, so a value is never paired with itself. If the loop ends without a match, there is no pair, so put the search in a method that returns as soon as it finds one and returns a \"none\" value after the loop.\n\nThis only works on sorted data. On unsorted input, sort it first, or keep a `HashMap` of the values you have already seen.",
+      "example": {
+        "title": "Pairs that hit a target",
+        "prompt": "Read a sorted list and some targets, and for each target print the 1-based positions of two numbers that add up to it, or none.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int target = sc.nextInt();\n            System.out.println(target + \": \" + findPair(nums, target));\n        }\n    }\n\n    static String findPair(int[] nums, int target) {\n        int left = 0;\n        int right = nums.length - 1;\n        while (left < right) {\n            int sum = nums[left] + nums[right];\n            if (sum == target) {\n                return (left + 1) + \" and \" + (right + 1);\n            } else if (sum < target) {\n                left++;\n            } else {\n                right--;\n            }\n        }\n        return \"none\";\n    }\n}\n",
+        "stdin": "6\n2 7 11 15 20 30\n2\n26\n8\n",
+        "output": "26: 3 and 4\n8: none",
+        "explanation": "For 26, the pointers start on 2 and 30, and 32 is too big, so `right` moves to 20. Then 2 + 20 is too small, 7 + 20 too big, and 7 + 15 too small, until 11 + 15 hits 26 at positions 3 and 4. For 8, the first sum 2 + 30 is too big, and every later sum is still too big until the pointers meet, so `findPair` reaches its final `return` and gives none."
+      },
+      "practice": {
+        "title": "Two gifts for a card",
+        "prompt": "Find two gifts whose prices add up to exactly a gift card's value.\n\n1. The starter reads `n`, then `n` prices sorted from low to high, then `q` card values.\n2. Finish `findGifts`: start one pointer at each end and move them inward until the two prices add up to `card`.\n3. Return the two prices as `low + high`, like `20 + 50`, or `No pair` when the pointers meet first.\n4. The starter prints each card value, a colon and a space, and your result.\n\nInput:\n\n```text\n5\n10 20 35 50 65\n3\n70\n85\n31\n```\n\nExpected output:\n\n```text\n70: 20 + 50\n85: 20 + 65\n31: No pair\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] prices = new int[n];\n        for (int i = 0; i < n; i++) {\n            prices[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int card = sc.nextInt();\n            System.out.println(card + \": \" + findGifts(prices, card));\n        }\n    }\n\n    static String findGifts(int[] prices, int card) {\n        // TODO: move two pointers inward and return the two prices, or No pair\n        return \"\";\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] prices = new int[n];\n        for (int i = 0; i < n; i++) {\n            prices[i] = sc.nextInt();\n        }\n        int q = sc.nextInt();\n        for (int t = 0; t < q; t++) {\n            int card = sc.nextInt();\n            System.out.println(card + \": \" + findGifts(prices, card));\n        }\n    }\n\n    static String findGifts(int[] prices, int card) {\n        int left = 0;\n        int right = prices.length - 1;\n        while (left < right) {\n            int sum = prices[left] + prices[right];\n            if (sum == card) {\n                return prices[left] + \" + \" + prices[right];\n            } else if (sum < card) {\n                left++;\n            } else {\n                right--;\n            }\n        }\n        return \"No pair\";\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "5\n10 20 35 50 65\n3\n70\n85\n31\n",
+            "output": "70: 20 + 50\n85: 20 + 65\n31: No pair"
+          },
+          {
+            "stdin": "2\n4 6\n1\n10\n",
+            "output": "10: 4 + 6"
+          },
+          {
+            "stdin": "4\n1 2 3 4\n2\n8\n5\n",
+            "output": "8: No pair\n5: 1 + 4"
+          }
+        ],
+        "hints": [
+          "Start from the example's `findPair`. Only the `return` lines change.",
+          "Return `prices[left] + \" + \" + prices[right]` when the sum matches."
+        ]
+      }
+    },
+    {
+      "title": "Fixed-size windows",
+      "body": "A window is a run of `k` neighbors, `nums[i]` to `nums[i + k - 1]`. Adding up every window from scratch costs k steps each. Sliding is cheaper: when the window moves one place right, one value enters and one leaves, so update the sum instead of redoing it:\n\n```java\nint[] sales = {4, 2, 7, 1, 8, 3};\nint k = 3;\nint window = 0;\nfor (int i = 0; i < k; i++) {\n    window += sales[i];                          // the first window\n}\nint best = window;\nfor (int right = k; right < sales.length; right++) {\n    window += sales[right] - sales[right - k];   // one in, one out\n    best = Math.max(best, window);\n}\nSystem.out.println(best); // 16, from 7 + 1 + 8\n```\n\nThe value leaving is `sales[right - k]`, exactly k places behind the one entering. The window that ends at `right` starts at `right - k + 1`, which is how you report where the best window is.\n\nMake sure `k` is at most the array's length before you build the first window, or that first loop reads past the end and throws `ArrayIndexOutOfBoundsException`.",
+      "example": {
+        "title": "Best three days",
+        "prompt": "Read daily sales and a window size k, print every k-day total, then the best one and the day it starts.",
+        "code": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] sales = new int[n];\n        for (int i = 0; i < n; i++) {\n            sales[i] = sc.nextInt();\n        }\n        int k = sc.nextInt();\n\n        int window = 0;\n        for (int i = 0; i < k; i++) {\n            window += sales[i];\n        }\n        StringBuilder sums = new StringBuilder(\"Windows: \" + window);\n        int best = window;\n        int bestStart = 0;\n        for (int right = k; right < n; right++) {\n            window += sales[right] - sales[right - k];\n            sums.append(' ').append(window);\n            if (window > best) {\n                best = window;\n                bestStart = right - k + 1;\n            }\n        }\n        System.out.println(sums);\n        System.out.println(\"Best: \" + best + \" starting on day \" + (bestStart + 1));\n    }\n}\n",
+        "stdin": "6\n4 2 7 1 8 3\n3\n",
+        "output": "Windows: 13 10 16 12\nBest: 16 starting on day 3",
+        "explanation": "The first loop adds days 1 to 3 into `window`. Each later pass adds the day entering and subtracts the day `k` places behind it, so every total costs one step. A window ending at `right` starts at `right - k + 1`, and the `+ 1` when printing turns that index into a day number. Using `>` keeps the earliest window when two totals tie."
+      },
+      "practice": {
+        "title": "Coldest stretch",
+        "prompt": "Find the coldest run of k days in a list of daily temperatures.\n\n1. The starter reads `n`, then `n` temperatures into `temps`, then `k`.\n2. Build the first window's total, then slide it one day at a time.\n3. Print `Totals:` and then every window total, each after a space.\n4. Track the smallest total and where its window starts. On a tie keep the earliest window.\n5. Print `Coldest: `, the total, ` starting on day `, and the 1-based start day.\n\nInput:\n\n```text\n7\n12 9 7 10 6 5 11\n2\n```\n\nExpected output:\n\n```text\nTotals: 21 16 17 16 11 16\nColdest: 11 starting on day 5\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] temps = new int[n];\n        for (int i = 0; i < n; i++) {\n            temps[i] = sc.nextInt();\n        }\n        int k = sc.nextInt();\n        // TODO: build the first window, slide it, and track the smallest total and its start\n        // TODO: print the window totals, then the coldest stretch\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] temps = new int[n];\n        for (int i = 0; i < n; i++) {\n            temps[i] = sc.nextInt();\n        }\n        int k = sc.nextInt();\n\n        int window = 0;\n        for (int i = 0; i < k; i++) {\n            window += temps[i];\n        }\n        StringBuilder totals = new StringBuilder(\"Totals: \" + window);\n        int coldest = window;\n        int coldStart = 0;\n        for (int right = k; right < n; right++) {\n            window += temps[right] - temps[right - k];\n            totals.append(' ').append(window);\n            if (window < coldest) {\n                coldest = window;\n                coldStart = right - k + 1;\n            }\n        }\n        System.out.println(totals);\n        System.out.println(\"Coldest: \" + coldest + \" starting on day \" + (coldStart + 1));\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "7\n12 9 7 10 6 5 11\n2\n",
+            "output": "Totals: 21 16 17 16 11 16\nColdest: 11 starting on day 5"
+          },
+          {
+            "stdin": "4\n-3 -5 2 -6\n3\n",
+            "output": "Totals: -6 -9\nColdest: -9 starting on day 2"
+          },
+          {
+            "stdin": "3\n5 5 5\n3\n",
+            "output": "Totals: 15\nColdest: 15 starting on day 1"
+          },
+          {
+            "stdin": "5\n5 1 4 2 3\n2\n",
+            "output": "Totals: 6 5 6 5\nColdest: 5 starting on day 2"
+          }
+        ],
+        "hints": [
+          "Follow the example, but update the record with `window < coldest` instead of `>`.",
+          "Start `coldest` at the first window's total and `coldStart` at 0."
+        ]
+      }
+    },
+    {
+      "title": "Growing and shrinking windows",
+      "body": "Some windows have no fixed size: you want the longest or shortest run that follows a rule. Grow the window by moving `right` one step every pass. When the new value breaks the rule, shrink it from the left with a `while` loop until the rule holds again. Each index enters once and leaves once, so it's still one pass.\n\nFor the longest stretch of a string with no repeated character, a `HashSet` holds the window's characters:\n\n```java\nimport java.util.HashSet;\nimport java.util.Set;\n\nString s = \"abcabcbb\";\nSet<Character> window = new HashSet<>();\nint left = 0;\nint best = 0;\nfor (int right = 0; right < s.length(); right++) {\n    char c = s.charAt(right);\n    while (window.contains(c)) {\n        window.remove(s.charAt(left));   // shrink until c is gone\n        left++;\n    }\n    window.add(c);\n    best = Math.max(best, right - left + 1);\n}\nSystem.out.println(best); // 3\n```\n\nThe window runs from `left` to `right`, so its length is `right - left + 1`. Use `while`, not `if`: the repeat may sit several places in, and every character before it has to leave too.\n\nShrinking only works when dropping values from the left can fix the rule. For a sum limit, that holds when the values are never negative, since dropping one can only lower the sum.",
+      "example": {
+        "title": "Longest distinct run",
+        "prompt": "Read words until the input ends, and for each one print the length of its longest stretch with no repeated letter, and that stretch.",
+        "code": "import java.util.HashSet;\nimport java.util.Scanner;\nimport java.util.Set;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        while (sc.hasNext()) {\n            String s = sc.next();\n            Set<Character> window = new HashSet<>();\n            int left = 0;\n            int best = 0;\n            int bestStart = 0;\n            for (int right = 0; right < s.length(); right++) {\n                char c = s.charAt(right);\n                while (window.contains(c)) {\n                    window.remove(s.charAt(left));\n                    left++;\n                }\n                window.add(c);\n                if (right - left + 1 > best) {\n                    best = right - left + 1;\n                    bestStart = left;\n                }\n            }\n            System.out.println(s + \": \" + best + \" \" + s.substring(bestStart, bestStart + best));\n        }\n    }\n}\n",
+        "stdin": "abcabcbb\nbbbbb\npwwkew\n",
+        "output": "abcabcbb: 3 abc\nbbbbb: 1 b\npwwkew: 3 wke",
+        "explanation": "In `abcabcbb`, the window grows to `abc`. The next `a` is already in the set, so the `while` loop removes letters from the left until that `a` is gone, and the window becomes `bca`. A stretch replaces the record only when it is strictly longer, so the first longest one wins, and `bestStart` remembers where it began for `substring`. In `pwwkew`, the second `w` forces both `p` and the first `w` out."
+      },
+      "practice": {
+        "title": "Longest run within budget",
+        "prompt": "Find the longest run of neighboring items whose prices add up to at most a budget. Prices are never negative.\n\n1. The starter reads `n`, then `n` prices, then `budget`.\n2. Grow the window with `right`, adding each price to `sum`.\n3. While `sum` is over the budget, subtract `prices[left]` and move `left` on.\n4. Track the longest window and where it starts. On a tie keep the first one.\n5. Print `Longest: ` and its length, then `Items:` and each price in it, each after a space.\n\nInput:\n\n```text\n7\n4 2 1 7 3 1 1\n8\n```\n\nExpected output:\n\n```text\nLongest: 3\nItems: 4 2 1\n```",
+        "starter": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] prices = new int[n];\n        for (int i = 0; i < n; i++) {\n            prices[i] = sc.nextInt();\n        }\n        int budget = sc.nextInt();\n        // TODO: grow the window with right, shrink it with left while the sum is over budget\n        // TODO: print the longest length and the items in that window\n    }\n}\n",
+        "solution": "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] prices = new int[n];\n        for (int i = 0; i < n; i++) {\n            prices[i] = sc.nextInt();\n        }\n        int budget = sc.nextInt();\n\n        int left = 0;\n        int sum = 0;\n        int best = 0;\n        int bestStart = 0;\n        for (int right = 0; right < n; right++) {\n            sum += prices[right];\n            while (sum > budget) {\n                sum -= prices[left];\n                left++;\n            }\n            if (right - left + 1 > best) {\n                best = right - left + 1;\n                bestStart = left;\n            }\n        }\n        System.out.println(\"Longest: \" + best);\n        StringBuilder items = new StringBuilder(\"Items:\");\n        for (int i = bestStart; i < bestStart + best; i++) {\n            items.append(' ').append(prices[i]);\n        }\n        System.out.println(items);\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "7\n4 2 1 7 3 1 1\n8\n",
+            "output": "Longest: 3\nItems: 4 2 1"
+          },
+          {
+            "stdin": "4\n5 5 5 5\n12\n",
+            "output": "Longest: 2\nItems: 5 5"
+          },
+          {
+            "stdin": "3\n9 2 9\n5\n",
+            "output": "Longest: 1\nItems: 2"
+          }
+        ],
+        "hints": [
+          "The example's rule was no repeats. Here it is `sum <= budget`, so shrink `while (sum > budget)`.",
+          "Update the record with `right - left + 1 > best`, then print `prices[bestStart]` up to `prices[bestStart + best - 1]`."
+        ]
+      }
+    },
+    {
+      "title": "Running totals with a map",
+      "body": "Keep a running total `sum` of everything so far. The subarray after index `j` up to index `i` adds up to the total at `i` minus the total at `j`. So a subarray that ends here sums to `k` exactly when some earlier running total equals `sum - k`. Keep a map from each running total to how many times you have seen it:\n\n```java\nimport java.util.HashMap;\nimport java.util.Map;\n\nint[] nums = {1, 2, 1, 2, 1};\nint k = 3;\nMap<Integer, Integer> seen = new HashMap<>();\nseen.put(0, 1);                              // the empty start, before index 0\nint sum = 0;\nint count = 0;\nfor (int x : nums) {\n    sum += x;\n    count += seen.getOrDefault(sum - k, 0);  // earlier totals that leave exactly k\n    seen.merge(sum, 1, Integer::sum);\n}\nSystem.out.println(count); // 4\n```\n\n`seen.put(0, 1)` lets a subarray that starts at index 0 count. Look up `sum - k` before you add the current total, or a subarray of length 0 counts when `k` is 0.\n\nUnlike a sliding window, this works with negative numbers, because it never assumes that a longer window has a bigger sum. Running totals can outgrow an `int` on long inputs, so switch to `long` and a `Map<Long, Integer>` when they might.",
+      "example": {
+        "title": "Subarrays that hit k",
+        "prompt": "Read some numbers and a target k, print the running totals, then count the subarrays that sum to k.",
+        "code": "import java.util.HashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = sc.nextInt();\n        }\n        int k = sc.nextInt();\n\n        Map<Integer, Integer> seen = new HashMap<>();\n        seen.put(0, 1);\n        int sum = 0;\n        int count = 0;\n        StringBuilder totals = new StringBuilder(\"Running totals:\");\n        for (int x : nums) {\n            sum += x;\n            totals.append(' ').append(sum);\n            count += seen.getOrDefault(sum - k, 0);\n            seen.merge(sum, 1, Integer::sum);\n        }\n        System.out.println(totals);\n        System.out.println(\"Subarrays summing to \" + k + \": \" + count);\n    }\n}\n",
+        "stdin": "6\n3 4 -7 3 1 3\n7\n",
+        "output": "Running totals: 3 7 0 3 4 7\nSubarrays summing to 7: 3",
+        "explanation": "The running totals are 3, 7, 0, 3, 4, 7. At the total 7, the map already holds 0 once, so the stretch `3 4` counts. At the next 3, there is no earlier `-4`, so nothing counts. At the final 7, the earlier totals 0 appear twice (the empty start and after `-7`), so two more stretches count: the whole list and `3 1 3`. The negative number would break a sliding window, but not this."
+      },
+      "practice": {
+        "title": "Balanced stretches",
+        "prompt": "Count the stretches of days whose net change adds up to a target, and the stretches that add up to 0.\n\n1. The starter reads `n`, then `n` daily changes, which can be negative, then `target`.\n2. Finish `countStretches`: keep a running total and a `Map<Integer, Integer>` of how often each total appeared, starting with `0` seen once.\n3. For each day, add the map's count for `sum - k` to the answer, then record `sum`.\n4. The starter calls it twice and prints both answers.\n\nInput:\n\n```text\n6\n2 -2 3 -3 5 -5\n3\n```\n\nExpected output:\n\n```text\nStretches with total 3: 3\nBalanced stretches: 6\n```",
+        "starter": "import java.util.HashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] changes = new int[n];\n        for (int i = 0; i < n; i++) {\n            changes[i] = sc.nextInt();\n        }\n        int target = sc.nextInt();\n        System.out.println(\"Stretches with total \" + target + \": \" + countStretches(changes, target));\n        System.out.println(\"Balanced stretches: \" + countStretches(changes, 0));\n    }\n\n    static int countStretches(int[] changes, int k) {\n        // TODO: count the subarrays that sum to k with running totals and a map of counts\n        return 0;\n    }\n}\n",
+        "solution": "import java.util.HashMap;\nimport java.util.Map;\nimport java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] changes = new int[n];\n        for (int i = 0; i < n; i++) {\n            changes[i] = sc.nextInt();\n        }\n        int target = sc.nextInt();\n        System.out.println(\"Stretches with total \" + target + \": \" + countStretches(changes, target));\n        System.out.println(\"Balanced stretches: \" + countStretches(changes, 0));\n    }\n\n    static int countStretches(int[] changes, int k) {\n        Map<Integer, Integer> seen = new HashMap<>();\n        seen.put(0, 1);\n        int sum = 0;\n        int count = 0;\n        for (int x : changes) {\n            sum += x;\n            count += seen.getOrDefault(sum - k, 0);\n            seen.merge(sum, 1, Integer::sum);\n        }\n        return count;\n    }\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n2 -2 3 -3 5 -5\n3\n",
+            "output": "Stretches with total 3: 3\nBalanced stretches: 6"
+          },
+          {
+            "stdin": "4\n1 1 1 1\n2\n",
+            "output": "Stretches with total 2: 3\nBalanced stretches: 0"
+          },
+          {
+            "stdin": "3\n0 0 4\n4\n",
+            "output": "Stretches with total 4: 3\nBalanced stretches: 3"
+          }
+        ],
+        "hints": [
+          "The method body is the example's loop without the printing. Start with `seen.put(0, 1)`.",
+          "Use `seen.getOrDefault(sum - k, 0)` before `seen.merge(sum, 1, Integer::sum)`."
+        ]
+      }
+    }
+  ],
+  "recap": "- On sorted data, start `left` at 0 and `right` at the end: move `left` for a bigger sum and `right` for a smaller one, `while (left < right)`.\n- A fixed window of size `k` slides with `window += a[right] - a[right - k]`, and it starts at `right - k + 1`.\n- A growing window moves `right` every pass and shrinks with `while` until its rule holds again.\n- A window's length is `right - left + 1`. Update the record only when it is strictly better to keep the first one.\n- A `HashSet` of the window's characters catches repeats, and a running `sum` handles a budget when values are never negative.\n- Count subarrays that sum to `k` with a running total and a map of earlier totals: add `seen.getOrDefault(sum - k, 0)`, then `merge`.\n- Start the map with `seen.put(0, 1)`, and remember this works with negative numbers where a window can't."
+}

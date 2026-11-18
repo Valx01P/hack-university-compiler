@@ -1,0 +1,158 @@
+{
+  "id": "dynamic-programming",
+  "title": "Dynamic Programming",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Turn a recursion into a table: count ways with a 1D list, take or skip items, find the fewest coins, and fill 2D grid tables.",
+  "intro": "The recursion lesson sped up Fibonacci with a cache. Dynamic programming is that idea used on purpose: write the answer for a size in terms of smaller sizes, then fill a list from the smallest size up, so every answer you need is already there when you need it.",
+  "steps": [
+    {
+      "title": "From recursion to a table",
+      "body": "Climbing stairs: you go up 1 or 2 steps at a time, so in how many ways can you reach step `n`? Your last move came from step `n - 1` or from step `n - 2`, so the ways add up. The recursion lesson would write it **top down**, with recursion and a cache:\n\n```python\nfrom functools import cache\n\n\n@cache\ndef ways(n):\n    if n <= 1:\n        return 1\n    return ways(n - 1) + ways(n - 2)\n\n\nprint(ways(10))  # 89\n```\n\n**Bottom up** fills a list from the base cases forward instead. Say in words what each entry means, here \"`dp[i]` is the number of ways to reach step `i`\", and compute each entry from ones already filled:\n\n```python\nn = 10\ndp = [0] * (n + 1)\ndp[0] = dp[1] = 1\nfor i in range(2, n + 1):\n    dp[i] = dp[i - 1] + dp[i - 2]\nprint(dp[n])  # 89\n```\n\nThe table has no recursion, so it has no depth limit. On Python 3.12.0, recursion through `@cache` fails near 500 levels even after `sys.setrecursionlimit()`, which makes a table the safe choice for big inputs.\n\nEach entry here reads only the two before it, so two variables are enough: `a, b = b, a + b` moves both one step up.",
+      "example": {
+        "title": "Ways up the stairs",
+        "prompt": "Fill the table of ways to climb 6 steps, then count the ways for 40 steps with two variables.",
+        "code": "n = 6\ndp = [0] * (n + 1)\ndp[0] = dp[1] = 1\nfor i in range(2, n + 1):\n    dp[i] = dp[i - 1] + dp[i - 2]\nprint(\"Table:\", dp)\nprint(f\"Ways to climb {n} steps: {dp[n]}\")\n\na, b = 1, 1           # the ways to reach steps 0 and 1\nfor _ in range(2, 41):\n    a, b = b, a + b\nprint(f\"Ways to climb 40 steps: {b}\")\n",
+        "output": "Table: [1, 1, 2, 3, 5, 8, 13]\nWays to climb 6 steps: 13\nWays to climb 40 steps: 165580141",
+        "explanation": "`dp[0] = 1` counts the one way to stand still, and `dp[1] = 1` the single step. Each later entry adds the two before it, so the table reads 1, 1, 2, 3, 5, 8, 13. For 40 steps, `a` and `b` always hold the last two entries, and the loop runs once for each step from 2 to 40. No list of 41 entries is needed, and no recursion either."
+      },
+      "practice": {
+        "title": "Hops of 1, 2, or 3",
+        "prompt": "Count the ways to climb n steps when each move goes up 1, 2, or 3 steps.\n\n1. Read `n`. The starter makes `dp` with `dp[0] = 1`.\n2. Fill `dp[i]` for `i` from 1 to `n`: it's the sum of `dp[i - 1]`, `dp[i - 2]`, and `dp[i - 3]`, skipping any index below 0.\n3. The starter prints the table and the answer.\n\nInput:\n\n```text\n4\n```\n\nExpected output:\n\n```text\nTable: [1, 1, 2, 4, 7]\nWays to climb 4 steps: 7\n```",
+        "starter": "n = int(input())\ndp = [0] * (n + 1)\ndp[0] = 1\n# TODO: fill dp[1] to dp[n], adding the entries 1, 2, and 3 back (skip indexes below 0)\n\nprint(\"Table:\", dp)\nprint(f\"Ways to climb {n} steps: {dp[n]}\")\n",
+        "solution": "n = int(input())\ndp = [0] * (n + 1)\ndp[0] = 1\nfor i in range(1, n + 1):\n    for step in (1, 2, 3):\n        if i - step >= 0:\n            dp[i] += dp[i - step]\n\nprint(\"Table:\", dp)\nprint(f\"Ways to climb {n} steps: {dp[n]}\")\n",
+        "tests": [
+          {
+            "stdin": "4\n",
+            "output": "Table: [1, 1, 2, 4, 7]\nWays to climb 4 steps: 7"
+          },
+          {
+            "stdin": "2\n",
+            "output": "Table: [1, 1, 2]\nWays to climb 2 steps: 2"
+          },
+          {
+            "stdin": "7\n",
+            "output": "Table: [1, 1, 2, 4, 7, 13, 24, 44]\nWays to climb 7 steps: 44"
+          },
+          {
+            "stdin": "1\n",
+            "output": "Table: [1, 1]\nWays to climb 1 steps: 1"
+          }
+        ],
+        "hints": [
+          "Your last move was 1, 2, or 3 steps, so add up the ways to reach each of those three earlier steps.",
+          "A small loop `for step in (1, 2, 3):` inside the main loop adds each one.",
+          "Check `i - step >= 0` first, because `dp[-1]` would quietly read the last entry instead of failing."
+        ]
+      }
+    },
+    {
+      "title": "Take it or skip it",
+      "body": "House robber: houses in a row hold some cash, and you can't take from two neighbors. What's the most you can take? At each house you choose. Skip it and keep the best from the houses before, or take it and add the best from two houses back:\n\n```python\nnums = [2, 7, 9, 3, 1]\ndp = [0] * (len(nums) + 1)      # dp[i]: the best from the first i houses\ndp[1] = nums[0]\nfor i in range(2, len(nums) + 1):\n    dp[i] = max(dp[i - 1], dp[i - 2] + nums[i - 1])\nprint(dp[-1])  # 12\n```\n\nThe table has one more entry than the list, and `dp[0] = 0` means no houses yet. So entry `i` is about house `nums[i - 1]`. This shift by one is common in tables: it gives the empty case an entry of its own, and the loop never reads below index 0.\n\nProblems that ask for the least instead of the most have the same shape with `min`. The answer is the last entry, `dp[-1]`.\n\nOnly the last two entries are ever read, so two variables also work: `prev, curr = curr, max(curr, prev + x)` for each `x`.",
+      "example": {
+        "title": "Robbing a street",
+        "prompt": "Fill the take-or-skip table for three streets of houses and print the best haul for each.",
+        "code": "def best_haul(nums):\n    dp = [0] * (len(nums) + 1)\n    dp[1] = nums[0]\n    for i in range(2, len(nums) + 1):\n        dp[i] = max(dp[i - 1], dp[i - 2] + nums[i - 1])\n    return dp\n\n\nfor street in [[2, 7, 9, 3, 1], [5, 1, 1, 5], [4]]:\n    dp = best_haul(street)\n    print(f\"{street}: table {dp}, best {dp[-1]}\")\n",
+        "output": "[2, 7, 9, 3, 1]: table [0, 2, 7, 11, 11, 12], best 12\n[5, 1, 1, 5]: table [0, 5, 5, 6, 10], best 10\n[4]: table [0, 4], best 4",
+        "explanation": "For `[2, 7, 9, 3, 1]`, entry 3 is `max(7, 2 + 9)`, so taking houses 1 and 3 beats taking house 2 alone. For `[5, 1, 1, 5]` the best skips both middle houses: 5 + 5 = 10. A street with one house fills only `dp[1]`, because the loop's range is empty. Printing the table shows the best haul growing house by house, and the last entry is the answer."
+      },
+      "practice": {
+        "title": "Cheapest climb",
+        "prompt": "Each step of a staircase has a cost you pay when you leave it. Find the cheapest way past the top step.\n\n1. Read the costs. You start on step 0 or step 1 for free, and each move goes up 1 or 2 steps.\n2. `dp[i]` is the cheapest way to stand on step `i`, so `dp[0]` and `dp[1]` are 0.\n3. For `i` from 2 to `n`, take the cheaper of leaving step `i - 1` (`dp[i - 1] + cost[i - 1]`) and leaving step `i - 2` (`dp[i - 2] + cost[i - 2]`).\n4. The top is step `n`, just past the last cost. The starter prints the table and `dp[n]`.\n\nInput:\n\n```text\n10 15 20\n```\n\nExpected output:\n\n```text\nTable: [0, 0, 10, 15]\nCheapest: 15\n```",
+        "starter": "cost = list(map(int, input().split()))\nn = len(cost)\ndp = [0] * (n + 1)\n# TODO: dp[i] is the cheapest way to stand on step i, and dp[0] and dp[1] stay 0\n# TODO: fill dp[2] to dp[n] from the step one back and the step two back\n\nprint(\"Table:\", dp)\nprint(\"Cheapest:\", dp[n])\n",
+        "solution": "cost = list(map(int, input().split()))\nn = len(cost)\ndp = [0] * (n + 1)\nfor i in range(2, n + 1):\n    dp[i] = min(dp[i - 1] + cost[i - 1], dp[i - 2] + cost[i - 2])\n\nprint(\"Table:\", dp)\nprint(\"Cheapest:\", dp[n])\n",
+        "tests": [
+          {
+            "stdin": "10 15 20\n",
+            "output": "Table: [0, 0, 10, 15]\nCheapest: 15"
+          },
+          {
+            "stdin": "1 100 1 1 1 100 1 1 100 1\n",
+            "output": "Table: [0, 0, 1, 2, 2, 3, 3, 4, 4, 5, 6]\nCheapest: 6"
+          },
+          {
+            "stdin": "5 3\n",
+            "output": "Table: [0, 0, 3]\nCheapest: 3"
+          }
+        ],
+        "hints": [
+          "The shape is the example's, with `min` for the cheapest instead of `max` for the most.",
+          "Both choices pay the cost of the step you leave, which is the one you came from.",
+          "The loop starts at 2, because `dp[0]` and `dp[1]` are already right at 0."
+        ]
+      }
+    },
+    {
+      "title": "Fewest coins",
+      "body": "Coin change: what's the fewest coins that make an amount? `dp[a]` is the fewest coins for amount `a`. The last coin you add is some coin `c`, so `dp[a]` is 1 plus the best `dp[a - c]` over every coin that fits:\n\n```python\ncoins, amount = [1, 2, 5], 11\nINF = float(\"inf\")\ndp = [0] + [INF] * amount\nfor a in range(1, amount + 1):\n    for c in coins:\n        if c <= a:\n            dp[a] = min(dp[a], dp[a - c] + 1)\nprint(dp[amount])  # 3\n```\n\n`float(\"inf\")` means \"not possible yet\". It's bigger than any count, so `min` replaces it as soon as a real way shows up, and `INF + 1` is still infinite. If `dp[amount]` is still infinite at the end, no mix of coins works, so print -1 or whatever the problem asks for.\n\nWhy not take the biggest coin each time? With coins `[1, 3, 4]` and amount 6, biggest first gives 4 + 1 + 1, three coins, but 3 + 3 needs only two. The table tries every possible last coin, so it can't be fooled that way.",
+      "example": {
+        "title": "Making change",
+        "prompt": "Find the fewest coins for four amounts, printing -1 when no mix of coins works.",
+        "code": "def fewest_coins(coins, amount):\n    INF = float(\"inf\")\n    dp = [0] + [INF] * amount\n    for a in range(1, amount + 1):\n        for c in coins:\n            if c <= a:\n                dp[a] = min(dp[a], dp[a - c] + 1)\n    return dp[amount] if dp[amount] != INF else -1\n\n\nprint(\"6 with [1, 3, 4]:\", fewest_coins([1, 3, 4], 6))\nprint(\"11 with [1, 2, 5]:\", fewest_coins([1, 2, 5], 11))\nprint(\"3 with [2]:\", fewest_coins([2], 3))\nprint(\"0 with [7]:\", fewest_coins([7], 0))\n",
+        "output": "6 with [1, 3, 4]: 2\n11 with [1, 2, 5]: 3\n3 with [2]: -1\n0 with [7]: 0",
+        "explanation": "For 6 with `[1, 3, 4]`, the table finds `dp[3] = 1` and then `dp[6] = dp[3] + 1 = 2`, the 3 + 3 that biggest-first misses. With only 2-coins, every odd amount stays infinite, so 3 gives -1. An amount of 0 needs no coins, and `dp[0] = 0` says so without any special case."
+      },
+      "practice": {
+        "title": "Fewest perfect squares",
+        "prompt": "Find the fewest perfect squares, such as 1, 4, and 9, that add up to n.\n\n1. Read `n` and build the list of perfect squares from 1 up to `n`: 1, 4, 9, and so on while `i * i <= n`.\n2. Use the squares as the coins: `dp[a]` is the fewest squares that add up to `a`.\n3. Fill the table exactly like the example's coin loop.\n4. The starter prints the squares and `dp[n]`. Every amount can be made from 1s, so there's no -1 case.\n\nInput:\n\n```text\n12\n```\n\nExpected output:\n\n```text\nSquares: [1, 4, 9]\nFewest: 3\n```",
+        "starter": "n = int(input())\nsquares = []\n# TODO: put every perfect square from 1 up to n in squares\n\nINF = float(\"inf\")\ndp = [0] + [INF] * n\n# TODO: fill dp[a] with the fewest squares that add up to a\n\nprint(\"Squares:\", squares)\nprint(\"Fewest:\", dp[n])\n",
+        "solution": "n = int(input())\nsquares = []\ni = 1\nwhile i * i <= n:\n    squares.append(i * i)\n    i += 1\n\nINF = float(\"inf\")\ndp = [0] + [INF] * n\nfor a in range(1, n + 1):\n    for s in squares:\n        if s <= a:\n            dp[a] = min(dp[a], dp[a - s] + 1)\n\nprint(\"Squares:\", squares)\nprint(\"Fewest:\", dp[n])\n",
+        "tests": [
+          {
+            "stdin": "12\n",
+            "output": "Squares: [1, 4, 9]\nFewest: 3"
+          },
+          {
+            "stdin": "13\n",
+            "output": "Squares: [1, 4, 9]\nFewest: 2"
+          },
+          {
+            "stdin": "1\n",
+            "output": "Squares: [1]\nFewest: 1"
+          }
+        ],
+        "hints": [
+          "A `while i * i <= n:` loop that appends `i * i` and adds 1 to `i` builds the squares.",
+          "The inner loop goes over `squares` where the example's goes over `coins`.",
+          "12 is 4 + 4 + 4, three squares, even though the biggest square, 9, would leave 3 ones."
+        ]
+      }
+    },
+    {
+      "title": "2D tables",
+      "body": "When the answer depends on two things, like a row and a column, the table is a 2D list. Unique paths on a grid where you only move right or down: you reach a cell from above or from the left, so its count is the sum of those two, and a wall holds 0.\n\n```python\ngrid = [\n    [0, 0, 0],\n    [0, 1, 0],\n    [0, 0, 0],\n]\nrows, cols = len(grid), len(grid[0])\ndp = [[0] * cols for _ in range(rows)]\nfor r in range(rows):\n    for c in range(cols):\n        if grid[r][c] == 1:\n            dp[r][c] = 0\n        elif r == 0 and c == 0:\n            dp[r][c] = 1\n        else:\n            up = dp[r - 1][c] if r > 0 else 0\n            left = dp[r][c - 1] if c > 0 else 0\n            dp[r][c] = up + left\nprint(dp[-1][-1])  # 2\n```\n\nBuild the table with a comprehension, `[[0] * cols for _ in range(rows)]`. `[[0] * cols] * rows` repeats one row object, so writing one cell would change every row.\n\nLooping row by row, left to right, means the cell above and the cell to the left are always filled before you need them. The checks `r > 0` and `c > 0` keep the first row and column from reading `dp[-1]`, which in Python quietly means the last row.",
+      "example": {
+        "title": "Paths around rocks",
+        "prompt": "Count the paths from the top left to the bottom right of a grid with rocks, moving only right or down.",
+        "code": "grid = [\n    [0, 0, 0, 0],\n    [0, 1, 0, 0],\n    [1, 0, 0, 0],\n]\nrows, cols = len(grid), len(grid[0])\ndp = [[0] * cols for _ in range(rows)]\nfor r in range(rows):\n    for c in range(cols):\n        if grid[r][c] == 1:\n            dp[r][c] = 0\n        elif r == 0 and c == 0:\n            dp[r][c] = 1\n        else:\n            up = dp[r - 1][c] if r > 0 else 0\n            left = dp[r][c - 1] if c > 0 else 0\n            dp[r][c] = up + left\n\nfor row in dp:\n    print(\" \".join(f\"{x:2}\" for x in row))\nprint(\"Paths to the corner:\", dp[-1][-1])\n",
+        "output": " 1  1  1  1\n 1  0  1  2\n 0  0  1  3\nPaths to the corner: 3",
+        "explanation": "The first row has no cell above, so every cell there has one path, straight along the top. The rock at row 1, column 1 holds 0, so the cell below it gets nothing from above, and the rock to its left adds nothing either, which leaves it at 0. The corner adds the 2 paths from above and the 1 from the left, 3 in all. `f\"{x:2}\"` pads each count to two characters so the columns line up."
+      },
+      "practice": {
+        "title": "Cheapest path",
+        "prompt": "Find the smallest sum along a path from the top left to the bottom right of a grid, moving only right or down.\n\n1. The starter reads the size, the grid, and makes `dp` the same size.\n2. `dp[r][c]` is the smallest sum of a path from the top left to `(r, c)`, counting both ends. The top left is just `grid[0][0]`.\n3. Every other cell is `grid[r][c]` plus the smaller of the cell above and the cell to the left. A side that doesn't exist counts as `INF`.\n4. The starter prints the table row by row and `dp[-1][-1]`.\n\nInput:\n\n```text\n3 3\n1 3 1\n1 5 1\n4 2 1\n```\n\nExpected output:\n\n```text\n1 4 5\n2 7 6\n6 8 7\nCheapest: 7\n```",
+        "starter": "rows, cols = map(int, input().split())\ngrid = [list(map(int, input().split())) for _ in range(rows)]\n\nINF = float(\"inf\")\ndp = [[0] * cols for _ in range(rows)]\n# TODO: dp[r][c] is the cheapest sum of a path from the top left to (r, c)\n# TODO: add grid[r][c] to the cheaper of the cell above and the cell to the left\n\nfor row in dp:\n    print(\" \".join(map(str, row)))\nprint(\"Cheapest:\", dp[-1][-1])\n",
+        "solution": "rows, cols = map(int, input().split())\ngrid = [list(map(int, input().split())) for _ in range(rows)]\n\nINF = float(\"inf\")\ndp = [[0] * cols for _ in range(rows)]\nfor r in range(rows):\n    for c in range(cols):\n        if r == 0 and c == 0:\n            dp[r][c] = grid[r][c]\n        else:\n            up = dp[r - 1][c] if r > 0 else INF\n            left = dp[r][c - 1] if c > 0 else INF\n            dp[r][c] = grid[r][c] + min(up, left)\n\nfor row in dp:\n    print(\" \".join(map(str, row)))\nprint(\"Cheapest:\", dp[-1][-1])\n",
+        "tests": [
+          {
+            "stdin": "3 3\n1 3 1\n1 5 1\n4 2 1\n",
+            "output": "1 4 5\n2 7 6\n6 8 7\nCheapest: 7"
+          },
+          {
+            "stdin": "1 3\n1 2 3\n",
+            "output": "1 3 6\nCheapest: 6"
+          },
+          {
+            "stdin": "2 2\n5 1\n2 9\n",
+            "output": "5 6\n7 15\nCheapest: 15"
+          }
+        ],
+        "hints": [
+          "The loops are the example's, with `min` instead of a sum of the two neighbors.",
+          "A missing neighbor is `INF`, never 0, so `min` can't choose a side that isn't there.",
+          "The top left has no neighbors at all, so give it its own case first."
+        ]
+      }
+    }
+  ],
+  "recap": "- Say in words what `dp[i]` means, then how it follows from smaller entries.\n- Top down is recursion with `@cache`. Bottom up fills a list from the base cases forward and has no depth limit.\n- Counting ways adds earlier entries: `dp[i] = dp[i - 1] + dp[i - 2]`.\n- Take or skip keeps the better of two earlier entries, with `max` for the most and `min` for the least.\n- Fewest coins starts every entry at `float(\"inf\")` and takes `min(dp[a], dp[a - c] + 1)` over every coin. Still infinite means impossible.\n- A 2D table is `[[0] * cols for _ in range(rows)]`, filled row by row from the cell above and the cell to the left."
+}

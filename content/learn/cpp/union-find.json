@@ -1,0 +1,155 @@
+{
+  "id": "union-find",
+  "title": "Union Find",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Group items with a parent vector, speed up find with path compression and union by size, then count components and spot the edge that closes a cycle.",
+  "intro": "Union find, also called a disjoint set union, keeps track of which items belong together as you join them two at a time. It answers \"are these two in the same group?\" in nearly O(1), with no graph search at all. This lesson builds it from a parent vector, makes it fast with path compression and union by size, then uses it to count connected components and to find the edge that closes a cycle.",
+  "steps": [
+    {
+      "title": "Parents and roots",
+      "body": "Union find keeps a `parent` for every item in a `std::vector<int>`. Items that belong together form a tree, and the item at the top, the one that is its own parent, is the group's **root**. At the start every item is alone, its own parent:\n\n```cpp\nstd::vector<int> parent(5);\nstd::iota(parent.begin(), parent.end(), 0);\nfor (int p : parent) {\n    std::cout << p << ' ';   // 0 1 2 3 4: everyone is a root\n}\n```\n\nTo find an item's group, follow parents up to the root. Two items are in the same group exactly when they reach the same root. To join two groups, find both roots and hang one under the other:\n\n```cpp harness\n{{code}}\nstd::vector<int> parent = {0, 1, 2, 3, 4};\nunite(parent, 0, 1);\nunite(parent, 3, 4);\nunite(parent, 1, 4);\nstd::cout << std::boolalpha << (findRoot(parent, 4) == findRoot(parent, 0)) << ' ' << (findRoot(parent, 2) == findRoot(parent, 0)) << '\\n';\n```\n\n```cpp\nint findRoot(const std::vector<int>& parent, int x) {\n    while (parent[x] != x) {\n        x = parent[x];       // one step up\n    }\n    return x;\n}\n\nvoid unite(std::vector<int>& parent, int a, int b) {\n    int ra = findRoot(parent, a);\n    int rb = findRoot(parent, b);\n    if (ra != rb) {\n        parent[rb] = ra;     // b's whole group joins a's\n    }\n}\n```\n\nHang a root, never `a` or `b` themselves: `parent[b] = a` would cut `b` away from the rest of its group. Which item ends up on top doesn't matter, only that everyone in a group reaches the same one. The name is `unite` because `union` is a C++ keyword.",
+      "example": {
+        "title": "Friend groups",
+        "prompt": "Read n people and m friendships, joining each pair's groups, then say whether each of q pairs ended up in the same group.",
+        "code": "#include <iostream>\n#include <numeric>\n#include <vector>\n\nint findRoot(const std::vector<int>& parent, int x) {\n    while (parent[x] != x) {\n        x = parent[x];\n    }\n    return x;\n}\n\nvoid unite(std::vector<int>& parent, int a, int b) {\n    int ra = findRoot(parent, a);\n    int rb = findRoot(parent, b);\n    if (ra != rb) {\n        parent[rb] = ra;\n    }\n}\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<int> parent(n);\n    std::iota(parent.begin(), parent.end(), 0);\n    for (int i = 0; i < m; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        unite(parent, a, b);\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int i = 0; i < q; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        bool same = findRoot(parent, a) == findRoot(parent, b);\n        std::cout << a << \" and \" << b << \": \" << (same ? \"same group\" : \"different groups\") << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "6 3\n0 1\n2 3\n1 3\n3\n0 2\n4 5\n3 0\n",
+        "output": "0 and 2: same group\n4 and 5: different groups\n3 and 0: same group",
+        "explanation": "`0 1` hangs root 1 under 0, and `2 3` hangs 3 under 2. For `1 3`, the roots are 0 and 2, so 2 goes under 0, and now 0, 1, 2, and 3 all reach root 0. That is why 0 and 2 are in the same group though they were never paired directly. Nobody ever joined 4 or 5, so they are still their own roots, and 3 reaches 0 through 2."
+      },
+      "practice": {
+        "title": "Same network",
+        "prompt": "Cables join computers into networks. Say which pairs of computers can reach each other.\n\n1. Finish `findRoot`: follow `parent` up until `x` is its own parent, then return it.\n2. Finish `unite`: find both roots, and when they differ, hang the second root under the first.\n3. The starter reads `n` computers and `m` cables, joining each pair, then `q` pairs to check.\n4. For each pair print the two computers with a dash between them, then `: yes` or `: no`, and count the yes answers in `reachable`. The starter prints the count at the end.\n\nInput:\n\n```text\n5 3\n0 1\n1 2\n3 4\n3\n0 2\n2 3\n4 3\n```\n\nExpected output:\n\n```text\n0-2: yes\n2-3: no\n4-3: yes\n2 of 3 connected\n```",
+        "starter": "#include <iostream>\n#include <numeric>\n#include <vector>\n\nint findRoot(const std::vector<int>& parent, int x) {\n    // TODO: follow parents up until x is its own parent\n    return x;\n}\n\nvoid unite(std::vector<int>& parent, int a, int b) {\n    // TODO: find both roots and hang one under the other when they differ\n}\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<int> parent(n);\n    std::iota(parent.begin(), parent.end(), 0);\n    for (int i = 0; i < m; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        unite(parent, a, b);\n    }\n    int q = 0;\n    std::cin >> q;\n    int reachable = 0;\n    for (int i = 0; i < q; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        // TODO: print a-b: yes or a-b: no, and count the yes answers in reachable\n    }\n    std::cout << reachable << \" of \" << q << \" connected\" << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <numeric>\n#include <vector>\n\nint findRoot(const std::vector<int>& parent, int x) {\n    while (parent[x] != x) {\n        x = parent[x];\n    }\n    return x;\n}\n\nvoid unite(std::vector<int>& parent, int a, int b) {\n    int ra = findRoot(parent, a);\n    int rb = findRoot(parent, b);\n    if (ra != rb) {\n        parent[rb] = ra;\n    }\n}\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    std::vector<int> parent(n);\n    std::iota(parent.begin(), parent.end(), 0);\n    for (int i = 0; i < m; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        unite(parent, a, b);\n    }\n    int q = 0;\n    std::cin >> q;\n    int reachable = 0;\n    for (int i = 0; i < q; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        if (findRoot(parent, a) == findRoot(parent, b)) {\n            std::cout << a << '-' << b << \": yes\" << '\\n';\n            ++reachable;\n        } else {\n            std::cout << a << '-' << b << \": no\" << '\\n';\n        }\n    }\n    std::cout << reachable << \" of \" << q << \" connected\" << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "5 3\n0 1\n1 2\n3 4\n3\n0 2\n2 3\n4 3\n",
+            "output": "0-2: yes\n2-3: no\n4-3: yes\n2 of 3 connected"
+          },
+          {
+            "stdin": "3 0\n2\n0 1\n2 2\n",
+            "output": "0-1: no\n2-2: yes\n1 of 2 connected"
+          },
+          {
+            "stdin": "4 3\n0 1\n1 0\n2 1\n2\n2 0\n3 1\n",
+            "output": "2-0: yes\n3-1: no\n1 of 2 connected"
+          }
+        ],
+        "hints": [
+          "`while (parent[x] != x) { x = parent[x]; }` walks up to the root.",
+          "Set `parent[rb] = ra;` with the roots, never `parent[b] = a;`.",
+          "A computer always reaches itself, since both roots are the same."
+        ]
+      }
+    },
+    {
+      "title": "Find with path compression",
+      "body": "Walking up is slow when a group is a long chain: `findRoot` on the bottom item takes a step for every item above it. **Path compression** fixes that while it walks. Once `findRoot` knows the root, it points every item it passed straight at the root, so the next search from any of them takes one step:\n\n```cpp harness\n{{code}}\nstd::vector<int> parent = {1, 2, 3, 3};   // the chain 0 -> 1 -> 2 -> 3\nstd::cout << findRoot(parent, 0) << ':';\nfor (int p : parent) {\n    std::cout << ' ' << p;\n}\nstd::cout << '\\n';\n```\n\n```cpp\nint findRoot(std::vector<int>& parent, int x) {\n    if (parent[x] != x) {\n        parent[x] = findRoot(parent, parent[x]);   // point x at the root\n    }\n    return parent[x];\n}\n```\n\nThe recursion climbs to the root, then on the way back sets each item's parent to the root it got back. `parent` is passed by plain reference now, since finding changes it. For the chain `0 -> 1 -> 2 -> 3`, one `findRoot(parent, 0)` turns `parent` from `1 2 3 3` into `3 3 3 3`.\n\nThe groups don't change, only the shape of each tree. Together with union by size from the next part, a find costs nearly O(1) on average, however many items there are. The first find down a very long chain still recurses once per item, but every find leaves the trees flatter.",
+      "example": {
+        "title": "Flattening a forest",
+        "prompt": "Read n items given by their parents, then run q finds with path compression and print the root and the parent vector after each one.",
+        "code": "#include <iostream>\n#include <vector>\n\nint findRoot(std::vector<int>& parent, int x) {\n    if (parent[x] != x) {\n        parent[x] = findRoot(parent, parent[x]);\n    }\n    return parent[x];\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> parent(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> parent[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int i = 0; i < q; ++i) {\n        int x = 0;\n        std::cin >> x;\n        int root = findRoot(parent, x);\n        std::cout << \"find \" << x << \" = \" << root << \", parent:\";\n        for (int p : parent) {\n            std::cout << ' ' << p;\n        }\n        std::cout << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "7\n1 2 2 2 5 6 6\n3\n0\n4\n3\n",
+        "output": "find 0 = 2, parent: 2 2 2 2 5 6 6\nfind 4 = 6, parent: 2 2 2 2 6 6 6\nfind 3 = 2, parent: 2 2 2 2 6 6 6",
+        "explanation": "The input holds two trees: 0 under 1 under 2, with 3 also under 2, and 4 under 5 under 6. Finding 0 climbs to the root 2 and then points 0 straight at it, so `parent[0]` changes from 1 to 2. Item 1 already pointed at 2. Finding 4 does the same in the other tree, and 4 now points at 6. Finding 3 changes nothing, since 3 was one step from its root already."
+      },
+      "practice": {
+        "title": "Counting the steps",
+        "prompt": "Watch path compression shorten the walk to the root.\n\n1. Finish `findRoot` with path compression like the example.\n2. The starter reads `n` parents and `q` items to find. Before each find, count how many parent links the walk from the item to its root follows, without changing anything: the `for` loop `for (int y = x; parent[y] != y; y = parent[y])` visits them.\n3. Then call `findRoot`. The starter prints the item, its root, and the step count.\n\nInput:\n\n```text\n6\n1 2 3 4 5 5\n4\n0\n0\n2\n1\n```\n\nExpected output:\n\n```text\n0: root 5, steps 5\n0: root 5, steps 1\n2: root 5, steps 1\n1: root 5, steps 1\n```",
+        "starter": "#include <iostream>\n#include <vector>\n\nint findRoot(std::vector<int>& parent, int x) {\n    // TODO: find the root and point x straight at it\n    return x;\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> parent(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> parent[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int i = 0; i < q; ++i) {\n        int x = 0;\n        std::cin >> x;\n        int steps = 0;\n        // TODO: count the parent links from x up to its root, before any compression\n        int root = findRoot(parent, x);\n        std::cout << x << \": root \" << root << \", steps \" << steps << '\\n';\n    }\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <vector>\n\nint findRoot(std::vector<int>& parent, int x) {\n    if (parent[x] != x) {\n        parent[x] = findRoot(parent, parent[x]);\n    }\n    return parent[x];\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> parent(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> parent[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int i = 0; i < q; ++i) {\n        int x = 0;\n        std::cin >> x;\n        int steps = 0;\n        for (int y = x; parent[y] != y; y = parent[y]) {\n            ++steps;\n        }\n        int root = findRoot(parent, x);\n        std::cout << x << \": root \" << root << \", steps \" << steps << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n1 2 3 4 5 5\n4\n0\n0\n2\n1\n",
+            "output": "0: root 5, steps 5\n0: root 5, steps 1\n2: root 5, steps 1\n1: root 5, steps 1"
+          },
+          {
+            "stdin": "3\n0 1 2\n2\n1\n2\n",
+            "output": "1: root 1, steps 0\n2: root 2, steps 0"
+          },
+          {
+            "stdin": "5\n1 2 2 4 2\n3\n3\n0\n3\n",
+            "output": "3: root 2, steps 2\n0: root 2, steps 2\n3: root 2, steps 1"
+          }
+        ],
+        "hints": [
+          "Add 1 to `steps` inside that `for` loop, before the call to `findRoot`.",
+          "In `findRoot`, write `parent[x] = findRoot(parent, parent[x]);` when `x` is not a root."
+        ]
+      }
+    },
+    {
+      "title": "Union by size",
+      "body": "Path compression flattens trees after the fact. **Union by size** keeps them flat from the start: keep a `size` for every root, and when two groups join, hang the smaller root under the bigger one. An item only moves a level down when its group at least doubles, so no tree gets deeper than about log n. Put both vectors and both operations in a struct:\n\n```cpp harness\n{{code}}\nUnionFind uf(5);\nuf.unite(0, 1);\nuf.unite(2, 1);\nstd::cout << uf.size[uf.findRoot(2)] << ' ' << std::boolalpha << uf.unite(0, 2) << '\\n';\n```\n\n```cpp\nstruct UnionFind {\n    std::vector<int> parent;\n    std::vector<int> size;\n\n    explicit UnionFind(int n) : parent(n), size(n, 1) {\n        std::iota(parent.begin(), parent.end(), 0);\n    }\n\n    int findRoot(int x) {\n        if (parent[x] != x) {\n            parent[x] = findRoot(parent[x]);\n        }\n        return parent[x];\n    }\n\n    bool unite(int a, int b) {\n        int ra = findRoot(a);\n        int rb = findRoot(b);\n        if (ra == rb) {\n            return false;            // already in one group\n        }\n        if (size[ra] < size[rb]) {\n            std::swap(ra, rb);       // now ra is the bigger root\n        }\n        parent[rb] = ra;\n        size[ra] += size[rb];\n        return true;\n    }\n};\n```\n\nOnly a root's `size` stays up to date, so read a group's size as `size[findRoot(x)]`. `unite` returns `false` when the two items were already together, which the next part puts to use.",
+      "example": {
+        "title": "Merging clubs",
+        "prompt": "Read n people and m merges, and after each merge print the size of the joined group, or that the two were already together.",
+        "code": "#include <iostream>\n#include <numeric>\n#include <utility>\n#include <vector>\n\nstruct UnionFind {\n    std::vector<int> parent;\n    std::vector<int> size;\n\n    explicit UnionFind(int n) : parent(n), size(n, 1) {\n        std::iota(parent.begin(), parent.end(), 0);\n    }\n\n    int findRoot(int x) {\n        if (parent[x] != x) {\n            parent[x] = findRoot(parent[x]);\n        }\n        return parent[x];\n    }\n\n    bool unite(int a, int b) {\n        int ra = findRoot(a);\n        int rb = findRoot(b);\n        if (ra == rb) {\n            return false;\n        }\n        if (size[ra] < size[rb]) {\n            std::swap(ra, rb);\n        }\n        parent[rb] = ra;\n        size[ra] += size[rb];\n        return true;\n    }\n};\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    UnionFind uf(n);\n    for (int i = 0; i < m; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        if (uf.unite(a, b)) {\n            std::cout << a << ' ' << b << \": group of \" << uf.size[uf.findRoot(a)] << '\\n';\n        } else {\n            std::cout << a << ' ' << b << \": already together\" << '\\n';\n        }\n    }\n    return 0;\n}\n",
+        "stdin": "6 5\n0 1\n2 3\n1 3\n0 2\n4 5\n",
+        "output": "0 1: group of 2\n2 3: group of 2\n1 3: group of 4\n0 2: already together\n4 5: group of 2",
+        "explanation": "`0 1` and `2 3` each make a group of 2. For `1 3`, the roots 0 and 2 have equal sizes, so 2 goes under 0 and `size[0]` becomes 4. For `0 2`, both already reach root 0, so `unite` returns `false` and nothing changes. `4 5` makes a new group of 2. The size is read through `findRoot(a)`, because only the root's entry is kept up to date."
+      },
+      "practice": {
+        "title": "Largest group",
+        "prompt": "Track the size of the largest group as merges come in.\n\n1. Finish `unite` with union by size: return `false` when the roots match, otherwise hang the smaller root under the bigger one, add the sizes, and return `true`.\n2. The starter reads `n` people and `m` merges, and `largest` starts at 1, a person alone.\n3. After each merge, update `largest` with the size of `a`'s group, and print `largest` and the value, separated by a space.\n\nInput:\n\n```text\n6 5\n0 1\n2 3\n3 4\n1 2\n0 4\n```\n\nExpected output:\n\n```text\nlargest 2\nlargest 2\nlargest 3\nlargest 5\nlargest 5\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <numeric>\n#include <utility>\n#include <vector>\n\nstruct UnionFind {\n    std::vector<int> parent;\n    std::vector<int> size;\n\n    explicit UnionFind(int n) : parent(n), size(n, 1) {\n        std::iota(parent.begin(), parent.end(), 0);\n    }\n\n    int findRoot(int x) {\n        if (parent[x] != x) {\n            parent[x] = findRoot(parent[x]);\n        }\n        return parent[x];\n    }\n\n    bool unite(int a, int b) {\n        // TODO: hang the smaller root under the bigger one and add up the sizes\n        return false;\n    }\n};\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    UnionFind uf(n);\n    int largest = 1;\n    for (int i = 0; i < m; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        // TODO: join a and b, update largest, and print it\n    }\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <numeric>\n#include <utility>\n#include <vector>\n\nstruct UnionFind {\n    std::vector<int> parent;\n    std::vector<int> size;\n\n    explicit UnionFind(int n) : parent(n), size(n, 1) {\n        std::iota(parent.begin(), parent.end(), 0);\n    }\n\n    int findRoot(int x) {\n        if (parent[x] != x) {\n            parent[x] = findRoot(parent[x]);\n        }\n        return parent[x];\n    }\n\n    bool unite(int a, int b) {\n        int ra = findRoot(a);\n        int rb = findRoot(b);\n        if (ra == rb) {\n            return false;\n        }\n        if (size[ra] < size[rb]) {\n            std::swap(ra, rb);\n        }\n        parent[rb] = ra;\n        size[ra] += size[rb];\n        return true;\n    }\n};\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    UnionFind uf(n);\n    int largest = 1;\n    for (int i = 0; i < m; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        uf.unite(a, b);\n        largest = std::max(largest, uf.size[uf.findRoot(a)]);\n        std::cout << \"largest \" << largest << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "6 5\n0 1\n2 3\n3 4\n1 2\n0 4\n",
+            "output": "largest 2\nlargest 2\nlargest 3\nlargest 5\nlargest 5"
+          },
+          {
+            "stdin": "3 1\n2 2\n",
+            "output": "largest 1"
+          },
+          {
+            "stdin": "5 4\n0 1\n2 3\n0 1\n4 3\n",
+            "output": "largest 2\nlargest 2\nlargest 2\nlargest 3"
+          }
+        ],
+        "hints": [
+          "Use `if (size[ra] < size[rb]) { std::swap(ra, rb); }` so `ra` is the bigger root.",
+          "`largest = std::max(largest, uf.size[uf.findRoot(a)]);` works whether or not the merge joined anything."
+        ]
+      }
+    },
+    {
+      "title": "Counting components and closing a cycle",
+      "body": "In a graph with `n` nodes, start with `n` groups, one per node. Every edge whose `unite` succeeds joins two groups, so the count drops by one. When the edges run out, the count left is the number of connected components, with no DFS or BFS:\n\n```cpp harness\nstruct UnionFind { std::vector<int> parent; std::vector<int> size; explicit UnionFind(int n) : parent(n), size(n, 1) { std::iota(parent.begin(), parent.end(), 0); } int findRoot(int x) { if (parent[x] != x) parent[x] = findRoot(parent[x]); return parent[x]; } bool unite(int a, int b) { int ra = findRoot(a), rb = findRoot(b); if (ra == rb) return false; if (size[ra] < size[rb]) std::swap(ra, rb); parent[rb] = ra; size[ra] += size[rb]; return true; } };\n{{code}}\n```\n\n```cpp\nint n = 5;\nstd::vector<std::pair<int, int>> edges = {{0, 1}, {1, 2}, {3, 4}};\nUnionFind uf(n);\nint components = n;\nfor (const auto& [a, b] : edges) {\n    if (uf.unite(a, b)) {\n        --components;\n    }\n}\nstd::cout << components << '\\n';   // 2, {0 1 2} and {3 4}\n```\n\nA failed `unite` says more. It means `a` and `b` were already connected some other way, so in an undirected graph this edge closes a cycle. A connected graph on `n` nodes needs only `n - 1` edges, and the edges that fail are the extras: remove all of them and every group stays connected. Union find also handles edges as they arrive, one at a time, where a DFS would have to start over after each new edge.",
+      "example": {
+        "title": "Cycles in a network",
+        "prompt": "Read an undirected graph of n nodes and m edges, print each edge that closes a cycle, then print the number of connected components.",
+        "code": "#include <iostream>\n#include <numeric>\n#include <utility>\n#include <vector>\n\nstruct UnionFind {\n    std::vector<int> parent;\n    std::vector<int> size;\n\n    explicit UnionFind(int n) : parent(n), size(n, 1) {\n        std::iota(parent.begin(), parent.end(), 0);\n    }\n\n    int findRoot(int x) {\n        if (parent[x] != x) {\n            parent[x] = findRoot(parent[x]);\n        }\n        return parent[x];\n    }\n\n    bool unite(int a, int b) {\n        int ra = findRoot(a);\n        int rb = findRoot(b);\n        if (ra == rb) {\n            return false;\n        }\n        if (size[ra] < size[rb]) {\n            std::swap(ra, rb);\n        }\n        parent[rb] = ra;\n        size[ra] += size[rb];\n        return true;\n    }\n};\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    UnionFind uf(n);\n    int components = n;\n    for (int i = 0; i < m; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        if (uf.unite(a, b)) {\n            --components;\n        } else {\n            std::cout << a << ' ' << b << \" closes a cycle\" << '\\n';\n        }\n    }\n    std::cout << \"components \" << components << '\\n';\n    return 0;\n}\n",
+        "stdin": "7 6\n0 1\n1 2\n2 0\n3 4\n4 5\n3 5\n",
+        "output": "2 0 closes a cycle\n3 5 closes a cycle\ncomponents 3",
+        "explanation": "`0 1` and `1 2` join three nodes, so the count drops from 7 to 5. `2 0` finds 2 and 0 already together: the triangle is a cycle, and the edge is printed. `3 4` and `4 5` bring the count to 3, and `3 5` closes the second triangle. Node 6 has no edges, so it stays a component of its own, and the graph has 3 components."
+      },
+      "practice": {
+        "title": "Redundant cable",
+        "prompt": "Find the first cable that isn't needed, and count the separate networks.\n\n1. The starter gives you the finished `UnionFind`, reads `n` computers and `m` cables, and starts `networks` at `n`.\n2. For each cable `a b`, a successful `unite` joins two networks, so subtract 1 from `networks`.\n3. A failed `unite` means the cable closes a cycle. Save the first such cable in `firstA` and `firstB` and set `found`.\n4. The starter prints the first redundant cable, or `none`, then the number of networks.\n\nInput:\n\n```text\n5 6\n0 1\n1 2\n3 4\n2 0\n1 3\n4 0\n```\n\nExpected output:\n\n```text\nfirst redundant: 2 0\nnetworks 1\n```",
+        "starter": "#include <iostream>\n#include <numeric>\n#include <utility>\n#include <vector>\n\nstruct UnionFind {\n    std::vector<int> parent;\n    std::vector<int> size;\n\n    explicit UnionFind(int n) : parent(n), size(n, 1) {\n        std::iota(parent.begin(), parent.end(), 0);\n    }\n\n    int findRoot(int x) {\n        if (parent[x] != x) {\n            parent[x] = findRoot(parent[x]);\n        }\n        return parent[x];\n    }\n\n    bool unite(int a, int b) {\n        int ra = findRoot(a);\n        int rb = findRoot(b);\n        if (ra == rb) {\n            return false;\n        }\n        if (size[ra] < size[rb]) {\n            std::swap(ra, rb);\n        }\n        parent[rb] = ra;\n        size[ra] += size[rb];\n        return true;\n    }\n};\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    UnionFind uf(n);\n    int networks = n;\n    bool found = false;\n    int firstA = 0;\n    int firstB = 0;\n    for (int i = 0; i < m; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        // TODO: count the networks, and remember the first cable that closes a cycle\n    }\n    if (found) {\n        std::cout << \"first redundant: \" << firstA << ' ' << firstB << '\\n';\n    } else {\n        std::cout << \"first redundant: none\" << '\\n';\n    }\n    std::cout << \"networks \" << networks << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <numeric>\n#include <utility>\n#include <vector>\n\nstruct UnionFind {\n    std::vector<int> parent;\n    std::vector<int> size;\n\n    explicit UnionFind(int n) : parent(n), size(n, 1) {\n        std::iota(parent.begin(), parent.end(), 0);\n    }\n\n    int findRoot(int x) {\n        if (parent[x] != x) {\n            parent[x] = findRoot(parent[x]);\n        }\n        return parent[x];\n    }\n\n    bool unite(int a, int b) {\n        int ra = findRoot(a);\n        int rb = findRoot(b);\n        if (ra == rb) {\n            return false;\n        }\n        if (size[ra] < size[rb]) {\n            std::swap(ra, rb);\n        }\n        parent[rb] = ra;\n        size[ra] += size[rb];\n        return true;\n    }\n};\n\nint main() {\n    int n = 0;\n    int m = 0;\n    std::cin >> n >> m;\n    UnionFind uf(n);\n    int networks = n;\n    bool found = false;\n    int firstA = 0;\n    int firstB = 0;\n    for (int i = 0; i < m; ++i) {\n        int a = 0;\n        int b = 0;\n        std::cin >> a >> b;\n        if (uf.unite(a, b)) {\n            --networks;\n        } else if (!found) {\n            found = true;\n            firstA = a;\n            firstB = b;\n        }\n    }\n    if (found) {\n        std::cout << \"first redundant: \" << firstA << ' ' << firstB << '\\n';\n    } else {\n        std::cout << \"first redundant: none\" << '\\n';\n    }\n    std::cout << \"networks \" << networks << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "5 6\n0 1\n1 2\n3 4\n2 0\n1 3\n4 0\n",
+            "output": "first redundant: 2 0\nnetworks 1"
+          },
+          {
+            "stdin": "4 2\n0 1\n2 3\n",
+            "output": "first redundant: none\nnetworks 2"
+          },
+          {
+            "stdin": "3 3\n0 1\n0 1\n1 2\n",
+            "output": "first redundant: 0 1\nnetworks 1"
+          }
+        ],
+        "hints": [
+          "Use `if (uf.unite(a, b))` to tell a joining cable from a redundant one.",
+          "Check `!found` so only the first redundant cable is saved."
+        ]
+      }
+    }
+  ],
+  "recap": "- Union find keeps a `parent` per item. A root is its own parent, and two items are in the same group when they reach the same root.\n- Start with `std::iota(parent.begin(), parent.end(), 0)`, so every item is alone.\n- Join two groups by hanging one root under the other, `parent[rb] = ra`, never the items themselves.\n- Path compression, `parent[x] = findRoot(parent[x]);`, points every item on the path straight at the root.\n- Union by size hangs the smaller root under the bigger one and adds the sizes. Read a group's size as `size[findRoot(x)]`.\n- With both, each operation costs nearly O(1) on average.\n- Components start at `n` and drop by one for every successful `unite`.\n- A failed `unite` means the two were already connected, so in an undirected graph that edge closes a cycle."
+}

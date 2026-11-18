@@ -1,0 +1,121 @@
+{
+  "id": "sorting",
+  "title": "Sorting with Comparators",
+  "section": "Advanced: Searching and Sorting",
+  "summary": "Sort pairs, intervals, objects, and map entries by one or more keys, and write comparators for orders you define yourself.",
+  "intro": "Interview problems sort all the time: intervals by start, words by count, cards by suit. You already know `sort((a, b) => a - b)` and `localeCompare`. Here you sort arrays of pairs by a column, objects and map entries by several keys, and data in an order you define yourself.",
+  "steps": [
+    {
+      "title": "Pairs and intervals by a column",
+      "body": "When each item is an array, such as `[start, end]`, the comparator receives two whole items. Subtract the column you want to sort by:\n\n```javascript\nconst meetings = [[9, 10], [1, 3], [4, 8]];\nmeetings.sort((a, b) => a[0] - b[0]); // by start\nconsole.log(JSON.stringify(meetings)); // [[1,3],[4,8],[9,10]]\n```\n\nUse `a[1] - b[1]` for the second column, and swap the sides, `b[0] - a[0]`, to sort high to low. For a tie-break, chain a second rule with `||`. A tie gives `0`, which is falsy, so `||` moves on to the next rule:\n\n```javascript harness\nconst pairs = [[2, 5], [1, 9], [2, 1], [1, 3]];\n{{code}}\nconsole.log(JSON.stringify(pairs));\n```\n\n```javascript\npairs.sort((a, b) => a[0] - b[0] || b[1] - a[1]); // first column up, then second column down\n```\n\nOnce intervals are sorted by start, an overlap shows up between neighbors: interval `i` overlaps the one before it when it starts before that one ends.\n\n**The gotcha:** `sort()` with no comparator turns each pair into a string such as `\"10,1\"`, so `[[10, 1], [9, 2]].sort()` leaves them in that order, because `\"1\"` comes before `\"9\"`. Always pass a comparator for arrays of arrays.",
+      "example": {
+        "title": "Meeting schedule",
+        "prompt": "Read meetings as `name start end`, sort them by start time (ties by end time), print the schedule, then print each clash between neighbors.",
+        "stdin": "review 13 15\nstandup 9 10\nlunch 12 13\nplanning 10 12\ndesign 14 16\nsync 9 11\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst meetings = input.trim().split(\"\\n\").map((line) => {\n  const [name, start, end] = line.trim().split(/\\s+/);\n  return [name, Number(start), Number(end)];\n});\n\nmeetings.sort((a, b) => a[1] - b[1] || a[2] - b[2]);\n\nfor (const [name, start, end] of meetings) {\n  console.log(`${start}-${end} ${name}`);\n}\n\nlet clashes = 0;\nfor (let i = 1; i < meetings.length; i++) {\n  const [prevName, , prevEnd] = meetings[i - 1];\n  const [name, start] = meetings[i];\n  if (start < prevEnd) {\n    console.log(`clash: ${prevName} and ${name}`);\n    clashes++;\n  }\n}\nif (clashes === 0) {\n  console.log(\"no clashes\");\n}\n",
+        "output": "9-10 standup\n9-11 sync\n10-12 planning\n12-13 lunch\n13-15 review\n14-16 design\nclash: standup and sync\nclash: sync and planning\nclash: review and design",
+        "explanation": "Each meeting becomes `[name, start, end]`, so the comparator reads column 1 for the start and column 2 for the end. `standup` and `sync` both start at 9, and `|| a[2] - b[2]` puts the one that ends first ahead. After sorting, the second loop only compares each meeting with the one before it: `[prevName, , prevEnd]` skips the start it doesn't need. `lunch` starts at 12 exactly when `planning` ends, and `12 < 12` is false, so touching meetings don't clash."
+      },
+      "practice": {
+        "title": "Free time between bookings",
+        "prompt": "Read room bookings as `name start end`, sort them, and print the free gaps.\n\n1. Sort by start time. When two bookings start together, put the one that ends later first.\n2. Print each booking as `start-end name`.\n3. Walk the sorted bookings keeping `latestEnd`, the latest end time so far (start it at the first booking's end). When a booking starts after `latestEnd`, print `free latestEnd-start`. Then raise `latestEnd` if this booking ends later.\n4. If there was no gap at all, print `fully booked`.\n\nInput:\n\n```text\nart 14 16\nyoga 8 10\nchess 10 11\nband 8 12\ndrama 15 17\nchoir 18 20\n```\n\nExpected output:\n\n```text\n8-12 band\n8-10 yoga\n10-11 chess\n14-16 art\n15-17 drama\n18-20 choir\nfree 12-14\nfree 17-18\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst bookings = input.trim().split(\"\\n\").map((line) => {\n  const [name, start, end] = line.trim().split(/\\s+/);\n  return [name, Number(start), Number(end)];\n});\n\n// TODO: sort by start, and put the booking that ends later first when two start together\n\nfor (const [name, start, end] of bookings) {\n  console.log(`${start}-${end} ${name}`);\n}\n\n// TODO: walk the sorted bookings with latestEnd and print each free gap\n// TODO: print \"fully booked\" when there was no gap\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst bookings = input.trim().split(\"\\n\").map((line) => {\n  const [name, start, end] = line.trim().split(/\\s+/);\n  return [name, Number(start), Number(end)];\n});\n\nbookings.sort((a, b) => a[1] - b[1] || b[2] - a[2]);\n\nfor (const [name, start, end] of bookings) {\n  console.log(`${start}-${end} ${name}`);\n}\n\nlet latestEnd = bookings[0][2];\nlet gaps = 0;\nfor (let i = 1; i < bookings.length; i++) {\n  const [, start, end] = bookings[i];\n  if (start > latestEnd) {\n    console.log(`free ${latestEnd}-${start}`);\n    gaps++;\n  }\n  latestEnd = Math.max(latestEnd, end);\n}\nif (gaps === 0) {\n  console.log(\"fully booked\");\n}\n",
+        "tests": [
+          {
+            "stdin": "art 14 16\nyoga 8 10\nchess 10 11\nband 8 12\ndrama 15 17\nchoir 18 20\n",
+            "output": "8-12 band\n8-10 yoga\n10-11 chess\n14-16 art\n15-17 drama\n18-20 choir\nfree 12-14\nfree 17-18"
+          },
+          {
+            "stdin": "a 1 5\nb 2 3\nc 5 6\n",
+            "output": "1-5 a\n2-3 b\n5-6 c\nfully booked"
+          },
+          {
+            "stdin": "x 3 4\ny 1 2\nz 3 9\nw 10 11\n",
+            "output": "1-2 y\n3-9 z\n3-4 x\n10-11 w\nfree 2-3\nfree 9-10"
+          }
+        ],
+        "hints": [
+          "The start is column 1 and the end is column 2. For the tie-break, the later end goes first, so subtract the other way round: `b[2] - a[2]`.",
+          "A booking that starts inside a long earlier one is not free time, which is why you compare with `latestEnd` and not just the previous booking's end.",
+          "Count the gaps you print, and after the loop print `fully booked` when the count is still 0."
+        ]
+      }
+    },
+    {
+      "title": "Objects and map entries by several keys",
+      "body": "Objects sort the same way: the comparator reads a field from each one. Numbers subtract, and strings use `localeCompare`, since `\"b\" - \"a\"` is `NaN`:\n\n```javascript\nconst players = [\n  { name: \"cy\", score: 90 },\n  { name: \"ann\", score: 95 },\n  { name: \"bo\", score: 90 },\n];\nplayers.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));\nconsole.log(players.map((p) => `${p.name} ${p.score}`).join(\", \")); // ann 95, bo 90, cy 90\n```\n\nA Map has no `sort`, so spread it into an array of `[key, value]` pairs first. Then the value is column 1 and the key is column 0:\n\n```javascript harness\nconst counts = new Map([[\"red\", 2], [\"blue\", 3], [\"green\", 2]]);\n{{code}}\nconsole.log(JSON.stringify(ranked));\n```\n\n```javascript\nconst ranked = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));\n```\n\n`ranked.slice(0, k)` then gives the top `k`. Use `toSorted` instead of `sort` when you still need the original order afterwards.\n\n**The gotcha:** a comparator must return a number. `(a, b) => a.score > b.score` returns `true` or `false`, and `false` reads as a tie, so the order comes out wrong without any error.",
+      "example": {
+        "title": "Top words",
+        "prompt": "Count the words in some text, sort them by count (highest first, ties A to Z), and print the top 3.",
+        "stdin": "the quick fox and the lazy dog\nthe dog and the fox\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst words = input.toLowerCase().split(/\\s+/).filter((w) => w !== \"\");\n\nconst counts = new Map();\nfor (const w of words) {\n  counts.set(w, (counts.get(w) ?? 0) + 1);\n}\n\nconst ranked = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));\nfor (const [word, count] of ranked.slice(0, 3)) {\n  console.log(`${word} ${count}`);\n}\n",
+        "output": "the 4\nand 2\ndog 2",
+        "explanation": "`[...counts]` turns the Map into pairs such as `[\"the\", 4]`. The comparator puts higher counts first with `b[1] - a[1]`, and the three words with 2 tie, so `localeCompare` orders them alphabetically. `slice(0, 3)` keeps the first three pairs, which destructure into `word` and `count`."
+      },
+      "practice": {
+        "title": "Leaderboard",
+        "prompt": "Read game results as `name points` (a player can appear many times) and print a ranked leaderboard.\n\n1. Total each player's points in a Map.\n2. Turn the Map into an array of objects `{ name, total }`.\n3. Sort the objects by `total`, highest first, and players with the same total by name A to Z.\n4. Print each as `rank. name total`, starting at rank 1.\n\nInput:\n\n```text\nann 40\nbo 70\ncy 50\nann 30\ndee 20\ncy 20\nbo 5\n```\n\nExpected output:\n\n```text\n1. bo 75\n2. ann 70\n3. cy 70\n4. dee 20\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst results = input.trim().split(\"\\n\").map((line) => {\n  const [name, points] = line.trim().split(/\\s+/);\n  return [name, Number(points)];\n});\n\n// TODO: total each player's points in a Map\n// TODO: make an array of { name, total } objects and sort it\nconst players = [];\n\nplayers.forEach((p, i) => console.log(`${i + 1}. ${p.name} ${p.total}`));\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst results = input.trim().split(\"\\n\").map((line) => {\n  const [name, points] = line.trim().split(/\\s+/);\n  return [name, Number(points)];\n});\n\nconst totals = new Map();\nfor (const [name, points] of results) {\n  totals.set(name, (totals.get(name) ?? 0) + points);\n}\nconst players = [...totals].map(([name, total]) => ({ name, total }));\nplayers.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));\n\nplayers.forEach((p, i) => console.log(`${i + 1}. ${p.name} ${p.total}`));\n",
+        "tests": [
+          {
+            "stdin": "ann 40\nbo 70\ncy 50\nann 30\ndee 20\ncy 20\nbo 5\n",
+            "output": "1. bo 75\n2. ann 70\n3. cy 70\n4. dee 20"
+          },
+          {
+            "stdin": "zed 10\namy 10\n",
+            "output": "1. amy 10\n2. zed 10"
+          },
+          {
+            "stdin": "solo 5\nsolo -2\n",
+            "output": "1. solo 3"
+          }
+        ],
+        "hints": [
+          "Total with `totals.set(name, (totals.get(name) ?? 0) + points)`, the same pattern as counting.",
+          "`[...totals].map(([name, total]) => ({ name, total }))` makes the objects. The parentheses around the object tell JavaScript it isn't a function body.",
+          "Sort with `b.total - a.total`, then `|| a.name.localeCompare(b.name)` for ties."
+        ]
+      }
+    },
+    {
+      "title": "Orders you define yourself",
+      "body": "Some orders are neither numeric nor alphabetical: `high` before `medium` before `low`, or spades before hearts. Give each value its place in a Map, then compare the places:\n\n```javascript\nconst rank = new Map([[\"high\", 0], [\"medium\", 1], [\"low\", 2]]);\nconst levels = [\"low\", \"high\", \"medium\", \"high\"];\nlevels.sort((a, b) => rank.get(a) - rank.get(b));\nconsole.log(levels.join(\" \")); // high high medium low\n```\n\nThe same idea works for any computed key: write a small function that turns an item into a number, and compare those numbers. Points by distance from the origin compare their squared distances, with no square root needed:\n\n```javascript\nconst dist2 = ([x, y]) => x * x + y * y;\nconst points = [[3, 4], [1, 1], [0, -2]];\npoints.sort((p, q) => dist2(p) - dist2(q));\nconsole.log(JSON.stringify(points)); // [[1,1],[0,-2],[3,4]]\n```\n\nChain more rules with `||` as before, most important first. Sorting is stable, so items that tie on every rule keep their input order.\n\n**The gotcha:** a value missing from the rank Map gives `undefined`, and `undefined - 1` is `NaN`, which breaks the sort silently. Make sure every possible value has a rank.",
+      "example": {
+        "title": "Task board",
+        "prompt": "Read tasks as `priority day name`, sort them by priority (high, medium, low), then by day, then by name, and print the board.",
+        "stdin": "low 3 water plants\nhigh 2 fix login\nmedium 1 write docs\nhigh 1 deploy\nlow 1 tidy desk\nmedium 1 review\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst tasks = input.trim().split(\"\\n\").map((line) => {\n  const [priority, day, ...words] = line.trim().split(\" \");\n  return { priority, day: Number(day), name: words.join(\" \") };\n});\n\nconst rank = new Map([[\"high\", 0], [\"medium\", 1], [\"low\", 2]]);\ntasks.sort(\n  (a, b) =>\n    rank.get(a.priority) - rank.get(b.priority) ||\n    a.day - b.day ||\n    a.name.localeCompare(b.name)\n);\n\nfor (const t of tasks) {\n  console.log(`[${t.priority}] day ${t.day}: ${t.name}`);\n}\n",
+        "output": "[high] day 1: deploy\n[high] day 2: fix login\n[medium] day 1: review\n[medium] day 1: write docs\n[low] day 1: tidy desk\n[low] day 3: water plants",
+        "explanation": "`...words` gathers the rest of the line, so names with spaces survive, and `join(\" \")` puts them back together. `rank.get` turns each priority into 0, 1, or 2, so subtracting puts `high` first. The two `medium` tasks on day 1 tie on both numbers, and `localeCompare` puts `review` before `write docs`."
+      },
+      "practice": {
+        "title": "Sorting a hand of cards",
+        "prompt": "Read a hand of cards such as `10H QS 3D` (the rank, then one letter for the suit) and print it sorted.\n\n1. Sort by suit in the order spades `S`, hearts `H`, diamonds `D`, clubs `C`. Give each suit its place in a Map.\n2. Within a suit, sort by rank from high to low. Number cards are worth their number, and `faceValue` gives `J`, `Q`, `K`, and `A`.\n3. Print the sorted cards joined by spaces.\n\n`card.at(-1)` is the suit and `card.slice(0, -1)` is the rank.\n\nInput:\n\n```text\n10H QS 3D AH 10S 2C KD\n```\n\nExpected output:\n\n```text\nQS 10S AH 10H KD 3D 2C\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst cards = input.trim().split(/\\s+/);\n\nconst faceValue = new Map([[\"J\", 11], [\"Q\", 12], [\"K\", 13], [\"A\", 14]]);\n\n// TODO: a Map with each suit's place, S first and C last\n// TODO: a function that turns a rank like \"10\" or \"Q\" into a number\n// TODO: sort by suit, then by rank from high to low\n\nconsole.log(cards.join(\" \"));\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst cards = input.trim().split(/\\s+/);\n\nconst faceValue = new Map([[\"J\", 11], [\"Q\", 12], [\"K\", 13], [\"A\", 14]]);\nconst suitRank = new Map([[\"S\", 0], [\"H\", 1], [\"D\", 2], [\"C\", 3]]);\nconst value = (card) => {\n  const rank = card.slice(0, -1);\n  return faceValue.get(rank) ?? Number(rank);\n};\n\ncards.sort(\n  (a, b) => suitRank.get(a.at(-1)) - suitRank.get(b.at(-1)) || value(b) - value(a)\n);\n\nconsole.log(cards.join(\" \"));\n",
+        "tests": [
+          {
+            "stdin": "10H QS 3D AH 10S 2C KD\n",
+            "output": "QS 10S AH 10H KD 3D 2C"
+          },
+          {
+            "stdin": "2S 3S AS\n",
+            "output": "AS 3S 2S"
+          },
+          {
+            "stdin": "5C 5D 5H 5S\n",
+            "output": "5S 5H 5D 5C"
+          }
+        ],
+        "hints": [
+          "`new Map([[\"S\", 0], [\"H\", 1], [\"D\", 2], [\"C\", 3]])` gives each suit its place, so `suitRank.get(a.at(-1)) - suitRank.get(b.at(-1))` sorts by suit.",
+          "For the rank, `faceValue.get(rank) ?? Number(rank)` uses the face value when there is one and the number otherwise.",
+          "High to low means `value(b) - value(a)`, chained after the suit rule with `||`."
+        ]
+      }
+    }
+  ],
+  "recap": "- A comparator returns a negative number when `a` goes first, a positive number when `b` goes first, and `0` for a tie.\n- Sort arrays of pairs by a column: `(a, b) => a[0] - b[0]`, or `b[0] - a[0]` for high to low.\n- Chain tie-breaks with `||`, most important rule first: `a[0] - b[0] || b[1] - a[1]`.\n- `sort()` with no comparator compares pairs as strings, so always pass one.\n- Objects compare fields: numbers subtract, strings use `localeCompare`.\n- Spread a Map into `[key, value]` pairs with `[...map]`, then sort by `[1]` for the value and `[0]` for the key.\n- For a custom order, map each value to a number (a rank Map or a key function) and subtract.\n- Sorting is stable: items that tie on every rule keep their input order."
+}

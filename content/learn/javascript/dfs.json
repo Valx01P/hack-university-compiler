@@ -2,7 +2,7 @@
   "id": "dfs",
   "title": "Depth-First Search",
   "section": "Advanced: Data Structures and Algorithms",
-  "summary": "Explore grids and choices as deep as possible with recursive and stack-based DFS, and backtrack to list every solution.",
+  "summary": "Explore grids and choices as deep as possible with recursive and stack-based DFS, and backtrack to list every combination and ordering.",
   "intro": "Depth-first search follows one path as far as it goes, then backs up and tries the next. The same idea counts islands on a map, finds what a maze can reach, and lists every combination that fits a rule.",
   "steps": [
     {
@@ -81,7 +81,7 @@
     },
     {
       "title": "Backtracking",
-      "body": "Backtracking is DFS over *choices* instead of cells. Keep the current partial answer in a `path` array and follow three moves:\n\n```javascript harness\nconst nums = [1, 2, 3];\nconst path = [];\nconst results = [];\n\nfunction explore(start, sum) {\n  results.push([...path]);\n  for (let i = start; i < nums.length; i++) {\n    {{code}}\n  }\n}\n\nexplore(0, 0);\nconsole.log(results.map((subset) => `{${subset.join(\", \")}}`).join(\" \"));\n```\n\n```javascript\npath.push(nums[i]);           // choose\nexplore(i + 1, sum + nums[i]); // explore everything that starts with this choice\npath.pop();                    // un-choose, so the next loop turn starts clean\n```\n\nThe loop inside `explore(start, sum)` runs `i` from `start`, never from 0. Each later call only looks to the right, so `{1, 2}` is built once and `{2, 1}` never appears. It also fixes the output order: everything that starts with 1 comes before anything that starts with 2.\n\n`path` is one shared array that keeps changing. To save a solution, store a copy with `results.push([...path])`. Pushing `path` itself saves the same array every time, and it is empty by the end. Printing `path.join(\", \")` right away also works.\n\n**Pruning** skips work that cannot succeed. When the values are in increasing order and `sum + nums[i]` is already too big, every later value is too big as well, so `break` out of the loop.\n\nPermutations use the same pattern with a `used` boolean array instead of a start index.",
+      "body": "Backtracking is DFS over *choices* instead of cells. Keep the current partial answer in a `path` array and follow three moves:\n\n```javascript harness\nconst nums = [1, 2, 3];\nconst path = [];\nconst results = [];\n\nfunction explore(start, sum) {\n  results.push([...path]);\n  for (let i = start; i < nums.length; i++) {\n    {{code}}\n  }\n}\n\nexplore(0, 0);\nconsole.log(results.map((subset) => `{${subset.join(\", \")}}`).join(\" \"));\n```\n\n```javascript\npath.push(nums[i]);           // choose\nexplore(i + 1, sum + nums[i]); // explore everything that starts with this choice\npath.pop();                    // un-choose, so the next loop turn starts clean\n```\n\nThe loop inside `explore(start, sum)` runs `i` from `start`, never from 0. Each later call only looks to the right, so `{1, 2}` is built once and `{2, 1}` never appears. It also fixes the output order: everything that starts with 1 comes before anything that starts with 2.\n\n`path` is one shared array that keeps changing. To save a solution, store a copy with `results.push([...path])`. Pushing `path` itself saves the same array every time, and it is empty by the end. Printing `path.join(\", \")` right away also works.\n\n**Pruning** skips work that cannot succeed. When the values are in increasing order and `sum + nums[i]` is already too big, every later value is too big as well, so `break` out of the loop.\n\nPermutations use the same pattern with a `used` boolean array instead of a start index, as the next part shows.",
       "example": {
         "title": "Subsets under a limit",
         "prompt": "Read a limit and a line of increasing numbers and print every subset whose sum is at most the limit, in start-index order, then the total.",
@@ -115,7 +115,44 @@
           "Values only grow, so once `sum + nums[i] > target` every later value is too big as well: `break`."
         ]
       }
+    },
+    {
+      "title": "Permutations with a used array",
+      "body": "Combinations pick items in a fixed order with a `start` index, so `{1, 2}` and `{2, 1}` count once. **Permutations** care about order: every position can hold any item that isn't used yet. A boolean `used` array tracks that, and the loop starts from 0 every time. Undo both the push and the mark on the way back:\n\n```javascript harness\nconst items = [\"a\", \"b\", \"c\"];\nconst used = new Array(items.length).fill(false);\nconst path = [];\nconst results = [];\n{{code}}\nbuild();\nconsole.log(results.join(\" \"));\n```\n\n```javascript\nfunction build() {\n  if (path.length === items.length) {\n    results.push(path.join(\"\"));\n    return;\n  }\n  for (let i = 0; i < items.length; i++) {\n    if (used[i]) {\n      continue;\n    }\n    used[i] = true; // choose\n    path.push(items[i]);\n    build(); // explore\n    path.pop(); // un-choose\n    used[i] = false;\n  }\n}\n```\n\nThat run collects `abc acb bac bca cab cba`. When the items start sorted, the orderings come out sorted too, since every level tries the smaller items first. For orderings of only `k` of the items, stop when `path.length === k` instead.\n\nn items have n! orderings: 3 have 6, but 10 have 3,628,800. Keep n small when you list them all.\n\n**The gotcha:** forget `used[i] = false` and every later branch still thinks the item is taken, so most orderings never appear and no error tells you.",
+      "example": {
+        "title": "Seating orders",
+        "prompt": "Read a few names, sort them, and print every order they could sit in a row, then the count.",
+        "stdin": "cy ann bo\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst names = input.trim().split(/\\s+/).sort();\nconst used = new Array(names.length).fill(false);\nconst path = [];\nlet count = 0;\n\nfunction seat() {\n  if (path.length === names.length) {\n    console.log(path.join(\" \"));\n    count++;\n    return;\n  }\n  for (let i = 0; i < names.length; i++) {\n    if (used[i]) {\n      continue;\n    }\n    used[i] = true;\n    path.push(names[i]);\n    seat();\n    path.pop();\n    used[i] = false;\n  }\n}\n\nseat();\nconsole.log(`${count} orders`);\n",
+        "output": "ann bo cy\nann cy bo\nbo ann cy\nbo cy ann\ncy ann bo\ncy bo ann\n6 orders",
+        "explanation": "Sorting first makes `ann` the first choice at every level, so the orders print alphabetically. With `ann` in the first seat, the loop at the next level skips her because `used[0]` is true, and tries `bo`, then `cy`. Each finished row prints right away, so no copies of `path` are needed."
+      },
+      "practice": {
+        "title": "Podium finishes",
+        "prompt": "Read `k` on the first line and runner names on the second. Print every way the top `k` places could finish, in alphabetical order, then the total.\n\n1. Sort the names first.\n2. Build orderings with a `used` array, but stop when `path` holds `k` names.\n3. Print each finish as the names joined with ` > `, then `total` and the count.\n\nInput:\n\n```text\n2\ndan amy cal\n```\n\nExpected output:\n\n```text\namy > cal\namy > dan\ncal > amy\ncal > dan\ndan > amy\ndan > cal\ntotal 6\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [kLine, namesLine] = input.trim().split(\"\\n\");\nconst k = Number(kLine);\nconst names = namesLine.trim().split(/\\s+/).sort();\nconst used = new Array(names.length).fill(false);\nconst path = [];\nlet count = 0;\n\nfunction place() {\n  // TODO: print path when it holds k names, otherwise try every unused name\n}\n\nplace();\nconsole.log(`total ${count}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [kLine, namesLine] = input.trim().split(\"\\n\");\nconst k = Number(kLine);\nconst names = namesLine.trim().split(/\\s+/).sort();\nconst used = new Array(names.length).fill(false);\nconst path = [];\nlet count = 0;\n\nfunction place() {\n  if (path.length === k) {\n    console.log(path.join(\" > \"));\n    count++;\n    return;\n  }\n  for (let i = 0; i < names.length; i++) {\n    if (used[i]) {\n      continue;\n    }\n    used[i] = true;\n    path.push(names[i]);\n    place();\n    path.pop();\n    used[i] = false;\n  }\n}\n\nplace();\nconsole.log(`total ${count}`);\n",
+        "tests": [
+          {
+            "stdin": "2\ndan amy cal\n",
+            "output": "amy > cal\namy > dan\ncal > amy\ncal > dan\ndan > amy\ndan > cal\ntotal 6"
+          },
+          {
+            "stdin": "1\nzed\n",
+            "output": "zed\ntotal 1"
+          },
+          {
+            "stdin": "3\nb a c\n",
+            "output": "a > b > c\na > c > b\nb > a > c\nb > c > a\nc > a > b\nc > b > a\ntotal 6"
+          }
+        ],
+        "hints": [
+          "The base case is `path.length === k`, not the number of names.",
+          "The loop is the example's: skip used names, mark, push, recurse, pop, unmark.",
+          "Add 1 to `count` each time you print a finish."
+        ]
+      }
     }
   ],
-  "recap": "- Turn grid lines into arrays with `line.trim().split(\"\")` and read cells as `grid[r][c]`.\n- Walk neighbors with the offsets `[[1, 0], [-1, 0], [0, 1], [0, -1]]` and check bounds before reading a cell.\n- Keep a boolean visited grid from `Array.from({ length: rows }, () => new Array(cols).fill(false))` and mark a cell before exploring from it.\n- Count regions by starting a DFS from every unvisited cell that belongs to one.\n- Recursive DFS is short but limited by the call stack. An array stack with `push` and `pop` handles any size. Mark cells visited when you push them.\n- Backtracking is choose, explore, un-choose. A loop from `start` builds each combination once in a fixed order.\n- Save solutions with `[...path]`, and `break` early when sorted values make the rest of the loop hopeless."
+  "recap": "- Turn grid lines into arrays with `line.trim().split(\"\")` and read cells as `grid[r][c]`.\n- Walk neighbors with the offsets `[[1, 0], [-1, 0], [0, 1], [0, -1]]` and check bounds before reading a cell.\n- Keep a boolean visited grid from `Array.from({ length: rows }, () => new Array(cols).fill(false))` and mark a cell before exploring from it.\n- Count regions by starting a DFS from every unvisited cell that belongs to one.\n- Recursive DFS is short but limited by the call stack. An array stack with `push` and `pop` handles any size. Mark cells visited when you push them.\n- Backtracking is choose, explore, un-choose. A loop from `start` builds each combination once in a fixed order.\n- Save solutions with `[...path]`, and `break` early when sorted values make the rest of the loop hopeless.\n- Permutations loop from 0 every time and skip items marked in a `used` array. Undo both `path.pop()` and `used[i] = false`.\n- Stop at `path.length === k` for orderings of k items. Sorted input gives sorted orderings."
 }

@@ -1,0 +1,158 @@
+{
+  "id": "heaps",
+  "title": "Heaps and Priority Queues",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Build heaps with container/heap: structs ordered with a tie-break, the k largest kept in a small heap, merged sorted lists, and a running median.",
+  "intro": "A heap hands you the smallest or the largest item in O(log n) per push and pop, without sorting everything. Go's `container/heap` works on any slice type you give five methods. This lesson orders structs with a tie-break, keeps the k best values in a small heap, merges sorted lists, and tracks a running median with two heaps.",
+  "steps": [
+    {
+      "title": "A heap of structs with a tie-break",
+      "body": "`container/heap` turns your own slice type into a heap once it has five methods: `Len`, `Less`, and `Swap`, plus `Push` and `Pop` with pointer receivers, since they change the slice's length. `Less(i, j)` says whether element i belongs above element j, so for structs it compares the main key and then a tie-break:\n\n```go harness\n{{code}}\n\nh := &TaskHeap{{\"b\", 1}, {\"a\", 1}, {\"c\", 2}}\nheap.Init(h)\nfmt.Println(heap.Pop(h).(Task).Name)\n```\n\n```go\ntype Task struct {\n\tName     string\n\tPriority int\n}\n\ntype TaskHeap []Task\n\nfunc (h TaskHeap) Len() int      { return len(h) }\nfunc (h TaskHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }\nfunc (h TaskHeap) Less(i, j int) bool {\n\tif h[i].Priority != h[j].Priority {\n\t\treturn h[i].Priority > h[j].Priority // the highest priority on top\n\t}\n\treturn h[i].Name < h[j].Name // ties: A to Z\n}\nfunc (h *TaskHeap) Push(x interface{}) { *h = append(*h, x.(Task)) }\nfunc (h *TaskHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n```\n\nThe tie-break makes the order complete. Without it, two tasks with the same priority could come out in either order, and a heap doesn't keep input order the way a stable sort does.\n\nThen go through the package's functions, never your own `Push` and `Pop`, which only append and cut the end:\n\n```go harness\ntype Task struct {\n\tName     string\n\tPriority int\n}\n\ntype TaskHeap []Task\n\nfunc (h TaskHeap) Len() int      { return len(h) }\nfunc (h TaskHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }\nfunc (h TaskHeap) Less(i, j int) bool {\n\tif h[i].Priority != h[j].Priority {\n\t\treturn h[i].Priority > h[j].Priority // the highest priority on top\n\t}\n\treturn h[i].Name < h[j].Name // ties: A to Z\n}\nfunc (h *TaskHeap) Push(x interface{}) { *h = append(*h, x.(Task)) }\nfunc (h *TaskHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\n{{code}}\n```\n\n```go\nh := &TaskHeap{{\"email\", 2}, {\"deploy\", 3}, {\"lunch\", 1}}\nheap.Init(h) // arranges the existing slice in O(n)\nheap.Push(h, Task{\"review\", 3})\nfor h.Len() > 0 {\n\tt := heap.Pop(h).(Task) // assert the interface{} back to a Task\n\tfmt.Println(t.Priority, t.Name)\n}\n```\n\n`heap.Push` and `heap.Pop` take O(log n). The top is always at index 0, so `(*h)[0]` peeks without removing it.",
+      "example": {
+        "title": "Task queue",
+        "prompt": "Read tasks with a name and a priority, and print them highest priority first, with ties in alphabetical order.",
+        "code": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\ntype Task struct {\n\tName     string\n\tPriority int\n}\n\ntype TaskHeap []Task\n\nfunc (h TaskHeap) Len() int      { return len(h) }\nfunc (h TaskHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }\nfunc (h TaskHeap) Less(i, j int) bool {\n\tif h[i].Priority != h[j].Priority {\n\t\treturn h[i].Priority > h[j].Priority // the highest priority on top\n\t}\n\treturn h[i].Name < h[j].Name // ties: A to Z\n}\nfunc (h *TaskHeap) Push(x interface{}) { *h = append(*h, x.(Task)) }\nfunc (h *TaskHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\th := make(TaskHeap, n)\n\tfor i := range h {\n\t\tfmt.Scan(&h[i].Name, &h[i].Priority)\n\t}\n\theap.Init(&h)\n\tfmt.Println(\"next up:\", h[0].Name)\n\tfor h.Len() > 0 {\n\t\tt := heap.Pop(&h).(Task)\n\t\tfmt.Printf(\"%d %s\\n\", t.Priority, t.Name)\n\t}\n}\n",
+        "stdin": "5\nemail 2\ndeploy 3\nlunch 1\nreview 3\nbackup 2\n",
+        "output": "next up: deploy\n3 deploy\n3 review\n2 backup\n2 email\n1 lunch",
+        "explanation": "`make(TaskHeap, n)` fills a slice of the heap type directly, and `heap.Init(&h)` arranges it. Here `h` is a slice, not a pointer, so the package calls get `&h` and the peek is plain `h[0]`. deploy and review tie at 3, and the tie-break puts deploy first. backup and email tie at 2 the same way. Each `heap.Pop` returns an `interface{}`, and `.(Task)` turns it back into a Task."
+      },
+      "practice": {
+        "title": "Emergency room",
+        "prompt": "Treat patients by severity, the most severe first, and on a tie, whoever arrived first.\n\n1. The starter reads `n` patients as `name severity` lines, in arrival order, and records each one's arrival number.\n2. Finish `Less` so the highest `Severity` is on top, and on a tie the lower `Arrival` is.\n3. After `heap.Init`, pop every patient and print `name (severity)`.\n\nInput:\n\n```text\n5\nzed 2\namy 5\nbob 2\ncal 5\ndan 1\n```\n\nExpected output:\n\n```text\namy (5)\ncal (5)\nzed (2)\nbob (2)\ndan (1)\n```",
+        "starter": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\ntype Patient struct {\n\tName     string\n\tSeverity int\n\tArrival  int\n}\n\ntype PatientHeap []Patient\n\nfunc (h PatientHeap) Len() int      { return len(h) }\nfunc (h PatientHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }\nfunc (h PatientHeap) Less(i, j int) bool {\n\t// TODO: the highest severity on top, then the earliest arrival\n\treturn false\n}\nfunc (h *PatientHeap) Push(x interface{}) { *h = append(*h, x.(Patient)) }\nfunc (h *PatientHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\th := make(PatientHeap, n)\n\tfor i := range h {\n\t\tfmt.Scan(&h[i].Name, &h[i].Severity)\n\t\th[i].Arrival = i\n\t}\n\theap.Init(&h)\n\t// TODO: pop every patient and print \"name (severity)\"\n}\n",
+        "solution": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\ntype Patient struct {\n\tName     string\n\tSeverity int\n\tArrival  int\n}\n\ntype PatientHeap []Patient\n\nfunc (h PatientHeap) Len() int      { return len(h) }\nfunc (h PatientHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }\nfunc (h PatientHeap) Less(i, j int) bool {\n\tif h[i].Severity != h[j].Severity {\n\t\treturn h[i].Severity > h[j].Severity\n\t}\n\treturn h[i].Arrival < h[j].Arrival\n}\nfunc (h *PatientHeap) Push(x interface{}) { *h = append(*h, x.(Patient)) }\nfunc (h *PatientHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\th := make(PatientHeap, n)\n\tfor i := range h {\n\t\tfmt.Scan(&h[i].Name, &h[i].Severity)\n\t\th[i].Arrival = i\n\t}\n\theap.Init(&h)\n\tfor h.Len() > 0 {\n\t\tp := heap.Pop(&h).(Patient)\n\t\tfmt.Printf(\"%s (%d)\\n\", p.Name, p.Severity)\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "5\nzed 2\namy 5\nbob 2\ncal 5\ndan 1\n",
+            "output": "amy (5)\ncal (5)\nzed (2)\nbob (2)\ndan (1)"
+          },
+          {
+            "stdin": "3\nkim 3\nlee 3\nmo 3\n",
+            "output": "kim (3)\nlee (3)\nmo (3)"
+          },
+          {
+            "stdin": "1\nsol 9\n",
+            "output": "sol (9)"
+          }
+        ],
+        "hints": [
+          "Copy the shape of the example's `Less`: compare `Severity` first and return early when they differ.",
+          "On a tie, `h[i].Arrival < h[j].Arrival` puts the earlier patient on top, whatever their names are.",
+          "Pop in a loop while `h.Len() > 0`, and assert each value with `.(Patient)`."
+        ]
+      }
+    },
+    {
+      "title": "The k largest with a small heap",
+      "body": "To find the k largest of n values, sorting everything costs O(n log n). A **min-heap kept at size k** does it in O(n log k) and holds only k values. Push each value, and whenever the heap grows past k, pop its smallest. What's left is the k largest seen so far, with the smallest of them, the kth largest, on top:\n\n```go harness\ntype IntHeap []int\n\nfunc (h IntHeap) Len() int            { return len(h) }\nfunc (h IntHeap) Less(i, j int) bool  { return h[i] < h[j] }\nfunc (h IntHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *IntHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *IntHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\n{{code}}\n```\n\n```go\nnums := []int{3, 2, 1, 5, 6, 4}\nk := 2\nh := &IntHeap{} // IntHeap: a min-heap of ints\nfor _, x := range nums {\n\theap.Push(h, x)\n\tif h.Len() > k {\n\t\theap.Pop(h) // drop the smallest, keep the k largest\n\t}\n}\nfmt.Println((*h)[0]) // 5, the 2nd largest\n```\n\n`h` is a pointer here, so the peek needs parentheses, `(*h)[0]`, because indexing binds tighter than `*`. The result of `heap.Pop(h)` can be ignored when you only want it gone.\n\nPopping what's left gives the k largest from smallest to largest. To list them from largest down, fill a result slice from its last index backwards. For the k **smallest**, flip `Less` to `>` and the same loop keeps a max-heap of the k smallest.",
+      "example": {
+        "title": "Top scores",
+        "prompt": "Read n, k, and n scores, and print the kth highest score and the top k from highest to lowest.",
+        "code": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\ntype IntHeap []int\n\nfunc (h IntHeap) Len() int            { return len(h) }\nfunc (h IntHeap) Less(i, j int) bool  { return h[i] < h[j] }\nfunc (h IntHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *IntHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *IntHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nfunc main() {\n\tvar n, k int\n\tfmt.Scan(&n, &k)\n\th := &IntHeap{}\n\tfor i := 0; i < n; i++ {\n\t\tvar score int\n\t\tfmt.Scan(&score)\n\t\theap.Push(h, score)\n\t\tif h.Len() > k {\n\t\t\theap.Pop(h)\n\t\t}\n\t}\n\tfmt.Println(\"kth highest:\", (*h)[0])\n\n\ttop := make([]int, h.Len())\n\tfor i := len(top) - 1; i >= 0; i-- {\n\t\ttop[i] = heap.Pop(h).(int) // smallest first, so fill from the back\n\t}\n\tfmt.Println(\"top:\", top)\n}\n",
+        "stdin": "8 3\n70 95 82 61 95 88 40 77\n",
+        "output": "kth highest: 88\ntop: [95 95 88]",
+        "explanation": "The heap never holds more than 3 scores. 61, 40, and 77 are popped right after they're pushed, since each is the smallest at that moment, and 70 and 82 are pushed out later by bigger scores. The final heap holds 88, 95, and 95, with 88 on top as the 3rd highest. Popping gives 88, 95, 95, and filling `top` from its end puts them in descending order. The repeated 95 counts twice, as it should."
+      },
+      "practice": {
+        "title": "Fastest laps",
+        "prompt": "Find the k fastest lap times, the k **smallest** numbers, with a max-heap kept at size k.\n\n1. The starter reads `n`, `k`, and `n` lap times. Finish `Less` so `MaxHeap` keeps the largest time on top.\n2. Push each time, and pop whenever the heap holds more than k. The slowest of the kept laps is then on top.\n3. Print `cutoff: T` with the top of the heap, then pop the rest to print the k fastest from fastest to slowest.\n\nInput:\n\n```text\n7 3\n92 85 101 88 79 95 84\n```\n\nExpected output:\n\n```text\ncutoff: 85\nfastest: [79 84 85]\n```",
+        "starter": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\ntype MaxHeap []int\n\nfunc (h MaxHeap) Len() int { return len(h) }\nfunc (h MaxHeap) Less(i, j int) bool {\n\t// TODO: put the largest time on top\n\treturn false\n}\nfunc (h MaxHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *MaxHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *MaxHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nfunc main() {\n\tvar n, k int\n\tfmt.Scan(&n, &k)\n\th := &MaxHeap{}\n\tfor i := 0; i < n; i++ {\n\t\tvar lap int\n\t\tfmt.Scan(&lap)\n\t\theap.Push(h, lap)\n\t\t// TODO: keep only the k fastest laps\n\t}\n\t// TODO: print the cutoff, then the k fastest from fastest to slowest\n}\n",
+        "solution": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\ntype MaxHeap []int\n\nfunc (h MaxHeap) Len() int { return len(h) }\nfunc (h MaxHeap) Less(i, j int) bool {\n\treturn h[i] > h[j]\n}\nfunc (h MaxHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *MaxHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *MaxHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nfunc main() {\n\tvar n, k int\n\tfmt.Scan(&n, &k)\n\th := &MaxHeap{}\n\tfor i := 0; i < n; i++ {\n\t\tvar lap int\n\t\tfmt.Scan(&lap)\n\t\theap.Push(h, lap)\n\t\tif h.Len() > k {\n\t\t\theap.Pop(h)\n\t\t}\n\t}\n\tfmt.Println(\"cutoff:\", (*h)[0])\n\n\tfastest := make([]int, h.Len())\n\tfor i := len(fastest) - 1; i >= 0; i-- {\n\t\tfastest[i] = heap.Pop(h).(int)\n\t}\n\tfmt.Println(\"fastest:\", fastest)\n}\n",
+        "tests": [
+          {
+            "stdin": "7 3\n92 85 101 88 79 95 84\n",
+            "output": "cutoff: 85\nfastest: [79 84 85]"
+          },
+          {
+            "stdin": "4 4\n60 59 61 58\n",
+            "output": "cutoff: 61\nfastest: [58 59 60 61]"
+          },
+          {
+            "stdin": "5 1\n70 70 69 71 70\n",
+            "output": "cutoff: 69\nfastest: [69]"
+          }
+        ],
+        "hints": [
+          "`return h[i] > h[j]` makes the largest value win, so it rises to the top.",
+          "The loop is the example's: `heap.Pop(h)` whenever `h.Len() > k` drops the slowest lap kept.",
+          "A max-heap pops the slowest first, so fill `fastest` from its last index backwards, like the example's `top`."
+        ]
+      }
+    },
+    {
+      "title": "Merging sorted lists",
+      "body": "Merging k sorted lists means repeatedly taking the smallest value at the front of any list. A heap holds one front value per list, so each pick costs O(log k), and merging N values in all takes O(N log k).\n\nEach heap entry remembers where its value came from, so you know which list moves next:\n\n```go harness\n{{code}}\n\nh := &EntryHeap{{5, 0, 0}, {2, 1, 0}}\nheap.Init(h)\nfmt.Println(heap.Pop(h).(Entry))\n```\n\n```go\n// Entry is one value waiting in the heap, with where it came from.\ntype Entry struct {\n\tValue, List, Index int\n}\n\ntype EntryHeap []Entry\n\nfunc (h EntryHeap) Len() int            { return len(h) }\nfunc (h EntryHeap) Less(i, j int) bool  { return h[i].Value < h[j].Value }\nfunc (h EntryHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *EntryHeap) Push(x interface{}) { *h = append(*h, x.(Entry)) }\nfunc (h *EntryHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n```\n\nStart with the first value of every list that isn't empty. Then pop the smallest, record it, and push the next value from the **same** list, if it has one:\n\n```go harness\n// Entry is one value waiting in the heap, with where it came from.\ntype Entry struct {\n\tValue, List, Index int\n}\n\ntype EntryHeap []Entry\n\nfunc (h EntryHeap) Len() int            { return len(h) }\nfunc (h EntryHeap) Less(i, j int) bool  { return h[i].Value < h[j].Value }\nfunc (h EntryHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *EntryHeap) Push(x interface{}) { *h = append(*h, x.(Entry)) }\nfunc (h *EntryHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nlists := [][]int{{1, 4, 7}, {2, 5}, {0, 6, 9}}\nmerged := []int{}\n{{code}}\nfmt.Println(merged)\n```\n\n```go\nh := &EntryHeap{}\nfor i, list := range lists {\n\tif len(list) > 0 {\n\t\theap.Push(h, Entry{list[0], i, 0})\n\t}\n}\nfor h.Len() > 0 {\n\te := heap.Pop(h).(Entry)\n\tmerged = append(merged, e.Value)\n\tif next := e.Index + 1; next < len(lists[e.List]) {\n\t\theap.Push(h, Entry{lists[e.List][next], e.List, next})\n\t}\n}\n```\n\nThe heap never holds more than k entries, one per list. When a list runs out, it simply stops sending entries, and the loop ends when every list is done.",
+      "example": {
+        "title": "Merge sorted lists",
+        "prompt": "Read k sorted lists, each as a count and its values, and print them merged into one sorted list.",
+        "code": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\n// Entry is one value waiting in the heap, with where it came from.\ntype Entry struct {\n\tValue, List, Index int\n}\n\ntype EntryHeap []Entry\n\nfunc (h EntryHeap) Len() int            { return len(h) }\nfunc (h EntryHeap) Less(i, j int) bool  { return h[i].Value < h[j].Value }\nfunc (h EntryHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *EntryHeap) Push(x interface{}) { *h = append(*h, x.(Entry)) }\nfunc (h *EntryHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nfunc main() {\n\tvar k int\n\tfmt.Scan(&k)\n\tlists := make([][]int, k)\n\tfor i := range lists {\n\t\tvar m int\n\t\tfmt.Scan(&m)\n\t\tlists[i] = make([]int, m)\n\t\tfor j := range lists[i] {\n\t\t\tfmt.Scan(&lists[i][j])\n\t\t}\n\t}\n\n\th := &EntryHeap{}\n\tfor i, list := range lists {\n\t\tif len(list) > 0 {\n\t\t\theap.Push(h, Entry{list[0], i, 0})\n\t\t}\n\t}\n\tmerged := []int{}\n\tfor h.Len() > 0 {\n\t\te := heap.Pop(h).(Entry)\n\t\tmerged = append(merged, e.Value)\n\t\tif next := e.Index + 1; next < len(lists[e.List]) {\n\t\t\theap.Push(h, Entry{lists[e.List][next], e.List, next})\n\t\t}\n\t}\n\tfmt.Println(merged)\n}\n",
+        "stdin": "4\n3 1 4 7\n2 2 5\n0\n3 0 6 9\n",
+        "output": "[0 1 2 4 5 6 7 9]",
+        "explanation": "The third list is empty, so only three entries start in the heap: 1, 2, and 0. 0 comes out first, and its list sends 6. Then 1 comes out and its list sends 4, and so on. Each pop is followed by at most one push from the same list, so the heap holds at most 3 entries the whole time."
+      },
+      "practice": {
+        "title": "Merge timetables",
+        "prompt": "Merge the sorted departure times of several lines into one board, listing each time once.\n\n1. The starter reads `k` sorted lists of times. Merge them with the heap of `Entry` values, as in the example.\n2. Skip a time when it equals the last time you added, so repeats appear once.\n3. Print the board as one slice, then `trains: N` with the number of times popped, repeats included.\n\nInput:\n\n```text\n3\n4 600 615 700 730\n3 615 645 700\n2 545 730\n```\n\nExpected output:\n\n```text\n[545 600 615 645 700 730]\ntrains: 9\n```",
+        "starter": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\n// Entry is one value waiting in the heap, with where it came from.\ntype Entry struct {\n\tValue, List, Index int\n}\n\ntype EntryHeap []Entry\n\nfunc (h EntryHeap) Len() int            { return len(h) }\nfunc (h EntryHeap) Less(i, j int) bool  { return h[i].Value < h[j].Value }\nfunc (h EntryHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *EntryHeap) Push(x interface{}) { *h = append(*h, x.(Entry)) }\nfunc (h *EntryHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nfunc main() {\n\tvar k int\n\tfmt.Scan(&k)\n\tlists := make([][]int, k)\n\tfor i := range lists {\n\t\tvar m int\n\t\tfmt.Scan(&m)\n\t\tlists[i] = make([]int, m)\n\t\tfor j := range lists[i] {\n\t\t\tfmt.Scan(&lists[i][j])\n\t\t}\n\t}\n\n\th := &EntryHeap{}\n\theap.Init(h)\n\tboard := []int{}\n\ttrains := 0\n\t// TODO: merge the lists with the heap, skipping a time equal to the last one added\n\tfmt.Println(board)\n\tfmt.Println(\"trains:\", trains)\n}\n",
+        "solution": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\n// Entry is one value waiting in the heap, with where it came from.\ntype Entry struct {\n\tValue, List, Index int\n}\n\ntype EntryHeap []Entry\n\nfunc (h EntryHeap) Len() int            { return len(h) }\nfunc (h EntryHeap) Less(i, j int) bool  { return h[i].Value < h[j].Value }\nfunc (h EntryHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *EntryHeap) Push(x interface{}) { *h = append(*h, x.(Entry)) }\nfunc (h *EntryHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nfunc main() {\n\tvar k int\n\tfmt.Scan(&k)\n\tlists := make([][]int, k)\n\tfor i := range lists {\n\t\tvar m int\n\t\tfmt.Scan(&m)\n\t\tlists[i] = make([]int, m)\n\t\tfor j := range lists[i] {\n\t\t\tfmt.Scan(&lists[i][j])\n\t\t}\n\t}\n\n\th := &EntryHeap{}\n\tfor i, list := range lists {\n\t\tif len(list) > 0 {\n\t\t\theap.Push(h, Entry{list[0], i, 0})\n\t\t}\n\t}\n\tboard := []int{}\n\ttrains := 0\n\tfor h.Len() > 0 {\n\t\te := heap.Pop(h).(Entry)\n\t\ttrains++\n\t\tif len(board) == 0 || board[len(board)-1] != e.Value {\n\t\t\tboard = append(board, e.Value)\n\t\t}\n\t\tif next := e.Index + 1; next < len(lists[e.List]) {\n\t\t\theap.Push(h, Entry{lists[e.List][next], e.List, next})\n\t\t}\n\t}\n\tfmt.Println(board)\n\tfmt.Println(\"trains:\", trains)\n}\n",
+        "tests": [
+          {
+            "stdin": "3\n4 600 615 700 730\n3 615 645 700\n2 545 730\n",
+            "output": "[545 600 615 645 700 730]\ntrains: 9"
+          },
+          {
+            "stdin": "2\n2 10 20\n0\n",
+            "output": "[10 20]\ntrains: 2"
+          },
+          {
+            "stdin": "3\n1 5\n1 5\n1 5\n",
+            "output": "[5]\ntrains: 3"
+          }
+        ],
+        "hints": [
+          "Push the first time of each non-empty list, then pop and push like the example.",
+          "Before appending, check `len(board) == 0 || board[len(board)-1] != e.Value`. The merged order is sorted, so repeats always arrive next to each other.",
+          "Count every pop in `trains`, whether or not the time is added."
+        ]
+      }
+    },
+    {
+      "title": "Two heaps for a running median",
+      "body": "The median of numbers that keep arriving needs the middle at every moment. Two heaps split the numbers in half:\n\n- `low`, a **max-heap**, holds the smaller half, so its top is the biggest of the small numbers.\n- `high`, a **min-heap**, holds the larger half, so its top is the smallest of the big numbers.\n\nGo 1.16 has no generics, so the two halves need two types, `MaxHeap` and `MinHeap`, with the same methods except for `Less`. To add a number, push it into `low`, move `low`'s top over to `high`, and if `high` is now bigger, move its top back. `low` keeps the extra number when the count is odd:\n\n```go harness\ntype MinHeap []int\n\nfunc (h MinHeap) Len() int            { return len(h) }\nfunc (h MinHeap) Less(i, j int) bool  { return h[i] < h[j] }\nfunc (h MinHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *MinHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *MinHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\ntype MaxHeap []int\n\nfunc (h MaxHeap) Len() int            { return len(h) }\nfunc (h MaxHeap) Less(i, j int) bool  { return h[i] > h[j] }\nfunc (h MaxHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *MaxHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *MaxHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\n{{code}}\n```\n\n```go\nlow, high := &MaxHeap{}, &MinHeap{}\nfor _, x := range []int{5, 15, 1, 3} {\n\theap.Push(low, x)\n\theap.Push(high, heap.Pop(low)) // the biggest small number moves up\n\tif high.Len() > low.Len() {\n\t\theap.Push(low, heap.Pop(high)) // low keeps the extra one\n\t}\n\tfmt.Println((*low)[0], low.Len(), high.Len())\n}\n```\n\nMoving through `low` first keeps every number in `low` at most every number in `high`. Then the median is `(*low)[0]` for an odd count, and the average of the two tops for an even one. `heap.Pop` returns an `interface{}` and `heap.Push` takes one, so a popped value can go straight into the other heap. Each new number costs O(log n).",
+      "example": {
+        "title": "Running median",
+        "prompt": "Read numbers until the input ends, and after each one print the median so far with 1 decimal place.",
+        "code": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\ntype MinHeap []int\n\nfunc (h MinHeap) Len() int            { return len(h) }\nfunc (h MinHeap) Less(i, j int) bool  { return h[i] < h[j] }\nfunc (h MinHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *MinHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *MinHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\ntype MaxHeap []int\n\nfunc (h MaxHeap) Len() int            { return len(h) }\nfunc (h MaxHeap) Less(i, j int) bool  { return h[i] > h[j] }\nfunc (h MaxHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *MaxHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *MaxHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nfunc main() {\n\tlow, high := &MaxHeap{}, &MinHeap{}\n\tfor count := 1; ; count++ {\n\t\tvar x int\n\t\tif _, err := fmt.Scan(&x); err != nil {\n\t\t\tbreak\n\t\t}\n\t\theap.Push(low, x)\n\t\theap.Push(high, heap.Pop(low))\n\t\tif high.Len() > low.Len() {\n\t\t\theap.Push(low, heap.Pop(high))\n\t\t}\n\t\tmedian := float64((*low)[0])\n\t\tif low.Len() == high.Len() {\n\t\t\tmedian = float64((*low)[0]+(*high)[0]) / 2\n\t\t}\n\t\tfmt.Printf(\"after %d: %.1f\\n\", count, median)\n\t}\n}\n",
+        "stdin": "5 15 1 3 8 7\n",
+        "output": "after 1: 5.0\nafter 2: 10.0\nafter 3: 5.0\nafter 4: 4.0\nafter 5: 5.0\nafter 6: 6.0",
+        "explanation": "After 5 and 15, `low` holds 5 and `high` holds 15, so the median is their average, 10.0. After 1, `low` holds 1 and 5 and keeps the extra number, so the median is its top, 5.0. After 3 the halves are 1 3 and 5 15, for (3 + 5) / 2 = 4.0. The tops are always the middle of everything read so far, and no step sorts."
+      },
+      "practice": {
+        "title": "Median response time",
+        "prompt": "Track server response times and answer median questions.\n\n1. The starter reads commands until the input ends: `add T` records a time, and `median` asks for the median.\n2. Keep the times in the two heaps from the example.\n3. For `median`, print the median with 1 decimal place, or `no data` before any time was added.\n\nInput:\n\n```text\nmedian\nadd 120\nadd 80\nmedian\nadd 300\nmedian\nadd 95\nadd 110\nmedian\n```\n\nExpected output:\n\n```text\nno data\n100.0\n120.0\n110.0\n```",
+        "starter": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\ntype MinHeap []int\n\nfunc (h MinHeap) Len() int            { return len(h) }\nfunc (h MinHeap) Less(i, j int) bool  { return h[i] < h[j] }\nfunc (h MinHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *MinHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *MinHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\ntype MaxHeap []int\n\nfunc (h MaxHeap) Len() int            { return len(h) }\nfunc (h MaxHeap) Less(i, j int) bool  { return h[i] > h[j] }\nfunc (h MaxHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *MaxHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *MaxHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nfunc main() {\n\tlow, high := &MaxHeap{}, &MinHeap{}\n\theap.Init(low)\n\theap.Init(high)\n\tfor {\n\t\tvar cmd string\n\t\tif _, err := fmt.Scan(&cmd); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tif cmd == \"add\" {\n\t\t\tvar t int\n\t\t\tfmt.Scan(&t)\n\t\t\t// TODO: add t to the two heaps and rebalance\n\t\t} else {\n\t\t\t// TODO: print the median with 1 decimal place, or no data\n\t\t}\n\t}\n}\n",
+        "solution": "package main\n\nimport (\n\t\"container/heap\"\n\t\"fmt\"\n)\n\ntype MinHeap []int\n\nfunc (h MinHeap) Len() int            { return len(h) }\nfunc (h MinHeap) Less(i, j int) bool  { return h[i] < h[j] }\nfunc (h MinHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *MinHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *MinHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\ntype MaxHeap []int\n\nfunc (h MaxHeap) Len() int            { return len(h) }\nfunc (h MaxHeap) Less(i, j int) bool  { return h[i] > h[j] }\nfunc (h MaxHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *MaxHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *MaxHeap) Pop() interface{} {\n\told := *h\n\tx := old[len(old)-1]\n\t*h = old[:len(old)-1]\n\treturn x\n}\n\nfunc main() {\n\tlow, high := &MaxHeap{}, &MinHeap{}\n\tfor {\n\t\tvar cmd string\n\t\tif _, err := fmt.Scan(&cmd); err != nil {\n\t\t\tbreak\n\t\t}\n\t\tif cmd == \"add\" {\n\t\t\tvar t int\n\t\t\tfmt.Scan(&t)\n\t\t\theap.Push(low, t)\n\t\t\theap.Push(high, heap.Pop(low))\n\t\t\tif high.Len() > low.Len() {\n\t\t\t\theap.Push(low, heap.Pop(high))\n\t\t\t}\n\t\t} else if low.Len() == 0 {\n\t\t\tfmt.Println(\"no data\")\n\t\t} else if low.Len() > high.Len() {\n\t\t\tfmt.Printf(\"%.1f\\n\", float64((*low)[0]))\n\t\t} else {\n\t\t\tfmt.Printf(\"%.1f\\n\", float64((*low)[0]+(*high)[0])/2)\n\t\t}\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "median\nadd 120\nadd 80\nmedian\nadd 300\nmedian\nadd 95\nadd 110\nmedian\n",
+            "output": "no data\n100.0\n120.0\n110.0"
+          },
+          {
+            "stdin": "add 7\nmedian\nadd 8\nmedian\n",
+            "output": "7.0\n7.5"
+          },
+          {
+            "stdin": "median\nmedian\n",
+            "output": "no data\nno data"
+          }
+        ],
+        "hints": [
+          "The add steps are the example's three lines: push into `low`, move its top to `high`, and move one back if `high` got bigger.",
+          "`low` is empty only before the first add, so check `low.Len() == 0` for `no data`.",
+          "With equal sizes, average the two tops as floats: `float64((*low)[0]+(*high)[0]) / 2`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `container/heap` needs `Len`, `Less`, and `Swap`, plus `Push` and `Pop` with pointer receivers. Call `heap.Init`, `heap.Push`, and `heap.Pop`, never your own `Push` and `Pop`.\n- `Less` decides the top: `<` makes a min-heap, `>` a max-heap. For structs, compare the main key, then a tie-break, so the order is complete.\n- Values come back as `interface{}`. Assert them with `.(int)` or `.(Task)`.\n- The top sits at index 0: `h[0]` for a slice, `(*h)[0]` for a pointer.\n- A min-heap kept at size k holds the k largest values, with the kth largest on top. A max-heap does the same for the k smallest.\n- Merge k sorted lists with a heap of entries that remember their list and index, and push the next value from the list you just popped.\n- A running median keeps the smaller half in a max-heap and the larger half in a min-heap, with the smaller half keeping any extra number."
+}

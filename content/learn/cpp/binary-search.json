@@ -1,0 +1,154 @@
+{
+  "id": "binary-search",
+  "title": "Binary Search",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Write binary search as a loop, find lower and upper bounds, search for an answer with a check, and search a rotated sorted array.",
+  "intro": "Binary search throws away half of what is left at every step, so a million sorted values take about 20 looks. The Iterators lesson called `std::lower_bound` and `std::upper_bound` for you. This lesson writes the loop yourself, finds where duplicates start and end, and uses the same halving to search for an answer and to search an array that was rotated.",
+  "steps": [
+    {
+      "title": "Binary search with a loop",
+      "body": "`std::binary_search` and `std::lower_bound` from the Iterators lesson halve a sorted range for you. Writing the loop yourself matters when the data isn't a plain ascending vector, or when you search for something other than a stored value. Keep the range `lo` to `hi`, look at the middle, and throw away the half that can't hold the target:\n\n```cpp\nint search(const std::vector<int>& a, int target) {\n    int lo = 0;\n    int hi = static_cast<int>(a.size()) - 1;\n    while (lo <= hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] == target) {\n            return mid;\n        } else if (a[mid] < target) {\n            lo = mid + 1;\n        } else {\n            hi = mid - 1;\n        }\n    }\n    return -1;\n}\n\nstd::cout << search({2, 4, 7, 9}, 7) << ' ' << search({2, 4, 7, 9}, 5) << '\\n';   // 2 -1\n```\n\n`while (lo <= hi)` runs while the range holds at least one index, and every pass shrinks it, so the loop always ends. Keep `lo` and `hi` as `int`: on an empty vector `hi` starts at -1, which a `std::size_t` can't hold. `lo + (hi - lo) / 2` finds the middle without computing `lo + hi`, which overflows an `int` when both are near 2 billion.\n\nFor a vector sorted from high to low, flip the two comparisons: go right when `a[mid]` is bigger than the target.",
+      "example": {
+        "title": "Found or missing",
+        "prompt": "Read a sorted list and some targets, and for each target print its index, or where `std::lower_bound` says it would go.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <vector>\n\nint search(const std::vector<int>& a, int target) {\n    int lo = 0;\n    int hi = static_cast<int>(a.size()) - 1;\n    while (lo <= hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] == target) {\n            return mid;\n        } else if (a[mid] < target) {\n            lo = mid + 1;\n        } else {\n            hi = mid - 1;\n        }\n    }\n    return -1;\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> a(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> a[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int target = 0;\n        std::cin >> target;\n        int found = search(a, target);\n        if (found >= 0) {\n            std::cout << target << \": found at \" << found << '\\n';\n        } else {\n            auto spot = std::lower_bound(a.begin(), a.end(), target);\n            std::cout << target << \": missing, insert at \" << (spot - a.begin()) << '\\n';\n        }\n    }\n    return 0;\n}\n",
+        "stdin": "6\n3 8 12 15 21 30\n3\n15\n10\n40\n",
+        "output": "15: found at 3\n10: missing, insert at 2\n40: missing, insert at 6",
+        "explanation": "For 15, the range halves until `a[mid]` is 15 at index 3. For 10, the loop ends with `lo` past `hi` and returns -1, and `std::lower_bound` points at 12, index 2, where 10 would keep the list sorted. For 40, bigger than everything, `lower_bound` returns `end()`, so the index is 6, the list's length."
+      },
+      "practice": {
+        "title": "Leaderboard ranks",
+        "prompt": "Look up scores on a leaderboard sorted from the highest score to the lowest.\n\n1. The starter reads `n`, then `n` distinct scores from high to low into `board`, then `q` scores to look up.\n2. Finish `find` with a binary search loop. Since the board runs from high to low, go right when `board[mid]` is bigger than the score.\n3. Return the index of the score, or -1 when it isn't there. The starter prints the rank, the index plus 1, or `not on the board`.\n\nInput:\n\n```text\n6\n980 875 760 640 500 410\n3\n760\n900\n410\n```\n\nExpected output:\n\n```text\n760: rank 3\n900: not on the board\n410: rank 6\n```",
+        "starter": "#include <iostream>\n#include <vector>\n\nint find(const std::vector<int>& board, int score) {\n    // TODO: binary search a board sorted from high to low, returning the index or -1\n    return -1;\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> board(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> board[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int score = 0;\n        std::cin >> score;\n        int i = find(board, score);\n        if (i >= 0) {\n            std::cout << score << \": rank \" << i + 1 << '\\n';\n        } else {\n            std::cout << score << \": not on the board\" << '\\n';\n        }\n    }\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <vector>\n\nint find(const std::vector<int>& board, int score) {\n    int lo = 0;\n    int hi = static_cast<int>(board.size()) - 1;\n    while (lo <= hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (board[mid] == score) {\n            return mid;\n        } else if (board[mid] > score) {\n            lo = mid + 1;\n        } else {\n            hi = mid - 1;\n        }\n    }\n    return -1;\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> board(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> board[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int score = 0;\n        std::cin >> score;\n        int i = find(board, score);\n        if (i >= 0) {\n            std::cout << score << \": rank \" << i + 1 << '\\n';\n        } else {\n            std::cout << score << \": not on the board\" << '\\n';\n        }\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n980 875 760 640 500 410\n3\n760\n900\n410\n",
+            "output": "760: rank 3\n900: not on the board\n410: rank 6"
+          },
+          {
+            "stdin": "1\n50\n2\n50\n49\n",
+            "output": "50: rank 1\n49: not on the board"
+          },
+          {
+            "stdin": "4\n40 30 20 10\n2\n10\n40\n",
+            "output": "10: rank 4\n40: rank 1"
+          }
+        ],
+        "hints": [
+          "Start from the example's `search` and swap the two comparisons: `board[mid] > score` means the score is further right.",
+          "Keep `while (lo <= hi)` and `mid = lo + (hi - lo) / 2`."
+        ]
+      }
+    },
+    {
+      "title": "Lower and upper bounds",
+      "body": "With duplicates, an exact match can land on any copy. A **lower bound** finds the first index whose value is at least the target, and an **upper bound** the first index whose value is greater than it. Both use a half-open range: `hi` starts at `a.size()`, one past the end, and the loop runs `while (lo < hi)`:\n\n```cpp\nint lowerBound(const std::vector<int>& a, int target) {\n    int lo = 0;\n    int hi = static_cast<int>(a.size());\n    while (lo < hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] < target) {\n            lo = mid + 1;   // mid is too small: the answer is after it\n        } else {\n            hi = mid;       // mid might be the answer: keep it\n        }\n    }\n    return lo;\n}\n\nstd::cout << lowerBound({1, 2, 2, 2, 5}, 2) << ' ' << lowerBound({1, 2, 2, 2, 5}, 9) << '\\n';   // 1 5\n```\n\nThe upper bound is the same function with `a[mid] <= target` in the `if`. Both return `a.size()` when no value qualifies, so check for that before you read `a[lo]`. They compute exactly what `std::lower_bound(v.begin(), v.end(), x) - v.begin()` and `std::upper_bound` give you.\n\nTogether they answer the duplicate questions: the target appears `upper - lower` times, its first index is `lower`, and its last index is `upper - 1`. Never write `lo = mid` in this loop. `mid` rounds down, so a range of two indexes would never shrink.",
+      "example": {
+        "title": "First and last position",
+        "prompt": "Read a sorted list with duplicates and some targets, and for each target print its first and last index and how many times it appears.",
+        "code": "#include <iostream>\n#include <vector>\n\nint lowerBound(const std::vector<int>& a, int target) {\n    int lo = 0;\n    int hi = static_cast<int>(a.size());\n    while (lo < hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] < target) {\n            lo = mid + 1;\n        } else {\n            hi = mid;\n        }\n    }\n    return lo;\n}\n\nint upperBound(const std::vector<int>& a, int target) {\n    int lo = 0;\n    int hi = static_cast<int>(a.size());\n    while (lo < hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] <= target) {\n            lo = mid + 1;\n        } else {\n            hi = mid;\n        }\n    }\n    return lo;\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> a(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> a[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int target = 0;\n        std::cin >> target;\n        int first = lowerBound(a, target);\n        int count = upperBound(a, target) - first;\n        if (count == 0) {\n            std::cout << target << \": -1 -1, count 0\" << '\\n';\n        } else {\n            std::cout << target << \": first \" << first << \", last \" << first + count - 1 << \", count \" << count << '\\n';\n        }\n    }\n    return 0;\n}\n",
+        "stdin": "8\n1 3 3 3 5 8 8 9\n3\n3\n8\n4\n",
+        "output": "3: first 1, last 3, count 3\n8: first 5, last 6, count 2\n4: -1 -1, count 0",
+        "explanation": "For 3, the lower bound stops on index 1, the first 3, and the upper bound on index 4, the 5 just after the last 3. Their difference, 3, is the count, and the last index is `first + count - 1`. For 4, both bounds land on index 4, because 5 is the first value that is at least 4 and also the first one greater than it, so the count is 0 and the program prints -1 -1."
+      },
+      "practice": {
+        "title": "Scores in a range",
+        "prompt": "Count how many sorted scores fall inside each range.\n\n1. The starter reads `n`, then `n` scores from low to high, then `q` ranges, each a low and a high score.\n2. Finish `lowerBound` and `upperBound` like the example's.\n3. The scores from `low` to `high`, both included, start at `lowerBound(scores, low)` and end just before `upperBound(scores, high)`.\n4. Print the low score, ` to `, the high score, a colon and a space, and the count.\n\nInput:\n\n```text\n8\n55 60 62 70 75 80 85 91\n3\n60 80\n86 90\n0 100\n```\n\nExpected output:\n\n```text\n60 to 80: 5\n86 to 90: 0\n0 to 100: 8\n```",
+        "starter": "#include <iostream>\n#include <vector>\n\nint lowerBound(const std::vector<int>& a, int target) {\n    // TODO: the first index whose value is at least target\n    return 0;\n}\n\nint upperBound(const std::vector<int>& a, int target) {\n    // TODO: the first index whose value is greater than target\n    return 0;\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> scores(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> scores[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int low = 0;\n        int high = 0;\n        std::cin >> low >> high;\n        // TODO: count the scores from low to high, both included, with the two bounds\n    }\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <vector>\n\nint lowerBound(const std::vector<int>& a, int target) {\n    int lo = 0;\n    int hi = static_cast<int>(a.size());\n    while (lo < hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] < target) {\n            lo = mid + 1;\n        } else {\n            hi = mid;\n        }\n    }\n    return lo;\n}\n\nint upperBound(const std::vector<int>& a, int target) {\n    int lo = 0;\n    int hi = static_cast<int>(a.size());\n    while (lo < hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] <= target) {\n            lo = mid + 1;\n        } else {\n            hi = mid;\n        }\n    }\n    return lo;\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> scores(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> scores[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int low = 0;\n        int high = 0;\n        std::cin >> low >> high;\n        int count = upperBound(scores, high) - lowerBound(scores, low);\n        std::cout << low << \" to \" << high << \": \" << count << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "8\n55 60 62 70 75 80 85 91\n3\n60 80\n86 90\n0 100\n",
+            "output": "60 to 80: 5\n86 to 90: 0\n0 to 100: 8"
+          },
+          {
+            "stdin": "3\n5 5 5\n2\n5 5\n6 9\n",
+            "output": "5 to 5: 3\n6 to 9: 0"
+          },
+          {
+            "stdin": "5\n10 20 30 40 50\n2\n15 45\n50 50\n",
+            "output": "15 to 45: 3\n50 to 50: 1"
+          }
+        ],
+        "hints": [
+          "The only difference between the two bounds is `<` or `<=` in the `if`.",
+          "The count is `upperBound(scores, high) - lowerBound(scores, low)`, and it is 0 when no score is in the range."
+        ]
+      }
+    },
+    {
+      "title": "Searching for the answer",
+      "body": "Binary search also works on answers. Koko eats bananas at a speed of `k` per hour, one pile at a time, so a pile of `p` takes `p / k` hours rounded up. What is the slowest speed that finishes every pile within `h` hours?\n\nChecking one speed is easy, and the checks line up: if speed `k` works, every faster speed works too. So the answers look like `no no no yes yes yes`, and a lower bound over the speeds finds the first `yes`:\n\n```cpp\nbool canFinish(const std::vector<int>& piles, long long k, long long h) {\n    long long hours = 0;\n    for (int p : piles) {\n        hours += (p + k - 1) / k;   // p / k rounded up, with no doubles\n    }\n    return hours <= h;\n}\n\nstd::vector<int> piles = {3, 6, 7, 11};\nlong long lo = 1;\nlong long hi = 11;   // the biggest pile: a faster speed never helps\nwhile (lo < hi) {\n    long long mid = lo + (hi - lo) / 2;\n    if (canFinish(piles, mid, 8)) {\n        hi = mid;\n    } else {\n        lo = mid + 1;\n    }\n}\nstd::cout << lo << '\\n';   // 4\n```\n\n`(p + k - 1) / k` is ceiling division for positive numbers, and `long long` keeps both the division and the total from overflowing. The bounds are the smallest and the largest answers that could make sense. Each halving runs one check over all n piles, so the search costs O(n log max).",
+      "example": {
+        "title": "Koko's slowest speed",
+        "prompt": "Read n piles of bananas and the hours available, and print the slowest eating speed that finishes every pile in time.",
+        "code": "#include <algorithm>\n#include <iostream>\n#include <vector>\n\nbool canFinish(const std::vector<int>& piles, long long k, long long h) {\n    long long hours = 0;\n    for (int p : piles) {\n        hours += (p + k - 1) / k;\n    }\n    return hours <= h;\n}\n\nint main() {\n    int n = 0;\n    long long h = 0;\n    std::cin >> n >> h;\n    std::vector<int> piles(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> piles[i];\n    }\n\n    long long lo = 1;\n    long long hi = *std::max_element(piles.begin(), piles.end());\n    while (lo < hi) {\n        long long mid = lo + (hi - lo) / 2;\n        if (canFinish(piles, mid, h)) {\n            hi = mid;\n        } else {\n            lo = mid + 1;\n        }\n    }\n    std::cout << \"speed \" << lo << '\\n';\n    return 0;\n}\n",
+        "stdin": "4 8\n3 6 7 11\n",
+        "output": "speed 4",
+        "explanation": "The search starts between 1 and 11, the biggest pile. Speed 6 needs 1 + 1 + 2 + 2 = 6 hours, which works, so `hi` drops to 6. Speed 3 needs 1 + 2 + 3 + 4 = 10 hours, too many, so `lo` rises to 4. Speeds 5 and 4 both need 1 + 2 + 2 + 3 = 8 hours, so `hi` drops to 5, then to 4. When `lo` and `hi` meet at 4, that is the slowest speed that still fits."
+      },
+      "practice": {
+        "title": "Ship within the days",
+        "prompt": "Find the smallest ship capacity that delivers every package, in order, within `d` days.\n\n1. The starter reads `n` and `d`, then the `n` package weights. `daysNeeded` is finished: it loads the packages in order and returns how many days a capacity needs.\n2. Binary search the capacity. The smallest that could work is the heaviest package, and the largest you need is the total weight.\n3. A capacity works when `daysNeeded(weights, mid) <= d`.\n4. Print `capacity` and the smallest capacity that works, separated by a space.\n\nInput:\n\n```text\n10 5\n1 2 3 4 5 6 7 8 9 10\n```\n\nExpected output:\n\n```text\ncapacity 15\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <vector>\n\n// How many days a ship with this capacity needs, loading the packages in order.\nint daysNeeded(const std::vector<int>& weights, long long capacity) {\n    int days = 1;\n    long long load = 0;\n    for (int w : weights) {\n        if (load + w > capacity) {\n            ++days;\n            load = 0;\n        }\n        load += w;\n    }\n    return days;\n}\n\nint main() {\n    int n = 0;\n    int d = 0;\n    std::cin >> n >> d;\n    std::vector<int> weights(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> weights[i];\n    }\n    // TODO: binary search the smallest capacity from the heaviest package up to the total weight\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <vector>\n\n// How many days a ship with this capacity needs, loading the packages in order.\nint daysNeeded(const std::vector<int>& weights, long long capacity) {\n    int days = 1;\n    long long load = 0;\n    for (int w : weights) {\n        if (load + w > capacity) {\n            ++days;\n            load = 0;\n        }\n        load += w;\n    }\n    return days;\n}\n\nint main() {\n    int n = 0;\n    int d = 0;\n    std::cin >> n >> d;\n    std::vector<int> weights(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> weights[i];\n    }\n\n    long long lo = *std::max_element(weights.begin(), weights.end());\n    long long hi = 0;\n    for (int w : weights) {\n        hi += w;\n    }\n    while (lo < hi) {\n        long long mid = lo + (hi - lo) / 2;\n        if (daysNeeded(weights, mid) <= d) {\n            hi = mid;\n        } else {\n            lo = mid + 1;\n        }\n    }\n    std::cout << \"capacity \" << lo << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "10 5\n1 2 3 4 5 6 7 8 9 10\n",
+            "output": "capacity 15"
+          },
+          {
+            "stdin": "6 3\n3 2 2 4 1 4\n",
+            "output": "capacity 6"
+          },
+          {
+            "stdin": "5 4\n1 2 3 1 1\n",
+            "output": "capacity 3"
+          }
+        ],
+        "hints": [
+          "Start `lo` at `*std::max_element(weights.begin(), weights.end())` and `hi` at the sum of the weights.",
+          "Use the example's loop: when the capacity works, set `hi = mid`, otherwise `lo = mid + 1`."
+        ]
+      }
+    },
+    {
+      "title": "Searching a rotated array",
+      "body": "A sorted array rotated at an unknown point, like `{4, 5, 6, 7, 0, 1, 2}`, is no longer sorted as a whole. But split it at `mid` and at least one half is always sorted, and `a[lo] <= a[mid]` says the left one is. Check whether the target lies inside the sorted half's range. If it does, keep that half, and if not, keep the other:\n\n```cpp\nint searchRotated(const std::vector<int>& a, int target) {\n    int lo = 0;\n    int hi = static_cast<int>(a.size()) - 1;\n    while (lo <= hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] == target) {\n            return mid;\n        }\n        if (a[lo] <= a[mid]) {              // the left half is sorted\n            if (a[lo] <= target && target < a[mid]) {\n                hi = mid - 1;\n            } else {\n                lo = mid + 1;\n            }\n        } else {                            // the right half is sorted\n            if (a[mid] < target && target <= a[hi]) {\n                lo = mid + 1;\n            } else {\n                hi = mid - 1;\n            }\n        }\n    }\n    return -1;\n}\n\nstd::cout << searchRotated({4, 5, 6, 7, 0, 1, 2}, 0) << '\\n';   // 4\n```\n\nIt still halves the range on every pass, so it stays O(log n), and an array that was never rotated works too. It needs distinct values: with duplicates, `a[lo] == a[mid]` can't tell which half is sorted.",
+      "example": {
+        "title": "Rotated lookups",
+        "prompt": "Read a sorted list that was rotated and some targets, and print each target's index, or -1 when it is missing.",
+        "code": "#include <iostream>\n#include <vector>\n\nint searchRotated(const std::vector<int>& a, int target) {\n    int lo = 0;\n    int hi = static_cast<int>(a.size()) - 1;\n    while (lo <= hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] == target) {\n            return mid;\n        }\n        if (a[lo] <= a[mid]) {\n            if (a[lo] <= target && target < a[mid]) {\n                hi = mid - 1;\n            } else {\n                lo = mid + 1;\n            }\n        } else {\n            if (a[mid] < target && target <= a[hi]) {\n                lo = mid + 1;\n            } else {\n                hi = mid - 1;\n            }\n        }\n    }\n    return -1;\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> a(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> a[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int target = 0;\n        std::cin >> target;\n        std::cout << target << \": \" << searchRotated(a, target) << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "7\n4 5 6 7 0 1 2\n3\n0\n3\n6\n",
+        "output": "0: 4\n3: -1\n6: 2",
+        "explanation": "For 0, the first `mid` is index 3, the 7. The left half 4 to 7 is sorted and 0 is outside it, so the search moves right to 0 1 2, a sorted half that holds 0, and finds it at index 4. For 3, every half it keeps rules 3 out, so the range runs out and the result is -1. For 6, the sorted left half 4 to 7 holds it, and the search finds it at index 2."
+      },
+      "practice": {
+        "title": "Departure board",
+        "prompt": "A departure board lists train times in order, but it starts in the afternoon, so the morning trains wrap around to the end. Find trains on it.\n\n1. The starter reads `n` distinct times as numbers like `1430`, then `q` times to look up.\n2. Finish `findTime` with the rotated search from the example.\n3. Return the index of the time, or -1. The starter prints the board line, the index plus 1, or `no train`.\n\nInput:\n\n```text\n7\n1430 1615 1840 2205 1005 1100 1215\n3\n1840\n1100\n1300\n```\n\nExpected output:\n\n```text\n1840: line 3\n1100: line 6\n1300: no train\n```",
+        "starter": "#include <iostream>\n#include <vector>\n\nint findTime(const std::vector<int>& board, int time) {\n    // TODO: search the rotated board, returning the index of time or -1\n    return -1;\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> board(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> board[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int time = 0;\n        std::cin >> time;\n        int i = findTime(board, time);\n        if (i >= 0) {\n            std::cout << time << \": line \" << i + 1 << '\\n';\n        } else {\n            std::cout << time << \": no train\" << '\\n';\n        }\n    }\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <vector>\n\nint findTime(const std::vector<int>& board, int time) {\n    int lo = 0;\n    int hi = static_cast<int>(board.size()) - 1;\n    while (lo <= hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (board[mid] == time) {\n            return mid;\n        }\n        if (board[lo] <= board[mid]) {\n            if (board[lo] <= time && time < board[mid]) {\n                hi = mid - 1;\n            } else {\n                lo = mid + 1;\n            }\n        } else {\n            if (board[mid] < time && time <= board[hi]) {\n                lo = mid + 1;\n            } else {\n                hi = mid - 1;\n            }\n        }\n    }\n    return -1;\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> board(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> board[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int time = 0;\n        std::cin >> time;\n        int i = findTime(board, time);\n        if (i >= 0) {\n            std::cout << time << \": line \" << i + 1 << '\\n';\n        } else {\n            std::cout << time << \": no train\" << '\\n';\n        }\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "7\n1430 1615 1840 2205 1005 1100 1215\n3\n1840\n1100\n1300\n",
+            "output": "1840: line 3\n1100: line 6\n1300: no train"
+          },
+          {
+            "stdin": "1\n1200\n2\n1200\n1201\n",
+            "output": "1200: line 1\n1201: no train"
+          },
+          {
+            "stdin": "5\n1000 1100 1200 1300 1400\n2\n1400\n1000\n",
+            "output": "1400: line 5\n1000: line 1"
+          }
+        ],
+        "hints": [
+          "First decide which half is sorted with `board[lo] <= board[mid]`.",
+          "Then keep the sorted half only when the time falls inside its range, and the other half otherwise."
+        ]
+      }
+    }
+  ],
+  "recap": "- `while (lo <= hi)` with `mid = lo + (hi - lo) / 2` finds an exact match, or returns -1 when the range runs out.\n- Keep `lo` and `hi` as `int`, and flip the comparisons for data sorted from high to low.\n- The lower bound runs `while (lo < hi)` from `hi = a.size()`: when `a[mid] < target`, set `lo = mid + 1`, otherwise `hi = mid`.\n- The upper bound uses `<=` instead. `upper - lower` counts a value, and both return `a.size()` when nothing qualifies.\n- When the guesses line up as no, then yes, binary search the answer with a check function, between the smallest and the largest answers that make sense.\n- `(p + k - 1) / k` divides and rounds up for positive numbers. Sum in `long long`.\n- In a rotated array one half is always sorted: test `a[lo] <= a[mid]`, then keep the half whose range holds the target."
+}

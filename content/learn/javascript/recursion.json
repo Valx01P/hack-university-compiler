@@ -2,8 +2,8 @@
   "id": "recursion",
   "title": "Recursion",
   "section": "Advanced: Data Structures and Algorithms",
-  "summary": "Solve problems with functions that call themselves, using base cases, the call stack, recursion over nested data, and memoization.",
-  "intro": "Some problems contain smaller copies of themselves: a factorial, a word inside a word, an array inside an array. A recursive function solves the small copy and builds the answer from it. This lesson covers base cases, nested data, and memoization, which turns slow recursion into fast recursion.",
+  "summary": "Solve problems with functions that call themselves, using base cases, the call stack, recursion over nested data, memoization, and DP tables.",
+  "intro": "Some problems contain smaller copies of themselves: a factorial, a word inside a word, an array inside an array. A recursive function solves the small copy and builds the answer from it. This lesson covers base cases, nested data, and memoization, which turns slow recursion into fast recursion, and then the same idea filled in as a table, which is dynamic programming.",
   "steps": [
     {
       "title": "Base case and recursive case",
@@ -112,7 +112,44 @@
           "Pass `memo` as the second argument in both recursive calls of `memoClimbWays`."
         ]
       }
+    },
+    {
+      "title": "From a memo to a table",
+      "body": "A memo works top down: you ask for the big answer and recursion fills in the small ones. A **table** works bottom up: fill `dp[0]`, then `dp[1]`, and so on, so every entry you need is already there when you get to it. This is dynamic programming, and with no recursion there is no call stack to overflow.\n\nBuild a table in three moves: say what one entry means, write the rule from earlier entries, and fill the first entries by hand.\n\n```javascript\nconst n = 6;\nconst dp = new Array(n + 1).fill(0); // dp[i]: ways to climb i stairs\ndp[0] = 1;\ndp[1] = 1;\nfor (let i = 2; i <= n; i++) {\n  dp[i] = dp[i - 1] + dp[i - 2];\n}\nconsole.log(dp.join(\" \")); // 1 1 2 3 5 8 13\n```\n\nThat is the climbing stairs count from the memo part, without a single recursive call. For a best answer instead of a count, the rule picks between choices with `Math.min` or `Math.max`. For a minimum, start empty entries at `Infinity` so any real cost beats them.\n\nWhen each entry needs only the last two, two variables can replace the array, but the table is easier to print and check while you are learning.\n\n**The gotcha:** `new Array(n)` has n slots, indexes 0 to n - 1. A table that needs `dp[n]` must be made with `new Array(n + 1)`.",
+      "example": {
+        "title": "Cheapest climb",
+        "prompt": "Each step has a cost you pay when you stand on it. You start on step 0 or step 1 and climb 1 or 2 steps at a time. Print the cheapest total to get past the top step, with the table of cheapest costs to stand on each step.",
+        "stdin": "10 15 20 5 25\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst cost = input.trim().split(/\\s+/).map(Number);\nconst n = cost.length;\n\n// dp[i]: the cheapest total to stand on step i\nconst dp = new Array(n).fill(0);\ndp[0] = cost[0];\nif (n > 1) {\n  dp[1] = cost[1];\n}\nfor (let i = 2; i < n; i++) {\n  dp[i] = cost[i] + Math.min(dp[i - 1], dp[i - 2]);\n}\n\nconst cheapest = n > 1 ? Math.min(dp[n - 1], dp[n - 2]) : dp[0];\nconsole.log(`table: ${dp.join(\" \")}`);\nconsole.log(`cheapest: ${cheapest}`);\n",
+        "output": "table: 10 15 30 20 45\ncheapest: 20",
+        "explanation": "You can start on either of the first two steps, so they cost just their own price. Every later step is reached from one or two steps below, so its entry adds its own cost to the cheaper of those two. The top is past the last step, reachable from either of the last two, so the answer is the smaller of `dp[n - 1]` and `dp[n - 2]`: standing on step 3 for 20 and jumping 2 beats stepping on the 25."
+      },
+      "practice": {
+        "title": "Best path up the steps",
+        "prompt": "Each step has points, and some are traps with negative points. You start on step 0, climb 1 or 2 steps at a time, and must end on the last step. Collect the points of every step you stand on, and find the best total.\n\n1. Make a table where `dp[i]` is the best total for standing on step `i`.\n2. Fill `dp[0]` with step 0's points and `dp[1]` with steps 0 and 1 together (when there is a step 1).\n3. From step 2 on, `dp[i]` is step `i`'s points plus the better of `dp[i - 1]` and `dp[i - 2]`.\n4. Print `table:` and the entries, then `best:` and `dp` for the last step.\n\nInput:\n\n```text\n3 -5 -2 4 -1 6\n```\n\nExpected output:\n\n```text\ntable: 3 -2 1 5 4 11\nbest: 11\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst points = input.trim().split(/\\s+/).map(Number);\nconst n = points.length;\n\nconst dp = new Array(n).fill(0);\n// TODO: fill dp[0] and dp[1], then the rest with Math.max\n\nconsole.log(`table: ${dp.join(\" \")}`);\nconsole.log(`best: ${dp[n - 1]}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst points = input.trim().split(/\\s+/).map(Number);\nconst n = points.length;\n\nconst dp = new Array(n).fill(0);\ndp[0] = points[0];\nif (n > 1) {\n  dp[1] = points[0] + points[1];\n}\nfor (let i = 2; i < n; i++) {\n  dp[i] = points[i] + Math.max(dp[i - 1], dp[i - 2]);\n}\n\nconsole.log(`table: ${dp.join(\" \")}`);\nconsole.log(`best: ${dp[n - 1]}`);\n",
+        "tests": [
+          {
+            "stdin": "3 -5 -2 4 -1 6\n",
+            "output": "table: 3 -2 1 5 4 11\nbest: 11"
+          },
+          {
+            "stdin": "5\n",
+            "output": "table: 5\nbest: 5"
+          },
+          {
+            "stdin": "1 2\n",
+            "output": "table: 1 3\nbest: 3"
+          }
+        ],
+        "hints": [
+          "You always start on step 0, so reaching step 1 means standing on both: `dp[1] = points[0] + points[1]`.",
+          "Guard `dp[1]` with `if (n > 1)` so a single step still works.",
+          "The loop is the example's with `Math.max` in place of `Math.min`."
+        ]
+      }
     }
   ],
-  "recap": "- A recursive function calls itself on a smaller input. The base case answers directly and stops it.\n- Each call has its own parameters on the call stack. Too many nested calls throw `RangeError: Maximum call stack size exceeded`.\n- Strings recurse on `str[0]` and `str.slice(1)`. Arrays can pass an index instead: `sumArray(arr, i = 0)`.\n- `Array.isArray(item)` finds nested arrays to recurse into. `arr.flat(Infinity)` is the built-in flatten.\n- Naive `fib` repeats work and takes O(2^n) calls.\n- Memoize with a `Map`: return `memo.get(n)` when `memo.has(n)`, store results with `memo.set`, and pass `memo` to every recursive call. That makes it O(n)."
+  "recap": "- A recursive function calls itself on a smaller input. The base case answers directly and stops it.\n- Each call has its own parameters on the call stack. Too many nested calls throw `RangeError: Maximum call stack size exceeded`.\n- Strings recurse on `str[0]` and `str.slice(1)`. Arrays can pass an index instead: `sumArray(arr, i = 0)`.\n- `Array.isArray(item)` finds nested arrays to recurse into. `arr.flat(Infinity)` is the built-in flatten.\n- Naive `fib` repeats work and takes O(2^n) calls.\n- Memoize with a `Map`: return `memo.get(n)` when `memo.has(n)`, store results with `memo.set`, and pass `memo` to every recursive call. That makes it O(n).\n- A DP table fills `dp[0]`, `dp[1]`, and onward from earlier entries, with no recursion. Say what `dp[i]` means, write the rule, and fill the first entries by hand.\n- A table that needs `dp[n]` is `new Array(n + 1)`. Use `Math.min` or `Math.max` to pick the best choice, and `Infinity` for entries that start out impossible."
 }

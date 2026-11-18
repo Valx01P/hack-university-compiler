@@ -1,0 +1,158 @@
+{
+  "id": "heaps",
+  "title": "Heaps and Priority Queues",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Use the priority-queue package for min and max heaps, order pairs with a compare function, keep the top k, and run Dijkstra's algorithm.",
+  "intro": "A heap always knows its smallest (or largest) item and hands it over in O(log n) time while you keep adding more. JavaScript has no heap built in, but the sandbox, like LeetCode, has the `@datastructures-js/priority-queue` package. Here you use it to always take the biggest or smallest next, order items by several rules, keep a top k list, and find the cheapest paths through a weighted graph.",
+  "steps": [
+    {
+      "title": "Min and max heaps",
+      "body": "`require` loads the package, and the braces pick out the classes you need, the same object destructuring you use on any object:\n\n```javascript\nconst { MinPriorityQueue, MaxPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst low = new MinPriorityQueue();\nlow.enqueue(5);\nlow.enqueue(1);\nlow.enqueue(3);\nconsole.log(low.front()); // 1, the smallest, still in the heap\nconsole.log(low.dequeue()); // 1, now removed\nconsole.log(low.size(), low.isEmpty()); // 2 false\nconst high = MaxPriorityQueue.fromArray([4, 9, 2]);\nconsole.log(high.dequeue()); // 9\n```\n\n`enqueue` and `dequeue` cost O(log n), and `front`, `size`, and `isEmpty` cost O(1). `fromArray` builds a heap from a whole array at once in O(n), but it reorders the array you pass and keeps using it, so pass a copy (`[...arr]`) when you still need the original.\n\nA heap is not sorted inside. It only promises that `front()` is the smallest (or the largest), so taking items out one `dequeue` at a time is how you get them in order.\n\n**The gotcha:** `front()` and `dequeue()` on an empty heap return `null` instead of throwing, and `null` quietly counts as 0 in math. Check `isEmpty()` or `size()` before you take.",
+      "example": {
+        "title": "Halving the biggest pile",
+        "prompt": "Read `k` and a list of stone piles. `k` times, take the biggest pile, remove half of it (rounded down), and put the rest back. Print each move and the stones left at the end.",
+        "stdin": "3\n5 4 9\n",
+        "code": "const { MaxPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [kLine, pilesLine] = input.trim().split(\"\\n\");\nconst k = Number(kLine);\nconst heap = MaxPriorityQueue.fromArray(pilesLine.trim().split(/\\s+/).map(Number));\n\nfor (let i = 0; i < k; i++) {\n  const pile = heap.dequeue();\n  const rest = pile - Math.floor(pile / 2);\n  console.log(`took ${pile}, put back ${rest}`);\n  heap.enqueue(rest);\n}\n\nlet total = 0;\nwhile (!heap.isEmpty()) {\n  total += heap.dequeue();\n}\nconsole.log(`stones left ${total}`);\n",
+        "output": "took 9, put back 5\ntook 5, put back 3\ntook 5, put back 3\nstones left 10",
+        "explanation": "`fromArray` turns the piles into a max-heap in one call. Each round `dequeue` hands back the biggest pile, and `enqueue` puts what's left back where it belongs. After the first move there are two piles of 5, and the heap returns them one at a time. The last loop empties the heap to add up what remains."
+      },
+      "practice": {
+        "title": "Joining ropes",
+        "prompt": "Read rope lengths. Joining two ropes makes one rope as long as both, and costs that length. Join them all into one rope as cheaply as possible by always joining the two shortest.\n\n1. Build a min-heap from the lengths.\n2. While more than one rope is left, take the two shortest, print `join a + b = sum`, add `sum` to the cost, and put the new rope back.\n3. Print `total cost` and the cost.\n\nInput:\n\n```text\n4 3 2 6\n```\n\nExpected output:\n\n```text\njoin 2 + 3 = 5\njoin 4 + 5 = 9\njoin 6 + 9 = 15\ntotal cost 29\n```",
+        "starter": "const { MinPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst ropes = input.trim().split(/\\s+/).map(Number);\n\nlet cost = 0;\n// TODO: build a min-heap and join the two shortest ropes until one is left\n\nconsole.log(`total cost ${cost}`);\n",
+        "solution": "const { MinPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst ropes = input.trim().split(/\\s+/).map(Number);\n\nlet cost = 0;\nconst heap = MinPriorityQueue.fromArray(ropes);\nwhile (heap.size() > 1) {\n  const a = heap.dequeue();\n  const b = heap.dequeue();\n  console.log(`join ${a} + ${b} = ${a + b}`);\n  cost += a + b;\n  heap.enqueue(a + b);\n}\n\nconsole.log(`total cost ${cost}`);\n",
+        "tests": [
+          {
+            "stdin": "4 3 2 6\n",
+            "output": "join 2 + 3 = 5\njoin 4 + 5 = 9\njoin 6 + 9 = 15\ntotal cost 29"
+          },
+          {
+            "stdin": "7\n",
+            "output": "total cost 0"
+          },
+          {
+            "stdin": "1 1 1 1\n",
+            "output": "join 1 + 1 = 2\njoin 1 + 1 = 2\njoin 2 + 2 = 4\ntotal cost 8"
+          }
+        ],
+        "hints": [
+          "`MinPriorityQueue.fromArray(ropes)` builds the heap, and `heap.size() > 1` is the loop condition.",
+          "Two `dequeue` calls give the two shortest ropes. Put their sum back with `enqueue`.",
+          "With one rope there is nothing to join, so the loop never runs and the cost stays 0."
+        ]
+      }
+    },
+    {
+      "title": "Priorities, pairs, and tie-breaks",
+      "body": "To order objects, pass the constructor a function that returns the number to order by:\n\n```javascript\nconst { MinPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst jobs = new MinPriorityQueue((job) => job.minutes);\njobs.enqueue({ name: \"email\", minutes: 5 });\njobs.enqueue({ name: \"report\", minutes: 30 });\njobs.enqueue({ name: \"call\", minutes: 15 });\nconsole.log(jobs.dequeue().name); // email\n```\n\n`MaxPriorityQueue` takes the same kind of function. When ties need a rule, `PriorityQueue` takes a compare function that works like `sort`'s: a negative result means `a` comes out first. Chain the tie-break with `||`:\n\n```javascript harness\nconst { MinPriorityQueue, MaxPriorityQueue, PriorityQueue } = require(\"@datastructures-js/priority-queue\");\n{{code}}\nwhile (!queue.isEmpty()) {\n  console.log(queue.dequeue().join(\" \"));\n}\n```\n\n```javascript\nconst queue = new PriorityQueue((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));\nqueue.enqueue([\"ivy\", 2]);\nqueue.enqueue([\"al\", 3]);\nqueue.enqueue([\"bo\", 2]);\n```\n\nThat queue gives `al 3`, then `bo 2`, then `ivy 2`: the highest number first, and names A to Z on a tie.\n\n**The gotcha:** a heap is not stable. Two items that compare as equal can come out in either order. When arrival order matters, store an arrival number in each item and use it as the last tie-break.",
+      "example": {
+        "title": "Emergency room",
+        "prompt": "Patients arrive as `name severity`. Treat the most severe first, and patients with the same severity in the order they arrived.",
+        "stdin": "ana 2\nben 5\ncal 3\ndia 5\neli 1\nfay 3\n",
+        "code": "const { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst lines = input.trim().split(\"\\n\");\n\nconst waiting = new PriorityQueue((a, b) => b.severity - a.severity || a.arrived - b.arrived);\nlines.forEach((line, i) => {\n  const [name, severity] = line.trim().split(/\\s+/);\n  waiting.enqueue({ name, severity: Number(severity), arrived: i });\n});\n\nlet turn = 1;\nwhile (!waiting.isEmpty()) {\n  const p = waiting.dequeue();\n  console.log(`${turn}. ${p.name} (${p.severity})`);\n  turn++;\n}\n",
+        "output": "1. ben (5)\n2. dia (5)\n3. cal (3)\n4. fay (3)\n5. ana (2)\n6. eli (1)",
+        "explanation": "Each patient carries `arrived`, its line number. The compare function puts higher severity first with `b.severity - a.severity`, and when that is 0 the `||` falls through to `a.arrived - b.arrived`, so `ben` beats `dia` and `cal` beats `fay`. Without the arrival number, patients with the same severity could come out in either order."
+      },
+      "practice": {
+        "title": "Print queue",
+        "prompt": "Print jobs arrive as `name pages priority`. Print the job names in the order the printer handles them.\n\n1. A lower priority number prints first.\n2. With the same priority, fewer pages print first.\n3. With the same priority and pages, names go A to Z.\n4. Print the names joined with ` -> `.\n\nInput:\n\n```text\nmemo 3 2\nposter 10 1\nflyer 1 2\nreport 25 3\nbadge 1 2\nmap 10 1\n```\n\nExpected output:\n\n```text\nmap -> poster -> badge -> flyer -> memo -> report\n```",
+        "starter": "const { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst jobs = input.trim().split(\"\\n\").map((line) => {\n  const [name, pages, priority] = line.trim().split(/\\s+/);\n  return { name, pages: Number(pages), priority: Number(priority) };\n});\n\nconst order = [];\n// TODO: enqueue the jobs in a PriorityQueue with a three-rule compare function\n// TODO: dequeue them all, pushing each name onto order\n\nconsole.log(order.join(\" -> \"));\n",
+        "solution": "const { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst jobs = input.trim().split(\"\\n\").map((line) => {\n  const [name, pages, priority] = line.trim().split(/\\s+/);\n  return { name, pages: Number(pages), priority: Number(priority) };\n});\n\nconst order = [];\nconst queue = new PriorityQueue(\n  (a, b) => a.priority - b.priority || a.pages - b.pages || a.name.localeCompare(b.name)\n);\nfor (const job of jobs) {\n  queue.enqueue(job);\n}\nwhile (!queue.isEmpty()) {\n  order.push(queue.dequeue().name);\n}\n\nconsole.log(order.join(\" -> \"));\n",
+        "tests": [
+          {
+            "stdin": "memo 3 2\nposter 10 1\nflyer 1 2\nreport 25 3\nbadge 1 2\nmap 10 1\n",
+            "output": "map -> poster -> badge -> flyer -> memo -> report"
+          },
+          {
+            "stdin": "a 1 1\n",
+            "output": "a"
+          },
+          {
+            "stdin": "z 2 1\ny 1 1\nx 1 1\n",
+            "output": "x -> y -> z"
+          }
+        ],
+        "hints": [
+          "Lower numbers first means `a.priority - b.priority`, the same way round as an ascending sort.",
+          "Chain all three rules with `||`: priority, then pages, then `a.name.localeCompare(b.name)`.",
+          "Empty the queue with `while (!queue.isEmpty())` and push each `dequeue().name`."
+        ]
+      }
+    },
+    {
+      "title": "Keeping the top k",
+      "body": "To find the k largest of many items, you don't need to sort them all. Keep a **min**-heap of at most k items: add each new item, and when the size passes k, dequeue the smallest. What stays are the k largest seen so far, and `front()` is the kth largest. Each step costs O(log k), so a scan of n items costs O(n log k).\n\n```javascript\nconst { MinPriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst top = new MinPriorityQueue();\nfor (const x of [5, 1, 9, 3, 7, 8]) {\n  top.enqueue(x);\n  if (top.size() > 3) {\n    top.dequeue();\n  }\n}\nconsole.log(top.front()); // 7, the 3rd largest\nconsole.log(top.toArray()); // [ 7, 8, 9 ]\n```\n\nA min-heap for the largest looks backwards, but its top is the weakest of the items you keep, the one to drop when a better one arrives. `toArray()` returns a sorted copy and leaves the heap full. For the k smallest, flip it and keep a max-heap.\n\nFor pairs, the compare function must put the weakest on top too. To keep the k most common words, where a tie goes to the word earlier in the alphabet, the weakest is the lowest count and, on a tie, the later word: `(a, b) => a[1] - b[1] || b[0].localeCompare(a[0])`.\n\n**The gotcha:** the heap empties weakest first, so `dequeue` in a loop gives the k items from worst to best. Collect them, then `reverse()`.",
+      "example": {
+        "title": "Top scorers",
+        "prompt": "Read `k` and lines of `name score`, keep the top `k` scores in a heap of size `k` (ties go to the name earlier in the alphabet), and print them best first.",
+        "stdin": "3\nana 88\nben 95\ncal 88\ndia 70\neli 99\nfay 95\n",
+        "code": "const { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [kLine, ...lines] = input.trim().split(\"\\n\");\nconst k = Number(kLine);\n\n// the weakest on top: the lower score, and on a tie the later name\nconst top = new PriorityQueue((a, b) => a[1] - b[1] || b[0].localeCompare(a[0]));\nfor (const line of lines) {\n  const [name, score] = line.trim().split(/\\s+/);\n  top.enqueue([name, Number(score)]);\n  if (top.size() > k) {\n    top.dequeue();\n  }\n}\n\nconst best = [];\nwhile (!top.isEmpty()) {\n  best.push(top.dequeue());\n}\nbest.reverse();\nfor (const [name, score] of best) {\n  console.log(`${name} ${score}`);\n}\n",
+        "output": "eli 99\nben 95\nfay 95",
+        "explanation": "When `dia` arrives the heap holds four players, so the weakest, `dia` with 70, is dropped at once. When `eli` arrives, `ana` and `cal` tie at 88, and the later name, `cal`, sits on top and goes. `fay` then pushes out `ana`. Emptying the heap gives `fay`, `ben`, `eli`, weakest first, and `reverse()` turns that into best first."
+      },
+      "practice": {
+        "title": "Most common numbers",
+        "prompt": "Read `k` and a list of numbers. Print the `k` numbers that appear most often, most common first, as `number xcount`. When two numbers appear equally often, the smaller number ranks higher.\n\n1. Count each number in a Map.\n2. Keep a heap of at most `k` `[number, count]` pairs with the weakest on top: the lower count, and on a tie the bigger number.\n3. Empty the heap, reverse, and print.\n\nInput:\n\n```text\n2\n4 1 4 2 2 3 4 2 1\n```\n\nExpected output:\n\n```text\n2 x3\n4 x3\n```",
+        "starter": "const { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [kLine, numsLine] = input.trim().split(\"\\n\");\nconst k = Number(kLine);\nconst nums = numsLine.trim().split(/\\s+/).map(Number);\n\n// TODO: count the numbers in a Map\n// TODO: keep the k strongest [number, count] pairs in a heap with the weakest on top\nconst best = [];\n\nfor (const [num, count] of best) {\n  console.log(`${num} x${count}`);\n}\n",
+        "solution": "const { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [kLine, numsLine] = input.trim().split(\"\\n\");\nconst k = Number(kLine);\nconst nums = numsLine.trim().split(/\\s+/).map(Number);\n\nconst counts = new Map();\nfor (const n of nums) {\n  counts.set(n, (counts.get(n) ?? 0) + 1);\n}\nconst heap = new PriorityQueue((a, b) => a[1] - b[1] || b[0] - a[0]);\nfor (const pair of counts) {\n  heap.enqueue(pair);\n  if (heap.size() > k) {\n    heap.dequeue();\n  }\n}\nconst best = [];\nwhile (!heap.isEmpty()) {\n  best.push(heap.dequeue());\n}\nbest.reverse();\n\nfor (const [num, count] of best) {\n  console.log(`${num} x${count}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "2\n4 1 4 2 2 3 4 2 1\n",
+            "output": "2 x3\n4 x3"
+          },
+          {
+            "stdin": "1\n7 7 8\n",
+            "output": "7 x2"
+          },
+          {
+            "stdin": "3\n5 6 7\n",
+            "output": "5 x1\n6 x1\n7 x1"
+          }
+        ],
+        "hints": [
+          "A Map iterates as `[key, value]` pairs, so `for (const pair of counts)` hands you `[number, count]` ready for the heap.",
+          "The weakest pair has the lower count, so start with `a[1] - b[1]`. On a tie the bigger number is weaker: `|| b[0] - a[0]`.",
+          "After emptying the heap into `best`, call `best.reverse()` so the strongest prints first."
+        ]
+      }
+    },
+    {
+      "title": "Cheapest paths with Dijkstra",
+      "body": "BFS finds the path with the fewest edges, but when edges have weights (minutes, prices), fewer edges can cost more. **Dijkstra's algorithm** finds the cheapest paths from a start node with a min-heap of `[distance, node]` pairs:\n\n1. Every distance starts at `Infinity`, except the start at 0. Push `[0, start]`.\n2. Dequeue the closest pair. If its distance is bigger than the best known for that node, it is stale: skip it.\n3. For each edge to `next` with weight `w`, if `d + w` beats the best known distance to `next`, record it and push `[d + w, next]`.\n\n```javascript harness\nconst { MinPriorityQueue, MaxPriorityQueue, PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst graph = new Map([[\"A\", [[\"B\", 4], [\"C\", 1]]], [\"C\", [[\"B\", 2]]], [\"B\", []]]);\nconst dist = new Map([[\"A\", 0]]);\nconst heap = new PriorityQueue((a, b) => a[0] - b[0]);\nheap.enqueue([0, \"A\"]);\n{{code}}\nconsole.log(JSON.stringify([...dist]));\n```\n\n```javascript\nwhile (!heap.isEmpty()) {\n  const [d, node] = heap.dequeue();\n  if (d > dist.get(node)) {\n    continue;\n  }\n  for (const [next, w] of graph.get(node)) {\n    if (d + w < (dist.get(next) ?? Infinity)) {\n      dist.set(next, d + w);\n      heap.enqueue([d + w, next]);\n    }\n  }\n}\n```\n\nThe adjacency Map holds `[next, weight]` pairs. A node can sit in the heap more than once, and the stale check makes sure only its best entry counts. `dist.get(next) ?? Infinity` treats a node with no distance yet as infinitely far. The algorithm needs weights of 0 or more.\n\nTo print the path, keep a `parent` Map and set `parent.set(next, node)` whenever you improve `next`. Then walk back from the target and reverse, as with BFS paths.\n\n**The gotcha:** a node that never gets a distance was never reached. Report it as unreachable instead of printing `undefined` or `Infinity`.",
+      "example": {
+        "title": "Travel times",
+        "prompt": "Read a start place, then two-way roads as `a b minutes`. Print the shortest travel time from the start to every place, in alphabetical order, or `unreachable`.",
+        "stdin": "home\nhome park 7\nhome mall 3\nmall park 2\npark lake 4\nmall lake 10\ncafe dock 1\n",
+        "code": "const { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [start, ...roads] = input.trim().split(\"\\n\").map((line) => line.trim());\n\nconst graph = new Map();\nfor (const road of roads) {\n  const [a, b, minutes] = road.split(/\\s+/);\n  for (const place of [a, b]) {\n    if (!graph.has(place)) {\n      graph.set(place, []);\n    }\n  }\n  graph.get(a).push([b, Number(minutes)]);\n  graph.get(b).push([a, Number(minutes)]);\n}\n\nconst dist = new Map([[start, 0]]);\nconst heap = new PriorityQueue((a, b) => a[0] - b[0]);\nheap.enqueue([0, start]);\nwhile (!heap.isEmpty()) {\n  const [d, place] = heap.dequeue();\n  if (d > dist.get(place)) {\n    continue;\n  }\n  for (const [next, w] of graph.get(place)) {\n    if (d + w < (dist.get(next) ?? Infinity)) {\n      dist.set(next, d + w);\n      heap.enqueue([d + w, next]);\n    }\n  }\n}\n\nfor (const place of [...graph.keys()].sort()) {\n  console.log(`${place}: ${dist.has(place) ? dist.get(place) : \"unreachable\"}`);\n}\n",
+        "output": "cafe: unreachable\ndock: unreachable\nhome: 0\nlake: 9\nmall: 3\npark: 5",
+        "explanation": "The road straight to the park takes 7 minutes, but the heap hands out the mall first (3), and going on from there reaches the park in 5, which replaces the 7. The old `[7, \"park\"]` entry is still in the heap, and when it comes out the stale check skips it. The lake is reached through the park in 9, cheaper than the 13 through the mall. `cafe` and `dock` only connect to each other, so they never get a distance."
+      },
+      "practice": {
+        "title": "Cheapest route",
+        "prompt": "Read `from to` on the first line, then one-way flights as `a b cost`. Print the cheapest route from `from` to `to`.\n\n1. Build an adjacency Map of `[next, cost]` pairs, one way only.\n2. Run Dijkstra from `from`, and record `parent.set(next, node)` each time a distance improves.\n3. Walk back from `to` through `parent`, then reverse, to get the route.\n4. Print `cost: a -> b -> c`, or `no route` when `to` is never reached.\n\nInput:\n\n```text\nSFO JFK\nSFO DEN 100\nSFO ORD 300\nDEN ORD 120\nDEN JFK 450\nORD JFK 180\nSFO JFK 520\n```\n\nExpected output:\n\n```text\n400: SFO -> DEN -> ORD -> JFK\n```",
+        "starter": "const { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...flights] = input.trim().split(\"\\n\").map((line) => line.trim());\nconst [from, to] = first.split(/\\s+/);\n\nconst graph = new Map();\nfor (const flight of flights) {\n  const [a, b, cost] = flight.split(/\\s+/);\n  if (!graph.has(a)) {\n    graph.set(a, []);\n  }\n  graph.get(a).push([b, Number(cost)]);\n}\n\nconst dist = new Map([[from, 0]]);\nconst parent = new Map();\n// TODO: run Dijkstra from `from`, recording each improved node's parent\n// TODO: rebuild the route from `to` and print it, or print \"no route\"\nconsole.log(\"no route\");\n",
+        "solution": "const { PriorityQueue } = require(\"@datastructures-js/priority-queue\");\nconst input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...flights] = input.trim().split(\"\\n\").map((line) => line.trim());\nconst [from, to] = first.split(/\\s+/);\n\nconst graph = new Map();\nfor (const flight of flights) {\n  const [a, b, cost] = flight.split(/\\s+/);\n  if (!graph.has(a)) {\n    graph.set(a, []);\n  }\n  graph.get(a).push([b, Number(cost)]);\n}\n\nconst dist = new Map([[from, 0]]);\nconst parent = new Map();\nconst heap = new PriorityQueue((a, b) => a[0] - b[0]);\nheap.enqueue([0, from]);\nwhile (!heap.isEmpty()) {\n  const [d, node] = heap.dequeue();\n  if (d > dist.get(node)) {\n    continue;\n  }\n  for (const [next, w] of graph.get(node) ?? []) {\n    if (d + w < (dist.get(next) ?? Infinity)) {\n      dist.set(next, d + w);\n      parent.set(next, node);\n      heap.enqueue([d + w, next]);\n    }\n  }\n}\n\nif (!dist.has(to)) {\n  console.log(\"no route\");\n} else {\n  const route = [to];\n  while (route[route.length - 1] !== from) {\n    route.push(parent.get(route[route.length - 1]));\n  }\n  route.reverse();\n  console.log(`${dist.get(to)}: ${route.join(\" -> \")}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "SFO JFK\nSFO DEN 100\nSFO ORD 300\nDEN ORD 120\nDEN JFK 450\nORD JFK 180\nSFO JFK 520\n",
+            "output": "400: SFO -> DEN -> ORD -> JFK"
+          },
+          {
+            "stdin": "A C\nA B 5\nC A 1\n",
+            "output": "no route"
+          },
+          {
+            "stdin": "X X\nX Y 3\n",
+            "output": "0: X"
+          }
+        ],
+        "hints": [
+          "Copy the loop from the body, adding `parent.set(next, node)` next to `dist.set(next, d + w)`.",
+          "A place with no flights out has no entry in `graph`, so loop over `graph.get(node) ?? []`.",
+          "Start the route at `to` and push `parent.get(...)` of the last place until you reach `from`, then `reverse()`."
+        ]
+      }
+    }
+  ],
+  "recap": "- `const { MinPriorityQueue, MaxPriorityQueue, PriorityQueue } = require(\"@datastructures-js/priority-queue\");` loads the heaps.\n- `enqueue` and `dequeue` are O(log n). `front`, `size`, and `isEmpty` are O(1).\n- `fromArray(arr)` builds a heap in O(n), reordering `arr` itself. Pass `[...arr]` to keep the original.\n- `front()` and `dequeue()` return `null` when the heap is empty.\n- `new MinPriorityQueue((item) => item.key)` orders objects by a number. `new PriorityQueue((a, b) => ...)` takes a compare function like `sort`, with tie-breaks chained by `||`.\n- Heaps are not stable: store an arrival number when order of arrival matters.\n- For the k largest, keep a min-heap of size k and drop the smallest when it grows past k. Reverse what you dequeue to list best first.\n- Dijkstra pushes `[distance, node]`, skips stale entries, and relaxes each edge. A `parent` Map rebuilds the path."
+}

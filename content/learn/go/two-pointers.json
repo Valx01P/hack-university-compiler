@@ -1,0 +1,157 @@
+{
+  "id": "two-pointers",
+  "title": "Two Pointers and Sliding Windows",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Replace nested loops with one pass: indexes that move inward, fixed and growing windows, and running totals counted in a map.",
+  "intro": "Many slice and string problems look like they need a loop inside a loop. Two indexes that move with a plan do the same work in one pass: they close in from both ends, or they mark the edges of a window that slides along. A running total and a map handle the cases a window can't.",
+  "steps": [
+    {
+      "title": "Moving inward on sorted data",
+      "body": "Checking every pair of a slice takes n * n steps. On **sorted** data, two indexes that start at both ends find a pair with a given sum in one pass. Compare the pair's sum with the target:\n\n- Too small: `nums[i]` plus the biggest value left is still short, so `nums[i]` can't be in any answer. Move `i` right.\n- Too big: `nums[j]` plus the smallest value left is still over, so move `j` left.\n- Equal: you found the pair.\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\tnums := []int{1, 3, 4, 6, 9}\n\ttarget := 10\n\t{{code}}\n}\n```\n\n```go\ni, j := 0, len(nums)-1\nfor i < j {\n\tsum := nums[i] + nums[j]\n\tif sum == target {\n\t\tfmt.Println(\"found\", nums[i], nums[j]) // found 1 9\n\t\tbreak\n\t} else if sum < target {\n\t\ti++\n\t} else {\n\t\tj--\n\t}\n}\n```\n\nEach step rules out one value for good, so the loop runs at most n times. The condition `i < j` keeps the two indexes on different elements, and when they meet there is no pair. The data must be sorted from low to high, so sort it first with `sort.Ints` when it isn't.",
+      "example": {
+        "title": "Pairs that hit a target",
+        "prompt": "Read sorted prices and some targets, and for each target print the 1-based positions of two prices that add up to it, or none.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tprices := make([]int, n)\n\tfor i := range prices {\n\t\tfmt.Scan(&prices[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar target int\n\t\tfmt.Scan(&target)\n\t\ti, j := 0, n-1\n\t\tfound := false\n\t\tfor i < j {\n\t\t\tsum := prices[i] + prices[j]\n\t\t\tif sum == target {\n\t\t\t\tfound = true\n\t\t\t\tbreak\n\t\t\t} else if sum < target {\n\t\t\t\ti++ // too small: drop the cheapest\n\t\t\t} else {\n\t\t\t\tj-- // too big: drop the most expensive\n\t\t\t}\n\t\t}\n\t\tif found {\n\t\t\tfmt.Printf(\"target %d: positions %d and %d\\n\", target, i+1, j+1)\n\t\t} else {\n\t\t\tfmt.Printf(\"target %d: none\\n\", target)\n\t\t}\n\t}\n}\n",
+        "stdin": "5\n2 7 11 15 20\n3\n18\n35\n4\n",
+        "output": "target 18: positions 2 and 3\ntarget 35: positions 4 and 5\ntarget 4: none",
+        "explanation": "For 18 the loop starts with 2 + 20 = 22, too big, so `j` moves to 15. 2 + 15 = 17 is too small, so `i` moves to 7. 7 + 15 = 22 is too big again, so `j` moves to 11, and 7 + 11 = 18. For 35 every sum is too small until `i` reaches 15, and 15 + 20 = 35. For 4 every sum is too big, so `j` moves left until it meets `i`, and there is no pair. Each target takes at most n steps."
+      },
+      "practice": {
+        "title": "Two gifts within budget",
+        "prompt": "For each budget, find the most you can spend on two different gifts without going over.\n\n1. The starter reads `n` sorted prices, then `q` budgets.\n2. For each budget, walk `i` and `j` inward from both ends. When the pair fits the budget, keep its sum if it beats `best`, then move `i` right to try a bigger pair. When it doesn't fit, move `j` left.\n3. Print `budget B: S` with the best sum, or `budget B: none` when no two gifts fit.\n\nInput:\n\n```text\n6\n5 10 20 30 45 60\n3\n50\n100\n12\n```\n\nExpected output:\n\n```text\nbudget 50: 50\nbudget 100: 90\nbudget 12: none\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tprices := make([]int, n)\n\tfor i := range prices {\n\t\tfmt.Scan(&prices[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar budget int\n\t\tfmt.Scan(&budget)\n\t\tbest := -1\n\t\t// TODO: walk two indexes inward and keep the biggest pair sum that fits budget\n\t\tif best == -1 {\n\t\t\tfmt.Printf(\"budget %d: none\\n\", budget)\n\t\t}\n\t}\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tprices := make([]int, n)\n\tfor i := range prices {\n\t\tfmt.Scan(&prices[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar budget int\n\t\tfmt.Scan(&budget)\n\t\tbest := -1\n\t\ti, j := 0, n-1\n\t\tfor i < j {\n\t\t\tsum := prices[i] + prices[j]\n\t\t\tif sum <= budget {\n\t\t\t\tif sum > best {\n\t\t\t\t\tbest = sum\n\t\t\t\t}\n\t\t\t\ti++\n\t\t\t} else {\n\t\t\t\tj--\n\t\t\t}\n\t\t}\n\t\tif best == -1 {\n\t\t\tfmt.Printf(\"budget %d: none\\n\", budget)\n\t\t} else {\n\t\t\tfmt.Printf(\"budget %d: %d\\n\", budget, best)\n\t\t}\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n5 10 20 30 45 60\n3\n50\n100\n12\n",
+            "output": "budget 50: 50\nbudget 100: 90\nbudget 12: none"
+          },
+          {
+            "stdin": "4\n8 8 9 30\n2\n16\n38\n",
+            "output": "budget 16: 16\nbudget 38: 38"
+          },
+          {
+            "stdin": "2\n40 70\n2\n109\n110\n",
+            "output": "budget 109: none\nbudget 110: 110"
+          }
+        ],
+        "hints": [
+          "Start with `i, j := 0, n-1` and loop while `i < j`, like the example.",
+          "When `prices[i]+prices[j] <= budget`, update `best` and move `i` right, since a bigger left price might still fit.",
+          "When the pair is over budget, only a smaller right price can help, so move `j` left."
+        ]
+      }
+    },
+    {
+      "title": "Fixed-size windows",
+      "body": "A **window** is a run of neighbors, such as 3 days in a row. Adding up every window from scratch costs k steps per window. Sliding it costs two: when the window moves right by one, one value enters and one leaves.\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\tnums := []int{2, 1, 5, 1, 3, 2}\n\tk := 3\n\t{{code}}\n\tfmt.Println(best, bestStart)\n}\n```\n\n```go\nsum := 0\nfor i := 0; i < k; i++ {\n\tsum += nums[i] // the first window\n}\nbest, bestStart := sum, 0\nfor i := k; i < len(nums); i++ {\n\tsum += nums[i] - nums[i-k] // nums[i] enters, nums[i-k] leaves\n\tif sum > best {\n\t\tbest, bestStart = sum, i-k+1\n\t}\n}\n```\n\nAfter the move, the window is `nums[i-k+1]` through `nums[i]`, so it starts at `i-k+1`. Using `>` and not `>=` keeps the first window on a tie. The whole scan is O(n) no matter how big k is.\n\nWatch the edges: the first loop needs at least k values, and when k equals the length there is only one window.",
+      "example": {
+        "title": "Best three days",
+        "prompt": "Read n, k, and n daily sales, then print the best total of k days in a row and the days it covers.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n, k int\n\tfmt.Scan(&n, &k)\n\tsales := make([]int, n)\n\tfor i := range sales {\n\t\tfmt.Scan(&sales[i])\n\t}\n\n\tsum := 0\n\tfor i := 0; i < k; i++ {\n\t\tsum += sales[i]\n\t}\n\tbest, bestStart := sum, 0\n\tfor i := k; i < n; i++ {\n\t\tsum += sales[i] - sales[i-k]\n\t\tif sum > best {\n\t\t\tbest, bestStart = sum, i-k+1\n\t\t}\n\t}\n\tfmt.Printf(\"best %d days: %d (days %d to %d)\\n\", k, best, bestStart+1, bestStart+k)\n}\n",
+        "stdin": "7 3\n4 2 8 1 9 3 2\n",
+        "output": "best 3 days: 18 (days 3 to 5)",
+        "explanation": "The first window is 4 + 2 + 8 = 14. Sliding right adds 1 and drops 4 for 11, then adds 9 and drops 2 for 18, the best. The next windows are 13 and 14. Days are printed 1-based, so a window starting at index 2 covers days 3 to 5."
+      },
+      "practice": {
+        "title": "Coldest stretch",
+        "prompt": "Find the k days in a row with the lowest average temperature.\n\n1. The starter reads `n`, `k`, and `n` temperatures, which can be negative.\n2. Slide a window of k days, keeping the lowest sum and where it starts. Keep the first one on a tie.\n3. Print `coldest: days S to E, average A`, with 1-based days and the average to 1 decimal place.\n\nInput:\n\n```text\n8 3\n5 2 -1 -4 3 -6 0 8\n```\n\nExpected output:\n\n```text\ncoldest: days 4 to 6, average -2.3\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n, k int\n\tfmt.Scan(&n, &k)\n\ttemps := make([]int, n)\n\tfor i := range temps {\n\t\tfmt.Scan(&temps[i])\n\t}\n\n\tlowest, lowStart := 0, 0\n\t// TODO: slide a window of k days and keep the lowest sum and its start\n\n\tavg := float64(lowest) / float64(k)\n\tfmt.Printf(\"coldest: days %d to %d, average %.1f\\n\", lowStart+1, lowStart+k, avg)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n, k int\n\tfmt.Scan(&n, &k)\n\ttemps := make([]int, n)\n\tfor i := range temps {\n\t\tfmt.Scan(&temps[i])\n\t}\n\n\tsum := 0\n\tfor i := 0; i < k; i++ {\n\t\tsum += temps[i]\n\t}\n\tlowest, lowStart := sum, 0\n\tfor i := k; i < n; i++ {\n\t\tsum += temps[i] - temps[i-k]\n\t\tif sum < lowest {\n\t\t\tlowest, lowStart = sum, i-k+1\n\t\t}\n\t}\n\n\tavg := float64(lowest) / float64(k)\n\tfmt.Printf(\"coldest: days %d to %d, average %.1f\\n\", lowStart+1, lowStart+k, avg)\n}\n",
+        "tests": [
+          {
+            "stdin": "8 3\n5 2 -1 -4 3 -6 0 8\n",
+            "output": "coldest: days 4 to 6, average -2.3"
+          },
+          {
+            "stdin": "4 2\n10 10 10 10\n",
+            "output": "coldest: days 1 to 2, average 10.0"
+          },
+          {
+            "stdin": "5 5\n1 2 3 4 6\n",
+            "output": "coldest: days 1 to 5, average 3.2"
+          }
+        ],
+        "hints": [
+          "Sum the first k days, and start `lowest` at that sum, not at 0.",
+          "Slide with `sum += temps[i] - temps[i-k]`, and use `<` so the first coldest window wins a tie."
+        ]
+      }
+    },
+    {
+      "title": "Growing and shrinking windows",
+      "body": "Some windows have no fixed size: \"the longest run with no repeated letter\", \"the longest run that stays within budget\". Grow the window one step at a time with `right`, and whenever it breaks the rule, shrink it from the `left` until it's valid again. Then record it.\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\ts := \"abcabcbb\"\n\t{{code}}\n\tfmt.Println(best)\n}\n```\n\n```go\ncount := map[byte]int{} // letters inside the window\nleft, best := 0, 0\nfor right := 0; right < len(s); right++ {\n\tcount[s[right]]++\n\tfor count[s[right]] > 1 { // s[right] repeats: shrink until it's gone\n\t\tcount[s[left]]--\n\t\tleft++\n\t}\n\tif right-left+1 > best {\n\t\tbest = right - left + 1\n\t}\n}\n```\n\nThe window is `s[left : right+1]`, so its length is `right-left+1`. Shrink with `for`, not `if`: one new letter can force several steps, such as when `b` returns after `abc`.\n\n`right` visits every index once and `left` only moves forward, so the loop inside the loop still adds up to O(n) steps. That's the difference from checking every start and end, which is O(n * n).",
+      "example": {
+        "title": "Longest run without repeats",
+        "prompt": "Read words, one per line, and print the longest stretch of each word with no repeated letter, and its length. On a tie, keep the first.",
+        "code": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\ts := scanner.Text()\n\t\tcount := map[byte]int{}\n\t\tleft, best, bestStart := 0, 0, 0\n\t\tfor right := 0; right < len(s); right++ {\n\t\t\tcount[s[right]]++\n\t\t\tfor count[s[right]] > 1 {\n\t\t\t\tcount[s[left]]--\n\t\t\t\tleft++\n\t\t\t}\n\t\t\tif right-left+1 > best {\n\t\t\t\tbest, bestStart = right-left+1, left\n\t\t\t}\n\t\t}\n\t\tfmt.Printf(\"%s: %s (%d)\\n\", s, s[bestStart:bestStart+best], best)\n\t}\n}\n",
+        "stdin": "abcabcbb\nbbbb\npwwkew\ndvdf\n",
+        "output": "abcabcbb: abc (3)\nbbbb: b (1)\npwwkew: wke (3)\ndvdf: vdf (3)",
+        "explanation": "For `pwwkew` the window grows to `pw`, then the second `w` repeats, so `left` moves past both `p` and the first `w`. The window then grows to `wke`, length 3, and `kew` ties it but doesn't replace it, because the check is `>`. `bestStart` records where the best window began, so slicing `s[bestStart:bestStart+best]` prints it."
+      },
+      "practice": {
+        "title": "Longest run within budget",
+        "prompt": "Find the most items in a row you can buy without the total going over a budget.\n\n1. The starter reads `n`, the `budget`, and `n` prices. Prices are 0 or more.\n2. Grow a window with `right` and add each price to `sum`. While `sum` is over the budget, subtract `prices[left]` and move `left` right.\n3. Keep the longest window and its start, the first on a tie.\n4. Print `longest: L items from item S`, with S 1-based, or `longest: 0 items` when nothing fits.\n\nInput:\n\n```text\n7 10\n4 2 6 1 1 5 3\n```\n\nExpected output:\n\n```text\nlongest: 4 items from item 2\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n, budget int\n\tfmt.Scan(&n, &budget)\n\tprices := make([]int, n)\n\tfor i := range prices {\n\t\tfmt.Scan(&prices[i])\n\t}\n\n\tbest, bestStart := 0, 0\n\t// TODO: grow a window with right, shrink it from left while the sum is over budget\n\n\tif best == 0 {\n\t\tfmt.Println(\"longest: 0 items\")\n\t} else {\n\t\tfmt.Printf(\"longest: %d items from item %d\\n\", best, bestStart+1)\n\t}\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n, budget int\n\tfmt.Scan(&n, &budget)\n\tprices := make([]int, n)\n\tfor i := range prices {\n\t\tfmt.Scan(&prices[i])\n\t}\n\n\tbest, bestStart := 0, 0\n\tsum, left := 0, 0\n\tfor right := 0; right < n; right++ {\n\t\tsum += prices[right]\n\t\tfor sum > budget {\n\t\t\tsum -= prices[left]\n\t\t\tleft++\n\t\t}\n\t\tif right-left+1 > best {\n\t\t\tbest, bestStart = right-left+1, left\n\t\t}\n\t}\n\n\tif best == 0 {\n\t\tfmt.Println(\"longest: 0 items\")\n\t} else {\n\t\tfmt.Printf(\"longest: %d items from item %d\\n\", best, bestStart+1)\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "7 10\n4 2 6 1 1 5 3\n",
+            "output": "longest: 4 items from item 2"
+          },
+          {
+            "stdin": "3 5\n9 8 7\n",
+            "output": "longest: 0 items"
+          },
+          {
+            "stdin": "5 100\n10 20 30 0 40\n",
+            "output": "longest: 5 items from item 1"
+          }
+        ],
+        "hints": [
+          "Replace the example's letter count with a running `sum`: add `prices[right]`, and the window breaks the rule when `sum > budget`.",
+          "Inside `for sum > budget`, subtract `prices[left]` before you move `left`.",
+          "When every single price is over budget, the window ends up empty (`left == right+1`), so its length is 0 and `best` stays 0."
+        ]
+      }
+    },
+    {
+      "title": "Running totals with a map",
+      "body": "A **prefix sum** is a running total: `prefix[i]` is the sum of the first i values. The sum of any stretch is then one subtraction, so after one pass every range sum is O(1):\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\tnums := []int{3, 1, 4, 1, 5}\n\t{{code}}\n}\n```\n\n```go\nprefix := make([]int, len(nums)+1)\nfor i, x := range nums {\n\tprefix[i+1] = prefix[i] + x\n}\nfmt.Println(prefix[4] - prefix[1]) // 6, the sum of nums[1] to nums[3]\n```\n\nWith negative numbers a window can't tell when to shrink, since adding a value can make the sum smaller. Counting the stretches that sum to `k` works with running totals instead: a stretch ending here sums to `k` exactly when an earlier running total equals `sum - k`. Count how often each total has appeared in a map, and look up `sum - k` as you go:\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\tnums := []int{1, 2, 3, -2, 2}\n\tk := 3\n\t{{code}}\n\tfmt.Println(count)\n}\n```\n\n```go\nseen := map[int]int{0: 1} // the empty start, before any value\ncount, sum := 0, 0\nfor _, x := range nums {\n\tsum += x\n\tcount += seen[sum-k] // a missing key reads as 0\n\tseen[sum]++\n}\n```\n\nThe `{0: 1}` entry counts stretches that start at the very first value. Look up before you record the current total: in the other order, k = 0 would count the empty stretch.",
+      "example": {
+        "title": "Stretches that hit k",
+        "prompt": "Read n, k, and n numbers, and print how many stretches of neighbors add up to exactly k.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n, k int\n\tfmt.Scan(&n, &k)\n\tseen := map[int]int{0: 1}\n\tcount, sum := 0, 0\n\tfor i := 0; i < n; i++ {\n\t\tvar x int\n\t\tfmt.Scan(&x)\n\t\tsum += x\n\t\tcount += seen[sum-k]\n\t\tseen[sum]++\n\t}\n\tfmt.Println(\"stretches:\", count)\n}\n",
+        "stdin": "6 5\n2 3 -1 6 -5 5\n",
+        "output": "stretches: 5",
+        "explanation": "The running totals are 2, 5, 4, 10, 5, 10. At the first 5 the map already holds 0 (the start), so `2 3` counts. At 10, 5 has appeared once, so `-1 6` counts. At the second 5, 0 has appeared once, so the whole `2 3 -1 6 -5` counts. At the second 10, 5 has appeared twice, which adds `-1 6 -5 5` (after the first 5) and the last `5` on its own (after the second). That makes 5, and no stretch is ever summed by hand."
+      },
+      "practice": {
+        "title": "Break-even stretches",
+        "prompt": "Count the stretches of days whose profits add up to exactly 0.\n\n1. The starter reads `n` and then `n` daily profits, which can be negative.\n2. Keep a running total and a map from each total to how many times it has appeared, starting with `{0: 1}`.\n3. For each day, add how many times the current total has been seen before, then record it.\n4. Print `break-even stretches: C`.\n\nInput:\n\n```text\n6\n3 -3 2 -2 0 1\n```\n\nExpected output:\n\n```text\nbreak-even stretches: 6\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tcount := 0\n\tfor i := 0; i < n; i++ {\n\t\tvar profit int\n\t\tfmt.Scan(&profit)\n\t\t_ = profit\n\t\t// TODO: keep a running total and count earlier totals that match it\n\t}\n\tfmt.Println(\"break-even stretches:\", count)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tseen := map[int]int{0: 1}\n\tcount, sum := 0, 0\n\tfor i := 0; i < n; i++ {\n\t\tvar profit int\n\t\tfmt.Scan(&profit)\n\t\tsum += profit\n\t\tcount += seen[sum]\n\t\tseen[sum]++\n\t}\n\tfmt.Println(\"break-even stretches:\", count)\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n3 -3 2 -2 0 1\n",
+            "output": "break-even stretches: 6"
+          },
+          {
+            "stdin": "3\n1 2 3\n",
+            "output": "break-even stretches: 0"
+          },
+          {
+            "stdin": "4\n0 0 0 0\n",
+            "output": "break-even stretches: 10"
+          }
+        ],
+        "hints": [
+          "This is the example with k = 0, so look up `seen[sum-0]`, which is `seen[sum]`.",
+          "Look up first, then `seen[sum]++`. In the other order every day would match itself.",
+          "Four zeros have 10 break-even stretches: 4 of length 1, 3 of length 2, 2 of length 3, and 1 of length 4."
+        ]
+      }
+    }
+  ],
+  "recap": "- On sorted data, walk `i` and `j` inward: a small sum moves `i` right, a big one moves `j` left, and `i < j` keeps them apart.\n- A fixed window slides with `sum += nums[i] - nums[i-k]`, and it starts at `i-k+1`.\n- A growing window adds `s[right]`, shrinks from `left` with a `for` loop while it breaks the rule, then records `right-left+1`.\n- `left` only moves forward, so a window with a loop inside its loop is still O(n).\n- `prefix[i+1] = prefix[i] + x` makes every range sum one subtraction.\n- Count stretches that sum to k with `seen := map[int]int{0: 1}`: add `seen[sum-k]` before `seen[sum]++`. It works with negative numbers, where a window doesn't."
+}

@@ -1,0 +1,158 @@
+{
+  "id": "two-pointers",
+  "title": "Two Pointers and Sliding Windows",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Replace nested loops with one pass: indexes that move inward, windows that grow and shrink, letter counts in a window, and running totals in a map.",
+  "intro": "Many problems look like they need every pair or every stretch of an array, which is O(n^2). Two indexes that only ever move forward, or toward each other, usually do it in one O(n) pass. This lesson walks inward on sorted data, slides windows that grow and shrink, counts letters inside a window, and finds exact sums with running totals and a map.",
+  "steps": [
+    {
+      "title": "Moving inward on sorted data",
+      "body": "On sorted data, two indexes that start at the two ends find a pair in one pass instead of trying every pair. Look at the sum of the two ends. If it is too small, only a bigger left value can help, so move `i` right. If it is too big, move `j` left. Each step rules out every pair with the value it leaves behind, so the walk is O(n) instead of O(n^2):\n\n```cpp\nstd::vector<int> nums = {2, 7, 11, 15};\nint target = 18;\nint i = 0;\nint j = static_cast<int>(nums.size()) - 1;\nwhile (i < j) {\n    int sum = nums[i] + nums[j];\n    if (sum == target) {\n        break;\n    } else if (sum < target) {\n        ++i;\n    } else {\n        --j;\n    }\n}\nstd::cout << i + 1 << ' ' << j + 1 << '\\n';   // 2 3, the positions of 7 and 11\n```\n\nThe loop also stops when `i` meets `j`, which means no pair works, so check `i < j` after the loop before you trust the answer. Keep `j` an `int` so it can't wrap around below zero. The same inward walk checks a palindrome, and it works on any data where moving one end has a predictable effect.",
+      "example": {
+        "title": "Pairs that hit a target",
+        "prompt": "Read a sorted list and some targets, and for each target print the 1-based positions of two numbers that add up to it, or `none`.",
+        "code": "#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> nums(n);\n    for (int k = 0; k < n; ++k) {\n        std::cin >> nums[k];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int target = 0;\n        std::cin >> target;\n        int i = 0;\n        int j = n - 1;\n        while (i < j) {\n            int sum = nums[i] + nums[j];\n            if (sum == target) {\n                break;\n            } else if (sum < target) {\n                ++i;\n            } else {\n                --j;\n            }\n        }\n        if (i < j) {\n            std::cout << target << \": \" << i + 1 << ' ' << j + 1 << '\\n';\n        } else {\n            std::cout << target << \": none\" << '\\n';\n        }\n    }\n    return 0;\n}\n",
+        "stdin": "6\n1 3 4 6 8 11\n3\n10\n12\n20\n",
+        "output": "10: 3 4\n12: 1 6\n20: none",
+        "explanation": "For 10, the ends 1 and 11 make 12, too big, so `j` moves left to 8. 1 + 8 is 9, too small, so `i` moves right, and the walk goes on until 4 + 6 hits 10 at positions 3 and 4. For 12, the two ends already add up. For 20, every sum is too small, so `i` keeps moving right until it meets `j`, and `i < j` is false after the loop."
+      },
+      "practice": {
+        "title": "Two gifts for a card",
+        "prompt": "Spend as much of a gift card as you can on two different gifts.\n\n1. The starter reads `n` prices from low to high, then the card's budget.\n2. Walk `i` from the left and `j` from the right. When `prices[i] + prices[j]` fits the budget, keep it if it beats `best`, then move `i` right to try a bigger sum. When it is over budget, move `j` left.\n3. The starter prints `spend` and the best sum, or `no pair` when no two gifts fit.\n\nInput:\n\n```text\n6\n5 12 18 25 30 41\n50\n```\n\nExpected output:\n\n```text\nspend 48\n```",
+        "starter": "#include <algorithm>\n#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> prices(n);\n    for (int k = 0; k < n; ++k) {\n        std::cin >> prices[k];\n    }\n    int budget = 0;\n    std::cin >> budget;\n    int best = -1;\n    // TODO: walk two indexes inward, keeping the best sum that fits the budget\n    if (best >= 0) {\n        std::cout << \"spend \" << best << '\\n';\n    } else {\n        std::cout << \"no pair\" << '\\n';\n    }\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> prices(n);\n    for (int k = 0; k < n; ++k) {\n        std::cin >> prices[k];\n    }\n    int budget = 0;\n    std::cin >> budget;\n    int best = -1;\n    int i = 0;\n    int j = n - 1;\n    while (i < j) {\n        int sum = prices[i] + prices[j];\n        if (sum <= budget) {\n            best = std::max(best, sum);\n            ++i;\n        } else {\n            --j;\n        }\n    }\n    if (best >= 0) {\n        std::cout << \"spend \" << best << '\\n';\n    } else {\n        std::cout << \"no pair\" << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n5 12 18 25 30 41\n50\n",
+            "output": "spend 48"
+          },
+          {
+            "stdin": "3\n10 20 30\n25\n",
+            "output": "no pair"
+          },
+          {
+            "stdin": "2\n7 8\n15\n",
+            "output": "spend 15"
+          }
+        ],
+        "hints": [
+          "Use `while (i < j)` so the two gifts are always different.",
+          "`best = std::max(best, sum);` keeps the biggest sum that fit."
+        ]
+      }
+    },
+    {
+      "title": "Growing and shrinking windows",
+      "body": "A window is the stretch from `left` to `right`. To find the longest stretch that obeys a rule, move `right` one step every pass to grow the window, and whenever the window breaks the rule, move `left` until it holds again. Each index enters once and leaves once, so the whole scan is O(n).\n\nFor the longest substring with no repeated letter, an `unordered_map` counts the letters inside the window:\n\n```cpp\nstd::string s = \"abcabcbb\";\nstd::unordered_map<char, int> count;\nint left = 0;\nint best = 0;\nfor (int right = 0; right < static_cast<int>(s.size()); ++right) {\n    ++count[s[right]];\n    while (count[s[right]] > 1) {   // a repeat: shrink from the left\n        --count[s[left]];\n        ++left;\n    }\n    best = std::max(best, right - left + 1);\n}\nstd::cout << best << '\\n';   // 3, \"abc\"\n```\n\nThe window's length is `right - left + 1`. Only the letter that just came in can be repeated, so the `while` checks that one. The same shape works for any rule you can update one item at a time, like a running sum that must stay within a budget: add as `right` moves, subtract as `left` moves. It needs the rule to get easier as the window shrinks, which holds for sums of positive numbers but not when values can be negative.",
+      "example": {
+        "title": "Longest distinct run",
+        "prompt": "Read q words and print the length of each word's longest stretch with no repeated letter, and the first such stretch.",
+        "code": "#include <iostream>\n#include <string>\n#include <unordered_map>\n\nint main() {\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        std::string s;\n        std::cin >> s;\n        std::unordered_map<char, int> count;\n        int left = 0;\n        int best = 0;\n        int bestStart = 0;\n        for (int right = 0; right < static_cast<int>(s.size()); ++right) {\n            ++count[s[right]];\n            while (count[s[right]] > 1) {\n                --count[s[left]];\n                ++left;\n            }\n            if (right - left + 1 > best) {\n                best = right - left + 1;\n                bestStart = left;\n            }\n        }\n        std::cout << s << \": \" << best << ' ' << s.substr(bestStart, best) << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "3\nabcabcbb\nbbbbb\npwwkew\n",
+        "output": "abcabcbb: 3 abc\nbbbbb: 1 b\npwwkew: 3 wke",
+        "explanation": "In `abcabcbb` the window grows to `abc`. The next `a` makes a repeat, so `left` moves past the first `a`, and so on. The best length is 3, first reached at `abc`. Updating `bestStart` only on a strictly longer window keeps the first stretch on a tie. In `pwwkew` the second `w` pushes `left` past the `p` and the first `w`, and the best window is `wke`."
+      },
+      "practice": {
+        "title": "Longest run within budget",
+        "prompt": "Find the longest run of days whose costs add up to at most the budget.\n\n1. The starter reads `n` and the budget, then `n` daily costs, each at least 1.\n2. Grow a window with `right`, adding each cost to `sum`. While `sum` is over the budget, subtract `costs[left]` and move `left` right.\n3. When the window is longer than `best`, save its length in `best` and its start in `bestStart`. Only a longer window counts, so a tie keeps the earlier run.\n4. The starter prints the longest length and its first day, counting days from 1, or `none` when no single day fits.\n\nInput:\n\n```text\n8 9\n5 6 1 2 3 2 4 7\n```\n\nExpected output:\n\n```text\nlongest 4, from day 3\n```",
+        "starter": "#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    int budget = 0;\n    std::cin >> n >> budget;\n    std::vector<int> costs(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> costs[i];\n    }\n    int best = 0;\n    int bestStart = 0;\n    // TODO: grow a window with right, shrink it from left while its sum is over the budget\n    if (best > 0) {\n        std::cout << \"longest \" << best << \", from day \" << bestStart + 1 << '\\n';\n    } else {\n        std::cout << \"none\" << '\\n';\n    }\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <vector>\n\nint main() {\n    int n = 0;\n    int budget = 0;\n    std::cin >> n >> budget;\n    std::vector<int> costs(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> costs[i];\n    }\n    int best = 0;\n    int bestStart = 0;\n    int left = 0;\n    long long sum = 0;\n    for (int right = 0; right < n; ++right) {\n        sum += costs[right];\n        while (sum > budget) {\n            sum -= costs[left];\n            ++left;\n        }\n        if (right - left + 1 > best) {\n            best = right - left + 1;\n            bestStart = left;\n        }\n    }\n    if (best > 0) {\n        std::cout << \"longest \" << best << \", from day \" << bestStart + 1 << '\\n';\n    } else {\n        std::cout << \"none\" << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "8 9\n5 6 1 2 3 2 4 7\n",
+            "output": "longest 4, from day 3"
+          },
+          {
+            "stdin": "3 2\n5 6 7\n",
+            "output": "none"
+          },
+          {
+            "stdin": "4 100\n10 20 30 40\n",
+            "output": "longest 4, from day 1"
+          },
+          {
+            "stdin": "6 5\n2 3 9 1 4 8\n",
+            "output": "longest 2, from day 1"
+          }
+        ],
+        "hints": [
+          "It is the example's loop with a sum instead of a map: `while (sum > budget) { sum -= costs[left]; ++left; }`.",
+          "A window that has shrunk to nothing has `left == right + 1`, so its length is 0 and it never beats `best`."
+        ]
+      }
+    },
+    {
+      "title": "Letter counts in a window",
+      "body": "An anagram of a word has the same letters the same number of times. To find every place a text holds an anagram of `p`, slide a window exactly `p.size()` letters long and keep its letter counts in a `std::vector<int>` of 26, indexed by `c - 'a'`. Two vectors compare with `==` element by element, so the window matches when its counts equal the word's:\n\n```cpp\nstd::string s = \"cbaebabacd\";\nstd::string p = \"abc\";\nstd::vector<int> need(26, 0);\nstd::vector<int> have(26, 0);\nfor (char c : p) {\n    ++need[c - 'a'];\n}\nint m = static_cast<int>(p.size());\nfor (int i = 0; i < static_cast<int>(s.size()); ++i) {\n    ++have[s[i] - 'a'];              // the letter coming in\n    if (i >= m) {\n        --have[s[i - m] - 'a'];      // the letter leaving\n    }\n    if (have == need) {\n        std::cout << i - m + 1 << ' ';   // 0 6\n    }\n}\n```\n\nEach slide changes two counts, and comparing two vectors of 26 is a fixed cost, so the scan is O(n) whatever the word's length. The window starts at `i - m + 1`. A vector of 26 counts beats a map here, with no hashing, but it only works for lowercase letters, so check that the problem promises them.",
+      "example": {
+        "title": "Find all anagrams",
+        "prompt": "Read q pairs of a text and a word, and print every index where the text holds an anagram of the word, or `none`.",
+        "code": "#include <iostream>\n#include <string>\n#include <vector>\n\nint main() {\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        std::string text;\n        std::string word;\n        std::cin >> text >> word;\n        std::vector<int> need(26, 0);\n        std::vector<int> have(26, 0);\n        for (char c : word) {\n            ++need[c - 'a'];\n        }\n        int m = static_cast<int>(word.size());\n        std::string starts;\n        for (int i = 0; i < static_cast<int>(text.size()); ++i) {\n            ++have[text[i] - 'a'];\n            if (i >= m) {\n                --have[text[i - m] - 'a'];\n            }\n            if (have == need) {\n                starts += ' ' + std::to_string(i - m + 1);\n            }\n        }\n        std::cout << word << \" in \" << text << ':' << (starts.empty() ? \" none\" : starts) << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "3\ncbaebabacd abc\nabab ab\nhello xyz\n",
+        "output": "abc in cbaebabacd: 0 6\nab in abab: 0 1 2\nxyz in hello: none",
+        "explanation": "For `abc`, the window `cba` at index 0 has one of each letter, so its counts equal `need`. The window keeps sliding, and `bac` at index 6 matches again. In `abab` every window of two letters holds one `a` and one `b`, so indexes 0, 1, and 2 all match. No window of `hello` has the letters of `xyz`, so `starts` stays empty and the line ends in `none`."
+      },
+      "practice": {
+        "title": "Scrambled codes",
+        "prompt": "Check whether a text holds a scrambled copy of a code, any order of its letters.\n\n1. The starter reads `q` pairs of a text and a code, both lowercase.\n2. Finish `firstAnagram`: count the code's letters in `need`, slide a window of `code.size()` letters over the text, keeping its counts in `have`.\n3. Return the window's start index the first time `have == need`, or -1 when it never happens. The starter prints `yes at` and the index, or `no`.\n\nInput:\n\n```text\n3\neidbaooo ab\neidboaoo ab\nhello oll\n```\n\nExpected output:\n\n```text\nyes at 3\nno\nyes at 2\n```",
+        "starter": "#include <iostream>\n#include <string>\n#include <vector>\n\n// The first index where text holds an anagram of code, or -1.\nint firstAnagram(const std::string& text, const std::string& code) {\n    // TODO: slide a window of code.size() letters with two count vectors\n    return -1;\n}\n\nint main() {\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        std::string text;\n        std::string code;\n        std::cin >> text >> code;\n        int at = firstAnagram(text, code);\n        if (at >= 0) {\n            std::cout << \"yes at \" << at << '\\n';\n        } else {\n            std::cout << \"no\" << '\\n';\n        }\n    }\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n#include <vector>\n\n// The first index where text holds an anagram of code, or -1.\nint firstAnagram(const std::string& text, const std::string& code) {\n    std::vector<int> need(26, 0);\n    std::vector<int> have(26, 0);\n    for (char c : code) {\n        ++need[c - 'a'];\n    }\n    int m = static_cast<int>(code.size());\n    for (int i = 0; i < static_cast<int>(text.size()); ++i) {\n        ++have[text[i] - 'a'];\n        if (i >= m) {\n            --have[text[i - m] - 'a'];\n        }\n        if (have == need) {\n            return i - m + 1;\n        }\n    }\n    return -1;\n}\n\nint main() {\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        std::string text;\n        std::string code;\n        std::cin >> text >> code;\n        int at = firstAnagram(text, code);\n        if (at >= 0) {\n            std::cout << \"yes at \" << at << '\\n';\n        } else {\n            std::cout << \"no\" << '\\n';\n        }\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "3\neidbaooo ab\neidboaoo ab\nhello oll\n",
+            "output": "yes at 3\nno\nyes at 2"
+          },
+          {
+            "stdin": "2\naaaa aa\nabc cba\n",
+            "output": "yes at 0\nyes at 0"
+          },
+          {
+            "stdin": "1\nab abc\n",
+            "output": "no"
+          }
+        ],
+        "hints": [
+          "Copy the example's loop and `return i - m + 1;` the first time the counts match.",
+          "A code longer than the text never matches, because the window never holds enough letters."
+        ]
+      }
+    },
+    {
+      "title": "Running totals with a map",
+      "body": "To count the subarrays that sum to exactly `k`, even with negative numbers, keep a running total. The stretch after some earlier point up to here sums to `total - earlier`, so it equals `k` exactly when an earlier running total was `total - k`. An `unordered_map` counts how many times each running total has appeared:\n\n```cpp\nstd::vector<int> nums = {1, 2, 3, -2, 2};\nint k = 3;\nstd::unordered_map<long long, int> seen;\nseen[0] = 1;                         // the empty prefix, before any number\nlong long total = 0;\nint count = 0;\nfor (int x : nums) {\n    total += x;\n    auto it = seen.find(total - k);\n    if (it != seen.end()) {\n        count += it->second;\n    }\n    ++seen[total];\n}\nstd::cout << count << '\\n';          // 4\n```\n\nLook up `total - k` before you count `total` itself, or a `k` of 0 would count an empty stretch. The `seen[0] = 1` entry is for stretches that start at the very first number. `find` reads the map without inserting, and the totals are `long long` because many numbers can add up past 2 billion. One pass with O(1) map operations makes it O(n), where checking every stretch would be O(n^2).",
+      "example": {
+        "title": "Subarrays that hit k",
+        "prompt": "Read a list of numbers and some targets, and for each target print how many stretches of the list sum to exactly that target.",
+        "code": "#include <iostream>\n#include <unordered_map>\n#include <vector>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<int> nums(n);\n    for (int i = 0; i < n; ++i) {\n        std::cin >> nums[i];\n    }\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        int k = 0;\n        std::cin >> k;\n        std::unordered_map<long long, int> seen;\n        seen[0] = 1;\n        long long total = 0;\n        int count = 0;\n        for (int x : nums) {\n            total += x;\n            auto it = seen.find(total - k);\n            if (it != seen.end()) {\n                count += it->second;\n            }\n            ++seen[total];\n        }\n        std::cout << \"sum \" << k << \": \" << count << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "5\n1 2 3 -2 2\n3\n3\n6\n0\n",
+        "output": "sum 3: 4\nsum 6: 2\nsum 0: 1",
+        "explanation": "For 3, the running totals are 1, 3, 6, 4, 6. At total 3, `seen` already holds 0, so `1 2` counts. At 6 it holds 3 (the stretch `3`), at 4 it holds 1 (`2 3 -2`), and at the last 6 it holds 3 (`3 -2 2`): 4 in all. For 6, both totals of 6 find the empty prefix's 0, for the stretch `1 2 3` and for the whole list. For 0, the last total 6 matches the earlier 6, so the stretch `-2 2` counts."
+      },
+      "practice": {
+        "title": "Balanced stretches",
+        "prompt": "Count the stretches of a vote record with as many A votes as B votes.\n\n1. The starter reads `q` vote records, each a word of `A` and `B` letters.\n2. Turn each `A` into +1 and each `B` into -1. A stretch is balanced exactly when its sum is 0.\n3. Count the balanced stretches with a running total and an `unordered_map` of how often each total has appeared, starting with `seen[0] = 1`. The starter prints the record and the count.\n\nInput:\n\n```text\n3\nABAB\nAABB\nAAA\n```\n\nExpected output:\n\n```text\nABAB: 4\nAABB: 2\nAAA: 0\n```",
+        "starter": "#include <iostream>\n#include <string>\n#include <unordered_map>\n\nint main() {\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        std::string votes;\n        std::cin >> votes;\n        int count = 0;\n        // TODO: count the stretches with as many A as B, using +1 for A, -1 for B, and a map of running totals\n        std::cout << votes << \": \" << count << '\\n';\n    }\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n#include <unordered_map>\n\nint main() {\n    int q = 0;\n    std::cin >> q;\n    for (int t = 0; t < q; ++t) {\n        std::string votes;\n        std::cin >> votes;\n        int count = 0;\n        std::unordered_map<int, int> seen;\n        seen[0] = 1;\n        int total = 0;\n        for (char c : votes) {\n            total += (c == 'A') ? 1 : -1;\n            auto it = seen.find(total);\n            if (it != seen.end()) {\n                count += it->second;\n            }\n            ++seen[total];\n        }\n        std::cout << votes << \": \" << count << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "3\nABAB\nAABB\nAAA\n",
+            "output": "ABAB: 4\nAABB: 2\nAAA: 0"
+          },
+          {
+            "stdin": "1\nBA\n",
+            "output": "BA: 1"
+          },
+          {
+            "stdin": "2\nABBA\nA\n",
+            "output": "ABBA: 3\nA: 0"
+          }
+        ],
+        "hints": [
+          "With a target of 0, the earlier total you look up is `total - 0`, the total itself.",
+          "Look up the total in `seen` before adding 1 to `seen[total]`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Two indexes from both ends of sorted data find a pair in O(n): move `i` right when the sum is too small and `j` left when it is too big.\n- Check `i < j` after the loop, since meeting in the middle means no pair works. Keep indexes as `int`.\n- A variable window grows with `right` every pass and shrinks with `left` while it breaks the rule. Its length is `right - left + 1`.\n- Count what is inside a window in an `unordered_map` or a running sum. Shrinking works when the rule gets easier as the window shrinks, like sums of positive numbers.\n- A fixed window of letter counts in a `std::vector<int>(26)` finds anagrams: add the letter coming in, remove the one leaving, compare with `==`.\n- For sums of exactly `k`, even with negatives, look up `total - k` in a map of running totals, starting from `seen[0] = 1`."
+}

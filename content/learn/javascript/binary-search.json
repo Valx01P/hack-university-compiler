@@ -1,0 +1,121 @@
+{
+  "id": "binary-search",
+  "title": "Binary Search",
+  "section": "Advanced: Searching and Sorting",
+  "summary": "Search sorted data in O(log n) steps by halving the range, find lower and upper bounds, and binary search over the possible answers.",
+  "intro": "Looking through a sorted list one item at a time ignores the one thing you know about it. Binary search checks the middle and throws away the half that can't hold the answer, so a million items take about 20 steps. JavaScript has no built-in binary search, so you write the loop, and the same loop finds bounds and even the answer to a problem.",
+  "steps": [
+    {
+      "title": "Halving a sorted range",
+      "body": "`indexOf` and `includes` check every item, which is O(n). A **sorted** array lets you skip most of them: look at the middle item, and if the target is bigger, nothing in the left half can match. Each step throws away half of what is left, so a million items take about 20 steps.\n\n```javascript\nfunction binarySearch(arr, target) {\n  let lo = 0;\n  let hi = arr.length - 1;\n  while (lo <= hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] === target) {\n      return mid;\n    }\n    if (arr[mid] < target) {\n      lo = mid + 1;\n    } else {\n      hi = mid - 1;\n    }\n  }\n  return -1;\n}\nconsole.log(binarySearch([2, 5, 8, 12, 16], 12)); // 3\nconsole.log(binarySearch([2, 5, 8, 12, 16], 7)); // -1\n```\n\n`lo` and `hi` are the first and last index that could still hold the target. The loop runs while that range is not empty (`lo <= hi`), and `mid + 1` or `mid - 1` drops the middle once it has been checked, so the range shrinks every time. `Math.floor` keeps `mid` a whole index. `<` compares strings too, so the same function searches a sorted list of words.\n\n**The gotcha:** the array must be sorted in the order you compare with. Numbers sorted by plain `sort()` come out as `[1, 10, 2]`, and a binary search over that misses values that are there, without any error.",
+      "example": {
+        "title": "Price lookup",
+        "prompt": "Read a sorted list of prices, then look up each query price with binary search and report where it is and how many steps the search took.",
+        "stdin": "3 8 15 21 30 42 57 64\n21\n64\n10\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\nconst prices = first.trim().split(/\\s+/).map(Number);\n\nfunction search(arr, target) {\n  let lo = 0;\n  let hi = arr.length - 1;\n  let steps = 0;\n  while (lo <= hi) {\n    steps++;\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] === target) {\n      return [mid, steps];\n    }\n    if (arr[mid] < target) {\n      lo = mid + 1;\n    } else {\n      hi = mid - 1;\n    }\n  }\n  return [-1, steps];\n}\n\nfor (const q of queries) {\n  const target = Number(q);\n  const [index, steps] = search(prices, target);\n  if (index === -1) {\n    console.log(`${target} not found, steps ${steps}`);\n  } else {\n    console.log(`${target} at index ${index}, steps ${steps}`);\n  }\n}\n",
+        "output": "21 at index 3, steps 1\n64 at index 7, steps 4\n10 not found, steps 3",
+        "explanation": "The first middle is index 3, which holds 21, so that search stops at once. For 64 every middle is too small, so `lo` keeps moving right until the range is just index 7. For 10 the range shrinks to nothing after three steps (21 is too big, 8 too small, 15 too big), and the function returns `-1`. The search returns a pair, which the loop destructures."
+      },
+      "practice": {
+        "title": "Dictionary lookup",
+        "prompt": "Read a sorted list of words, then look up each query word with binary search.\n\n1. Finish `binarySearch` so it returns the word's index, or `-1` when it is missing. Compare the words with `<` and `===`.\n2. For each query, print `word: index`, or `word: missing`.\n3. Finally print `found X of Y`, where X is how many queries were found and Y how many there were.\n\nInput:\n\n```text\napple banana cherry grape kiwi lemon mango peach\nkiwi\napple\nfig\npeach\n```\n\nExpected output:\n\n```text\nkiwi: 4\napple: 0\nfig: missing\npeach: 7\nfound 3 of 4\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\nconst words = first.trim().split(/\\s+/);\n\nfunction binarySearch(arr, target) {\n  // TODO: keep lo and hi, check the middle, and halve the range each step\n  return -1;\n}\n\nlet found = 0;\nfor (const q of queries) {\n  const word = q.trim();\n  const index = binarySearch(words, word);\n  // TODO: print the index or \"missing\", and count the words found\n}\n// TODO: print the found X of Y line\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\nconst words = first.trim().split(/\\s+/);\n\nfunction binarySearch(arr, target) {\n  let lo = 0;\n  let hi = arr.length - 1;\n  while (lo <= hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] === target) {\n      return mid;\n    }\n    if (arr[mid] < target) {\n      lo = mid + 1;\n    } else {\n      hi = mid - 1;\n    }\n  }\n  return -1;\n}\n\nlet found = 0;\nfor (const q of queries) {\n  const word = q.trim();\n  const index = binarySearch(words, word);\n  if (index === -1) {\n    console.log(`${word}: missing`);\n  } else {\n    console.log(`${word}: ${index}`);\n    found++;\n  }\n}\nconsole.log(`found ${found} of ${queries.length}`);\n",
+        "tests": [
+          {
+            "stdin": "apple banana cherry grape kiwi lemon mango peach\nkiwi\napple\nfig\npeach\n",
+            "output": "kiwi: 4\napple: 0\nfig: missing\npeach: 7\nfound 3 of 4"
+          },
+          {
+            "stdin": "cat\ncat\ndog\n",
+            "output": "cat: 0\ndog: missing\nfound 1 of 2"
+          },
+          {
+            "stdin": "a b c d e f g h i j\nj\na\ne\n",
+            "output": "j: 9\na: 0\ne: 4\nfound 3 of 3"
+          }
+        ],
+        "hints": [
+          "Start with `lo = 0` and `hi = arr.length - 1`, and loop `while (lo <= hi)`.",
+          "`const mid = Math.floor((lo + hi) / 2)`. Return `mid` on a match, move `lo` to `mid + 1` when `arr[mid] < target`, and `hi` to `mid - 1` otherwise.",
+          "`queries.length` is how many queries there were."
+        ]
+      }
+    },
+    {
+      "title": "Lower and upper bounds",
+      "body": "Often you want a position rather than an exact hit: where a value would be inserted, how many values are smaller, or how many copies there are. The **lower bound** is the first index whose value is `>= x`. It uses the same halving, with two changes: `hi` starts at `arr.length` (an answer past the end is allowed), and when the middle could be the answer, `hi = mid` keeps it in range.\n\n```javascript\nfunction lowerBound(arr, x) {\n  let lo = 0;\n  let hi = arr.length;\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] < x) {\n      lo = mid + 1;\n    } else {\n      hi = mid;\n    }\n  }\n  return lo;\n}\nconsole.log(lowerBound([1, 3, 3, 3, 7], 3)); // 1\nconsole.log(lowerBound([1, 3, 3, 3, 7], 5)); // 4\nconsole.log(lowerBound([1, 3, 3, 3, 7], 9)); // 5\n```\n\nThe loop stops when `lo === hi`, and that is the answer. The **upper bound** is the first index whose value is `> x`: change `arr[mid] < x` to `arr[mid] <= x`. Together they answer the usual questions:\n\n- `lowerBound(arr, x)` values are smaller than `x`, and it is where `x` would be inserted.\n- `upperBound(arr, x)` values are at most `x`.\n- `upperBound(arr, x) - lowerBound(arr, x)` values equal `x`.\n\n**The gotcha:** the two loop shapes don't mix. With `hi = mid` you must loop on `lo < hi`. With `lo <= hi`, a range of one item never shrinks and the loop runs forever.",
+      "example": {
+        "title": "Exam scores",
+        "prompt": "Read a sorted list of scores, then for each query score print how many scores are below it and how many equal it.",
+        "stdin": "55 61 61 70 70 70 82 90 95\n70\n61\n75\n100\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\nconst scores = first.trim().split(/\\s+/).map(Number);\n\nfunction lowerBound(arr, x) {\n  let lo = 0;\n  let hi = arr.length;\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] < x) {\n      lo = mid + 1;\n    } else {\n      hi = mid;\n    }\n  }\n  return lo;\n}\n\nfunction upperBound(arr, x) {\n  let lo = 0;\n  let hi = arr.length;\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] <= x) {\n      lo = mid + 1;\n    } else {\n      hi = mid;\n    }\n  }\n  return lo;\n}\n\nfor (const q of queries) {\n  const x = Number(q);\n  const below = lowerBound(scores, x);\n  const equal = upperBound(scores, x) - below;\n  console.log(`below ${x}: ${below}, exactly ${x}: ${equal}`);\n}\n",
+        "output": "below 70: 3, exactly 70: 3\nbelow 61: 1, exactly 61: 2\nbelow 75: 6, exactly 75: 0\nbelow 100: 9, exactly 100: 0",
+        "explanation": "The first 70 sits at index 3, so the lower bound of 70 is 3, and exactly three scores are smaller. The first score above 70 is at index 6, so 6 - 3 = 3 scores equal 70. 75 isn't in the list, so both bounds land on index 6 and the difference is 0. 100 is bigger than everything, and both bounds return `scores.length`, 9."
+      },
+      "practice": {
+        "title": "Tickets in a price range",
+        "prompt": "Read a sorted list of ticket prices, then answer each query `min max`: how many tickets cost from `min` to `max`, both included, and the cheapest of them.\n\n1. Finish `upperBound`, the first index whose price is `> x`. `lowerBound` is done.\n2. The tickets in range start at `lowerBound(prices, min)` and end just before `upperBound(prices, max)`.\n3. Print `min to max: count, cheapest price` when there are tickets, or `min to max: 0` when there are none.\n\nInput:\n\n```text\n12 15 15 20 28 35 35 40 60\n15 35\n21 34\n0 12\n36 39\n41 100\n```\n\nExpected output:\n\n```text\n15 to 35: 6, cheapest 15\n21 to 34: 1, cheapest 28\n0 to 12: 1, cheapest 12\n36 to 39: 0\n41 to 100: 1, cheapest 60\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\nconst prices = first.trim().split(/\\s+/).map(Number);\n\nfunction lowerBound(arr, x) {\n  let lo = 0;\n  let hi = arr.length;\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] < x) {\n      lo = mid + 1;\n    } else {\n      hi = mid;\n    }\n  }\n  return lo;\n}\n\nfunction upperBound(arr, x) {\n  // TODO: the first index whose value is > x\n  return 0;\n}\n\nfor (const q of queries) {\n  const [min, max] = q.trim().split(/\\s+/).map(Number);\n  // TODO: count the tickets from min to max and print the line\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\nconst prices = first.trim().split(/\\s+/).map(Number);\n\nfunction lowerBound(arr, x) {\n  let lo = 0;\n  let hi = arr.length;\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] < x) {\n      lo = mid + 1;\n    } else {\n      hi = mid;\n    }\n  }\n  return lo;\n}\n\nfunction upperBound(arr, x) {\n  let lo = 0;\n  let hi = arr.length;\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (arr[mid] <= x) {\n      lo = mid + 1;\n    } else {\n      hi = mid;\n    }\n  }\n  return lo;\n}\n\nfor (const q of queries) {\n  const [min, max] = q.trim().split(/\\s+/).map(Number);\n  const start = lowerBound(prices, min);\n  const count = upperBound(prices, max) - start;\n  if (count > 0) {\n    console.log(`${min} to ${max}: ${count}, cheapest ${prices[start]}`);\n  } else {\n    console.log(`${min} to ${max}: 0`);\n  }\n}\n",
+        "tests": [
+          {
+            "stdin": "12 15 15 20 28 35 35 40 60\n15 35\n21 34\n0 12\n36 39\n41 100\n",
+            "output": "15 to 35: 6, cheapest 15\n21 to 34: 1, cheapest 28\n0 to 12: 1, cheapest 12\n36 to 39: 0\n41 to 100: 1, cheapest 60"
+          },
+          {
+            "stdin": "5\n5 5\n6 9\n",
+            "output": "5 to 5: 1, cheapest 5\n6 to 9: 0"
+          },
+          {
+            "stdin": "1 2 3 4 5\n2 4\n0 0\n",
+            "output": "2 to 4: 3, cheapest 2\n0 to 0: 0"
+          }
+        ],
+        "hints": [
+          "`upperBound` is `lowerBound` with one change: move `lo` up while `arr[mid] <= x`.",
+          "The count is `upperBound(prices, max) - lowerBound(prices, min)`.",
+          "The prices are sorted, so the cheapest ticket in range is the first one, at the lower bound."
+        ]
+      }
+    },
+    {
+      "title": "Binary search on the answer",
+      "body": "Some problems ask for the smallest value that works: the smallest truck that moves every package within 5 days, the slowest speed that still arrives on time. There is no array to search, but you can search the range of possible answers, as long as a check `works(x)` is false for small `x` and true from some point on. Binary search finds that point in about log2(range) checks.\n\n```javascript\nfunction smallestThatWorks(lo, hi, works) {\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (works(mid)) {\n      hi = mid;\n    } else {\n      lo = mid + 1;\n    }\n  }\n  return lo;\n}\nconsole.log(smallestThatWorks(1, 100, (x) => x * x >= 50)); // 8\n```\n\nIt is the lower bound loop with `works(mid)` in place of `arr[mid] >= x`. Start `lo` at the smallest answer that could possibly work and `hi` at one that surely does. The hard part is writing `works`, which usually simulates the problem with that answer in a short loop.\n\nDivisions in these checks often round up: `Math.ceil(7 / 2)` is 4, the number of whole days needed when you finish 2 per day.\n\n**The gotcha:** the check must be monotonic. If `works(5)` is true but `works(6)` is false, the halving throws away the wrong half and the answer is wrong without any error.",
+      "example": {
+        "title": "Shipping capacity",
+        "prompt": "Packages must ship in the given order within a number of days, loading whole packages until the next one would go over the truck's capacity. Find the smallest capacity that ships everything in time.",
+        "stdin": "5\n1 2 3 4 5 6 7 8 9 10\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [daysLine, weightsLine] = input.trim().split(\"\\n\");\nconst days = Number(daysLine);\nconst weights = weightsLine.trim().split(/\\s+/).map(Number);\n\nfunction daysNeeded(capacity) {\n  let count = 1;\n  let load = 0;\n  for (const w of weights) {\n    if (load + w > capacity) {\n      count++;\n      load = 0;\n    }\n    load += w;\n  }\n  return count;\n}\n\nfunction smallestThatWorks(lo, hi, works) {\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (works(mid)) {\n      hi = mid;\n    } else {\n      lo = mid + 1;\n    }\n  }\n  return lo;\n}\n\nconst heaviest = Math.max(...weights);\nconst total = weights.reduce((sum, w) => sum + w, 0);\nconst capacity = smallestThatWorks(heaviest, total, (c) => daysNeeded(c) <= days);\nconsole.log(`capacity ${capacity}`);\nconsole.log(`at ${capacity}: ${daysNeeded(capacity)} days, at ${capacity - 1}: ${daysNeeded(capacity - 1)} days`);\n",
+        "output": "capacity 15\nat 15: 5 days, at 14: 6 days",
+        "explanation": "The truck must carry the heaviest package, so the answers start at 10, and carrying everything in one day needs 55, so they end there. `daysNeeded` simulates loading with a given capacity. A bigger truck never needs more days, so the check is false up to 14 and true from 15 on, and the search finds 15 in a handful of checks instead of trying all 46 capacities."
+      },
+      "practice": {
+        "title": "Smallest divisor",
+        "prompt": "Read a limit and a list of positive numbers. Find the smallest positive divisor `d` such that dividing every number by `d`, rounding each result up, and adding them gives a total of at most the limit.\n\n1. Finish `total(d)`: the sum of `Math.ceil(n / d)` over every number.\n2. A bigger divisor never makes the total bigger, so binary search the divisors from 1 to the largest number with `smallestThatWorks`.\n3. Print `divisor d, total t`.\n\nInput:\n\n```text\n6\n1 2 5 9\n```\n\nExpected output:\n\n```text\ndivisor 5, total 5\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [limitLine, numsLine] = input.trim().split(\"\\n\");\nconst limit = Number(limitLine);\nconst nums = numsLine.trim().split(/\\s+/).map(Number);\n\nfunction total(d) {\n  // TODO: add up Math.ceil(n / d) for every number\n  return 0;\n}\n\nfunction smallestThatWorks(lo, hi, works) {\n  // TODO: the binary search on the answer\n  return lo;\n}\n\nconst d = smallestThatWorks(1, Math.max(...nums), (x) => total(x) <= limit);\nconsole.log(`divisor ${d}, total ${total(d)}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [limitLine, numsLine] = input.trim().split(\"\\n\");\nconst limit = Number(limitLine);\nconst nums = numsLine.trim().split(/\\s+/).map(Number);\n\nfunction total(d) {\n  return nums.reduce((sum, n) => sum + Math.ceil(n / d), 0);\n}\n\nfunction smallestThatWorks(lo, hi, works) {\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (works(mid)) {\n      hi = mid;\n    } else {\n      lo = mid + 1;\n    }\n  }\n  return lo;\n}\n\nconst d = smallestThatWorks(1, Math.max(...nums), (x) => total(x) <= limit);\nconsole.log(`divisor ${d}, total ${total(d)}`);\n",
+        "tests": [
+          {
+            "stdin": "6\n1 2 5 9\n",
+            "output": "divisor 5, total 5"
+          },
+          {
+            "stdin": "5\n44 22 33 11 1\n",
+            "output": "divisor 44, total 5"
+          },
+          {
+            "stdin": "7\n21\n",
+            "output": "divisor 3, total 7"
+          }
+        ],
+        "hints": [
+          "`nums.reduce((sum, n) => sum + Math.ceil(n / d), 0)` adds up the rounded-up results.",
+          "Copy the loop from the example: when `works(mid)` is true keep `mid` with `hi = mid`, otherwise skip past it with `lo = mid + 1`.",
+          "Dividing by the largest number gives 1 for each number, so the answer is never bigger than `Math.max(...nums)`."
+        ]
+      }
+    }
+  ],
+  "recap": "- Binary search needs sorted data, sorted the same way you compare.\n- For an exact match: `lo = 0`, `hi = arr.length - 1`, loop `while (lo <= hi)`, and move `lo = mid + 1` or `hi = mid - 1`.\n- `const mid = Math.floor((lo + hi) / 2)` keeps the middle a whole index.\n- The lower bound is the first index with a value `>= x`: `hi = arr.length`, loop `while (lo < hi)`, and `hi = mid` when the middle could be the answer.\n- The upper bound is the first index with a value `> x`. Their difference counts the copies of `x`.\n- Don't mix `hi = mid` with `lo <= hi`, or the loop never ends.\n- To find the smallest answer that works, binary search the answers with a check that is false and then true.\n- `Math.ceil(a / b)` rounds a division up."
+}

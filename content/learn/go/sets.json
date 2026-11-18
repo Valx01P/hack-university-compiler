@@ -2,8 +2,8 @@
   "id": "sets",
   "title": "Sets",
   "section": "Collections",
-  "summary": "Build sets from maps, save memory with map[T]struct{}, remove duplicates, and compute unions, intersections, and differences.",
-  "intro": "Go has no set type, but a map with the members as keys does the job. This lesson builds sets two ways, uses one to remove duplicates, and combines sets with intersection, union, and difference.",
+  "summary": "Build sets from maps, save memory with map[T]struct{}, remove duplicates, combine sets, and find repeats and runs in one pass.",
+  "intro": "Go has no set type, but a map with the members as keys does the job. This lesson builds sets two ways, uses one to remove duplicates, combines sets with intersection, union, and difference, and finds repeats and runs of numbers in one pass.",
   "steps": [
     {
       "title": "A set as map[T]bool",
@@ -85,7 +85,34 @@
           "`go` and `sql` appear in both, so they count once: 4 + 3 - 2 = 5."
         ]
       }
+    },
+    {
+      "title": "Repeats and runs in one pass",
+      "body": "A set answers \"have I seen this?\" in constant time, which turns many loops inside loops into one pass.\n\nTo find the first repeat, check the set **before** you add each value. The first value that is already there is the answer:\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\tnums := []int{3, 1, 4, 1, 5}\n\t{{code}}\n}\n```\n\n```go\nseen := map[int]bool{}\nfor _, x := range nums {\n\tif seen[x] {\n\t\tfmt.Println(\"first repeat:\", x)\n\t\tbreak\n\t}\n\tseen[x] = true\n}\n```\n\nTo find the longest run of consecutive numbers, such as 1 2 3 4, put every number in a set first. Then start counting only at a number whose predecessor is missing, since that number begins its run:\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\tset := map[int]bool{4: true, 1: true, 3: true, 2: true, 9: true}\n\tx := 1\n\t{{code}}\n\tfmt.Println(length)\n}\n```\n\n```go\nlength := 0\nif !set[x-1] { // x starts a run\n\tlength = 1\n\tfor set[x+length] {\n\t\tlength++\n\t}\n}\n```\n\nEvery run is walked once, from its start, so the whole search stays O(n) even with a loop inside the loop. The set visits its keys in random order, so break ties between equal runs by the smaller start, and the answer is the same on every run.",
+      "example": {
+        "title": "Repeated ids and the longest streak",
+        "prompt": "Find the first id that repeats, then the longest run of consecutive ids and where it starts.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tids := []int{7, 3, 9, 4, 3, 1, 2, 9}\n\n\tseen := map[int]bool{}\n\tfirstRepeat := -1\n\tfor _, id := range ids {\n\t\tif seen[id] {\n\t\t\tfirstRepeat = id\n\t\t\tbreak\n\t\t}\n\t\tseen[id] = true\n\t}\n\tfmt.Println(\"first repeat:\", firstRepeat)\n\n\tset := map[int]bool{}\n\tfor _, id := range ids {\n\t\tset[id] = true\n\t}\n\tbestLen, bestStart := 0, 0\n\tfor x := range set {\n\t\tif set[x-1] {\n\t\t\tcontinue // x is inside a run, not at its start\n\t\t}\n\t\tlength := 1\n\t\tfor set[x+length] {\n\t\t\tlength++\n\t\t}\n\t\tif length > bestLen || (length == bestLen && x < bestStart) {\n\t\t\tbestLen, bestStart = length, x\n\t\t}\n\t}\n\tfmt.Println(\"distinct:\", len(set))\n\tfmt.Println(\"longest run:\", bestLen, \"from\", bestStart)\n}\n",
+        "output": "first repeat: 3\ndistinct: 6\nlongest run: 4 from 1",
+        "explanation": "The first loop stops at the second 3, the first id it has already seen. The set holds the 6 distinct ids. Only 1, 7, and 9 have no predecessor in the set, so only they start a count: 1 reaches 2, 3, and 4 for a run of 4, while 7 and 9 stand alone. The tie-break on the start keeps the answer fixed even though the loop visits keys in random order."
+      },
+      "practice": {
+        "title": "Ticket numbers",
+        "prompt": "Check a list of ticket numbers for repeats and find the longest run of consecutive numbers.\n\n1. Set `repeats` to true if any ticket appears twice. Use a `seen` set and stop at the first repeat.\n2. Add every ticket to `set`.\n3. Find the longest run of consecutive numbers in `set`, counting only from a number whose predecessor is missing. When two runs are equally long, keep the smaller start.\n4. Keep the given prints. Remove the `_ = tickets` line once `tickets` is used.\n\nExpected output:\n\n```text\nrepeats: true\ndistinct: 8\nlongest run: 4 from 5\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttickets := []int{12, 5, 8, 6, 15, 7, 12, 14, 5, 13}\n\t_ = tickets\n\n\trepeats := false\n\t// TODO: set repeats with a seen set, stopping at the first repeat\n\n\tset := map[int]bool{}\n\t// TODO: add every ticket to set\n\n\tbestLen, bestStart := 0, 0\n\t// TODO: find the longest run, counting only from a run's first number\n\n\tfmt.Println(\"repeats:\", repeats)\n\tfmt.Println(\"distinct:\", len(set))\n\tfmt.Println(\"longest run:\", bestLen, \"from\", bestStart)\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttickets := []int{12, 5, 8, 6, 15, 7, 12, 14, 5, 13}\n\n\trepeats := false\n\tseen := map[int]bool{}\n\tfor _, t := range tickets {\n\t\tif seen[t] {\n\t\t\trepeats = true\n\t\t\tbreak\n\t\t}\n\t\tseen[t] = true\n\t}\n\n\tset := map[int]bool{}\n\tfor _, t := range tickets {\n\t\tset[t] = true\n\t}\n\n\tbestLen, bestStart := 0, 0\n\tfor x := range set {\n\t\tif set[x-1] {\n\t\t\tcontinue\n\t\t}\n\t\tlength := 1\n\t\tfor set[x+length] {\n\t\t\tlength++\n\t\t}\n\t\tif length > bestLen || (length == bestLen && x < bestStart) {\n\t\t\tbestLen, bestStart = length, x\n\t\t}\n\t}\n\n\tfmt.Println(\"repeats:\", repeats)\n\tfmt.Println(\"distinct:\", len(set))\n\tfmt.Println(\"longest run:\", bestLen, \"from\", bestStart)\n}\n",
+        "tests": [
+          {
+            "output": "repeats: true\ndistinct: 8\nlongest run: 4 from 5"
+          }
+        ],
+        "hints": [
+          "The repeat check is the example's first loop, with `repeats = true` in place of the print.",
+          "Skip `x` when `set[x-1]` is true, then count up with `for set[x+length]`.",
+          "Two runs have length 4: 5 to 8 and 12 to 15. The tie-break `x < bestStart` keeps 5."
+        ]
+      }
     }
   ],
-  "recap": "- Go has no set type. Use a map whose keys are the members.\n- `map[T]bool`: add with `set[x] = true`, check with `set[x]` (missing keys give `false`).\n- `delete(set, x)` removes a member and `len(set)` counts them. Adding twice keeps one copy.\n- Writing to a nil map panics, so start from a literal or `make`.\n- `struct{}{}` is the only value of the empty struct and takes 0 bytes, so `map[T]struct{}` stores only keys.\n- With `map[T]struct{}`, check membership with `_, ok := set[x]`.\n- Remove duplicates in first-seen order with a `seen` set plus a result slice.\n- Intersection keeps keys the other set has, union adds both sets, difference keeps keys the other set lacks.\n- Map order is random: collect the keys, sort them, then print."
+  "recap": "- Go has no set type. Use a map whose keys are the members.\n- `map[T]bool`: add with `set[x] = true`, check with `set[x]` (missing keys give `false`).\n- `delete(set, x)` removes a member and `len(set)` counts them. Adding twice keeps one copy.\n- Writing to a nil map panics, so start from a literal or `make`.\n- `struct{}{}` is the only value of the empty struct and takes 0 bytes, so `map[T]struct{}` stores only keys.\n- With `map[T]struct{}`, check membership with `_, ok := set[x]`.\n- Remove duplicates in first-seen order with a `seen` set plus a result slice.\n- Intersection keeps keys the other set has, union adds both sets, difference keeps keys the other set lacks.\n- Map order is random: collect the keys, sort them, then print.\n- Check `seen[x]` before adding `x` to find the first repeat in one pass.\n- For the longest run, count only from numbers whose `x-1` is missing, and break ties so random map order can't change the answer."
 }

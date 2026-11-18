@@ -1,0 +1,154 @@
+{
+  "id": "tries",
+  "title": "Tries",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Build a prefix tree from dicts of children, search words and prefixes, count and list the words under a prefix, and match wildcards.",
+  "intro": "Autocomplete, spell checkers, and word games all ask questions about prefixes. A trie stores words one letter per level, so words that share a beginning share its nodes, and every lookup costs only the length of the word you look up.",
+  "steps": [
+    {
+      "title": "Nodes, insert, and search",
+      "body": "A **trie** (say \"try\") is a tree of letters. Each node has a dict `children` from a letter to the next node, and a flag `is_end` that says a word ends at this node. The root stands for the empty prefix.\n\n```python\nclass TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\nprint(TrieNode().is_end)  # False\n```\n\nTo **insert** a word, walk down from the root one letter at a time, creating a node whenever the letter is missing. Then mark the last node as the end of a word:\n\n```python harness\nclass TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\nroot = TrieNode()\n{{code}}\nprint(list(root.children), list(root.children[\"c\"].children[\"a\"].children))\n```\n\n```python\nfor word in [\"cat\", \"car\"]:\n    node = root\n    for ch in word:\n        if ch not in node.children:\n            node.children[ch] = TrieNode()\n        node = node.children[ch]\n    node.is_end = True\n```\n\nBoth words share the nodes for `c` and `a`, and split at the third letter.\n\nTo **search**, walk the same way and give up as soon as a letter is missing. Reaching the last letter isn't enough: `ca` is a path in this trie but not a word, so check `is_end` too. Insert and search both cost O(L) for a word of L letters, however many words the trie holds.",
+      "example": {
+        "title": "A small dictionary",
+        "prompt": "Insert four words into a trie, then look up whole words and prefixes.",
+        "code": "class TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\nclass Trie:\n    def __init__(self):\n        self.root = TrieNode()\n\n    def insert(self, word):\n        node = self.root\n        for ch in word:\n            if ch not in node.children:\n                node.children[ch] = TrieNode()\n            node = node.children[ch]\n        node.is_end = True\n\n    def search(self, word):\n        node = self.root\n        for ch in word:\n            if ch not in node.children:\n                return False\n            node = node.children[ch]\n        return node.is_end\n\n\ntrie = Trie()\nfor word in [\"tea\", \"ten\", \"to\", \"inn\"]:\n    trie.insert(word)\nfor query in [\"ten\", \"te\", \"inn\", \"in\", \"tent\"]:\n    print(query, trie.search(query))\n",
+        "output": "ten True\nte False\ninn True\nin False\ntent False",
+        "explanation": "`tea` and `ten` share the nodes for `t` and `e`, and `to` shares `t`. Searching `te` reaches the `e` node, but nothing ended there, so `is_end` is `False`. `tent` walks all the way to `ten` and then finds no `t` child, so it returns `False` inside the loop. Wrapping the root and both walks in a `Trie` class keeps the root out of sight."
+      },
+      "practice": {
+        "title": "Word lookup",
+        "prompt": "Build a trie from a list of words, count its nodes, and look words up.\n\n1. Finish `insert` so it walks the word, creates a node for each missing letter, and marks the last node with `is_end`.\n2. Add 1 to `self.size` for every node `insert` creates. The root doesn't count.\n3. Finish `search` so it returns `True` only for a word that was inserted.\n4. The starter inserts the words from the first line, prints `Nodes:` and the size, then prints `query: yes` or `query: no` for each word on the second line.\n\nInput:\n\n```text\ncar cart care cat\ncar ca cart dog\n```\n\nExpected output:\n\n```text\nNodes: 6\ncar: yes\nca: no\ncart: yes\ndog: no\n```",
+        "starter": "class TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\nclass Trie:\n    def __init__(self):\n        self.root = TrieNode()\n        self.size = 0\n\n    def insert(self, word):\n        # TODO: walk the word, create missing nodes (adding 1 to self.size each time), mark the end\n        pass\n\n    def search(self, word):\n        # TODO: return True only when word was inserted\n        return False\n\n\ntrie = Trie()\nfor word in input().split():\n    trie.insert(word)\nprint(\"Nodes:\", trie.size)\nfor query in input().split():\n    print(f\"{query}: {'yes' if trie.search(query) else 'no'}\")\n",
+        "solution": "class TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\nclass Trie:\n    def __init__(self):\n        self.root = TrieNode()\n        self.size = 0\n\n    def insert(self, word):\n        node = self.root\n        for ch in word:\n            if ch not in node.children:\n                node.children[ch] = TrieNode()\n                self.size += 1\n            node = node.children[ch]\n        node.is_end = True\n\n    def search(self, word):\n        node = self.root\n        for ch in word:\n            if ch not in node.children:\n                return False\n            node = node.children[ch]\n        return node.is_end\n\n\ntrie = Trie()\nfor word in input().split():\n    trie.insert(word)\nprint(\"Nodes:\", trie.size)\nfor query in input().split():\n    print(f\"{query}: {'yes' if trie.search(query) else 'no'}\")\n",
+        "tests": [
+          {
+            "stdin": "car cart care cat\ncar ca cart dog\n",
+            "output": "Nodes: 6\ncar: yes\nca: no\ncart: yes\ndog: no"
+          },
+          {
+            "stdin": "a ab abc\nabc abcd\n",
+            "output": "Nodes: 3\nabc: yes\nabcd: no"
+          },
+          {
+            "stdin": "dog\ndog do\n",
+            "output": "Nodes: 3\ndog: yes\ndo: no"
+          }
+        ],
+        "hints": [
+          "`insert` is the example's, with `self.size += 1` next to the line that creates a node.",
+          "Shared prefixes share nodes, so `car` and `cart` together need only 4 nodes.",
+          "`search` must end with `return node.is_end`, or `ca` would count as a word."
+        ]
+      }
+    },
+    {
+      "title": "Prefixes and counts",
+      "body": "Starts-with is search without the `is_end` check: if the walk reaches the end of the prefix, some word starts with it. Both share one walk, so write it once as a helper that returns the prefix's node, or `None`:\n\n```python harness\nclass TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\nroot = TrieNode()\nnode = root\nfor ch in \"go\":\n    node = node.children.setdefault(ch, TrieNode())\nnode.is_end = True\n{{code}}\nprint(find_node(root, \"g\") is not None, find_node(root, \"x\"))\n```\n\n```python\ndef find_node(root, prefix):\n    node = root\n    for ch in prefix:\n        node = node.children.get(ch)\n        if node is None:\n            return None\n    return node\n```\n\n`children.get(ch)` returns `None` for a missing letter, so the walk needs no `in` check.\n\nTo answer \"how many words start with this prefix?\" without visiting the whole subtree, store a count on every node: the number of inserted words that pass through it. Insert adds 1 to every node on the word's path, so the prefix's node already holds the answer:\n\n```python harness\nclass TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n        self.count = 0\n\n\nroot = TrieNode()\n{{code}}\nprint(root.children[\"a\"].count, root.children[\"a\"].children[\"p\"].children[\"p\"].count)\n```\n\n```python\nfor word in [\"app\", \"apple\", \"apt\"]:\n    node = root\n    for ch in word:\n        node = node.children.setdefault(ch, TrieNode())\n        node.count += 1\n    node.is_end = True\n```\n\n`setdefault(ch, TrieNode())` returns the existing child, or stores the new node and returns it when the letter is missing.",
+      "example": {
+        "title": "Counting by prefix",
+        "prompt": "Insert five words into a trie that counts at every node, then ask how many words start with each prefix.",
+        "code": "class TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n        self.count = 0\n\n\ndef insert(root, word):\n    node = root\n    for ch in word:\n        node = node.children.setdefault(ch, TrieNode())\n        node.count += 1\n    node.is_end = True\n\n\ndef find_node(root, prefix):\n    node = root\n    for ch in prefix:\n        node = node.children.get(ch)\n        if node is None:\n            return None\n    return node\n\n\nroot = TrieNode()\nfor word in [\"code\", \"coder\", \"coding\", \"cool\", \"dart\"]:\n    insert(root, word)\nfor prefix in [\"co\", \"cod\", \"code\", \"d\", \"x\"]:\n    node = find_node(root, prefix)\n    count = node.count if node else 0\n    print(prefix, count, node is not None)\n",
+        "output": "co 4 True\ncod 3 True\ncode 2 True\nd 1 True\nx 0 False",
+        "explanation": "Each line shows the prefix, how many words start with it, and whether any does. Every word adds 1 to each node on its path, so the `c` node and the `o` node below it end up with 4, one for each word that starts with `co`. `cod` is on the path of code, coder, and coding, so its node holds 3. `x` isn't in the trie, so `find_node` returns `None` and the count is 0. `node.count if node else 0` handles that case without a second walk."
+      },
+      "practice": {
+        "title": "Prefix counter",
+        "prompt": "Count how many words start with each prefix, using counts stored in the trie.\n\n1. Finish `insert` so every node on the word's path gets 1 added to its `count`.\n2. Finish `find_node` so it returns the prefix's node, or `None` when a letter is missing.\n3. The starter inserts the words from the first line, then prints `prefix: count` for each prefix on the second line. A word that appears twice counts twice.\n\nInput:\n\n```text\napple app apply ape bat app\nap app b c\n```\n\nExpected output:\n\n```text\nap: 5\napp: 4\nb: 1\nc: 0\n```",
+        "starter": "class TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n        self.count = 0\n\n\ndef insert(root, word):\n    # TODO: walk the word with setdefault, adding 1 to the count of every node on the path\n    pass\n\n\ndef find_node(root, prefix):\n    # TODO: return the node at the end of prefix, or None when a letter is missing\n    return None\n\n\nroot = TrieNode()\nfor word in input().split():\n    insert(root, word)\nfor prefix in input().split():\n    node = find_node(root, prefix)\n    print(f\"{prefix}: {node.count if node else 0}\")\n",
+        "solution": "class TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n        self.count = 0\n\n\ndef insert(root, word):\n    node = root\n    for ch in word:\n        node = node.children.setdefault(ch, TrieNode())\n        node.count += 1\n    node.is_end = True\n\n\ndef find_node(root, prefix):\n    node = root\n    for ch in prefix:\n        node = node.children.get(ch)\n        if node is None:\n            return None\n    return node\n\n\nroot = TrieNode()\nfor word in input().split():\n    insert(root, word)\nfor prefix in input().split():\n    node = find_node(root, prefix)\n    print(f\"{prefix}: {node.count if node else 0}\")\n",
+        "tests": [
+          {
+            "stdin": "apple app apply ape bat app\nap app b c\n",
+            "output": "ap: 5\napp: 4\nb: 1\nc: 0"
+          },
+          {
+            "stdin": "x\nx xy\n",
+            "output": "x: 1\nxy: 0"
+          },
+          {
+            "stdin": "car cat cart\ncar ca\n",
+            "output": "car: 2\nca: 3"
+          }
+        ],
+        "hints": [
+          "Both functions are the example's.",
+          "Inserting `app` twice walks the same nodes twice, so each count goes up twice. No special case is needed.",
+          "In `find_node`, `node = node.children.get(ch)` gives `None` for a missing letter."
+        ]
+      }
+    },
+    {
+      "title": "Every word under a prefix",
+      "body": "Autocomplete lists the words that start with a prefix. Walk to the prefix's node, then visit everything below it with a recursive DFS that carries the letters so far. Every node marked `is_end` along the way is a word:\n\n```python harness\nclass TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\nroot = TrieNode()\nfor word in [\"card\", \"car\", \"cat\"]:\n    node = root\n    for ch in word:\n        node = node.children.setdefault(ch, TrieNode())\n    node.is_end = True\n{{code}}\nout = []\ncollect(root.children[\"c\"], \"c\", out)\nprint(out)\n```\n\n```python\ndef collect(node, path, out):\n    if node.is_end:\n        out.append(path)\n    for ch in sorted(node.children):\n        collect(node.children[ch], path + ch, out)\n```\n\nDicts keep insertion order, not alphabetical order, so loop over `sorted(node.children)` to get the words A to Z. A node's own word is added before its children's words, so a shorter word comes before the longer ones it starts: `car` before `card`.\n\nStart the DFS at the prefix's node with `path` set to the prefix itself, since the letters above that node aren't part of the walk. If the prefix's node is `None`, no word starts with it. The recursion goes one level per letter, so it stays shallow.",
+      "example": {
+        "title": "Autocomplete",
+        "prompt": "List every word that starts with each prefix, in alphabetical order.",
+        "code": "class TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\ndef insert(root, word):\n    node = root\n    for ch in word:\n        node = node.children.setdefault(ch, TrieNode())\n    node.is_end = True\n\n\ndef find_node(root, prefix):\n    node = root\n    for ch in prefix:\n        node = node.children.get(ch)\n        if node is None:\n            return None\n    return node\n\n\ndef collect(node, path, out):\n    if node.is_end:\n        out.append(path)\n    for ch in sorted(node.children):\n        collect(node.children[ch], path + ch, out)\n\n\nroot = TrieNode()\nfor word in [\"sun\", \"sunny\", \"sunset\", \"sand\", \"bus\", \"sunday\"]:\n    insert(root, word)\nfor prefix in [\"sun\", \"sa\", \"s\", \"x\"]:\n    node = find_node(root, prefix)\n    words = []\n    if node:\n        collect(node, prefix, words)\n    print(f\"{prefix}: {', '.join(words) if words else '(none)'}\")\n",
+        "output": "sun: sun, sunday, sunny, sunset\nsa: sand\ns: sand, sun, sunday, sunny, sunset\nx: (none)",
+        "explanation": "For `sun`, the DFS starts at the `n` node with `path` already `\"sun\"`. That node is the end of a word, so `sun` comes first, then the children in sorted order: `d` leads to sunday, `n` to sunny, `s` to sunset. For `s`, the walk covers the whole `s` subtree, and `a` sorts before `u`, so sand comes first. `x` has no node, so the list stays empty."
+      },
+      "practice": {
+        "title": "Top three suggestions",
+        "prompt": "Suggest at most three words for each prefix, in alphabetical order.\n\n1. Finish `collect(node, path, out)`: add `path` to `out` when `node` ends a word, then recurse into each child in sorted order.\n2. For each prefix on the second line, find its node and collect the words under it, starting with `path` set to the prefix.\n3. Print `prefix:` and the first 3 words separated by spaces, or `prefix: none` when no word starts with it.\n\nInput:\n\n```text\ncard care cart cat car dog dot\nca do z card\n```\n\nExpected output:\n\n```text\nca: car card care\ndo: dog dot\nz: none\ncard: card\n```",
+        "starter": "class TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\ndef insert(root, word):\n    node = root\n    for ch in word:\n        node = node.children.setdefault(ch, TrieNode())\n    node.is_end = True\n\n\ndef find_node(root, prefix):\n    node = root\n    for ch in prefix:\n        node = node.children.get(ch)\n        if node is None:\n            return None\n    return node\n\n\ndef collect(node, path, out):\n    # TODO: add path when node ends a word, then visit the children A to Z\n    pass\n\n\nroot = TrieNode()\nfor word in input().split():\n    insert(root, word)\nfor prefix in input().split():\n    # TODO: collect the words under prefix and print at most 3 of them, or \"none\"\n    pass\n",
+        "solution": "class TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\ndef insert(root, word):\n    node = root\n    for ch in word:\n        node = node.children.setdefault(ch, TrieNode())\n    node.is_end = True\n\n\ndef find_node(root, prefix):\n    node = root\n    for ch in prefix:\n        node = node.children.get(ch)\n        if node is None:\n            return None\n    return node\n\n\ndef collect(node, path, out):\n    if node.is_end:\n        out.append(path)\n    for ch in sorted(node.children):\n        collect(node.children[ch], path + ch, out)\n\n\nroot = TrieNode()\nfor word in input().split():\n    insert(root, word)\nfor prefix in input().split():\n    node = find_node(root, prefix)\n    words = []\n    if node:\n        collect(node, prefix, words)\n    print(f\"{prefix}: {' '.join(words[:3]) if words else 'none'}\")\n",
+        "tests": [
+          {
+            "stdin": "card care cart cat car dog dot\nca do z card\n",
+            "output": "ca: car card care\ndo: dog dot\nz: none\ncard: card"
+          },
+          {
+            "stdin": "ant and an\nan a\n",
+            "output": "an: an and ant\na: an and ant"
+          },
+          {
+            "stdin": "zoo\nzoo zo zz\n",
+            "output": "zoo: zoo\nzo: zoo\nzz: none"
+          }
+        ],
+        "hints": [
+          "`collect` is the example's, and the loop at the bottom has the example's shape.",
+          "`words[:3]` keeps at most the first three, and a slice never fails on a shorter list.",
+          "Check `if node:` before collecting, because `find_node` returns `None` for a missing prefix."
+        ]
+      }
+    },
+    {
+      "title": "Wildcards with DFS",
+      "body": "Some searches let `.` stand for any one letter, so `b.d` matches `bad` and `bed`. A plain walk can't follow a `.`, because it doesn't know which child to take. Search recursively instead, passing the node and the index of the next letter:\n\n```python harness\nclass TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\nroot = TrieNode()\nfor word in [\"bad\", \"bed\"]:\n    node = root\n    for ch in word:\n        node = node.children.setdefault(ch, TrieNode())\n    node.is_end = True\n{{code}}\nprint(matches(root, \"b.d\", 0), matches(root, \"b.t\", 0), matches(root, \"..\", 0))\n```\n\n```python\ndef matches(node, word, i):\n    if i == len(word):\n        return node.is_end\n    ch = word[i]\n    if ch == \".\":\n        return any(matches(child, word, i + 1) for child in node.children.values())\n    child = node.children.get(ch)\n    return child is not None and matches(child, word, i + 1)\n```\n\nWhen `i` reaches the end of the pattern, the match counts only if a word ends at this node. At a `.`, try every child and succeed if any branch does. `any()` stops at the first `True`, so it explores no more than it needs. At a normal letter there's only one child to follow.\n\nA pattern of all dots can visit much of the trie, but every real letter narrows the search to one branch.",
+      "example": {
+        "title": "Crossword helper",
+        "prompt": "Check crossword patterns against a word list, where a dot stands for any letter.",
+        "code": "class TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\ndef insert(root, word):\n    node = root\n    for ch in word:\n        node = node.children.setdefault(ch, TrieNode())\n    node.is_end = True\n\n\ndef matches(node, word, i):\n    if i == len(word):\n        return node.is_end\n    ch = word[i]\n    if ch == \".\":\n        return any(matches(child, word, i + 1) for child in node.children.values())\n    child = node.children.get(ch)\n    return child is not None and matches(child, word, i + 1)\n\n\nroot = TrieNode()\nfor word in [\"pin\", \"pan\", \"pen\", \"spin\", \"pine\"]:\n    insert(root, word)\nfor pattern in [\"p.n\", \".pin\", \"pi..\", \"p..\", \"....\", \"s.n\"]:\n    print(pattern, matches(root, pattern, 0))\n",
+        "output": "p.n True\n.pin True\npi.. True\np.. True\n.... True\ns.n False",
+        "explanation": "`p.n` follows `p`, then tries every child for the dot. Children keep insertion order, so the `i` branch comes first, and it already reaches the end of `pin`, so `any()` stops there with `True`. `pi..` needs a 4-letter word starting with `pi`, and pine fits. `....` matches spin and pine. `s.n` follows `s`, but the only child is `p`, and `spn` isn't a word, so it is `False`."
+      },
+      "practice": {
+        "title": "Count the matches",
+        "prompt": "Count how many words match each pattern, where a dot stands for any one letter.\n\n1. Finish `count_matches(node, word, i)`, shaped like the example's `matches`.\n2. At the end of the pattern, return 1 when a word ends at this node, otherwise 0.\n3. At a `.`, return the sum of the counts from every child. At a letter, follow that child, or return 0 when it's missing.\n4. The starter inserts the words from the first line and prints `pattern: count` for each pattern on the second line.\n\nInput:\n\n```text\nbad bed bid bud dad mad\nb.d .ad ... b.. x.. bad.\n```\n\nExpected output:\n\n```text\nb.d: 4\n.ad: 3\n...: 6\nb..: 4\nx..: 0\nbad.: 0\n```",
+        "starter": "class TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\ndef insert(root, word):\n    node = root\n    for ch in word:\n        node = node.children.setdefault(ch, TrieNode())\n    node.is_end = True\n\n\ndef count_matches(node, word, i):\n    # TODO: return how many inserted words match word from index i on\n    return 0\n\n\nroot = TrieNode()\nfor word in input().split():\n    insert(root, word)\nfor pattern in input().split():\n    print(f\"{pattern}: {count_matches(root, pattern, 0)}\")\n",
+        "solution": "class TrieNode:\n    def __init__(self):\n        self.children = {}\n        self.is_end = False\n\n\ndef insert(root, word):\n    node = root\n    for ch in word:\n        node = node.children.setdefault(ch, TrieNode())\n    node.is_end = True\n\n\ndef count_matches(node, word, i):\n    if i == len(word):\n        return 1 if node.is_end else 0\n    ch = word[i]\n    if ch == \".\":\n        return sum(count_matches(child, word, i + 1) for child in node.children.values())\n    child = node.children.get(ch)\n    return count_matches(child, word, i + 1) if child else 0\n\n\nroot = TrieNode()\nfor word in input().split():\n    insert(root, word)\nfor pattern in input().split():\n    print(f\"{pattern}: {count_matches(root, pattern, 0)}\")\n",
+        "tests": [
+          {
+            "stdin": "bad bed bid bud dad mad\nb.d .ad ... b.. x.. bad.\n",
+            "output": "b.d: 4\n.ad: 3\n...: 6\nb..: 4\nx..: 0\nbad.: 0"
+          },
+          {
+            "stdin": "a ab\n. .. ...\n",
+            "output": ".: 1\n..: 1\n...: 0"
+          },
+          {
+            "stdin": "cat\nc.t cat .\n",
+            "output": "c.t: 1\ncat: 1\n.: 0"
+          }
+        ],
+        "hints": [
+          "Where the example asks whether any branch matches, you add up how many match: `sum(...)` instead of `any(...)`.",
+          "`1 if node.is_end else 0` turns the end check into a count.",
+          "For a letter, `count_matches(child, word, i + 1) if child else 0` follows the child only when it exists."
+        ]
+      }
+    }
+  ],
+  "recap": "- A `TrieNode` has a `children` dict from a letter to the next node and an `is_end` flag.\n- Insert walks the word, creates missing nodes, and sets `is_end = True` on the last one.\n- Search walks the same path and checks `is_end`. Starts-with only needs the walk to succeed.\n- `children.get(ch)` returns `None` for a missing letter, and `children.setdefault(ch, TrieNode())` creates one.\n- A `count` on each node answers \"how many words start with this prefix\" in O(L).\n- A DFS from the prefix's node over `sorted(node.children)` lists the words below it A to Z.\n- For `.` wildcards, recurse with the next index and try every child with `any()`."
+}

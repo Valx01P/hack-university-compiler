@@ -1,0 +1,157 @@
+{
+  "id": "binary-search",
+  "title": "Binary Search",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Search sorted data with a loop and with sort.Search, find lower and upper bounds on duplicates, search for an answer, and handle rotated slices.",
+  "intro": "Binary search throws away half of what is left at every step, so a million sorted values take about 20 looks. This lesson writes it as a loop, finds where a run of duplicates starts and ends with `sort.Search`, applies the same halving to the range of possible answers, and searches a sorted slice that was rotated.",
+  "steps": [
+    {
+      "title": "Binary search with a loop",
+      "body": "Keep the part of the slice that can still hold the target between `lo` and `hi`. Look at the middle: if it's the target you're done, and otherwise the sorted order tells you which half to throw away.\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\tnums := []int{2, 5, 8, 12, 16, 23, 38}\n\ttarget := 16\n\t{{code}}\n\tfmt.Println(found, lo)\n}\n```\n\n```go\nlo, hi := 0, len(nums)-1\nfound := -1\nfor lo <= hi {\n\tmid := lo + (hi-lo)/2\n\tif nums[mid] == target {\n\t\tfound = mid\n\t\tbreak\n\t} else if nums[mid] < target {\n\t\tlo = mid + 1 // the target is to the right of mid\n\t} else {\n\t\thi = mid - 1 // the target is to the left of mid\n\t}\n}\n```\n\nBoth moves step **past** `mid`, so the range shrinks every time and the loop always ends. `lo <= hi` keeps going while one candidate is left. When the target is missing, the loop ends with `lo` at the place it would be inserted.\n\n`lo + (hi-lo)/2` is the middle without adding `lo + hi` first. With Go's 64-bit `int` the sum can't overflow here, but the habit is safe in every language.\n\nFor data sorted from high to low, flip the two comparisons.",
+      "example": {
+        "title": "Found or missing",
+        "prompt": "Read sorted numbers and some queries, and for each query print its index, or where it would be inserted when it's missing.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tnums := make([]int, n)\n\tfor i := range nums {\n\t\tfmt.Scan(&nums[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar target int\n\t\tfmt.Scan(&target)\n\t\tlo, hi := 0, n-1\n\t\tfound := -1\n\t\tfor lo <= hi {\n\t\t\tmid := lo + (hi-lo)/2\n\t\t\tif nums[mid] == target {\n\t\t\t\tfound = mid\n\t\t\t\tbreak\n\t\t\t} else if nums[mid] < target {\n\t\t\t\tlo = mid + 1\n\t\t\t} else {\n\t\t\t\thi = mid - 1\n\t\t\t}\n\t\t}\n\t\tif found >= 0 {\n\t\t\tfmt.Printf(\"%d: index %d\\n\", target, found)\n\t\t} else {\n\t\t\tfmt.Printf(\"%d: missing, would go at index %d\\n\", target, lo)\n\t\t}\n\t}\n}\n",
+        "stdin": "7\n2 5 8 12 16 23 38\n3\n23\n2\n10\n",
+        "output": "23: index 5\n2: index 0\n10: missing, would go at index 3",
+        "explanation": "For 23 the first middle is index 3 (12), so `lo` moves to 4. The middle of 4 to 6 is index 5, which holds 23. For 10 the search narrows to the gap between 8 and 12 and ends with `lo` at 3, where 10 would be inserted. Each query takes at most 3 looks for 7 values."
+      },
+      "practice": {
+        "title": "Leaderboard ranks",
+        "prompt": "The leaderboard is sorted from the **highest** score to the lowest. Find each player's rank.\n\n1. The starter reads `n` scores, sorted from high to low and all different, then `q` queries.\n2. For each query, binary search the scores. Since the order is high to low, a middle score **bigger** than the target means the target is to the right.\n3. Print `score S: rank R`, where the rank is the 1-based position, or `score S: not on the board`.\n\nInput:\n\n```text\n6\n980 875 760 640 520 300\n3\n760\n980\n700\n```\n\nExpected output:\n\n```text\nscore 760: rank 3\nscore 980: rank 1\nscore 700: not on the board\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tscores := make([]int, n)\n\tfor i := range scores {\n\t\tfmt.Scan(&scores[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar target int\n\t\tfmt.Scan(&target)\n\t\tfound := -1\n\t\t// TODO: binary search scores, which go from high to low\n\t\tif found == -1 {\n\t\t\tfmt.Printf(\"score %d: not on the board\\n\", target)\n\t\t}\n\t}\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tscores := make([]int, n)\n\tfor i := range scores {\n\t\tfmt.Scan(&scores[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar target int\n\t\tfmt.Scan(&target)\n\t\tfound := -1\n\t\tlo, hi := 0, n-1\n\t\tfor lo <= hi {\n\t\t\tmid := lo + (hi-lo)/2\n\t\t\tif scores[mid] == target {\n\t\t\t\tfound = mid\n\t\t\t\tbreak\n\t\t\t} else if scores[mid] > target {\n\t\t\t\tlo = mid + 1\n\t\t\t} else {\n\t\t\t\thi = mid - 1\n\t\t\t}\n\t\t}\n\t\tif found == -1 {\n\t\t\tfmt.Printf(\"score %d: not on the board\\n\", target)\n\t\t} else {\n\t\t\tfmt.Printf(\"score %d: rank %d\\n\", target, found+1)\n\t\t}\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "6\n980 875 760 640 520 300\n3\n760\n980\n700\n",
+            "output": "score 760: rank 3\nscore 980: rank 1\nscore 700: not on the board"
+          },
+          {
+            "stdin": "1\n50\n2\n50\n49\n",
+            "output": "score 50: rank 1\nscore 49: not on the board"
+          },
+          {
+            "stdin": "5\n100 90 80 70 60\n2\n60\n110\n",
+            "output": "score 60: rank 5\nscore 110: not on the board"
+          }
+        ],
+        "hints": [
+          "The loop is the example's. Only the direction changes.",
+          "When `scores[mid] > target`, the target is further down the list, so `lo = mid + 1`.",
+          "The rank is the index plus 1."
+        ]
+      }
+    },
+    {
+      "title": "Lower and upper bounds",
+      "body": "With duplicates, a plain binary search lands on any copy. Two bounds pin down the whole run of copies:\n\n- The **lower bound** is the first index whose value is at least the target.\n- The **upper bound** is the first index whose value is greater than the target.\n\n`sort.Search(n, f)` finds both. It returns the first index in 0 to n-1 where `f` is true, or n when there is none. `f` must be false for a while and then true for the rest, which `>=` and `>` are on sorted data:\n\n```go harness\npackage main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\tnums := []int{1, 3, 5, 5, 5, 8}\n\ttarget := 5\n\t{{code}}\n\tfmt.Println(lower, upper, upper-lower)\n}\n```\n\n```go\nlower := sort.Search(len(nums), func(i int) bool { return nums[i] >= target })\nupper := sort.Search(len(nums), func(i int) bool { return nums[i] > target })\n```\n\nHere that's 2 and 5: the 5s sit at indexes 2 to 4, so the last copy is `upper - 1` and there are `upper - lower` of them. `sort.SearchInts(nums, x)` is the same lower bound.\n\nNeither bound says whether the value is there. Check `lower < len(nums) && nums[lower] == target` before you use it. If the target is bigger than everything, `lower` is `len(nums)`, and reading `nums[lower]` panics.",
+      "example": {
+        "title": "First and last position",
+        "prompt": "Read sorted numbers with repeats and some queries, and print the first and last index of each query, or -1 -1.",
+        "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tnums := make([]int, n)\n\tfor i := range nums {\n\t\tfmt.Scan(&nums[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar target int\n\t\tfmt.Scan(&target)\n\t\tlower := sort.Search(n, func(i int) bool { return nums[i] >= target })\n\t\tif lower == n || nums[lower] != target {\n\t\t\tfmt.Printf(\"%d: -1 -1\\n\", target)\n\t\t\tcontinue\n\t\t}\n\t\tupper := sort.Search(n, func(i int) bool { return nums[i] > target })\n\t\tfmt.Printf(\"%d: %d %d (%d copies)\\n\", target, lower, upper-1, upper-lower)\n\t}\n}\n",
+        "stdin": "8\n5 7 7 8 8 8 10 12\n4\n8\n7\n6\n13\n",
+        "output": "8: 3 5 (3 copies)\n7: 1 2 (2 copies)\n6: -1 -1\n13: -1 -1",
+        "explanation": "For 8 the lower bound is 3, the first value of at least 8, and the upper bound is 6, the first value above 8, so the copies sit at 3 to 5. For 6 the lower bound lands on the 7 at index 1, which isn't 6, so it's missing. For 13 the lower bound is 8, past the end, and the `lower == n` check stops the read before it panics."
+      },
+      "practice": {
+        "title": "Scores in a range",
+        "prompt": "Count how many scores fall inside each range, ends included.\n\n1. The starter reads `n` sorted scores, then `q` queries of two numbers `a b`.\n2. For each query, find the first index with a score of at least `a`, and the first index with a score greater than `b`, both with `sort.Search`.\n3. Their difference is the count. Print `a to b: C found`.\n\nInput:\n\n```text\n9\n40 55 60 60 72 80 80 91 99\n3\n60 80\n0 50\n92 98\n```\n\nExpected output:\n\n```text\n60 to 80: 5 found\n0 to 50: 1 found\n92 to 98: 0 found\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tscores := make([]int, n)\n\tfor i := range scores {\n\t\tfmt.Scan(&scores[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar a, b int\n\t\tfmt.Scan(&a, &b)\n\t\tcount := 0\n\t\t// TODO: count the scores from a to b with two sort.Search calls\n\t\tfmt.Printf(\"%d to %d: %d found\\n\", a, b, count)\n\t}\n}\n",
+        "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tscores := make([]int, n)\n\tfor i := range scores {\n\t\tfmt.Scan(&scores[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar a, b int\n\t\tfmt.Scan(&a, &b)\n\t\tfrom := sort.Search(n, func(i int) bool { return scores[i] >= a })\n\t\tpast := sort.Search(n, func(i int) bool { return scores[i] > b })\n\t\tcount := past - from\n\t\tfmt.Printf(\"%d to %d: %d found\\n\", a, b, count)\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "9\n40 55 60 60 72 80 80 91 99\n3\n60 80\n0 50\n92 98\n",
+            "output": "60 to 80: 5 found\n0 to 50: 1 found\n92 to 98: 0 found"
+          },
+          {
+            "stdin": "3\n10 10 10\n2\n10 10\n11 20\n",
+            "output": "10 to 10: 3 found\n11 to 20: 0 found"
+          },
+          {
+            "stdin": "4\n1 2 3 4\n1\n1 4\n",
+            "output": "1 to 4: 4 found"
+          }
+        ],
+        "hints": [
+          "Add `\"sort\"` to the imports.",
+          "`from` uses `scores[i] >= a`, and `past` uses `scores[i] > b`.",
+          "When nothing is in range, both searches land on the same index, so the difference is 0 with no special case."
+        ]
+      }
+    },
+    {
+      "title": "Searching for the answer",
+      "body": "Sometimes you don't search a slice at all. You search for the smallest value that works, when every bigger value works too. Write a check for one guess, then binary search the range of possible answers: when `mid` works, keep it as a candidate with `hi = mid`, and otherwise go higher with `lo = mid + 1`.\n\nKoko eats bananas at `speed` per hour, from one pile at a time, and has `h` hours:\n\n```go harness\npackage main\n\nimport \"fmt\"\n\n{{code}}\n\nfunc main() {\n\tfmt.Println(canFinish([]int{3, 6, 7, 11}, 4, 8))\n}\n```\n\n```go\nfunc canFinish(piles []int, speed, h int) bool {\n\thours := 0\n\tfor _, p := range piles {\n\t\thours += (p + speed - 1) / speed // p / speed, rounded up\n\t}\n\treturn hours <= h\n}\n```\n\n`(p + speed - 1) / speed` rounds up with no floats: a pile of 7 at speed 4 takes 2 hours. Speeds from 1 to the biggest pile are worth trying, since the biggest pile's speed finishes any pile in one hour:\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc canFinish(piles []int, speed, h int) bool {\n\thours := 0\n\tfor _, p := range piles {\n\t\thours += (p + speed - 1) / speed\n\t}\n\treturn hours <= h\n}\n\nfunc main() {\n\tpiles := []int{3, 6, 7, 11}\n\th := 8\n\t{{code}}\n\tfmt.Println(lo)\n}\n```\n\n```go\nlo, hi := 1, 11 // 11 is the biggest pile\nfor lo < hi {\n\tmid := lo + (hi-lo)/2\n\tif canFinish(piles, mid, h) {\n\t\thi = mid // works: try slower\n\t} else {\n\t\tlo = mid + 1 // too slow\n\t}\n}\n```\n\nThe loop ends when `lo == hi`, the slowest speed that works, here 4. Never write `lo = mid`: `mid` rounds down, so the range could stop shrinking and loop forever.",
+      "example": {
+        "title": "Koko's slowest speed",
+        "prompt": "Read banana piles and some hour limits, and for each limit print the slowest eating speed that finishes in time.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc canFinish(piles []int, speed, h int) bool {\n\thours := 0\n\tfor _, p := range piles {\n\t\thours += (p + speed - 1) / speed\n\t}\n\treturn hours <= h\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tpiles := make([]int, n)\n\tbiggest := 0\n\tfor i := range piles {\n\t\tfmt.Scan(&piles[i])\n\t\tif piles[i] > biggest {\n\t\t\tbiggest = piles[i]\n\t\t}\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar h int\n\t\tfmt.Scan(&h)\n\t\tlo, hi := 1, biggest\n\t\tfor lo < hi {\n\t\t\tmid := lo + (hi-lo)/2\n\t\t\tif canFinish(piles, mid, h) {\n\t\t\t\thi = mid\n\t\t\t} else {\n\t\t\t\tlo = mid + 1\n\t\t\t}\n\t\t}\n\t\tfmt.Printf(\"%d hours: speed %d\\n\", h, lo)\n\t}\n}\n",
+        "stdin": "4\n3 6 7 11\n2\n8\n5\n",
+        "output": "8 hours: speed 4\n5 hours: speed 7",
+        "explanation": "The answer lies between 1 and the biggest pile, 11. For 8 hours, speed 4 takes 1 + 2 + 2 + 3 = 8 hours and speed 3 takes 10, so 4 is the slowest that works. For 5 hours, speed 7 takes exactly 5 hours and speed 6 takes 6. Each limit checks only about 4 speeds instead of all 11."
+      },
+      "practice": {
+        "title": "Ship within the days",
+        "prompt": "Find the smallest ship capacity that delivers every package, in order, within a number of days.\n\n1. The starter reads `n` package weights, then `q` day limits. `canShip` is finished: it says whether a capacity is enough.\n2. While reading the weights, track the heaviest package and the total weight. The answer lies between those two.\n3. For each day limit, binary search that range for the smallest capacity that `canShip` accepts.\n4. Print `days D: capacity C`.\n\nInput:\n\n```text\n10\n1 2 3 4 5 6 7 8 9 10\n2\n5\n1\n```\n\nExpected output:\n\n```text\ndays 5: capacity 15\ndays 1: capacity 55\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\n// canShip loads packages in order, never over capacity, and reports whether that takes at most days.\nfunc canShip(weights []int, capacity, days int) bool {\n\tused, load := 1, 0\n\tfor _, w := range weights {\n\t\tif load+w > capacity {\n\t\t\tused++\n\t\t\tload = 0\n\t\t}\n\t\tload += w\n\t}\n\treturn used <= days\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tweights := make([]int, n)\n\tfor i := range weights {\n\t\tfmt.Scan(&weights[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar days int\n\t\tfmt.Scan(&days)\n\t\t// TODO: binary search the smallest capacity that canShip accepts, then print it\n\t}\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\n// canShip loads packages in order, never over capacity, and reports whether that takes at most days.\nfunc canShip(weights []int, capacity, days int) bool {\n\tused, load := 1, 0\n\tfor _, w := range weights {\n\t\tif load+w > capacity {\n\t\t\tused++\n\t\t\tload = 0\n\t\t}\n\t\tload += w\n\t}\n\treturn used <= days\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tweights := make([]int, n)\n\theaviest, total := 0, 0\n\tfor i := range weights {\n\t\tfmt.Scan(&weights[i])\n\t\ttotal += weights[i]\n\t\tif weights[i] > heaviest {\n\t\t\theaviest = weights[i]\n\t\t}\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar days int\n\t\tfmt.Scan(&days)\n\t\tlo, hi := heaviest, total\n\t\tfor lo < hi {\n\t\t\tmid := lo + (hi-lo)/2\n\t\t\tif canShip(weights, mid, days) {\n\t\t\t\thi = mid\n\t\t\t} else {\n\t\t\t\tlo = mid + 1\n\t\t\t}\n\t\t}\n\t\tfmt.Printf(\"days %d: capacity %d\\n\", days, lo)\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "10\n1 2 3 4 5 6 7 8 9 10\n2\n5\n1\n",
+            "output": "days 5: capacity 15\ndays 1: capacity 55"
+          },
+          {
+            "stdin": "5\n3 2 2 4 1\n2\n2\n5\n",
+            "output": "days 2: capacity 7\ndays 5: capacity 4"
+          },
+          {
+            "stdin": "3\n1 2 3\n1\n3\n",
+            "output": "days 3: capacity 3"
+          }
+        ],
+        "hints": [
+          "Start `lo` at the heaviest package, since a smaller ship can't carry it, and `hi` at the total, which ships everything in one day.",
+          "Use the example's loop: `hi = mid` when `canShip(weights, mid, days)` is true, otherwise `lo = mid + 1`."
+        ]
+      }
+    },
+    {
+      "title": "Searching a rotated slice",
+      "body": "A sorted slice that was **rotated**, such as `4 5 6 7 0 1 2`, isn't sorted, but one half of every range still is. Compare the ends: if `nums[lo] <= nums[mid]`, the left half `lo` to `mid` is in order, and otherwise the right half is. Check whether the target falls inside the sorted half's range, and keep that half if it does, or the other half if it doesn't:\n\n```go harness\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n\tnums := []int{4, 5, 6, 7, 0, 1, 2}\n\ttarget := 0\n\tlo, hi := 0, len(nums)-1\n\tfound := -1\n\tfor lo <= hi {\n\t\t{{code}}\n\t}\n\tfmt.Println(found)\n}\n```\n\n```go\nmid := lo + (hi-lo)/2\nif nums[mid] == target {\n\tfound = mid\n\tbreak\n}\nif nums[lo] <= nums[mid] { // the left half is sorted\n\tif nums[lo] <= target && target < nums[mid] {\n\t\thi = mid - 1 // inside the left half\n\t} else {\n\t\tlo = mid + 1\n\t}\n} else { // the right half is sorted\n\tif nums[mid] < target && target <= nums[hi] {\n\t\tlo = mid + 1 // inside the right half\n\t} else {\n\t\thi = mid - 1\n\t}\n}\n```\n\nOnly the sorted half has known ends, which is why you test the target against it and never against the other half. Use `<=` in `nums[lo] <= nums[mid]`: when `lo` and `mid` are the same index, that one-element half counts as sorted. The values must all be different, or a half can look sorted when it isn't.",
+      "example": {
+        "title": "Rotated lookups",
+        "prompt": "Read a rotated sorted list of different numbers and some queries, and print each query's index, or -1.",
+        "code": "package main\n\nimport \"fmt\"\n\nfunc search(nums []int, target int) int {\n\tlo, hi := 0, len(nums)-1\n\tfor lo <= hi {\n\t\tmid := lo + (hi-lo)/2\n\t\tif nums[mid] == target {\n\t\t\treturn mid\n\t\t}\n\t\tif nums[lo] <= nums[mid] {\n\t\t\tif nums[lo] <= target && target < nums[mid] {\n\t\t\t\thi = mid - 1\n\t\t\t} else {\n\t\t\t\tlo = mid + 1\n\t\t\t}\n\t\t} else {\n\t\t\tif nums[mid] < target && target <= nums[hi] {\n\t\t\t\tlo = mid + 1\n\t\t\t} else {\n\t\t\t\thi = mid - 1\n\t\t\t}\n\t\t}\n\t}\n\treturn -1\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tnums := make([]int, n)\n\tfor i := range nums {\n\t\tfmt.Scan(&nums[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar target int\n\t\tfmt.Scan(&target)\n\t\tfmt.Printf(\"%d: %d\\n\", target, search(nums, target))\n\t}\n}\n",
+        "stdin": "7\n4 5 6 7 0 1 2\n3\n0\n6\n3\n",
+        "output": "0: 4\n6: 2\n3: -1",
+        "explanation": "For 0 the middle is 7 at index 3. The left half 4 to 7 is sorted, and 0 isn't in it, so the search moves right to `0 1 2` and finds 0 at index 4. For 6 the left half holds it, so `hi` moves left. For 3 every half that could hold it is ruled out, so the result is -1."
+      },
+      "practice": {
+        "title": "Departure board",
+        "prompt": "The departure board lists times in minutes after midnight, sorted but rotated, since it starts at the current time. Look up each train.\n\n1. The starter reads `n` different times, then `q` queries.\n2. Finish `search` so it returns the index of a time in the rotated list, or -1, using the sorted-half test.\n3. Print `T: row R` with the 1-based row, or `T: no train`.\n\nInput:\n\n```text\n8\n900 1020 1200 1380 60 300 420 600\n3\n300\n1200\n500\n```\n\nExpected output:\n\n```text\n300: row 6\n1200: row 3\n500: no train\n```",
+        "starter": "package main\n\nimport \"fmt\"\n\nfunc search(times []int, target int) int {\n\t// TODO: binary search the rotated list and return the index of target, or -1\n\treturn -1\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\ttimes := make([]int, n)\n\tfor i := range times {\n\t\tfmt.Scan(&times[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar target int\n\t\tfmt.Scan(&target)\n\t\tif i := search(times, target); i >= 0 {\n\t\t\tfmt.Printf(\"%d: row %d\\n\", target, i+1)\n\t\t} else {\n\t\t\tfmt.Printf(\"%d: no train\\n\", target)\n\t\t}\n\t}\n}\n",
+        "solution": "package main\n\nimport \"fmt\"\n\nfunc search(times []int, target int) int {\n\tlo, hi := 0, len(times)-1\n\tfor lo <= hi {\n\t\tmid := lo + (hi-lo)/2\n\t\tif times[mid] == target {\n\t\t\treturn mid\n\t\t}\n\t\tif times[lo] <= times[mid] {\n\t\t\tif times[lo] <= target && target < times[mid] {\n\t\t\t\thi = mid - 1\n\t\t\t} else {\n\t\t\t\tlo = mid + 1\n\t\t\t}\n\t\t} else {\n\t\t\tif times[mid] < target && target <= times[hi] {\n\t\t\t\tlo = mid + 1\n\t\t\t} else {\n\t\t\t\thi = mid - 1\n\t\t\t}\n\t\t}\n\t}\n\treturn -1\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\ttimes := make([]int, n)\n\tfor i := range times {\n\t\tfmt.Scan(&times[i])\n\t}\n\tvar q int\n\tfmt.Scan(&q)\n\tfor ; q > 0; q-- {\n\t\tvar target int\n\t\tfmt.Scan(&target)\n\t\tif i := search(times, target); i >= 0 {\n\t\t\tfmt.Printf(\"%d: row %d\\n\", target, i+1)\n\t\t} else {\n\t\t\tfmt.Printf(\"%d: no train\\n\", target)\n\t\t}\n\t}\n}\n",
+        "tests": [
+          {
+            "stdin": "8\n900 1020 1200 1380 60 300 420 600\n3\n300\n1200\n500\n",
+            "output": "300: row 6\n1200: row 3\n500: no train"
+          },
+          {
+            "stdin": "5\n10 20 30 40 50\n2\n50\n10\n",
+            "output": "50: row 5\n10: row 1"
+          },
+          {
+            "stdin": "2\n700 100\n2\n100\n700\n",
+            "output": "100: row 2\n700: row 1"
+          }
+        ],
+        "hints": [
+          "The loop is the example's `search`, with `times` in place of `nums`.",
+          "Decide which half is sorted with `times[lo] <= times[mid]`, then check whether the target is between that half's ends.",
+          "A list that wasn't rotated at all is just sorted, and the same code handles it."
+        ]
+      }
+    }
+  ],
+  "recap": "- Loop `for lo <= hi` with `mid := lo + (hi-lo)/2`, and move `lo` or `hi` past `mid`. A missing target leaves `lo` at its insert position.\n- Flip the comparisons for data sorted from high to low.\n- `sort.Search(n, f)` returns the first index where `f` is true, or n. `>= target` gives the lower bound and `> target` the upper bound.\n- A value appears `upper - lower` times. Check `lower < len(s) && s[lower] == target` before reading it.\n- To search for an answer, write a check for one guess, then keep `hi = mid` when it works and `lo = mid + 1` when it doesn't. Never `lo = mid`.\n- Round up with `(p + k - 1) / k`.\n- In a rotated slice one half of every range is sorted. Test the target against that half's ends."
+}

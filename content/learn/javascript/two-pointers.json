@@ -1,0 +1,166 @@
+{
+  "id": "two-pointers",
+  "title": "Two Pointers and Sliding Windows",
+  "section": "Advanced: Searching and Sorting",
+  "summary": "Replace nested loops with moving indexes: pointers that close in on a target, read and write pointers, sliding windows, and prefix sums with a Map of counts.",
+  "intro": "The array patterns lesson walked two pointers in from both ends and slid a window of fixed size. Here the pointers move by a rule: toward a target sum, ahead of a write position, or as the edges of a window that grows and shrinks. Each one turns a pair of nested loops, O(n^2), into a single O(n) pass.",
+  "steps": [
+    {
+      "title": "Closing in on a target",
+      "body": "In a sorted array, two pointers find a pair with a given sum in one pass. Start `left` at the first item and `right` at the last. If their sum is too small, only moving `left` up can make it bigger. If it is too big, move `right` down. Each move rules out one item for good, so the loop runs at most n times instead of checking all n * n pairs.\n\n```javascript\nconst nums = [1, 3, 4, 6, 9];\nconst target = 10;\nlet left = 0;\nlet right = nums.length - 1;\nwhile (left < right) {\n  const sum = nums[left] + nums[right];\n  if (sum === target) {\n    break;\n  }\n  if (sum < target) {\n    left++;\n  } else {\n    right--;\n  }\n}\nconsole.log(left, right, nums[left] + nums[right]); // 0 4 10\n```\n\nAfter the loop, `left < right` means the pair was found, and `left === right` means no pair adds up to the target. Problems that number positions from 1 want `left + 1` and `right + 1`.\n\n**The gotcha:** this only works on sorted input. Sort numbers with `(a, b) => a - b` first, and if you need the original positions, sort `[value, index]` pairs instead of bare values.",
+      "example": {
+        "title": "Gift pair",
+        "prompt": "Read a budget and a sorted list of prices, and find two different gifts that cost exactly the budget together.",
+        "stdin": "56\n5 12 18 25 32 38 45\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [budgetLine, pricesLine] = input.trim().split(\"\\n\");\nconst budget = Number(budgetLine);\nconst prices = pricesLine.trim().split(/\\s+/).map(Number);\n\nlet left = 0;\nlet right = prices.length - 1;\nwhile (left < right) {\n  const sum = prices[left] + prices[right];\n  console.log(`try ${prices[left]} + ${prices[right]} = ${sum}`);\n  if (sum === budget) {\n    break;\n  }\n  if (sum < budget) {\n    left++;\n  } else {\n    right--;\n  }\n}\n\nif (left < right) {\n  console.log(`positions ${left + 1} and ${right + 1}: ${prices[left]} + ${prices[right]} = ${budget}`);\n} else {\n  console.log(`no pair adds to ${budget}`);\n}\n",
+        "output": "try 5 + 45 = 50\ntry 12 + 45 = 57\ntry 12 + 38 = 50\ntry 18 + 38 = 56\npositions 3 and 6: 18 + 38 = 56",
+        "explanation": "50 is too little, so the cheapest gift can't be in the pair and `left` moves up. 57 is too much, so 45 can't be either and `right` moves down. Each try drops one price, and the fourth try hits 56. The positions print 1-based, as people count them."
+      },
+      "practice": {
+        "title": "Closest pair",
+        "prompt": "Read a target and a sorted list of prices, and find the pair whose sum is closest to the target.\n\n1. Move two pointers inward as in the example: up when the sum is too small, down when it is too big.\n2. Keep the best pair so far, the one with the smallest `Math.abs(sum - target)`. Replace it only when a pair is strictly closer, so the first one found wins a tie.\n3. Stop early when a sum hits the target exactly.\n4. Print `a + b = sum (off by d)`.\n\nInput:\n\n```text\n48\n4 11 19 23 31 40\n```\n\nExpected output:\n\n```text\n19 + 31 = 50 (off by 2)\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [targetLine, pricesLine] = input.trim().split(\"\\n\");\nconst target = Number(targetLine);\nconst prices = pricesLine.trim().split(/\\s+/).map(Number);\n\nlet bestLeft = 0;\nlet bestRight = prices.length - 1;\n// TODO: walk two pointers inward and keep the closest pair in bestLeft and bestRight\n\nconst bestSum = prices[bestLeft] + prices[bestRight];\nconsole.log(`${prices[bestLeft]} + ${prices[bestRight]} = ${bestSum} (off by ${Math.abs(bestSum - target)})`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [targetLine, pricesLine] = input.trim().split(\"\\n\");\nconst target = Number(targetLine);\nconst prices = pricesLine.trim().split(/\\s+/).map(Number);\n\nlet bestLeft = 0;\nlet bestRight = prices.length - 1;\nlet left = 0;\nlet right = prices.length - 1;\nwhile (left < right) {\n  const sum = prices[left] + prices[right];\n  const bestSum = prices[bestLeft] + prices[bestRight];\n  if (Math.abs(sum - target) < Math.abs(bestSum - target)) {\n    bestLeft = left;\n    bestRight = right;\n  }\n  if (sum === target) {\n    break;\n  }\n  if (sum < target) {\n    left++;\n  } else {\n    right--;\n  }\n}\n\nconst bestSum = prices[bestLeft] + prices[bestRight];\nconsole.log(`${prices[bestLeft]} + ${prices[bestRight]} = ${bestSum} (off by ${Math.abs(bestSum - target)})`);\n",
+        "tests": [
+          {
+            "stdin": "48\n4 11 19 23 31 40\n",
+            "output": "19 + 31 = 50 (off by 2)"
+          },
+          {
+            "stdin": "10\n1 2 3\n",
+            "output": "2 + 3 = 5 (off by 5)"
+          },
+          {
+            "stdin": "7\n1 3 4 6\n",
+            "output": "1 + 6 = 7 (off by 0)"
+          },
+          {
+            "stdin": "10\n1 3 8 10\n",
+            "output": "1 + 10 = 11 (off by 1)"
+          }
+        ],
+        "hints": [
+          "Start the best pair at the two ends. In the loop, compare `Math.abs(sum - target)` with the best pair's distance.",
+          "Update the best pair before you move a pointer, so the pair you just tried gets counted.",
+          "A strict `<` keeps the earlier pair on a tie."
+        ]
+      }
+    },
+    {
+      "title": "Read and write pointers",
+      "body": "To filter an array in place, without building a second array, use two indexes that move the same way. `read` visits every item. `write` marks where the next item you keep goes. `write` never passes `read`, so nothing gets overwritten before it is read.\n\n```javascript\nconst nums = [3, 0, 5, 0, 0, 7];\nlet write = 0;\nfor (let read = 0; read < nums.length; read++) {\n  if (nums[read] !== 0) {\n    nums[write] = nums[read];\n    write++;\n  }\n}\nnums.length = write; // drop the leftovers\nconsole.log(nums.join(\" \")); // 3 5 7\n```\n\nThe kept items stay in their order, and the only extra memory is two numbers. Setting `length` shortens the array in place.\n\nOn a **sorted** array, the same loop removes duplicates: an item is new when it differs from the last one kept, `nums[write - 1]`. Comparing with the kept part, not just the previous item, is what lets you build rules such as \"keep each value at most twice\".\n\n**The gotcha:** don't `splice` items out while looping over the same array. Every `splice` shifts the rest down, which costs O(n) each time and makes the loop skip the item that slid into the current index.",
+      "example": {
+        "title": "Unique readings",
+        "prompt": "Read a sorted list of sensor readings, remove the duplicates in place with a read and a write index, and print what is left.",
+        "stdin": "1 1 2 4 4 4 7 9 9\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst nums = input.trim().split(/\\s+/).map(Number);\n\nlet write = 0;\nfor (let read = 0; read < nums.length; read++) {\n  if (write === 0 || nums[read] !== nums[write - 1]) {\n    nums[write] = nums[read];\n    write++;\n  }\n}\nnums.length = write;\n\nconsole.log(`${nums.length} unique: ${nums.join(\" \")}`);\n",
+        "output": "5 unique: 1 2 4 7 9",
+        "explanation": "The first reading is always kept, which is why the test starts with `write === 0`. After that, a reading is copied to `nums[write]` only when it differs from the last kept one, `nums[write - 1]`. The three 4s collapse to one because the second and third equal the kept 4. Finally `nums.length = write` cuts off the stale tail."
+      },
+      "practice": {
+        "title": "At most twice",
+        "prompt": "Read a sorted list of numbers and, in place, keep each value at most twice.\n\n1. Use a `read` loop and a `write` index as in the example.\n2. Keep `nums[read]` when fewer than 2 items are kept so far, or when it differs from the item two places back in the kept part, `nums[write - 2]`.\n3. Cut the array to `write` items and print `count kept: values`.\n\nInput:\n\n```text\n1 1 1 2 2 3 3 3 3 5\n```\n\nExpected output:\n\n```text\n7 kept: 1 1 2 2 3 3 5\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst nums = input.trim().split(/\\s+/).map(Number);\n\nlet write = 0;\n// TODO: copy each kept number to nums[write] and move write forward\n// TODO: cut the array to write items\n\nconsole.log(`${nums.length} kept: ${nums.join(\" \")}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst nums = input.trim().split(/\\s+/).map(Number);\n\nlet write = 0;\nfor (let read = 0; read < nums.length; read++) {\n  if (write < 2 || nums[read] !== nums[write - 2]) {\n    nums[write] = nums[read];\n    write++;\n  }\n}\nnums.length = write;\n\nconsole.log(`${nums.length} kept: ${nums.join(\" \")}`);\n",
+        "tests": [
+          {
+            "stdin": "1 1 1 2 2 3 3 3 3 5\n",
+            "output": "7 kept: 1 1 2 2 3 3 5"
+          },
+          {
+            "stdin": "4 4\n",
+            "output": "2 kept: 4 4"
+          },
+          {
+            "stdin": "0 0 0 0\n",
+            "output": "2 kept: 0 0"
+          }
+        ],
+        "hints": [
+          "The rule is `write < 2 || nums[read] !== nums[write - 2]`.",
+          "If the item two back in the kept part equals this one, two copies are already kept.",
+          "After the loop, `nums.length = write` drops the leftovers."
+        ]
+      }
+    },
+    {
+      "title": "Windows that grow and shrink",
+      "body": "A sliding window is the range from `left` to `right` as it moves across the array. A **variable** window grows by one item each round as `right` moves on, and shrinks from the left while it breaks the rule. Both edges only ever move forward, so the whole scan is O(n).\n\n```javascript\nconst songs = [4, 2, 3, 5, 1, 2];\nconst limit = 8;\nlet left = 0;\nlet total = 0;\nlet best = 0;\nfor (let right = 0; right < songs.length; right++) {\n  total += songs[right]; // grow\n  while (total > limit) {\n    total -= songs[left]; // shrink until it fits\n    left++;\n  }\n  best = Math.max(best, right - left + 1);\n}\nconsole.log(best); // 3\n```\n\nThe window's length is `right - left + 1`. When the rule is about what is inside the window (no repeats, at most k kinds), keep a Map of counts instead of a sum: add 1 for the item entering, subtract 1 for the item leaving, and `delete` a key when its count reaches 0, so `map.size` is the number of kinds in the window.\n\n**The gotcha:** a sum window shrinks correctly only when all the numbers are positive. With a negative number, dropping an item can make the sum grow, and the `while` loop stops in the wrong place.",
+      "example": {
+        "title": "Longest playlist",
+        "prompt": "Read a time limit and song lengths in minutes, and find the longest run of songs in a row that fits in the limit.",
+        "stdin": "8\n4 2 3 5 1 2\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [limitLine, songsLine] = input.trim().split(\"\\n\");\nconst limit = Number(limitLine);\nconst songs = songsLine.trim().split(/\\s+/).map(Number);\n\nlet left = 0;\nlet total = 0;\nlet best = 0;\nlet bestLeft = 0;\nfor (let right = 0; right < songs.length; right++) {\n  total += songs[right];\n  while (total > limit) {\n    total -= songs[left];\n    left++;\n  }\n  if (right - left + 1 > best) {\n    best = right - left + 1;\n    bestLeft = left;\n  }\n}\n\nconsole.log(`${best} songs: ${songs.slice(bestLeft, bestLeft + best).join(\" \")}`);\n",
+        "output": "3 songs: 5 1 2",
+        "explanation": "Each round adds one song on the right. When the total passes 8, songs leave from the left until it fits again: adding 3 gives 9, so the 4 leaves. The window only reaches 3 songs at the end, `5 1 2`, and `bestLeft` remembers where it started so `slice` can print it. A strict `>` keeps the first window of the best length."
+      },
+      "practice": {
+        "title": "At most k kinds",
+        "prompt": "Read `k` and a string of letters, and find the longest run of letters in a row that holds at most `k` different letters.\n\n1. Keep a Map from each letter in the window to its count.\n2. Grow the window by one letter each round. While the Map has more than `k` keys, drop the letter at `left`: lower its count, delete it at 0, and move `left` on.\n3. Track the longest window and where it starts. On a tie keep the first one.\n4. Print `length: letters`.\n\nInput:\n\n```text\n2\neceba\n```\n\nExpected output:\n\n```text\n3: ece\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [kLine, text] = input.trim().split(\"\\n\");\nconst k = Number(kLine);\nconst s = text.trim();\n\nconst counts = new Map();\nlet left = 0;\nlet best = 0;\nlet bestLeft = 0;\n// TODO: grow the window letter by letter, shrink it while counts.size > k, and track the best\n\nconsole.log(`${best}: ${s.slice(bestLeft, bestLeft + best)}`);\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [kLine, text] = input.trim().split(\"\\n\");\nconst k = Number(kLine);\nconst s = text.trim();\n\nconst counts = new Map();\nlet left = 0;\nlet best = 0;\nlet bestLeft = 0;\nfor (let right = 0; right < s.length; right++) {\n  counts.set(s[right], (counts.get(s[right]) ?? 0) + 1);\n  while (counts.size > k) {\n    const out = s[left];\n    counts.set(out, counts.get(out) - 1);\n    if (counts.get(out) === 0) {\n      counts.delete(out);\n    }\n    left++;\n  }\n  if (right - left + 1 > best) {\n    best = right - left + 1;\n    bestLeft = left;\n  }\n}\n\nconsole.log(`${best}: ${s.slice(bestLeft, bestLeft + best)}`);\n",
+        "tests": [
+          {
+            "stdin": "2\neceba\n",
+            "output": "3: ece"
+          },
+          {
+            "stdin": "2\naabbccc\n",
+            "output": "5: bbccc"
+          },
+          {
+            "stdin": "1\nabaccc\n",
+            "output": "3: ccc"
+          },
+          {
+            "stdin": "1\naabb\n",
+            "output": "2: aa"
+          }
+        ],
+        "hints": [
+          "Add the entering letter with `counts.set(ch, (counts.get(ch) ?? 0) + 1)`.",
+          "Shrink with `while (counts.size > k)`. Lower the count of `s[left]`, and when it reaches 0 call `counts.delete` so `size` drops.",
+          "Measure the window after shrinking, with `right - left + 1`, and use a strict `>` so the first longest wins."
+        ]
+      }
+    },
+    {
+      "title": "Prefix sums",
+      "body": "A **prefix sum** array stores running totals: `prefix[i]` is the sum of the first `i` items, starting from `prefix[0] = 0`. Build it once in O(n), and then the sum of any range `nums[l]` through `nums[r]` is one subtraction, `prefix[r + 1] - prefix[l]`.\n\n```javascript\nconst nums = [3, 1, 4, 1, 5];\nconst prefix = [0];\nfor (const x of nums) {\n  prefix.push(prefix[prefix.length - 1] + x);\n}\nconsole.log(prefix.join(\" \")); // 0 3 4 8 9 14\nconsole.log(prefix[4] - prefix[1]); // 6, that is nums[1] + nums[2] + nums[3]\n```\n\nThe extra 0 in front means a range that starts at index 0 needs no special case. Each range question then costs O(1) instead of a loop.\n\nSometimes you don't need the array at all. With the total known, a running sum as you walk gives everything to the left of index `i`, and `total - running - nums[i]` gives everything to the right.\n\n**The gotcha:** `prefix` has one more entry than `nums`, so the sum through index `r` ends at `prefix[r + 1]`. Off by one, the sum is wrong by one item, with no error.\n\nRunning sums also count the subarrays that add up to `k`: one ends here exactly when an earlier running sum equals `sum - k`. Keep a Map of how often each running sum has appeared, starting with 0 seen once:\n\n```javascript\nconst nums = [1, 2, 1, 2];\nconst k = 3;\nconst seen = new Map([[0, 1]]);\nlet sum = 0;\nlet count = 0;\nfor (const x of nums) {\n  sum += x;\n  count += seen.get(sum - k) ?? 0;\n  seen.set(sum, (seen.get(sum) ?? 0) + 1);\n}\nconsole.log(count); // 3\n```\n\nLook up `sum - k` before recording `sum`. Unlike a sum window, this works with negative numbers.",
+      "example": {
+        "title": "Step totals",
+        "prompt": "Read daily step counts, then answer each query `l r` with the total steps from day `l` to day `r`, counting days from 1.",
+        "stdin": "3000 4500 2000 8000 6500 1000 7000\n1 3\n4 7\n2 2\n1 7\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\nconst steps = first.trim().split(/\\s+/).map(Number);\n\nconst prefix = [0];\nfor (const x of steps) {\n  prefix.push(prefix[prefix.length - 1] + x);\n}\n\nfor (const q of queries) {\n  const [l, r] = q.trim().split(/\\s+/).map(Number);\n  console.log(`days ${l}-${r}: ${prefix[r] - prefix[l - 1]}`);\n}\n",
+        "output": "days 1-3: 9500\ndays 4-7: 22500\ndays 2-2: 4500\ndays 1-7: 32000",
+        "explanation": "Day `l` is index `l - 1`, so the 0-based range is `l - 1` through `r - 1`, and the formula `prefix[(r - 1) + 1] - prefix[l - 1]` becomes `prefix[r] - prefix[l - 1]`. Building `prefix` walks the steps once, and every query after that is a single subtraction."
+      },
+      "practice": {
+        "title": "Balance point",
+        "prompt": "Read a list of numbers and find the first index where the sum of everything to its left equals the sum of everything to its right. The item itself counts on neither side.\n\n1. Add up the `total` first.\n2. Walk the array keeping `leftSum`, the sum before index `i`. The right side is `total - leftSum - nums[i]`.\n3. Print `index i, each side s` for the first match, counting from 0, or `no balance point`.\n\nInput:\n\n```text\n1 7 3 6 5 6\n```\n\nExpected output:\n\n```text\nindex 3, each side 11\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst nums = input.trim().split(/\\s+/).map(Number);\n\n// TODO: compute the total, then walk with leftSum and compare it with the right side\nconsole.log(\"no balance point\");\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst nums = input.trim().split(/\\s+/).map(Number);\n\nconst total = nums.reduce((sum, x) => sum + x, 0);\nlet leftSum = 0;\nlet found = -1;\nfor (let i = 0; i < nums.length; i++) {\n  if (leftSum === total - leftSum - nums[i]) {\n    found = i;\n    break;\n  }\n  leftSum += nums[i];\n}\n\nif (found === -1) {\n  console.log(\"no balance point\");\n} else {\n  console.log(`index ${found}, each side ${leftSum}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "1 7 3 6 5 6\n",
+            "output": "index 3, each side 11"
+          },
+          {
+            "stdin": "1 2 3\n",
+            "output": "no balance point"
+          },
+          {
+            "stdin": "2 1 -1\n",
+            "output": "index 0, each side 0"
+          }
+        ],
+        "hints": [
+          "`nums.reduce((sum, x) => sum + x, 0)` gives the total.",
+          "Compare before you add `nums[i]` to `leftSum`, so the left side stops just before index `i`.",
+          "At index 0 the left side is empty, so `leftSum` is 0, which is how the third test balances."
+        ]
+      }
+    }
+  ],
+  "recap": "- On a sorted array, start pointers at both ends and move `left` up when the sum is too small, `right` down when it is too big.\n- A read index visits every item and a write index marks where the next kept item goes. `arr.length = write` drops the rest.\n- On sorted data, compare with the kept part (`nums[write - 1]`) to remove duplicates in place.\n- Don't `splice` inside a loop over the same array.\n- A variable window grows with `right` every round and shrinks with `left` while it breaks the rule. Its length is `right - left + 1`.\n- Track what is inside a window with a Map of counts, deleting keys at 0 so `size` counts the kinds.\n- Sum windows need positive numbers.\n- `prefix[i]` is the sum of the first `i` items, so a range sum is `prefix[r + 1] - prefix[l]`.\n- To count subarrays that sum to `k`, keep a Map of running sums starting with `[[0, 1]]`, and add `seen.get(sum - k) ?? 0` before recording `sum`."
+}

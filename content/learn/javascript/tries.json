@@ -1,0 +1,121 @@
+{
+  "id": "tries",
+  "title": "Tries",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Store words letter by letter in a trie to check words and prefixes, count words by prefix, and list completions in alphabetical order.",
+  "intro": "A trie, or prefix tree, keeps words in a tree of letters. Words that start the same share their first nodes, so checking a word or a prefix walks one node per letter, however many words are stored. You build one from a small node class with a Map of children, then count words by prefix and list the words under a prefix for autocomplete.",
+  "steps": [
+    {
+      "title": "Nodes, insert, and search",
+      "body": "Each node holds a Map from a letter to the child node for that letter, and a flag that says whether a word ends there. The root is an empty node that stands for the empty prefix.\n\n```javascript\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\nconsole.log(new TrieNode().children.size); // 0, no letters yet\n```\n\nTo insert a word, start at the root and follow its letters one by one, creating each child that is missing. Then mark the last node:\n\n```javascript harness\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\nconst root = new TrieNode();\nconst word = \"cat\";\n{{code}}\nconsole.log([...root.children.keys()], root.children.get(\"c\").children.get(\"a\").children.get(\"t\").isEnd);\n```\n\n```javascript\nlet node = root;\nfor (const ch of word) {\n  if (!node.children.has(ch)) {\n    node.children.set(ch, new TrieNode());\n  }\n  node = node.children.get(ch);\n}\nnode.isEnd = true;\n```\n\nSearching walks the same path but gives up at the first missing letter. If the walk succeeds, the text is a **prefix** of some stored word, and it is a stored **word** only if the last node has `isEnd` set. After inserting `cart`, the prefix `car` exists, but `car` is not a word until you insert it too. Both checks cost one step per letter, however many words the trie holds.\n\n**The gotcha:** `children.get(ch)` returns `undefined` for a missing letter, not `null`. Check `has(ch)` first, or compare with `undefined`.",
+      "example": {
+        "title": "Spell check",
+        "prompt": "Read a list of words into a trie, then report whether each query is a word, only the start of a word, or missing.",
+        "stdin": "car cart care cat dog do\ncar\nca\ncats\ndo\nd\ncow\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\n\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\n\nclass Trie {\n  constructor() {\n    this.root = new TrieNode();\n  }\n\n  insert(word) {\n    let node = this.root;\n    for (const ch of word) {\n      if (!node.children.has(ch)) {\n        node.children.set(ch, new TrieNode());\n      }\n      node = node.children.get(ch);\n    }\n    node.isEnd = true;\n  }\n\n  find(prefix) {\n    let node = this.root;\n    for (const ch of prefix) {\n      if (!node.children.has(ch)) {\n        return null;\n      }\n      node = node.children.get(ch);\n    }\n    return node;\n  }\n}\n\nconst trie = new Trie();\nfor (const word of first.trim().split(/\\s+/)) {\n  trie.insert(word);\n}\n\nfor (const q of queries) {\n  const text = q.trim();\n  const node = trie.find(text);\n  if (node === null) {\n    console.log(`${text}: missing`);\n  } else if (node.isEnd) {\n    console.log(`${text}: word`);\n  } else {\n    console.log(`${text}: prefix only`);\n  }\n}\n",
+        "output": "car: word\nca: prefix only\ncats: missing\ndo: word\nd: prefix only\ncow: missing",
+        "explanation": "`find` walks one node per letter and returns the node where the text ends, or `null` at the first missing letter. `ca` ends on a node with children but no `isEnd`, so it is only a prefix. `cats` reaches the `t` of `cat`, which has no `s` child. `do` is a word even though `dog` continues below it, because `insert(\"do\")` marked its node."
+      },
+      "practice": {
+        "title": "Longest known start",
+        "prompt": "Read a list of words into a trie. For each query, print the longest word from the list that the query starts with, or `none`.\n\n1. Finish `longestWordPrefix(word)`: walk the query's letters from the root, stopping at the first missing letter.\n2. Each time you land on a node with `isEnd`, remember how many letters you have walked.\n3. Return that many letters of the query, or `null` when no word was passed.\n4. Print `query: answer`.\n\nInput:\n\n```text\na an ant antler be bee\nantelope\nbeehive\nbat\ncat\n```\n\nExpected output:\n\n```text\nantelope: ant\nbeehive: bee\nbat: none\ncat: none\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\n\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\n\nclass Trie {\n  constructor() {\n    this.root = new TrieNode();\n  }\n\n  insert(word) {\n    let node = this.root;\n    for (const ch of word) {\n      if (!node.children.has(ch)) {\n        node.children.set(ch, new TrieNode());\n      }\n      node = node.children.get(ch);\n    }\n    node.isEnd = true;\n  }\n\n  longestWordPrefix(word) {\n    // TODO: walk the letters, remember the length at each isEnd node, stop at a missing letter\n    return null;\n  }\n}\n\nconst trie = new Trie();\nfor (const word of first.trim().split(/\\s+/)) {\n  trie.insert(word);\n}\n\nfor (const q of queries) {\n  const text = q.trim();\n  console.log(`${text}: ${trie.longestWordPrefix(text) ?? \"none\"}`);\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\n\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\n\nclass Trie {\n  constructor() {\n    this.root = new TrieNode();\n  }\n\n  insert(word) {\n    let node = this.root;\n    for (const ch of word) {\n      if (!node.children.has(ch)) {\n        node.children.set(ch, new TrieNode());\n      }\n      node = node.children.get(ch);\n    }\n    node.isEnd = true;\n  }\n\n  longestWordPrefix(word) {\n    let node = this.root;\n    let best = 0;\n    for (let i = 0; i < word.length; i++) {\n      if (!node.children.has(word[i])) {\n        break;\n      }\n      node = node.children.get(word[i]);\n      if (node.isEnd) {\n        best = i + 1;\n      }\n    }\n    return best === 0 ? null : word.slice(0, best);\n  }\n}\n\nconst trie = new Trie();\nfor (const word of first.trim().split(/\\s+/)) {\n  trie.insert(word);\n}\n\nfor (const q of queries) {\n  const text = q.trim();\n  console.log(`${text}: ${trie.longestWordPrefix(text) ?? \"none\"}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "a an ant antler be bee\nantelope\nbeehive\nbat\ncat\n",
+            "output": "antelope: ant\nbeehive: bee\nbat: none\ncat: none"
+          },
+          {
+            "stdin": "go golf\ngolfer\ngo\n",
+            "output": "golfer: golf\ngo: go"
+          },
+          {
+            "stdin": "x\nxylophone\ny\n",
+            "output": "xylophone: x\ny: none"
+          }
+        ],
+        "hints": [
+          "Loop with an index, `for (let i = 0; i < word.length; i++)`, so you know how many letters you have walked.",
+          "After moving to a child, `if (node.isEnd) best = i + 1` remembers the longest word so far.",
+          "`word.slice(0, best)` is the answer. Return `null` when `best` is still 0, and the given code prints `none`."
+        ]
+      }
+    },
+    {
+      "title": "Counting words by prefix",
+      "body": "Store one more number on every node: `count`, how many inserted words pass through it. Insert adds 1 to each node on the word's path:\n\n```javascript harness\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n    this.count = 0;\n  }\n}\nconst root = new TrieNode();\nfunction insert(word) {\n  {{code}}\n}\nfor (const w of [\"tea\", \"ten\", \"to\"]) {\n  insert(w);\n}\nconsole.log(root.children.get(\"t\").count, root.children.get(\"t\").children.get(\"e\").count);\n```\n\n```javascript\nlet node = root;\nfor (const ch of word) {\n  if (!node.children.has(ch)) {\n    node.children.set(ch, new TrieNode());\n  }\n  node = node.children.get(ch);\n  node.count++;\n}\nnode.isEnd = true;\n```\n\nAfter inserting `tea`, `ten`, and `to`, the `t` node counts 3 and the `te` node counts 2. Now \"how many words start with this prefix?\" is a walk down the prefix and one read of `count`, with no need to visit the words below it. A missing letter means 0 words.\n\nA node with `count` 1 lies on exactly one word's path, so the first such node along a word marks the shortest prefix that picks out that word alone.\n\n**The gotcha:** inserting the same word twice counts it twice. When duplicates shouldn't count, check whether the word is already there before you insert it.",
+      "example": {
+        "title": "Prefix counter",
+        "prompt": "Read a list of words into a trie with counts, then print how many words start with each query prefix.",
+        "stdin": "apple app apply ape banana band\nap\napp\nban\nc\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\n\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n    this.count = 0;\n  }\n}\n\nfunction insert(root, word) {\n  let node = root;\n  for (const ch of word) {\n    if (!node.children.has(ch)) {\n      node.children.set(ch, new TrieNode());\n    }\n    node = node.children.get(ch);\n    node.count++;\n  }\n  node.isEnd = true;\n}\n\nfunction countPrefix(root, prefix) {\n  let node = root;\n  for (const ch of prefix) {\n    if (!node.children.has(ch)) {\n      return 0;\n    }\n    node = node.children.get(ch);\n  }\n  return node.count;\n}\n\nconst root = new TrieNode();\nfor (const word of first.trim().split(/\\s+/)) {\n  insert(root, word);\n}\nfor (const q of queries) {\n  console.log(`${q.trim()}: ${countPrefix(root, q.trim())}`);\n}\n",
+        "output": "ap: 4\napp: 3\nban: 2\nc: 0",
+        "explanation": "Every word that starts with `ap` walked through the `ap` node and added 1 to it: `apple`, `app`, `apply`, and `ape`. The `app` node only saw three of them, since `ape` turned off at `e`. No word starts with `c`, so the walk stops at once and returns 0."
+      },
+      "practice": {
+        "title": "Shortest unique prefix",
+        "prompt": "Read a list of different words, where no word is the start of another. For each word, print the shortest prefix that no other word in the list shares.\n\n1. Insert every word with counts.\n2. Finish `uniquePrefix(root, word)`: walk the word's letters and stop at the first node whose `count` is 1.\n3. Return the letters walked so far, including that one.\n4. Print `word: prefix` in the input order.\n\nInput:\n\n```text\nzebra dog duck dove\n```\n\nExpected output:\n\n```text\nzebra: z\ndog: dog\nduck: du\ndove: dov\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst words = input.trim().split(/\\s+/);\n\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n    this.count = 0;\n  }\n}\n\nfunction insert(root, word) {\n  let node = root;\n  for (const ch of word) {\n    if (!node.children.has(ch)) {\n      node.children.set(ch, new TrieNode());\n    }\n    node = node.children.get(ch);\n    node.count++;\n  }\n  node.isEnd = true;\n}\n\nfunction uniquePrefix(root, word) {\n  // TODO: walk the letters and stop at the first node with count 1\n  return word;\n}\n\nconst root = new TrieNode();\nfor (const word of words) {\n  insert(root, word);\n}\nfor (const word of words) {\n  console.log(`${word}: ${uniquePrefix(root, word)}`);\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst words = input.trim().split(/\\s+/);\n\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n    this.count = 0;\n  }\n}\n\nfunction insert(root, word) {\n  let node = root;\n  for (const ch of word) {\n    if (!node.children.has(ch)) {\n      node.children.set(ch, new TrieNode());\n    }\n    node = node.children.get(ch);\n    node.count++;\n  }\n  node.isEnd = true;\n}\n\nfunction uniquePrefix(root, word) {\n  let node = root;\n  for (let i = 0; i < word.length; i++) {\n    node = node.children.get(word[i]);\n    if (node.count === 1) {\n      return word.slice(0, i + 1);\n    }\n  }\n  return word;\n}\n\nconst root = new TrieNode();\nfor (const word of words) {\n  insert(root, word);\n}\nfor (const word of words) {\n  console.log(`${word}: ${uniquePrefix(root, word)}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "zebra dog duck dove\n",
+            "output": "zebra: z\ndog: dog\nduck: du\ndove: dov"
+          },
+          {
+            "stdin": "alpha\n",
+            "output": "alpha: a"
+          },
+          {
+            "stdin": "car cat cup\n",
+            "output": "car: car\ncat: cat\ncup: cu"
+          }
+        ],
+        "hints": [
+          "Every letter of a stored word has a child, so you can move with `node = node.children.get(word[i])` without checking.",
+          "As soon as `node.count === 1`, no other word shares this prefix.",
+          "`word.slice(0, i + 1)` is the prefix up to and including letter `i`."
+        ]
+      }
+    },
+    {
+      "title": "Listing words under a prefix",
+      "body": "For autocomplete, walk down to the prefix's node, then explore everything below it with a depth-first search that carries the letters so far. Every node with `isEnd` set completes a word:\n\n```javascript harness\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\nconst root = new TrieNode();\nfor (const word of [\"car\", \"cat\", \"card\", \"dog\"]) {\n  let node = root;\n  for (const ch of word) {\n    if (!node.children.has(ch)) {\n      node.children.set(ch, new TrieNode());\n    }\n    node = node.children.get(ch);\n  }\n  node.isEnd = true;\n}\nconst start = root.children.get(\"c\").children.get(\"a\");\nconst out = [];\n{{code}}\ncollect(start, \"ca\");\nconsole.log(out.join(\" \"));\n```\n\n```javascript\nfunction collect(node, word) {\n  if (node.isEnd) {\n    out.push(word);\n  }\n  for (const [ch, child] of node.children) {\n    collect(child, word + ch);\n  }\n}\n```\n\nA Map iterates in insertion order, not alphabetical order, so that run prints `car card cat`, in the order the letters were first added. For alphabetical results, sort what you collect, or visit the children in sorted order with `[...node.children.keys()].sort()`. Then a word comes before the longer words below it, the list comes out alphabetical, and you can stop as soon as you have as many as you need.\n\n**The gotcha:** `word + ch` makes a new string for each call, so nothing needs undoing on the way back. If you build the word in a shared array instead, `pop()` after each child.",
+      "example": {
+        "title": "Autocomplete",
+        "prompt": "Read a list of words into a trie, then print every word under each query prefix in alphabetical order, or `no matches`.",
+        "stdin": "car card care cat cart dog door\ncar\nca\ndo\nx\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, ...queries] = input.trim().split(\"\\n\");\n\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\n\nclass Trie {\n  constructor() {\n    this.root = new TrieNode();\n  }\n\n  insert(word) {\n    let node = this.root;\n    for (const ch of word) {\n      if (!node.children.has(ch)) {\n        node.children.set(ch, new TrieNode());\n      }\n      node = node.children.get(ch);\n    }\n    node.isEnd = true;\n  }\n\n  find(prefix) {\n    let node = this.root;\n    for (const ch of prefix) {\n      if (!node.children.has(ch)) {\n        return null;\n      }\n      node = node.children.get(ch);\n    }\n    return node;\n  }\n}\n\nfunction collect(node, word, out) {\n  if (node.isEnd) {\n    out.push(word);\n  }\n  for (const ch of [...node.children.keys()].sort()) {\n    collect(node.children.get(ch), word + ch, out);\n  }\n}\n\nconst trie = new Trie();\nfor (const word of first.trim().split(/\\s+/)) {\n  trie.insert(word);\n}\nfor (const q of queries) {\n  const prefix = q.trim();\n  const node = trie.find(prefix);\n  const out = [];\n  if (node !== null) {\n    collect(node, prefix, out);\n  }\n  console.log(`${prefix}: ${out.length > 0 ? out.join(\" \") : \"no matches\"}`);\n}\n",
+        "output": "car: car card care cart\nca: car card care cart cat\ndo: dog door\nx: no matches",
+        "explanation": "`find` lands on the prefix's node, and `collect` starts from there with the prefix as the word so far. Because the children are visited in sorted order, `car` is pushed before anything below it, then `card`, `care`, and `cart`, so the list needs no sort at the end. For `x` there is no node, so nothing is collected."
+      },
+      "practice": {
+        "title": "Search suggestions",
+        "prompt": "Read a list of words, then a word being typed. After each letter typed, print up to 3 suggestions: the first words in alphabetical order that start with what has been typed so far.\n\n1. Finish `suggest(node, word, out)`: a DFS that visits children in sorted order and stops adding once `out` holds 3 words.\n2. For each prefix of the typed word, from 1 letter to all of them, find its node and collect.\n3. Print `prefix: words`, or `prefix: -` when nothing matches.\n\nInput:\n\n```text\nmobile mouse moneypot monitor mousepad\nmouse\n```\n\nExpected output:\n\n```text\nm: mobile moneypot monitor\nmo: mobile moneypot monitor\nmou: mouse mousepad\nmous: mouse mousepad\nmouse: mouse mousepad\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, typedLine] = input.trim().split(\"\\n\");\nconst typed = typedLine.trim();\n\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\n\nclass Trie {\n  constructor() {\n    this.root = new TrieNode();\n  }\n\n  insert(word) {\n    let node = this.root;\n    for (const ch of word) {\n      if (!node.children.has(ch)) {\n        node.children.set(ch, new TrieNode());\n      }\n      node = node.children.get(ch);\n    }\n    node.isEnd = true;\n  }\n\n  find(prefix) {\n    let node = this.root;\n    for (const ch of prefix) {\n      if (!node.children.has(ch)) {\n        return null;\n      }\n      node = node.children.get(ch);\n    }\n    return node;\n  }\n}\n\nfunction suggest(node, word, out) {\n  // TODO: add words in alphabetical order until out has 3\n}\n\nconst trie = new Trie();\nfor (const word of first.trim().split(/\\s+/)) {\n  trie.insert(word);\n}\nfor (let i = 1; i <= typed.length; i++) {\n  const prefix = typed.slice(0, i);\n  const out = [];\n  // TODO: find the prefix's node and fill out with suggest\n  console.log(`${prefix}: ${out.length > 0 ? out.join(\" \") : \"-\"}`);\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [first, typedLine] = input.trim().split(\"\\n\");\nconst typed = typedLine.trim();\n\nclass TrieNode {\n  constructor() {\n    this.children = new Map();\n    this.isEnd = false;\n  }\n}\n\nclass Trie {\n  constructor() {\n    this.root = new TrieNode();\n  }\n\n  insert(word) {\n    let node = this.root;\n    for (const ch of word) {\n      if (!node.children.has(ch)) {\n        node.children.set(ch, new TrieNode());\n      }\n      node = node.children.get(ch);\n    }\n    node.isEnd = true;\n  }\n\n  find(prefix) {\n    let node = this.root;\n    for (const ch of prefix) {\n      if (!node.children.has(ch)) {\n        return null;\n      }\n      node = node.children.get(ch);\n    }\n    return node;\n  }\n}\n\nfunction suggest(node, word, out) {\n  if (out.length === 3) {\n    return;\n  }\n  if (node.isEnd) {\n    out.push(word);\n  }\n  for (const ch of [...node.children.keys()].sort()) {\n    suggest(node.children.get(ch), word + ch, out);\n  }\n}\n\nconst trie = new Trie();\nfor (const word of first.trim().split(/\\s+/)) {\n  trie.insert(word);\n}\nfor (let i = 1; i <= typed.length; i++) {\n  const prefix = typed.slice(0, i);\n  const out = [];\n  const node = trie.find(prefix);\n  if (node !== null) {\n    suggest(node, prefix, out);\n  }\n  console.log(`${prefix}: ${out.length > 0 ? out.join(\" \") : \"-\"}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "mobile mouse moneypot monitor mousepad\nmouse\n",
+            "output": "m: mobile moneypot monitor\nmo: mobile moneypot monitor\nmou: mouse mousepad\nmous: mouse mousepad\nmouse: mouse mousepad"
+          },
+          {
+            "stdin": "bags baggage banner box cloths\nbags\n",
+            "output": "b: baggage bags banner\nba: baggage bags banner\nbag: baggage bags\nbags: bags"
+          },
+          {
+            "stdin": "havana\ntatiana\n",
+            "output": "t: -\nta: -\ntat: -\ntati: -\ntatia: -\ntatian: -\ntatiana: -"
+          }
+        ],
+        "hints": [
+          "Start `suggest` with `if (out.length === 3) return;` so no call adds a fourth word.",
+          "Then copy `collect` from the example: push the word when `node.isEnd`, and visit `[...node.children.keys()].sort()`.",
+          "In the loop, `trie.find(prefix)` gives the node to start from, or `null` when nothing matches."
+        ]
+      }
+    }
+  ],
+  "recap": "- A trie node holds `children`, a Map from a letter to a child node, and `isEnd`, true where a word ends.\n- Insert walks the word from the root, creating missing children, then sets `isEnd` on the last node.\n- A walk that reaches the end means the text is a prefix. It is a word only if that node has `isEnd`.\n- `children.get(ch)` is `undefined` for a missing letter, so check `has(ch)` first.\n- A `count` on each node, raised on every insert, answers how many words start with a prefix.\n- The first node with `count` 1 along a word ends its shortest unique prefix.\n- A DFS from a prefix's node, carrying `word + ch`, lists every word below it.\n- Maps iterate in insertion order, so visit `[...node.children.keys()].sort()` for alphabetical results."
+}

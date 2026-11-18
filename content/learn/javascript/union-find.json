@@ -1,0 +1,121 @@
+{
+  "id": "union-find",
+  "title": "Union Find",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Track which items are connected with union find: find a group's root, merge groups, keep the trees flat, and spot the edge that closes a cycle.",
+  "intro": "Union find, also called disjoint set union, answers one question fast: are these two items in the same group? It stores every group as a small tree in a `parent` array and merges two groups by linking their roots. With two small tricks every operation is close to O(1), so it counts connected groups as edges arrive, finds the edge that closes a cycle, and builds the cheapest network that connects everything.",
+  "steps": [
+    {
+      "title": "Parents, roots, and merging",
+      "body": "Number the items from 0 and give each one a `parent` entry. At first every item is its own parent, so each item is a group of one. The item at the top of a group, the one that is its own parent, is the group's **root**, and it names the group.\n\n```javascript\nconst parent = Array.from({ length: 5 }, (_, i) => i);\nconsole.log(parent.join(\" \")); // 0 1 2 3 4\n```\n\n`find(x)` follows parents up to the root. `union(a, b)` finds both roots and, if they differ, hangs one root under the other, which merges the two groups. Two items are connected exactly when `find` gives the same root for both.\n\n```javascript harness\nconst parent = Array.from({ length: 5 }, (_, i) => i);\n{{code}}\nunion(0, 1);\nunion(3, 4);\nunion(1, 4);\nconsole.log(parent.join(\" \"), find(0) === find(3), find(2) === find(0));\n```\n\n```javascript\nfunction find(x) {\n  while (parent[x] !== x) {\n    x = parent[x];\n  }\n  return x;\n}\n\nfunction union(a, b) {\n  const rootA = find(a);\n  const rootB = find(b);\n  if (rootA !== rootB) {\n    parent[rootB] = rootA;\n  }\n}\n```\n\nAlways link roots. `parent[b] = a` on an item that isn't a root would cut it away from the rest of its group. Each union that merges two groups leaves one group fewer, so a counter that starts at n and drops by 1 on every real merge counts the connected groups.\n\n**The gotcha:** compare roots, never parents. `parent[a] === parent[b]` can be false for two items in the same group, because one may sit deeper in the tree than the other.",
+      "example": {
+        "title": "Network check",
+        "prompt": "Read the number of computers, then lines that either link two computers or ask whether two are connected. Answer each question.",
+        "stdin": "6\nlink 0 1\nlink 2 3\nask 0 3\nlink 1 2\nask 0 3\nask 4 5\nlink 4 5\nask 5 4\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [nLine, ...lines] = input.trim().split(\"\\n\");\nconst n = Number(nLine);\nconst parent = Array.from({ length: n }, (_, i) => i);\n\nfunction find(x) {\n  while (parent[x] !== x) {\n    x = parent[x];\n  }\n  return x;\n}\n\nfunction union(a, b) {\n  const rootA = find(a);\n  const rootB = find(b);\n  if (rootA !== rootB) {\n    parent[rootB] = rootA;\n  }\n}\n\nfor (const line of lines) {\n  const [command, a, b] = line.trim().split(/\\s+/);\n  if (command === \"link\") {\n    union(Number(a), Number(b));\n  } else {\n    const same = find(Number(a)) === find(Number(b));\n    console.log(`${a} ${b}: ${same ? \"yes\" : \"no\"}`);\n  }\n}\n",
+        "output": "0 3: no\n0 3: yes\n4 5: no\n5 4: yes",
+        "explanation": "At the first question, 0 and 1 form one group and 2 and 3 another, so their roots differ. `link 1 2` hangs 2's root under 1's root, which merges the two groups, so the same question now says yes. Order doesn't matter to a connection: once 4 and 5 are linked, `ask 5 4` finds the same root from either side."
+      },
+      "practice": {
+        "title": "Friend groups",
+        "prompt": "Read the number of people, then one friendship per line as `a b`. Friends of friends are in the same group. After each friendship, print how many groups there are.\n\n1. Start every person as their own parent, and `groups` at `n`.\n2. Change `union` so it returns `true` when it merges two groups and `false` when they were already one group.\n3. For each friendship, lower `groups` when `union` merges, then print `groups` and the count.\n\nInput:\n\n```text\n5\n0 1\n1 2\n0 2\n3 4\n```\n\nExpected output:\n\n```text\ngroups 4\ngroups 3\ngroups 3\ngroups 2\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [nLine, ...lines] = input.trim().split(\"\\n\");\nconst n = Number(nLine);\nconst parent = Array.from({ length: n }, (_, i) => i);\n\nfunction find(x) {\n  while (parent[x] !== x) {\n    x = parent[x];\n  }\n  return x;\n}\n\nfunction union(a, b) {\n  // TODO: link the roots and return whether two groups merged\n  return false;\n}\n\nlet groups = n;\nfor (const line of lines) {\n  const [a, b] = line.trim().split(/\\s+/).map(Number);\n  // TODO: lower groups when union merges two groups\n  console.log(`groups ${groups}`);\n}\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [nLine, ...lines] = input.trim().split(\"\\n\");\nconst n = Number(nLine);\nconst parent = Array.from({ length: n }, (_, i) => i);\n\nfunction find(x) {\n  while (parent[x] !== x) {\n    x = parent[x];\n  }\n  return x;\n}\n\nfunction union(a, b) {\n  const rootA = find(a);\n  const rootB = find(b);\n  if (rootA === rootB) {\n    return false;\n  }\n  parent[rootB] = rootA;\n  return true;\n}\n\nlet groups = n;\nfor (const line of lines) {\n  const [a, b] = line.trim().split(/\\s+/).map(Number);\n  if (union(a, b)) {\n    groups--;\n  }\n  console.log(`groups ${groups}`);\n}\n",
+        "tests": [
+          {
+            "stdin": "5\n0 1\n1 2\n0 2\n3 4\n",
+            "output": "groups 4\ngroups 3\ngroups 3\ngroups 2"
+          },
+          {
+            "stdin": "1\n0 0\n",
+            "output": "groups 1"
+          },
+          {
+            "stdin": "4\n0 1\n2 3\n1 3\n0 2\n",
+            "output": "groups 3\ngroups 2\ngroups 1\ngroups 1"
+          }
+        ],
+        "hints": [
+          "Find both roots first. When they are equal, return `false` without changing anything.",
+          "Otherwise set `parent[rootB] = rootA` and return `true`.",
+          "`if (union(a, b)) groups--;` lowers the count only for a real merge."
+        ]
+      }
+    },
+    {
+      "title": "Path compression and union by size",
+      "body": "Plain union can build a long chain, like 0 under 1 under 2 under 3, and then every `find` walks the whole chain, O(n) each time. Two small changes keep the trees flat:\n\n- **Union by size:** keep a `size` for each root, and hang the smaller group's root under the bigger one's. Trees then stay O(log n) deep.\n- **Path compression:** while `find` walks up, point each node at its grandparent with `parent[x] = parent[parent[x]]`, so later walks are shorter.\n\n```javascript harness\nconst parent = Array.from({ length: 6 }, (_, i) => i);\nconst size = new Array(6).fill(1);\n{{code}}\nfor (const [a, b] of [[0, 1], [2, 3], [0, 2], [4, 5]]) {\n  union(a, b);\n}\nconsole.log(size[find(3)], size[find(5)]);\n```\n\n```javascript\nfunction find(x) {\n  while (parent[x] !== x) {\n    parent[x] = parent[parent[x]];\n    x = parent[x];\n  }\n  return x;\n}\n\nfunction union(a, b) {\n  let rootA = find(a);\n  let rootB = find(b);\n  if (rootA === rootB) {\n    return false;\n  }\n  if (size[rootA] < size[rootB]) {\n    [rootA, rootB] = [rootB, rootA];\n  }\n  parent[rootB] = rootA;\n  size[rootA] += size[rootB];\n  return true;\n}\n```\n\nThat run prints `4 2`: one group of four and one of two. `size` is only kept up to date at roots, so read a group's size as `size[find(x)]`. With both changes, each `find` and `union` costs close to O(1), even over millions of operations.\n\n**The gotcha:** the swap `[rootA, rootB] = [rootB, rootA]` reassigns both names, so they must be declared with `let`, not `const`.",
+      "example": {
+        "title": "Largest club",
+        "prompt": "Read the number of students, then pairs of students in the same club. Print how many clubs there are and the size of the largest.",
+        "stdin": "7\n0 1\n1 2\n3 4\n5 6\n4 6\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [nLine, ...lines] = input.trim().split(\"\\n\");\nconst n = Number(nLine);\nconst parent = Array.from({ length: n }, (_, i) => i);\nconst size = new Array(n).fill(1);\n\nfunction find(x) {\n  while (parent[x] !== x) {\n    parent[x] = parent[parent[x]];\n    x = parent[x];\n  }\n  return x;\n}\n\nfunction union(a, b) {\n  let rootA = find(a);\n  let rootB = find(b);\n  if (rootA === rootB) {\n    return false;\n  }\n  if (size[rootA] < size[rootB]) {\n    [rootA, rootB] = [rootB, rootA];\n  }\n  parent[rootB] = rootA;\n  size[rootA] += size[rootB];\n  return true;\n}\n\nlet clubs = n;\nfor (const line of lines) {\n  const [a, b] = line.trim().split(/\\s+/).map(Number);\n  if (union(a, b)) {\n    clubs--;\n  }\n}\n\nlet largest = 0;\nfor (let i = 0; i < n; i++) {\n  largest = Math.max(largest, size[find(i)]);\n}\nconsole.log(`clubs ${clubs}`);\nconsole.log(`largest ${largest}`);\n",
+        "output": "clubs 2\nlargest 4",
+        "explanation": "Every merge adds the smaller group's size to the bigger root. `4 6` joins the group of 3 and 4 with the group of 5 and 6, making a group of four, so the clubs end up as {0, 1, 2} and {3, 4, 5, 6}. Reading `size[find(i)]` asks each student's root for the size of the whole group."
+      },
+      "practice": {
+        "title": "Group sizes",
+        "prompt": "Read the number of people and pairs of people in the same group. Print the size of every group, largest first, separated by spaces.\n\n1. Finish `find` with path compression and `union` with union by size.\n2. A group's root is an index `i` where `find(i) === i`. Collect `size[i]` for each root.\n3. Sort the sizes from largest to smallest and print them.\n\nInput:\n\n```text\n8\n0 1\n2 3\n1 3\n4 5\n```\n\nExpected output:\n\n```text\n4 2 1 1\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [nLine, ...lines] = input.trim().split(\"\\n\");\nconst n = Number(nLine);\nconst parent = Array.from({ length: n }, (_, i) => i);\nconst size = new Array(n).fill(1);\n\nfunction find(x) {\n  // TODO: walk to the root, pointing each node at its grandparent\n  return x;\n}\n\nfunction union(a, b) {\n  // TODO: hang the smaller group's root under the bigger one and add the sizes\n  return false;\n}\n\nfor (const line of lines) {\n  const [a, b] = line.trim().split(/\\s+/).map(Number);\n  union(a, b);\n}\n\nconst sizes = [];\n// TODO: collect size[i] for every root i, then sort from largest to smallest\nconsole.log(sizes.join(\" \"));\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [nLine, ...lines] = input.trim().split(\"\\n\");\nconst n = Number(nLine);\nconst parent = Array.from({ length: n }, (_, i) => i);\nconst size = new Array(n).fill(1);\n\nfunction find(x) {\n  while (parent[x] !== x) {\n    parent[x] = parent[parent[x]];\n    x = parent[x];\n  }\n  return x;\n}\n\nfunction union(a, b) {\n  let rootA = find(a);\n  let rootB = find(b);\n  if (rootA === rootB) {\n    return false;\n  }\n  if (size[rootA] < size[rootB]) {\n    [rootA, rootB] = [rootB, rootA];\n  }\n  parent[rootB] = rootA;\n  size[rootA] += size[rootB];\n  return true;\n}\n\nfor (const line of lines) {\n  const [a, b] = line.trim().split(/\\s+/).map(Number);\n  union(a, b);\n}\n\nconst sizes = [];\nfor (let i = 0; i < n; i++) {\n  if (find(i) === i) {\n    sizes.push(size[i]);\n  }\n}\nsizes.sort((a, b) => b - a);\nconsole.log(sizes.join(\" \"));\n",
+        "tests": [
+          {
+            "stdin": "8\n0 1\n2 3\n1 3\n4 5\n",
+            "output": "4 2 1 1"
+          },
+          {
+            "stdin": "3\n",
+            "output": "1 1 1"
+          },
+          {
+            "stdin": "5\n0 4\n4 3\n3 2\n2 1\n",
+            "output": "5"
+          }
+        ],
+        "hints": [
+          "In `find`, set `parent[x] = parent[parent[x]]` before moving `x` up.",
+          "In `union`, declare the roots with `let` so you can swap them when `size[rootA] < size[rootB]`.",
+          "Only roots keep a correct size, which is why you collect `size[i]` only when `find(i) === i`."
+        ]
+      }
+    },
+    {
+      "title": "Finding the edge that closes a cycle",
+      "body": "An edge between two items that are already in the same group closes a cycle: there was a path between them before this edge. `union` returns `false` exactly then, so finding the edge that closes a cycle is one loop:\n\n```javascript harness\nconst parent = Array.from({ length: 5 }, (_, i) => i);\nfunction find(x) {\n  while (parent[x] !== x) {\n    x = parent[x];\n  }\n  return x;\n}\nfunction union(a, b) {\n  const rootA = find(a);\n  const rootB = find(b);\n  if (rootA === rootB) {\n    return false;\n  }\n  parent[rootB] = rootA;\n  return true;\n}\n{{code}}\n```\n\n```javascript\nfor (const [a, b] of [[1, 2], [2, 3], [3, 4], [2, 4]]) {\n  if (!union(a, b)) {\n    console.log(`${a}-${b} closes a cycle`); // 2-4 closes a cycle\n  }\n}\n```\n\nThe same check builds a **minimum spanning tree**, the cheapest set of edges that connects everything (Kruskal's algorithm). Sort the edges by weight, cheapest first, and keep each edge whose `union` succeeds. An edge that would close a cycle is skipped, since its two ends are already connected by cheaper edges. With n items, the tree is done after n - 1 kept edges, and fewer than that means some items can't be connected.\n\n**The gotcha:** union find only tracks undirected connections. In a directed graph a cycle means following the arrows back to the start, which needs Kahn's algorithm or a DFS instead.",
+      "example": {
+        "title": "Redundant cable",
+        "prompt": "Read the number of computers and the cables between them, in the order they were laid. Print the first cable that connects two computers that were already connected.",
+        "stdin": "5\n0 1\n1 2\n3 4\n2 0\n1 3\n",
+        "code": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [nLine, ...lines] = input.trim().split(\"\\n\");\nconst n = Number(nLine);\nconst parent = Array.from({ length: n }, (_, i) => i);\nconst size = new Array(n).fill(1);\n\nfunction find(x) {\n  while (parent[x] !== x) {\n    parent[x] = parent[parent[x]];\n    x = parent[x];\n  }\n  return x;\n}\n\nfunction union(a, b) {\n  let rootA = find(a);\n  let rootB = find(b);\n  if (rootA === rootB) {\n    return false;\n  }\n  if (size[rootA] < size[rootB]) {\n    [rootA, rootB] = [rootB, rootA];\n  }\n  parent[rootB] = rootA;\n  size[rootA] += size[rootB];\n  return true;\n}\n\nlet extra = null;\nfor (const line of lines) {\n  const [a, b] = line.trim().split(/\\s+/).map(Number);\n  if (!union(a, b)) {\n    extra = [a, b];\n    break;\n  }\n}\nconsole.log(extra === null ? \"no extra cable\" : `extra cable: ${extra[0]} ${extra[1]}`);\n",
+        "output": "extra cable: 2 0",
+        "explanation": "`0 1` and `1 2` put computers 0, 1, and 2 in one group. When `2 0` arrives, both ends already have the same root, so `union` returns `false`: the cable adds a second path between them and closes the cycle 0, 1, 2. The loop stops there, so `1 3` is never looked at."
+      },
+      "practice": {
+        "title": "Cheapest network",
+        "prompt": "Read the number of offices, then possible links as `a b cost`. Choose the cheapest set of links that connects every office.\n\n1. Sort the links by cost, cheapest first. Links with the same cost keep their input order.\n2. Go through them in that order and keep each link whose `union` succeeds. Print each kept link as `a b cost` and add up the costs.\n3. If you kept `n - 1` links, print `total` and the cost. Otherwise print `cannot connect everything`.\n\nInput:\n\n```text\n4\n0 1 4\n1 2 2\n0 2 5\n2 3 1\n1 3 3\n```\n\nExpected output:\n\n```text\n2 3 1\n1 2 2\n0 1 4\ntotal 7\n```",
+        "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [nLine, ...lines] = input.trim().split(\"\\n\");\nconst n = Number(nLine);\nconst links = lines.map((line) => line.trim().split(/\\s+/).map(Number));\nconst parent = Array.from({ length: n }, (_, i) => i);\nconst size = new Array(n).fill(1);\n\nfunction find(x) {\n  while (parent[x] !== x) {\n    parent[x] = parent[parent[x]];\n    x = parent[x];\n  }\n  return x;\n}\n\nfunction union(a, b) {\n  let rootA = find(a);\n  let rootB = find(b);\n  if (rootA === rootB) {\n    return false;\n  }\n  if (size[rootA] < size[rootB]) {\n    [rootA, rootB] = [rootB, rootA];\n  }\n  parent[rootB] = rootA;\n  size[rootA] += size[rootB];\n  return true;\n}\n\nlet kept = 0;\nlet total = 0;\n// TODO: sort the links by cost, then keep each link whose union succeeds\n// TODO: print each kept link, then the total or \"cannot connect everything\"\n",
+        "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\nconst [nLine, ...lines] = input.trim().split(\"\\n\");\nconst n = Number(nLine);\nconst links = lines.map((line) => line.trim().split(/\\s+/).map(Number));\nconst parent = Array.from({ length: n }, (_, i) => i);\nconst size = new Array(n).fill(1);\n\nfunction find(x) {\n  while (parent[x] !== x) {\n    parent[x] = parent[parent[x]];\n    x = parent[x];\n  }\n  return x;\n}\n\nfunction union(a, b) {\n  let rootA = find(a);\n  let rootB = find(b);\n  if (rootA === rootB) {\n    return false;\n  }\n  if (size[rootA] < size[rootB]) {\n    [rootA, rootB] = [rootB, rootA];\n  }\n  parent[rootB] = rootA;\n  size[rootA] += size[rootB];\n  return true;\n}\n\nlet kept = 0;\nlet total = 0;\nlinks.sort((x, y) => x[2] - y[2]);\nfor (const [a, b, cost] of links) {\n  if (union(a, b)) {\n    console.log(`${a} ${b} ${cost}`);\n    kept++;\n    total += cost;\n  }\n}\nconsole.log(kept === n - 1 ? `total ${total}` : \"cannot connect everything\");\n",
+        "tests": [
+          {
+            "stdin": "4\n0 1 4\n1 2 2\n0 2 5\n2 3 1\n1 3 3\n",
+            "output": "2 3 1\n1 2 2\n0 1 4\ntotal 7"
+          },
+          {
+            "stdin": "3\n0 1 5\n",
+            "output": "0 1 5\ncannot connect everything"
+          },
+          {
+            "stdin": "3\n0 1 1\n1 2 1\n0 2 1\n",
+            "output": "0 1 1\n1 2 1\ntotal 2"
+          }
+        ],
+        "hints": [
+          "`links.sort((x, y) => x[2] - y[2])` sorts by cost, and sorting is stable, so equal costs keep their order.",
+          "Destructure each link as `[a, b, cost]` and only keep it when `union(a, b)` returns `true`.",
+          "A tree over `n` offices has exactly `n - 1` links."
+        ]
+      }
+    }
+  ],
+  "recap": "- Start with `parent = Array.from({ length: n }, (_, i) => i)`: every item is its own group.\n- `find(x)` follows `parent` up to the root, the item that is its own parent.\n- `union(a, b)` links one root under the other. Link roots, never other items.\n- Two items are connected when `find(a) === find(b)`. Never compare `parent[a]` with `parent[b]`.\n- Count groups by starting at n and subtracting 1 for every union that merges.\n- Union by size hangs the smaller root under the bigger one, and path compression sets `parent[x] = parent[parent[x]]` as `find` walks. Together they make each operation close to O(1).\n- A group's size lives at its root: `size[find(x)]`.\n- A union that returns `false` means the edge closes a cycle. Sorting edges by cost and keeping the ones that merge builds a minimum spanning tree."
+}

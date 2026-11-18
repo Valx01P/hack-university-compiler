@@ -1,0 +1,154 @@
+{
+  "id": "sorting",
+  "title": "Sorting with Keys and Comparators",
+  "section": "Advanced: Data Structures and Algorithms",
+  "summary": "Sort with key functions, rank by several keys in mixed directions, order items with a comparator, and merge sorted intervals.",
+  "intro": "Interview problems sort all the time: words by count, players by score and then by name, meetings by start time. Python's `sorted()` and `list.sort()` do all of it with a `key=` function, and `functools.cmp_to_key` covers the rare order that no key can express.",
+  "steps": [
+    {
+      "title": "Sort, sorted, and a key",
+      "body": "`sorted(xs)` returns a new sorted list and leaves `xs` alone. `xs.sort()` sorts the list in place and returns `None`, so never write `xs = xs.sort()`. Both take `reverse=True` for high to low, and both take `key=`, a function Python calls once on each item. The items are then compared by what the key returns:\n\n```python\nwords = [\"pear\", \"Fig\", \"apple\", \"kiwi\"]\nprint(sorted(words))                  # ['Fig', 'apple', 'kiwi', 'pear']\nprint(sorted(words, key=str.lower))   # ['apple', 'Fig', 'kiwi', 'pear']\nprint(sorted(words, key=len))         # ['Fig', 'pear', 'kiwi', 'apple']\n```\n\nPlain string order puts every uppercase letter before every lowercase one, which is why `key=str.lower` is the usual fix.\n\nPython's sort is **stable**: items with equal keys keep the order they had. `pear` and `kiwi` both have 4 letters, so they stay in their original order. That holds with `reverse=True` too:\n\n```python harness\nwords = [\"pear\", \"Fig\", \"apple\", \"kiwi\"]\n{{code}}\n```\n\n```python\nprint(sorted(words, key=len, reverse=True))  # ['apple', 'pear', 'kiwi', 'Fig']\n```\n\n`max()` and `min()` take the same `key=`, and return the first item on a tie.",
+      "example": {
+        "title": "Sorting a playlist",
+        "prompt": "Sort songs by length, then longest first, find the longest title, and sort the titles A to Z.",
+        "code": "songs = [(\"Halo\", 4), (\"Yellow\", 5), (\"Creep\", 4), (\"Hey\", 3), (\"Angel\", 5)]\n\nfor title, minutes in sorted(songs, key=lambda song: song[1]):\n    print(f\"{title}: {minutes} min\")\n\nlongest_first = sorted(songs, key=lambda song: song[1], reverse=True)\nprint(\"Longest first:\", [title for title, _ in longest_first])\n\ntitles = [title for title, _ in songs]\nprint(\"Longest title:\", max(titles, key=len))\ntitles.sort(key=str.lower)\nprint(\"A to Z:\", \", \".join(titles))\n",
+        "output": "Hey: 3 min\nHalo: 4 min\nCreep: 4 min\nYellow: 5 min\nAngel: 5 min\nLongest first: ['Yellow', 'Angel', 'Halo', 'Creep', 'Hey']\nLongest title: Yellow\nA to Z: Angel, Creep, Halo, Hey, Yellow",
+        "explanation": "`key=lambda song: song[1]` compares songs by their minutes. Halo and Creep both run 4 minutes, so the stable sort keeps Halo first, as in the list. With `reverse=True` the ties still keep their order: Yellow before Angel, Halo before Creep. `max(titles, key=len)` finds Yellow, the only 6-letter title. `titles.sort(key=str.lower)` changes the list in place, so it goes on its own line before the print."
+      },
+      "practice": {
+        "title": "Sorting a reading list",
+        "prompt": "Read a list of books with their page counts and sort it four ways.\n\n1. The starter reads `n`, then `n` lines of a one-word title and a page count, into `(title, pages)` tuples.\n2. Print each book sorted by pages, fewest first, as `title: pages pages`. Books with the same count stay in input order.\n3. Print `Longest first:` and the list of titles sorted by pages, most first. Ties stay in input order.\n4. Print `Longest title:` and the title with the most letters, the first one on a tie.\n5. Sort the titles case-insensitively and print `A to Z:` followed by them joined with `, `.\n\nInput:\n\n```text\n5\nDune 412\nemma 474\nHamlet 104\nIt 412\nBeloved 324\n```\n\nExpected output:\n\n```text\nHamlet: 104 pages\nBeloved: 324 pages\nDune: 412 pages\nIt: 412 pages\nemma: 474 pages\nLongest first: ['emma', 'Dune', 'It', 'Beloved', 'Hamlet']\nLongest title: Beloved\nA to Z: Beloved, Dune, emma, Hamlet, It\n```",
+        "starter": "n = int(input())\nbooks = []\nfor _ in range(n):\n    title, pages = input().split()\n    books.append((title, int(pages)))\n\n# TODO: print each book by pages, shortest first, as \"title: pages pages\"\n# TODO: print \"Longest first:\" and the list of titles, most pages first\n# TODO: print \"Longest title:\" and the title with the most letters\n# TODO: sort the titles case-insensitively and print \"A to Z:\" joined with \", \"\n",
+        "solution": "n = int(input())\nbooks = []\nfor _ in range(n):\n    title, pages = input().split()\n    books.append((title, int(pages)))\n\nfor title, pages in sorted(books, key=lambda book: book[1]):\n    print(f\"{title}: {pages} pages\")\n\nlongest_first = sorted(books, key=lambda book: book[1], reverse=True)\nprint(\"Longest first:\", [title for title, _ in longest_first])\n\ntitles = [title for title, _ in books]\nprint(\"Longest title:\", max(titles, key=len))\ntitles.sort(key=str.lower)\nprint(\"A to Z:\", \", \".join(titles))\n",
+        "tests": [
+          {
+            "stdin": "5\nDune 412\nemma 474\nHamlet 104\nIt 412\nBeloved 324\n",
+            "output": "Hamlet: 104 pages\nBeloved: 324 pages\nDune: 412 pages\nIt: 412 pages\nemma: 474 pages\nLongest first: ['emma', 'Dune', 'It', 'Beloved', 'Hamlet']\nLongest title: Beloved\nA to Z: Beloved, Dune, emma, Hamlet, It"
+          },
+          {
+            "stdin": "3\nzorba 300\nAlice 200\nbob 300\n",
+            "output": "Alice: 200 pages\nzorba: 300 pages\nbob: 300 pages\nLongest first: ['zorba', 'bob', 'Alice']\nLongest title: zorba\nA to Z: Alice, bob, zorba"
+          },
+          {
+            "stdin": "1\nMoby 635\n",
+            "output": "Moby: 635 pages\nLongest first: ['Moby']\nLongest title: Moby\nA to Z: Moby"
+          }
+        ],
+        "hints": [
+          "Use `key=lambda book: book[1]` so books compare by their page count.",
+          "Add `reverse=True` for most pages first. The sort is stable, so ties keep their input order either way.",
+          "Find the longest title before you sort `titles`, and sort with `key=str.lower` so `emma` lands between `Dune` and `Hamlet`."
+        ]
+      }
+    },
+    {
+      "title": "Several keys and mixed directions",
+      "body": "To sort by one thing and break ties by another, return a tuple from the key. Tuples compare item by item: the first items decide, and the second items count only when the first are equal.\n\n```python\npeople = [(\"Cy\", 30), (\"Ana\", 25), (\"Bo\", 30)]\nprint(sorted(people, key=lambda p: (p[1], p[0])))   # [('Ana', 25), ('Bo', 30), ('Cy', 30)]\n```\n\nFor mixed directions, such as the highest score first and then names A to Z, negate the number. `-p[1]` turns high to low into low to high, so a plain ascending sort does the rest:\n\n```python harness\npeople = [(\"Cy\", 30), (\"Ana\", 25), (\"Bo\", 30)]\n{{code}}\n```\n\n```python\nprint(sorted(people, key=lambda p: (-p[1], p[0])))  # [('Bo', 30), ('Cy', 30), ('Ana', 25)]\n```\n\n`reverse=True` would flip every part of the key, names included. A string can't be negated, so when the string is the part that goes high to low, sort twice: first by the tie-breaker, then by the main key. Stability keeps the first order inside each group of ties:\n\n```python harness\npeople = [(\"Cy\", 30), (\"Ana\", 25), (\"Bo\", 30)]\n{{code}}\nprint(people)\n```\n\n```python\npeople.sort(key=lambda p: p[0], reverse=True)   # tie-breaker: Z to A\npeople.sort(key=lambda p: p[1])                 # main key: age, low to high\n```",
+      "example": {
+        "title": "Ranking words by count",
+        "prompt": "Count the words in a sentence, then rank them by count, highest first, with ties in alphabetical order.",
+        "code": "from collections import Counter\n\ntext = \"the cat and the hat and the bat\"\ncounts = Counter(text.split())\n\nranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))\nfor word, n in ranked:\n    print(word, n)\n\nprint(\"Top 2:\", [word for word, _ in ranked[:2]])\nprint(\"most_common:\", [word for word, _ in counts.most_common()])\n",
+        "output": "the 3\nand 2\nbat 1\ncat 1\nhat 1\nTop 2: ['the', 'and']\nmost_common: ['the', 'and', 'cat', 'hat', 'bat']",
+        "explanation": "`counts.items()` gives `(word, count)` pairs. The key `(-kv[1], kv[0])` sorts by the negated count, so 3 comes before 2, and then by the word, so the three words seen once come out as bat, cat, hat. `ranked[:2]` is the top two. `most_common()` also sorts by count, but it keeps ties in the order the words first appeared, which is why it says cat, hat, bat. Use the tuple key whenever ties must be alphabetical."
+      },
+      "practice": {
+        "title": "Election results",
+        "prompt": "Count the votes and rank the candidates.\n\n1. Read one line of votes, each a candidate's name, and count them with `Counter`.\n2. Sort the counts so the most votes come first, and candidates with the same votes go A to Z.\n3. Print each candidate and their votes, separated by a space.\n4. Print `Winner:` and the first candidate in that order.\n\nInput:\n\n```text\nana bo ana cy bo ana di\n```\n\nExpected output:\n\n```text\nana 3\nbo 2\ncy 1\ndi 1\nWinner: ana\n```",
+        "starter": "from collections import Counter\n\nvotes = input().split()\n# TODO: count the votes, rank them by votes (most first) then name (A to Z)\n# TODO: print each candidate and their votes, then \"Winner:\" and the first name\n",
+        "solution": "from collections import Counter\n\nvotes = input().split()\ncounts = Counter(votes)\n\nranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))\nfor name, n in ranked:\n    print(name, n)\n\nprint(\"Winner:\", ranked[0][0])\n",
+        "tests": [
+          {
+            "stdin": "ana bo ana cy bo ana di\n",
+            "output": "ana 3\nbo 2\ncy 1\ndi 1\nWinner: ana"
+          },
+          {
+            "stdin": "zed amy zed amy kim\n",
+            "output": "amy 2\nzed 2\nkim 1\nWinner: amy"
+          },
+          {
+            "stdin": "solo\n",
+            "output": "solo 1\nWinner: solo"
+          }
+        ],
+        "hints": [
+          "`counts.items()` gives `(name, votes)` pairs to sort.",
+          "The key `lambda kv: (-kv[1], kv[0])` puts the most votes first and breaks ties by name.",
+          "`ranked[0]` is the winning pair, so `ranked[0][0]` is the name."
+        ]
+      }
+    },
+    {
+      "title": "Custom comparators with cmp_to_key",
+      "body": "A key turns each item into something that compares on its own. A few orders depend on the pair being compared instead. To arrange number pieces into the largest number, `9` goes before `34` and `3` before `30`, because `\"330\"` beats `\"303\"`. The rule is about two pieces at once: put `a` first when `a + b` is bigger than `b + a`.\n\nWrite that rule as a **comparator**: a function of two items that returns a negative number when `a` goes first, a positive number when `b` goes first, and 0 for a tie. `functools.cmp_to_key` wraps it so `sorted()` can use it as a key:\n\n```python\nfrom functools import cmp_to_key\n\n\ndef compare(a, b):\n    if a + b > b + a:\n        return -1\n    if a + b < b + a:\n        return 1\n    return 0\n\n\nprint(sorted([\"3\", \"30\", \"34\", \"5\", \"9\"], key=cmp_to_key(compare)))  # ['9', '5', '34', '3', '30']\n```\n\nThe pieces are strings, so `+` joins them and `>` compares them as text. That works here because both sides have the same length.\n\nPython 3 has no `cmp=` argument: `sorted(xs, cmp=compare)` is a `TypeError`. Reach for a comparator only when no key works. Most orders are a tuple key.",
+      "example": {
+        "title": "Largest number from pieces",
+        "prompt": "Arrange each list of numbers so that joined together they make the largest number.",
+        "code": "from functools import cmp_to_key\n\n\ndef compare(a, b):\n    if a + b > b + a:\n        return -1  # a goes first\n    if a + b < b + a:\n        return 1   # b goes first\n    return 0\n\n\nfor nums in [[10, 2], [3, 30, 34, 5, 9], [0, 0]]:\n    pieces = sorted(map(str, nums), key=cmp_to_key(compare))\n    joined = \"\".join(pieces)\n    print(pieces, joined.lstrip(\"0\") or \"0\")\n",
+        "output": "['2', '10'] 210\n['9', '5', '34', '3', '30'] 9534330\n['0', '0'] 0",
+        "explanation": "`map(str, nums)` turns the numbers into strings so `+` joins them. For 10 and 2, `\"210\"` beats `\"102\"`, so `compare` returns -1 for 2 first and the answer is 210. The second list shows that a comparator can order pieces no single key could. For `[0, 0]` the joined string is `00`, so `lstrip(\"0\")` removes the leading zeros, and `or \"0\"` brings back a single 0 when nothing is left."
+      },
+      "practice": {
+        "title": "Smallest number from pieces",
+        "prompt": "Arrange number pieces so that joined together they make the smallest number.\n\n1. Read one line of numbers. Keep them as strings.\n2. Finish `compare(a, b)`: return -1 when `a + b` is smaller than `b + a`, 1 when it is bigger, and 0 otherwise.\n3. Sort the pieces with `key=cmp_to_key(compare)` and join them.\n4. Print the result without leading zeros, or `0` when nothing is left.\n\nInput:\n\n```text\n3 30 34 5 9\n```\n\nExpected output:\n\n```text\n3033459\n```",
+        "starter": "from functools import cmp_to_key\n\n\ndef compare(a, b):\n    # TODO: return -1 when a goes first (a + b is smaller), 1 when b goes first, 0 on a tie\n    return 0\n\n\nnums = input().split()\npieces = sorted(nums, key=cmp_to_key(compare))\njoined = \"\".join(pieces)\nprint(joined)\n# TODO: print the number without leading zeros, or 0 when every piece is 0\n",
+        "solution": "from functools import cmp_to_key\n\n\ndef compare(a, b):\n    if a + b < b + a:\n        return -1\n    if a + b > b + a:\n        return 1\n    return 0\n\n\nnums = input().split()\npieces = sorted(nums, key=cmp_to_key(compare))\njoined = \"\".join(pieces)\nprint(joined.lstrip(\"0\") or \"0\")\n",
+        "tests": [
+          {
+            "stdin": "3 30 34 5 9\n",
+            "output": "3033459"
+          },
+          {
+            "stdin": "10 2\n",
+            "output": "102"
+          },
+          {
+            "stdin": "0 1 0\n",
+            "output": "1"
+          }
+        ],
+        "hints": [
+          "This is the example's comparator with the comparisons flipped: the smaller join goes first.",
+          "`input().split()` already gives strings, so there is no `map(str, ...)` this time.",
+          "`joined.lstrip(\"0\") or \"0\"` removes the leading zeros and keeps a single 0 when the result would be empty."
+        ]
+      }
+    },
+    {
+      "title": "Intervals: sort by start, then merge",
+      "body": "Interval problems store each interval as a two-item list, `[start, end]`. Lists compare item by item like tuples, so a plain `intervals.sort()` orders them by start, and by end on a tie. To sort by another column, use a key: `key=lambda iv: iv[1]` sorts by end.\n\nOnce intervals are sorted by start, any overlap is between neighbors. To merge them, walk the intervals in order and compare each one with the last merged interval:\n\n```python\nintervals = [[8, 10], [1, 3], [2, 6]]\nintervals.sort()\nmerged = []\nfor start, end in intervals:\n    if merged and start <= merged[-1][1]:\n        merged[-1][1] = max(merged[-1][1], end)   # overlap: stretch the last one\n    else:\n        merged.append([start, end])               # a gap: start a new interval\nprint(merged)  # [[1, 6], [8, 10]]\n```\n\n`merged[-1]` is the last interval so far, and `merged[-1][1]` is its end. Take the `max` of the two ends, because an interval inside another, like `[2, 3]` inside `[1, 6]`, must not shorten it. `merged and ...` handles the very first interval, when there is nothing to compare with yet.\n\n`start <= ...` treats intervals that only touch, like `[1, 3]` and `[3, 5]`, as one. Use `<` when touching intervals should stay apart.",
+      "example": {
+        "title": "Merging busy times",
+        "prompt": "Sort a day's meetings by start time and merge the ones that overlap or touch into busy blocks.",
+        "code": "meetings = [[9, 10], [1, 3], [8, 9], [2, 6], [12, 15], [13, 14]]\nmeetings.sort()\nprint(\"Sorted:\", meetings)\n\nmerged = []\nfor start, end in meetings:\n    if merged and start <= merged[-1][1]:\n        merged[-1][1] = max(merged[-1][1], end)\n    else:\n        merged.append([start, end])\n\nfor start, end in merged:\n    print(f\"{start}-{end}\")\nprint(\"Busy blocks:\", len(merged))\n",
+        "output": "Sorted: [[1, 3], [2, 6], [8, 9], [9, 10], [12, 15], [13, 14]]\n1-6\n8-10\n12-15\nBusy blocks: 3",
+        "explanation": "After `sort()`, each meeting starts no earlier than the one before it. `[2, 6]` starts before `[1, 3]` ends, so the block stretches to 6. `[9, 10]` starts exactly when `[8, 9]` ends, and `<=` merges touching meetings into 8-10. `[13, 14]` lies inside `[12, 15]`, and `max(15, 14)` keeps the end at 15."
+      },
+      "practice": {
+        "title": "Covered time",
+        "prompt": "Merge a list of intervals and add up the time they cover.\n\n1. The starter reads `n`, then `n` lines of a start and an end, into `[start, end]` lists.\n2. Sort the intervals by start.\n3. Merge the ones that overlap or touch, keeping the larger end.\n4. Print each merged interval as `start-end`.\n5. Print `Total:` and the time covered, the sum of `end - start` over the merged intervals.\n\nInput:\n\n```text\n4\n5 8\n1 4\n2 3\n8 10\n```\n\nExpected output:\n\n```text\n1-4\n5-10\nTotal: 8\n```",
+        "starter": "n = int(input())\nintervals = []\nfor _ in range(n):\n    start, end = map(int, input().split())\n    intervals.append([start, end])\n\n# TODO: sort by start, merge overlapping or touching intervals\n# TODO: print each merged interval as start-end, then \"Total:\" and the time covered\n",
+        "solution": "n = int(input())\nintervals = []\nfor _ in range(n):\n    start, end = map(int, input().split())\n    intervals.append([start, end])\n\nintervals.sort()\nmerged = []\nfor start, end in intervals:\n    if merged and start <= merged[-1][1]:\n        merged[-1][1] = max(merged[-1][1], end)\n    else:\n        merged.append([start, end])\n\ntotal = 0\nfor start, end in merged:\n    print(f\"{start}-{end}\")\n    total += end - start\nprint(\"Total:\", total)\n",
+        "tests": [
+          {
+            "stdin": "4\n5 8\n1 4\n2 3\n8 10\n",
+            "output": "1-4\n5-10\nTotal: 8"
+          },
+          {
+            "stdin": "3\n0 30\n5 10\n15 20\n",
+            "output": "0-30\nTotal: 30"
+          },
+          {
+            "stdin": "2\n1 2\n3 4\n",
+            "output": "1-2\n3-4\nTotal: 2"
+          }
+        ],
+        "hints": [
+          "`intervals.sort()` orders the lists by their first item, the start.",
+          "Compare each start with `merged[-1][1]`, the end of the last merged interval.",
+          "Add up the lengths after merging, so overlapping time is counted once."
+        ]
+      }
+    }
+  ],
+  "recap": "- `sorted(xs)` returns a new list. `xs.sort()` sorts in place and returns `None`.\n- `key=` compares what a function returns: `key=len`, `key=str.lower`, `key=lambda x: x[1]`.\n- Sorting is stable, even with `reverse=True`, so ties keep their order.\n- A tuple key sorts by several things: `key=lambda p: (-p[1], p[0])` puts the biggest number first, then names A to Z.\n- To sort a string high to low inside ties, sort twice: the tie-breaker first, then the main key.\n- `functools.cmp_to_key(compare)` turns a two-item comparator (negative, 0, or positive) into a key.\n- `intervals.sort()` orders `[start, end]` lists by start. Merge by comparing each one with `merged[-1]`."
+}
