@@ -161,6 +161,7 @@ export function LessonList({
                     <Link
                       ref={current && !open ? currentRef : undefined}
                       href={partHref(lang, l.id, 1)}
+                      prefetch={false}
                       onClick={onNavigate}
                       title={l.summary}
                       aria-current={current && !hasParts ? "page" : current ? "true" : undefined}
@@ -202,6 +203,7 @@ export function LessonList({
                             <Link
                               ref={here ? currentRef : undefined}
                               href={partHref(lang, l.id, i + 1)}
+                              prefetch={false}
                               onClick={onNavigate}
                               aria-current={here ? "page" : undefined}
                               className={`flex items-start gap-2 rounded-btn px-2 py-1 text-[13px] leading-5 transition-colors ${
@@ -342,6 +344,7 @@ function CourseLink({
     <Link
       ref={ref}
       href={here ?? resume ?? `/${slug}/learn`}
+      prefetch={false}
       onClick={onNavigate}
       onKeyDown={onKeyDown}
       tabIndex={tabIndex}

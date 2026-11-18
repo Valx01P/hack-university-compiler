@@ -79,7 +79,7 @@ export function ResultsPanel({ store, next }: { store: WorkspaceStore; next: { h
               ? `All ${tests.length} criteria pass.`
               : `${checkSummary(tests)}.`}
         {passed && next && (
-          <Link href={next.href} className="ml-1 font-medium underline decoration-edge-strong underline-offset-2 hover:decoration-ink dark:hover:text-gold">
+          <Link href={next.href} prefetch={false} className="ml-1 font-medium underline decoration-edge-strong underline-offset-2 hover:decoration-ink dark:hover:text-gold">
             {next.label}
           </Link>
         )}

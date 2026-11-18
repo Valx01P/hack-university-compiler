@@ -13,10 +13,18 @@ const RAIL = courseRows(COURSES.filter((c) => c.page || c.playground));
 const railHref = (c: CourseEntry) => (c.page ? `/${c.slug}` : `/${c.slug}/playground`);
 const railLabel = (c: CourseEntry) => (c.page ? `${c.label} compiler` : `${c.label} playground`);
 
+// A compiler's editor language (its slug) loads with the hover too, so its
+// page opens with the editor ready (lib/editor-extensions.ts, already on
+// every page with the rail).
+const warm = (c: CourseEntry) => {
+  if (c.page) void import("@/lib/editor-extensions").then((m) => m.loadLanguage(c.slug));
+};
+
 /**
  * The language rail down the left of the compiler and the playgrounds: one
  * icon per course, with a divider between the Learn icon rows. Hovering an
- * icon prefetches its page, and never starts anything.
+ * icon prefetches its page (components/chrome/hover-prefetch.tsx) and its
+ * editor's language, and never starts anything.
  */
 export function CourseRail({ current }: { current: string }) {
   return (
@@ -33,6 +41,9 @@ export function CourseRail({ current }: { current: string }) {
               <Link
                 key={c.slug}
                 href={railHref(c)}
+                prefetch={false}
+                onPointerEnter={() => warm(c)}
+                onFocus={() => warm(c)}
                 title={railLabel(c)}
                 aria-label={railLabel(c)}
                 aria-current={active ? "page" : undefined}

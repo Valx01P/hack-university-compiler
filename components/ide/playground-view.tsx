@@ -111,6 +111,7 @@ export function PlaygroundView({
               <Link
                 key={l.href}
                 href={l.href}
+                prefetch={false}
                 onClick={() => setMenu(false)}
                 aria-current={l.href === current ? "page" : undefined}
                 className={`flex flex-col rounded-btn px-2.5 py-1.5 transition-colors hover:bg-raised ${l.href === current ? "bg-raised text-ink" : "text-ink-muted hover:text-ink"}`}

@@ -191,6 +191,7 @@ export function WorkspacePartView({
                   <li key={i}>
                     <Link
                       href={partHref(lang.slug, lesson.id, i + 1)}
+                      prefetch={false}
                       aria-current={i === part ? "page" : undefined}
                       aria-label={`Part ${i + 1}: ${title}${isSolved(i) ? " (solved)" : ""}`}
                       title={title}
@@ -245,6 +246,7 @@ export function WorkspacePartView({
               {prev && (
                 <Link
                   href={prev.href}
+                  prefetch={false}
                   aria-label={`${prev.lesson ? "Previous lesson" : "Previous part"}: ${prev.title}`}
                   title={prev.title}
                   className="inline-flex shrink-0 items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
@@ -256,6 +258,7 @@ export function WorkspacePartView({
               {next && (
                 <Link
                   href={next.href}
+                  prefetch={false}
                   aria-label={nextLabel(next)}
                   title={next.title}
                   className="relative inline-flex min-w-0 items-center gap-1.5 rounded-btn border border-line-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-raised"

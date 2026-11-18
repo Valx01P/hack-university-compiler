@@ -20,6 +20,7 @@ export default function NotFound() {
         <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/"
+            prefetch={false}
             className="rounded-btn border border-edge-strong px-5 py-2.5 text-sm font-medium btn-grad"
           >
             Back home

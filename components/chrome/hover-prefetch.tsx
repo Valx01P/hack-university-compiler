@@ -9,8 +9,10 @@ import { useRouter } from "next/navigation";
  * after a confirm (it carries the page in data-prefetch-href). Each address
  * is asked for at most once a minute.
  *
- * In a production build that's Next's prefetch (on top of the links it
- * already prefetches as they scroll into view), so the click is instant.
+ * In a production build that's Next's prefetch, so the click is instant.
+ * It's the only one: every Link sets prefetch={false}, since Next would
+ * otherwise prefetch each link as it scrolls into view (a Learn page's
+ * lesson list and course icons, the rail), pages you mostly never open.
  * Next skips prefetching in development, where the slow part of opening a
  * page the first time is compiling it, so there it quietly requests the page
  * instead, which gets it compiled before you click.

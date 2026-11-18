@@ -629,7 +629,7 @@ export function CompilerApp({
       {playgroundHref && (
         // A whole project to work in, with files and a terminal. Your code
         // here stays saved.
-        <Link href={playgroundHref} title={`A ${lang.label} project with files and a terminal`} className={headerBtn}>
+        <Link href={playgroundHref} prefetch={false} title={`A ${lang.label} project with files and a terminal`} className={headerBtn}>
           <FolderCode className="size-3.5" aria-hidden />
           Open playground
         </Link>

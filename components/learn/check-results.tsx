@@ -184,7 +184,7 @@ export function CheckResults({
         <p data-anim="row" className="px-4 pt-2 text-sm text-ink-muted">
           {lessonComplete && "Lesson complete. "}
           {next?.href ? (
-            <Link href={next.href} className={NEXT_LINK}>
+            <Link href={next.href} prefetch={false} className={NEXT_LINK}>
               {next.label} →
             </Link>
           ) : next?.onClick ? (

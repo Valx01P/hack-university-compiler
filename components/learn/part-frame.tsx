@@ -101,6 +101,7 @@ export function PartNumbers({
             <li key={i}>
               <Link
                 href={partHref(lang, lessonId, i + 1)}
+                prefetch={false}
                 aria-current={here ? "page" : undefined}
                 aria-label={`Part ${i + 1}: ${title}${done ? ` (${doneLabel})` : ""}`}
                 title={title}
@@ -152,6 +153,7 @@ export function PartNav({ prev, next, glow = 0 }: { prev: PartLink | null; next:
         {prev && (
           <Link
             href={prev.href}
+            prefetch={false}
             aria-label={`${prev.lesson ? "Previous lesson" : "Previous part"}: ${prev.title}`}
             title={prev.title}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
@@ -163,6 +165,7 @@ export function PartNav({ prev, next, glow = 0 }: { prev: PartLink | null; next:
         {next && (
           <Link
             href={next.href}
+            prefetch={false}
             aria-label={nextLabel(next)}
             title={next.title}
             className="relative inline-flex min-w-0 items-center gap-1.5 rounded-btn border border-line-strong px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-raised"

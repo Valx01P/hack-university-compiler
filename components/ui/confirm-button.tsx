@@ -38,7 +38,8 @@ export function ConfirmButton({
   confirmLabel: string;
   /** Runs when you confirm. */
   onConfirm?: () => void;
-  /** Confirming follows this link instead (a real link, so it prefetches). */
+  /** Confirming follows this link instead (a real link, so hovering it
+      prefetches). */
   href?: string;
   /** Accessible name, for a button that shows only an icon. */
   label?: string;
@@ -155,6 +156,7 @@ export function ConfirmButton({
               <Link
                 ref={setConfirm}
                 href={href}
+                prefetch={false}
                 onClick={() => {
                   onConfirm?.();
                   setOpen(false);

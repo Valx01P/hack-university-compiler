@@ -5,6 +5,7 @@ export function Logo() {
   return (
     <Link
       href="/"
+      prefetch={false}
       className="flex min-w-0 items-center gap-3"
       aria-label="Hack University home"
     >
