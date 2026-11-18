@@ -16,24 +16,8 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { StreamLanguage, bracketMatching, codeFolding, foldGutter, foldKeymap, indentOnInput, indentUnit } from "@codemirror/language";
-import { autocompletion, closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
+import { autocompletion, closeBrackets, closeBracketsKeymap, type CompletionSource } from "@codemirror/autocomplete";
 import { indentationMarkers } from "@replit/codemirror-indentation-markers";
-import { python } from "@codemirror/lang-python";
-import { javascript } from "@codemirror/lang-javascript";
-import { cpp } from "@codemirror/lang-cpp";
-import { java } from "@codemirror/lang-java";
-import { go } from "@codemirror/lang-go";
-import { PostgreSQL, sql } from "@codemirror/lang-sql";
-import { json } from "@codemirror/lang-json";
-import { markdown } from "@codemirror/lang-markdown";
-import { yaml } from "@codemirror/lang-yaml";
-import { css } from "@codemirror/lang-css";
-import { html } from "@codemirror/lang-html";
-import { shell } from "@codemirror/legacy-modes/mode/shell";
-import { properties } from "@codemirror/legacy-modes/mode/properties";
-import { toml } from "@codemirror/legacy-modes/mode/toml";
-import { dockerFile } from "@codemirror/legacy-modes/mode/dockerfile";
-import { http } from "@codemirror/legacy-modes/mode/http";
 import { completionSources, SQL_SCHEMA } from "@/lib/code-editor-completions";
 import { bracketColors } from "@/lib/bracket-colors";
 import { typeErrorUnderlines } from "@/lib/editor-diagnostics";
@@ -45,69 +29,90 @@ import { languageId } from "@/lib/tokenize.mjs";
  * The code editors' one setup (CodeMirror 6), shared by the compiler, Learn,
  * the runnable snippets, and the IDE: the theme drawn from the app's code
  * CSS variables, the gutters and guides, the keys, the language (for
- * indentation, brackets, and the comment toggle), and the colors, which
- * always come from the tokenizer behind the static code blocks
- * (lib/token-highlight.ts), so code reads the same everywhere.
+ * indentation, brackets, and the comment toggle, loaded with loadLanguage
+ * before an editor is made), and the colors, which always come from the
+ * tokenizer behind the static code blocks (lib/token-highlight.ts), so code
+ * reads the same everywhere.
  */
 
-// Bash through CodeMirror's shell mode: brackets, quotes, and `#` for the
-// comment toggle (colors come from the tokenizer, like every language).
-const bash = StreamLanguage.define(shell);
-// The IDE's other file types: the same idea, for indentation and comments.
-const propertiesLang = StreamLanguage.define(properties);
-const tomlLang = StreamLanguage.define(toml);
-const dockerfileLang = StreamLanguage.define(dockerFile);
-const httpLang = StreamLanguage.define(http);
+/** A language's CodeMirror support: the extension (indentation, brackets,
+    folding, and the comment toggle, Mod-/, from its comment syntax), and
+    the completions of its own that ours wrap (Python's, see
+    lib/code-editor-completions.ts). */
+interface LanguageSupport {
+  extension: Extension;
+  completions?: CompletionSource[];
+}
 
-/** Language id → CodeMirror language extension (its comment syntax drives
-    the comment toggle, Mod-/). */
-export function langExt(language: string): Extension {
-  switch (languageId(language)) {
-    case "python":
-      return python();
-    case "javascript":
-      return javascript();
-    case "typescript":
-      return javascript({ typescript: true });
-    case "tsx":
-      // JSX comments toggle as {/* */}.
-      return javascript({ typescript: true, jsx: true });
-    case "jsx":
-      return javascript({ jsx: true });
-    case "bash":
-      return bash;
-    case "cpp":
-      return cpp();
-    case "java":
-      return java();
-    case "go":
-      return go();
-    case "sql":
-      // Uppercase keywords like the course, and the playground's sample
-      // tables and columns.
-      return sql({ dialect: PostgreSQL, upperCaseKeywords: true, schema: SQL_SCHEMA });
-    case "json":
-      return json();
-    case "markdown":
-      return markdown();
-    case "yaml":
-      return yaml();
-    case "css":
-      return css();
-    case "html":
-      return html();
-    case "env":
-    case "properties":
-      return propertiesLang;
-    case "toml":
-      return tomlLang;
-    case "dockerfile":
-      return dockerfileLang;
-    case "http":
-      return httpLang;
-    default:
-      return [];
+// Each language's support is its own chunk, loaded the first time an editor
+// needs it (loadLanguage), so a page carries only the grammars it shows: a
+// compiler or Learn page its own language, the IDE the kinds of files it
+// opens. Bash, and the IDE's other file types, go through CodeMirror's
+// legacy stream modes, for brackets, quotes, indentation, and comments
+// (colors come from the tokenizer, like every language).
+const LOADERS: Record<string, () => Promise<LanguageSupport>> = {
+  python: () =>
+    import("@codemirror/lang-python").then((m) => ({ extension: m.python(), completions: [m.localCompletionSource, m.globalCompletion] })),
+  javascript: () => import("@codemirror/lang-javascript").then((m) => ({ extension: m.javascript() })),
+  typescript: () => import("@codemirror/lang-javascript").then((m) => ({ extension: m.javascript({ typescript: true }) })),
+  // JSX comments toggle as {/* */}.
+  tsx: () => import("@codemirror/lang-javascript").then((m) => ({ extension: m.javascript({ typescript: true, jsx: true }) })),
+  jsx: () => import("@codemirror/lang-javascript").then((m) => ({ extension: m.javascript({ jsx: true }) })),
+  bash: () => import("@codemirror/legacy-modes/mode/shell").then((m) => ({ extension: StreamLanguage.define(m.shell) })),
+  cpp: () => import("@codemirror/lang-cpp").then((m) => ({ extension: m.cpp() })),
+  java: () => import("@codemirror/lang-java").then((m) => ({ extension: m.java() })),
+  go: () => import("@codemirror/lang-go").then((m) => ({ extension: m.go() })),
+  // Uppercase keywords like the course, and the playground's sample tables
+  // and columns.
+  sql: () =>
+    import("@codemirror/lang-sql").then((m) => ({ extension: m.sql({ dialect: m.PostgreSQL, upperCaseKeywords: true, schema: SQL_SCHEMA }) })),
+  json: () => import("@codemirror/lang-json").then((m) => ({ extension: m.json() })),
+  markdown: () => import("@codemirror/lang-markdown").then((m) => ({ extension: m.markdown() })),
+  yaml: () => import("@codemirror/lang-yaml").then((m) => ({ extension: m.yaml() })),
+  css: () => import("@codemirror/lang-css").then((m) => ({ extension: m.css() })),
+  html: () => import("@codemirror/lang-html").then((m) => ({ extension: m.html() })),
+  env: () => import("@codemirror/legacy-modes/mode/properties").then((m) => ({ extension: StreamLanguage.define(m.properties) })),
+  properties: () => import("@codemirror/legacy-modes/mode/properties").then((m) => ({ extension: StreamLanguage.define(m.properties) })),
+  toml: () => import("@codemirror/legacy-modes/mode/toml").then((m) => ({ extension: StreamLanguage.define(m.toml) })),
+  dockerfile: () => import("@codemirror/legacy-modes/mode/dockerfile").then((m) => ({ extension: StreamLanguage.define(m.dockerFile) })),
+  http: () => import("@codemirror/legacy-modes/mode/http").then((m) => ({ extension: StreamLanguage.define(m.http) })),
+};
+
+const supports = new Map<string, LanguageSupport>();
+const loads = new Map<string, Promise<void>>();
+
+/** Loads a language's support, once. An editor waits on it before it's
+    made, so its code shows with its brackets and folds from the first
+    frame, never repainting when the grammar lands. A chunk that won't load
+    (the app rebuilt under an open page) leaves the language without
+    support, as for a plain text file, rather than holding the editor back. */
+export function loadLanguage(language: string): Promise<void> {
+  const id = languageId(language);
+  let load = loads.get(id);
+  if (!load) {
+    const loader = LOADERS[id];
+    load = loader
+      ? loader().then(
+          (support) => void supports.set(id, support),
+          () => void supports.set(id, { extension: [] })
+        )
+      : Promise.resolve();
+    loads.set(id, load);
   }
+  return load;
+}
+
+/** Whether an editor in this language can be made right away (its support
+    has loaded, or it has none to load). */
+export function languageLoaded(language: string): boolean {
+  const id = languageId(language);
+  return !(id in LOADERS) || supports.has(id);
+}
+
+/** Language id → CodeMirror language extension, once loadLanguage has it
+    (nothing before, as for a language without one). */
+export function langExt(language: string): Extension {
+  return supports.get(languageId(language))?.extension ?? [];
 }
 
 // The languages whose blocks are their indentation, with no closing line.
@@ -159,7 +164,7 @@ export function indentUnitFor(tabSize: 2 | 4, language: string): string {
     snippets, local names, SQL tables) plus ours (import lines, extra names). */
 export function completion(on: boolean, language: string): Extension {
   if (!on) return [];
-  const { sources, override } = completionSources(language);
+  const { sources, override } = completionSources(language, supports.get(languageId(language))?.completions);
   if (override) return autocompletion({ override: sources });
   return [autocompletion(), EditorState.languageData.of(() => sources.map((autocomplete) => ({ autocomplete })))];
 }

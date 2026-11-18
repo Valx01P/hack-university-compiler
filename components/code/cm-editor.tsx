@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { use, useEffect, useId, useRef } from "react";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { useCodeEditorSettings } from "@/components/code/editor-settings";
-import { editorCompartments, editorExtensions, reconfigureSettings } from "@/lib/editor-extensions";
+import { editorCompartments, editorExtensions, languageLoaded, loadLanguage, reconfigureSettings } from "@/lib/editor-extensions";
 import { positionAt, showDiagnostics, type EditorDiagnostic } from "@/lib/editor-diagnostics";
+
+// For a snippet's hover warm-up (components/learn/runnable-snippet.tsx),
+// which loads this module lazily.
+export { loadLanguage };
 
 export function CmEditor({
   value,
@@ -47,16 +51,47 @@ export function CmEditor({
   const onChangeRef = useRef(onChange);
   const onRunRef = useRef(onRun);
   const settings = useCodeEditorSettings();
+  // What the editor starts from when it's made after its language loads.
+  const valueRef = useRef(value);
+  const settingsRef = useRef(settings);
   onChangeRef.current = onChange;
   onRunRef.current = onRun;
+  valueRef.current = value;
+  settingsRef.current = settings;
   const snippet = variant === "snippet";
   const exitHintId = useId();
 
-  // Create the editor once. Each language is its own page, so the grammar is
-  // fixed for the editor's lifetime.
+  // Each language's support is its own chunk (lib/editor-extensions.ts),
+  // asked for as soon as the editor renders, so it's usually here before
+  // the editor is made. A snippet waits for it in its Suspense fallback,
+  // the static block it replaces (runnable-snippet.tsx), so it never shows
+  // empty. The full editor waits in the effect below, its box empty until
+  // the editor is made anyway, so a page still hydrates without waiting.
+  if (typeof window !== "undefined" && !languageLoaded(language)) {
+    if (snippet) use(loadLanguage(language));
+    else void loadLanguage(language);
+  }
+
+  // Create the editor once its language is here (at once when it already
+  // is). Each language is its own page, so the grammar is fixed for the
+  // editor's lifetime.
   useEffect(() => {
     const host = hostRef.current;
     if (!host || viewRef.current) return;
+    if (languageLoaded(language)) return create(host);
+    let cleanup: (() => void) | undefined;
+    let cancelled = false;
+    void loadLanguage(language).then(() => {
+      if (!cancelled && hostRef.current === host && !viewRef.current) cleanup = create(host);
+    });
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function create(host: HTMLDivElement) {
     // Until its first measure (next frame), CodeMirror lays the line numbers
     // out with a 14px line-height guess. Keep the editor invisible until that
     // measure lands so a load can never show the gutter jumping into place.
@@ -71,10 +106,10 @@ export function CmEditor({
     const view = new EditorView({
       parent: host,
       state: EditorState.create({
-        doc: value,
+        doc: valueRef.current,
         extensions: editorExtensions({
           language,
-          settings,
+          settings: settingsRef.current,
           compartments: compartments.current,
           snippet,
           readOnly,
@@ -119,8 +154,7 @@ export function CmEditor({
       view.destroy();
       viewRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }
 
   useEffect(() => {
     const view = viewRef.current;

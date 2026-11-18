@@ -7,7 +7,6 @@ import {
   type CompletionResult,
   type CompletionSource,
 } from "@codemirror/autocomplete";
-import { globalCompletion, localCompletionSource } from "@codemirror/lang-python";
 
 /**
  * Completions on top of what each CodeMirror language already offers (its
@@ -172,17 +171,22 @@ function importSource(language: string): CompletionSource {
  * The completion sources for a language. On an import line (or after a
  * Python module name) only the import list answers, so it isn't buried in
  * other words. `override` means these replace the language's own sources:
- * Python's are included here, wrapped the same way, because its local
- * completion would offer the half-typed module name on an import line.
+ * Python's are included here (`own`, from its CodeMirror package, which
+ * loads with the language in lib/editor-extensions.ts), wrapped the same
+ * way, because its local completion would offer the half-typed module name
+ * on an import line.
  */
-export function completionSources(language: string): { sources: CompletionSource[]; override: boolean } {
+export function completionSources(
+  language: string,
+  own: readonly CompletionSource[] = []
+): { sources: CompletionSource[]; override: boolean } {
   const imports = importSource(language);
   const general: CompletionSource[] = [];
   const extra = [...(SNIPPETS[language] ?? []), ...asOptions(WORDS[language] ?? [], "keyword")];
   if (extra.length) general.push(completeFromList(extra));
   // C++ and Java have no local-name completion of their own.
   if (language === "cpp" || language === "java") general.push(completeAnyWord);
-  if (language === "python") general.push(localCompletionSource, globalCompletion);
+  if (language === "python") general.push(...own);
   const unlessImporting =
     (source: CompletionSource): CompletionSource =>
     (ctx) =>

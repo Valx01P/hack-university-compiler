@@ -8,7 +8,7 @@ import { useCodeEditorSettings } from "@/components/code/editor-settings";
 import { FileIcon } from "@/components/ide/file-icon";
 import { formatBytes } from "@/lib/ide-names";
 import { commentDecorations, KEPT_MESSAGE, setComments } from "@/lib/comment-decorations";
-import { editorCompartments, editorExtensions, reconfigureSettings } from "@/lib/editor-extensions";
+import { editorCompartments, editorExtensions, languageLoaded, loadLanguage, reconfigureSettings } from "@/lib/editor-extensions";
 import { positionAt, showDiagnostics } from "@/lib/editor-diagnostics";
 import { useCodeCommentsHidden } from "@/lib/theme";
 import { fileLanguage } from "@/lib/workspace-types";
@@ -30,6 +30,9 @@ interface OpenState {
   /** The settings and comments the state was last brought up to date with. */
   key: string;
   scroll?: ReturnType<EditorView["scrollSnapshot"]>;
+  /** Made before its language had loaded (a rename to another kind of
+      file), so it's made again from its text when it's shown. */
+  bare?: boolean;
 }
 
 export function EditorGroup({
@@ -57,7 +60,14 @@ export function EditorGroup({
   const labelId = useId();
   const active = store.active;
   const buffer = active ? store.buffers.get(active) : undefined;
-  const ready = buffer?.status === "ready";
+  const activeLanguage = active ? fileLanguage(active) : null;
+  // Each kind of file's language support is its own chunk, loaded once
+  // (lib/editor-extensions.ts). The open tabs' start loading right away,
+  // beside the files' own reads, so showing one doesn't wait, and a file
+  // shows once its text and its language are both here.
+  if (typeof window !== "undefined") for (const path of store.tabs) void loadLanguage(fileLanguage(path));
+  const ready = buffer?.status === "ready" && (!activeLanguage || languageLoaded(activeLanguage));
+  const [, setLanguagesLoaded] = useState(0);
   const [kept, setKept] = useState(0);
 
   const stateKey = (path: string) => `${live.current.settings.tabSize}:${live.current.settings.intellisense}:${live.current.commentsHidden}:${store.buffers.get(path)?.original === undefined ? "?" : "o"}`;
@@ -144,7 +154,7 @@ export function EditorGroup({
         const doc = shown.current === from ? view.state.doc.toString() : states.current.get(from)?.state.doc.toString();
         states.current.delete(from);
         // The language may change with the name: start the state over with its text.
-        if (doc !== undefined) states.current.set(to, { state: createState(to, doc), key: stateKey(to) });
+        if (doc !== undefined) states.current.set(to, { state: createState(to, doc), key: stateKey(to), bare: !languageLoaded(fileLanguage(to)) });
         if (shown.current === from) shown.current = null;
       },
       close: (path) => {
@@ -168,6 +178,17 @@ export function EditorGroup({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store]);
 
+  // The active file waits for its language (ready above): show it once
+  // that's loaded.
+  useEffect(() => {
+    if (!activeLanguage || languageLoaded(activeLanguage)) return;
+    let live = true;
+    void loadLanguage(activeLanguage).then(() => live && setLanguagesLoaded((n) => n + 1));
+    return () => {
+      live = false;
+    };
+  }, [activeLanguage]);
+
   // Show the active file: its kept state, or a new one once it's read.
   useLayoutEffect(() => {
     const view = viewRef.current;
@@ -186,8 +207,8 @@ export function EditorGroup({
     }
     if (shown.current === active) return;
     let open = states.current.get(active);
-    if (!open) {
-      open = { state: createState(active, store.initialText(active)), key: stateKey(active) };
+    if (!open || open.bare) {
+      open = { state: createState(active, open ? open.state.doc.toString() : store.initialText(active)), key: stateKey(active) };
     } else open = freshen(active, open);
     states.current.set(active, open);
     shown.current = active;
@@ -310,7 +331,7 @@ function CompareView({ mine, disk, path }: { mine: string; disk: string; path: s
     if (!host) return;
     let view: EditorView | null = null;
     let cancelled = false;
-    void import("@codemirror/merge").then(({ unifiedMergeView }) => {
+    void Promise.all([import("@codemirror/merge"), loadLanguage(fileLanguage(path))]).then(([{ unifiedMergeView }]) => {
       if (cancelled) return;
       view = new EditorView({
         parent: host,

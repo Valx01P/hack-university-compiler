@@ -14,9 +14,9 @@ const loadEditor = () => import("@/components/code/cm-editor");
 const CmEditor = lazy(() => loadEditor().then((m) => ({ default: m.CmEditor })));
 
 /** Gets ready for an edit or a run as soon as you point at a snippet: the
-    editor's code, and PostgreSQL for SQL. Both load once. */
+    editor's code and its language, and PostgreSQL for SQL. Each loads once. */
 function warm(runtime: SnippetRuntime) {
-  void loadEditor();
+  void loadEditor().then((m) => m.loadLanguage(runtime));
   if (runtime === "sql") void import("@/lib/sql/browser");
 }
 
