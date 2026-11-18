@@ -150,9 +150,43 @@ async function acquireSlot() {
   }
 }
 
-async function piston(language, code, stdin) {
-  const slot = await acquireSlot();
-  try {
+/** At most `limit` calls of `fn` at a time, the rest waiting in order. */
+function limiter(limit) {
+  let active = 0;
+  const waiting = [];
+  return async (fn) => {
+    if (active < limit) active++;
+    else await new Promise((resolve) => waiting.push(resolve)); // handed a place by one that finished
+    try {
+      return await fn();
+    } finally {
+      const next = waiting.shift();
+      if (next) next();
+      else active--;
+    }
+  };
+}
+
+// This verifier can hold at most SLOTS slots, so its runs past that wait
+// here instead of each polling the slot directory. Every challenge in every
+// language starts at once, and thousands of runs each checking a dozen slot
+// files every few hundred milliseconds kept node busy for nothing. A slot
+// freed here also goes straight to the next run, without a poll's delay.
+const local = limiter(SLOTS);
+
+async function inSlot(fn) {
+  return local(async () => {
+    const slot = await acquireSlot();
+    try {
+      return await fn();
+    } finally {
+      takeDown(slot.dir, slot.owner);
+    }
+  });
+}
+
+function piston(language, code, stdin) {
+  return inSlot(async () => {
     const res = await fetch(`${PISTON_URL}/execute`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -169,16 +203,13 @@ async function piston(language, code, stdin) {
       code: data.run?.code ?? null,
       status: data.run?.status ?? null,
     };
-  } finally {
-    takeDown(slot.dir, slot.owner);
-  }
+  });
 }
 
 // TypeScript and Bash run on the local runner, a fresh container per run,
 // sharing the same slots as Piston's runs.
-async function runner(language, code, stdin) {
-  const slot = await acquireSlot();
-  try {
+function runner(language, code, stdin) {
+  return inSlot(async () => {
     const { recipe, fileName } = RUNNER_COURSES[language];
     const res = await fetch(`${RUNNER_URL}/v1/run`, {
       method: "POST",
@@ -196,23 +227,42 @@ async function runner(language, code, stdin) {
       code: data?.run?.code ?? null,
       status: data?.run?.status ?? null,
     };
-  } finally {
-    takeDown(slot.dir, slot.owner);
-  }
+  });
 }
 
 // SQL runs on PGlite (PostgreSQL in WebAssembly) right here, a fresh
 // database per run, with the same core the app uses. Its "stdin" is the setup
 // SQL that runs first. A few at a time, since each database holds real memory.
-let sqlRunning = 0;
-const sqlWaiting = [];
-async function runSqlHere(code, setup) {
-  if (sqlRunning >= 4) await new Promise((resolve) => sqlWaiting.push(resolve));
-  sqlRunning++;
+const sqlSlots = limiter(4);
+let blankFiles = null;
+
+/** A brand-new database. Making one runs initdb, half a second of CPU, so
+    the first is made that way and the rest start from a copy of its files
+    (what PGlite's clone does), the same empty database five times cheaper. */
+async function freshDatabase() {
   const { PGlite } = await import("@electric-sql/pglite");
+  blankFiles ??= (async () => {
+    const db = new PGlite();
+    await db.waitReady;
+    const files = await db.dumpDataDir("none");
+    await db.close();
+    return files;
+  })().catch((err) => {
+    blankFiles = null; // the next run tries again
+    throw err;
+  });
+  return new PGlite({ loadDataDir: await blankFiles });
+}
+
+function runSqlHere(code, setup) {
+  return sqlSlots(() => runSqlOnce(code, setup));
+}
+
+async function runSqlOnce(code, setup) {
   const core = await import("../../lib/sql/core.mjs");
-  const db = new PGlite();
+  let db = null;
   try {
+    db = await freshDatabase();
     await core.prepareDatabase(db);
     if (setup && setup.trim()) {
       const prepared = await core.runSql(db, setup);
@@ -223,9 +273,7 @@ async function runSqlHere(code, setup) {
   } catch (err) {
     return { compileError: "", stdout: "", stderr: `sandbox error: ${err.message}`, code: null, status: "XX" };
   } finally {
-    await db.close().catch(() => {});
-    sqlRunning--;
-    sqlWaiting.shift()?.();
+    await db?.close().catch(() => {});
   }
 }
 
@@ -240,7 +288,7 @@ export async function run(language, code, stdin) {
     } catch (err) {
       last = { compileError: "", stdout: "", stderr: `sandbox error: ${err.message}`, code: null, status: "XX" };
     }
-    await sleep(1500 * (i + 1));
+    if (i < 2) await sleep(1500 * (i + 1)); // no wait after the last try
   }
   return last;
 }
