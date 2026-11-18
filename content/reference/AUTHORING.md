@@ -80,8 +80,9 @@ node scripts/verify-reference.mjs <lang> <category> ...
 ```
 
 It checks the title line, the Markdown subset, the prose style, and that every
-section has a code block in its language. It can't run fragments, which is why
-you test them in the sandbox as you write.
+section has a code block in its language (TypeScript's included). It can't run
+fragments, which is why you test them in the sandbox as you write, and why
+`verify-snippets` (below) runs them all.
 
 ## Runnable snippets
 
@@ -124,6 +125,10 @@ The info string after the opening fence controls it:
 - ` ```stdin ` is hidden: input for the next runnable block.
 - ` ```python norun ` is shown but never runs. Only for what can't run in any
   form: a syntax template with placeholders, pseudo-code, `...` elisions.
+- ` ```typescript dom ` is browser code (the DOM), shown but never run here.
+- ` ```typescript types ` shows types (with `//   ^?` notes) and prints
+  nothing, so it only has to type-check. TypeScript snippets run on the local
+  runner, and `verify-snippets` checks them while it's up.
 
 Print what a comment promises. A comment that states a value (`# 5`,
 `// [1, 2, 3]`) sits on a line that prints it and says exactly what prints, so

@@ -128,5 +128,6 @@ node scripts/verify-challenges.mjs <id> --lang=java   # one language
 ```
 
 It checks the schema and statement, then runs every solution against every
-test twice and every starter once, in all five languages. Iterate until it
-prints `✓`.
+test twice and every starter once, in every language: TypeScript on the local
+runner (`npm run up` starts it, and its runs are skipped with a note when it's
+off), the rest on Piston. Iterate until it prints `✓`.

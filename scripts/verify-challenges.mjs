@@ -31,13 +31,15 @@ import {
   normalizeOutput,
   printResult,
   run,
+  runnerUp,
 } from "./lib/verify-kit.mjs";
 
 const DIR = path.join(ROOT, "content", "challenges");
 const DIFFICULTIES = ["very-easy", "easy", "medium"];
 // Programming challenges come in the five general languages. SQL challenges
 // are their own set, with only SQL code, SQL's categories, and setup data.
-const GENERAL = LANGUAGES.filter((l) => l !== "sql");
+// TypeScript is one of them too, run on the local runner.
+const GENERAL = [...LANGUAGES.filter((l) => l !== "sql"), "typescript"];
 const readCategories = (file) => JSON.parse(readFileSync(file, "utf8")).categories.map((c) => c.id);
 const CATEGORIES = readCategories(path.join(ROOT, "content", "reference", "categories.json"));
 const SQL_CATEGORIES = existsSync(path.join(ROOT, "content", "reference", "sql", "categories.json"))
@@ -50,11 +52,16 @@ const args = process.argv.slice(2);
 const asJson = args.includes("--json");
 const noRun = args.includes("--no-run");
 const langArg = args.find((a) => a.startsWith("--lang="));
-const langs = langArg ? [langArg.slice(7)] : LANGUAGES;
+const ALL_LANGUAGES = [...LANGUAGES, "typescript"];
+const langs = langArg ? [langArg.slice(7)] : ALL_LANGUAGES;
 for (const a of args.filter((x) => x.startsWith("--"))) {
   if (a !== "--json" && a !== "--no-run" && !a.startsWith("--lang=")) usage(`unknown option ${a}`);
 }
-if (!langs.every((l) => LANGUAGES.includes(l))) usage(`--lang must be one of ${LANGUAGES.join(", ")}`);
+if (!langs.every((l) => ALL_LANGUAGES.includes(l))) usage(`--lang must be one of ${ALL_LANGUAGES.join(", ")}`);
+// TypeScript runs on the local runner: when it's off, its code is still
+// checked for shape, and its runs are skipped with a note.
+const runnerOn = !noRun && langs.includes("typescript") ? await runnerUp() : false;
+if (!noRun && langs.includes("typescript") && !runnerOn) console.log("typescript: runs skipped, the runner isn't running (npm run up starts it)");
 const only = args.filter((a) => !a.startsWith("--"));
 
 function usage(message) {
@@ -127,7 +134,7 @@ async function verifyChallenge(c) {
   const errors = [];
   const input = (lang, stdin) => (lang === "sql" ? [c.setup, stdin].filter((x) => isStr(x) && x.trim()).join("\n") : stdin);
   await Promise.all(
-    languagesOf(c).filter((l) => langs.includes(l)).map(async (lang) => {
+    languagesOf(c).filter((l) => langs.includes(l) && (l !== "typescript" || runnerOn)).map(async (lang) => {
       const { starter, solution } = c.code[lang];
       const at = `code.${lang}`;
       const pairs = await Promise.all(c.tests.map((t) => Promise.all([run(lang, solution, input(lang, t.stdin)), run(lang, solution, input(lang, t.stdin))])));

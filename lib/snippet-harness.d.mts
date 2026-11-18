@@ -14,6 +14,7 @@ export type MarkdownSegment =
       runtime: SnippetRuntime | null;
       /** Meant to fail: it shows an error. */
       expectError: boolean;
+      typesOnly: boolean;
       harness: string | null;
       stdin: string | null;
     };

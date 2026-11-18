@@ -12,6 +12,9 @@ import path from "node:path";
 import { LANGUAGES, ROOT, lintMarkdown, lintProse, printResult } from "./lib/verify-kit.mjs";
 
 const DIR = path.join(ROOT, "content", "reference");
+// The cheatsheets: every language that runs in the sandbox, and TypeScript,
+// whose cheatsheet runs on the runner (this only reads them, it runs nothing).
+const REFERENCE_LANGUAGES = [...LANGUAGES, "typescript"];
 // A language can have its own topics (SQL does) in <lang>/categories.json.
 const categoriesFor = (lang) => {
   const own = path.join(DIR, lang, "categories.json");
@@ -19,11 +22,11 @@ const categoriesFor = (lang) => {
 };
 
 const args = process.argv.slice(2);
-if (args.length && !LANGUAGES.includes(args[0])) {
-  console.error(`verify-reference: "${args[0]}" is not a language (${LANGUAGES.join(", ")})\nusage: node scripts/verify-reference.mjs [language [category ...]]`);
+if (args.length && !REFERENCE_LANGUAGES.includes(args[0])) {
+  console.error(`verify-reference: "${args[0]}" is not a language (${REFERENCE_LANGUAGES.join(", ")})\nusage: node scripts/verify-reference.mjs [language [category ...]]`);
   process.exit(2);
 }
-const langs = args.length ? [args[0]] : LANGUAGES;
+const langs = args.length ? [args[0]] : REFERENCE_LANGUAGES;
 const only = args.slice(1);
 for (const id of only) {
   if (!categoriesFor(langs[0]).includes(id)) {

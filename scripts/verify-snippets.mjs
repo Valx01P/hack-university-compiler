@@ -15,7 +15,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildProgram, segmentMarkdown } from "../lib/snippet-harness.mjs";
-import { LANGUAGES, ROOT, clip, run } from "./lib/verify-kit.mjs";
+import { LANGUAGES, ROOT, clip, run, runnerUp } from "./lib/verify-kit.mjs";
 
 const args = process.argv.slice(2);
 const option = (name) => args.find((a) => a.startsWith(`--${name}=`))?.split("=").slice(1).join("=");
@@ -76,6 +76,7 @@ async function check(s) {
   const failed = Boolean(r.compileError) || r.code !== 0 || Boolean(r.status);
   const output = clip([r.compileError, r.stdout, r.stderr].filter(Boolean).join("\n"));
   if (s.expectError) return failed ? null : { message: "marked `error` but ran cleanly", output, program };
+  if (s.typesOnly && !failed) return null;
   if (!failed) return `${r.stdout ?? ""}${r.stderr ?? ""}`.trim() ? null : { message: "prints nothing", output, program };
   const why = r.compileError ? "doesn't compile" : r.status ? `stopped (${r.status})` : `exited with ${r.code}`;
   return { message: why, output, program };
@@ -95,9 +96,14 @@ async function pool(items, worker) {
   return results;
 }
 
+// Every language by default, TypeScript included when the runner is up (its
+// snippets run there), with a note when it isn't.
+const everyLanguage = (await runnerUp()) ? [...LANGUAGES, "typescript"] : LANGUAGES;
+if (!langs.length && !everyLanguage.includes("typescript")) console.log("typescript: skipped, the runner isn't running (npm run up starts it)");
+
 const failures = [];
 let total = 0;
-for (const lang of langs.length ? langs : LANGUAGES) {
+for (const lang of langs.length ? langs : everyLanguage) {
   const snippets = collect(lang);
   total += snippets.length;
   const problems = await pool(snippets, check);

@@ -19,6 +19,33 @@ export const COURSES = JSON.parse(readFileSync(path.join(ROOT, "content", "cours
 const PISTON = (c) => c.runtime.startsWith("piston:") && Object.hasOwn(RUNTIMES, c.runtime.slice("piston:".length));
 export const LANGUAGES = COURSES.filter((c) => c.page && (PISTON(c) || c.runtime === "pglite")).map((c) => c.slug);
 const PISTON_URL = (process.env.PISTON_URL ?? "http://127.0.0.1:2000/api/v2").replace(/\/+$/, "");
+// The single-file courses that run on the local runner instead (TypeScript,
+// Bash): each one's recipe and the file name the app gives the code.
+const RUNNER_COURSES = Object.fromEntries(
+  COURSES.filter((c) => c.page === "single" && c.runtime.startsWith("runner:")).map((c) => [c.slug, { recipe: c.runtime.slice("runner:".length), fileName: c.fileName }])
+);
+export const RUNNER_LANGUAGES = Object.keys(RUNNER_COURSES);
+const RUNNER_URL = `http://127.0.0.1:${/^\d{1,5}$/.test(process.env.HU_RUNNER_PORT ?? "") ? process.env.HU_RUNNER_PORT : "3100"}`;
+/** The token npm run up gives the runner (lib/runner.ts reads it the same way). */
+function runnerToken() {
+  if (process.env.HU_RUNNER_TOKEN) return process.env.HU_RUNNER_TOKEN;
+  try {
+    return readFileSync(path.join(process.env.HU_DATA_DIR || path.join(os.homedir(), ".hack-university"), "runner-token"), "utf8").trim() || null;
+  } catch {
+    return null;
+  }
+}
+/** Whether the runner answers (npm run up starts it), so its languages can be
+    skipped with a note when it's off rather than failing every check. */
+export async function runnerUp() {
+  const token = runnerToken();
+  if (!token) return false;
+  try {
+    return (await fetch(`${RUNNER_URL}/v1/health`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(3000) })).ok;
+  } catch {
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------- running
 
@@ -147,6 +174,33 @@ async function piston(language, code, stdin) {
   }
 }
 
+// TypeScript and Bash run on the local runner, a fresh container per run,
+// sharing the same slots as Piston's runs.
+async function runner(language, code, stdin) {
+  const slot = await acquireSlot();
+  try {
+    const { recipe, fileName } = RUNNER_COURSES[language];
+    const res = await fetch(`${RUNNER_URL}/v1/run`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${runnerToken()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ recipe, files: [{ name: fileName, content: code }], stdin: stdin ?? "" }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error ?? data?.message ?? `HTTP ${res.status}`);
+    const compileFailed = data?.compile && data.compile.code !== 0;
+    return {
+      compileError: compileFailed ? String(data.compile.output ?? "").trim() || "compile failed" : "",
+      stdout: data?.run?.stdout ?? "",
+      stderr: data?.run?.stderr ?? "",
+      code: data?.run?.code ?? null,
+      status: data?.run?.status ?? null,
+    };
+  } finally {
+    takeDown(slot.dir, slot.owner);
+  }
+}
+
 // SQL runs on PGlite (PostgreSQL in WebAssembly) right here, a fresh
 // database per run, with the same core the app uses. Its "stdin" is the setup
 // SQL that runs first. A few at a time, since each database holds real memory.
@@ -181,7 +235,7 @@ export async function run(language, code, stdin) {
   let last;
   for (let i = 0; i < 3; i++) {
     try {
-      last = await piston(language, code, stdin);
+      last = await (Object.hasOwn(RUNNER_COURSES, language) ? runner : piston)(language, code, stdin);
       if (last.status !== "TO") return last;
     } catch (err) {
       last = { compileError: "", stdout: "", stderr: `sandbox error: ${err.message}`, code: null, status: "XX" };
@@ -219,7 +273,9 @@ export const FENCE_LANGS = new Set([...COURSES.filter((c) => c.page).flatMap((c)
 /** Flags after a fence's language, for runnable snippets: norun (shown only),
     error (runs and is meant to fail), harness (hidden wrapper for the next
     snippet). */
-export const FENCE_FLAGS = new Set(["norun", "error", "harness"]);
+// dom: browser code, never run. types: TypeScript that shows types and prints
+// nothing, so it only has to type-check.
+export const FENCE_FLAGS = new Set(["norun", "error", "harness", "dom", "types"]);
 export const isStr = (v) => typeof v === "string";
 export const nonEmpty = (v) => isStr(v) && v.trim().length > 0;
 
