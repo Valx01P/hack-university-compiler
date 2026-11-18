@@ -4,9 +4,15 @@ The **Challenges** tab on the compiler page is a list of short problems for
 drilling a language's basics, grouped by the same categories as the reference
 (`content/reference/categories.json`). Each one checks a single idea: can you
 write a loop, use a map, slice a string, define a class. They are quick
-(very easy to medium), never DSA puzzles, and the same problem exists in all
-five languages, so you can practice one problem set in whichever language you
-are learning.
+(very easy to medium), and the same problem exists in every language
+(Python, JavaScript, TypeScript, C++, Java, and Go), so you can practice one
+problem set in whichever language you are learning.
+
+The categories marked `"dsa": true` (sorting through greedy) are
+the data structures and algorithms set: practice for interview-style problems,
+each one built so you can't solve it without the structure or the technique it
+teaches (a max heap, a sort by two keys, a trie, a BFS). See
+[Data structures and algorithms](#data-structures-and-algorithms).
 
 You pick a challenge, the editor fills with its starter, you complete it, and
 **Check** runs your program against the tests in the sandbox.
@@ -46,7 +52,9 @@ content/challenges/<id>.json    one challenge, with code for all five languages
 - `category`: one id from `content/reference/categories.json`. The challenge
   must exercise that category's idea.
 - `difficulty`: `very-easy` (one step, a few lines), `easy` (a loop or a few
-  steps), or `medium` (two or three basic ideas combined). Nothing harder.
+  steps), or `medium` (two or three basic ideas combined). Only a DSA category
+  may be `hard`: a structure you build yourself (a trie, an LRU cache) or two
+  techniques together (two heaps, Dijkstra).
 - `statement`: Markdown, language neutral (say "a list of numbers", not
   "an ArrayList"). One or two sentences on the task, then the exact input and
   output format, then test 1 as an example: an `Input:` line and a
@@ -100,6 +108,70 @@ Follow each language's runtime facts and conventions in
   imports, read with `Scanner` or `BufferedReader`. No records.
 - Go 1.16: gofmt formatting (tabs), no generics, read with `bufio` or
   `fmt.Scan`.
+
+## Data structures and algorithms
+
+A DSA challenge is a small, classic interview problem (LeetCode easy to
+medium, a few hard), chosen so the category's structure or technique is the
+natural way to solve it: Kth largest needs a heap, meeting rooms needs a sort
+by start, a word list's prefixes need a trie. Within a category, spread the
+challenges over the calls people need, so that solving the set touches each
+one at least once (for heaps: build one from a list, push, pop, peek, a max
+heap, a heap of pairs ordered by a key). The statement names the problem the
+way interview sites do and says what to find, never which structure to use.
+The hints may.
+
+**Input formats**, the same in every DSA challenge:
+
+- A list: the count `n`, then `n` values on the next line (`0` and an empty
+  line for an empty list).
+- A linked list: a list, which the starter builds into nodes.
+- A binary tree: one line in level order with `null` for a missing child,
+  LeetCode's way (`3 9 20 null null 15 7`), and a lone `null` for an empty tree.
+  The starter builds it.
+- A graph: `n m`, then `m` lines `u v` (or `u v w` with a weight), the nodes
+  numbered `0` to `n - 1`. The statement says whether edges are directed.
+- A grid: `rows cols`, then `rows` lines of characters with no spaces (`#.#`),
+  or of numbers separated by spaces.
+- A design problem (a trie, a min stack, an LRU cache): the count `q`, then
+  `q` lines with an operation and its arguments (`insert apple`,
+  `search app`). The program prints one line for each operation that answers
+  something, in order.
+
+**Starters** do all the plumbing, so the learner writes only the algorithm:
+the starter reads the input, builds the structure (the node class, the tree
+from level order, the adjacency list), calls the function or the class to
+complete, and prints the answer in the exact format. A linked list or a tree
+prints back in its input format. A design problem's starter has the class with
+its methods stubbed (`TODO`, a placeholder return). Programs may run to 120
+lines here, and in the `classes` and `oop` categories, whose class design
+problems carry several classes (the verifier warns past that).
+
+**Each language's tools**, at the runtimes below:
+
+- Python: `heapq` (a min heap, negate for a max heap, tuples for a key),
+  `collections.deque`, `sorted(key=..., reverse=True)`, `bisect`,
+  `functools.cache`. Raise `sys.setrecursionlimit` before deep recursion.
+- JavaScript: arrays as stacks, a queue by a moving head index (not `shift`
+  in a loop), and `@datastructures-js/priority-queue` 6.4.0, which the sandbox
+  has (`MinPriorityQueue`, `MaxPriorityQueue`, `PriorityQueue` with a compare
+  function, `enqueue`, `dequeue`, `front`, `size`, `isEmpty`).
+- TypeScript: the runner has no packages, so a heap is a small class in the
+  starter. Its strict settings (`noUncheckedIndexedAccess`) make an indexed
+  read `T | undefined`, so solutions check or give a default.
+- C++: `std::priority_queue` (a max heap, `std::greater<>` or a comparator
+  lambda for a min heap or a key), `std::sort` and `std::stable_sort` with a
+  lambda, `lower_bound`, `std::stack`, `std::queue`, `std::deque`, `std::map`,
+  and node structs with raw pointers (small programs, never freed).
+- Java: `PriorityQueue` (a min heap, `Collections.reverseOrder()` or a
+  comparator for a max heap, `addAll`), `ArrayDeque` for stacks and queues,
+  `Arrays.sort` with a comparator (`int[][]` by a column), `List.sort`,
+  `Comparator.comparing` and `thenComparing`, `TreeMap` and `TreeSet` (`floorKey`,
+  `ceiling`). Compare with `Integer.compare`, never `a - b`, which overflows.
+  Node classes go after `Main` or as its static nested classes.
+- Go: `container/heap` (a type with `Len`, `Less`, `Swap`, `Push`, `Pop`),
+  `sort.Slice` and `sort.SliceStable`, `sort.Search`, slices as stacks and
+  queues, and structs with pointers for nodes. No generics in Go 1.16.
 
 ## SQL challenges
 

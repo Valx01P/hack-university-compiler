@@ -1,0 +1,60 @@
+{
+  "id": "first-last-position",
+  "title": "First and Last Position",
+  "category": "binary-search",
+  "difficulty": "medium",
+  "statement": "Find the first and last positions of a target number in a sorted list where numbers can repeat.\n\nThe first line is the count `n`, which can be 0 (then the second line is empty). The second line holds `n` whole numbers in increasing order, and a number can appear more than once. The third line is the target. Print the index of the target's first appearance and the index of its last one, counting from 0, as `first last`. When the target appears only once, both numbers are the same. Print `-1 -1` when the target is not in the list. Aim for about `log n` comparisons instead of checking every number.\n\nInput:\n\n```text\n6\n5 7 7 8 8 10\n8\n```\n\nExpected output:\n\n```text\n3 4\n```",
+  "tests": [
+    {
+      "stdin": "6\n5 7 7 8 8 10\n8\n",
+      "output": "3 4"
+    },
+    {
+      "stdin": "6\n5 7 7 8 8 10\n6\n",
+      "output": "-1 -1"
+    },
+    {
+      "stdin": "0\n\n0\n",
+      "output": "-1 -1"
+    },
+    {
+      "stdin": "1\n4\n4\n",
+      "output": "0 0"
+    },
+    {
+      "stdin": "5\n2 2 2 2 2\n2\n",
+      "output": "0 4"
+    }
+  ],
+  "hints": [
+    "Finding the target once is not enough, because it can repeat. Search twice: for the first index whose number is at least the target, and for the first index whose number is bigger than the target.",
+    "Those are the lower bound and the upper bound: `bisect_left` and `bisect_right` in Python, `std::lower_bound` and `std::upper_bound` in C++, `sort.SearchInts` and `sort.Search` in Go. In Java, JavaScript, and TypeScript you write them by hand with a `lo` to `hi` range.",
+    "The target is missing when the lower bound lands past the end of the list or on a different number. Otherwise the last position is the upper bound minus 1."
+  ],
+  "code": {
+    "python": {
+      "starter": "def search_range(nums: list[int], target: int) -> tuple[int, int]:\n    # TODO: return the first and last index of target, or (-1, -1)\n    return -1, -1\n\n\nn = int(input())\nnums = [int(x) for x in input().split()]\ntarget = int(input())\nfirst, last = search_range(nums, target)\nprint(first, last)\n",
+      "solution": "from bisect import bisect_left, bisect_right\n\n\ndef search_range(nums: list[int], target: int) -> tuple[int, int]:\n    first = bisect_left(nums, target)\n    if first == len(nums) or nums[first] != target:\n        return -1, -1\n    return first, bisect_right(nums, target) - 1\n\n\nn = int(input())\nnums = [int(x) for x in input().split()]\ntarget = int(input())\nfirst, last = search_range(nums, target)\nprint(first, last)\n"
+    },
+    "javascript": {
+      "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\n\nfunction searchRange(nums, target) {\n  // TODO: return the first and last index of target, or [-1, -1]\n  return [-1, -1];\n}\n\nconst tokens = input.trim().split(/\\s+/).map(Number);\nconst n = tokens[0];\nconst nums = tokens.slice(1, n + 1);\nconst target = tokens[n + 1];\nconst [first, last] = searchRange(nums, target);\nconsole.log(`${first} ${last}`);\n",
+      "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\n\n// The first index whose number is at least target.\nfunction lowerBound(nums, target) {\n  let lo = 0;\n  let hi = nums.length;\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (nums[mid] < target) {\n      lo = mid + 1;\n    } else {\n      hi = mid;\n    }\n  }\n  return lo;\n}\n\n// The first index whose number is bigger than target.\nfunction upperBound(nums, target) {\n  let lo = 0;\n  let hi = nums.length;\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    if (nums[mid] <= target) {\n      lo = mid + 1;\n    } else {\n      hi = mid;\n    }\n  }\n  return lo;\n}\n\nfunction searchRange(nums, target) {\n  const first = lowerBound(nums, target);\n  if (first === nums.length || nums[first] !== target) {\n    return [-1, -1];\n  }\n  return [first, upperBound(nums, target) - 1];\n}\n\nconst tokens = input.trim().split(/\\s+/).map(Number);\nconst n = tokens[0];\nconst nums = tokens.slice(1, n + 1);\nconst target = tokens[n + 1];\nconst [first, last] = searchRange(nums, target);\nconsole.log(`${first} ${last}`);\n"
+    },
+    "cpp": {
+      "starter": "#include <iostream>\n#include <utility>\n#include <vector>\n\nstd::pair<int, int> searchRange(const std::vector<int>& nums, int target) {\n    // TODO: return the first and last index of target, or {-1, -1}\n    return {-1, -1};\n}\n\nint main() {\n    int n;\n    std::cin >> n;\n    std::vector<int> nums(n);\n    for (int i = 0; i < n; i++) {\n        std::cin >> nums[i];\n    }\n    int target;\n    std::cin >> target;\n    auto [first, last] = searchRange(nums, target);\n    std::cout << first << \" \" << last << \"\\n\";\n    return 0;\n}\n",
+      "solution": "#include <algorithm>\n#include <iostream>\n#include <utility>\n#include <vector>\n\nstd::pair<int, int> searchRange(const std::vector<int>& nums, int target) {\n    auto first = std::lower_bound(nums.begin(), nums.end(), target);\n    if (first == nums.end() || *first != target) {\n        return {-1, -1};\n    }\n    auto after = std::upper_bound(first, nums.end(), target);\n    return {static_cast<int>(first - nums.begin()), static_cast<int>(after - nums.begin()) - 1};\n}\n\nint main() {\n    int n;\n    std::cin >> n;\n    std::vector<int> nums(n);\n    for (int i = 0; i < n; i++) {\n        std::cin >> nums[i];\n    }\n    int target;\n    std::cin >> target;\n    auto [first, last] = searchRange(nums, target);\n    std::cout << first << \" \" << last << \"\\n\";\n    return 0;\n}\n"
+    },
+    "java": {
+      "starter": "import java.util.Scanner;\n\npublic class Main {\n    static int[] searchRange(int[] nums, int target) {\n        // TODO: return the first and last index of target, or {-1, -1}\n        return new int[] {-1, -1};\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        int n = in.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = in.nextInt();\n        }\n        int target = in.nextInt();\n        int[] range = searchRange(nums, target);\n        System.out.println(range[0] + \" \" + range[1]);\n    }\n}\n",
+      "solution": "import java.util.Scanner;\n\npublic class Main {\n    // The first index whose number is at least target.\n    static int lowerBound(int[] nums, int target) {\n        int lo = 0;\n        int hi = nums.length;\n        while (lo < hi) {\n            int mid = lo + (hi - lo) / 2;\n            if (nums[mid] < target) {\n                lo = mid + 1;\n            } else {\n                hi = mid;\n            }\n        }\n        return lo;\n    }\n\n    // The first index whose number is bigger than target.\n    static int upperBound(int[] nums, int target) {\n        int lo = 0;\n        int hi = nums.length;\n        while (lo < hi) {\n            int mid = lo + (hi - lo) / 2;\n            if (nums[mid] <= target) {\n                lo = mid + 1;\n            } else {\n                hi = mid;\n            }\n        }\n        return lo;\n    }\n\n    static int[] searchRange(int[] nums, int target) {\n        int first = lowerBound(nums, target);\n        if (first == nums.length || nums[first] != target) {\n            return new int[] {-1, -1};\n        }\n        return new int[] {first, upperBound(nums, target) - 1};\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        int n = in.nextInt();\n        int[] nums = new int[n];\n        for (int i = 0; i < n; i++) {\n            nums[i] = in.nextInt();\n        }\n        int target = in.nextInt();\n        int[] range = searchRange(nums, target);\n        System.out.println(range[0] + \" \" + range[1]);\n    }\n}\n"
+    },
+    "go": {
+      "starter": "package main\n\nimport \"fmt\"\n\nfunc searchRange(nums []int, target int) (int, int) {\n\t// TODO: return the first and last index of target, or -1, -1\n\treturn -1, -1\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tnums := make([]int, n)\n\tfor i := range nums {\n\t\tfmt.Scan(&nums[i])\n\t}\n\tvar target int\n\tfmt.Scan(&target)\n\tfirst, last := searchRange(nums, target)\n\tfmt.Println(first, last)\n}\n",
+      "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"sort\"\n)\n\nfunc searchRange(nums []int, target int) (int, int) {\n\tfirst := sort.SearchInts(nums, target)\n\tif first == len(nums) || nums[first] != target {\n\t\treturn -1, -1\n\t}\n\tafter := sort.Search(len(nums), func(i int) bool {\n\t\treturn nums[i] > target\n\t})\n\treturn first, after - 1\n}\n\nfunc main() {\n\tvar n int\n\tfmt.Scan(&n)\n\tnums := make([]int, n)\n\tfor i := range nums {\n\t\tfmt.Scan(&nums[i])\n\t}\n\tvar target int\n\tfmt.Scan(&target)\n\tfirst, last := searchRange(nums, target)\n\tfmt.Println(first, last)\n}\n"
+    },
+    "typescript": {
+      "starter": "import { readFileSync } from \"node:fs\";\n\nconst input = readFileSync(0, \"utf8\");\n\nfunction searchRange(nums: number[], target: number): [number, number] {\n  // TODO: return the first and last index of target, or [-1, -1]\n  return [-1, -1];\n}\n\nconst tokens = input.trim().split(/\\s+/).map(Number);\nconst n = tokens[0] ?? 0;\nconst nums = tokens.slice(1, n + 1);\nconst target = tokens[n + 1] ?? 0;\nconst [first, last] = searchRange(nums, target);\nconsole.log(`${first} ${last}`);\n",
+      "solution": "import { readFileSync } from \"node:fs\";\n\nconst input = readFileSync(0, \"utf8\");\n\n// The first index whose number is at least target.\nfunction lowerBound(nums: number[], target: number): number {\n  let lo = 0;\n  let hi = nums.length;\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    const value = nums[mid];\n    if (value !== undefined && value < target) {\n      lo = mid + 1;\n    } else {\n      hi = mid;\n    }\n  }\n  return lo;\n}\n\n// The first index whose number is bigger than target.\nfunction upperBound(nums: number[], target: number): number {\n  let lo = 0;\n  let hi = nums.length;\n  while (lo < hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    const value = nums[mid];\n    if (value !== undefined && value <= target) {\n      lo = mid + 1;\n    } else {\n      hi = mid;\n    }\n  }\n  return lo;\n}\n\nfunction searchRange(nums: number[], target: number): [number, number] {\n  const first = lowerBound(nums, target);\n  if (first === nums.length || nums[first] !== target) {\n    return [-1, -1];\n  }\n  return [first, upperBound(nums, target) - 1];\n}\n\nconst tokens = input.trim().split(/\\s+/).map(Number);\nconst n = tokens[0] ?? 0;\nconst nums = tokens.slice(1, n + 1);\nconst target = tokens[n + 1] ?? 0;\nconst [first, last] = searchRange(nums, target);\nconsole.log(`${first} ${last}`);\n"
+    }
+  }
+}

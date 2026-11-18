@@ -14,7 +14,9 @@ export interface ReferenceSection {
   md: string;
 }
 
-export type ChallengeDifficulty = "very-easy" | "easy" | "medium";
+/** Hard is for the data structures and algorithms challenges (a trie,
+    Dijkstra, two heaps): the basics stop at medium. */
+export type ChallengeDifficulty = "very-easy" | "easy" | "medium" | "hard";
 
 /** A challenge as one language sees it. */
 export interface Challenge {
@@ -48,4 +50,5 @@ export const DIFFICULTY_LABEL: Record<ChallengeDifficulty, string> = {
   "very-easy": "Very easy",
   easy: "Easy",
   medium: "Medium",
+  hard: "Hard",
 };

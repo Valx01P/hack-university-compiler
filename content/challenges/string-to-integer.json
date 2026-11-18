@@ -1,0 +1,60 @@
+{
+  "id": "string-to-integer",
+  "title": "String to Integer",
+  "category": "strings",
+  "difficulty": "medium",
+  "statement": "Read a whole number from the start of a line of text, the way C's `atoi` does.\n\nThe input is one line of text. Read it from left to right with these rules:\n\n1. Skip any spaces at the start.\n2. Read one optional sign, `+` or `-`. Without a sign, the number is positive.\n3. Read digits until a character that is not a digit, or the end of the line. Leading zeros are fine, and everything after the digits is ignored.\n4. Keep the result inside the 32-bit range: a number below `-2147483648` becomes `-2147483648`, and one above `2147483647` becomes `2147483647`.\n\nPrint the number. When no digit comes right after the spaces and the sign, print `0`. The digits can run on far longer than any integer type holds. Read the characters one at a time instead of calling your language's number parser.\n\nInput:\n\n```text\n   -42 apples\n```\n\nExpected output:\n\n```text\n-42\n```",
+  "tests": [
+    {
+      "stdin": "   -42 apples\n",
+      "output": "-42"
+    },
+    {
+      "stdin": "+0000000000042.5\n",
+      "output": "42"
+    },
+    {
+      "stdin": "2147483648\n",
+      "output": "2147483647"
+    },
+    {
+      "stdin": "  -98765432109876543210\n",
+      "output": "-2147483648"
+    },
+    {
+      "stdin": "words and 987\n",
+      "output": "0"
+    }
+  ],
+  "hints": [
+    "Keep one index into the line and move it forward through each rule in turn: past the spaces, past the sign, then through the digits.",
+    "A digit's value is its distance from the character `0`: `ord(c) - ord(\"0\")` in Python, `c - '0'` in C++, Java, and Go, `s.charCodeAt(i) - 48` in JavaScript. Build the number with `value * 10 + digit`.",
+    "The digits can overflow even a 64-bit integer, so check after each digit and stop as soon as the value passes `2147483647`. Either keep the value in a 64-bit integer and compare it, or check before you multiply that `value * 10 + digit` still fits. Python's integers never overflow, so there you can also clamp once at the end."
+  ],
+  "code": {
+    "python": {
+      "starter": "def string_to_integer(s: str) -> int:\n    # TODO: skip spaces, read an optional sign and the digits, clamp to 32 bits\n    return 0\n\n\nprint(string_to_integer(input()))\n",
+      "solution": "INT_MIN, INT_MAX = -(2**31), 2**31 - 1\n\n\ndef string_to_integer(s: str) -> int:\n    i = 0\n    while i < len(s) and s[i] == \" \":\n        i += 1\n    sign = 1\n    if i < len(s) and s[i] in \"+-\":\n        sign = -1 if s[i] == \"-\" else 1\n        i += 1\n    value = 0\n    while i < len(s) and s[i].isdigit():\n        value = value * 10 + ord(s[i]) - ord(\"0\")\n        i += 1\n    # Python's integers never overflow, so clamping once at the end is safe.\n    return max(INT_MIN, min(INT_MAX, sign * value))\n\n\nprint(string_to_integer(input()))\n"
+    },
+    "javascript": {
+      "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\n\nfunction stringToInteger(s) {\n  // TODO: skip spaces, read an optional sign and the digits, clamp to 32 bits\n  return 0;\n}\n\nconsole.log(stringToInteger(input.split(\"\\n\")[0]));\n",
+      "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\n\nconst INT_MAX = 2 ** 31 - 1;\nconst INT_MIN = -(2 ** 31);\nconst ZERO = \"0\".charCodeAt(0);\n\nfunction stringToInteger(s) {\n  let i = 0;\n  while (i < s.length && s[i] === \" \") {\n    i++;\n  }\n  let sign = 1;\n  if (s[i] === \"+\" || s[i] === \"-\") {\n    sign = s[i] === \"-\" ? -1 : 1;\n    i++;\n  }\n  let value = 0;\n  for (; i < s.length; i++) {\n    const digit = s.charCodeAt(i) - ZERO;\n    if (digit < 0 || digit > 9) {\n      break;\n    }\n    value = value * 10 + digit;\n    if (value > INT_MAX) {\n      return sign === 1 ? INT_MAX : INT_MIN;\n    }\n  }\n  // sign * 0 would be -0, which console.log prints as -0\n  return value === 0 ? 0 : sign * value;\n}\n\nconsole.log(stringToInteger(input.split(\"\\n\")[0]));\n"
+    },
+    "cpp": {
+      "starter": "#include <iostream>\n#include <string>\n\nint stringToInteger(const std::string& s) {\n    // TODO: skip spaces, read an optional sign and the digits, clamp to 32 bits\n    return 0;\n}\n\nint main() {\n    std::string line;\n    std::getline(std::cin, line);\n    std::cout << stringToInteger(line) << \"\\n\";\n    return 0;\n}\n",
+      "solution": "#include <cctype>\n#include <cstddef>\n#include <iostream>\n#include <limits>\n#include <string>\n\nint stringToInteger(const std::string& s) {\n    const int intMax = std::numeric_limits<int>::max();\n    const int intMin = std::numeric_limits<int>::min();\n    std::size_t i = 0;\n    while (i < s.size() && s[i] == ' ') {\n        i++;\n    }\n    int sign = 1;\n    if (i < s.size() && (s[i] == '+' || s[i] == '-')) {\n        sign = s[i] == '-' ? -1 : 1;\n        i++;\n    }\n    // 64 bits hold any value up to intMax times 10 plus a digit, so one more\n    // digit never overflows before the check below.\n    long long value = 0;\n    while (i < s.size() && std::isdigit(static_cast<unsigned char>(s[i]))) {\n        value = value * 10 + (s[i] - '0');\n        if (value > intMax) {\n            return sign == 1 ? intMax : intMin;\n        }\n        i++;\n    }\n    return static_cast<int>(sign * value);\n}\n\nint main() {\n    std::string line;\n    std::getline(std::cin, line);\n    std::cout << stringToInteger(line) << \"\\n\";\n    return 0;\n}\n"
+    },
+    "java": {
+      "starter": "import java.io.BufferedReader;\nimport java.io.IOException;\nimport java.io.InputStreamReader;\n\npublic class Main {\n    static int stringToInteger(String s) {\n        // TODO: skip spaces, read an optional sign and the digits, clamp to 32 bits\n        return 0;\n    }\n\n    public static void main(String[] args) throws IOException {\n        BufferedReader in = new BufferedReader(new InputStreamReader(System.in));\n        String line = in.readLine();\n        System.out.println(stringToInteger(line == null ? \"\" : line));\n    }\n}\n",
+      "solution": "import java.io.BufferedReader;\nimport java.io.IOException;\nimport java.io.InputStreamReader;\n\npublic class Main {\n    static int stringToInteger(String s) {\n        int i = 0;\n        while (i < s.length() && s.charAt(i) == ' ') {\n            i++;\n        }\n        int sign = 1;\n        if (i < s.length() && (s.charAt(i) == '+' || s.charAt(i) == '-')) {\n            sign = s.charAt(i) == '-' ? -1 : 1;\n            i++;\n        }\n        int value = 0;\n        while (i < s.length() && Character.isDigit(s.charAt(i))) {\n            int digit = s.charAt(i) - '0';\n            // Check before multiplying, while value * 10 + digit can't overflow yet.\n            if (value > (Integer.MAX_VALUE - digit) / 10) {\n                return sign == 1 ? Integer.MAX_VALUE : Integer.MIN_VALUE;\n            }\n            value = value * 10 + digit;\n            i++;\n        }\n        return sign * value;\n    }\n\n    public static void main(String[] args) throws IOException {\n        BufferedReader in = new BufferedReader(new InputStreamReader(System.in));\n        String line = in.readLine();\n        System.out.println(stringToInteger(line == null ? \"\" : line));\n    }\n}\n"
+    },
+    "go": {
+      "starter": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc stringToInteger(s string) int {\n\t// TODO: skip spaces, read an optional sign and the digits, clamp to 32 bits\n\treturn 0\n}\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tscanner.Scan()\n\tfmt.Println(stringToInteger(scanner.Text()))\n}\n",
+      "solution": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"math\"\n\t\"os\"\n)\n\nfunc stringToInteger(s string) int {\n\ti := 0\n\tfor i < len(s) && s[i] == ' ' {\n\t\ti++\n\t}\n\tsign := int64(1)\n\tif i < len(s) && (s[i] == '+' || s[i] == '-') {\n\t\tif s[i] == '-' {\n\t\t\tsign = -1\n\t\t}\n\t\ti++\n\t}\n\t// s[i] is a byte, and digits are plain ASCII, so a byte range checks them.\n\tvar value int64\n\tfor i < len(s) && '0' <= s[i] && s[i] <= '9' {\n\t\tvalue = value*10 + int64(s[i]-'0')\n\t\tif value > math.MaxInt32 {\n\t\t\tif sign == 1 {\n\t\t\t\treturn math.MaxInt32\n\t\t\t}\n\t\t\treturn math.MinInt32\n\t\t}\n\t\ti++\n\t}\n\treturn int(sign * value)\n}\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tscanner.Scan()\n\tfmt.Println(stringToInteger(scanner.Text()))\n}\n"
+    },
+    "typescript": {
+      "starter": "import { readFileSync } from \"node:fs\";\n\nconst input = readFileSync(0, \"utf8\");\n\nfunction stringToInteger(s: string): number {\n  // TODO: skip spaces, read an optional sign and the digits, clamp to 32 bits\n  return 0;\n}\n\nconsole.log(stringToInteger(input.split(\"\\n\")[0] ?? \"\"));\n",
+      "solution": "import { readFileSync } from \"node:fs\";\n\nconst input = readFileSync(0, \"utf8\");\n\nconst INT_MAX = 2 ** 31 - 1;\nconst INT_MIN = -(2 ** 31);\nconst ZERO = \"0\".charCodeAt(0);\n\nfunction stringToInteger(s: string): number {\n  let i = 0;\n  while (s.charAt(i) === \" \") {\n    i++;\n  }\n  let sign = 1;\n  if (s.charAt(i) === \"+\" || s.charAt(i) === \"-\") {\n    sign = s.charAt(i) === \"-\" ? -1 : 1;\n    i++;\n  }\n  let value = 0;\n  for (; i < s.length; i++) {\n    const digit = s.charCodeAt(i) - ZERO;\n    if (digit < 0 || digit > 9) {\n      break;\n    }\n    value = value * 10 + digit;\n    if (value > INT_MAX) {\n      return sign === 1 ? INT_MAX : INT_MIN;\n    }\n  }\n  // sign * 0 would be -0, which console.log prints as -0\n  return value === 0 ? 0 : sign * value;\n}\n\nconsole.log(stringToInteger(input.split(\"\\n\")[0] ?? \"\"));\n"
+    }
+  }
+}

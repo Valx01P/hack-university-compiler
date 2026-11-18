@@ -35,13 +35,19 @@ import {
 } from "./lib/verify-kit.mjs";
 
 const DIR = path.join(ROOT, "content", "challenges");
-const DIFFICULTIES = ["very-easy", "easy", "medium"];
+const DIFFICULTIES = ["very-easy", "easy", "medium", "hard"];
 // Programming challenges come in the five general languages. SQL challenges
 // are their own set, with only SQL code, SQL's categories, and setup data.
 // TypeScript is one of them too, run on the local runner.
 const GENERAL = [...LANGUAGES.filter((l) => l !== "sql"), "typescript"];
 const readCategories = (file) => JSON.parse(readFileSync(file, "utf8")).categories.map((c) => c.id);
 const CATEGORIES = readCategories(path.join(ROOT, "content", "reference", "categories.json"));
+// The data structures and algorithms categories ("dsa": true), whose
+// programs carry a node class or a graph's parsing, so they may run longer,
+// and only they may be hard.
+const DSA = new Set(JSON.parse(readFileSync(path.join(ROOT, "content", "reference", "categories.json"), "utf8")).categories.filter((c) => c.dsa).map((c) => c.id));
+// Class design (several classes working together) may run as long.
+const LONG = new Set([...DSA, "classes", "oop"]);
 const SQL_CATEGORIES = existsSync(path.join(ROOT, "content", "reference", "sql", "categories.json"))
   ? readCategories(path.join(ROOT, "content", "reference", "sql", "categories.json"))
   : [];
@@ -81,6 +87,7 @@ function checkSchema(c, id, errors, warnings) {
   need(categories.includes(c.category), "category", `category must be one of ${categories.join(", ")}`);
   need(c.setup === undefined || (isSqlChallenge(c) && isStr(c.setup)), "setup", "setup is SQL for a SQL challenge (code.sql only)");
   need(DIFFICULTIES.includes(c.difficulty), "difficulty", `difficulty must be one of ${DIFFICULTIES.join(", ")}`);
+  need(c.difficulty !== "hard" || DSA.has(c.category), "difficulty", "only a data structures and algorithms category may be hard");
   need(nonEmpty(c.statement), "statement", "required");
   // A program that reads input needs several inputs to prove it. One that
   // reads none prints the same thing every time, so one test is enough.
@@ -107,7 +114,8 @@ function checkSchema(c, id, errors, warnings) {
       const v = code[k];
       if (!isStr(v)) continue;
       const lines = v.replace(/\n$/, "").split("\n").length;
-      if (lines >= 60) warnings.push({ where: `code.${lang}.${k}`, message: `${lines} lines, keep challenge programs under 60` });
+      const most = LONG.has(c.category) ? 120 : 60;
+      if (lines >= most) warnings.push({ where: `code.${lang}.${k}`, message: `${lines} lines, keep challenge programs under ${most}` });
       if (/\t/.test(v) && lang !== "go") warnings.push({ where: `code.${lang}.${k}`, message: "contains tab characters, indent with spaces" });
     }
   }

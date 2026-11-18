@@ -11,7 +11,7 @@ import type { Challenge, ReferenceCategory, ReferenceData, ReferenceSection } fr
  */
 const ROOT = path.join(process.cwd(), "content");
 const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const DIFFICULTY_ORDER = ["very-easy", "easy", "medium"];
+const DIFFICULTY_ORDER = ["very-easy", "easy", "medium", "hard"];
 
 interface ChallengeFile {
   id: string;

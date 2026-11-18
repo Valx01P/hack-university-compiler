@@ -238,8 +238,15 @@ SQL the database view (`&view=database`), with nothing popping in.
   downloaded once by `npm run up`), together with the words themselves,
   synonyms across languages, and the topic they're under. Without the model it
   still ranks by words.
-- **Challenges**: 81 short problems grouped by topic, very easy to medium, the
-  same set in every language. Open one and the editor fills with its starter
+- **Challenges**: 181 problems grouped by topic, the same set in every
+  language: 81 short ones on the basics (very easy to medium), and 100 for
+  interview-style practice, where solving each one takes the structure or
+  technique its topic teaches (sorting with comparators, binary search, two
+  pointers and sliding windows, stacks, queues and heaps, linked lists, trees,
+  tries, graphs and grids, recursion and backtracking, dynamic programming,
+  greedy, strings, bits, and class design, a few of them hard). Starters do
+  the plumbing (reading the input, building the list or tree, printing), so
+  you write the algorithm. Open one and the editor fills with its starter
   (your own code comes back when you leave it). **Check** runs it against the
   tests, and **Previous** and **Next** move through the list. Opened challenges get an eye, solved ones a
   green check. The eye next to `{}` reveals the answer, the same way as in

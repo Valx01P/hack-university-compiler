@@ -75,6 +75,16 @@ before committing it.
   get `require()`. The project courses
   (web, React, Next.js, Express, FastAPI, Spring Boot, Go APIs) open real
   codebases in the IDE.
+- **Challenges come in two sets, the same in every language:** the basics
+  (very easy to medium, one idea each), and data structures and algorithms
+  practice in the categories marked `"dsa": true` (sorting through greedy,
+  plus string, bit, array, and class design problems in the basic
+  categories), each built so it can't be solved without the structure or
+  technique it teaches, and only those may be hard. Their starters do the
+  plumbing (input, a `ListNode` or `TreeNode`, printing), and class design
+  starters give one or two methods or only the description. Every DSA
+  category has a cheatsheet section in every language. Rules are in
+  `content/challenges/AUTHORING.md`.
 - **Every example runs.** Every code block in lessons and cheatsheets has to
   pass `npm run snippets:verify`. Give a fragment context with hidden harness
   or stdin fences rather than changing what readers see.

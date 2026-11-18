@@ -1,0 +1,60 @@
+{
+  "id": "find-all-anagrams",
+  "title": "Find All Anagrams",
+  "category": "strings",
+  "difficulty": "medium",
+  "statement": "Find every place in a text where a rearrangement of a word starts.\n\nThe input is one line with two strings of lowercase letters separated by a space: the text `s`, then the word `p`. An anagram of `p` uses exactly the same letters as `p`, each one the same number of times, in any order, so `bca` and `cab` are anagrams of `abc`. Print the start index of every substring of `s` that is an anagram of `p`, counting from 0, in increasing order on one line, separated by spaces. Matches can overlap. Print `none` when there are none. Aim to move through the text once instead of counting the letters of every substring from scratch.\n\nInput:\n\n```text\ncbaebabacd abc\n```\n\nExpected output:\n\n```text\n0 6\n```",
+  "tests": [
+    {
+      "stdin": "cbaebabacd abc\n",
+      "output": "0 6"
+    },
+    {
+      "stdin": "abab ab\n",
+      "output": "0 1 2"
+    },
+    {
+      "stdin": "ab abc\n",
+      "output": "none"
+    },
+    {
+      "stdin": "xyzzyba aby\n",
+      "output": "4"
+    },
+    {
+      "stdin": "aaaaa aa\n",
+      "output": "0 1 2 3"
+    }
+  ],
+  "hints": [
+    "Two strings are anagrams when they have the same count of every letter. With only the 26 lowercase letters, a list of 26 counts works, where a letter's spot is how far it is from `a`: `ord(c) - ord(\"a\")` in Python, `c - 'a'` in C++, Java, and Go, `s.charCodeAt(i) - 97` in JavaScript.",
+    "Keep the letter counts of a window of `s` that is as long as `p`. When the window moves one step to the right, add the letter that comes in and take away the letter that falls out, instead of counting the window again.",
+    "After each step, compare the window's counts with the counts of `p`. Comparing two lists of 26 numbers is quick, however long the word is."
+  ],
+  "code": {
+    "python": {
+      "starter": "def find_anagrams(s: str, p: str) -> list[int]:\n    # TODO: return the start index of every anagram of p inside s\n    return []\n\n\ns, p = input().split()\nstarts = find_anagrams(s, p)\nprint(\" \".join(map(str, starts)) if starts else \"none\")\n",
+      "solution": "def find_anagrams(s: str, p: str) -> list[int]:\n    need = [0] * 26\n    window = [0] * 26\n    for letter in p:\n        need[ord(letter) - ord(\"a\")] += 1\n    m = len(p)\n    starts = []\n    for i, letter in enumerate(s):\n        window[ord(letter) - ord(\"a\")] += 1\n        if i >= m:\n            window[ord(s[i - m]) - ord(\"a\")] -= 1\n        if i >= m - 1 and window == need:\n            starts.append(i - m + 1)\n    return starts\n\n\ns, p = input().split()\nstarts = find_anagrams(s, p)\nprint(\" \".join(map(str, starts)) if starts else \"none\")\n"
+    },
+    "javascript": {
+      "starter": "const input = require(\"fs\").readFileSync(0, \"utf8\");\n\nfunction findAnagrams(s, p) {\n  // TODO: return the start index of every anagram of p inside s\n  return [];\n}\n\nconst [s, p] = input.trim().split(/\\s+/);\nconst starts = findAnagrams(s, p);\nconsole.log(starts.length > 0 ? starts.join(\" \") : \"none\");\n",
+      "solution": "const input = require(\"fs\").readFileSync(0, \"utf8\");\n\nfunction findAnagrams(s, p) {\n  const A = \"a\".charCodeAt(0);\n  const need = new Array(26).fill(0);\n  const window = new Array(26).fill(0);\n  for (let i = 0; i < p.length; i++) {\n    need[p.charCodeAt(i) - A]++;\n  }\n  const m = p.length;\n  const starts = [];\n  for (let i = 0; i < s.length; i++) {\n    window[s.charCodeAt(i) - A]++;\n    if (i >= m) {\n      window[s.charCodeAt(i - m) - A]--;\n    }\n    if (i >= m - 1 && window.every((count, k) => count === need[k])) {\n      starts.push(i - m + 1);\n    }\n  }\n  return starts;\n}\n\nconst [s, p] = input.trim().split(/\\s+/);\nconst starts = findAnagrams(s, p);\nconsole.log(starts.length > 0 ? starts.join(\" \") : \"none\");\n"
+    },
+    "cpp": {
+      "starter": "#include <cstddef>\n#include <iostream>\n#include <sstream>\n#include <string>\n#include <vector>\n\nstd::vector<int> findAnagrams(const std::string& s, const std::string& p) {\n    // TODO: return the start index of every anagram of p inside s\n    return {};\n}\n\nint main() {\n    std::string s, p;\n    std::cin >> s >> p;\n    std::vector<int> starts = findAnagrams(s, p);\n    std::ostringstream line;\n    for (std::size_t i = 0; i < starts.size(); i++) {\n        line << (i > 0 ? \" \" : \"\") << starts[i];\n    }\n    std::cout << (starts.empty() ? \"none\" : line.str()) << \"\\n\";\n    return 0;\n}\n",
+      "solution": "#include <array>\n#include <cstddef>\n#include <iostream>\n#include <sstream>\n#include <string>\n#include <vector>\n\nstd::vector<int> findAnagrams(const std::string& s, const std::string& p) {\n    std::array<int, 26> need{};\n    std::array<int, 26> window{};\n    for (char letter : p) {\n        need[letter - 'a']++;\n    }\n    int m = static_cast<int>(p.size());\n    std::vector<int> starts;\n    for (int i = 0; i < static_cast<int>(s.size()); i++) {\n        window[s[i] - 'a']++;\n        if (i >= m) {\n            window[s[i - m] - 'a']--;\n        }\n        if (i >= m - 1 && window == need) {\n            starts.push_back(i - m + 1);\n        }\n    }\n    return starts;\n}\n\nint main() {\n    std::string s, p;\n    std::cin >> s >> p;\n    std::vector<int> starts = findAnagrams(s, p);\n    std::ostringstream line;\n    for (std::size_t i = 0; i < starts.size(); i++) {\n        line << (i > 0 ? \" \" : \"\") << starts[i];\n    }\n    std::cout << (starts.empty() ? \"none\" : line.str()) << \"\\n\";\n    return 0;\n}\n"
+    },
+    "java": {
+      "starter": "import java.util.ArrayList;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.StringJoiner;\n\npublic class Main {\n    static List<Integer> findAnagrams(String s, String p) {\n        // TODO: return the start index of every anagram of p inside s\n        return new ArrayList<>();\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        String s = in.next();\n        String p = in.next();\n        List<Integer> starts = findAnagrams(s, p);\n        StringJoiner line = new StringJoiner(\" \");\n        for (int start : starts) {\n            line.add(String.valueOf(start));\n        }\n        System.out.println(starts.isEmpty() ? \"none\" : line.toString());\n    }\n}\n",
+      "solution": "import java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.Scanner;\nimport java.util.StringJoiner;\n\npublic class Main {\n    static List<Integer> findAnagrams(String s, String p) {\n        int[] need = new int[26];\n        int[] window = new int[26];\n        for (char letter : p.toCharArray()) {\n            need[letter - 'a']++;\n        }\n        int m = p.length();\n        List<Integer> starts = new ArrayList<>();\n        for (int i = 0; i < s.length(); i++) {\n            window[s.charAt(i) - 'a']++;\n            if (i >= m) {\n                window[s.charAt(i - m) - 'a']--;\n            }\n            if (i >= m - 1 && Arrays.equals(window, need)) {\n                starts.add(i - m + 1);\n            }\n        }\n        return starts;\n    }\n\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n        String s = in.next();\n        String p = in.next();\n        List<Integer> starts = findAnagrams(s, p);\n        StringJoiner line = new StringJoiner(\" \");\n        for (int start : starts) {\n            line.add(String.valueOf(start));\n        }\n        System.out.println(starts.isEmpty() ? \"none\" : line.toString());\n    }\n}\n"
+    },
+    "go": {
+      "starter": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n\t\"strings\"\n)\n\nfunc findAnagrams(s, p string) []int {\n\t// TODO: return the start index of every anagram of p inside s\n\treturn nil\n}\n\nfunc main() {\n\tvar s, p string\n\tfmt.Scan(&s, &p)\n\tstarts := findAnagrams(s, p)\n\tif len(starts) == 0 {\n\t\tfmt.Println(\"none\")\n\t\treturn\n\t}\n\tparts := make([]string, len(starts))\n\tfor i, start := range starts {\n\t\tparts[i] = strconv.Itoa(start)\n\t}\n\tfmt.Println(strings.Join(parts, \" \"))\n}\n",
+      "solution": "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n\t\"strings\"\n)\n\nfunc findAnagrams(s, p string) []int {\n\t// Arrays (not slices) can be compared with ==.\n\tvar need, window [26]int\n\tfor i := 0; i < len(p); i++ {\n\t\tneed[p[i]-'a']++\n\t}\n\tm := len(p)\n\tvar starts []int\n\tfor i := 0; i < len(s); i++ {\n\t\twindow[s[i]-'a']++\n\t\tif i >= m {\n\t\t\twindow[s[i-m]-'a']--\n\t\t}\n\t\tif i >= m-1 && window == need {\n\t\t\tstarts = append(starts, i-m+1)\n\t\t}\n\t}\n\treturn starts\n}\n\nfunc main() {\n\tvar s, p string\n\tfmt.Scan(&s, &p)\n\tstarts := findAnagrams(s, p)\n\tif len(starts) == 0 {\n\t\tfmt.Println(\"none\")\n\t\treturn\n\t}\n\tparts := make([]string, len(starts))\n\tfor i, start := range starts {\n\t\tparts[i] = strconv.Itoa(start)\n\t}\n\tfmt.Println(strings.Join(parts, \" \"))\n}\n"
+    },
+    "typescript": {
+      "starter": "import { readFileSync } from \"node:fs\";\n\nconst input = readFileSync(0, \"utf8\");\n\nfunction findAnagrams(s: string, p: string): number[] {\n  // TODO: return the start index of every anagram of p inside s\n  return [];\n}\n\nconst [s = \"\", p = \"\"] = input.trim().split(/\\s+/);\nconst starts = findAnagrams(s, p);\nconsole.log(starts.length > 0 ? starts.join(\" \") : \"none\");\n",
+      "solution": "import { readFileSync } from \"node:fs\";\n\nconst input = readFileSync(0, \"utf8\");\n\n// Adds delta to the count of the letter at text[i].\nfunction bump(counts: number[], text: string, i: number, delta: number): void {\n  const k = text.charCodeAt(i) - \"a\".charCodeAt(0);\n  counts[k] = (counts[k] ?? 0) + delta;\n}\n\nfunction findAnagrams(s: string, p: string): number[] {\n  const need: number[] = new Array<number>(26).fill(0);\n  const window: number[] = new Array<number>(26).fill(0);\n  for (let i = 0; i < p.length; i++) {\n    bump(need, p, i, 1);\n  }\n  const m = p.length;\n  const starts: number[] = [];\n  for (let i = 0; i < s.length; i++) {\n    bump(window, s, i, 1);\n    if (i >= m) {\n      bump(window, s, i - m, -1);\n    }\n    if (i >= m - 1 && window.every((count, k) => count === need[k])) {\n      starts.push(i - m + 1);\n    }\n  }\n  return starts;\n}\n\nconst [s = \"\", p = \"\"] = input.trim().split(/\\s+/);\nconst starts = findAnagrams(s, p);\nconsole.log(starts.length > 0 ? starts.join(\" \") : \"none\");\n"
+    }
+  }
+}
