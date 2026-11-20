@@ -113,13 +113,13 @@ function themeFrom(host: HTMLElement) {
     );
   // The terminal's own background from the theme menu (lib/theme.ts): a
   // color, or (nothing set) the code background, which is see-through like
-  // the rest of the app with the stars on. A see-through background keeps
-  // its color in the rgb, for the contrast checks, and the cursor keeps it
-  // solid.
+  // the rest of the app with the stars on. See-through is transparent black
+  // (what shows through is the dark sky), and the cursor and the contrast
+  // keep the solid color.
   const own = document.documentElement.hasAttribute("data-term-bg");
   const solid = own ? v("--term-bg", v("--code-bg", "#0a0a0a")) : v("--code-bg", "#0a0a0a");
   const clear = !own && document.documentElement.hasAttribute("data-stars");
-  const background = clear ? `${solid}00` : solid;
+  const background = clear ? "#00000000" : solid;
   const foreground = v("--code-ink", "#f0ece6");
   const theme: Record<string, string> = {
     background,
@@ -141,6 +141,33 @@ function themeFrom(host: HTMLElement) {
   });
   probe.remove();
   return theme;
+}
+
+/**
+ * xterm's WebGL addon (0.19) draws a cell's own background whenever the
+ * cell's background value isn't zero, and a dim or italic cell's carries
+ * those flags, so it gets one: the default background, at full alpha even
+ * when that's see-through, a box behind a prompt's faint text. Patched once,
+ * on its rectangle renderer's prototype: a default background that isn't
+ * inverted draws clear (blending is on, so nothing shows), leaving the
+ * terminal's own background behind it. If the addon's insides differ (a
+ * newer version), this does nothing.
+ */
+const INVERSE = 0x4000000;
+const COLOR_MODE = 0x3000000;
+function clearDefaultBackgrounds(webgl: object) {
+  type Vertices = { attributes: Float32Array };
+  type Draw = (vertices: Vertices, offset: number, fg: number, bg: number, ...rest: number[]) => void;
+  const rects = (webgl as { _renderer?: { _rectangleRenderer?: { value?: object } } })._renderer?._rectangleRenderer?.value;
+  const proto = rects ? (Object.getPrototypeOf(rects) as { _updateRectangle?: Draw; huClearDefault?: boolean }) : null;
+  const draw = proto?._updateRectangle;
+  if (!proto || typeof draw !== "function" || draw.length !== 7 || proto.huClearDefault) return;
+  proto._updateRectangle = function (this: unknown, vertices, offset, fg, bg, ...rest) {
+    draw.call(this, vertices, offset, fg, bg, ...rest);
+    // Its color's alpha, the last of the rectangle's eight numbers.
+    if (!(fg & INVERSE) && (bg & COLOR_MODE) === 0) vertices.attributes[offset + 7] = 0;
+  };
+  proto.huClearDefault = true;
 }
 
 /** The room the terminal keeps on its right for its scrollbar: none to
@@ -280,6 +307,7 @@ export function TerminalView({
         const webgl = new WebglAddon();
         webgl.onContextLoss(() => webgl.dispose());
         term.loadAddon(webgl);
+        clearDefaultBackgrounds(webgl);
         // It sizes its canvas by the screen's own pixels and lays out by
         // devicePixelRatio. A browser whose two disagree (emulated scaling)
         // gets a blank terminal, so there it's the DOM renderer.
