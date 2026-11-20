@@ -668,30 +668,32 @@ export const useCloudsAmount = cloudsAmount.use;
  *   stars like every large surface) or a color, which shows even with the
  *   stars. <html data-term-bg> and data-explorer-bg mark one as set, and
  *   --term-bg and --explorer-bg carry the color.
- * - The Explorer's highlight, its open file's row: the gray (nothing saved),
- *   none (data-explorer-hl="none"), or a color (data-explorer-hl,
+ * - The Explorer's highlight, its open file's row: none (nothing saved), the
+ *   gray (data-explorer-hl="gray"), or a color (data-explorer-hl,
  *   --explorer-hl), tinted like a selection.
  * - Text size in px: the terminal's starts at 12 (--term-fs), and the
  *   Explorer's at 13 (--explorer-fs).
  * - The terminal's line spacing (--term-lh), and its colors' vividness
- *   (--term-vivid) and contrast (--term-contrast, unset the app's level's).
+ *   (--term-vivid, 120% unset) and contrast (--term-contrast, 5.5:1 unset).
  */
 export type SurfaceColor = string | null;
 
-/** A surface setting's "none" (with `none`): no color at all (the Explorer
-    highlight's, <html data-explorer-hl="none">). */
+/** A surface setting's named values (with `named`), kept by name on its
+    attribute: the Explorer highlight's "gray" (<html data-explorer-hl="gray">),
+    and "none", what it has unset. */
 export const SURFACE_NONE = "none";
+export const SURFACE_GRAY = "gray";
 
-function surfaceSetting(key: string, attr: string, cssVar: string, { none = false } = {}) {
+function surfaceSetting(key: string, attr: string, cssVar: string, { named = [] as string[] } = {}) {
   const event = `hu:${key}-changed`;
   const customKey = `${key}-custom`;
   const customEvent = `hu:${customKey}-changed`;
-  const parse = (value: string | null | undefined): SurfaceColor => (none && value === SURFACE_NONE ? SURFACE_NONE : toHexColor(value));
+  const parse = (value: string | null | undefined): SurfaceColor => (value && named.includes(value) ? value : toHexColor(value));
 
   function apply(value: SurfaceColor) {
     const d = document.documentElement;
-    if (value === SURFACE_NONE) {
-      d.setAttribute(attr, SURFACE_NONE);
+    if (value && named.includes(value)) {
+      d.setAttribute(attr, value);
       d.style.removeProperty(cssVar);
     } else if (value) {
       d.setAttribute(attr, "");
@@ -718,7 +720,8 @@ function surfaceSetting(key: string, attr: string, cssVar: string, { none = fals
   function current(): SurfaceColor {
     const d = document.documentElement;
     if (!d.hasAttribute(attr)) return null;
-    if (none && d.getAttribute(attr) === SURFACE_NONE) return SURFACE_NONE;
+    const name = d.getAttribute(attr);
+    if (name && named.includes(name)) return name;
     return toHexColor(d.style.getPropertyValue(cssVar).trim());
   }
 
@@ -796,9 +799,9 @@ export const TERM_BG_KEY = "hu-term-bg";
 export const termBackground = surfaceSetting(TERM_BG_KEY, "data-term-bg", "--term-bg");
 export const EXPLORER_BG_KEY = "hu-explorer-bg";
 export const explorerBackground = surfaceSetting(EXPLORER_BG_KEY, "data-explorer-bg", "--explorer-bg");
-// The open file's row: the gray highlight, none, or a color, tinted (globals.css).
+// The open file's row: none (unset), the gray, or a color, tinted (globals.css).
 export const EXPLORER_HL_KEY = "hu-explorer-hl";
-export const explorerHighlight = surfaceSetting(EXPLORER_HL_KEY, "data-explorer-hl", "--explorer-hl", { none: true });
+export const explorerHighlight = surfaceSetting(EXPLORER_HL_KEY, "data-explorer-hl", "--explorer-hl", { named: [SURFACE_GRAY, SURFACE_NONE] });
 
 export const TERM_FS_KEY = "hu-term-fs";
 // 12px unset, VS Code's terminal's.
@@ -809,15 +812,15 @@ export const termFontSize = sizeSetting(TERM_FS_KEY, "--term-fs", 11, 22);
 export const TERM_LH_KEY = "hu-term-lh";
 export const TERM_LH_DEFAULT = 110;
 export const termLineHeight = sizeSetting(TERM_LH_KEY, "--term-lh", 100, 180, { scale: 100, unit: "" });
-// Its colors' vividness (their chroma, in percent), and the contrast they're
-// raised to against its background, in tenths (10 is none, unset the app's
-// contrast level's: none, 4.5, or 7). lib/oklch.ts does both.
+// Its colors' vividness (their chroma, in percent, 120 unset), and the
+// contrast they're raised to against its background (in tenths, 10 none, 55
+// unset, whatever the app's contrast level). lib/oklch.ts does both.
 export const TERM_VIVID_KEY = "hu-term-vivid";
+export const TERM_VIVID_DEFAULT = 120;
 export const termVividness = sizeSetting(TERM_VIVID_KEY, "--term-vivid", 50, 200, { scale: 100, unit: "" });
 export const TERM_CONTRAST_KEY = "hu-term-contrast";
+export const TERM_CONTRAST_DEFAULT = 55;
 export const termContrast = sizeSetting(TERM_CONTRAST_KEY, "--term-contrast", 10, 100, { scale: 10, unit: "" });
-/** The terminal contrast each app contrast level gives, in tenths. */
-export const APP_TERM_CONTRAST: Record<string, number> = { normal: 10, high: 45, super: 70 };
 export const EXPLORER_FS_KEY = "hu-explorer-fs";
 export const EXPLORER_FS_DEFAULT = 13;
 export const explorerFontSize = sizeSetting(EXPLORER_FS_KEY, "--explorer-fs", 11, 18);

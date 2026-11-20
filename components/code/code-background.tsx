@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useSyncExternalStore, type ReactNode } from "react";
-import { CODE_BG_PRESETS, CODE_SEL_PRESETS, SURFACE_NONE, codeBackground, codeSelection, explorerBackground, explorerHighlight, termBackground } from "@/lib/theme";
+import { CODE_BG_PRESETS, CODE_SEL_PRESETS, SURFACE_GRAY, SURFACE_NONE, codeBackground, codeSelection, explorerBackground, explorerHighlight, termBackground } from "@/lib/theme";
 
 /** WCAG relative luminance of a #rrggbb color. */
 function luminance(hex: string): number {
@@ -114,7 +114,8 @@ function ColorSwatches({
   warning,
   compact,
   scope = "",
-  noneLabel,
+  themeLabel = "Theme default",
+  named = [],
 }: {
   label: string;
   value: string | null;
@@ -131,12 +132,15 @@ function ColorSwatches({
   compact: boolean;
   /** Classes for the swatch row, for colors that only resolve there. */
   scope?: string;
-  /** A swatch for no color at all (SURFACE_NONE), named this. */
-  noneLabel?: string;
+  /** What the first swatch (nothing set) is called. */
+  themeLabel?: string;
+  /** Swatches for values kept by name, after the first (the Explorer
+      highlight's gray). */
+  named?: { value: string; label: string; swatch: ReactNode }[];
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const id = useId();
-  const customOn = value !== null && value !== SURFACE_NONE && !presets.some((p) => p.value === value);
+  const customOn = value !== null && !named.some((n) => n.value === value) && !presets.some((p) => p.value === value);
   const remembered = customOn ? value : custom;
 
   const swatch = (active: boolean) =>
@@ -154,26 +158,26 @@ function ColorSwatches({
           role="radio"
           aria-checked={value === null}
           onClick={() => onPick(null)}
-          title="Theme default"
-          aria-label="Theme default"
+          title={themeLabel}
+          aria-label={themeLabel}
           className={swatch(value === null)}
         >
           {themeSwatch}
         </button>
-        {noneLabel && (
-          // An empty ring, struck through.
+        {named.map((n) => (
           <button
+            key={n.value}
             type="button"
             role="radio"
-            aria-checked={value === SURFACE_NONE}
-            onClick={() => onPick(SURFACE_NONE)}
-            title={noneLabel}
-            aria-label={noneLabel}
-            className={swatch(value === SURFACE_NONE)}
+            aria-checked={value === n.value}
+            onClick={() => onPick(n.value)}
+            title={n.label}
+            aria-label={n.label}
+            className={swatch(value === n.value)}
           >
-            <span aria-hidden className="absolute inset-0 m-auto h-px w-[70%] -rotate-45 rounded-full bg-ink-muted" />
+            {n.swatch}
           </button>
-        )}
+        ))}
         {presets.map((p) => (
           <button
             key={p.value}
@@ -232,7 +236,7 @@ function useRememberCustom(
   custom: string | null
 ) {
   useEffect(() => {
-    if (value && value !== SURFACE_NONE && !presets.some((p) => p.value === value) && value !== custom) setting.saveCustom(value);
+    if (value?.startsWith("#") && !presets.some((p) => p.value === value) && value !== custom) setting.saveCustom(value);
   }, [setting, value, presets, custom]);
 }
 
@@ -333,7 +337,7 @@ function explorerBase(): string | null {
 }
 
 function judgeHighlight(color: string): string | null {
-  if (color === SURFACE_NONE) return null;
+  if (!color.startsWith("#")) return null;
   const ink = pageInk();
   const base = explorerBase();
   if (!ink || !base) return null;
@@ -341,13 +345,15 @@ function judgeHighlight(color: string): string | null {
 }
 
 /**
- * Swatches for the Explorer's highlight, its open file's row: the gray (the
- * theme's own), none (the row unfilled), the selection's presets, and a
- * custom color, each shown as the tint it gives. It applies to every
- * Explorer, the IDE's too.
+ * Swatches for the Explorer's highlight, its open file's row: none (the row
+ * unfilled, to begin with), the gray, the selection's presets, and a custom
+ * color, each shown as the tint it gives. It applies to every Explorer, the
+ * IDE's too.
  */
 export function ExplorerHighlightPicker({ compact = false }: { compact?: boolean }) {
-  const value = explorerHighlight.use();
+  // None is what it has unset ("none" saved before it was).
+  const set = explorerHighlight.use();
+  const value = set === SURFACE_NONE ? null : set;
   const custom = explorerHighlight.useCustom();
   const warning = useSyncExternalStore(subscribeCodeColors, () => (value ? judgeHighlight(value) : null), () => null);
   useRememberCustom(explorerHighlight, value, CODE_SEL_PRESETS, custom);
@@ -362,8 +368,10 @@ export function ExplorerHighlightPicker({ compact = false }: { compact?: boolean
         explorerHighlight.set(color);
         explorerHighlight.saveCustom(color);
       }}
-      themeSwatch={<span aria-hidden className="size-full rounded-full bg-raised" />}
-      noneLabel="None"
+      // None: an empty ring, struck through. Then the gray, by name.
+      themeSwatch={<span aria-hidden className="absolute inset-0 m-auto h-px w-[70%] -rotate-45 rounded-full bg-ink-muted" />}
+      themeLabel="None"
+      named={[{ value: SURFACE_GRAY, label: "Gray", swatch: <span aria-hidden className="size-full rounded-full bg-raised" /> }]}
       look={(color) => `color-mix(in oklab, ${color} ${HIGHLIGHT_STRENGTH * 100}%, var(--surface))`}
       warning={warning}
       compact={compact}

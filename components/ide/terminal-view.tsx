@@ -8,7 +8,7 @@ import { attachTerminal, type TerminalSession } from "@/lib/terminal-bridge";
 import type { WorkspaceStore } from "@/lib/workspace-store";
 import { scaleChroma, withContrast } from "@/lib/oklch";
 import { evenCells, terminalFamily } from "@/lib/terminal-font";
-import { APP_TERM_CONTRAST } from "@/lib/theme";
+import { TERM_CONTRAST_DEFAULT, TERM_VIVID_DEFAULT } from "@/lib/theme";
 
 /**
  * One terminal (architecture §8.3), xterm.js 6 loaded only when a terminal
@@ -56,9 +56,8 @@ function htmlNumber(name: string, fallback: number): number {
   const n = Number.parseFloat(document.documentElement.style.getPropertyValue(name));
   return Number.isFinite(n) ? n : fallback;
 }
-/** The contrast the terminal's colors keep: its own, else the app level's. */
-const contrastRatio = () =>
-  htmlNumber("--term-contrast", (APP_TERM_CONTRAST[document.documentElement.getAttribute("data-contrast") ?? "normal"] ?? 10) / 10);
+/** The contrast the terminal's colors keep (theme menu, 5.5:1 unset). */
+const contrastRatio = () => htmlNumber("--term-contrast", TERM_CONTRAST_DEFAULT / 10);
 /** The row height, in multiples of the text size (theme menu, 1.1 unset). */
 const lineSpacing = () => Math.min(1.8, Math.max(1, htmlNumber("--term-lh", 1.1)));
 /** xterm's lineHeight and letterSpacing for that spacing, with `family`, at
@@ -131,7 +130,7 @@ function themeFrom(host: HTMLElement) {
     scrollbarSliderHoverBackground: thumb(20),
     scrollbarSliderActiveBackground: thumb(35),
   };
-  const vivid = htmlNumber("--term-vivid", 1);
+  const vivid = htmlNumber("--term-vivid", TERM_VIVID_DEFAULT / 100);
   const ratio = contrastRatio();
   ANSI.forEach((name, i) => {
     let color = v(`--ansi-${i}`, "#888888");

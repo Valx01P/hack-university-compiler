@@ -46,7 +46,8 @@ import {
   useEditorRight,
   terminalColors,
   type TermColors,
-  APP_TERM_CONTRAST,
+  TERM_CONTRAST_DEFAULT,
+  TERM_VIVID_DEFAULT,
   TERM_FS_DEFAULT,
   TERM_LH_DEFAULT,
   APP_FONTS,
@@ -761,7 +762,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                 <SizeSlider
                   id="theme-term-vivid"
                   label="Terminal vividness"
-                  value={termVivid ?? 100}
+                  value={termVivid ?? TERM_VIVID_DEFAULT}
                   min={termVividness.min}
                   max={termVividness.max}
                   step={5}
@@ -772,7 +773,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                       <path d="M9.5 14a2.5 2.5 0 0 0 2.5 2.5" />
                     </svg>
                   }
-                  onChange={(v) => termVividness.set(v === 100 ? null : v)}
+                  onChange={(v) => termVividness.set(v === TERM_VIVID_DEFAULT ? null : v)}
                   note={null}
                   onReset={null}
                   resetLabel=""
@@ -780,7 +781,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                 <SizeSlider
                   id="theme-term-contrast"
                   label="Terminal contrast"
-                  value={termK ?? APP_TERM_CONTRAST[contrast] ?? 70}
+                  value={termK ?? TERM_CONTRAST_DEFAULT}
                   min={termContrast.min}
                   max={termContrast.max}
                   step={5}
@@ -791,10 +792,10 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                       <path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor" stroke="none" />
                     </svg>
                   }
-                  onChange={(v) => termContrast.set(v)}
-                  note={termK === null ? "Same as the app's contrast" : null}
-                  onReset={termK === null ? null : () => termContrast.set(null)}
-                  resetLabel="Same as the app's contrast"
+                  onChange={(v) => termContrast.set(v === TERM_CONTRAST_DEFAULT ? null : v)}
+                  note={null}
+                  onReset={null}
+                  resetLabel=""
                 />
                 <div role="group" aria-label="Terminal background" className="px-3 pb-2.5 pt-1.5">
                   <p className="flex items-center gap-2.5 text-sm text-ink-muted">
