@@ -14,7 +14,8 @@ before committing it.
 - **Local only.** Nothing leaves localhost: Piston binds `127.0.0.1:2000`
   (never change it to `0.0.0.0`), the runner `127.0.0.1:3100`, the app
   `127.0.0.1:3000`, and Next.js telemetry stays off. No accounts, no analytics,
-  no network calls at run time.
+  no network calls at run time. (The compiler's Terminal is your own shell on
+  your computer: what you run there, Claude Code included, is yours.)
 - **Commits:** one line, all lowercase, `type(scope): summary`, no body, no
   em dashes or semicolons, and no co-author or tool trailers. The author is
   Pablo Valdes <pablovaldes0925@gmail.com>.
@@ -49,7 +50,8 @@ before committing it.
   purpose (first-party cookies), beats a heartbeat while it shows, and after a
   page that froze with it running, it waits for a click
   (`components/ide/preview-pane.tsx`). Keep all three when changing those
-  paths.
+  paths. The compiler's Terminal is outside all of this on purpose: it's a
+  shell on your computer, like any other terminal window.
 - **Docs stay short where learners read them.** The README is the install
   steps, written for someone who has never opened a terminal (numbered, per
   computer, every command copyable), and the everyday commands. Details go in
@@ -59,8 +61,28 @@ before committing it.
 
 - **The compiler page is the online compiler first:** the language rail, the
   editor, stdin, Run, and the output. Nothing else shows by default. The
-  Cheatsheet and Challenges buttons open a panel beside the code, and Learn
-  opens Learn mode. Never add notes, AI, or other panels to the page.
+  Explorer, Terminal, Cheatsheet, and Challenges buttons open a panel beside
+  the code, and Learn opens Learn mode. Never add notes, AI, or other panels
+  to the page (AI belongs to the tools you run in the Terminal).
+- **Each compiler has its own folder** (scope `compiler/<course>`, template
+  `content/workspaces/<course>/compiler`), on this computer, one per
+  language and never a challenge's: the editor shows its open file (the main
+  one, main.py or Main.java, until you open another, remembered), the
+  Explorer its files, and Run runs the main file with the others beside it
+  for file input and more code (not C++, whose Piston build compiles every
+  file, nor TypeScript, whose recipe runs one, nor SQL). The main file is
+  also the page's saved code, so the editor opens on it at once and works
+  with the runner down (`components/compiler/compiler-workspace.tsx`). The
+  Terminal is a real shell on this computer in that folder (node-pty in the
+  runner), outside the sandbox on purpose so your own tools and logins work,
+  and only these workspaces get one (`shellPlace` in `runner/workspaces.ts`).
+  It's kept in tmux when tmux is there (`runner/host-tmux.ts`), so leaving
+  the page, closing the browser, or restarting the app never ends it (Claude
+  Code keeps running), and opening the Terminal again finds it as you left
+  it: the app's own tmux server, out of sight (no status bar, no keys).
+  Only `exit`, closing it, or removing the folder ends it.
+  The folder's hidden AGENTS.md and CLAUDE.md tell AI tools what it is, and
+  `.hu/last-run.md` holds the last run.
 - **Teaching lives in Learn mode** (`/<lang>/learn/<lesson>/<part>`): the part
   on the left, the editor on the right, each lesson split into parts with one
   idea, one to three worked examples, and a practice with the same shape.
@@ -99,6 +121,11 @@ before committing it.
   panel with its bar, and the design tokens in `app/globals.css`. Every color
   is a token, and a new look has to fit the existing system, not start its
   own.
+- **Fonts** (the theme menu): one for the app's text (Inter, System,
+  Helvetica, Georgia, Comic Sans) and one for code, the editors, code
+  blocks, and the terminal (JetBrains Mono, Menlo, Courier New, Comic Sans).
+  Inter and JetBrains Mono are bundled and the rest are the computer's own,
+  so nothing loads from the network.
 - **Six themes** (Light, Dark, Dracula, Monokai, Nord, Solarized), each paired
   with a code theme (Light with GitHub Light, Dark with Midnight, the rest
   their own), and the code theme can be picked separately.
@@ -123,11 +150,15 @@ before committing it.
   contrast, the theme's own code background, Blue selection, comments and the
   bottom shade shown, tooltips, border highlights, and scrollbars hidden, both
   line sliders off, and the stars on (70% brightness, 50% amount, wisps at the
-  top at 50% cover), and the editors on Midnight at 15px, tab size 4, with
-  intellisense and matching brackets on and line wrapping off. A setting is
-  stored only when it differs from its default, so changing a default means
-  storing the old one by name (like `hu-stars=off`), and the bootstrap and
-  `lib/theme.ts` change together.
+  top at 50% cover), the editors on Midnight at 15px, tab size 4, with
+  intellisense and matching brackets on and line wrapping off, the terminal
+  and the Explorer on their theme backgrounds (the terminal's colors the
+  editor's, its text 12px and line spacing 1.10, as VS Code's, vividness
+  100%, and contrast the app's, the Explorer's text 13px and its highlight
+  the gray), the app in Inter and code in JetBrains Mono, and the
+  compiler's editor on the left. A setting is stored only when it differs from its default, so
+  changing a default means storing the old one by name (like
+  `hu-stars=off`), and the bootstrap and `lib/theme.ts` change together.
 - **Stars** are on by default: a WebGL sky (brightness, amount, and clouds in
   five versions, with cover and a 3x3 place picker), at up to 30 fps, paused
   in a hidden tab, still under reduced motion. While it's on, large
@@ -148,7 +179,9 @@ before committing it.
   still highlighted. Use those, not `group-hover`, on a new border.
 - **Hover and active highlights are the neutral gray `--raised`,** done checks
   are green (`--complete`) in every theme, and Run and Check keep their labels
-  while busy (only greyed out), so bars never shift.
+  while busy (only greyed out), so bars never shift. The panel's buttons
+  drop their labels for their icons when their row is too narrow, all at
+  once and at the same height.
 - **Syntax colors match everywhere:** editors and static code blocks use the
   same tokenizer (`lib/tokenize.mjs`, Lezer for TypeScript), with escape
   sequences in their own color and directives in the keyword color. Each
@@ -203,14 +236,73 @@ before committing it.
   Learn's list stays docked), then full (the workspace covers the window, its
   controls float), then off. It's one mode for the whole app, in the address
   (`?full=semi`, `?full=1`), and Escape leaves it.
-- **The theme menu has two columns** on desktop so it never scrolls: themes,
-  contrast, and code settings on the left, lines and the sky on the right.
+- **The theme menu has two columns** on desktop and keeps its size (at most
+  36rem tall): themes, contrast, and code settings on the left, lines and
+  the sky on the right, filling it. Newer settings (the terminal, the
+  fonts, the Explorer, and the compiler's sides) go below them, in two
+  columns of their own, a scroll away inside the menu. Rejected: a third
+  column for them.
+  It closes from its button or a click outside it (the owner tried it
+  staying open and went back), or Escape from inside it, never Escape typed
+  elsewhere (vim in the terminal). Its top bar, flush with its top edge, or
+  any empty part of it drags it anywhere in the window (out of the way of a
+  setting you're watching), double-clicking the bar puts it back, and it
+  reopens where you left it for the visit, scrolled where you left it (that
+  kept in the browser, reloads too).
+- **The terminal and the Explorer have their own look** (the theme menu,
+  `lib/theme.ts`): a background (the theme's own, see-through with the
+  stars, or a color, which shows over the stars too) and a text size, for
+  every terminal and Explorer, the IDE's included, and the Explorer's
+  highlight (its open file's row, and lighter under the pointer): the gray,
+  none (the row unfilled, its brighter name marking it, a struck-through
+  ring for a swatch), or a color of your own tinted 40% like a selection,
+  so names stay readable. The terminal's colors are
+  the editor's or any code theme's (Terminal colors): that theme's own rules
+  in globals.css also match `.term-colors`, contrast levels included, so a
+  palette is never copied, and a picked code background stays off it. Its
+  colors have a vividness (their chroma) and a contrast (the app level's
+  until set), both in OKLCH (`lib/oklch.ts`): contrast raises a color's
+  lightness alone, never blending it toward white the way xterm's minimum
+  contrast does (pastel, rejected), xterm's left only for what the palette
+  doesn't cover. Its line spacing is the theme menu's, any multiple of the
+  text size from 1 (`lib/terminal-font.ts` names the code font again with
+  an ascent and descent of 1em, since xterm rows can't be shorter than a
+  font's own, JetBrains Mono's 1.32em), and its first row's text sits level
+  with the editor's line 1 at any spacing (`.term-pad`). It draws with
+  WebGL, as VS Code's does, so block and box characters fill their cells
+  (a TUI's logo is one piece), the DOM renderer only where WebGL isn't, in
+  cells an even number of the screen's pixels across and down at any zoom
+  (`evenCells`), since xterm draws quadrants in eighths of a cell and a
+  half between two pixels leaves a seam. The theme's own swatch
+  shows what it gives (an empty ring with the stars on). Rejected: a
+  separate see-through swatch, a checkerboard the same as the theme's own.
+  The Explorer is VS Code's: Material icons and indent guides, with no
+  heading in the compiler's panel (the tab already says Explorer), and a
+  right-click on its empty space makes files and folders. Its name boxes
+  (a new file or folder, a rename) are the canvas fill with no border
+  (the owner's choice, a white one rejected).
+- **The editor can sit on the right** of the compiler (the theme menu), the
+  output and the panel taking the left: CSS mirrors the page's grids
+  (`[data-mirror]` in globals.css), and the drags and arrow keys read the
+  side as they go. That side's bars are a mirror image too, order reversed:
+  the panel's X on the left, then Learn back to Explorer, the Explorer's
+  buttons, the cheatsheet's, the challenges', and the output's rows, and
+  popups opening toward the middle. Only a challenge's Previous stays before
+  its Next, for their arrows. What's in each thing reads left to right as
+  always, and the editor's own toolbar stays as it is. Rejected: keeping the
+  buttons' reading order there.
+- **The panel never moves the editor's border:** the editor has one width,
+  beside the output or the panel (`compiler-split`), so the X, or opening a
+  panel, leaves it where it is. The panel keeps it between 30% and 75% (`REF`
+  in `compiler-app.tsx`).
 - **Going between the compiler and Learn asks first** with a popup, and
   clicking the same button again confirms. Only Cancel or a click outside
   closes it.
-- **Answers are hidden behind the eye:** the first time on a page it glows and
-  needs a second click within 3 seconds. Your code is kept. The floating Next
-  glows the same way after a passing Check, then fades.
+- **Answers are hidden behind the eye:** the first time on a page it asks
+  first with a popup, like the Learn and Compiler buttons (but clicking the
+  eye again cancels), and after that it opens straight away. Hiding never asks.
+  Your code is kept. The floating Next glows after a passing Check, then
+  fades.
 - **Test cases open on a click:** in every check's results (Learn, the
   challenges, the IDE's Results) each test opens at once, on a click, to what
   it ran and what came back, with no chevron and no hover fill (the pointer
@@ -241,7 +333,8 @@ before committing it.
 
 ## Decided and rejected
 
-- Rejected: themed hover and active highlights (keep `--raised`), a two-click
+- Rejected: themed hover and active highlights (keep `--raised`; the
+  Explorer highlight is a color you pick yourself, the gray until then), a two-click
   glowing Learn button with no popup (keep the popup), blue done checks in
   Nord and Solarized (keep green), and fills or zebra bands that change with
   the line sliders.

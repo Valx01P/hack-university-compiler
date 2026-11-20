@@ -7,6 +7,7 @@ Everything about Hack University Compiler past getting it running, which the
 - [Languages](#languages) and [what you can import](#what-you-can-import)
 - [SQL](#sql)
 - [Learn mode](#learn-mode)
+- [Your files and the terminal](#your-files-and-the-terminal)
 - [Cheatsheets and challenges](#cheatsheets-and-challenges)
 - [Runnable examples](#runnable-examples)
 - [Editor](#editor): its keys and settings
@@ -170,10 +171,11 @@ with 114.
   non-null `!`, or `@ts-` comments).
 - Stuck? The eye next to the editor's `{}` shows the answer in place of your
   code (your code is kept, and the eye closes back onto it). The first time on
-  a page it asks first: click once, and again within 3 seconds while it glows.
+  a page it asks first, in a small popup: **Show answer** shows it, and Cancel
+  or the eye again closes the popup.
 - A part gets a green check once its practice passes, and a lesson once all its
-  parts do. When it passes, the floating **Next** glows for a few seconds, like
-  the eye, to point the way on.
+  parts do. When it passes, the floating **Next** glows for a few seconds to
+  point the way on.
 - The panel button at the top left shows and hides the lesson list: docked on
   the left on wide screens, sliding in as a drawer on narrower ones. Each
   lesson's parts fold out under it (the lesson you're on opens by itself). The
@@ -212,6 +214,42 @@ files live in `content/fixtures/<language>/<set>/`. To read a draft course from
 outside the repo, start the app with `LEARN_CONTENT_DIR` set to its folder of
 courses (the one `lessons:verify` checks) and `FIXTURES_CONTENT_DIR` to its
 fixtures: a course there takes the place of the one in `content/learn/`.
+
+## Your files and the terminal
+
+Each compiler page has its own folder on your computer, one per language,
+holding its main file (`main.py`, `Main.java`, and so on). **Explorer** and
+**Terminal**, before **Cheatsheet** in the same row, open it in the panel
+beside your code.
+
+- **Explorer**: the folder's files. Make, rename, move, and delete files and
+  folders, and click one to open it in the editor. The editor shows the main
+  file until you open another, and remembers which one you were on.
+- **Run** always runs the main file, with the folder's other files beside it,
+  so it can read them (`open("data.txt")`, `Files.readString(...)`) or use
+  them as more of its code (Python modules, JavaScript `require`, more Go
+  files in `package main`, more Java classes). C++ and TypeScript send only
+  the main file, and SQL runs `query.sql`.
+- **Terminal**: a real shell on your computer, in that folder, so your own
+  tools work there with your own logins. Run `claude` (Claude Code), or any
+  other assistant, there and ask what's wrong with your code: the folder
+  holds a short note for AI tools (`AGENTS.md`, and `CLAUDE.md` pointing to
+  it) on what the folder is and how Run runs it, and `.hu/last-run.md` holds
+  your last run's input and output. Changes made in the terminal show in the
+  Explorer and the editor at once. It's your computer's shell, outside the
+  sandbox, so it has no time or memory limits. With tmux installed
+  (`brew install tmux` on a Mac), it keeps running when you leave: switch
+  pages, close the browser, or restart the app, and opening the Terminal
+  again finds the same shell, with whatever was running in it (Claude Code
+  included) and its screen as you left it. Typing `exit` ends it. It's the
+  app's own tmux, out of sight, so it never touches yours: `tmux -L
+  hack-university ls` lists its sessions, and `tmux -L hack-university
+  kill-server` ends them all.
+
+Challenges keep their own code: opening Explorer or Terminal from one goes
+back to your files. The folders live in `~/.hack-university/workspaces/`, and
+`npm run up` must be running for them (without the runner, the editor still
+has the main file).
 
 ## Cheatsheets and challenges
 
@@ -439,6 +477,29 @@ spot it gathers around, from the top left to the bottom right. The sky runs
 at up to 30 frames a second, pauses in a hidden tab, and holds still when the
 system asks for reduced motion.
 
+Under the two columns, a scroll down inside the menu, are **App font**
+(Inter to begin with, or System, Helvetica, Georgia, or Comic Sans) and
+**Code font** (JetBrains Mono, or Menlo, Courier New, or Comic Sans, for the
+editors, code blocks, and the terminal), **Terminal
+colors** (the editor's, or any editor theme's text, background, and 16
+colors, for every terminal), **Terminal vividness** (how strong those
+colors are) and **Terminal contrast** (how far they're brightened, or
+darkened on a light background, to stand out from it, keeping their hue:
+the app's contrast level's until you set it), **Terminal line spacing**
+(the height of a row, as a multiple of its text size: 1.10, with 12px text,
+to begin with, as in VS Code), the **Terminal
+background** and **Explorer background** (the theme's own, see-through with
+the stars, or a color) with their text sizes, **Explorer highlight** (the
+open file's row: the gray, none, or a color, shown as a tint so the names
+stay readable), and **Editor on the right**,
+which puts the compiler's editor on the right and the output and the panel
+on the left, their bars a mirror image (the panel's X on the left, then
+Learn back to Explorer, and the Explorer's buttons on the left too). The
+menu closes from its button or a click outside it. Drag it by its top bar
+or any empty part of it to move it out of the way while you watch a setting
+take effect, and double-click the bar to put it back. It opens again
+scrolled where you left it, after a reload too.
+
 ## How it works
 
 ```
@@ -497,9 +558,9 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
   version, cover, and place). Everything
   visual is applied before the page paints, so nothing shifts on reload, and
   the menus read what's applied, so opening one never flashes the default
-  first. Every border you drag (the editor/output split, side by side and
-  stacked each kept on its own, so opening the cheatsheet or challenges finds
-  the stacked one where you left it, the panel beside them, Learn's lesson
+  first. Every border you drag (the editor's width, the same beside the
+  output and beside the panel, so opening or closing the panel never moves
+  it, the editor over the output, kept on its own, Learn's lesson
   list, splits, and editor/output border, and the IDE's explorer, dock, and
   preview) stays where you leave it, reloads included,
   and it's applied before the page paints too. Double-click a border to put
