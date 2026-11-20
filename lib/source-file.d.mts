@@ -5,4 +5,5 @@ export function hasTopLevelAwait(code: string): boolean;
 export function javaTypes(code: string): { name: string; public: boolean; main: boolean }[];
 export function javaEntry(code: string): { run: string; file: string } | null;
 export const JAVA_ENTRY_FILE: string;
-export function sourceFiles(language: string, code: string): { name: string | undefined; content: string }[];
+export function javaMainEntry(code: string): { run: string; file: string } | null;
+export function sourceFiles(language: string, code: string, options?: { javac?: boolean }): { name: string | undefined; content: string }[];

@@ -8,7 +8,7 @@ import type { ChallengeProgress } from "@/lib/challenge-progress";
 import type { Challenge, ReferenceData } from "@/lib/reference-types";
 import { EASE, dur, gsap } from "@/lib/motion";
 
-export type ReferenceTab = "cheatsheet" | "challenges";
+export type ReferenceTab = "explorer" | "terminal" | "cheatsheet" | "challenges";
 
 const loaded = new Map<string, Promise<ReferenceData>>();
 
@@ -45,10 +45,11 @@ export function useReferenceData(lang: string, enabled: boolean) {
 }
 
 /**
- * The compiler's right-hand panel: the language's cheatsheet or its
- * challenges. Its header carries the Cheatsheet, Challenges, and Learn
- * buttons while it's open (they sit above the output otherwise), so they stay
- * in the same place and switching is one click.
+ * The compiler's right-hand panel: your files (the Explorer), a terminal in
+ * their folder, the language's cheatsheet, or its challenges. Its header
+ * carries the Explorer, Terminal, Cheatsheet, Challenges, and Learn buttons
+ * while it's open (they sit above the output otherwise), so they stay in the
+ * same place and switching is one click.
  *
  * Both views stay mounted and only the one you picked shows, so each keeps
  * exactly where you left it: the cheatsheet's search and scroll, the list's
@@ -65,6 +66,8 @@ export function ReferencePanel({
   data,
   error,
   tab,
+  explorer,
+  terminal,
   buttons,
   challenge,
   next,
@@ -82,6 +85,10 @@ export function ReferencePanel({
   data: ReferenceData | null;
   error: string | null;
   tab: ReferenceTab;
+  /** The folder's files (components/compiler/compiler-workspace.tsx). */
+  explorer: React.ReactNode;
+  /** Its terminal, once it's been opened (null before). */
+  terminal: React.ReactNode;
   /** The Cheatsheet, Challenges, and Learn buttons. */
   buttons: React.ReactNode;
   challenge: Challenge | null;
@@ -95,11 +102,14 @@ export function ReferencePanel({
   // Switching views fades the new one in.
   const cheatRef = useRef<HTMLDivElement>(null);
   const challengesRef = useRef<HTMLDivElement>(null);
+  const explorerRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
   const shownTab = useRef(tab);
   useLayoutEffect(() => {
     if (shownTab.current === tab) return;
     shownTab.current = tab;
-    const view = tab === "cheatsheet" ? cheatRef.current : challengesRef.current;
+    const views = { cheatsheet: cheatRef, challenges: challengesRef, explorer: explorerRef, terminal: terminalRef };
+    const view = views[tab].current;
     if (view) gsap.fromTo(view, { opacity: 0 }, { opacity: 1, duration: dur(0.18), ease: EASE.out, clearProps: "opacity" });
   }, [tab]);
 
@@ -125,14 +135,20 @@ export function ReferencePanel({
       onScrollCapture={(e) => {
         if (!hidden) scrolled.current.set(e.target as Element, (e.target as Element).scrollTop);
       }}
-      aria-label={`${langLabel} cheatsheet and challenges`}
+      aria-label={`${langLabel} files, terminal, cheatsheet, and challenges`}
       className={`${hidden ? "hidden" : "flex"} h-[80dvh] min-h-0 min-w-0 flex-col p-2 lg:h-auto`}
     >
-      <div className="slim-scroll -mx-1.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pt-1.5 pb-2">
+      {/* A container, so the buttons' labels can drop when it's narrow
+          (compiler-app.tsx). With the editor on the right it's a mirror
+          image (globals.css [data-mirror]): the X on the left, then the
+          buttons from Learn to Explorer. */}
+      <div data-mirror className="@container slim-scroll -mx-1.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pt-1.5 pb-2">
         <h2 className="sr-only">
           {langLabel} {tab}
         </h2>
-        <div className="ms-auto flex shrink-0 items-center gap-1">{buttons}</div>
+        <div data-mirror className="ms-auto flex shrink-0 items-center gap-1">
+          {buttons}
+        </div>
         <button
           type="button"
           onClick={onClose}
@@ -143,13 +159,21 @@ export function ReferencePanel({
           <X className="size-4" aria-hidden />
         </button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-line bg-surface">
-        {error ? (
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-line bg-surface">
+        {/* Your files and the terminal need nothing loaded first. */}
+        <div ref={explorerRef} className={layer(tab === "explorer")} inert={tab !== "explorer"}>
+          {explorer}
+        </div>
+        <div ref={terminalRef} className={`${layer(tab === "terminal")} code-dark term-surface term-colors`} inert={tab !== "terminal"}>
+          {terminal}
+        </div>
+        {tab === "explorer" || tab === "terminal" ? null : error ? (
           <p className="p-4 text-sm text-ink-muted">{error}</p>
         ) : !data ? (
           <p className="p-4 text-sm text-ink-faint">Loading the {langLabel} {tab}…</p>
-        ) : (
-          <div className="relative min-h-0 flex-1">
+        ) : null}
+        {data && !error && (
+          <div className={`relative min-h-0 flex-1 ${tab === "explorer" || tab === "terminal" ? "invisible" : ""}`} inert={tab === "explorer" || tab === "terminal"}>
             <div ref={cheatRef} className={layer(tab === "cheatsheet")} inert={tab !== "cheatsheet"}>
               {data.cheatsheet.length ? (
                 <CheatsheetView lang={lang} sections={data.cheatsheet} langLabel={langLabel} />

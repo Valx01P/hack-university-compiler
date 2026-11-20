@@ -31,13 +31,14 @@ export const PANES = {
   "learn-editor": { unit: "", min: 30, max: 80, initial: 60, fold: { at: 100, attr: "data-learn-output-folded" } },
   // Learn: the lesson beside a project part's IDE.
   "learn-ide-split": { unit: "%", min: 25, max: 70, initial: 38 },
-  // The compiler: the editor beside the output, the editor over it (stacked,
-  // as it is while the cheatsheet or challenges panel is open, and 100 with
-  // the output folded away), each kept on its own, and both of them beside
-  // the panel.
+  // The compiler: the editor's width, beside the output or beside the panel
+  // (one width, so opening or closing the panel never moves the editor's
+  // border, the panel keeping it within its own range, REF in
+  // compiler-app.tsx), and the editor over the output (stacked, as it is
+  // while the panel is open, and 100 with the output folded away), kept on
+  // its own.
   "compiler-split": { unit: "%", min: 20, max: 80, initial: 55 },
   "compiler-stack": { unit: "%", min: 20, max: 80, initial: 55, fold: { at: 100, attr: "data-compiler-output-folded" } },
-  "compiler-ref": { unit: "%", min: 30, max: 75, initial: 55 },
   // The IDE: the explorer's width, the dock's height, and the preview's width.
   "ide-explorer": { unit: "px", min: 160, max: 360, initial: 208 },
   "ide-dock": { unit: "%", min: 15, max: 85, initial: 32 },

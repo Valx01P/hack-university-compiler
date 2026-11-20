@@ -156,6 +156,10 @@ export class WorkspaceStore {
   ports = new Map<number, PortInfo>();
   tasks = new Map<string, TaskState>();
   terminals: TerminalTab[] = [];
+  /** Terminals whose shell exited (the runner said so), as opposed to ones
+      only gone from the runner's list (it restarted), whose shell may still
+      run in tmux (the compiler's Terminal attaches again to those). */
+  exitedTerminals = new Set<string>();
   diagnostics = new Map<string, Diagnostic[]>();
   check: CheckState = { status: "idle" };
 
@@ -327,7 +331,10 @@ export class WorkspaceStore {
         this.refreshTree(e.resync ? 0 : 250);
         break;
       case "terminal":
-        if (e.state === "exited") this.terminalGone(e.sid);
+        if (e.state === "exited") {
+          this.exitedTerminals.add(e.sid);
+          this.terminalGone(e.sid);
+        }
         break;
       case "status":
         this.status = e.status as WorkspaceStatus;

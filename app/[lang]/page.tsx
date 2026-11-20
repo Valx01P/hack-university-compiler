@@ -4,7 +4,7 @@ import { CompilerShell } from "@/components/chrome/compiler-shell";
 import { CompilerApp } from "@/components/compiler/compiler-app";
 import { getCompilerLang } from "@/lib/compiler";
 import { COMPILER_COURSES, playgroundHref } from "@/lib/courses";
-import { playgroundTemplateOf } from "@/lib/workspaces";
+import { playgroundTemplateOf, workspaceProps } from "@/lib/workspaces";
 import { getLessonRefs } from "@/lib/learn";
 
 // Every course's compiler page is prerendered. Anything else is a 404,
@@ -28,12 +28,20 @@ export default async function CompilerLangPage(props: PageProps<"/[lang]">) {
   const lang = getCompilerLang(slug);
   if (!lang) notFound();
   const lessons = await getLessonRefs(lang.slug);
+  // The page's own folder (Explorer and Terminal): its template's starting
+  // tree, so the explorer paints before the runner answers.
+  const workspace = await workspaceProps(`compiler/${lang.slug}`);
 
   return (
     <CompilerShell lang={lang.slug}>
       {/* Open playground shows once the course's playground template is in
           content/workspaces (lib/playgrounds.ts). */}
-      <CompilerApp lang={lang} lessons={lessons} playground={playgroundHref(lang.slug, playgroundTemplateOf(lang.slug) !== null)} />
+      <CompilerApp
+        lang={lang}
+        lessons={lessons}
+        playground={playgroundHref(lang.slug, playgroundTemplateOf(lang.slug) !== null)}
+        workspace={workspace}
+      />
     </CompilerShell>
   );
 }

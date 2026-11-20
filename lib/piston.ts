@@ -1,5 +1,5 @@
 import RUNTIMES from "@/lib/runtimes.json";
-import { sourceFiles } from "@/lib/source-file.mjs";
+import { JAVA_ENTRY_FILE, sourceFiles } from "@/lib/source-file.mjs";
 import { getCompilerLang } from "@/lib/compiler";
 import { addHint } from "@/lib/components";
 import { chosenComponents } from "@/lib/installed";
@@ -67,10 +67,14 @@ export async function runCode({
   language,
   code,
   stdin,
+  files = [],
 }: {
   language: string;
   code: string;
   stdin: string;
+  /** Other files to put beside the program ([path, text]), from the
+      compiler's folder (app/api/execute says which languages take them). */
+  files?: [string, string][];
 }): Promise<RunResult> {
   if (!isLanguageId(language)) {
     throw new SandboxError(`Unsupported language "${language}".`, 400);
@@ -85,7 +89,11 @@ export async function runCode({
       body: JSON.stringify({
         language: RUNTIMES[language].runtime,
         version: "*",
-        files: sourceFiles(language, code),
+        files: [
+          // Java with other .java files is compiled with javac, which finds them.
+          ...sourceFiles(language, code, { javac: files.some(([p]) => p.endsWith(".java")) }),
+          ...files.filter(([p]) => p !== JAVA_ENTRY_FILE).map(([name, content]) => ({ name, content })),
+        ],
         stdin,
       }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),

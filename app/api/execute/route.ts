@@ -20,6 +20,13 @@ const MAX_ARGS = 64;
 const ARG_MAX_CHARS = 4_096;
 const MAX_TESTS = 20;
 const MAX_TYPE_TESTS = 6;
+// The compiler folder's other files a Run takes along (the runner takes 50
+// files in all). C++ and TypeScript take none: Piston's C++ compile step
+// builds every file it's given as C++ (data files included), and the
+// runner's TypeScript recipe runs exactly one file.
+const MAX_FILES = 48;
+const FILE_MAX_CHARS = 100_000;
+const MAIN_ONLY = new Set(["cpp", "typescript"]);
 
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
 const isStr = (v: unknown): v is string => typeof v === "string";
@@ -38,6 +45,10 @@ const env = (v: unknown): v is Record<string, string> =>
 const clock = (v: unknown): v is string | null =>
   v === null || (isStr(v) && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(v));
 const setName = (v: unknown): v is string => isStr(v) && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(v);
+const workspaceFiles = (v: unknown): v is Record<string, string> =>
+  isObj(v) &&
+  Object.keys(v).length <= MAX_FILES &&
+  Object.entries(v).every(([k, val]) => relPath(k) && k.length <= 200 && isStr(val) && val.length <= FILE_MAX_CHARS);
 
 /** Each field a test can carry (runner/schemas.ts TestSpec), and its check. */
 const TEST_FIELDS: Record<string, (v: unknown) => boolean> = {
@@ -116,9 +127,13 @@ export async function POST(request: Request) {
   if (stdin.length > STDIN_MAX_CHARS) return bad("stdin is too long.", 413);
 
   const runtime = parseRuntime(lang.runtime);
+  // The compiler's folder: its other files, beside the program, so it can
+  // read them (file input) or use them as more of its code.
+  if (body.files !== undefined && !workspaceFiles(body.files)) return bad(`files must map up to ${MAX_FILES} relative paths to text.`);
+  const extras = MAIN_ONLY.has(lang.slug) ? [] : Object.entries((body.files ?? {}) as Record<string, string>).filter(([p]) => p !== lang.fileName);
   try {
     if (runtime?.kind === "piston") {
-      const run = await runCode({ language: runtime.id, code, stdin });
+      const run = await runCode({ language: runtime.id, code, stdin, files: extras });
       return NextResponse.json({ run });
     }
     if (runtime?.kind !== "runner") {
@@ -126,7 +141,10 @@ export async function POST(request: Request) {
       return bad(`${lang.label} runs in your browser, not on the server.`);
     }
 
-    const job: RunnerRequest = { recipe: runtime.id, files: [{ name: lang.fileName, content: code }] };
+    const job: RunnerRequest = {
+      recipe: runtime.id,
+      files: [{ name: lang.fileName, content: code }, ...extras.map(([name, content]) => ({ name, content }))],
+    };
     if (body.args !== undefined && !strings(body.args)) return bad("args must be a list of strings.");
     if (body.env !== undefined && !env(body.env)) return bad("env must map variable names to strings.");
     if (body.clock !== undefined && !clock(body.clock)) return bad("clock must be an instant like 2026-10-19T09:00:00Z.");

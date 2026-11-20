@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { BookOpenText, FolderCode, GraduationCap, ListChecks, RotateCcw } from "lucide-react";
+import { BookOpenText, FolderCode, FolderTree, GraduationCap, ListChecks, RotateCcw, SquareTerminal } from "lucide-react";
 import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
@@ -13,6 +13,7 @@ import { ConfirmButton } from "@/components/ui/confirm-button";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { OUTPUT_PAD, OutputPanel } from "@/components/compiler/output-panel";
 import { ReferencePanel, useReferenceData, type ReferenceTab } from "@/components/compiler/reference-panel";
+import { CompilerExplorer, CompilerTerminal, useCompilerWorkspace } from "@/components/compiler/compiler-workspace";
 import { CourseRail } from "@/components/chrome/course-rail";
 import { FloatingNav } from "@/components/chrome/floating-nav";
 import { FULL_SCREEN_TITLE, useFullScreen } from "@/lib/full-screen";
@@ -35,6 +36,8 @@ import {
 } from "@/lib/challenge-progress";
 import { useResumeHref } from "@/lib/learn-progress";
 import type { LessonRef } from "@/lib/learn-types";
+import { fileLanguage, type WorkspaceProps } from "@/lib/workspace-types";
+import { editorOnRight, useEditorRight } from "@/lib/theme";
 import { normalizeOutput, runInSandbox, runTests, type RunState } from "@/lib/run-code";
 import { joinArgs, splitArgs } from "@/lib/shell-words";
 import { EASE, dur, gsap } from "@/lib/motion";
@@ -65,6 +68,29 @@ const sessionLayout: {
 const codeKey = (slug: string) => `hu-compiler-code:${slug}`;
 const noop = () => {};
 
+/** The last run, for tools in the folder's terminal to read
+    (.hu/last-run.md, which AGENTS.md there points them at). */
+function lastRunNotes(file: string, stdin: string, run: RunState): string {
+  const block = (text: string) => `\`\`\`\n${text.replace(/\n?$/, "\n")}\`\`\``;
+  const parts = [`# The last run of ${file}`, ""];
+  parts.push("## Input (stdin)", "", stdin ? block(stdin) : "None.", "");
+  if (run.status === "error") {
+    parts.push("## It couldn't run", "", run.error, "");
+  } else if (run.status === "done") {
+    if (run.compileOutput) parts.push("## Compiler output", "", block(run.compileOutput), "");
+    parts.push("## Output (stdout)", "", run.stdout ? block(run.stdout) : "None.", "");
+    if (run.stderr) parts.push("## Errors (stderr)", "", block(run.stderr), "");
+    const how =
+      run.verdict === "TO"
+        ? "It ran too long (over 10 seconds) and was stopped."
+        : run.signal
+          ? `It was stopped by ${run.signal}.`
+          : `It exited with code ${run.code ?? "unknown"}.`;
+    parts.push("## How it ended", "", how, "");
+  }
+  return parts.join("\n");
+}
+
 /** Your code per language is the one thing saved across reloads. */
 function savedCode(lang: CompilerLang): string {
   if (typeof window === "undefined") return lang.starter;
@@ -80,23 +106,37 @@ function savedCode(lang: CompilerLang): string {
 // away (at STACK.fold.at).
 const STACK = PANES["compiler-stack"];
 const STACK_FOLD_PAST = 90;
+// The panel beside the editor: the editor keeps its width beside the output
+// (compiler-split, one width for both, so the panel's X never moves it), kept
+// in this range while the panel shows, so neither gets too narrow.
+const REF = { min: 30, max: 75 };
+const inRef = (pct: number) => Math.min(REF.max, Math.max(REF.min, pct));
 
 export function CompilerApp({
   lang,
   lessons,
   playground: playgroundHref = null,
+  workspace,
 }: {
   lang: CompilerLang;
   /** Learn lessons in course order; empty when this language has no course. */
   lessons: LessonRef[];
   /** Where Open playground goes, once the course has a playground. */
   playground?: string | null;
+  /** The page's own folder (compiler/<lang>): the Explorer's files and the Terminal's. */
+  workspace: WorkspaceProps;
 }) {
   // Read while initializing, not in an effect, so the editor opens straight on
   // your code: no starter flash, and ⌘Z can't undo back to the starter. The
   // code never reaches the server markup (CodeMirror mounts client-side), so
   // hydration is unaffected.
   const [code, setCode] = useState(() => savedCode(lang));
+  // The page's folder: the main file is your code above, and the editor shows
+  // whichever of its files you have open (components/compiler/compiler-workspace.tsx).
+  const [cursorAt, setCursorAt] = useState<{ line: number; col: number } | null>(null);
+  const ws = useCompilerWorkspace({ props: workspace, lang, code, setCode: storeCode, onReveal: (line) => setCursorAt({ line, col: 1 }) });
+  const onMain = ws.path === lang.fileName;
+  const [terminalMounted, setTerminalMounted] = useState(false);
   const [stdin, setStdin] = useState("");
   // Folded at first, then as you leave it, saved (lib/stdin-shown.ts).
   const showStdin = useStdinOpen("compiler");
@@ -115,13 +155,16 @@ export function CompilerApp({
   // the window. It's in the address (?full=semi, ?full=1), and Escape leaves
   // it.
   const [full, stepFull, screenMode] = useFullScreen();
+  // The editor on the left or the right (the theme menu): CSS mirrors the
+  // page (globals.css [data-mirror]), and drags read the side as they go.
+  const editorRight = useEditorRight();
 
   // The cheatsheet or the challenges, in a panel on the right with the
   // output tucked under the editor (refTab says which).
   const [refOpen, setRefOpenState] = useState(() => sessionLayout.refOpen);
   const [refMounted, setRefMounted] = useState(() => sessionLayout.refOpen);
   const [refTab, setRefTabState] = useState<ReferenceTab>(() => sessionLayout.refTab);
-  const refPct = usePaneSize("compiler-ref");
+  const refPct = inRef(sideBySidePct);
   const { data: refData, error: refError } = useReferenceData(lang.slug, refOpen);
   const progress = useChallengeProgress(lang.slug);
   // The challenge you were on last in this language, saved, for the
@@ -182,10 +225,13 @@ export function CompilerApp({
   }, [challenge, lang.slug]);
 
   const showingAnswer = Boolean(challenge && answerFor === challenge.id);
+  useEffect(() => {
+    if (refOpen && refTab === "terminal") setTerminalMounted(true);
+  }, [refOpen, refTab]);
   const challengeCode = challenge
     ? challengeCodes[challenge.id] ?? loadChallengeCode(lang.slug, challenge.id, challenge.starter)
     : "";
-  const editorCode = challenge ? (showingAnswer ? challenge.solution : challengeCode) : code;
+  const editorCode = challenge ? (showingAnswer ? challenge.solution : challengeCode) : onMain ? code : ws.text;
   // A SQL challenge's input is its setup SQL plus the test's own setup.
   const challengeInput = (stdin: string | undefined) =>
     challenge && sqlMode ? [challenge.setup, stdin].filter((x) => x && x.trim()).join("\n") : stdin ?? "";
@@ -194,7 +240,8 @@ export function CompilerApp({
   const playground = sqlMode && !challenge;
   const checkState = challenge && checkFor?.id === challenge.id ? checkFor.state : null;
 
-  function updateCode(next: string) {
+  /** The page's code (the main file's text), kept for the next visit. */
+  function storeCode(next: string) {
     setCode(next);
     try {
       localStorage.setItem(codeKey(lang.slug), next);
@@ -203,8 +250,13 @@ export function CompilerApp({
     }
   }
 
+  function updateCode(next: string) {
+    storeCode(next);
+    ws.edited(lang.fileName, next);
+  }
+
   function updateEditor(next: string) {
-    if (!challenge) return updateCode(next);
+    if (!challenge) return onMain ? updateCode(next) : ws.edited(ws.path, next);
     setChallengeCodes((all) => ({ ...all, [challenge.id]: next }));
     saveChallengeCode(lang.slug, challenge.id, next, challenge.starter);
   }
@@ -241,7 +293,7 @@ export function CompilerApp({
   }
 
   function setRefPct(next: number) {
-    setPaneSize("compiler-ref", next);
+    setPaneSize("compiler-split", inRef(next));
   }
 
   function setRefTab(tab: ReferenceTab) {
@@ -359,6 +411,8 @@ export function CompilerApp({
   });
   function toggleReference(tab: ReferenceTab) {
     const keepFocus = document.activeElement instanceof HTMLElement && Boolean(document.activeElement.dataset.panelButton);
+    // Your files have no place in a challenge, so these leave it.
+    if ((tab === "explorer" || tab === "terminal") && challenge) leaveChallenge();
     if (refOpen && refTab === tab) {
       if (tab === "challenges" && challenge) leaveChallenge();
       else if (tab === "challenges" && lastChallenge) openChallenge(lastChallenge.id);
@@ -375,7 +429,7 @@ export function CompilerApp({
     refClosing.current = true;
     gsap.to(panel, {
       opacity: 0,
-      x: 24,
+      x: editorOnRight() ? -24 : 24,
       duration: dur(0.18),
       ease: EASE.in,
       overwrite: true,
@@ -392,7 +446,7 @@ export function CompilerApp({
     refSlideIn.current = false;
     gsap.fromTo(
       panel,
-      { opacity: 0, x: 24 },
+      { opacity: 0, x: editorOnRight() ? -24 : 24 },
       { opacity: 1, x: 0, duration: dur(0.3), ease: EASE.slide, overwrite: true, clearProps: "opacity,transform" }
     );
   }, [refOpen]);
@@ -405,7 +459,7 @@ export function CompilerApp({
     if (playground) {
       try {
         const { runPlayground } = await import("@/lib/sql/browser");
-        const result = await runPlayground(editorCode);
+        const result = await runPlayground(challenge ? editorCode : code);
         setSqlRun(result);
         setSqlError(null);
         setSqlView("results");
@@ -417,10 +471,14 @@ export function CompilerApp({
       setDbVersion((v) => v + 1);
       return;
     }
-    const result = await runInSandbox(lang.slug, editorCode, currentStdin, { args: lang.args ? splitArgs(currentArgs) : undefined });
+    // Run always runs the main file, with the folder's other files beside it.
+    const files = challenge ? {} : await ws.runFiles();
+    const program = challenge ? editorCode : code;
+    const result = await runInSandbox(lang.slug, program, currentStdin, { args: lang.args ? splitArgs(currentArgs) : undefined, files });
     const done: RunState = result.ok ? { status: "done", ...result.run } : { status: "error", error: result.error };
     setRun(done);
     setAnnouncement(runSummary(done));
+    if (!challenge) ws.recordRun(lastRunNotes(lang.fileName, currentStdin, done));
   }
 
   async function checkChallenge() {
@@ -481,7 +539,8 @@ export function CompilerApp({
 
     function move(ev: PointerEvent) {
       const r = container!.getBoundingClientRect();
-      const pct = isH ? ((ev.clientX - r.left) / r.width) * 100 : ((ev.clientY - r.top) / r.height) * 100;
+      // With the editor on the right (the theme menu), its share is measured from the right.
+      const pct = isH ? ((editorOnRight() ? r.right - ev.clientX : ev.clientX - r.left) / r.width) * 100 : ((ev.clientY - r.top) / r.height) * 100;
       // Stacked, dragged well past the output's smallest, it folds away.
       setSplit(!isH && pct >= STACK_FOLD_PAST ? STACK.fold.at : pct);
     }
@@ -510,8 +569,10 @@ export function CompilerApp({
   const stackFolded = !horizontal && stackedPct === STACK.fold.at;
   const iconBtn =
     "inline-flex size-8 items-center justify-center rounded-btn text-ink-muted transition-colors hover:bg-raised hover:text-ink";
+  // A set height, a label's (16px and its padding), so a button that's
+  // dropped its label for the icon (labelHide, below) keeps its row's height.
   const headerBtn =
-    "inline-flex items-center gap-1.5 rounded-btn border border-content-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-raised";
+    "inline-flex h-6.5 items-center gap-1.5 rounded-btn border border-content-line-strong px-2.5 text-xs font-medium text-ink transition-colors hover:bg-raised";
 
   // The program's input: the stdin row (with the Arguments field beside it,
   // each half the row) and the open field. Side by side it's the code box's
@@ -582,10 +643,26 @@ export function CompilerApp({
 
   // Cheatsheet, Challenges, and Learn: above the output, or in the panel's
   // header while it's open, so they stay put and switching is one click.
+  // Each label hides when its row (the panel's header, or the output's) is
+  // too narrow to hold them all, leaving the icons: a container query on the
+  // row, applied from the first paint, at the width the row needs at its
+  // fullest (with Open playground, beside SQL's Results and Database tabs,
+  // and after a run, with Clear), so running never flips them and shifts it.
+  const labelHide = refOpen
+    ? playgroundHref
+      ? "@max-[43rem]:hidden"
+      : "@max-[34rem]:hidden"
+    : sqlMode
+      ? "@max-[48rem]:hidden"
+      : playgroundHref
+        ? "@max-[49rem]:hidden"
+        : "@max-[40rem]:hidden";
   const panelButtons = (
     <>
       {(
         [
+          ["explorer", "Explorer", FolderTree],
+          ["terminal", "Terminal", SquareTerminal],
           ["cheatsheet", "Cheatsheet", BookOpenText],
           ["challenges", "Challenges", ListChecks],
         ] as const
@@ -598,17 +675,22 @@ export function CompilerApp({
             data-panel-button={tab}
             onClick={() => toggleReference(tab)}
             aria-pressed={active}
+            aria-label={label}
             title={
               active && tab === "challenges" && challenge
                 ? "Back to all challenges"
                 : active && tab === "challenges" && lastChallenge
                   ? `Back to ${lastChallenge.title}`
-                  : `${lang.label} ${label.toLowerCase()}`
+                  : tab === "explorer"
+                    ? `Your ${lang.label} files`
+                    : tab === "terminal"
+                      ? "A terminal in your files' folder, on this computer"
+                      : `${lang.label} ${label.toLowerCase()}`
             }
             className={`${headerBtn} ${active ? "bg-raised" : ""}`}
           >
             <Icon className="size-3.5" aria-hidden />
-            {label}
+            <span className={labelHide}>{label}</span>
           </button>
         );
       })}
@@ -620,18 +702,26 @@ export function CompilerApp({
           description={`Short lessons and practice problems for ${lang.label}. Your code here stays saved.`}
           confirmLabel="Open Learn"
           href={learnHref}
+          label="Learn"
+          align={editorRight ? "left" : "right"}
           className={headerBtn}
         >
           <GraduationCap className="size-3.5" aria-hidden />
-          Learn
+          <span className={labelHide}>Learn</span>
         </ConfirmButton>
       )}
       {playgroundHref && (
         // A whole project to work in, with files and a terminal. Your code
         // here stays saved.
-        <Link href={playgroundHref} prefetch={false} title={`A ${lang.label} project with files and a terminal`} className={headerBtn}>
+        <Link
+          href={playgroundHref}
+          prefetch={false}
+          aria-label="Open playground"
+          title={`A ${lang.label} project with files and a terminal`}
+          className={headerBtn}
+        >
           <FolderCode className="size-3.5" aria-hidden />
-          Open playground
+          <span className={labelHide}>Open playground</span>
         </Link>
       )}
     </>
@@ -653,16 +743,18 @@ export function CompilerApp({
       {/* Main: the editor and output, plus the cheatsheet or challenges panel when it's open */}
       <div
         ref={refGridRef}
+        data-mirror
         className={`flex min-w-0 flex-1 flex-col ${
           refOpen ? "overflow-y-auto lg:grid lg:grid-cols-[var(--ref-left)_9px_minmax(0,1fr)] lg:overflow-hidden" : ""
         }`}
-        style={refOpen ? ({ "--ref-left": paneValue("compiler-ref") } as React.CSSProperties) : undefined}
+        style={refOpen ? ({ "--ref-left": `clamp(${REF.min}%, ${paneValue("compiler-split")}, ${REF.max}%)` } as React.CSSProperties) : undefined}
       >
         {/* Editor | output split. On a phone with a panel open it's a screen
             tall, the panel under it (not flex-1's share, which the panel's
             own height would leave at almost nothing). */}
         <div
           ref={splitRef}
+          data-mirror
           data-split={horizontal ? undefined : "stack"}
           className={`min-h-0 flex-1 ${refOpen ? "max-lg:h-[calc(100dvh_-_var(--header-h))] max-lg:flex-none lg:h-full" : ""} ${
             horizontal
@@ -683,7 +775,9 @@ export function CompilerApp({
                 scroller clips what overflows it, so it gets padding (offset
                 by negative margins) to keep the focus rings whole. */}
             <div className="slim-scroll -mx-1.5 -mt-1.5 flex shrink-0 items-center gap-2 overflow-x-auto px-1.5 pt-1.5 pb-3">
-              <span className="shrink-0 font-mono text-sm font-medium">{lang.fileName}</span>
+              <span className="shrink-0 font-mono text-sm font-medium" title={!challenge && !onMain ? `Run runs ${lang.fileName}` : undefined}>
+                {challenge ? lang.fileName : ws.path}
+              </span>
               {challenge && (
                 <span className="min-w-0 truncate text-xs text-ink-faint">
                   {showingAnswer ? "The answer (read only, your code is kept)" : challenge.title}
@@ -728,7 +822,7 @@ export function CompilerApp({
                     className={`${iconBtn} shrink-0`}
                   />
                 )}
-                {!showingAnswer && (
+                {!showingAnswer && (challenge || onMain) && (
                   <ResetCodeButton
                     label="Reset to the starter code"
                     title="Reset to starter code?"
@@ -783,14 +877,21 @@ export function CompilerApp({
             </div>
             <div className="code-dark flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-code-line bg-code-bg">
               <div className="min-h-0 flex-1">
-                <CmEditor
-                  key={challenge ? `challenge:${challenge.id}:${showingAnswer ? "answer" : "code"}` : "scratch"}
-                  value={editorCode}
-                  language={lang.slug}
-                  onChange={showingAnswer ? noop : updateEditor}
-                  ariaLabel={showingAnswer ? "The answer, read only" : challenge ? `${challenge.title} editor` : `${lang.label} editor`}
-                  readOnly={showingAnswer}
-                />
+                {!challenge && ws.problem ? (
+                  <p className="p-4 font-mono text-sm text-code-gutter" role="status">
+                    {ws.problem}
+                  </p>
+                ) : (
+                  <CmEditor
+                    key={challenge ? `challenge:${challenge.id}:${showingAnswer ? "answer" : "code"}` : `file:${ws.path}`}
+                    value={editorCode}
+                    language={challenge || onMain ? lang.slug : fileLanguage(ws.path)}
+                    onChange={showingAnswer ? noop : updateEditor}
+                    ariaLabel={showingAnswer ? "The answer, read only" : challenge ? `${challenge.title} editor` : onMain ? `${lang.label} editor` : `${ws.path} editor`}
+                    readOnly={showingAnswer}
+                    cursorAt={challenge ? null : cursorAt}
+                  />
+                )}
               </div>
               {/* Side by side, the program's input is the box's last rows (only
                   on wide screens, a phone stacking them). SQL's playground has
@@ -817,12 +918,15 @@ export function CompilerApp({
             onDoubleClick={() => setSplit(PANES[splitPane].initial)}
             onKeyDown={(e) => {
               const step = e.shiftKey ? 10 : 5;
+              // The arrows move the border the way they point, so with the
+              // editor on the right, left grows it.
+              const toward = editorOnRight() ? -1 : 1;
               if (horizontal && e.key === "ArrowLeft") {
                 e.preventDefault();
-                nudgeSplit(-step);
+                nudgeSplit(-step * toward);
               } else if (horizontal && e.key === "ArrowRight") {
                 e.preventDefault();
-                nudgeSplit(step);
+                nudgeSplit(step * toward);
               } else if (!horizontal && e.key === "ArrowUp") {
                 e.preventDefault();
                 nudgeSplit(-step);
@@ -859,12 +963,13 @@ export function CompilerApp({
                 output), or only its label while it holds the panel buttons.
                 SQL's tabs stay, being buttons. */}
             <div
-              className={`slim-scroll -mx-1.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pt-1.5 pb-3 ${
+              data-mirror
+              className={`@container slim-scroll -mx-1.5 -mt-1.5 flex shrink-0 items-center gap-1 overflow-x-auto px-1.5 pt-1.5 pb-3 ${
                 refOpen && !playground ? "hidden" : ""
               }`}
             >
               {playground ? (
-                <div role="tablist" aria-label="Output" className="flex shrink-0 items-center gap-1">
+                <div role="tablist" aria-label="Output" data-mirror className="flex shrink-0 items-center gap-1">
                   {(["results", "database"] as const).map((v) => (
                     <button
                       key={v}
@@ -891,13 +996,14 @@ export function CompilerApp({
                   {checkState ? "Results" : "Output"}
                 </h2>
               )}
-              <div className="ms-auto flex shrink-0 items-center gap-1">
+              <div data-mirror className="ms-auto flex shrink-0 items-center gap-1">
                 {playground && (
                   <ConfirmButton
                     label="Reset the database"
                     title="Reset the database?"
                     description="This puts the sample tables and rows back and drops anything you created."
                     confirmLabel="Reset"
+                    align={editorRight ? "left" : "right"}
                     onConfirm={() => {
                       void import("@/lib/sql/browser")
                         .then((m) => m.resetPlayground())
@@ -983,16 +1089,17 @@ export function CompilerApp({
           <ResizeHandle
             label="Resize the code and the panel"
             value={refPct}
-            min={30}
-            max={75}
+            min={REF.min}
+            max={REF.max}
             step={5}
             bigStep={10}
             onChange={setRefPct}
+            reverse={editorRight}
             onDrag={(x) => {
               const r = refGridRef.current?.getBoundingClientRect();
-              if (r && r.width > 0) setRefPct(((x - r.left) / r.width) * 100);
+              if (r && r.width > 0) setRefPct(((editorOnRight() ? r.right - x : x - r.left) / r.width) * 100);
             }}
-            onReset={() => setRefPct(PANES["compiler-ref"].initial)}
+            onReset={() => setRefPct(PANES["compiler-split"].initial)}
             className="hidden lg:flex"
           />
         )}
@@ -1007,6 +1114,8 @@ export function CompilerApp({
             data={refData}
             error={refError}
             tab={refTab}
+            explorer={<CompilerExplorer store={ws.store} />}
+            terminal={terminalMounted ? <CompilerTerminal store={ws.store} visible={refOpen && refTab === "terminal"} /> : null}
             buttons={refOpen ? panelButtons : null}
             challenge={challenge}
             next={nextChallenge}

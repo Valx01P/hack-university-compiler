@@ -59,12 +59,17 @@ export interface RunExtras {
   env?: Record<string, string>;
   fixtures?: string;
   clock?: string;
+  /** The compiler folder's other files, by path, that go beside the
+      program (app/api/execute says which a language takes). */
+  files?: Record<string, string>;
 }
 
 /** The extras that are set, so a request carries nothing it doesn't use. */
 function defined(extras: RunExtras): RunExtras {
   return Object.fromEntries(
-    Object.entries(extras).filter(([, v]) => v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0))
+    Object.entries(extras).filter(
+      ([, v]) => v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0) && !(v && typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length)
+    )
   );
 }
 
