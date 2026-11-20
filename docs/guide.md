@@ -234,9 +234,15 @@ beside your code.
   tools work there with your own logins. Run `claude` (Claude Code), or any
   other assistant, there and ask what's wrong with your code: the folder
   holds a short note for AI tools (`AGENTS.md`, and `CLAUDE.md` pointing to
-  it) on what the folder is and how Run runs it, and `.hu/last-run.md` holds
-  your last run's input and output. Changes made in the terminal show in the
-  Explorer and the editor at once. It's your computer's shell, outside the
+  it) on what the folder is and how Run runs it, `.hu/editor.md` says what
+  you have open in the editor (the file, or a challenge's code, your cursor,
+  and what you've selected), and `.hu/last-run.md` holds your last run's
+  input and output, so "what's my error?" is enough. When the assistant (or
+  a command) changes your files, the editor shows each change for you to
+  review: removed lines in red, added ones in green, each with Accept and
+  Reject. A bar over the editor says which file, of how many, steps to the
+  next, and has Accept all and Reject all. It works with any assistant, since
+  it follows the files themselves. It's your computer's shell, outside the
   sandbox, so it has no time or memory limits. With tmux installed
   (`brew install tmux` on a Mac), it keeps running when you leave: switch
   pages, close the browser, or restart the app, and opening the Terminal
@@ -485,13 +491,13 @@ colors** (VS Code's terminal colors to begin with, or the editor's, or any
 editor theme's text, background, and 16 colors, for every terminal), **Terminal vividness** (how strong those
 colors are) and **Terminal contrast** (how far they're brightened, or
 darkened on a light background, to stand out from it, keeping their hue:
-the app's contrast level's until you set it), **Terminal line spacing**
+5.5:1 to begin with, and vividness 120%), **Terminal line spacing**
 (the height of a row, as a multiple of its text size: 1.10, with 12px text,
 to begin with, as in VS Code), the **Terminal
 background** and **Explorer background** (the theme's own, see-through with
 the stars, or a color) with their text sizes, **Explorer highlight** (the
-open file's row: the gray, none, or a color, shown as a tint so the names
-stay readable), and **Editor on the right**,
+open file's row: none to begin with, the gray, or a color, shown as a tint
+so the names stay readable), and **Editor on the right**,
 which puts the compiler's editor on the right and the output and the panel
 on the left, their bars a mirror image (the panel's X on the left, then
 Learn back to Explorer, and the Explorer's buttons on the left too). The

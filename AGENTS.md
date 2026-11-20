@@ -81,8 +81,18 @@ before committing it.
   Code keeps running), and opening the Terminal again finds it as you left
   it: the app's own tmux server, out of sight (no status bar, no keys).
   Only `exit`, closing it, or removing the folder ends it.
-  The folder's hidden AGENTS.md and CLAUDE.md tell AI tools what it is, and
-  `.hu/last-run.md` holds the last run.
+  The folder's hidden AGENTS.md and CLAUDE.md tell AI tools what it is (the
+  runner refreshes them with the template, unless the learner edited them),
+  `.hu/editor.md` what the editor has open (the file or a challenge's code,
+  the cursor, the selection), and `.hu/last-run.md` the last run, so "what's
+  my error" needs no file named. Any tool's edits (Claude Code, Codex, any
+  model or harness: it's the files alone) wait for review in the editor
+  (`lib/outside-changes.ts`, `components/compiler/change-review.tsx`):
+  @codemirror/merge's unified view, removed lines red and added green, each
+  change with its Accept and Reject, and a bar over the editor stepping
+  through the files with Accept all and Reject all. Rejecting writes back
+  what was there. The page's own writes (saves, the Explorer's operations,
+  told to it by the store) never count, and it never opens a file by itself.
 - **Teaching lives in Learn mode** (`/<lang>/learn/<lesson>/<part>`): the part
   on the left, the editor on the right, each lesson split into parts with one
   idea, one to three worked examples, and a practice with the same shape.
@@ -153,8 +163,8 @@ before committing it.
   top at 50% cover), the editors on Midnight at 15px, tab size 4, with
   intellisense and matching brackets on and line wrapping off, the terminal
   and the Explorer on their theme backgrounds (the terminal's colors, text
-  12px, and line spacing 1.10 all VS Code's, its vividness 100% and
-  contrast the app's, the Explorer's text 13px and its highlight the gray),
+  12px, and line spacing 1.10 all VS Code's, its vividness 120% and
+  contrast 5.5:1, the Explorer's text 13px and its highlight none),
   the app in Inter and code in JetBrains Mono, and the compiler's editor on
   the left. A setting is stored only when it differs from its default, so
   changing a default means storing the old one by name (like
@@ -197,6 +207,13 @@ before committing it.
 - **Nothing flashes or shifts on load.** Every visual setting is applied to
   `<html>` before first paint (the bootstrap in `app/layout.tsx`), and menus
   read the applied state, so they never show a default for a frame.
+- **Borders drag smoothly:** sizes keep two decimals (never whole-percent
+  steps), a drag applies one move a frame straight to its CSS variable, and
+  React hears the size when it's let go (`holdPaneUpdates` in
+  `lib/pane-size.ts`), saved a moment later. Nothing heavy runs per frame: a
+  terminal refits once its size settles, its shell hears that size once, it
+  re-themes only when its own settings change (not the panes' sizes on
+  `<html>`), and the panel's hidden views skip layout (content-visibility).
 - **A reload keeps your place:** the open panel, the challenge and its hints,
   list filters, the cheatsheet search and section, the SQL view, Learn's tab
   and hints and position, and full screen are in the address. Every
@@ -253,10 +270,11 @@ before committing it.
   `lib/theme.ts`): a background (the theme's own, see-through with the
   stars, or a color, which shows over the stars too) and a text size, for
   every terminal and Explorer, the IDE's included, and the Explorer's
-  highlight (its open file's row, and lighter under the pointer): the gray,
-  none (the row unfilled, its brighter name marking it, a struck-through
-  ring for a swatch), or a color of your own tinted 40% like a selection,
-  so names stay readable. The terminal's colors (Terminal colors) are VS
+  highlight (its open file's row, and lighter under the pointer): none to
+  begin with (the row unfilled, its brighter name marking it, a
+  struck-through ring for a swatch, a row under the pointer the faint
+  gray), the gray (kept by name, `gray`), or a color of your own tinted 40%
+  like a selection, so names stay readable. The terminal's colors (Terminal colors) are VS
   Code's to begin with (its terminal's 16 colors, text, and background,
   vivid where the code themes' bright colors are pastel, which bold prompts
   like Starship's draw in), or the editor's, or any code theme's: that
@@ -266,8 +284,8 @@ before committing it.
   black, and xterm's WebGL addon, which draws a default background behind
   dim and italic cells at full alpha (a box over the sky), is patched to
   draw those clear (`clearDefaultBackgrounds` in terminal-view.tsx). Its
-  colors have a vividness (their chroma) and a contrast (the app level's
-  until set), both in OKLCH (`lib/oklch.ts`): contrast raises a color's
+  colors have a vividness (their chroma, 120% to begin with) and a contrast
+  (5.5:1 to begin with, whatever the app's contrast level), both in OKLCH (`lib/oklch.ts`): contrast raises a color's
   lightness alone, never blending it toward white the way xterm's minimum
   contrast does (pastel, rejected), xterm's left only for what the palette
   doesn't cover. Its line spacing is the theme menu's, any multiple of the
@@ -340,7 +358,7 @@ before committing it.
 ## Decided and rejected
 
 - Rejected: themed hover and active highlights (keep `--raised`; the
-  Explorer highlight is a color you pick yourself, the gray until then), a two-click
+  Explorer highlight is one you pick yourself, none until then), a two-click
   glowing Learn button with no popup (keep the popup), blue done checks in
   Nord and Solarized (keep green), and fills or zebra bands that change with
   the line sliders.
