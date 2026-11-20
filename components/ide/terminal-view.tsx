@@ -6,6 +6,9 @@ import type { Terminal } from "@xterm/xterm";
 import { useIdeSettings } from "@/lib/ide-settings";
 import { attachTerminal, type TerminalSession } from "@/lib/terminal-bridge";
 import type { WorkspaceStore } from "@/lib/workspace-store";
+import { scaleChroma, withContrast } from "@/lib/oklch";
+import { evenCells, terminalFamily } from "@/lib/terminal-font";
+import { APP_TERM_CONTRAST } from "@/lib/theme";
 
 /**
  * One terminal (architecture §8.3), xterm.js 6 loaded only when a terminal
@@ -13,11 +16,20 @@ import type { WorkspaceStore } from "@/lib/workspace-store";
  * session by lib/terminal-bridge.ts.
  *
  * - Colors come from the code theme's CSS variables (the 16 --ansi-* tokens,
- *   the code background and text, the selection, the scrollbar), re-read whenever the
- *   theme, contrast, background, or selection changes. Contrast raises dim
+ *   the code background and text, the selection, the scrollbar), or another
+ *   code theme's when the theme menu picks Terminal colors (.term-colors,
+ *   globals.css), re-read whenever the theme, contrast, background,
+ *   selection, or those change. Contrast raises dim
  *   colors as the terminal draws (1, 4.5:1, 7:1 for Normal, High, Super).
- * - The font is the bundled JetBrains Mono, loaded before the terminal opens
- *   (xterm measures its cells then), at the editor's zoom.
+ * - The theme menu's vividness scales the 16 colors' chroma, and its
+ *   contrast (the app's level's until set) raises the chromatic ones by
+ *   lightness alone (lib/oklch.ts), so they keep their strength, xterm's own
+ *   minimum contrast handling what's left (other text, a program's own RGB).
+ * - The font is the code font (the theme menu's, JetBrains Mono to begin
+ *   with), as lib/terminal-font.ts names it for tight rows, loaded before
+ *   the terminal opens (xterm measures its cells then), at the theme menu's
+ *   size (12px unset), its rows the menu's line spacing (1.1 unset), drawn
+ *   with WebGL so block characters fill their cells.
  * - The screen is kept in sessionStorage as it changes (serialize), so a
  *   reload paints it at once while the session reattaches, and the runner's
  *   replay then puts the real one back.
@@ -27,12 +39,32 @@ import type { WorkspaceStore } from "@/lib/workspace-store";
  *   the editor. No app shortcut fires while a terminal has focus.
  */
 
-const FONT = '"JetBrains Mono Variable", ui-monospace, monospace';
+/** The code font (the theme menu's, globals.css --font-code). */
+const codeFont = () =>
+  getComputedStyle(document.documentElement).getPropertyValue("--font-code").trim() || '"JetBrains Mono Variable", ui-monospace, monospace';
 const ANSI = [
   "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
   "brightBlack", "brightRed", "brightGreen", "brightYellow", "brightBlue", "brightMagenta", "brightCyan", "brightWhite",
 ] as const;
-const CONTRAST: Record<string, number> = { high: 4.5, super: 7 };
+// The colors with a hue (red to cyan, plain and bright): raised to the
+// contrast here. Black, white, and the grays are left to xterm, which judges
+// each against what it's drawn on (black as a background stays black).
+const CHROMATIC = new Set([1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14]);
+
+/** A number the theme menu keeps on <html> (lib/theme.ts), or `fallback`. */
+function htmlNumber(name: string, fallback: number): number {
+  const n = Number.parseFloat(document.documentElement.style.getPropertyValue(name));
+  return Number.isFinite(n) ? n : fallback;
+}
+/** The contrast the terminal's colors keep: its own, else the app level's. */
+const contrastRatio = () =>
+  htmlNumber("--term-contrast", (APP_TERM_CONTRAST[document.documentElement.getAttribute("data-contrast") ?? "normal"] ?? 10) / 10);
+/** The row height, in multiples of the text size (theme menu, 1.1 unset). */
+const lineSpacing = () => Math.min(1.8, Math.max(1, htmlNumber("--term-lh", 1.1)));
+/** xterm's lineHeight and letterSpacing for that spacing, with `family`, at
+    the screen's pixel ratio now: cells an even number of its pixels across
+    and down (lib/terminal-font.ts), so half blocks and quadrants meet. */
+const cellsFor = (family: string) => evenCells(family, fontSize(), lineSpacing());
 
 /** A CSS color (a variable that may hold color-mix()) as #rrggbb. */
 function resolveColor(probe: HTMLElement, value: string, fallback: string): string {
@@ -79,11 +111,15 @@ function themeFrom(host: HTMLElement) {
       inkPercent ? `color-mix(in oklab, var(--scrollbar, #4d4d4d) ${100 - inkPercent}%, var(--code-ink, #f0ece6))` : "var(--scrollbar, #4d4d4d)",
       "#4d4d4d"
     );
-  const solid = v("--code-bg", "#0a0a0a");
-  // With the stars on (lib/theme.ts) the terminal is see-through like the rest
-  // of the app. Its own color stays in the rgb, for the contrast checks, and
-  // the cursor keeps it solid.
-  const background = document.documentElement.hasAttribute("data-stars") ? `${solid}00` : solid;
+  // The terminal's own background from the theme menu (lib/theme.ts): a
+  // color, or (nothing set) the code background, which is see-through like
+  // the rest of the app with the stars on. A see-through background keeps
+  // its color in the rgb, for the contrast checks, and the cursor keeps it
+  // solid.
+  const own = document.documentElement.hasAttribute("data-term-bg");
+  const solid = own ? v("--term-bg", v("--code-bg", "#0a0a0a")) : v("--code-bg", "#0a0a0a");
+  const clear = !own && document.documentElement.hasAttribute("data-stars");
+  const background = clear ? `${solid}00` : solid;
   const foreground = v("--code-ink", "#f0ece6");
   const theme: Record<string, string> = {
     background,
@@ -95,15 +131,25 @@ function themeFrom(host: HTMLElement) {
     scrollbarSliderHoverBackground: thumb(20),
     scrollbarSliderActiveBackground: thumb(35),
   };
-  ANSI.forEach((name, i) => (theme[name] = v(`--ansi-${i}`, "#888888")));
+  const vivid = htmlNumber("--term-vivid", 1);
+  const ratio = contrastRatio();
+  ANSI.forEach((name, i) => {
+    let color = v(`--ansi-${i}`, "#888888");
+    if (vivid !== 1) color = scaleChroma(color, vivid);
+    if (CHROMATIC.has(i)) color = withContrast(color, solid, ratio);
+    theme[name] = color;
+  });
   probe.remove();
   return theme;
 }
 
-const fontSize = () => {
-  const px = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--code-user-fs"));
-  return Number.isFinite(px) ? Math.min(22, Math.max(11, px)) : 15;
-};
+/** The room the terminal keeps on its right for its scrollbar: none to
+    speak of while the theme menu hides scrollbars (xterm's 14px default
+    otherwise), so lines wrap at the edge you see. The fit reads it too. */
+const scrollbarRoom = () => (document.documentElement.getAttribute("data-scrollbars") === "hidden" ? { width: 1 } : {});
+
+/** The terminal's text size from the theme menu, 12px unset (VS Code's). */
+const fontSize = () => Math.min(22, Math.max(11, htmlNumber("--term-fs", 12)));
 
 const cacheKey = (sid: string) => `hu-term-screen:${sid}`;
 
@@ -151,27 +197,31 @@ export function TerminalView({
     const cleanups: (() => void)[] = [];
 
     void (async () => {
-      const [{ Terminal }, { FitAddon }, { WebLinksAddon }, { SerializeAddon }] = await Promise.all([
+      const [{ Terminal }, { FitAddon }, { WebLinksAddon }, { SerializeAddon }, { WebglAddon }] = await Promise.all([
         import("@xterm/xterm"),
         import("@xterm/addon-fit"),
         import("@xterm/addon-web-links"),
         import("@xterm/addon-serialize"),
+        import("@xterm/addon-webgl"),
       ]);
       // xterm measures its cells when it opens: the font must be there.
-      await document.fonts?.load(`13px ${FONT}`).catch(() => {});
+      let font = codeFont();
+      let family = await terminalFamily(font);
+      await document.fonts?.load(`13px ${family}`).catch(() => {});
       if (disposed) return;
-      const contrast = document.documentElement.getAttribute("data-contrast") ?? "";
       term = new Terminal({
-        fontFamily: FONT,
+        fontFamily: family,
         fontSize: fontSize(),
-        lineHeight: 1.2,
+        // The theme menu's line spacing, in cells of even sizes.
+        ...cellsFor(family),
         scrollback: 5000,
         cursorBlink: !readOnly,
         disableStdin: readOnly,
         macOptionIsMeta: live.current.settings.optionIsMeta,
         screenReaderMode: live.current.settings.screenReader,
-        minimumContrastRatio: CONTRAST[contrast] ?? 1,
+        minimumContrastRatio: contrastRatio(),
         theme: themeFrom(host),
+        overviewRuler: scrollbarRoom(),
         allowTransparency: true,
         allowProposedApi: false,
       });
@@ -221,6 +271,26 @@ export function TerminalView({
         return true;
       });
       term.open(host);
+      // Drawn with WebGL, as VS Code's terminal is: block and box characters
+      // drawn to fill their cells exactly (a TUI's logo, its borders), not
+      // taken from a fallback font, which leaves hairlines between rows and
+      // runs wide. Without WebGL (or its context lost), xterm's own DOM
+      // renderer draws instead.
+      try {
+        const webgl = new WebglAddon();
+        webgl.onContextLoss(() => webgl.dispose());
+        term.loadAddon(webgl);
+        // It sizes its canvas by the screen's own pixels and lays out by
+        // devicePixelRatio. A browser whose two disagree (emulated scaling)
+        // gets a blank terminal, so there it's the DOM renderer.
+        const check = window.setTimeout(() => {
+          const canvas = host.querySelector<HTMLCanvasElement>(".xterm-screen canvas:not(.xterm-link-layer)");
+          if (canvas && canvas.clientWidth > 0 && Math.abs(canvas.width - canvas.clientWidth * window.devicePixelRatio) > 2) webgl.dispose();
+        }, 600);
+        cleanups.push(() => window.clearTimeout(check));
+      } catch {
+        /* no WebGL here */
+      }
       fitRef.current = fit;
       // The screen from before a reload, at once, until the replay lands.
       try {
@@ -270,16 +340,56 @@ export function TerminalView({
       });
       handleRef?.({ session, term, focus: () => term?.focus() });
 
-      // Re-theme when the code theme, contrast, background, selection, or the
-      // stars change.
+      // Re-theme when the code theme, contrast, background, selection, the
+      // terminal's own colors, line spacing, or the stars change.
+      /** The cells' size again (the text size, spacing, font, or the
+          screen's pixel ratio changed). */
+      const recell = () => {
+        if (!term) return;
+        const { lineHeight, letterSpacing } = cellsFor(family);
+        if (term.options.lineHeight !== lineHeight) term.options.lineHeight = lineHeight;
+        if (term.options.letterSpacing !== letterSpacing) term.options.letterSpacing = letterSpacing;
+      };
+      // The pixel ratio changes with the browser's zoom, or a move to
+      // another screen.
+      let ratio: MediaQueryList | null = null;
+      const onRatio = () => {
+        recell();
+        if (host.offsetWidth > 0) fit.fit();
+        watchRatio();
+      };
+      const watchRatio = () => {
+        ratio?.removeEventListener("change", onRatio);
+        ratio = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+        ratio.addEventListener("change", onRatio);
+      };
+      watchRatio();
+      cleanups.push(() => ratio?.removeEventListener("change", onRatio));
       const observer = new MutationObserver(() => {
         if (!term) return;
         term.options.theme = themeFrom(host);
-        term.options.minimumContrastRatio = CONTRAST[document.documentElement.getAttribute("data-contrast") ?? ""] ?? 1;
+        term.options.minimumContrastRatio = contrastRatio();
         term.options.fontSize = fontSize();
+        recell();
+        term.options.overviewRuler = scrollbarRoom();
         if (host.offsetWidth > 0) fit.fit();
+        // Another code font: the terminal's own of it, once it's loaded.
+        const next = codeFont();
+        if (next === font) return;
+        font = next;
+        void terminalFamily(next).then(async (made) => {
+          await document.fonts?.load(`13px ${made}`).catch(() => {});
+          if (!term || font !== next) return;
+          family = made;
+          term.options.fontFamily = made;
+          recell();
+          if (host.offsetWidth > 0) fit.fit();
+        });
       });
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-code-theme", "data-contrast", "data-code-bg", "data-code-sel", "data-stars", "style"] });
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-theme", "data-code-theme", "data-contrast", "data-code-bg", "data-code-sel", "data-stars", "data-term-bg", "data-term-colors", "data-font-code", "data-scrollbars", "style"],
+      });
       const sized = new ResizeObserver(() => {
         if (host.offsetWidth > 0 && host.offsetHeight > 0) requestAnimationFrame(() => fit.fit());
       });
@@ -314,8 +424,15 @@ export function TerminalView({
   }, [visible]);
 
   return (
-    <div className={`code-dark relative h-full min-h-0 bg-code-bg ${visible ? "" : "hidden"}`} role="region" aria-label={label}>
-      <div ref={hostRef} data-terminal className="h-full min-h-0 py-1 pl-2" />
+    <div className={`code-dark term-surface term-colors relative h-full min-h-0 ${visible ? "" : "hidden"}`} role="region" aria-label={label}>
+      {/* The padding sits outside the element the terminal measures, so its
+          columns fit what's left (Tailwind's boxes count padding in their
+          width). Its top puts the first row's text level with an editor's
+          first line beside it (the compiler's panel), at any line spacing
+          (.term-pad, globals.css). */}
+      <div className="term-pad h-full min-h-0 px-3 pb-2">
+        <div ref={hostRef} data-terminal className="h-full min-h-0" />
+      </div>
       {watching && !ended && (
         <p className="absolute inset-x-0 top-0 flex items-center gap-2 bg-code-bg/95 px-3 py-1 font-mono text-xs text-code-gutter" role="status">
           Another tab is typing in this terminal, so this one only watches.

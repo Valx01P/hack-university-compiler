@@ -148,7 +148,7 @@ export function CheatsheetView({ lang, sections, langLabel }: { lang: string; se
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-content-line px-3 py-2">
+      <div data-mirror className="flex shrink-0 items-center gap-2 border-b border-content-line px-3 py-2">
         <label className="relative flex min-w-0 flex-1 items-center">
           <span className="sr-only">Search the {langLabel} cheatsheet</span>
           <Search className="pointer-events-none absolute left-2.5 size-3.5 text-ink-faint" aria-hidden />

@@ -19,6 +19,7 @@ export function ResizeHandle({
   onDrag,
   onReset,
   quiet = false,
+  reverse = false,
   orientation = "vertical",
   className = "",
 }: {
@@ -34,6 +35,9 @@ export function ResizeHandle({
   onReset: () => void;
   /** No line until hovered or focused, for a border at the panel's edge. */
   quiet?: boolean;
+  /** The value grows leftward (the share of what's on the right): the
+      arrow keys still move the border the way they point. */
+  reverse?: boolean;
   /** "vertical" (the default) drags sideways, "horizontal" up and down. */
   orientation?: "vertical" | "horizontal";
   className?: string;
@@ -65,7 +69,7 @@ export function ResizeHandle({
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    const by = e.shiftKey ? bigStep : step;
+    const by = (e.shiftKey ? bigStep : step) * (reverse && !across ? -1 : 1);
     const next =
       e.key === (across ? "ArrowUp" : "ArrowLeft") ? value - by
       : e.key === (across ? "ArrowDown" : "ArrowRight") ? value + by

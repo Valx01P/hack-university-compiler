@@ -55,7 +55,8 @@ const keepFocusFeature: FeatureImplementation = {
     },
   },
 };
-const ROW = "group relative flex h-[22px] cursor-pointer select-none items-center gap-1 pr-2 text-[13px] leading-[22px] outline-none";
+// Rows as tall as the Explorer's text size calls for (22px at the default 13px, globals.css .explorer-surface).
+const ROW = "group relative flex h-(--explorer-row) cursor-pointer select-none items-center gap-1 pr-2 text-(length:--explorer-text) leading-(--explorer-row) outline-none";
 
 type Creating = { parent: string; kind: "file" | "dir" } | null;
 type Menu = { path: string; x: number; y: number; confirmDelete?: boolean } | null;
@@ -64,8 +65,16 @@ export function Explorer({
   store,
   onRevealInTerminal,
   hiddenFiles = false,
+  heading = "Explorer",
+  mirror = false,
 }: {
   store: WorkspaceStore;
+  /** What the header says: "Explorer" in the IDE, and nothing where a tab
+      already says Explorer (the compiler's panel), only its buttons. */
+  heading?: string;
+  /** The header flips with the editor on the right (the compiler's panel,
+      globals.css [data-mirror]): its buttons on the left, in mirror order. */
+  mirror?: boolean;
   /** cd into a folder in the terminal. */
   onRevealInTerminal?: (dir: string) => void;
   /** Show .git and the template's other hidden paths. */
@@ -243,9 +252,13 @@ export function Explorer({
   const iconBtn = "inline-flex size-6 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink";
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface">
-      <div className="flex h-8 shrink-0 items-center gap-1 border-b border-line pl-3 pr-1.5">
-        <h2 className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-ink-faint dark:text-gold">Explorer</h2>
+    <div className="explorer-surface flex h-full min-h-0 flex-col">
+      <div data-mirror={mirror || undefined} className="flex h-8 shrink-0 items-center gap-1 border-b border-line ps-3 pe-1.5">
+        {heading ? (
+          <h2 className="min-w-0 flex-1 truncate text-xs font-medium uppercase tracking-wider text-ink-faint dark:text-gold">{heading}</h2>
+        ) : (
+          <span className="flex-1" />
+        )}
         <button type="button" onClick={() => startCreating("file")} className={iconBtn} title="New file (Alt+N)" aria-label="New file">
           <FilePlus className="size-3.5" aria-hidden />
         </button>
@@ -268,10 +281,11 @@ export function Explorer({
         ref={containerRef}
         {...tree.getContainerProps("Files")}
         onContextMenu={(e) => {
+          // A row's menu, or, on the empty space around them, the folder's
+          // own (new files and folders at the top, as in VS Code).
           const row = (e.target as HTMLElement).closest<HTMLElement>("[data-path]");
-          if (!row) return;
           e.preventDefault();
-          setMenu({ path: row.dataset.path!, x: e.clientX, y: e.clientY });
+          setMenu({ path: row?.dataset.path ?? "", x: e.clientX, y: e.clientY });
         }}
         className="slim-scroll min-h-0 flex-1 overflow-auto py-1 outline-none"
       >
@@ -381,11 +395,16 @@ function Row({
       title={title}
       style={{ paddingLeft: pad }}
       className={`${ROW} ${
-        active ? "bg-raised text-ink" : "text-ink-muted hover:bg-raised/70 hover:text-ink"
+        active ? "bg-(--explorer-active) text-ink" : "text-ink-muted hover:bg-(--explorer-hover) hover:text-ink"
       } ${item.isFocused() ? "focus-visible:outline-2 focus-visible:-outline-offset-2" : ""} ${
         item.isDragTarget() ? "bg-accent/40" : ""
       } ${node?.lazy ? "opacity-60" : ""}`}
     >
+      {/* Indent guides, as VS Code draws them: a line down from each
+          folder this row sits in, through its chevron. */}
+      {Array.from({ length: level }, (_, i) => (
+        <span key={i} aria-hidden className="pointer-events-none absolute inset-y-0 w-px bg-(--explorer-guide)" style={{ left: 15 + i * 12 }} />
+      ))}
       <span className="inline-flex w-3.5 shrink-0 justify-center text-ink-faint">
         {folder ? open ? <ChevronDown className="size-3.5" aria-hidden /> : <ChevronRight className="size-3.5" aria-hidden /> : null}
       </span>
@@ -395,7 +414,7 @@ function Row({
           {...item.getRenameInputProps()}
           spellCheck={false}
           autoComplete="off"
-          className="h-[20px] min-w-0 flex-1 rounded-[3px] border border-ink bg-canvas px-1 font-sans text-base text-ink outline-none sm:text-[13px]"
+          className="h-[calc(var(--explorer-row)-2px)] min-w-0 flex-1 rounded-[3px] bg-canvas px-1 font-sans text-base text-ink outline-none sm:text-(length:--explorer-text)"
         />
       ) : (
         <span className={`min-w-0 flex-1 truncate ${state ? "text-ink" : ""}`}>
@@ -469,7 +488,7 @@ function NewRow({ store, creating, pad, onDone }: { store: WorkspaceStore; creat
           aria-label={creating.kind === "dir" ? "New folder name" : "New file name (a/b/c.ts makes the folders)"}
           aria-invalid={error !== null}
           placeholder={creating.kind === "dir" ? "folder name" : "file name, or a/b/c.ts"}
-          className="h-[20px] min-w-0 flex-1 rounded-[3px] border border-ink bg-canvas px-1 font-sans text-base text-ink outline-none placeholder:text-ink-faint sm:text-[13px]"
+          className="h-[calc(var(--explorer-row)-2px)] min-w-0 flex-1 rounded-[3px] bg-canvas px-1 font-sans text-base text-ink outline-none placeholder:text-ink-faint sm:text-(length:--explorer-text)"
         />
       </div>
       {error && (
@@ -518,19 +537,29 @@ function RowMenu({
     fn();
     onClose();
   };
-  const items: { label: string; run: () => void; hint?: string }[] = [
-    { label: "New file…", run: () => onNew("file", dir) },
-    { label: "New folder…", run: () => onNew("dir", dir) },
-    { label: "Rename…", hint: "F2", run: () => onRename(menu.path) },
-    ...(!folder ? [{ label: "Duplicate", run: act(() => void store.duplicate(menu.path)) }] : []),
-    { label: "Copy path", run: act(() => void navigator.clipboard?.writeText(`/workspace/${menu.path}`)) },
-    { label: "Copy relative path", run: act(() => void navigator.clipboard?.writeText(menu.path)) },
-    ...(onReveal ? [{ label: "Reveal in terminal", run: act(() => onReveal(dir)) }] : []),
-    ...(changed && inOriginal
-      ? [{ label: folder ? "Reset folder to the original" : "Reset to the original", run: act(() => void store.reset(folder ? "dir" : "file", menu.path)) }]
-      : []),
-    { label: "Delete…", hint: "Del", run: () => setConfirm(true) },
-  ];
+  // The folder's own menu (the empty space): what makes something in it.
+  const root = menu.path === "";
+  // The compiler's folders are on this computer, not at /workspace.
+  const inContainer = !store.scope.startsWith("compiler/");
+  const items: { label: string; run: () => void; hint?: string }[] = root
+    ? [
+        { label: "New file…", run: () => onNew("file", "") },
+        { label: "New folder…", run: () => onNew("dir", "") },
+        { label: "Collapse folders", run: act(() => store.setExpanded([])) },
+      ]
+    : [
+        { label: "New file…", run: () => onNew("file", dir) },
+        { label: "New folder…", run: () => onNew("dir", dir) },
+        { label: "Rename…", hint: "F2", run: () => onRename(menu.path) },
+        ...(!folder ? [{ label: "Duplicate", run: act(() => void store.duplicate(menu.path)) }] : []),
+        ...(inContainer ? [{ label: "Copy path", run: act(() => void navigator.clipboard?.writeText(`/workspace/${menu.path}`)) }] : []),
+        { label: "Copy relative path", run: act(() => void navigator.clipboard?.writeText(menu.path)) },
+        ...(onReveal ? [{ label: "Reveal in terminal", run: act(() => onReveal(dir)) }] : []),
+        ...(changed && inOriginal
+          ? [{ label: folder ? "Reset folder to the original" : "Reset to the original", run: act(() => void store.reset(folder ? "dir" : "file", menu.path)) }]
+          : []),
+        { label: "Delete…", hint: "Del", run: () => setConfirm(true) },
+      ];
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     const list = [...(ref.current?.querySelectorAll<HTMLElement>("[role=menuitem], button") ?? [])];
@@ -552,7 +581,7 @@ function RowMenu({
       ref={ref}
       data-popup
       role={confirm ? "dialog" : "menu"}
-      aria-label={confirm ? `Delete ${menu.path}` : `Actions for ${menu.path}`}
+      aria-label={confirm ? `Delete ${menu.path}` : root ? "Actions for the folder" : `Actions for ${menu.path}`}
       onKeyDown={onKeyDown}
       style={{ position: "fixed", left: x, top: y }}
       className="z-[150] w-56 rounded-card border border-edge bg-surface p-1 text-sm shadow-[var(--shadow-card)]"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useSyncExternalStore, type ReactNode } from "react";
-import { CODE_BG_PRESETS, CODE_SEL_PRESETS, codeBackground, codeSelection } from "@/lib/theme";
+import { CODE_BG_PRESETS, CODE_SEL_PRESETS, SURFACE_NONE, codeBackground, codeSelection, explorerBackground, explorerHighlight, termBackground } from "@/lib/theme";
 
 /** WCAG relative luminance of a #rrggbb color. */
 function luminance(hex: string): number {
@@ -28,10 +28,11 @@ function mix(top: string, bottom: string, amount: number): string {
 }
 
 /** The code surfaces' text and background colors right now (the editor
-    theme's, with the code background setting applied), as #rrggbb. */
-function codeColors(): { ink: string | null; bg: string | null } {
+    theme's, with the code background setting applied), as #rrggbb, or a
+    terminal's (its own colors, when the theme menu gave it some). */
+function codeColors(terminal = false): { ink: string | null; bg: string | null } {
   const probe = document.createElement("div");
-  probe.className = "code-dark";
+  probe.className = terminal ? "code-dark term-colors" : "code-dark";
   probe.hidden = true;
   document.body.appendChild(probe);
   const style = getComputedStyle(probe);
@@ -54,7 +55,7 @@ const subscribeCodeColors = (notify: () => void) => {
   const observer = new MutationObserver(notify);
   observer.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["data-code-theme", "data-contrast", "data-code-bg", "style"],
+    attributeFilter: ["data-theme", "data-code-theme", "data-contrast", "data-code-bg", "data-term-colors", "style"],
   });
   return () => observer.disconnect();
 };
@@ -67,8 +68,8 @@ function useColorWarning(
   const snapshot = () => {
     if (!color) return null;
     const d = document.documentElement;
-    const key = `${kind}|${color}|${d.getAttribute("data-code-theme")}|${d.getAttribute("data-contrast")}|${d.style.getPropertyValue("--code-bg-override")}`;
-    if (!warningCache.has(key)) warningCache.set(key, judge(color, codeColors()));
+    const key = `${kind}|${color}|${d.getAttribute("data-code-theme")}|${d.getAttribute("data-contrast")}|${d.getAttribute("data-term-colors")}|${d.style.getPropertyValue("--code-bg-override")}`;
+    if (!warningCache.has(key)) warningCache.set(key, judge(color, codeColors(kind === "terminal")));
     return warningCache.get(key) ?? null;
   };
   return useSyncExternalStore(subscribeCodeColors, snapshot, () => null);
@@ -78,6 +79,10 @@ function judgeBackground(bg: string, { ink }: ReturnType<typeof codeColors>): st
   return ink && contrast(bg, ink) < 4.5
     ? "The editor theme's text is hard to read on this color. Try another background or editor theme."
     : null;
+}
+
+function judgeTerminalBackground(bg: string, { ink }: ReturnType<typeof codeColors>): string | null {
+  return ink && contrast(bg, ink) < 4.5 ? "The terminal's text is hard to read on this color. Try another background or terminal colors." : null;
 }
 
 // How strongly a selection color shows over the background (globals.css).
@@ -109,6 +114,7 @@ function ColorSwatches({
   warning,
   compact,
   scope = "",
+  noneLabel,
 }: {
   label: string;
   value: string | null;
@@ -125,10 +131,12 @@ function ColorSwatches({
   compact: boolean;
   /** Classes for the swatch row, for colors that only resolve there. */
   scope?: string;
+  /** A swatch for no color at all (SURFACE_NONE), named this. */
+  noneLabel?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const id = useId();
-  const customOn = value !== null && !presets.some((p) => p.value === value);
+  const customOn = value !== null && value !== SURFACE_NONE && !presets.some((p) => p.value === value);
   const remembered = customOn ? value : custom;
 
   const swatch = (active: boolean) =>
@@ -152,6 +160,20 @@ function ColorSwatches({
         >
           {themeSwatch}
         </button>
+        {noneLabel && (
+          // An empty ring, struck through.
+          <button
+            type="button"
+            role="radio"
+            aria-checked={value === SURFACE_NONE}
+            onClick={() => onPick(SURFACE_NONE)}
+            title={noneLabel}
+            aria-label={noneLabel}
+            className={swatch(value === SURFACE_NONE)}
+          >
+            <span aria-hidden className="absolute inset-0 m-auto h-px w-[70%] -rotate-45 rounded-full bg-ink-muted" />
+          </button>
+        )}
         {presets.map((p) => (
           <button
             key={p.value}
@@ -210,7 +232,7 @@ function useRememberCustom(
   custom: string | null
 ) {
   useEffect(() => {
-    if (value && !presets.some((p) => p.value === value) && value !== custom) setting.saveCustom(value);
+    if (value && value !== SURFACE_NONE && !presets.some((p) => p.value === value) && value !== custom) setting.saveCustom(value);
   }, [setting, value, presets, custom]);
 }
 
@@ -284,6 +306,128 @@ export function SelectionColorPicker({ compact = false }: { compact?: boolean })
       // The editor theme's colors (with the code background) resolve on a
       // code surface, and this one keeps the theme's own selection.
       scope="code-dark code-sel-own"
+    />
+  );
+}
+
+/** The page's text color right now, as #rrggbb. */
+function pageInk(): string | null {
+  const v = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(v) ? v : null;
+}
+
+function judgeExplorer(bg: string): string | null {
+  const ink = pageInk();
+  return ink && contrast(bg, ink) < 4.5 ? "The file names are hard to read on this color. Try another one." : null;
+}
+
+// How strongly the Explorer's highlight shows over its background (globals.css).
+const HIGHLIGHT_STRENGTH = 0.4;
+
+/** The Explorer's background right now (its own color, else the panel's), as #rrggbb. */
+function explorerBase(): string | null {
+  const d = document.documentElement;
+  const own = d.hasAttribute("data-explorer-bg") ? d.style.getPropertyValue("--explorer-bg").trim().toLowerCase() : "";
+  const v = own || getComputedStyle(d).getPropertyValue("--surface").trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(v) ? v : null;
+}
+
+function judgeHighlight(color: string): string | null {
+  if (color === SURFACE_NONE) return null;
+  const ink = pageInk();
+  const base = explorerBase();
+  if (!ink || !base) return null;
+  return contrast(mix(color, base, HIGHLIGHT_STRENGTH), ink) < 4.5 ? "The open file's name is hard to read on this color. Try another one." : null;
+}
+
+/**
+ * Swatches for the Explorer's highlight, its open file's row: the gray (the
+ * theme's own), none (the row unfilled), the selection's presets, and a
+ * custom color, each shown as the tint it gives. It applies to every
+ * Explorer, the IDE's too.
+ */
+export function ExplorerHighlightPicker({ compact = false }: { compact?: boolean }) {
+  const value = explorerHighlight.use();
+  const custom = explorerHighlight.useCustom();
+  const warning = useSyncExternalStore(subscribeCodeColors, () => (value ? judgeHighlight(value) : null), () => null);
+  useRememberCustom(explorerHighlight, value, CODE_SEL_PRESETS, custom);
+  return (
+    <ColorSwatches
+      label="Explorer highlight"
+      value={value}
+      presets={CODE_SEL_PRESETS}
+      custom={custom}
+      onPick={explorerHighlight.set}
+      onPickCustom={(color) => {
+        explorerHighlight.set(color);
+        explorerHighlight.saveCustom(color);
+      }}
+      themeSwatch={<span aria-hidden className="size-full rounded-full bg-raised" />}
+      noneLabel="None"
+      look={(color) => `color-mix(in oklab, ${color} ${HIGHLIGHT_STRENGTH * 100}%, var(--surface))`}
+      warning={warning}
+      compact={compact}
+    />
+  );
+}
+
+/**
+ * Swatches for the terminal's own background (the theme menu): the theme's
+ * own (its colors' background, see-through with the stars), the code
+ * background's presets, and a custom color. It applies live to every terminal, the IDE's too.
+ */
+export function TerminalBackgroundPicker({ compact = false }: { compact?: boolean }) {
+  const value = termBackground.use();
+  const custom = termBackground.useCustom();
+  const warning = useColorWarning("terminal", value, judgeTerminalBackground);
+  useRememberCustom(termBackground, value, CODE_BG_PRESETS, custom);
+  return (
+    <ColorSwatches
+      label="Terminal background"
+      value={value}
+      presets={CODE_BG_PRESETS}
+      custom={custom}
+      onPick={termBackground.set}
+      onPickCustom={(color) => {
+        termBackground.set(color);
+        termBackground.saveCustom(color);
+      }}
+      // The theme's own, as it shows: the terminal's background (its own
+      // colors', or the code background), or nothing there (an empty ring)
+      // while the stars make it see-through.
+      themeSwatch={<span aria-hidden className="code-dark term-colors theme-surface-swatch size-full rounded-full bg-(--code-bg)" />}
+      look={(color) => color}
+      warning={warning}
+      compact={compact}
+    />
+  );
+}
+
+/**
+ * Swatches for the Explorer's own background: the theme's own (the panel's,
+ * see-through with the stars), a few presets, and a custom color. It applies to every
+ * Explorer, the IDE's too.
+ */
+export function ExplorerBackgroundPicker({ compact = false }: { compact?: boolean }) {
+  const value = explorerBackground.use();
+  const custom = explorerBackground.useCustom();
+  const warning = useSyncExternalStore(subscribeCodeColors, () => (value ? judgeExplorer(value) : null), () => null);
+  useRememberCustom(explorerBackground, value, CODE_BG_PRESETS, custom);
+  return (
+    <ColorSwatches
+      label="Explorer background"
+      value={value}
+      presets={CODE_BG_PRESETS}
+      custom={custom}
+      onPick={explorerBackground.set}
+      onPickCustom={(color) => {
+        explorerBackground.set(color);
+        explorerBackground.saveCustom(color);
+      }}
+      themeSwatch={<span aria-hidden className="theme-surface-swatch size-full rounded-full bg-surface" />}
+      look={(color) => color}
+      warning={warning}
+      compact={compact}
     />
   );
 }

@@ -656,3 +656,236 @@ export const CLOUDS_AMOUNT_KEY = "hu-clouds-amount";
 const cloudsAmount = percentSetting(CLOUDS_AMOUNT_KEY, "--clouds-amount", 50);
 export const setCloudsAmount = cloudsAmount.set;
 export const useCloudsAmount = cloudsAmount.use;
+
+/**
+ * The terminal's and the Explorer's own look, under the theme menu's two
+ * columns, each applied to <html> before first paint (app/layout.tsx):
+ *
+ * - The terminal's colors: the editor's (nothing saved) or a code theme's
+ *   (termColors, below).
+ * - Background: the theme's own (nothing saved: the terminal's is the code
+ *   background, the Explorer's the panel's, and both go see-through with the
+ *   stars like every large surface) or a color, which shows even with the
+ *   stars. <html data-term-bg> and data-explorer-bg mark one as set, and
+ *   --term-bg and --explorer-bg carry the color.
+ * - The Explorer's highlight, its open file's row: the gray (nothing saved),
+ *   none (data-explorer-hl="none"), or a color (data-explorer-hl,
+ *   --explorer-hl), tinted like a selection.
+ * - Text size in px: the terminal's starts at 12 (--term-fs), and the
+ *   Explorer's at 13 (--explorer-fs).
+ * - The terminal's line spacing (--term-lh), and its colors' vividness
+ *   (--term-vivid) and contrast (--term-contrast, unset the app's level's).
+ */
+export type SurfaceColor = string | null;
+
+/** A surface setting's "none" (with `none`): no color at all (the Explorer
+    highlight's, <html data-explorer-hl="none">). */
+export const SURFACE_NONE = "none";
+
+function surfaceSetting(key: string, attr: string, cssVar: string, { none = false } = {}) {
+  const event = `hu:${key}-changed`;
+  const customKey = `${key}-custom`;
+  const customEvent = `hu:${customKey}-changed`;
+  const parse = (value: string | null | undefined): SurfaceColor => (none && value === SURFACE_NONE ? SURFACE_NONE : toHexColor(value));
+
+  function apply(value: SurfaceColor) {
+    const d = document.documentElement;
+    if (value === SURFACE_NONE) {
+      d.setAttribute(attr, SURFACE_NONE);
+      d.style.removeProperty(cssVar);
+    } else if (value) {
+      d.setAttribute(attr, "");
+      d.style.setProperty(cssVar, value);
+    } else {
+      d.removeAttribute(attr);
+      d.style.removeProperty(cssVar);
+    }
+  }
+
+  /** Set it (null: the theme's own), persist it, and broadcast. */
+  function set(value: SurfaceColor) {
+    const parsed = parse(value);
+    apply(parsed);
+    try {
+      if (parsed) localStorage.setItem(key, parsed);
+      else localStorage.removeItem(key);
+      window.dispatchEvent(new Event(event));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function current(): SurfaceColor {
+    const d = document.documentElement;
+    if (!d.hasAttribute(attr)) return null;
+    if (none && d.getAttribute(attr) === SURFACE_NONE) return SURFACE_NONE;
+    return toHexColor(d.style.getPropertyValue(cssVar).trim());
+  }
+
+  const subscribe = subscribeTo(event, key, (stored) => apply(parse(stored)));
+  function use(): SurfaceColor {
+    return useSyncExternalStore(subscribe, current, () => null);
+  }
+
+  function saveCustom(value: string) {
+    const color = toHexColor(value);
+    if (!color) return;
+    try {
+      localStorage.setItem(customKey, color);
+      window.dispatchEvent(new Event(customEvent));
+    } catch {
+      /* ignore */
+    }
+  }
+  const readCustom = () => {
+    try {
+      return toHexColor(localStorage.getItem(customKey));
+    } catch {
+      return null;
+    }
+  };
+  const subscribeCustom = subscribeTo(customEvent, customKey);
+  function useCustom(): string | null {
+    return useSyncExternalStore(subscribeCustom, readCustom, () => null);
+  }
+
+  return { set, use, saveCustom, useCustom };
+}
+
+/** A text size in px, between `min` and `max`, kept as a variable on
+    <html>. Null (nothing saved) is the default the CSS falls back to. With
+    a `scale`, it's a whole number of 1/scale steps instead (130 for a line
+    spacing of 1.3), its variable the number itself, unitless. */
+function sizeSetting(key: string, cssVar: string, min: number, max: number, { scale = 1, unit = "px" } = {}) {
+  const event = `hu:${key}-changed`;
+  const parse = (value: unknown): number | null => {
+    const n = Math.round(Number(value));
+    return Number.isFinite(n) && n >= min && n <= max ? n : null;
+  };
+  const apply = (px: number | null) => {
+    if (px === null) document.documentElement.style.removeProperty(cssVar);
+    else document.documentElement.style.setProperty(cssVar, `${px / scale}${unit}`);
+  };
+  const current = () => {
+    const raw = Number.parseFloat(document.documentElement.style.getPropertyValue(cssVar));
+    return Number.isFinite(raw) ? parse(raw * scale) : null;
+  };
+
+  /** Set it (null: the default), persist it, and broadcast. */
+  function set(px: number | null) {
+    const value = px === null ? null : parse(px);
+    apply(value);
+    try {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, String(value));
+      window.dispatchEvent(new Event(event));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const subscribe = subscribeTo(event, key, (stored) => apply(parse(stored)));
+  function use(): number | null {
+    return useSyncExternalStore(subscribe, current, () => null);
+  }
+
+  return { set, use, min, max };
+}
+
+export const TERM_BG_KEY = "hu-term-bg";
+export const termBackground = surfaceSetting(TERM_BG_KEY, "data-term-bg", "--term-bg");
+export const EXPLORER_BG_KEY = "hu-explorer-bg";
+export const explorerBackground = surfaceSetting(EXPLORER_BG_KEY, "data-explorer-bg", "--explorer-bg");
+// The open file's row: the gray highlight, none, or a color, tinted (globals.css).
+export const EXPLORER_HL_KEY = "hu-explorer-hl";
+export const explorerHighlight = surfaceSetting(EXPLORER_HL_KEY, "data-explorer-hl", "--explorer-hl", { none: true });
+
+export const TERM_FS_KEY = "hu-term-fs";
+// 12px unset, VS Code's terminal's.
+export const TERM_FS_DEFAULT = 12;
+export const termFontSize = sizeSetting(TERM_FS_KEY, "--term-fs", 11, 22);
+// The terminal's rows, as a multiple of its text size, in hundredths
+// (lib/terminal-font.ts makes rows that tight possible).
+export const TERM_LH_KEY = "hu-term-lh";
+export const TERM_LH_DEFAULT = 110;
+export const termLineHeight = sizeSetting(TERM_LH_KEY, "--term-lh", 100, 180, { scale: 100, unit: "" });
+// Its colors' vividness (their chroma, in percent), and the contrast they're
+// raised to against its background, in tenths (10 is none, unset the app's
+// contrast level's: none, 4.5, or 7). lib/oklch.ts does both.
+export const TERM_VIVID_KEY = "hu-term-vivid";
+export const termVividness = sizeSetting(TERM_VIVID_KEY, "--term-vivid", 50, 200, { scale: 100, unit: "" });
+export const TERM_CONTRAST_KEY = "hu-term-contrast";
+export const termContrast = sizeSetting(TERM_CONTRAST_KEY, "--term-contrast", 10, 100, { scale: 10, unit: "" });
+/** The terminal contrast each app contrast level gives, in tenths. */
+export const APP_TERM_CONTRAST: Record<string, number> = { normal: 10, high: 45, super: 70 };
+export const EXPLORER_FS_KEY = "hu-explorer-fs";
+export const EXPLORER_FS_DEFAULT = 13;
+export const explorerFontSize = sizeSetting(EXPLORER_FS_KEY, "--explorer-fs", 11, 18);
+
+/**
+ * The terminal's colors: the editor's code theme ("editor", nothing saved) or
+ * one of the code themes', its text, background, 16 colors, and scrollbar,
+ * at every contrast level, for every terminal (the IDE's too). <html
+ * data-term-colors> names it, and globals.css applies that theme's own rules
+ * to the terminals (.term-colors).
+ */
+export const TERM_COLOR_THEMES = ["editor", "midnight", "dracula", "monokai", "nord", "solarized", "github-light"] as const;
+export type TermColors = (typeof TERM_COLOR_THEMES)[number];
+export const terminalColors = choiceSetting<TermColors>("hu-term-colors", "data-term-colors", TERM_COLOR_THEMES, "editor");
+
+/**
+ * The app's fonts: one for its text and one for code (editors, code blocks,
+ * the terminal). <html data-font-body> and data-font-code pick a stack in
+ * globals.css, before first paint, nothing saved for the defaults (Inter and
+ * JetBrains Mono, bundled; choiceSetting, above). The others are the
+ * computer's own, so nothing loads from the network. The first of each is
+ * the default.
+ */
+export const APP_FONTS = [
+  { id: "inter", label: "Inter" },
+  { id: "system", label: "System" },
+  { id: "helvetica", label: "Helvetica" },
+  { id: "georgia", label: "Georgia" },
+  { id: "comic", label: "Comic Sans" },
+] as const;
+export const CODE_FONTS = [
+  { id: "jetbrains", label: "JetBrains Mono" },
+  { id: "menlo", label: "Menlo" },
+  { id: "courier", label: "Courier New" },
+  { id: "comic", label: "Comic Sans" },
+] as const;
+export type AppFont = (typeof APP_FONTS)[number]["id"];
+export type CodeFont = (typeof CODE_FONTS)[number]["id"];
+export const appFont = choiceSetting<AppFont>("hu-font-body", "data-font-body", APP_FONTS.map((f) => f.id), "inter");
+export const codeFont = choiceSetting<CodeFont>("hu-font-code", "data-font-code", CODE_FONTS.map((f) => f.id), "jetbrains");
+
+/**
+ * The compiler page's sides: the editor on the left (the default) or on the
+ * right, with the output and the panel (Explorer, Terminal, Cheatsheet,
+ * Challenges) taking the other side. <html data-editor-right>, applied
+ * before first paint, mirrors the page in CSS (globals.css).
+ */
+export const EDITOR_SIDE_KEY = "hu-editor-side";
+const EDITOR_SIDE_EVENT = "hu:editor-side-changed";
+const applyEditorRight = (right: boolean) => {
+  if (right) document.documentElement.setAttribute("data-editor-right", "");
+  else document.documentElement.removeAttribute("data-editor-right");
+};
+/** Whether the editor is on the right right now (read when a drag starts). */
+export const editorOnRight = () => typeof document !== "undefined" && document.documentElement.hasAttribute("data-editor-right");
+
+export function setEditorRight(right: boolean) {
+  applyEditorRight(right);
+  try {
+    if (right) localStorage.setItem(EDITOR_SIDE_KEY, "right");
+    else localStorage.removeItem(EDITOR_SIDE_KEY);
+    window.dispatchEvent(new Event(EDITOR_SIDE_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+const subscribeEditorSide = subscribeTo(EDITOR_SIDE_EVENT, EDITOR_SIDE_KEY, (stored) => applyEditorRight(stored === "right"));
+export function useEditorRight(): boolean {
+  return useSyncExternalStore(subscribeEditorSide, editorOnRight, () => false);
+}

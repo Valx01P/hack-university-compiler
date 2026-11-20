@@ -59,8 +59,8 @@ export function ChallengeList({
 
   return (
     <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-content-line px-3 py-2">
-        <p className="mr-auto text-xs text-ink-muted">
+      <div data-mirror className="flex shrink-0 flex-wrap items-center gap-2 border-b border-content-line px-3 py-2">
+        <p className="me-auto text-xs text-ink-muted">
           {solved} of {challenges.length} solved
         </p>
         <select
@@ -156,7 +156,8 @@ export function ChallengeDetail({
 
   return (
     <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-content-line px-3 py-1.5">
+      {/* Mirrored with the editor on the right, Previous still before Next. */}
+      <div data-mirror className="flex shrink-0 items-center justify-between gap-2 border-b border-content-line px-3 py-1.5">
         <button
           type="button"
           onClick={onBack}
