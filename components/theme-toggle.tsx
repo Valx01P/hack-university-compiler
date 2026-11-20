@@ -749,6 +749,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                     onChange={(e) => terminalColors.set(e.target.value as TermColors)}
                     className="field w-36 shrink-0 rounded-btn px-2 py-1 text-xs font-medium text-ink"
                   >
+                    <option value="vscode">VS Code</option>
                     <option value="editor">The editor&apos;s</option>
                     {CODE_THEMES.map((t) => (
                       <option key={t.id} value={t.id}>

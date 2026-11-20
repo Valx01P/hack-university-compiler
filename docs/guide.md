@@ -481,8 +481,8 @@ Under the two columns, a scroll down inside the menu, are **App font**
 (Inter to begin with, or System, Helvetica, Georgia, or Comic Sans) and
 **Code font** (JetBrains Mono, or Menlo, Courier New, or Comic Sans, for the
 editors, code blocks, and the terminal), **Terminal
-colors** (the editor's, or any editor theme's text, background, and 16
-colors, for every terminal), **Terminal vividness** (how strong those
+colors** (VS Code's terminal colors to begin with, or the editor's, or any
+editor theme's text, background, and 16 colors, for every terminal), **Terminal vividness** (how strong those
 colors are) and **Terminal contrast** (how far they're brightened, or
 darkened on a light background, to stand out from it, keeping their hue:
 the app's contrast level's until you set it), **Terminal line spacing**

@@ -152,11 +152,11 @@ before committing it.
   line sliders off, and the stars on (70% brightness, 50% amount, wisps at the
   top at 50% cover), the editors on Midnight at 15px, tab size 4, with
   intellisense and matching brackets on and line wrapping off, the terminal
-  and the Explorer on their theme backgrounds (the terminal's colors the
-  editor's, its text 12px and line spacing 1.10, as VS Code's, vividness
-  100%, and contrast the app's, the Explorer's text 13px and its highlight
-  the gray), the app in Inter and code in JetBrains Mono, and the
-  compiler's editor on the left. A setting is stored only when it differs from its default, so
+  and the Explorer on their theme backgrounds (the terminal's colors, text
+  12px, and line spacing 1.10 all VS Code's, its vividness 100% and
+  contrast the app's, the Explorer's text 13px and its highlight the gray),
+  the app in Inter and code in JetBrains Mono, and the compiler's editor on
+  the left. A setting is stored only when it differs from its default, so
   changing a default means storing the old one by name (like
   `hu-stars=off`), and the bootstrap and `lib/theme.ts` change together.
 - **Stars** are on by default: a WebGL sky (brightness, amount, and clouds in
@@ -256,10 +256,16 @@ before committing it.
   highlight (its open file's row, and lighter under the pointer): the gray,
   none (the row unfilled, its brighter name marking it, a struck-through
   ring for a swatch), or a color of your own tinted 40% like a selection,
-  so names stay readable. The terminal's colors are
-  the editor's or any code theme's (Terminal colors): that theme's own rules
-  in globals.css also match `.term-colors`, contrast levels included, so a
-  palette is never copied, and a picked code background stays off it. Its
+  so names stay readable. The terminal's colors (Terminal colors) are VS
+  Code's to begin with (its terminal's 16 colors, text, and background,
+  vivid where the code themes' bright colors are pastel, which bold prompts
+  like Starship's draw in), or the editor's, or any code theme's: that
+  theme's own rules in globals.css also match `.term-colors`, contrast
+  levels included, so a palette is never copied, and a picked code
+  background stays off all but the editor's. See-through is transparent
+  black, and xterm's WebGL addon, which draws a default background behind
+  dim and italic cells at full alpha (a box over the sky), is patched to
+  draw those clear (`clearDefaultBackgrounds` in terminal-view.tsx). Its
   colors have a vividness (their chroma) and a contrast (the app level's
   until set), both in OKLCH (`lib/oklch.ts`): contrast raises a color's
   lightness alone, never blending it toward white the way xterm's minimum
