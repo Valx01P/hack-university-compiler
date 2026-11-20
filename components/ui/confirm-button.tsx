@@ -16,7 +16,9 @@ const CONFIRM =
  * still does what you meant and the page stays put. With `confirmAgain` (the
  * default for a confirm that goes somewhere, like Learn or Compiler), clicking
  * the button again while it's open confirms, so Cancel or a click outside is
- * how it closes.
+ * how it closes. With `ask` off, the button acts at once, for a toggle that
+ * asks only one way (the answer's eye asks before it shows, never before it
+ * hides).
  */
 export function ConfirmButton({
   title,
@@ -28,6 +30,8 @@ export function ConfirmButton({
   tooltip,
   align = "right",
   confirmAgain = href !== undefined,
+  ask = true,
+  pressed,
   className,
   children,
 }: {
@@ -50,6 +54,10 @@ export function ConfirmButton({
   /** Clicking the button again while it's open confirms, instead of closing
       it. On by default for a link (`href`), off for an action. */
   confirmAgain?: boolean;
+  /** Asks first. Off, a click confirms at once, with no popup. */
+  ask?: boolean;
+  /** For a toggle: whether it's on (aria-pressed). */
+  pressed?: boolean;
   className: string;
   children: React.ReactNode;
 }) {
@@ -111,6 +119,7 @@ export function ConfirmButton({
         ref={anchorRef}
         type="button"
         onClick={() => {
+          if (!ask) return onConfirm?.();
           if (!open) return setOpen(true);
           if (!confirmAgain) return setOpen(false);
           // The second click confirms, like the confirm button.
@@ -120,8 +129,9 @@ export function ConfirmButton({
         }}
         aria-label={label}
         title={tooltip ?? label}
-        aria-haspopup="dialog"
-        aria-expanded={open}
+        aria-haspopup={ask ? "dialog" : undefined}
+        aria-expanded={ask ? open : undefined}
+        aria-pressed={pressed}
         // Where confirming goes, so hovering here already prefetches it.
         data-prefetch-href={href}
         aria-controls={open ? id : undefined}

@@ -172,9 +172,8 @@ export function PartView({
   const busy = busyTab !== null;
   // What a screen reader hears when a run or check ends.
   const [announcement, setAnnouncement] = useState("");
-  // Next glows for a few seconds after your practice passes, like the answer
-  // eye, then goes back to normal. Counts the passes, so another one starts
-  // the glow over.
+  // Next glows for a few seconds after your practice passes, then goes back
+  // to normal. Counts the passes, so another one starts the glow over.
   const [nextGlow, setNextGlow] = useState(0);
   useEffect(() => {
     if (!nextGlow) return;
