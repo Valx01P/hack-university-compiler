@@ -185,6 +185,22 @@ export class WorkspaceStore {
       watcher isn't taken for someone else's change. */
   private ownWrites = new Map<string, string>();
   autosave: boolean;
+  /** What else follows the folder's file events (the compiler's review of
+      changes made outside the editor, lib/outside-changes.ts). */
+  readonly fsWatchers = new Set<(events: FsEvent[]) => void>();
+  /** Told the paths (or folders) the page itself is about to change, an
+      Explorer action's, so they aren't taken for someone else's. */
+  readonly ownChangeWatchers = new Set<(paths: string[]) => void>();
+  private ownChange(...paths: string[]) {
+    for (const fn of this.ownChangeWatchers) fn(paths);
+  }
+  /** The texts this tab has for `path` now: what it's saving, what it last
+      saved, and the editor's. Read when a change arrives, before the store
+      takes it in, they tell this tab's own writes from anyone else's. */
+  pageTexts(path: string): string[] {
+    const texts = [this.ownWrites.get(path), this.buffers.get(path)?.saved, this.host?.text(path) ?? undefined];
+    return texts.filter((t): t is string => typeof t === "string");
+  }
 
   constructor(props: WorkspaceProps, opts: { autosave?: boolean } = {}) {
     this.id = props.id;
@@ -519,6 +535,7 @@ export class WorkspaceStore {
   }
 
   private applyFs(events: FsEvent[]) {
+    for (const fn of this.fsWatchers) fn(events);
     // An unlink and an add of the same size in one batch is a move: open
     // files follow it.
     const gone = events.filter(([kind]) => kind === "unlink").map(([, p]) => p);
@@ -866,6 +883,7 @@ export class WorkspaceStore {
   }
 
   async createFile(path: string) {
+    this.ownChange(path);
     const ok = await this.op(() => workspaceApi.writeFile(this.id, path, "", null), `Created ${path}`);
     if (ok) {
       this.nodes.set(path, { path, name: nameOf(path), type: "file", size: 0, state: "new" });
@@ -899,6 +917,7 @@ export class WorkspaceStore {
     if (from === to) return true;
     // Save first, so the file that moves is the one you see.
     for (const [p, b] of this.buffers) if ((p === from || p.startsWith(`${from}/`)) && b.dirty) await this.save(p);
+    this.ownChange(from, to);
     const ok = await this.op(() => workspaceApi.fs(this.id, { op: "rename", path: from, to }), `Renamed to ${to}`);
     if (ok) {
       for (const p of [...this.buffers.keys()]) if (p === from || p.startsWith(`${from}/`)) this.moveBuffer(p, to + p.slice(from.length));
@@ -919,6 +938,7 @@ export class WorkspaceStore {
   }
 
   async remove(path: string) {
+    this.ownChange(path);
     const ok = await this.op(async () => {
       const { undo } = await workspaceApi.fs(this.id, { op: "delete", path });
       this.undoDelete = undo ? { path, undo } : null;
@@ -946,6 +966,7 @@ export class WorkspaceStore {
     const ext = dot > 0 ? nameOf(path).slice(dot) : "";
     let to = `${base} copy${ext}`;
     for (let n = 2; this.nodes.has(to); n++) to = `${base} copy ${n}${ext}`;
+    this.ownChange(to);
     return this.op(() => workspaceApi.fs(this.id, { op: "copy", path, to }), `Copied to ${to}`);
   }
 
@@ -962,6 +983,7 @@ export class WorkspaceStore {
     if (!last) return;
     this.undoDelete = null;
     this.emit("tree");
+    this.ownChange(last.path);
     await this.op(() => workspaceApi.fs(this.id, { op: "restore", undo: last.undo }), `Put ${last.path} back`);
   }
 
@@ -1081,6 +1103,8 @@ export class WorkspaceStore {
 
   async restoreSnapshot(sid: string) {
     try {
+      // Every file may change: all of it the page's doing.
+      this.ownChange("");
       await workspaceApi.restoreSnapshot(this.id, sid);
       await this.reloadAll();
       this.announce("Restored the save point");

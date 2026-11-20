@@ -8,6 +8,8 @@ import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
 import { inputCorners, setStdinOpen, stdinRows, useStdinOpen, type InputPlace } from "@/components/code/program-input";
 import { CodeThemePicker } from "@/components/code/code-theme";
+import { ChangeReview } from "@/components/compiler/change-review";
+import type { EditorSelection } from "@/components/code/cm-editor";
 import { ResetCodeButton } from "@/components/code/reset-code-button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { ResizeHandle } from "@/components/ui/resize-handle";
@@ -232,6 +234,23 @@ export function CompilerApp({
     ? challengeCodes[challenge.id] ?? loadChallengeCode(lang.slug, challenge.id, challenge.starter)
     : "";
   const editorCode = challenge ? (showingAnswer ? challenge.solution : challengeCode) : onMain ? code : ws.text;
+
+  // Changes made outside the editor (an AI tool in the Terminal): the open
+  // file's, shown in the editor against what was there, to accept or reject.
+  const outside = !challenge ? (ws.pending.find((c) => c.path === ws.path && c.after !== null) ?? null) : null;
+  const review = outside ? { original: outside.before ?? "", onResolved: (text: string) => ws.changes.resolved(outside.path, text) } : null;
+  // What the editor has open, for AI tools in the Terminal (.hu/editor.md).
+  const noteSelection = (selection: EditorSelection | null) =>
+    ws.noteEditor({
+      path: challenge ? null : ws.path,
+      challenge: challenge && !showingAnswer ? { title: challenge.title, code: editorCode } : null,
+      selection,
+    });
+  useEffect(() => {
+    noteSelection(null);
+    // When what's open changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ws.path, challenge?.id, showingAnswer]);
   // A SQL challenge's input is its setup SQL plus the test's own setup.
   const challengeInput = (stdin: string | undefined) =>
     challenge && sqlMode ? [challenge.setup, stdin].filter((x) => x && x.trim()).join("\n") : stdin ?? "";
@@ -894,6 +913,17 @@ export function CompilerApp({
               </div>
             </div>
             <div className="code-dark flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-code-line bg-code-bg">
+              {!challenge && (
+                <ChangeReview
+                  pending={ws.pending}
+                  open={ws.path}
+                  onShow={ws.show}
+                  onAccept={(path) => ws.changes.accept(path)}
+                  onReject={(path) => void ws.changes.reject(path)}
+                  onAcceptAll={() => ws.changes.acceptAll()}
+                  onRejectAll={() => void ws.changes.rejectAll()}
+                />
+              )}
               <div className="min-h-0 flex-1">
                 {!challenge && ws.problem ? (
                   <p className="p-4 font-mono text-sm text-code-gutter" role="status">
@@ -908,6 +938,8 @@ export function CompilerApp({
                     ariaLabel={showingAnswer ? "The answer, read only" : challenge ? `${challenge.title} editor` : onMain ? `${lang.label} editor` : `${ws.path} editor`}
                     readOnly={showingAnswer}
                     cursorAt={challenge ? null : cursorAt}
+                    review={review}
+                    onSelection={noteSelection}
                   />
                 )}
               </div>

@@ -1928,6 +1928,35 @@ export function expand(value: string, vars: Record<string, string>): string {
   return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (all, name: string) => (Object.hasOwn(vars, name) ? vars[name] : all));
 }
 
+/**
+ * A template's hidden files (the compiler folder's AGENTS.md and CLAUDE.md,
+ * notes for AI tools) are the app's, not the learner's: when the template
+ * changes one, a copy that's still as the old template had it takes the new
+ * one (and goes when the template drops it). One the learner edited, or
+ * removed, is theirs and stays as it is.
+ */
+export function refreshHiddenNotes(files: string, before: string, after: string, changed: string[], hidden: string[]) {
+  const root = path.resolve(files);
+  for (const rel of changed) {
+    if (!hidden.some((h) => rel === h || rel.startsWith(`${h}/`))) continue;
+    const mine = path.resolve(root, ...rel.split("/"));
+    if (!mine.startsWith(`${root}${path.sep}`)) continue;
+    const read = (file: string) => (isFile(file) ? fs.readFileSync(file) : null);
+    try {
+      const current = read(mine);
+      const old = read(path.join(before, ...rel.split("/")));
+      if (current === null ? old !== null : old === null || !current.equals(old)) continue;
+      const next = path.join(after, ...rel.split("/"));
+      if (isFile(next)) {
+        fs.mkdirSync(path.dirname(mine), { recursive: true });
+        fs.copyFileSync(next, mine);
+      } else if (current !== null) fs.rmSync(mine, { force: true });
+    } catch {
+      /* left as it was */
+    }
+  }
+}
+
 /** A database failure as the REST error it answers (db/routes.ts maps them the same way). */
 function dbHttpError(err: unknown): HttpError {
   if (err instanceof HttpError) return err;
@@ -2249,6 +2278,7 @@ export class Workspaces {
           const aside = `${original}.old.${randomBytes(3).toString("hex")}`;
           fs.renameSync(original, aside);
           fs.renameSync(built.tmp, original);
+          if (config.storage === "host") refreshHiddenNotes(path.join(existing.dir, "files"), aside, original, updated, config.hidden);
           fs.rmSync(aside, { recursive: true, force: true });
           existing.meta.manifest = built.manifest;
           existing.meta.templateHash = built.hash;

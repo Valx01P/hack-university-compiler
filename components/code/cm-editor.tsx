@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useEffect, useId, useRef } from "react";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { useCodeEditorSettings } from "@/components/code/editor-settings";
 import { editorCompartments, editorExtensions, languageLoaded, loadLanguage, reconfigureSettings } from "@/lib/editor-extensions";
@@ -10,6 +10,24 @@ import { positionAt, showDiagnostics, type EditorDiagnostic } from "@/lib/editor
 // For a snippet's hover warm-up (components/learn/runnable-snippet.tsx),
 // which loads this module lazily.
 export { loadLanguage };
+
+/** Where the cursor is and what's selected, 1-based lines. */
+export interface EditorSelection {
+  line: number;
+  col: number;
+  /** The selected lines and text, when something is selected. */
+  from: number | null;
+  to: number | null;
+  text: string;
+}
+
+/** Text to review against what was there before (lib/outside-changes.ts):
+    the editor shows the difference, each part to keep or undo. */
+export interface EditorReview {
+  original: string;
+  /** Every part has been kept or undone: the text that's left. */
+  onResolved: (text: string) => void;
+}
 
 export function CmEditor({
   value,
@@ -22,6 +40,8 @@ export function CmEditor({
   focusAt = null,
   diagnostics = null,
   cursorAt = null,
+  onSelection,
+  review = null,
 }: {
   value: string;
   language: string;
@@ -44,12 +64,21 @@ export function CmEditor({
   /** Puts the cursor here (1-based line and column) and focuses the editor,
       each time it's a new object (a type error's link). */
   cursorAt?: { line: number; col: number } | null;
+  /** The cursor and selection, each time they move. */
+  onSelection?: (selection: EditorSelection) => void;
+  /** Shows the text against `original`, changes to keep or undo. */
+  review?: EditorReview | null;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const compartments = useRef(editorCompartments());
   const onChangeRef = useRef(onChange);
   const onRunRef = useRef(onRun);
+  const onSelectionRef = useRef(onSelection);
+  onSelectionRef.current = onSelection;
+  const reviewRef = useRef(review);
+  reviewRef.current = review;
+  const reviewSlot = useRef(new Compartment());
   const settings = useCodeEditorSettings();
   // What the editor starts from when it's made after its language loads.
   const valueRef = useRef(value);
@@ -126,8 +155,10 @@ export function CmEditor({
             ]),
           ],
           extra: [
+            reviewSlot.current.of([]),
             EditorView.updateListener.of((u) => {
               if (u.docChanged) onChangeRef.current(u.state.doc.toString());
+              if ((u.selectionSet || u.docChanged || u.focusChanged) && onSelectionRef.current) onSelectionRef.current(selectionOf(u.state));
             }),
             EditorView.contentAttributes.of({ "aria-label": ariaLabel, "aria-describedby": exitHintId }),
           ],
@@ -135,6 +166,8 @@ export function CmEditor({
       }),
     });
     viewRef.current = view;
+    shownReview.current = null;
+    setReview(view, reviewRef.current?.original ?? null);
     view.requestMeasure({ read: () => null, write: reveal });
     // Put the cursor where the click landed on the block this replaced. On
     // the next frame, outside CodeMirror's own update, where reading the
@@ -178,6 +211,36 @@ export function CmEditor({
     showDiagnostics(view, diagnostics && diagnostics.doc === view.state.doc.toString() ? diagnostics.items : []);
   }, [diagnostics]);
 
+  // A review: the merge view's difference against what was there, each
+  // part with its keep and undo, until none is left. Loaded when one comes,
+  // and put on the editor when it's made, too (it's made once its language
+  // loads, maybe after the review came).
+  const original = review?.original ?? null;
+  const shownReview = useRef<string | null>(null);
+  const setReview = useRef((view: EditorView, text: string | null) => {
+    if (shownReview.current === text) return;
+    shownReview.current = text;
+    if (text === null) {
+      view.dispatch({ effects: reviewSlot.current.reconfigure([]) });
+      return;
+    }
+    void import("@codemirror/merge").then(({ unifiedMergeView, getChunks }) => {
+      if (viewRef.current !== view || shownReview.current !== text) return;
+      view.dispatch({
+        effects: reviewSlot.current.reconfigure([
+          unifiedMergeView({ original: text, mergeControls: true, gutter: true, highlightChanges: true, syntaxHighlightDeletions: true }),
+          EditorView.updateListener.of((u) => {
+            const chunks = getChunks(u.state)?.chunks;
+            if (chunks && chunks.length === 0) reviewRef.current?.onResolved(u.state.doc.toString());
+          }),
+        ]),
+      });
+    });
+  }).current;
+  useEffect(() => {
+    if (viewRef.current) setReview(viewRef.current, original);
+  }, [original, setReview]);
+
   useEffect(() => {
     const view = viewRef.current;
     if (!view || !cursorAt) return;
@@ -205,4 +268,16 @@ export function CmEditor({
       </p>
     </div>
   );
+}
+
+function selectionOf(state: EditorState): EditorSelection {
+  const range = state.selection.main;
+  const head = state.doc.lineAt(range.head);
+  if (range.empty) return { line: head.number, col: range.head - head.from + 1, from: null, to: null, text: "" };
+  const from = state.doc.lineAt(range.from).number;
+  const end = state.doc.lineAt(range.to);
+  // Ending at a line's very start (Shift+Down from a line's start), that
+  // line isn't part of it.
+  const to = range.to === end.from && end.number > from ? end.number - 1 : end.number;
+  return { line: head.number, col: range.head - head.from + 1, from, to, text: state.sliceDoc(range.from, range.to) };
 }

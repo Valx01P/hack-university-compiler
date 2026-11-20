@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { EditorSelection } from "@/components/code/cm-editor";
 import { Explorer } from "@/components/ide/explorer";
 import { TerminalView } from "@/components/ide/terminal-view";
 import type { CompilerLang } from "@/lib/compiler";
+import { OutsideChanges, type OutsideChange } from "@/lib/outside-changes";
 import { workspaceApi } from "@/lib/workspace-client";
 import { WorkspaceStore, useStore } from "@/lib/workspace-store";
 import type { WorkspaceProps } from "@/lib/workspace-types";
@@ -38,6 +40,10 @@ const KEPT_CHARS = 200_000;
 const RUN_FILES = 48;
 const RUN_FILE_BYTES = 100_000;
 const HEAVY = new Set(["node_modules", ".git", ".venv", "target", "__pycache__", "build", "dist"]);
+/** Paths that aren't the learner's code: the template's hidden notes, and
+    dependencies and builds. Not run, and not reviewed. */
+const notCode = (hidden: string[]) => (p: string) =>
+  hidden.some((h) => p === h || p.startsWith(`${h}/`)) || p.split("/").some((part) => HEAVY.has(part) || part.endsWith(".class"));
 
 const read = (key: string) => {
   try {
@@ -66,6 +72,52 @@ function keptFile(slug: string, main: string): { path: string; text: string } | 
   return null;
 }
 
+const NO_CHANGES: OutsideChange[] = [];
+/** How long the editor settles before its note is written. */
+const NOTE_MS = 600;
+/** The most of a selection or a challenge's code the note holds. */
+const NOTE_CHARS = 6_000;
+
+const FENCES: Record<string, string> = {
+  py: "python", js: "javascript", mjs: "javascript", cjs: "javascript", ts: "typescript", java: "java", go: "go",
+  cpp: "cpp", cc: "cpp", h: "cpp", hpp: "cpp", sql: "sql", sh: "bash", bash: "bash", json: "json", md: "markdown", txt: "",
+};
+const fenceOf = (path: string) => FENCES[path.split(".").pop()?.toLowerCase() ?? ""] ?? "";
+
+/** A fenced block that can't be closed early by the code in it. */
+function fenced(code: string, fence: string): string {
+  const clipped = code.length > NOTE_CHARS ? `${code.slice(0, NOTE_CHARS)}\n… (cut off here)` : code;
+  const ticks = "`".repeat(Math.max(3, ...[...clipped.matchAll(/`+/g)].map((m) => m[0].length + 1)));
+  return `${ticks}${fence}\n${clipped}\n${ticks}`;
+}
+
+/**
+ * .hu/editor.md: what the learner has open in the compiler's editor, for an
+ * AI tool in the Terminal to start from (the folder's AGENTS.md points it
+ * here), so "what's wrong with my code" needs no file named. Written as
+ * Markdown, which any tool reads.
+ */
+function editorNote({ path, challenge, selection }: EditorNote, main: string, lang: CompilerLang): string {
+  const lines = ["# What the learner has open", "", "The Hack University compiler page keeps this note up to date as the learner works.", ""];
+  if (challenge) {
+    lines.push(
+      `- In the editor: the challenge "${challenge.title}", in ${lang.label}. Its code isn't a file in this folder (it's saved in the page), so here it is:`,
+      "",
+      fenced(challenge.code, lang.slug === "cpp" ? "cpp" : fenceOf(main))
+    );
+  } else if (path) {
+    lines.push(`- In the editor: ${path}${path === main ? " (the main file, which Run runs)" : ""}`);
+  }
+  if (selection) {
+    lines.push(`- Cursor: line ${selection.line}, column ${selection.col}`);
+    if (selection.from !== null && selection.to !== null && selection.text) {
+      lines.push(`- Selected: ${selection.from === selection.to ? `line ${selection.from}` : `lines ${selection.from} to ${selection.to}`}`, "", fenced(selection.text, challenge ? fenceOf(main) : fenceOf(path ?? main)));
+    }
+  }
+  lines.push("", "Their last run (its input, output, and how it ended): .hu/last-run.md", "");
+  return lines.join("\n");
+}
+
 export interface CompilerWorkspace {
   store: WorkspaceStore;
   main: string;
@@ -82,6 +134,22 @@ export interface CompilerWorkspace {
   runFiles(): Promise<Record<string, string>>;
   /** Leaves the last run where tools read it (.hu/last-run.md). */
   recordRun(markdown: string): void;
+  /** Changes made outside the editor (an AI tool, a command), waiting for
+      the learner's review (lib/outside-changes.ts). */
+  changes: OutsideChanges;
+  pending: OutsideChange[];
+  /** Shows a file in the editor (a pending change's, say). */
+  show(path: string): void;
+  /** What the editor shows, for the note AI tools read (.hu/editor.md). */
+  noteEditor(open: EditorNote): void;
+}
+
+/** What the editor has open, for .hu/editor.md. */
+export interface EditorNote {
+  /** A file of the folder's, or a challenge's code (not a file here). */
+  path: string | null;
+  challenge: { title: string; code: string } | null;
+  selection: EditorSelection | null;
 }
 
 export function useCompilerWorkspace({
@@ -102,6 +170,12 @@ export function useCompilerWorkspace({
 }): CompilerWorkspace {
   const main = lang.fileName;
   const [store] = useState(() => new WorkspaceStore(props));
+  const [changes] = useState(() => new OutsideChanges(store, notCode(props.template.hidden)));
+  const pending = useSyncExternalStore(
+    (fn) => changes.subscribe(fn),
+    () => changes.pending,
+    () => NO_CHANGES
+  );
   // What the editor shows: a file only once its text is here, so switching
   // never paints an empty editor first. The server renders the main file, and
   // the file you had open comes back before the first paint (below), so the
@@ -120,6 +194,9 @@ export function useCompilerWorkspace({
     // Once, on load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // The note for AI tools, written a moment after the editor settles.
+  const note = useRef<{ timer: number; next: string | null; written: string | null }>({ timer: 0, next: null, written: null });
+  useEffect(() => () => window.clearTimeout(note.current.timer), []);
   // The tree came in and the main file was squared with the page's code.
   const opened = useRef(false);
   const reconciled = useRef(false);
@@ -166,6 +243,7 @@ export function useCompilerWorkspace({
     void store.connect(abort.signal);
     return () => {
       abort.abort();
+      changes.dispose();
       store.dispose();
     };
   }, [store]);
@@ -187,6 +265,8 @@ export function useCompilerWorkspace({
     const onTree = () => {
       if (opened.current || store.runner !== "online" || store.status === "absent") return;
       opened.current = true;
+      // From now, changes made outside the editor wait for review.
+      void changes.start();
       void ensureMain();
       // The file you had open, again, if it's still there.
       const path = live.current.shown.path;
@@ -276,8 +356,7 @@ export function useCompilerWorkspace({
       if (store.runner !== "online") return {};
       await store.saveAll();
       await ensureMain();
-      const hidden = store.props.template.hidden;
-      const skip = (p: string) => hidden.some((h) => p === h || p.startsWith(`${h}/`)) || p.split("/").some((part) => HEAVY.has(part));
+      const skip = notCode(store.props.template.hidden);
       const files = [...store.nodes.values()]
         .filter((n) => n.type === "file" && n.path !== main && !skip(n.path) && (n.size ?? 0) <= RUN_FILE_BYTES)
         .slice(0, RUN_FILES);
@@ -294,6 +373,23 @@ export function useCompilerWorkspace({
         })
       );
       return out;
+    },
+    changes,
+    pending,
+    show(path) {
+      store.openFile(path);
+    },
+    noteEditor(open) {
+      note.current.next = editorNote(open, main, lang);
+      window.clearTimeout(note.current.timer);
+      note.current.timer = window.setTimeout(() => {
+        const text = note.current.next;
+        if (!text || text === note.current.written || store.runner !== "online") return;
+        note.current.written = text;
+        void workspaceApi.writeFile(store.id, ".hu/editor.md", text, null).catch(() => {
+          note.current.written = null;
+        });
+      }, NOTE_MS);
     },
     recordRun(markdown) {
       if (store.runner !== "online") return;
