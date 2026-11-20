@@ -124,10 +124,13 @@ export function ReferencePanel({
     }
   }, [hidden]);
 
-  // Every view stays laid out, stacked in the same spot, and the ones you
+  // Every view stays in place, stacked in the same spot, and the ones you
   // aren't on are invisible and inert. Nothing is ever display: none, so
-  // each keeps its scroll position too.
-  const layer = (shown: boolean) => `absolute inset-0 flex flex-col ${shown ? "" : "invisible"}`;
+  // each keeps its scroll position too. Hidden ones skip layout
+  // (content-visibility), so dragging the panel's border reflows only what
+  // shows, not the whole cheatsheet behind it.
+  const hide = "invisible [content-visibility:hidden]";
+  const layer = (shown: boolean) => `absolute inset-0 flex flex-col ${shown ? "" : hide}`;
 
   return (
     <section
@@ -173,7 +176,7 @@ export function ReferencePanel({
           <p className="p-4 text-sm text-ink-faint">Loading the {langLabel} {tab}…</p>
         ) : null}
         {data && !error && (
-          <div className={`relative min-h-0 flex-1 ${tab === "explorer" || tab === "terminal" ? "invisible" : ""}`} inert={tab === "explorer" || tab === "terminal"}>
+          <div className={`relative min-h-0 flex-1 ${tab === "explorer" || tab === "terminal" ? hide : ""}`} inert={tab === "explorer" || tab === "terminal"}>
             <div ref={cheatRef} className={layer(tab === "cheatsheet")} inert={tab !== "cheatsheet"}>
               {data.cheatsheet.length ? (
                 <CheatsheetView lang={lang} sections={data.cheatsheet} langLabel={langLabel} />

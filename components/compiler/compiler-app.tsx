@@ -42,7 +42,7 @@ import { normalizeOutput, runInSandbox, runTests, type RunState } from "@/lib/ru
 import { joinArgs, splitArgs } from "@/lib/shell-words";
 import { EASE, dur, gsap } from "@/lib/motion";
 import { PANES, paneValue } from "@/lib/panes";
-import { setPaneSize, usePaneSize } from "@/lib/pane-size";
+import { holdPaneUpdates, setPaneSize, usePaneSize } from "@/lib/pane-size";
 
 type Orient = "horizontal" | "vertical";
 
@@ -537,14 +537,32 @@ export function CompilerApp({
     document.body.style.userSelect = "none";
     document.body.style.cursor = isH ? "col-resize" : "row-resize";
 
-    function move(ev: PointerEvent) {
+    // A move a frame (the pointer can report more often), the last one, and
+    // React hears the size when it's let go (lib/pane-size.ts).
+    const release = holdPaneUpdates();
+    let frame = 0;
+    let last: PointerEvent | null = null;
+    function apply(ev: PointerEvent) {
       const r = container!.getBoundingClientRect();
       // With the editor on the right (the theme menu), its share is measured from the right.
       const pct = isH ? ((editorOnRight() ? r.right - ev.clientX : ev.clientX - r.left) / r.width) * 100 : ((ev.clientY - r.top) / r.height) * 100;
       // Stacked, dragged well past the output's smallest, it folds away.
       setSplit(!isH && pct >= STACK_FOLD_PAST ? STACK.fold.at : pct);
     }
+    function move(ev: PointerEvent) {
+      last = ev;
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        if (last) apply(last);
+      });
+    }
     function up() {
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+        if (last) apply(last);
+      }
+      release();
       document.body.style.userSelect = prevSelect;
       document.body.style.cursor = prevCursor;
       handle.releasePointerCapture?.(e.pointerId);
@@ -911,7 +929,7 @@ export function CompilerApp({
             aria-label="Resize"
             aria-valuemin={20}
             aria-valuemax={horizontal ? 80 : STACK.fold.at}
-            aria-valuenow={splitPct}
+            aria-valuenow={Math.round(splitPct)}
             aria-valuetext={stackFolded ? "Output folded away" : undefined}
             tabIndex={0}
             onPointerDown={startDrag}

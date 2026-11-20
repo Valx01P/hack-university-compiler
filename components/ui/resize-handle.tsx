@@ -1,5 +1,7 @@
 "use client";
 
+import { holdPaneUpdates } from "@/lib/pane-size";
+
 /**
  * A vertical border you drag sideways to resize the panes on either side,
  * drawn like the compiler's editor and output divider. Arrow keys nudge it
@@ -54,8 +56,26 @@ export function ResizeHandle({
     const prevCursor = document.body.style.cursor;
     document.body.style.userSelect = "none";
     document.body.style.cursor = across ? "row-resize" : "col-resize";
-    const move = (ev: PointerEvent) => onDrag(across ? ev.clientY : ev.clientX);
+    // A move a frame: the pointer can report twice a frame or more (a 120Hz
+    // trackpad), and only the last position matters by the time it paints.
+    // React hears the sizes when it's let go (lib/pane-size.ts).
+    const release = holdPaneUpdates();
+    let frame = 0;
+    let at = 0;
+    const move = (ev: PointerEvent) => {
+      at = across ? ev.clientY : ev.clientX;
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        onDrag(at);
+      });
+    };
     const up = () => {
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+        onDrag(at);
+      }
+      release();
       document.body.style.userSelect = prevSelect;
       document.body.style.cursor = prevCursor;
       handle.releasePointerCapture?.(e.pointerId);

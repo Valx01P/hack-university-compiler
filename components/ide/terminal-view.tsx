@@ -170,6 +170,11 @@ function clearDefaultBackgrounds(webgl: object) {
   proto.huClearDefault = true;
 }
 
+/** The <html> attributes and style variables the terminal's look reads
+    (its theme, colors, font, sizes, and the menu's terminal settings). */
+const LOOK_ATTRS = ["data-theme", "data-code-theme", "data-contrast", "data-code-bg", "data-code-sel", "data-stars", "data-term-bg", "data-term-colors", "data-font-code", "data-scrollbars"];
+const LOOK_VARS = ["--term-fs", "--term-lh", "--term-vivid", "--term-contrast", "--term-bg", "--code-bg-override", "--code-sel-override", "--code-user-fs"];
+
 /** The room the terminal keeps on its right for its scrollbar: none to
     speak of while the theme menu hides scrollbars (xterm's 14px default
     otherwise), so lines wrap at the edge you see. The fit reads it too. */
@@ -348,7 +353,15 @@ export function TerminalView({
         },
       });
       sessionRef.current = session;
-      const resize = term.onResize(({ cols, rows }) => session?.resize(cols, rows));
+      // The shell hears its new size once it settles: dragging a border
+      // resizes the terminal every frame, and every size it heard would
+      // have it (and tmux) redraw the whole screen.
+      let sizeTimer = 0;
+      const resize = term.onResize(({ cols, rows }) => {
+        window.clearTimeout(sizeTimer);
+        sizeTimer = window.setTimeout(() => session?.resize(cols, rows), 120);
+      });
+      cleanups.push(() => window.clearTimeout(sizeTimer));
       // The screen, saved a moment after it changes.
       let saveTimer = 0;
       const write = term.onWriteParsed(() => {
@@ -393,8 +406,23 @@ export function TerminalView({
       };
       watchRatio();
       cleanups.push(() => ratio?.removeEventListener("change", onRatio));
+      // What it reads from <html>, so it re-themes only when that changes:
+      // <html>'s style also holds the panes' sizes, which a dragged border
+      // rewrites every frame, and re-reading the theme each time (and
+      // refitting) made the drag stutter.
+      const lookOf = () => {
+        const d = document.documentElement;
+        return [
+          ...LOOK_ATTRS.map((a) => d.getAttribute(a) ?? "-"),
+          ...LOOK_VARS.map((v) => d.style.getPropertyValue(v)),
+        ].join("|");
+      };
+      let look = lookOf();
       const observer = new MutationObserver(() => {
         if (!term) return;
+        const now = lookOf();
+        if (now === look) return;
+        look = now;
         term.options.theme = themeFrom(host);
         term.options.minimumContrastRatio = contrastRatio();
         term.options.fontSize = fontSize();
@@ -414,13 +442,18 @@ export function TerminalView({
           if (host.offsetWidth > 0) fit.fit();
         });
       });
-      observer.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ["data-theme", "data-code-theme", "data-contrast", "data-code-bg", "data-code-sel", "data-stars", "data-term-bg", "data-term-colors", "data-font-code", "data-scrollbars", "style"],
-      });
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: [...LOOK_ATTRS, "style"] });
+      // Refitted once its size settles: a border being dragged resizes it
+      // every frame, and each fit (xterm reflowing its rows, WebGL its
+      // canvas) costs more than a frame has, which made the drag stutter.
+      let fitTimer = 0;
       const sized = new ResizeObserver(() => {
-        if (host.offsetWidth > 0 && host.offsetHeight > 0) requestAnimationFrame(() => fit.fit());
+        window.clearTimeout(fitTimer);
+        fitTimer = window.setTimeout(() => {
+          if (host.offsetWidth > 0 && host.offsetHeight > 0) fit.fit();
+        }, 100);
       });
+      cleanups.push(() => window.clearTimeout(fitTimer));
       sized.observe(host);
       cleanups.push(() => {
         observer.disconnect();

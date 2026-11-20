@@ -5,18 +5,21 @@ import { PANES, foldOf, paneKey, paneVar, type PaneName } from "@/lib/panes";
 
 /**
  * Saving and reading the sizes in lib/panes.ts. Setting one writes its
- * variable on <html> right away (the layout follows it, mid-drag too), saves
- * it, and tells every border that reads it, in this tab and in others. The
- * hook reads the variable, so the first render after a reload already has
- * your size, and the server's markup, and hydration, have the default.
+ * variable on <html> right away (the layout follows it, mid-drag too), tells
+ * every border that reads it, and saves it a moment after it stops changing
+ * (a drag sets it every frame), for this tab and others. Sizes keep two
+ * decimals, so a border follows the pointer exactly rather than in whole
+ * percent steps. The hook reads the variable, so the first render after a
+ * reload already has your size, and the server's markup, and hydration,
+ * have the default.
  */
 
 const changed = (name: PaneName) => `hu:pane-${name}-changed`;
 
-// In its range, or exactly its fold.
+// In its range, or exactly its fold, to two decimals.
 function clamp(name: PaneName, value: unknown): number {
   const p = PANES[name];
-  const n = Math.round(Number(value));
+  const n = Math.round(Number(value) * 100) / 100;
   if (!Number.isFinite(n)) return p.initial;
   return n === foldOf(name)?.at ? n : Math.min(p.max, Math.max(p.min, n));
 }
@@ -38,17 +41,58 @@ function current(name: PaneName): number {
   return raw ? clamp(name, Number.parseFloat(raw)) : PANES[name].initial;
 }
 
-/** Sets a pane's size (kept in its range), saves it, and returns it. */
-export function setPaneSize(name: PaneName, value: number): number {
-  const next = clamp(name, value);
-  apply(name, next);
+const saving = new Map<PaneName, { timer: number; value: number }>();
+
+function save(name: PaneName, value: number) {
+  saving.delete(name);
   try {
-    if (next === PANES[name].initial) localStorage.removeItem(paneKey(name));
-    else localStorage.setItem(paneKey(name), String(next));
+    if (value === PANES[name].initial) localStorage.removeItem(paneKey(name));
+    else localStorage.setItem(paneKey(name), String(value));
   } catch {
     /* ignore */
   }
-  window.dispatchEvent(new Event(changed(name)));
+}
+
+/** Saves what a drag left unsaved (the page going away mid-pause). */
+function saveAll() {
+  for (const [name, { timer, value }] of saving) {
+    window.clearTimeout(timer);
+    save(name, value);
+  }
+}
+if (typeof window !== "undefined") window.addEventListener("pagehide", saveAll);
+
+let holds = 0;
+const held = new Set<PaneName>();
+
+/**
+ * While a border is being dragged: its size still applies at once (the
+ * layout follows the variable), but what reads it in React hears once, when
+ * it's let go. Re-rendering a page every frame (the compiler's, its
+ * cheatsheet's code highlighted again each time) made a drag stutter. Call
+ * the returned function on release.
+ */
+export function holdPaneUpdates(): () => void {
+  holds++;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (--holds > 0) return;
+    for (const name of held) window.dispatchEvent(new Event(changed(name)));
+    held.clear();
+  };
+}
+
+/** Sets a pane's size (kept in its range), saves it, and returns it. */
+export function setPaneSize(name: PaneName, value: number): number {
+  const next = clamp(name, value);
+  if (next === current(name) && !saving.has(name)) return next;
+  apply(name, next);
+  window.clearTimeout(saving.get(name)?.timer);
+  saving.set(name, { timer: window.setTimeout(() => save(name, next), 200), value: next });
+  if (holds > 0) held.add(name);
+  else window.dispatchEvent(new Event(changed(name)));
   return next;
 }
 

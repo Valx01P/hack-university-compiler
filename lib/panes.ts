@@ -60,10 +60,10 @@ export function paneValue(name: PaneName): string {
 export const foldOf = (name: PaneName) => (PANES[name] as Pane).fold;
 
 /** The bootstrap's part (it runs with `d` as <html>): every saved size that's
-    a whole number in its range, or its fold, becomes its variable, and a
-    fold marks <html> too. */
+    a number in its range (two decimals at most), or its fold, becomes its
+    variable, and a fold marks <html> too. */
 export const PANE_BOOTSTRAP = `var P=${JSON.stringify(
   Object.fromEntries(
     Object.entries(PANES).map(([name, p]: [string, Pane]) => [name, [p.unit, p.min, p.max, p.fold?.at ?? -1, p.fold?.attr ?? ""]])
   )
-)};for(var k in P){var p=P[k],v=localStorage.getItem("hu-pane-"+k);if(v!==null&&/^\\d{1,4}$/.test(v)&&(+v>=p[1]&&+v<=p[2]||+v===p[3])){d.style.setProperty("--hu-"+k,v+p[0]);if(p[4]&&+v===p[3])d.setAttribute(p[4],"")}}`;
+)};for(var k in P){var p=P[k],v=localStorage.getItem("hu-pane-"+k);if(v!==null&&/^\\d{1,4}(\\.\\d{1,2})?$/.test(v)&&(+v>=p[1]&&+v<=p[2]||+v===p[3])){d.style.setProperty("--hu-"+k,v+p[0]);if(p[4]&&+v===p[3])d.setAttribute(p[4],"")}}`;
