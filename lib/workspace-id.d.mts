@@ -6,7 +6,8 @@ export type ParsedScope =
   | { kind: "learn"; course: string; lesson: string; part: number; tab: "practice" | "examples" | `example-${1 | 2 | 3}`; example?: number }
   | { kind: "challenge"; course: string; challenge: string }
   | { kind: "playground"; course: string; slot?: number }
-  | { kind: "sandbox"; course: string; template: string };
+  | { kind: "sandbox"; course: string; template: string }
+  | { kind: "compiler"; course: string };
 
 export function workspaceId(scope: string): string;
 export function isScope(scope: string): boolean;

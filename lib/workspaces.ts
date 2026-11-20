@@ -29,6 +29,9 @@ const Template = z.looseObject({
   image: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/),
   storage: z.enum(["host", "volume"]).default("host"),
   profile: z.enum(["standard", "sysadmin"]).default("standard"),
+  /** Where its terminals run: the container, or this computer (the
+      compiler's own folders only, which the runner enforces). */
+  shell: z.enum(["container", "host"]).default("container"),
   layout: z.enum(["ide", "preview-first"]).default("ide"),
   start: z.enum(["run", "open"]).default("run"),
   examples: z.enum(["own", "shared"]).default("own"),
@@ -71,11 +74,15 @@ export function playgroundTemplateOf(course: string): string | null {
   return owner === course && id && templateDir(ROOT, course, id) ? id : null;
 }
 
+/** The template of a compiler page's own folder (compiler/<course> scopes),
+    never a sandbox. */
+export const COMPILER_TEMPLATE = "compiler";
+
 /** Templates a course's playground menu offers as sandboxes. */
 export function sandboxTemplates(course: string): { id: string; title: string }[] {
   return listTemplates(ROOT, course)
     .map((id: string) => ({ id, title: getTemplate(course, id)?.title ?? id }))
-    .filter((t: { id: string }) => !/^\d+$/.test(t.id));
+    .filter((t: { id: string }) => !/^\d+$/.test(t.id) && t.id !== COMPILER_TEMPLATE);
 }
 
 /** Where a scope's files start: its template and the layers on top. */
@@ -120,7 +127,12 @@ export async function resolveScope(scope: string): Promise<ResolvedScope> {
       return done(id, undefined, [], null);
     }
     case "sandbox":
+      if (parsed.template === COMPILER_TEMPLATE) throw new ScopeError("There's no such codebase.");
       return done(parsed.template, undefined, [], null);
+    case "compiler":
+      // A compiler page's own folder: one per language, never a challenge's.
+      if (!getCourseEntry(course)?.page) throw new ScopeError("This course has no compiler.");
+      return done(COMPILER_TEMPLATE, undefined, [], null);
     case "challenge": {
       const file = path.join(/*turbopackIgnore: true*/ ROOT, "content", "challenges", course, `${parsed.challenge}.json`);
       if (!existsSync(file)) throw new ScopeError("There's no such challenge.");
@@ -185,6 +197,7 @@ export function runnerOpenBody(r: ResolvedScope) {
     image: t.image,
     storage: t.storage,
     profile: t.profile,
+    shell: t.shell,
     start: t.start,
     examples: t.examples,
     ports: t.ports.map((p) => ({ env: p.env, label: p.label, ...(p.readyPath ? { readyPath: p.readyPath } : {}), ...(p.preview ? { preview: true } : {}) })),

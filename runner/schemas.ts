@@ -246,6 +246,9 @@ export const OpenWorkspace = z.strictObject({
   image: z.enum(["node", "bash", "web", "check-web", "python", "java", "go"]).optional(),
   storage: z.enum(["host", "volume"]).optional(),
   profile: z.enum(["standard", "sysadmin"]).optional(),
+  // Where its terminals run: in the workspace's container (the default), or
+  // on this computer (the compiler's own workspaces only, see workspaces.ts).
+  shell: z.enum(["container", "host"]).optional(),
   start: z.enum(["run", "open"]).optional(),
   examples: z.enum(["own", "shared"]).optional(),
   ports: z.array(PortDecl).max(8).optional(),

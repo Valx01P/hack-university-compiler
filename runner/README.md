@@ -366,6 +366,7 @@ files, and later calls return the live state. The id must be
 | `layers` | 1 to 32 layers, copied in order. `base` is the template's `base/`. `checkpoints/<cp>` and `examples/<id>` are the template's `<that folder>/overlay/`, then its `delete.txt`. `@<path>` is any folder under `content/` (a part's `practice/starter`, an `example-<k>`): its `overlay/` when it has one, else the folder itself without its top-level `delete.txt`, `transcript.json`, and `extends`, then its `delete.txt`. Next resolves `extends` chains and lists every layer |
 | `image` | Optional: `node`, `bash`, `web`, `check-web`, `python`, `java`, or `go`. Without it, the course's runtime in `content/courses.json` picks the image (`runner/workspace-images.ts`: `runner:typescript` is `hu/node`, `runner:bash` is `hu/bash`, and so on). An image this runner can't build yet answers **503** `image_missing` at start, never at open, except `check-web` (hu/web and Chromium, for end-to-end tests and DOM checks), whose workspaces run in `hu/web` until it lands (`STAND_INS` in `workspace-images.ts`): everything but a browser works there |
 | `storage`, `profile` | `host` (default) or `volume`, and `standard` (default) or `sysadmin`. See "Storage" below |
+| `shell` | Where its terminals run: `container` (default), or `host`, a shell on this computer in the workspace's files folder. Only `compiler/<course>` scopes with `host` storage get `host`, whatever else asks (`shellPlace` in `workspaces.ts`). See "Terminals" |
 | `start` | `run` (default: the container starts on Run, a terminal, a task, or Check) or `open` (the IDE starts it right after opening) |
 | `ports` | One entry per server: the variable that carries its port (`PORT`, `API_PORT`), a label, an optional `readyPath`, and `preview`. A template with none still gets `PORT` |
 | `tasks` | The only commands Run, Stop, and the Server tab can start: a command string, or `{ cmd, label?, run? }` |
@@ -578,6 +579,50 @@ Everything it prints is mirrored into `@xterm/headless`, so a reattach within
 10 minutes of the last socket closing (`HU_TERM_GRACE_MS`) replays the screen
 and 5,000 lines of scrollback. Connect with `ws://127.0.0.1:3100/v1/ws/term/<sid>`
 (below).
+
+In a `"shell": "host"` workspace (the compiler's own folders), a shell is
+instead the user's login shell on this computer (`$SHELL -l`, PowerShell on
+Windows) through a pseudo-terminal (node-pty), in the workspace's
+`files/` folder, with no container to start. It starts when the first socket
+attaches, at that terminal's size (its hello's `cols` and `rows`), so the
+first prompt is drawn for the width it shows at. A line feed that would leave a blank
+first line on an empty screen (the cursor at the top, nothing on it or below,
+on the normal screen) is dropped, so a prompt that starts with a blank line
+(Starship's `add_newline`) starts on the first line, at the start, after
+`clear`, and after a resize redraw alike. It gets the runner's
+environment minus the app's (`HU_*`, `npm_*`, `PORT`, `NODE_OPTIONS`), so
+nothing in it can call the runner as the app. It has no sandbox and no limits,
+on purpose: the user's own tools and logins work there. Ending it hangs up
+every process on its terminal, its jobs included (found with `ps`, since
+macOS's `pkill` can't match a session, nor, it turns out, a terminal), then
+kills what's left (`pty.ts`), and the runner ends every host shell when it
+shuts down. Its session id starts with `h`. Installs skip packages' scripts,
+so the runner makes node-pty's prebuilt `spawn-helper` executable itself the
+first time.
+
+With tmux on the computer, the shell is kept in it, so it outlives the page
+and the runner (`host-tmux.ts`): the pty runs a tmux client attached to the
+workspace's session (`hu-<id>`, made the first time, in the files folder), on
+a tmux server of the app's own (`tmux -L hack-university`, `HU_TMUX_SOCKET`
+for the tests) with its own config (`tmux.conf`: no status bar, no prefix
+key, drawn on the normal screen so the browser terminal's scrollback works,
+24-bit color). Ending the runner's session, at its grace period, a
+reattach, or shutdown, ends only that client: the next terminal attaches to
+the same shell, its screen as it was. Closing the terminal (`DELETE`),
+removing the workspace, or the shell exiting ends the tmux session. tmux
+runs `host-shell.ts`, which starts the login shell on a pty of its own and
+drops that blank first line inside (`blank-top.ts`, shared), since tmux
+draws the screen itself, and tells Claude Code that 24-bit color passes
+through (`CLAUDE_CODE_TMUX_TRUECOLOR`, without which it draws in 256 colors
+in tmux). `HU_HOST_TMUX=0` turns tmux off, and without it (Windows, or not
+installed) a shell runs straight on the pty.
+
+A shell never gets an AI agent's session markers (Claude Code's
+`CLAUDECODE`, session id, messaging socket and token, effort, and "child
+session" flag, `withoutAgentSession` in `pty.ts`): with the app started from
+inside a Claude Code session, the one you run in the Terminal would take
+itself for its child and save no transcript. Your own settings
+(`ANTHROPIC_*`, `CLAUDE_CODE_USE_BEDROCK` and the like) stay.
 
 ### Tasks
 

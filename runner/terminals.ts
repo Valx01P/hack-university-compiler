@@ -1,10 +1,15 @@
 import { randomBytes } from "node:crypto";
+import path from "node:path";
 import type { Duplex } from "node:stream";
 import serializeAddon from "@xterm/addon-serialize";
 import headless from "@xterm/headless";
 import type Docker from "dockerode";
+import type { IPty } from "node-pty";
+import { dropBlankTop, mayBlank } from "./blank-top.ts";
 import { execCollect, execStream } from "./exec.ts";
+import { tmuxClient, tmuxPath } from "./host-tmux.ts";
 import { Demux } from "./jobs.ts";
+import { killHostShell, loadPty, withoutAgentSession } from "./pty.ts";
 
 const { Terminal } = headless;
 const { SerializeAddon } = serializeAddon;
@@ -23,7 +28,27 @@ const { SerializeAddon } = serializeAddon;
  *   writes and Ctrl+C answers at once), and it resumes below 10,000.
  * - A task's log view is the same kind of session reading the task's log
  *   (`tail -F`), read-only for everyone, where a signal goes to the task.
+ * - A host shell (TerminalSession.host) is the same session around a shell on
+ *   this computer instead, through a pseudo-terminal (node-pty): the
+ *   compiler's Terminal, in its workspace's folder. It's outside the sandbox
+ *   on purpose (your own tools, like Claude Code, with your own login), so
+ *   only a workspace whose template asks for it gets one. With tmux there,
+ *   the pty runs a tmux client and the shell lives in tmux, so ending the
+ *   session (the page gone, the runner stopping) leaves the shell running
+ *   for the next one to attach to (runner/host-tmux.ts).
  */
+
+/** The process behind a shell: a docker exec stream, or a pty on this computer. */
+interface ShellProcess {
+  write(data: Buffer | string): void;
+  pause(): void;
+  resume(): void;
+  resize(cols: number, rows: number): void;
+  /** Ends the shell and everything it started. */
+  kill(): Promise<void>;
+  /** Lets go of it (its container already stopped, or it was killed). */
+  destroy(): void;
+}
 
 const HIGH = 100_000;
 const LOW = 10_000;
@@ -70,12 +95,16 @@ export class TerminalSession {
   /** For log views: a signal for the task. */
   onSignal: (sig: string) => void = () => {};
 
-  private readonly container: Docker.Container;
+  private readonly container: Docker.Container | null;
   private readonly mirror: InstanceType<typeof Terminal>;
   private readonly serializer: InstanceType<typeof SerializeAddon>;
   private readonly sockets = new Set<TermSocket>();
   private writer: TermSocket | null = null;
-  private exec: Docker.Exec | null = null;
+  /** A shell's process. */
+  private proc: ShellProcess | null = null;
+  /** What the ready message names: bash in a container, the host's own shell. */
+  private shellName = "bash";
+  /** A log view's tail. */
   private stream: Duplex | null = null;
   private unacked = 0;
   private paused = false;
@@ -83,7 +112,7 @@ export class TerminalSession {
   private graceTimer: NodeJS.Timeout | null = null;
   private killed = false;
 
-  private constructor(container: Docker.Container, sid: string, kind: TermKind, cols: number, rows: number, cwd: string, task?: string) {
+  private constructor(container: Docker.Container | null, sid: string, kind: TermKind, cols: number, rows: number, cwd: string, task?: string) {
     this.container = container;
     this.sid = sid;
     this.kind = kind;
@@ -115,15 +144,109 @@ export class TerminalSession {
       ["sh", "-c", 'mkdir -p /tmp/hu/term && echo $$ > "/tmp/hu/term/$1.pid"; exec bash -l', "sh", session.sid],
       { tty: true, user, workDir: cwd, env: ["TERM=xterm-256color", "COLORTERM=truecolor", ...env] }
     );
-    session.exec = exec;
-    session.stream = stream;
+    session.proc = {
+      write: (data) => void stream.write(data),
+      pause: () => void stream.pause(),
+      resume: () => void stream.resume(),
+      resize: (w, h) => void exec.resize({ h, w }).catch(() => {}),
+      kill: async () => {
+        await execCollect(
+          container,
+          [
+            "sh",
+            "-c",
+            'p=$(cat "/tmp/hu/term/$1.pid" 2>/dev/null) && [ -n "$p" ] && { pkill -HUP -s "$p"; sleep 0.3; pkill -KILL -s "$p"; }; rm -f "/tmp/hu/term/$1.pid"; exit 0',
+            "sh",
+            session.sid,
+          ],
+          { user: "learner", timeoutMs: 5_000 }
+        ).catch(() => {});
+      },
+      destroy: () => void stream.destroy(),
+    };
     stream.on("data", (chunk: Buffer) => session.output(chunk));
-    const ended = () => void session.ended();
+    const ended = () => void session.ended(async () => (await exec.inspect()).ExitCode ?? null);
     stream.on("end", ended);
     stream.on("close", ended);
     stream.on("error", ended);
     await exec.resize({ h: rows, w: cols }).catch(() => {});
     return session;
+  }
+
+  /** Your own login shell on this computer, with a pty, in `cwd` (a
+      host-stored workspace's folder). It starts when the first terminal
+      attaches, at that terminal's size: a shell started at a guessed size
+      draws its first prompt for that width, and a narrower terminal wraps
+      it, leaving blank lines above the prompt. `tmux` names the tmux
+      session it's kept in, when tmux is there. */
+  static host({ cols, rows, cwd, tmux: tmuxName }: { cols: number; rows: number; cwd: string; tmux?: string }): TerminalSession {
+    const { spawn } = loadPty();
+    const session = new TerminalSession(null, newSid("h"), "shell", cols, rows, cwd);
+    const windows = process.platform === "win32";
+    // Windows: PowerShell, there on every Windows 10 and 11. Elsewhere your
+    // login shell, interactive, so it reads your profile like a new terminal
+    // window does (PATH, and tools installed there, like Claude Code).
+    const file = windows ? "powershell.exe" : process.env.SHELL || "/bin/bash";
+    session.shellName = path.basename(file).replace(/\.exe$/i, "");
+    const tmux = tmuxName ? tmuxPath() : null;
+    session.inTmux = Boolean(tmux);
+    const command = tmux && tmuxName ? tmuxClient(tmux, tmuxName, cwd, file) : { file, args: windows ? ["-NoLogo"] : ["-l"] };
+    session.startHost = (w, h) => {
+      let pty: IPty;
+      try {
+        pty = spawn(command.file, command.args, { name: "xterm-256color", cols: w, rows: h, cwd, env: hostShellEnv() });
+      } catch (err) {
+        session.note(`Couldn't start ${session.shellName}: ${(err as Error).message}`);
+        void session.ended(async () => null);
+        return;
+      }
+      session.startedProc(pty);
+    };
+    return session;
+  }
+
+  /** Starts the waiting host shell, at the first terminal's size. */
+  private startHost: ((cols: number, rows: number) => void) | null = null;
+  /** The shell is in tmux: ending this session only detaches from it. */
+  inTmux = false;
+
+  private startedProc(pty: IPty) {
+    const session = this;
+    session.proc = {
+      write: (data) => pty.write(typeof data === "string" ? data : data.toString("utf8")),
+      pause: () => pty.pause(),
+      resume: () => pty.resume(),
+      resize: (w, h) => {
+        try {
+          pty.resize(w, h);
+        } catch {
+          /* it just exited */
+        }
+      },
+      kill: () => killHostShell(pty),
+      destroy: () => {
+        try {
+          pty.kill();
+        } catch {
+          /* already gone */
+        }
+      },
+    };
+    pty.onData((data) => {
+      session.hostOutput = session.hostOutput.then(() => session.shown(data)).catch(() => {});
+    });
+    pty.onExit(({ exitCode }) => void session.hostOutput.then(() => session.ended(async () => exitCode)));
+  }
+
+  /** The host shell's output so far, in order (dropBlankTop is async). */
+  private hostOutput: Promise<void> = Promise.resolve();
+
+  /** A host shell's output, shown, minus a line feed that would leave a
+      blank first line on an empty screen (runner/blank-top.ts). In tmux,
+      tmux draws the screen and runner/host-shell.ts does that, inside. */
+  private async shown(data: string) {
+    if (this.inTmux || !mayBlank(this.mirror, data)) return this.output(Buffer.from(data, "utf8"));
+    this.send(Buffer.from(await dropBlankTop(this.mirror, data), "utf8"));
   }
 
   /** Follows a task's log, from its start, as a read-only view. */
@@ -135,7 +258,8 @@ export class TerminalSession {
 
   private async follow() {
     const { stream } = await execStream(
-      this.container,
+      // A log view is always a container's (TerminalSession.log).
+      this.container!,
       ["sh", "-c", 'mkdir -p /tmp/hu/proc && touch "/tmp/hu/proc/$1.log" && exec tail -n +1 -F -s 0.2 "/tmp/hu/proc/$1.log" 2>/dev/null', "sh", this.task!],
       { user: "learner" }
     );
@@ -164,6 +288,12 @@ export class TerminalSession {
 
   private output(chunk: Buffer) {
     this.mirror.write(chunk);
+    this.send(chunk);
+  }
+
+  /** Output that's in the mirror already, to the sockets, with flow control. */
+  private send(chunk: Buffer) {
+    if (!chunk.length) return;
     for (const socket of this.sockets) {
       if (socket !== this.writer && socket.buffered > SLOW_BYTES) {
         socket.close(4408, "Too far behind");
@@ -176,16 +306,18 @@ export class TerminalSession {
       this.unacked += chunk.length;
       if (!this.paused && this.unacked > HIGH) {
         this.paused = true;
-        this.stream?.pause();
+        this.proc?.pause();
       }
     }
   }
 
-  private async ended() {
+  private async ended(exitCode: () => Promise<number | null>) {
     if (this.exited || this.kind !== "shell") return;
+    // The runner let go of a tmux client (kill, below): the shell runs on in
+    // tmux, so nothing says it exited, and the page attaches to it again.
+    if (this.killed && this.inTmux) return;
     this.exited = { code: null, signal: null };
-    const info = await this.exec?.inspect().catch(() => null);
-    this.exited.code = info?.ExitCode ?? null;
+    this.exited.code = await exitCode().catch(() => null);
     for (const socket of this.sockets) socket.sendText({ t: "exit", code: this.exited.code, signal: null });
     this.onExit(this.exited.code);
   }
@@ -199,6 +331,16 @@ export class TerminalSession {
   async attach(socket: TermSocket, cols: number, rows: number) {
     if (this.graceTimer) clearTimeout(this.graceTimer);
     this.graceTimer = null;
+    if (this.startHost) {
+      const start = this.startHost;
+      this.startHost = null;
+      if (cols >= 2 && cols <= 1000 && rows >= 1 && rows <= 500) {
+        this.cols = cols;
+        this.rows = rows;
+        this.mirror.resize(cols, rows);
+      }
+      start(this.cols, this.rows);
+    }
     this.sockets.add(socket);
     const writes = this.kind === "shell" && !this.writer;
     if (writes) this.setWriter(socket);
@@ -206,7 +348,7 @@ export class TerminalSession {
       t: "ready",
       sid: this.sid,
       cwd: this.cwd,
-      shell: this.kind === "shell" ? "bash" : null,
+      shell: this.kind === "shell" ? this.shellName : null,
       kind: this.kind,
       task: this.task ?? null,
       readonly: this.writer !== socket,
@@ -232,14 +374,14 @@ export class TerminalSession {
     this.unacked = 0;
     if (this.paused) {
       this.paused = false;
-      this.stream?.resume();
+      this.proc?.resume();
     }
   }
 
   input(socket: TermSocket, data: Buffer) {
     if (socket !== this.writer || this.kind !== "shell" || this.exited) return;
     this.onInput();
-    this.stream?.write(data);
+    this.proc?.write(data);
   }
 
   resize(socket: TermSocket, cols: number, rows: number) {
@@ -249,7 +391,7 @@ export class TerminalSession {
     this.cols = cols;
     this.rows = rows;
     this.mirror.resize(cols, rows);
-    void this.exec?.resize({ h: rows, w: cols }).catch(() => {});
+    this.proc?.resize(cols, rows);
   }
 
   ack(socket: TermSocket, bytes: number) {
@@ -257,7 +399,7 @@ export class TerminalSession {
     this.unacked = Math.max(0, this.unacked - bytes);
     if (this.paused && this.unacked < LOW) {
       this.paused = false;
-      this.stream?.resume();
+      this.proc?.resume();
     }
   }
 
@@ -266,9 +408,9 @@ export class TerminalSession {
     if (this.kind === "log") return this.onSignal(sig);
     if (socket !== this.writer || this.exited) return;
     this.onInput();
-    if (sig === "INT") this.stream?.write("\x03");
-    else if (sig === "QUIT") this.stream?.write("\x1c");
-    else if (sig === "TSTP") this.stream?.write("\x1a");
+    if (sig === "INT") this.proc?.write("\x03");
+    else if (sig === "QUIT") this.proc?.write("\x1c");
+    else if (sig === "TSTP") this.proc?.write("\x1a");
   }
 
   takeover(socket: TermSocket) {
@@ -283,22 +425,12 @@ export class TerminalSession {
   async kill() {
     if (this.killed) return;
     this.killed = true;
+    this.startHost = null;
     if (this.graceTimer) clearTimeout(this.graceTimer);
     for (const socket of this.sockets) socket.close(4404, "The terminal ended");
     this.sockets.clear();
-    if (this.kind === "shell" && !this.exited) {
-      await execCollect(
-        this.container,
-        [
-          "sh",
-          "-c",
-          'p=$(cat "/tmp/hu/term/$1.pid" 2>/dev/null) && [ -n "$p" ] && { pkill -HUP -s "$p"; sleep 0.3; pkill -KILL -s "$p"; }; rm -f "/tmp/hu/term/$1.pid"; exit 0',
-          "sh",
-          this.sid,
-        ],
-        { user: "learner", timeoutMs: 5_000 }
-      ).catch(() => {});
-    }
+    if (this.kind === "shell" && !this.exited) await this.proc?.kill();
+    this.proc?.destroy();
     this.stream?.destroy();
     this.mirror.dispose();
   }
@@ -313,7 +445,25 @@ export class TerminalSession {
       socket.close(4404, "The terminal ended");
     }
     this.sockets.clear();
+    this.proc?.destroy();
     this.stream?.destroy();
     this.mirror.dispose();
   }
+}
+
+/** The runner's own environment for a host shell, minus what's the app's:
+    the runner's token and settings (HU_*), npm's run variables, and the
+    app's port, so nothing in the shell can reach the runner as the app, and
+    an npm run dev there doesn't take the app's port. And minus an AI agent's
+    session markers, the app started from inside one (runner/pty.ts). */
+export function hostShellEnv(from: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(withoutAgentSession(from))) {
+    if (value === undefined) continue;
+    if (/^(HU_|npm_|NEXT_|__NEXT|TURBOPACK)/i.test(key) || ["PORT", "NODE_OPTIONS", "INIT_CWD", "NODE_ENV"].includes(key.toUpperCase())) continue;
+    env[key] = value;
+  }
+  env.TERM = "xterm-256color";
+  env.COLORTERM = "truecolor";
+  return env;
 }

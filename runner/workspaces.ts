@@ -16,6 +16,7 @@ import { diagSpecs, runDiagnostics } from "./diagnostics.ts";
 import { LABEL, isDockerDown, labelsFor, namePrefix, type DockerWatch, type Owner } from "./docker.ts";
 import { EventHub, type EventMessage, type Subscriber } from "./events.ts";
 import { execCollect } from "./exec.ts";
+import { killTmuxSession, tmuxSession } from "./host-tmux.ts";
 import { HttpError } from "./http-util.ts";
 import { isImageName, type Images } from "./images.ts";
 import { Job, type JobPool } from "./jobs.ts";
@@ -59,6 +60,14 @@ import { isCourse, runnableImage, workspaceImage, workspaceLimits, type Workspac
  * runner/README.md ("Workspaces") is the contract for every route here.
  */
 
+/** Where a workspace's terminals run. A shell on this computer is outside
+    the sandbox, so only the compiler's own folders (compiler/<course>) get
+    one, whatever a request asks for, and only with their files on this
+    computer, where that shell works on them. */
+export function shellPlace(body: Pick<OpenWorkspace, "scope" | "shell" | "storage">): "host" | "container" {
+  return body.shell === "host" && parseScope(body.scope)?.kind === "compiler" && (body.storage ?? "host") === "host" ? "host" : "container";
+}
+
 export type Status = "files" | "starting" | "running" | "stopping" | "stopped" | "error";
 export type FileState = "same" | "modified" | "new";
 
@@ -66,6 +75,8 @@ export interface WorkspaceConfig {
   image: string | null;
   storage: "host" | "volume";
   profile: "standard" | "sysadmin";
+  /** Where terminals run: in the container, or on this computer. */
+  shell: "container" | "host";
   start: "run" | "open";
   examples: "own" | "shared";
   ports: { env: string; label?: string; readyPath?: string; preview?: boolean }[];
@@ -1627,9 +1638,23 @@ export class Workspace {
     this.touch();
     const shells = [...this.terminals.values()].filter((t) => !t.exited);
     if (shells.length >= MAX_TERMINALS) throw new HttpError(409, "too_many_terminals", `A workspace has at most ${MAX_TERMINALS} terminals. Close one first.`);
-    await this.ensureRunning();
-    const dir = cwd ? `/workspace/${checkRel(cwd)}` : "/workspace";
-    const session = await TerminalSession.shell(this.container!, { cols, rows, cwd: dir, env: [] });
+    let session: TerminalSession;
+    if (this.meta.config.shell === "host") {
+      // Your own shell, in this workspace's folder on this computer: no
+      // container to start.
+      const dir = cwd ? path.join(this.dir, "files", ...checkRel(cwd).split("/")) : path.join(this.dir, "files");
+      try {
+        // Kept in tmux when it's here, one session for the workspace, so it
+        // outlives the page and the runner (runner/host-tmux.ts).
+        session = TerminalSession.host({ cols, rows, cwd: fs.statSync(dir).isDirectory() ? dir : path.join(this.dir, "files"), tmux: tmuxSession(this.id) });
+      } catch (err) {
+        throw new HttpError(500, "terminal_failed", `Couldn't start a shell: ${(err as Error).message}`);
+      }
+    } else {
+      await this.ensureRunning();
+      const dir = cwd ? `/workspace/${checkRel(cwd)}` : "/workspace";
+      session = await TerminalSession.shell(this.container!, { cols, rows, cwd: dir, env: [] });
+    }
     session.onInput = () => this.touch();
     session.onExit = (code) => this.emit({ t: "terminal", sid: session.sid, state: "exited", code });
     this.terminals.set(session.sid, session);
@@ -1645,9 +1670,12 @@ export class Workspace {
     if (!session) throw new PathError("not_found", "No such terminal.");
     this.terminals.delete(sid);
     await session.kill();
+    // Closed on purpose: the shell it kept in tmux ends too.
+    if (session.inTmux) await killTmuxSession(tmuxSession(this.id));
   }
 
-  /** The last socket left a shell this long ago: end it. */
+  /** The last socket left a shell this long ago: end it (a shell in tmux
+      keeps running there, for the next terminal to attach to). */
   expireTerminal(sid: string) {
     const session = this.terminals.get(sid);
     if (!session || session.attached) return;
@@ -1657,6 +1685,16 @@ export class Workspace {
 
   terminalList() {
     return [...this.terminals.values(), ...this.logViews.values()].map((s) => s.info);
+  }
+
+  /** Ends the shells on this computer (the runner is going away), or lets
+      go of them when they're in tmux, which keeps them. A container's shells
+      end with its container. */
+  async endHostShells() {
+    if (this.meta.config.shell !== "host") return;
+    const shells = [...this.terminals.values()];
+    this.terminals.clear();
+    await Promise.all(shells.map((s) => s.kill()));
   }
 
   taskList() {
@@ -1773,9 +1811,11 @@ export class Workspace {
     });
   }
 
-  /** Removes everything: container, volumes, databases, leases, files. */
+  /** Removes everything: container, volumes, databases, leases, files, and
+      a shell kept in tmux. */
   async destroy() {
     await this.stop("delete").catch(() => {});
+    if (this.meta.config.shell === "host") await killTmuxSession(tmuxSession(this.id)).catch(() => {});
     await this.lock.run(async () => {
       this.watcher.stop();
       await this.m.docker.getContainer(this.containerName).remove({ force: true, v: true }).catch(() => {});
@@ -2240,6 +2280,7 @@ export class Workspaces {
       image: workspaceImage(course, body.image),
       storage: body.storage ?? "host",
       profile: body.profile ?? "standard",
+      shell: shellPlace(body),
       start: body.start ?? "run",
       examples: body.examples ?? "own",
       ports: body.ports ?? [],
@@ -2328,6 +2369,7 @@ export class Workspaces {
   /** The runner is shutting down (Ctrl+C on npm run up): every running workspace stops. */
   async shutdown() {
     await Promise.all(this.running().map((w) => w.stop("user").catch(() => {})));
+    await Promise.all([...this.loaded.values()].map((w) => w.endHostShells().catch(() => {})));
     for (const w of this.loaded.values()) w.unwatch();
     await this.deps.shutdown();
   }

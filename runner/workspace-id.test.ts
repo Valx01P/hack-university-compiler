@@ -25,6 +25,16 @@ describe("workspace ids", () => {
     }
   });
 
+  it("names a compiler page's own folder, one per language, shown on the compiler", () => {
+    assert.deepEqual(parseScope("compiler/java"), { kind: "compiler", course: "java" });
+    assert.match(workspaceId("compiler/python"), WORKSPACE_ID);
+    assert.notEqual(workspaceId("compiler/python"), workspaceId("playground/python"));
+    assert.deepEqual(routeForScope("compiler/go"), { pathname: "/go", tab: "" });
+    for (const bad of ["compiler", "compiler/", "compiler/java/1", "compiler/Java", "compiler/java/challenge"]) assert.equal(parseScope(bad), null, bad);
+    // The compiler's address alone names no workspace: the page names its own.
+    assert.equal(scopeForRoute("/java"), null);
+  });
+
   it("has a SHA-256 that matches node:crypto on every length", () => {
     for (let n = 0; n < 300; n++) {
       const bytes = randomBytes(n);
