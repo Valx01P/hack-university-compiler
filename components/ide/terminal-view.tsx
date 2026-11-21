@@ -6,7 +6,7 @@ import type { Terminal } from "@xterm/xterm";
 import { useIdeSettings } from "@/lib/ide-settings";
 import { attachTerminal, type TerminalSession } from "@/lib/terminal-bridge";
 import type { WorkspaceStore } from "@/lib/workspace-store";
-import { isDark, scaleChroma, withContrast } from "@/lib/oklch";
+import { isDark, mix, scaleChroma, withContrast } from "@/lib/oklch";
 import { evenCells, terminalFamily } from "@/lib/terminal-font";
 import { TERM_CONTRAST_DEFAULT, TERM_VIVID_DEFAULT } from "@/lib/theme";
 
@@ -175,6 +175,66 @@ function clearDefaultBackgrounds(webgl: object) {
     if (!(fg & INVERSE) && (bg & COLOR_MODE) === 0) vertices.attributes[offset + 7] = 0;
   };
   proto.huClearDefault = true;
+}
+
+/**
+ * Dim (faint) text, which programs use for what's secondary (Claude Code's
+ * types in its code, its hints): the addon raises the color to half the
+ * contrast asked for, then draws it at half opacity, which halves again on
+ * the see-through canvas, so on a light background it all but disappeared
+ * (1.25:1, a dim cyan on Light). Here a dim color is drawn solid instead:
+ * halfway from its color to the background, then raised by lightness
+ * (lib/oklch.ts) to 3:1, or half the terminal's contrast when that's more,
+ * fainter than plain text and readable on light and dark alike. Patched
+ * once, on the glyph atlas's prototype, as the renderer makes its first
+ * atlas, and left alone if the addon's insides differ (a newer version).
+ */
+type AtlasColor = { css: string; rgba: number };
+const hexOf = (rgba: number) => `#${((rgba >>> 8) & 0xffffff).toString(16).padStart(6, "0")}`;
+/** Each dim color worked out, by its color, background, and contrast: the
+    atlas asks again for every new character drawn in it. */
+const dimColors = new Map<string, AtlasColor>();
+function solidDim(webgl: object) {
+  type Atlas = {
+    _config?: { minimumContrastRatio?: number };
+    _getForegroundColor?: (...args: unknown[]) => AtlasColor;
+    _resolveBackgroundRgba?: (mode: unknown, color: unknown, inverse: unknown) => number;
+    huSolidDim?: boolean;
+  };
+  type Renderer = { _charAtlas?: object; _refreshCharAtlas?: () => void };
+  const renderer = (webgl as { _renderer?: Renderer })._renderer;
+  const refresh = renderer?._refreshCharAtlas;
+  if (!renderer || typeof refresh !== "function") return;
+  const patch = (atlas: object | undefined) => {
+    const proto = atlas ? (Object.getPrototypeOf(atlas) as Atlas) : null;
+    const draw = proto?._getForegroundColor;
+    const backOf = proto?._resolveBackgroundRgba;
+    if (!proto || proto.huSolidDim || typeof draw !== "function" || draw.length !== 10 || typeof backOf !== "function") return;
+    // Its arguments: background (its value, mode, color), foreground (the
+    // same), inverse, dim, bold, and whether it's a character contrast skips.
+    proto._getForegroundColor = function (this: Atlas, ...args: unknown[]) {
+      const [, bgMode, bgColor, , , , inverse, dim, , skipped] = args;
+      if (!dim || skipped) return draw.apply(this, args);
+      const full = draw.apply(this, [...args.slice(0, 7), false, ...args.slice(8)]);
+      const back = hexOf(backOf.call(this, bgMode, bgColor, inverse));
+      const ratio = this._config?.minimumContrastRatio ?? 1;
+      const key = `${full.rgba}:${back}:${ratio}`;
+      let color = dimColors.get(key);
+      if (!color) {
+        const half = mix(hexOf(full.rgba), back, 0.5);
+        const css = ratio > 1 ? withContrast(half, back, Math.max(3, ratio / 2)) : half;
+        color = { css, rgba: ((Number.parseInt(css.slice(1), 16) << 8) | 0xff) >>> 0 };
+        dimColors.set(key, color);
+      }
+      return color;
+    };
+    proto.huSolidDim = true;
+  };
+  patch(renderer._charAtlas);
+  renderer._refreshCharAtlas = function (this: Renderer) {
+    refresh.call(this);
+    patch(this._charAtlas);
+  };
 }
 
 /**
@@ -353,6 +413,7 @@ export function TerminalView({
         term.loadAddon(webgl);
         clearDefaultBackgrounds(webgl);
         drawOnPixelResize(webgl, term);
+        solidDim(webgl);
         // It sizes its canvas by the screen's own pixels and lays out by
         // devicePixelRatio. A browser whose two disagree (emulated scaling)
         // gets a blank terminal, so there it's the DOM renderer.
