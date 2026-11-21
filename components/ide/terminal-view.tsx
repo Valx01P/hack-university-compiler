@@ -169,6 +169,35 @@ function clearDefaultBackgrounds(webgl: object) {
   proto.huClearDefault = true;
 }
 
+/**
+ * The addon also keeps its canvas as many pixels across and down as the box
+ * it covers (a ResizeObserver on its device pixels), and that box can gain
+ * or lose one as a border moves: at a zoom that isn't a whole number of
+ * pixels (Chrome at 90% on a 2x screen is 1.8), the terminal's edges land
+ * between pixels differently at each spot. Each time, it resized the canvas,
+ * which empties it, and drew again a frame later, so that frame showed an
+ * empty terminal: the flashing as the panel's border was dragged. Here it
+ * draws in the same callback, before the frame is painted. Skipped inside a
+ * synchronized update (that waits to draw), and when the addon's insides
+ * differ (a newer version).
+ */
+function drawOnPixelResize(webgl: object, term: Terminal) {
+  type Renderer = {
+    _canvas?: HTMLCanvasElement;
+    _setCanvasDevicePixelDimensions?: (width: number, height: number) => void;
+    renderRows?: (start: number, end: number) => void;
+  };
+  const renderer = (webgl as { _renderer?: Renderer })._renderer;
+  const resize = renderer?._setCanvasDevicePixelDimensions;
+  if (!renderer || typeof resize !== "function" || resize.length !== 2 || typeof renderer.renderRows !== "function") return;
+  renderer._setCanvasDevicePixelDimensions = function (this: Renderer, width: number, height: number) {
+    const canvas = this._canvas;
+    const changed = !canvas || canvas.width !== width || canvas.height !== height;
+    resize.call(this, width, height);
+    if (changed && !term.modes.synchronizedOutputMode) this.renderRows?.(0, term.rows - 1);
+  };
+}
+
 /** The <html> attributes and style variables the terminal's look reads
     (its theme, colors, font, sizes, and the menu's terminal settings). */
 const LOOK_ATTRS = ["data-theme", "data-code-theme", "data-contrast", "data-code-bg", "data-code-sel", "data-stars", "data-term-bg", "data-term-colors", "data-font-code", "data-scrollbars"];
@@ -312,6 +341,7 @@ export function TerminalView({
         webgl.onContextLoss(() => webgl.dispose());
         term.loadAddon(webgl);
         clearDefaultBackgrounds(webgl);
+        drawOnPixelResize(webgl, term);
         // It sizes its canvas by the screen's own pixels and lays out by
         // devicePixelRatio. A browser whose two disagree (emulated scaling)
         // gets a blank terminal, so there it's the DOM renderer.
