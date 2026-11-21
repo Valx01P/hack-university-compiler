@@ -293,16 +293,28 @@ before committing it.
   begin with (the row unfilled, its brighter name marking it, a
   struck-through ring for a swatch, a row under the pointer the faint
   gray), the gray (kept by name, `gray`), or a color of your own tinted 40%
-  like a selection, so names stay readable. The terminal's colors (Terminal colors) are VS
-  Code's to begin with (its terminal's 16 colors, text, and background,
-  vivid where the code themes' bright colors are pastel, which bold prompts
-  like Starship's draw in), or the editor's, or any code theme's: that
-  theme's own rules in globals.css also match `.term-colors`, contrast
-  levels included, so a palette is never copied, and a picked code
-  background stays off all but the editor's. See-through is transparent
-  black, and xterm's WebGL addon, which draws a default background behind
+  like a selection, so names stay readable. The terminal's colors
+  (Terminal colors) are VS Code's to begin with (its terminal's 16 colors,
+  text, and background, vivid where the code themes' bright colors are
+  pastel, which bold prompts like Starship's draw in), its dark ones under
+  a dark theme and its light ones under Light, as VS Code's terminal
+  follows its theme, or the editor's, or any code theme's: that theme's
+  own rules in globals.css also match `.term-colors`, contrast levels
+  included, so a palette is never copied, and a picked code background
+  stays off all but the editor's. With the stars on, the terminal goes
+  see-through only where its colors are made for what shows through (a
+  dark palette under Light keeps its own background, `data-own-bg`), and
+  see-through is its background's own color at no alpha, so xterm's
+  contrast and a program asking for the background (OSC 11) get that
+  color, never black. It answers light or dark to programs that ask (DSR
+  996) and tells those that asked when it changes (mode 2031), tmux too,
+  as it attaches, so programs inside hear the right background. xterm's
+  WebGL addon, which draws a default background behind
   dim and italic cells at full alpha (a box over the sky), is patched to
-  draw those clear (`clearDefaultBackgrounds` in terminal-view.tsx). Its
+  draw those clear (`clearDefaultBackgrounds` in terminal-view.tsx), and
+  dim text is drawn solid, halfway from its color to the background and
+  raised to 3:1 or more (`solidDim`), since the addon's half opacity,
+  halved again on the see-through canvas, all but hid it on Light. Its
   colors have a vividness (their chroma, 120% to begin with) and a contrast
   (5.5:1 to begin with, whatever the app's contrast level), both in OKLCH (`lib/oklch.ts`): contrast raises a color's
   lightness alone, never blending it toward white the way xterm's minimum
@@ -369,6 +381,17 @@ before committing it.
   that are always visible. Clicking the code edits it in place, `Mod-Enter`
   runs it, and clicking off it or Escape returns it to plain code with the
   edits kept.
+- **Editor toolbars put reset first:** the `{}` reset, then the layout,
+  full screen, the answer eye, and the settings, in the compiler and Learn.
+- **Double clicks follow VS Code** in every editor (`doubleClickSelection`
+  in `lib/editor-extensions.ts`): on a bracket, what's between it and its
+  partner (across lines, a cursor in an empty pair, a bracket with no
+  partner as before), and the drag after one goes through punctuation a
+  character at a time: from `parts` in `parts[1]);` it takes `[`, `1`, `]`,
+  `)`, then `;`, not `]);` in one step. Words, runs of spaces, and a double
+  click on other punctuation (its whole run) are CodeMirror's. A selection's other
+  places light up, unless it's only blank space (spaces, tabs), which
+  would light every indent (`blankSelection`).
 - **Motion** (GSAP, `lib/motion.ts`) answers what you do and never plays on
   first paint, and reduced motion turns it off.
 - The bottom shade behind Learn's Previous and Next spans the whole part, and
