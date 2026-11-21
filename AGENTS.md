@@ -214,6 +214,19 @@ before committing it.
   terminal refits once its size settles, its shell hears that size once, it
   re-themes only when its own settings change (not the panes' sizes on
   `<html>`), and the panel's hidden views skip layout (content-visibility).
+- **A terminal never flickers as it resizes:** the shell hears the new size
+  first, and the old screen stays until the shell's redraw for it is whole
+  (tmux's marked as a synchronized update, `sync` in `runner/tmux.conf`,
+  another shell's once it goes quiet, 300ms at most). Then the resize, as
+  the bridge's own sequence, and the redraw go to xterm in one write, drawn
+  in one frame (`lib/terminal-bridge.ts`). Resized first, xterm showed the
+  old screen rewrapped until the redraw came, a jump and back. And while a
+  border moves at a zoom that isn't a whole number of pixels (Chrome at 90%
+  is 1.8), xterm's WebGL canvas gains or loses a pixel at each spot, which
+  empties it: it draws again in the same callback, never a frame later
+  (`drawOnPixelResize` in terminal-view.tsx), or the terminal flashes. The runner
+  reads `tmux.conf` again into a tmux server that's already running, so the
+  config only sets list entries by number, never appends.
 - **A reload keeps your place:** the open panel, the challenge and its hints,
   list filters, the cheatsheet search and section, the SQL view, Learn's tab
   and hints and position, and full screen are in the address. Every
