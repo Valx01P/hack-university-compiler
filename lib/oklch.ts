@@ -5,6 +5,8 @@
  * alone, so a color keeps its hue and strength instead of washing out toward
  * white (xterm's own minimum contrast blends toward white, which turns a
  * palette pastel). Results are fitted into sRGB by lowering chroma only.
+ * Also the plain WCAG contrast and sRGB mix the theme menu's warnings and
+ * the terminal's dim text use.
  */
 
 type Lch = [l: number, c: number, h: number];
@@ -70,6 +72,28 @@ const luminanceOf = ([r, g, b]: [number, number, number]) =>
   0.2126 * Math.min(1, Math.max(0, r)) + 0.7152 * Math.min(1, Math.max(0, g)) + 0.0722 * Math.min(1, Math.max(0, b));
 const ratio = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 
+/** The WCAG contrast of two #rrggbb colors, Infinity when one can't be
+    read (nothing to warn about). */
+export function contrast(a: string, b: string): number {
+  const x = parse(a);
+  const y = parse(b);
+  return x && y ? ratio(luminanceOf(x), luminanceOf(y)) : Infinity;
+}
+
+/** `top` laid over `bottom` at `amount` (0 to 1), as #rrggbb: the mix a
+    browser draws, channel by channel in sRGB. */
+export function mix(top: string, bottom: string, amount: number): string {
+  const channels = (hex: string) => [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
+  const [t, b] = [channels(top), channels(bottom)];
+  return `#${t.map((v, i) => Math.round(v * amount + b[i] * (1 - amount)).toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Whether light text goes on it: the same line withContrast draws. */
+export function isDark(color: string): boolean {
+  const rgb = parse(color);
+  return rgb ? luminanceOf(rgb) < 0.18 : true;
+}
+
 /** The color with its chroma times `scale` (1 leaves it), as #rrggbb. */
 export function scaleChroma(color: string, scale: number): string {
   const rgb = parse(color);
@@ -87,7 +111,7 @@ export function withContrast(color: string, background: string, min: number): st
   const bgLum = luminanceOf(bg);
   if (ratio(luminanceOf(rgb), bgLum) >= min) return color;
   const [L, C, h] = toLch(rgb);
-  const lighter = bgLum < 0.18;
+  const lighter = isDark(background);
   const at = (l: number) => ratio(luminanceOf(fit([l, C, h])), bgLum);
   // As far as it can go, if even that isn't enough.
   const end = lighter ? 1 : 0;

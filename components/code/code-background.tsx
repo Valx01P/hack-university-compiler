@@ -2,30 +2,7 @@
 
 import { useEffect, useId, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { CODE_BG_PRESETS, CODE_SEL_PRESETS, SURFACE_GRAY, SURFACE_NONE, codeBackground, codeSelection, explorerBackground, explorerHighlight, termBackground } from "@/lib/theme";
-
-/** WCAG relative luminance of a #rrggbb color. */
-function luminance(hex: string): number {
-  const [r, g, b] = [1, 3, 5].map((i) => {
-    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-function contrast(a: string, b: string): number {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
-}
-
-/** `top` laid over `bottom` at `amount` (0 to 1), as #rrggbb. */
-function mix(top: string, bottom: string, amount: number): string {
-  return `#${[1, 3, 5]
-    .map((i) => {
-      const v = Math.round(parseInt(top.slice(i, i + 2), 16) * amount + parseInt(bottom.slice(i, i + 2), 16) * (1 - amount));
-      return v.toString(16).padStart(2, "0");
-    })
-    .join("")}`;
-}
+import { contrast, mix } from "@/lib/oklch";
 
 /** The code surfaces' text and background colors right now (the editor
     theme's, with the code background setting applied), as #rrggbb, or a
