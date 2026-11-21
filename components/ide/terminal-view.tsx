@@ -323,7 +323,6 @@ export function TerminalView({
       } catch {
         /* no WebGL here */
       }
-      fitRef.current = fit;
       // The screen from before a reload, at once, until the replay lands.
       try {
         const cached = sessionStorage.getItem(cacheKey(sid));
@@ -352,15 +351,14 @@ export function TerminalView({
         },
       });
       sessionRef.current = session;
-      // The shell hears its new size once it settles: dragging a border
-      // resizes the terminal every frame, and every size it heard would
-      // have it (and tmux) redraw the whole screen.
-      let sizeTimer = 0;
-      const resize = term.onResize(({ cols, rows }) => {
-        window.clearTimeout(sizeTimer);
-        sizeTimer = window.setTimeout(() => session?.resize(cols, rows), 120);
-      });
-      cleanups.push(() => window.clearTimeout(sizeTimer));
+      // The size that fits, to the shell, which the terminal takes with the
+      // shell's redraw for it (lib/terminal-bridge.ts), so it draws once.
+      const refit = () => {
+        if (!term || !session || host.offsetWidth <= 0 || host.offsetHeight <= 0) return;
+        const size = fit.proposeDimensions();
+        if (size && Number.isFinite(size.cols) && Number.isFinite(size.rows)) session.resize(size.cols, size.rows);
+      };
+      fitRef.current = { fit: refit };
       // The screen, saved a moment after it changes.
       let saveTimer = 0;
       const write = term.onWriteParsed(() => {
@@ -375,7 +373,6 @@ export function TerminalView({
       });
       cleanups.push(() => {
         window.clearTimeout(saveTimer);
-        resize.dispose();
         write.dispose();
       });
       handleRef?.({ session, term, focus: () => term?.focus() });
@@ -395,7 +392,7 @@ export function TerminalView({
       let ratio: MediaQueryList | null = null;
       const onRatio = () => {
         recell();
-        if (host.offsetWidth > 0) fit.fit();
+        refit();
         watchRatio();
       };
       const watchRatio = () => {
@@ -427,7 +424,7 @@ export function TerminalView({
         term.options.fontSize = fontSize();
         recell();
         term.options.overviewRuler = scrollbarRoom();
-        if (host.offsetWidth > 0) fit.fit();
+        refit();
         // Another code font: the terminal's own of it, once it's loaded.
         const next = codeFont();
         if (next === font) return;
@@ -438,19 +435,18 @@ export function TerminalView({
           family = made;
           term.options.fontFamily = made;
           recell();
-          if (host.offsetWidth > 0) fit.fit();
+          refit();
         });
       });
       observer.observe(document.documentElement, { attributes: true, attributeFilter: [...LOOK_ATTRS, "style"] });
       // Refitted once its size settles: a border being dragged resizes it
       // every frame, and each fit (xterm reflowing its rows, WebGL its
-      // canvas) costs more than a frame has, which made the drag stutter.
+      // canvas, the shell and tmux redrawing) costs more than a frame has,
+      // which made the drag stutter.
       let fitTimer = 0;
       const sized = new ResizeObserver(() => {
         window.clearTimeout(fitTimer);
-        fitTimer = window.setTimeout(() => {
-          if (host.offsetWidth > 0 && host.offsetHeight > 0) fit.fit();
-        }, 100);
+        fitTimer = window.setTimeout(refit, 100);
       });
       cleanups.push(() => window.clearTimeout(fitTimer));
       sized.observe(host);
