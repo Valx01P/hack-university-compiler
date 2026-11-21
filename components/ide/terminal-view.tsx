@@ -6,7 +6,7 @@ import type { Terminal } from "@xterm/xterm";
 import { useIdeSettings } from "@/lib/ide-settings";
 import { attachTerminal, type TerminalSession } from "@/lib/terminal-bridge";
 import type { WorkspaceStore } from "@/lib/workspace-store";
-import { scaleChroma, withContrast } from "@/lib/oklch";
+import { isDark, scaleChroma, withContrast } from "@/lib/oklch";
 import { evenCells, terminalFamily } from "@/lib/terminal-font";
 import { TERM_CONTRAST_DEFAULT, TERM_VIVID_DEFAULT } from "@/lib/theme";
 
@@ -112,13 +112,21 @@ function themeFrom(host: HTMLElement) {
     );
   // The terminal's own background from the theme menu (lib/theme.ts): a
   // color, or (nothing set) the code background, which is see-through like
-  // the rest of the app with the stars on. See-through is transparent black
-  // (what shows through is the dark sky), and the cursor and the contrast
-  // keep the solid color.
-  const own = document.documentElement.hasAttribute("data-term-bg");
+  // the rest of the app with the stars on, where its colors are made for
+  // what shows through (the sky, light under a light theme). Colors made
+  // for the other kind (a dark palette under Light) keep their background,
+  // their surface marked for globals.css. See-through is the solid color at
+  // no alpha, so xterm's contrast, and a program asking for the background
+  // (OSC 11: tmux, vim, and what tmux answers for), get it, not black.
+  const root = document.documentElement;
+  const own = root.hasAttribute("data-term-bg");
   const solid = own ? v("--term-bg", v("--code-bg", "#0a0a0a")) : v("--code-bg", "#0a0a0a");
-  const clear = !own && document.documentElement.hasAttribute("data-stars");
-  const background = clear ? "#00000000" : solid;
+  const stars = !own && root.hasAttribute("data-stars");
+  const mismatched = stars && isDark(solid) !== root.hasAttribute("data-dark");
+  for (let el = host.closest(".term-surface"); el; el = el.parentElement?.closest(".term-surface") ?? null) {
+    el.toggleAttribute("data-own-bg", mismatched);
+  }
+  const background = stars && !mismatched ? `${solid}00` : solid;
   const foreground = v("--code-ink", "#f0ece6");
   const theme: Record<string, string> = {
     background,
@@ -200,7 +208,7 @@ function drawOnPixelResize(webgl: object, term: Terminal) {
 
 /** The <html> attributes and style variables the terminal's look reads
     (its theme, colors, font, sizes, and the menu's terminal settings). */
-const LOOK_ATTRS = ["data-theme", "data-code-theme", "data-contrast", "data-code-bg", "data-code-sel", "data-stars", "data-term-bg", "data-term-colors", "data-font-code", "data-scrollbars"];
+const LOOK_ATTRS = ["data-theme", "data-dark", "data-code-theme", "data-contrast", "data-code-bg", "data-code-sel", "data-stars", "data-term-bg", "data-term-colors", "data-font-code", "data-scrollbars"];
 const LOOK_VARS = ["--term-fs", "--term-lh", "--term-vivid", "--term-contrast", "--term-bg", "--code-bg-override", "--code-sel-override", "--code-user-fs"];
 
 /** The room the terminal keeps on its right for its scrollbar: none to
@@ -356,6 +364,28 @@ export function TerminalView({
       } catch {
         /* no WebGL here */
       }
+      // Light or dark, for programs that ask (DSR 996) and that asked to hear
+      // when it changes (mode 2031), as tmux does: told, it asks for the
+      // colors again (OSC 10 and 11) and passes the news on to programs in
+      // it that asked. tmux asks when it starts, which a page loaded later
+      // never sees, so a shell in tmux hears it as it attaches too (onReady).
+      // The theme's cursor accent is its solid background.
+      let themeReports = false;
+      const darkNow = () => isDark(term?.options.theme?.cursorAccent ?? "#000000");
+      let dark = darkNow();
+      const reportTheme = () => term?.input(`\x1b[?997;${dark ? 1 : 2}n`, false);
+      term.parser.registerCsiHandler({ prefix: "?", final: "n" }, (params) => {
+        if (params.length !== 1 || params[0] !== 996) return false;
+        reportTheme();
+        return true;
+      });
+      for (const [final, on] of [["h", true], ["l", false]] as const) {
+        term.parser.registerCsiHandler({ prefix: "?", final }, (params) => {
+          if (params.includes(2031)) themeReports = on;
+          // xterm's own handler takes the sequence's other modes.
+          return false;
+        });
+      }
       // The screen from before a reload, at once, until the replay lands.
       try {
         const cached = sessionStorage.getItem(cacheKey(sid));
@@ -373,6 +403,11 @@ export function TerminalView({
           if (!readOnly) setEnded(`The shell exited${exit.code !== null ? ` (${exit.code})` : ""}.`);
         },
         onMode: (ro) => setWatching(ro),
+        onReady: ({ tmux }) => {
+          if (!tmux) return;
+          themeReports = true;
+          reportTheme();
+        },
         onGone: (reason) => {
           setEnded(reason);
           try {
@@ -453,6 +488,10 @@ export function TerminalView({
         if (now === look) return;
         look = now;
         term.options.theme = themeFrom(host);
+        if (darkNow() !== dark) {
+          dark = !dark;
+          if (themeReports) reportTheme();
+        }
         term.options.minimumContrastRatio = contrastRatio();
         term.options.fontSize = fontSize();
         recell();

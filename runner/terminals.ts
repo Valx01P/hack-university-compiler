@@ -352,6 +352,8 @@ export class TerminalSession {
       kind: this.kind,
       task: this.task ?? null,
       readonly: this.writer !== socket,
+      // tmux reads the terminal's light or dark (terminal-view.tsx).
+      tmux: this.inTmux,
     });
     const data = await this.replay();
     if (data) socket.sendText({ t: "replay", data });

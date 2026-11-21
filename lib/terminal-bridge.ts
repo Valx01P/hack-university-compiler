@@ -40,7 +40,8 @@ export interface BridgeOptions {
   sid: string;
   /** Read only: nothing typed is sent (a task's log, or a second tab). */
   readOnly?: boolean;
-  onReady?: (info: { cwd?: string; shell?: string }) => void;
+  /** `tmux`: the shell is kept in tmux (runner/host-tmux.ts). */
+  onReady?: (info: { cwd?: string; shell?: string; tmux: boolean }) => void;
   onExit?: (exit: { code: number | null; signal: string | null }) => void;
   /** The session is gone (the runner closed it, or it restarted). */
   onGone?: (reason: string) => void;
@@ -189,7 +190,7 @@ export function attachTerminal(term: Terminal, opts: BridgeOptions): TerminalSes
         });
         return;
       }
-      let msg: { t?: string; data?: string; cwd?: string; shell?: string; code?: number | null; signal?: string | null; readonly?: boolean };
+      let msg: { t?: string; data?: string; cwd?: string; shell?: string; code?: number | null; signal?: string | null; readonly?: boolean; tmux?: boolean };
       try {
         msg = JSON.parse(e.data);
       } catch {
@@ -202,7 +203,7 @@ export function attachTerminal(term: Terminal, opts: BridgeOptions): TerminalSes
         pending = [];
         pendingBytes = 0;
         opts.onConnection?.("open");
-        opts.onReady?.({ cwd: msg.cwd, shell: msg.shell });
+        opts.onReady?.({ cwd: msg.cwd, shell: msg.shell, tmux: msg.tmux === true });
         watching = msg.readonly === true;
         if (!opts.readOnly) opts.onMode?.(watching);
       } else if (msg.t === "mode") {
