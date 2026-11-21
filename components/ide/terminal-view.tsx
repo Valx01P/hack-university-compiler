@@ -227,6 +227,7 @@ export function TerminalView({
   visible,
   onExit,
   handleRef,
+  onOpenFile,
 }: {
   store: WorkspaceStore;
   sid: string;
@@ -236,6 +237,8 @@ export function TerminalView({
   visible: boolean;
   onExit?: (exit: { code: number | null; signal: string | null }) => void;
   handleRef?: (handle: TerminalHandle | null) => void;
+  /** A file:line link: the store opens it unless this does. */
+  onOpenFile?: (path: string, line: number) => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -245,8 +248,8 @@ export function TerminalView({
   // Another tab is the writer: this one watches until it takes over.
   const [watching, setWatching] = useState(false);
   const sessionRef = useRef<TerminalSession | null>(null);
-  const live = useRef({ onExit, settings });
-  live.current = { onExit, settings };
+  const live = useRef({ onExit, settings, onOpenFile });
+  live.current = { onExit, settings, onOpenFile };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -319,7 +322,7 @@ export function TerminalView({
             links.push({
               text: m[0],
               range: { start: { x: m.index + 1, y }, end: { x: m.index + m[0].length, y } },
-              activate: () => store.openFile(path, { line: at }),
+              activate: () => (live.current.onOpenFile ? live.current.onOpenFile(path, at) : store.openFile(path, { line: at })),
             });
           }
           callback(links);

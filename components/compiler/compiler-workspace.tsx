@@ -101,7 +101,9 @@ function editorNote({ path, challenge, selection }: EditorNote, main: string, la
   const lines = ["# What the learner has open", "", "The Hack University compiler page keeps this note up to date as the learner works.", ""];
   if (challenge) {
     lines.push(
-      `- In the editor: the challenge "${challenge.title}", in ${lang.label}. Its code isn't a file in this folder (it's saved in the page), so here it is:`,
+      `- In the editor: the challenge "${challenge.title}", in ${lang.label}. Its code isn't a file in this folder (it's saved in the page), so here it is, after what the challenge asks:`,
+      "",
+      fenced(challenge.statement, "markdown"),
       "",
       fenced(challenge.code, lang.slug === "cpp" ? "cpp" : fenceOf(main))
     );
@@ -114,7 +116,7 @@ function editorNote({ path, challenge, selection }: EditorNote, main: string, la
       lines.push(`- Selected: ${selection.from === selection.to ? `line ${selection.from}` : `lines ${selection.from} to ${selection.to}`}`, "", fenced(selection.text, challenge ? fenceOf(main) : fenceOf(path ?? main)));
     }
   }
-  lines.push("", "Their last run (its input, output, and how it ended): .hu/last-run.md", "");
+  lines.push("", "Their last run or challenge check (its input, output, and how it ended, or the tests that failed): .hu/last-run.md", "");
   return lines.join("\n");
 }
 
@@ -148,7 +150,8 @@ export interface CompilerWorkspace {
 export interface EditorNote {
   /** A file of the folder's, or a challenge's code (not a file here). */
   path: string | null;
-  challenge: { title: string; code: string } | null;
+  /** Never the answer: the eye keeps it out of the note. */
+  challenge: { title: string; statement: string; code: string } | null;
   selection: EditorSelection | null;
 }
 
@@ -422,8 +425,17 @@ export function CompilerExplorer({ store }: { store: WorkspaceStore }) {
 /** One shell on this computer, in the folder, started the first time you
     open the tab, kept through reloads like the IDE's, and kept in tmux
     (runner/host-tmux.ts) when you leave or the app restarts: opening it
-    again attaches to the same shell. */
-export function CompilerTerminal({ store, visible }: { store: WorkspaceStore; visible: boolean }) {
+    again attaches to the same shell, the same with a challenge open or not.
+    `onOpenFile` opens a file:line link's file. */
+export function CompilerTerminal({
+  store,
+  visible,
+  onOpenFile,
+}: {
+  store: WorkspaceStore;
+  visible: boolean;
+  onOpenFile?: (path: string, line: number) => void;
+}) {
   useStore(store, "status", "terminals");
   const tab = store.terminals[0] ?? null;
   const [starting, setStarting] = useState(false);
@@ -474,7 +486,7 @@ export function CompilerTerminal({ store, visible }: { store: WorkspaceStore; vi
   }
   return (
     <div className="min-h-0 flex-1">
-      <TerminalView store={store} sid={tab.sid} label="Terminal" visible={visible} />
+      <TerminalView store={store} sid={tab.sid} label="Terminal" visible={visible} onOpenFile={onOpenFile} />
     </div>
   );
 }

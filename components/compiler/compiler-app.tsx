@@ -70,18 +70,28 @@ const sessionLayout: {
 const codeKey = (slug: string) => `hu-compiler-code:${slug}`;
 const noop = () => {};
 
+/** Output in a note, cut off past this. */
+const NOTE_OUTPUT_CHARS = 4_000;
+
+/** A fenced block for the notes below, which the text in it can't close early. */
+function noteBlock(text: string): string {
+  const clipped = text.length > NOTE_OUTPUT_CHARS ? `${text.slice(0, NOTE_OUTPUT_CHARS)}\n… (cut off here)` : text;
+  const ticks = "`".repeat(Math.max(3, ...[...clipped.matchAll(/`+/g)].map((m) => m[0].length + 1)));
+  return `${ticks}\n${clipped.replace(/\n?$/, "\n")}${ticks}`;
+}
+
 /** The last run, for tools in the folder's terminal to read
-    (.hu/last-run.md, which AGENTS.md there points them at). */
-function lastRunNotes(file: string, stdin: string, run: RunState): string {
-  const block = (text: string) => `\`\`\`\n${text.replace(/\n?$/, "\n")}\`\`\``;
-  const parts = [`# The last run of ${file}`, ""];
-  parts.push("## Input (stdin)", "", stdin ? block(stdin) : "None.", "");
+    (.hu/last-run.md, which AGENTS.md there points them at). `what` is the
+    file, or the challenge whose code ran. */
+function lastRunNotes(what: string, stdin: string, run: RunState): string {
+  const parts = [`# The last run of ${what}`, ""];
+  parts.push("## Input (stdin)", "", stdin ? noteBlock(stdin) : "None.", "");
   if (run.status === "error") {
     parts.push("## It couldn't run", "", run.error, "");
   } else if (run.status === "done") {
-    if (run.compileOutput) parts.push("## Compiler output", "", block(run.compileOutput), "");
-    parts.push("## Output (stdout)", "", run.stdout ? block(run.stdout) : "None.", "");
-    if (run.stderr) parts.push("## Errors (stderr)", "", block(run.stderr), "");
+    if (run.compileOutput) parts.push("## Compiler output", "", noteBlock(run.compileOutput), "");
+    parts.push("## Output (stdout)", "", run.stdout ? noteBlock(run.stdout) : "None.", "");
+    if (run.stderr) parts.push("## Errors (stderr)", "", noteBlock(run.stderr), "");
     const how =
       run.verdict === "TO"
         ? "It ran too long (over 10 seconds) and was stopped."
@@ -89,6 +99,26 @@ function lastRunNotes(file: string, stdin: string, run: RunState): string {
           ? `It was stopped by ${run.signal}.`
           : `It exited with code ${run.code ?? "unknown"}.`;
     parts.push("## How it ended", "", how, "");
+  }
+  return parts.join("\n");
+}
+
+/** A challenge's last Check, in the same place: the tests that failed, each
+    with its input, what it expected, and what came back. */
+function lastCheckNotes(title: string, state: CheckState): string {
+  const parts = [`# The last check of the challenge "${title}"`, "", "Check runs the learner's code (in .hu/editor.md) on each of the challenge's tests.", ""];
+  if (state.status === "error") parts.push("## It couldn't run", "", state.error, "");
+  else if (state.status === "compile-error") parts.push("## It didn't compile", "", noteBlock(state.output), "");
+  else if (state.status === "done") {
+    const passed = state.results.filter((r) => r.passed).length;
+    parts.push(`## ${passed} of ${state.results.length} tests passed`, "");
+    state.results.forEach((r, i) => {
+      if (r.passed) return;
+      parts.push(`### Test ${i + 1} failed`, "", "Input (stdin):", "", r.stdin ? noteBlock(r.stdin) : "None.", "");
+      parts.push("Expected output:", "", noteBlock(r.expected), "", "Their output:", "", r.actual ? noteBlock(r.actual) : "None.", "");
+      if (r.stderr) parts.push("Errors (stderr):", "", noteBlock(r.stderr), "");
+      if (r.detail?.problems.length) parts.push("What was wrong:", "", ...r.detail.problems.map((p) => `- ${p}`), "");
+    });
   }
   return parts.join("\n");
 }
@@ -243,7 +273,7 @@ export function CompilerApp({
   const noteSelection = (selection: EditorSelection | null) =>
     ws.noteEditor({
       path: challenge ? null : ws.path,
-      challenge: challenge && !showingAnswer ? { title: challenge.title, code: editorCode } : null,
+      challenge: challenge && !showingAnswer ? { title: challenge.title, statement: challenge.statement, code: editorCode } : null,
       selection,
     });
   useEffect(() => {
@@ -358,7 +388,7 @@ export function CompilerApp({
     cheatsheetPlace.q = place.q;
     cheatsheetPlace.at = place.at;
     setRefTab(place.panel);
-    if (place.panel === "challenges" && place.challenge) {
+    if (place.challenge && place.panel !== "explorer") {
       sessionLayout.challengeId = place.challenge;
       setChallengeId(place.challenge);
     }
@@ -375,7 +405,9 @@ export function CompilerApp({
   }, [refData, refError]);
   // And the address follows along.
   useEffect(() => {
-    const onChallenge = refOpen && refTab === "challenges" && challengeId;
+    // A challenge stays open under the other tabs (the Terminal, the
+    // cheatsheet), so the address keeps it there too.
+    const onChallenge = refOpen && challengeId;
     writeUrl(
       refOpen
         ? {
@@ -430,8 +462,10 @@ export function CompilerApp({
   });
   function toggleReference(tab: ReferenceTab) {
     const keepFocus = document.activeElement instanceof HTMLElement && Boolean(document.activeElement.dataset.panelButton);
-    // Your files have no place in a challenge, so these leave it.
-    if ((tab === "explorer" || tab === "terminal") && challenge) leaveChallenge();
+    // Your files have no place in a challenge, so the Explorer leaves it.
+    // The Terminal keeps it: it's the same shell either way, and AI tools in
+    // it read the challenge's code (.hu/editor.md).
+    if (tab === "explorer" && challenge) leaveChallenge();
     if (refOpen && refTab === tab) {
       if (tab === "challenges" && challenge) leaveChallenge();
       else if (tab === "challenges" && lastChallenge) openChallenge(lastChallenge.id);
@@ -497,13 +531,14 @@ export function CompilerApp({
     const done: RunState = result.ok ? { status: "done", ...result.run } : { status: "error", error: result.error };
     setRun(done);
     setAnnouncement(runSummary(done));
-    if (!challenge) ws.recordRun(lastRunNotes(lang.fileName, currentStdin, done));
+    // Not the answer's run: the answer stays behind the eye.
+    if (!showingAnswer) ws.recordRun(lastRunNotes(challenge ? `the challenge "${challenge.title}" (its code is in .hu/editor.md)` : lang.fileName, currentStdin, done));
   }
 
   async function checkChallenge() {
     if (!challenge || busy) return;
     unfoldOutput();
-    const { id, tests } = challenge;
+    const { id, tests, title } = challenge;
     const code = challengeCode;
     setRun({ status: "idle" });
     setAnnouncement("");
@@ -516,6 +551,7 @@ export function CompilerApp({
     const finish = (state: CheckState) => {
       setCheckFor({ id, state });
       setAnnouncement(checkSummary(state));
+      ws.recordRun(lastCheckNotes(title, state));
     };
     if (!outcome.ok) return finish({ status: "error", error: outcome.error });
     const { runs } = outcome;
@@ -1165,7 +1201,19 @@ export function CompilerApp({
             error={refError}
             tab={refTab}
             explorer={<CompilerExplorer store={ws.store} />}
-            terminal={terminalMounted ? <CompilerTerminal store={ws.store} visible={refOpen && refTab === "terminal"} /> : null}
+            terminal={
+              terminalMounted ? (
+                <CompilerTerminal
+                  store={ws.store}
+                  visible={refOpen && refTab === "terminal"}
+                  // A file:line link opens your file, which leaves a challenge.
+                  onOpenFile={(path, line) => {
+                    leaveChallenge();
+                    ws.store.openFile(path, { line });
+                  }}
+                />
+              ) : null
+            }
             buttons={refOpen ? panelButtons : null}
             challenge={challenge}
             next={nextChallenge}
