@@ -1,4 +1,16 @@
-import { Compartment, EditorState, Prec, RangeSetBuilder, countColumn, type Extension } from "@codemirror/state";
+import {
+  CharCategory,
+  Compartment,
+  EditorSelection,
+  EditorState,
+  type Line,
+  Prec,
+  RangeSetBuilder,
+  countColumn,
+  findClusterBreak,
+  type Extension,
+  type SelectionRange,
+} from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -15,7 +27,7 @@ import {
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
-import { StreamLanguage, bracketMatching, codeFolding, foldGutter, foldKeymap, indentOnInput, indentUnit } from "@codemirror/language";
+import { StreamLanguage, bracketMatching, codeFolding, foldGutter, foldKeymap, indentOnInput, indentUnit, matchBrackets } from "@codemirror/language";
 import { autocompletion, closeBrackets, closeBracketsKeymap, type CompletionSource } from "@codemirror/autocomplete";
 import { indentationMarkers } from "@replit/codemirror-indentation-markers";
 import { completionSources, SQL_SCHEMA } from "@/lib/code-editor-completions";
@@ -220,6 +232,9 @@ export const cmTheme = EditorView.theme(
     // back in). The places the selected word appears again go with it.
     "&:not(.cm-focused) .cm-selectionLayer": { display: "none" },
     "&:not(.cm-focused) .cm-selectionMatch": { backgroundColor: "transparent" },
+    // A selection of blank space alone (spaces, tabs) marks no matches:
+    // every indent would light up (blankSelection below).
+    "&.cm-blankSelection .cm-selectionMatch": { backgroundColor: "transparent" },
     // The bracket pair the cursor is at, outlined, and nothing filled in, so
     // the brackets keep their own colors (the Matching brackets switch in the
     // settings gear turns it off). A bracket with no partner gets --danger's
@@ -390,6 +405,101 @@ export function reconfigureSettings(c: EditorCompartments, settings: EditorSetti
   ];
 }
 
+/* A double click selects a word, and dragging on extends the selection a
+   word at a time, as CodeMirror does, with VS Code's two differences (the
+   owner's call): a double click on a bracket selects what's between it and
+   its partner, and the drag goes through punctuation one character at a
+   time (CodeMirror takes a run of it as one word, so from `parts` in
+   `parts[1]);` it jumped past `]);` in one step). Words and runs of spaces
+   are as before. CodeMirror's own double click (basicMouseSelection in
+   @codemirror/view) with those changes. */
+
+/** The character a click at `at` on `line` lands on (`side`: the one
+    before or after), as CodeMirror's groupAt reads it. */
+function clickedChar(line: Line, at: number, side: number): [number, number] {
+  const bias = at === 0 ? 1 : at === line.length ? -1 : side;
+  return bias < 0 ? [findClusterBreak(line.text, at, false), at] : [at, findClusterBreak(line.text, at)];
+}
+
+/** What a double click selects. `oneMark`: punctuation is one character,
+    not its run. */
+function doubleClickRange(state: EditorState, pos: number, side: number, oneMark: boolean): SelectionRange {
+  const line = state.doc.lineAt(pos);
+  if (!line.length) return EditorSelection.cursor(pos);
+  let [from, to] = clickedChar(line, pos - line.from, side);
+  const categorize = state.charCategorizer(pos);
+  const kind = categorize(line.text.slice(from, to));
+  if (!oneMark || kind !== CharCategory.Other) {
+    while (from > 0) {
+      const prev = findClusterBreak(line.text, from, false);
+      if (categorize(line.text.slice(prev, from)) !== kind) break;
+      from = prev;
+    }
+    while (to < line.length) {
+      const next = findClusterBreak(line.text, to);
+      if (categorize(line.text.slice(to, next)) !== kind) break;
+      to = next;
+    }
+  }
+  return EditorSelection.range(line.from + from, line.from + to);
+}
+
+/** A double click on a bracket: what's between it and its partner (across
+    lines too, a cursor between an empty pair), or null for anything else,
+    or a bracket with no partner. */
+function bracketContents(state: EditorState, pos: number, side: number): SelectionRange | null {
+  const line = state.doc.lineAt(pos);
+  if (!line.length) return null;
+  const [from, to] = clickedChar(line, pos - line.from, side);
+  const ch = line.text.slice(from, to);
+  if (ch.length !== 1 || !"()[]{}".includes(ch)) return null;
+  const opens = "([{".includes(ch);
+  // CodeMirror looks forward from an opening bracket, back from a closing one.
+  const match = opens ? matchBrackets(state, line.from + from, 1) : matchBrackets(state, line.from + to, -1);
+  if (!match?.matched || !match.end) return null;
+  return EditorSelection.range(Math.min(match.start.from, match.end.from) + 1, Math.max(match.start.from, match.end.from));
+}
+
+const doubleClickSelection = EditorView.mouseSelectionStyle.of((view, event) => {
+  // Alt is the column selection's (rectangularSelection).
+  if (event.button !== 0 || event.detail !== 2 || event.altKey) return null;
+  const at = (e: MouseEvent) => view.posAndSideAtCoords({ x: e.clientX, y: e.clientY }, false);
+  let start = at(event);
+  let startSel = view.state.selection;
+  // What the double click itself selected, worked out once (a drag asks on
+  // every move), again if the document changes under it.
+  let first: SelectionRange | null = null;
+  return {
+    update(update: ViewUpdate) {
+      if (!update.docChanged) return;
+      start = { ...start, pos: update.changes.mapPos(start.pos) };
+      startSel = startSel.map(update.changes);
+      first = null;
+    },
+    get(e: MouseEvent, extend: boolean, multiple: boolean) {
+      const cur = at(e);
+      first ??= bracketContents(view.state, start.pos, start.assoc) ?? doubleClickRange(view.state, start.pos, start.assoc, false);
+      let range = cur.pos === start.pos ? first : doubleClickRange(view.state, cur.pos, cur.assoc, true);
+      if (start.pos !== cur.pos && !extend) {
+        const from = Math.min(first.from, range.from);
+        const to = Math.max(first.to, range.to);
+        range = from < range.from ? EditorSelection.range(from, to) : EditorSelection.range(to, from);
+      }
+      if (extend) return startSel.replaceRange(startSel.main.extend(range.from, range.to));
+      if (multiple) return startSel.addRange(range);
+      return EditorSelection.create([range]);
+    },
+  };
+});
+
+/** Marks the editor while its selection is blank space alone, for the theme
+    above to leave its matches unmarked. */
+const blankSelection = EditorView.editorAttributes.compute(["selection"], (state): Record<string, string> => {
+  const { main } = state.selection;
+  if (main.empty || main.to - main.from > 200) return {};
+  return /^\s+$/.test(state.sliceDoc(main.from, main.to)) ? { class: "cm-blankSelection" } : {};
+});
+
 /**
  * Every editor's extensions, in order: the full editor's gutters and guides
  * (or a snippet's bare code), the editing behavior, the settings
@@ -450,6 +560,7 @@ export function editorExtensions({
     // next match of the selection.
     EditorState.allowMultipleSelections.of(true),
     rectangularSelection(),
+    doubleClickSelection,
     crosshairCursor(),
     indentOnInput(),
     compartments.brackets.of(brackets(settings.bracketHighlight)),
@@ -458,6 +569,7 @@ export function editorExtensions({
     // pair opens an indented line with the closer on its own line.
     closeBrackets(),
     highlightSelectionMatches(),
+    blankSelection,
     compartments.tab.of(EditorState.tabSize.of(settings.tabSize)),
     compartments.indent.of(indentUnit.of(indentUnitFor(settings.tabSize, language))),
     // The same colors as the static code blocks (lib/highlight.tsx).
