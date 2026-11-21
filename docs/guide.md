@@ -235,9 +235,10 @@ beside your code.
   other assistant, there and ask what's wrong with your code: the folder
   holds a short note for AI tools (`AGENTS.md`, and `CLAUDE.md` pointing to
   it) on what the folder is and how Run runs it, `.hu/editor.md` says what
-  you have open in the editor (the file, or a challenge's code, your cursor,
-  and what you've selected), and `.hu/last-run.md` holds your last run's
-  input and output, so "what's my error?" is enough. When the assistant (or
+  you have open in the editor (the file, or a challenge's code and what it
+  asks, your cursor, and what you've selected), and `.hu/last-run.md` holds
+  your last run's input and output (or a challenge's last Check, with the
+  tests that failed), so "what's my error?" is enough. When the assistant (or
   a command) changes your files, the editor shows each change for you to
   review: removed lines in red, added ones in green, each with Accept and
   Reject. A bar over the editor says which file, of how many, steps to the
@@ -252,8 +253,9 @@ beside your code.
   hack-university ls` lists its sessions, and `tmux -L hack-university
   kill-server` ends them all.
 
-Challenges keep their own code: opening Explorer or Terminal from one goes
-back to your files. The folders live in `~/.hack-university/workspaces/`, and
+Challenges keep their own code: the Terminal keeps a challenge open (it's the
+same shell, and an assistant there sees the challenge), while Explorer, or a
+file link in the Terminal, goes back to your files. The folders live in `~/.hack-university/workspaces/`, and
 `npm run up` must be running for them (without the runner, the editor still
 has the main file).
 

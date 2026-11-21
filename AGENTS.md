@@ -83,11 +83,13 @@ before committing it.
   Only `exit`, closing it, or removing the folder ends it.
   The folder's hidden AGENTS.md and CLAUDE.md tell AI tools what it is (the
   runner refreshes them with the template, unless the learner edited them),
-  `.hu/editor.md` what the editor has open (the file or a challenge's code,
-  the cursor, the selection), and `.hu/last-run.md` the last run, so "what's
-  my error" needs no file named. Any tool's edits (Claude Code, Codex, any
-  model or harness: it's the files alone) wait for review in the editor
-  (`lib/outside-changes.ts`, `components/compiler/change-review.tsx`):
+  `.hu/editor.md` what the editor has open (the file, or a challenge's code
+  and what it asks, never its answer, the cursor, the selection), and
+  `.hu/last-run.md` the last run or a challenge's last Check (the failed
+  tests), so "what's my error" needs no file named. Any tool's edits
+  (Claude Code, Codex, any model or harness: it's the files alone) wait for
+  review in the editor (`lib/outside-changes.ts`,
+  `components/compiler/change-review.tsx`):
   @codemirror/merge's unified view, removed lines red and added green, each
   change with its Accept and Reject, and a bar over the editor stepping
   through the files with Accept all and Reject all. Rejecting writes back
@@ -261,6 +263,10 @@ before committing it.
   showing, Challenges goes from a challenge back to the list, and from the
   list back to the challenge you were on last in that language (saved,
   `useLastChallenge` in `lib/challenge-progress.ts`), and Cheatsheet stays.
+  An open challenge keeps the editor under the Cheatsheet and the Terminal
+  (one shell for the folder, a challenge open or not, so AI tools in it see
+  the challenge), in the address too. Your files leave it: the Explorer, and
+  a file:line link in the Terminal.
 - **Full screen has three steps:** off, then semi (only the header hides, the
   theme button floats bottom right, back and forward stay in the page's bar,
   Learn's list stays docked), then full (the workspace covers the window, its
