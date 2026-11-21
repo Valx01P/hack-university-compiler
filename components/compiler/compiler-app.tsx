@@ -857,6 +857,19 @@ export function CompilerApp({
                 </span>
               )}
               <div className="ms-auto flex shrink-0 items-center gap-1">
+                {!showingAnswer && (challenge || onMain) && (
+                  <ResetCodeButton
+                    label="Reset to the starter code"
+                    title="Reset to starter code?"
+                    description={
+                      challenge
+                        ? "This replaces your code for this challenge with its starter."
+                        : "This replaces what's in the editor with the original starter code."
+                    }
+                    onReset={resetCode}
+                    className={`${iconBtn} shrink-0`}
+                  />
+                )}
                 {!refOpen && (
                   <button
                     type="button"
@@ -892,19 +905,6 @@ export function CompilerApp({
                       setUnlockedFor(challenge.id);
                     }}
                     onHide={() => setAnswerFor(null)}
-                    className={`${iconBtn} shrink-0`}
-                  />
-                )}
-                {!showingAnswer && (challenge || onMain) && (
-                  <ResetCodeButton
-                    label="Reset to the starter code"
-                    title="Reset to starter code?"
-                    description={
-                      challenge
-                        ? "This replaces your code for this challenge with its starter."
-                        : "This replaces what's in the editor with the original starter code."
-                    }
-                    onReset={resetCode}
                     className={`${iconBtn} shrink-0`}
                   />
                 )}

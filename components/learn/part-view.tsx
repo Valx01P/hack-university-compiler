@@ -632,6 +632,15 @@ export function PartView({
               {exampleOf(active)?.title ?? (showingAnswer ? "The answer (read only, your code is kept)" : practice.title)}
             </span>
             <div className="ms-auto flex shrink-0 items-center gap-1">
+              {!showingAnswer && (
+                <ResetCodeButton
+                  label={active === "practice" ? "Reset to the starter code" : "Reset to the original example"}
+                  title={active === "practice" ? "Reset to the starter code?" : "Reset this example?"}
+                  description="This replaces what's in this tab with the original code."
+                  onReset={resetTab}
+                  className={iconBtn}
+                />
+              )}
               <button
                 type="button"
                 onClick={stepFull}
@@ -653,15 +662,6 @@ export function PartView({
                     setAnswerUnlocked(true);
                   }}
                   onHide={() => setAnswer(false)}
-                  className={iconBtn}
-                />
-              )}
-              {!showingAnswer && (
-                <ResetCodeButton
-                  label={active === "practice" ? "Reset to the starter code" : "Reset to the original example"}
-                  title={active === "practice" ? "Reset to the starter code?" : "Reset this example?"}
-                  description="This replaces what's in this tab with the original code."
-                  onReset={resetTab}
                   className={iconBtn}
                 />
               )}
