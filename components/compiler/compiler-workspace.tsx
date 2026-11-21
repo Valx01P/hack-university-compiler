@@ -84,11 +84,13 @@ const FENCES: Record<string, string> = {
 };
 const fenceOf = (path: string) => FENCES[path.split(".").pop()?.toLowerCase() ?? ""] ?? "";
 
-/** A fenced block that can't be closed early by the code in it. */
-function fenced(code: string, fence: string): string {
-  const clipped = code.length > NOTE_CHARS ? `${code.slice(0, NOTE_CHARS)}\n… (cut off here)` : code;
+/** A fenced block for the notes AI tools read (this one's and the last
+    run's, compiler-app.tsx), cut off past `max`, that the text in it can't
+    close early. `fence` names its language. */
+export function fenced(text: string, fence = "", max = NOTE_CHARS): string {
+  const clipped = text.length > max ? `${text.slice(0, max)}\n… (cut off here)` : text;
   const ticks = "`".repeat(Math.max(3, ...[...clipped.matchAll(/`+/g)].map((m) => m[0].length + 1)));
-  return `${ticks}${fence}\n${clipped}\n${ticks}`;
+  return `${ticks}${fence}\n${clipped.replace(/\n?$/, "\n")}${ticks}`;
 }
 
 /**

@@ -15,7 +15,7 @@ import { ConfirmButton } from "@/components/ui/confirm-button";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { OUTPUT_PAD, OutputPanel } from "@/components/compiler/output-panel";
 import { ReferencePanel, useReferenceData, type ReferenceTab } from "@/components/compiler/reference-panel";
-import { CompilerExplorer, CompilerTerminal, useCompilerWorkspace } from "@/components/compiler/compiler-workspace";
+import { CompilerExplorer, CompilerTerminal, fenced, useCompilerWorkspace } from "@/components/compiler/compiler-workspace";
 import { CourseRail } from "@/components/chrome/course-rail";
 import { FloatingNav } from "@/components/chrome/floating-nav";
 import { FULL_SCREEN_TITLE, useFullScreen } from "@/lib/full-screen";
@@ -72,13 +72,7 @@ const noop = () => {};
 
 /** Output in a note, cut off past this. */
 const NOTE_OUTPUT_CHARS = 4_000;
-
-/** A fenced block for the notes below, which the text in it can't close early. */
-function noteBlock(text: string): string {
-  const clipped = text.length > NOTE_OUTPUT_CHARS ? `${text.slice(0, NOTE_OUTPUT_CHARS)}\n… (cut off here)` : text;
-  const ticks = "`".repeat(Math.max(3, ...[...clipped.matchAll(/`+/g)].map((m) => m[0].length + 1)));
-  return `${ticks}\n${clipped.replace(/\n?$/, "\n")}${ticks}`;
-}
+const noteBlock = (text: string) => fenced(text, "", NOTE_OUTPUT_CHARS);
 
 /** The last run, for tools in the folder's terminal to read
     (.hu/last-run.md, which AGENTS.md there points them at). `what` is the
