@@ -62,6 +62,12 @@ function run(args: string[]): Promise<boolean> {
   return new Promise((resolve) => execFile(tmux, ["-L", socket(), ...args], { timeout: 5_000 }, (err) => resolve(!err)));
 }
 
+/** Reads tmux.conf again into tmux's server when one is running: -f is read
+    only when the server starts, and it outlives the app (an update's new
+    settings would wait for every session to end). Each client takes them as
+    it attaches. Best effort: no server, or no tmux, is fine. */
+export const loadTmuxConfig = () => run(["source-file", CONF]);
+
 /** Whether the session is there (still running). */
 export const hasTmuxSession = (name: string) => run(["has-session", "-t", `=${name}`]);
 

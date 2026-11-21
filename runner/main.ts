@@ -7,6 +7,7 @@ import { Checks } from "./checks/run.ts";
 import { loadConfig } from "./config.ts";
 import { Databases } from "./db/index.ts";
 import { DockerWatch, resolveEndpoint, type Owner } from "./docker.ts";
+import { loadTmuxConfig } from "./host-tmux.ts";
 import { createApiServer, type Services } from "./http.ts";
 import { Images } from "./images.ts";
 import { JobPool } from "./jobs.ts";
@@ -126,6 +127,9 @@ server.on("error", (err: NodeJS.ErrnoException) => {
 // runner beside npm run up) exits above, before it touches Docker, so it
 // never reconciles away the jobs of the runner that holds the port.
 await new Promise<void>((resolve) => server.listen(config.port, "127.0.0.1", resolve));
+// tmux's server from before, given this runner's tmux.conf before any
+// terminal attaches (they wait for ready).
+const tmuxConfig = loadTmuxConfig();
 
 // Docker, once at startup. From then on, Docker coming back reconciles.
 await watch.check();
@@ -150,6 +154,7 @@ const reaper = setInterval(async () => {
 }, config.pollMs);
 reaper.unref();
 
+await tmuxConfig;
 started();
 log.info("runner.listening", { port: config.port, ns: config.ns, boot: owner.boot, docker: watch.state, endpoint: endpoint.source });
 console.log(`hu-runner listening on http://127.0.0.1:${config.port} (Docker ${watch.state === "ready" ? "is ready" : `is ${watch.state}`})`);
