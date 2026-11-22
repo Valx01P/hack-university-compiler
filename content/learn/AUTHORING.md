@@ -120,6 +120,22 @@ headers you use (`<iostream>`, `<vector>`, `<string>`, ...), not
 default: use `std::fixed << std::setprecision(n)` from `<iomanip>` when decimals
 matter. Never print pointer values (addresses change every run). `sizeof` results
 are stable here (x86-64 Linux: `int` 4, `long` 8, `long long` 8, pointers 8).
+Programs link with `-pthread` (scripts/piston-extras/gcc/compile), so
+`std::thread`, `std::mutex`, `std::condition_variable`, and `std::atomic` all work
+(14 hardware threads). They compile at `-O0`, unless the file's first line is
+exactly `// -O2` (or `// -O1`, `// -O3`, `// -Os`), which builds it with that flag,
+the way `g++ -O2` would in a terminal. A lesson about speed uses that line and says
+so. (`#pragma GCC optimize("O2")` isn't the same: in a build at `-O0`, nothing gets
+inlined.) The sandbox here is x86-64 emulated on an Apple Silicon Mac, so its cache
+line acts like 128 bytes and every time measured in it is rough. Times and
+thread interleavings change every run, so checked output never prints a time or
+anything a race decides: join the threads, then print totals, counts, or
+checksums, and give measured times in prose as rough numbers. Counting work
+(copies, moves, allocations through a global `operator new`) is exact and makes
+a good checked output. To show the assembly g++ 10.2 makes, run
+`scripts/cpp-asm.sh file.cpp` (the sandbox's own compiler at `-O2`, Intel syntax,
+other flags after the file) and quote it in a `text` block. Next to it, a Mac's
+ARM64 comes from `clang++ -std=c++17 -O2 -S -o - file.cpp`, labeled as such.
 
 **Java 15.0.2, one file run directly.** The FIRST top-level class in the file
 must be `public class Main` with `public static void main(String[] args)`. Put any

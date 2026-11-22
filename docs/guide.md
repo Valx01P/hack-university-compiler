@@ -177,9 +177,13 @@ and algorithms practice reaches for:
 | --- | --- |
 | Python | `sortedcontainers` (SortedList, SortedDict, SortedSet), and `numpy`, `pandas`, `scipy`, `sympy` |
 | JavaScript | `@datastructures-js/priority-queue` (with Min/MaxPriorityQueue), `/queue`, and `/deque`, the ones LeetCode ships |
-| C++ | C++17, `bits/stdc++.h`, and GNU's policy-based `tree` (an order-statistics `ordered_set`) |
+| C++ | C++17, `bits/stdc++.h`, GNU's policy-based `tree` (an order-statistics `ordered_set`), and threads (`std::thread`, mutexes, atomics: it links with `-pthread`) |
 | Java | `java.util` collections, streams, `BigInteger` and `BigDecimal`, and Java 15's preview features (records, sealed classes, `instanceof` patterns) |
 | Go | `container/heap`, `container/list`, `sort`, `math/big` (Go 1.16, so no generics) |
+
+C++ builds at `-O0`, so a crash or a print shows exactly what you wrote. Make the
+first line `// -O2` (or `// -O1`, `// -O3`, `// -Os`) to build optimized instead,
+the way `g++ -O2` would in a terminal.
 
 JavaScript runs as CommonJS (`require`) unless the program uses `import` or
 `export`, then as an ES module, so both styles work, extras included. Programs
