@@ -60,6 +60,10 @@ content/challenges/<id>.json    one challenge, with code for all five languages
   output format, then test 1 as an example: an `Input:` line and a
   ```` ```text ```` block (when there is input), then an `Expected output:` line
   and a ```` ```text ```` block. The verifier checks they match test 1.
+  Write limits as powers so they read at a glance: `1 <= n <= 10^9`, "between
+  -10^6 and 10^6", `10^9 + 7`, and the 32-bit range as -2^31 to 2^31 - 1 with
+  its exact digits beside it when the output must match them. The renderer
+  raises the exponent (content/learn/AUTHORING.md, Writing style).
 - `tests`: 3 to 5 when the program reads input (1 is enough when it reads
   none). Test 1 is the example. The rest cover the edge cases the statement
   names: zero, negatives, an empty string or list, a single item, ties,

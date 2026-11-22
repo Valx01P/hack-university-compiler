@@ -22,6 +22,32 @@ function safeHref(url: string): string | null {
   return null;
 }
 
+/** A power written in digits, base^exponent (10^9, 2^31), drawn with its
+    exponent raised: limits like 1 <= n <= 10^9 read at a glance, where
+    1000000000 has to be counted. Never inside a word or a longer chain. */
+const POWER = /(?<![\w^])(\d+)\^(\d+)(?![\w^])/g;
+
+function powers(text: string, keyBase: string): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  let i = 0;
+  for (const m of text.matchAll(POWER)) {
+    const idx = m.index ?? 0;
+    out.push(text.slice(last, idx) + m[1]);
+    out.push(<sup key={`${keyBase}-pow-${i++}`}>{m[2]}</sup>);
+    last = idx + m[0].length;
+  }
+  if (!out.length) return [text];
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+/** Inline code that's a bound, like `0 <= k <= 10^9`: a comparison of
+    numbers and names, so its powers are raised too. Any other code keeps
+    its ^ as typed (`2^40 = ` is text a program prints, and ^ is XOR in
+    most languages). */
+const BOUND = /^(?=.*[<>])[\w\s.,+\-−×*()<>=^]+$/;
+
 function inline(text: string, keyBase: string): React.ReactNode[] {
   // Tokenize inline: [text](url), `code`, **bold**, *em*
   const out: React.ReactNode[] = [];
@@ -31,7 +57,7 @@ function inline(text: string, keyBase: string): React.ReactNode[] {
   let i = 0;
   for (const m of text.matchAll(re)) {
     const idx = m.index ?? 0;
-    if (idx > last) out.push(text.slice(last, idx));
+    if (idx > last) out.push(...powers(text.slice(last, idx), `${keyBase}-t${i}`));
     const tok = m[0];
     const key = `${keyBase}-${i++}`;
     if (tok.startsWith("[")) {
@@ -59,7 +85,7 @@ function inline(text: string, keyBase: string): React.ReactNode[] {
           key={key}
           className="rounded border border-content-line bg-raised px-1.5 py-0.5 font-mono text-[0.85em] font-medium text-ink"
         >
-          {tok.slice(1, -1)}
+          {BOUND.test(tok.slice(1, -1)) ? powers(tok.slice(1, -1), key) : tok.slice(1, -1)}
         </code>
       );
     } else if (tok.startsWith("**")) {
@@ -69,7 +95,7 @@ function inline(text: string, keyBase: string): React.ReactNode[] {
     }
     last = idx + tok.length;
   }
-  if (last < text.length) out.push(text.slice(last));
+  if (last < text.length) out.push(...powers(text.slice(last), `${keyBase}-end`));
   return out;
 }
 

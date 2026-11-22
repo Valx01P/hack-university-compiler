@@ -348,6 +348,12 @@ that, each on its own line. The verifier checks that the blocks match test 1's
   `N. `: list items are one line each, and a list, heading, or quote never
   shares a block with a paragraph. No raw HTML, no images. Code goes in
   backticks, including generic types like `vector<int>`.
+- Write big limits as powers: `10^9`, `2 × 10^9`, `10^9 + 7`, `2^31 - 1`, never
+  1000000000. The renderer raises a digits-only power (`10^9` shows as 10 with
+  a raised 9) in prose, and in inline code that's a bound like
+  `1 <= n <= 10^9`. Other inline code keeps its `^` as typed, since it's text
+  a program prints (`2^40 = `) or an XOR, so a value the learner must match
+  exactly stays in digits.
 
 ## Verify
 
