@@ -21,6 +21,24 @@ export interface EditorSelection {
   text: string;
 }
 
+/** Where each editor was scrolled to, by its scrollKey, for as long as the
+    page is open: the line at the top, how far it's scrolled past that
+    line's top, and the sideways scroll. A line, not a position, so another
+    text with the same key (your code and the answer) opens on the same
+    line. */
+const scrollPlaces = new Map<string, { line: number; into: number; left: number }>();
+
+function scrollPlaceOf(view: EditorView) {
+  const top = view.scrollDOM.getBoundingClientRect().top;
+  const block = view.lineBlockAtHeight(top - view.documentTop);
+  // Measured from the line start's caret box, which is what scrolling a
+  // position into view lines up (a little below the line block's top), so
+  // opening it again lands to the pixel.
+  const caret = view.coordsAtPos(block.from);
+  const lineTop = caret ? caret.top : view.documentTop + block.top;
+  return { line: view.state.doc.lineAt(block.from).number, into: top - lineTop, left: view.scrollDOM.scrollLeft };
+}
+
 /** Text to review against what was there before (lib/outside-changes.ts):
     the editor shows the difference, each part to keep or undo. */
 export interface EditorReview {
@@ -42,6 +60,7 @@ export function CmEditor({
   cursorAt = null,
   onSelection,
   review = null,
+  scrollKey,
 }: {
   value: string;
   language: string;
@@ -68,6 +87,11 @@ export function CmEditor({
   onSelection?: (selection: EditorSelection) => void;
   /** Shows the text against `original`, changes to keep or undo. */
   review?: EditorReview | null;
+  /** Editors with the same key share one scroll place, kept while the page
+      is open: a new one opens where the last one was scrolled to. Your code
+      and the answer share theirs, so toggling between them keeps the same
+      lines in view. */
+  scrollKey?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -78,6 +102,12 @@ export function CmEditor({
   onSelectionRef.current = onSelection;
   const reviewRef = useRef(review);
   reviewRef.current = review;
+  const scrollKeyRef = useRef(scrollKey);
+  scrollKeyRef.current = scrollKey;
+  // Moved by you (or a jump you asked for), so its scroll is worth keeping.
+  // Until then, a scroll is only the place it opened on, which a shorter
+  // text may have had to cut short.
+  const touched = useRef(false);
   const reviewSlot = useRef(new Compartment());
   const settings = useCodeEditorSettings();
   // What the editor starts from when it's made after its language loads.
@@ -169,6 +199,35 @@ export function CmEditor({
     shownReview.current = null;
     setReview(view, reviewRef.current?.original ?? null);
     view.requestMeasure({ read: () => null, write: reveal });
+    // Open where this key was last scrolled to. CodeMirror applies the
+    // scroll in the same frame as the reveal, so it never shows the top
+    // first. The sideways scroll goes on after it, since scrolling a line
+    // into view also brings its start into view.
+    touched.current = false;
+    const key = scrollKeyRef.current;
+    const place = key ? scrollPlaces.get(key) : undefined;
+    let leftFrame = 0;
+    if (place) {
+      const line = view.state.doc.line(Math.min(place.line, view.state.doc.lines));
+      view.dispatch({ effects: EditorView.scrollIntoView(line.from, { y: "start", yMargin: -place.into }) });
+      if (place.left) {
+        leftFrame = requestAnimationFrame(() => {
+          leftFrame = requestAnimationFrame(() => {
+            if (viewRef.current === view) view.scrollDOM.scrollLeft = place.left;
+          });
+        });
+      }
+    }
+    const touch = () => {
+      touched.current = true;
+    };
+    const keep = () => {
+      const key = scrollKeyRef.current;
+      if (key && touched.current && view.dom.isConnected) scrollPlaces.set(key, scrollPlaceOf(view));
+    };
+    const touches = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
+    for (const type of touches) view.dom.addEventListener(type, touch, { passive: true });
+    view.scrollDOM.addEventListener("scroll", keep, { passive: true });
     // Put the cursor where the click landed on the block this replaced. On
     // the next frame, outside CodeMirror's own update, where reading the
     // layout is allowed.
@@ -184,6 +243,9 @@ export function CmEditor({
     return () => {
       window.clearTimeout(fallback);
       cancelAnimationFrame(focusFrame);
+      cancelAnimationFrame(leftFrame);
+      for (const type of touches) view.dom.removeEventListener(type, touch);
+      view.scrollDOM.removeEventListener("scroll", keep);
       view.destroy();
       viewRef.current = null;
     };
@@ -245,6 +307,7 @@ export function CmEditor({
     const view = viewRef.current;
     if (!view || !cursorAt) return;
     const pos = positionAt(view.state, cursorAt.line, cursorAt.col);
+    touched.current = true;
     view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
     view.focus();
   }, [cursorAt]);

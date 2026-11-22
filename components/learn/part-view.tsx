@@ -717,6 +717,7 @@ export function PartView({
             <div className="min-h-0 flex-1">
               <CmEditor
                 key={`${lesson.id}:${tabKey(active)}:${showingAnswer ? "answer" : "code"}`}
+                scrollKey={`learn:${lang.slug}:${lesson.id}:${tabKey(active)}`}
                 value={code}
                 language={lang.slug}
                 onChange={showingAnswer ? () => {} : updateCode}

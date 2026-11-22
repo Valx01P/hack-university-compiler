@@ -936,6 +936,7 @@ export function CompilerApp({
                 ) : (
                   <CmEditor
                     key={challenge ? `challenge:${challenge.id}:${showingAnswer ? "answer" : "code"}` : `file:${ws.path}`}
+                    scrollKey={challenge ? `compiler:${lang.slug}:challenge:${challenge.id}` : `compiler:${lang.slug}:file:${ws.path}`}
                     value={editorCode}
                     language={challenge || onMain ? lang.slug : fileLanguage(ws.path)}
                     onChange={showingAnswer ? noop : updateEditor}
