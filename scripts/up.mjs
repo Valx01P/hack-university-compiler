@@ -4,29 +4,32 @@
 //   npm run up                      # set up whatever's missing, then serve the app
 //   npm run up -- --dev             # the same, then the dev servers instead
 //   npm run up -- --choose          # pick again what to install (the first run asks)
-//   npm run up -- --all             # install every compiler and course (about 16 GB)
+//   npm run up -- --all             # install every compiler (about 9 GB)
 //   npm run up -- --minimal         # just the app: lessons, cheatsheets, SQL, search
-//   npm run up -- --only=python,web # exactly these (npm run status lists the names)
-//   npm run up -- --stacks=express  # also install these courses
-//   npm run up -- --no-images       # skip building the course images this time
+//   npm run up -- --only=python,ts  # exactly these (npm run status lists the names)
+//   npm run up -- --no-images       # skip building the TypeScript and Bash images this time
 //
 // Each step is skipped when it's already done, so running it again is quick:
 //
-//   1. Checks for Node 24.12+ and looks for Docker. Without Docker it says what
-//      still works and carries on.
-//   2. Asks what to install, the first time: a checklist of the compilers and
-//      courses with each one's size, the total, and the free disk. The choice
-//      is kept in ~/.hack-university/components.json, and npm run add, npm run
+//   1. Checks for Node 24.12+ and looks for Docker, starting Docker Desktop
+//      when it's installed but not running. Without Docker it says what still
+//      works and carries on.
+//   2. Asks what to install, the first time: a checklist of the compilers
+//      with each one's size, the total, and the free disk. The choice is kept
+//      in ~/.hack-university/components.json, and npm run add, npm run
 //      remove, and npm run choose change it later (lib/components.json has
 //      the sizes).
-//   3. npm install, when node_modules is missing or out of date, and the
-//      workspace runner's own dependencies (runner/).
+//   3. npm ci, when node_modules is missing or out of date, and the workspace
+//      runner's own dependencies (runner/). npm ci, never npm install, so the
+//      lock file stays as it came and npm run update can pull the next one.
 //   4. Starts the compiler sandbox and installs the chosen languages that are
 //      missing (a few minutes the first time).
 //   5. Downloads the cheatsheet search's model (30 MB, once).
 //   6. Makes ~/.hack-university, with a fresh token for the runner.
-//   7. Builds the chosen courses' images and downloads their databases (1 to
-//      3 minutes each the first time), and checks Docker's memory.
+//   7. Builds the TypeScript and Bash images, when they're chosen (1 to 3
+//      minutes each the first time), checks Docker's memory, and says when
+//      what the project courses used to install is still there (npm run
+//      clean removes it).
 //   8. Builds the app, when its code changed since the last build.
 //   9. Starts the workspace runner on 127.0.0.1:3100, and restarts it if it
 //      crashes.
@@ -36,9 +39,8 @@
 // Only Node's own modules here: this runs before npm install has.
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { belowFloor, formatGiB, MEMORY_FLOOR_BYTES, recommendMore } from "../lib/docker-memory.mjs";
+import { belowFloor, formatGiB, MEMORY_FLOOR_BYTES } from "../lib/docker-memory.mjs";
 import {
   CATALOG,
   COMPONENTS,
@@ -50,6 +52,7 @@ import {
   freeMB,
   heldBy,
   installPlan,
+  projectCourseNote,
   removePlan,
   resolveNames,
   saveChoice,
@@ -57,13 +60,14 @@ import {
   shortName,
   sizeMB,
 } from "./lib/components.mjs";
+import { hasDockerDesktop, startDockerDesktop } from "./lib/docker-desktop.mjs";
 import { chooseComponents } from "./lib/picker.mjs";
+import { describeRetired, findRetired, hasLeftovers } from "./lib/retired.mjs";
 import { ROOT, dataDir, freshToken, npmCommand, portBusy, serveApp, stopTogether, superviseRunner } from "./lib/servers.mjs";
 
 const args = process.argv.slice(2);
 const dev = args.includes("--dev");
 const noImages = args.includes("--no-images");
-const stacksArg = args.find((a) => a.startsWith("--stacks="))?.slice("--stacks=".length);
 const onlyArg = args.find((a) => a.startsWith("--only="))?.slice("--only=".length);
 const pickAgain = args.includes("--choose");
 const everything = args.includes("--all");
@@ -99,17 +103,14 @@ function npmRun(...npmArgs) {
   if (r.status !== 0) fail(`npm ${npmArgs.join(" ")} failed (see above). Fix that, then run npm run up again.`);
 }
 
-// --stacks names courses (or all of them) to install on top of the choice,
-// and --only names exactly what to install.
-const COURSES = JSON.parse(readFileSync(path.join(ROOT, "content", "courses.json"), "utf8"))
-  .courses.filter((c) => c.runtime.startsWith("runner:") || c.runtime === "browser")
-  .map((c) => c.slug);
+// --only names exactly what to install. A project course needs nothing, and
+// it says so.
 function named(list, flag) {
-  const { ids, unknown } = resolveNames(list.split(",").map((s) => s.trim()).filter(Boolean));
+  const { ids, unknown, courses } = resolveNames(list.split(",").map((s) => s.trim()).filter(Boolean));
   if (unknown.length) fail(`${flag} names ${unknown.join(", ")}, which isn't one of these: ${COMPONENTS.map((c) => c.id).join(", ")}.`);
+  if (courses.length) console.log(`   · ${projectCourseNote(courses)}`);
   return ids;
 }
-const stackIds = stacksArg === undefined ? [] : named(stacksArg === "all" ? COURSES.join(",") : stacksArg, "--stacks");
 const onlyIds = onlyArg === undefined ? null : named(onlyArg, "--only");
 
 // 1. Node and Docker -------------------------------------------------------
@@ -126,8 +127,16 @@ if (older(process.versions.node, need)) {
 done(`Node ${process.versions.node}`);
 
 let docker = null;
-const info = run("docker", ["info", "--format", "{{json .}}"], { quiet: true });
-if (info.error) {
+let info = run("docker", ["info", "--format", "{{json .}}"], { quiet: true });
+// Installed but not running (or not yet set up): Docker Desktop starts here.
+// A user Docker turns away is the next checks' to explain.
+if (info.status !== 0 && !/permission denied|access is denied/i.test(String(info.stderr)) && (await startDockerDesktop((t) => console.log(`   · ${t}`)))) {
+  info = run("docker", ["info", "--format", "{{json .}}"], { quiet: true });
+}
+if (info.error && hasDockerDesktop()) {
+  // The app is here, and its docker command comes once it's set up.
+  warn("Docker Desktop is installed but not set up yet. Open it, accept its terms, and wait for Engine running, then run npm run up again.");
+} else if (info.error) {
   warn("Docker isn't installed, so code can't run yet. Get Docker Desktop from https://docs.docker.com/get-docker/.");
 } else if (info.status !== 0 && windows && /access is denied|permission denied/i.test(String(info.stderr))) {
   // Windows: only members of docker-users may use Docker Desktop. Its
@@ -156,13 +165,6 @@ if (!docker) {
   console.log("     Until then, lessons, cheatsheets, search, your progress, and the SQL course all work.");
   console.log("     Running Python, JavaScript, C++, Java, Go, TypeScript, or Bash says to start Docker.");
 }
-// Linux shares the project courses' folders with their sandboxes as they
-// are, and the sandboxes run as user 1000 (Docker Desktop on a Mac or
-// Windows maps the owner for them).
-if (process.platform === "linux" && typeof process.getuid === "function" && process.getuid() !== 1000) {
-  warn(`Your user id is ${process.getuid()}, and the project courses' sandboxes run as user 1000, so they can't change your files.`);
-  console.log("     They work from an account with id 1000, the first one on most Linux systems. The compilers, lessons, and SQL work either way.");
-}
 
 // 2. What to install -------------------------------------------------------------
 // The flags decide, else the choice from last time, else what an install from
@@ -190,7 +192,6 @@ if (!chosen) {
     console.log("   · No terminal to show the checklist in, so it's the compilers. npm run choose changes that.");
   }
 }
-chosen = [...new Set([...chosen, ...stackIds])];
 saveChoice(chosen);
 const plan = installPlan(chosen);
 if (chosen.length) done(COMPONENTS.filter((c) => chosen.includes(c.id)).map((c) => c.label).join(", "));
@@ -213,11 +214,11 @@ else done(`just the app: ${CATALOG.app.detail}`);
     const mb = removePlan(dropped, [...state.installed]).mb;
     console.log(
       dropped.length > 3
-        ? `     ${dropped.length} compilers and courses you didn't choose are still here (about ${formatMB(mb)}). npm run choose removes them.`
+        ? `     ${dropped.length} compilers you didn't choose are still here (about ${formatMB(mb)}). npm run choose removes them.`
         : `     ${and(dropped.map(shortName))}, which you didn't choose, ${dropped.length > 1 ? "are" : "is"} still here (about ${formatMB(mb)}). npm run remove -- ${dropped.join(" ")} frees that.`
     );
   }
-  console.log("     npm run add -- <name>, npm run remove -- <name>, or npm run choose changes this later");
+  console.log("     npm run choose changes this later");
   if (free !== null && download > free) {
     fail(`That's more than this disk has free. Free some space, or choose less with npm run up -- --choose.`);
   }
@@ -231,7 +232,7 @@ const fresh = (dir) => {
   return existsSync(installed) && statSync(installed).mtimeMs >= statSync(lock).mtimeMs;
 };
 if (fresh(".")) done("the app's: already installed");
-else npmRun("install", "--no-audit", "--no-fund");
+else npmRun("ci", "--no-audit", "--no-fund");
 // The runner's own (dockerode, ws, zod), kept apart from the app's. Nothing
 // it installs runs a script, so no native code gets built.
 if (fresh("runner")) done("the runner's: already installed");
@@ -256,28 +257,21 @@ npmRun("run", "--silent", "search:setup");
 step("Preparing ~/.hack-university");
 const data = dataDir();
 const token = freshToken(data);
-done(`${data} (your workspaces and the runner's log live here, outside the repo)`);
+done(`${data} (your folders and the runner's log live here, outside the repo)`);
 
-// 7. The course images and databases, and Docker's memory -----------------------
-step("Building the course images");
-if (!plan.images.length && !plan.databases.length) {
-  done("nothing chosen needs one, so it's skipped");
+// 7. The TypeScript and Bash images, and Docker's memory --------------------------
+step("Building the TypeScript and Bash images");
+if (!plan.images.length) {
+  done("neither is chosen, so it's skipped");
 } else if (!docker) {
   warn("skipped until Docker runs");
 } else if (noImages) {
   warn("skipped (--no-images). The next npm run up builds them");
 } else {
-  if (plan.images.length) {
-    const r = run(process.execPath, [path.join("runner", "images.ts"), "build", ...plan.images]);
-    if (r.status !== 0) fail("Building the images failed (see above). Fix that, then run npm run up again, or skip them with --no-images.");
-  }
-  if (plan.databases.length) {
-    const r = run(process.execPath, [path.join("runner", "db", "pull.ts"), ...plan.databases]);
-    if (r.status !== 0) fail("Downloading the databases failed (see above). Fix that, then run npm run up again, or skip them with --no-images.");
-  }
+  const r = run(process.execPath, [path.join("runner", "images.ts"), "build", ...plan.images]);
+  if (r.status !== 0) fail("Building the images failed (see above). Fix that, then run npm run up again, or skip them with --no-images.");
 }
 if (docker) {
-  const host = os.totalmem();
   // Where Docker's memory is set: Docker Desktop's settings on a Mac, and
   // WSL's on Windows, which gives it about half the PC's memory by default.
   const setting = windows
@@ -287,12 +281,15 @@ if (docker) {
     ? "https://learn.microsoft.com/windows/wsl/wsl-config#wslconfig"
     : "https://docs.docker.com/desktop/settings-and-maintenance/settings/#resources";
   if (belowFloor(docker.MemTotal)) {
-    warn(`Docker has ${formatGiB(docker.MemTotal)} of memory, under the ${formatGiB(MEMORY_FLOOR_BYTES)} every course is tested with.`);
-    warn(`Spring Boot and Next.js workspaces may not start. Give Docker more (${setting}): ${docs}`);
-  } else if (recommendMore(docker.MemTotal, host)) {
-    console.log(`   · This computer has ${formatGiB(host)} and Docker has ${formatGiB(docker.MemTotal)}. Every course works as it is.`);
-    console.log(`     With 16 GiB (${setting}), five Next.js workspaces run at once.`);
-    console.log(`     ${docs}`);
+    warn(`Docker has ${formatGiB(docker.MemTotal)} of memory, under the ${formatGiB(MEMORY_FLOOR_BYTES)} every compiler is tested with.`);
+    warn(`A program that needs a lot may stop early. Give Docker more (${setting}): ${docs}`);
+  }
+  // What the project courses installed before they became read lessons.
+  const retired = findRetired();
+  if (hasLeftovers(retired)) {
+    console.log("   · The project courses don't use their Docker parts any more, and these are still here:");
+    for (const line of describeRetired(retired)) console.log(`     ${line}`);
+    console.log("     npm run clean removes them (it asks first, and asks again about anything of yours).");
   }
 }
 

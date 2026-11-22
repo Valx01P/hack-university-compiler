@@ -57,7 +57,6 @@ export function chooseComponents({ selected, installed = new Set(), intro = "" }
         if (held.length) note = dim(`stays: ${and(held)} ${uses(held)} the same parts`);
         else if (installed.has(c.id)) note = on ? dim("installed") : warnc("installed, will be removed");
         else if (on) note = dim("will be installed");
-        if (c.courses && !note) note = dim(c.databases ? `with ${c.databases.map((d) => (d === "postgres" ? "PostgreSQL" : "MongoDB")).join(" and ")}` : "");
         rows.push(`  ${pointer} ${box} ${label}${on || here ? size : dim(size)}  ${note}`);
       }
     }
@@ -74,8 +73,8 @@ export function chooseComponents({ selected, installed = new Set(), intro = "" }
     if (free !== null) lines.push(`free on this disk: ${formatMB(free)}`);
     rows.push(`  ${dim(lines.join("   "))}`);
     if (free !== null && download > free) rows.push(`  ${warnc("That's more than this disk has free.")}`);
-    rows.push(`  ${dim("Sizes count shared parts once (the compiler sandbox, the Node image, PostgreSQL).")}`);
-    rows.push(`  ${dim("Add or remove parts later with npm run add, npm run remove, or npm run choose.")}`);
+    rows.push(`  ${dim("Sizes count the compiler sandbox once, however many of its languages you pick.")}`);
+    rows.push(`  ${dim("Lessons and cheatsheets come for every language. Change this any time with npm run choose.")}`);
     out.write(`${ESC}H${ESC}2J${rows.join("\n")}\n`);
   }
 

@@ -1,7 +1,7 @@
 # Hack University Compiler
 
-> The Hack University app: compilers, lessons, and real projects, running
-> entirely on your own computer. Free.
+> The Hack University app: compilers, lessons, and a playground for your own
+> projects, running entirely on your own computer. Free.
 
 If it helps you, please give it a star on GitHub. Stars help other students find
 it, and they tell us what to build next.
@@ -9,8 +9,9 @@ it, and they tell us what to build next.
 Write and run **Python, JavaScript, TypeScript, C++, Java, Go, Bash, and SQL**
 in the browser, and learn each one with short lessons, cheatsheets, and
 challenges that check your answers. The project courses, **HTML, CSS & JS,
-React, Next.js, Express, FastAPI, Spring Boot, and Go APIs**, open real
-codebases in an IDE with terminals, a live preview, and real databases.
+React, Next.js, Express, FastAPI, Spring Boot, and Go APIs**, are lessons you
+read in Learn. To try anything yourself, the playground is a folder on your
+computer with an editor and a terminal.
 
 Everything runs on your computer, in Docker. Nothing leaves it.
 
@@ -26,7 +27,7 @@ command exactly as it is (the button at the top right of each box copies it).
 
 **Before you start:** a computer with 16 GB of memory works best, since Docker,
 which runs your code, needs 8 GB of it. You also need free disk space for what
-you pick: about 1.2 GB for the basics, up to about 16 GB for everything.
+you pick: about 1.2 GB for the basics, up to about 9 GB for everything.
 
 ### On a Mac
 
@@ -57,9 +58,11 @@ you pick: about 1.2 GB for the basics, up to about 16 GB for everything.
 
    If your Mac asks to install the **command line developer tools**, click
    **Install**, wait for it to finish, then paste the three lines again.
-5. **Pick what to install.** A list of the languages and courses shows up, with
-   each one's size. The arrow keys move, **Space** ticks or unticks, and
-   **Return** installs. The first download can take a while.
+5. **Pick what to install.** A list of the languages shows up, with each
+   one's size. Lessons and cheatsheets come for every language either way:
+   what you tick is what can run code. The arrow keys move, **Space** ticks or
+   unticks, and **Return** installs. The first download can take a
+   while.
 6. **Open it.** When Terminal says **Hack University is starting on
    http://localhost:3000**, open <http://localhost:3000> in your browser.
 
@@ -95,61 +98,57 @@ you pick: about 1.2 GB for the basics, up to about 16 GB for everything.
    cd hack-university-compiler
    npm run up
    ```
-5. **Pick what to install.** A list of the languages and courses shows up, with
-   each one's size. The arrow keys move, **Space** ticks or unticks, and
-   **Enter** installs. The first download can take a while.
+5. **Pick what to install.** A list of the languages shows up, with each
+   one's size. Lessons and cheatsheets come for every language either way:
+   what you tick is what can run code. The arrow keys move, **Space** ticks or
+   unticks, and **Enter** installs. The first download can take a
+   while.
 6. **Open it.** When Command Prompt says **Hack University is starting on
    http://localhost:3000**, open <http://localhost:3000> in your browser.
 
 ### Every time after that
 
-Open Docker Desktop first. Then open Terminal (Mac) or Command Prompt (Windows)
-and paste:
+Open Terminal (Mac) or Command Prompt (Windows) and paste:
 
 ```bash
 cd hack-university-compiler
 npm run up
 ```
 
-It starts in seconds. To stop it, press **Ctrl + C** in that window. On
-Windows, if it asks **Terminate batch job (Y/N)?**, type **Y** and press
-**Enter**.
+It starts Docker Desktop if it isn't running, and opens in seconds. To stop
+it, press **Ctrl + C** in that window. On Windows, if it asks **Terminate
+batch job (Y/N)?**, type **Y** and press **Enter**.
 
-## Pick what to install
-
-| Compiler | Size | Project course | Size |
-| --- | --- | --- | --- |
-| Python | 1.1 GB | HTML, CSS & JS, React, and Next.js | 1.9 GB |
-| JavaScript | 215 MB | Express | 3.6 GB |
-| C++ | 2.8 GB | FastAPI | 1.4 GB |
-| Java | 510 MB | Spring Boot | 1.5 GB |
-| Go | 525 MB | Go APIs | 2.7 GB |
-| TypeScript | 1.8 GB | | |
-| Bash | 545 MB | | |
-
-The app itself (lessons, cheatsheets, SQL, and search) is 1.2 GB and always
-comes. Shared parts download once: Python, JavaScript, C++, Java, and Go share
-a 1.4 GB sandbox, TypeScript shares its images with the web courses, and the
-server courses share PostgreSQL. So the total is often less than the sum, and
-the checklist shows the real total as you pick.
-
-Change it any time:
+## Change what's installed
 
 ```bash
-npm run status              # what's installed, and how much space each takes
-npm run add -- cpp spring   # install more
-npm run remove -- cpp       # remove some and get the space back
-npm run choose              # the checklist again
-npm run clean               # clear Docker's leftover build files
+npm run choose
 ```
 
-`add` and `remove` show the size and ask before they change anything. If you
-run something that isn't installed, the app tells you the command to add it.
-To skip the checklist, use `npm run up -- --all` for everything or
-`npm run up -- --minimal` for just the app.
+The checklist again, with what you have ticked: tick more to install them,
+untick one to remove it and get the space back. `npm run status` shows what's
+installed and how much space each takes.
 
-With [Task](https://taskfile.dev) installed, `task`, `task add -- cpp`, and the
-rest do the same.
+## Update
+
+Stop it first (**Ctrl + C**), then:
+
+```bash
+npm run update
+```
+
+It gets the newest version and starts it. Your code, progress, and files are
+kept. If there's something new to install, it says so, and `npm run choose`
+adds it.
+
+## Uninstall
+
+```bash
+npm run uninstall
+```
+
+It removes everything Hack University installed, asks before deleting your own
+work, and then shows how to delete its folder.
 
 ## Troubleshooting
 
@@ -162,10 +161,13 @@ rest do the same.
 - **Docker says virtualization isn't turned on** (Windows): it's a setting in
   your PC's startup menu (the BIOS). Search for your PC's brand and "enable
   virtualization" for the steps.
-- **"sandbox offline"**: start Docker Desktop, then run `npm run up` again.
+- **"sandbox offline"**: Docker Desktop isn't running. Run `npm run up` again,
+  which starts it, or open it yourself.
 - **"isn't installed yet"**: run the `npm run add` command it shows, then
   reload the page.
 - **Slow runs on a Mac**: turn on Rosetta in Docker Desktop (Mac step 2).
+- **"Missing script: update"**: your copy is older than that command. Run
+  `git pull` once, then `npm run update` works from then on.
 - **Port 3000 or 3100 is taken**: an earlier `npm run up` is probably still
   running, so stop it first. Or use other ports:
   `PORT=3001 HU_RUNNER_PORT=3101 npm run up` on a Mac, or
@@ -175,7 +177,8 @@ rest do the same.
 ## Learn more
 
 [docs/guide.md](docs/guide.md) has everything else: every feature, the editor's
-keys, the themes, how it all works, every script, and how to add a language.
+keys, the themes, [what you can install](docs/guide.md#what-you-can-install)
+and the sizes, how it all works, every script, and how to add a language.
 
 ## Credits
 
