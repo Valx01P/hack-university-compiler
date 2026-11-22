@@ -32,7 +32,7 @@ const RULES: Rule[] = [
   { method: "DELETE", path: /^$/ },
   { method: "GET", path: /^tree$/, query: ["path", "depth"] },
   { method: "GET", path: /^file$/, query: ["path"], headers: ["if-none-match"] },
-  { method: "PUT", path: /^file$/, query: ["path"], body: { raw: MiB }, headers: ["if-match"] },
+  { method: "PUT", path: /^file$/, query: ["path"], body: { raw: MiB }, headers: ["if-match", "if-none-match"] },
   { method: "GET", path: /^original$/, query: ["path"] },
   { method: "POST", path: /^fs$/, body: { json: FsRequest } },
   { method: "POST", path: /^upload$/, query: ["path"], body: { raw: 5 * MiB } },

@@ -1,0 +1,491 @@
+openapi: 3.1.0
+info:
+  title: Trailhead API
+  version: 1.0.0
+servers:
+  - url: /v1
+  - url: http://127.0.0.1:4000/v1
+security:
+  - session: []
+  - bearer: []
+tags:
+  - name: products
+  - name: reviews
+  - name: auth
+  - name: cart
+  - name: orders
+paths:
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Category'
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [price, -price, name, rating] }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: One page of products.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/CacheControl' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductPage' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /products/{slug}:
+    get:
+      operationId: getProduct
+      tags: [products]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: The product.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '304': { $ref: '#/components/responses/NotModified' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /products/{slug}/reviews:
+    get:
+      operationId: listReviews
+      tags: [reviews]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: One page of reviews, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReviewPage' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    post:
+      operationId: createReview
+      tags: [reviews]
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewInput' }
+      responses:
+        '201':
+          description: The new review.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Review' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginInput' }
+      responses:
+        '200':
+          description: Logged in. The session cookie is set.
+          headers:
+            Set-Cookie:
+              description: th_session, HttpOnly, Secure, SameSite=Lax.
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      responses:
+        '204':
+          description: Logged out. The session cookie is cleared.
+  /me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      responses:
+        '200':
+          description: The logged-in user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /cart:
+    get:
+      operationId: getCart
+      tags: [cart]
+      responses:
+        '200':
+          description: The cart.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cart' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /cart/items/{slug}:
+    put:
+      operationId: setCartItem
+      tags: [cart]
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CartItemInput' }
+      responses:
+        '200':
+          description: The updated cart.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cart' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Not enough stock.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/OutOfStockProblem' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      operationId: removeCartItem
+      tags: [cart]
+      parameters:
+        - $ref: '#/components/parameters/Slug'
+      responses:
+        '200':
+          description: The updated cart.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cart' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /orders:
+    post:
+      operationId: createOrder
+      tags: [orders]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderInput' }
+      responses:
+        '201':
+          description: The new order.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '400':
+          description: The Idempotency-Key header is missing, or isn't a UUID.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /orders/{orderId}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: The order.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: th_session
+    bearer:
+      type: http
+      scheme: bearer
+      description: The same session ID as th_session, sent as Authorization Bearer.
+  parameters:
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-z0-9-]+$' }
+    Category:
+      name: category
+      in: query
+      schema: { $ref: '#/components/schemas/Category' }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, format: uuid }
+  headers:
+    ETag:
+      description: A version tag for the representation.
+      schema: { type: string }
+    Location:
+      description: The new resource's URL.
+      schema: { type: string }
+    RetryAfter:
+      description: Seconds to wait before trying again.
+      schema: { type: integer }
+    CacheControl:
+      description: How long caches may keep the response.
+      schema: { type: string }
+  responses:
+    NotModified:
+      description: Your copy is still current.
+    Unauthorized:
+      description: Log in first.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Nothing is at this path.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: The request conflicts with the current state.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ValidationFailed:
+      description: Some fields are invalid.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ValidationProblem' }
+    TooManyRequests:
+      description: Too many attempts. Wait before trying again.
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Category:
+      type: string
+      enum: [packs, tents, apparel, cooking]
+    Rating:
+      type: object
+      required: [average, count]
+      properties:
+        average: { type: number, minimum: 0, maximum: 5 }
+        count: { type: integer, minimum: 0 }
+    ProductSummary:
+      type: object
+      required: [slug, name, category, priceCents, imageUrl, rating, inStock]
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        category: { $ref: '#/components/schemas/Category' }
+        priceCents: { type: integer, minimum: 0 }
+        imageUrl: { type: string }
+        rating: { $ref: '#/components/schemas/Rating' }
+        inStock: { type: boolean }
+    Product:
+      allOf:
+        - $ref: '#/components/schemas/ProductSummary'
+        - type: object
+          required: [description, images, stock, specs, updatedAt]
+          properties:
+            description: { type: string }
+            images:
+              type: array
+              items: { type: string }
+            stock: { type: integer, minimum: 0 }
+            specs:
+              type: object
+              additionalProperties: { type: string }
+            updatedAt: { type: string, format: date-time }
+    ProductPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ProductSummary' }
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer }
+    Author:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+    Review:
+      type: object
+      required: [id, productSlug, rating, title, body, author, createdAt]
+      properties:
+        id: { type: string }
+        productSlug: { type: string }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        title: { type: string, maxLength: 80 }
+        body: { type: string, maxLength: 2000 }
+        author: { $ref: '#/components/schemas/Author' }
+        createdAt: { type: string, format: date-time }
+    ReviewInput:
+      type: object
+      required: [rating, title, body]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        title: { type: string, minLength: 1, maxLength: 80 }
+        body: { type: string, minLength: 1, maxLength: 2000 }
+    ReviewPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Review' }
+        nextCursor:
+          type: [string, 'null']
+    User:
+      type: object
+      required: [id, email, name]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 1 }
+    CartItem:
+      type: object
+      required: [slug, name, priceCents, quantity, lineTotalCents]
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        priceCents: { type: integer }
+        quantity: { type: integer, minimum: 1, maximum: 10 }
+        lineTotalCents: { type: integer }
+    Cart:
+      type: object
+      required: [items, subtotalCents, currency]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CartItem' }
+        subtotalCents: { type: integer }
+        currency:
+          type: string
+          const: USD
+    CartItemInput:
+      type: object
+      required: [quantity]
+      properties:
+        quantity: { type: integer, minimum: 1, maximum: 10 }
+    Address:
+      type: object
+      required: [name, line1, city, region, postalCode, country]
+      properties:
+        name: { type: string }
+        line1: { type: string }
+        line2: { type: string }
+        city: { type: string }
+        region: { type: string }
+        postalCode: { type: string }
+        country: { type: string, pattern: '^[A-Z]{2}$' }
+    OrderInput:
+      type: object
+      required: [shippingAddress]
+      properties:
+        shippingAddress: { $ref: '#/components/schemas/Address' }
+    Order:
+      type: object
+      required: [id, status, items, totalCents, shippingAddress, createdAt]
+      properties:
+        id: { type: string }
+        status:
+          type: string
+          enum: [pending, paid, shipped, cancelled]
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CartItem' }
+        totalCents: { type: integer }
+        shippingAddress: { $ref: '#/components/schemas/Address' }
+        createdAt: { type: string, format: date-time }
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+    ValidationProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [errors]
+          properties:
+            errors:
+              type: object
+              additionalProperties: { type: string }
+    OutOfStockProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [available]
+          properties:
+            available: { type: integer, minimum: 0 }

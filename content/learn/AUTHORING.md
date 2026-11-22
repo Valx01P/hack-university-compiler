@@ -474,6 +474,12 @@ A learner wants to know why they need something before they learn it.
 ### Code
 
 Code in a read course is shown, never run: highlighted, with a copy button.
+When the learner needs a ready-made server to follow along (the React and
+Next.js courses' Trailhead API), link `[add the Trailhead API to your
+Playground](/playground?add=trailhead-api)` where the course first needs it:
+that puts `content/practice/trailhead-api` in a `trailhead-api` folder in the
+Playground, never over files that are there. Every output that shows its data
+is captured against that exact server.
 Give each fence its language and nothing else. The languages are every one
 the highlighter colors (`HIGHLIGHT_LANGUAGES` in `lib/tokenize.mjs`): `html`,
 `css`, `javascript` (`js`), `jsx`, `typescript` (`ts`), `tsx`, `json`,

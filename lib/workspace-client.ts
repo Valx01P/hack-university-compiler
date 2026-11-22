@@ -139,6 +139,21 @@ export const workspaceApi = {
     const data = await json<{ etag?: string }>(res);
     return { etag: data.etag ?? res.headers.get("etag") };
   },
+  /** Makes a file only if nothing's at that path yet (If-None-Match: *):
+      false when something already is, which is left as it was. */
+  async createFile(id: string, path: string, text: string | Uint8Array<ArrayBuffer>): Promise<boolean> {
+    try {
+      await call(`${base(id)}/file${q(path)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/octet-stream", "If-None-Match": "*" },
+        body: text,
+      });
+      return true;
+    } catch (err) {
+      if (err instanceof WorkspaceError && err.status === 409) return false;
+      throw err;
+    }
+  },
   async fs(
     id: string,
     op:

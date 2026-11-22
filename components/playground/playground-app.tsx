@@ -17,8 +17,10 @@ import { useIdeSettings } from "@/lib/ide-settings";
 import { PANES, paneValue, paneVar } from "@/lib/panes";
 import { setPaneSize, usePaneSize } from "@/lib/pane-size";
 import { revealWorkspace } from "@/lib/url-state";
-import { useStore } from "@/lib/workspace-store";
+import { workspaceApi } from "@/lib/workspace-client";
+import { useStore, type WorkspaceStore } from "@/lib/workspace-store";
 import { fileLanguage, type WorkspaceProps } from "@/lib/workspace-types";
+import type { PracticeFolder } from "@/lib/practice";
 
 /**
  * The playground (/playground): one folder on this computer, shown the way
@@ -44,6 +46,29 @@ import { fileLanguage, type WorkspaceProps } from "@/lib/workspace-types";
  * Explorer Mod+B, New file Alt+N, Close tab Alt+W. Keys the browser owns
  * (Mod+W, Mod+N, Mod+T, Mod+1 to 9, Mod+L, Mod+R) are never taken.
  */
+
+/** Writes a practice folder's files into the playground (each only where
+    nothing is yet) and opens its README once the tree shows it. */
+async function addPractice(store: WorkspaceStore, id: string) {
+  try {
+    const res = await fetch(`/api/practice/${id}`);
+    if (!res.ok) throw new Error(`No practice folder called ${id}.`);
+    const practice = (await res.json()) as PracticeFolder;
+    let made = 0;
+    for (const file of practice.files) {
+      const body = "text" in file ? file.text : Uint8Array.from(atob(file.base64), (c) => c.charCodeAt(0));
+      if (await workspaceApi.createFile(store.id, `${practice.folder}/${file.path}`, body)) made++;
+    }
+    store.refreshTree(0);
+    store.announce(made ? `Added the ${practice.folder} folder.` : `The ${practice.folder} folder is already here.`);
+    // The watcher brings the new files into the tree a moment later.
+    const open = `${practice.folder}/${practice.open}`;
+    for (let i = 0; i < 40 && !store.nodes.has(open); i++) await new Promise((r) => setTimeout(r, 150));
+    store.openFile(open);
+  } catch (err) {
+    store.announce(err instanceof Error ? err.message : `Couldn't add ${id}.`);
+  }
+}
 
 const EXPLORER = PANES["playground-explorer"];
 const TERMINAL = PANES["playground-terminal"];
@@ -166,6 +191,22 @@ export function PlaygroundApp({ props }: { props: WorkspaceProps }) {
     if (offline) return reveal();
     const fileReady = !store.active || (activeBuf && activeBuf.status !== "loading" && (activeBuf.status !== "ready" || languageLoaded(fileLanguage(store.active))));
     if (store.live && fileReady) requestAnimationFrame(reveal);
+  });
+
+  // A lesson's link can bring a ready-made folder (/playground?add=<id>,
+  // lib/practice.ts): once the runner's tree is in, its files go in at the
+  // top level, each only where nothing is yet, and its README opens. The
+  // link's ?add= comes off the address so a reload doesn't ask again.
+  const adding = useRef(false);
+  useEffect(() => {
+    if (adding.current || !store.live) return;
+    const id = new URLSearchParams(window.location.search).get("add");
+    if (!id) return;
+    adding.current = true;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("add");
+    window.history.replaceState(window.history.state, "", url);
+    if (/^[a-z0-9-]{1,64}$/.test(id)) void addPractice(store, id);
   });
 
   // The note AI tools read: what's open, and where the cursor is.
