@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+# Piston's gcc compile script, with -pthread for C and C++ so std::thread and
+# pthreads link (Hack University's concurrency lessons need them), and an
+# opt-in optimization level for C++ from the file's first line.
+
+
+case "${PISTON_LANGUAGE}" in
+    c)
+        rename 's/$/\.c/' "$@" # Add .c extension
+        gcc -std=c11 -pthread *.c -lm
+        ;;
+    c++)
+        rename 's/$/\.cpp/' "$@" # Add .cpp extension
+        # A first line of exactly "// -O2" (or -O1, -O3, -Os) builds optimized,
+        # the way g++ -O2 would in a terminal. Without one, -O0, as before.
+        OPT=$(head -q -n 1 *.cpp | grep -m 1 -o -E '^// -O[123s]$' | cut -c 4-)
+        g++ -std=c++17 -pthread $OPT *.cpp
+        ;;
+    d)
+        rename 's/.code$/\.d/' "$@" # Add .d extension
+        gdc *.d
+        ;;
+    fortran)
+        rename 's/.code$/\.f90/' "$@" # Add .f90 extension
+        gfortran *.f90
+        ;;
+    *)
+        echo "How did you get here? (${PISTON_LANGUAGE})"
+        exit 1
+        ;;
+esac
+
+chmod +x a.out

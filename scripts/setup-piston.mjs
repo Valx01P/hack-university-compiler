@@ -183,15 +183,19 @@ for (const pkg of packages) {
 // sortedcontainers for Python, and priority queues, queues, and deques for
 // JavaScript, which has no built-in heap. Pinned, and installed into the
 // sandbox's own runtimes inside the container, so runs stay offline. Java's
-// and Go's run scripts get small fixes too (see piston-extras/*/run).
+// and Go's run scripts get small fixes too (see piston-extras/*/run), and C
+// and C++ link with -pthread (piston-extras/gcc/compile).
 const CONTAINER = "hu-piston";
 const EXTRAS_DIR = path.join(import.meta.dirname, "piston-extras");
-// Replaces a runtime's run script with ours from piston-extras/<pkg>/run.
-const runScript = (pkg, dir) => [
-  ["cp", path.join(EXTRAS_DIR, pkg, "run"), `${CONTAINER}:${dir}/run`],
-  ["exec", CONTAINER, "sh", "-c", `chown root:root ${dir}/run && chmod 755 ${dir}/run`],
+// Replaces a runtime's run (or compile) script with ours from
+// piston-extras/<pkg>/<script>.
+const runScript = (pkg, dir, script = "run") => [
+  ["cp", path.join(EXTRAS_DIR, pkg, script), `${CONTAINER}:${dir}/${script}`],
+  ["exec", CONTAINER, "sh", "-c", `chown root:root ${dir}/${script} && chmod 755 ${dir}/${script}`],
 ];
 const EXTRAS = {
+  // C and C++ link with -pthread, so std::thread works.
+  gcc: (dir) => runScript("gcc", dir, "compile"),
   // Records and the other Java 15 preview features, minus javac's notes.
   java: (dir) => runScript("java", dir),
   // Steadier under emulation.
