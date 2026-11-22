@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 420">
+  <title>How FastAPI serves many requests: an event loop, a thread pool, and workers</title>
+  <desc>Inside one worker process, an event loop on one thread runs async handlers one at a time. In step 1, it runs a request's coroutine until it reaches an await. In step 2, while that one waits, it runs another. In step 3, handlers written with plain def go to a pool of 40 threads, so the loop stays free. In step 4, more worker processes, each with its own loop and its own GIL, use more of the computer's cores.</desc>
+
+  <!-- One worker process. -->
+  <rect class="dg-frame" x="20" y="20" width="440" height="380" rx="12"/>
+  <text class="dg-heading" x="36" y="44" dy="0.35em">Worker process</text>
+
+  <rect class="dg-hot" x="36" y="72" width="188" height="56" rx="8"/>
+  <text class="dg-on-hot" x="130" y="90" dy="0.35em" text-anchor="middle">Event loop
+    <tspan x="130" dy="1.4em">one thread</tspan>
+  </text>
+
+  <rect class="dg-box" x="36" y="196" width="188" height="120" rx="8"/>
+  <text x="52" y="216" dy="0.35em">async def handlers</text>
+  <rect class="dg-strong" x="52" y="234" width="156" height="22" rx="6"/>
+  <text class="dg-code" x="62" y="245" dy="0.35em">A: running</text>
+  <rect class="dg-off" x="52" y="262" width="156" height="20" rx="6"/>
+  <text class="dg-faint dg-code" x="62" y="272" dy="0.35em">B: waiting</text>
+  <rect class="dg-off" x="52" y="288" width="156" height="20" rx="6"/>
+  <text class="dg-faint dg-code" x="62" y="298" dy="0.35em">C: waiting</text>
+
+  <rect class="dg-box" x="256" y="72" width="188" height="244" rx="8"/>
+  <text x="350" y="92" dy="0.35em" text-anchor="middle">Thread pool
+    <tspan class="dg-note" x="350" dy="1.4em">40 threads, for def handlers</tspan>
+  </text>
+  <rect class="dg-off" x="276" y="140" width="148" height="28" rx="6"/>
+  <text class="dg-faint" x="350" y="154" dy="0.35em" text-anchor="middle">thread 1</text>
+  <rect class="dg-off" x="276" y="176" width="148" height="28" rx="6"/>
+  <text class="dg-faint" x="350" y="190" dy="0.35em" text-anchor="middle">thread 2</text>
+  <rect class="dg-off" x="276" y="212" width="148" height="28" rx="6"/>
+  <text class="dg-faint" x="350" y="226" dy="0.35em" text-anchor="middle">...</text>
+
+  <rect class="dg-box" x="36" y="336" width="408" height="48" rx="8"/>
+  <text x="240" y="360" dy="0.35em" text-anchor="middle">The GIL: one thread runs Python at a time</text>
+
+  <!-- 1 and 2: the loop runs a coroutine until its await, then another. -->
+  <path class="dg-flow" d="M110 128 V192" marker-end="url(#arrow-flow)"/>
+  <circle class="dg-badge" cx="92" cy="162" r="10"/>
+  <text class="dg-on-badge" x="92" y="162" dy="0.35em" text-anchor="middle">1</text>
+  <path class="dg-line dg-dashed" d="M160 196 V132" marker-end="url(#arrow)"/>
+  <circle class="dg-badge" cx="178" cy="162" r="10"/>
+  <text class="dg-on-badge" x="178" y="162" dy="0.35em" text-anchor="middle">2</text>
+
+  <!-- 3: a def handler goes to a thread. -->
+  <path class="dg-line" d="M224 100 H252" marker-end="url(#arrow)"/>
+  <circle class="dg-badge" cx="240" cy="124" r="10"/>
+  <text class="dg-on-badge" x="240" y="124" dy="0.35em" text-anchor="middle">3</text>
+
+  <!-- 4: more workers. -->
+  <rect class="dg-off" x="480" y="72" width="180" height="56" rx="8"/>
+  <text class="dg-faint" x="570" y="90" dy="0.35em" text-anchor="middle">Worker process 2
+    <tspan x="570" dy="1.4em">its own loop and GIL</tspan>
+  </text>
+  <rect class="dg-off" x="480" y="148" width="180" height="56" rx="8"/>
+  <text class="dg-faint" x="570" y="166" dy="0.35em" text-anchor="middle">Worker process 3
+    <tspan x="570" dy="1.4em">its own loop and GIL</tspan>
+  </text>
+  <circle class="dg-badge" cx="470" cy="100" r="10"/>
+  <text class="dg-on-badge" x="470" y="100" dy="0.35em" text-anchor="middle">4</text>
+  <text class="dg-code" x="570" y="228" dy="0.35em" text-anchor="middle">--workers 3</text>
+</svg>

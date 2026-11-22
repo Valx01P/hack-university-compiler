@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 460">
+  <title>How Go runs many requests: goroutines, Ps, and OS threads</title>
+  <desc>A new connection gets its own goroutine, a G, which waits in the run queue of a P. Each P is held by an M, an operating system thread, that runs one goroutine at a time on a core. There are as many Ps as GOMAXPROCS, here two. In step 1 the goroutine joins a run queue, and in step 2 a thread runs it. In step 3 a goroutine that waits on the network is parked with the network poller, and its thread moves on. In step 4, when data arrives, the goroutine goes back into a run queue.</desc>
+
+  <!-- A new connection. -->
+  <rect class="dg-box" x="20" y="20" width="200" height="40" rx="8"/>
+  <text x="120" y="40" dy="0.35em" text-anchor="middle">A new connection</text>
+  <path class="dg-flow" d="M60 60 V152" marker-end="url(#arrow-flow)"/>
+  <circle class="dg-badge" cx="84" cy="88" r="10"/>
+  <text class="dg-on-badge" x="84" y="88" dy="0.35em" text-anchor="middle">1</text>
+
+  <!-- P1. -->
+  <rect class="dg-frame" x="20" y="110" width="200" height="220" rx="12"/>
+  <text class="dg-heading" x="96" y="132" dy="0.35em">P1</text>
+  <text class="dg-note" x="124" y="132" dy="0.35em">run queue</text>
+  <rect class="dg-hot" x="36" y="156" width="48" height="28" rx="6"/>
+  <text class="dg-on-hot" x="60" y="170" dy="0.35em" text-anchor="middle">G</text>
+  <rect class="dg-box" x="96" y="156" width="48" height="28" rx="6"/>
+  <text x="120" y="170" dy="0.35em" text-anchor="middle">G</text>
+  <rect class="dg-box" x="156" y="156" width="48" height="28" rx="6"/>
+  <text x="180" y="170" dy="0.35em" text-anchor="middle">G</text>
+  <path class="dg-flow" d="M60 184 V240" marker-end="url(#arrow-flow)"/>
+  <circle class="dg-badge" cx="84" cy="212" r="10"/>
+  <text class="dg-on-badge" x="84" y="212" dy="0.35em" text-anchor="middle">2</text>
+  <rect class="dg-strong" x="36" y="244" width="168" height="64" rx="8"/>
+  <text x="120" y="264" dy="0.35em" text-anchor="middle">M1, an OS thread
+    <tspan class="dg-note" x="120" dy="1.4em">runs one G at a time</tspan>
+  </text>
+
+  <!-- P2. -->
+  <rect class="dg-frame" x="240" y="110" width="200" height="220" rx="12"/>
+  <text class="dg-heading" x="316" y="132" dy="0.35em">P2</text>
+  <text class="dg-note" x="344" y="132" dy="0.35em">run queue</text>
+  <rect class="dg-box" x="256" y="156" width="48" height="28" rx="6"/>
+  <text x="280" y="170" dy="0.35em" text-anchor="middle">G</text>
+  <rect class="dg-box" x="316" y="156" width="48" height="28" rx="6"/>
+  <text x="340" y="170" dy="0.35em" text-anchor="middle">G</text>
+  <path class="dg-line" d="M280 184 V240" marker-end="url(#arrow)"/>
+  <rect class="dg-strong" x="256" y="244" width="168" height="64" rx="8"/>
+  <text x="340" y="264" dy="0.35em" text-anchor="middle">M2, an OS thread
+    <tspan class="dg-note" x="340" dy="1.4em">runs one G at a time</tspan>
+  </text>
+
+  <!-- The network poller. -->
+  <rect class="dg-frame" x="480" y="110" width="180" height="220" rx="12"/>
+  <text class="dg-heading" x="496" y="132" dy="0.35em">Network poller</text>
+  <rect class="dg-off" x="496" y="196" width="44" height="28" rx="6"/>
+  <text class="dg-faint" x="518" y="210" dy="0.35em" text-anchor="middle">G</text>
+  <rect class="dg-off" x="548" y="196" width="44" height="28" rx="6"/>
+  <text class="dg-faint" x="570" y="210" dy="0.35em" text-anchor="middle">G</text>
+  <rect class="dg-off" x="600" y="196" width="44" height="28" rx="6"/>
+  <text class="dg-faint" x="622" y="210" dy="0.35em" text-anchor="middle">G</text>
+  <text class="dg-note" x="570" y="296" dy="0.35em" text-anchor="middle">parked, waiting</text>
+  <text class="dg-note" x="570" y="314" dy="0.35em" text-anchor="middle">on their sockets</text>
+
+  <!-- 3: waiting parks the goroutine. 4: data arrived. -->
+  <path class="dg-line" d="M424 276 H518 V228" marker-end="url(#arrow)"/>
+  <circle class="dg-badge" cx="456" cy="276" r="10"/>
+  <text class="dg-on-badge" x="456" y="276" dy="0.35em" text-anchor="middle">3</text>
+  <path class="dg-line dg-dashed" d="M570 196 V170 H368" marker-end="url(#arrow)"/>
+  <circle class="dg-badge" cx="456" cy="170" r="10"/>
+  <text class="dg-on-badge" x="456" y="170" dy="0.35em" text-anchor="middle">4</text>
+
+  <!-- Cores. -->
+  <path class="dg-line" d="M120 308 V352"/>
+  <path class="dg-line" d="M340 308 V352"/>
+  <rect class="dg-box" x="60" y="352" width="120" height="40" rx="8"/>
+  <text x="120" y="372" dy="0.35em" text-anchor="middle">core 1</text>
+  <rect class="dg-box" x="280" y="352" width="120" height="40" rx="8"/>
+  <text x="340" y="372" dy="0.35em" text-anchor="middle">core 2</text>
+  <text class="dg-note" x="20" y="424" dy="0.35em">GOMAXPROCS sets how many Ps there are, one per core by default.</text>
+</svg>

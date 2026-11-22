@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 360">
+  <title>A stale read: the booking commits on the primary, and the next read asks a replica that's behind</title>
+  <desc>Ada's app creates a booking, which commits on the primary and returns 201. The app then lists her bookings, and the read goes to a replica. The replica hasn't replayed the change yet, so the list comes back without booking 1001. The change reaches the replica through the WAL a moment later.</desc>
+
+  <rect class="dg-box" x="20" y="20" width="160" height="48" rx="8"/>
+  <text x="100" y="44" dy="0.35em" text-anchor="middle">Ada's app</text>
+  <rect class="dg-strong" x="270" y="20" width="160" height="48" rx="8"/>
+  <text x="350" y="44" dy="0.35em" text-anchor="middle">Primary</text>
+  <rect class="dg-hot" x="500" y="20" width="160" height="48" rx="8"/>
+  <text class="dg-on-hot" x="580" y="44" dy="0.35em" text-anchor="middle">Replica</text>
+  <path class="dg-line dg-dashed" d="M100 68 V340"/>
+  <path class="dg-line dg-dashed" d="M350 68 V340"/>
+  <path class="dg-line dg-dashed" d="M580 68 V340"/>
+
+  <!-- 1: the write -->
+  <circle class="dg-badge" cx="122" cy="104" r="10"/>
+  <text class="dg-on-badge" x="122" y="104" dy="0.35em" text-anchor="middle">1</text>
+  <text class="dg-code" x="232" y="90" text-anchor="middle">POST /v1/bookings</text>
+  <path class="dg-flow" d="M136 104 H346" marker-end="url(#arrow-flow)"/>
+  <path class="dg-line dg-dashed" d="M350 140 H104" marker-end="url(#arrow)"/>
+  <text class="dg-code" x="232" y="128" text-anchor="middle">201, booking 1001</text>
+
+  <!-- 2: the read goes to the replica -->
+  <circle class="dg-badge" cx="122" cy="192" r="10"/>
+  <text class="dg-on-badge" x="122" y="192" dy="0.35em" text-anchor="middle">2</text>
+  <text class="dg-code" x="340" y="178" text-anchor="middle">GET /v1/bookings</text>
+  <path class="dg-flow" d="M136 192 H576" marker-end="url(#arrow-flow)"/>
+
+  <!-- 3: the stale answer -->
+  <circle class="dg-badge" cx="602" cy="240" r="10"/>
+  <text class="dg-on-badge" x="602" y="240" dy="0.35em" text-anchor="middle">3</text>
+  <path class="dg-flow dg-dashed" d="M580 240 H104" marker-end="url(#arrow-flow)"/>
+  <text class="dg-code" x="340" y="226" text-anchor="middle">200, no booking 1001</text>
+
+  <!-- the change arrives late -->
+  <path class="dg-line dg-dashed" d="M350 290 H576" marker-end="url(#arrow)"/>
+  <text class="dg-note" x="463" y="276" text-anchor="middle">the WAL arrives, too late</text>
+</svg>
