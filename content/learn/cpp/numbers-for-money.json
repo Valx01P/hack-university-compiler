@@ -1,0 +1,158 @@
+{
+  "id": "numbers-for-money",
+  "title": "Numbers for Money: Floating Point and Integer Ticks",
+  "section": "Advanced: Performance",
+  "summary": "Compare doubles with a tolerance, sum them without drift, keep prices as integer ticks, and catch overflow when price times quantity gets big.",
+  "intro": "A trading system adds up millions of prices, fees, and sizes a day, and every one has to reconcile with the exchange to the cent. The lesson on if statements warned that `0.1 + 0.2 == 0.3` is false. This lesson shows what that costs a desk: equality checks that flag good fills, sums that drift, and conversions that land a price a tick off. Then it fixes each one the way production code does.",
+  "steps": [
+    {
+      "title": "Comparing doubles with a tolerance",
+      "body": "A reconciliation job checks each fill the exchange reports against `qty * price` computed on your side. Compare those doubles with `==` and good fills show up as breaks that someone has to chase.\n\nA `double` stores a binary fraction: 53 significant bits and an exponent. Most decimals, like 0.1, repeat forever in binary the way 1/3 does in decimal, so a `double` holds the nearest value it can. Printing 17 significant digits is enough to tell any two doubles apart, so it shows which one you have:\n\n```cpp\nstd::cout << std::setprecision(17) << 0.1 << ' ' << 0.1 + 0.2 << '\\n';  // 0.10000000000000001 0.30000000000000004\n```\n\nEvery operation rounds its result to the nearest `double`, which moves it by at most half of `std::numeric_limits<double>::epsilon()`, about 1.1e-16 of the value. So compare with a tolerance. A relative one scales with the numbers, and a tiny absolute one handles values near zero:\n\n```cpp\nbool nearly_equal(double a, double b) {\n    const double scale = std::max(std::abs(a), std::abs(b));\n    return std::abs(a - b) <= std::max(1e-12, 1e-9 * scale);\n}\n\nstd::cout << nearly_equal(0.1 + 0.2, 0.3) << '\\n';  // 1\n```\n\nA relative 1e-9 absorbs millions of roundings, yet on a million-dollar notional it still flags anything over a tenth of a cent. Pick the tolerance from the business rule, not from habit.",
+      "example": {
+        "title": "Reconciling reported notionals",
+        "prompt": "Read fills as a quantity, a price, and the notional the exchange reported, and check each one with == and with a tolerance.",
+        "code": "#include <algorithm>\n#include <cmath>\n#include <iomanip>\n#include <iostream>\n\nbool nearly_equal(double a, double b) {\n    const double rel = 1e-9;\n    const double abs_tol = 1e-12;\n    const double scale = std::max(std::abs(a), std::abs(b));\n    return std::abs(a - b) <= std::max(abs_tol, rel * scale);\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::cout << std::setprecision(17) << std::boolalpha;\n    for (int i = 0; i < n; ++i) {\n        double qty = 0.0;\n        double price = 0.0;\n        double reported = 0.0;\n        std::cin >> qty >> price >> reported;\n        const double notional = qty * price;\n        std::cout << notional << ' ' << (notional == reported) << ' '\n                  << nearly_equal(notional, reported) << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "4\n3 0.1 0.3\n7 1.1 7.7\n100 25.17 2517\n4 19.99 79.97\n",
+        "output": "0.30000000000000004 false true\n7.7000000000000011 false true\n2517 true true\n79.959999999999994 false false",
+        "explanation": "`3 * 0.1` comes out as 0.30000000000000004, while the literal `0.3` is stored as 0.29999999999999999, so `==` calls a perfect fill a break. `7 * 1.1` fails the same way. `nearly_equal` sees a difference of about 1e-16 of the value and accepts both. `100 * 25.17` happens to round to exactly 2517, so the two checks agree. The last fill was reported a cent high, 79.97 against 79.96, and the tolerance still catches it: a cent is about 1.25e-4 of the value, far above 1e-9."
+      },
+      "practice": {
+        "title": "Package price check",
+        "prompt": "A spread trade has two legs and a package price. Write `nearly_equal` and use it to check that the legs add up to the package.\n\n1. Make `nearly_equal(a, b)` return true when `std::abs(a - b)` is at most the larger of `1e-12` and `1e-9` times the larger of `std::abs(a)` and `std::abs(b)`.\n2. The rest is done: `main` reads `n`, then `n` lines of `leg1 leg2 package`, prints `match` or `break` for each line, then `breaks N`.\n\nInput:\n\n```text\n4\n0.1 0.2 0.3\n101.25 -0.15 101.1\n2.675 1.325 4\n99.99 0.02 100\n```\n\nExpected output:\n\n```text\nmatch\nmatch\nmatch\nbreak\nbreaks 1\n```",
+        "starter": "#include <algorithm>\n#include <cmath>\n#include <iostream>\n\nbool nearly_equal(double a, double b) {\n    // TODO: compare with a relative tolerance of 1e-9 and an absolute one of 1e-12\n    return a == b;\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    int breaks = 0;\n    for (int i = 0; i < n; ++i) {\n        double leg1 = 0.0;\n        double leg2 = 0.0;\n        double package = 0.0;\n        std::cin >> leg1 >> leg2 >> package;\n        if (nearly_equal(leg1 + leg2, package)) {\n            std::cout << \"match\\n\";\n        } else {\n            std::cout << \"break\\n\";\n            ++breaks;\n        }\n    }\n    std::cout << \"breaks \" << breaks << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <algorithm>\n#include <cmath>\n#include <iostream>\n\nbool nearly_equal(double a, double b) {\n    const double scale = std::max(std::abs(a), std::abs(b));\n    return std::abs(a - b) <= std::max(1e-12, 1e-9 * scale);\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    int breaks = 0;\n    for (int i = 0; i < n; ++i) {\n        double leg1 = 0.0;\n        double leg2 = 0.0;\n        double package = 0.0;\n        std::cin >> leg1 >> leg2 >> package;\n        if (nearly_equal(leg1 + leg2, package)) {\n            std::cout << \"match\\n\";\n        } else {\n            std::cout << \"break\\n\";\n            ++breaks;\n        }\n    }\n    std::cout << \"breaks \" << breaks << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "4\n0.1 0.2 0.3\n101.25 -0.15 101.1\n2.675 1.325 4\n99.99 0.02 100\n",
+            "output": "match\nmatch\nmatch\nbreak\nbreaks 1"
+          },
+          {
+            "stdin": "3\n1.1 2.2 3.3\n0.7 0.1 0.8\n1e-13 0 0\n",
+            "output": "match\nmatch\nmatch\nbreaks 0"
+          },
+          {
+            "stdin": "2\n4512.25 0.5 4512.75\n4512.25 0.25 4512.75\n",
+            "output": "match\nbreak\nbreaks 1"
+          }
+        ],
+        "hints": [
+          "`0.1 + 0.2` is 0.30000000000000004, so the starter's `==` calls the first line a break.",
+          "Start with `const double scale = std::max(std::abs(a), std::abs(b));`.",
+          "Then return `std::abs(a - b) <= std::max(1e-12, 1e-9 * scale);`."
+        ]
+      }
+    },
+    {
+      "title": "Summation order and Kahan sums",
+      "body": "End-of-day P&L adds millions of small numbers into one large total. Each `+=` rounds to the 53 bits a `double` has, and once the total is big, the low digits of each small term fall off the end. Order matters too, because floating-point addition isn't associative, which is why the four-lane sum in the lesson on bit tricks and SIMD came out different:\n\n```cpp\nstd::cout << std::setprecision(17) << (1e16 + 1.0) + 1.0 << ' ' << 1e16 + (1.0 + 1.0) << '\\n';  // 10000000000000000 10000000000000002\n```\n\nNear 10^16 neighbouring doubles are 2 apart, so adding 1 rounds back down, twice. Adding the small terms first helps. **Kahan summation** fixes the drift without sorting: `comp` carries the bits each add lost into the next one.\n\n```cpp harness\n#include <bits/stdc++.h>\n\nint main() {\n    const std::vector<double> amounts(10, 0.1);\n    {{code}}\n    std::cout << std::setprecision(17) << sum << '\\n';\n    return 0;\n}\n```\n\n```cpp\ndouble sum = 0.0;\ndouble comp = 0.0;\nfor (double x : amounts) {\n    const double y = x - comp;\n    const double t = sum + y;  // the low bits of y are lost here\n    comp = (t - sum) - y;      // and recovered here, negated\n    sum = t;\n}\n```\n\nOn paper `comp` is always zero, and that is the danger. g++ keeps it at `-O2`, but `-ffast-math` (`/fp:fast` on MSVC) lets the compiler reorder floating-point math, and it deletes the correction. Here is the loop of a `kahan_sum(const double* x, std::size_t n)` function from g++ 10.2 in the sandbox at `-O2`:\n\n```text\n.L3:\n        movsd   xmm0, QWORD PTR [rdi]\n        movapd  xmm3, xmm1\n        add     rdi, 8\n        subsd   xmm0, xmm2\n        addsd   xmm1, xmm0\n        movapd  xmm2, xmm1\n        subsd   xmm2, xmm3\n        subsd   xmm2, xmm0\n        cmp     rax, rdi\n        jne     .L3\n```\n\nThe same loop with `-ffast-math` is a plain sum:\n\n```text\n.L3:\n        addsd   xmm0, QWORD PTR [rdi]\n        add     rdi, 8\n        cmp     rdi, rax\n        jne     .L3\n```\n\nSumming into a `long double` isn't a portable fix: it has 64 significant bits in the sandbox, but on an Apple Silicon Mac, and with MSVC, it's the same 53-bit `double`.",
+      "example": {
+        "title": "Ten million fees",
+        "prompt": "Read a count and a fee, add the fee that many times naively and with Kahan summation, then show that the order of additions matters.",
+        "code": "#include <iomanip>\n#include <iostream>\n\nint main() {\n    int n = 0;\n    double fee = 0.0;\n    std::cin >> n >> fee;\n    double naive = 0.0;\n    double sum = 0.0;\n    double comp = 0.0;  // the low bits each add lost, negated\n    for (int i = 0; i < n; ++i) {\n        naive += fee;\n        const double y = fee - comp;\n        const double t = sum + y;\n        comp = (t - sum) - y;\n        sum = t;\n    }\n    std::cout << std::setprecision(17);\n    std::cout << \"naive \" << naive << '\\n';\n    std::cout << \"kahan \" << sum << '\\n';\n    std::cout << (1e16 + 1.0) + 1.0 << ' ' << 1e16 + (1.0 + 1.0) << '\\n';\n    return 0;\n}\n",
+        "stdin": "10000000 0.1\n",
+        "output": "naive 999999.99983897537\nkahan 1000000\n10000000000000000 10000000000000002",
+        "explanation": "Ten million fees of 0.1 should total exactly 10^6. The naive sum drifts to 999999.99983897537, about 1.6e-4 short, because every add near a million rounds away part of the stored 0.1. Kahan's `comp` catches each lost piece and adds it back on the next step, so the total lands on 1000000. The last line is about order: two separate `+ 1.0` steps vanish next to 10^16, but adding the ones together first keeps them."
+      },
+      "practice": {
+        "title": "A balance that drifts",
+        "prompt": "A fund's balance starts at `start` and accrues `amount` `n` times. Finish `KahanSum::add` so the second total doesn't drift.\n\n1. In `add`, subtract `comp` from `x` into `y`, add `y` to `sum` in a temporary `t`, set `comp` to `(t - sum) - y`, then store `t` in `sum`.\n2. The rest is done: `main` reads `start n amount`, adds `start` once and then `amount` `n` times to both the naive total and `nav`, and prints both with 4 decimals.\n\nInput:\n\n```text\n1e9 1000000 0.001\n```\n\nExpected output:\n\n```text\nnaive 1000001000.0467\nkahan 1000001000.0000\n```",
+        "starter": "#include <iomanip>\n#include <iostream>\n\nstruct KahanSum {\n    double sum = 0.0;\n    double comp = 0.0;\n\n    void add(double x) {\n        // TODO: add x with Kahan's compensation instead\n        sum += x;\n    }\n};\n\nint main() {\n    double start = 0.0;\n    int n = 0;\n    double accrual = 0.0;\n    std::cin >> start >> n >> accrual;\n    double naive = start;\n    KahanSum nav;\n    nav.add(start);\n    for (int i = 0; i < n; ++i) {\n        naive += accrual;\n        nav.add(accrual);\n    }\n    std::cout << std::fixed << std::setprecision(4);\n    std::cout << \"naive \" << naive << '\\n';\n    std::cout << \"kahan \" << nav.sum << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iomanip>\n#include <iostream>\n\nstruct KahanSum {\n    double sum = 0.0;\n    double comp = 0.0;\n\n    void add(double x) {\n        const double y = x - comp;\n        const double t = sum + y;\n        comp = (t - sum) - y;\n        sum = t;\n    }\n};\n\nint main() {\n    double start = 0.0;\n    int n = 0;\n    double accrual = 0.0;\n    std::cin >> start >> n >> accrual;\n    double naive = start;\n    KahanSum nav;\n    nav.add(start);\n    for (int i = 0; i < n; ++i) {\n        naive += accrual;\n        nav.add(accrual);\n    }\n    std::cout << std::fixed << std::setprecision(4);\n    std::cout << \"naive \" << naive << '\\n';\n    std::cout << \"kahan \" << nav.sum << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "1e9 1000000 0.001\n",
+            "output": "naive 1000001000.0467\nkahan 1000001000.0000"
+          },
+          {
+            "stdin": "5e8 300000 0.07\n",
+            "output": "naive 500020999.9979\nkahan 500021000.0000"
+          },
+          {
+            "stdin": "250 8 0.125\n",
+            "output": "naive 251.0000\nkahan 251.0000"
+          }
+        ],
+        "hints": [
+          "The example's loop body has the four lines you need, with `x` in place of `fee`.",
+          "Keep the order: compute `comp` from the old `sum` before you overwrite `sum` with `t`.",
+          "The whole body is `const double y = x - comp; const double t = sum + y; comp = (t - sum) - y; sum = t;`."
+        ]
+      }
+    },
+    {
+      "title": "Prices as integer ticks",
+      "body": "Exchanges only take prices on a grid. Most US stocks are quoted in steps of $0.01, and E-mini S&P 500 futures in steps of 0.25 index points. That step is the **tick size**, and every price on the book is a whole number of ticks. So store `int64_t price_ticks` and use `double` only at the edges, when you parse a feed or print. Ticks compare exactly, make exact keys for a `std::map` of price levels, and turn a spread into integer subtraction.\n\nConverting needs care. `0.29 / 0.01` is 28.999999999999996, and a cast truncates toward zero:\n\n```cpp\nstd::cout << static_cast<int64_t>(0.29 / 0.01) << ' ' << std::llround(0.29 / 0.01) << '\\n';  // 28 29\n```\n\n`std::llround` from `<cmath>` rounds to the nearest whole number and returns a `long long`, and a price that's already on the grid is off by far less than half a tick, so it converts right. `0.29 * 100` fails the same way.\n\nA quoting engine also snaps a computed fair value onto the grid: a bid rounds down, so you never pay more than you meant, and an ask rounds up. `std::floor` and `std::ceil` fall into the same trap when the price is already on the grid, so nudge by a millionth of a tick first:\n\n```cpp\nint64_t bid_ticks(double price, double tick_size) {\n    return static_cast<int64_t>(std::floor(price / tick_size + 1e-6));\n}\n\nstd::cout << bid_ticks(0.29, 0.01) << '\\n';  // 29\n```\n\nA millionth of a tick is far bigger than the rounding error and far smaller than any real price difference.",
+      "example": {
+        "title": "Quoting on the grid",
+        "prompt": "Count the cent prices from 0.00 to 999.99 that a cast and llround convert wrongly, then read a tick size, an edge, and fair values, and quote a bid and an ask on the grid around each.",
+        "code": "#include <cmath>\n#include <cstdint>\n#include <iomanip>\n#include <iostream>\n\nint64_t to_ticks(double price, double tick_size) {\n    return std::llround(price / tick_size);\n}\n\nint64_t bid_ticks(double price, double tick_size) {  // round down onto the grid\n    return static_cast<int64_t>(std::floor(price / tick_size + 1e-6));\n}\n\nint64_t ask_ticks(double price, double tick_size) {  // round up onto the grid\n    return static_cast<int64_t>(std::ceil(price / tick_size - 1e-6));\n}\n\nint main() {\n    int cast_wrong = 0;\n    int llround_wrong = 0;\n    for (int64_t cents = 0; cents < 100000; ++cents) {\n        const double price = cents / 100.0;  // 0.00 to 999.99, as a feed sends them\n        if (static_cast<int64_t>(price / 0.01) != cents) {\n            ++cast_wrong;\n        }\n        if (to_ticks(price, 0.01) != cents) {\n            ++llround_wrong;\n        }\n    }\n    std::cout << \"wrong: cast \" << cast_wrong << \", llround \" << llround_wrong << '\\n';\n\n    double tick_size = 0.0;\n    double edge = 0.0;\n    int n = 0;\n    std::cin >> tick_size >> edge >> n;\n    std::cout << std::fixed << std::setprecision(2);\n    for (int i = 0; i < n; ++i) {\n        double fair = 0.0;\n        std::cin >> fair;\n        const int64_t bid = bid_ticks(fair - edge, tick_size);\n        const int64_t ask = ask_ticks(fair + edge, tick_size);\n        std::cout << bid << ' ' << ask << ' ' << bid * tick_size << ' ' << ask * tick_size << '\\n';\n    }\n    return 0;\n}\n",
+        "stdin": "0.01 0.02\n3\n32.07\n100.237\n9.999\n",
+        "output": "wrong: cast 9132, llround 0\n3205 3209 32.05 32.09\n10021 10026 100.21 100.26\n997 1002 9.97 10.02",
+        "explanation": "Of the 10^5 prices, the cast gets 9,132 wrong, each one a tick low, and `llround` gets none wrong. For the fair value 32.07 the bid is 32.05, but `32.05 / 0.01` is 3204.9999999999995, so a bare `std::floor` would bid 32.04. The ask 32.09 divides to 3209.0000000000005, so a bare `std::ceil` would ask 32.10. The nudge fixes both. 100.237 is off the grid, so its quote widens to 100.21 and 100.26. Ticks become a `double` again only to print."
+      },
+      "practice": {
+        "title": "Quotes on a coarser grid",
+        "prompt": "Write `bid_ticks` and `ask_ticks`, then quote around each fair value.\n\n1. `bid_ticks(price, tick_size)` returns `std::floor(price / tick_size + 1e-6)` as an `int64_t`.\n2. `ask_ticks(price, tick_size)` returns `std::ceil(price / tick_size - 1e-6)` as an `int64_t`.\n3. The rest is done: `main` reads the tick size, the edge, `n`, and `n` fair values, and prints `bid / ask spread N` for each, with prices to 2 decimals and the spread in ticks.\n\nInput:\n\n```text\n0.05 0.10\n3\n1.25\n20.03\n7.5\n```\n\nExpected output:\n\n```text\n1.15 / 1.35 spread 4\n19.90 / 20.15 spread 5\n7.40 / 7.60 spread 4\n```",
+        "starter": "#include <cmath>\n#include <cstdint>\n#include <iomanip>\n#include <iostream>\n\nint64_t bid_ticks(double price, double tick_size) {\n    // TODO: round down onto the grid, nudged by a millionth of a tick\n    return 0;\n}\n\nint64_t ask_ticks(double price, double tick_size) {\n    // TODO: round up onto the grid, nudged by a millionth of a tick\n    return 0;\n}\n\nint main() {\n    double tick_size = 0.0;\n    double edge = 0.0;\n    int n = 0;\n    std::cin >> tick_size >> edge >> n;\n    std::cout << std::fixed << std::setprecision(2);\n    for (int i = 0; i < n; ++i) {\n        double fair = 0.0;\n        std::cin >> fair;\n        const int64_t bid = bid_ticks(fair - edge, tick_size);\n        const int64_t ask = ask_ticks(fair + edge, tick_size);\n        std::cout << bid * tick_size << \" / \" << ask * tick_size << \" spread \" << ask - bid << '\\n';\n    }\n    return 0;\n}\n",
+        "solution": "#include <cmath>\n#include <cstdint>\n#include <iomanip>\n#include <iostream>\n\nint64_t bid_ticks(double price, double tick_size) {\n    return static_cast<int64_t>(std::floor(price / tick_size + 1e-6));\n}\n\nint64_t ask_ticks(double price, double tick_size) {\n    return static_cast<int64_t>(std::ceil(price / tick_size - 1e-6));\n}\n\nint main() {\n    double tick_size = 0.0;\n    double edge = 0.0;\n    int n = 0;\n    std::cin >> tick_size >> edge >> n;\n    std::cout << std::fixed << std::setprecision(2);\n    for (int i = 0; i < n; ++i) {\n        double fair = 0.0;\n        std::cin >> fair;\n        const int64_t bid = bid_ticks(fair - edge, tick_size);\n        const int64_t ask = ask_ticks(fair + edge, tick_size);\n        std::cout << bid * tick_size << \" / \" << ask * tick_size << \" spread \" << ask - bid << '\\n';\n    }\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "0.05 0.10\n3\n1.25\n20.03\n7.5\n",
+            "output": "1.15 / 1.35 spread 4\n19.90 / 20.15 spread 5\n7.40 / 7.60 spread 4"
+          },
+          {
+            "stdin": "0.25 0.5\n2\n4512.37\n4500\n",
+            "output": "4511.75 / 4513.00 spread 5\n4499.50 / 4500.50 spread 4"
+          },
+          {
+            "stdin": "0.01 0.02\n2\n32.07\n32.25\n",
+            "output": "32.05 / 32.09 spread 4\n32.23 / 32.27 spread 4"
+          }
+        ],
+        "hints": [
+          "Without the nudge, `1.15 / 0.05` is 22.999999999999996, so `std::floor` gives 22, a bid of 1.10.",
+          "`static_cast<int64_t>(...)` turns the whole-valued `double` from `std::floor` or `std::ceil` into ticks.",
+          "The ask subtracts the nudge before `std::ceil`, the mirror image of the bid."
+        ]
+      }
+    },
+    {
+      "title": "Notional without overflow",
+      "body": "Notional is price times quantity, and a risk system sums it over every position. Many feeds and risk systems keep prices as fixed-point integers finer than any tick, such as nanodollars, dollars times 10^9. A $4,512.25 price is then 4.5 × 10^12, and `int64_t` stops near 9.2 × 10^18, so about two million lots overflow it. Signed overflow is undefined behavior, as the lesson on undefined behavior showed, so you can't multiply first and check the result afterwards.\n\ng++ and clang have a builtin that multiplies and checks in one step. It returns `true` when the exact product doesn't fit, and stores the wrapped result either way:\n\n```cpp\nint64_t notional = 0;\nconst bool overflow = __builtin_mul_overflow(int64_t{4'512'250'000'000}, int64_t{3'000'000}, &notional);\nstd::cout << overflow << '\\n';  // 1\n```\n\nWhen you need the exact value, widen to `__int128`, a 128-bit integer that holds any product of two `int64_t`. `std::cout` can't print one, so divide it back down to dollars first. Neither costs much. For a `notional` function that returns the builtin's result and a `wide` one that returns the `__int128` product, g++ 10.2 at `-O2` makes one multiply that sets the CPU's overflow flag, read by `seto`, and one widening multiply:\n\n```text\nnotional:\n        imul    rdi, rsi\n        mov     QWORD PTR [rdx], rdi\n        seto    al\n        ret\nwide:\n        mov     rax, rdi\n        imul    rsi\n        ret\n```\n\nMSVC has neither: it offers the `_mul128` intrinsic instead.",
+      "example": {
+        "title": "Notional in nanodollars",
+        "prompt": "Read positions as a price in nanodollars and a quantity, print each notional or overflow, and total them exactly with __int128.",
+        "code": "#include <cstdint>\n#include <iostream>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    __int128 total = 0;\n    for (int i = 0; i < n; ++i) {\n        int64_t price_nanos = 0;  // dollars times 10^9\n        int64_t qty = 0;\n        std::cin >> price_nanos >> qty;\n        int64_t notional = 0;\n        if (__builtin_mul_overflow(price_nanos, qty, &notional)) {\n            std::cout << \"overflow\\n\";\n        } else {\n            std::cout << notional << '\\n';\n        }\n        total += static_cast<__int128>(price_nanos) * qty;\n    }\n    const int64_t dollars = static_cast<int64_t>(total / 1'000'000'000);\n    std::cout << \"total $\" << dollars << '\\n';\n    return 0;\n}\n",
+        "stdin": "3\n4512250000000 1000\n4512250000000 3000000\n187500000000 50000000\n",
+        "output": "4512250000000000\noverflow\noverflow\ntotal $22916262250",
+        "explanation": "1000 lots at 4512.25 dollars is 4.5 × 10^15 nanodollars and fits. 3 × 10^6 lots would be 1.35 × 10^19, past the limit, so `__builtin_mul_overflow` returns `true` instead of letting the product wrap. 5 × 10^7 lots at 187.50 dollars is 9.375 × 10^18, just over it too. The `__int128` total holds all three exactly, and dividing by 10^9 brings it back to whole dollars that fit in an `int64_t`."
+      },
+      "practice": {
+        "title": "Futures notional with a multiplier",
+        "prompt": "A futures position's notional is price times the contract multiplier times the number of contracts. Check both multiplications.\n\n1. Multiply `price_nanos` by `multiplier` into `per_contract` with `__builtin_mul_overflow`, then `per_contract` by `contracts` into `notional`.\n2. If either one overflows, print `overflow`. Otherwise print `notional`.\n3. Either way, add the exact product to `total` as an `__int128`. `main` already prints the total in whole dollars.\n\nInput:\n\n```text\n3\n4512250000000 10 50\n4512250000000 50000 50\n18500000000 20000 1000\n```\n\nExpected output:\n\n```text\n2256125000000000\noverflow\n370000000000000000\ntotal $11652881125\n```",
+        "starter": "#include <cstdint>\n#include <iostream>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    __int128 total = 0;\n    for (int i = 0; i < n; ++i) {\n        int64_t price_nanos = 0;\n        int64_t contracts = 0;\n        int64_t multiplier = 0;\n        std::cin >> price_nanos >> contracts >> multiplier;\n        // TODO: multiply with two overflow checks, print the notional or overflow,\n        // and add the exact product to total\n    }\n    const int64_t dollars = static_cast<int64_t>(total / 1'000'000'000);\n    std::cout << \"total $\" << dollars << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <cstdint>\n#include <iostream>\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    __int128 total = 0;\n    for (int i = 0; i < n; ++i) {\n        int64_t price_nanos = 0;\n        int64_t contracts = 0;\n        int64_t multiplier = 0;\n        std::cin >> price_nanos >> contracts >> multiplier;\n        int64_t per_contract = 0;\n        int64_t notional = 0;\n        if (__builtin_mul_overflow(price_nanos, multiplier, &per_contract) ||\n            __builtin_mul_overflow(per_contract, contracts, &notional)) {\n            std::cout << \"overflow\\n\";\n        } else {\n            std::cout << notional << '\\n';\n        }\n        total += static_cast<__int128>(price_nanos) * multiplier * contracts;\n    }\n    const int64_t dollars = static_cast<int64_t>(total / 1'000'000'000);\n    std::cout << \"total $\" << dollars << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "3\n4512250000000 10 50\n4512250000000 50000 50\n18500000000 20000 1000\n",
+            "output": "2256125000000000\noverflow\n370000000000000000\ntotal $11652881125"
+          },
+          {
+            "stdin": "2\n150000000000 1000000 1\n9000000000000 2 1000000\n",
+            "output": "150000000000000000\noverflow\ntotal $18150000000"
+          },
+          {
+            "stdin": "1\n1000000000 7 3\n",
+            "output": "21000000000\ntotal $21"
+          }
+        ],
+        "hints": [
+          "`||` stops at the first `true`, so `if (__builtin_mul_overflow(a, b, &x) || __builtin_mul_overflow(x, c, &y))` checks both in order.",
+          "Declare `int64_t per_contract = 0;` and `int64_t notional = 0;` before the `if`.",
+          "Cast the first factor, `static_cast<__int128>(price_nanos) * multiplier * contracts`, so every step is 128 bits wide."
+        ]
+      }
+    }
+  ],
+  "recap": "- `std::setprecision(17)` shows the `double` you really have: 0.1 is 0.10000000000000001.\n- Compare doubles with a relative tolerance plus a tiny absolute one, picked from the business rule.\n- Long sums drift, and addition order matters. Kahan summation carries the lost bits in `comp`. Never build it with `-ffast-math`, which deletes the correction.\n- Store prices as `int64_t price_ticks` with a `tick_size`, and convert only at the edges.\n- `std::llround(price / tick_size)` converts an on-grid price. A cast truncates and can land a tick low.\n- Snap a bid down with `std::floor(price / tick_size + 1e-6)` and an ask up with `std::ceil(price / tick_size - 1e-6)`.\n- `__builtin_mul_overflow(a, b, &out)` multiplies and reports overflow without undefined behavior. `__int128` holds any product of two `int64_t`.\n\nThat ends the Performance section. Next, **Threads, Data Races, and Mutexes** opens Concurrency: more than one core, shared positions and counters, and the locks that keep them right."
+}
