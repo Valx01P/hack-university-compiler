@@ -1,7 +1,9 @@
 import React from "react";
 import { Highlight } from "@/lib/highlight";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
+import { Diagram } from "@/components/learn/diagram";
 import { RunnableSnippet } from "@/components/learn/runnable-snippet";
+import type { DiagramData } from "@/lib/diagram.mjs";
 import { segmentMarkdown } from "@/lib/snippet-harness.mjs";
 import { snippetHash } from "@/lib/snippet-edits";
 
@@ -251,13 +253,29 @@ export interface RunnableContext {
  * Renders content Markdown. With `runnable`, every code example in a
  * language its course runs becomes a RunnableSnippet (run it, edit it,
  * reset it); without it, and for text and `norun` blocks, code shows as a
- * plain block you can copy. Hidden harness and stdin blocks never show.
+ * plain block you can copy. Hidden harness and stdin blocks never show. A
+ * read lesson's ```diagram fence draws its diagram from `diagrams` (the
+ * part page loads each one it shows), its line as the caption.
  */
-export function LessonMarkdown({ md, runnable }: { md: string; runnable?: RunnableContext }) {
+export function LessonMarkdown({
+  md,
+  runnable,
+  diagrams,
+}: {
+  md: string;
+  runnable?: RunnableContext;
+  diagrams?: Record<string, DiagramData>;
+}) {
   return (
     <>
       {segmentMarkdown(md, runnable?.course).map((seg, i) =>
-        seg.type === "fence" ? (
+        seg.type === "diagram" ? (
+          // The part page fails its build when a diagram is missing, so
+          // there's nothing to draw only where none was loaded.
+          diagrams?.[seg.name] ? (
+            <Diagram key={i} data={diagrams[seg.name]} caption={seg.caption ? inline(seg.caption, `d${i}`) : undefined} />
+          ) : null
+        ) : seg.type === "fence" ? (
           runnable && seg.runtime ? (
             <RunnableSnippet
               key={i}

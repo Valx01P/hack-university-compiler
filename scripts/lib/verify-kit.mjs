@@ -5,6 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { normalizeOutput } from "../../lib/single-checks.mjs";
 import { sourceFiles } from "../../lib/source-file.mjs";
+import { HIGHLIGHT_LANGUAGES, languageId } from "../../lib/tokenize.mjs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +19,9 @@ export const COURSES = JSON.parse(readFileSync(path.join(ROOT, "content", "cours
 // a compiler page whose single file runs on Piston or PGlite.
 const PISTON = (c) => c.runtime.startsWith("piston:") && Object.hasOwn(RUNTIMES, c.runtime.slice("piston:".length));
 export const LANGUAGES = COURSES.filter((c) => c.page && (PISTON(c) || c.runtime === "pglite")).map((c) => c.slug);
+/** The read courses: those with no compiler page, whose lessons are all
+    read lessons (the part route's rule), checked with no sandbox. */
+export const READ_LANGUAGES = COURSES.filter((c) => !c.page).map((c) => c.slug);
 const PISTON_URL = (process.env.PISTON_URL ?? "http://127.0.0.1:2000/api/v2").replace(/\/+$/, "");
 // The single-file courses that run on the local runner instead (TypeScript,
 // Bash): each one's recipe and the file name the app gives the code.
@@ -324,6 +328,12 @@ export const FENCE_LANGS = new Set([...COURSES.filter((c) => c.page).flatMap((c)
 // dom: browser code, never run. types: TypeScript that shows types and prints
 // nothing, so it only has to type-check.
 export const FENCE_FLAGS = new Set(["norun", "error", "harness", "dom", "types"]);
+/** Fence languages a read lesson may use: every one the highlighter
+    colors (lib/tokenize.mjs), aliases included, and text. */
+export const READ_FENCES = new Set([...HIGHLIGHT_LANGUAGES, "text"]);
+/** A read lesson's only fence flag: `sketch` marks code with `...` in
+    place of the rest, so its syntax isn't checked. */
+export const READ_FLAGS = new Set(["sketch"]);
 export const isStr = (v) => typeof v === "string";
 export const nonEmpty = (v) => isStr(v) && v.trim().length > 0;
 
@@ -361,8 +371,14 @@ export function lintProse(where, value, errors) {
 
 /** The Markdown subset that components/learn/lesson-md.tsx renders. Anything
     outside it shows up as literal text, so it is an error. Plain-text fields
-    (titles, summaries) take no Markdown at all. */
-export function lintMarkdown(where, value, isMarkdown, errors) {
+    (titles, summaries) take no Markdown at all. Options, for read lessons:
+    `fences` and `flags` (the fence languages and flags allowed, FENCE_LANGS
+    and FENCE_FLAGS by default), `stdin` (false: no ```stdin blocks),
+    `onDiagram(name, caption)` (```diagram fences are allowed, each handed
+    to it), and `noH1` (a # heading is an error: it would render at the
+    part title's level). */
+export function lintMarkdown(where, value, isMarkdown, errors, options = {}) {
+  const { fences = FENCE_LANGS, flags: allowedFlags = FENCE_FLAGS, stdin = true, onDiagram = null, noH1 = false } = options;
   const bad = (message) => errors.push({ where, message });
   if (!isMarkdown) {
     if (/`|\n/.test(value)) bad("plain text only: no backticks or line breaks");
@@ -379,23 +395,33 @@ export function lintMarkdown(where, value, isMarkdown, errors) {
       // lib/snippet-harness.mjs). A ```stdin block is hidden input.
       const nl = part.indexOf("\n");
       const [fenceLang = "", ...flags] = part.slice(0, nl < 0 ? part.length : nl).trim().split(/\s+/);
-      if (fenceLang === "stdin") {
-        if (flags.length) bad("a ```stdin block takes no flags");
+      if (fenceLang === "diagram" && onDiagram) {
+        const [name = "", ...more] = flags;
+        if (more.length) bad(`a diagram fence names one diagram: \`\`\`diagram ${name}`);
+        onDiagram(name, nl < 0 ? "" : part.slice(nl + 1).replace(/\n$/, ""));
         return;
       }
-      if (!FENCE_LANGS.has(fenceLang)) bad(`code fence language "${fenceLang}" must be one of ${[...FENCE_LANGS].join(", ")}`);
-      for (const flag of flags) if (!FENCE_FLAGS.has(flag)) bad(`unknown code fence flag "${flag}" (use ${[...FENCE_FLAGS].join(", ")})`);
-      if (flags.includes("harness") && !/^[ \t]*\{\{code\}\}[ \t]*$/m.test(part.slice(nl + 1))) bad("a harness needs a line holding just {{code}}");
+      if (fenceLang === "stdin") {
+        if (!stdin) bad("no ```stdin blocks here: nothing in a read lesson runs");
+        else if (flags.length) bad("a ```stdin block takes no flags");
+        return;
+      }
+      if (!fences.has(fenceLang)) bad(`code fence language "${fenceLang}" must be one of ${[...fences].join(", ")}`);
+      for (const flag of flags) {
+        if (!allowedFlags.has(flag)) bad(allowedFlags.size ? `unknown code fence flag "${flag}" (use ${[...allowedFlags].join(", ")})` : `no code fence flags here ("${flag}")`);
+      }
+      if (flags.includes("harness") && allowedFlags.has("harness") && !/^[ \t]*\{\{code\}\}[ \t]*$/m.test(part.slice(nl + 1))) bad("a harness needs a line holding just {{code}}");
       return;
     }
-    for (const block of part.split(/\n{2,}/)) checkBlock(block.replace(/^\n+|\n+$/g, ""), bad);
+    for (const block of part.split(/\n{2,}/)) checkBlock(block.replace(/^\n+|\n+$/g, ""), bad, noH1);
   });
 }
 
-function checkBlock(block, bad) {
+function checkBlock(block, bad, noH1 = false) {
   if (!block.trim()) return;
   const lines = block.split("\n");
-  if (/^#{1,3}\s/.test(lines[0])) return lines.length > 1 && checkBlock(lines.slice(1).join("\n"), bad);
+  if (noH1 && /^#\s/.test(lines[0])) bad(`a # heading renders at the part title's level, use ## and ###: "${clip(lines[0], 60)}"`);
+  if (/^#{1,3}\s/.test(lines[0])) return lines.length > 1 && checkBlock(lines.slice(1).join("\n"), bad, noH1);
   if (/^#{4,}\s/.test(lines[0])) return bad("only #, ##, and ### headings are supported");
   if (lines.length >= 2 && lines[0].includes("|") && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(lines[1])) return;
   const kinds = lines.map((l) => (/^-\s/.test(l) ? "bullet" : /^\d+\.\s/.test(l) ? "numbered" : /^>\s?/.test(l) ? "quote" : /^#{1,3}\s/.test(l) ? "heading" : "text"));
@@ -411,6 +437,71 @@ function checkBlock(block, bad) {
       ? `a heading must start its own block (blank line before it): "${clip(lines[kinds.indexOf("heading")], 60)}"`
       : `a ${odd === "quote" ? "quote" : "list"} must be its own block with a blank line before and after it, one line per item: "${clip(block.replace(/\n/g, " ⏎ "), 90)}"`
   );
+}
+
+/** Lint one line of inline Markdown (a diagram's caption): balanced
+    backticks, no images, no raw HTML. */
+export function lintInline(where, text, errors) {
+  checkInline(text, (message) => errors.push({ where, message }));
+}
+
+/** How many words of prose a Markdown field has: code fences (diagrams
+    included) left out, and only words with a letter or digit counted, so
+    list dashes and heading marks don't count. */
+export function proseWords(md) {
+  return String(md ?? "")
+    .split(/^```/m)
+    .filter((_, i) => i % 2 === 0)
+    .join("\n")
+    .split(/\s+/)
+    .filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+}
+
+/** The code fences in a Markdown field: language (lowercased), flags,
+    and code. Diagram fences are left out. */
+export function codeFences(md) {
+  const out = [];
+  String(md ?? "").split(/^```/m).forEach((part, i) => {
+    if (i % 2 === 0) return;
+    const nl = part.indexOf("\n");
+    const [lang = "", ...flags] = part.slice(0, nl < 0 ? part.length : nl).trim().split(/\s+/);
+    if (lang.toLowerCase() === "diagram") return;
+    out.push({ language: lang.toLowerCase() || "text", flags, code: nl < 0 ? "" : part.slice(nl + 1).replace(/\n$/, "") });
+  });
+  return out;
+}
+
+let lezer = null;
+/**
+ * A light syntax check for code a read lesson shows: JSON must parse, and
+ * JavaScript, JSX, TypeScript, and TSX must parse with no error nodes in
+ * Lezer (the parser the highlighter uses), so displayed code can't carry a
+ * typo. Other languages aren't checked. Returns the problems (empty when
+ * it parses), each with its line.
+ */
+export async function syntaxErrors(code, language) {
+  const lang = languageId(language);
+  if (lang === "json") {
+    try {
+      JSON.parse(code);
+      return [];
+    } catch (err) {
+      return [`doesn't parse as JSON (${err.message})`];
+    }
+  }
+  const dialect = { javascript: "", jsx: "jsx", typescript: "ts", tsx: "ts jsx" }[lang];
+  if (dialect === undefined) return [];
+  lezer ??= (await import("@lezer/javascript")).parser;
+  const tree = lezer.configure({ dialect }).parse(code);
+  const problems = [];
+  tree.iterate({
+    enter(node) {
+      if (!node.type.isError || problems.length >= 3) return;
+      const line = code.slice(0, node.from).split("\n").length;
+      problems.push(`doesn't parse as ${language}: line ${line} near ${JSON.stringify(code.slice(node.from, node.from + 20) || "the end")}`);
+    },
+  });
+  return problems;
 }
 
 function checkInline(text, bad) {

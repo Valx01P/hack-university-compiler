@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { BookOpenText, FolderCode, FolderTree, GraduationCap, ListChecks, RotateCcw, SquareTerminal } from "lucide-react";
+import { BookOpenText, FolderTree, GraduationCap, ListChecks, RotateCcw, SquareTerminal } from "lucide-react";
 import { AnswerToggle } from "@/components/code/answer-toggle";
 import { CmEditor } from "@/components/code/cm-editor";
 import { EditorSettingsButton } from "@/components/code/editor-settings";
@@ -141,14 +140,11 @@ const inRef = (pct: number) => Math.min(REF.max, Math.max(REF.min, pct));
 export function CompilerApp({
   lang,
   lessons,
-  playground: playgroundHref = null,
   workspace,
 }: {
   lang: CompilerLang;
   /** Learn lessons in course order; empty when this language has no course. */
   lessons: LessonRef[];
-  /** Where Open playground goes, once the course has a playground. */
-  playground?: string | null;
   /** The page's own folder (compiler/<lang>): the Explorer's files and the Terminal's. */
   workspace: WorkspaceProps;
 }) {
@@ -713,17 +709,9 @@ export function CompilerApp({
   // Each label hides when its row (the panel's header, or the output's) is
   // too narrow to hold them all, leaving the icons: a container query on the
   // row, applied from the first paint, at the width the row needs at its
-  // fullest (with Open playground, beside SQL's Results and Database tabs,
-  // and after a run, with Clear), so running never flips them and shifts it.
-  const labelHide = refOpen
-    ? playgroundHref
-      ? "@max-[43rem]:hidden"
-      : "@max-[34rem]:hidden"
-    : sqlMode
-      ? "@max-[48rem]:hidden"
-      : playgroundHref
-        ? "@max-[49rem]:hidden"
-        : "@max-[40rem]:hidden";
+  // fullest (beside SQL's Results and Database tabs, and after a run, with
+  // Clear), so running never flips them and shifts it.
+  const labelHide = refOpen ? "@max-[34rem]:hidden" : sqlMode ? "@max-[48rem]:hidden" : "@max-[40rem]:hidden";
   const panelButtons = (
     <>
       {(
@@ -776,20 +764,6 @@ export function CompilerApp({
           <GraduationCap className="size-3.5" aria-hidden />
           <span className={labelHide}>Learn</span>
         </ConfirmButton>
-      )}
-      {playgroundHref && (
-        // A whole project to work in, with files and a terminal. Your code
-        // here stays saved.
-        <Link
-          href={playgroundHref}
-          prefetch={false}
-          aria-label="Open playground"
-          title={`A ${lang.label} project with files and a terminal`}
-          className={headerBtn}
-        >
-          <FolderCode className="size-3.5" aria-hidden />
-          <span className={labelHide}>Open playground</span>
-        </Link>
       )}
     </>
   );

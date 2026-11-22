@@ -91,11 +91,13 @@ export const LABEL = {
   workspace: "hu.workspace",
   image: "hu.image",
   hash: "hu.hash",
-  /** The data folder a workspace belongs to (8 hex characters of its hash). */
+  /** The data folder a workspace belonged to (8 hex characters of its hash). */
   home: "hu.home",
 } as const;
 
-export type Kind = "workspace" | "job" | "checker" | "db";
+/** What a container is: a run's job, or a workspace's container from before
+    workspaces were folders on this computer (reconcile removes those). */
+export type Kind = "workspace" | "job";
 
 /** Container names: hu-job-<uuid> for learners, hv-job-<uuid> for the verifiers. */
 export function namePrefix(ns: Namespace): string {

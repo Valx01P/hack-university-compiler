@@ -2,25 +2,24 @@
 
 import { useSyncExternalStore } from "react";
 import { compareNames } from "@/lib/file-order.mjs";
-import type { CheckResult, CheckTest, PortInfo, StartingTree, TreeEntry, WorkspaceProps, WorkspaceStatus } from "@/lib/workspace-types";
+import type { StartingTree, TreeEntry, WorkspaceProps, WorkspaceStatus } from "@/lib/workspace-types";
 import { openWorkspace, workspaceApi, WorkspaceError, type FileRead } from "@/lib/workspace-client";
 import { WorkspaceEvents, type FsEvent, type RunnerEvent, type SocketState } from "@/lib/runner-socket";
 
 /**
- * Everything one open workspace knows, in the browser: its tree, the files
- * open in the editor, its status, ports, tasks, terminals, the dock, and the
- * last check. The runner is the source of truth for files on disk: the store
- * opens the workspace, listens on its events socket, and keeps the explorer
- * and the editor in step with what the terminal and servers change.
+ * Everything one open folder knows, in the browser (a compiler's own, or the
+ * playground): its tree, the files open in the editor, its status, and its
+ * terminals. The runner is the source of truth for files on disk: the store
+ * opens the folder, listens on its events socket, and keeps the Explorer and
+ * the editor in step with what the terminal changes.
  *
  * Components read it with useStore(store, slice), which re-renders them when
- * that slice changes. Open tabs, unsaved buffers, and the folders you opened
- * are kept in localStorage per workspace (hu-ws-v1:<id>), so a reload loses
- * nothing you typed. Pane sizes stay for the session only, like every split
- * in the app.
+ * that slice changes. Open tabs, unsaved buffers, the folders you opened, and
+ * the terminals are kept in localStorage per workspace (hu-ws-v1:<id>), so a
+ * reload loses nothing you typed. Pane sizes are lib/panes.ts's.
  */
 
-export type Slice = "tree" | "files" | "status" | "ports" | "tasks" | "terminals" | "dock" | "check" | "diag" | "preview" | "notice" | "db";
+export type Slice = "tree" | "files" | "status" | "terminals" | "notice";
 
 export interface FileNode {
   path: string;
@@ -32,7 +31,6 @@ export interface FileNode {
   state?: "same" | "modified" | "new";
   target?: string;
   outside?: boolean;
-  generated?: string | boolean;
   /** A folder whose children are listed only when it's opened. */
   lazy?: boolean;
 }
@@ -55,7 +53,7 @@ export interface FileBuffer {
   original?: string | null;
 }
 
-/** What the IDE's editor does for the store: it holds the documents. */
+/** What the editor does for the store: it holds the documents. */
 export interface EditorHost {
   text(path: string): string | null;
   replace(path: string, text: string, opts?: { clean?: boolean }): void;
@@ -64,36 +62,10 @@ export interface EditorHost {
   reveal(path: string, line?: number): void;
 }
 
-export type DockPanel = "terminal" | "server" | "ports" | "api" | "database" | "problems" | "results";
-
 export interface TerminalTab {
   sid: string;
   title: string;
 }
-
-export interface TaskState {
-  name: string;
-  state: "idle" | "starting" | "running" | "exited";
-  code?: number | null;
-  signal?: string | null;
-  sid?: string;
-}
-
-export interface Diagnostic {
-  file: string;
-  line: number;
-  col: number;
-  severity: string;
-  code?: string;
-  message: string;
-  source: string;
-}
-
-export type CheckState =
-  | { status: "idle" }
-  | { status: "running"; checkId?: string; tests: CheckTest[] }
-  | { status: "done"; result: CheckResult }
-  | { status: "error"; error: string };
 
 interface Persisted {
   tabs?: string[];
@@ -144,31 +116,17 @@ export class WorkspaceStore {
 
   // The workspace and its runner.
   runner: "connecting" | "online" | "offline" = "connecting";
-  /** The runner's status (terminals and tasks still running) has come in. */
+  /** The runner's status (the terminals still running) has come in. */
   settled = false;
   runnerMessage = "";
   socket: SocketState = "closed";
-  docker: "up" | "down" | "waking" | null = null;
   status: WorkspaceStatus = "absent";
-  statusDetail = "";
-  mem: { usedMb: number; limitMb: number } | null = null;
-  limit: { kind: string; message: string } | null = null;
-  ports = new Map<number, PortInfo>();
-  tasks = new Map<string, TaskState>();
   terminals: TerminalTab[] = [];
   /** Terminals whose shell exited (the runner said so), as opposed to ones
       only gone from the runner's list (it restarted), whose shell may still
       run in tmux (the compiler's Terminal attaches again to those). */
   exitedTerminals = new Set<string>();
-  diagnostics = new Map<string, Diagnostic[]>();
-  check: CheckState = { status: "idle" };
 
-  // Layout.
-  dock: DockPanel = "terminal";
-  dockOpen = true;
-  dockMax = false;
-  explorerOpen = true;
-  preview: { open: boolean; port: number | null; path: string; nonce: number } = { open: false, port: null, path: "/", nonce: 0 };
   /** A short message for the screen reader and the status line. */
   notice = "";
 
@@ -215,20 +173,20 @@ export class WorkspaceStore {
     this.tabs = props.template.open.filter(known);
     this.active = this.tabs.at(-1) ?? null;
     this.expanded = new Set(this.defaultExpanded());
-    for (const task of props.template.tasks) this.tasks.set(task.name, { name: task.name, state: "idle" });
   }
 
   /** Your tabs, folders, and terminals from before (localStorage), after
-      hydration and before the IDE shows, so the server markup and the first
-      client render match. */
+      hydration and before the folder shows, so the server markup and the
+      first client render match. */
   hydrate() {
     if (this.restored) return;
     this.restored = true;
     this.persisted = readPersisted(this.id);
-    const known = (p: string) => this.nodes.get(p)?.type === "file";
+    // Your tabs as you left them, closed ones closed, files the starting
+    // tree doesn't have included (most of a playground's): the live tree
+    // closes those that are gone (connect).
     const tabs = (this.persisted.tabs ?? []).filter((p) => typeof p === "string");
-    const kept = tabs.filter((p, i) => tabs.indexOf(p) === i && (known(p) || this.persisted.unsaved?.[p]));
-    if (kept.length) this.tabs = kept;
+    if (this.persisted.tabs) this.tabs = tabs.filter((p, i) => tabs.indexOf(p) === i);
     if (this.persisted.active && this.tabs.includes(this.persisted.active)) this.active = this.persisted.active;
     else if (!this.tabs.includes(this.active ?? "")) this.active = this.tabs.at(-1) ?? null;
     if (this.persisted.expanded) this.expanded = new Set(this.persisted.expanded);
@@ -265,7 +223,7 @@ export class WorkspaceStore {
 
   // -- Lifecycle -------------------------------------------------------------
 
-  /** Opens the workspace on the runner and starts listening. */
+  /** Opens the folder on the runner and starts listening. */
   async connect(signal?: AbortSignal) {
     this.runner = "connecting";
     this.emit("status");
@@ -275,8 +233,15 @@ export class WorkspaceStore {
       this.runnerMessage = "";
       this.status = (opened.status as WorkspaceStatus) ?? "files";
       this.setTree(opened.tree, opened.removed);
-      for (const p of Array.isArray(opened.ports) ? opened.ports : []) this.ports.set(p.port, p);
-      this.emit("status", "ports");
+      // Tabs of files that are gone close, unless they hold unsaved text.
+      const gone = this.tabs.filter((p) => this.nodes.get(p)?.type !== "file" && !this.persisted.unsaved?.[p]);
+      if (gone.length) {
+        this.tabs = this.tabs.filter((p) => !gone.includes(p));
+        if (this.active && !this.tabs.includes(this.active)) this.active = this.tabs.at(-1) ?? null;
+        this.persist();
+        this.emit("files");
+      }
+      this.emit("status");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       this.runner = "offline";
@@ -284,7 +249,7 @@ export class WorkspaceStore {
       this.emit("status");
       return;
     }
-    // Terminals and tasks that kept running (a reload) come back.
+    // Terminals that kept running (a reload) come back.
     void workspaceApi
       .status(this.id)
       .then((s) => this.adoptStatus(s))
@@ -315,28 +280,15 @@ export class WorkspaceStore {
 
   private adoptStatus(s: Record<string, unknown>) {
     if (typeof s.status === "string") this.status = s.status as WorkspaceStatus;
-    // Shells come back as tabs (a task's log view belongs to its task).
-    const terminals = Array.isArray(s.terminals) ? (s.terminals as { sid?: string; kind?: string; exited?: boolean }[]) : [];
-    const live = new Set(
-      terminals.filter((t) => t.kind !== "log" && !t.exited).map((t) => t.sid).filter((sid): sid is string => typeof sid === "string")
-    );
+    const terminals = Array.isArray(s.terminals) ? (s.terminals as { sid?: string; exited?: boolean }[]) : [];
+    const live = new Set(terminals.filter((t) => !t.exited).map((t) => t.sid).filter((sid): sid is string => typeof sid === "string"));
     const before = this.terminals.length;
     // Keep the tabs whose sessions still run, in their order, with their names.
     this.terminals = this.terminals.filter((t) => live.has(t.sid));
     for (const sid of live) if (!this.terminals.some((t) => t.sid === sid)) this.terminals.push({ sid, title: this.nextTerminalTitle() });
     if (this.terminals.length !== before || live.size) this.emit("terminals");
-    const tasks = Array.isArray(s.tasks) ? (s.tasks as { name?: string; state?: string; sid?: string; code?: number | null; signal?: string | null }[]) : [];
-    for (const t of tasks) {
-      if (!t.name) continue;
-      const cur = this.tasks.get(t.name) ?? { name: t.name, state: "idle" };
-      this.tasks.set(t.name, { ...cur, state: (t.state as TaskState["state"]) ?? cur.state, sid: t.sid ?? cur.sid, code: t.code ?? null, signal: t.signal ?? null });
-    }
-    if (s.mem && typeof s.mem === "object") this.mem = s.mem as { usedMb: number; limitMb: number };
-    if (typeof s.detail === "string") this.statusDetail = s.detail;
-    const ports = Array.isArray(s.ports) ? (s.ports as PortInfo[]) : [];
-    for (const p of ports) if (typeof p.port === "number") this.ports.set(p.port, p);
     this.persist();
-    this.emit("status", "tasks", "ports");
+    this.emit("status");
   }
 
   private onEvent(e: RunnerEvent) {
@@ -354,63 +306,10 @@ export class WorkspaceStore {
         break;
       case "status":
         this.status = e.status as WorkspaceStatus;
-        this.statusDetail = e.detail ?? "";
-        if (e.mem) this.mem = e.mem;
-        if (e.status === "stopped") {
-          for (const [name, t] of this.tasks) if (t.state !== "idle" && t.state !== "exited") this.tasks.set(name, { ...t, state: "exited" });
-          this.emit("tasks");
-        }
-        this.emit("status");
-        break;
-      case "docker":
-        this.docker = e.state;
         this.emit("status");
         break;
       case "fs":
         this.applyFs(e.events);
-        break;
-      case "port": {
-        // Each port by its own variable's label (an API and its admin port are
-        // two). A port found listening has none of the template's.
-        const declared = e.env ? this.props.template.ports.find((p) => p.env === e.env) : undefined;
-        if (e.state === "closed") this.ports.delete(e.port);
-        else this.ports.set(e.port, { ...e, env: e.env ?? undefined, label: e.label ?? declared?.label ?? this.ports.get(e.port)?.label });
-        // A preview of a server that restarts (node --watch) reloads.
-        if (e.state === "listening" && this.preview.open && this.preview.port === e.port) this.reloadPreview();
-        this.emit("ports");
-        break;
-      }
-      case "task": {
-        const cur = this.tasks.get(e.name) ?? { name: e.name, state: "idle" };
-        this.tasks.set(e.name, { ...cur, state: e.state, code: e.code ?? null, signal: e.signal ?? null, sid: e.sid ?? cur.sid });
-        this.emit("tasks");
-        break;
-      }
-      case "check":
-        this.onCheckEvent(e);
-        break;
-      case "diag": {
-        for (const [file, items] of this.diagnostics) {
-          const kept = items.filter((d) => d.source !== e.source);
-          if (kept.length) this.diagnostics.set(file, kept);
-          else this.diagnostics.delete(file);
-        }
-        for (const item of e.items) {
-          const list = this.diagnostics.get(item.file) ?? [];
-          list.push({ ...item, source: e.source });
-          this.diagnostics.set(item.file, list);
-        }
-        this.emit("diag");
-        break;
-      }
-      case "limit":
-        this.limit = { kind: e.kind, message: e.message };
-        this.announce(e.message);
-        this.emit("status");
-        break;
-      case "db":
-        // A reset (from any tab): the Database panel reads the tables again.
-        this.emit("db");
         break;
     }
   }
@@ -610,7 +509,7 @@ export class WorkspaceStore {
   // -- Files and buffers -------------------------------------------------------
 
   /** Opens a file in a tab and makes it active. */
-  openFile(path: string, opts: { line?: number; preview?: boolean } = {}) {
+  openFile(path: string, opts: { line?: number } = {}) {
     if (!this.nodes.has(path) && !this.buffers.has(path)) return;
     if (!this.tabs.includes(path)) {
       const at = this.active ? this.tabs.indexOf(this.active) + 1 : this.tabs.length;
@@ -987,26 +886,12 @@ export class WorkspaceStore {
     await this.op(() => workspaceApi.fs(this.id, { op: "restore", undo: last.undo }), `Put ${last.path} back`);
   }
 
-  /** The database back to the template's rows (POST …/reset, scope db).
-      Servers that hold connections restart when the template says so. */
-  async resetDatabase(): Promise<boolean> {
+  /** Reset: a file or a folder back to the starting point. Unsaved edits
+      to what resets are dropped. */
+  async reset(scope: "file" | "dir", path: string): Promise<boolean> {
     try {
-      const { ms } = await workspaceApi.reset(this.id, "db");
-      this.emit("db");
-      this.announce(`The database is back to its starting point${typeof ms === "number" ? ` (${Math.round(ms)} ms)` : ""}`);
-      return true;
-    } catch (err) {
-      this.announce(err instanceof WorkspaceError ? err.message : "The database reset didn't work. Try again.");
-      return false;
-    }
-  }
-
-  /** Reset: one file, one folder, or everything, back to the starting point.
-      Unsaved edits to what resets are dropped. Everything takes the
-      database back too, when the template has one. */
-  async reset(scope: "file" | "dir" | "all" | "everything", path?: string): Promise<string | null> {
-    try {
-      const { snapshot } = await workspaceApi.reset(this.id, scope, path);
+      this.ownChange(path);
+      await workspaceApi.reset(this.id, scope, path);
       // The tree as the reset left it, then each open file in it: back to the
       // disk's version, or closed when the reset removed it (a new file).
       try {
@@ -1016,8 +901,7 @@ export class WorkspaceStore {
         this.refreshTree(0);
       }
       for (const [p, b] of [...this.buffers]) {
-        const inside = scope === "all" || scope === "everything" || p === path || (scope === "dir" && !!path && p.startsWith(`${path}/`));
-        if (!inside) continue;
+        if (p !== path && !(scope === "dir" && p.startsWith(`${path}/`))) continue;
         b.dirty = false;
         b.conflict = null;
         if (this.persisted.unsaved) delete this.persisted.unsaved[p];
@@ -1042,115 +926,15 @@ export class WorkspaceStore {
       }
       this.persist();
       this.emit("files");
-      if (scope === "everything") this.emit("db");
-      this.announce(scope === "file" ? `Reset ${path}` : scope === "dir" ? `Reset ${path}/` : "Reset everything to the starting point");
-      return snapshot ?? null;
+      this.announce(scope === "file" ? `Reset ${path}` : `Reset ${path}/`);
+      return true;
     } catch (err) {
       this.announce(err instanceof WorkspaceError ? err.message : "The reset didn't work. Try again.");
-      return null;
-    }
-  }
-
-  /** Continue with my code: the previous part's practice files replace
-      this part's (a snapshot first, so Undo works). */
-  async carry(from: string): Promise<string | null> {
-    try {
-      const { snapshot } = await workspaceApi.carry(this.id, from);
-      await this.reloadAll();
-      this.announce("Your code from the previous part is here");
-      return snapshot ?? null;
-    } catch (err) {
-      this.announce(err instanceof WorkspaceError ? err.message : "Couldn't bring your code over.");
-      return null;
-    }
-  }
-
-  /** Every open file again from disk, and the tree, after something replaced
-      many files at once (a save point, Continue with my code). */
-  private async reloadAll() {
-    try {
-      const { tree, removed } = await workspaceApi.tree(this.id);
-      this.setTree(tree, removed);
-    } catch {
-      this.refreshTree(0);
-    }
-    for (const [p, b] of [...this.buffers]) {
-      if (this.nodes.get(p)?.type !== "file") {
-        this.buffers.delete(p);
-        this.host?.close(p);
-        this.tabs = this.tabs.filter((t) => t !== p);
-        if (this.active === p) this.active = this.tabs.at(-1) ?? null;
-        continue;
-      }
-      try {
-        const read = await workspaceApi.readFile(this.id, p);
-        if (read.kind === "text") {
-          b.saved = read.text;
-          b.etag = read.etag;
-          b.dirty = false;
-          b.conflict = null;
-          b.deleted = false;
-          this.host?.replace(p, read.text, { clean: true });
-        }
-      } catch {
-        b.deleted = true;
-      }
-    }
-    this.persisted.unsaved = {};
-    this.persist();
-    this.emit("files");
-  }
-
-  async restoreSnapshot(sid: string) {
-    try {
-      // Every file may change: all of it the page's doing.
-      this.ownChange("");
-      await workspaceApi.restoreSnapshot(this.id, sid);
-      await this.reloadAll();
-      this.announce("Restored the save point");
-      return true;
-    } catch (err) {
-      this.announce(err instanceof WorkspaceError ? err.message : "Couldn't restore that save point.");
       return false;
     }
   }
 
-  // -- Tasks, terminals, ports, preview --------------------------------------
-
-  runTask(): string | null {
-    return this.props.template.tasks.find((t) => t.run)?.name ?? null;
-  }
-
-  /** Every task Run starts, in the template's order: Next.js's lab marks its mock services and its dev server. */
-  runTasks(): string[] {
-    return this.props.template.tasks.filter((t) => t.run).map((t) => t.name);
-  }
-
-  /** Where a preview opens: the port the template asks to preview once it listens, else the first that listens. */
-  previewPort(): number | undefined {
-    const listening = [...this.ports.values()].filter((p) => p.state === "listening");
-    if (this.props.template.ports.some((p) => p.preview)) return listening.find((p) => p.preview)?.port;
-    return listening[0]?.port;
-  }
-
-  async startTask(name: string, action: "start" | "restart" | "stop" = "start") {
-    await this.saveAll();
-    const cur = this.tasks.get(name) ?? { name, state: "idle" as const };
-    if (action !== "stop") this.tasks.set(name, { ...cur, state: "starting" });
-    this.emit("tasks");
-    try {
-      const { sid } = await workspaceApi.task(this.id, name, action);
-      const now = this.tasks.get(name)!;
-      this.tasks.set(name, { ...now, sid: sid ?? now.sid, state: action === "stop" ? "exited" : now.state === "idle" ? "starting" : now.state });
-      this.emit("tasks");
-      return true;
-    } catch (err) {
-      this.tasks.set(name, { ...cur, state: cur.state === "starting" ? "idle" : cur.state });
-      this.announce(err instanceof WorkspaceError ? err.message : `Couldn't ${action} ${name}.`);
-      this.emit("tasks");
-      return false;
-    }
-  }
+  // -- Terminals ---------------------------------------------------------------
 
   nextTerminalTitle() {
     for (let n = 1; ; n++) if (!this.terminals.some((t) => t.title === `Terminal ${n}`)) return `Terminal ${n}`;
@@ -1190,91 +974,6 @@ export class WorkspaceStore {
     this.terminals = this.terminals.filter((t) => t.sid !== sid);
     this.persist();
     this.emit("terminals");
-  }
-
-  setDock(panel: DockPanel | null) {
-    if (panel === null) this.dockOpen = false;
-    else {
-      this.dock = panel;
-      this.dockOpen = true;
-    }
-    this.emit("dock");
-  }
-
-  toggleDockMax() {
-    this.dockMax = !this.dockMax;
-    this.emit("dock");
-  }
-
-  toggleExplorer(open = !this.explorerOpen) {
-    this.explorerOpen = open;
-    this.emit("dock");
-  }
-
-  openPreview(port: number, path = "/") {
-    this.preview = { open: true, port, path, nonce: this.preview.nonce + 1 };
-    this.emit("preview");
-  }
-
-  closePreview() {
-    this.preview = { ...this.preview, open: false };
-    this.emit("preview");
-  }
-
-  reloadPreview() {
-    this.preview = { ...this.preview, nonce: this.preview.nonce + 1 };
-    this.emit("preview");
-  }
-
-  // -- Check -------------------------------------------------------------------
-
-  async runCheck(): Promise<void> {
-    if (this.check.status === "running") return;
-    await this.saveAll();
-    this.check = { status: "running", tests: [] };
-    this.setDock("results");
-    this.emit("check");
-    try {
-      const { checkId } = await workspaceApi.check(this.id, this.scope);
-      if (this.check.status === "running") this.check = { ...this.check, checkId };
-      this.emit("check");
-      // A socket that dropped never says it's done: ask once it's quiet.
-      window.setTimeout(() => void this.pollCheck(checkId), 15_000);
-    } catch (err) {
-      this.check = { status: "error", error: err instanceof WorkspaceError ? err.message : "Check couldn't start. Try again." };
-      this.emit("check");
-    }
-  }
-
-  private async pollCheck(checkId: string) {
-    if (this.check.status !== "running" || this.check.checkId !== checkId) return;
-    try {
-      const result = await workspaceApi.checkResult(this.id, checkId);
-      if (result?.status && this.check.status === "running") {
-        this.check = { status: "done", result };
-        this.emit("check");
-        return;
-      }
-    } catch {
-      /* still running */
-    }
-    window.setTimeout(() => void this.pollCheck(checkId), 5000);
-  }
-
-  private onCheckEvent(e: Extract<RunnerEvent, { t: "check" }>) {
-    if (this.check.status !== "running") return;
-    if (this.check.checkId && e.checkId !== this.check.checkId) return;
-    if (e.test) this.check = { ...this.check, checkId: e.checkId, tests: [...this.check.tests, e.test as unknown as CheckTest] };
-    if (e.phase === "done") {
-      const result = (e.result as unknown as CheckResult | undefined) ?? {
-        checkId: e.checkId,
-        status: this.check.tests.every((t) => t.status === "pass" || t.status === "skip") ? "passed" : "failed",
-        tests: this.check.tests,
-        infra: null,
-      };
-      this.check = { status: "done", result: { ...result, tests: result.tests?.length ? result.tests : this.check.tests } };
-    }
-    this.emit("check");
   }
 
   // -- Storage -----------------------------------------------------------------

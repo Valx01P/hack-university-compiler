@@ -1,16 +1,17 @@
 import CATALOG from "@/lib/components.json";
 
 /**
- * The compilers and courses npm run up can leave out (lib/components.json,
- * which npm run add and npm run status read too), for the hints that say how
- * to add one: about how much disk it takes, and the command. npm run add
- * takes a course's or compiler's own slug (react adds the web courses).
+ * The compilers npm run up can leave out (lib/components.json, which npm run
+ * add and npm run status read too), for the hints that say how to add one:
+ * about how much disk it takes, and the command. npm run add takes the
+ * compiler's own slug. The project courses are read lessons, so they're never
+ * missing.
  */
 type Component = (typeof CATALOG.components)[number];
 
-/** The component that has this compiler or course. */
+/** The component that has this compiler. */
 export function componentFor(slug: string): Component | undefined {
-  return CATALOG.components.find((c) => c.id === slug) ?? CATALOG.components.find((c) => c.courses?.includes(slug));
+  return CATALOG.components.find((c) => c.id === slug);
 }
 
 function formatMB(mb: number): string {
@@ -24,13 +25,9 @@ function size(c: Component, sandbox: boolean): number {
   return c.mb + parts.reduce((n, p) => n + (CATALOG.parts[p as keyof typeof CATALOG.parts]?.mb ?? 0), 0);
 }
 
-/**
- * "Add it in a terminal (about 1.1 GB): npm run add -- python". A course's
- * size is "up to": parts another course already brought aren't downloaded
- * again.
- */
+/** "Add it in a terminal (about 1.1 GB): npm run add -- python". */
 export function addHint(slug: string, { sandbox = false }: { sandbox?: boolean } = {}): string {
   const c = componentFor(slug);
   if (!c) return `Add it in a terminal: npm run add -- ${slug}`;
-  return `Add it in a terminal (${c.piston ? "about" : "up to"} ${formatMB(size(c, sandbox))}): npm run add -- ${slug}`;
+  return `Add it in a terminal (about ${formatMB(size(c, sandbox))}): npm run add -- ${slug}`;
 }

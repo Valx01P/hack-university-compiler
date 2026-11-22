@@ -325,7 +325,7 @@ function judgeHighlight(color: string): string | null {
  * Swatches for the Explorer's highlight, its open file's row: none (the row
  * unfilled, to begin with), the gray, the selection's presets, and a custom
  * color, each shown as the tint it gives. It applies to every Explorer, the
- * IDE's too.
+ * playground's too.
  */
 export function ExplorerHighlightPicker({ compact = false }: { compact?: boolean }) {
   // None is what it has unset ("none" saved before it was).
@@ -359,7 +359,7 @@ export function ExplorerHighlightPicker({ compact = false }: { compact?: boolean
 /**
  * Swatches for the terminal's own background (the theme menu): the theme's
  * own (its colors' background, see-through with the stars), the code
- * background's presets, and a custom color. It applies live to every terminal, the IDE's too.
+ * background's presets, and a custom color. It applies live to every terminal, the playground's too.
  */
 export function TerminalBackgroundPicker({ compact = false }: { compact?: boolean }) {
   const value = termBackground.use();
@@ -391,7 +391,7 @@ export function TerminalBackgroundPicker({ compact = false }: { compact?: boolea
 /**
  * Swatches for the Explorer's own background: the theme's own (the panel's,
  * see-through with the stars), a few presets, and a custom color. It applies to every
- * Explorer, the IDE's too.
+ * Explorer, the playground's too.
  */
 export function ExplorerBackgroundPicker({ compact = false }: { compact?: boolean }) {
   const value = explorerBackground.use();

@@ -8,7 +8,7 @@ import { holdPaneUpdates } from "@/lib/pane-size";
  * (Shift for bigger steps), Home and End go to the limits, and a double-click
  * puts it back. Pass the display classes (`hidden lg:flex`) in `className`.
  * With `orientation="horizontal"` it's a border you drag up and down (the
- * IDE's dock), with the up and down arrows.
+ * playground's terminal), with the up and down arrows.
  */
 export function ResizeHandle({
   label,
@@ -19,6 +19,7 @@ export function ResizeHandle({
   bigStep,
   onChange,
   onDrag,
+  onDragEnd,
   onReset,
   quiet = false,
   reverse = false,
@@ -34,6 +35,8 @@ export function ResizeHandle({
   onChange: (next: number) => void;
   /** The pointer's x while dragging (its y for a horizontal border). */
   onDrag: (clientX: number) => void;
+  /** The drag was let go (after its last onDrag). */
+  onDragEnd?: () => void;
   onReset: () => void;
   /** No line until hovered or focused, for a border at the panel's edge. */
   quiet?: boolean;
@@ -75,6 +78,7 @@ export function ResizeHandle({
         frame = 0;
         onDrag(at);
       }
+      onDragEnd?.();
       release();
       document.body.style.userSelect = prevSelect;
       document.body.style.cursor = prevCursor;

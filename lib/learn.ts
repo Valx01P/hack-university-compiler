@@ -1,8 +1,9 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { cache } from "react";
-import { normalizeLesson, type AnyLesson, type Course, type LessonFile, type LessonMeta, type LessonRef, type StepCodebase } from "@/lib/learn-types";
-import { COURSES, getCourseEntry } from "@/lib/courses";
+import { normalizeLesson, type AnyLesson, type Course, type LessonFile, type LessonMeta, type LessonRef } from "@/lib/learn-types";
+import { COURSES } from "@/lib/courses";
+import { diagramNames, parseDiagram, type DiagramData } from "@/lib/diagram.mjs";
 import { loadOnce } from "@/lib/load-once";
 
 /**
@@ -80,6 +81,7 @@ export const getCourse = cache(loadOnce(async (lang: string): Promise<Course | n
               summary: lesson.summary,
               problems: lesson.steps.length,
               parts: lesson.steps.map((s) => s.title),
+              read: lesson.format === "read",
             };
           })
         )
@@ -137,21 +139,39 @@ export async function getAllPartParams(): Promise<{ lang: string; lesson: string
   return all.flat();
 }
 
-const WORKSPACES = path.join(process.cwd(), "content", "workspaces");
+/**
+ * A read course's diagram, content/learn/<course>/diagrams/<name>.svg (or
+ * its draft's), parsed by lib/diagram.mjs into the tree the page draws. A
+ * missing or invalid file throws, so a prerender that shows it fails the
+ * build (the prebuild has checked every file already).
+ */
+export const getDiagram = cache(loadOnce(async (course: string, name: string): Promise<DiagramData> => {
+  if (!ID_RE.test(course) || !ID_RE.test(name)) throw new Error(`Bad diagram name "${name}" in ${course} (kebab-case).`);
+  const file = path.join(await courseDir(course), "diagrams", `${name}.svg`);
+  let text: string;
+  try {
+    text = await fs.readFile(/*turbopackIgnore: true*/ file, "utf8");
+  } catch {
+    throw new Error(`There's no diagram ${course}/diagrams/${name}.svg.`);
+  }
+  const { data, errors } = parseDiagram(text, name);
+  if (!data) throw new Error(`${course}/diagrams/${name}.svg:\n  ${errors.join("\n  ")}`);
+  return data;
+}));
 
-/** Where a read part's "Open in the IDE" goes: the IDE on its codebase, at
-    the first of its files. Null when the part names none, or its template
-    isn't in content/workspaces yet (the IDE opens only the ones that are).
-    A course's own playground template opens at /<course>/playground. */
-export async function codebaseHref(course: string, codebase: StepCodebase | undefined): Promise<string | null> {
-  if (!codebase || !ID_RE.test(course) || !ID_RE.test(codebase.template)) return null;
-  const found = await fs.stat(path.join(/*turbopackIgnore: true*/ WORKSPACES, course, codebase.template)).then(
-    (stat) => stat.isDirectory(),
-    () => false
-  );
-  if (!found) return null;
-  const own = getCourseEntry(course)?.playground === `${course}/${codebase.template}`;
-  const href = own ? `/${course}/playground` : `/${course}/playground/${codebase.template}`;
-  const [file] = codebase.files ?? [];
-  return file ? `${href}?file=${encodeURIComponent(file).replaceAll("%2F", "/")}` : href;
+/** The diagrams a read part shows, by name: those in its body, its
+    examples' prompts and explanations, and on part 1 the intro and on the
+    last part the recap, the places the part draws them. */
+export async function getPartDiagrams(course: string, lesson: AnyLesson, part: number): Promise<Record<string, DiagramData>> {
+  const step = lesson.steps[part];
+  if (!step) return {};
+  const fields = [
+    part === 0 ? lesson.intro : "",
+    step.body,
+    ...step.examples.flatMap((e) => [e.prompt, e.explanation]),
+    part === lesson.steps.length - 1 ? (lesson.recap ?? "") : "",
+  ];
+  const names = [...new Set(fields.flatMap((md) => diagramNames(md)))];
+  const all = await Promise.all(names.map(async (name) => [name, await getDiagram(course, name)] as const));
+  return Object.fromEntries(all);
 }

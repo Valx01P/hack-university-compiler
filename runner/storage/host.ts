@@ -6,9 +6,10 @@ import type { TarEntry } from "../tar.ts";
 
 /**
  * Host storage (architecture §4.3): a workspace's files live on the Mac in
- * HU_DATA_DIR/workspaces/<id>/files, bind-mounted at /workspace. Learner code
- * can put symbolic links anywhere in there, pointing anywhere on the Mac
- * (~/.ssh, say), so the runner follows these rules:
+ * HU_DATA_DIR/workspaces/<id>/files. A terminal there (or a tool in it) can
+ * put symbolic links anywhere in there, pointing anywhere on the Mac (~/.ssh,
+ * say), and the runner serves those files to the page, so it follows these
+ * rules:
  *
  * 1. Reads open with O_RDONLY | O_NOFOLLOW_ANY | O_NONBLOCK and only read a
  *    regular file (fstat). O_NOFOLLOW_ANY fails with ELOOP when any part of
@@ -16,9 +17,8 @@ import type { TarEntry } from "../tar.ts";
  *    can swap a folder for a link between a check and the read.
  * 2. Listings use lstat and never follow a link: a link is listed with its
  *    target, and marked outside when it points out of the workspace.
- * 3. Host writes happen only while no learner process runs (the workspace is
- *    stopped), and still refuse any path through a link. While it runs,
- *    storage/container.ts makes every change inside the container.
+ * 3. The runner's writes (a save, the Explorer's operations, a reset)
+ *    refuse any path through a link.
  * 4. Copies (cp -c -R -P) keep links as links and recreate FIFOs without
  *    reading them.
  */
@@ -268,9 +268,7 @@ export class HostFs {
 
   /**
    * The entries of a folder, `depth` levels down, never following a link and
-   * never walking into a heavy folder below the one asked for. Only for a
-   * stopped workspace (or a runner-owned folder): while learner code runs,
-   * storage/container.ts lists from inside the container.
+   * never walking into a heavy folder below the one asked for.
    */
   list(rel: string, depth: number): { entries: Entry[]; more: Record<string, number> } {
     const entries: Entry[] = [];

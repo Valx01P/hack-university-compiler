@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Runs the in-memory fake runner (fake-runner.mjs) on its own, to work on the
-// IDE in a browser before the runner's workspace routes exist:
+// playground in a browser without the runner:
 //
 //   node tests/ide/run-fake-runner.mjs --port 3413 --app-port 3410 --token dev
 //
@@ -15,7 +15,6 @@ const fake = await startFakeRunner({
   port: Number(arg("port", "3413")),
   appPort: Number(arg("app-port", "3410")),
   token: arg("token", "dev"),
-  portRange: [Number(arg("from", "24180")), Number(arg("to", "24199"))],
 });
 console.log(`fake runner on http://127.0.0.1:${fake.port}`);
 const stop = async () => {

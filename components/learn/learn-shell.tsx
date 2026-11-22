@@ -10,7 +10,6 @@ import { CompilerButton } from "@/components/learn/compiler-button";
 import { LessonDrawer } from "@/components/learn/lesson-drawer";
 import { LessonList } from "@/components/learn/lesson-list";
 import { ResizeHandle } from "@/components/ui/resize-handle";
-import { playgroundHref } from "@/lib/courses";
 import { useIsFullScreen } from "@/lib/full-screen";
 import { EASE, dur, gsap } from "@/lib/motion";
 import { PANES, paneValue } from "@/lib/panes";
@@ -62,7 +61,7 @@ export function LearnShell({
   lang: string;
   langLabel: string;
   /** Whether the course has a compiler page. One without (a course whose
-      lessons are all read lessons) hides every way back to it. */
+      lessons are all read lessons) leads to the playground instead. */
   compiler: boolean;
   course: Course;
   /** Lessons in course order for every language that has a course. */
@@ -235,9 +234,10 @@ export function LearnShell({
               </span>
             )}
           </span>
-          {/* A course without a compiler page leads to its playground
-              instead (React, Spring Boot, and the other project courses). */}
-          {(compiler || playgroundHref(lang)) && (
+          {/* A course without a compiler page leads to the playground
+              instead (React, Spring Boot, and the other project courses),
+              with no sandbox badge, since its read lessons run nothing. */}
+          {compiler ? (
             <span className="flex shrink-0 items-center gap-2">
               {/* No room on phones; a run still reports sandbox problems. The
                   badge shows up once the sandbox answers, so it gets a slot as
@@ -246,8 +246,10 @@ export function LearnShell({
               <span className="hidden min-w-32 justify-end sm:flex">
                 <SandboxStatus lang={lang} />
               </span>
-              <CompilerButton lang={lang} langLabel={langLabel} to={compiler ? "compiler" : "playground"} />
+              <CompilerButton lang={lang} langLabel={langLabel} />
             </span>
+          ) : (
+            <CompilerButton lang={lang} langLabel={langLabel} to="playground" className="shrink-0" />
           )}
         </div>
 

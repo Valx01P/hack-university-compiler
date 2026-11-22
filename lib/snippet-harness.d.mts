@@ -17,6 +17,14 @@ export type MarkdownSegment =
       typesOnly: boolean;
       harness: string | null;
       stdin: string | null;
+    }
+  | {
+      /** A read lesson's ```diagram <name> fence. */
+      type: "diagram";
+      /** The diagram's name, as written: content/learn/<course>/diagrams/<name>.svg. */
+      name: string;
+      /** The line inside the fence, inline Markdown ("" for none). */
+      caption: string;
     };
 
 export function fenceRuntime(language: string, course: string | null | undefined): SnippetRuntime | null;

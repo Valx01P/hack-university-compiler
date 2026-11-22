@@ -2,7 +2,6 @@ import type http from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import { hostAllowed, originAllowed, type TicketBinding, type TicketKind, type Tickets } from "./auth.ts";
-import type { DockerWatch } from "./docker.ts";
 import type { EventMessage, Subscriber } from "./events.ts";
 import type { Log } from "./log.ts";
 import type { TermSocket } from "./terminals.ts";
@@ -11,8 +10,8 @@ import type { Workspaces } from "./workspaces.ts";
 /**
  * The browser's WebSockets (architecture §3.3): /v1/ws/events, one per open
  * workspace, and /v1/ws/term/:sid, one per terminal. The browser connects to
- * ws://127.0.0.1:3100 (never localhost, so the localhost cookies that previews
- * set never ride along) and must:
+ * ws://127.0.0.1:3100 (never localhost, so cookies a server on localhost
+ * sets never ride along) and must:
  *
  * 1. send the runner's own Host and the app's Origin, or the upgrade is
  *    refused with 403 before any WebSocket exists;
@@ -33,7 +32,6 @@ export interface WsDeps {
   appPort: number;
   helloTimeoutMs: number;
   tickets: Tickets;
-  watch: DockerWatch;
   log: Log;
   /** Workspaces, when the runner has them (tests of the front door run without). */
   workspaces?: Workspaces;
@@ -97,14 +95,10 @@ function greet(ws: WebSocket, kind: TicketKind, sid: string | undefined, deps: W
 
 function events(ws: WebSocket, binding: TicketBinding, hello: { since?: unknown }, deps: WsDeps) {
   const workspace = deps.workspaces?.get(binding.workspace) ?? null;
-  const dockerState = () => (deps.watch.state === "ready" ? "up" : deps.watch.state);
   if (!workspace) {
     if (deps.workspaces) return ws.close(CLOSE.noSuchSession, "No such workspace");
-    // The front door alone (its tests): ready and Docker, nothing else.
+    // The front door alone (its tests): ready, nothing else.
     sendJson(ws, { t: "ready", workspace: binding.workspace, seq: 0, resync: false });
-    sendJson(ws, { t: "docker", state: dockerState() });
-    const off = deps.watch.onChange((state) => sendJson(ws, { t: "docker", state: state === "ready" ? "up" : state }));
-    ws.on("close", off);
     ws.on("message", () => {});
     return;
   }
@@ -113,24 +107,17 @@ function events(ws: WebSocket, binding: TicketBinding, hello: { since?: unknown 
   const { seq, resync, missed } = workspace.subscribe(sub, since);
   sendJson(ws, { t: "ready", workspace: workspace.id, seq, resync });
   sendJson(ws, workspace.statusMessage());
-  sendJson(ws, { t: "docker", state: dockerState() });
-  for (const port of workspace.portList()) sendJson(ws, { t: "port", ...port });
-  for (const task of workspace.taskList()) sendJson(ws, { t: "task", name: task.name, state: task.state, code: task.code, signal: task.signal, sid: task.sid });
   for (const message of missed) sendJson(ws, message);
-  const off = deps.watch.onChange((state) => sendJson(ws, { t: "docker", state: state === "ready" ? "up" : state }));
-  ws.on("close", () => {
-    off();
-    workspace.unsubscribe(sub);
-  });
+  ws.on("close", () => workspace.unsubscribe(sub));
   ws.on("message", (data, isBinary) => {
     if (isBinary) return;
-    let message: { t?: unknown; visible?: unknown };
+    let message: { t?: unknown };
     try {
       message = JSON.parse(data.toString());
     } catch {
       return;
     }
-    if (message.t === "hb") workspace.heartbeat(message.visible !== false);
+    if (message.t === "hb") workspace.heartbeat();
     else if (message.t === "ping") sendJson(ws, { t: "pong" });
   });
 }

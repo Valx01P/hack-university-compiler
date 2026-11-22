@@ -1,53 +1,74 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { EditorSelection, EditorState } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import { X } from "lucide-react";
+import { GitCompare, X } from "lucide-react";
+import { selectionOf, type EditorSelection as CursorPlace } from "@/components/code/cm-editor";
 import { useCodeEditorSettings } from "@/components/code/editor-settings";
 import { FileIcon } from "@/components/ide/file-icon";
 import { formatBytes } from "@/lib/ide-names";
 import { commentDecorations, KEPT_MESSAGE, setComments } from "@/lib/comment-decorations";
 import { editorCompartments, editorExtensions, languageLoaded, loadLanguage, reconfigureSettings } from "@/lib/editor-extensions";
-import { positionAt, showDiagnostics } from "@/lib/editor-diagnostics";
+import { positionAt } from "@/lib/editor-diagnostics";
+import type { OutsideChange } from "@/lib/outside-changes";
 import { useCodeCommentsHidden } from "@/lib/theme";
 import { fileLanguage } from "@/lib/workspace-types";
 import { useStore, type EditorHost, type WorkspaceStore } from "@/lib/workspace-store";
 
 /**
- * The editor (architecture §8.2, §8.3): one CodeMirror view, one state per
- * open file, swapped with setState plus a scroll snapshot (the technique
- * CodeMirror's author recommends), so each file keeps its own undo history
- * and scroll. It's the store's EditorHost: the store asks it for a file's
- * text when saving, and hands it a file's new text when the disk changed
- * under a clean buffer. Settings reconfigure the file you see at once and
- * the others when they're next shown. The Code comments switch hides the
- * course's comments as decorations that never change the file.
+ * The playground's editor, with a tab for each open file (architecture
+ * §8.2, §8.3): one CodeMirror view, one state per open file, swapped with
+ * setState plus a scroll snapshot (the technique CodeMirror's author
+ * recommends), so each file keeps its own undo history and scroll. It's the
+ * store's EditorHost: the store asks it for a file's text when saving, and
+ * hands it a file's new text when the disk changed under a clean buffer.
+ * Settings reconfigure the file you see at once and the others when they're
+ * next shown. The Code comments switch hides the comments a file started
+ * with as decorations that never change the file.
+ *
+ * A file with a change made outside the editor waiting for review
+ * (lib/outside-changes.ts) shows it in its own tab, the way the compiler's
+ * editor does: @codemirror/merge's unified view against what was there,
+ * each change with its Accept and Reject, in that tab's state, so every tab
+ * keeps its own review and switching tabs never mixes them up.
  */
 
 interface OpenState {
   state: EditorState;
   /** The settings and comments the state was last brought up to date with. */
   key: string;
+  /** The text its review shows changes against, or null with none. */
+  review: string | null;
   scroll?: ReturnType<EditorView["scrollSnapshot"]>;
   /** Made before its language had loaded (a rename to another kind of
       file), so it's made again from its text when it's shown. */
   bare?: boolean;
 }
 
+// The merge view, loaded once a review first needs it.
+type Merge = typeof import("@codemirror/merge");
+let merge: Merge | null = null;
+let mergeLoading: Promise<Merge> | null = null;
+const loadMerge = () => (mergeLoading ??= import("@codemirror/merge").then((m) => (merge = m)));
+
 export function EditorGroup({
   store,
-  onRun,
-  onCheck,
+  pending = [],
+  onResolved,
+  onSelection,
   className = "",
 }: {
   store: WorkspaceStore;
-  onRun?: () => void;
-  onCheck?: () => void;
+  /** Changes made outside the editor, waiting for review. */
+  pending?: OutsideChange[];
+  /** Every change in a file's review was kept or undone: what's left. */
+  onResolved?: (path: string, text: string) => void;
+  /** The shown file's cursor and selection, each time they move. */
+  onSelection?: (path: string, selection: CursorPlace) => void;
   className?: string;
 }) {
   useStore(store, "files");
-  const diagVersion = useStore(store, "diag");
   const settings = useCodeEditorSettings();
   const commentsHidden = useCodeCommentsHidden();
   const hostRef = useRef<HTMLDivElement>(null);
@@ -55,8 +76,9 @@ export function EditorGroup({
   const states = useRef(new Map<string, OpenState>());
   const shown = useRef<string | null>(null);
   const compartments = useRef(editorCompartments());
-  const live = useRef({ settings, commentsHidden, onRun, onCheck });
-  live.current = { settings, commentsHidden, onRun, onCheck };
+  const reviewSlot = useRef(new Compartment());
+  const live = useRef({ settings, commentsHidden, pending, onResolved, onSelection });
+  live.current = { settings, commentsHidden, pending, onResolved, onSelection };
   const labelId = useId();
   const active = store.active;
   const buffer = active ? store.buffers.get(active) : undefined;
@@ -69,12 +91,44 @@ export function EditorGroup({
   const ready = buffer?.status === "ready" && (!activeLanguage || languageLoaded(activeLanguage));
   const [, setLanguagesLoaded] = useState(0);
   const [kept, setKept] = useState(0);
+  // The review the shown file wants: its pending change's text from before.
+  const wanted = (path: string) => {
+    const change = live.current.pending.find((c) => c.path === path && c.after !== null);
+    return change ? (change.before ?? "") : null;
+  };
 
   const stateKey = (path: string) => `${live.current.settings.tabSize}:${live.current.settings.intellisense}:${live.current.commentsHidden}:${store.buffers.get(path)?.original === undefined ? "?" : "o"}`;
 
-  function readOnly(path: string) {
-    const node = store.nodes.get(path);
-    return store.props.template.readonly.includes(path) || Boolean(node?.generated);
+  const readOnly = (path: string) => store.props.template.readonly.includes(path);
+
+  /** A review's extensions: the difference against `original`, until every
+      part of it was kept or undone. */
+  function reviewOf(path: string, original: string | null): Extension {
+    if (original === null || !merge) return [];
+    const { unifiedMergeView, getChunks } = merge;
+    return [
+      unifiedMergeView({ original, mergeControls: true, gutter: true, highlightChanges: true, syntaxHighlightDeletions: true }),
+      EditorView.updateListener.of((u) => {
+        const chunks = getChunks(u.state)?.chunks;
+        if (chunks && chunks.length === 0) live.current.onResolved?.(path, u.state.doc.toString());
+      }),
+    ];
+  }
+
+  /** Puts the review the shown file wants on it, once the merge view is here. */
+  function syncReview() {
+    const view = viewRef.current;
+    const path = shown.current;
+    if (!view || !path) return;
+    const open = states.current.get(path);
+    const want = wanted(path);
+    if (!open || open.review === want) return;
+    if (want !== null && !merge) {
+      void loadMerge().then(() => syncReview());
+      return;
+    }
+    view.dispatch({ effects: reviewSlot.current.reconfigure(reviewOf(path, want)) });
+    states.current.set(path, { ...open, state: view.state, review: want });
   }
 
   function createState(path: string, text: string): EditorState {
@@ -91,13 +145,14 @@ export function EditorGroup({
           keymap.of([
             { key: "Mod-s", preventDefault: true, run: () => (void store.save(path), true) },
             { key: "Mod-Alt-s", preventDefault: true, run: () => (void store.saveAll(), true) },
-            { key: "Mod-Enter", run: () => (live.current.onRun ? (live.current.onRun(), true) : false) },
-            { key: "Mod-Shift-Enter", run: () => (live.current.onCheck ? (live.current.onCheck(), true) : false) },
           ]),
         ],
         extra: [
+          reviewSlot.current.of([]),
           EditorView.updateListener.of((u) => {
-            if (u.docChanged && shown.current === path) store.edited(path, u.state.doc.toString());
+            if (shown.current !== path) return;
+            if (u.docChanged) store.edited(path, u.state.doc.toString());
+            if (u.selectionSet || u.docChanged || u.focusChanged) live.current.onSelection?.(path, selectionOf(u.state));
           }),
           EditorView.contentAttributes.of({ "aria-label": `${path}, editor`, "aria-describedby": labelId }),
           commentDecorations({
@@ -154,7 +209,7 @@ export function EditorGroup({
         const doc = shown.current === from ? view.state.doc.toString() : states.current.get(from)?.state.doc.toString();
         states.current.delete(from);
         // The language may change with the name: start the state over with its text.
-        if (doc !== undefined) states.current.set(to, { state: createState(to, doc), key: stateKey(to), bare: !languageLoaded(fileLanguage(to)) });
+        if (doc !== undefined) states.current.set(to, { state: createState(to, doc), key: stateKey(to), review: null, bare: !languageLoaded(fileLanguage(to)) });
         if (shown.current === from) shown.current = null;
       },
       close: (path) => {
@@ -208,7 +263,7 @@ export function EditorGroup({
     if (shown.current === active) return;
     let open = states.current.get(active);
     if (!open || open.bare) {
-      open = { state: createState(active, open ? open.state.doc.toString() : store.initialText(active)), key: stateKey(active) };
+      open = { state: createState(active, open ? open.state.doc.toString() : store.initialText(active)), key: stateKey(active), review: null };
     } else open = freshen(active, open);
     states.current.set(active, open);
     shown.current = active;
@@ -223,7 +278,12 @@ export function EditorGroup({
     // The store's edited() keeps the dirty flag; a state made from unsaved
     // text starts dirty.
     store.edited(active, view.state.doc.toString());
+    live.current.onSelection?.(active, selectionOf(view.state));
   });
+
+  // The shown file's review follows its pending change. A tab shown again
+  // brings its own back with its state (above), and catches up here.
+  useLayoutEffect(syncReview);
 
   // Settings and the comments switch: the file you see changes at once.
   useEffect(() => {
@@ -245,21 +305,14 @@ export function EditorGroup({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings, commentsHidden, buffer?.original]);
 
-  // Squiggles from the Problems panel (on-save diagnostics and Check).
-  useEffect(() => {
-    const view = viewRef.current;
-    if (!view || !active || shown.current !== active) return;
-    const items = (store.diagnostics.get(active) ?? []).map((d) => ({ line: d.line, col: d.col, message: `${d.code ? `${d.code}: ` : ""}${d.message}` }));
-    showDiagnostics(view, items);
-  }, [diagVersion, active, ready, store]);
-
   return (
     <div className={`code-dark relative flex min-h-0 flex-col bg-code-bg ${className}`}>
       <p id={labelId} className="sr-only">
         Press Escape, then Tab, to move focus out of the editor. Mod+S saves, Mod+P opens a file.
       </p>
       {buffer?.conflict && <ConflictBanner store={store} path={buffer.path} />}
-      {buffer?.deleted && !buffer.conflict && (
+      {/* A file a tool deleted waits in the review bar instead. */}
+      {buffer?.deleted && !buffer.conflict && !pending.some((c) => c.path === buffer.path) && (
         <Banner text={`${buffer.path} was deleted on disk. Your text is still here.`}>
           <BannerButton onClick={() => void store.restoreDeleted(buffer.path)}>Restore</BannerButton>
           <BannerButton onClick={() => store.closeFile(buffer.path)}>Close</BannerButton>
@@ -276,9 +329,9 @@ export function EditorGroup({
         {!ready && (
           <div className="absolute inset-0 flex items-start p-4 font-mono text-xs text-code-gutter">
             {!active
-              ? "Open a file from the explorer, or press Mod+P."
+              ? "Open a file in the Explorer or with Cmd+P (Ctrl+P on Windows), or make one."
               : buffer?.status === "binary"
-                ? `${active} is a binary file (${formatBytes(buffer.binary?.size)}, ${buffer.binary?.mime}). It opens in its own app, or download the workspace.`
+                ? `${active} is a binary file (${formatBytes(buffer.binary?.size)}, ${buffer.binary?.mime}), so it opens in its own app.`
                 : buffer?.status === "error"
                   ? (buffer.error ?? "Couldn't open this file.")
                   : ""}
@@ -357,10 +410,21 @@ function CompareView({ mine, disk, path }: { mine: string; disk: string; path: s
   );
 }
 
-/** The editor's tabs: icon, name (with its folder when two names match),
-    the unsaved dot, and close. Arrow keys move between them (one tab stop),
+/** The editor's tabs, like VS Code's: icon, name (with its folder when two
+    names match), a mark while a change from outside waits for review, the
+    unsaved dot, and close. Arrow keys move between them (one tab stop),
     middle-click closes. */
-export function EditorTabs({ store, trailing }: { store: WorkspaceStore; trailing?: React.ReactNode }) {
+export function EditorTabs({
+  store,
+  pending = [],
+  leading,
+  trailing,
+}: {
+  store: WorkspaceStore;
+  pending?: OutsideChange[];
+  leading?: React.ReactNode;
+  trailing?: React.ReactNode;
+}) {
   useStore(store, "files");
   const refs = useRef(new Map<string, HTMLButtonElement>());
   const names = new Map<string, number>();
@@ -376,6 +440,7 @@ export function EditorTabs({ store, trailing }: { store: WorkspaceStore; trailin
   };
   return (
     <div className="code-dark flex h-8 shrink-0 items-stretch border-b border-code-content-line bg-code-bg">
+      {leading}
       <div role="tablist" aria-label="Open files" className="slim-scroll flex min-w-0 flex-1 items-stretch overflow-x-auto">
         {store.tabs.map((path, i) => {
           const name = path.slice(path.lastIndexOf("/") + 1);
@@ -417,6 +482,9 @@ export function EditorTabs({ store, trailing }: { store: WorkspaceStore; trailin
                 <span className="whitespace-nowrap">{name}</span>
                 {(names.get(name) ?? 0) > 1 && folder && <span className="whitespace-nowrap text-code-gutter">· {folder}</span>}
                 {buf?.conflict && <span className="text-code-ink" title="Changed on disk">!</span>}
+                {pending.some((c) => c.path === path) && (
+                  <GitCompare className="size-3 shrink-0 text-code-gutter" aria-label="changed outside the editor" />
+                )}
               </button>
               <button
                 type="button"

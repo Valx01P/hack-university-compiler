@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 /** Which one row of a list is open, if any, for the test cases in a check's
-    results (Learn, the challenges, the IDE's Results): opening one closes
+    results (Learn and the challenges): opening one closes
     the other, and clicking the open one closes it. A new `key` (a new
     check's results) starts them all closed. */
 export function useOneOpen<K>(key: K) {

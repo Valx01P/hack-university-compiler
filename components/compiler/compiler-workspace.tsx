@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { EditorSelection } from "@/components/code/cm-editor";
 import { Explorer } from "@/components/ide/explorer";
-import { TerminalView } from "@/components/ide/terminal-view";
+import { FolderTerminal, FolderUnavailable } from "@/components/ide/folder-panes";
 import type { CompilerLang } from "@/lib/compiler";
-import { OutsideChanges, type OutsideChange } from "@/lib/outside-changes";
+import { fenceOf, fenced, notCode, useFolderWorkspace } from "@/lib/folder-workspace";
+import type { OutsideChange, OutsideChanges } from "@/lib/outside-changes";
 import { workspaceApi } from "@/lib/workspace-client";
-import { WorkspaceStore, useStore } from "@/lib/workspace-store";
+import { useStore, type WorkspaceStore } from "@/lib/workspace-store";
 import type { WorkspaceProps } from "@/lib/workspace-types";
+
+export { fenced };
 
 /**
  * The compiler page's own folder (scope compiler/<lang>): a workspace the
@@ -25,6 +28,8 @@ import type { WorkspaceProps } from "@/lib/workspace-types";
  * is back. Otherwise the folder does, since a tool in the terminal may have
  * changed the file while the page was closed. The file you had open, when
  * it isn't the main one, is kept the same way, so a reload paints it at once.
+ * The folder itself (its store, the review of outside changes, the note for
+ * AI tools) is lib/folder-workspace.ts, which the playground shares.
  */
 
 const FILE_KEY = (slug: string) => `hu-compiler-file:${slug}`;
@@ -39,11 +44,6 @@ const KEPT_CHARS = 200_000;
 // What a Run takes along (app/api/execute/route.ts checks the same).
 const RUN_FILES = 48;
 const RUN_FILE_BYTES = 100_000;
-const HEAVY = new Set(["node_modules", ".git", ".venv", "target", "__pycache__", "build", "dist"]);
-/** Paths that aren't the learner's code: the template's hidden notes, and
-    dependencies and builds. Not run, and not reviewed. */
-const notCode = (hidden: string[]) => (p: string) =>
-  hidden.some((h) => p === h || p.startsWith(`${h}/`)) || p.split("/").some((part) => HEAVY.has(part) || part.endsWith(".class"));
 
 const read = (key: string) => {
   try {
@@ -70,27 +70,6 @@ function keptFile(slug: string, main: string): { path: string; text: string } | 
     /* not ours */
   }
   return null;
-}
-
-const NO_CHANGES: OutsideChange[] = [];
-/** How long the editor settles before its note is written. */
-const NOTE_MS = 600;
-/** The most of a selection or a challenge's code the note holds. */
-const NOTE_CHARS = 6_000;
-
-const FENCES: Record<string, string> = {
-  py: "python", js: "javascript", mjs: "javascript", cjs: "javascript", ts: "typescript", java: "java", go: "go",
-  cpp: "cpp", cc: "cpp", h: "cpp", hpp: "cpp", sql: "sql", sh: "bash", bash: "bash", json: "json", md: "markdown", txt: "",
-};
-const fenceOf = (path: string) => FENCES[path.split(".").pop()?.toLowerCase() ?? ""] ?? "";
-
-/** A fenced block for the notes AI tools read (this one's and the last
-    run's, compiler-app.tsx), cut off past `max`, that the text in it can't
-    close early. `fence` names its language. */
-export function fenced(text: string, fence = "", max = NOTE_CHARS): string {
-  const clipped = text.length > max ? `${text.slice(0, max)}\n… (cut off here)` : text;
-  const ticks = "`".repeat(Math.max(3, ...[...clipped.matchAll(/`+/g)].map((m) => m[0].length + 1)));
-  return `${ticks}${fence}\n${clipped.replace(/\n?$/, "\n")}${ticks}`;
 }
 
 /**
@@ -174,13 +153,21 @@ export function useCompilerWorkspace({
   onReveal?: (line: number) => void;
 }): CompilerWorkspace {
   const main = lang.fileName;
-  const [store] = useState(() => new WorkspaceStore(props));
-  const [changes] = useState(() => new OutsideChanges(store, notCode(props.template.hidden)));
-  const pending = useSyncExternalStore(
-    (fn) => changes.subscribe(fn),
-    () => changes.pending,
-    () => NO_CHANGES
-  );
+  // The tree came in and the main file was squared with the page's code.
+  const opened = useRef(false);
+  const reconciled = useRef(false);
+  const { store, changes, pending, online, writeNote } = useFolderWorkspace({
+    props,
+    onOpened: () => {
+      opened.current = true;
+      void ensureMain();
+      // The file you had open, again, if it's still there.
+      const path = live.current.shown.path;
+      if (path !== main && store.nodes.get(path)?.type === "file") store.openFile(path);
+      else if (path !== main) show(main, "");
+      else store.openFile(main);
+    },
+  });
   // What the editor shows: a file only once its text is here, so switching
   // never paints an empty editor first. The server renders the main file, and
   // the file you had open comes back before the first paint (below), so the
@@ -199,14 +186,6 @@ export function useCompilerWorkspace({
     // Once, on load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // The note for AI tools, written a moment after the editor settles.
-  const note = useRef<{ timer: number; next: string | null; written: string | null }>({ timer: 0, next: null, written: null });
-  useEffect(() => () => window.clearTimeout(note.current.timer), []);
-  // The tree came in and the main file was squared with the page's code.
-  const opened = useRef(false);
-  const reconciled = useRef(false);
-  useStore(store, "status");
-  const online = store.runner === "online";
 
   const show = (path: string, text: string) => {
     live.current.shown = { path, text };
@@ -243,16 +222,6 @@ export function useCompilerWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store, main]);
 
-  useEffect(() => {
-    const abort = new AbortController();
-    void store.connect(abort.signal);
-    return () => {
-      abort.abort();
-      changes.dispose();
-      store.dispose();
-    };
-  }, [store]);
-
   /** The main file, made again from the page's code if it's gone (Run runs it). */
   async function ensureMain() {
     if (store.nodes.get(main)?.type === "file") return;
@@ -267,18 +236,6 @@ export function useCompilerWorkspace({
   }
 
   useEffect(() => {
-    const onTree = () => {
-      if (opened.current || store.runner !== "online" || store.status === "absent") return;
-      opened.current = true;
-      // From now, changes made outside the editor wait for review.
-      void changes.start();
-      void ensureMain();
-      // The file you had open, again, if it's still there.
-      const path = live.current.shown.path;
-      if (path !== main && store.nodes.get(path)?.type === "file") store.openFile(path);
-      else if (path !== main) show(main, "");
-      else store.openFile(main);
-    };
     const onFiles = () => {
       // The main file's first read squares it with the page's code.
       const buf = store.buffers.get(main);
@@ -328,14 +285,7 @@ export function useCompilerWorkspace({
         if (current !== main) store.closeFile(current);
       }
     };
-    const offTree = store.subscribe("tree", onTree);
-    const offStatus = store.subscribe("status", onTree);
-    const offFiles = store.subscribe("files", onFiles);
-    return () => {
-      offTree();
-      offStatus();
-      offFiles();
-    };
+    return store.subscribe("files", onFiles);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store, main, lang.slug, lang.starter]);
 
@@ -385,16 +335,7 @@ export function useCompilerWorkspace({
       store.openFile(path);
     },
     noteEditor(open) {
-      note.current.next = editorNote(open, main, lang);
-      window.clearTimeout(note.current.timer);
-      note.current.timer = window.setTimeout(() => {
-        const text = note.current.next;
-        if (!text || text === note.current.written || store.runner !== "online") return;
-        note.current.written = text;
-        void workspaceApi.writeFile(store.id, ".hu/editor.md", text, null).catch(() => {
-          note.current.written = null;
-        });
-      }, NOTE_MS);
+      writeNote(editorNote(open, main, lang));
     },
     recordRun(markdown) {
       if (store.runner !== "online") return;
@@ -403,20 +344,12 @@ export function useCompilerWorkspace({
   };
 }
 
-function Unavailable({ store }: { store: WorkspaceStore }) {
-  return (
-    <p className="p-4 text-sm text-ink-muted" role="status">
-      {store.runner === "connecting" ? "Opening this language's folder…" : store.runnerMessage || "The workspace runner isn't running. Start it with npm run up."}
-    </p>
-  );
-}
-
-/** The folder's files: the IDE's own explorer, with no heading (the tab
+/** The folder's files: the playground's Explorer, with no heading (the tab
     already says Explorer), its buttons flipping with the page when the
     editor is on the right. Opening a file shows it in the editor. */
 export function CompilerExplorer({ store }: { store: WorkspaceStore }) {
   useStore(store, "status");
-  if (store.runner !== "online") return <Unavailable store={store} />;
+  if (store.runner !== "online") return <FolderUnavailable store={store} opening={OPENING} />;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Explorer store={store} heading="" mirror />
@@ -424,71 +357,10 @@ export function CompilerExplorer({ store }: { store: WorkspaceStore }) {
   );
 }
 
-/** One shell on this computer, in the folder, started the first time you
-    open the tab, kept through reloads like the IDE's, and kept in tmux
-    (runner/host-tmux.ts) when you leave or the app restarts: opening it
-    again attaches to the same shell, the same with a challenge open or not.
-    `onOpenFile` opens a file:line link's file. */
-export function CompilerTerminal({
-  store,
-  visible,
-  onOpenFile,
-}: {
-  store: WorkspaceStore;
-  visible: boolean;
-  onOpenFile?: (path: string, line: number) => void;
-}) {
-  useStore(store, "status", "terminals");
-  const tab = store.terminals[0] ?? null;
-  const [starting, setStarting] = useState(false);
-  // Starts that failed in a row: the runner may still be coming up (the app
-  // restarted), so a few more tries, a moment apart, before asking.
-  const [failures, setFailures] = useState(0);
-  const failed = failures >= 4;
-  const last = useRef<string | null>(null);
-  if (tab) last.current = tab.sid;
-  // The shell ended (exit): a new one starts only when you ask. One only
-  // gone from the runner's list (the app restarted) comes back on its own,
-  // since in tmux it's still running and starting one attaches to it. Worked
-  // out as it renders, so the start below never runs ahead of it.
-  const ended = !tab && last.current !== null && store.exitedTerminals.has(last.current);
-
-  async function start(asked = false) {
-    if (asked) setFailures(0);
-    setStarting(true);
-    const opened = await store.newTerminal();
-    setStarting(false);
-    setFailures((n) => (opened ? 0 : n + 1));
-  }
-
-  useEffect(() => {
-    // Wait for the runner's word on shells that kept running (a reload).
-    if (!visible || tab || starting || ended || failed || store.runner !== "online" || !store.settled) return;
-    const timer = window.setTimeout(() => void start(), failures ? 1_500 : 0);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, tab, starting, ended, failed, failures, store.runner, store.settled]);
-
-  if (store.runner !== "online") return <Unavailable store={store} />;
-  if (!tab) {
-    return (
-      <div className="flex flex-col items-start gap-3 p-4 text-sm text-ink-muted" role="status">
-        {ended || failed ? (
-          <>
-            <p>{failed ? "Couldn't start a shell." : "The shell ended."}</p>
-            <button type="button" onClick={() => void start(true)} className="rounded-btn border border-edge-strong px-3 py-1.5 text-xs font-medium btn-grad">
-              {failed ? "Try again" : "Start a new shell"}
-            </button>
-          </>
-        ) : (
-          <p>Starting a shell in this folder…</p>
-        )}
-      </div>
-    );
-  }
-  return (
-    <div className="min-h-0 flex-1">
-      <TerminalView store={store} sid={tab.sid} label="Terminal" visible={visible} onOpenFile={onOpenFile} />
-    </div>
-  );
+/** The folder's one shell (components/ide/folder-panes.tsx), the same with
+    a challenge open or not. */
+export function CompilerTerminal(props: { store: WorkspaceStore; visible: boolean; onOpenFile?: (path: string, line: number) => void }) {
+  return <FolderTerminal {...props} opening={OPENING} />;
 }
+
+const OPENING = "Opening this language's folder…";

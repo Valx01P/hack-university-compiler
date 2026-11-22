@@ -514,7 +514,7 @@ html[data-code-theme="solarized"] :is(.code-dark, .code-terminal),
   --code-edge: #242424;
 }
 
-/* The terminal's 16 colors (the IDE's xterm terminals read them through
+/* The terminal's 16 colors (the xterm terminals read them through
    components/ide/terminal-view.tsx), one set per code theme, from each
    theme's own terminal palette. Midnight's sit next to its syntax colors.
    Contrast levels don't need their own: the terminal raises any color
@@ -1159,6 +1159,40 @@ html[data-learn-list-folded] .learn-list-open-only {
     display: none;
   }
 }
+/* The playground's Explorer folded away (Mod+B, its button, or its border
+   dragged well past its narrowest) and its terminal folded down to its bar
+   (the bar's button, or its border dragged well down), both saved
+   (lib/panes.ts) and laid out from the first paint, as
+   components/playground/playground-app.tsx does once it runs. The folded
+   Explorer's border sits over the panel's edge with no line, as the lesson
+   list's does, and the terminal stays in the page while folded, so its
+   shell stays attached. Only where those borders are (wide screens): a
+   phone shows one region at a time. */
+@media (width >= 64rem) {
+  html[data-playground-explorer-folded] [data-playground-explorer] {
+    display: none;
+  }
+  html[data-playground-explorer-folded] .playground-explorer-handle {
+    position: relative;
+    z-index: 10;
+    margin-right: -9px;
+  }
+  html[data-playground-explorer-folded] .playground-explorer-handle:not(:hover, :active, :focus-visible) > div {
+    background-color: transparent;
+  }
+  html[data-playground-terminal-folded] [data-playground-terminal] {
+    height: auto;
+  }
+  html[data-playground-terminal-folded] [data-playground-terminal-body] {
+    display: none;
+  }
+}
+html:not([data-playground-explorer-folded]) .playground-explorer-folded-only,
+html[data-playground-explorer-folded] .playground-explorer-open-only,
+html:not([data-playground-terminal-folded]) .playground-terminal-folded-only,
+html[data-playground-terminal-folded] .playground-terminal-open-only {
+  display: none;
+}
 /* Full screen's round theme button: its hover fill sits over its own surface,
    the way the back and forward buttons' fill sits on their bar, so it never
    goes see-through. */
@@ -1526,10 +1560,11 @@ html[data-explorer-hl=""] .explorer-surface {
 }
 
 /* Changes to review in an editor (@codemirror/merge's unified view: the
-   compiler's changes made outside the editor, lib/outside-changes.ts, and
-   the IDE's disk against yours): added lines green and removed ones red,
-   strong enough to read at a glance, each change's Accept and Reject on its
-   removed lines. Its own tints are 8%, too faint to scan. */
+   compiler's and the playground's changes made outside the editor,
+   lib/outside-changes.ts, and the playground's disk against yours): added
+   lines green and removed ones red, strong enough to read at a glance, each
+   change's Accept and Reject on its removed lines. Its own tints are 8%, too
+   faint to scan. */
 :root {
   --diff-add: 46 160 67;
   --diff-remove: 248 81 73;
@@ -1837,7 +1872,7 @@ html[data-window-blurred] .field:focus-visible {
    scrollbar in the app, the page's own included, and everything still
    scrolls by wheel, trackpad, touch, and keys. scrollbar-width covers Chrome,
    Firefox, and Safari 18.2 and up, the ::-webkit-scrollbar rule older Safari,
-   and the last rule the IDE terminal, whose scrollbar xterm.js draws itself. */
+   and the last rule the terminal, whose scrollbar xterm.js draws itself. */
 html[data-scrollbars="hidden"],
 html[data-scrollbars="hidden"] * {
   scrollbar-width: none;
@@ -1857,11 +1892,12 @@ html[data-scrollbars="hidden"] .xterm .xterm-scrollable-element > .scrollbar {
 [data-dark] select {
   color-scheme: dark;
 }
-/* Code surfaces (.code-dark: the editors, code blocks, and the IDE) keep
-   their own code theme, so their scrollbars take that theme's thumb: the one
-   its page theme uses (Midnight is Dark's, GitHub Light is Light's), at every
-   contrast level. The output terminal (.code-terminal) is page colored, so it
-   keeps the page's thumb until a code background is picked (above). */
+/* Code surfaces (.code-dark: the editors, code blocks, and the playground)
+   keep their own code theme, so their scrollbars take that theme's thumb:
+   the one its page theme uses (Midnight is Dark's, GitHub Light is Light's),
+   at every contrast level. The output terminal (.code-terminal) is page
+   colored, so it keeps the page's thumb until a code background is picked
+   (above). */
 .code-dark,
 :root[data-term-colors="midnight"] .term-colors.term-colors {
   --scrollbar: #4d4d4d;
@@ -1972,6 +2008,130 @@ html[data-code-comments="hidden"] .code-cmt {
 }
 html[data-code-comments="hidden"] [data-own-code] .code-cmt {
   display: inline;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Diagrams in read lessons (components/learn/diagram.tsx)            */
+/* ------------------------------------------------------------------ */
+
+/* A diagram's elements carry only the dg- classes (lib/diagram.mjs), and
+   these color them from the theme, so every theme and contrast level draws
+   them in its own ink. Never the line tokens: those fade with the line
+   sliders (the content one starts transparent), and a diagram's lines are
+   content. The path to follow is the accent, which on Light is ink, since
+   Light's pale yellow is too faint for a line (the eyebrow's rule). */
+:root {
+  --diagram-accent: var(--ink);
+}
+[data-dark] {
+  --diagram-accent: var(--gold);
+}
+.diagram {
+  color: var(--ink);
+  font-family: var(--font-body);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* What an element without a class draws. */
+.diagram text {
+  fill: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+.diagram :is(path, line, polyline) {
+  fill: none;
+  stroke: var(--ink-muted);
+  stroke-width: 1.5;
+}
+.diagram :is(rect, circle, ellipse, polygon) {
+  fill: var(--raised);
+  stroke: var(--ink-muted);
+  stroke-width: 1.5;
+}
+/* Things: a box, the same emphasized, the one or two the part is about,
+   what's skipped or idle, a boundary, and a step number's disc. */
+.diagram .dg-box {
+  fill: var(--raised);
+  stroke: var(--ink-muted);
+  stroke-width: 1.5;
+}
+.diagram .dg-strong {
+  fill: var(--raised);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.diagram .dg-hot {
+  fill: var(--accent);
+  stroke: var(--diagram-accent);
+  stroke-width: 2;
+}
+.diagram .dg-off {
+  fill: none;
+  stroke: var(--ink-faint);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+.diagram .dg-frame {
+  fill: none;
+  stroke: var(--ink-faint);
+  stroke-width: 1.25;
+  stroke-dasharray: 6 4;
+}
+.diagram .dg-badge {
+  fill: var(--ink);
+  stroke: none;
+}
+/* Connections, the path to follow, and replies (dashed). */
+.diagram .dg-line {
+  fill: none;
+  stroke: var(--ink-muted);
+  stroke-width: 1.5;
+}
+.diagram .dg-flow {
+  fill: none;
+  stroke: var(--diagram-accent);
+  stroke-width: 2.5;
+}
+.diagram .dg-dashed {
+  stroke-dasharray: 5 4;
+}
+/* Text: a label (above), a group's name, a second line, a faded label,
+   code, and text on a hot box or a badge. */
+.diagram .dg-heading {
+  font-size: 15px;
+  font-weight: 600;
+}
+.diagram .dg-note {
+  fill: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.diagram .dg-faint {
+  fill: var(--ink-faint);
+  font-size: 12px;
+  font-weight: 400;
+}
+.diagram .dg-code {
+  font-family: var(--font-code);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+.diagram .dg-on-hot {
+  fill: var(--on-accent);
+}
+.diagram .dg-on-badge {
+  fill: var(--canvas);
+  font-size: 12px;
+  font-weight: 600;
+}
+/* The renderer's own markers: arrowheads and the dot a line starts at. */
+.diagram .dg-head {
+  fill: var(--ink-muted);
+  stroke: none;
+}
+.diagram .dg-head-flow {
+  fill: var(--diagram-accent);
+  stroke: none;
 }
 
 /* ------------------------------------------------------------------ */

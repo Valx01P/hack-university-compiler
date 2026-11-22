@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import type Docker from "dockerode";
 import { LABEL } from "./docker.ts";
@@ -18,18 +17,9 @@ import { LABEL } from "./docker.ts";
  * build endpoint is the legacy builder), with the runner's own DOCKER_HOST so
  * both reach the same daemon.
  *
- * A stack image may build FROM another hu image (hu/web on hu/node): the
- * parent is built first, its tag is part of the child's hash, and the child's
- * Dockerfile gets it as the HU_BASE build argument. A stack image also bakes
- * its courses' template lockfiles into its offline cache, so they are part of
- * its hash too: they reach the build as the `templates` build context, staged
- * from content/workspaces/<course>/ with their paths kept.
- *
  *   node runner/images.ts                        # build hu/node and hu/bash when missing
  *   node runner/images.ts build bash             # just one
- *   node runner/images.ts build --stacks=express # a course's image (and its parent)
- *   node runner/images.ts build --stacks=all     # every image
- *   node runner/images.ts remove web python      # delete these (npm run remove does this)
+ *   node runner/images.ts remove bash            # delete it (npm run remove does this)
  *   node runner/images.ts prune                  # delete every older build, keep the current ones (npm run clean)
  *   node runner/images.ts build --force          # rebuild even when the tag exists
  *   node runner/images.ts status                 # tags, states, and sizes
@@ -39,55 +29,19 @@ interface ImageSpec {
   dockerfile: string;
   /** Folders under the repo the build copies from, hashed into the tag. */
   inputs: readonly string[];
-  /** The hu image this one is built FROM. */
-  from?: string;
-  /** The template files this image bakes in: these names, under content/workspaces/<course>/. */
-  templates?: { courses: readonly string[]; files: readonly string[] };
   /** The runner's recipes that run in it. */
   recipes: readonly string[];
-  /** Built by npm run up (and by npm run images with no names). The rest wait for Prepare this course. */
-  core?: boolean;
 }
 
 export const IMAGES = {
-  node: { dockerfile: "docker/node/Dockerfile", inputs: ["docker/node", "docker/shared"], recipes: ["typescript"], core: true },
-  bash: { dockerfile: "docker/bash/Dockerfile", inputs: ["docker/bash", "docker/shared"], recipes: ["bash"], core: true },
-  web: {
-    dockerfile: "docker/web/Dockerfile",
-    inputs: ["docker/web", "docker/pgdg"],
-    from: "node",
-    templates: { courses: ["web", "react", "nextjs", "express"], files: ["package.json", "package-lock.json"] },
-    recipes: [],
-  },
-  python: {
-    dockerfile: "docker/python/Dockerfile",
-    inputs: ["docker/python", "docker/pgdg", "docker/shared"],
-    templates: { courses: ["fastapi"], files: ["pyproject.toml", "uv.lock", ".python-version"] },
-    recipes: [],
-  },
-  java: {
-    dockerfile: "docker/java/Dockerfile",
-    inputs: ["docker/java", "docker/pgdg", "docker/shared"],
-    templates: { courses: ["spring"], files: ["pom.xml"] },
-    recipes: [],
-  },
-  go: {
-    dockerfile: "docker/go/Dockerfile",
-    inputs: ["docker/go", "docker/pgdg", "docker/shared"],
-    templates: { courses: ["go-api"], files: ["go.mod", "go.sum"] },
-    recipes: [],
-  },
+  node: { dockerfile: "docker/node/Dockerfile", inputs: ["docker/node", "docker/shared"], recipes: ["typescript"] },
+  bash: { dockerfile: "docker/bash/Dockerfile", inputs: ["docker/bash", "docker/shared"], recipes: ["bash"] },
 } as const satisfies Record<string, ImageSpec>;
 
 export type ImageName = keyof typeof IMAGES;
 
-/** An image's spec, typed as the interface (so optional fields read as such). */
-export function spec(name: ImageName): ImageSpec {
-  return IMAGES[name];
-}
-
-/** The images npm run up builds. */
-export const CORE_IMAGES = (Object.keys(IMAGES) as ImageName[]).filter((n) => spec(n).core);
+/** Every image, which npm run up builds. */
+export const CORE_IMAGES = Object.keys(IMAGES) as ImageName[];
 export type ImageState = "ready" | "missing" | "building";
 
 export function isImageName(name: string): name is ImageName {
@@ -109,33 +63,7 @@ function inputFiles(root: string, name: ImageName): string[] {
   return [...new Set(files)].sort();
 }
 
-/** Folders a template's dependency files never sit in. */
-const SKIP_DIRS = new Set(["node_modules", ".venv", "target", ".git", ".next", "dist", "build"]);
-
-/** Every template file an image bakes in, relative to content/workspaces, sorted. */
-export function templateFiles(root: string, name: ImageName): string[] {
-  const templates = spec(name).templates;
-  if (!templates) return [];
-  const base = path.join(root, "content", "workspaces");
-  const files: string[] = [];
-  const walk = (rel: string) => {
-    for (const entry of readdirSync(path.join(base, rel), { withFileTypes: true })) {
-      const child = path.posix.join(rel, entry.name);
-      if (entry.isDirectory()) {
-        if (!SKIP_DIRS.has(entry.name)) walk(child);
-      } else if (entry.isFile() && templates.files.includes(entry.name)) {
-        files.push(child);
-      }
-    }
-  };
-  for (const course of templates.courses) if (existsSync(path.join(base, course))) walk(course);
-  return files.sort();
-}
-
-/**
- * The first 12 hex characters of SHA-256 over each input's path, mode, and
- * bytes, the parent image's tag, and each template file's path and bytes.
- */
+/** The first 12 hex characters of SHA-256 over each input's path, mode, and bytes. */
 export function imageHash(root: string, name: ImageName): string {
   const hash = createHash("sha256");
   for (const rel of inputFiles(root, name)) {
@@ -145,25 +73,7 @@ export function imageHash(root: string, name: ImageName): string {
     hash.update(readFileSync(full));
     hash.update("\0");
   }
-  const from = spec(name).from;
-  if (from) hash.update(`from\0${imageTag(root, from as ImageName)}\0`);
-  for (const rel of templateFiles(root, name)) {
-    hash.update(`template\0${rel}\0`);
-    hash.update(readFileSync(path.join(root, "content", "workspaces", rel)));
-    hash.update("\0");
-  }
   return hash.digest("hex").slice(0, 12);
-}
-
-/** Copies an image's template files into a fresh folder for the templates build context. */
-function stageTemplates(root: string, name: ImageName): string {
-  const dir = mkdtempSync(path.join(tmpdir(), `hu-templates-${name}-`));
-  writeFileSync(path.join(dir, "README"), `The template files hu/${name} bakes in, staged by runner/images.ts.\n`);
-  for (const rel of templateFiles(root, name)) {
-    mkdirSync(path.join(dir, path.dirname(rel)), { recursive: true });
-    copyFileSync(path.join(root, "content", "workspaces", rel), path.join(dir, rel));
-  }
-  return dir;
 }
 
 export function imageTag(root: string, name: ImageName): string {
@@ -237,11 +147,7 @@ export class Images {
   }
 
   private async runBuild(name: ImageName, onLine: (line: string) => void): Promise<void> {
-    const { dockerfile, from, templates } = spec(name);
-    if (from && this.state(from as ImageName) !== "ready") {
-      await this.lookup(from as ImageName);
-      if (this.state(from as ImageName) !== "ready") await this.build(from as ImageName, onLine);
-    }
+    const { dockerfile } = IMAGES[name];
     const tag = this.tag(name);
     const hash = tag.split(":")[1];
     const args = [
@@ -253,11 +159,8 @@ export class Images {
       "--label", `${LABEL.image}=${name}`,
       "--label", `${LABEL.hash}=${hash}`,
       "--file", dockerfile,
+      "docker",
     ];
-    if (from) args.push("--build-arg", `HU_BASE=${this.tag(from as ImageName)}`);
-    const staged = templates ? stageTemplates(this.root, name) : null;
-    if (staged) args.push("--build-context", `templates=${staged}`);
-    args.push("docker");
     try {
       await new Promise<void>((resolve, reject) => {
         const child = spawn("docker", args, {
@@ -284,8 +187,6 @@ export class Images {
     } catch (err) {
       this.states.set(name, "missing");
       throw err;
-    } finally {
-      if (staged) rmSync(staged, { recursive: true, force: true });
     }
     // refresh() skips an image while it builds, so the new tag is read here:
     // /v1/health has its versions for the sandbox badge at once.
@@ -312,7 +213,8 @@ export class Images {
   async prune(name: ImageName): Promise<string[]> {
     const current = this.tag(name);
     const images = await this.docker.listImages({ filters: { label: [`${LABEL.managed}=1`, `${LABEL.image}=${name}`] } });
-    // An image built FROM this one inherits its labels, so only hu/<name> tags count.
+    // An image built FROM this one (an older install's hu/web) inherits its
+    // labels, so only hu/<name> tags count.
     const older = images
       .filter((img) => (img.RepoTags ?? []).some((t) => t.startsWith(`hu/${name}:`)))
       .filter((img) => !(img.RepoTags ?? []).includes(current))
@@ -338,7 +240,6 @@ export class Images {
 if (import.meta.main) {
   const { resolveEndpoint, connect } = await import("./docker.ts");
   const { ROOT } = await import("./config.ts");
-  const { STACKS, isStack } = await import("./stacks.ts");
   const argv = process.argv.slice(2);
   const command = ["status", "build", "remove", "prune"].includes(argv[0] ?? "") ? argv.shift() : "build";
   const force = argv.includes("--force");
@@ -350,19 +251,10 @@ if (import.meta.main) {
       process.exit(2);
     }
   }
-  // --stacks=express,fastapi names courses, and builds the image each one runs in.
-  const stacksArg = argv.find((a) => a.startsWith("--stacks="))?.slice("--stacks=".length);
-  const stacks = stacksArg === "all" ? Object.keys(STACKS) : (stacksArg?.split(",").map((s) => s.trim()).filter(Boolean) ?? []);
-  for (const stack of stacks) {
-    if (!isStack(stack)) {
-      console.error(`There is no course named ${stack}. The courses are: ${Object.keys(STACKS).join(", ")}.`);
-      process.exit(2);
-    }
-  }
   const all = Object.keys(IMAGES) as ImageName[];
-  const named = new Set<string>([...names, ...stacks.map((s) => STACKS[s as keyof typeof STACKS].image)]);
-  // Building with no names builds the core images. Status with no names lists every image.
-  const wanted = named.size ? all.filter((n) => named.has(n)) : command === "status" ? all : CORE_IMAGES;
+  const named = new Set<string>(names);
+  // Building, or status, with no names: every image.
+  const wanted = named.size ? all.filter((n) => named.has(n)) : CORE_IMAGES;
   const endpoint = resolveEndpoint();
   const docker = connect(endpoint);
   try {
@@ -376,14 +268,13 @@ if (import.meta.main) {
   const gb = (bytes: number) => `${(bytes / 1e9).toFixed(2)} GB`;
   if (command === "remove") {
     if (!named.size) {
-      console.error("Name the images to remove, like: node runner/images.ts remove web");
+      console.error("Name the images to remove, like: node runner/images.ts remove bash");
       process.exit(2);
     }
-    // Every tag of hu/<name> (the current one and any kept older ones),
-    // children before the image they're built FROM. One a running workspace
-    // is using stays, and says so.
+    // Every tag of hu/<name> (the current one and any kept older ones). One
+    // a container is using stays, and says so.
     let failed = 0;
-    for (const name of [...wanted].reverse()) {
+    for (const name of wanted) {
       const found = await docker.listImages({ filters: { reference: [`hu/${name}`] } });
       const tags = found.flatMap((img) => (img.RepoTags ?? []).filter((t) => t.startsWith(`hu/${name}:`)));
       if (!tags.length) {
@@ -399,7 +290,7 @@ if (import.meta.main) {
           const msg = (err as Error).message;
           console.log(
             /container/i.test(msg)
-              ? `   ! couldn't remove ${tag}: a workspace is still using it. Stop it in the app (or stop the app), then run this again.`
+              ? `   ! couldn't remove ${tag}: a run is still using it. Try again in a moment (or stop the app first).`
               : `   ! couldn't remove ${tag}: ${msg.split("\n")[0]}`
           );
         }
@@ -408,14 +299,14 @@ if (import.meta.main) {
     process.exit(failed ? 1 : 0);
   }
   if (command === "prune") {
-    // The older builds a rebuild keeps (one per image) go too, children first.
-    for (const name of [...(named.size ? wanted : all)].reverse()) {
+    // The older builds a rebuild keeps (one per image) go too.
+    for (const name of named.size ? wanted : all) {
       for (const tag of (await images.describe(name)).previous) {
         try {
           await docker.getImage(tag).remove();
           console.log(`   ✓ removed ${tag}`);
         } catch {
-          console.log(`   ! ${tag} stays: a workspace is still using it`);
+          console.log(`   ! ${tag} stays: a run is still using it`);
         }
       }
     }

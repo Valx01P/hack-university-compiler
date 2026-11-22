@@ -12,7 +12,10 @@ content/learn/<lang>/index.json    the course: sections and lesson order
 content/learn/<lang>/<id>.json     one lesson (file name == lesson id)
 ```
 
-`<lang>` is one of `python`, `javascript`, `cpp`, `java`, `go`, `sql`.
+`<lang>` is one of `python`, `javascript`, `cpp`, `java`, `go`, `sql`. The
+project courses (`web`, `react`, `nextjs`, `express`, `fastapi`, `spring`,
+`go-api`) are read courses, with rules of their own in
+[Read courses](#read-courses) at the end.
 
 `index.json`:
 
@@ -161,7 +164,8 @@ in the browser and in the verifier alike. How SQL lessons differ:
 Every code block in a lesson (`intro`, a step's `body`, an example's
 `explanation`, `recap`) and in a cheatsheet is runnable in the app: it has a
 Run button, opens its output below, and can be edited (and reset). So every
-block must actually run. `node scripts/verify-snippets.mjs <language>` runs
+block must actually run. Read courses are the exception: nothing in them runs
+(see [Read courses](#read-courses)). `node scripts/verify-snippets.mjs <language>` runs
 them all the way the app does and lists the ones that don't.
 
 How a block runs (lib/snippet-harness.mjs):
@@ -357,3 +361,245 @@ Markdown subset, that each practice prompt shows test 1's exact input and
 output, runs each example twice (its output must match `output` and be identical
 both times, with nothing on stderr), runs each solution twice against every test,
 and runs each starter (it must compile, exit 0, and not pass).
+
+## Read courses
+
+The project courses (`web`, `react`, `nextjs`, `express`, `fastapi`, `spring`,
+`go-api`) teach by explaining, with no practice and nothing to check. Every
+lesson in them has `"format": "read"`: a few long parts, each explaining how
+something works, with code to read and diagrams to look at. Nothing in a read
+course runs, so `npm run lessons:verify -- <course>` checks the shape, the
+prose, the Markdown, the code, and the diagrams, with no sandbox.
+
+### Files
+
+```
+content/learn/<course>/index.json           the course: sections and lesson order
+content/learn/<course>/<id>.json            one read lesson (file name == lesson id)
+content/learn/<course>/diagrams/<name>.svg  a diagram any lesson in the course can show
+```
+
+A course being written may list no lessons yet (`"sections": []`). Learn
+leaves it out until it has one.
+
+### Who's reading, and what they already know
+
+The courses are taken in an order, and each one assumes only what the
+courses before it taught (the owner's call):
+
+| Course | Taken after | So it assumes |
+| --- | --- | --- |
+| `web` (HTML, CSS, JavaScript, and the browser) | nothing | Nothing. The reader can use a browser and type in a terminal when told what to type, and that's all. |
+| `react` | `web` | Everything the web course teaches (HTML, CSS, JavaScript in the browser, the DOM, events, fetch, JSON, HTTP, URLs, npm, bundlers) |
+| `nextjs` | `web`, then `react` | Both of those |
+| `express`, `fastapi`, `spring`, `go-api` | `web`, and that stack's language course (Learn JavaScript and TypeScript, Python, Java, or Go) | The web course and the language itself. Each API course stands on its own next to the other three, so none assumes another. |
+
+What that means for writing:
+
+- **Define every term the first time the course uses it.** An acronym gets
+  its full name and a plain explanation before it's used on its own: "DNS,
+  the Domain Name System, is the internet's address book: you give it a name
+  like example.com and it gives back the number of the computer that has the
+  site." So does every other word a beginner wouldn't know (a path, a
+  request, a header, a port, a framework). Never assume it in a later part
+  either, unless an earlier lesson in the course (or a course before it)
+  explained it.
+- **The web course goes slow.** It's the first course, so it starts from
+  zero: what a file and a folder are on a website, what the address in the
+  address bar means piece by piece, what happens when you press Enter. Use
+  everyday comparisons, short sentences, and one new idea at a time, and show
+  what the learner would see on their own screen. Its later lessons can go
+  faster, as the reader knows more.
+- **Later courses don't re-teach.** React, Next.js, and the API courses recall
+  an idea from a course before them in a clause ("HTTP, the request and
+  response you met in the web course, ...") and spend their words on what's
+  new. Something a course before them never covered gets explained in full.
+
+### Why before how
+
+A learner wants to know why they need something before they learn it.
+
+- **Every course starts with an overview lesson** (its first lesson, two or
+  three parts): what the course covers and in what order, how the pieces
+  build on each other, why it matters to someone building for the web, and
+  what the learner will be able to do at the end. A diagram of the course's
+  path helps.
+- **Every lesson's intro says why first:** the problem it solves, or where a
+  web developer meets it (a page that won't load, a form that sends nothing,
+  a slow site, a login), and then what the lesson covers.
+- **Every part opens on why it matters**, in a sentence or two, before how it
+  works, and ends on where it shows up in real work when that isn't obvious.
+
+### The teaching rules
+
+1. **Explain how it works.** Each part answers one question, like what
+   happens between pressing Enter and the first byte. Start from what you can
+   see, then go one layer down. Say why it's built that way and what breaks
+   without it.
+2. **Build on what came before.** A part leans only on ideas the course
+   already explained. When it needs one, restate it in a clause.
+3. **Real code, the way teams write it.** Examples are code a strong engineer
+   would ship, in the framework's current idioms, cut to what the point
+   needs. Say in the prompt where the file lives in a project
+   (`app/tasks/[id]/page.tsx`).
+4. **Draw what words make long.** A sequence, a tree, or things talking to
+   each other (a request crossing the network, a component tree rendering
+   again, a middleware chain) gets a diagram. Refer to it by what it shows,
+   and by its numbered steps when it has them.
+5. **Real output only.** An example's `output` is what the code printed or
+   answered when you ran it, copied, never typed by hand. A command you can't
+   run where you write shows no output, and the prose says what it prints.
+
+### Field rules (verified)
+
+- `id`, `title`, `section`, and `summary` follow the rules above. The id
+  can't be `diagrams` (the folder), and never one a deleted lesson used, so
+  old progress never marks a new part as read.
+- `intro`: 30 to 150 words, shown at the top of part 1.
+- `steps`: 2 to 8 parts, ideally 3 to 6, each with `title`, `body`, and
+  `examples`. Titles are distinct within the lesson.
+- `body`: 100 to 1,200 words of prose (code and diagrams don't count), and
+  the aim is 400 to 900, two to five minutes of reading. Under 150 or over
+  1,000 is a warning. Split a long body with `##` headings and `###` under
+  them, never `#`. A whole part (its body, prompts, and explanations) warns
+  over 1,500 words and fails over 1,800.
+- `examples`: 0 to 3, each with `title`, `prompt` (about 60 words at most),
+  `language`, `code`, `explanation` (40 to 300 words), and optional `output`.
+- `recap`: required, a `-` list of 3 to 8 takeaways, one line each.
+- Nothing else: no `practice`, `codebase`, `file`, `template`, `setup`, or
+  `fixtures`.
+- Keep code under 80 lines a block. The verifier warns at 80 and fails at
+  120, and it warns past 6 code blocks in one body.
+
+### Code
+
+Code in a read course is shown, never run: highlighted, with a copy button.
+Give each fence its language and nothing else. The languages are every one
+the highlighter colors (`HIGHLIGHT_LANGUAGES` in `lib/tokenize.mjs`): `html`,
+`css`, `javascript` (`js`), `jsx`, `typescript` (`ts`), `tsx`, `json`,
+`http`, `bash` (`sh`), `sql`, `python`, `java`, `go`, `cpp`, `yaml`, `toml`,
+`xml`, `properties`, `env`, `dockerfile`, `makefile`, `markdown`, and `text`
+for anything else.
+
+- JSON must parse, and JavaScript, JSX, TypeScript, and TSX must parse with
+  no errors, so shown code can't carry a typo. A block that leaves code out
+  (`...` in place of the rest) takes the `sketch` flag, which skips that
+  check: ```` ```tsx sketch ````. No other flag, and no ```` ```stdin ````
+  block, since nothing runs.
+- A command goes in a `bash` block, and what it prints in `output` or a
+  `text` block. Never mix prompts and output.
+- Write an HTTP exchange as `http`: the request line, headers, a blank line,
+  the body, and the response the same way from `HTTP/1.1 200 OK`.
+- Indent with spaces, except Go and Makefiles.
+- The theme menu can hide code comments, so a comment never says something
+  the prose doesn't.
+
+### Diagrams
+
+A diagram is an SVG in the course's `diagrams` folder, drawn where its fence
+is. It can go in the intro, a body, an example's prompt or explanation, or
+the recap. The line inside the fence is an optional caption (inline Markdown,
+one line, at most 160 characters).
+
+````markdown
+```diagram request-path
+The browser waits on DNS before it can connect.
+```
+````
+
+The app reads the file with a strict parser (`lib/diagram.mjs`) and draws it
+inline, element by element, in the theme's colors, so a diagram never names a
+color. Each element takes a class from this table, and every theme and
+contrast level colors it:
+
+| Class | Goes on | Draws |
+|---|---|---|
+| `dg-box` | shapes | a thing (a component, a server, a table): a filled box, outlined |
+| `dg-strong` | shapes | the same, emphasized with a heavier outline |
+| `dg-hot` | shapes | the one or two things the part is about: the accent fill |
+| `dg-off` | shapes | skipped, idle, or not there yet: dashed, faint, no fill |
+| `dg-frame` | shapes | a boundary (a browser, a machine, a network, a process): dashed, faint, no fill |
+| `dg-badge` | `circle` | a step number's disc |
+| `dg-line` | lines | a connection or a call |
+| `dg-flow` | lines | the path to follow, in the accent |
+| `dg-dashed` | lines, with `dg-line` or `dg-flow` | a reply, async, or optional: dashed |
+| (none) | `text` | a label: 14px, medium |
+| `dg-heading` | `text` | a group's name: 15px, semibold |
+| `dg-note` | `text`, `tspan` | a second line: muted, 12px |
+| `dg-faint` | `text`, `tspan` | a de-emphasized label (on `dg-off`): faint, 12px |
+| `dg-code` | `text`, `tspan` | code, headers, paths, and values: the code font, 12.5px |
+| `dg-on-hot` | `text` | text on a `dg-hot` shape |
+| `dg-on-badge` | `text` | the number in a badge |
+
+Shapes are `rect`, `circle`, `ellipse`, `polygon`, and a closed `path`.
+Lines are `line`, `polyline`, and `path`. Text takes at most one color class
+(`dg-note`, `dg-faint`, `dg-on-hot`, `dg-on-badge`) and one face
+(`dg-heading`, `dg-code`). An element with no class still looks right: text
+is a label, lines are `dg-line`, and shapes are `dg-box`.
+
+Rules the verifier and the build enforce:
+
+- The root is `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 H">`
+  with no `width` or `height`. Width 320 to 720 (680 is one unit to a
+  pixel), height 120 to 900.
+- The first two children are `<title>` (what it shows, at most 100
+  characters) and `<desc>` (the whole story in 15 to 120 words, since screen
+  readers don't read the labels). Both follow the prose style.
+- Only `g`, `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`,
+  `path`, `text`, and `tspan`, with geometry (`x`, `y`, `width`, `height`,
+  `rx`, `ry`, `cx`, `cy`, `r`, `x1` to `y2`, `dx`, `dy`, `d`, `points`), a
+  `transform` (translate, rotate, or scale), `text-anchor`, `class`, and the
+  markers: `marker-end="url(#arrow)"`, `url(#arrow-flow)` (on `dg-flow`
+  only), and `marker-start="url(#dot)"`.
+- No colors, styles, fonts, ids, links, images, scripts, animation, opacity,
+  `defs`, or editor metadata. Comments are fine. At most 32 KB, 400 elements,
+  and 8 levels deep.
+- A part shows a diagram once, and three diagrams at most. A diagram no
+  lesson shows is a warning.
+
+How to draw one:
+
+- **Canvas:** `viewBox="0 0 680 H"` with H a multiple of 20 (typically 160
+  to 560). Use a 20-unit grid and 20 units of margin. At 680, one unit is one
+  pixel in the lesson column. Narrower screens shrink it to about 70%, then
+  scroll it sideways.
+- **Boxes:** `rect` with `rx="8"` (the button radius), at least 40 tall for
+  one line of text and 56 for two. Frames use `rx="12"` (the card radius).
+- **Labels:** at the box's center with `text-anchor="middle"` and
+  `dy="0.35em"`, which is more portable than `dominant-baseline`. A second
+  line is a `tspan` with the same `x` and `dy="1.4em"`, set as high above the
+  center as the second line falls below it.
+- **Room for wider fonts:** the theme menu's body font changes label widths.
+  Make a box at least 9 units per character of its longest label, plus 24,
+  and check it in Georgia and Comic Sans. Code labels (`dg-code`) are 7.5
+  units a character in JetBrains Mono.
+- **Lines:** straight runs (`H` and `V` in a path). Arrows end 4 units short
+  of their target. Arrowheads only point forward, so a reply is its own
+  dashed line.
+- **The path to follow:** `dg-flow` on the steps that matter. When order
+  matters, number its steps with badges (`circle r="10"` with `dg-badge`, and
+  a `text` with `dg-on-badge`), and let the prose say "step 3".
+- **Emphasis:** `dg-hot` for one or two things, `dg-off` for what's skipped
+  or idle, `dg-dashed` for replies and anything asynchronous.
+- **Text:** labels only. The explanation lives in the body.
+- **Never:** colors, inline styles, ids, fonts, opacity, or exported editor
+  metadata. Draw it by hand or tidy an export down to these elements.
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 200">
+  <title>A request's first hops: DNS, then the HTTP request</title>
+  <desc>The browser asks a DNS resolver for the server's address and gets an IP back. It then connects to that IP and sends the HTTP request, which the server answers.</desc>
+  <rect class="dg-box" x="20" y="80" width="140" height="56" rx="8"/>
+  <text x="90" y="108" dy="0.35em" text-anchor="middle">Browser</text>
+  <rect class="dg-box" x="270" y="20" width="140" height="40" rx="8"/>
+  <text x="340" y="40" dy="0.35em" text-anchor="middle">DNS resolver</text>
+  <rect class="dg-hot" x="520" y="80" width="140" height="56" rx="8"/>
+  <text class="dg-on-hot" x="590" y="108" dy="0.35em" text-anchor="middle">Server</text>
+  <path class="dg-line" d="M160 96 H220 V40 H266" marker-end="url(#arrow)"/>
+  <path class="dg-flow" d="M160 120 H516" marker-end="url(#arrow-flow)"/>
+  <text class="dg-code" x="338" y="150" text-anchor="middle">GET / HTTP/1.1</text>
+</svg>
+```
+
+`npm run lessons:verify -- <course>` checks every rule here, and
+`npm run build` fails on a diagram the parser refuses, saying where and why.

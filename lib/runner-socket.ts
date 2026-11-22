@@ -1,29 +1,19 @@
 import { getTicket, WorkspaceError } from "@/lib/workspace-client";
 
 /**
- * A workspace's events socket (architecture §3.3): status, file changes,
- * ports, tasks, check results, diagnostics, and limits, pushed by the runner
- * at ws://127.0.0.1:<port>/v1/ws/events. Each connection starts with a fresh
+ * A folder's events socket (architecture §3.3): its status, file changes,
+ * and terminals that ended, pushed by the runner at
+ * ws://127.0.0.1:<port>/v1/ws/events. Each connection starts with a fresh
  * single-use ticket from /api/tickets as its first message (never in the
  * address), and `since`, the last file event seen, so a reconnect misses
- * nothing. It reconnects by itself with backoff, and while the tab is
- * visible it sends a heartbeat every 30 seconds, which keeps the workspace
- * from stopping as idle and from being stopped to make room for another.
+ * nothing. It reconnects by itself with backoff.
  */
 
 export type RunnerEvent =
   | { t: "ready"; workspace: string; seq: number; resync?: boolean }
   | { t: "terminal"; sid: string; state: "exited"; code?: number | null }
-  | { t: "status"; status: string; detail?: string; mem?: { usedMb: number; limitMb: number } }
-  | { t: "fs"; seq: number; events: FsEvent[] }
-  | { t: "port"; port: number; url: string; state: "listening" | "closed"; bind?: string; process?: string; framable?: boolean; reason?: string; note?: string; env?: string; label?: string; preview?: boolean }
-  | { t: "task"; name: string; state: "starting" | "running" | "exited"; code?: number | null; signal?: string | null; sid?: string }
-  | { t: "check"; checkId: string; phase: string; test?: Record<string, unknown>; result?: Record<string, unknown> }
-  | { t: "diag"; source: string; items: { file: string; line: number; col: number; severity: string; code?: string; message: string }[] }
-  | { t: "limit"; kind: string; message: string }
-  | { t: "image"; image: string; phase: string; progress?: number; line?: string }
-  | { t: "docker"; state: "up" | "down" | "waking" }
-  | { t: "db"; state: string };
+  | { t: "status"; status: string; detail?: string }
+  | { t: "fs"; seq: number; events: FsEvent[] };
 
 /** One file change: ["add" | "change" | "unlink" | "addDir" | "unlinkDir", path, entry?],
     where entry is the path's tree row (its mark included). */
@@ -35,14 +25,11 @@ export type FsEvent = [
 
 export type SocketState = "connecting" | "open" | "closed";
 
-const HEARTBEAT_MS = 30_000;
-
 export class WorkspaceEvents {
   private ws: WebSocket | null = null;
   private since: number | null = null;
   private retry = 0;
   private timer = 0;
-  private heartbeat = 0;
   private stopped = false;
   state: SocketState = "closed";
 
@@ -55,14 +42,11 @@ export class WorkspaceEvents {
   start() {
     this.stopped = false;
     void this.connect();
-    document.addEventListener("visibilitychange", this.onVisibility);
   }
 
   stop() {
     this.stopped = true;
     window.clearTimeout(this.timer);
-    window.clearInterval(this.heartbeat);
-    document.removeEventListener("visibilitychange", this.onVisibility);
     this.ws?.close(1000, "bye");
     this.ws = null;
   }
@@ -77,15 +61,6 @@ export class WorkspaceEvents {
   private setState(state: SocketState, error?: WorkspaceError) {
     this.state = state;
     this.onState(state, error);
-  }
-
-  private onVisibility = () => this.beat();
-
-  /** A heartbeat: it keeps the workspace from stopping as idle, and while the
-      tab is visible, from being stopped to make room (LRU). A hidden tab says
-      so at once. */
-  private beat() {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ t: "hb", visible: document.visibilityState === "visible" }));
   }
 
   private async connect() {
@@ -114,10 +89,6 @@ export class WorkspaceEvents {
         this.retry = 0;
         this.since ??= event.seq;
         this.setState("open");
-        window.clearInterval(this.heartbeat);
-        // Only a tab that shows the workspace keeps it awake.
-        this.heartbeat = window.setInterval(() => document.visibilityState === "visible" && this.beat(), HEARTBEAT_MS);
-        this.beat();
       }
       if (event.t === "fs") {
         if (this.since !== null && event.seq <= this.since) return;
@@ -128,7 +99,6 @@ export class WorkspaceEvents {
     ws.onclose = () => {
       if (this.ws !== ws) return;
       this.ws = null;
-      window.clearInterval(this.heartbeat);
       this.setState("closed");
       this.later();
     };

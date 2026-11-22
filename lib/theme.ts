@@ -826,12 +826,12 @@ export const EXPLORER_FS_DEFAULT = 13;
 export const explorerFontSize = sizeSetting(EXPLORER_FS_KEY, "--explorer-fs", 11, 18);
 
 /**
- * The terminal's colors, for every terminal (the IDE's too): VS Code's
- * terminal's ("vscode", nothing saved, its 16 colors, text, and background),
- * the editor's code theme ("editor"), or one of the code themes' (its text,
- * background, 16 colors, and scrollbar, at every contrast level). <html
- * data-term-colors> names it, and globals.css applies it to the terminals
- * (.term-colors).
+ * The terminal's colors, for every terminal (the playground's too): VS
+ * Code's terminal's ("vscode", nothing saved, its 16 colors, text, and
+ * background), the editor's code theme ("editor"), or one of the code
+ * themes' (its text, background, 16 colors, and scrollbar, at every
+ * contrast level). <html data-term-colors> names it, and globals.css applies
+ * it to the terminals (.term-colors).
  */
 export const TERM_COLOR_THEMES = ["vscode", "editor", "midnight", "dracula", "monokai", "nord", "solarized", "github-light"] as const;
 export type TermColors = (typeof TERM_COLOR_THEMES)[number];

@@ -1,7 +1,7 @@
 /**
  * Each workspace's events (architecture §3.3): every message goes to every
- * events socket open on the workspace, so two tabs see the same status, files,
- * ports, and tasks. File events carry a sequence number, and the last 500
+ * events socket open on the workspace, so two tabs see the same files and
+ * terminals. File events carry a sequence number, and the last 500
  * batches are kept, so a socket that reconnects with `since` misses nothing.
  */
 

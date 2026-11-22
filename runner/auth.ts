@@ -8,8 +8,9 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
  *   Origin header came from a browser, so it is refused.
  * - WebSockets are for the browser: they need the app's Origin and a
  *   single-use ticket (from POST /v1/tickets, through Next) as their first
- *   message. Never cookies: a preview on another localhost port is same-site
- *   with the runner, so SameSite would not stop it.
+ *   message. Never cookies: a page on another localhost port (a dev server
+ *   the learner runs) is same-site with the runner, so SameSite would not
+ *   stop it.
  * - Both accept only the runner's own Host, so a DNS-rebinding page that
  *   points evil.example at 127.0.0.1 is refused.
  */

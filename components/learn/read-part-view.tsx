@@ -1,11 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { ArrowRight } from "lucide-react";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
 import { CompilerButton } from "@/components/learn/compiler-button";
-import { playgroundHref } from "@/lib/courses";
 import {
   CODE_BLOCK,
   LessonEyebrow,
@@ -18,6 +15,7 @@ import {
   usePartPlace,
   type PartLink,
 } from "@/components/learn/part-frame";
+import type { DiagramData } from "@/lib/diagram.mjs";
 import { Highlight } from "@/lib/highlight";
 import { problemId, type ReadExample, type ReadLesson, type ReadStep } from "@/lib/learn-types";
 import { markSolved, setLastLesson, useSolvedState } from "@/lib/learn-progress";
@@ -28,9 +26,10 @@ import { revealWorkspace } from "@/lib/url-state";
 /**
  * One part of a read lesson: the lesson column alone, centered, with no
  * editor. Its examples are code to look at in their own language, never
- * run, each with the file it comes from and the output it really printed,
- * when it has them. Opening a part is reading it: it counts as done in your
- * progress, and the lesson is complete once every part has been opened.
+ * run, each with the output it really printed when it has one, and its
+ * prose draws the diagrams it names (components/learn/diagram.tsx).
+ * Opening a part is reading it: it counts as done in your progress, and the
+ * lesson is complete once every part has been opened.
  */
 export function ReadPartView({
   course,
@@ -42,7 +41,7 @@ export function ReadPartView({
   position,
   prev,
   next,
-  ide,
+  diagrams,
 }: {
   course: { slug: string; label: string };
   /** Whether the course has a compiler page to go back to. */
@@ -56,8 +55,8 @@ export function ReadPartView({
   position: { index: number; total: number };
   prev: PartLink | null;
   next: PartLink | null;
-  /** Where Open in the IDE goes, when the part's codebase is there. */
-  ide: string | null;
+  /** The diagrams this part shows, by name (lib/learn.ts getPartDiagrams). */
+  diagrams: Record<string, DiagramData>;
 }) {
   // Saved progress is empty in the server markup and the hydration render,
   // like on other parts. This part counts as read from the first paint,
@@ -117,13 +116,12 @@ export function ReadPartView({
             <LessonEyebrow section={lesson.section} position={position} complete={complete} />
             {/* Full screen's corner icon, which other parts keep in the
                 editor's toolbar. Full screen covers the top bar, so the way
-                to the compiler joins it then. */}
+                to the compiler (or the playground, for a course without
+                one) joins it then. */}
             <span className="-my-2 -mr-2 hidden shrink-0 items-center gap-1 lg:flex">
-              {(compiler || playgroundHref(course.slug)) && (
-                <span className="hidden full:contents">
-                  <CompilerButton lang={course.slug} langLabel={course.label} to={compiler ? "compiler" : "playground"} className="shrink-0" />
-                </span>
-              )}
+              <span className="hidden full:contents">
+                <CompilerButton lang={course.slug} langLabel={course.label} to={compiler ? "compiler" : "playground"} className="shrink-0" />
+              </span>
               <button
                 type="button"
                 onClick={stepFull}
@@ -142,32 +140,20 @@ export function ReadPartView({
 
           <PartNumbers lang={course.slug} lessonId={lesson.id} parts={parts} part={part} isDone={isDone} doneLabel="read" />
 
-          {part === 0 && <Prose md={lesson.intro} className="mt-4 text-ink-muted" />}
+          {part === 0 && <Prose md={lesson.intro} diagrams={diagrams} className="mt-4 text-ink-muted" />}
 
           <section className="mt-9">
             <h2 className="font-display text-title">{step.title}</h2>
-            <Prose md={step.body} className="mt-3" />
+            <Prose md={step.body} diagrams={diagrams} className="mt-3" />
             {examples.map((example, i) => (
-              <ReadExampleBlock key={i} example={example} index={i} count={examples.length} />
+              <ReadExampleBlock key={i} example={example} index={i} count={examples.length} diagrams={diagrams} />
             ))}
-            {ide && (
-              <div className="mt-8">
-                <Link
-                  href={ide}
-                  prefetch={false}
-                  className="inline-flex items-center gap-1.5 rounded-btn border border-edge-strong px-3 py-1.5 text-xs font-medium btn-grad"
-                >
-                  Open in the IDE
-                  <ArrowRight className="size-3.5" aria-hidden />
-                </Link>
-              </div>
-            )}
           </section>
 
           {lastPart && lesson.recap && (
             <section id="recap" className={`mt-12 border-t border-content-line pt-6 ${PLACE_MARGIN}`}>
               <p className="eyebrow">Lesson recap</p>
-              <Prose md={lesson.recap} className="mt-3" />
+              <Prose md={lesson.recap} diagrams={diagrams} className="mt-3" />
             </section>
           )}
         </article>
@@ -178,20 +164,30 @@ export function ReadPartView({
   );
 }
 
-/** A read part's example: what to look at, the file it comes from, its code,
-    what it printed (when it was run), and why it's written that way. */
-function ReadExampleBlock({ example, index, count }: { example: ReadExample; index: number; count: number }) {
+/** A read part's example: what to look at (and where the file lives, in
+    its prompt), its code, what it printed (when it was run), and why it's
+    written that way. */
+function ReadExampleBlock({
+  example,
+  index,
+  count,
+  diagrams,
+}: {
+  example: ReadExample;
+  index: number;
+  count: number;
+  diagrams: Record<string, DiagramData>;
+}) {
   return (
     <div id={exampleId(index)} className={`${index === 0 ? "mt-7" : "mt-8"} border-l-2 border-content-line pl-5 ${PLACE_MARGIN}`}>
       <p className="eyebrow">{count > 1 ? `Example ${index + 1}` : "Example"}</p>
       <h3 className="mt-1.5 font-medium text-ink">{example.title}</h3>
-      <Prose md={example.prompt} className="mt-1.5 text-ink-muted" />
-      {example.file && <p className="mt-3 font-mono text-xs text-ink-faint wrap-break-word">{example.file}</p>}
+      <Prose md={example.prompt} diagrams={diagrams} className="mt-1.5 text-ink-muted" />
       <CopyableCodeBlock
         code={example.code}
         language={example.language}
-        label={example.file ?? "Example code"}
-        className={example.file ? "mt-1.5" : "mt-3"}
+        label="Example code"
+        className="mt-3"
         preClassName={CODE_BLOCK}
       >
         <Highlight code={example.code} language={example.language} />
@@ -205,7 +201,7 @@ function ReadExampleBlock({ example, index, count }: { example: ReadExample; ind
         </>
       ) : null}
       <p className="mt-4 text-sm font-medium text-ink">How it works</p>
-      <Prose md={example.explanation} className="mt-1 text-ink-muted" />
+      <Prose md={example.explanation} diagrams={diagrams} className="mt-1 text-ink-muted" />
     </div>
   );
 }

@@ -74,12 +74,11 @@ before(async () => {
     pool: new JobPool(4),
     owner: { ns: "verify", boot: "test", port: 0 },
     log: quietLog,
-    services: { piston: true, postgres: "absent", mongo: "absent" },
     startedAt: Date.now(),
     version: "0.0.0",
   };
   server = createApiServer(deps);
-  const wsDeps = { port: 0, appPort: 3000, helloTimeoutMs: 200, tickets, watch, log: quietLog };
+  const wsDeps = { port: 0, appPort: 3000, helloTimeoutMs: 200, tickets, log: quietLog };
   attachWebSockets(server, wsDeps);
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   port = (server.address() as AddressInfo).port;
@@ -117,28 +116,17 @@ describe("the REST API", () => {
     assert.equal((await request("GET", "/v1/health", { headers: { ...auth, host: `localhost:${port}` } })).status, 200);
   });
 
-  it("answers health with Docker, images, recipes, jobs, and the budget", async () => {
+  it("answers health with Docker, images, recipes, and jobs", async () => {
     const res = await request("GET", "/v1/health", { headers: auth });
     assert.equal(res.status, 200);
     const body = res.json as Record<string, Record<string, unknown>>;
     assert.equal(body.docker.state, "ready");
     assert.equal(body.docker.belowFloor, false);
-    assert.deepEqual(body.images, {
-      "hu/node": "ready", "hu/bash": "ready", "hu/web": "ready", "hu/python": "ready", "hu/java": "ready", "hu/go": "ready",
-    });
+    assert.deepEqual(body.images, { "hu/node": "ready", "hu/bash": "ready" });
     assert.equal((body.recipes.typescript as Record<string, unknown>).image, "hu/node:0123456789ab");
+    assert.equal((body.recipes.bash as Record<string, unknown>).state, "ready");
     assert.deepEqual(body.jobs, { running: 0, queued: 0, slots: 4 });
-    // 7,933 MiB, less 512 of headroom and Piston's 2,048.
-    assert.equal(body.workspaces.budgetMb, 5373);
-  });
-
-  it("prepares a course by building the image it runs in, and knows no other courses", async () => {
-    const express = await request("POST", "/v1/stacks/express/prepare", { headers: auth });
-    assert.equal(express.status, 202);
-    assert.deepEqual(express.json, { stack: "express", images: { "hu/web": "ready" } });
-    const go = await request("POST", "/v1/stacks/go-api/prepare", { headers: auth });
-    assert.deepEqual(go.json, { stack: "go-api", images: { "hu/go": "ready" } });
-    assert.equal((await request("POST", "/v1/stacks/python/prepare", { headers: auth })).status, 404);
+    for (const gone of ["services", "workspaces"]) assert.equal(gone in body, false, gone);
   });
 
   it("wants JSON bodies that pass the schema", async () => {
@@ -183,8 +171,10 @@ describe("the REST API", () => {
     const res = await request("POST", "/v1/tickets", { headers: json, body: JSON.stringify({ workspace: "wk3j6q2m7xa", kind: "events" }) });
     assert.equal(res.status, 200);
     assert.match(String(res.json?.ticket), /^[A-Za-z0-9_-]{43}$/);
-    assert.equal((await request("POST", "/v1/prewarm", { headers: json, body: JSON.stringify({ course: "typescript" }) })).status, 204);
     assert.equal((await request("GET", "/v1/workspaces", { headers: auth })).status, 501);
+    for (const gone of ["/v1/prewarm", "/v1/stacks/express/prepare", "/v1/db/query"]) {
+      assert.equal((await request("POST", gone, { headers: json, body: "{}" })).status, 404, gone);
+    }
     assert.equal((await request("GET", "/v1/nope", { headers: auth })).status, 404);
     assert.equal((await request("GET", "/v1/admin/images", { headers: auth })).status, 403);
     assert.equal((await request("GET", "/v1/run", { headers: auth })).status, 405);

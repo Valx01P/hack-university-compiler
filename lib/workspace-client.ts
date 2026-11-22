@@ -1,10 +1,10 @@
-import type { CheckResult, PortInfo, TreeEntry } from "@/lib/workspace-types";
+import type { TreeEntry } from "@/lib/workspace-types";
 
 /**
- * The IDE's calls to the app's workspace routes (/api/workspaces, the
+ * A folder's calls to the app's workspace routes (/api/workspaces, the
  * allowlisted proxy to the runner, and /api/tickets). Every write carries
  * `X-HU: 1` (lib/local-request.ts). Failures come back as WorkspaceError
- * with the sentence the route answered, which the IDE shows as it is.
+ * with the sentence the route answered, which the page shows as it is.
  */
 
 export class WorkspaceError extends Error {
@@ -63,7 +63,6 @@ export interface OpenResult {
   status: string;
   templateHash?: string;
   updated?: string[];
-  ports?: Record<string, unknown> | PortInfo[];
   tree: TreeEntry[];
   removed: string[];
 }
@@ -150,37 +149,9 @@ export const workspaceApi = {
   ) {
     return json<{ undo?: string }>(await post(`${base(id)}/fs`, op));
   },
-  async reset(id: string, scope: "file" | "dir" | "all" | "db" | "everything", path?: string, dryRun = false) {
-    return json<{ snapshot?: string | null; restored?: string[]; removed?: string[]; databases?: string[]; ms?: number }>(
-      await post(`${base(id)}/reset`, { scope, ...(path ? { path } : {}), ...(dryRun ? { dryRun } : {}) })
-    );
-  },
-  /** The workspace database's tables (PostgreSQL) or collections (MongoDB), read as its own role. */
-  async dbSchema(id: string, engine?: "postgres" | "mongo") {
-    return json<DbSchema>(await call(`${base(id)}/db/schema${engine ? `?engine=${engine}` : ""}`));
-  },
-  /** SQL through psql as the workspace's role, or a Mongo find() as its user: at most 500 rows, 10 s. */
-  async dbQuery(id: string, query: { sql: string } | { collection: string; filter?: Record<string, unknown>; limit?: number }) {
-    return json<DbAnswer>(await post(`${base(id)}/db/query`, query));
-  },
-  async snapshots(id: string) {
-    const data = await json<{ snapshots?: Snapshot[] } | Snapshot[]>(await call(`${base(id)}/snapshots`));
-    return (Array.isArray(data) ? data : (data.snapshots ?? [])).map(snapshotOf);
-  },
-  async saveSnapshot(id: string, label?: string) {
-    return snapshotOf(await json<Snapshot>(await post(`${base(id)}/snapshots`, label ? { label } : {})));
-  },
-  async restoreSnapshot(id: string, sid: string) {
-    return json(await post(`${base(id)}/snapshots/${encodeURIComponent(sid)}/restore`));
-  },
-  async start(id: string) {
-    return json<{ status?: string }>(await post(`${base(id)}/start`));
-  },
-  async stop(id: string) {
-    return json<{ status?: string }>(await post(`${base(id)}/stop`));
-  },
-  async restart(id: string) {
-    return json<{ status?: string }>(await post(`${base(id)}/restart`));
+  /** A file or a folder back to the starting point. */
+  async reset(id: string, scope: "file" | "dir", path: string, dryRun = false) {
+    return json<{ restored?: string[]; removed?: string[] }>(await post(`${base(id)}/reset`, { scope, path, ...(dryRun ? { dryRun } : {}) }));
   },
   async newTerminal(id: string, cols: number, rows: number, cwd?: string) {
     return json<{ sid: string }>(await post(`${base(id)}/terminals`, cwd ? { cols, rows, cwd } : { cols, rows }));
@@ -188,99 +159,7 @@ export const workspaceApi = {
   async closeTerminal(id: string, sid: string) {
     await call(`${base(id)}/terminals/${encodeURIComponent(sid)}`, { method: "DELETE" });
   },
-  async task(id: string, name: string, action: "start" | "stop" | "restart") {
-    return json<{ sid?: string }>(await post(`${base(id)}/tasks/${encodeURIComponent(name)}/${action}`));
-  },
-  async signalTask(id: string, name: string, sig: "INT" | "TERM" = "INT") {
-    await post(`${base(id)}/tasks/${encodeURIComponent(name)}/signal`, { sig });
-  },
-  async clearCookies(id: string) {
-    await call(`${base(id)}/cookies`, { method: "DELETE" });
-  },
-  async forwardPort(id: string, port: number) {
-    return json(await post(`${base(id)}/ports`, { port }));
-  },
-  async stopPort(id: string, port: number) {
-    await call(`${base(id)}/ports/${port}`, { method: "DELETE" });
-  },
-  async http(id: string, request: HttpRequest) {
-    return json<HttpResponse>(await post(`${base(id)}/http`, request));
-  },
-  async check(id: string, scope: string) {
-    return json<{ checkId: string }>(await post(`${base(id)}/check`, { scope }));
-  },
-  async checkResult(id: string, checkId: string) {
-    return json<CheckResult>(await call(`${base(id)}/checks/${encodeURIComponent(checkId)}`));
-  },
-  archiveUrl(id: string) {
-    return `${base(id)}/archive`;
-  },
-  /** Continue with my code: another workspace's files (the previous part's
-      practice) replace these, after a snapshot. */
-  async carry(id: string, from: string) {
-    return json<{ restored?: string[]; removed?: string[]; snapshot?: string | null }>(await post(`${base(id)}/carry`, { from }));
-  },
 };
-
-/** GET …/db/schema (runner/README.md, "Databases"). */
-export type DbSchema =
-  | {
-      engine: "postgres";
-      database: string;
-      sizeBytes: number;
-      tables: { schema: string; name: string; kind: "table" | "view" | "materialized view"; rows: number | null; columns: { name: string; type: string; nullable: boolean; key: boolean }[] }[];
-    }
-  | {
-      engine: "mongo";
-      database: string;
-      sizeBytes: number;
-      collections: { name: string; type: "collection" | "view"; count: number | null; indexes: { name: string; key: Record<string, unknown>; unique: boolean }[] }[];
-    };
-
-/** POST …/db/query: every statement's result (the shape lib/sql/core.mjs's SqlRun has), or a find()'s documents. */
-export interface DbAnswer {
-  engine: "postgres" | "mongo";
-  database: string;
-  columns: { name: string; type?: number }[];
-  rows: (string | null)[][];
-  tag: string | null;
-  error: { message: string; statement: string | null } | null;
-  truncated: boolean;
-  results?: ({ kind: "rows"; statement: string; columns: { name: string; type: number }[]; rows: (string | null)[][] } | { kind: "command"; statement: string; tag: string })[];
-  ms: number;
-}
-
-export interface Snapshot {
-  /** The runner's `id` (older answers say `sid`). */
-  sid: string;
-  label?: string;
-  auto?: boolean;
-  createdAt?: number | string;
-}
-
-const snapshotOf = (s: Snapshot & { id?: string }): Snapshot => ({ ...s, sid: s.id ?? s.sid });
-
-export interface HttpRequest {
-  port: number;
-  method: string;
-  path: string;
-  headers: Record<string, string>;
-  body?: string;
-  jar?: boolean;
-}
-
-export interface HttpResponse {
-  status: number;
-  statusText?: string;
-  /** Every header, repeated ones joined, except set-cookie, a list. */
-  headers: Record<string, string | string[]>;
-  cookies?: { name: string; value: string; path?: string; httpOnly?: boolean; sameSite?: string; expires?: string | null }[];
-  body: string;
-  bodyEncoding?: "utf8" | "base64";
-  size?: number;
-  truncated?: boolean;
-  timingMs?: number;
-}
 
 /** A WebSocket ticket and where to open the socket. */
 export async function getTicket(workspace: string, kind: "events" | "term", sid?: string): Promise<{ ticket: string; url: string }> {

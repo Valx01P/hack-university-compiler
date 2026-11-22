@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { describe, it } from "node:test";
-import { WORKSPACE_ID, base32, isScope, parseScope, routeForScope, scopeForRoute, sha256, workspaceId } from "../lib/workspace-id.mjs";
+import { WORKSPACE_ID, base32, isScope, parseScope, sha256, workspaceId } from "../lib/workspace-id.mjs";
 
 /** The id rule of architecture §4.2.1, computed with node:crypto to check the module's own SHA-256. */
 function reference(scope: string): string {
@@ -10,14 +10,7 @@ function reference(scope: string): string {
 
 describe("workspace ids", () => {
   it("are w and 10 base32 characters of SHA-256(scope)", () => {
-    for (const scope of [
-      "learn/express/service-layer/1/practice",
-      "learn/typescript/modules/2/example-3",
-      "challenge/typescript/orders-before-create-hook",
-      "playground/bash",
-      "playground/typescript/2",
-      "sandbox/go-api/taskboard-api",
-    ]) {
+    for (const scope of ["compiler/python", "compiler/typescript", "compiler/bash", "playground"]) {
       const id = workspaceId(scope);
       assert.match(id, WORKSPACE_ID);
       assert.equal(id, reference(scope));
@@ -25,14 +18,20 @@ describe("workspace ids", () => {
     }
   });
 
-  it("names a compiler page's own folder, one per language, shown on the compiler", () => {
+  it("stay what they were, so a compiler's folder and its tmux session are found again", () => {
+    assert.equal(workspaceId("compiler/python"), "wxkudhw5lug");
+    assert.equal(workspaceId("playground"), "w6pgip54leh");
+  });
+
+  it("name a compiler page's own folder, one per language", () => {
     assert.deepEqual(parseScope("compiler/java"), { kind: "compiler", course: "java" });
-    assert.match(workspaceId("compiler/python"), WORKSPACE_ID);
-    assert.notEqual(workspaceId("compiler/python"), workspaceId("playground/python"));
-    assert.deepEqual(routeForScope("compiler/go"), { pathname: "/go", tab: "" });
+    assert.notEqual(workspaceId("compiler/python"), workspaceId("compiler/javascript"));
     for (const bad of ["compiler", "compiler/", "compiler/java/1", "compiler/Java", "compiler/java/challenge"]) assert.equal(parseScope(bad), null, bad);
-    // The compiler's address alone names no workspace: the page names its own.
-    assert.equal(scopeForRoute("/java"), null);
+  });
+
+  it("name the one playground, which has no course of its own", () => {
+    assert.deepEqual(parseScope("playground"), { kind: "playground", course: "playground" });
+    assert.notEqual(workspaceId("playground"), workspaceId("compiler/playground"));
   });
 
   it("has a SHA-256 that matches node:crypto on every length", () => {
@@ -49,68 +48,24 @@ describe("workspace ids", () => {
 
   it("differs for different scopes", () => {
     const ids = new Set<string>();
-    for (let i = 0; i < 2000; i++) ids.add(workspaceId(`learn/typescript/lesson-${i}/1/practice`));
+    for (let i = 0; i < 2000; i++) ids.add(workspaceId(`compiler/course-${i}`));
     assert.equal(ids.size, 2000);
   });
 
-  it("refuses what isn't a scope", () => {
+  it("refuses what isn't a scope, the retired kinds included", () => {
     for (const bad of [
       "",
-      "learn/typescript/modules/0/practice",
-      "learn/typescript/modules/1/example-4",
-      "learn/typescript/modules/1",
-      "learn/TypeScript/modules/1/practice",
-      "learn/typescript/../1/practice",
-      "playground/typescript/4",
-      "playground/typescript/0",
-      "sandbox/typescript/123",
-      "challenge/typescript",
+      "playground/",
+      "playground/typescript",
+      "playground/typescript/2",
+      "sandbox/go-api/taskboard-api",
+      "learn/express/service-layer/1/practice",
+      "challenge/typescript/orders-before-create-hook",
+      "compiler/../python",
       "other/typescript",
     ]) {
       assert.equal(isScope(bad), false, bad);
       assert.throws(() => workspaceId(bad));
     }
-  });
-});
-
-describe("routes and scopes", () => {
-  it("maps each route and tab to its scope", () => {
-    assert.equal(scopeForRoute("/typescript/learn/modules/2", { tab: "code" }), "learn/typescript/modules/2/practice");
-    assert.equal(scopeForRoute("/typescript/learn/modules/2"), "learn/typescript/modules/2/example-1");
-    assert.equal(scopeForRoute("/typescript/learn/modules/2", { tab: "ex2" }), "learn/typescript/modules/2/example-2");
-    assert.equal(scopeForRoute("/typescript/learn/modules/2/", { tab: "ex3" }), "learn/typescript/modules/2/example-3");
-    assert.equal(scopeForRoute("/nextjs/learn/server-actions/1", { tab: "ex2", shared: true }), "learn/nextjs/server-actions/1/examples");
-    assert.equal(scopeForRoute("/nextjs/learn/server-actions/1", { tab: "code", shared: true }), "learn/nextjs/server-actions/1/practice");
-    assert.equal(scopeForRoute("/typescript/challenges/orders-fat-controller"), "challenge/typescript/orders-fat-controller");
-    assert.equal(scopeForRoute("/bash/playground"), "playground/bash");
-    assert.equal(scopeForRoute("/bash/playground/3"), "playground/bash/3");
-    assert.equal(scopeForRoute("/go-api/playground/taskboard-api"), "sandbox/go-api/taskboard-api");
-  });
-
-  it("shows no workspace for other routes", () => {
-    assert.equal(scopeForRoute("/typescript"), null);
-    assert.equal(scopeForRoute("/typescript/learn"), null);
-    assert.equal(scopeForRoute("/typescript/learn/modules/2", { tab: "ex4" }), null);
-    assert.equal(scopeForRoute("/bash/playground/4"), null);
-    assert.equal(scopeForRoute("/"), null);
-  });
-
-  it("goes back from a scope to its route", () => {
-    for (const [pathname, tab] of [
-      ["/typescript/learn/modules/2", "code"],
-      ["/typescript/learn/modules/2", ""],
-      ["/typescript/learn/modules/2", "ex3"],
-      ["/typescript/challenges/orders-fat-controller", ""],
-      ["/bash/playground", ""],
-      ["/bash/playground/2", ""],
-      ["/go-api/playground/taskboard-api", ""],
-    ] as const) {
-      const scope = scopeForRoute(pathname, { tab });
-      assert.ok(scope);
-      assert.deepEqual(routeForScope(scope), { pathname, tab });
-    }
-    assert.deepEqual(parseScope("learn/express/service-layer/1/example-2"), {
-      kind: "learn", course: "express", lesson: "service-layer", part: 1, tab: "example-2", example: 2,
-    });
   });
 });

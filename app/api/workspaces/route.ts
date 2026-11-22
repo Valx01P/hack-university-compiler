@@ -8,14 +8,14 @@ import { resolveScope, runnerOpenBody, ScopeError } from "@/lib/workspaces";
 export const dynamic = "force-dynamic";
 
 /**
- * Opens a workspace: POST {scope}, where the scope says where it lives in the
- * app (a part's practice, an example, a challenge, a playground, a sandbox,
- * lib/workspace-id.mjs). The template, its layers, the image, and the tasks
- * come from content/ here, never from the request, and the runner gets them
- * as PUT /v1/workspaces/:id (architecture §3.5), which is idempotent: the
- * first open copies the starting files, a later one finds them. Answers the
- * runner's `{id, status, templateHash, updated, ports, tree, removed}`.
- * Opening never starts a container, takes a port, or builds an image.
+ * Opens a folder: POST {scope}, where the scope says where it lives in the
+ * app (a compiler's own, compiler/<course>, or the playground,
+ * lib/workspace-id.mjs). The template and its layers come from content/
+ * here, never from the request, and the runner gets them as PUT
+ * /v1/workspaces/:id (architecture §3.5), which is idempotent: the first
+ * open copies the starting files, a later one finds them. Answers the
+ * runner's `{id, status, templateHash, updated, tree, removed}`. Opening
+ * never touches Docker.
  */
 export async function POST(request: Request) {
   const rejected = rejectNonLocal(request);

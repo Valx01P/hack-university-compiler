@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight, CodeXml } from "lucide-react";
 import { LangIcon } from "@/components/compiler/lang-icon";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Collapse } from "@/components/ui/collapse";
-import { COURSES, courseRows, playgroundHref, type CourseEntry } from "@/lib/courses";
+import { COURSES, courseRows, type CourseEntry } from "@/lib/courses";
 import { partHref, problemId, type Course, type LessonRef } from "@/lib/learn-types";
 import { useResumeHref, useSolvedState } from "@/lib/learn-progress";
 
@@ -110,7 +110,7 @@ export function LessonList({
           />
         )}
         {/* Asks first, like the compiler's Learn button. A course without a
-            compiler page leads to its playground instead. */}
+            compiler page leads to the playground instead. */}
         {compiler ? (
           <ConfirmButton
             title="Back to the compiler?"
@@ -124,20 +124,20 @@ export function LessonList({
             <ArrowLeft className="size-3.5" aria-hidden />
             Back to the {langLabel} compiler
           </ConfirmButton>
-        ) : playgroundHref(lang) ? (
+        ) : (
           <ConfirmButton
             title="Open the playground?"
-            description="A project with files, a terminal, and the course's codebases. Your lesson progress stays saved."
+            description="A folder on your computer with files and a terminal. Your lesson progress stays saved."
             confirmLabel="Open playground"
-            href={`/${lang}/playground`}
+            href="/playground"
             onConfirm={onNavigate}
             align="left"
             className={`${langs.length > 1 ? "mt-2" : "mt-3"} inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink`}
           >
-            <ArrowLeft className="size-3.5" aria-hidden />
-            Open the {langLabel} playground
+            <CodeXml className="size-3.5" aria-hidden />
+            Playground
           </ConfirmButton>
-        ) : null}
+        )}
       </div>
 
       <div className="slim-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-3">
@@ -218,7 +218,7 @@ export function LessonList({
                                 <PendingIcon current={here} className="mt-[3px] size-3.5" />
                               )}
                               <span className="min-w-0 wrap-break-word">{title}</span>
-                              {partSolved && <span className="sr-only">(solved)</span>}
+                              {partSolved && <span className="sr-only">{l.read ? "(read)" : "(solved)"}</span>}
                             </Link>
                           </li>
                         );

@@ -5,8 +5,8 @@ import { commentPieces } from "@/lib/tokenize.mjs";
 
 /**
  * The Code comments switch in editable files (architecture §8.4, decision
- * D7). In the IDE the files are real: the terminal, servers, git diff, and
- * checks read them. So hiding comments is display only and never changes a
+ * D7). In the playground the files are real: the terminal, servers, and git
+ * diff read them. So hiding comments is display only and never changes a
  * byte of the file:
  *
  * - The ranges are the static code blocks' (commentPieces, lib/tokenize.mjs):

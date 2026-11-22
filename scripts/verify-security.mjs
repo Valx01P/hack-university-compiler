@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 // The sandbox's security suite (PLAN.md 8.6, architecture §11.5). Each test
 // proves an invariant against the real thing: containers made from the real
-// profiles, jobs run through the real recipes, a real runner process, and
-// the real Piston. It gates every phase. P0 built jobs and the runner, so it
-// has S1, S2, S4, S9, S14, and S16, and P2's databases add S8. The rest
-// arrive with what they test.
+// job profile, jobs run through the real recipes, a real runner process, and
+// the real Piston: S1, S2, S4, S9, S14, and S16.
 //
 //   npm run security:verify               # every test
 //   npm run security:verify -- S1 S9      # some
@@ -12,26 +10,21 @@
 // Needs Docker and the hu images (npm run images). Everything runs in the
 // verify namespace (hv- names, hu.ns=verify), and is removed at the end. The
 // runners it starts listen on 127.0.0.1:3311 (HU_VERIFY_PORT), or on any
-// free port when something else has it, and lease workspace ports from
-// HU_VERIFY_WS_PORTS (29900-29999).
+// free port when something else has it, with their own data folders and
+// their own tmux server (HU_TMUX_SOCKET).
 import dns from "node:dns/promises";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { pgEnv } from "../runner/db/clients.ts";
-import { Databases } from "../runner/db/index.ts";
-import { JobPool } from "../runner/jobs.ts";
-import { quietLog } from "../runner/log.ts";
-import { runRecipe } from "../runner/recipes/index.ts";
-import { RunRequest } from "../runner/schemas.ts";
-import { capabilityMask, jobProfile, SCRIPT_JOB, standardProfile, sysadminProfile, SYSADMIN_CAPS, WORKSPACE_LIMITS } from "../runner/profiles.ts";
+import { jobProfile, SCRIPT_JOB } from "../runner/profiles.ts";
 import { WebSocket, execText, freePort, startRunner, verifyKit } from "../runner/verify.ts";
 import { workspaceId } from "../lib/workspace-id.mjs";
 
 const PREFERRED_PORT = Number(process.env.HU_VERIFY_PORT ?? 3311);
 const PORT = await freePort(PREFERRED_PORT);
-// The workspace ports its runners lease (HU_VERIFY_WS_PORTS), clear of a learner's.
-const WS_PORTS = process.env.HU_VERIFY_WS_PORTS ?? "29900-29999";
+// The runners it starts (they take this environment) use a tmux server of
+// their own for their terminals, never the app's.
+process.env.HU_TMUX_SOCKET ||= `hv-security-${process.pid}`;
 const PISTON = (process.env.PISTON_URL ?? "http://127.0.0.1:2000/api/v2").replace(/\/+$/, "");
 const wanted = process.argv.slice(2).map((a) => a.toUpperCase());
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -122,48 +115,6 @@ async function S1(kit) {
       check("job profile: 64 MiB file size, 128 processes, 512 MiB, no swap, 1 CPU", fsize === "65536" && pids === "128" && memory === "536870912" && swap === "0" && cpu === "1000000 1000000", ulimit.stdout.trim().replace(/\n/g, " "));
     }
   );
-
-  // The standard workspace profile (P1 uses it), with a real bind mount and home volume.
-  const files = mkdtempSync(path.join(tmpdir(), "hv-files-"));
-  const home = await kit.docker.createVolume({ Name: kit.name("s1-home"), Labels: kit.labels("workspace") });
-  try {
-    await kit.withContainer(
-      standardProfile({
-        name: kit.name("s1-ws"),
-        image: kit.images.tag("node"),
-        labels: kit.labels("workspace"),
-        env: ["HOME=/home/learner"],
-        filesDir: files,
-        homeVolume: home.name,
-        limits: WORKSPACE_LIMITS.typescript,
-      }),
-      async (c) => {
-        await inspected("standard profile", c);
-        hardened("standard profile", parseProbe((await execText(c, ["bash", "-c", PROBE])).stdout), { uid: 1000, capEff: 0n, noNewPrivs: 1 });
-      }
-    );
-  } finally {
-    rmSync(files, { recursive: true, force: true });
-  }
-
-  // The sysadmin profile (Bash workspaces in P1): root, but fenced in.
-  const vols = {};
-  for (const v of ["files", "srv", "cron"]) vols[v] = (await kit.docker.createVolume({ Name: kit.name(`s1-${v}`), Labels: kit.labels("workspace") })).name;
-  await kit.withContainer(
-    sysadminProfile({ name: kit.name("s1-sys"), image: kit.images.tag("bash"), labels: kit.labels("workspace"), env: [], volumes: vols }),
-    async (c) => {
-      await inspected("sysadmin profile", c);
-      const info = await c.inspect();
-      check("sysadmin profile: no host mounts at all", info.Mounts.every((m) => m.Type === "volume" || m.Type === "tmpfs"));
-      hardened("sysadmin profile", parseProbe((await execText(c, ["bash", "-c", PROBE], { user: "0:0" })).stdout), {
-        uid: 0,
-        capEff: capabilityMask(SYSADMIN_CAPS),
-        noNewPrivs: 0,
-      });
-      const raw = await execText(c, ["bash", "-c", "mknod /tmp/x c 1 3 2>&1; echo $?"], { user: "0:0" });
-      check("sysadmin profile: even root can't make device nodes (MKNOD dropped)", raw.stdout.trim().endsWith("1"), raw.stdout.trim());
-    }
-  );
 }
 
 // ---------------------------------------------------------------- S2
@@ -235,66 +186,6 @@ async function S2(kit) {
     ],
   });
   check("typescript job: every target unreachable from node:net", nodeJob.run.stdout.trim().split("\n").every((l) => l.endsWith("=blocked")), nodeJob.run.stdout.trim().replace(/\n/g, " "));
-
-  // A run with a database: its job is on the real database network, with servers of its own.
-  const dbData = mkdtempSync(path.join(tmpdir(), "hv-s2-db-"));
-  const databases = new Databases({ docker: kit.docker, owner: { ns: "verify", boot: kit.owner.boot, port: await freePort(PORT + 2) }, dataDir: dbData, log: quietLog, env: {} });
-  try {
-    const deps = { docker: kit.docker, owner: kit.owner, images: kit.images, pool: new JobPool(1), log: quietLog, databases };
-    const dbRun = await runRecipe(
-      deps,
-      RunRequest.parse({
-        recipe: "typescript",
-        setup: "CREATE TABLE t (a int);",
-        files: [
-          {
-            name: "main.ts",
-            content: [
-              'import { connect } from "node:net";',
-              `const targets: [string, number][] = ${JSON.stringify([...targets.map((t) => [t[1], t[2]]), ["db", 5432]])};`,
-              "for (const [host, port] of targets) {",
-              "  const ok = await new Promise<boolean>((resolve) => {",
-              "    const s = connect({ host, port, timeout: 3000 }, () => { s.destroy(); resolve(true); });",
-              "    s.on(\"error\", () => resolve(false));",
-              "    s.on(\"timeout\", () => { s.destroy(); resolve(false); });",
-              "  });",
-              "  console.log(`${host}:${port}=${ok ? \"reached\" : \"blocked\"}`);",
-              "}",
-            ].join("\n"),
-          },
-        ],
-      })
-    );
-    const lines = dbRun.run.stdout.trim().split("\n");
-    check("run with a database (the database network): every target unreachable", lines.filter((l) => !l.startsWith("db:")).every((l) => l.endsWith("=blocked")), lines.join(" "));
-    check("…while its own database answers on db:5432", lines.includes("db:5432=reached"), lines.join(" "));
-  } finally {
-    await databases.shutdown();
-    rmSync(dbData, { recursive: true, force: true });
-  }
-
-  // A workspace on no network, and one on an internal network (what hu-db is).
-  const files = mkdtempSync(path.join(tmpdir(), "hv-files-"));
-  const network = await kit.docker.createNetwork({ Name: kit.name("s2-db"), Internal: true, Labels: kit.labels("db") });
-  try {
-    for (const net of ["none", network.id]) {
-      const label = net === "none" ? "workspace on no network" : "workspace on an internal network";
-      const home = await kit.docker.createVolume({ Name: kit.name("s2-home"), Labels: kit.labels("workspace") });
-      const options = standardProfile({
-        name: kit.name("s2-ws"),
-        image: kit.images.tag("node"),
-        labels: kit.labels("workspace"),
-        env: [],
-        filesDir: files,
-        homeVolume: home.name,
-        limits: WORKSPACE_LIMITS.typescript,
-      });
-      options.HostConfig.NetworkMode = net;
-      await kit.withContainer(options, async (c) => verdicts(label, (await execText(c, ["bash", "-c", script])).stdout));
-    }
-  } finally {
-    rmSync(files, { recursive: true, force: true });
-  }
 }
 
 // ---------------------------------------------------------------- S4
@@ -312,33 +203,9 @@ async function S4(kit) {
   const size = Number(yes.run.stdout.trim().split("\n").at(-1));
   check("yes > f in a job stops at 64 MiB (the file size limit and the tmpfs are both 64 MiB)", size > 0 && size <= 64 * 1024 * 1024 && yes.run.status !== "TO", `${size} bytes, ${yes.run.stdout.split("\n")[0]}`);
 
-  const files = mkdtempSync(path.join(tmpdir(), "hv-files-"));
-  const home = await kit.docker.createVolume({ Name: kit.name("s4-home"), Labels: kit.labels("workspace") });
-  try {
-    await kit.withContainer(
-      standardProfile({
-        name: kit.name("s4-ws"),
-        image: kit.images.tag("node"),
-        labels: kit.labels("workspace"),
-        env: [],
-        filesDir: files,
-        homeVolume: home.name,
-        limits: WORKSPACE_LIMITS.typescript,
-      }),
-      async (c) => {
-        const out = await execText(c, ["bash", "-c", "yes > /workspace/f; echo $?"], { timeoutMs: 120_000 });
-        const written = statSync(path.join(files, "f")).size;
-        check("yes > f in a workspace stops at exactly its 512 MiB file size limit (SIGXFSZ)", out.stdout.trim() === "153" && written === 512 * 1024 * 1024, `exit ${out.stdout.trim()}, ${written} bytes`);
-      }
-    );
-  } finally {
-    rmSync(files, { recursive: true, force: true });
-  }
-
   const started = Date.now();
   const flood = await kit.run({ recipe: "bash", files: [{ name: "main.sh", content: "yes\n" }] });
   check("a flood of output stops at once, at 1 MB", flood.run.status === "OL" && Date.now() - started < 3000, `${flood.run.status} after ${Date.now() - started} ms`);
-  note("Ctrl+C in a terminal during yes waits for P1's terminals. Its job counterpart is the flood above");
 
   const after = await kit.run({ recipe: "bash", files: [{ name: "main.sh", content: "echo fine\n" }] });
   check("the sandbox recovers: the next job runs normally", after.run.stdout === "fine\n" && after.run.code === 0);
@@ -367,12 +234,11 @@ function hello(ws, ticket) {
 
 async function S9() {
   // Tickets name a workspace (and a terminal) that exists, so this runner
-  // opens one from the runner's test content, and starts it for a terminal.
+  // opens the playground from the runner's test content, with a terminal.
   const runner = startRunner(PORT, {
     HU_TICKET_TTL_MS: "400",
     HU_WS_HELLO_MS: "500",
     HU_CONTENT_DIR: path.join(import.meta.dirname, "..", "runner", "test-fixtures", "content"),
-    HU_WS_PORTS: WS_PORTS,
   });
   try {
     await runner.ready();
@@ -385,12 +251,12 @@ async function S9() {
     check("the token and the right Host get in", (await runner.request("GET", "/v1/health")).status === 200);
 
     check("a WebSocket from a foreign Origin is refused", (await socket(PORT, { origin: "http://evil.example" })).refused === 403);
-    check("a WebSocket from a preview's Origin is refused", (await socket(PORT, { origin: "http://localhost:23017" })).refused === 403);
+    check("a WebSocket from a page on another localhost port (a dev server) is refused", (await socket(PORT, { origin: "http://localhost:23017" })).refused === 403);
     check("a WebSocket with a foreign Host is refused", (await socket(PORT, { host: `evil.example:${PORT}` })).refused === 403);
 
-    const scope = "playground/typescript";
+    const scope = "playground";
     const id = workspaceId(scope);
-    const opened = await runner.request("PUT", `/v1/workspaces/${id}`, { body: { scope, template: "typescript/playground", layers: ["base"] } });
+    const opened = await runner.request("PUT", `/v1/workspaces/${id}`, { body: { scope, template: "playground/blank", layers: ["base"], storage: "host", shell: "host" } });
     check("a workspace opens", opened.status === 200, `${opened.status} ${JSON.stringify(opened.json).slice(0, 200)}`);
     const issue = async (body) => (await runner.request("POST", "/v1/tickets", { body })).json.ticket;
     check("no ticket for a workspace that isn't open", (await runner.request("POST", "/v1/tickets", { body: { workspace: "wk3j6q2m7xa", kind: "events" } })).status === 404);
@@ -475,7 +341,6 @@ async function S14(kit) {
       exit === 1 && answer.status === 200 && answer.json?.run?.stdout === "finished\n",
       `exit ${exit}, ${answer.status} ${JSON.stringify(answer.json?.run ?? answer.json)}`
     );
-    note("a workspace start (P1) and ck_ and run_ databases (P2) join this test when they exist");
   } finally {
     await runner.stop();
     rmSync(dataDir, { recursive: true, force: true });
@@ -496,7 +361,7 @@ async function S16() {
     headers: { origin: "http://localhost:23017", "access-control-request-method": "POST", "access-control-request-headers": "content-type" },
   });
   const grant = preflight.headers.get("access-control-allow-origin");
-  check("a preflight from a preview's origin gets no CORS grant", !grant, `Access-Control-Allow-Origin: ${grant}`);
+  check("a preflight from a page on another localhost port gets no CORS grant", !grant, `Access-Control-Allow-Origin: ${grant}`);
   const plain = await fetch(`${PISTON}/execute`, {
     method: "POST",
     headers: { "content-type": "text/plain", origin: "http://localhost:23017" },
@@ -505,99 +370,12 @@ async function S16() {
   check("a text/plain execute request gets 415, so a page can't run code with a simple request", plain.status === 415, `status ${plain.status}`);
 }
 
-// ---------------------------------------------------------------- S8
-
-/** Every statement the runner may send into hu-postgres: its fixed templates, filled with names and passwords, and its own catalog reads. */
-function allowedSql() {
-  const dir = path.join(import.meta.dirname, "..", "runner", "db", "sql");
-  const escape = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = (text) =>
-    new RegExp(`^${escape(text).replace(/\\\{\\\{password\\\}\\\}/g, "[0-9a-f]{32}").replace(/\\\{\\\{\w+\\\}\\\}/g, "[a-z0-9_]+")}$`);
-  const sql = readdirSync(dir).filter((f) => f.endsWith(".sql")).map((f) => pattern(readFileSync(path.join(dir, f), "utf8")));
-  return [
-    ...sql,
-    /^SELECT datname, datistemplate FROM pg_database;$/,
-    /^SELECT rolname FROM pg_roles;$/,
-    /^SELECT datname FROM pg_database WHERE datdba = \(SELECT oid FROM pg_roles WHERE rolname = '[a-z0-9_]+'\);$/,
-    /^SELECT datname, pg_database_size\(datname\) FROM pg_database WHERE datname IN \('[a-z0-9_]+'(, '[a-z0-9_]+')*\);$/,
-  ];
-}
-
-async function S8(kit) {
-  // Servers of its own, named after a port no runner uses, in a data folder of its own.
-  const owner = { ns: "verify", boot: kit.owner.boot, port: await freePort(PORT + 1) };
-  const dataDir = mkdtempSync(path.join(tmpdir(), "hv-s8-"));
-  const db = new Databases({ docker: kit.docker, owner, dataDir, log: quietLog, env: {} });
-  // A trace of every docker exec into hu-postgres and every statement sent to it.
-  const execs = [];
-  const sent = [];
-  const pg = db.services.pg;
-  const container = pg.container;
-  const exec = container.exec.bind(container);
-  container.exec = (options) => (execs.push(options.Cmd), exec(options));
-  for (const method of ["run", "script"]) {
-    const original = pg[method].bind(pg);
-    pg[method] = (sql, ...rest) => (sent.push(sql), original(sql, ...rest));
-  }
-  try {
-    const spec = {
-      postgres: { sql: [{ name: "db/schema.sql", text: "CREATE TABLE notes (id int);\nINSERT INTO notes VALUES (1);" }] },
-      mongo: { documents: JSON.stringify({ notes: [{ n: 1 }] }) },
-    };
-    const env = (await db.attach("wsecurityaa", { course: "security", template: "s8" }, spec)).env;
-    await db.attach("wsecuritybb", { course: "security", template: "s8" }, spec);
-    const url = new URL(env.find((e) => e.startsWith("DATABASE_URL=")).slice("DATABASE_URL=".length));
-    const conn = { role: url.username, password: url.password, database: url.pathname.slice(1) };
-    const asLearner = async (sql, database = conn.database) => {
-      const r = await db.clients.run("ws:wsecurityaa", ["psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-f", "-"], { env: pgEnv({ ...conn, database }), stdin: sql, timeoutMs: 20_000 });
-      return r.stderr.toString();
-    };
-    const refused = [
-      ["run COPY … TO PROGRAM", "COPY (SELECT 1) TO PROGRAM 'id';", /permission denied to COPY to or from an external program/],
-      ["create the dblink extension", "CREATE EXTENSION dblink;", /permission denied to create extension "dblink"/],
-      ["call pg_read_file", "SELECT pg_read_file('/etc/passwd');", /permission denied for function pg_read_file/],
-      ["use ALTER SYSTEM", "ALTER SYSTEM SET work_mem = '1GB';", /permission denied to set parameter/],
-      ["raise temp_file_limit", "SET temp_file_limit = '10GB';", /permission denied to set parameter "temp_file_limit"/],
-      ["write a function in an untrusted language", "CREATE FUNCTION f() RETURNS int LANGUAGE c AS '/lib/x', 'f';", /permission denied for language c/],
-    ];
-    for (const [what, sql, expected] of refused) {
-      const err = await asLearner(sql);
-      check(`a learner role can't ${what}`, expected.test(err), err.trim().split("\n")[0]);
-    }
-    const other = await asLearner("SELECT 1;", "ws_wsecuritybb");
-    check("a learner role can't log in to another workspace's database", /permission denied for database "ws_wsecuritybb"/.test(other), other.trim());
-    const maintenance = await asLearner("SELECT 1;", "postgres");
-    check("…or to the postgres database", /permission denied for database "postgres"/.test(maintenance), maintenance.trim());
-    const where = await db.query("wsecurityaa", { collection: "notes", filter: { $where: "true" } });
-    check("Mongo $where fails (no server-side JavaScript)", Boolean(where.error), JSON.stringify(where.error));
-    const own = await db.query("wsecurityaa", { collection: "notes", filter: { n: 1 } });
-    check("…while an ordinary filter works", own.rows?.length === 1, JSON.stringify(own));
-
-    // Exactly what reached hu-postgres.
-    const commands = execs.map((c) => c.join(" "));
-    check(
-      "every docker exec into hu-postgres is the runner's own psql or pg_isready",
-      commands.length > 0 && commands.every((c) => c.startsWith("psql -U postgres -d ") || c.startsWith("pg_isready ")),
-      commands.filter((c) => !c.startsWith("psql -U postgres -d ") && !c.startsWith("pg_isready ")).join("; ")
-    );
-    const allowed = allowedSql();
-    const foreign = sent.filter((sql) => !allowed.some((re) => re.test(sql)));
-    check(`every statement sent into hu-postgres is template SQL (${sent.length} sent)`, foreign.length === 0, foreign.slice(0, 3).join(" | "));
-    const statementsSent = sent.map((sql) => sql.replace(/^--.*$/gm, ""));
-    check("no learner or template text ever reached it", !statementsSent.some((sql) => /CREATE TABLE notes|INSERT INTO notes|dblink|pg_read_file|TO PROGRAM/.test(sql)));
-  } finally {
-    await db.shutdown();
-    rmSync(dataDir, { recursive: true, force: true });
-  }
-}
-
 // ---------------------------------------------------------------- run
 
 const TESTS = [
   ["S1", "Hardening", S1],
   ["S2", "Egress", S2],
   ["S4", "Limits", S4],
-  ["S8", "Databases", S8],
   ["S9", "Runner auth", S9],
   ["S14", "Cleanup", S14],
   ["S16", "Piston", S16],

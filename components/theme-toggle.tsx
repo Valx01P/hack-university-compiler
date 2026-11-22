@@ -733,7 +733,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
             <div className="border-t border-edge sm:grid sm:grid-cols-2 sm:divide-x sm:divide-edge">
               <div>
                 {/* The terminal's own colors, background, and text size (every
-                    terminal, the IDE's too). */}
+                    terminal, the playground's too). */}
                 <div className="flex items-center gap-2.5 px-3 pb-2 pt-2.5">
                   <label htmlFor="theme-term-colors" className="flex flex-1 items-center gap-2.5 whitespace-nowrap text-sm text-ink-muted">
                     <svg viewBox="0 0 24 24" className="size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -860,7 +860,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean } = {}) {
                   onChange={(id) => setFont(() => codeFont.set(id as CodeFont))}
                 />
                 <div role="separator" className="my-1 h-px bg-edge" />
-                {/* The Explorer's (the compiler's and the IDE's). */}
+                {/* The Explorer's (the compiler's and the playground's). */}
                 <div role="group" aria-label="Explorer background" className="px-3 pb-2.5 pt-1.5">
                   <p className="flex items-center gap-2.5 text-sm text-ink-muted">
                     <svg viewBox="0 0 24 24" className="size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>

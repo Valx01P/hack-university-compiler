@@ -1,15 +1,14 @@
-// An in-memory stand-in for hu-runner's workspace routes (architecture §3.2
-// and §3.3), for the IDE's tests and for working on the IDE before the
-// runner's own routes exist. It lives only here: the app never ships it.
+// An in-memory stand-in for hu-runner's folder routes (architecture §3.2 and
+// §3.3), for the tests of the routes the compiler and the playground use, and
+// for working on the playground in a browser without the runner. It lives
+// only here: the app never ships it.
 //
-// It keeps each workspace's files in memory, materialized from the same
-// content layers the runner copies, and speaks the same REST routes and
-// WebSockets: tickets, the events socket (status, fs, port, task, check), and
-// terminal sockets with replay. Terminals run a tiny pretend shell written
-// here (ls, cd, cat, echo, touch, mkdir, rm, mv, pwd, clear), never anything
-// on this machine. A task named dev serves a fixed page on a port from the
-// workspace range, so the Ports panel, the preview, and the API panel have
-// something real to talk to. Nothing a learner types ever runs.
+// It keeps each folder's files in memory, materialized from the same content
+// layers the runner copies, and speaks the same REST routes and WebSockets:
+// tickets, the events socket (status, fs, terminal), and terminal sockets
+// with replay. Terminals run a tiny pretend shell written here (ls, cd, cat,
+// echo, touch, mkdir, rm, mv, pwd, clear), never anything on this machine.
+// Nothing a learner types ever runs.
 
 import { createHash, randomBytes } from "node:crypto";
 import { createRequire } from "node:module";
@@ -62,13 +61,10 @@ function materialize(course, template, layers) {
   return files;
 }
 
-/** Starts a fake runner. Options: port (0 picks one), token, appPort, portRange [from, to]. */
-export async function startFakeRunner({ port = 0, token = "fake-token", appPort = 3000, portRange = null } = {}) {
+/** Starts a fake runner. Options: port (0 picks one), token, appPort. */
+export async function startFakeRunner({ port = 0, token = "fake-token", appPort = 3000 } = {}) {
   const workspaces = new Map();
   const tickets = new Map();
-  const checks = new Map();
-  // Dev servers take ports from the range, or any free one without a range.
-  let nextPort = portRange ? portRange[0] : 0;
 
   const sendJson = (res, status, body, headers = {}) => {
     const text = body === undefined ? "" : JSON.stringify(body);
@@ -100,7 +96,7 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
         state,
       });
     }
-    // Files of the starting point that are gone (folders roll up in the IDE).
+    // Files of the starting point that are gone (folders roll up in the Explorer).
     const removed = [...ws.manifest.entries()].filter(([p, m]) => m.sha !== null && !ws.files.has(p)).map(([p]) => p);
     return { tree, removed };
   }
@@ -114,16 +110,6 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
     emit(ws, { t: "fs", seq: ws.seq, events });
   }
   const meta = (f) => ({ type: f.type, ...(f.type === "file" ? { size: f.data.length } : {}), mtimeMs: f.mtimeMs, mode: f.mode });
-
-  function setStatus(ws, status) {
-    ws.status = status;
-    emit(ws, { t: "status", status, mem: { usedMb: status === "running" ? 96 : 0, limitMb: 1024 } });
-  }
-  function start(ws) {
-    if (ws.status === "running") return;
-    setStatus(ws, "starting");
-    setStatus(ws, "running");
-  }
 
   function writeFile(ws, p, data, mode) {
     const had = ws.files.get(p);
@@ -221,12 +207,10 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
     term.prompt();
   }
 
-  function newTerminal(ws, kind = "shell", task = null) {
+  function newTerminal(ws) {
     const sid = `s${randomBytes(6).toString("hex")}`;
     const term = {
       sid,
-      kind,
-      task,
       cwd: "",
       scroll: "",
       line: "",
@@ -240,7 +224,6 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
         term.write(`\x1b[1;32mlearner@workspace\x1b[0m:\x1b[1;34m/workspace${term.cwd ? `/${term.cwd}` : ""}\x1b[0m$ `);
       },
       input(data) {
-        if (kind !== "shell") return;
         for (const ch of data) {
           if (ch === "\r") {
             term.write("\r\n");
@@ -264,67 +247,13 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
       },
     };
     ws.terminals.set(sid, term);
-    if (kind === "shell") term.prompt();
+    term.prompt();
     return term;
-  }
-
-  function startTask(ws, name) {
-    const existing = ws.tasks.get(name);
-    if (existing?.state === "running") return existing;
-    const term = existing?.term ?? newTerminal(ws, "task", name);
-    const task = { name, state: "starting", term, server: null, port: null };
-    ws.tasks.set(name, task);
-    start(ws);
-    emit(ws, { t: "task", name, state: "starting", code: null, signal: null });
-    term.write(`\x1b[2m$ ${ws.body.tasks?.[name] ?? name}\x1b[0m\r\n`);
-    if (name === "dev") {
-      const wanted = nextPort;
-      if (portRange) nextPort = nextPort >= portRange[1] ? portRange[0] : nextPort + 1;
-      task.server = http.createServer((req, res) => {
-        if (req.url?.startsWith("/api/")) {
-          res.writeHead(200, { "Content-Type": "application/json", "Set-Cookie": "fake_session=1; Path=/; HttpOnly" });
-          res.end(JSON.stringify({ ok: true, path: req.url, method: req.method }));
-          return;
-        }
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end("<!doctype html><title>fake dev server</title><h1>Hello from the fake dev server</h1>");
-      });
-      task.server.listen(wanted, "127.0.0.1", () => {
-        const p = task.server.address().port;
-        task.port = p;
-        task.state = "running";
-        term.write(`Listening on http://localhost:${p}\r\n`);
-        ws.ports.set(p, { port: p, url: `http://localhost:${p}`, state: "listening", bind: "0.0.0.0", process: "node", framable: true });
-        emit(ws, { t: "task", name, state: "running", code: null, signal: null });
-        emit(ws, { t: "port", ...ws.ports.get(p) });
-      });
-    } else {
-      task.state = "running";
-      emit(ws, { t: "task", name, state: "running", code: null, signal: null });
-      setTimeout(() => {
-        term.write("Hello, TypeScript!\r\n");
-        task.state = "exited";
-        emit(ws, { t: "task", name, state: "exited", code: 0, signal: null });
-      }, 50);
-    }
-    return task;
-  }
-  function stopTask(ws, name) {
-    const task = ws.tasks.get(name);
-    if (!task) return;
-    task.server?.close();
-    if (task.port) {
-      ws.ports.delete(task.port);
-      emit(ws, { t: "port", port: task.port, url: `http://localhost:${task.port}`, state: "closed" });
-    }
-    task.state = "exited";
-    task.term.write("\r\n\x1b[2m[stopped]\x1b[0m\r\n");
-    emit(ws, { t: "task", name, state: "exited", code: null, signal: "SIGTERM" });
   }
 
   function reset(ws, scope, p) {
     const original = materialize(ws.course, ws.template, ws.body.layers);
-    const inScope = (k) => scope === "all" || scope === "everything" || k === p || (scope === "dir" && k.startsWith(`${p}/`));
+    const inScope = (k) => k === p || (scope === "dir" && k.startsWith(`${p}/`));
     const events = [];
     for (const k of [...ws.files.keys()]) {
       if (inScope(k) && !original.has(k)) {
@@ -363,16 +292,12 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
       if (req.headers.authorization !== `Bearer ${token}`) return error(res, 401, "unauthorized", "No token.");
       const url = new URL(req.url, "http://x");
       const parts = url.pathname.split("/").filter(Boolean);
-      if (url.pathname === "/v1/health") return sendJson(res, 200, { docker: { state: "ready" }, images: {}, recipes: {}, workspaces: { running: 0 } });
+      if (url.pathname === "/v1/health") return sendJson(res, 200, { docker: { state: "ready" }, recipes: {} });
       if (url.pathname === "/v1/tickets" && req.method === "POST") {
         const body = JSON.parse((await readBody(req)).toString());
         const ticket = randomBytes(32).toString("base64url");
         tickets.set(ticket, { ...body, expiresAt: now() + 30_000 });
         return sendJson(res, 200, { ticket, expiresAt: now() + 30_000 });
-      }
-      if (parts[0] === "v1" && parts[1] === "checks" && parts[2]) {
-        const result = checks.get(parts[2]);
-        return result ? sendJson(res, 200, result) : error(res, 404, "not_found", "No such check.");
       }
       if (parts[0] !== "v1" || parts[1] !== "workspaces" || !/^w[a-z2-7]{10}$/.test(parts[2] ?? "")) return error(res, 404, "not_found", "No such route.");
       const id = parts[2];
@@ -395,27 +320,18 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
             log: [],
             events: new Set(),
             terminals: new Map(),
-            tasks: new Map(),
-            ports: new Map(),
-            snapshots: [],
             trash: new Map(),
           };
           workspaces.set(id, ws);
         }
         const tree = treeOf(ws);
-        return sendJson(res, 200, { id, status: ws.status, templateHash: "fake0000hash", created: true, updated: [], ports: {}, tree, removed: tree.removed });
+        return sendJson(res, 200, { id, status: ws.status, templateHash: "fake0000hash", created: true, updated: [], tree, removed: tree.removed });
       }
       const ws = workspaces.get(id);
       if (!ws) return error(res, 404, "not_found", "No such workspace. Open it first.");
       const p = url.searchParams.get("path") ?? "";
       if (req.method === "GET" && !sub) {
-        return sendJson(res, 200, {
-          id,
-          status: ws.status,
-          ports: [...ws.ports.values()],
-          tasks: [...ws.tasks.values()].map((t) => ({ name: t.name, state: t.state, sid: t.term.sid })),
-          terminals: [...ws.terminals.values()].map((t) => ({ sid: t.sid, kind: t.kind === "shell" ? "shell" : "log", task: t.task, exited: false })),
-        });
+        return sendJson(res, 200, { id, status: ws.status, terminals: [...ws.terminals.values()].map((t) => ({ sid: t.sid, kind: "shell", exited: false })) });
       }
       if (req.method === "GET" && sub === "tree") return sendJson(res, 200, treeOf(ws, p, Number(url.searchParams.get("depth") ?? 1)));
       if (req.method === "GET" && (sub === "file" || sub === "original")) {
@@ -486,61 +402,19 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
         const body = JSON.parse((await readBody(req)).toString());
         if (body.dryRun) {
           const original = materialize(ws.course, ws.template, ws.body.layers);
-          const inScope = (k) => body.scope === "all" || body.scope === "everything" || k === body.path || (body.scope === "dir" && k.startsWith(`${body.path}/`));
+          const inScope = (k) => k === body.path || (body.scope === "dir" && k.startsWith(`${body.path}/`));
           const removed = [...ws.files.keys()].filter((k) => inScope(k) && !original.has(k) && ws.files.get(k).type === "file");
           const restored = [...original].filter(([k, f]) => inScope(k) && f.type === "file" && (!ws.files.has(k) || sha(ws.files.get(k).data ?? "") !== sha(f.data))).map(([k]) => k);
           return sendJson(res, 200, { restored, removed });
         }
-        const snapshot = body.scope === "all" || body.scope === "everything" ? `auto${now()}` : null;
-        if (snapshot) ws.snapshots.unshift({ id: snapshot, label: "Before reset", auto: true, createdAt: now(), files: new Map(ws.files) });
         reset(ws, body.scope, body.path);
-        return sendJson(res, 200, { snapshot, restored: [], removed: [] });
-      }
-      if (sub === "snapshots" && req.method === "GET") {
-        return sendJson(res, 200, { snapshots: ws.snapshots.map((s) => ({ id: s.id, label: s.label, auto: s.auto, createdAt: s.createdAt })) });
-      }
-      if (sub === "snapshots" && req.method === "POST") {
-        const body = JSON.parse((await readBody(req)).toString() || "{}");
-        const snap = { id: `sp${now()}`, label: body.label ?? "Save point", auto: false, createdAt: now(), files: new Map([...ws.files].map(([k, f]) => [k, { ...f }])) };
-        ws.snapshots.unshift(snap);
-        return sendJson(res, 200, { id: snap.id, label: snap.label, auto: false, createdAt: snap.createdAt });
-      }
-      const restore = /^snapshots\/([^/]+)\/restore$/.exec(sub);
-      if (restore && req.method === "POST") {
-        const snap = ws.snapshots.find((s) => s.id === restore[1]);
-        if (!snap) return error(res, 404, "not_found", "No such save point.");
-        const events = [];
-        for (const k of [...ws.files.keys()]) if (!snap.files.has(k)) events.push([ws.files.get(k).type === "dir" ? "unlinkDir" : "unlink", k]);
-        for (const [k, f] of snap.files) events.push([ws.files.has(k) ? "change" : f.type === "dir" ? "addDir" : "add", k, meta(f)]);
-        ws.files = new Map([...snap.files].map(([k, f]) => [k, { ...f }]));
-        fsEvent(ws, events);
-        return sendJson(res, 200, {});
-      }
-      if (req.method === "POST" && ["start", "stop", "restart"].includes(sub)) {
-        if (sub === "stop") {
-          for (const name of ws.tasks.keys()) stopTask(ws, name);
-          setStatus(ws, "stopped");
-        } else start(ws);
-        return sendJson(res, 200, { status: ws.status });
+        return sendJson(res, 200, { restored: [], removed: [] });
       }
       if (req.method === "GET" && sub === "terminals") {
-        return sendJson(res, 200, [...ws.terminals.values()].map((t) => ({ sid: t.sid, kind: t.kind === "shell" ? "shell" : "log", task: t.task, exited: false })));
-      }
-      if (req.method === "GET" && sub === "ports") return sendJson(res, 200, [...ws.ports.values()]);
-      if (req.method === "DELETE" && sub === "cookies") {
-        res.writeHead(204);
-        return res.end();
-      }
-      const sig = /^tasks\/([a-z][a-z0-9-]*)\/signal$/.exec(sub);
-      if (sig && req.method === "POST") {
-        const task = ws.tasks.get(sig[1]);
-        if (task?.state === "running") stopTask(ws, sig[1]);
-        res.writeHead(204);
-        return res.end();
+        return sendJson(res, 200, [...ws.terminals.values()].map((t) => ({ sid: t.sid, kind: "shell", exited: false })));
       }
       if (req.method === "POST" && sub === "terminals") {
-        start(ws);
-        if ([...ws.terminals.values()].filter((t) => t.kind === "shell").length >= 4) return error(res, 409, "too_many_terminals", "A workspace has at most 4 terminals.");
+        if (ws.terminals.size >= 4) return error(res, 409, "too_many_terminals", "A workspace has at most 4 terminals.");
         return sendJson(res, 200, { sid: newTerminal(ws).sid });
       }
       const termDel = /^terminals\/([A-Za-z0-9_-]+)$/.exec(sub);
@@ -549,57 +423,6 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
         for (const s of term?.sockets ?? []) s.close(1000, "closed");
         ws.terminals.delete(termDel[1]);
         return sendJson(res, 200, {});
-      }
-      const taskOp = /^tasks\/([a-z][a-z0-9-]*)\/(start|stop|restart)$/.exec(sub);
-      if (taskOp && req.method === "POST") {
-        if (!ws.body.tasks?.[taskOp[1]]) return error(res, 404, "not_found", "No such task.");
-        if (taskOp[2] !== "start") stopTask(ws, taskOp[1]);
-        if (taskOp[2] !== "stop") {
-          const task = startTask(ws, taskOp[1]);
-          return sendJson(res, 200, { sid: task.term.sid });
-        }
-        return sendJson(res, 200, {});
-      }
-      if (req.method === "POST" && sub === "http") {
-        const body = JSON.parse((await readBody(req)).toString());
-        if (!ws.ports.has(body.port)) return error(res, 404, "not_listening", `Nothing is listening on port ${body.port} in this workspace yet.`);
-        const started = now();
-        const answer = await new Promise((resolve, reject) => {
-          const r = http.request({ host: "127.0.0.1", port: body.port, method: body.method, path: body.path, headers: body.headers }, (up) => {
-            const chunks = [];
-            up.on("data", (c) => chunks.push(c));
-            up.on("end", () => resolve({ up, data: Buffer.concat(chunks) }));
-          });
-          r.on("error", reject);
-          if (body.body) r.write(body.body);
-          r.end();
-        });
-        const headers = {};
-        for (const [k, v] of Object.entries(answer.up.headers)) headers[k] = k === "set-cookie" ? v : Array.isArray(v) ? v.join(", ") : String(v);
-        return sendJson(res, 200, {
-          status: answer.up.statusCode,
-          statusText: answer.up.statusMessage,
-          headers,
-          cookies: (answer.up.headers["set-cookie"] ?? []).map((c) => ({ name: c.split("=")[0], value: c.split("=")[1]?.split(";")[0] ?? "", raw: c })),
-          body: answer.data.toString("utf8"),
-          size: answer.data.length,
-          timingMs: now() - started,
-        });
-      }
-      if (req.method === "POST" && sub === "check") {
-        const body = JSON.parse((await readBody(req)).toString());
-        const checkId = `c${randomBytes(4).toString("hex")}`;
-        const tests = [
-          { id: "typecheck", title: "The project type-checks", kind: "cmd", status: "pass", ms: 40 },
-          { id: "tests", title: "The project's own tests pass", kind: "unit", status: "pass", ms: 80 },
-        ];
-        setTimeout(() => {
-          for (const test of tests) emit(ws, { t: "check", checkId, phase: "tests", test });
-          const result = { version: 1, checkId, target: body.target, status: "passed", durationMs: 120, tests, infra: null };
-          checks.set(checkId, result);
-          emit(ws, { t: "check", checkId, phase: "done", result });
-        }, 60);
-        return sendJson(res, 202, { checkId });
       }
       return error(res, 404, "not_found", `No route ${req.method} ${sub}.`);
     } catch (err) {
@@ -638,12 +461,9 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
           ws.events.add(sock);
           sock.on("close", () => ws.events.delete(sock));
           sock.send(JSON.stringify({ t: "ready", workspace: ws.id, seq: ws.seq, resync: false }));
-          sock.send(JSON.stringify({ t: "docker", state: "up" }));
-          sock.send(JSON.stringify({ t: "status", status: ws.status, mem: { usedMb: ws.status === "running" ? 96 : 0, limitMb: 1024 } }));
+          sock.send(JSON.stringify({ t: "status", status: ws.status }));
           const since = Number(hello.since);
           if (Number.isFinite(since)) for (const entry of ws.log) if (entry.seq > since) sock.send(JSON.stringify({ t: "fs", seq: entry.seq, events: entry.events }));
-          for (const p of ws.ports.values()) sock.send(JSON.stringify({ t: "port", ...p }));
-          for (const t of ws.tasks.values()) sock.send(JSON.stringify({ t: "task", name: t.name, state: t.state, code: null, signal: null }));
           sock.on("message", () => {});
           return;
         }
@@ -651,7 +471,7 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
         if (!t) return sock.close(4404, "No such terminal");
         t.sockets.add(sock);
         sock.on("close", () => t.sockets.delete(sock));
-        sock.send(JSON.stringify({ t: "ready", sid: t.sid, cwd: "/workspace", shell: t.kind === "shell" ? "bash" : null, kind: t.kind === "shell" ? "shell" : "log", task: t.task, readonly: t.kind !== "shell" }));
+        sock.send(JSON.stringify({ t: "ready", sid: t.sid, cwd: "/workspace", shell: "bash", kind: "shell", readonly: false }));
         if (t.scroll) sock.send(JSON.stringify({ t: "replay", data: t.scroll }));
         sock.on("message", (msg, isBinary) => {
           if (isBinary) return t.input(msg.toString("utf8"));
@@ -672,7 +492,6 @@ export async function startFakeRunner({ port = 0, token = "fake-token", appPort 
     token,
     workspaces,
     async close() {
-      for (const ws of workspaces.values()) for (const t of ws.tasks.values()) t.server?.close();
       for (const client of wss.clients) client.terminate();
       await new Promise((resolve) => server.close(resolve));
     },

@@ -13,8 +13,7 @@ import { shellPlace } from "./workspaces.ts";
  * computer, in its folder, at the terminal's size, with typing, a resize, and
  * an end that takes its jobs along, and kept in tmux when it's there. They
  * run sh with a temporary home, so no one's own profile is involved, and
- * tmux on a server of the test's own. (Container shells are in
- * workspaces.test.ts.)
+ * tmux on a server of the test's own.
  */
 
 const skip = process.platform === "win32" ? "needs a POSIX shell" : false;
@@ -265,13 +264,18 @@ describe("host shells kept in tmux", { skip: skipTmux }, () => {
 });
 
 describe("where a workspace's terminals run", () => {
-  it("is this computer only for the compiler's own folders, with their files here", () => {
-    assert.equal(shellPlace({ scope: "compiler/java", shell: "host" }), "host");
-    assert.equal(shellPlace({ scope: "compiler/java", shell: "host", storage: "host" }), "host");
-    assert.equal(shellPlace({ scope: "compiler/java", shell: "host", storage: "volume" }), "container");
-    assert.equal(shellPlace({ scope: "compiler/java" }), "container");
+  it("is this computer for the compiler's own folders and the playground, with their files here", () => {
+    for (const scope of ["compiler/java", "playground"]) {
+      assert.equal(shellPlace({ scope, shell: "host" }), "host", scope);
+      assert.equal(shellPlace({ scope, shell: "host", storage: "host" }), "host", scope);
+      assert.equal(shellPlace({ scope, shell: "host", storage: "volume" }), "none", scope);
+      assert.equal(shellPlace({ scope }), "none", scope);
+    }
+  });
+
+  it("is nowhere for anything else, the retired scopes included", () => {
     for (const scope of ["playground/typescript", "sandbox/go-api/taskboard-api", "challenge/typescript/x", "learn/express/a/1/practice", "nonsense"]) {
-      assert.equal(shellPlace({ scope, shell: "host" }), "container", scope);
+      assert.equal(shellPlace({ scope, shell: "host" }), "none", scope);
     }
   });
 });

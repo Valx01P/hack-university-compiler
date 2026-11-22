@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// The pages that were there before the IDE still work: a Piston run, a
-// runner run, a Learn check, the cheatsheet's search, and the compiler's
-// Open playground link to the new playground.
+// The pages around the playground still work: a Piston run, a runner run, a
+// Learn check, the cheatsheet's search, the rail's Playground icon from a
+// compiler, and an old course playground's address leading to it.
 //
 // Usage: node tests/ide/e2e-existing.mjs <app url>
 import { createRequire } from "node:module";
@@ -36,11 +36,16 @@ await step("the cheatsheet opens and searches", async () => {
   const text = await page.locator("main").innerText();
   if (!/sort/i.test(text)) throw new Error("no results mention sort");
 });
-await step("Open playground leads from /typescript to its playground", async () => {
+await step("the rail's Playground icon leads from /typescript to the playground", async () => {
   await page.goto(`${base}/typescript`, { waitUntil: "networkidle" });
-  await page.getByRole("link", { name: /Open playground/ }).click();
-  await page.waitForURL(/\/typescript\/playground$/);
-  await page.locator("[role=treeitem][data-path='src/main.ts']").waitFor({ timeout: 10000 });
+  if (await page.getByRole("link", { name: /Open playground/ }).count()) throw new Error("the compiler still has Open playground");
+  await page.getByRole("navigation", { name: "Courses" }).getByRole("link", { name: "Playground" }).click();
+  await page.waitForURL(/\/playground$/);
+  await page.locator("[role=treeitem][data-path='README.md']").waitFor({ timeout: 10000 });
+});
+await step("an old course playground's address opens the playground", async () => {
+  await page.goto(`${base}/typescript/playground/2`, { waitUntil: "domcontentloaded" });
+  await page.waitForURL(/\/playground$/);
 });
 console.log("page errors:", errors);
 await browser.close();

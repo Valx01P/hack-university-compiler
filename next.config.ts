@@ -4,9 +4,9 @@ import path from "path";
 
 const isProd = process.env.NODE_ENV === "production";
 
-// The local runner (hu-runner) that TypeScript, Bash, and the IDE's
-// terminals talk to. The browser opens WebSockets to it directly, always at
-// 127.0.0.1 so the localhost cookies lesson previews set never ride along.
+// The local runner (hu-runner) that TypeScript, Bash, and the terminals talk
+// to. The browser opens WebSockets to it directly, always at 127.0.0.1 so
+// the localhost cookies a learner's own dev server sets never ride along.
 // Its port is fixed when the app builds, since the CSP below names it.
 const RUNNER_PORT = /^\d{1,5}$/.test(process.env.HU_RUNNER_PORT ?? "") ? process.env.HU_RUNNER_PORT : "3100";
 
@@ -33,9 +33,9 @@ const csp = [
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
   `connect-src 'self' ws://127.0.0.1:${RUNNER_PORT} ws://localhost:${RUNNER_PORT}${isProd ? "" : " ws:"}`,
-  // The IDE's preview frames a workspace's server on its own localhost port
-  // (another origin, the same site, architecture §11.4).
-  "frame-src 'self' http://localhost:* http://127.0.0.1:*",
+  // Nothing is framed: a server you start in the playground's terminal opens
+  // in a tab of its own.
+  "frame-src 'none'",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -50,8 +50,13 @@ const nextConfig: NextConfig = {
   // app/api/lang/route.ts), and this redirect reads it, so it costs nothing
   // more than the plain redirect. Without it (or with anything else in it),
   // Python.
+  //
+  // Each course had its own playground once (/<course>/playground, and
+  // /<course>/playground/<slot>): those addresses open the one playground.
   async redirects() {
     return [
+      { source: "/:lang/playground", destination: "/playground", permanent: false },
+      { source: "/:lang/playground/:slot", destination: "/playground", permanent: false },
       {
         source: "/",
         has: [{ type: "cookie", key: "hu-lang", value: `(?<lang>${COMPILER_SLUGS.join("|")})` }],

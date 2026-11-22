@@ -1,15 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { InlineScript } from "@/components/inline-script";
 import type { PartLink } from "@/components/learn/part-frame";
 import { PartView } from "@/components/learn/part-view";
 import { ReadPartView } from "@/components/learn/read-part-view";
-import { WorkspacePartView } from "@/components/learn/workspace-part";
-import { workspacePartData } from "@/lib/learn-workspace";
-import { IDE_GATE } from "@/lib/playgrounds";
 import { getCompilerLang } from "@/lib/compiler";
 import { getCourseEntry, isCompilerCourse } from "@/lib/courses";
-import { codebaseHref, getAllPartParams, getLesson, getLessonOrder } from "@/lib/learn";
+import { getAllPartParams, getLesson, getLessonOrder, getPartDiagrams } from "@/lib/learn";
 import { getFixtureSet, type FixtureFile } from "@/lib/learn-fixtures";
 import { partHref, singleFileFeatures, type Lesson } from "@/lib/learn-types";
 
@@ -95,40 +91,12 @@ export default async function PartPage(props: PageProps<"/[lang]/learn/[lesson]/
         position={{ index, total: order.length }}
         prev={prev}
         next={next}
-        ide={await codebaseHref(course.slug, lesson.steps[part].codebase)}
+        diagrams={await getPartDiagrams(course.slug, lesson, part)}
       />
     );
   }
   // load found the compiler for every other kind of lesson.
   if (!lang) notFound();
-
-  // A part in the workspace format shows the IDE where the editor was.
-  const format = lesson.steps[part].format ?? lesson.format ?? "single";
-  if (format === "workspace") {
-    const data = await workspacePartData(lang.slug, lesson, part);
-    return (
-      <>
-        <InlineScript html={IDE_GATE("data-restore-editor")} />
-        <WorkspacePartView
-          key={`${lesson.id}/${part}`}
-          lang={lang}
-          lesson={{ id: lesson.id, title: lesson.title, section: lesson.section, intro: lesson.intro, recap: lesson.recap }}
-          parts={lesson.steps.map((s) => s.title)}
-          part={part}
-          step={{ title: lesson.steps[part].title, body: lesson.steps[part].body }}
-          data={data}
-          position={{ index, total: order.length }}
-          prev={prev}
-          next={next}
-          carryFrom={
-            part > 0 && (lesson.steps[part - 1].format ?? lesson.format) === "workspace"
-              ? { scope: `learn/${lang.slug}/${lesson.id}/${part}/practice`, part }
-              : null
-          }
-        />
-      </>
-    );
-  }
 
   const fixtures = await partFixtures(lang.slug, lesson, part);
 

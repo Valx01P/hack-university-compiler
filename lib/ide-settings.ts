@@ -3,8 +3,8 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * The IDE's own settings (architecture §8.6), in the editor gear and stored
- * like the editor's: Auto save (on, after 1 second idle, decision D1),
+ * The playground's own settings (architecture §8.6), in its editor gear and
+ * stored like the editor's: Auto save (on, after 1 second idle, decision D1),
  * Option as Meta in the terminal (on, so Alt+B and Alt+F move by word),
  * Terminal screen reader mode (off), and Show hidden files (off: .git and
  * the template's hidden paths stay out of the explorer).

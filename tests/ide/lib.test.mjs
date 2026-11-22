@@ -1,73 +1,19 @@
-// The IDE's small libraries: .http files, quick open's fuzzy match, names
-// and modes, Material icon lookups, file languages, and the starting trees.
+// The folders' small libraries: quick open's fuzzy match, names and modes,
+// Material icon lookups, file languages, the starting trees, and scopes.
 //
 //   node --import ./tests/ide/register.mjs --test tests/ide/lib.test.mjs
 
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
-import { asCurl, parseHttpFile, resolveVariables, targetOf } from "../../lib/http-file.ts";
 import { fuzzyScore } from "../../lib/fuzzy.ts";
 import { formatBytes, modeString, nameProblem } from "../../lib/ide-names.ts";
 import { fileIconClass, folderIconClass } from "../../lib/file-icons.ts";
 import { fileLanguage } from "../../lib/workspace-types.ts";
 import { checkpointLayers, layerTree, sortedEntries, treeHash } from "../../lib/workspace-layers.mjs";
-import { parseScope, scopeForRoute, workspaceId } from "../../lib/workspace-id.mjs";
+import { isScope, parseScope, workspaceId } from "../../lib/workspace-id.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
-
-const HTTP = `@host = http://localhost:{{$dotenv PORT}}
-@user = ada@example.com
-
-### Log in
-# @name login
-POST {{host}}/v1/auth/login HTTP/1.1
-Content-Type: application/json
-
-{"email": "{{user}}", "password": "correct horse battery staple"}
-
-### Who am I
-GET {{host}}/v1/me
-Authorization: Bearer {{login.response.body.$.token}}
-
-###
-/healthz
-`;
-
-test(".http files: variables, names, requests, headers, and bodies", () => {
-  const { variables, requests } = parseHttpFile(HTTP);
-  assert.equal(variables.host, "http://localhost:{{$dotenv PORT}}");
-  assert.equal(requests.length, 3);
-  assert.deepEqual(
-    requests.map((r) => [r.title, r.name, r.method, r.url, r.line]),
-    [
-      ["Log in", "login", "POST", "{{host}}/v1/auth/login", 6],
-      ["Who am I", null, "GET", "{{host}}/v1/me", 12],
-      ["GET /healthz", null, "GET", "/healthz", 16],
-    ]
-  );
-  assert.deepEqual(requests[0].headers, [["Content-Type", "application/json"]]);
-  assert.match(requests[0].body, /correct horse battery staple/);
-});
-
-test(".http files: values from the port, the file, and earlier responses", () => {
-  const { variables, requests } = parseHttpFile(HTTP);
-  const login = { status: 200, headers: { Location: "/v1/me" }, body: JSON.stringify({ token: "t0k", user: { id: 1 } }) };
-  const url = resolveVariables(requests[1].url, variables, { login }, 24100);
-  assert.equal(url, "http://localhost:24100/v1/me");
-  assert.equal(resolveVariables(requests[1].headers[0][1], variables, { login }, 24100), "Bearer t0k");
-  assert.equal(resolveVariables("{{login.response.body.$.user.id}} {{login.response.headers.location}}", {}, { login }, null), "1 /v1/me");
-  assert.equal(resolveVariables("{{missing}}", {}, {}, null), "{{missing}}");
-  assert.deepEqual(targetOf(url, null), { port: 24100, path: "/v1/me" });
-  assert.deepEqual(targetOf("v1/me?x=1", 24101), { port: 24101, path: "/v1/me?x=1" });
-});
-
-test("copy as curl quotes for a shell", () => {
-  assert.equal(
-    asCurl("POST", "http://localhost:24100/x", { "Content-Type": "application/json" }, `{"a":"it's"}`),
-    `curl -i -X POST -H 'Content-Type: application/json' --data-raw '{"a":"it'\\''s"}' 'http://localhost:24100/x'`
-  );
-});
 
 test("quick open matches letters in order, names and starts first", () => {
   assert.equal(fuzzyScore("src/main.ts", "xyz"), -1);
@@ -125,22 +71,24 @@ test("file languages for the editor and the tokenizer", () => {
   for (const [file, language] of Object.entries(cases)) assert.equal(fileLanguage(file), language, file);
 });
 
-test("the playground's starting tree: every file with its hash, folders first", () => {
-  const layers = checkpointLayers(ROOT, "typescript", "playground", null);
+test("the playground's starting tree: every file with its hash, the notes hidden in it", () => {
+  const layers = checkpointLayers(ROOT, "playground", "blank", null);
   assert.deepEqual(layers, ["base"]);
-  const tree = layerTree(ROOT, "typescript", "playground", layers);
+  const tree = layerTree(ROOT, "playground", "blank", layers);
   const entries = sortedEntries(tree);
-  assert.equal(entries[0].path, "data");
-  assert.ok(entries.some((e) => e.path === "src/main.ts" && e.type === "file" && /^[0-9a-f]{64}$/.test(e.sha256)));
+  assert.deepEqual(entries.map((e) => e.path).sort(), ["AGENTS.md", "CLAUDE.md", "README.md"]);
+  assert.ok(entries.every((e) => e.type === "file" && /^[0-9a-f]{64}$/.test(e.sha256)));
   assert.match(treeHash(tree), /^[0-9a-f]{12}$/);
-  assert.equal(treeHash(tree), treeHash(layerTree(ROOT, "typescript", "playground", layers)));
+  assert.equal(treeHash(tree), treeHash(layerTree(ROOT, "playground", "blank", layers)));
 });
 
-test("scopes: routes map to workspaces with the shared module", () => {
-  assert.equal(scopeForRoute("/typescript/playground"), "playground/typescript");
-  assert.equal(scopeForRoute("/typescript/playground/2"), "playground/typescript/2");
-  assert.equal(scopeForRoute("/typescript/playground/orders-service"), "sandbox/typescript/orders-service");
-  assert.equal(scopeForRoute("/typescript/learn/modules/2", { tab: "code" }), "learn/typescript/modules/2/practice");
-  assert.deepEqual(parseScope("playground/typescript"), { kind: "playground", course: "typescript" });
-  assert.match(workspaceId("playground/typescript"), /^w[a-z2-7]{10}$/);
+test("scopes: a compiler's own folder and the one playground, nothing else", () => {
+  assert.deepEqual(parseScope("playground"), { kind: "playground", course: "playground" });
+  assert.deepEqual(parseScope("compiler/python"), { kind: "compiler", course: "python" });
+  for (const old of ["playground/typescript", "playground/typescript/2", "sandbox/typescript/orders-service", "learn/typescript/modules/2/practice", "challenge/python/two-sum", "compiler/Python", ""]) {
+    assert.equal(isScope(old), false, old);
+  }
+  // The compilers' folders keep their ids (and their tmux sessions, hu-<id>).
+  assert.equal(workspaceId("compiler/python"), "wxkudhw5lug");
+  assert.match(workspaceId("playground"), /^w[a-z2-7]{10}$/);
 });

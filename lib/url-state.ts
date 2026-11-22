@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Small pieces of page state kept in the address, so a reload (or a copied
  * link) comes back to the same place. Written with history.replaceState, so
@@ -10,24 +8,28 @@
  * - Learn: ?tab=code (the Your code tab) or ?tab=ex2 and ex3 (the second
  *   and third examples), &hints, and #example, #example-2, #example-3,
  *   #practice, or #recap for where you are in the part.
- * - The IDE (playgrounds and workspace parts): &file (the file open in the
- *   editor) and &line, &dock (the panel open under it: server, ports, api,
- *   problems, results), and &preview (the preview's path, when it's open).
- *   Open tabs, unsaved text, and opened folders stay in localStorage per
- *   workspace instead (lib/workspace-store.ts).
- * - Both: &full=semi with the header hidden, &full=1 in full screen
- *   (lib/full-screen.ts).
+ * - Both, and the playground: &full=semi with the header hidden, &full=1 in
+ *   full screen (lib/full-screen.ts).
+ *
+ * The playground keeps the rest in this browser instead: its open tabs,
+ * unsaved text, and opened folders per workspace (lib/workspace-store.ts),
+ * and its borders and folds (lib/panes.ts).
  *
  * A reload that restores something you'd see change is restored before you
  * see it: the bootstrap in app/layout.tsx marks <html data-restore>, which
  * keeps the page's [data-workspace] hidden (globals.css) until the page calls
  * revealWorkspace() with everything in place (or 3 seconds pass). When only
  * Learn's editor tab comes back, it marks <html data-restore-editor>
- * instead, which hides just the editor ([data-editor-pane]).
+ * instead, which hides just the editor ([data-editor-pane]), and the
+ * playground, whose tabs and tree always come back, marks it on every load
+ * with IDE_GATE (its rail and bar show at once).
+ *
+ * No "use client": the pages that use IDE_GATE are server components, and
+ * the rest only runs in the browser when it's called.
  */
 
 // The order params are written in, for a readable address.
-const ORDER = ["panel", "challenge", "hints", "difficulty", "status", "q", "at", "view", "tab", "file", "line", "dock", "preview", "tour", "vp", "drawer", "full"];
+const ORDER = ["panel", "challenge", "hints", "difficulty", "status", "q", "at", "view", "tab", "full"];
 const rank = (key: string) => {
   const i = ORDER.indexOf(key);
   return i < 0 ? ORDER.length : i;
@@ -101,3 +103,9 @@ export function revealWorkspace() {
   document.documentElement.removeAttribute("data-restore");
   document.documentElement.removeAttribute("data-restore-editor");
 }
+
+/** Hides a page's workspace (or just its [data-editor-pane]) until it has
+    restored, or 1.5 seconds pass, before the first paint of a hard load:
+    the page's inline script. */
+export const IDE_GATE = (attr: "data-restore" | "data-restore-editor") =>
+  `(function(){try{var d=document.documentElement;d.setAttribute("${attr}","");setTimeout(function(){d.removeAttribute("${attr}")},1500)}catch(e){}})()`;

@@ -5,6 +5,7 @@ import { useEffect, useRef, type RefObject } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { LessonMarkdown, type RunnableContext } from "@/components/learn/lesson-md";
 import { CompleteIcon } from "@/components/learn/complete-icon";
+import type { DiagramData } from "@/lib/diagram.mjs";
 import { partHref } from "@/lib/learn-types";
 import { writeHash } from "@/lib/url-state";
 
@@ -33,11 +34,22 @@ export const exampleId = (i: number) => (i === 0 ? "example" : `example-${i + 1}
 
 export const nextLabel = (link: PartLink) => `${link.lesson ? "Next lesson" : "Next"}: ${link.title}`;
 
-/** Lesson markdown with the outer margins trimmed, for use inside cards. */
-export function Prose({ md, className = "", runnable }: { md: string; className?: string; runnable?: RunnableContext }) {
+/** Lesson markdown with the outer margins trimmed, for use inside cards.
+    A read part passes the diagrams it shows. */
+export function Prose({
+  md,
+  className = "",
+  runnable,
+  diagrams,
+}: {
+  md: string;
+  className?: string;
+  runnable?: RunnableContext;
+  diagrams?: Record<string, DiagramData>;
+}) {
   return (
     <div className={`text-[0.95rem] leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${className}`}>
-      <LessonMarkdown md={md} runnable={runnable} />
+      <LessonMarkdown md={md} runnable={runnable} diagrams={diagrams} />
     </div>
   );
 }

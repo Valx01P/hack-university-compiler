@@ -1,18 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { Tickets, appOrigins, createToken } from "./auth.ts";
-import { Capacity } from "./capacity.ts";
-import { Checks } from "./checks/run.ts";
+import { Tickets, createToken } from "./auth.ts";
 import { loadConfig } from "./config.ts";
-import { Databases } from "./db/index.ts";
 import { DockerWatch, resolveEndpoint, type Owner } from "./docker.ts";
 import { loadTmuxConfig } from "./host-tmux.ts";
-import { createApiServer, type Services } from "./http.ts";
+import { createApiServer } from "./http.ts";
 import { Images } from "./images.ts";
 import { JobPool } from "./jobs.ts";
 import { Log } from "./log.ts";
-import { PortLeases } from "./ports.ts";
 import { reap, reconcile, removeOwnJobs } from "./reaper.ts";
 import { Workspaces } from "./workspaces.ts";
 import { attachWebSockets } from "./ws.ts";
@@ -20,14 +16,16 @@ import { attachWebSockets } from "./ws.ts";
 /**
  * hu-runner: the one local service that talks to Docker (architecture §2.6).
  * It listens on 127.0.0.1:3100 for the Next.js server (REST, bearer token) and
- * the browser (WebSockets, single-use tickets), and runs learner code in
- * hardened, throwaway containers.
+ * the browser (WebSockets, single-use tickets), runs TypeScript and Bash in
+ * hardened, throwaway containers, and keeps the compiler's folders and the
+ * playground on this computer, with their terminals.
  *
  *   npm run runner          # on its own, for verifiers and debugging
  *   npm run up              # supervised, beside the app
  *
  * It starts with Docker off: /v1/health says so, runs answer "Start Docker
- * to run this", and everything recovers when Docker comes up.
+ * to run this", and everything recovers when Docker comes up. The folders
+ * and their terminals never need Docker.
  */
 
 const config = loadConfig();
@@ -49,51 +47,17 @@ const watch = new DockerWatch(endpoint);
 const images = new Images(config.root, watch.docker, endpoint.dockerHost);
 const pool = new JobPool(config.jobSlots);
 const tickets = new Tickets(config.ticketTtlMs);
-const databases = new Databases({ docker: watch.docker, owner, dataDir: config.dataDir, log });
+const workspaces = new Workspaces({ config, owner, log });
 
-const services: Services = { piston: false, postgres: "absent", mongo: "absent" };
-const leases = new PortLeases(config.wsPorts, { dataDir: config.dataDir });
-const capacity: Capacity = new Capacity(
-  () => ({
-    memTotal: watch.facts?.memTotal ?? null,
-    piston: services.piston,
-    postgres: services.postgres === "running",
-    mongo: services.mongo === "running",
-    checkSlot: workspaces.checkSlot(),
-  }),
-  config.memBudgetMb
-);
-const workspaces: Workspaces = new Workspaces({ config, watch, images, owner, log, leases, capacity, appOrigins: appOrigins(config.appPort), databases, pool });
-const checks = new Checks({ docker: watch.docker, owner, images, pool, log, capacity, contentDir: config.contentDir, databases });
-
-/** Whenever Docker is (back) up: clear leftovers, and look the images and shared services up. */
+/** Whenever Docker is (back) up: clear leftovers, and look the images up. */
 async function onDockerReady() {
   try {
     await reconcile(watch.docker, owner, log);
     await images.refresh();
-    await refreshServices();
-    await workspaces.reconcile();
+    await workspaces.reconcile(watch.docker);
   } catch (err) {
     log.warn("docker.ready_failed", { error: (err as Error).message });
   }
-}
-
-async function refreshServices() {
-  const all = await watch.docker.listContainers({ all: true, filters: { name: ["hu-piston"] } });
-  const state = (name: string) => {
-    const c = all.find((x) => x.Names.includes(`/${name}`));
-    return c ? (c.State === "running" ? "running" : "stopped") : "absent";
-  };
-  services.piston = state("hu-piston") === "running";
-  // The database servers under this namespace's names (a verify runner has its
-  // own), and their upkeep: idle stops, the size watch, parking.
-  await databases.refresh();
-  services.postgres = databases.state("postgres");
-  services.mongo = databases.state("mongo");
-  await databases.tick();
-  // A server that stopped (an idle database, Piston) frees its share of the
-  // budget: a start waiting in the queue may fit now.
-  capacity.drain();
 }
 
 // Requests wait for the first look at Docker, so the first /v1/health already
@@ -102,13 +66,12 @@ async function refreshServices() {
 let started!: () => void;
 const ready = new Promise<void>((resolve) => (started = resolve));
 const startedAt = Date.now();
-const server = createApiServer({ config, token, tickets, watch, images, pool, owner, log, services, databases, startedAt, version, ready, workspaces, checks });
+const server = createApiServer({ config, token, tickets, watch, images, pool, owner, log, startedAt, version, ready, workspaces });
 attachWebSockets(server, {
   port: config.port,
   appPort: config.appPort,
   helloTimeoutMs: config.helloTimeoutMs,
   tickets,
-  watch,
   log,
   workspaces,
   termGraceMs: config.termGraceMs,
@@ -137,17 +100,15 @@ if (watch.state === "ready") await onDockerReady();
 watch.onChange((state) => {
   log.info("docker.state", { state });
   if (state === "ready") void onDockerReady();
-  else if (state === "down") workspaces.dockerDown();
 });
 watch.start(config.pollMs);
 
-// The reaper, and what the health check reports about shared services.
+// The reaper, and old trash in the folders.
 const reaper = setInterval(async () => {
+  workspaces.sweep();
   if (watch.state !== "ready") return;
   try {
     await reap(watch.docker, owner, log);
-    await refreshServices();
-    await workspaces.sweep();
   } catch (err) {
     log.warn("reaper.failed", { error: (err as Error).message });
   }
@@ -159,7 +120,8 @@ started();
 log.info("runner.listening", { port: config.port, ns: config.ns, boot: owner.boot, docker: watch.state, endpoint: endpoint.source });
 console.log(`hu-runner listening on http://127.0.0.1:${config.port} (Docker ${watch.state === "ready" ? "is ready" : `is ${watch.state}`})`);
 
-// Ctrl+C: stop taking requests, remove this runner's containers, and go.
+// Ctrl+C: stop taking requests, let go of the shells (tmux keeps them),
+// remove this runner's containers, and go.
 let stopping = false;
 async function shutdown(signal: string) {
   if (stopping) return;
@@ -169,12 +131,8 @@ async function shutdown(signal: string) {
   server.closeAllConnections();
   watch.stop();
   clearInterval(reaper);
-  if (watch.state === "ready") {
-    // Running workspaces stop (tasks get TERM, then KILL): at most a few seconds.
-    await Promise.race([workspaces.shutdown(), new Promise((r) => setTimeout(r, 8_000))]).catch(() => {});
-    await removeOwnJobs(watch.docker, owner, log).catch(() => {});
-    await databases.shutdown().catch(() => {});
-  }
+  await Promise.race([workspaces.shutdown(), new Promise((r) => setTimeout(r, 8_000))]).catch(() => {});
+  if (watch.state === "ready") await removeOwnJobs(watch.docker, owner, log).catch(() => {});
   process.exit(0);
 }
 process.on("SIGINT", () => void shutdown("SIGINT"));

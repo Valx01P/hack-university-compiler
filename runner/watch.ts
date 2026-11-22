@@ -5,9 +5,8 @@ import type { FsEvent } from "./events.ts";
 /**
  * Watches a workspace's files folder on the Mac with FSEvents (fs.watch,
  * recursive) and turns what changed into batched fs events, every 50 ms
- * (architecture §3.3). Changes made inside the container reach the Mac's
- * folder through Docker's file sharing, so a file made in a terminal shows up
- * here within a few milliseconds.
+ * (architecture §3.3), so a file made in a terminal, or by a tool there,
+ * shows up within a few milliseconds.
  *
  * FSEvents says only which paths changed, so the watcher keeps what it last
  * saw of each path and compares: a path that appears is an add (or addDir),

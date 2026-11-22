@@ -6,8 +6,8 @@ import type { WorkspaceStore } from "@/lib/workspace-store";
 
 /**
  * Changes made outside the editor, for the learner to review: an AI tool in
- * the compiler's Terminal (Claude Code, Codex, opencode, any of them), or a
- * command run there, editing the folder's files. Each text file's content as
+ * the compiler's or the playground's Terminal (Claude Code, Codex, opencode,
+ * any of them), or a command run there, editing the folder's files. Each text file's content as
  * the learner last saw or accepted it is kept (`known`). A file that changes
  * on disk to something else, appears, or goes, without the page having done
  * it, is a pending change: the editor shows it against what was there
@@ -16,6 +16,11 @@ import type { WorkspaceStore } from "@/lib/workspace-store";
  * Accepting keeps what's on disk; rejecting writes back what was there (or
  * removes a new file, or brings a removed one back). It works from the files
  * alone, so any tool works and none has to know about it.
+ *
+ * The playground lets new files in as they come (`acceptNew`): a command
+ * that scaffolds a project makes dozens, and only a change to a file that was
+ * already there, or its removal, waits for the learner. The compiler reviews
+ * new files too.
  */
 
 export interface OutsideChange {
@@ -48,7 +53,9 @@ export class OutsideChanges {
   constructor(
     private store: WorkspaceStore,
     /** Paths that aren't the learner's code (hidden notes, dependencies, builds). */
-    private skip: (path: string) => boolean
+    private skip: (path: string) => boolean,
+    /** A file that appears is kept at once, never reviewed (the playground). */
+    private readonly acceptNew = false
   ) {}
 
   /** Reads what's there now (nothing pending), then follows the folder. */
@@ -160,8 +167,9 @@ export class OutsideChanges {
     }
     const before = this.known.has(path) ? this.known.get(path)! : null;
     if (after === before) return;
-    // The page's own doing: its saves, and the Explorer's operations.
-    if (this.isOwn(path) || (after !== null && had?.has(after))) return this.remember(path, after);
+    // The page's own doing: its saves, and the Explorer's operations. And in
+    // the playground, a file that's new.
+    if (this.isOwn(path) || (after !== null && had?.has(after)) || (this.acceptNew && before === null)) return this.remember(path, after);
     this.pending.push({ path, before, after });
     this.emit();
   }

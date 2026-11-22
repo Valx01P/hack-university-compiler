@@ -15,12 +15,9 @@ const BY_ID = new Map(COMPONENTS.map((c) => [c.id, c]));
 const windows = process.platform === "win32";
 const npm = windows ? "npm.cmd" : "npm";
 
-export const GROUPS = [
-  { id: "compilers", label: "Compilers" },
-  { id: "courses", label: "Project courses" },
-];
+export const GROUPS = [{ id: "compilers", label: "Compilers" }];
 
-/** Other names people type: course slugs, package names, and groups. */
+/** Other names people type: course slugs and package names. */
 const ALIASES = {
   "c++": "cpp",
   gcc: "cpp",
@@ -29,31 +26,47 @@ const ALIASES = {
   ts: "typescript",
   py: "python",
   golang: "go",
-  html: "web",
-  css: "web",
-  react: "web",
-  nextjs: "web",
-  next: "web",
-  "spring-boot": "spring",
-  springboot: "spring",
-  "go-apis": "go-api",
-  goapi: "go-api",
 };
 
-/** The component ids a name stands for: an id, an alias, a group, or all. */
+/**
+ * The project courses (web, React, Spring Boot…): read lessons in Learn, so
+ * there's nothing of theirs to install any more. Their slugs (the courses
+ * without a compiler page), the names people used for them, and the group
+ * they were in, so asking for one says so instead of "there's nothing named".
+ */
+const PROJECT_COURSES = new Set([
+  ...JSON.parse(readFileSync(path.join(ROOT, "content", "courses.json"), "utf8")).courses.filter((c) => !c.page).map((c) => c.slug),
+  "courses",
+  "html",
+  "css",
+  "next",
+  "spring-boot",
+  "springboot",
+  "go-apis",
+  "goapi",
+]);
+
+/** The component ids a name stands for: an id, an alias, a group, or all.
+    `courses` are the project courses named, which need nothing installed. */
 export function resolveNames(names) {
   const ids = [];
   const unknown = [];
+  const courses = [];
   for (const raw of names) {
     const name = raw.toLowerCase();
     if (name === "all" || name === "everything") ids.push(...COMPONENTS.map((c) => c.id));
     else if (GROUPS.some((g) => g.id === name)) ids.push(...COMPONENTS.filter((c) => c.group === name).map((c) => c.id));
     else if (BY_ID.has(name)) ids.push(name);
     else if (ALIASES[name]) ids.push(ALIASES[name]);
+    else if (PROJECT_COURSES.has(name)) courses.push(raw);
     else unknown.push(raw);
   }
-  return { ids: [...new Set(ids)], unknown };
+  return { ids: [...new Set(ids)], unknown, courses };
 }
+
+/** What asking to install or remove a project course gets. */
+export const projectCourseNote = (names) =>
+  `${and(names)} ${names.length > 1 ? "are project courses" : "is a project course"}: read lessons in Learn, with nothing to install. To try the code, the playground (/playground) is a folder on this computer with an editor and a terminal.`;
 
 export const component = (id) => BY_ID.get(id);
 export const defaults = () => COMPONENTS.filter((c) => c.default).map((c) => c.id);
@@ -147,18 +160,6 @@ async function readyImages() {
   return ready;
 }
 
-/** The course databases that are downloaded. */
-async function downloadedDatabases() {
-  if (!existsSync(path.join(ROOT, "runner", "node_modules"))) return new Set();
-  const out = await nodeOutput([path.join("runner", "db", "pull.ts"), "--status"]);
-  const have = new Set();
-  for (const line of out.split("\n")) {
-    const m = /^(postgres|mongo):\S+\s+downloaded\b/.exec(line.trim());
-    if (m) have.add(m[1]);
-  }
-  return have;
-}
-
 /** Whether the compiler sandbox's languages volume exists (the sandbox can
     be stopped with its languages kept). */
 function sandboxVolume() {
@@ -167,23 +168,20 @@ function sandboxVolume() {
 }
 
 /**
- * What's installed now: every component whose parts are all here. Components
- * share parts, so one can be here without being added on its own, like the
- * web courses beside TypeScript (they use the same two images). Without
- * Docker nothing past the app can be here (or be checked). `stopped` means
- * the compiler sandbox is installed but not running, so which languages it
- * has can't be read until it starts.
+ * What's installed now: every compiler whose parts are all here (its
+ * language in the sandbox, or its image). Without Docker nothing past the
+ * app can be here (or be checked). `stopped` means the compiler sandbox is
+ * installed but not running, so which languages it has can't be read until
+ * it starts.
  */
 export async function detect() {
   const docker = dockerUp();
   if (!docker) return { docker, sandbox: false, stopped: false, installed: new Set() };
   // Each asks Docker or the sandbox on its own, so they ask at once.
-  const [languages, images, databases] = await Promise.all([pistonLanguages(), readyImages(), downloadedDatabases()]);
+  const [languages, images] = await Promise.all([pistonLanguages(), readyImages()]);
   const installed = new Set();
   for (const c of COMPONENTS) {
-    const ok = c.piston
-      ? !!languages?.has(c.piston)
-      : (c.images ?? []).every((i) => images.has(i)) && (c.databases ?? []).every((d) => databases.has(d));
+    const ok = c.piston ? !!languages?.has(c.piston) : (c.images ?? []).every((i) => images.has(i));
     if (ok) installed.add(c.id);
   }
   return { docker, sandbox: languages !== null, stopped: languages === null && sandboxVolume(), installed };
@@ -216,14 +214,12 @@ function loud(cmd, args) {
   return !r.error && r.status === 0;
 }
 
-/** What installing these takes: Piston languages, images to build, and
-    databases to download. */
+/** What installing these takes: Piston languages, and images to build. */
 export function installPlan(ids) {
   const picked = ids.map((id) => BY_ID.get(id)).filter(Boolean);
   return {
     languages: [...new Set(picked.filter((c) => c.piston).map((c) => c.piston))],
     images: [...new Set(picked.flatMap((c) => c.images ?? []))],
-    databases: [...new Set(picked.flatMap((c) => c.databases ?? []))],
   };
 }
 
@@ -237,18 +233,16 @@ export function install(ids) {
     ok = loud(process.execPath, [path.join("scripts", "setup-piston.mjs"), ...plan.languages]) && ok;
   }
   if (plan.images.length) ok = loud(process.execPath, [path.join("runner", "images.ts"), "build", ...plan.images]) && ok;
-  if (plan.databases.length) ok = loud(process.execPath, [path.join("runner", "db", "pull.ts"), ...plan.databases]) && ok;
   return ok;
 }
 
 /**
  * What removing `ids` deletes, given that `keep` stays installed: their Piston
- * languages, and the images and databases nothing kept still needs. The
- * sandbox itself goes only when `sandbox` is set and no compiler is kept.
+ * languages, and the images nothing kept still needs. The sandbox itself goes
+ * only when `sandbox` is set and no compiler is kept.
  *
- * `mb` is the disk that frees now. `shared` names the parts that stay because
- * a kept component uses them, and `caches` is the MB of the courses' package
- * caches, which the runner clears by itself after 30 days unused.
+ * `mb` is the disk that frees now, and `shared` names the parts that stay
+ * because a kept component uses them.
  */
 export function removePlan(ids, keep, { sandbox = false } = {}) {
   const kept = keep.filter((id) => !ids.includes(id)).map((id) => BY_ID.get(id)).filter(Boolean);
@@ -257,18 +251,15 @@ export function removePlan(ids, keep, { sandbox = false } = {}) {
   const plan = {
     languages: [...new Set(going.filter((c) => c.piston).map((c) => c.piston))],
     images: [...new Set(going.flatMap((c) => c.images ?? []))].filter((i) => !keptParts.has(`image-${i}`)),
-    databases: [...new Set(going.flatMap((c) => c.databases ?? []))].filter((d) => !keptParts.has(d)),
     sandbox: sandbox && !kept.some((c) => c.piston),
     shared: [...new Set(going.flatMap((c) => c.parts ?? []))]
       .filter((p) => p !== "sandbox" && keptParts.has(p))
       .map((p) => ({ part: CATALOG.parts[p].label, by: kept.filter((c) => c.parts?.includes(p)).map((c) => c.short ?? c.label) })),
-    caches: going.filter((c) => !c.piston).reduce((n, c) => n + c.mb, 0),
   };
   const part = (p) => CATALOG.parts[p]?.mb ?? 0;
   plan.mb =
     going.filter((c) => c.piston).reduce((n, c) => n + c.mb, 0) +
     plan.images.reduce((n, i) => n + part(`image-${i}`), 0) +
-    plan.databases.reduce((n, d) => n + part(d), 0) +
     (plan.sandbox ? part("sandbox") : 0);
   return plan;
 }
@@ -279,14 +270,14 @@ export function heldBy(id, keep) {
   const c = BY_ID.get(id);
   if (!c || c.piston) return [];
   const plan = removePlan([id], keep);
-  if (plan.images.length || plan.databases.length) return [];
+  if (plan.images.length) return [];
   return keep.filter((k) => k !== id && (c.parts ?? []).some((p) => BY_ID.get(k)?.parts?.includes(p))).map((k) => shortName(k));
 }
 
-/** A component's name inside a sentence ("the web courses"). */
+/** A component's name inside a sentence. */
 export const shortName = (id) => BY_ID.get(id)?.short ?? BY_ID.get(id)?.label ?? id;
 
-/** "Express", "TypeScript and Express", "Bash, Go, and Java". */
+/** "Bash", "TypeScript and Bash", "Bash, Go, and Java". */
 export function and(items) {
   if (items.length < 3) return items.join(" and ");
   return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
@@ -300,7 +291,6 @@ export function remove(plan) {
   let ok = true;
   if (plan.languages.length) ok = loud(process.execPath, [path.join("scripts", "setup-piston.mjs"), "--remove", ...plan.languages]) && ok;
   if (plan.images.length) ok = loud(process.execPath, [path.join("runner", "images.ts"), "remove", ...plan.images]) && ok;
-  if (plan.databases.length) ok = loud(process.execPath, [path.join("runner", "db", "pull.ts"), "--remove", ...plan.databases]) && ok;
   if (plan.sandbox) {
     // Stops it and deletes its image and the volume its languages lived in.
     ok = loud("docker", ["compose", "down", "--rmi", "all", "--volumes"]) && ok;

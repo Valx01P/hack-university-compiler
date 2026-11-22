@@ -14,8 +14,8 @@ interface Catalog {
 
 let catalog: Catalog | null = null;
 
-/** "npm run add -- spring (up to 1.5 GB)". Parts another course already
-    brought aren't downloaded again, so it's "up to". */
+/** "npm run add -- typescript (up to 615 MB)". Parts another course
+    already brought aren't downloaded again, so it's "up to". */
 export function addCourse(course: string): string {
   try {
     catalog ??= JSON.parse(readFileSync(path.join(ROOT, "lib", "components.json"), "utf8")) as Catalog;

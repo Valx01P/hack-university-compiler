@@ -39,8 +39,8 @@ import { languageId } from "@/lib/tokenize.mjs";
 
 /**
  * The code editors' one setup (CodeMirror 6), shared by the compiler, Learn,
- * the runnable snippets, and the IDE: the theme drawn from the app's code
- * CSS variables, the gutters and guides, the keys, the language (for
+ * the runnable snippets, and the playground: the theme drawn from the app's
+ * code CSS variables, the gutters and guides, the keys, the language (for
  * indentation, brackets, and the comment toggle, loaded with loadLanguage
  * before an editor is made), and the colors, which always come from the
  * tokenizer behind the static code blocks (lib/token-highlight.ts), so code
@@ -58,10 +58,10 @@ interface LanguageSupport {
 
 // Each language's support is its own chunk, loaded the first time an editor
 // needs it (loadLanguage), so a page carries only the grammars it shows: a
-// compiler or Learn page its own language, the IDE the kinds of files it
-// opens. Bash, and the IDE's other file types, go through CodeMirror's
-// legacy stream modes, for brackets, quotes, indentation, and comments
-// (colors come from the tokenizer, like every language).
+// compiler or Learn page its own language, the playground the kinds of files
+// it opens. Bash, and the playground's other file types, go through
+// CodeMirror's legacy stream modes, for brackets, quotes, indentation, and
+// comments (colors come from the tokenizer, like every language).
 const LOADERS: Record<string, () => Promise<LanguageSupport>> = {
   python: () =>
     import("@codemirror/lang-python").then((m) => ({ extension: m.python(), completions: [m.localCompletionSource, m.globalCompletion] })),
@@ -504,8 +504,8 @@ const blankSelection = EditorView.editorAttributes.compute(["selection"], (state
  * Every editor's extensions, in order: the full editor's gutters and guides
  * (or a snippet's bare code), the editing behavior, the settings
  * compartments, the colors, the language, the keys, and the theme. `keys`
- * come first in precedence (Mod-Enter runs, and the IDE's own), and `extra`
- * goes last.
+ * come first in precedence (Mod-Enter runs, and the playground's own), and
+ * `extra` goes last.
  */
 export function editorExtensions({
   language,

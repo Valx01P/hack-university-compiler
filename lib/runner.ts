@@ -254,7 +254,7 @@ export async function readFixtureSet(course: string, name: string): Promise<Runn
   return files;
 }
 
-/** What the IDE says when nothing answers on the runner's port. */
+/** What a folder says when nothing answers on the runner's port. */
 export const RUNNER_DOWN = "The workspace runner isn't running. Start it with npm run up.";
 
 /** The runner's WebSocket address for the browser: always 127.0.0.1, so

@@ -10,8 +10,9 @@ const forbidden = (error: string) => NextResponse.json({ error }, { status: 403 
  * connect. This closes the browser-side gaps: another site's page posting
  * here (Origin mismatch), a DNS-rebinding trick that points some other
  * hostname at 127.0.0.1 (Host isn't loopback), and a page on another
- * localhost port, like a lesson's live preview, which is the same site but
- * not the same origin (the browser's Sec-Fetch-Site says so). Writes must
+ * localhost port, like a dev server started in the playground's terminal,
+ * which is the same site but not the same origin (the browser's
+ * Sec-Fetch-Site says so). Writes must
  * also carry `X-HU: 1`: a page elsewhere can only add that header after a
  * CORS preflight, which this app never grants. Returns the rejection to
  * send, or null when the request is fine.

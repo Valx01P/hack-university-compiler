@@ -33,8 +33,9 @@ import { TERM_CONTRAST_DEFAULT, TERM_VIVID_DEFAULT } from "@/lib/theme";
  * - The screen is kept in sessionStorage as it changes (serialize), so a
  *   reload paints it at once while the session reattaches, and the runner's
  *   replay then puts the real one back.
- * - Links: localhost:<port> opens the preview, other addresses a new tab
- *   (noopener), and file:line:col in a stack trace opens the editor there.
+ * - Links: an address opens in a new tab (noopener), a dev server's on
+ *   localhost included, and file:line:col in a stack trace opens the editor
+ *   there.
  * - Escape belongs to the program (vim, less). Ctrl+Backquote goes back to
  *   the editor. No app shortcut fires while a terminal has focus.
  */
@@ -366,11 +367,6 @@ export function TerminalView({
           event.preventDefault();
           try {
             const url = new URL(uri);
-            const port = Number(url.port);
-            if (["localhost", "127.0.0.1", "0.0.0.0", "[::1]"].includes(url.hostname) && store.ports.has(port)) {
-              store.openPreview(port, `${url.pathname}${url.search}`);
-              return;
-            }
             if (url.protocol === "http:" || url.protocol === "https:") window.open(uri, "_blank", "noopener,noreferrer");
           } catch {
             /* not a URL */

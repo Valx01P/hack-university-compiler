@@ -270,7 +270,9 @@ export function CmEditor({
   );
 }
 
-function selectionOf(state: EditorState): EditorSelection {
+/** Where the cursor is and what's selected in a state (the playground's
+    tabs read it too, components/ide/editor-group.tsx). */
+export function selectionOf(state: EditorState): EditorSelection {
   const range = state.selection.main;
   const head = state.doc.lineAt(range.head);
   if (range.empty) return { line: head.number, col: range.head - head.from + 1, from: null, to: null, text: "" };

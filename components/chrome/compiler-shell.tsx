@@ -4,18 +4,20 @@ import { HistoryArrows } from "@/components/chrome/history-arrows";
 import { SandboxStatus } from "@/components/chrome/sandbox-status";
 
 /**
- * The app shell around the compiler: one bordered panel under the header with
- * browser-style history arrows and the sandbox status on top, the compiler
- * filling the rest edge-to-edge. On desktop it's exactly one viewport tall.
- * Languages switch from the rail beside the editor. On this page the header
- * scrolls away with the page instead of staying on top of it (globals.css,
- * data-compiler-page).
+ * The app shell around the compiler and the playground: one bordered panel
+ * under the header with browser-style history arrows and, for a compiler,
+ * the sandbox status on top, the page filling the rest edge-to-edge. On
+ * desktop it's exactly one viewport tall. Languages switch from the rail
+ * beside the editor. On these pages the header scrolls away with the page
+ * instead of staying on top of it (globals.css, data-compiler-page).
  */
 export function CompilerShell({
   lang,
   children,
 }: {
-  lang: string;
+  /** The compiler's language, whose sandbox the bar shows. The playground
+      runs nothing itself, so it has none. */
+  lang?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -25,7 +27,7 @@ export function CompilerShell({
           <span className="-ml-1 flex items-center gap-0.5">
             <HistoryArrows />
           </span>
-          <SandboxStatus lang={lang} />
+          {lang && <SandboxStatus lang={lang} />}
         </div>
         <div className="slim-scroll flex min-h-0 flex-1 flex-col lg:overflow-y-auto">
           {children}

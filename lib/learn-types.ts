@@ -9,7 +9,7 @@ import { runtimeKindOf } from "@/lib/courses";
     today: one program, its examples, and a practice checked by its tests.
     A `read` lesson (ReadLesson) is the other kind Learn shows: parts to
     read, with code that is shown and never run. */
-export type LessonFormat = "single" | "console" | "page" | "workspace";
+export type LessonFormat = "single" | "console" | "page";
 
 /** One run of a program: what it gets, and for a test what it must do. */
 export interface LessonTest {
@@ -127,9 +127,8 @@ export interface LessonStep {
   format?: LessonFormat;
 }
 
-/** A database lesson's starting data: SQL for the SQL course (on PGlite),
-    or a PostgreSQL script, or MongoDB documents by collection. */
-export type LessonSetup = string | { postgres: string } | { mongo: Record<string, unknown> };
+/** A database lesson's starting data: SQL for the SQL course (on PGlite). */
+export type LessonSetup = string;
 
 export interface Lesson {
   id: string;
@@ -151,47 +150,32 @@ export interface Lesson {
   fixtures?: string;
   /** A frozen time for every run in the lesson. */
   clock?: string;
-  /** Spring: the smallest profile that runs the lesson, and its mode. */
-  profile?: string;
-  mode?: string;
-  /** Page lessons: options for the page server. */
-  preview?: Record<string, unknown>;
-  /** Workspace lessons: the template their workspaces start from. */
-  template?: string;
 }
 
 /** A read part's example: code to look at, shown in its own language and
-    never run. */
+    never run. Where the file lives in a project goes in the prompt. */
 export interface ReadExample {
   title: string;
   prompt: string;
   /** The fence language it is highlighted as (ts, python, http...). */
   language: string;
-  /** The path in the codebase it comes from. */
-  file?: string;
   code: string;
   /** Output it printed when it was really run, if it shows any. */
   output?: string;
   explanation: string;
 }
 
-/** A codebase a part opens in the IDE: a template in
-    content/workspaces/<course>/, at these files. */
-export interface StepCodebase {
-  template: string;
-  files: string[];
-}
-
-/** A part to read: no practice, just its examples (1 to 3). */
+/** A part to read: no practice, its body and 0 to 3 examples. The body
+    may show diagrams (```diagram <name> fences, lib/diagram.mjs). */
 export interface ReadStep {
   title: string;
   body: string;
   examples: ReadExample[];
-  codebase?: StepCodebase;
 }
 
-/** A lesson of parts to read (2 or 3), for the short courses that teach
-    with code to look at instead of practices. */
+/** A lesson of parts to read (2 to 8, ideally 3 to 6), for the project
+    courses, which teach by explaining, with code to look at and diagrams
+    instead of practices. */
 export interface ReadLesson {
   id: string;
   title: string;
@@ -261,6 +245,8 @@ export interface LessonMeta {
   problems: number;
   /** Each step's title: the lesson's parts, in order. */
   parts: string[];
+  /** A read lesson: its parts are read, not solved. */
+  read: boolean;
 }
 
 /** Just enough of a lesson to link into it: its id and how many parts it has. */

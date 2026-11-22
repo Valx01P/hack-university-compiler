@@ -11,6 +11,10 @@
 //                                 type, size, mode, SHA-256), which the
 //                                 explorer paints before the runner answers
 //
+// It also reads every read lesson's diagram (content/learn/<course>/
+// diagrams/*.svg) the way the app does (lib/diagram.mjs), writing nothing:
+// one that breaks a rule fails the build here, with what to change.
+//
 // The icons come from material-icon-theme (the npm build of VS Code's
 // Material Icon Theme): its prebuilt manifest is read as data, so none of
 // the package's code runs. Only the icons the templates use, plus a list of
@@ -26,6 +30,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { checkpointLayers, layerTree, listTemplates, sortedEntries, treeHash, workspacesRoot } from "../lib/workspace-layers.mjs";
+import { parseDiagram } from "../lib/diagram.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const OUT = path.join(ROOT, ".generated");
@@ -296,8 +301,35 @@ function prune(dir, keep) {
   }
 }
 
+/** Every read lesson's diagram, parsed and checked. Throws with each bad
+    file's errors, so the build stops at the prebuild. */
+function checkDiagrams() {
+  const learn = path.join(ROOT, "content", "learn");
+  const problems = [];
+  let count = 0;
+  for (const course of existsSync(learn) ? readdirSync(learn) : []) {
+    const dir = path.join(learn, course, "diagrams");
+    if (!existsSync(dir) || !statSync(dir).isDirectory()) continue;
+    for (const file of readdirSync(dir).sort()) {
+      const where = `content/learn/${course}/diagrams/${file}`;
+      if (!file.endsWith(".svg")) {
+        problems.push(`${where}: only .svg files go in a diagrams folder`);
+        continue;
+      }
+      const name = file.slice(0, -4);
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) problems.push(`${where}: name it in kebab-case`);
+      const { errors } = parseDiagram(readFileSync(path.join(dir, file), "utf8"), name);
+      for (const e of errors) problems.push(`${where}: ${e}`);
+      count++;
+    }
+  }
+  if (problems.length) throw new Error(`Diagrams that break the rules (content/learn/AUTHORING.md):\n  ${problems.join("\n  ")}`);
+  return count;
+}
+
 const icons = buildIcons();
 const trees = buildTrees();
+const diagrams = checkDiagrams();
 if (!check) {
   // Only what's gone is deleted, so the trees that didn't change keep their
   // files and times too, like the icons below.
@@ -315,5 +347,5 @@ if (!check) {
   for (const tree of trees) write(tree.file, `${JSON.stringify(tree.data)}\n`);
 }
 console.log(
-  `   ✓ ${check ? "Checked" : "Wrote"} ${icons.count} file icons (${(icons.bytes / 1024).toFixed(1)} KB of data URIs) and ${trees.length} workspace starting tree${trees.length === 1 ? "" : "s"}`
+  `   ✓ ${check ? "Checked" : "Wrote"} ${icons.count} file icons (${(icons.bytes / 1024).toFixed(1)} KB of data URIs) and ${trees.length} workspace starting tree${trees.length === 1 ? "" : "s"}, and checked ${diagrams} diagram${diagrams === 1 ? "" : "s"}`
 );

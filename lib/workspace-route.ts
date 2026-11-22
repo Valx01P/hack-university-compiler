@@ -5,10 +5,10 @@ import { RunnerError } from "@/lib/runner";
 
 /**
  * What the workspace routes (app/api/workspaces, app/api/tickets) share:
- * one error shape, `{ error, code }`, where `error` is a sentence the IDE
+ * one error shape, `{ error, code }`, where `error` is a sentence the page
  * can show as it is; JSON bodies read with a byte cap and checked against
  * their zod schema; and the runner's answers passed back with only the
- * headers the IDE needs.
+ * headers the page needs.
  */
 
 export const JSON_MAX_BYTES = 1_000_000;

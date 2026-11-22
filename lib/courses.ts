@@ -9,11 +9,12 @@ import registry from "@/content/courses.json";
  * verifiers (the .mjs ones read the JSON themselves). Pure data, safe for
  * client and server.
  *
- * A course's `page` is what /<slug> shows. A course without one is
- * registered ahead of its release (the stack courses ship in later phases):
- * it has no compiler page yet, so it stays out of the rail, the redirect,
- * and every route until its entry gains a `page`. Learn shows a course once
- * it has lessons too.
+ * A course's `page` is what /<slug> shows. A course without one (the
+ * project courses: web, React, Next.js, Express, FastAPI, Spring Boot, Go
+ * APIs) has no compiler page: it's read lessons in Learn, runs nothing
+ * (runtime "none"), and stays out of the redirect and the compiler routes.
+ * The rail shows it once it has lessons, and its code is for the playground
+ * (/playground), a folder on this computer.
  */
 export type CoursePage = "single" | "page";
 
@@ -30,25 +31,17 @@ export interface CourseEntry {
   icon: string;
   /** A small lucide badge on the icon: "server" for Go APIs. */
   badge?: "server";
-  /** What /<slug> shows: the single-file compiler, or a page playground.
-      Missing until the course's compiler page ships. */
+  /** What /<slug> shows: the single-file compiler. Missing for the project
+      courses, which have no compiler page. */
   page?: CoursePage;
   /** piston:<id> (an id in lib/runtimes.json), pglite (SQL, in the
-      browser), runner:<recipe> (hu-runner), or browser. */
+      browser), runner:<recipe> (hu-runner), or none (read lessons only,
+      which run nothing). */
   runtime: string;
   /** The single file's name (main.ts, Main.java). */
   fileName?: string;
-  /** A page playground's fixed files. */
-  files?: string[];
   /** An Arguments field next to stdin (Bash). */
   args?: boolean;
-  /** Spring's profile picker. */
-  profiles?: string[];
-  defaultProfile?: string;
-  /** Databases the course's templates use. */
-  services?: string[];
-  /** The template behind Open playground (/<slug>/playground). */
-  playground?: string;
   /** Fence language to runtime for this course's snippets (null: shown only). */
   fences?: Record<string, string | null>;
 }
@@ -68,21 +61,13 @@ export const COMPILER_COURSES: readonly CourseEntry[] = COURSES.filter((c) => c.
 /** Whether /<slug> is a course's compiler page. */
 export const isCompilerCourse = (slug: string) => Boolean(BY_SLUG.get(slug)?.page);
 
-/** Where a course's Open playground goes (/<slug>/playground), for a course
-    that names a playground template, else null. The page itself exists only
-    once the template is in content/workspaces (lib/playgrounds.ts), so pages
-    pass `exists` from there. */
-export function playgroundHref(slug: string, exists = true): string | null {
-  return exists && BY_SLUG.get(slug)?.playground ? `/${slug}/playground` : null;
-}
-
-export type RuntimeKind = "piston" | "pglite" | "runner" | "browser";
+export type RuntimeKind = "piston" | "pglite" | "runner";
 
 /** A runtime's kind and the id after the colon: piston:python is Piston's
     python, runner:typescript the runner's typescript recipe. */
 export function parseRuntime(runtime: string): { kind: RuntimeKind; id: string } | null {
   const [kind, id = ""] = runtime.split(":", 2);
-  if (kind === "pglite" || kind === "browser") return id ? null : { kind, id: "" };
+  if (kind === "pglite") return id ? null : { kind, id: "" };
   if ((kind === "piston" || kind === "runner") && /^[a-z0-9-]+$/.test(id)) return { kind, id };
   return null;
 }

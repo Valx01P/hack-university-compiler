@@ -3,7 +3,7 @@ import type { RunState } from "@/lib/run-code";
 /** The padding of what an output box says (its output, a message, a
     placeholder): the top and bottom from the box's `--output-py`, which the
     compiler and Learn make smaller under the editor, where height is short,
-    and 1rem anywhere that doesn't set it (code examples, the IDE). */
+    and 1rem anywhere that doesn't set it (code examples). */
 export const OUTPUT_PAD = "px-4 py-[var(--output-py,1rem)]";
 
 // A runaway loop can print a megabyte: show the start of it, not all of it.

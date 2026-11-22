@@ -13,8 +13,8 @@ import type { Log } from "./log.ts";
  *   port's runner from an earlier boot.
  *
  * Both act only on containers labeled hu.managed=1 in this runner's namespace,
- * never on anything else in Docker. Workspaces arrive in P1, with their own
- * rules (re-adopt the running ones, remove stopped ones after 24 hours).
+ * never on anything else in Docker. Workspaces are folders on this computer
+ * with no container (the ones from before go in Workspaces.reconcile).
  */
 
 const GRACE_MS = 10_000;

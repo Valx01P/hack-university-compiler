@@ -69,8 +69,8 @@ export function Explorer({
   mirror = false,
 }: {
   store: WorkspaceStore;
-  /** What the header says: "Explorer" in the IDE, and nothing where a tab
-      already says Explorer (the compiler's panel), only its buttons. */
+  /** What the header says: "Explorer" in the playground, and nothing where
+      a tab already says Explorer (the compiler's panel), only its buttons. */
   heading?: string;
   /** The header flips with the editor on the right (the compiler's panel,
       globals.css [data-mirror]): its buttons on the left, in mirror order. */

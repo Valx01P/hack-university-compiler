@@ -29,8 +29,6 @@ export const PANES = {
   // 100, the output folded away).
   "learn-split": { unit: "%", min: 30, max: 70, initial: 50 },
   "learn-editor": { unit: "", min: 30, max: 80, initial: 60, fold: { at: 100, attr: "data-learn-output-folded" } },
-  // Learn: the lesson beside a project part's IDE.
-  "learn-ide-split": { unit: "%", min: 25, max: 70, initial: 38 },
   // The compiler: the editor's width, beside the output or beside the panel
   // (one width, so opening or closing the panel never moves the editor's
   // border, the panel keeping it within its own range, REF in
@@ -39,10 +37,16 @@ export const PANES = {
   // its own.
   "compiler-split": { unit: "%", min: 20, max: 80, initial: 55 },
   "compiler-stack": { unit: "%", min: 20, max: 80, initial: 55, fold: { at: 100, attr: "data-compiler-output-folded" } },
-  // The IDE: the explorer's width, the dock's height, and the preview's width.
-  "ide-explorer": { unit: "px", min: 160, max: 360, initial: 208 },
-  "ide-dock": { unit: "%", min: 15, max: 85, initial: 32 },
-  "ide-preview": { unit: "%", min: 20, max: 75, initial: 40 },
+  // The playground: the Explorer's width (0 folded away, Mod+B or a drag
+  // well past its narrowest, which also marks <html
+  // data-playground-explorer-folded>) and the width it opens at again, and
+  // the terminal's height under the editor (0 folded down to its bar, which
+  // marks <html data-playground-terminal-folded>) and the height it opens at
+  // again.
+  "playground-explorer": { unit: "px", min: 160, max: 480, initial: 240, fold: { at: 0, attr: "data-playground-explorer-folded" } },
+  "playground-explorer-open": { unit: "px", min: 160, max: 480, initial: 240 },
+  "playground-terminal": { unit: "%", min: 15, max: 85, initial: 35, fold: { at: 0, attr: "data-playground-terminal-folded" } },
+  "playground-terminal-open": { unit: "%", min: 15, max: 85, initial: 35 },
 } as const satisfies Record<string, Pane>;
 
 export type PaneName = keyof typeof PANES;

@@ -12,6 +12,9 @@ export interface Piece extends Token {
 
 /** A language's own id, from any of its names (`ts`, `sh`, `py`). */
 export function languageId(language: string): string;
+/** Every fence language the tokenizer colors, aliases included. */
+export const HIGHLIGHT_LANGUAGES: ReadonlySet<string>;
+export function isHighlighted(language: string): boolean;
 export function tokenize(code: string, language: string): Token[];
 export function commentPieces(code: string, language: string): Piece[];
 export function stripComments(code: string, language: string): string;

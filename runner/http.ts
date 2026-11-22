@@ -1,21 +1,16 @@
 import http from "node:http";
-import { workspaceId } from "../lib/workspace-id.mjs";
 import { bearerMatches, hostAllowed, type Tickets } from "./auth.ts";
-import type { Checks } from "./checks/run.ts";
 import { addCourse } from "./components.ts";
 import type { Config } from "./config.ts";
-import type { Databases } from "./db/index.ts";
-import { DB_ROUTE, dbRoute } from "./db/routes.ts";
 import type { DockerWatch, Owner } from "./docker.ts";
 import { HttpError, parse, readJson, send, sendError } from "./http-util.ts";
 import { IMAGES, isImageName, type ImageName, type Images } from "./images.ts";
-import { STACKS, isStack } from "./stacks.ts";
 import { JobError, type JobPool } from "./jobs.ts";
 import type { Log } from "./log.ts";
-import { HEADROOM_BYTES, PISTON_BYTES, belowFloor } from "./profiles.ts";
+import { belowFloor } from "./profiles.ts";
 import { reap, reconcile } from "./reaper.ts";
 import { recipeImage, runRecipe } from "./recipes/index.ts";
-import { PrewarmRequest, RunRequest, TicketRequest } from "./schemas.ts";
+import { RunRequest, TicketRequest } from "./schemas.ts";
 import { workspaceRoute } from "./workspace-routes.ts";
 import type { Workspaces } from "./workspaces.ts";
 
@@ -35,23 +30,12 @@ export interface ApiDeps {
   pool: JobPool;
   owner: Owner;
   log: Log;
-  services: Services;
-  /** PostgreSQL and MongoDB for workspaces, checks, and runs (db/). */
-  databases?: Databases;
   startedAt: number;
   version: string;
   /** Resolves once the runner has first looked at Docker. Requests wait for it. */
   ready?: Promise<void>;
-  /** Workspaces and their checks (P1). Without them, their routes answer 501. */
+  /** The folders on this computer. Without them, their routes answer 501. */
   workspaces?: Workspaces;
-  checks?: Checks;
-}
-
-/** What the runner knows about the shared containers it doesn't run in P0. */
-export interface Services {
-  piston: boolean;
-  postgres: "running" | "stopped" | "absent";
-  mongo: "running" | "stopped" | "absent";
 }
 
 const JSON_LIMIT = 64 * 1024;
@@ -59,7 +43,7 @@ const RUN_LIMIT = 8 * 1024 * 1024;
 /** Runs waiting beyond the job slots. A verifier raises HU_JOB_SLOTS instead. */
 const MAX_QUEUED = 64;
 
-/** GET /v1/health: Docker, the images, the jobs, and the memory budget. */
+/** GET /v1/health: Docker, the images, and the jobs. */
 export function health(deps: ApiDeps) {
   const facts = deps.watch.facts;
   const images: Record<string, string> = {};
@@ -70,16 +54,6 @@ export function health(deps: ApiDeps) {
       recipes[recipe] = { image: deps.images.tag(name), state: deps.images.state(name), versions: deps.images.versionsOf(name) };
     }
   }
-  // The memory left for workspaces (architecture §4.7): MemTotal, minus the
-  // VM's headroom, minus each shared service that is up. P0 runs none yet.
-  const memTotal = facts?.memTotal ?? 0;
-  const budget = deps.workspaces
-    ? deps.workspaces.capacity.budget()
-    : memTotal
-      ? memTotal - HEADROOM_BYTES - (deps.services.piston ? PISTON_BYTES : 0)
-      : 0;
-  const running = deps.workspaces?.running().length ?? 0;
-  const reserved = deps.workspaces?.capacity.reserved() ?? 0;
   return {
     docker: {
       state: deps.watch.state,
@@ -92,8 +66,6 @@ export function health(deps: ApiDeps) {
     },
     images,
     recipes,
-    services: { postgres: deps.services.postgres, mongo: deps.services.mongo, piston: deps.services.piston ? "running" : "absent" },
-    workspaces: { running, budgetMb: Math.max(0, Math.floor(budget / 2 ** 20)), reservedMb: Math.floor(reserved / 2 ** 20) },
     jobs: { ...deps.pool.stats, slots: deps.pool.slots },
     runner: { version: deps.version, ns: deps.owner.ns, boot: deps.owner.boot, port: deps.owner.port, uptimeMs: Date.now() - deps.startedAt },
   };
@@ -111,17 +83,12 @@ async function needDocker(deps: ApiDeps) {
   );
 }
 
-// Routes the architecture defines that arrive in later phases.
-const LATER = /^\/v1\/(workspaces|checks|pages)(\/|$)/;
+// The workspace routes, on a runner that has none (its front door's tests).
+const NO_WORKSPACES = /^\/v1\/workspaces(\/|$)/;
 
 async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerResponse, url: URL) {
   const method = req.method ?? "GET";
   const path = url.pathname;
-  if (deps.databases && DB_ROUTE.test(path)) {
-    await needDocker(deps);
-    await dbRoute(deps.databases, req, res, url, deps.log);
-    return;
-  }
 
   if (path === "/v1/health") {
     if (method !== "GET") throw new HttpError(405, "method_not_allowed", "Use GET.");
@@ -141,7 +108,7 @@ async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerR
       if (!res.writableFinished) aborted.abort();
     });
     try {
-      const recipeDeps = { docker: deps.watch.docker, owner: deps.owner, images: deps.images, pool: deps.pool, log: deps.log, databases: deps.databases };
+      const recipeDeps = { docker: deps.watch.docker, owner: deps.owner, images: deps.images, pool: deps.pool, log: deps.log };
       return send(res, 200, await runRecipe(recipeDeps, body, aborted.signal));
     } catch (err) {
       if (err instanceof JobError) {
@@ -163,39 +130,6 @@ async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerR
       if (body.kind === "term" && !ws.session(body.sid!)) throw new HttpError(404, "not_found", "No such terminal.");
     }
     return send(res, 200, deps.tickets.issue(body));
-  }
-
-  if (path === "/v1/prewarm") {
-    if (method !== "POST") throw new HttpError(405, "method_not_allowed", "Use POST.");
-    const body = parse(PrewarmRequest, await readJson(req, JSON_LIMIT));
-    // Warming only reads caches: an open workspace's tree (its file hashes). It
-    // never creates a workspace, a lease, a listener, or a container, and never builds.
-    if ("scope" in body && deps.workspaces) {
-      let id: string | null = null;
-      try {
-        id = workspaceId(body.scope);
-      } catch {
-        id = null;
-      }
-      const ws = id ? deps.workspaces.get(id) : null;
-      if (ws) void ws.snapshotTree().catch(() => {});
-    }
-    return send(res, 204);
-  }
-
-  const prepare = /^\/v1\/stacks\/([a-z-]+)\/prepare$/.exec(path);
-  if (prepare) {
-    if (method !== "POST") throw new HttpError(405, "method_not_allowed", "Use POST.");
-    const stack = prepare[1];
-    if (!isStack(stack)) throw new HttpError(404, "not_found", `There is no stack named ${stack}.`);
-    // A course's image, which builds its parent first (hu/web on hu/node).
-    const names: ImageName[] = [STACKS[stack].image];
-    await needDocker(deps);
-    for (const name of names) {
-      if (deps.images.state(name) === "ready") continue;
-      deps.images.build(name).catch((err: Error) => deps.log.error("image.build_failed", { image: name, error: err.message }));
-    }
-    return send(res, 202, { stack, images: Object.fromEntries(names.map((n) => [`hu/${n}`, deps.images.state(n)])) });
   }
 
   if (path.startsWith("/v1/admin/")) {
@@ -227,8 +161,8 @@ async function route(deps: ApiDeps, req: http.IncomingMessage, res: http.ServerR
     throw new HttpError(404, "not_found", "No such admin route.");
   }
 
-  if (deps.workspaces && deps.checks && (await workspaceRoute({ workspaces: deps.workspaces, checks: deps.checks }, req, res, url))) return;
-  if (LATER.test(path)) throw new HttpError(501, "not_implemented", "Workspaces, checks, and page lessons arrive in a later phase.");
+  if (deps.workspaces && (await workspaceRoute(deps.workspaces, req, res, url))) return;
+  if (NO_WORKSPACES.test(path)) throw new HttpError(501, "not_implemented", "This runner has no workspaces.");
   throw new HttpError(404, "not_found", "No such route.");
 }
 
