@@ -1,12 +1,12 @@
 # Hack University Compiler, conventions for agents
 
 The downloadable Hack University app: compilers, Learn mode, cheatsheets,
-challenges, and project courses in an IDE, all running on the learner's own
-computer. The README is for learners (short on purpose), `docs/guide.md` is
-the full tour of features and scripts, and this file is how the app is meant
-to look and behave, so a change keeps its patterns. The owner decided
-everything below by trying it live, so don't re-propose what's listed as
-rejected, and when a new idea changes how something looks, show it running
+challenges, project courses to read, and a playground, all running on the
+learner's own computer. The README is for learners (short on purpose),
+`docs/guide.md` is the full tour of features and scripts, and this file is how
+the app is meant to look and behave, so a change keeps its patterns. The owner
+decided everything below by trying it live, so don't re-propose what's listed
+as rejected, and when a new idea changes how something looks, show it running
 before committing it.
 
 ## Ground rules
@@ -46,12 +46,9 @@ before committing it.
   the output panel says why (exit codes 137 and 139 explained). SQL runs in a
   Web Worker (`lib/sql/worker.ts`) that `lib/sql/browser.ts` stops at 15
   seconds, since a PGlite query never yields, and results reach the page
-  capped at 1,000 rows. The IDE's preview, which shares the app's thread on
-  purpose (first-party cookies), beats a heartbeat while it shows, and after a
-  page that froze with it running, it waits for a click
-  (`components/ide/preview-pane.tsx`). Keep all three when changing those
-  paths. The compiler's Terminal is outside all of this on purpose: it's a
-  shell on your computer, like any other terminal window.
+  capped at 1,000 rows. Keep both when changing those paths. The Terminal
+  (the compiler's and the playground's) is outside all of this on purpose:
+  it's a shell on your computer, like any other terminal window.
 - **Docs stay short where learners read them.** The README is the install
   steps, written for someone who has never opened a terminal (numbered, per
   computer, every command copyable), and the everyday commands. Details go in
@@ -75,7 +72,8 @@ before committing it.
   with the runner down (`components/compiler/compiler-workspace.tsx`). The
   Terminal is a real shell on this computer in that folder (node-pty in the
   runner), outside the sandbox on purpose so your own tools and logins work,
-  and only these workspaces get one (`shellPlace` in `runner/workspaces.ts`).
+  and only these folders and the playground's get one (`shellPlace` in
+  `runner/workspaces.ts`).
   It's kept in tmux when tmux is there (`runner/host-tmux.ts`), so leaving
   the page, closing the browser, or restarting the app never ends it (Claude
   Code keeps running), and opening the Terminal again finds it as you left
@@ -95,20 +93,63 @@ before committing it.
   through the files with Accept all and Reject all. Rejecting writes back
   what was there. The page's own writes (saves, the Explorer's operations,
   told to it by the store) never count, and it never opens a file by itself.
+  The folder's store, the review, and the note are shared with the
+  playground (`lib/folder-workspace.ts`).
+- **The playground is one folder on this computer** (`/playground`, scope
+  `playground`, template `content/workspaces/playground/blank`, its README
+  shown and its AGENTS.md and CLAUDE.md hidden), shown the way VS Code
+  would: the Explorer on the left (Mod+B or the tabs' first button folds it
+  away), the editor with a tab for each open file
+  (`components/ide/editor-group.tsx`, one CodeMirror state per tab, Mod+P
+  quick open), and the terminal under them, open from the start, its bar's
+  button folding it to the bar. It's the compiler's folder pieces: the same
+  host shell kept in tmux, the same `.hu/editor.md` (the open file, the
+  other tabs, the cursor, the selection), and the same review, per tab (each
+  tab's state carries its own merge view), except that a file a tool makes
+  just appears (a scaffold makes dozens): only edits to files that were
+  there, and their removal, wait for review (`acceptNew` in
+  `lib/outside-changes.ts`). The Explorer keeps its M and U marks. There's no
+  Run and no sandbox: things run in the terminal, and a server's link opens
+  in a new tab. Its rail icon (lucide CodeXml, titled Playground) sits right
+  under the compilers (Bash), past a divider. Rejected: pinning it to the
+  rail's bottom edge. It's never the homepage's target (it
+  doesn't set `hu-lang`), and each course's old `/<course>/playground`
+  addresses redirect to it. Editor on the right doesn't mirror it. Rejected:
+  a playground per course, and the container IDE with its panels (servers,
+  ports, the API panel, databases, the preview).
+- **A lesson can add a ready-made folder to the playground**: the link
+  `/playground?add=<id>` writes `content/practice/<id>` (served by
+  `/api/practice/<id>`, `lib/practice.ts`) into a folder of that name at the
+  playground's top level, each file only where nothing is yet (the runner's
+  `If-None-Match: *` write), opens its README, and drops `?add=` from the
+  address. It never writes over a learner's edits. The one folder today is
+  `trailhead-api`, the practice shop API the React and Next.js courses call
+  (`node trailhead-api/server.mjs`, 127.0.0.1:4000, every lesson's output
+  captured against it). Rejected: shipping it in the playground's template
+  (the playground starts empty but for its README).
 - **Teaching lives in Learn mode** (`/<lang>/learn/<lesson>/<part>`): the part
   on the left, the editor on the right, each lesson split into parts with one
   idea, one to three worked examples, and a practice with the same shape.
   Never test what wasn't taught, and write each course in its language's
-  idioms.
+  idioms. The project courses' lessons are read lessons instead
+  (`"format": "read"`, `components/learn/read-part-view.tsx`): one centered
+  column with no editor, a few long parts that each explain how something
+  works, with code to read, its real output, and diagrams, and no practice.
+  Opening a part is reading it. A course with no lessons yet has no Learn
+  routes at all.
 - Python, JavaScript, C++, Java, and Go run on Piston. SQL runs on PGlite in
   the page. TypeScript and Bash run on the local runner. Code that runs in
   other online compilers runs here too: Java starts from the class with
   `main` wherever it sits (`javaEntry` in `lib/source-file.mjs`, compiled by
   `scripts/piston-extras/java/run` when it isn't first), JavaScript with a
   top-level await runs as a module, and ES modules (those, and TypeScript)
-  get `require()`. The project courses
-  (web, React, Next.js, Express, FastAPI, Spring Boot, Go APIs) open real
-  codebases in the IDE.
+  get `require()`. The project courses (web, React, Next.js, Express,
+  FastAPI, Spring Boot, Go APIs) are read courses in Learn, with no compiler
+  page (runtime `none` in `content/courses.json`), written to the rules in
+  `content/learn/AUTHORING.md` (Read courses) and checked by
+  `npm run lessons:verify -- <course>` with no sandbox. They aren't on the
+  rail (the owner's call): Learn's course list has them, and their code is
+  for the playground.
 - **Challenges come in two sets, the same in every language:** the basics
   (very easy to medium, one idea each), and data structures and algorithms
   practice in the categories marked `"dsa": true` (sorting through greedy,
@@ -121,11 +162,39 @@ before committing it.
   `content/challenges/AUTHORING.md`.
 - **Every example runs.** Every code block in lessons and cheatsheets has to
   pass `npm run snippets:verify`. Give a fragment context with hidden harness
-  or stdin fences rather than changing what readers see.
+  or stdin fences rather than changing what readers see. The read courses
+  are the exception: their code is shown, never run (highlighted, with a copy
+  button and no Run), since JSX needs a page and servers never exit, and an
+  example's output is what really printed when the author ran it.
 - **What's installed is the learner's choice.** `npm run up` shows a checklist
-  with every part's size, and `npm run add`, `remove`, `status`, `choose`, and
-  `clean` change it later. In the app, anything not installed says its size
-  and the exact command to add it.
+  of the compilers with every part's size, and `npm run add`, `remove`,
+  `status`, `choose`, and `clean` change it later. In the app, anything not
+  installed says its size and the exact command to add it. The project
+  courses and the playground need nothing installed (naming one to `add`
+  says so). What they used to install (their images, workspace and database
+  containers, and package caches) is listed in `scripts/lib/retired.mjs`, by
+  exact name and live-runner labels, never a pattern that could reach
+  `hu-piston`: `npm run up` says when it's still there, and `npm run clean`
+  removes it, then asks a question of its own (no by default, and never yes
+  on `--yes` alone) before deleting each part that's the learner's work: the
+  course databases' data, and old workspace folders (scopes that aren't
+  `compiler/<course>` or `playground`).
+- **Installing stays a few commands a beginner can follow.** The README has
+  only `up`, `choose` (the checklist, what's installed ticked, unticking
+  removes), `status`, `update`, and `uninstall`; the rest is in the guide.
+  `npm run up` (and `add`, `remove`, `choose`, `uninstall`) starts Docker
+  Desktop itself when it's installed but not running
+  (`scripts/lib/docker-desktop.mjs`), so no step says to open it first.
+  `npm run update` (`scripts/update.mjs`) is `git pull` and then `up`: it
+  stops while the app runs or when the app's own files were edited (the lock
+  files npm rewrites go back by themselves), and says what's new to install.
+  Nothing checks for updates on its own (local only). Dependencies install
+  with `npm ci`, never `npm install`, so the lock stays as it came and the
+  next pull applies. `npm run uninstall` removes what's in Docker (what's
+  labeled `hu.managed`, the sandbox, the runner's images, and the retired
+  leftovers) and ends the terminals' shells, keeps `~/.hack-university` and
+  the databases' data unless asked, and leaves the folder for the learner to
+  delete. Test it, and `clean`, with `--dry-run` only.
 
 ## Look
 
@@ -194,6 +263,16 @@ before committing it.
   while busy (only greyed out), so bars never shift. The panel's buttons
   drop their labels for their icons when their row is too narrow, all at
   once and at the same height.
+- **Diagrams** in read lessons are SVG files drawn inline from a strict
+  subset (`lib/diagram.mjs` reads them, `components/learn/diagram.tsx`
+  builds them element by element, never as markup), with only the `dg-`
+  classes in `globals.css`: every color a token, the page's theme and never
+  the code theme, no background (the stars show through), and lines that
+  never fade with the line sliders. The path to follow is `--diagram-accent`
+  (ink on Light, gold on the dark themes, like the eyebrow). The title is the
+  aria-label, never a `<title>` element, which would show a tooltip. One
+  unit is a pixel at 680 wide, never under about 70%, then it scrolls
+  sideways, fading at the side with more to see.
 - **Syntax colors match everywhere:** editors and static code blocks use the
   same tokenizer (`lib/tokenize.mjs`, Lezer for TypeScript), with escape
   sequences in their own color and directives in the keyword color. Each
@@ -235,7 +314,11 @@ before committing it.
   draggable border's position (splits, pane sizes, the lesson list or the
   output folded or not) is saved where you leave it and applied before first
   paint (`lib/panes.ts`, read through `lib/pane-size.ts`, a fold marking
-  `<html>` for CSS), so a new border goes in that table. Answer reveals ask
+  `<html>` for CSS), so a new border goes in that table. The playground's
+  tabs, unsaved text, opened folders, and terminal come back from this
+  browser (`hu-ws-v1:<id>`), its editor, Explorer, and terminal hidden until
+  they have (`IDE_GATE` in `lib/url-state.ts`, `data-restore-editor`, 1.5
+  seconds at most), the rail and the bar showing at once. Answer reveals ask
   again after a reload.
 - **Stdin goes with the output when it's under the editor:** side by side
   it's the code box's last row, and stacked (Learn, the compiler with a
@@ -288,7 +371,7 @@ before committing it.
 - **The terminal and the Explorer have their own look** (the theme menu,
   `lib/theme.ts`): a background (the theme's own, see-through with the
   stars, or a color, which shows over the stars too) and a text size, for
-  every terminal and Explorer, the IDE's included, and the Explorer's
+  every terminal and Explorer, the playground's included, and the Explorer's
   highlight (its open file's row, and lighter under the pointer): none to
   begin with (the row unfilled, its brighter name marking it, a
   struck-through ring for a swatch, a row under the pointer the faint
@@ -352,23 +435,23 @@ before committing it.
   in `compiler-app.tsx`).
 - **Going between the compiler and Learn asks first** with a popup, and
   clicking the same button again confirms. Only Cancel or a click outside
-  closes it.
+  closes it. The rail's links (a compiler, the playground) never ask.
 - **Answers are hidden behind the eye:** the first time on a page it asks
   first with a popup, like the Learn and Compiler buttons (but clicking the
   eye again cancels), and after that it opens straight away. Hiding never asks.
   Your code is kept. The floating Next glows after a passing Check, then
   fades.
-- **Test cases open on a click:** in every check's results (Learn, the
-  challenges, the IDE's Results) each test opens at once, on a click, to what
-  it ran and what came back, with no chevron and no hover fill (the pointer
-  says it's clickable). They start closed, and one opens at a time
+- **Test cases open on a click:** in every check's results (Learn and the
+  challenges) each test opens at once, on a click, to what it ran and what
+  came back, with no chevron and no hover fill (the pointer says it's
+  clickable). They start closed, and one opens at a time
   (`useOneOpen`, `components/ui/one-open.ts`). Learn's and the challenges'
   tests are a row of tabs, each its mark and number only (no "passed" or
   "failed"), the open one only gaining the gray (its text stays the same
   color), since their output is always under the editor and short on
   height. There's no summary line, pass or fail ("Solved!" included), only
   a pass's way on (the next part or challenge), and screen readers still
-  hear the verdict. The IDE's Results stay a list, its checks having names.
+  hear the verdict.
 - **No output header under the editor:** the gold Output or Results label
   and its row (with Clear) show only while the output is beside the editor.
   Under it (Learn, the compiler with a panel open, stacked, or on a phone)

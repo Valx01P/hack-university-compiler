@@ -3,11 +3,14 @@
 Everything about Hack University Compiler past getting it running, which the
 [README](../README.md) covers. Jump to a part:
 
+- [What you can install](#what-you-can-install), and changing, updating, and
+  uninstalling it
 - [Scripts](#scripts): every `npm run` command
 - [Languages](#languages) and [what you can import](#what-you-can-import)
 - [SQL](#sql)
 - [Learn mode](#learn-mode)
 - [Your files and the terminal](#your-files-and-the-terminal)
+- [The playground](#the-playground)
 - [Cheatsheets and challenges](#cheatsheets-and-challenges)
 - [Runnable examples](#runnable-examples)
 - [Editor](#editor): its keys and settings
@@ -16,16 +19,91 @@ Everything about Hack University Compiler past getting it running, which the
 - [Project layout](#project-layout)
 - [Adding a language](#adding-a-language)
 
+## What you can install
+
+| Compiler | Size |
+| --- | --- |
+| Python | 1.1 GB |
+| JavaScript | 215 MB |
+| C++ | 2.8 GB |
+| Java | 510 MB |
+| Go | 525 MB |
+| TypeScript | 615 MB |
+| Bash | 545 MB |
+
+The app itself (lessons and cheatsheets for every language, SQL, search, and
+the playground) is 1.2 GB and always comes. Python, JavaScript, C++, Java,
+and Go share a 1.4 GB sandbox, which downloads once, so the total is often
+less than the sum, and the checklist shows the real total as you pick. The
+project courses are lessons you read, so they need nothing installed.
+
+`npm run up` asks the first time, with that checklist, and remembers the
+choice in `~/.hack-university/components.json`. After that:
+
+```bash
+npm run choose              # the checklist again: tick to add, untick to remove
+npm run status              # what's installed, and how much space each takes
+npm run add -- cpp bash     # install these, without the checklist
+npm run remove -- cpp       # remove these and get the space back
+npm run clean               # clear Docker's leftovers, and the project courses' old parts
+npm run update              # the newest version, then start it (stop the app first)
+npm run uninstall           # everything it installed (asks about your own work)
+```
+
+`add`, `remove`, and `uninstall` show what changes and ask before they do it
+(`--dry-run` only shows it, `--yes` answers yes). The ones that need Docker
+start Docker Desktop when it's installed but not running (`HU_START_DOCKER=0`
+turns that off). If you run something that isn't installed, the app tells
+you the command to add it. To skip the checklist, use `npm run up -- --all`
+for everything or `npm run up -- --minimal` for just the app.
+
+**Updating** (`npm run update`) pulls the newest version with git, then runs
+`npm run up`, which installs what changed: new dependencies, new versions of
+the compilers you have, and the build. Your code, progress, folders, and
+choice of what's installed are kept, since they live in the browser and in
+`~/.hack-university`, not in the folder. It stops before changing anything
+while the app runs, or when the app's own files were edited in the folder,
+and it says what's new to install. The app never checks for updates on its
+own: this is the only time it goes online for itself, and only when you run
+it.
+
+**Cleaning** (`npm run clean`) frees Docker's build cache, the TypeScript and
+Bash images' older builds, and untagged images. It also finds what the
+project courses installed back when they opened in an IDE, which nothing uses
+now: their images (`hu/web`, `hu/python`, `hu/java`, `hu/go`, and the
+PostgreSQL and MongoDB images), their workspace and database containers,
+and their package caches. Two things from then are your own work, so it asks
+about each on its own and keeps it unless you say yes: the course databases'
+data, and the folders of the workspaces that are gone (a course's
+playground, a lesson's, or a challenge's) in `~/.hack-university/workspaces`.
+`npm run up` says when their Docker parts are still there, and `--dry-run`
+only shows it all.
+
+**Uninstalling** (`npm run uninstall`) removes every compiler, the compiler
+sandbox, every container, volume, and network the workspace runner made
+(labeled `hu.managed`), and what the project courses installed before, and
+ends the terminals' shells. Your own work (`~/.hack-university`, and the
+course databases' data from before) stays unless you say to delete it too
+(`--delete-my-work`). Then you delete the
+folder: `cd .. && rm -rf hack-university-compiler` on a Mac, or
+`cd .. && rmdir /s /q hack-university-compiler` in Command Prompt. Docker
+Desktop, Node.js, and Git stay.
+
+With [Task](https://taskfile.dev) installed, `task`, `task add -- cpp`, and the
+rest do the same.
+
 ## Scripts
 
 | Command | What it does |
 | --- | --- |
-| `npm run up` | Everything: set up whatever's missing, build, and serve on `127.0.0.1:3000`. The first run asks what to install (`-- --choose` asks again, `--all`, `--minimal`, or `--only=python,web` skip the question, `--dev` serves the dev server) |
+| `npm run up` | Everything: start Docker Desktop if it isn't running, set up whatever's missing, build, and serve on `127.0.0.1:3000`. The first run asks what to install (`-- --choose` asks again, `--all`, `--minimal`, or `--only=python,bash` skip the question, `--dev` serves the dev server) |
+| `npm run update` | The newest version (`git pull`), then `npm run up`, which installs what changed. Stop the app first. Flags go on to `up` |
 | `npm run status` | What's installed, what isn't, and how much disk each takes |
-| `npm run add -- <names>` | Install compilers or courses (`python`, `cpp`, `react`, `spring`, `courses`, `all`...), after showing the size |
+| `npm run add -- <names>` | Install compilers (`python`, `cpp`, `bash`, `compilers`, `all`...), after showing the size |
 | `npm run remove -- <names>` | Remove them and free the disk, after showing what goes (`--dry-run` only shows it, `--with-sandbox` takes the compiler sandbox when the last compiler goes) |
 | `npm run choose` | The checklist from the first run, to add and remove in one go |
-| `npm run clean` | Free Docker's build cache, the course images' older builds, and untagged images |
+| `npm run clean` | Free Docker's build cache, the TypeScript and Bash images' older builds, untagged images, and what the project courses used to install, asking before deleting your own work (`--dry-run` only shows it) |
+| `npm run uninstall` | Remove everything it installed in Docker, asking before deleting your own work (`--dry-run` only shows it, `--delete-my-work` deletes it too) |
 | `npm run dev` | Dev server on `127.0.0.1:3000`, with the workspace runner on `127.0.0.1:3100` (restarted when its code changes) |
 | `npm run build` then `npm start` | Production build and server on `127.0.0.1:3000` |
 | `npm run setup` | `piston:up`, `piston:install` (every language), and `search:setup` |
@@ -34,14 +112,14 @@ Everything about Hack University Compiler past getting it running, which the
 | `npm run piston:install` | Install every language, or `-- <ids>` for just some |
 | `npm run piston:status` | Show which languages are installed |
 | `npm run search:setup` | Download the cheatsheet search's model (30 MB, part of `setup`) |
-| `npm run lessons:verify` | Check every Learn lesson in the sandbox (`-- <language> [ids]` for some) |
+| `npm run lessons:verify` | Check every Learn lesson in the sandbox (`-- <course> [ids]` for some, the read courses with no sandbox) |
 | `npm run challenges:verify` | Check every challenge in every language (`-- <ids>`, `--lang=<language>`) |
 | `npm run reference:verify` | Lint the cheatsheets (`-- <language> [categories]`) |
 | `npm run snippets:verify` | Run every code example in the lessons and cheatsheets the way the app does (`-- <languages>`, `--source=learn` or `reference`, `--pages=<ids>`) |
 | `npm run sql:try -- <file.sql>` | Run SQL on a fresh PostgreSQL and print what psql would (`--setup <file.sql>`, `--sample` for the playground's tables) |
 | `npm run runner` | The workspace runner alone, on `127.0.0.1:3100` ([runner/README.md](../runner/README.md)) |
-| `npm run images` | Build the sandbox images when they're missing or changed (`npm run add` does this for you: `-- bash` for one, `-- --stacks=express` for a course's, `--force` to rebuild) |
-| `npm run images:status` | Show the sandbox images and whether they're built |
+| `npm run images` | Build the TypeScript and Bash images when they're missing or changed (`npm run add` does this for you: `-- bash` for one, `--force` to rebuild) |
+| `npm run images:status` | Show the TypeScript and Bash images and whether they're built |
 | `npm run security:verify` | Prove the sandbox's isolation and limits against real containers (`-- S1 S9` for some) |
 | `npm run runner:test` | The runner's tests (the ones that run real jobs skip when Docker is off) |
 | `npm run highlight:test` | Check the syntax highlighter against its snapshots in `tests/highlight/` (`UPDATE_SNAPSHOTS=1` rewrites them after a change you meant) |
@@ -158,8 +236,7 @@ with 114.
   editor (✓ Test 1, ✗ Test 2), each mark saying how it did (no summary
   line, and a pass only adds the link on), and a click opens one to what it
   ran and what came back, one at a time, all closed again with every Check.
-  The challenges show theirs the same way, and the IDE's Results list its
-  checks, opening the same way.
+  The challenges show theirs the same way.
 - TypeScript and Bash parts add a little to the editor. A TypeScript run shows
   a **Type check** strip above its output: "No type errors", or each error with
   a link that puts the cursor on its line, which the editor underlines. Bash
@@ -181,7 +258,10 @@ with 114.
   lesson's parts fold out under it (the lesson you're on opens by itself). The
   list also switches courses, with an icon for every course that has lessons,
   in rows of 8 (the languages first, then the web and server stacks), and
-  leads back to the compiler. The icons are one stop for Tab: the arrow keys
+  leads back to the compiler. The web and server courses (HTML, CSS & JS,
+  React, Next.js, Express, FastAPI, Spring Boot, Go APIs) are lessons you
+  read, with no compiler page, reached from this course list, and their code
+  is for the [playground](#the-playground). The icons are one stop for Tab: the arrow keys
   move between them, and Home and End jump to the ends of a row.
 - Drag the borders to resize the lesson list, the lesson, and the editor.
   Drag the lesson list's border all the way left to fold it away, and bring it
@@ -209,11 +289,35 @@ Lessons live in `content/learn/<language>/` as JSON, one file per lesson.
 [`content/learn/AUTHORING.md`](../content/learn/AUTHORING.md) is the guide for
 writing them, and `npm run lessons:verify` checks every lesson (Piston must be
 running, except for SQL): it runs each example and reference solution and makes
-sure every practice starter runs but doesn't already pass. A Bash lesson's data
+sure every practice starter runs but doesn't already pass. A read course
+needs no sandbox: `npm run lessons:verify -- web` checks its shape, prose,
+code, and diagrams (`content/learn/<course>/diagrams/*.svg`), and
+`npm run build` stops on a diagram the parser refuses. A Bash lesson's data
 files live in `content/fixtures/<language>/<set>/`. To read a draft course from
 outside the repo, start the app with `LEARN_CONTENT_DIR` set to its folder of
 courses (the one `lessons:verify` checks) and `FIXTURES_CONTENT_DIR` to its
 fixtures: a course there takes the place of the one in `content/learn/`.
+
+### Read courses
+
+The project courses (HTML, CSS & JS, React, Next.js, Express, FastAPI, Spring
+Boot, and Go APIs) are read courses: each lesson is a few long parts that
+explain how something works, from what you can see down one layer, with code
+to read and diagrams to look at, and no practice.
+
+- A part is one centered column with no editor. Its code is shown, never run:
+  highlighted, with a copy button, and with the output it really printed when
+  it has one. A command's output is what the author's terminal showed.
+- Diagrams are drawn in the page's theme and contrast level, see-through
+  with the stars on. On a narrow screen a wide one scrolls sideways (with the
+  keyboard too), fading at the side with more to see.
+- Opening a part is reading it: it gets its check at once, and a lesson once
+  all its parts are open. The address keeps your place (`#example`,
+  `#example-2`, `#example-3`, `#recap`).
+- The top bar's **Playground** button (and the lesson list's) asks first, then
+  opens the playground. There's no sandbox badge, since nothing runs.
+- A course with no lessons yet has no Learn pages and no icon in the
+  switcher.
 
 ## Your files and the terminal
 
@@ -258,6 +362,44 @@ same shell, and an assistant there sees the challenge), while Explorer, or a
 file link in the Terminal, goes back to your files. The folders live in `~/.hack-university/workspaces/`, and
 `npm run up` must be running for them (without the runner, the editor still
 has the main file).
+
+## The playground
+
+`/playground` (the code icon, `</>`, under Bash on the compiler's rail) is
+one folder on your computer for trying anything, a few files or a whole
+project, in any language. It shows the way VS Code would: the **Explorer** on
+the left, the editor with a tab for each file you open, and a **Terminal**
+under them.
+
+- **Explorer**: the folder's files, the same as a compiler's (make, rename,
+  move, and delete files and folders, with M and U marks for what changed
+  since it started). `Mod-B` folds it away and back, and so does the button
+  at the start of the tabs.
+- **Tabs**: click a file to open it in a tab, middle-click or the tab's X to
+  close it, and `Mod-P` opens a file by its name. Each tab keeps its own undo
+  history and scroll. What you type is saved a second after you stop (Auto
+  save, in the settings gear, with the terminal's Option as Meta and screen
+  reader mode, and Show hidden files).
+- **Terminal**: the same kind of shell as a compiler's, in this folder: your
+  own tools and logins, `.hu/editor.md` saying what you have open, hidden
+  `AGENTS.md` and `CLAUDE.md` notes for AI tools, and kept in tmux, so it
+  outlives the page. It's open from the start. Drag its border, drag it all
+  the way down (or press the button on its bar) to fold it to its bar, and
+  ``Ctrl-` `` moves between it and the editor.
+- There's no Run: run things in the terminal (`node app.js`,
+  `python3 main.py`, `npm run dev`). A server you start there opens in a new
+  tab from the link it prints.
+- When the assistant (or a command) changes a file that was already there,
+  its tab shows the change for you to review, as the compiler's editor does,
+  each tab with its own. Files it makes just appear in the Explorer, so a
+  command that scaffolds a whole project doesn't make you review every file.
+
+The Explorer's width, the terminal's height, and whether either is folded
+stay where you leave them, and your tabs, unsaved text, opened folders, and
+the terminal come back after a reload. The folder lives beside the
+compilers' in `~/.hack-university/workspaces/` (`pwd` in the terminal says
+where). The old addresses of each course's playground
+(`/typescript/playground` and the like) open this one.
 
 ## Cheatsheets and challenges
 
@@ -364,9 +506,9 @@ brackets), and **Line wrapping** (off at first: long lines scroll sideways
 until you turn it on, and then a wrapped line's rows line up under its code,
 past its indentation) have switches there too.
 
-**Full screen**, the corner button in the editor's toolbar (in the compiler and
-in Learn), fills the window with the workspace. It's one setting for both, so
-it stays on as you go between the compiler and Learn. The top bar is covered
+**Full screen**, the corner button in the editor's toolbar (in the compiler,
+in Learn, and in the playground), fills the window with the workspace. It's
+one setting for all three, so it stays on as you go between them. The top bar is covered
 meanwhile, so its controls float: back and forward sit beside the theme button
 at the bottom right, and in Learn the lesson list button sits at the bottom
 left (the list opens over the workspace) and a Compiler button joins the
@@ -447,7 +589,7 @@ code editor in Learn. A focused field always shows its border.
 **Hide scrollbars**, the switch under the line sliders, hides every scrollbar
 in the app: the page's, the compiler's and Learn's panes, the lesson list,
 the editors, code blocks, and output, the cheatsheet and challenges panel,
-the IDE and its terminal, and the menus. Everything still scrolls with the
+the playground and its terminal, and the menus. Everything still scrolls with the
 mouse wheel, the trackpad, touch, and the keyboard. It's on until you turn
 it off.
 
@@ -465,12 +607,11 @@ whole part, the lesson, the editor, and the output, in full screen too.
 **Hide tooltips**, under it, stops every hint that pops up when you rest the
 pointer on something: on buttons and links, on the draggable borders, and on
 the type error underlines in the editor (the Type check strip still lists
-them). A preview of your own site keeps its tooltips. **Hide border
-highlight**, under that, keeps the draggable borders (the lesson list's edge,
-the compiler's and Learn's splits, and the IDE's sidebar and dock) from
-lighting up under the pointer and while you drag them, so only the cursor
-changes. A border you reach with the keyboard still lights up. Both are on
-until you turn them off.
+them). **Hide border highlight**, under that, keeps the draggable borders
+(the lesson list's edge, the compiler's and Learn's splits, and the
+playground's Explorer and terminal) from lighting up under the pointer and
+while you drag them, so only the cursor changes. A border you reach with the
+keyboard still lights up. Both are on until you turn them off.
 
 **Stars**, the switch under Hide scrollbars (on until you turn it off), puts
 a starry sky behind the whole app: twinkling stars that drift slowly, and soft clouds, in the theme's
@@ -522,8 +663,9 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
 - They all listen on `127.0.0.1` only, so nothing else on your network can
   reach them. The API also rejects requests whose `Host` isn't localhost,
   whose `Origin` is another site, or that a page on another localhost port
-  sent (a lesson's preview, say), and every write needs the app's `X-HU`
-  header, so a web page you have open can't use your sandbox. The runner wants
+  sent (a dev server you started in the playground, say), and every write
+  needs the app's `X-HU` header, so a web page you have open can't use your
+  sandbox. The runner wants
   the token `npm run up` writes to `~/.hack-university/runner-token`.
 - Every run is limited by `docker-compose.yml`: no network, 10s to run, 60s to
   compile, 512 MB of memory to run (1 GB to compile), 128 processes, and 1 MB of
@@ -540,11 +682,6 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
 - Exit codes the sandbox picks are explained under the output: 137 means the
   program went past its 512 MB of memory, 139 a segmentation fault (usually
   recursion too deep, or an index past the end).
-- The IDE's preview shares the app's thread, so a loop in the page's own
-  JavaScript that never ends freezes the tab, as it would in any browser tab.
-  When that happens and the tab is closed, the next time the project opens its
-  preview waits for a click (or loads without JavaScript) instead of freezing
-  again.
 - Next.js reports each build and dev session to telemetry.nextjs.org unless
   told not to, and `npm run up` tells it not to. When you run `npm run dev`,
   `npm run build`, or `npm start` yourself, `npx next telemetry disable` turns
@@ -570,8 +707,8 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
   first. Every border you drag (the editor's width, the same beside the
   output and beside the panel, so opening or closing the panel never moves
   it, the editor over the output, kept on its own, Learn's lesson
-  list, splits, and editor/output border, and the IDE's explorer, dock, and
-  preview) stays where you leave it, reloads included,
+  list, splits, and editor/output border, and the playground's Explorer and
+  terminal, folded or not) stays where you leave it, reloads included,
   and it's applied before the page paints too. Double-click a border to put
   it back. The panel and the challenge you're on live in the address
   instead.
@@ -581,16 +718,21 @@ browser ──▶ Next.js on 127.0.0.1:3000 ──▶ /api/execute ──┬─�
 ```
 app/[lang]/page.tsx          one prerendered page per language
 app/[lang]/learn/            Learn mode: the course shell and one page per lesson part
+app/playground/page.tsx      the playground, prerendered
+app/api/workspaces/          opens a folder (a compiler's or the playground's) and proxies its routes to the runner
 app/api/execute/route.ts     runs code in the sandbox
 app/api/runtimes/route.ts    Piston's and the runner's health, for the status badge
 app/api/lang/route.ts        sets the hu-lang cookie the homepage redirect reads
-components/compiler/         the compiler: language rail, toolbar, editor, output
+components/compiler/         the compiler: toolbar, editor, output, its folder's panel
+components/playground/       the playground: its frame, tabs, and terminal under the editor
+components/ide/              the folders' pieces: the Explorer, tabs, terminal, quick open
 components/learn/            Learn mode: lesson list, lesson view, practice checks
-components/chrome/           header, panel shell, status badge
+components/chrome/           header, panel shell, the course rail, status badge
 components/code/             CodeMirror editor and its settings
 content/learn/               the Learn courses (JSON) and the authoring guide
 content/reference/           the cheatsheets (one Markdown file per topic)
 content/challenges/          the challenges (one JSON file each, all languages)
+content/workspaces/          the folders' templates: each compiler's, and the playground's
 content/courses.json         the course registry: every course, its row, icon, and runtime
 lib/courses.ts               the registry's types and helpers
 lib/compiler.ts              each compiler page's starter program
@@ -598,6 +740,9 @@ lib/sql/                     SQL: the PGlite playground, the sample database, an
                              the psql-style runner shared with the verifiers
 lib/learn.ts                 reads courses and lessons at build time
 lib/snippet-harness.mjs      turns a lesson or cheatsheet code block into a program
+lib/workspace-store.ts       one folder in the browser: its tree, open files, and terminals
+lib/folder-workspace.ts      what the compiler and the playground share of their folders
+lib/outside-changes.ts       the review of changes made outside the editor
 lib/tokenize.mjs             the syntax highlighter's tokenizer, for code blocks, editors, and verifiers
 lib/search/                  the cheatsheet search (served by app/api/search)
 lib/runtimes.json            language id to Piston runtime and package
@@ -606,7 +751,7 @@ lib/runner.ts                server-side client for the local runner (TypeScript
 lib/single-checks.mjs        how a run passes a test, type test verdicts, and honesty
                              rules, shared with the verifiers
 docker-compose.yml           the sandbox and its limits
-docker/                      the sandbox images (hu/node, hu/bash, and the project courses')
+docker/                      the TypeScript and Bash images (hu/node, hu/bash)
 runner/                      the workspace runner, the only process that talks to Docker
 lib/docker-memory.mjs        the one Docker memory threshold, shared by npm run up and the runner
 scripts/setup-piston.mjs     runtime installer
@@ -617,11 +762,11 @@ scripts/verify-reference.mjs lints the cheatsheets
 scripts/verify-snippets.mjs  runs every code example in the lessons and cheatsheets
 scripts/try-sql.mjs          runs SQL on a fresh PostgreSQL, printed like psql
 scripts/up.mjs, dev.mjs      npm run up and npm run dev
-scripts/components.mjs       npm run status, add, remove, choose, and clean
+scripts/components.mjs       npm run status, add, remove, choose, clean, and uninstall
 scripts/lib/components.mjs   what's installed, and installing and removing it
 scripts/lib/picker.mjs       the checklist npm run up and npm run choose show
+scripts/lib/retired.mjs      what the project courses used to install, for clean to find
 lib/components.json          everything npm run up can install, with each part's size
-runner/db/pull.ts            downloads and removes the courses' database images
 scripts/verify-security.mjs  the sandbox's security suite
 tests/highlight/             the tokenizer's samples and snapshots, one per language
 ```
