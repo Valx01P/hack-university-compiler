@@ -2,7 +2,7 @@
 
 # Piston's gcc compile script, with -pthread for C and C++ so std::thread and
 # pthreads link (Hack University's concurrency lessons need them), and an
-# opt-in optimization level for C++ from the file's first line.
+# opt-in optimization level and C++20 for C++ from the file's first line.
 
 
 case "${PISTON_LANGUAGE}" in
@@ -12,10 +12,13 @@ case "${PISTON_LANGUAGE}" in
         ;;
     c++)
         rename 's/$/\.cpp/' "$@" # Add .cpp extension
-        # A first line of exactly "// -O2" (or -O1, -O3, -Os) builds optimized,
-        # the way g++ -O2 would in a terminal. Without one, -O0, as before.
-        OPT=$(head -q -n 1 *.cpp | grep -m 1 -o -E '^// -O[123s]$' | cut -c 4-)
-        g++ -std=c++17 -pthread $OPT *.cpp
+        # A first line of flags from this short list, like "// -O2" or
+        # "// -O2 -std=c++20", builds with them, the way g++ would in a terminal:
+        # -O1, -O2, -O3, -Os, -std=c++20, and -fcoroutines. Without one, C++17
+        # at -O0, as before.
+        OPT=$(head -q -n 1 *.cpp | grep -m 1 -E '^// (-O[123s]|-std=c\+\+20|-fcoroutines)( (-O[123s]|-std=c\+\+20|-fcoroutines))*$' | cut -c 4-)
+        # -lrt and -ldl for shm_open and dlopen (this glibc keeps them apart).
+        g++ -std=c++17 -pthread $OPT *.cpp -lrt -ldl
         ;;
     d)
         rename 's/.code$/\.d/' "$@" # Add .d extension

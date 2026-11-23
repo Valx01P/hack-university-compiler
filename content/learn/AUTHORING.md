@@ -113,18 +113,27 @@ inspect format (`[ 1, 2, 3 ]`, `{ a: 1 }`) and wraps arrays longer than 6 items
 across several lines, so for checked output prefer `arr.join(", ")`,
 `JSON.stringify(...)`, or template strings.
 
-**C++, g++ 10.2 in C++17 mode** (`__cplusplus == 201703`). No C++20: no
-`map::contains`, `<ranges>`, `<format>`, concepts, or `<=>`. Include the real
+**C++, g++ 10.2 in C++17 mode** (`__cplusplus == 201703`) by default. A lesson about
+C++20 turns it on with the first-line flags below, and g++ 10.2's C++20
+(`__cplusplus == 201709`) has concepts, ranges, `<=>`, `std::span`, `map::contains`,
+`std::jthread`, and coroutines, but not `<format>` or `<expected>`. Every other
+lesson stays C++17: no `map::contains`, `<ranges>`, concepts, or `<=>`. A body
+snippet that needs C++20 must be a whole program (its own `main`) with the flag
+line first, since the snippet harness puts includes above a fragment. Include the real
 headers you use (`<iostream>`, `<vector>`, `<string>`, ...), not
 `<bits/stdc++.h>`. `std::cout` prints doubles with 6 significant digits by
 default: use `std::fixed << std::setprecision(n)` from `<iomanip>` when decimals
 matter. Never print pointer values (addresses change every run). `sizeof` results
 are stable here (x86-64 Linux: `int` 4, `long` 8, `long long` 8, pointers 8).
-Programs link with `-pthread` (scripts/piston-extras/gcc/compile), so
+Programs link with `-pthread`, `-lrt`, and `-ldl` (scripts/piston-extras/gcc/compile), so
+`shm_open` and `dlopen` link too, and
 `std::thread`, `std::mutex`, `std::condition_variable`, and `std::atomic` all work
-(14 hardware threads). They compile at `-O0`, unless the file's first line is
-exactly `// -O2` (or `// -O1`, `// -O3`, `// -Os`), which builds it with that flag,
-the way `g++ -O2` would in a terminal. A lesson about speed uses that line and says
+(14 hardware threads). They compile as C++17 at `-O0`, unless the file's first
+line lists flags from a short set: `-O1`, `-O2`, `-O3`, `-Os`, `-std=c++20`, and
+`-fcoroutines` (for example `// -O2` or `// -O2 -std=c++20`). That builds it with
+them, the way `g++` would in a terminal. g++ 10.2's C++20 has concepts, ranges,
+`<=>`, `std::span`, and coroutines (with `-fcoroutines`), but not `std::format` or
+`std::expected`: show those from a Mac's clang 21, labeled. A lesson about speed uses that line and says
 so. (`#pragma GCC optimize("O2")` isn't the same: in a build at `-O0`, nothing gets
 inlined.) The sandbox here is x86-64 emulated on an Apple Silicon Mac, so its cache
 line acts like 128 bytes and every time measured in it is rough. Times and

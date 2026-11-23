@@ -181,9 +181,10 @@ and algorithms practice reaches for:
 | Java | `java.util` collections, streams, `BigInteger` and `BigDecimal`, and Java 15's preview features (records, sealed classes, `instanceof` patterns) |
 | Go | `container/heap`, `container/list`, `sort`, `math/big` (Go 1.16, so no generics) |
 
-C++ builds at `-O0`, so a crash or a print shows exactly what you wrote. Make the
-first line `// -O2` (or `// -O1`, `// -O3`, `// -Os`) to build optimized instead,
-the way `g++ -O2` would in a terminal.
+C++ builds as C++17 at `-O0`, so a crash or a print shows exactly what you wrote.
+Make the first line `// -O2` (or `// -O1`, `// -O3`, `// -Os`) to build optimized
+instead, the way `g++ -O2` would in a terminal, or `// -std=c++20` (add
+`-fcoroutines` for coroutines) for C++20. The flags combine: `// -O2 -std=c++20`.
 
 JavaScript runs as CommonJS (`require`) unless the program uses `import` or
 `export`, then as an ES module, so both styles work, extras included. Programs

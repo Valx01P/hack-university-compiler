@@ -143,11 +143,14 @@ before committing it.
   `main` wherever it sits (`javaEntry` in `lib/source-file.mjs`, compiled by
   `scripts/piston-extras/java/run` when it isn't first), JavaScript with a
   top-level await runs as a module, and ES modules (those, and TypeScript)
-  get `require()`. C and C++ link with `-pthread` (`scripts/piston-extras/gcc/compile`), so
-  `std::thread`, mutexes, and atomics run. C++ builds at `-O0` unless its first
-  line is exactly `// -O2` (or `-O1`, `-O3`, `-Os`), which builds it at that
-  level. That's how the C++ course's speed lessons get a real optimized build.
-  `#pragma GCC optimize` isn't the same: a `-O0` build inlines nothing. The project courses (web, React, Next.js, Express,
+  get `require()`. C and C++ link with `-pthread` (C++ also with `-lrt` and
+  `-ldl`, `scripts/piston-extras/gcc/compile`), so `std::thread`, mutexes,
+  atomics, `shm_open`, and `dlopen` run. C++ builds as C++17 at `-O0` unless its first line lists flags from a
+  short set (`-O1`, `-O2`, `-O3`, `-Os`, `-std=c++20`, `-fcoroutines`, like
+  `// -O2` or `// -O2 -std=c++20`), which builds it with them. That's how the
+  C++ course's speed lessons get a real optimized build and its C++20 lessons a
+  real C++20 one. `#pragma GCC optimize` isn't the same: a `-O0` build inlines
+  nothing. The project courses (web, React, Next.js, Express,
   FastAPI, Spring Boot, Go APIs) are read courses in Learn, with no compiler
   page (runtime `none` in `content/courses.json`), written to the rules in
   `content/learn/AUTHORING.md` (Read courses) and checked by
