@@ -49,10 +49,11 @@ function powers(text: string, keyBase: string): React.ReactNode[] {
 const BOUND = /^(?=.*[<>])[\w\s.,+\-−×*()<>=^]+$/;
 
 function inline(text: string, keyBase: string): React.ReactNode[] {
-  // Tokenize inline: [text](url), `code`, **bold**, *em*
+  // Tokenize inline: \*, [text](url), `code`, **bold**, *em*. A \* is a
+  // literal star, so a name like A* search can sit in bold or italics.
   const out: React.ReactNode[] = [];
   const re =
-    /(\[[^\]]+\]\([^)\s]+\))|(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\n]+\*)/g;
+    /(\\\*)|(\[[^\]]+\]\([^)\s]+\))|(`[^`]+`)|(\*\*(?:\\\*|[^*])+\*\*)|(\*(?:\\\*|[^*\n])+\*)/g;
   let last = 0;
   let i = 0;
   for (const m of text.matchAll(re)) {
@@ -60,7 +61,9 @@ function inline(text: string, keyBase: string): React.ReactNode[] {
     if (idx > last) out.push(...powers(text.slice(last, idx), `${keyBase}-t${i}`));
     const tok = m[0];
     const key = `${keyBase}-${i++}`;
-    if (tok.startsWith("[")) {
+    if (tok === "\\*") {
+      out.push("*");
+    } else if (tok.startsWith("[")) {
       const close = tok.indexOf("](");
       const label = tok.slice(1, close);
       const href = safeHref(tok.slice(close + 2, -1));

@@ -363,7 +363,8 @@ that, each on its own line. The verifier checks that the blocks match test 1's
   blocks with a blank line. Every line of a list block must start with `- ` or
   `N. `: list items are one line each, and a list, heading, or quote never
   shares a block with a paragraph. No raw HTML, no images. Code goes in
-  backticks, including generic types like `vector<int>`.
+  backticks, including generic types like `vector<int>`. A star in prose is
+  `\*` (A\* search), so a name with one can sit in bold or italics.
 - Write big limits as powers: `10^9`, `2 × 10^9`, `10^9 + 7`, `2^31 - 1`, never
   1000000000. The renderer raises a digits-only power (`10^9` shows as 10 with
   a raised 9) in prose, and in inline code that's a bound like
