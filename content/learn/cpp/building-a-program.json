@@ -1,0 +1,114 @@
+{
+  "id": "building-a-program",
+  "title": "From Source to Executable: Preprocess, Compile, Link",
+  "section": "Basics",
+  "summary": "Follow a C++ file through preprocessing, compiling, assembling, and linking, read the error each stage gives, and see what happens when it runs.",
+  "intro": "Pressing Run hides four tools that turn your text into a program the CPU can run. Knowing them is how you read an error: a misspelled header, a missing semicolon, and a misspelled `main` each fail at a different stage with a different kind of message. This lesson runs each stage by hand on a Mac, shows what it produces, and then follows the finished program as it runs.",
+  "steps": [
+    {
+      "title": "Four steps, then the preprocessor",
+      "body": "Building with `g++ main.cpp -o main` (or `clang++` on a Mac) looks like one step, but it runs four tools in a row, and an error message makes sense once you know which of them wrote it:\n\n1. The **preprocessor** edits your text: it pastes in **headers**, files of declarations like `iostream`, and drops comments.\n2. The **compiler** translates C++ into **assembly**, machine code written as text.\n3. The **assembler** turns the assembly into machine code bytes, saved in an **object file**.\n4. The **linker** joins object files and libraries into one executable.\n\nEvery line that starts with `#` is a command for the preprocessor. `#include <iostream>` means: find the file named `iostream`, and paste its whole text here, along with every header it includes in turn. The `-E` flag stops after this step. On this Mac the 6-line first program grows to 64,192 lines, pasted from 809 header files:\n\n```text\n$ clang++ -std=c++17 -E hello.cpp -o hello.ii\n$ wc -l hello.cpp hello.ii\n       6 hello.cpp\n   64192 hello.ii\n   64198 total\n```\n\ng++ 10.2 in the sandbox, with its own copy of the library, gives almost 32,000. Either way, that pasting happens again in every file that includes the header, which is a big part of why C++ builds are slow. g++ on Linux takes the same `-E`, and MSVC on Windows takes `/E`.\n\nThe preprocessor also swaps a few special names for facts about your code. `__LINE__` becomes the number of the line it's on, so a log message can say where it came from:\n\n```cpp\n#include <iostream>\n\nint main() {\n    std::cout << \"at line \" << __LINE__ << '\\n';  // at line 4\n    return 0;\n}\n```\n\nThe compiler never sees `__LINE__`, only the `4` put in its place. The lessons *Headers, Translation Units, and the Linker* and *The Preprocessor: Macros and Conditional Compilation* come back to all of this.",
+      "example": {
+        "title": "Log lines that know their line",
+        "prompt": "Print three messages, each with the line number the preprocessor puts in for __LINE__.",
+        "code": "#include <iostream>\n\nint main() {\n    std::cout << \"start, line \" << __LINE__ << '\\n';\n    // The preprocessor drops this comment, but the line still counts.\n    std::cout << \"middle, line \" << __LINE__ << '\\n';\n\n    std::cout << \"end, line \" << __LINE__ << '\\n';\n    return 0;\n}\n",
+        "output": "start, line 4\nmiddle, line 6\nend, line 8",
+        "explanation": "Before compiling, the preprocessor replaced each `__LINE__` with the number of its line in the file: 4, 6, and 8. It counts every line you wrote, so the comment on line 5 and the blank line 7 still push the later numbers down, even though the comment itself is dropped. The compiler then saw plain numbers, exactly as if you had typed `4`, `6`, and `8`."
+      },
+      "practice": {
+        "title": "Label two log messages",
+        "prompt": "Label two log messages with the line they come from.\n\n1. Replace the first TODO comment with a statement that prints `opened, line ` and `__LINE__`.\n2. Replace the second TODO comment with a statement that prints `loaded, line ` and `__LINE__`.\n3. Replace each comment on its own line, without adding or removing lines, so the numbers match.\n\nExpected output:\n\n```text\nopened, line 4\nloading prices\nloaded, line 6\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    // TODO: on this line, print \"opened, line \" and __LINE__\n    std::cout << \"loading prices\" << '\\n';\n    // TODO: on this line, print \"loaded, line \" and __LINE__\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    std::cout << \"opened, line \" << __LINE__ << '\\n';\n    std::cout << \"loading prices\" << '\\n';\n    std::cout << \"loaded, line \" << __LINE__ << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "opened, line 4\nloading prices\nloaded, line 6"
+          }
+        ],
+        "hints": [
+          "Write the statement the way the example does: `std::cout << \"opened, line \" << __LINE__ << '\\n';`",
+          "If you get 5 and 7, you added lines instead of replacing the comments. Each statement belongs on the line its TODO was on."
+        ]
+      }
+    },
+    {
+      "title": "Compiling, assembling, and linking",
+      "body": "Next the **compiler** checks your code against the language's rules and translates it into assembly, one instruction per line (`-S` stops there). It also does what it can ahead of time: it joins string literals that sit side by side into one, and replaces each `sizeof` with its number. This is `main` from the first program, from the sandbox's g++ 10.2 at `-O2`:\n\n```text\n.LC0:\n        .string \"Hello\"\nmain:\n        sub     rsp, 24\n        mov     esi, OFFSET FLAT:.LC0\n        mov     edi, OFFSET FLAT:_ZSt4cout\n        call    _ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc\n        lea     rsi, [rsp+15]\n        mov     edx, 1\n        mov     BYTE PTR [rsp+15], 10\n        mov     rdi, rax\n        call    _ZSt16__ostream_insertIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_PKS3_l\n        xor     eax, eax\n        add     rsp, 24\n        ret\n```\n\nYour text is the data labeled `.LC0`, the `'\\n'` is stored as its character code, 10, `xor eax, eax` puts the return value 0 in `eax`, and the `sub` and `add` on `rsp` borrow and give back a little scratch memory. The printing itself isn't here: each `call` jumps to library code by its **mangled name**, the compiler's encoding of a full C++ name, so `_ZSt4cout` is `std::cout`.\n\nThe **assembler** turns the assembly into bytes, an object file (`-c`). Its **symbol table** lists the names the file defines and the ones it needs from elsewhere. On this Mac, `nm` shows `main` defined here (`T`, for text, meaning code) and `std::cout` used but undefined (`U`). Linux has `nm` too, and MSVC has `dumpbin /symbols`:\n\n```text\n$ clang++ -std=c++17 -O2 -c hello.cpp -o hello.o\n$ nm hello.o | grep -E \"main|coutE\"\n                 U __ZNSt3__14coutE\n0000000000000000 T _main\n```\n\nThe **linker** joins your object files with the startup code and the C++ standard library into the executable, matching every `U` to a definition. Most of the library stays in a shared file that the system loads when the program starts, and `otool -L` lists those files (`ldd` on Linux):\n\n```text\n$ clang++ hello.o -o hello\n$ otool -L hello\nhello:\n        /usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2100.43.0)\n        /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)\n```",
+      "example": {
+        "title": "A message in three pieces",
+        "prompt": "Print a long message written as three string literals side by side, then the size of two joined literals.",
+        "code": "#include <iostream>\n\nint main() {\n    std::cout << \"Prices from the feed are \"\n                 \"delayed by 15 minutes \"\n                 \"for free accounts.\" << '\\n';\n    std::cout << sizeof(\"ab\" \"cd\") << '\\n';\n    return 0;\n}\n",
+        "output": "Prices from the feed are delayed by 15 minutes for free accounts.\n5",
+        "explanation": "The three literals have nothing between them but spaces and line breaks, so the compiler joins them into one before it writes any code. The sandbox's assembly for this program holds a single `.string \"Prices from the feed are delayed by 15 minutes for free accounts.\"`. `sizeof(\"ab\" \"cd\")` proves the join: one literal of four letters plus its ending 0 is 5 bytes, and the assembly just says `mov esi, 5`. Splitting a long message like this keeps each line of code short."
+      },
+      "practice": {
+        "title": "An order confirmation",
+        "prompt": "Build an order confirmation from literals the compiler joins.\n\n1. Print `Order 1042 filled: 100 shares at 101.25` from three string literals side by side, `\"Order 1042 filled: \"`, `\"100 shares \"`, and `\"at 101.25\"`, each on its own line of code, then `'\\n'`.\n2. Print `sizeof(\"buy \" \"100\")` on the next line.\n\nExpected output:\n\n```text\nOrder 1042 filled: 100 shares at 101.25\n8\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    // TODO: print the confirmation from three string literals, one per code line\n    // TODO: print the size of \"buy \" \"100\"\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    std::cout << \"Order 1042 filled: \"\n                 \"100 shares \"\n                 \"at 101.25\" << '\\n';\n    std::cout << sizeof(\"buy \" \"100\") << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Order 1042 filled: 100 shares at 101.25\n8"
+          }
+        ],
+        "hints": [
+          "Put no `<<` between the three literals. The spaces between the words belong inside them.",
+          "Joined, `\"buy \" \"100\"` is `\"buy 100\"`: seven characters and one ending 0."
+        ]
+      }
+    },
+    {
+      "title": "An error at each stage",
+      "body": "Each stage fails in its own way, and its message says which stage it was, which tells you where to look. Press Run on each of these to see the sandbox's g++ messages.\n\nThe **preprocessor** fails when it can't find a header, so check the name. g++ says `main.cpp:1:10: fatal error: iostrem: No such file or directory`, meaning file, line, and column:\n\n```cpp error\n#include <iostrem>\n\nint main() {\n    return 0;\n}\n```\n\nThe **compiler** fails when code breaks the language's rules, here with `main.cpp:4:33: error: expected ';' before 'return'`. Fix the first error first, since one mistake can cause several messages:\n\n```cpp error\n#include <iostream>\n\nint main() {\n    std::cout << \"Hello\" << '\\n'\n    return 0;\n}\n```\n\nThe **linker** fails when a name is used but never defined. Its messages have no line numbers, because it works on object files, not your text. Misspell `main`, and the startup code has nothing to call:\n\n```cpp harness\n{{code}}\n\nint main();\n```\n\n```cpp error\n#include <iostream>\n\nint mian() {\n    return 0;\n}\n```\n\ng++ names the caller, `_start` in the startup code's object file `crt1.o`, and the missing symbol (a Mac says `Undefined symbols for architecture arm64` and names `_main`):\n\n```text\n/usr/bin/ld: /usr/lib/x86_64-linux-gnu/crt1.o: in function `_start':\n(.text+0x20): undefined reference to `main'\ncollect2: error: ld returned 1 exit status\n```\n\nA **run-time** error appears only when the program runs: the build succeeded, then the program stopped. `std::stoi` turns text into a whole number, and `\"abc\"` has no digits, so g++'s library reports `terminate called after throwing an instance of 'std::invalid_argument'` and aborts the program, which ends with exit code 134:\n\n```cpp error\n#include <iostream>\n#include <string>\n\nint main() {\n    std::cout << std::stoi(\"abc\") << '\\n';\n    return 0;\n}\n```\n\nA **warning** means the code builds but looks wrong. Read every one. *Building Projects: Flags, Make, and CMake* turns on many more with `-Wall -Wextra`, and *Debugging: Crashes, Sanitizers, and a Debugger* covers crashes.",
+      "example": {
+        "title": "Bugs that still build",
+        "prompt": "Print three buggy lines that compile anyway, each followed by its fix.",
+        "code": "#include <iostream>\n\nint main() {\n    std::cout << 'OK' << '\\n';         // warning: multi-character character constant\n    std::cout << \"OK\" << '\\n';         // fixed: text goes in double quotes\n    std::cout << \"C:\\data\" << '\\n';    // warning: unknown escape sequence: '\\d'\n    std::cout << \"C:\\\\data\" << '\\n';   // fixed: \\\\ is one backslash\n    std::cout << \"C:\\new\" << '\\n';     // no warning: \\n is a real escape\n    std::cout << R\"(C:\\new)\" << '\\n';  // fixed: a raw string keeps backslashes\n    return 0;\n}\n",
+        "output": "20299\nOK\nC:data\nC:\\data\nC:\new\nC:\\new",
+        "explanation": "All of this builds, so only reading warnings and checking the output catches the bugs. `'OK'` is two characters in single quotes, which g++ turns into one number, 20299, with a warning. In `\"C:\\data\"` the `\\d` is no escape at all, so g++ warns and drops the backslash. `\"C:\\new\"` is worse: `\\n` is a valid newline escape, so there's no warning, and the path breaks across two lines. The comments quote what g++ 10.2 prints for each line."
+      },
+      "practice": {
+        "title": "Fix the bugs that build",
+        "prompt": "The starter builds and runs, but every line prints the wrong thing. g++ warns about the first three and says nothing about the last, because `\\n` and `\\t` are real escapes.\n\n1. Put the word `Filled` in double quotes.\n2. Print `42` as a number, not in single quotes.\n3. Fix both paths with `\\\\` or a raw string, so each backslash prints.\n\nExpected output:\n\n```text\nFilled\nSize: 42\nReport: D:\\data\\fills.csv\nBackup: D:\\new\\today.csv\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    // TODO: fix each line so the program prints exactly what the prompt shows\n    std::cout << 'Filled' << '\\n';\n    std::cout << \"Size: \" << '42' << '\\n';\n    std::cout << \"Report: D:\\data\\fills.csv\" << '\\n';\n    std::cout << \"Backup: D:\\new\\today.csv\" << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    std::cout << \"Filled\" << '\\n';\n    std::cout << \"Size: \" << 42 << '\\n';\n    std::cout << \"Report: D:\\\\data\\\\fills.csv\" << '\\n';\n    std::cout << R\"(Backup: D:\\new\\today.csv)\" << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Filled\nSize: 42\nReport: D:\\data\\fills.csv\nBackup: D:\\new\\today.csv"
+          }
+        ],
+        "hints": [
+          "Single quotes hold exactly one character. Words go in double quotes, and numbers go without quotes.",
+          "In a normal string, `\\\\` prints one backslash. A raw string `R\"(...)\"` keeps each backslash as typed."
+        ]
+      }
+    },
+    {
+      "title": "Running it, and which C++",
+      "body": "When you run `./hello`, the kernel starts the **loader** (`dyld` on macOS, `ld-linux.so` on Linux). It maps the executable and the shared libraries it lists into the new process, connects the names still marked `U`, and jumps to the startup code, which calls `main`.\n\n`main`'s return value becomes the **exit status**, 0 for success. Scripts and build tools check it to decide whether to carry on. Run this, and the output panel shows its exit code, 3:\n\n```cpp error\n#include <iostream>\n\nint main() {\n    std::cout << \"config file missing\" << '\\n';\n    return 3;\n}\n```\n\nA process starts with two output streams. **stdout**, which `std::cout` writes to, is for results. **stderr**, which `std::cerr` writes to, is for errors and warnings, so they still reach you when the results go to a file. Run this one to see both, stderr in red:\n\n```cpp\n#include <iostream>\n\nint main() {\n    std::cout << \"price 101.25\" << '\\n';\n    std::cerr << \"warning: feed is 2 seconds behind\" << '\\n';\n    std::cout << \"price 101.30\" << '\\n';\n    return 0;\n}\n```\n\nIn a terminal, `>` sends only stdout to a file. On this Mac:\n\n```text\n$ ./streams > prices.txt\nwarning: feed is 2 seconds behind\n$ cat prices.txt\nprice 101.25\nprice 101.30\n```\n\nC++ itself is an ISO standard, revised every three years since 2011: C++98, C++03, C++11, C++14, C++17, C++20, C++23. Compilers implement it: **g++** (GCC, usual on Linux), **clang++** (the Mac's), and **MSVC** (`cl`, in Visual Studio on Windows). `__cplusplus` holds the standard a file was built as, such as `201703` for C++17. This course uses C++17 on g++ 10.2, the sandbox's compiler, which supports all of C++17, still the version much production code targets. Plain `clang++` on this Mac still builds C++14 (`__cplusplus` is `201402`), so pass `-std=c++17` (`/std:c++17` with MSVC). *What C++20 and C++23 Add*, in the advanced track, covers the newer ones.",
+      "example": {
+        "title": "Which C++ built this",
+        "prompt": "Print the C++ standard and the compiler version the program was built with.",
+        "code": "#include <iostream>\n\nint main() {\n    std::cout << \"standard: \" << __cplusplus << '\\n';\n    std::cout << \"compiler: \" << __VERSION__ << '\\n';\n    return 0;\n}\n",
+        "output": "standard: 201703\ncompiler: 10.2.0",
+        "explanation": "Both names are filled in while the program is built. `__cplusplus` is the year and month of the standard, `201703` for C++17. `__VERSION__` is a string literal holding the compiler's version, `10.2.0` for g++ 10.2. Built on this Mac with `clang++ -std=c++17`, the same program prints `201703` and `Apple LLVM 21.0.0 (clang-2100.0.123.102)`, and without `-std=c++17` the first line says `201402`."
+      },
+      "practice": {
+        "title": "A build stamp",
+        "prompt": "Print a build stamp that says how and where the program was built.\n\n1. Print `built as ` and `__cplusplus`.\n2. Print `with g++ ` and `__VERSION__`.\n3. Print `stamped at line ` and `__LINE__`.\n4. Replace each TODO comment with its statement, keeping the line numbers.\n\nExpected output:\n\n```text\nbuilt as 201703\nwith g++ 10.2.0\nstamped at line 6\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    // TODO: print \"built as \" and __cplusplus\n    // TODO: print \"with g++ \" and __VERSION__\n    // TODO: print \"stamped at line \" and __LINE__, on this line\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    std::cout << \"built as \" << __cplusplus << '\\n';\n    std::cout << \"with g++ \" << __VERSION__ << '\\n';\n    std::cout << \"stamped at line \" << __LINE__ << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "built as 201703\nwith g++ 10.2.0\nstamped at line 6"
+          }
+        ],
+        "hints": [
+          "Each line is one statement like `std::cout << \"built as \" << __cplusplus << '\\n';`",
+          "`__LINE__` gives the line it's written on, so the third statement must sit on line 6, where its TODO was."
+        ]
+      }
+    }
+  ],
+  "recap": "- Building runs four tools: the preprocessor (`-E`), the compiler (`-S`, assembly), the assembler (`-c`, an object file), and the linker (the executable).\n- `#include` pastes in whole header files, tens of thousands of lines for `<iostream>`. `__LINE__` becomes the line's number.\n- The compiler joins side-by-side string literals and works out `sizeof` ahead of time. Library calls use mangled names like `_ZSt4cout`.\n- `nm` lists an object file's symbols: `T` defined here, `U` needed from elsewhere. The linker matches them, and `otool -L` or `ldd` lists the shared libraries.\n- Preprocessor and compiler errors give a file, line, and column. Linker errors name a symbol. Run-time errors appear only when the program runs. Read every warning.\n- `main`'s return value is the exit status. `std::cout` writes to stdout and `std::cerr` to stderr.\n- `__cplusplus` names the standard: `201703` is C++17, the course's, on g++ 10.2. Pass `-std=c++17` to clang++ on a Mac.\n\nNext, **Variables and Data Types** starts on real programs: values the program remembers, each with a type the compiler checks."
+}

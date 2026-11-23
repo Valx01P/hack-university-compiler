@@ -1,0 +1,154 @@
+{
+  "id": "processes-and-syscalls",
+  "title": "Processes and System Calls",
+  "section": "The Operating System",
+  "summary": "See your program from the operating system's side: system calls, standard streams and their buffers, exit statuses, arguments, the environment, and signals.",
+  "intro": "Your program never touches the screen, the disk, or the network itself. Every byte it prints, every file it opens, and every packet it sends is a request to the operating system's kernel, which decides how and when it happens. That's why knowing the OS explains what C++ alone can't: why output comes out of order or vanishes in a crash, how a script knows your program failed, what Ctrl-C really does, and why a trading system keeps the kernel out of its hot loop. This lesson opens the Operating System section, which looks at your program from the kernel's side: here as a process, with its system calls, standard streams, exit status, and signals, then through its files and the disk in *Files: Streams, Buffers, and the Disk*, its network connections in *Networking: Sockets, TCP, UDP, and Market Data Feeds*, and the processes it starts and shares memory with in *Processes Working Together: fork, Pipes, and Shared Memory*.",
+  "steps": [
+    {
+      "title": "The kernel and system calls",
+      "body": "The lesson *How a Computer Runs Your Program* said that the **kernel** is the only code allowed to use the hardware, and that running a program creates a **process**. The CPU enforces that rule. Your code runs in **user mode**, where the CPU refuses the instructions that touch devices or another process's memory. To print, open a file, or get more memory, a program makes a **system call**: it puts a call number and its arguments in registers and runs one special instruction, `syscall` on x86-64 or `svc` on ARM64. The CPU switches to **kernel mode**, the kernel checks the request and does the work, and control comes back with a result.\n\nLinux and macOS share POSIX, a standard set of C functions that wrap system calls, many of them in `<unistd.h>`:\n\n```cpp\n#include <unistd.h>\n\nconst char msg[] = \"hello from the kernel\\n\";\nconst ssize_t n = write(1, msg, sizeof msg - 1);  // sizeof counts the final '\\0'\nstd::cout << \"write took \" << n << \" bytes\\n\";\nstd::cout << \"process id \" << getpid() << '\\n';\n```\n\n- `write(fd, bytes, count)` hands bytes to the kernel and returns how many it took, or -1 on an error, so its type is `ssize_t`, POSIX's signed size. Descriptor 1 is standard output, the next part's subject.\n- `getpid()` returns the process id, the number the kernel knows this process by. Your own machine gives a new one every run.\n\n`std::cout` ends in the same `write`. Windows has its own API, with `WriteFile` and `GetCurrentProcessId` from `<windows.h>`.\n\nA system call costs far more than a function call, because the CPU switches modes and the kernel checks every argument. On this Mac, one `write` of a short line to `/dev/null` took about 250 ns, against about 15 ns a line when the C library buffered the lines into big blocks, rough numbers. That's why low-latency code keeps system calls out of its hot loop. On Linux, `strace ./prog` lists every system call a program makes, and macOS has `dtruss`, which needs System Integrity Protection turned off.",
+      "example": {
+        "title": "Printing without std::cout",
+        "prompt": "Print three quote lines and a summary by calling write directly, one system call per line, and count the bytes the kernel took.",
+        "code": "#include <string>\n#include <unistd.h>\n#include <vector>\n\n// Hands the whole string to the kernel in one system call.\nlong writeOut(const std::string& text) {\n    return write(1, text.data(), text.size());\n}\n\nint main() {\n    const std::vector<std::string> quotes = {\"AAPL 189.84\\n\", \"MSFT 411.22\\n\", \"SPY 512.10\\n\"};\n    long bytes = 0;\n    int calls = 0;\n    for (const std::string& line : quotes) {\n        bytes += writeOut(line);\n        ++calls;\n    }\n    writeOut(\"wrote \" + std::to_string(bytes) + \" bytes in \" + std::to_string(calls) + \" system calls\\n\");\n    return 0;\n}\n",
+        "output": "AAPL 189.84\nMSFT 411.22\nSPY 512.10\nwrote 35 bytes in 3 system calls",
+        "explanation": "The program never includes `<iostream>`. `text.data()` is a pointer to the string's first character, and `write(1, ...)` asks the kernel to copy `text.size()` bytes from there to standard output. Each call is one trip into kernel mode and back, and its return value is the number of bytes taken: 12, 12, and 11, newlines included. The summary is built as one `std::string` first, so it too leaves in a single system call, the fourth."
+      },
+      "practice": {
+        "title": "Words through the kernel",
+        "prompt": "Echo every input word on its own line with one system call each, then report the total.\n\n1. Finish `writeOut` so it calls `write` on descriptor 1 with the string's characters and returns the result.\n2. For each word read, write the word and a newline as one string in a single `writeOut` call.\n3. Add up the bytes the calls return and count the words. The starter already writes the summary line.\n\nInput:\n\n```text\nbuy 100 AAPL at 189.84\n```\n\nExpected output:\n\n```text\nbuy\n100\nAAPL\nat\n189.84\n5 words in 23 bytes\n```",
+        "starter": "#include <iostream>\n#include <string>\n#include <unistd.h>\n\n// Hands the whole string to the kernel in one system call.\nlong writeOut(const std::string& text) {\n    return 0;  // TODO: write text to descriptor 1 and return what write returns\n}\n\nint main() {\n    long bytes = 0;\n    int words = 0;\n    std::string word;\n    while (std::cin >> word) {\n        // TODO: write the word and a newline in one call, and count words and bytes\n    }\n    writeOut(std::to_string(words) + \" words in \" + std::to_string(bytes) + \" bytes\\n\");\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n#include <unistd.h>\n\n// Hands the whole string to the kernel in one system call.\nlong writeOut(const std::string& text) {\n    return write(1, text.data(), text.size());\n}\n\nint main() {\n    long bytes = 0;\n    int words = 0;\n    std::string word;\n    while (std::cin >> word) {\n        bytes += writeOut(word + \"\\n\");\n        ++words;\n    }\n    writeOut(std::to_string(words) + \" words in \" + std::to_string(bytes) + \" bytes\\n\");\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "buy 100 AAPL at 189.84\n",
+            "output": "buy\n100\nAAPL\nat\n189.84\n5 words in 23 bytes"
+          },
+          {
+            "stdin": "cancel\n",
+            "output": "cancel\n1 words in 7 bytes"
+          },
+          {
+            "stdin": "SELL 50\nMSFT\n",
+            "output": "SELL\n50\nMSFT\n3 words in 13 bytes"
+          }
+        ],
+        "hints": [
+          "`writeOut` is the example's: `return write(1, text.data(), text.size());`.",
+          "Build the line first so it is one call: `writeOut(word + \"\\n\")`.",
+          "Add what `writeOut` returns to `bytes`, so the newline counts too."
+        ]
+      }
+    },
+    {
+      "title": "Standard streams and buffering",
+      "body": "The lesson *From Source to Executable: Preprocess, Compile, Link* split output into stdout and stderr, and used `>` to send only stdout to a file. Underneath, every process starts with three open **file descriptors**, small numbers that stand for open files: 0 is standard input, 1 standard output, and 2 standard error. `std::cin`, `std::cout`, and `std::cerr` use them. The shell points them before `main` runs: at the terminal by default, at a file with `>` for descriptor 1 or `2>` for descriptor 2, at another program with `|`, and `2>&1` points descriptor 2 wherever 1 goes.\n\n`std::cout` doesn't make a system call for each `<<`. It collects text in a **buffer** and calls `write` when the buffer fills, when you flush, before `std::cin` reads, and when the program exits normally. How often depends on where descriptor 1 points: after every line on a terminal, but in blocks into a pipe or a file, 4096 bytes in the sandbox and 16384 on this Mac. `std::endl` writes `'\\n'` and flushes, `std::flush` only flushes, and `'\\n'` doesn't flush, which is why *Printing with std::cout* preferred it. `std::cerr` has no buffer and flushes `std::cout` before each write, so the two stay in order within one program.\n\nOrder breaks when something writes past that buffer: a raw `write`, or another process writing to the same file. With g++'s library, C's `printf` does too once `std::ios::sync_with_stdio(false)`, the speed tip from *Reading Input with cin and getline*, gives `std::cout` a buffer of its own. This part's example, run on this Mac in a terminal and then into a pipe:\n\n```text\n$ ./streams\n1 header\n2 raw log\n3 body\n4 header\n5 raw log\n6 body\n$ ./streams | cat\n2 raw log\n1 header\n3 body\n4 header\n5 raw log\n6 body\n```\n\nThe sandbox captures standard output and standard error through two separate pipes, like most CI logs, so its panel shows all of one, then the other in red, whatever order they were written in:\n\n```cpp\nstd::cout << \"report header\\n\";\nstd::cerr << \"warning: stale quote\\n\";\nstd::cout << \"report body\\n\";\n```",
+      "example": {
+        "title": "A raw log line overtakes std::cout",
+        "prompt": "Mix std::cout with direct write calls and watch the buffer decide the order, then fix it with flushes.",
+        "code": "#include <iostream>\n#include <string>\n#include <unistd.h>\n\n// Writes straight to fd 1 with one system call, past std::cout's buffer.\nvoid rawLog(const std::string& text) {\n    write(1, text.data(), text.size());\n}\n\nint main() {\n    std::cout << \"1 header\\n\";\n    rawLog(\"2 raw log\\n\");                  // overtakes line 1 when fd 1 is a pipe\n    std::cout << \"3 body\\n\" << std::flush;  // sends lines 1 and 3 together\n    std::cout << \"4 header\\n\" << std::flush;\n    rawLog(\"5 raw log\\n\");                  // in order: the buffer was empty\n    std::cout << \"6 body\" << std::endl;     // endl is '\\n' plus a flush\n    return 0;\n}\n",
+        "output": "2 raw log\n1 header\n3 body\n4 header\n5 raw log\n6 body",
+        "explanation": "The sandbox's standard output is a pipe, so `std::cout` keeps `1 header` in its buffer, and `rawLog` reaches the kernel first. `std::flush` after line 3 sends lines 1 and 3 in one `write`. Line 4 is flushed at once, so the buffer is empty when line 5 goes out, and the order holds from there. `std::endl` flushes line 6 too, though the normal exit would have done it anyway. In a terminal, as the run on the Mac shows, every line flushes itself and you would never see the bug, which is why it surprises people the first time a program's output goes to a log file."
+      },
+      "practice": {
+        "title": "Keep the log in order",
+        "prompt": "Each event prints a line through `std::cout`, then a raw log line through `write`. Make the output come out in program order.\n\n1. The starter reads `n` events, then prints `event <name>` and the raw `logged <name>` for each.\n2. Flush `std::cout` right before each `rawLog` call, so every event line reaches the kernel before its log line.\n3. Leave the rest as it is. `done` goes out at the normal exit.\n\nInput:\n\n```text\n3\nbuy\nsell\ncancel\n```\n\nExpected output:\n\n```text\nevent buy\nlogged buy\nevent sell\nlogged sell\nevent cancel\nlogged cancel\ndone\n```",
+        "starter": "#include <iostream>\n#include <string>\n#include <unistd.h>\n#include <vector>\n\n// Writes straight to fd 1 with one system call, past std::cout's buffer.\nvoid rawLog(const std::string& text) {\n    write(1, text.data(), text.size());\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<std::string> events(n);\n    for (std::string& event : events) {\n        std::cin >> event;\n    }\n    for (const std::string& event : events) {\n        std::cout << \"event \" << event << '\\n';\n        // TODO: make sure the event line reaches the kernel before the raw log line\n        rawLog(\"logged \" + event + \"\\n\");\n    }\n    std::cout << \"done\\n\";\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n#include <string>\n#include <unistd.h>\n#include <vector>\n\n// Writes straight to fd 1 with one system call, past std::cout's buffer.\nvoid rawLog(const std::string& text) {\n    write(1, text.data(), text.size());\n}\n\nint main() {\n    int n = 0;\n    std::cin >> n;\n    std::vector<std::string> events(n);\n    for (std::string& event : events) {\n        std::cin >> event;\n    }\n    for (const std::string& event : events) {\n        std::cout << \"event \" << event << '\\n';\n        std::cout << std::flush;\n        rawLog(\"logged \" + event + \"\\n\");\n    }\n    std::cout << \"done\\n\";\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "3\nbuy\nsell\ncancel\n",
+            "output": "event buy\nlogged buy\nevent sell\nlogged sell\nevent cancel\nlogged cancel\ndone"
+          },
+          {
+            "stdin": "1\nreplace\n",
+            "output": "event replace\nlogged replace\ndone"
+          },
+          {
+            "stdin": "2\nfill\nfill\n",
+            "output": "event fill\nlogged fill\nevent fill\nlogged fill\ndone"
+          }
+        ],
+        "hints": [
+          "Run the starter first: every `logged` line comes out before the `event` lines, because those wait in the buffer.",
+          "`std::cout << std::flush;` at the TODO sends the buffered event line to the kernel.",
+          "Writing `std::endl` instead of `'\\n'` on the event line works too, since it ends the line and flushes."
+        ]
+      }
+    },
+    {
+      "title": "Exit status, arguments, and environment",
+      "body": "`main`'s return value is the **exit status** that `echo $?` shows, as *From Source to Executable: Preprocess, Compile, Link* demonstrated. Underneath, the C library flushes `std::cout` and makes the system call that ends the process, and the kernel hands the number to the parent, usually your shell. Only the low 8 bits survive, so a status runs from 0 to 255 and `return 256;` reads as success. `EXIT_SUCCESS` and `EXIT_FAILURE` from `<cstdlib>` name the usual two, and `std::exit(code)` ends the program the same way from inside any function. Many tools return 2 for wrong usage and 1 for other failures, and `make && ./backtest` runs the backtest only when the build returned 0:\n\n```cpp error\n#include <cstdlib>\n#include <iostream>\n\nvoid loadConfig() {\n    std::cout << \"loading config\\n\";\n    std::cerr << \"error: config missing\\n\";\n    std::exit(EXIT_FAILURE);  // flushes std::cout and ends the process, status 1\n}\n\nint main() {\n    loadConfig();\n    std::cout << \"never printed\\n\";\n    return 0;\n}\n```\n\nThe parent also passes **arguments**. `int main(int argc, char* argv[])` receives their count and an array of C strings, where `argv[0]` is the program's own name, so `std::vector<std::string> args(argv + 1, argv + argc);` copies just the arguments into strings. The sandbox passes none, so `argc` is 1 there. **Environment variables** are named strings each process inherits from its parent, and `NAME=value ./prog` sets one for a single run. `std::getenv(\"NAME\")` returns a `const char*`, or `nullptr` when the name isn't set, so test it before you use it.\n\nA POSIX shell starts a program with two system calls: `fork` copies the shell's process, and the copy calls `exec`, which swaps in your program but keeps its descriptors and environment (`posix_spawn` does both, and Windows has `CreateProcess`). A `|` joins two processes with a **pipe**, a kernel buffer one writes and the other reads, and processes that pass data at high rates share memory instead, with `shm_open` and the next lesson's `mmap`. *Processes Working Together: fork, Pipes, and Shared Memory*, at the end of this section, does all of it from C++.\n\nHere is this part's tool on this Mac, built with a `main` that ends in `return runOrder(args, std::cout, std::cerr);`:\n\n```text\n$ ./order AAPL 100\nbuy 100 AAPL for paper\n$ echo $?\n0\n$ ORDER_ACCOUNT=desk7 ./order MSFT 50\nbuy 50 MSFT for desk7\n$ ./order AAPL\nusage: order SYMBOL QTY\n$ echo $?\n2\n$ ./order AAPL 1O0 2> errors.txt\n$ echo $?\n1\n```\n\n`std::cout` and `std::cerr` are both `std::ostream` objects, so a `std::ostream&` parameter accepts either. That lets the sandbox example pass `std::cout` for both and check every message.",
+      "example": {
+        "title": "An order tool's command line",
+        "prompt": "Check a tool's arguments, read an optional setting from the environment, and return the exit status a script would see, for three command lines.",
+        "code": "#include <cstdlib>\n#include <iostream>\n#include <string>\n#include <vector>\n\n// The tool's logic takes its arguments and streams as parameters, so tests can call it.\nint runOrder(const std::vector<std::string>& args, std::ostream& out, std::ostream& err) {\n    if (args.size() != 2) {\n        err << \"usage: order SYMBOL QTY\\n\";\n        return 2;\n    }\n    const std::string& qty = args[1];\n    for (char c : qty) {\n        if (c < '0' || c > '9') {\n            err << \"error: bad quantity \" << qty << '\\n';\n            return 1;\n        }\n    }\n    const char* account = std::getenv(\"ORDER_ACCOUNT\");  // nullptr when not set\n    out << \"buy \" << qty << ' ' << args[0] << \" for \" << (account != nullptr ? account : \"paper\") << '\\n';\n    return 0;\n}\n\nint main(int argc, char* argv[]) {\n    std::cout << \"argc here: \" << argc << '\\n';\n    // The sandbox passes no arguments, so try three command lines by hand.\n    const std::vector<std::vector<std::string>> runs = {{\"AAPL\", \"100\"}, {\"AAPL\"}, {\"AAPL\", \"1O0\"}};\n    for (const auto& args : runs) {\n        const int status = runOrder(args, std::cout, std::cout);\n        std::cout << \"exit status \" << status << '\\n';\n    }\n    return EXIT_SUCCESS;\n}\n",
+        "output": "argc here: 1\nbuy 100 AAPL for paper\nexit status 0\nusage: order SYMBOL QTY\nexit status 2\nerror: bad quantity 1O0\nexit status 1",
+        "explanation": "`argc` is 1 in the sandbox: just the program's name. `runOrder` follows the common convention: status 2 for wrong usage, 1 for bad data, 0 for success. Its quantity check walks the characters, so `1O0`, with a capital O, is reported as bad data instead of reaching `std::stoi`, which would stop the program with an error. `ORDER_ACCOUNT` isn't set here, so `std::getenv` returns `nullptr` and the order goes to `paper`. Building a `std::string` from that `nullptr` would be undefined behavior, which is why the test comes first. The real tool passes `std::cerr` as `err`, and the Mac run above shows its message missing from standard output once `2>` sends it to a file."
+      },
+      "practice": {
+        "title": "A backtest launcher",
+        "prompt": "Write the logic of a command-line backtest launcher that a nightly script runs.\n\n1. Exactly two arguments, `SYMBOL DAYS`, are allowed. Otherwise write `usage: backtest SYMBOL DAYS` to `err` and return 2.\n2. `DAYS` must be all digits. Otherwise write `error: bad days <DAYS>` to `err` and return 1.\n3. Read the `BACKTEST_DATA` environment variable with `std::getenv`, and use `data` when it isn't set.\n4. Write `backtest <SYMBOL> over <DAYS> days from <dir>` to `out` and return 0.\n\nThe starter reads the command line from stdin and prints the status.\n\nInput:\n\n```text\nAAPL 30\n```\n\nExpected output:\n\n```text\nbacktest AAPL over 30 days from data\nexit status 0\n```",
+        "starter": "#include <cstdlib>\n#include <iostream>\n#include <sstream>\n#include <string>\n#include <vector>\n\nint runBacktest(const std::vector<std::string>& args, std::ostream& out, std::ostream& err) {\n    // TODO: check the arguments, read BACKTEST_DATA, print the run, return the status\n    return 0;\n}\n\nint main() {\n    // The sandbox passes no arguments, so each test gives the command line on stdin.\n    std::string line;\n    std::getline(std::cin, line);\n    std::istringstream words(line);\n    std::vector<std::string> args;\n    std::string word;\n    while (words >> word) {\n        args.push_back(word);\n    }\n    const int status = runBacktest(args, std::cout, std::cout);\n    std::cout << \"exit status \" << status << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <cstdlib>\n#include <iostream>\n#include <sstream>\n#include <string>\n#include <vector>\n\nint runBacktest(const std::vector<std::string>& args, std::ostream& out, std::ostream& err) {\n    if (args.size() != 2) {\n        err << \"usage: backtest SYMBOL DAYS\\n\";\n        return 2;\n    }\n    const std::string& days = args[1];\n    for (char c : days) {\n        if (c < '0' || c > '9') {\n            err << \"error: bad days \" << days << '\\n';\n            return 1;\n        }\n    }\n    const char* dir = std::getenv(\"BACKTEST_DATA\");\n    out << \"backtest \" << args[0] << \" over \" << days << \" days from \" << (dir != nullptr ? dir : \"data\") << '\\n';\n    return 0;\n}\n\nint main() {\n    // The sandbox passes no arguments, so each test gives the command line on stdin.\n    std::string line;\n    std::getline(std::cin, line);\n    std::istringstream words(line);\n    std::vector<std::string> args;\n    std::string word;\n    while (words >> word) {\n        args.push_back(word);\n    }\n    const int status = runBacktest(args, std::cout, std::cout);\n    std::cout << \"exit status \" << status << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "AAPL 30\n",
+            "output": "backtest AAPL over 30 days from data\nexit status 0"
+          },
+          {
+            "stdin": "AAPL\n",
+            "output": "usage: backtest SYMBOL DAYS\nexit status 2"
+          },
+          {
+            "stdin": "MSFT 3x\n",
+            "output": "error: bad days 3x\nexit status 1"
+          }
+        ],
+        "hints": [
+          "Check `args.size() != 2` first, write the usage line with `err << ...`, and `return 2;`.",
+          "Loop over the characters of `args[1]` as the example does, returning 1 at the first one outside `'0'` to `'9'`.",
+          "Keep `std::getenv(\"BACKTEST_DATA\")` in a `const char*` and print `dir != nullptr ? dir : \"data\"`."
+        ]
+      }
+    },
+    {
+      "title": "Signals and clean shutdown",
+      "body": "A **signal** is the kernel interrupting a process to tell it something happened. *Debugging: Crashes, Sanitizers, and a Debugger* read the ones a crash sends, `SIGSEGV` (11) and `SIGABRT` (6), from the shell's status of 128 + N, and showed that a crash loses whatever `std::cout` still buffered, so print to `std::cerr` while you chase one. A program that runs for hours must also handle the two that ask it to stop:\n\n| Signal | Sent when | Shell status |\n| --- | --- | --- |\n| `SIGINT` (2) | you press Ctrl-C | 130 |\n| `SIGTERM` (15) | `kill <pid>` or a service manager asks it to stop | 143 |\n\nBy default both end the process on the spot, so a recorder stopped that way leaves a half-written file. `SIGKILL` (9, from `kill -9`) can't be caught, so nothing in the program gets to run.\n\nTo shut down cleanly, install a **handler** with `std::signal` from `<csignal>`. It can run in the middle of anything, even halfway through a `std::cout` or a `new`, so it should only set a flag of type `volatile std::sig_atomic_t`, an integer written in one step that the compiler rereads every time, and leave the shutdown to the main loop. Here is a real Ctrl-C on this Mac, on a version of the example with a tick every 100 ms and no `raise`, first without the handler and then with it:\n\n```text\n$ ./recorder_plain\nrecording ticks\n^C\n$ echo $?\n130\n$ ./recorder\nrecording ticks\n^Cstopped after 7 ticks, file saved\n$ echo $?\n0\n```\n\nOn Windows, the C runtime's `std::signal` catches Ctrl-C as `SIGINT` too, and `SetConsoleCtrlHandler` from `<windows.h>` also hears the console window closing.",
+      "example": {
+        "title": "Stop a tick recorder cleanly",
+        "prompt": "Record ticks until a SIGINT arrives, then stop at the top of the loop and finish normally instead of dying.",
+        "code": "#include <csignal>\n#include <iostream>\n\nvolatile std::sig_atomic_t stopRequested = 0;\n\nvoid onSignal(int) {\n    stopRequested = 1;  // only set a flag: no printing inside a handler\n}\n\nint main() {\n    std::signal(SIGINT, onSignal);\n    int recorded = 0;\n    for (int tick = 1; tick <= 10 && !stopRequested; ++tick) {\n        std::cout << \"tick \" << tick << '\\n';\n        ++recorded;\n        if (tick == 3) {\n            std::raise(SIGINT);  // stands in for Ctrl-C, which nobody can press in the sandbox\n        }\n    }\n    std::cout << \"stopped after \" << recorded << \" ticks, file saved\\n\";\n    return 0;\n}\n",
+        "output": "tick 1\ntick 2\ntick 3\nstopped after 3 ticks, file saved",
+        "explanation": "`std::signal(SIGINT, onSignal)` replaces SIGINT's default action, ending the process, with the handler. `std::raise(SIGINT)` sends the signal to this process, as Ctrl-C would, and the handler runs before `raise` returns. It only sets the flag. The loop condition sees it before tick 4, so the program reaches its normal end, prints its summary, and returns 0, which also flushes `std::cout`. Without the `std::signal` line, the same `raise` would end the process with status 130, and with `std::cout` writing into a pipe, not even the tick lines would appear."
+      },
+      "practice": {
+        "title": "Shut down a feed handler on SIGTERM",
+        "prompt": "A service manager stops your feed handler with SIGTERM. Catch it and shut down cleanly.\n\n1. Write `void onSignal(int)`, which sets `stopRequested` to 1.\n2. Install it for `SIGTERM` at the start of `main`.\n3. Read `n` and `stopAfter`, then up to `n` prices. Right after the price number `stopAfter` is processed, call `std::raise(SIGTERM)` to stand in for the service manager.\n4. The starter's loop stops when the flag is set, then prints the summary.\n\nInput:\n\n```text\n5 3\n100.5 100.75 101 100.25 99.5\n```\n\nExpected output:\n\n```text\nprocessed 3, last 101.00\nstopped by SIGTERM\n```",
+        "starter": "#include <csignal>\n#include <iomanip>\n#include <iostream>\n\nvolatile std::sig_atomic_t stopRequested = 0;\n\n// TODO: write a handler that sets stopRequested to 1\n\nint main() {\n    // TODO: install the handler for SIGTERM\n    int n = 0;\n    int stopAfter = 0;\n    std::cin >> n >> stopAfter;\n    std::cout << std::fixed << std::setprecision(2);\n    int processed = 0;\n    double last = 0.0;\n    for (int i = 0; i < n && !stopRequested; ++i) {\n        double price = 0.0;\n        std::cin >> price;\n        last = price;\n        ++processed;\n        // TODO: raise SIGTERM once stopAfter prices are processed\n    }\n    std::cout << \"processed \" << processed << \", last \" << last << '\\n';\n    std::cout << (stopRequested ? \"stopped by SIGTERM\" : \"input finished\") << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <csignal>\n#include <iomanip>\n#include <iostream>\n\nvolatile std::sig_atomic_t stopRequested = 0;\n\nvoid onSignal(int) {\n    stopRequested = 1;\n}\n\nint main() {\n    std::signal(SIGTERM, onSignal);\n    int n = 0;\n    int stopAfter = 0;\n    std::cin >> n >> stopAfter;\n    std::cout << std::fixed << std::setprecision(2);\n    int processed = 0;\n    double last = 0.0;\n    for (int i = 0; i < n && !stopRequested; ++i) {\n        double price = 0.0;\n        std::cin >> price;\n        last = price;\n        ++processed;\n        if (processed == stopAfter) {\n            std::raise(SIGTERM);\n        }\n    }\n    std::cout << \"processed \" << processed << \", last \" << last << '\\n';\n    std::cout << (stopRequested ? \"stopped by SIGTERM\" : \"input finished\") << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "stdin": "5 3\n100.5 100.75 101 100.25 99.5\n",
+            "output": "processed 3, last 101.00\nstopped by SIGTERM"
+          },
+          {
+            "stdin": "4 1\n50 51 52 53\n",
+            "output": "processed 1, last 50.00\nstopped by SIGTERM"
+          },
+          {
+            "stdin": "2 9\n10.1 10.2\n",
+            "output": "processed 2, last 10.20\ninput finished"
+          }
+        ],
+        "hints": [
+          "The handler is the example's, with an unnamed `int` parameter: `void onSignal(int) { stopRequested = 1; }`.",
+          "Install it with `std::signal(SIGTERM, onSignal);` before the loop. Raising SIGTERM without it ends the process with status 143.",
+          "Inside the loop, after `++processed`, write `if (processed == stopAfter) { std::raise(SIGTERM); }`."
+        ]
+      }
+    }
+  ],
+  "recap": "- The kernel controls the hardware. User code asks it for work through system calls such as `write` and `getpid` from `<unistd.h>`, each far costlier than a function call.\n- Descriptors 0, 1, and 2 are standard input, output, and error. The shell points them at the terminal, files, or pipes before `main` runs.\n- `std::cout` buffers: line by line on a terminal, in blocks into a pipe or file. It flushes when full, on `std::flush` or `std::endl`, before `std::cin` reads, and at a normal exit.\n- `std::cerr` is unbuffered and flushes `std::cout` first. A raw `write` or `printf` can overtake buffered output, and the sandbox shows stdout and stderr separately.\n- `main`'s return value is the exit status: 0 for success, 1 to 255 for failure, read by scripts with `$?` and `&&`.\n- `argv[0]` is the program's name and `argv[1]` onward its arguments. `std::getenv` returns `nullptr` for an unset variable, so check it.\n- A shell starts a program with `fork` and `exec` (`posix_spawn`, `CreateProcess` on Windows), and `|` joins two processes with a pipe.\n- A signal ends a process unless it is handled, and the shell reports 128 + N: 130 for Ctrl-C's `SIGINT`, 143 for `SIGTERM`.\n- A handler installed with `std::signal` only sets a `volatile std::sig_atomic_t` flag, and the main loop does the clean shutdown.\n\nNext, **Files: Streams, Buffers, and the Disk** follows the same system calls to files: text and binary data, folders, the kernel's page cache, and memory-mapped reads."
+}

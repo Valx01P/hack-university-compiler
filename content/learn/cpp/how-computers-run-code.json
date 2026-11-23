@@ -1,0 +1,116 @@
+{
+  "id": "how-computers-run-code",
+  "title": "How a Computer Runs Your Program",
+  "section": "Basics",
+  "summary": "See what happens when your program runs: the CPU and its instructions, memory as numbered bytes, the operating system, and fast and slow memory.",
+  "intro": "When you pressed Run on your first program, a compiler turned it into instructions, the operating system started it, and the CPU carried out those instructions one at a time, reading and writing memory. This lesson follows that path, and it's the foundation the whole course builds on: the compiler and the linker come back in Functions and Building Programs, memory in the Memory section, processes and files in The Operating System, and the CPU in Inside the Machine. So the goal here is a clear picture, not every detail.",
+  "steps": [
+    {
+      "title": "The CPU runs instructions",
+      "body": "A program that looks right can still be ten times too slow, or stop with `Segmentation fault`. Both come down to what the machine does underneath, starting with the chip that does the work: the **CPU** (central processing unit).\n\nA CPU understands only tiny commands called **instructions**: copy a number, add two numbers, compare them, jump elsewhere. Each instruction is stored as a few **bytes**, the small cells memory is made of, and a program in that form is **machine code**. The CPU repeats one loop, about 3 × 10^9 times a second on a 3 GHz chip:\n\n1. **Fetch** the next instruction from memory.\n2. **Decode** it: work out which operation it is and what it works on.\n3. **Execute** it, then move on to the next one.\n\nPicture a cook following a recipe one line at a time, very literally and very fast. The numbers in use sit in **registers**, a few 8-byte slots inside the CPU: the cook's hands, tiny but faster than anything else. x86-64 has 16, named like `rax` (whose lower half is `eax`), and ARM64 has 31, like `x0` (lower half `w0`).\n\nHere is real machine code for `int main() { return 42; }`, built by this Mac's clang and shown by `objdump -d`. First for x86-64, the CPU family in most PCs and servers and in this course's sandbox:\n\n```text\n$ clang++ -O2 -target x86_64-apple-macos13 -fomit-frame-pointer -c answer.cpp\n$ objdump -d --x86-asm-syntax=intel answer.o\n       0: b8 2a 00 00 00                mov     eax, 0x2a\n       5: c3                            ret\n```\n\nThen for ARM64, the family in Apple Silicon Macs and phones:\n\n```text\n$ clang++ -O2 -c answer.cpp\n$ objdump -d answer.o\n       0: 52800540      mov     w0, #0x2a               ; =42\n       4: d65f03c0      ret\n```\n\nThe middle column is each instruction's bytes in hexadecimal, a base-16 notation that *Numbers in Memory: Binary, Two's Complement, and IEEE 754* explains, and `0x2a` is 42. `mov` copies 42 into a register, `eax` or `w0`, and `ret` returns. Each CPU family has its own **instruction set**, so the same C++ becomes different bytes, and the compiler does that translation for you. *Inside the CPU: Pipelines, Out-of-Order, and Branches*, in the advanced track, comes back to how a modern CPU overlaps many instructions at once.",
+      "example": {
+        "title": "Trace four instructions",
+        "prompt": "Play the CPU: trace a four-instruction machine program and print what both registers hold after each instruction. Both start at 0.",
+        "code": "#include <iostream>\n\n// The machine program, one instruction per line:\n//   mov eax, 4      copy 4 into eax\n//   mov ebx, 10     copy 10 into ebx\n//   add eax, ebx    eax becomes eax + ebx\n//   add eax, eax    eax becomes eax + eax\nint main() {\n    std::cout << \"mov eax, 4   -> eax=4 ebx=0\" << '\\n';\n    std::cout << \"mov ebx, 10  -> eax=4 ebx=10\" << '\\n';\n    std::cout << \"add eax, ebx -> eax=14 ebx=10\" << '\\n';\n    std::cout << \"add eax, eax -> eax=28 ebx=10\" << '\\n';\n    return 0;\n}\n",
+        "output": "mov eax, 4   -> eax=4 ebx=0\nmov ebx, 10  -> eax=4 ebx=10\nadd eax, ebx -> eax=14 ebx=10\nadd eax, eax -> eax=28 ebx=10",
+        "explanation": "Each printed line is one trip around the loop. The CPU fetches `mov eax, 4`, decodes it as copy a number into a register, and executes it, so `eax` holds 4. Only the register an instruction names first changes: `add eax, ebx` reads both registers and writes their sum, 14, into `eax`, while `ebx` keeps its 10. The last `add` uses `eax` twice, so it doubles it to 28. A real CPU's registers start with whatever was left in them, which is why machine code always sets a register before reading it."
+      },
+      "practice": {
+        "title": "Trace five instructions",
+        "prompt": "Play the CPU for a five-instruction program, the one in the starter's comment. Both registers start at 0.\n\n```text\nmov eax, 7\nmov ebx, 3\nsub eax, ebx\nadd ebx, eax\nadd eax, ebx\n```\n\n1. Work out what `eax` and `ebx` hold after each instruction runs. `sub eax, ebx` makes `eax` become `eax - ebx`.\n2. Print one line per instruction, in order: the instruction, spaces so the arrows line up, `-> `, then `eax=` and `ebx=` with their values.\n3. Use one `std::cout` statement per line.\n\nExpected output:\n\n```text\nmov eax, 7   -> eax=7 ebx=0\nmov ebx, 3   -> eax=7 ebx=3\nsub eax, ebx -> eax=4 ebx=3\nadd ebx, eax -> eax=4 ebx=7\nadd eax, ebx -> eax=11 ebx=7\n```",
+        "starter": "#include <iostream>\n\n// The machine program, one instruction per line:\n//   mov eax, 7      copy 7 into eax\n//   mov ebx, 3      copy 3 into ebx\n//   sub eax, ebx    eax becomes eax - ebx\n//   add ebx, eax    ebx becomes ebx + eax\n//   add eax, ebx    eax becomes eax + ebx\nint main() {\n    // TODO: print one line per instruction, with both registers after it runs\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\n// The machine program, one instruction per line:\n//   mov eax, 7      copy 7 into eax\n//   mov ebx, 3      copy 3 into ebx\n//   sub eax, ebx    eax becomes eax - ebx\n//   add ebx, eax    ebx becomes ebx + eax\n//   add eax, ebx    eax becomes eax + ebx\nint main() {\n    std::cout << \"mov eax, 7   -> eax=7 ebx=0\" << '\\n';\n    std::cout << \"mov ebx, 3   -> eax=7 ebx=3\" << '\\n';\n    std::cout << \"sub eax, ebx -> eax=4 ebx=3\" << '\\n';\n    std::cout << \"add ebx, eax -> eax=4 ebx=7\" << '\\n';\n    std::cout << \"add eax, ebx -> eax=11 ebx=7\" << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "mov eax, 7   -> eax=7 ebx=0\nmov ebx, 3   -> eax=7 ebx=3\nsub eax, ebx -> eax=4 ebx=3\nadd ebx, eax -> eax=4 ebx=7\nadd eax, ebx -> eax=11 ebx=7"
+          }
+        ],
+        "hints": [
+          "Track the two registers on paper first. After `sub eax, ebx`, `eax` is 7 - 3.",
+          "Only the register named first in an instruction changes. The other keeps its value.",
+          "Copy the example's line shape: `std::cout << \"mov eax, 7   -> eax=7 ebx=0\" << '\\n';`"
+        ]
+      }
+    },
+    {
+      "title": "Memory is numbered bytes",
+      "body": "Crash reports talk about addresses, and later lessons say a number takes 4 bytes. Both are about memory.\n\nA **bit** is a single 0 or 1, like a switch that's off or on. A **byte** is 8 bits, which allows 256 patterns, so it holds a number from 0 to 255. Memory (RAM, the computer's working memory) is one enormously long row of bytes, and each byte has a number, its **address**, like the houses on a long street. 16 GB of RAM is about 1.7 × 10^10 bytes, and on a 64-bit CPU an address is itself 8 bytes long.\n\nA bigger value takes several bytes in a row, and its address is that of the first. `sizeof` gives how many bytes a value takes. The compiler works it out while building, so it costs nothing at run time:\n\n```cpp\nstd::cout << sizeof('A') << '\\n';      // 1\nstd::cout << sizeof(42) << '\\n';       // 4\nstd::cout << sizeof(2.5) << '\\n';      // 8\nstd::cout << sizeof(\"Hello\") << '\\n';  // 6\n```\n\nA whole number gets 4 bytes and a decimal number 8, whatever their values. Text in double quotes gets one extra byte holding 0 at the end, which marks where it stops, so `\"Hello\"` takes 6.\n\nYour program is bytes too: the executable the compiler writes is a file holding machine code and data such as your text. On this Mac, `xxd`, which prints a file's bytes in hexadecimal, finds the first program's `\"Hello\"` inside its 38,472-byte executable:\n\n```text\n$ xxd -g 1 hello | grep Hello\n000010b0: 48 65 6c 6c 6f 00 00 00 01 00 00 00 1c 00 00 00  Hello...........\n```\n\nThe first column is the position in the file. `48 65 6c 6c 6f` are the codes for H, e, l, l, o, and the `00` is the 0 that ends the text. When you run the program, the operating system copies these bytes into memory, and the CPU fetches its instructions from there. *Pointers* prints real addresses, and *A Process's Memory: Segments, Storage Duration, and Lifetime* maps where each part lands.",
+      "example": {
+        "title": "Sizes of four literals",
+        "prompt": "Print how many bytes four kinds of literal take, one per line after a label.",
+        "code": "#include <iostream>\n\nint main() {\n    std::cout << \"char 'A': \" << sizeof('A') << '\\n';\n    std::cout << \"whole number 42: \" << sizeof(42) << '\\n';\n    std::cout << \"decimal 2.5: \" << sizeof(2.5) << '\\n';\n    std::cout << \"text \\\"Hello\\\": \" << sizeof(\"Hello\") << '\\n';\n    return 0;\n}\n",
+        "output": "char 'A': 1\nwhole number 42: 4\ndecimal 2.5: 8\ntext \"Hello\": 6",
+        "explanation": "The compiler replaced each `sizeof(...)` with its number before the program ever ran. A character takes one byte. A whole number takes 4 bytes and a decimal number 8, whatever the value, because each kind of number has a fixed size in memory. `\"Hello\"` needs 5 bytes for its letters and one more for the 0 that ends it. The `\\\"` escapes put the quotes in the last label."
+      },
+      "practice": {
+        "title": "Sizes of five more literals",
+        "prompt": "Print the size in bytes of five more literals, each on its own line after its label.\n\n1. `'\\n'`, labeled `newline: `\n2. `\"C++\"`, labeled `text C++: `\n3. `3.14159`, labeled `pi: `\n4. `7`, labeled `seven: `\n5. `\"\"`, an empty string literal, labeled `empty text: `\n\nUse `sizeof` for every number, so the compiler works each one out.\n\nExpected output:\n\n```text\nnewline: 1\ntext C++: 4\npi: 8\nseven: 4\nempty text: 1\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    // TODO: print the label and the sizeof of each of the five literals\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    std::cout << \"newline: \" << sizeof('\\n') << '\\n';\n    std::cout << \"text C++: \" << sizeof(\"C++\") << '\\n';\n    std::cout << \"pi: \" << sizeof(3.14159) << '\\n';\n    std::cout << \"seven: \" << sizeof(7) << '\\n';\n    std::cout << \"empty text: \" << sizeof(\"\") << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "newline: 1\ntext C++: 4\npi: 8\nseven: 4\nempty text: 1"
+          }
+        ],
+        "hints": [
+          "Follow the example's shape: `std::cout << \"pi: \" << sizeof(3.14159) << '\\n';`",
+          "`'\\n'` is one character, even though you type two.",
+          "Every string literal has the hidden ending 0, even an empty one."
+        ]
+      }
+    },
+    {
+      "title": "Compiled code, the OS, and main",
+      "body": "Python and C++ can both print `Hello`, yet on heavy number crunching C++ often runs 10 to 100 times faster. The difference is *when* your code becomes machine code.\n\nA **compiler**, such as g++ or clang++, translates your whole C++ program into machine code once, ahead of time, and saves it as an **executable** file. Running that file needs no compiler: the CPU runs its machine code directly. Python is **interpreted**: the `python3` program, itself machine code, reads your script every time you run it and carries out each line for you. Compiling is translating a book once, and interpreting is translating a speech live, every time it's given. The compiler can take its time finding fast machine code, while an interpreter pays for translating while your program runs. On this Mac, next to a `hello.py` holding `print(\"Hello\")`:\n\n```text\n$ clang++ -std=c++17 hello.cpp -o hello\n$ file hello hello.py\nhello:    Mach-O 64-bit executable arm64\nhello.py: ASCII text\n$ ./hello\nHello\n$ echo $?\n0\n$ python3 hello.py\nHello\n```\n\nThe **operating system** (macOS, Linux, Windows) runs the machine, and its core, the **kernel**, is the only code allowed to use the hardware directly: the disk, the screen, the network. Running `./hello` asks the kernel to create a **process**, a running program with its own memory, and to load the executable's machine code into it. A little startup code runs first and then calls `main`, which is why every program has exactly one `main`.\n\n`std::cout` collects your text and asks the kernel to write it to the terminal. When `main` returns, its value goes back to the kernel as the **exit status**: 0 means success and anything else means failure. The shell's `echo $?` shows it (`echo %ERRORLEVEL%` on Windows). `return` ends `main` on the spot, so statements after it never run. The lesson *Processes and System Calls* comes back to processes and the kernel.",
+      "example": {
+        "title": "The first program, annotated",
+        "prompt": "The first program again, with a comment on who does each step, and one statement after return that never runs.",
+        "code": "// #include pastes in what the program needs to use std::cout.\n#include <iostream>\n\n// The startup code calls main once the kernel has created the process.\nint main() {\n    // std::cout collects the text and asks the kernel to write it.\n    std::cout << \"Hello\" << '\\n';\n    std::cout << \"Goodbye\" << '\\n';\n    // return ends main and hands 0 to the kernel as the exit status.\n    return 0;\n    std::cout << \"never printed\" << '\\n';\n}\n",
+        "output": "Hello\nGoodbye",
+        "explanation": "The compiler turned this file into an executable, and the kernel made a process for it. The startup code called `main`, whose statements ran top to bottom, so `Hello` printed before `Goodbye`. `return 0;` then ended `main` and handed 0 back as the exit status. The last statement was still compiled into machine code, but the CPU never reached it."
+      },
+      "practice": {
+        "title": "Stop after connecting",
+        "prompt": "End a program early with return and watch the rest of main never run.\n\n1. In the starter, replace the TODO comment with `return 0;`, so `main` ends right after `Ready`.\n2. Above it, write a comment saying who receives the 0.\n3. Leave the statements below it in place, so you can see they never run.\n\nExpected output:\n\n```text\nConnecting to the exchange\nConnected\nReady\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    std::cout << \"Connecting to the exchange\" << '\\n';\n    std::cout << \"Connected\" << '\\n';\n    std::cout << \"Ready\" << '\\n';\n    // TODO: end main here, so the two lines below never run\n    std::cout << \"Sending a test order\" << '\\n';\n    std::cout << \"Test order sent\" << '\\n';\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    std::cout << \"Connecting to the exchange\" << '\\n';\n    std::cout << \"Connected\" << '\\n';\n    std::cout << \"Ready\" << '\\n';\n    // The kernel receives this 0 as the exit status: success.\n    return 0;\n    std::cout << \"Sending a test order\" << '\\n';\n    std::cout << \"Test order sent\" << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "Connecting to the exchange\nConnected\nReady"
+          }
+        ],
+        "hints": [
+          "`return 0;` goes on its own line, right after the line that prints `Ready`.",
+          "Everything after the first `return` in `main` is skipped, including the `return 0;` at the bottom."
+        ]
+      }
+    },
+    {
+      "title": "Fast memory and slow memory",
+      "body": "Two programs can do the same additions and differ tenfold in speed, only because one reads its numbers from scattered places in memory. A computer has several kinds of memory, each smaller and faster than the next:\n\n| Level | Typical size | Rough time to read | If a register read took 1 second |\n| --- | --- | --- | --- |\n| Registers | 16 to 31 of 8 bytes | 0.3 ns | 1 second |\n| L1 cache | 32 to 128 KB per core | 1 ns | 3 seconds |\n| L2 cache | 1 to 16 MB | 4 ns | 13 seconds |\n| L3 cache | 8 to 64 MB, shared | 15 ns | 50 seconds |\n| RAM | 8 to 64 GB | 100 ns | 5 minutes |\n| SSD | 256 GB to 4 TB | 50 µs | 2 days |\n\nA nanosecond (ns) is a billionth of a second, and a microsecond (µs) a millionth. A **cache** keeps copies of recently used bytes near the CPU, like books on your desk, more on a shelf, and the rest in a library across town (Apple chips have a shared system cache in place of an L3). When no cache holds a byte, the CPU fetches the whole **cache line** around it from RAM, betting the neighbors come next: 64 bytes on x86-64, 128 on Apple Silicon. `64 / sizeof(2.5)`, with `/` for division, counts the decimal numbers in one line: 8. This Mac reports its sizes (`lscpu` on Linux):\n\n```text\n$ sysctl hw.cachelinesize hw.perflevel0.l1dcachesize hw.perflevel0.l2cachesize\nhw.cachelinesize: 128\nhw.perflevel0.l1dcachesize: 131072\nhw.perflevel0.l2cachesize: 16777216\n```\n\nC++ lets you decide where each value lives in RAM and for how long: the variables you'll declare from *Variables and Data Types* on live on the **stack**, memory you ask for while running on the **heap**, and values that last the whole run, like string literals, in **static storage**. You also decide what sits next to what, which decides how well the caches work. You don't decide what goes in registers (the compiler does), what the caches hold (the hardware does), or how the disk is used (the operating system does, through files). That's deliberate: the same C++ runs on CPUs with different registers and caches, and the compiler and hardware juggle them faster than code could. *Memory Hierarchy: Registers, Caches, RAM, Pages, and Disk* goes further.",
+      "example": {
+        "title": "Values per x86-64 cache line",
+        "prompt": "Work out how many chars, whole numbers, and decimal numbers fit in one 64-byte cache line.",
+        "code": "#include <iostream>\n\nint main() {\n    // One cache line on x86-64 is 64 bytes.\n    std::cout << \"chars per line: \" << 64 / sizeof('A') << '\\n';\n    std::cout << \"whole numbers per line: \" << 64 / sizeof(42) << '\\n';\n    std::cout << \"decimals per line: \" << 64 / sizeof(2.5) << '\\n';\n    return 0;\n}\n",
+        "output": "chars per line: 64\nwhole numbers per line: 16\ndecimals per line: 8",
+        "explanation": "Each line divides the 64 bytes of a cache line by the size of one value. A char is 1 byte, so 64 fit, a whole number is 4 bytes, so 16 fit, and a decimal number is 8, so 8 fit. So when your program reads one decimal number from RAM, the CPU brings the 7 next to it into the cache in the same trip. Reading values that sit side by side, in order, is nearly free after the first one, which is why layout matters so much for speed."
+      },
+      "practice": {
+        "title": "Values per Apple cache line",
+        "prompt": "Count how many values fit in one cache line on Apple Silicon, where a line is 128 bytes.\n\n1. Print `line bytes: ` and `128`.\n2. Print `chars per line: ` and 128 divided by `sizeof('A')`.\n3. Print `whole numbers per line: ` and 128 divided by `sizeof(42)`.\n4. Print `decimals per line: ` and 128 divided by `sizeof(2.5)`.\n\nExpected output:\n\n```text\nline bytes: 128\nchars per line: 128\nwhole numbers per line: 32\ndecimals per line: 16\n```",
+        "starter": "#include <iostream>\n\nint main() {\n    // One cache line on Apple Silicon is 128 bytes.\n    // TODO: print the line size, then how many chars, whole numbers,\n    // and decimal numbers fit in one line\n    return 0;\n}\n",
+        "solution": "#include <iostream>\n\nint main() {\n    // One cache line on Apple Silicon is 128 bytes.\n    std::cout << \"line bytes: \" << 128 << '\\n';\n    std::cout << \"chars per line: \" << 128 / sizeof('A') << '\\n';\n    std::cout << \"whole numbers per line: \" << 128 / sizeof(42) << '\\n';\n    std::cout << \"decimals per line: \" << 128 / sizeof(2.5) << '\\n';\n    return 0;\n}\n",
+        "tests": [
+          {
+            "output": "line bytes: 128\nchars per line: 128\nwhole numbers per line: 32\ndecimals per line: 16"
+          }
+        ],
+        "hints": [
+          "Follow the example, with 128 in place of 64.",
+          "`128 / sizeof(42)` divides 128 by 4."
+        ]
+      }
+    }
+  ],
+  "recap": "- The CPU repeats fetch, decode, execute on machine code: instructions stored as bytes, like `b8 2a 00 00 00` for `mov eax, 42` on x86-64.\n- Registers are a few 8-byte slots inside the CPU. x86-64 has 16 and ARM64 has 31, and each CPU family has its own instruction set.\n- A byte is 8 bits, 0 to 255. Memory is a row of bytes, each with a numbered address, and `sizeof` gives a value's size in bytes.\n- A string literal has a hidden 0 at its end, so `sizeof(\"Hello\")` is 6.\n- A compiler turns C++ into an executable once. An interpreter like `python3` reads the script every time it runs.\n- The kernel creates a process, startup code calls `main`, and `main`'s return value is the exit status, 0 for success.\n- Registers, caches, RAM, and disk run from fast and tiny to slow and huge. C++ controls stack, heap, and static storage in RAM, not registers, caches, or the disk.\n\nNext, **From Source to Executable: Preprocess, Compile, Link** runs the compiler by hand, one stage at a time, and reads the error each stage gives."
+}
