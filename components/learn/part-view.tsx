@@ -13,7 +13,7 @@ import { runSummary, useReturnFocus } from "@/components/compiler/run-feedback";
 import { programTypeErrors, TypeCheckStrip } from "@/components/compiler/type-check";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
 import { ResizeHandle } from "@/components/ui/resize-handle";
-import type { RunnableContext } from "@/components/learn/lesson-md";
+import { LessonMath, type RunnableContext } from "@/components/learn/lesson-md";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { CompilerButton } from "@/components/learn/compiler-button";
 import { CheckResults, checkSummary, type CheckState, type TestResult } from "@/components/learn/check-results";
@@ -33,6 +33,7 @@ import {
 } from "@/components/learn/part-frame";
 import { Highlight } from "@/lib/highlight";
 import { isSql, type CompilerLang } from "@/lib/compiler";
+import type { DiagramData } from "@/lib/diagram.mjs";
 import type { FixtureFile } from "@/lib/learn-fixtures";
 import {
   problemId,
@@ -51,6 +52,7 @@ import { FULL_SCREEN_TITLE, useFullScreen } from "@/lib/full-screen";
 import { revealWorkspace, urlCount, urlParam, writeUrl } from "@/lib/url-state";
 import { PANES, paneValue } from "@/lib/panes";
 import { setPaneSize, usePaneSize } from "@/lib/pane-size";
+import { typeset } from "@/lib/typeset";
 
 // Each worked example has a tab of its own, then Your code (the practice).
 type TabKind = "example" | "example2" | "example3" | "practice";
@@ -83,8 +85,27 @@ const NEXT_GLOW_MS = 3600;
  * between them to resize. The examples run and can be edited and reset. The
  * practice is checked by running your code against each test (and, on the
  * runner, its type tests and honesty rules).
+ *
+ * `course` is whose part it is: your progress, your saved code and
+ * examples, and the links. `lang` is the compiler its programs run in, for
+ * running, checking, the editor, and highlighting. They're one course but
+ * for a course that runs in another's (Math's parts are Python), and each
+ * keeps its own progress, so Math's `functions` is never Python's. A course
+ * that turns math on typesets every prose field in the part with KaTeX
+ * (lib/typeset.ts, through LessonMath), and elsewhere a $ is a dollar.
  */
-export function PartView({
+export function PartView(props: PartProps) {
+  return (
+    <LessonMath.Provider value={props.course.math ? typeset : null}>
+      <Part {...props} />
+    </LessonMath.Provider>
+  );
+}
+
+type PartProps = Parameters<typeof Part>[0];
+
+function Part({
+  course,
   lang,
   lesson,
   parts,
@@ -95,7 +116,10 @@ export function PartView({
   next,
   features,
   fixtures = {},
+  diagrams = {},
 }: {
+  /** Whose part it is, and whether its prose has math. */
+  course: { slug: string; math?: boolean };
   lang: CompilerLang;
   lesson: Pick<Lesson, "id" | "title" | "section" | "intro" | "recap" | "setup" | "fixtures" | "clock" | "runtime">;
   /** Every part's title, in order. */
@@ -110,12 +134,14 @@ export function PartView({
   features: SingleFileFeatures;
   /** The fixture sets the part's programs start in, by name. */
   fixtures?: Record<string, FixtureFile[]>;
+  /** The diagrams its prose shows (lib/learn.ts getPartDiagrams). */
+  diagrams?: Record<string, DiagramData>;
 }) {
   // Empty in the server markup and the hydration render (the server can't
   // see your progress), so everything that shows progress keeps the same size
   // either way: a reload never shifts. A part reached by a client-side
   // navigation renders your progress from its first frame.
-  const { solved } = useSolvedState(lang.slug);
+  const { solved } = useSolvedState(course.slug);
   const isSolved = (i: number) => solved.has(problemId(lesson.id, i));
   const complete = parts.every((_, i) => isSolved(i));
   const partSolved = isSolved(part);
@@ -156,7 +182,7 @@ export function PartView({
   const [active, setActive] = useState<TabKind>(tabs[0]);
   // Your code per tab, read while initializing (CodeMirror mounts client-side,
   // so the server markup never depends on it).
-  const [codes, setCodes] = useState(() => perTab((kind) => loadCode(lang.slug, lesson.id, tabKey(kind), defaultCode(kind))));
+  const [codes, setCodes] = useState(() => perTab((kind) => loadCode(course.slug, lesson.id, tabKey(kind), defaultCode(kind))));
   const [stdins, setStdins] = useState(() => perTab(defaultStdin));
   // Stdin is open at first, then as you leave it, from tab to tab and part
   // to part, saved (lib/stdin-shown.ts).
@@ -188,10 +214,10 @@ export function PartView({
   const gridRef = useRef<HTMLDivElement>(null);
   // The lesson's code examples run here (on the lesson's tables, for SQL,
   // and in its fixture set at its clock, on the runner), and keep your edits
-  // under the lesson.
+  // under the lesson. Its course's fences say what runs (Math's in Python).
   const runnable: RunnableContext = {
-    course: lang.slug,
-    scope: `learn/${lang.slug}/${lesson.id}`,
+    course: course.slug,
+    scope: `learn/${course.slug}/${lesson.id}`,
     setup: sqlSetup,
     fixtures: lesson.fixtures,
     clock: lesson.clock,
@@ -257,8 +283,8 @@ export function PartView({
   const goTo = (line: number, col: number) => setCursorAt({ line, col });
 
   useEffect(() => {
-    setLastLesson(lang.slug, lesson.id, part + 1);
-  }, [lang.slug, lesson.id, part]);
+    setLastLesson(course.slug, lesson.id, part + 1);
+  }, [course.slug, lesson.id, part]);
 
   // The places in the part the address can point at.
   const places = [...examples.map((_, i) => exampleId(i)), "practice", "recap"];
@@ -321,8 +347,8 @@ export function PartView({
     // Code that matches the original isn't saved, so a reset (whose new value
     // comes back through here) really clears the tab, and a later fix to the
     // example or starter still reaches you.
-    if (nextCode === defaultCode(active)) clearCode(lang.slug, lesson.id, tabKey(active));
-    else saveCode(lang.slug, lesson.id, tabKey(active), nextCode);
+    if (nextCode === defaultCode(active)) clearCode(course.slug, lesson.id, tabKey(active));
+    else saveCode(course.slug, lesson.id, tabKey(active), nextCode);
   }
 
   function resetTab() {
@@ -330,7 +356,7 @@ export function PartView({
     setStdins((s) => ({ ...s, [active]: defaultStdin(active) }));
     setArgLines((a) => ({ ...a, [active]: defaultArgs(active) }));
     setPanels((p) => ({ ...p, [active]: { mode: "run", run: { status: "idle" } } }));
-    clearCode(lang.slug, lesson.id, tabKey(active));
+    clearCode(course.slug, lesson.id, tabKey(active));
   }
 
   const setPanel = (kind: TabKind, p: Panel) => setPanels((all) => ({ ...all, [kind]: p }));
@@ -410,7 +436,7 @@ export function PartView({
     });
     const allPassed = results.every((r) => r.passed);
     if (allPassed) {
-      markSolved(lang.slug, problemId(lesson.id, part));
+      markSolved(course.slug, problemId(lesson.id, part));
       setNextGlow((n) => n + 1);
     }
     const lessonComplete = allPassed && parts.every((_, i) => i === part || isSolved(i));
@@ -459,7 +485,7 @@ export function PartView({
     const forbidden = forbiddenUses(ran, practice.forbid ?? []);
     const allPassed = results.every((r) => r.passed) && typeTests.every((t) => t.passed) && forbidden.length === 0;
     if (allPassed) {
-      markSolved(lang.slug, problemId(lesson.id, part));
+      markSolved(course.slug, problemId(lesson.id, part));
       setNextGlow((n) => n + 1);
     }
     const lessonComplete = allPassed && parts.every((_, i) => i === part || isSolved(i));
@@ -527,13 +553,14 @@ export function PartView({
           <LessonEyebrow section={lesson.section} position={position} complete={complete} />
           <h1 className="font-display mt-2 text-headline">{lesson.title}</h1>
 
-          <PartNumbers lang={lang.slug} lessonId={lesson.id} parts={parts} part={part} isDone={isSolved} />
+          <PartNumbers lang={course.slug} lessonId={lesson.id} parts={parts} part={part} isDone={isSolved} />
 
-          {part === 0 && <Prose md={lesson.intro} className="mt-4 text-ink-muted" runnable={runnable} />}
+          {part === 0 && <Prose md={lesson.intro} className="mt-4 text-ink-muted" runnable={runnable} diagrams={diagrams} />}
 
           <PartSection
             step={step}
             runnable={runnable}
+            diagrams={diagrams}
             language={lang.slug}
             solved={partSolved}
             onOpenExample={(i) => openTab(EXAMPLE_TABS[i])}
@@ -543,7 +570,7 @@ export function PartView({
           {lastPart && lesson.recap && (
             <section id="recap" className={`mt-12 border-t border-content-line pt-6 ${PLACE_MARGIN}`}>
               <p className="eyebrow">Lesson recap</p>
-              <Prose md={lesson.recap} className="mt-3" runnable={runnable} />
+              <Prose md={lesson.recap} className="mt-3" runnable={runnable} diagrams={diagrams} />
             </section>
           )}
         </article>
@@ -619,9 +646,10 @@ export function PartView({
             })}
           </div>
           {/* Full screen covers the top bar and its Compiler button, so the
-              way to the compiler moves here. */}
+              way to the compiler moves here: the course's own, or the one
+              it runs in. */}
           <span className="hidden full:contents">
-            <CompilerButton lang={lang.slug} langLabel={lang.label} className="shrink-0" />
+            <CompilerButton lang={lang.slug} langLabel={lang.label} own={lang.slug === course.slug} className="shrink-0" />
           </span>
         </div>
 
@@ -717,7 +745,7 @@ export function PartView({
             <div className="min-h-0 flex-1">
               <CmEditor
                 key={`${lesson.id}:${tabKey(active)}:${showingAnswer ? "answer" : "code"}`}
-                scrollKey={`learn:${lang.slug}:${lesson.id}:${tabKey(active)}`}
+                scrollKey={`learn:${course.slug}:${lesson.id}:${tabKey(active)}`}
                 value={code}
                 language={lang.slug}
                 onChange={showingAnswer ? () => {} : updateCode}
@@ -906,6 +934,7 @@ function ExampleBlock({
   count,
   language,
   runnable,
+  diagrams,
   onOpen,
 }: {
   example: LessonExample;
@@ -913,6 +942,7 @@ function ExampleBlock({
   count: number;
   language: string;
   runnable: RunnableContext;
+  diagrams: Record<string, DiagramData>;
   onOpen: () => void;
 }) {
   const expect = example.expect ?? "run";
@@ -938,7 +968,7 @@ function ExampleBlock({
         </button>
       </div>
       <h3 className="mt-1.5 font-medium text-ink">{example.title}</h3>
-      <Prose md={example.prompt} className="mt-1.5 text-ink-muted" />
+      <Prose md={example.prompt} className="mt-1.5 text-ink-muted" diagrams={diagrams} />
       <CopyableCodeBlock code={example.code} language={language} label="Example code" className="mt-3" preClassName={CODE_BLOCK}>
         <Highlight code={example.code} language={language} />
       </CopyableCodeBlock>
@@ -994,7 +1024,7 @@ function ExampleBlock({
         </>
       ) : null}
       <p className="mt-4 text-sm font-medium text-ink">How it works</p>
-      <Prose md={example.explanation} className="mt-1 text-ink-muted" runnable={runnable} />
+      <Prose md={example.explanation} className="mt-1 text-ink-muted" runnable={runnable} diagrams={diagrams} />
     </div>
   );
 }
@@ -1003,6 +1033,7 @@ function PartSection({
   step,
   language,
   runnable,
+  diagrams,
   solved,
   onOpenExample,
   onOpenPractice,
@@ -1011,6 +1042,8 @@ function PartSection({
   language: string;
   /** The lesson's code examples run (and keep your edits) here. */
   runnable: RunnableContext;
+  /** The diagrams any of its fields shows. */
+  diagrams: Record<string, DiagramData>;
   solved: boolean;
   /** Opens an example's tab (counting from 0). */
   onOpenExample: (index: number) => void;
@@ -1051,7 +1084,7 @@ function PartSection({
   return (
     <section className="mt-9">
       <h2 className="font-display text-title">{step.title}</h2>
-      <Prose md={step.body} className="mt-3" runnable={runnable} />
+      <Prose md={step.body} className="mt-3" runnable={runnable} diagrams={diagrams} />
 
       {examples.map((example, i) => (
         <ExampleBlock
@@ -1061,6 +1094,7 @@ function PartSection({
           count={examples.length}
           language={language}
           runnable={runnable}
+          diagrams={diagrams}
           onOpen={() => onOpenExample(i)}
         />
       ))}
@@ -1078,7 +1112,7 @@ function PartSection({
           </span>
         </p>
         <h3 className="mt-1.5 font-medium text-ink">{practice.title}</h3>
-        <Prose md={practice.prompt} className="mt-1.5" />
+        <Prose md={practice.prompt} className="mt-1.5" diagrams={diagrams} />
         {/* The honesty rules a TypeScript practice is checked against. */}
         {rules.length > 0 && (
           <p className="mt-3 text-sm text-ink-muted">
@@ -1139,7 +1173,7 @@ function PartSection({
           <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-ink-muted">
             {hints.slice(0, hintsShown).map((h, i) => (
               <li key={i} ref={i === hintsShown - 1 ? hintRef : undefined} tabIndex={-1} className="rounded-btn">
-                <Prose md={h} />
+                <Prose md={h} diagrams={diagrams} />
               </li>
             ))}
           </ol>

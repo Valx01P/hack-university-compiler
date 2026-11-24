@@ -3,6 +3,7 @@
 // output, and linting prose against the house style and the Markdown subset
 // the app renders.
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mathSpans, stripMath } from "../../lib/lesson-math.mjs";
 import { normalizeOutput } from "../../lib/single-checks.mjs";
 import { sourceFiles } from "../../lib/source-file.mjs";
 import { HIGHLIGHT_LANGUAGES, languageId } from "../../lib/tokenize.mjs";
@@ -16,12 +17,28 @@ const RUNTIMES = JSON.parse(readFileSync(path.join(ROOT, "lib", "runtimes.json")
 /** The course registry (content/courses.json, typed in lib/courses.ts). */
 export const COURSES = JSON.parse(readFileSync(path.join(ROOT, "content", "courses.json"), "utf8")).courses;
 // The courses these verifiers can run today, in registry order: those with
-// a compiler page whose single file runs on Piston or PGlite.
+// a compiler page whose single file runs on Piston or PGlite. The
+// challenges, the cheatsheets, and the reference are theirs.
 const PISTON = (c) => c.runtime.startsWith("piston:") && Object.hasOwn(RUNTIMES, c.runtime.slice("piston:".length));
 export const LANGUAGES = COURSES.filter((c) => c.page && (PISTON(c) || c.runtime === "pglite")).map((c) => c.slug);
-/** The read courses: those with no compiler page, whose lessons are all
-    read lessons (the part route's rule), checked with no sandbox. */
-export const READ_LANGUAGES = COURSES.filter((c) => !c.page).map((c) => c.slug);
+// A course with no page whose lessons run in another course's compiler
+// (`runsIn`, Math in Python's), to that course.
+const HOSTS = Object.fromEntries(
+  COURSES.filter((c) => !c.page && c.runsIn && COURSES.some((h) => h.slug === c.runsIn && h.page)).map((c) => [c.slug, c.runsIn])
+);
+/** The language a course's programs run as: its own, or for a course that
+    runs in another's compiler, that one's ("math" runs as "python"), so it
+    takes that course's harness, file name, and runtime. */
+export const runsAs = (course) => HOSTS[course] ?? course;
+/** Every course with lessons to run, in registry order: LANGUAGES, and the
+    courses that run in one of them (Math), which have only lessons. */
+export const LEARN_LANGUAGES = COURSES.filter((c) => LANGUAGES.includes(c.slug) || LANGUAGES.includes(HOSTS[c.slug])).map((c) => c.slug);
+/** The read courses: those with no compiler page and none to run in,
+    whose lessons are all read lessons (the part route's rule), checked
+    with no sandbox. */
+export const READ_LANGUAGES = COURSES.filter((c) => !c.page && !HOSTS[c.slug]).map((c) => c.slug);
+/** The courses whose prose typesets TeX (`"math": true`, lib/lesson-math.mjs). */
+export const MATH_COURSES = new Set(COURSES.filter((c) => c.math).map((c) => c.slug));
 const PISTON_URL = (process.env.PISTON_URL ?? "http://127.0.0.1:2000/api/v2").replace(/\/+$/, "");
 // The single-file courses that run on the local runner instead (TypeScript,
 // Bash): each one's recipe and the file name the app gives the code.
@@ -281,8 +298,10 @@ async function runSqlOnce(code, setup) {
   }
 }
 
-/** Run with retries: a timeout under heavy load is retried before it counts. */
-export async function run(language, code, stdin) {
+/** Run with retries: a timeout under heavy load is retried before it counts.
+    A course that runs in another's compiler runs as that one (runsAs). */
+export async function run(course, code, stdin) {
+  const language = runsAs(course);
   if (language === "sql") return runSqlHere(code, stdin);
   let last;
   for (let i = 0; i < 3; i++) {
@@ -319,9 +338,9 @@ export function failure(r) {
 
 export const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** Fence languages content may use: every fence a course with a compiler
-    page lists in content/courses.json (runnable there or shown only, the way
-    lib/snippet-harness.mjs reads them), and text. */
-export const FENCE_LANGS = new Set([...COURSES.filter((c) => c.page).flatMap((c) => Object.keys(c.fences ?? {})), "text"]);
+    page, or one to run in, lists in content/courses.json (runnable there or
+    shown only, the way lib/snippet-harness.mjs reads them), and text. */
+export const FENCE_LANGS = new Set([...COURSES.filter((c) => c.page || HOSTS[c.slug]).flatMap((c) => Object.keys(c.fences ?? {})), "text"]);
 /** Flags after a fence's language, for runnable snippets: norun (shown only),
     error (runs and is meant to fail), harness (hidden wrapper for the next
     snippet). */
@@ -362,9 +381,10 @@ export function checkShownTest(md, test, where, errors) {
 }
 
 /** House style: prose never uses em dashes or semicolons. Code spans and
-    fenced blocks are skipped, since code is code. */
-export function lintProse(where, value, errors) {
-  const prose = value.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
+    fenced blocks are skipped, since code is code, and with `math` (a
+    course that typesets TeX) so is its math. */
+export function lintProse(where, value, errors, { math = false } = {}) {
+  const prose = (math ? stripMath(value) : value).replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
   if (prose.includes("\u2014")) errors.push({ where, message: "em dash in prose (use a comma, a colon, or two sentences)" });
   if (prose.includes(";")) errors.push({ where, message: "semicolon in prose (use a comma, a colon, or two sentences, or put code in backticks)" });
 }
@@ -375,16 +395,19 @@ export function lintProse(where, value, errors) {
     `fences` and `flags` (the fence languages and flags allowed, FENCE_LANGS
     and FENCE_FLAGS by default), `stdin` (false: no ```stdin blocks),
     `onDiagram(name, caption)` (```diagram fences are allowed, each handed
-    to it), and `noH1` (a # heading is an error: it would render at the
-    part title's level). */
+    to it), `noH1` (a # heading is an error: it would render at the
+    part title's level), and `math` (a course that typesets TeX: its $$
+    blocks and $...$ spans are math, not Markdown, and a plain-text field
+    can't have any, since it would show as typed). */
 export function lintMarkdown(where, value, isMarkdown, errors, options = {}) {
-  const { fences = FENCE_LANGS, flags: allowedFlags = FENCE_FLAGS, stdin = true, onDiagram = null, noH1 = false } = options;
+  const { fences = FENCE_LANGS, flags: allowedFlags = FENCE_FLAGS, stdin = true, onDiagram = null, noH1 = false, math = false } = options;
   const bad = (message) => errors.push({ where, message });
   if (!isMarkdown) {
     if (/`|\n/.test(value)) bad("plain text only: no backticks or line breaks");
+    if (math && mathSpans(value).spans.length) bad("plain text only: math here shows as typed, so say it in words");
     return;
   }
-  const parts = value.split(/^```/m);
+  const parts = (math ? stripMath(value) : value).split(/^```/m);
   if (parts.length % 2 === 0) {
     bad("unclosed ``` code fence");
     return;
@@ -447,9 +470,10 @@ export function lintInline(where, text, errors) {
 
 /** How many words of prose a Markdown field has: code fences (diagrams
     included) left out, and only words with a letter or digit counted, so
-    list dashes and heading marks don't count. */
-export function proseWords(md) {
-  return String(md ?? "")
+    list dashes and heading marks don't count. With `math` (a course that
+    typesets TeX), its math counts no words either. */
+export function proseWords(md, { math = false } = {}) {
+  return String(math ? stripMath(md, "") : (md ?? ""))
     .split(/^```/m)
     .filter((_, i) => i % 2 === 0)
     .join("\n")

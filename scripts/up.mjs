@@ -51,6 +51,7 @@ import {
   formatMB,
   freeMB,
   heldBy,
+  hostedNote,
   installPlan,
   projectCourseNote,
   removePlan,
@@ -104,12 +105,13 @@ function npmRun(...npmArgs) {
 }
 
 // --only names exactly what to install. A project course needs nothing, and
-// it says so.
+// it says so. A course that runs on a compiler (math) installs that one.
 function named(list, flag) {
-  const { ids, unknown, courses } = resolveNames(list.split(",").map((s) => s.trim()).filter(Boolean));
+  const { ids, unknown, courses, hosted } = resolveNames(list.split(",").map((s) => s.trim()).filter(Boolean));
   if (unknown.length) fail(`${flag} names ${unknown.join(", ")}, which isn't one of these: ${COMPONENTS.map((c) => c.id).join(", ")}.`);
   if (courses.length) console.log(`   · ${projectCourseNote(courses)}`);
-  return ids;
+  if (hosted.length) console.log(`   · ${hostedNote(hosted, "add")}`);
+  return [...new Set([...ids, ...hosted.map((c) => c.host)])];
 }
 const onlyIds = onlyArg === undefined ? null : named(onlyArg, "--only");
 

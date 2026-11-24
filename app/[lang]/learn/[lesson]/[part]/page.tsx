@@ -30,7 +30,9 @@ export function generateStaticParams() {
 }
 
 // A read lesson needs only its course. Every other kind runs in the
-// course's compiler, so its course needs a compiler page.
+// course's compiler, so its course needs a compiler page, or for a course
+// without one, a course whose compiler it runs in (`runsIn`: Math's
+// lessons are Python programs, run in /python's).
 async function load(params: PageProps<"/[lang]/learn/[lesson]/[part]">["params"]) {
   const { lang: slug, lesson: id, part: raw } = await params;
   const course = getCourseEntry(slug);
@@ -38,7 +40,7 @@ async function load(params: PageProps<"/[lang]/learn/[lesson]/[part]">["params"]
   const part = Number(raw) - 1;
   if (!course || !lesson || !Number.isInteger(part) || part < 0 || part >= lesson.steps.length) return null;
   if (lesson.format === "read") return { course, lang: null, lesson, part };
-  const lang = getCompilerLang(slug);
+  const lang = getCompilerLang(course.runsIn ?? slug);
   return lang ? { course, lang, lesson, part } : null;
 }
 
@@ -98,11 +100,17 @@ export default async function PartPage(props: PageProps<"/[lang]/learn/[lesson]/
   // load found the compiler for every other kind of lesson.
   if (!lang) notFound();
 
+  // The files a run starts in are the compiler's to read (/api/execute
+  // reads them by the language that runs), so the Files strip shows those.
   const fixtures = await partFixtures(lang.slug, lesson, part);
 
+  // The course (its progress, saved code, and routes) and the compiler its
+  // programs run in (running, checking, the editor, and highlighting) are
+  // the same course but for one that runs in another's: Math in Python's.
   return (
     <PartView
       key={`${lesson.id}/${part}`}
+      course={{ slug: course.slug, math: Boolean(course.math) }}
       lang={lang}
       lesson={{
         id: lesson.id,
@@ -123,6 +131,7 @@ export default async function PartPage(props: PageProps<"/[lang]/learn/[lesson]/
       next={next}
       features={singleFileFeatures(lang.slug, lang.fileName)}
       fixtures={fixtures}
+      diagrams={await getPartDiagrams(course.slug, lesson, part)}
     />
   );
 }

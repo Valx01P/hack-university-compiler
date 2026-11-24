@@ -12,10 +12,11 @@ content/learn/<lang>/index.json    the course: sections and lesson order
 content/learn/<lang>/<id>.json     one lesson (file name == lesson id)
 ```
 
-`<lang>` is one of `python`, `javascript`, `cpp`, `java`, `go`, `sql`. The
-project courses (`web`, `react`, `nextjs`, `express`, `fastapi`, `spring`,
-`go-api`) are read courses, with rules of their own in
-[Read courses](#read-courses) at the end.
+`<lang>` is one of `python`, `javascript`, `cpp`, `java`, `go`, `sql`, or
+`math`, whose lessons are Python programs with math in their prose (see
+[Math course](#math-course)). The project courses (`web`, `react`,
+`nextjs`, `express`, `fastapi`, `spring`, `go-api`) are read courses, with
+rules of their own in [Read courses](#read-courses) at the end.
 
 `index.json`:
 
@@ -373,7 +374,9 @@ that, each on its own line. The verifier checks that the blocks match test 1's
   `N. `: list items are one line each, and a list, heading, or quote never
   shares a block with a paragraph. No raw HTML, no images. Code goes in
   backticks, including generic types like `vector<int>`. A star in prose is
-  `\*` (A\* search), so a name with one can sit in bold or italics.
+  `\*` (A\* search), so a name with one can sit in bold or italics. The Math
+  course adds TeX between dollar signs ([Math course](#math-course)), and a
+  part can show a ```` ```diagram ```` ([Diagrams](#diagrams)).
 - Write big limits as powers: `10^9`, `2 × 10^9`, `10^9 + 7`, `2^31 - 1`, never
   1000000000. The renderer raises a digits-only power (`10^9` shows as 10 with
   a raised 9) in prose, and in inline code that's a bound like
@@ -392,7 +395,61 @@ Iterate until it prints `✓`. It checks the schema, the prose style and the
 Markdown subset, that each practice prompt shows test 1's exact input and
 output, runs each example twice (its output must match `output` and be identical
 both times, with nothing on stderr), runs each solution twice against every test,
-and runs each starter (it must compile, exit 0, and not pass).
+and runs each starter (it must compile, exit 0, and not pass). It checks the
+diagrams a part shows by the [Diagrams](#diagrams) rules, and in the Math
+course that every bit of TeX parses.
+
+## Math course
+
+`math` teaches math from arithmetic to Calculus 2 and linear algebra, in
+Python. It's a course of ordinary lessons (everything above applies), only
+in Learn, and its programs run in the Python compiler: write them to
+[Python's runtime facts](#runtime-facts-verified-in-this-sandbox), Python
+3.12.0, where numpy 1.26, sympy 1.12, scipy 1.11, and pandas 2.1 are
+installed. Its fences are `python` (and `py`), its snippets run the way
+Python's do, and its progress is its own, so a lesson id the Python course
+uses too (`functions`) never shares it.
+
+Math in its prose is TeX between dollar signs, typeset with KaTeX:
+
+- **Inline:** `$x^2$`, `$\frac{a}{b}$`. There's no space just inside either
+  `$`, and no digit right after the closing one, so "costs $5 and $10" stays
+  text. An inline span stays on one line and never holds a backtick.
+- **A dollar:** `\$` is a literal `$`, for a price next to math.
+- **Display:** a block of its own, a blank line before and after it, whose
+  first line starts with `$$` and whose last line ends with `$$`, on as many
+  lines as it needs. It's centered, and a wide one scrolls sideways. Its
+  lines can start with anything (`- y`, `> w`), since they're TeX. A `$$` in
+  the middle of a paragraph shows as typed, so the verifier fails it.
+
+````markdown
+The mean of three numbers is
+
+$$
+\bar{x} = \frac{x_1 + x_2 + x_3}{3}
+$$
+
+so $\bar{x} = 7$ for 4, 8, and 9.
+````
+
+- Math works in every prose field (the intro, a body, an example's prompt
+  and explanation, a practice's prompt and hints, the recap), in bold,
+  italics, list items, quotes, and table cells, where a `|` inside the TeX
+  (`$|x|$`, `$\|v\|$`) stays the TeX's. Inside inline code and code fences
+  it's code, shown as typed.
+- Titles, the summary, and diagram captions are plain text, so math in them
+  would show as typed: write those in words, or with plain symbols (x², −2,
+  ×). The verifier fails a `$x$` there.
+- The prose rules skip the inside of math, so TeX's own `\;` is fine there,
+  and the verifier counts no words in it.
+- Absolute values read best as `\lvert -3 \rvert` (or `|{-3}|`), since TeX
+  spaces `|-3|` as a subtraction.
+- A part can show a diagram, like a function's graph, drawn by the rules in
+  [Diagrams](#diagrams): an SVG in `content/learn/math/diagrams/`.
+
+`npm run lessons:verify -- math` runs it all as Python and runs KaTeX on every
+span, failing TeX that doesn't parse with the field and KaTeX's message, and
+`npm run snippets:verify -- math` runs its body snippets.
 
 ## Read courses
 
@@ -536,8 +593,10 @@ for anything else.
 
 A diagram is an SVG in the course's `diagrams` folder, drawn where its fence
 is. It can go in the intro, a body, an example's prompt or explanation, or
-the recap. The line inside the fence is an optional caption (inline Markdown,
-one line, at most 160 characters).
+the recap, and in a course with an editor (Math's graphs) a practice's
+prompt and hints too. The line inside the fence is an optional caption
+(inline Markdown, one line, at most 160 characters, and no math even in the
+Math course: write x² and −2 as plain symbols).
 
 ````markdown
 ```diagram request-path

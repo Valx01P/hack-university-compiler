@@ -8,7 +8,7 @@ import { HistoryArrows } from "@/components/chrome/history-arrows";
 import { SandboxStatus } from "@/components/chrome/sandbox-status";
 import { CompilerButton } from "@/components/learn/compiler-button";
 import { LessonDrawer } from "@/components/learn/lesson-drawer";
-import { LessonList } from "@/components/learn/lesson-list";
+import { LessonList, type LearnCompiler } from "@/components/learn/lesson-list";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { useIsFullScreen } from "@/lib/full-screen";
 import { EASE, dur, gsap } from "@/lib/motion";
@@ -52,17 +52,18 @@ const clampWidth = (width: number) =>
  */
 export function LearnShell({
   lang,
-  langLabel,
   compiler,
   course,
   courses,
   children,
 }: {
+  /** The course: its routes and progress. */
   lang: string;
-  langLabel: string;
-  /** Whether the course has a compiler page. One without (a course whose
-      lessons are all read lessons) leads to the playground instead. */
-  compiler: boolean;
+  /** The compiler page its programs run in, which it leads to: its own,
+      or for a course whose lessons run in another's (Math), that one
+      (lib/courses.ts compilerCourseOf). Null for a course whose lessons
+      are all read lessons, which leads to the playground instead. */
+  compiler: LearnCompiler | null;
   course: Course;
   /** Lessons in course order for every language that has a course. */
   courses: Record<string, LessonRef[]>;
@@ -198,7 +199,7 @@ export function LearnShell({
     else setDrawer((open) => !open);
   };
 
-  const listProps = { lang, langLabel, compiler, course, currentId, currentPart, courses };
+  const listProps = { lang, compiler, course, currentId, currentPart, courses };
 
   return (
     <div data-learn-shell className="px-3 pt-2 pb-2 lg:h-[calc(100dvh-4rem-1px)] lg:overflow-hidden">
@@ -236,7 +237,9 @@ export function LearnShell({
           </span>
           {/* A course without a compiler page leads to the playground
               instead (React, Spring Boot, and the other project courses),
-              with no sandbox badge, since its read lessons run nothing. */}
+              with no sandbox badge, since its read lessons run nothing. One
+              that runs in another's compiler (Math) shows that one's badge,
+              so a missing Python says its size and how to add it. */}
           {compiler ? (
             <span className="flex shrink-0 items-center gap-2">
               {/* No room on phones; a run still reports sandbox problems. The
@@ -244,12 +247,12 @@ export function LearnShell({
                   wide as its longest label ("sandbox offline") in the server
                   markup, and nothing moves when it appears. */}
               <span className="hidden min-w-32 justify-end sm:flex">
-                <SandboxStatus lang={lang} />
+                <SandboxStatus lang={compiler.slug} />
               </span>
-              <CompilerButton lang={lang} langLabel={langLabel} />
+              <CompilerButton lang={compiler.slug} langLabel={compiler.label} own={compiler.slug === lang} />
             </span>
           ) : (
-            <CompilerButton lang={lang} langLabel={langLabel} to="playground" className="shrink-0" />
+            <CompilerButton lang={lang} langLabel={course.title} to="playground" className="shrink-0" />
           )}
         </div>
 

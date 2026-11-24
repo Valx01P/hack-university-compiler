@@ -15,7 +15,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildProgram, segmentMarkdown } from "../lib/snippet-harness.mjs";
-import { LANGUAGES, ROOT, clip, run, runnerUp } from "./lib/verify-kit.mjs";
+import { LANGUAGES, LEARN_LANGUAGES, ROOT, clip, run, runnerUp } from "./lib/verify-kit.mjs";
 
 const args = process.argv.slice(2);
 const option = (name) => args.find((a) => a.startsWith(`--${name}=`))?.split("=").slice(1).join("=");
@@ -31,7 +31,8 @@ const sampleSrc = readFileSync(path.join(ROOT, "lib/sql/sample-db.ts"), "utf8");
 const SAMPLE_DB_SQL = sampleSrc.slice(sampleSrc.indexOf("`") + 1, sampleSrc.lastIndexOf("`"));
 
 /** Every runnable snippet in a course's Markdown, with where it came from.
-    The course's fences say which blocks run, and on what. */
+    The course's fences say which blocks run, and on what: Math's run as
+    Python, through Python's harness (lib/snippet-harness.mjs). */
 function snippetsIn(md, base) {
   return segmentMarkdown(md ?? "", base.lang)
     .filter((s) => s.type === "fence" && s.runtime)
@@ -55,7 +56,9 @@ function collect(lang) {
       out.push(...snippetsIn(lesson.recap, { ...base, where: "recap" }));
     }
   }
-  if (!source || source === "reference") {
+  // Only a course with a compiler page has a cheatsheet (Math has lessons
+  // alone).
+  if ((!source || source === "reference") && (LANGUAGES.includes(lang) || lang === "typescript")) {
     const dir = path.join(ROOT, "content/reference", lang);
     for (const file of readdirSync(dir).filter((f) => f.endsWith(".md")).sort()) {
       const id = file.replace(/\.md$/, "");
@@ -96,9 +99,10 @@ async function pool(items, worker) {
   return results;
 }
 
-// Every language by default, TypeScript included when the runner is up (its
-// snippets run there), with a note when it isn't.
-const everyLanguage = (await runnerUp()) ? [...LANGUAGES, "typescript"] : LANGUAGES;
+// Every language by default, and the courses that run in one (Math's
+// lessons), TypeScript included when the runner is up (its snippets run
+// there), with a note when it isn't.
+const everyLanguage = (await runnerUp()) ? [...LEARN_LANGUAGES, "typescript"] : LEARN_LANGUAGES;
 if (!langs.length && !everyLanguage.includes("typescript")) console.log("typescript: skipped, the runner isn't running (npm run up starts it)");
 
 const failures = [];

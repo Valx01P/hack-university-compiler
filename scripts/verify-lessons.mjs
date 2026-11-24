@@ -32,12 +32,21 @@
 //     lib/diagram.mjs, a part shows it once and three diagrams at most, and
 //     its caption, title, and desc follow the house style. A diagram no
 //     lesson shows, and a folder other than diagrams/, are warnings.
+//
+// A language course's parts can show diagrams too (Math's graphs), checked
+// the same way. A course that runs in another's compiler (Math, `runsIn`)
+// runs its programs as that course's (Python). In a course that typesets
+// math (`"math": true`), every $...$ and $$ block must parse in KaTeX, and
+// the prose and Markdown checks skip the inside of the math.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
+import katex from "katex";
 import { diagramNames, parseDiagram } from "../lib/diagram.mjs";
+import { KATEX_OPTIONS, mathSpans } from "../lib/lesson-math.mjs";
 import {
   ID_RE,
-  LANGUAGES,
+  LEARN_LANGUAGES,
+  MATH_COURSES,
   READ_FENCES,
   READ_FLAGS,
   READ_LANGUAGES,
@@ -56,6 +65,7 @@ import {
   printResult,
   proseWords,
   run,
+  runsAs,
   syntaxErrors,
 } from "./lib/verify-kit.mjs";
 
@@ -70,7 +80,7 @@ const noRun = flags.has("--no-run");
 for (const f of flags) {
   if (f !== "--json" && f !== "--no-run") usage(`unknown option ${f}`);
 }
-const COURSE_LIST = [...LANGUAGES, ...READ_LANGUAGES];
+const COURSE_LIST = [...LEARN_LANGUAGES, ...READ_LANGUAGES];
 if (positional.length && !COURSE_LIST.includes(positional[0])) {
   usage(`"${positional[0]}" is not a course (${COURSE_LIST.join(", ")})`);
 }
@@ -145,14 +155,14 @@ function checkSchema(lesson, id, sectionTitle, errors, warnings) {
       if (isStr(pr.starter) && isStr(pr.solution) && normalizeOutput(pr.starter) === normalizeOutput(pr.solution)) {
         errors.push({ where: `${at}.practice.starter`, message: "starter is identical to the solution" });
       }
-      if (isStr(pr.prompt) && Array.isArray(pr.tests) && pr.tests[0] && isStr(pr.tests[0].output)) checkPrompt(pr, `${at}.practice.prompt`, errors, lesson.__lang);
+      if (isStr(pr.prompt) && Array.isArray(pr.tests) && pr.tests[0] && isStr(pr.tests[0].output)) checkPrompt(pr, `${at}.practice.prompt`, errors, runsAs(lesson.__lang));
     }
     const programs = [...exs.map(([where, ex]) => [`${where}.code`, ex?.code]), [`${at}.practice.starter`, pr?.starter], [`${at}.practice.solution`, pr?.solution]];
     for (const [where, v] of programs) {
       // A final newline ends the last line, it doesn't start another one.
       const lines = isStr(v) ? v.replace(/\n$/, "").split("\n").length : 0;
       if (lines >= 80) warnings.push({ where, message: `${lines} lines, keep programs under 80` });
-      if (isStr(v) && /\t/.test(v) && !/^go$/.test(String(lesson.__lang))) warnings.push({ where, message: "contains tab characters, indent with spaces" });
+      if (isStr(v) && /\t/.test(v) && runsAs(lesson.__lang) !== "go") warnings.push({ where, message: "contains tab characters, indent with spaces" });
     }
   }
 }
@@ -191,12 +201,50 @@ function proseFields(lesson) {
   return fields.filter(([, value]) => isStr(value));
 }
 
-function checkProse(lesson, errors) {
-  for (const [where, value] of proseFields(lesson)) lintProse(where, value, errors);
+function checkProse(lesson, errors, math) {
+  for (const [where, value] of proseFields(lesson)) lintProse(where, value, errors, { math });
 }
 
-function checkMarkdown(lesson, errors) {
-  for (const [where, value, isMarkdown] of proseFields(lesson)) lintMarkdown(where, value, isMarkdown, errors);
+/** The Markdown subset, and the diagrams the fields show (a part's graph
+    in Math), tracked for the course's diagram checks. */
+function checkMarkdown(lesson, errors, warnings, math, diagrams, used) {
+  const tracker = diagramTracker(lesson.steps.length, used, errors, warnings, math);
+  for (const [where, value, isMarkdown] of proseFields(lesson)) {
+    lintMarkdown(where, value, isMarkdown, errors, { math, onDiagram: tracker.onDiagram(where) });
+  }
+  tracker.finish(diagrams);
+}
+
+/** A math course's TeX, as KaTeX typesets it on the page but made to
+    throw: a span that doesn't parse fails here instead of showing as red
+    TeX in the lesson. A $$ that starts no display block would show as
+    typed, so it fails too, and KaTeX's strict-mode notes (TeX it renders
+    that LaTeX wouldn't take) are warnings. */
+function checkTex(where, md, errors, warnings) {
+  const { spans, loose } = mathSpans(md);
+  for (const block of loose) {
+    errors.push({ where, message: `$$ starts display math only as a block of its own, with a blank line before and after it: "${clip(block, 70)}"` });
+  }
+  for (const { tex, display } of spans) {
+    const shown = display ? `$$ ${clip(tex, 50)} $$` : `$${clip(tex, 50)}$`;
+    try {
+      katex.renderToString(tex, {
+        ...KATEX_OPTIONS,
+        displayMode: display,
+        throwOnError: true,
+        strict: (code, message) => {
+          warnings.push({ where, message: `KaTeX strict mode (${code}) in ${shown}: ${message}` });
+          return "ignore";
+        },
+      });
+    } catch (err) {
+      errors.push({ where, message: `TeX that doesn't parse in ${shown}: ${err.message}` });
+    }
+  }
+}
+
+function checkMath(lesson, errors, warnings) {
+  for (const [where, value, isMarkdown] of proseFields(lesson)) if (isMarkdown) checkTex(where, value, errors, warnings);
 }
 
 // ---------------------------------------------------------------- read lessons
@@ -368,18 +416,20 @@ function diagramFiles(dir) {
   return found;
 }
 
-async function checkReadContent(lesson, diagrams, used, errors, warnings) {
-  const count = lesson.steps.length;
-  const shown = lesson.steps.map(() => new Map());
-  for (const [where, value, isMarkdown] of readProseFields(lesson)) {
-    lintProse(where, value, errors);
-    const part = partOf(where, count);
-    lintMarkdown(where, value, isMarkdown, errors, {
-      fences: READ_FENCES,
-      flags: READ_FLAGS,
-      stdin: false,
-      noH1: true,
-      onDiagram: (name, caption) => {
+/**
+ * The diagrams a lesson's fields show, read or not: `onDiagram(where)` is
+ * lintMarkdown's hook for a field, checking each fence's name and caption
+ * (plain text, with no math even in a math course) and noting which part
+ * shows it, and
+ * `finish` then checks each part's against the course's files (once a part,
+ * three at most, and each file by lib/diagram.mjs's rules).
+ */
+function diagramTracker(count, used, errors, warnings, math = false) {
+  const shown = Array.from({ length: count }, () => new Map());
+  return {
+    onDiagram: (where) => {
+      const part = partOf(where, count);
+      return (name, caption) => {
         if (!name) return errors.push({ where, message: "a diagram fence needs a name: ```diagram <name>" });
         if (!ID_RE.test(name)) return errors.push({ where, message: `diagram "${name}": name it in kebab-case` });
         used.add(name);
@@ -390,9 +440,47 @@ async function checkReadContent(lesson, diagrams, used, errors, warnings) {
         }
         if (caption.includes("\n")) errors.push({ where, message: `diagram "${name}": a caption is one line` });
         if (caption.length > READ.caption) errors.push({ where, message: `diagram "${name}": the caption is ${caption.length} characters, at most ${READ.caption}` });
-        lintProse(`${where} (${name} caption)`, caption, errors);
-        lintInline(`${where} (${name} caption)`, caption, errors);
-      },
+        const at = `${where} (${name} caption)`;
+        lintProse(at, caption, errors);
+        lintInline(at, caption, errors);
+        // A caption is plain text even in a math course, so TeX in one
+        // would show as typed.
+        if (math && mathSpans(caption).spans.length) {
+          errors.push({ where: at, message: "a caption is plain text, so its math shows as typed: write it in plain symbols (x², −2, ×)" });
+        }
+      };
+    },
+    finish(diagrams) {
+      for (const [part, seen] of shown.entries()) {
+        if (seen.size > READ.diagramsPerPart) errors.push({ where: `steps[${part}]`, message: `${seen.size} diagrams in one part, at most ${READ.diagramsPerPart}` });
+        for (const [name, where] of seen) {
+          const found = diagrams.get(name);
+          if (!found) {
+            errors.push({ where, message: `there's no diagrams/${name}.svg` });
+            continue;
+          }
+          for (const e of found.errors) errors.push({ where: `diagrams/${name}.svg`, message: e });
+          for (const w of found.warnings) warnings.push({ where: `diagrams/${name}.svg`, message: w });
+          if (found.data) {
+            lintProse(`diagrams/${name}.svg title`, found.data.title, errors);
+            lintProse(`diagrams/${name}.svg desc`, found.data.desc, errors);
+          }
+        }
+      }
+    },
+  };
+}
+
+async function checkReadContent(lesson, diagrams, used, errors, warnings) {
+  const tracker = diagramTracker(lesson.steps.length, used, errors, warnings);
+  for (const [where, value, isMarkdown] of readProseFields(lesson)) {
+    lintProse(where, value, errors);
+    lintMarkdown(where, value, isMarkdown, errors, {
+      fences: READ_FENCES,
+      flags: READ_FLAGS,
+      stdin: false,
+      noH1: true,
+      onDiagram: tracker.onDiagram(where),
     });
     if (!isMarkdown) continue;
     // Code in the field: its size, its indent, and that it parses.
@@ -403,22 +491,7 @@ async function checkReadContent(lesson, diagrams, used, errors, warnings) {
   for (const [i, step] of lesson.steps.entries()) {
     for (const [e, ex] of step.examples.entries()) await checkCode(`steps[${i}].examples[${e}].code`, ex.code, ex.language, false, errors, warnings);
   }
-  for (const [part, seen] of shown.entries()) {
-    if (seen.size > READ.diagramsPerPart) errors.push({ where: `steps[${part}]`, message: `${seen.size} diagrams in one part, at most ${READ.diagramsPerPart}` });
-    for (const [name, where] of seen) {
-      const found = diagrams.get(name);
-      if (!found) {
-        errors.push({ where, message: `there's no diagrams/${name}.svg` });
-        continue;
-      }
-      for (const e of found.errors) errors.push({ where: `diagrams/${name}.svg`, message: e });
-      for (const w of found.warnings) warnings.push({ where: `diagrams/${name}.svg`, message: w });
-      if (found.data) {
-        lintProse(`diagrams/${name}.svg title`, found.data.title, errors);
-        lintProse(`diagrams/${name}.svg desc`, found.data.desc, errors);
-      }
-    }
-  }
+  tracker.finish(diagrams);
 }
 
 async function checkCode(where, code, language, sketch, errors, warnings) {
@@ -437,7 +510,7 @@ async function verifyLesson(lang, lesson) {
   const jobs = [];
   // SQL programs run on a fresh database: the lesson's setup, then the
   // example's or test's own setup ("stdin"), then the program.
-  const input = (stdin) => (lang === "sql" ? [lesson.setup, stdin].filter((x) => isStr(x) && x.trim()).join("\n") : stdin);
+  const input = (stdin) => (runsAs(lang) === "sql" ? [lesson.setup, stdin].filter((x) => isStr(x) && x.trim()).join("\n") : stdin);
   for (const [i, step] of lesson.steps.entries()) {
     const at = `steps[${i}]`;
     for (const [where, ex] of examplesOf(step, at)) {
@@ -573,9 +646,11 @@ for (const lang of langs) {
     if (problems.length) fail(lang, "index", problems);
   }
 
-  // A read course keeps only lessons and diagrams/.
+  // A read course keeps only lessons and diagrams/. Any course's parts can
+  // show its diagrams.
   const read = isRead(lang);
-  const diagrams = read ? diagramFiles(dir) : new Map();
+  const math = MATH_COURSES.has(lang);
+  const diagrams = diagramFiles(dir);
   const usedDiagrams = new Set();
   if (read) {
     const stray = readdirSync(dir).filter((f) => f !== "diagrams" && statSync(path.join(dir, f)).isDirectory());
@@ -612,10 +687,12 @@ for (const lang of langs) {
       } else if (lesson) {
         if (lesson.format === "read") errors.push({ where: "format", message: `read lessons go in a read course (${READ_LANGUAGES.join(", ")})` });
         else checkSchema(lesson, id, sectionTitle, errors, warnings);
+        if (errors.length) for (const [, value] of proseFields(lesson)) for (const name of diagramNames(value)) usedDiagrams.add(name);
       }
       if (lesson && !read && !errors.length) {
-        checkProse(lesson, errors);
-        checkMarkdown(lesson, errors);
+        checkProse(lesson, errors, math);
+        checkMarkdown(lesson, errors, warnings, math, diagrams, usedDiagrams);
+        if (math) checkMath(lesson, errors, warnings);
       }
       if (lesson && !read && !errors.length && !noRun) errors.push(...(await verifyLesson(lang, lesson)));
       if (errors.length) report.ok = false;
@@ -625,7 +702,7 @@ for (const lang of langs) {
   );
 
   // Every diagram file is shown somewhere, once the whole course is checked.
-  if (read && !onlyLessons.length) {
+  if (!onlyLessons.length) {
     const errors = [];
     const warnings = [];
     for (const [name, found] of diagrams) {

@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import { LessonList } from "@/components/learn/lesson-list";
+import { LessonList, type LearnCompiler } from "@/components/learn/lesson-list";
 import { EASE, dur, gsap } from "@/lib/motion";
 import type { Course, LessonRef } from "@/lib/learn-types";
 
@@ -28,8 +28,7 @@ export function LessonDrawer({
   /** Shown on wide screens too. */
   anyWidth?: boolean;
   lang: string;
-  langLabel: string;
-  compiler: boolean;
+  compiler: LearnCompiler | null;
   course: Course;
   currentId: string | null;
   currentPart: number;

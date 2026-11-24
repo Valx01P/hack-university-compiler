@@ -13,8 +13,14 @@ import registry from "@/content/courses.json";
  * project courses: web, React, Next.js, Express, FastAPI, Spring Boot, Go
  * APIs) has no compiler page: it's read lessons in Learn, runs nothing
  * (runtime "none"), and stays out of the redirect and the compiler routes.
- * The rail shows it once it has lessons, and its code is for the playground
- * (/playground), a folder on this computer.
+ * Learn's course icons show it once it has lessons, and its code is for the
+ * playground (/playground), a folder on this computer.
+ *
+ * A course without a page can still run its lessons, in another course's
+ * compiler (`runsIn`): Math's are ordinary lessons with an editor, Run, and
+ * Check, every program Python run by /python's runtime, and Learn links out
+ * to /python. It's only in Learn, like the project courses: no rail entry,
+ * no page, no cheatsheet, challenges, or search.
  */
 export type CoursePage = "single" | "page";
 
@@ -36,8 +42,17 @@ export interface CourseEntry {
   page?: CoursePage;
   /** piston:<id> (an id in lib/runtimes.json), pglite (SQL, in the
       browser), runner:<recipe> (hu-runner), or none (read lessons only,
-      which run nothing). */
+      which run nothing). A course that `runsIn` another has that one's. */
   runtime: string;
+  /** For a course with no page: the course whose compiler runs its
+      lessons ("python" for Math). Its programs run, check, highlight, and
+      complete as that course's, its link out goes to that compiler, and
+      installing that course is what it needs. Its progress, saved code,
+      and routes stay its own. */
+  runsIn?: string;
+  /** Lesson prose typesets TeX between dollar signs with KaTeX ($x^2$
+      inline, $$ blocks for display). Elsewhere a $ is just a dollar. */
+  math?: boolean;
   /** The single file's name (main.ts, Main.java). */
   fileName?: string;
   /** An Arguments field next to stdin (Bash). */
@@ -60,6 +75,17 @@ export const COMPILER_COURSES: readonly CourseEntry[] = COURSES.filter((c) => c.
 
 /** Whether /<slug> is a course's compiler page. */
 export const isCompilerCourse = (slug: string) => Boolean(BY_SLUG.get(slug)?.page);
+
+/** The course whose compiler page runs a course's programs, which its
+    Learn mode links out to: the course itself when it has a page, the one
+    its `runsIn` names when it doesn't (Python for Math), and undefined for
+    a read course. */
+export function compilerCourseOf(slug: string): CourseEntry | undefined {
+  const course = BY_SLUG.get(slug);
+  if (course?.page) return course;
+  const host = course?.runsIn ? BY_SLUG.get(course.runsIn) : undefined;
+  return host?.page ? host : undefined;
+}
 
 export type RuntimeKind = "piston" | "pglite" | "runner";
 

@@ -15,7 +15,9 @@
 //   npm run uninstall -- --dry-run       # only show what would go
 //
 // Names are the ids npm run status lists, the group (compilers), or all. A
-// project course (react, spring) needs nothing installed, and says so.
+// project course (react, spring) needs nothing installed, and says so. A
+// course that runs on a compiler (math, on Python) says which: add adds that
+// compiler, and remove leaves it, since that's the compiler's name to say.
 // --yes answers yes to every question (but those about deleting your own
 // work, which take --delete-my-work). Docker Desktop starts by itself for the
 // ones that need Docker.
@@ -27,12 +29,14 @@ import {
   CATALOG,
   COMPONENTS,
   GROUPS,
+  HOSTED_COURSES,
   and,
   component,
   detect,
   formatMB,
   freeMB,
   heldBy,
+  hostedNote,
   install,
   projectCourseNote,
   remove,
@@ -67,10 +71,14 @@ function fail(message) {
 }
 
 function namedIds() {
-  const { ids, unknown, courses } = resolveNames(names);
+  const { ids, unknown, courses, hosted } = resolveNames(names);
   if (unknown.length) fail(`There's nothing named ${unknown.join(", ")}. npm run status lists the names.`);
   if (courses.length) console.log(`\n${projectCourseNote(courses)}`);
-  if (!ids.length && courses.length) process.exit(0);
+  if (hosted.length) console.log(`\n${hostedNote(hosted, command)}`);
+  // A course that runs on a compiler (Math, on Python) is added by adding
+  // that compiler, and never removed by name: that's the compiler's to say.
+  if (command === "add") for (const c of hosted) if (!ids.includes(c.host)) ids.push(c.host);
+  if (!ids.length && (courses.length || hosted.length)) process.exit(0);
   if (!ids.length) fail(`Name what to ${command}, like: npm run ${command} -- cpp`);
   return ids;
 }
@@ -105,6 +113,23 @@ async function status() {
       } else {
         const adds = sizeMB([...installed, c.id]) - sizeMB(installed);
         console.log(`  ${dim("○")} ${name}${formatMB(adds).padStart(8)}  ${dim(`npm run add -- ${c.id}`)}`);
+      }
+    }
+  }
+  // Courses whose lessons run on a compiler (Math, on Python): here when it
+  // is, with nothing of their own to free, so only adding shows a size.
+  if (HOSTED_COURSES.length) {
+    console.log(`\n  ${dim("COURSES THAT RUN ON A COMPILER")}`);
+    for (const c of HOSTED_COURSES) {
+      const name = `${c.label} ${dim(`(${c.id})`)}`.padEnd(width + dim("").length);
+      const host = shortName(c.host);
+      if (component(c.host).piston && state.stopped) {
+        console.log(`  ${dim("?")} ${name}${"".padStart(8)}  ${dim(`runs on ${host}, and the compiler sandbox is stopped: npm run piston:up`)}`);
+      } else if (state.installed.has(c.host)) {
+        console.log(`  ${good("●")} ${name}${"".padStart(8)}  runs on ${host} ${dim("(installed)")}`);
+      } else {
+        const adds = sizeMB([...installed, c.host]) - sizeMB(installed);
+        console.log(`  ${dim("○")} ${name}${formatMB(adds).padStart(8)}  ${dim(`runs on ${host}: npm run add -- ${c.host}`)}`);
       }
     }
   }

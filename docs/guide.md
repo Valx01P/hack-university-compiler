@@ -8,7 +8,8 @@ Everything about Hack University Compiler past getting it running, which the
 - [Scripts](#scripts): every `npm run` command
 - [Languages](#languages) and [what you can import](#what-you-can-import)
 - [SQL](#sql)
-- [Learn mode](#learn-mode)
+- [Learn mode](#learn-mode), its [read courses](#read-courses), and
+  [Math](#math)
 - [Your files and the terminal](#your-files-and-the-terminal)
 - [The playground](#the-playground)
 - [Cheatsheets and challenges](#cheatsheets-and-challenges)
@@ -35,7 +36,10 @@ The app itself (lessons and cheatsheets for every language, SQL, search, and
 the playground) is 1.2 GB and always comes. Python, JavaScript, C++, Java,
 and Go share a 1.4 GB sandbox, which downloads once, so the total is often
 less than the sum, and the checklist shows the real total as you pick. The
-project courses are lessons you read, so they need nothing installed.
+project courses are lessons you read, so they need nothing installed. Math's
+lessons are Python programs, so Math needs Python: `npm run status` shows it
+under the compilers, `npm run add -- math` adds Python, and
+`npm run remove -- math` leaves Python be (remove `python` itself for that).
 
 `npm run up` asks the first time, with that checklist, and remembers the
 choice in `~/.hack-university/components.json`. After that:
@@ -159,7 +163,10 @@ its route, label, icon, the row of the Learn icons it sits in, and what runs it
 (`piston:<id>`, `pglite`, or `runner:<recipe>`). The rail, the Learn icon rows,
 the routes, `/api/execute`, and the homepage redirect all read it. Courses that
 ship in a later release are already in it, without a `page`, and stay out of
-sight until they get one.
+sight until they get one. A course without a `page` can still run its lessons
+in another course's compiler: `"runsIn": "python"` makes Math's lessons Python
+programs, and `"math": true` typesets the TeX in its prose (see
+[Math](#math)).
 
 The homepage opens the compiler you used last (Python the first time), and
 every language is its own route: `/python`, `/javascript`, `/typescript`,
@@ -266,8 +273,10 @@ with 114.
   leads back to the compiler. The web and server courses (HTML, CSS & JS,
   React, Next.js, Express, FastAPI, Spring Boot, Go APIs) are lessons you
   read, with no compiler page, reached from this course list, and their code
-  is for the [playground](#the-playground). The icons are one stop for Tab: the arrow keys
-  move between them, and Home and End jump to the ends of a row.
+  is for the [playground](#the-playground). [Math](#math), the sum sign at
+  the end of the second row, runs in the Python compiler. The icons are one
+  stop for Tab: the arrow keys move between them, and Home and End jump to
+  the ends of a row.
 - Drag the borders to resize the lesson list, the lesson, and the editor.
   Drag the lesson list's border all the way left to fold it away, and bring it
   back with the panel button or the border. The gap between the editor and
@@ -297,7 +306,9 @@ running, except for SQL): it runs each example and reference solution and makes
 sure every practice starter runs but doesn't already pass. A read course
 needs no sandbox: `npm run lessons:verify -- web` checks its shape, prose,
 code, and diagrams (`content/learn/<course>/diagrams/*.svg`), and
-`npm run build` stops on a diagram the parser refuses. A Bash lesson's data
+`npm run build` stops on a diagram the parser refuses. Math is checked the
+way Python's course is, its programs run as Python, and its TeX must parse
+in KaTeX. A Bash lesson's data
 files live in `content/fixtures/<language>/<set>/`. To read a draft course from
 outside the repo, start the app with `LEARN_CONTENT_DIR` set to its folder of
 courses (the one `lessons:verify` checks) and `FIXTURES_CONTENT_DIR` to its
@@ -323,6 +334,27 @@ to read and diagrams to look at, and no practice.
   opens the playground. There's no sandbox badge, since nothing runs.
 - A course with no lessons yet has no Learn pages and no icon in the
   switcher.
+
+### Math
+
+Math goes from arithmetic to Calculus 2 and linear algebra, taught in Python.
+It lives only in Learn: it's on the course list (the sum sign), not on the
+rail, and has no compiler page, cheatsheet, or challenges.
+
+- Its parts are like Python's: worked examples, a practice, the editor, Run,
+  and Check. Every program is Python 3.12 on Piston, which has numpy, sympy,
+  scipy, and pandas. Progress and your code are Math's own, kept apart from
+  the Python course's even where the two have a lesson of the same name.
+- The top bar shows Python's sandbox badge (with Python's size and the
+  command to add it, when it's missing), and its **Python 3 compiler**
+  button (and the lesson list's) asks first, then opens `/python`.
+- Math is written in TeX and typeset with KaTeX, from the app's own build:
+  `$x^2$` inline and `$$` blocks for display math, which center and scroll
+  sideways when they're wide. Its color is the text's in every theme, and
+  selecting it shows the selection color like any text. Other courses never
+  typeset a `$`.
+- Parts can show diagrams, like a function's graph, drawn the way the read
+  courses' are.
 
 ## Your files and the terminal
 
@@ -744,6 +776,8 @@ lib/compiler.ts              each compiler page's starter program
 lib/sql/                     SQL: the PGlite playground, the sample database, and
                              the psql-style runner shared with the verifiers
 lib/learn.ts                 reads courses and lessons at build time
+lib/lesson-math.mjs          where a math course's prose has TeX, for the page and the verifier
+lib/typeset.ts               typesets that TeX with KaTeX, for Learn's parts
 lib/snippet-harness.mjs      turns a lesson or cheatsheet code block into a program
 lib/workspace-store.ts       one folder in the browser: its tree, open files, and terminals
 lib/folder-workspace.ts      what the compiler and the playground share of their folders

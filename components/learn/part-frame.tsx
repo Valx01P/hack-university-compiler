@@ -35,7 +35,7 @@ export const exampleId = (i: number) => (i === 0 ? "example" : `example-${i + 1}
 export const nextLabel = (link: PartLink) => `${link.lesson ? "Next lesson" : "Next"}: ${link.title}`;
 
 /** Lesson markdown with the outer margins trimmed, for use inside cards.
-    A read part passes the diagrams it shows. */
+    A part passes the diagrams it shows. */
 export function Prose({
   md,
   className = "",

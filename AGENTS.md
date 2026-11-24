@@ -157,6 +157,32 @@ before committing it.
   `npm run lessons:verify -- <course>` with no sandbox. They aren't on the
   rail (the owner's call): Learn's course list has them, and their code is
   for the playground.
+- **Math is a Learn-only course that runs in Python's compiler**
+  (`"runsIn": "python"` in `content/courses.json`): an icon in Learn's course
+  rows (a bold sum sign), never on the rail, with no `/math` page (a 404),
+  cheatsheet, challenges, search, or reference, and `/api/lang` refuses it,
+  so it's never the homepage's target. Its lessons are ordinary ones, an
+  editor, Run, and Check, and every program is Python 3.12 on Piston (with
+  numpy, sympy, scipy, and pandas): run, checked, and highlighted as
+  Python's, while its progress, saved code, and snippet edits are its own
+  (`course` beside `lang` in `components/learn/part-view.tsx`), so Math's
+  `functions` is never Python's. Its link out opens `/python`, worded as the
+  Python 3 compiler and never "Back to", the badge is Python's, and
+  installing it is installing Python (`npm run add -- math` says so and adds
+  Python, `remove` leaves Python be). The verifiers run it as Python
+  (`runsAs` in `scripts/lib/verify-kit.mjs`).
+- **Math is typeset with KaTeX in a course with `"math": true`** (Math's):
+  `$x^2$` inline by Pandoc's rule (no space just inside either `$`, and no
+  digit after the closing one, so `$5 and $10` stay prices), `\$` for a
+  dollar, and display math as a `$$` block of its own, centered, scrolling
+  sideways inside itself. `lib/lesson-math.mjs` finds it for the page and
+  the verifier alike, never in code, and elsewhere a `$` is just a dollar.
+  `PartView` hands `lib/typeset.ts` to every prose field through
+  `LessonMath`, so KaTeX loads only with Learn's parts. Its CSS and fonts
+  come from the app's build (imported in `app/[lang]/learn/layout.tsx`),
+  never the network, its colors are the text's, it has no background under
+  the stars, and it's 1.1em next to Inter. TeX that doesn't parse fails
+  `npm run lessons:verify`.
 - **Challenges come in two sets, the same in every language:** the basics
   (very easy to medium, one idea each), and data structures and algorithms
   practice in the categories marked `"dsa": true` (sorting through greedy,
@@ -270,7 +296,8 @@ before committing it.
   while busy (only greyed out), so bars never shift. The panel's buttons
   drop their labels for their icons when their row is too narrow, all at
   once and at the same height.
-- **Diagrams** in read lessons are SVG files drawn inline from a strict
+- **Diagrams** in lessons (read lessons, and parts with an editor, like
+  Math's graphs) are SVG files drawn inline from a strict
   subset (`lib/diagram.mjs` reads them, `components/learn/diagram.tsx`
   builds them element by element, never as markup), with only the `dg-`
   classes in `globals.css`: every color a token, the page's theme and never

@@ -11,7 +11,7 @@
 //                                 type, size, mode, SHA-256), which the
 //                                 explorer paints before the runner answers
 //
-// It also reads every read lesson's diagram (content/learn/<course>/
+// It also reads every lesson diagram (content/learn/<course>/
 // diagrams/*.svg) the way the app does (lib/diagram.mjs), writing nothing:
 // one that breaks a rule fails the build here, with what to change.
 //
@@ -301,8 +301,8 @@ function prune(dir, keep) {
   }
 }
 
-/** Every read lesson's diagram, parsed and checked. Throws with each bad
-    file's errors, so the build stops at the prebuild. */
+/** Every lesson diagram, a read course's or Math's, parsed and checked.
+    Throws with each bad file's errors, so the build stops at the prebuild. */
 function checkDiagrams() {
   const learn = path.join(ROOT, "content", "learn");
   const problems = [];

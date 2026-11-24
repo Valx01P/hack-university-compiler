@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import { ArrowLeft, ChevronRight, CodeXml } from "lucide-react";
+import { ArrowLeft, ChevronRight, CodeXml, SquareTerminal } from "lucide-react";
 import { LangIcon } from "@/components/compiler/lang-icon";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
 import { ConfirmButton } from "@/components/ui/confirm-button";
@@ -17,6 +17,13 @@ export function isLessonComplete(solved: Set<string>, id: string, problems: numb
   return true;
 }
 
+/** The compiler page a course's Learn mode leads to: its own, or the one
+    its lessons run in (Python's, for Math). */
+export interface LearnCompiler {
+  slug: string;
+  label: string;
+}
+
 /**
  * The lesson plan: progress, a course switcher, the way back to the
  * compiler, and every lesson by section with its completion mark. Each
@@ -26,7 +33,6 @@ export function isLessonComplete(solved: Set<string>, id: string, problems: numb
  */
 export function LessonList({
   lang,
-  langLabel,
   compiler,
   course,
   currentId,
@@ -34,10 +40,11 @@ export function LessonList({
   courses,
   onNavigate,
 }: {
+  /** The course: its routes and progress. */
   lang: string;
-  langLabel: string;
-  /** Whether the course has a compiler page to go back to. */
-  compiler: boolean;
+  /** The compiler to go to (back to, when it's the course's own), or null
+      for a read course, which leads to the playground. */
+  compiler: LearnCompiler | null;
   course: Course;
   currentId: string | null;
   /** The part you're on, counting from 0. */
@@ -110,8 +117,10 @@ export function LessonList({
           />
         )}
         {/* Asks first, like the compiler's Learn button. A course without a
-            compiler page leads to the playground instead. */}
-        {compiler ? (
+            compiler page leads to the playground instead, and one whose
+            lessons run in another's compiler (Math) to that one, which was
+            never where you came from, so it isn't "back". */}
+        {compiler && compiler.slug === lang ? (
           <ConfirmButton
             title="Back to the compiler?"
             description="Your lesson progress and the code in each part stay saved."
@@ -122,7 +131,20 @@ export function LessonList({
             className={`${langs.length > 1 ? "mt-2" : "mt-3"} inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink`}
           >
             <ArrowLeft className="size-3.5" aria-hidden />
-            Back to the {langLabel} compiler
+            Back to the {compiler.label} compiler
+          </ConfirmButton>
+        ) : compiler ? (
+          <ConfirmButton
+            title={`Open the ${compiler.label} compiler?`}
+            description="Your lesson progress and the code in each part stay saved."
+            confirmLabel="Open compiler"
+            href={`/${compiler.slug}`}
+            onConfirm={onNavigate}
+            align="left"
+            className={`${langs.length > 1 ? "mt-2" : "mt-3"} inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted transition-colors hover:text-ink`}
+          >
+            <SquareTerminal className="size-3.5" aria-hidden />
+            {compiler.label} compiler
           </ConfirmButton>
         ) : (
           <ConfirmButton

@@ -109,7 +109,8 @@ export async function getLessonRefs(lang: string): Promise<LessonRef[]> {
 
 // Learn covers every registered course with lessons (content/courses.json),
 // its compiler page shipped or not. A course without one has only read
-// lessons, and Learn hides its way back to the compiler.
+// lessons, and Learn hides its way back to the compiler, unless its
+// lessons run in another course's compiler (Math in Python's).
 const COURSE_SLUGS = COURSES.map((c) => c.slug);
 
 /** Lessons in course order for every course that has a Learn mode (at
@@ -140,8 +141,8 @@ export async function getAllPartParams(): Promise<{ lang: string; lesson: string
 }
 
 /**
- * A read course's diagram, content/learn/<course>/diagrams/<name>.svg (or
- * its draft's), parsed by lib/diagram.mjs into the tree the page draws. A
+ * A course's diagram, content/learn/<course>/diagrams/<name>.svg (or its
+ * draft's), parsed by lib/diagram.mjs into the tree the page draws. A
  * missing or invalid file throws, so a prerender that shows it fails the
  * build (the prebuild has checked every file already).
  */
@@ -159,9 +160,10 @@ export const getDiagram = cache(loadOnce(async (course: string, name: string): P
   return data;
 }));
 
-/** The diagrams a read part shows, by name: those in its body, its
-    examples' prompts and explanations, and on part 1 the intro and on the
-    last part the recap, the places the part draws them. */
+/** The diagrams a part shows, by name: those in its body, its examples'
+    prompts and explanations, a practice's prompt and hints, and on part 1
+    the intro and on the last part the recap, the places the part draws
+    them. Read parts and parts with an editor (Math's graphs) alike. */
 export async function getPartDiagrams(course: string, lesson: AnyLesson, part: number): Promise<Record<string, DiagramData>> {
   const step = lesson.steps[part];
   if (!step) return {};
@@ -169,6 +171,7 @@ export async function getPartDiagrams(course: string, lesson: AnyLesson, part: n
     part === 0 ? lesson.intro : "",
     step.body,
     ...step.examples.flatMap((e) => [e.prompt, e.explanation]),
+    ...("practice" in step ? [step.practice.prompt, ...(step.practice.hints ?? [])] : []),
     part === lesson.steps.length - 1 ? (lesson.recap ?? "") : "",
   ];
   const names = [...new Set(fields.flatMap((md) => diagramNames(md)))];

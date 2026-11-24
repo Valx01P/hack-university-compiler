@@ -28,14 +28,26 @@ const ALIASES = {
   golang: "go",
 };
 
+const REGISTRY = JSON.parse(readFileSync(path.join(ROOT, "content", "courses.json"), "utf8")).courses;
+
+/**
+ * The courses with no compiler page whose lessons run in another course's
+ * compiler (`runsIn` in content/courses.json): Math's are Python programs,
+ * so Math needs Python installed and has nothing of its own. Each one's id,
+ * label, and the component it runs on.
+ */
+export const HOSTED_COURSES = REGISTRY.filter((c) => !c.page && c.runsIn && BY_ID.has(c.runsIn)).map((c) => ({ id: c.slug, label: c.label, host: c.runsIn }));
+const HOSTED = new Map(HOSTED_COURSES.map((c) => [c.id, c]));
+
 /**
  * The project courses (web, React, Spring Boot…): read lessons in Learn, so
  * there's nothing of theirs to install any more. Their slugs (the courses
- * without a compiler page), the names people used for them, and the group
- * they were in, so asking for one says so instead of "there's nothing named".
+ * without a compiler page or one to run in), the names people used for
+ * them, and the group they were in, so asking for one says so instead of
+ * "there's nothing named".
  */
 const PROJECT_COURSES = new Set([
-  ...JSON.parse(readFileSync(path.join(ROOT, "content", "courses.json"), "utf8")).courses.filter((c) => !c.page).map((c) => c.slug),
+  ...REGISTRY.filter((c) => !c.page && !HOSTED.has(c.slug)).map((c) => c.slug),
   "courses",
   "html",
   "css",
@@ -47,26 +59,44 @@ const PROJECT_COURSES = new Set([
 ]);
 
 /** The component ids a name stands for: an id, an alias, a group, or all.
-    `courses` are the project courses named, which need nothing installed. */
+    `courses` are the project courses named, which need nothing installed,
+    and `hosted` the courses named that run on a compiler (HOSTED_COURSES),
+    which the caller adds that compiler for, or leaves be. */
 export function resolveNames(names) {
   const ids = [];
   const unknown = [];
   const courses = [];
+  const hosted = [];
   for (const raw of names) {
     const name = raw.toLowerCase();
     if (name === "all" || name === "everything") ids.push(...COMPONENTS.map((c) => c.id));
     else if (GROUPS.some((g) => g.id === name)) ids.push(...COMPONENTS.filter((c) => c.group === name).map((c) => c.id));
     else if (BY_ID.has(name)) ids.push(name);
     else if (ALIASES[name]) ids.push(ALIASES[name]);
+    else if (HOSTED.has(name)) hosted.push(HOSTED.get(name));
     else if (PROJECT_COURSES.has(name)) courses.push(raw);
     else unknown.push(raw);
   }
-  return { ids: [...new Set(ids)], unknown, courses };
+  return { ids: [...new Set(ids)], unknown, courses, hosted };
 }
 
 /** What asking to install or remove a project course gets. */
 export const projectCourseNote = (names) =>
   `${and(names)} ${names.length > 1 ? "are project courses" : "is a project course"}: read lessons in Learn, with nothing to install. To try the code, the playground (/playground) is a folder on this computer with an editor and a terminal.`;
+
+/** What naming a course that runs on a compiler gets. Adding it adds that
+    compiler. Removing it removes nothing, so naming Math never takes
+    Python away: that's Python's own name to say. */
+export function hostedNote(hosted, command) {
+  return hosted
+    .map((c) => {
+      const host = shortName(c.host);
+      return command === "remove"
+        ? `${c.label}'s lessons run on ${host}, so ${c.label} has nothing of its own to remove. To remove ${host}, which ${c.label} needs: npm run remove -- ${c.host}`
+        : `${c.label}'s lessons run on ${host}, so that's what adding ${c.label} adds (npm run add -- ${c.host}).`;
+    })
+    .join("\n");
+}
 
 export const component = (id) => BY_ID.get(id);
 export const defaults = () => COMPONENTS.filter((c) => c.default).map((c) => c.id);

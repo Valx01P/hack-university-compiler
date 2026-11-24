@@ -1,18 +1,33 @@
-import React from "react";
+import React, { createContext, useContext } from "react";
 import { Highlight } from "@/lib/highlight";
 import { CopyableCodeBlock } from "@/components/ui/copyable-code-block";
 import { Diagram } from "@/components/learn/diagram";
 import { RunnableSnippet } from "@/components/learn/runnable-snippet";
 import type { DiagramData } from "@/lib/diagram.mjs";
+import { INLINE_MATH, displayMath, isTableSeparator, tableCells } from "@/lib/lesson-math.mjs";
 import { segmentMarkdown } from "@/lib/snippet-harness.mjs";
 import { snippetHash } from "@/lib/snippet-edits";
 
 /**
  * Renderer for the content-markdown subset:
  * # ## ### headings, paragraphs, **bold**, *em*, `code`, ```fences,
- * [links](url), - lists, 1. lists, > blockquotes, | pipe | tables |.
+ * [links](url), - lists, 1. lists, > blockquotes, | pipe | tables |, and in
+ * a course that turns math on, $TeX$ and $$ blocks (lib/lesson-math.mjs).
  * No raw HTML passthrough.
  */
+
+/** Typesets TeX into KaTeX's markup, inline or as display math. */
+export type Typeset = (tex: string, display: boolean) => string;
+
+/**
+ * How the prose under it typesets math: null (the default) where a $ is
+ * just a dollar, and lib/typeset.ts in a course with "math": true, which
+ * PartView sets around the whole part, so every field gets it (the intro,
+ * the body, the examples, the practice and its hints, the recap, and table
+ * cells). A diagram's caption stays plain text. KaTeX itself comes only
+ * with it.
+ */
+export const LessonMath = createContext<Typeset | null>(null);
 
 /** Only allow safe link targets; anything else renders as plain text so a
     crafted `javascript:`/`data:` URL can never become a clickable link. */
@@ -48,21 +63,36 @@ function powers(text: string, keyBase: string): React.ReactNode[] {
     most languages). */
 const BOUND = /^(?=.*[<>])[\w\s.,+\-−×*()<>=^]+$/;
 
-function inline(text: string, keyBase: string): React.ReactNode[] {
-  // Tokenize inline: \*, [text](url), `code`, **bold**, *em*. A \* is a
-  // literal star, so a name like A* search can sit in bold or italics.
+// Inline tokens: \*, [text](url), `code`, **bold**, *em*. A \* is a
+// literal star, so a name like A* search can sit in bold or italics.
+const TOKENS = /(\\\*)|(\[[^\]]+\]\([^)\s]+\))|(`[^`]+`)|(\*\*(?:\\\*|[^*])+\*\*)|(\*(?:\\\*|[^*\n])+\*)/g;
+// With math on, \$ (a dollar) and $TeX$ too, and bold and italics hold a
+// span whole, so a star in its TeX ($a*b$) never closes them. Math is a
+// token of its own, so the powers below never see TeX.
+const M = INLINE_MATH;
+const MATH_TOKENS = new RegExp(
+  String.raw`(\\\*)|(\\\$)|(${M})|(\[[^\]]+\]\([^)\s]+\))|(\`[^\`]+\`)|(\*\*(?:${M}|\\\*|(?!${M})[^*])+\*\*)|(\*(?:${M}|\\\*|(?!${M})[^*\n])+\*)`,
+  "g"
+);
+
+function inline(text: string, keyBase: string, tex: Typeset | null = null): React.ReactNode[] {
   const out: React.ReactNode[] = [];
-  const re =
-    /(\\\*)|(\[[^\]]+\]\([^)\s]+\))|(`[^`]+`)|(\*\*(?:\\\*|[^*])+\*\*)|(\*(?:\\\*|[^*\n])+\*)/g;
   let last = 0;
   let i = 0;
-  for (const m of text.matchAll(re)) {
+  for (const m of text.matchAll(tex ? MATH_TOKENS : TOKENS)) {
     const idx = m.index ?? 0;
     if (idx > last) out.push(...powers(text.slice(last, idx), `${keyBase}-t${i}`));
     const tok = m[0];
     const key = `${keyBase}-${i++}`;
     if (tok === "\\*") {
       out.push("*");
+    } else if (tok === "\\$") {
+      out.push("$");
+    } else if (tex && tok.startsWith("$")) {
+      // KaTeX's own markup for the lesson's own TeX: KaTeX escapes every
+      // character of text it prints, and with trust off it makes no link,
+      // class, or style out of the TeX, so no markup from content gets in.
+      out.push(<span key={key} className="math" dangerouslySetInnerHTML={{ __html: tex(tok.slice(1, -1), false) }} />);
     } else if (tok.startsWith("[")) {
       const close = tok.indexOf("](");
       const label = tok.slice(1, close);
@@ -92,9 +122,9 @@ function inline(text: string, keyBase: string): React.ReactNode[] {
         </code>
       );
     } else if (tok.startsWith("**")) {
-      out.push(<strong key={key}>{inline(tok.slice(2, -2), `${key}-strong`)}</strong>);
+      out.push(<strong key={key}>{inline(tok.slice(2, -2), `${key}-strong`, tex)}</strong>);
     } else {
-      out.push(<em key={key}>{inline(tok.slice(1, -1), `${key}-em`)}</em>);
+      out.push(<em key={key}>{inline(tok.slice(1, -1), `${key}-em`, tex)}</em>);
     }
     last = idx + tok.length;
   }
@@ -102,20 +132,10 @@ function inline(text: string, keyBase: string): React.ReactNode[] {
   return out;
 }
 
-/** A pipe-table separator row, e.g. `|---|:--:|--:|`. */
-function isTableSeparator(line: string): boolean {
-  return /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(line);
-}
-
-/** Split one table row into trimmed cells, dropping the outer pipes. Escaped
-    pipes (`\|`, e.g. SQL's `||` operator) are NOT column separators — they're
-    split-safe and unescaped back to a literal `|` in the cell. */
-function tableCells(row: string): string[] {
-  let s = row.trim();
-  if (s.startsWith("|")) s = s.slice(1);
-  if (s.endsWith("|") && !s.endsWith("\\|")) s = s.slice(0, -1);
-  return s.split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, "|"));
-}
+// A table's separator row and its cells (an escaped `\|`, like SQL's `||`,
+// is a literal pipe in a cell, never a column, and with math on so is a
+// pipe in a cell's TeX) come from lib/lesson-math.mjs, which finds a cell's
+// math the same way.
 
 type Align = "left" | "center" | "right";
 const alignClass: Record<Align, string> = {
@@ -124,14 +144,15 @@ const alignClass: Record<Align, string> = {
   right: "text-right",
 };
 
-function renderTable(lines: string[], key: string): React.ReactNode {
-  const headers = tableCells(lines[0]);
+function renderTable(lines: string[], key: string, tex: Typeset | null): React.ReactNode {
+  // With math on, a cell's TeX keeps its own pipes ($|x|$).
+  const headers = tableCells(lines[0], Boolean(tex));
   const aligns: Align[] = tableCells(lines[1]).map((c) => {
     const l = c.startsWith(":");
     const r = c.endsWith(":");
     return l && r ? "center" : r ? "right" : "left";
   });
-  const rows = lines.slice(2).map(tableCells);
+  const rows = lines.slice(2).map((row) => tableCells(row, Boolean(tex)));
   return (
     <div key={key} className="slim-scroll my-5 overflow-x-auto rounded-card border border-content-line-strong">
       <table className="w-full border-collapse text-sm">
@@ -142,7 +163,7 @@ function renderTable(lines: string[], key: string): React.ReactNode {
                 key={ci}
                 className={`border-b border-content-line-strong px-3 py-2 font-medium text-ink ${alignClass[aligns[ci] ?? "left"]}`}
               >
-                {inline(h, `${key}-h${ci}`)}
+                {inline(h, `${key}-h${ci}`, tex)}
               </th>
             ))}
           </tr>
@@ -155,7 +176,7 @@ function renderTable(lines: string[], key: string): React.ReactNode {
                   key={ci}
                   className={`px-3 py-2 align-top text-ink-muted ${alignClass[aligns[ci] ?? "left"]}`}
                 >
-                  {inline(c, `${key}-r${ri}c${ci}`)}
+                  {inline(c, `${key}-r${ri}c${ci}`, tex)}
                 </td>
               ))}
             </tr>
@@ -166,7 +187,7 @@ function renderTable(lines: string[], key: string): React.ReactNode {
   );
 }
 
-function renderLines(text: string, keyBase: string): React.ReactNode[] {
+function renderLines(text: string, keyBase: string, tex: Typeset | null = null): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   const blocks = text.split(/\n{2,}/).filter((b) => b.trim());
   blocks.forEach((block, bi) => {
@@ -174,34 +195,49 @@ function renderLines(text: string, keyBase: string): React.ReactNode[] {
     const lines = block.split("\n");
     const first = lines[0];
 
+    // Display math: a block of its own from $$ to $$, centered, that
+    // scrolls sideways inside itself when it's wider than the column, never
+    // the page. KaTeX's markup, made the way inline math's is.
+    const display = tex ? displayMath(block) : null;
+    if (tex && display !== null) {
+      nodes.push(
+        <div
+          key={key}
+          className="math-display slim-scroll my-5 overflow-x-auto overflow-y-hidden"
+          dangerouslySetInnerHTML={{ __html: tex(display, true) }}
+        />
+      );
+      return;
+    }
+
     if (/^###\s/.test(first)) {
       nodes.push(
         <h4 key={key} className="font-display mt-7 text-lg font-medium break-words">
-          {inline(first.replace(/^###\s+/, ""), key)}
+          {inline(first.replace(/^###\s+/, ""), key, tex)}
         </h4>
       );
       const rest = lines.slice(1).join("\n");
-      if (rest.trim()) nodes.push(...renderLines(rest, key + "r"));
+      if (rest.trim()) nodes.push(...renderLines(rest, key + "r", tex));
       return;
     }
     if (/^##\s/.test(first)) {
       nodes.push(
         <h3 key={key} className="font-display mt-9 text-xl font-medium break-words">
-          {inline(first.replace(/^##\s+/, ""), key)}
+          {inline(first.replace(/^##\s+/, ""), key, tex)}
         </h3>
       );
       const rest = lines.slice(1).join("\n");
-      if (rest.trim()) nodes.push(...renderLines(rest, key + "r"));
+      if (rest.trim()) nodes.push(...renderLines(rest, key + "r", tex));
       return;
     }
     if (/^#\s/.test(first)) {
       nodes.push(
         <h2 key={key} className="font-display mt-9 text-title break-words">
-          {inline(first.replace(/^#\s+/, ""), key)}
+          {inline(first.replace(/^#\s+/, ""), key, tex)}
         </h2>
       );
       const rest = lines.slice(1).join("\n");
-      if (rest.trim()) nodes.push(...renderLines(rest, key + "r"));
+      if (rest.trim()) nodes.push(...renderLines(rest, key + "r", tex));
       return;
     }
 
@@ -218,7 +254,7 @@ function renderLines(text: string, keyBase: string): React.ReactNode[] {
       first.includes("|") &&
       isTableSeparator(lines[1])
     ) {
-      nodes.push(renderTable(lines, key));
+      nodes.push(renderTable(lines, key, tex));
       return;
     }
 
@@ -228,7 +264,7 @@ function renderLines(text: string, keyBase: string): React.ReactNode[] {
           key={key}
           className="my-4 border-l-2 border-accent-strong pl-4 text-ink-muted"
         >
-          {renderLines(lines.map((l) => l.replace(/^>\s?/, "")).join("\n"), key + "q")}
+          {renderLines(lines.map((l) => l.replace(/^>\s?/, "")).join("\n"), key + "q", tex)}
         </blockquote>
       );
       return;
@@ -238,7 +274,7 @@ function renderLines(text: string, keyBase: string): React.ReactNode[] {
       nodes.push(
         <ul key={key} className="my-4 list-disc space-y-1.5 pl-6 break-words">
           {lines.map((l, li) => (
-            <li key={li}>{inline(l.replace(/^-\s+/, ""), `${key}-${li}`)}</li>
+            <li key={li}>{inline(l.replace(/^-\s+/, ""), `${key}-${li}`, tex)}</li>
           ))}
         </ul>
       );
@@ -249,7 +285,7 @@ function renderLines(text: string, keyBase: string): React.ReactNode[] {
       nodes.push(
         <ol key={key} className="my-4 list-decimal space-y-1.5 pl-6 break-words">
           {lines.map((l, li) => (
-            <li key={li}>{inline(l.replace(/^\d+\.\s+/, ""), `${key}-${li}`)}</li>
+            <li key={li}>{inline(l.replace(/^\d+\.\s+/, ""), `${key}-${li}`, tex)}</li>
           ))}
         </ol>
       );
@@ -258,7 +294,7 @@ function renderLines(text: string, keyBase: string): React.ReactNode[] {
 
     nodes.push(
       <p key={key} className="my-4 leading-relaxed break-words">
-        {inline(block, key)}
+        {inline(block, key, tex)}
       </p>
     );
   });
@@ -266,8 +302,10 @@ function renderLines(text: string, keyBase: string): React.ReactNode[] {
 }
 
 /** Where a page's code examples run: `course` is the course whose fences
-    they are (content/courses.json), `scope` names the page for saving your
-    edits, `setup` builds the tables SQL examples work on, and on the runner
+    they are (content/courses.json, Math's running in Python's), `scope`
+    names the page for saving your edits (learn/<course>/<lesson>, so two
+    courses' lessons never share them), `setup` builds the tables SQL
+    examples work on, and on the runner
     `fixtures` and `clock` are the lesson's own fixture set and frozen time,
     so a Bash example reads the files its lesson describes. */
 export interface RunnableContext {
@@ -283,8 +321,10 @@ export interface RunnableContext {
  * language its course runs becomes a RunnableSnippet (run it, edit it,
  * reset it); without it, and for text and `norun` blocks, code shows as a
  * plain block you can copy. Hidden harness and stdin blocks never show. A
- * read lesson's ```diagram fence draws its diagram from `diagrams` (the
- * part page loads each one it shows), its line as the caption.
+ * ```diagram fence draws its diagram from `diagrams` (the part page loads
+ * each one it shows), its line as the caption. Under LessonMath its math
+ * is typeset, but for a caption's, which is plain symbols (x², −2), and
+ * elsewhere a $ is a dollar.
  */
 export function LessonMarkdown({
   md,
@@ -295,6 +335,7 @@ export function LessonMarkdown({
   runnable?: RunnableContext;
   diagrams?: Record<string, DiagramData>;
 }) {
+  const tex = useContext(LessonMath);
   return (
     <>
       {segmentMarkdown(md, runnable?.course).map((seg, i) =>
@@ -330,7 +371,7 @@ export function LessonMarkdown({
             </CopyableCodeBlock>
           )
         ) : (
-          <React.Fragment key={i}>{renderLines(seg.content, `s${i}`)}</React.Fragment>
+          <React.Fragment key={i}>{renderLines(seg.content, `s${i}`, tex)}</React.Fragment>
         )
       )}
     </>
