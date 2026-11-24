@@ -374,7 +374,8 @@ that, each on its own line. The verifier checks that the blocks match test 1's
   `N. `: list items are one line each, and a list, heading, or quote never
   shares a block with a paragraph. No raw HTML, no images. Code goes in
   backticks, including generic types like `vector<int>`. A star in prose is
-  `\*` (A\* search), so a name with one can sit in bold or italics. The Math
+  `\*` (A\* search), so a name with one can sit in bold or italics. Bold can
+  hold italics one level deep: `**Example 4 · a remainder, from *Title*.**`. The Math
   course adds TeX between dollar signs ([Math course](#math-course)), and a
   part can show a ```` ```diagram ```` ([Diagrams](#diagrams)).
 - Write big limits as powers: `10^9`, `2 × 10^9`, `10^9 + 7`, `2^31 - 1`, never
@@ -444,6 +445,22 @@ so $\bar{x} = 7$ for 4, 8, and 9.
   and the verifier counts no words in it.
 - Absolute values read best as `\lvert -3 \rvert` (or `|{-3}|`), since TeX
   spaces `|-3|` as a subtraction.
+- A worked step's reason is `\why{...}`, text with `$...$` for any math in it,
+  after `&&` in an `aligned` block. It's drawn in the theme's accent, in
+  italics, so the why stands out from the working:
+
+  ````markdown
+  $$
+  \begin{aligned}
+  5x - 7 &= 2x + 8 \\
+  3x - 7 &= 8 && \why{subtract $2x$ from both sides} \\
+  x &= 5 && \why{add 7, then divide by 3}
+  \end{aligned}
+  $$
+  ````
+
+  It's the one HTML extension lessons may use: any other `\htmlClass`, and
+  `\href` or `\url`, shows as red TeX, so the verifier fails it.
 - A part can show a diagram, like a function's graph, drawn by the rules in
   [Diagrams](#diagrams): an SVG in `content/learn/math/diagrams/`.
 

@@ -64,14 +64,16 @@ function powers(text: string, keyBase: string): React.ReactNode[] {
 const BOUND = /^(?=.*[<>])[\w\s.,+\-−×*()<>=^]+$/;
 
 // Inline tokens: \*, [text](url), `code`, **bold**, *em*. A \* is a
-// literal star, so a name like A* search can sit in bold or italics.
-const TOKENS = /(\\\*)|(\[[^\]]+\]\([^)\s]+\))|(`[^`]+`)|(\*\*(?:\\\*|[^*])+\*\*)|(\*(?:\\\*|[^*\n])+\*)/g;
+// literal star, so a name like A* search can sit in bold or italics. Bold
+// can hold italics (**Example 4 · a remainder, from *Title*.**), one level
+// deep, which its own inline() call then renders.
+const TOKENS = /(\\\*)|(\[[^\]]+\]\([^)\s]+\))|(`[^`]+`)|(\*\*(?:\\\*|[^*]|\*(?!\*)(?:\\\*|[^*\n])+\*)+\*\*)|(\*(?:\\\*|[^*\n])+\*)/g;
 // With math on, \$ (a dollar) and $TeX$ too, and bold and italics hold a
 // span whole, so a star in its TeX ($a*b$) never closes them. Math is a
 // token of its own, so the powers below never see TeX.
 const M = INLINE_MATH;
 const MATH_TOKENS = new RegExp(
-  String.raw`(\\\*)|(\\\$)|(${M})|(\[[^\]]+\]\([^)\s]+\))|(\`[^\`]+\`)|(\*\*(?:${M}|\\\*|(?!${M})[^*])+\*\*)|(\*(?:${M}|\\\*|(?!${M})[^*\n])+\*)`,
+  String.raw`(\\\*)|(\\\$)|(${M})|(\[[^\]]+\]\([^)\s]+\))|(\`[^\`]+\`)|(\*\*(?:${M}|\\\*|(?!${M})[^*]|\*(?!\*)(?:${M}|\\\*|(?!${M})[^*\n])+\*)+\*\*)|(\*(?:${M}|\\\*|(?!${M})[^*\n])+\*)`,
   "g"
 );
 

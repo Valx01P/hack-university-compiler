@@ -43,6 +43,9 @@ import path from "node:path";
 import katex from "katex";
 import { diagramNames, parseDiagram } from "../lib/diagram.mjs";
 import { KATEX_OPTIONS, mathSpans } from "../lib/lesson-math.mjs";
+
+/** KaTeX's default errorColor, what an untrusted command renders in. */
+const KATEX_ERROR_COLOR = "#cc0000";
 import {
   ID_RE,
   LEARN_LANGUAGES,
@@ -227,16 +230,25 @@ function checkTex(where, md, errors, warnings) {
   }
   for (const { tex, display } of spans) {
     const shown = display ? `$$ ${clip(tex, 50)} $$` : `$${clip(tex, 50)}$`;
+    // In TeX a bare % starts a comment, so the rest of the line silently
+    // vanishes from the page instead of failing to parse.
+    if (/(?<!\\)%/.test(tex)) errors.push({ where, message: `a bare % in TeX starts a comment and hides the rest of the line: write \\% in ${shown}` });
+    // \why's reason is TeX text, where Markdown's *italics* show as stars.
+    if (/\\why\{[^}]*(?<!\\)\*[^*]+\*/.test(tex)) errors.push({ where, message: `*italics* inside \\why{...} show their stars: write \\textit{...} in ${shown}` });
     try {
-      katex.renderToString(tex, {
+      const html = katex.renderToString(tex, {
         ...KATEX_OPTIONS,
         displayMode: display,
         throwOnError: true,
         strict: (code, message) => {
-          warnings.push({ where, message: `KaTeX strict mode (${code}) in ${shown}: ${message}` });
+          // \why's class is the one HTML extension lessons use, on purpose.
+          if (code !== "htmlExtension") warnings.push({ where, message: `KaTeX strict mode (${code}) in ${shown}: ${message}` });
           return "ignore";
         },
       });
+      // A command KaTeX won't run here (\href, \url, any \htmlClass but
+      // \why's) doesn't throw: it shows as red TeX, so catch that too.
+      if (html.includes(`color:${KATEX_ERROR_COLOR}`)) errors.push({ where, message: `TeX that uses a command lessons can't, shown as red text, in ${shown}` });
     } catch (err) {
       errors.push({ where, message: `TeX that doesn't parse in ${shown}: ${err.message}` });
     }
