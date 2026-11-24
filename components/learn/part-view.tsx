@@ -47,10 +47,10 @@ import { clearCode, loadCode, markSolved, saveCode, setLastLesson, useSolvedStat
 import { checkInSandbox, normalizeOutput, refreshSandboxStatus, runInSandbox, type RunState } from "@/lib/run-code";
 import { joinArgs, splitArgs } from "@/lib/shell-words";
 import { forbiddenUses, judgeTest, judgeTypeTests } from "@/lib/single-checks.mjs";
-import { useEnter } from "@/lib/motion";
+import { EASE, dur, gsap, useEnter } from "@/lib/motion";
 import { FULL_SCREEN_TITLE, useFullScreen } from "@/lib/full-screen";
 import { revealWorkspace, urlCount, urlParam, writeUrl } from "@/lib/url-state";
-import { PANES, paneValue } from "@/lib/panes";
+import { LEARN_EDITOR_TOGGLE, PANES, paneValue } from "@/lib/panes";
 import { setPaneSize, usePaneSize } from "@/lib/pane-size";
 import { typeset } from "@/lib/typeset";
 
@@ -70,6 +70,9 @@ const TIMED_OUT = "Timed out. Your code ran too long (usually an infinite loop).
 // the height under the editor's tabs the code box gets, the output the rest
 // (60 is the 3 to 2 it starts at). Both are saved (lib/panes.ts).
 const SPLIT = PANES["learn-split"];
+// How far right a drag goes (past the lesson's widest, at SPLIT.max) before
+// the editor folds away, leaving the lesson the whole width to read in.
+const SPLIT_FOLD_PAST = 85;
 const EDITOR_SPLIT = PANES["learn-editor"];
 // How far down a drag goes (past the output's smallest, at EDITOR_SPLIT.max)
 // before the output folds away.
@@ -233,7 +236,69 @@ function Part({
   const [full, stepFull, screenMode] = useFullScreen();
 
   const split = usePaneSize("learn-split");
-  const setSplit = (pct: number) => setPaneSize("learn-split", pct);
+  const reopenSplit = usePaneSize("learn-split-open");
+  const editorFolded = split === SPLIT.fold.at;
+  // An open share is also the one the editor opens at again after a fold.
+  const commitSplit = (pct: number) => {
+    const next = setPaneSize("learn-split", pct);
+    if (next !== SPLIT.fold.at) setPaneSize("learn-split-open", next);
+  };
+  // Folding the editor away and opening it again slide the border (the
+  // grid's own --learn-split, tweened, then handed back to the saved size),
+  // with the editor clipped on its way so its toolbar never spills past it.
+  const splitTween = useRef<gsap.core.Tween | null>(null);
+  const slideSplit = (to: number) => {
+    const grid = gridRef.current;
+    const pane = editorRef.current;
+    splitTween.current?.kill();
+    if (!grid || !pane) return commitSplit(to);
+    // Read from the page, not React: a drag holds the hook's updates.
+    const from = Number.parseFloat(getComputedStyle(grid).getPropertyValue("--learn-split")) || split;
+    const state = { v: from };
+    grid.style.setProperty("--learn-split", String(from));
+    pane.style.overflow = "clip";
+    // Opening shows the editor first (the fold's attribute off), at no width.
+    if (to !== SPLIT.fold.at) commitSplit(to);
+    splitTween.current = gsap.to(state, {
+      v: to,
+      duration: dur(0.3),
+      ease: EASE.inOut,
+      onUpdate: () => grid.style.setProperty("--learn-split", String(state.v)),
+      onComplete: () => {
+        splitTween.current = null;
+        if (to === SPLIT.fold.at) commitSplit(to);
+        grid.style.setProperty("--learn-split", paneValue("learn-split"));
+        pane.style.overflow = "";
+      },
+    });
+  };
+  // A drag follows the pointer, folds away (sliding) once it's well past the
+  // lesson's widest, and from the fold opens at the widest again.
+  const dragSplit = (pct: number) => {
+    if (pct >= SPLIT_FOLD_PAST) {
+      const folded = document.documentElement.hasAttribute(SPLIT.fold.attr);
+      if (!folded && !splitTween.current) slideSplit(SPLIT.fold.at);
+      return;
+    }
+    splitTween.current?.kill();
+    splitTween.current = null;
+    gridRef.current?.style.setProperty("--learn-split", paneValue("learn-split"));
+    if (editorRef.current) editorRef.current.style.overflow = "";
+    commitSplit(pct);
+  };
+  const setSplit = (pct: number) =>
+    commitSplit(editorFolded ? (pct < SPLIT.fold.at ? SPLIT.max : pct) : pct > SPLIT.max ? SPLIT.fold.at : pct);
+  useEffect(() => {
+    const toggle = () => slideSplit(editorFolded ? reopenSplit : SPLIT.fold.at);
+    window.addEventListener(LEARN_EDITOR_TOGGLE, toggle);
+    return () => window.removeEventListener(LEARN_EDITOR_TOGGLE, toggle);
+  });
+  useEffect(
+    () => () => {
+      splitTween.current?.kill();
+    },
+    []
+  );
   const editorShare = usePaneSize("learn-editor");
   const setEditorShare = (pct: number) => setPaneSize("learn-editor", pct);
   const outputFolded = editorShare === EDITOR_SPLIT.fold.at;
@@ -527,7 +592,7 @@ function Part({
     <div
       ref={gridRef}
       data-workspace
-      className={`flex min-h-0 flex-1 flex-col lg:relative lg:grid lg:grid-cols-[var(--learn-split)_9px_minmax(0,1fr)] ${
+      className={`flex min-h-0 flex-1 flex-col lg:relative lg:grid lg:grid-cols-[calc((100%_-_9px)*var(--learn-split)/100)_9px_minmax(0,1fr)] ${
         // In full screen (laid out by globals.css) below lg the part and the
         // editor stack and the whole thing scrolls, each at its own height
         // (never squeezed to fit).
@@ -578,20 +643,27 @@ function Part({
         <PartNav prev={prev} next={next} glow={nextGlow} />
       </div>
 
+      {/* Drag it right for more lesson, left for more editor, and well past
+          the lesson's widest to fold the editor away and read in the whole
+          width (a step past there, or End, does too, and the bar's last
+          button folds and opens it). From the fold, a drag or a step left
+          opens it again. */}
       <ResizeHandle
         label="Resize the lesson and the editor"
         value={split}
         min={SPLIT.min}
-        max={SPLIT.max}
+        max={SPLIT.fold.at}
         step={5}
         bigStep={10}
         onChange={setSplit}
         onDrag={(x) => {
           const r = gridRef.current?.getBoundingClientRect();
-          if (r && r.width > 0) setSplit(((x - r.left) / r.width) * 100);
+          // The lesson's share of the width the border leaves, with the
+          // border's middle at the pointer.
+          if (r && r.width > 9) dragSplit(((x - r.left - 4.5) / (r.width - 9)) * 100);
         }}
-        onReset={() => setSplit(SPLIT.initial)}
-        className="hidden lg:flex"
+        onReset={() => slideSplit(SPLIT.initial)}
+        className="learn-editor-handle hidden lg:flex"
       />
 
       {/* Right: the editor. Below lg it has a floor, so a short screen (a phone
@@ -599,6 +671,7 @@ function Part({
       <div
         ref={editorRef}
         data-editor-pane
+        data-learn-editor-pane
         className="flex h-[88dvh] min-h-[30rem] min-w-0 scroll-mt-[calc(4rem+1px)] flex-col p-2 lg:h-auto lg:min-h-0"
       >
         {/* The padding (offset by the negative margins) leaves room for focus

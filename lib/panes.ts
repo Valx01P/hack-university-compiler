@@ -21,13 +21,19 @@ export interface Pane {
 
 export const PANES = {
   // Learn: the lesson list's width (0 folded away, which also marks
-  // <html data-learn-list-folded>), and the width it opens at again.
-  "learn-list": { unit: "px", min: 0, max: 440, initial: 256, fold: { at: 0, attr: "data-learn-list-folded" } },
-  "learn-list-open": { unit: "px", min: 208, max: 440, initial: 256 },
-  // Learn: the lesson beside the editor, and the code box over the output
-  // (a flex weight out of 100, the output getting the rest, and all of it at
-  // 100, the output folded away).
-  "learn-split": { unit: "%", min: 30, max: 70, initial: 50 },
+  // <html data-learn-list-folded>), and the width it opens at again. Open,
+  // it's 215px to 300px (the owner's call): wider only took room from the
+  // lesson, and narrower squeezed the lesson titles.
+  "learn-list": { unit: "px", min: 0, max: 300, initial: 256, fold: { at: 0, attr: "data-learn-list-folded" } },
+  "learn-list-open": { unit: "px", min: 215, max: 300, initial: 256 },
+  // Learn: the lesson beside the editor (its share out of 100 of the width
+  // the border leaves, and all of it at 100: the editor folded away, by a
+  // drag well past the lesson's widest or the bar's button, which also marks
+  // <html data-learn-editor-folded>), the share it opens at again, and the
+  // code box over the output (a flex weight out of 100, the output getting
+  // the rest, and all of it at 100, the output folded away).
+  "learn-split": { unit: "", min: 30, max: 70, initial: 50, fold: { at: 100, attr: "data-learn-editor-folded" } },
+  "learn-split-open": { unit: "", min: 30, max: 70, initial: 50 },
   "learn-editor": { unit: "", min: 30, max: 80, initial: 60, fold: { at: 100, attr: "data-learn-output-folded" } },
   // The compiler: the editor's width, beside the output or beside the panel
   // (one width, so opening or closing the panel never moves the editor's
@@ -50,6 +56,11 @@ export const PANES = {
 } as const satisfies Record<string, Pane>;
 
 export type PaneName = keyof typeof PANES;
+
+/** What Learn's bar's button fires to fold the editor away or open it again
+    (components/learn/learn-shell.tsx), heard by the part on the page, which
+    slides its border (components/learn/part-view.tsx). */
+export const LEARN_EDITOR_TOGGLE = "hu:learn-editor-toggle";
 
 export const paneKey = (name: PaneName) => `hu-pane-${name}`;
 export const paneVar = (name: PaneName) => `--hu-${name}`;

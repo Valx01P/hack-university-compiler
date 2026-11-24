@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { FloatingNav } from "@/components/chrome/floating-nav";
 import { HistoryArrows } from "@/components/chrome/history-arrows";
 import { SandboxStatus } from "@/components/chrome/sandbox-status";
@@ -12,14 +12,14 @@ import { LessonList, type LearnCompiler } from "@/components/learn/lesson-list";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { useIsFullScreen } from "@/lib/full-screen";
 import { EASE, dur, gsap } from "@/lib/motion";
-import { PANES, paneValue } from "@/lib/panes";
+import { LEARN_EDITOR_TOGGLE, PANES, paneValue } from "@/lib/panes";
 import { setPaneSize, usePaneSize } from "@/lib/pane-size";
 import type { Course, LessonRef } from "@/lib/learn-types";
 
 // The lesson list's width (0 when folded away), and the width it reopens at,
 // both saved and applied before first paint (lib/panes.ts), folded included.
 // Dragging it narrower than `collapseBelow` folds it away completely.
-const SIDEBAR = { min: 208, max: PANES["learn-list"].max, initial: PANES["learn-list"].initial, collapseBelow: 150 };
+const SIDEBAR = { min: PANES["learn-list-open"].min, max: PANES["learn-list"].max, initial: PANES["learn-list"].initial, collapseBelow: 150 };
 // The list's width as CSS: the saved width, which the list and its frame
 // follow whenever they aren't sliding.
 const LIST_WIDTH = paneValue("learn-list");
@@ -89,6 +89,7 @@ export function LearnShell({
   const listRef = useRef<HTMLDivElement>(null);
   const panelButtonRef = useRef<HTMLButtonElement>(null);
   const sidebar = usePaneSize("learn-list");
+  const editorFolded = usePaneSize("learn-split") === PANES["learn-split"].fold.at;
   const reopenAt = usePaneSize("learn-list-open");
   const collapsed = sidebar === 0;
 
@@ -250,6 +251,21 @@ export function LearnShell({
                 <SandboxStatus lang={compiler.slug} />
               </span>
               <CompilerButton lang={compiler.slug} langLabel={compiler.label} own={compiler.slug === lang} />
+              {/* Folds the editor away to read in the whole width, and opens
+                  it again, mirroring the lesson list's button: the part slides
+                  its border (components/learn/part-view.tsx). Only where the
+                  editor sits beside the lesson. CSS picks the icon from
+                  <html data-learn-editor-folded>, so the first paint is right. */}
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event(LEARN_EDITOR_TOGGLE))}
+                aria-label={editorFolded ? "Show the editor" : "Hide the editor"}
+                title={editorFolded ? "Show the editor" : "Hide the editor"}
+                className="-mr-1 hidden size-7 items-center justify-center rounded-btn text-ink-faint transition-colors hover:bg-raised hover:text-ink lg:inline-flex"
+              >
+                <PanelRightOpen className="learn-editor-folded-only size-4" aria-hidden />
+                <PanelRightClose className="learn-editor-open-only size-4" aria-hidden />
+              </button>
             </span>
           ) : (
             <CompilerButton lang={lang} langLabel={course.title} to="playground" className="shrink-0" />

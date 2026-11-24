@@ -373,7 +373,14 @@ before committing it.
 - **Learn never scrolls the page on desktop.** The lesson list and the lesson
   scroll inside their own panes under the header (`learn-shell.tsx` keeps a
   fixed height). The list docks at 1280px and up and is a drawer below, and
-  its border drags (all the way left folds it).
+  its border drags (all the way left folds it, and open it's 215px to 300px
+  wide, the drawer 300px). The editor folds away the
+  same way, for reading only: its border dragged well past the lesson's
+  widest (or End on it), or the bar's last button (PanelRight, mirroring the
+  list's PanelLeft), slides it off and leaves the lesson the whole width,
+  its column still centered, and a drag left or the button opens it again
+  at the width it had (`learn-split` and `learn-split-open` in
+  `lib/panes.ts`, saved and painted folded from the first frame).
 - **The compiler page's header scrolls away** with the page instead of
   covering it.
 - **The panel's buttons never close it** (only its X does): pressed while

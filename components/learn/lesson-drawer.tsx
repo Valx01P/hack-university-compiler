@@ -6,6 +6,9 @@ import { X } from "lucide-react";
 import { LessonList, type LearnCompiler } from "@/components/learn/lesson-list";
 import { EASE, dur, gsap } from "@/lib/motion";
 import type { Course, LessonRef } from "@/lib/learn-types";
+import { PANES } from "@/lib/panes";
+
+const DRAWER_WIDTH = `min(${PANES["learn-list"].max}px, calc(100vw - 3rem))`;
 
 /**
  * The lesson plan as a drawer, for screens too narrow to dock the sidebar
@@ -111,7 +114,10 @@ export function LessonDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={`${listProps.course.title} lessons`}
-        className="absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-3rem))] flex-col border-r border-line bg-surface shadow-(--shadow-card)"
+        // As wide as the docked list at its widest (lib/panes.ts), leaving a
+        // strip of the page to tap on a phone.
+        style={{ width: DRAWER_WIDTH }}
+        className="absolute inset-y-0 left-0 flex flex-col border-r border-line bg-surface shadow-(--shadow-card)"
       >
         <button
           type="button"
@@ -122,7 +128,7 @@ export function LessonDrawer({
         >
           <X className="size-4" aria-hidden />
         </button>
-        <LessonList {...listProps} onNavigate={onClose} />
+        <LessonList {...listProps} onNavigate={onClose} closeButton />
       </div>
     </div>,
     document.body

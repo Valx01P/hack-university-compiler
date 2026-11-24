@@ -39,6 +39,7 @@ export function LessonList({
   currentPart,
   courses,
   onNavigate,
+  closeButton = false,
 }: {
   /** The course: its routes and progress. */
   lang: string;
@@ -52,6 +53,9 @@ export function LessonList({
   /** Lessons in course order for every language that has a course. */
   courses: Record<string, LessonRef[]>;
   onNavigate?: () => void;
+  /** The drawer's close button sits over the header's top right, so the
+      course title wraps before it. */
+  closeButton?: boolean;
 }) {
   const { solved, loaded } = useSolvedState(lang);
   const lessons = course.sections.flatMap((s) => s.lessons);
@@ -96,7 +100,7 @@ export function LessonList({
   return (
     <nav aria-label={`${course.title} lessons`} className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 border-b border-line px-3 pb-3 pt-3">
-        <p className="eyebrow">{course.title}</p>
+        <p className={`eyebrow ${closeButton ? "pr-7" : ""}`}>{course.title}</p>
         <p className="mt-2 text-xs text-ink-muted">
           {done} of {lessons.length} lessons complete
         </p>
