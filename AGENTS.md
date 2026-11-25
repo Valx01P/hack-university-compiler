@@ -246,6 +246,12 @@ before committing it.
 - **Contrast levels** (Normal, High, Super) mean more intense colors
   everywhere, syntax included, in each theme's own hues: High is 7:1 or
   better on every token, Super more saturated still, nothing under 4.5:1.
+  The main text (`--ink`, and the code's `--code-ink`) steps at every level
+  too: softest at Normal (about 13:1 on Dark, for reading without glare),
+  then High, then Super's pure white (pure black on Light), never the same
+  at two levels, so lowering the level visibly dims the lesson text. The
+  raised buttons (`.btn-grad`: Run, Check, the confirm popups' buttons)
+  step the same way, Super's gradient being the default look.
   Pastel "high contrast" was rejected.
 - **Line sliders fade only lines,** never fills. Layout lines are the
   structure (the panel, the rail, sidebars and dividers, the editor and
