@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft, ChevronRight, CodeXml, SquareTerminal } from "lucide-react";
 import { LangIcon } from "@/components/compiler/lang-icon";
 import { CompleteIcon, PendingIcon } from "@/components/learn/complete-icon";
@@ -10,6 +10,7 @@ import { Collapse } from "@/components/ui/collapse";
 import { COURSES, courseRows, type CourseEntry } from "@/lib/courses";
 import { partHref, problemId, type Course, type LessonRef } from "@/lib/learn-types";
 import { useResumeHref, useSolvedState } from "@/lib/learn-progress";
+import { loadListScroll, saveListScroll } from "@/lib/learn-scroll";
 
 export function isLessonComplete(solved: Set<string>, id: string, problems: number) {
   if (problems === 0) return false;
@@ -91,8 +92,35 @@ export function LessonList({
     setBarAnimates(true);
   }, [loaded, barAnimates]);
 
-  // Keep where you are in view as you move through the course.
+  // The docked list comes back scrolled where you left it (lib/learn-scroll.ts),
+  // a reload included. The drawer opens on the lesson you're in instead.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const restoredScroll = useRef(false);
+  const scrollTimer = useRef(0);
+  useLayoutEffect(() => {
+    if (closeButton) return;
+    const y = loadListScroll(lang);
+    if (y !== null && scrollRef.current) {
+      scrollRef.current.scrollTop = y;
+      restoredScroll.current = true;
+    }
+  }, [closeButton, lang]);
+  useEffect(() => () => window.clearTimeout(scrollTimer.current), []);
+  const keepScroll = () => {
+    if (closeButton) return;
+    window.clearTimeout(scrollTimer.current);
+    scrollTimer.current = window.setTimeout(() => {
+      if (scrollRef.current) saveListScroll(lang, scrollRef.current.scrollTop);
+    }, 250);
+  };
+
+  // Keep where you are in view as you move through the course (not on the
+  // first render after a restored scroll, which is where you left it).
   useEffect(() => {
+    if (restoredScroll.current) {
+      restoredScroll.current = false;
+      return;
+    }
     currentRef.current?.scrollIntoView({ block: "nearest" });
   }, [currentId, currentPart]);
 
@@ -166,7 +194,7 @@ export function LessonList({
         )}
       </div>
 
-      <div className="slim-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+      <div ref={scrollRef} onScroll={keepScroll} className="slim-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         {course.sections.map((section) => (
           <div key={section.title} className="mt-3">
             <p className="eyebrow px-2 pb-1.5">{section.title}</p>

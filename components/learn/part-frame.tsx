@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { LessonMarkdown, type RunnableContext } from "@/components/learn/lesson-md";
 import { CompleteIcon } from "@/components/learn/complete-icon";
 import type { DiagramData } from "@/lib/diagram.mjs";
 import { partHref } from "@/lib/learn-types";
 import { writeHash } from "@/lib/url-state";
+import { PLACE_BLOCKS, loadPartPlace, savePartPlace, type PartPlace } from "@/lib/learn-scroll";
 
 /**
  * What every kind of part shares (components/learn/part-view.tsx and
@@ -193,19 +194,72 @@ export function PartNav({ prev, next, glow = 0 }: { prev: PartLink | null; next:
 }
 
 /**
- * Where you are in the part, kept in the address as its #fragment
- * (lib/url-state.ts): the block of `places` at the top of the view (the
- * lesson column scrolls on wide screens, the page below that). `trackPlace`
- * follows your scrolling (the page's scroll is followed for you, the
- * column's needs its onScroll). `goToPlace` goes back there after a reload,
- * which doesn't scroll the column to the #fragment (the browser restores its
- * old scroll instead).
+ * Where you are in the part. The address keeps the block of `places` at the
+ * top of the view as its #fragment (lib/url-state.ts), for a link to share,
+ * and this browser keeps exactly where you were reading (lib/learn-scroll.ts:
+ * the block at the top and how far into it), so a reload, or coming back to
+ * the part, opens on the same words. The lesson column scrolls on wide
+ * screens, the page below that. `trackPlace` follows your scrolling (the
+ * page's scroll is followed for you, the column's needs its onScroll).
+ * `goToPlace` goes back to the saved place, or to the #fragment when it
+ * points somewhere else (a link), since neither a reload nor the router
+ * scrolls the column there.
  */
 export function usePartPlace(places: string[], columnRef: RefObject<HTMLDivElement | null>) {
   const placeFrame = useRef(0);
   const lastPlace = useRef<string | null>(null);
+  const saveTimer = useRef(0);
+  // Set while a restore scrolls, so its own scroll events aren't yours.
+  const restoring = useRef(false);
+  const readerScrolled = useRef(false);
+
+  // What scrolls (the column, or the page under the header) and its top.
+  function view() {
+    const column = columnRef.current;
+    const inColumn = column !== null && getComputedStyle(column).overflowY === "auto";
+    return {
+      column,
+      inColumn,
+      top: inColumn && column ? column.getBoundingClientRect().top : 64,
+      y: inColumn && column ? column.scrollTop : window.scrollY,
+    };
+  }
+  // The block at the top of the view, and how far past its top you are.
+  function measure(): PartPlace | null {
+    const { column, top, y } = view();
+    const blocks = column?.querySelector("article")?.querySelectorAll(PLACE_BLOCKS);
+    if (!blocks) return null;
+    const h = window.location.hash.slice(1);
+    for (let i = 0; i < blocks.length; i++) {
+      const r = blocks[i].getBoundingClientRect();
+      if (r.height > 0 && r.bottom > top + 1) return { i, o: Math.round(top - r.top), y: Math.round(y), h };
+    }
+    return { i: -1, o: 0, y: Math.round(y), h };
+  }
+  function saveNow() {
+    window.clearTimeout(saveTimer.current);
+    saveTimer.current = 0;
+    savePartPlace(window.location.pathname, measure());
+  }
+  function applyPlace(place: PartPlace) {
+    const { column, inColumn, top } = view();
+    const el = place.i >= 0 ? column?.querySelector("article")?.querySelectorAll(PLACE_BLOCKS)[place.i] : undefined;
+    restoring.current = true;
+    if (el) {
+      const by = el.getBoundingClientRect().top + place.o - top;
+      if (inColumn && column) column.scrollTop += by;
+      else window.scrollTo(0, window.scrollY + by);
+    } else if (inColumn && column) column.scrollTop = place.y;
+    else window.scrollTo(0, place.y);
+    requestAnimationFrame(() => requestAnimationFrame(() => (restoring.current = false)));
+  }
 
   function trackPlace() {
+    if (!restoring.current) {
+      readerScrolled.current = true;
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = window.setTimeout(saveNow, 250);
+    }
     if (placeFrame.current) return;
     placeFrame.current = requestAnimationFrame(() => {
       placeFrame.current = 0;
@@ -233,17 +287,42 @@ export function usePartPlace(places: string[], columnRef: RefObject<HTMLDivEleme
   }
   useEffect(() => {
     window.addEventListener("scroll", trackPlace, { passive: true });
+    // A place still waiting to be saved goes now, when the page does.
+    const flush = () => saveTimer.current && saveNow();
+    window.addEventListener("pagehide", flush);
     return () => {
       window.removeEventListener("scroll", trackPlace);
+      window.removeEventListener("pagehide", flush);
       cancelAnimationFrame(placeFrame.current);
       placeFrame.current = 0;
     };
     // trackPlace only reads refs and the DOM.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Leaving the part saves a waiting place while its blocks are still there.
+  useLayoutEffect(
+    () => () => {
+      if (saveTimer.current) saveNow();
+    },
+    // saveNow only reads refs and the DOM.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
   function goToPlace() {
-    const place = window.location.hash.slice(1);
+    const hash = window.location.hash.slice(1);
+    const saved = loadPartPlace(window.location.pathname);
+    // Your saved place, unless the address points at another block (a link).
+    if (saved && (!places.includes(hash) || saved.h === hash)) {
+      applyPlace(saved);
+      // Fonts landing after this (KaTeX's, the code font) can move the
+      // words: put the place back once they have, unless you've scrolled.
+      document.fonts?.ready.then(() => {
+        if (!readerScrolled.current) applyPlace(saved);
+      });
+      return;
+    }
+    const place = hash;
     const target = places.includes(place) ? document.getElementById(place) : null;
     const column = columnRef.current;
     if (target && column && getComputedStyle(column).overflowY === "auto") {

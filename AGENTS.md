@@ -344,7 +344,13 @@ before committing it.
   config only sets list entries by number, never appends.
 - **A reload keeps your place:** the open panel, the challenge and its hints,
   list filters, the cheatsheet search and section, the SQL view, Learn's tab
-  and hints and position, and full screen are in the address. Every
+  and hints and position, and full screen are in the address. Learn also
+  keeps exactly where you were reading in each part (the block at the top
+  and how far into it, so a resized window lands on the same words) and how
+  far down the docked lesson list was, in this browser
+  (`lib/learn-scroll.ts`), and a part with a saved place stays hidden until
+  it's back there (the bootstrap), so a reload never shows the top and
+  jumps. A link to another block (#practice) still wins. Every
   draggable border's position (splits, pane sizes, the lesson list or the
   output folded or not) is saved where you leave it and applied before first
   paint (`lib/panes.ts`, read through `lib/pane-size.ts`, a fold marking
